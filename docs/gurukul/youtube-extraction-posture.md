@@ -153,6 +153,20 @@ table and knows which lever to pull without opening a log. The knobs are
 `MEDIA_EXTRACT_COOKIES_FILE`, `MEDIA_EXTRACT_PROXY` and
 `MEDIA_EXTRACT_PLAYER_CLIENTS`, all optional and all off by default.
 
+> **UPDATE 2026-08-26 (WS-AD, then WS-AI).** This paragraph used to say
+> "nothing here is measured". It is measured now, and the prediction below was
+> right. `/v1/extract` returns `extractor_bot_check` on all ten player clients
+> from the Azure egress, in 2 to 3 seconds, before any stream URL is issued;
+> `/v1/enumerate` WORKS from the same egress in the same second. A second
+> independent datacenter egress (GCP Ohio) reproduces the block, and the
+> free PO-token lever moves metadata on a warm IP and produces zero audio
+> bytes. The knobs listed above are now a proper ROUTE TABLE with one variable
+> and per-route named refusals: see
+> **`docs/gurukul/youtube-extraction-routes.md`**, which also carries the
+> costed recommendation. Measurements:
+> `context/measurements.md#youtube-extraction-blocked-from-azure` and
+> `context/measurements.md#po-token-helps-until-the-ip-is-burned`.
+
 **Nothing here is measured.** No extraction against real YouTube has been run
 from this deployment. The honest expectation is that the first live attempt
 from an Azure egress has a material chance of returning
@@ -206,3 +220,5 @@ All fetched 2026-08-26.
 | the studio | `src/studio/IngestChannelStudio.tsx` |
 | the proof | `evals/mediaextract.mjs` (36 checks, incl. the negative control) |
 | the decision | `context/decisions.md#youtube-extraction-in-house` |
+| **the route table (WS-AI)** | `api/_channel/extract-routes.js`, `evals/extractroutes.mjs` |
+| **the route choice, costed** | `docs/gurukul/youtube-extraction-routes.md` |

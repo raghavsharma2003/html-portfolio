@@ -2756,6 +2756,54 @@
       "kind": "component",
       "title": "api/replica-processing-sweep.js + _replica-processing/sweep.js + composition.js + native-tools.js + capability-codes.js: the caller that drains the eight-step audio DAG",
       "at": "2026-08-26"
+    },
+    {
+      "id": "processing-status-not-connected",
+      "kind": "open",
+      "title": "WS-AF's processing-status surface has labelled mount points on Feed and Meet and no backend",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "po-token-helps-until-the-ip-is-burned",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "bgutil PO-token provider: metadata 5/6 with vs 1/6 without (n=6 pairs, warm GCP IP); audio bytes 0/12; after ~40 requests the benefit vanished, 0/4 vs 0/4"
+    },
+    {
+      "id": "po-token-is-a-warm-ip-mitigation-not-a-route",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "the PO-token provider named as the reversal condition was tried; it moves metadata on a warm datacenter IP, returns no audio bytes, and stops helping once the IP is spent"
+    },
+    {
+      "id": "public-youtube-frontends-are-not-a-transcript-route",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "7 Invidious/Piped instances, timedtext, InnerTube x4 clients, youtube-transcript-api, watch-page scrape and cobalt all blocked or dead from a datacenter IP; only the sanctioned Data API answers"
+    },
+    {
+      "id": "residential-proxy-is-the-audio-route",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "recommend IPRoyal residential PAYG ($7.00/GB, $7 minimum, non-expiring) as the audio route at ~$0.077 per 15-min lecture; ship the seam, buy nothing without the owner"
+    },
+    {
+      "id": "extraction-route-seam",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "api/_channel/extract-routes.js - direct/pot/proxy/cookies/provider behind one env var, per-route named refusals that reach Activity, and a provenance echo the transport asserts"
+    },
+    {
+      "id": "transcript-half-and-audio-half-are-different-problems",
+      "kind": "constraint",
+      "at": "2026-08-26",
+      "title": "a YouTube video yields words and voice by different routes with different difficulty; readiness must report them separately or a working transcript route hides a blocked audio route"
+    },
+    {
+      "id": "no-audio-route-is-bought-yet",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "the recommended residential proxy needs the owner to buy a credential; until then MEDIA_EXTRACT_ROUTE resolves to direct, which is measured blocked"
     }
   ],
   "edges": [
@@ -5348,6 +5396,66 @@
       "src": "a-runner-nobody-runs",
       "rel": "caused_by",
       "dst": "aliveness-was-unreachable-not-meera-bound"
+    },
+    {
+      "src": "processing-status-not-connected",
+      "rel": "blocks",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "po-token-helps-until-the-ip-is-burned",
+      "rel": "measured_by",
+      "dst": "youtube-extraction-blocked-from-azure"
+    },
+    {
+      "src": "po-token-is-a-warm-ip-mitigation-not-a-route",
+      "rel": "supersedes",
+      "dst": "player-clients-do-not-beat-a-datacenter-ip"
+    },
+    {
+      "src": "po-token-is-a-warm-ip-mitigation-not-a-route",
+      "rel": "measured_by",
+      "dst": "po-token-helps-until-the-ip-is-burned"
+    },
+    {
+      "src": "public-youtube-frontends-are-not-a-transcript-route",
+      "rel": "measured_by",
+      "dst": "po-token-helps-until-the-ip-is-burned"
+    },
+    {
+      "src": "residential-proxy-is-the-audio-route",
+      "rel": "measured_by",
+      "dst": "po-token-helps-until-the-ip-is-burned"
+    },
+    {
+      "src": "residential-proxy-is-the-audio-route",
+      "rel": "part_of",
+      "dst": "youtube-extraction-in-house"
+    },
+    {
+      "src": "extraction-route-seam",
+      "rel": "part_of",
+      "dst": "media-extract-service"
+    },
+    {
+      "src": "extraction-route-seam",
+      "rel": "part_of",
+      "dst": "residential-proxy-is-the-audio-route"
+    },
+    {
+      "src": "transcript-half-and-audio-half-are-different-problems",
+      "rel": "part_of",
+      "dst": "extraction-route-seam"
+    },
+    {
+      "src": "no-audio-route-is-bought-yet",
+      "rel": "part_of",
+      "dst": "residential-proxy-is-the-audio-route"
+    },
+    {
+      "src": "extraction-success-from-datacenter-egress-unmeasured",
+      "rel": "measured_by",
+      "dst": "po-token-helps-until-the-ip-is-burned"
     }
   ]
 }

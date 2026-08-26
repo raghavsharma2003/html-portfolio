@@ -321,7 +321,13 @@ export default function ActivityPanel({
                 <span className="vy-activity__when">
                   {job.finished_at ? ago(job.finished_at) : ago(job.updated_at)}
                 </span>
-                {job.next_action.kind === "wait" || job.next_action.kind === "none" ? (
+                {/* `owner_setup` joins wait and none as TEXT, not a button.
+                    It names a deployment setting somebody has to change, and
+                    there is no op in this app that changes one, so a button
+                    here would be the same fake affordance this file already
+                    refuses for "check again". */}
+                {job.next_action.kind === "wait" || job.next_action.kind === "none"
+                  || job.next_action.kind === "owner_setup" ? (
                   job.next_action.label ? <span className="vy-activity__when">{job.next_action.label}</span> : null
                 ) : (
                   <button
