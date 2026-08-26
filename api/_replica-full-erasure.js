@@ -47,6 +47,11 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // and a deletion receipt that did not name them would understate what
       // was held. Additive; the eval asserts membership, never the exact list.
       "owner_context_locker",
+      // 058. Named as its own class rather than folded into replica_feedback:
+      // a Mirror Call holds the owner's own transcript and the habits mined
+      // from it, and a deletion receipt that could not say those were included
+      // would be answering a narrower question than the one asked.
+      "mirror_call_sessions",
     ]),
   });
 }
@@ -308,7 +313,7 @@ export async function completeReplicaErasure(db, lease, receipt) {
      channel_attestations as (delete from vy_channel_attestation x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 058's Context Locker (WS-AB). Same shape, same reason, and the text
-     -- table is the sharper case: `vy_context_item_text` holds the OWNER'S OWN
+     -- table is the sharper case: vy_context_item_text holds the OWNER'S OWN
      -- DOCUMENTS in full — a CV, a chat export, whatever they uploaded about
      -- themselves — so a row of it outliving the replica is the person's own
      -- writing standing in this database after the deletion receipt said the
@@ -318,6 +323,33 @@ export async function completeReplicaErasure(db, lease, receipt) {
      context_item_texts as (delete from vy_context_item_text x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      context_items as (delete from vy_context_item x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 059's Mirror Call. These five DO cascade from vy_replica (each carries a
+     -- composite FK to (replica_id, owner_user_id) ON DELETE CASCADE), so
+     -- relcheck's owner-lane reach walk is satisfied without a line here. They
+     -- are deleted by name ANYWAY, in this order, for one reason: the erasure
+     -- job is the documented owner of ordering, and a Mirror Call row is the
+     -- most intimate thing in this lane — a transcript of the person talking to
+     -- their own clone, plus the phrase habits mined out of it. Relying on a
+     -- cascade for that means relying on an FK nobody re-checks; the day
+     -- someone drops the composite constraint to add a column, the rows would
+     -- outlive the receipt that said they were gone and NOTHING would report
+     -- it. Two independent layers for a harm the next turn does not undo — the
+     -- house rule api/_teachersheet.js states in full.
+     --
+     -- The order is the FK order: the conditioning selection points at a
+     -- window, so it goes first.
+     mirror_conditioning as (delete from vy_mirror_conditioning x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     mirror_finetune as (delete from vy_mirror_finetune_job x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     mirror_deltas as (delete from vy_mirror_delta x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     mirror_feedback as (delete from vy_mirror_feedback x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     mirror_windows as (delete from vy_mirror_window x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     mirror_sessions as (delete from vy_mirror_session x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt

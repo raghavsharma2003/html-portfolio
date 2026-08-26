@@ -977,6 +977,49 @@ const suites = {
   // Offline, deterministic, $0, no DB and no network: the real fence, the real
   // warm-up module and the real handler on a virtual clock.
   voicepanel: "voicepanel.mjs",
+
+  // WS-X. The Mirror Call — the calibration call where a clone learns from its
+  // own human.
+  //
+  // Wired here on the `dead-writers` test, and it earns the slot on a sharper
+  // argument than most: this is the one lane in the product where a machine
+  // edits the persona of a REAL, NAMED, LIVING PERSON while they are on the
+  // phone with it, and every way it fails is silent.
+  //
+  //  - AN UNAPPROVED DELTA LANDS. The whole "never a silent self-update" law is
+  //    one SQL clause. The suite strikes that clause out of the SHIPPING
+  //    statement and FAILS unless the struck copy lets an already-rejected chip
+  //    write the sheet — with a positive control beside it, because "nothing
+  //    was written" is also true of a pipeline that never writes at all.
+  //  - THE LEARNING LOOP DROPS ITS INPUT AND LOOKS FINE. A dropped window is a
+  //    ROW, counted in an audio-weighted coverage ratio, and the arithmetic is
+  //    checked on a deliberately dropped 20 s window.
+  //  - THE VOICE LOOP LOOKS LIKE IT IS WORKING. Chatterbox truncates its
+  //    reference at 10 s, so a growing pool changes nothing; the suite asserts
+  //    that pool size and SELECTABLE candidates are different numbers, that an
+  //    equal-scoring candidate does not replace the standing selection, and
+  //    that the two fidelity meters cannot be collapsed into one.
+  //  - SOMEONE ELSE'S VOICE, OR THE CLONE'S OWN, GETS INTO THE POOL. Both are
+  //    negative controls: a clone-overlapping window and a foreign speaker each
+  //    fail admission, with the measured owner admitted beside them so the
+  //    refusals are not vacuous.
+  //  - A PHONE NUMBER SAID ALOUD REACHES A PROMPT. The PII scrub is asserted at
+  //    the store seam, on the stored bytes.
+  //
+  // It also checks the payload against the rules WS-Y's own client normalizer
+  // enforces (every chip carries a citation; `applied` is never true without
+  // `accepted`), so a shape the studio would throw on fails here instead of
+  // failing a live call.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity — `evals/sqlcast`'s
+  // strict surface covers the first and `scripts/relcheck.mjs` the second, and
+  // NEITHER has run against a real database for these tables.
+  //
+  // Renamed at merge: WS-Y's UI suite already owns `mirrorcall` above; this is
+  // WS-X's backend suite for the same feature, and the two gate different
+  // halves of the same wire contract.
+  mirrorcallapi: "mirrorcallapi.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

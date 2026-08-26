@@ -7,6 +7,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 
 Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
 Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
+Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
 
 ## What the product is
 
@@ -165,6 +166,26 @@ service response, not a claim.
   ref, which needs `biometric` consent, which `consentScopes` grants only
   through a live challenge. A score can be computed today; it cannot be stored
   or clear the activation gate without a human doing liveness.
+- **The Mirror Call backend** (WS-X, `api/mirror-call.js` + `_mirrorcall*.js`,
+  migration 058, `mirror-call/v1`): code-complete and gated offline
+  (`evals/mirrorcall.mjs`, 452 checks, wired into `evals/run.mjs`). NOTHING is
+  live. Migration 058 is UNAPPLIED and no statement in this lane has ever
+  executed against a database — the offline cover is `evals/sqlcast`'s strict
+  surface (types, statement shapes) and a DDL walk for erasure reach;
+  `scripts/relcheck.mjs` has not run. Three lanes inside it are deliberately
+  dark and say so on every response:
+  - the **voice loop** withholds every window with
+    `consent_scope_missing:training` (the modelling scope needs the liveness
+    challenge nobody has passed) and then, even with consent, with
+    `own_voice_unverified` — admission requires a MEASURED ECAPA cosine to an
+    enrolled profile and no scorer produces one yet. So the candidate pool is
+    empty, no conditioning window is ever selected, and the fine-tune queue
+    stays empty. All four states are named on the wire.
+  - the **clone's reply** is not built: `turn_voice` is listed under
+    `unserved_ops` and answers 501, every window returns `turn: null` with
+    `turn_absent_reason` (`mirror-call-turn-voice-is-declared-unserved`).
+  - the **conditioning score** is a server-side WAV probe, not ECAPA, and
+    `score_source` says so on every row and every payload.
 
 ## Open owner items
 
@@ -176,7 +197,8 @@ service response, not a claim.
    keys + management token, Azure SP secret, Google OAuth secret, and the two
    keys flagged in `session-2026-08-25b-close`.
 4. Azure GPU quota, if the deploy agent reports the subscription has none.
-5. Apply migration 055 and set `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
+5. Apply migrations 055 and **058** (the Mirror Call), and set
+   `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
    `openssl rand -base64 48`) — without it the embeddable widget is off.
 6. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`
    plus `AZURE_KEY_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` /

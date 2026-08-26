@@ -2263,3 +2263,186 @@ alter table vy_ingest_run drop constraint if exists vy_ingest_run_transcript_sou
 alter table vy_ingest_run drop constraint if exists vy_ingest_run_transcript_source_ck;
 alter table vy_ingest_run add constraint vy_ingest_run_transcript_source_ck
   check (transcript_source in ('asr','captions','upload','context_item'));
+-- ── migration 058 — the Mirror Call ───────────────────────────────────────
+--
+-- The calibration call where the clone learns from its own human, mirrored from
+-- db/migrations/058_mirror_call.sql (which carries the full argument).
+--
+-- TWO laws these tables make structural.
+--
+-- 1. NEVER A SILENT SELF-UPDATE. Mining writes ONLY to vy_mirror_delta in
+--    state 'proposed', and the single statement that can write a mined value
+--    onto a TeacherSheet (api/_mirrorcall-store.js::decideMirrorDelta) cannot
+--    fire unless that row is still UN-ACTIONED ('proposed' or 'deferred') AND
+--    the owner's decision is 'accepted'. `state` is the gate, not a status column, and
+--    `applied_at is null or state = 'accepted'` says so as a CHECK: a row that
+--    touched the sheet without a tap cannot exist.
+--
+-- 2. SELECTION, NOT ACCUMULATION (`mirror-learning-is-selection-not-
+--    accumulation`, 2026-08-26). Chatterbox's prepare_conditionals() truncates
+--    the reference to 10 s (S3Gen) / 6 s (T3) and generate() takes ONE
+--    audio_prompt_path, so a growing reference pool is mechanically inert.
+--    vy_mirror_window is therefore a CANDIDATE POOL and vy_mirror_conditioning
+--    is the SELECTION — at most one standing row per replica, which is what
+--    makes "what does the next turn condition on" a fact rather than a race.
+create table if not exists vy_mirror_session (
+  session_id uuid primary key default gen_random_uuid(),
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  state text not null default 'open' check (state in ('open','ended','aborted')),
+  policy_version text not null,
+  consent_scopes text[] not null default '{}'::text[],
+  reference_consent boolean not null default false,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  updated_at timestamptz not null default now(),
+  constraint vy_mirror_session_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade
+);
+create unique index if not exists vy_mirror_session_open_ix on vy_mirror_session (replica_id) where state = 'open';
+create index if not exists vy_mirror_session_owner_ix on vy_mirror_session (owner_user_id, replica_id, started_at desc);
+
+-- `asr_state = 'dropped'` is the load-bearing value: a dropped window is a ROW,
+-- kept and counted, never an absent one — an absent row is indistinguishable
+-- from a window nobody sent, which is the silent-learning-loop failure the spec
+-- forbids by name. duration_ms <= 30000 is Sarvam's synchronous cap, measured.
+-- `transcript` is PII-scrubbed before storage. `own_voice_state` is the
+-- owner-only admission predicate on the voice path, and 'unverified' FAILS
+-- admission by CHECK — the fail-closed direction, because the failures it
+-- guards are the clone's own output re-entering its conditioning pool and a
+-- non-consenting third party's voice entering a biometric one.
+create table if not exists vy_mirror_window (
+  window_id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  seq integer not null check (seq > 0),
+  source_id uuid references vy_replica_source(source_id) on delete set null,
+  duration_ms integer not null check (duration_ms > 0 and duration_ms <= 30000),
+  lane text not null default 'sync' check (lane in ('sync')),
+  asr_state text not null default 'pending' check (asr_state in ('pending','transcribed','dropped')),
+  failure_code text not null default '',
+  transcript text not null default '',
+  asr_provider text not null default '',
+  asr_model text not null default '',
+  reference_admitted boolean not null default false,
+  admission_reason text not null default '',
+  conditioning_ms integer not null default 0 check (conditioning_ms >= 0 and conditioning_ms <= 10000),
+  own_voice_state text not null default 'unverified' check (own_voice_state in ('owner_verified','clone_overlap','foreign_speaker','unverified')),
+  owner_similarity real check (owner_similarity is null or (owner_similarity >= -1 and owner_similarity <= 1)),
+  quality_score real check (quality_score is null or (quality_score >= 0 and quality_score <= 1)),
+  score_source text not null default '' check (score_source in ('','wav_probe','voice_evidence')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_mirror_window_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade,
+  constraint vy_mirror_window_dropped_reason check (asr_state <> 'dropped' or failure_code <> ''),
+  constraint vy_mirror_window_admission_reason check (admission_reason <> ''),
+  constraint vy_mirror_window_own_voice_gate check (not reference_admitted or own_voice_state = 'owner_verified'),
+  constraint vy_mirror_window_score_source check ((quality_score is null) = (score_source = ''))
+);
+create unique index if not exists vy_mirror_window_seq_ix on vy_mirror_window (session_id, seq);
+create index if not exists vy_mirror_window_session_ix on vy_mirror_window (session_id, created_at);
+create index if not exists vy_mirror_window_owner_ix on vy_mirror_window (owner_user_id, replica_id, created_at desc);
+create index if not exists vy_mirror_window_candidate_ix on vy_mirror_window (replica_id, owner_user_id, quality_score desc) where reference_admitted and quality_score is not null;
+
+-- THE CLONE'S VOICE CHANGES HERE AND NOWHERE ELSE. A new standing row means the
+-- next synthesised turn conditions on different audio; no new row means it does
+-- not, whatever else grew. Superseded rows are KEPT — the history of which ten
+-- seconds was chosen is the only way to attribute a fidelity change to a
+-- selection.
+create table if not exists vy_mirror_conditioning (
+  selection_id uuid primary key default gen_random_uuid(),
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  window_id uuid not null references vy_mirror_window(window_id) on delete cascade,
+  session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  score real not null check (score >= 0 and score <= 1),
+  conditioning_ms integer not null check (conditioning_ms > 0 and conditioning_ms <= 10000),
+  score_source text not null check (score_source in ('wav_probe','voice_evidence')),
+  selected_at timestamptz not null default now(),
+  superseded_at timestamptz,
+  constraint vy_mirror_conditioning_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade
+);
+create unique index if not exists vy_mirror_conditioning_standing_ix on vy_mirror_conditioning (replica_id) where superseded_at is null;
+create index if not exists vy_mirror_conditioning_history_ix on vy_mirror_conditioning (replica_id, selected_at desc);
+create index if not exists vy_mirror_conditioning_owner_ix on vy_mirror_conditioning (owner_user_id, replica_id, selected_at desc);
+
+-- target_field '' means ADVISORY: the chip records a measurement and writes no
+-- sheet field, ever. Only the two phrase-bank fields are writable, because
+-- every other mined ING field is a PROSE register bullet and a statistical pass
+-- writing prose into a prompt is `recited-prompt` exactly. `origin` keeps
+-- mined-from-behaviour and accepted-from-judgement in SEPARATE columns so the
+-- Mirror Call's sycophancy drift (the owner judging a clone of themselves) is
+-- measurable rather than silently averaged; a judgement may never write a field.
+-- `occurrences` / `corpus_tokens` are columns, not jsonb keys, so a studio
+-- cannot render a mined claim without the n behind it.
+create table if not exists vy_mirror_delta (
+  delta_id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  kind text not null check (kind in ('phrase_habit','slang_habit','filler_advisory','laughter_advisory','stretch_advisory','code_switch_advisory','feedback_note')),
+  origin text not null default 'mined' check (origin in ('mined','judgement')),
+  occurrences integer not null default 0 check (occurrences >= 0),
+  corpus_tokens integer not null default 0 check (corpus_tokens >= 0),
+  fragment text not null default '',
+  target_field text not null default '' check (target_field in ('','boardVerbalisms','exSlangRepeat')),
+  evidence jsonb not null default '{}'::jsonb,
+  citation jsonb not null default '{}'::jsonb,
+  cited_windows integer[] not null default '{}'::integer[],
+  state text not null default 'proposed' check (state in ('proposed','deferred','accepted','rejected')),
+  applied_at timestamptz,
+  decided_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_mirror_delta_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade,
+  constraint vy_mirror_delta_cited check (target_field = '' or cardinality(cited_windows) >= 1),
+  constraint vy_mirror_delta_fragment_shape check (target_field = '' or (fragment <> '' and fragment !~ '[.!?]' and length(fragment) <= 64)),
+  constraint vy_mirror_delta_applied_gate check (applied_at is null or state = 'accepted'),
+  constraint vy_mirror_delta_origin_evidence check (origin <> 'mined' or (occurrences >= 1 and corpus_tokens >= 1)),
+  constraint vy_mirror_delta_judgement_advisory check (origin <> 'judgement' or target_field = '')
+);
+create unique index if not exists vy_mirror_delta_habit_ix on vy_mirror_delta (session_id, kind, fragment);
+create index if not exists vy_mirror_delta_open_ix on vy_mirror_delta (session_id, state, created_at);
+create index if not exists vy_mirror_delta_owner_ix on vy_mirror_delta (owner_user_id, replica_id, created_at desc);
+
+-- Explicit owner feedback, bound to the clone turn it judged. rephrase_text is
+-- EVIDENCE and deliberately not a delta target: a whole sentence the owner
+-- typed is the most recitable thing that could enter a prompt.
+create table if not exists vy_mirror_feedback (
+  feedback_id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  turn_ref text not null check (turn_ref <> '' and length(turn_ref) <= 128),
+  verdict text not null check (verdict in ('up','down','rephrase')),
+  rephrase_text text not null default '' check (length(rephrase_text) <= 2000),
+  created_at timestamptz not null default now(),
+  constraint vy_mirror_feedback_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade,
+  constraint vy_mirror_feedback_rephrase_present check (verdict <> 'rephrase' or rephrase_text <> '')
+);
+create unique index if not exists vy_mirror_feedback_turn_ix on vy_mirror_feedback (session_id, turn_ref);
+create index if not exists vy_mirror_feedback_owner_ix on vy_mirror_feedback (owner_user_id, replica_id, created_at desc);
+
+-- A QUEUE ROW, NOT A RUN. No lease columns, no attempt counter, and no worker
+-- anywhere in this repo. That absence is the honest statement: a fine-tune
+-- takes GPU-minutes and a row that implied otherwise would be a fake progress
+-- bar. Inserted only when the session actually admitted candidate audio.
+-- `lane` is a ONE-VALUE enum on purpose: sequential per-speaker fine-tuning on
+-- a shared base collapses a multi-speaker TTS toward the newest speaker, and
+-- the remedy the literature names is one adapter per expert composed at load.
+-- A shared-base job cannot be enqueued because there is no value for it.
+create table if not exists vy_mirror_finetune_job (
+  job_id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  state text not null default 'queued' check (state in ('queued','cancelled')),
+  lane text not null default 'per_expert_adapter' check (lane in ('per_expert_adapter')),
+  reference_windows integer not null default 0 check (reference_windows >= 0),
+  reference_ms integer not null default 0 check (reference_ms >= 0),
+  requested_at timestamptz not null default now(),
+  constraint vy_mirror_finetune_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade
+);
+create unique index if not exists vy_mirror_finetune_session_ix on vy_mirror_finetune_job (session_id);
+create index if not exists vy_mirror_finetune_queue_ix on vy_mirror_finetune_job (state, requested_at) where state = 'queued';
+create index if not exists vy_mirror_finetune_owner_ix on vy_mirror_finetune_job (owner_user_id, replica_id, requested_at desc);

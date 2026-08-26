@@ -3021,3 +3021,120 @@ name them would understate what was held.
 the wrong mechanism for a lane whose rows point at things Postgres cannot
 delete. Read which gate actually covers the table before adding it to the one
 whose name sounds right.
+
+## `mirror-reference-accumulation-was-inert` — the spec's voice loop, built as written, would have changed nothing (2026-08-26, WS-X)
+
+**What was built.** `MIRROR-CALL-SPEC.md` §Voice loop, literally: consented call
+audio accumulates into the replica's reference set, `voice-evidence` re-embeds
+the grown set, the next clone turn synthesises off the enriched reference. The
+first cut of migration 058 modelled exactly that — `vy_mirror_window` with
+`reference_admitted`, a growth arithmetic returning `total_windows` /
+`total_ms`, and a re-embedding trigger at call end.
+
+**What broke.** Nothing, visibly. That is the entry. WS-Z's sweep read
+Chatterbox's own source and found `prepare_conditionals()` slices the reference
+twice before the model sees it — `DEC_COND_LEN = 10 * S3GEN_SR` (10 s for
+S3Gen) and `ENC_COND_LEN = 6 * S3_SR` (6 s for the T3 speech prompt) — and
+`generate()` takes exactly one `audio_prompt_path`. Turn 40 of a Mirror Call
+conditions on at most ten seconds, exactly as turn 2 did. Growing the pool from
+71 s to twenty minutes changes nothing.
+
+The pipeline would have run, returned rising numbers, and been wrong: this is
+`plausible-return-hides-a-dead-pipeline` with a fidelity meter attached, and it
+is worse than the usual case because the meter WOULD have moved —
+`voice-evidence`'s ECAPA estimate really does consume the whole pool, so the
+measurement improves while synthesis cannot. A single meter climbing beside a
+clone that cannot have changed is the `disclosure-announces-the-clone` family:
+a surface stating something the mechanism does not support.
+
+**What it was replaced with.** `mirror-learning-is-selection-not-accumulation`.
+`vy_mirror_window` is a CANDIDATE POOL with a `quality_score`;
+`vy_mirror_conditioning` is the SELECTION, one standing row per replica by
+partial unique index. The candidate arithmetic reports
+`selectable_candidates` beside `total_windows` and states
+`pool_growth_is_not_improvement` on the wire, and the fidelity block emits two
+labelled numbers with no combined figure for a UI to reach for. A selection is
+replaced only by a STRICTLY better candidate, because a voice that moves
+between two equally good ten-second windows moves for no reason.
+
+**The generalisable rule**, and it is the expensive half: *a pipeline whose
+inputs grow is not a pipeline that learns.* Before building anything that
+accumulates, read the consumer's truncation. Ours was four constants in a file
+we already vendor.
+
+## `mirror-call-nul-in-a-template-literal` — an edit that inserted an invisible byte, and the one gate that could see it (2026-08-26, WS-X)
+
+**What was tried.** An ordinary edit to `api/_mirrorcall.js` writing
+``const key = `${kind} ${fragment}`;`` — the de-duplication key that stops a
+mined chip being proposed twice in one call.
+
+**What broke.** The space between the two interpolations was written as a NUL
+byte (U+0000), not a space. Everything still ran: the module imported, the mine
+returned deltas, `node -c` had nothing to say, `tsc` does not read `api/`, and
+the file rendered identically in every view. The only symptom was that
+re-mining a transcript whose chips were all already known proposed all of them
+again — because the key built from the DB rows used a real space and the key
+built in the mine used a NUL, so `seen.has(key)` was false forever.
+
+In production that is a chip rail that duplicates every habit on every window,
+and it is a defect nobody would have attributed to whitespace. `grep` had been
+calling the file "binary file matches" for an hour and that was the only clue
+anywhere.
+
+**What caught it.** The incremental-mining assertion in `evals/mirrorcall.mjs`
+§1 — "re-mining the same transcript with every chip known proposes nothing new"
+— which exists because incremental proposal is a CLAIM and a claim needs a
+control. Nothing else in the tree could have.
+
+**The rule.** A determinism/idempotence assertion is not test padding; it is the
+only instrument that can see an invisible character. And when `grep` says
+"binary file matches" on a source file, that is a finding, not noise —
+`python3` over the bytes is one command.
+
+## `mirror-fake-db-matched-a-session-instead-of-a-decision` — the table-name router defect, one level down (2026-08-26, WS-X)
+
+**What was tried.** `evals/mirrorcall.mjs`'s fake database routes on STATEMENT
+SHAPE rather than table name, exactly as `router-matched-a-table-instead-of-a-statement`
+requires. The branches were ordered as written.
+
+**What broke.** The nine-CTE `decideMirrorDelta` statement — the ONE write, the
+thing the whole negative control exists to test — was answered by the
+`getMirrorSession` branch, because that branch's discriminators
+(`from vy_mirror_session s`, `s.session_id = $3::uuid`, `limit 1`) all appear
+inside the bigger statement too. The fake returned a plausible SESSION row, the
+store read `rows[0]` and reported a decision that never happened, and ten
+assertions failed in a way that looked like a store bug.
+
+The same defect a second time and one level down: it is not enough for a mock to
+match a STATEMENT rather than a table — the matcher has to be tested in an order
+where the most SPECIFIC phrase wins, because a large statement contains the
+discriminators of every small statement it joins.
+
+**What it was replaced with.** The write's branch is matched FIRST, with the
+reason written above it, and the fake throws on any statement it does not
+recognise so an unmatched statement is never an empty answer.
+
+**The rule.** Statement-shape routing needs an ORDER, and the order is
+most-specific-first. A mock that over-returns hides real defects while every
+assertion stays green — and a mock that returns a plausible row of the WRONG
+SHAPE is worse, because the failure surfaces far from its cause.
+
+## `mirror-corpus-count-matched-the-baseline-count` — the same ordering defect, in the same file, an hour later (2026-08-26, WS-X)
+
+**What was tried.** `mirrorCorpusTokens` — the cross-call owner word counter
+that makes a chip from call ten legitimately more confident than one from call
+one — reads `select coalesce(sum(array_length(regexp_split_to_array(...)))) ...,
+count(*)::int as windows`.
+
+**What broke.** The fake's `count(*)::int as windows` branch (the candidate-pool
+baseline) was tested first and answered it, so every mined chip got
+`corpus_tokens = 0` and tripped the `origin <> 'mined' or (occurrences >= 1 and
+corpus_tokens >= 1)` CHECK. The CHECK caught it, which is the system working —
+but the DEFECT was in the harness, not the code, and the first reading was the
+opposite.
+
+Recorded separately from the entry above because the interesting part is that it
+happened AGAIN, in the same file, after the lesson had just been learned and
+written down. Two statements sharing a column alias is enough. The durable fix
+is not vigilance: it is that an unmatched statement THROWS, so the failure is
+always loud, plus most-specific-first ordering as a habit.
