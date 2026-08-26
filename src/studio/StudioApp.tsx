@@ -41,6 +41,7 @@ import ModelConsentGate from "./ModelConsentGate";
 import VoicePreviewLab from "./VoicePreviewLab";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
+import IngestChannelStudio from "./IngestChannelStudio";
 import DisclosurePreview from "./DisclosurePreview";
 import QuickStartPath from "./QuickStartPath";
 import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
@@ -665,6 +666,19 @@ function ReplicaWorkspace({
                 token={accessToken}
                 replicaId={replica.replica_id}
                 sheetDraft={DEMO_TEACHER}
+                onAuthError={onReviewAuthError}
+              />
+              {/* WS-S. Placed with the sheet rather than with Channels below:
+                  this is where the clone's MATERIAL comes from, and the sheet
+                  is what that material fills in. ChannelsStudio, further down,
+                  is the opposite direction — where the finished clone can be
+                  reached. Two surfaces that both say "channel"; keeping them
+                  visually apart is the cheapest way to stop them being
+                  confused. */}
+              <IngestChannelStudio
+                key={`ingest-${replica.replica_id}`}
+                token={accessToken}
+                replicaId={replica.replica_id}
                 onAuthError={onReviewAuthError}
               />
               <DisclosurePreview sheet={DEMO_TEACHER} />
