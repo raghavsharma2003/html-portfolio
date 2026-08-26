@@ -33,6 +33,8 @@ from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
+import lora
+
 
 PROTOCOL = "vyakti-open-voice/v1"
 MODEL_NAME = "chatterbox-multilingual-v3"
@@ -51,7 +53,14 @@ SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 MAX_CLOCK_SKEW_SECONDS = 60
 MAX_REQUEST_BYTES = 32 * 1024 * 1024
 MAX_REFERENCE_BYTES = 20 * 1024 * 1024
+# Same cap as the reference audio, deliberately. An r=16 adapter over the 120
+# T3 attention projections is 3.93 M fp32 parameters = 15.8 MB, so 8 MB was a
+# guess that the first real adapter immediately exceeded. MAX_REQUEST_BYTES
+# still binds the TOTAL (reference + adapter + base64 inflation), which is the
+# limit that actually protects the service; this one bounds a single field.
+MAX_ADAPTER_BYTES = 20 * 1024 * 1024
 MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+ADAPTER_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,63}$")
 TARGET_SAMPLE_RATE = 24_000
 
 
@@ -170,6 +179,40 @@ def _reference(payload: dict[str, Any]) -> tuple[bytes, str, int]:
     return audio, digest, duration_ms
 
 
+def _adapter(payload: dict[str, Any]) -> tuple[bytes | None, str | None, str | None]:
+    """The optional per-speaker LoRA, carried inline and content-addressed.
+
+    Inline rather than fetched from a store, for the same reason the reference
+    audio is inline: the runtime stays stateless, holds no credential for any
+    other system, and every byte that shapes the output is covered by the SAME
+    request HMAC that already admits the call. A store would add a second trust
+    path into the one service that is deliberately unreachable from the public
+    internet.
+
+    Absent `adapter_*` fields the request is byte-for-byte what it was before
+    adapters existed, and takes the identical code path.
+    """
+    if not any(key.startswith("adapter_") for key in payload):
+        return None, None, None
+    adapter_id = str(payload.get("adapter_id", ""))
+    if not ADAPTER_ID_RE.fullmatch(adapter_id):
+        raise ServiceError("adapter_id_invalid", 422)
+    digest = str(payload.get("adapter_sha256", ""))
+    if not SHA_RE.fullmatch(digest):
+        raise ServiceError("adapter_digest_invalid", 422)
+    try:
+        blob = base64.b64decode(payload.get("adapter_base64", ""), validate=True)
+    except Exception as exc:
+        raise ServiceError("adapter_blob_invalid", 422) from exc
+    if not blob or len(blob) > MAX_ADAPTER_BYTES or _sha(blob) != digest:
+        raise ServiceError("adapter_blob_invalid", 422)
+    try:
+        lora.parse(blob)
+    except lora.AdapterError as exc:
+        raise ServiceError(exc.code, 422) from exc
+    return blob, digest, adapter_id
+
+
 def _request(payload: dict[str, Any]) -> dict[str, Any]:
     request_id = str(payload.get("request_id", ""))
     if not UUID_RE.fullmatch(request_id):
@@ -184,8 +227,12 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0 or seed > 2**31 - 1:
         raise ServiceError("seed_invalid", 422)
     audio, reference_sha256, reference_duration_ms = _reference(payload)
+    adapter_blob, adapter_sha256, adapter_id = _adapter(payload)
     return {
         "request_id": str(uuid.UUID(request_id)),
+        "adapter_blob": adapter_blob,
+        "adapter_sha256": adapter_sha256,
+        "adapter_id": adapter_id,
         "text": text,
         "language_id": language,
         "seed": seed,
@@ -220,25 +267,56 @@ def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
     np.random.seed(value["seed"])
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(value["seed"])
-    with tempfile.NamedTemporaryFile(suffix=".wav") as reference:
-        reference.write(value["reference_audio"])
-        reference.flush()
-        with torch.inference_mode():
-            waveform = app.state.model.generate(
-                value["text"],
-                language_id=value["language_id"],
-                audio_prompt_path=reference.name,
-                exaggeration=value["exaggeration"],
-                cfg_weight=value["cfg_weight"],
-                temperature=value["temperature"],
-            )
+    # The per-speaker adapter is applied around ONE generate() and removed in a
+    # finally. The model object is shared across requests behind `gpu_lock`, so
+    # a leaked adapter would silently colour the NEXT caller's voice — the worst
+    # possible failure in a replica lane, because the audio still sounds fine.
+    handle = None
+    try:
+        if value["adapter_blob"] is not None:
+            try:
+                handle = lora.load(app.state.model.t3, value["adapter_blob"])
+            except lora.AdapterError as exc:
+                raise ServiceError(exc.code, 422) from exc
+        with tempfile.NamedTemporaryFile(suffix=".wav") as reference:
+            reference.write(value["reference_audio"])
+            reference.flush()
+            with torch.inference_mode():
+                waveform = app.state.model.generate(
+                    value["text"],
+                    language_id=value["language_id"],
+                    audio_prompt_path=reference.name,
+                    exaggeration=value["exaggeration"],
+                    cfg_weight=value["cfg_weight"],
+                    temperature=value["temperature"],
+                )
+    finally:
+        if handle is not None:
+            handle.remove()
+            # `T3.inference` memoises a `T3HuggingfaceBackend`. It holds `tfmr`
+            # itself, not the projection children this swaps, so it would in
+            # fact follow the removal — but that is a property of a third-party
+            # class we pin by commit, not a promise it makes. Dropping the cache
+            # costs one cheap re-wrap and removes the question entirely.
+            app.state.model.t3.compiled = False
+            app.state.model.t3.patched_model = None
     pcm, duration_ms = _pcm(waveform, int(app.state.model.sr))
     samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
     detected = float(app.state.perth.get_watermark(samples, sample_rate=TARGET_SAMPLE_RATE))
     if not math.isfinite(detected) or detected < app.state.perth_threshold:
         raise ServiceError("perth_watermark_verification_failed", 503)
     elapsed_ms = max(1, round((time.perf_counter() - started) * 1000))
+    # `adapter_*` appear only when an adapter was actually used, and
+    # `synthesis_commitment` collapses to `model_commitment` without one — so a
+    # zero-shot receipt carries the same commitment value it always did, and
+    # every existing binding check in the app plane still passes unchanged.
+    adapter_fields = {} if value["adapter_sha256"] is None else {
+        "adapter_id": value["adapter_id"],
+        "adapter_sha256": value["adapter_sha256"],
+    }
     return {
+        **adapter_fields,
+        "synthesis_commitment": lora.synthesis_commitment(MODEL_COMMITMENT, value["adapter_sha256"]),
         "request_id": value["request_id"],
         "audio_base64": base64.b64encode(pcm).decode(),
         "output_sha256": _sha(pcm),

@@ -23,6 +23,7 @@ RUN python -m pip install --requirement requirements.txt \
 
 COPY fetch_models.py ./fetch_models.py
 RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python fetch_models.py
+COPY lora.py ./lora.py
 COPY app.py ./app.py
 RUN chown -R voice:openvoice /srv/open-voice /models
 
