@@ -149,7 +149,15 @@ export default {
     { id: "A-7", cls: "multi-hop", q: "rohit se baat hui", expect: ["rohit", "zenith"], forbid: [], note: "the edge rohit->zenith must travel with the row" },
     { id: "A-8", cls: "multi-hop", q: "papa kaise hai", expect: ["papa", "mummy thyroid"], forbid: [], note: "edge papa->mummy thyroid" },
     { id: "A-9", cls: "multi-hop", q: "us chess wali shaam me aur kya hua tha", expect: ["kandha", "adrak chai"], forbid: [], note: "co-citation hop off the activity seed; no shared words" },
-    { id: "A-10", cls: "temporal", q: "meghna ki shaadi kab hai", expect: ["meghna shaadi"], forbid: [], stale: true, note: "a december plan recalled in august must carry the stale hedge" },
+    // `stale` was `true` here and was WRONG — this is a December wedding asked
+    // about in AUGUST OF THE SAME YEAR, four months before it happens. It read
+    // as correct only because `staleNote` keyed on row age, so a March-written
+    // row was hedged as already-past whatever its own date said. Bi-temporal
+    // fact edges (WS-O, migration 056) made the row's own December horizon the
+    // decider; run.mjs §3 [A-10] now gates the ahead direction, [A-10b] gates
+    // the row-age fallback, and [A-14] gates the month-prefix parser bug this
+    // same row exposed.
+    { id: "A-10", cls: "temporal", q: "meghna ki shaadi kab hai", expect: ["meghna shaadi"], forbid: [], stale: false, note: "a december plan recalled in august is AHEAD — it must NOT carry the stale hedge" },
     { id: "A-11", cls: "temporal", q: "kab bataya tha maine zenith ke baare me", expect: ["zenith"], forbid: [], provenance: true, note: "the row must arrive with an age on it" },
     { id: "A-12", cls: "activity", q: "chess me kya hua tha", expect: ["chess together on 10 aug", "chess together on 11 aug"], forbid: [] },
     { id: "A-13", cls: "watch", q: "us din jo trailer dekha tha", expect: ["a film trailer"], forbid: [] },

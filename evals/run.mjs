@@ -244,6 +244,24 @@ const suites = {
   // every score is a lower bound and no number from it is written to
   // measurements.md. Offline, deterministic, $0, no DB, no network, ~1s.
   recallbench: "recallbench/run.mjs",
+  // WS-O (ROADMAP-100X item 4). BI-TEMPORAL FACT EDGES: the fact's own
+  // validity interval (migration 056), the deriver over timeline.ts's real
+  // date table, and the two consumers that replace a row-age guess with a
+  // comparison — `staleNote`'s staleness and consolidation's contradiction
+  // rule.
+  //
+  // It is a GATE and not a report because the property it protects is silent
+  // in both directions. A lost fix reintroduces `stale-note-keys-on-row-age`:
+  // she asks how a November exam went, in August, in a fluent sentence that
+  // nothing about the output marks as wrong. A deriver that gets LOOSE is
+  // worse and equally silent: it asserts a specific horizon where the old rule
+  // merely shrugged, so §3's negatives outnumber §2's positives.
+  //
+  // Carries the defect itself as a fixture (dyad-b's `neet pg`, verbatim), the
+  // one-parser assertion that fails if somebody inlines a regex into
+  // validity.ts, and the absent-is-byte-identical property that lets 056 land
+  // with no backfill. Offline, deterministic, $0, no DB, no clock, ~1s.
+  validity: "validity.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of

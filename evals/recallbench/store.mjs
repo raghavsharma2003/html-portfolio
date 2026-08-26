@@ -42,6 +42,7 @@ export function loadFixture(f) {
   FIXTURE = f;
   unrouted.length = 0;
   routedCounts.clear();
+  deriveFixtureValidity(f);
 }
 export function unroutedQueries() {
   return unrouted.slice();
@@ -112,17 +113,72 @@ function rankOf(n, now) {
   return (n.salience ?? 1) * recency * (1 + 0.35 * Math.log(1 + (n.mentions ?? 0))) * spaced;
 }
 
-const NODE_COLS = (n) => ({
-  id: n.id,
-  name: n.name,
-  kind: n.kind,
-  summary: n.summary,
-  feel: n.feel ?? null,
-  updated_at: n.updated_at,
-  created_at: n.created_at,
-  mentions: n.mentions ?? 0,
-  last_recalled: n.last_recalled ?? null,
-});
+// ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ────────────────────────
+//
+// The fixture files author STORE STATE, not conversation, so a row's
+// valid_from/valid_to are whatever the WRITER would have put there. Rather
+// than hand-typing two timestamps per row — which would make the fixture the
+// authority on what "november" means, and would keep passing after the deriver
+// broke — the store derives them here with the REAL deriver
+// (src/engine/validity.ts, via api/_engine.gen.js), anchored on the row's own
+// `created_at`, which is exactly what api/memory.js's node writer does with
+// `Date.now()` on the turn the thing was said.
+//
+// A fixture may still pin `valid_from`/`valid_to` explicitly and that wins —
+// the escape hatch for a row whose stored interval is the thing under test.
+//
+// If the bundle is missing, every row derives null and this harness behaves
+// exactly as it did before 056, which is also what the product does.
+// Top-level await: `loadFixture` is synchronous and is called from eight
+// places, so the module is resolved once here rather than turning every call
+// site async for a 300 KB import that never changes between fixtures.
+const _vmod = await import("../../api/_engine.gen.js")
+  .then((m) => (typeof m?.deriveFactValidity === "function" ? m : null))
+  .catch(() => null);
+
+/** Derived once per loadFixture, keyed by node id. */
+let DERIVED = new Map();
+
+export function deriveFixtureValidity(fixture) {
+  DERIVED = new Map();
+  const m = _vmod;
+  if (!m) return DERIVED;
+  for (const n of fixture.nodes || []) {
+    if (n.valid_from !== undefined || n.valid_to !== undefined) continue;
+    const saidAt = Date.parse(n.created_at);
+    if (!Number.isFinite(saidAt)) continue;
+    try {
+      const v = m.deriveFactValidity({ id: String(n.id), name: n.name, kind: n.kind, summary: n.summary, saidAt });
+      if (v) DERIVED.set(n.id, v);
+    } catch {
+      /* an unreadable date is a null column, never a lost row */
+    }
+  }
+  return DERIVED;
+}
+
+const NODE_COLS = (n) => {
+  const d = DERIVED.get(n.id);
+  return {
+    id: n.id,
+    name: n.name,
+    kind: n.kind,
+    summary: n.summary,
+    feel: n.feel ?? null,
+    updated_at: n.updated_at,
+    created_at: n.created_at,
+    mentions: n.mentions ?? 0,
+    last_recalled: n.last_recalled ?? null,
+    valid_from:
+      n.valid_from !== undefined ? n.valid_from : d ? new Date(d.validFrom).toISOString() : null,
+    valid_to:
+      n.valid_to !== undefined
+        ? n.valid_to
+        : d && d.validTo != null
+          ? new Date(d.validTo).toISOString()
+          : null,
+  };
+};
 
 const FACT_COLS = (f) => ({
   id: f.id,

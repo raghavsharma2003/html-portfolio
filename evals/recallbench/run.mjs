@@ -299,15 +299,46 @@ console.log("\n§3 the specific behaviours the classes are named for");
 // ═════════════════════════════════════════════════════════════════════════
 {
   loadFixture(DYADS[0]);
-  // TEMPORAL: a december plan recalled in august must arrive hedged. This is
-  // `staleNote` in api/memory.js, and it is the difference between "shaadi
-  // december me hai" and "us december wali shaadi ho gayi na?".
-  const stale = await recall(DYADS[0], "meghna ki shaadi kab hai");
+  // ── TEMPORAL: the hedge, in BOTH directions ────────────────────────────
+  //
+  // WHAT THIS ASSERTION USED TO SAY, AND WHY IT WAS WRONG. It read "a
+  // past-dated plan carries the stale hedge" and passed on dyad-a's December
+  // wedding — recalled in AUGUST of the same year, i.e. four months BEFORE it
+  // happens. It passed because `staleNote` keyed on ROW AGE, so a row written
+  // in March was hedged as already-past whatever its own date said. The
+  // benchmark had the defect it went on to discover baked into its own
+  // expectation: the hedge fired, so the assertion was green, and the thing
+  // being asserted was the bug.
+  //
+  // That is the shape `gates-that-live-nowhere` warns about from the other
+  // side — not a gate that runs nothing, but a gate that pins the wrong
+  // behaviour and would have failed the fix. Bi-temporal fact edges
+  // (ROADMAP-100X item 4, migration 056) close it, so the expectation flips
+  // and the OTHER direction becomes an assertion rather than an assumption.
+  //
+  // The hedge is the difference between "shaadi december me hai" and "us
+  // december wali shaadi ho gayi na?", and getting it backwards is worse than
+  // not hedging at all: she congratulates someone on a wedding that has not
+  // happened, fluently, with nothing in the output marking it as wrong.
+  const ahead = await recall(DYADS[0], "meghna ki shaadi kab hai");
   ok(
-    "[A-10] a past-dated plan carries the stale hedge",
-    stale.includes("already happened"),
-    stale.slice(0, 200),
+    "[A-10] a plan whose own date is still AHEAD is NOT hedged as past",
+    !ahead.includes("already happened"),
+    ahead.slice(0, 260),
   );
+  // The row-age FALLBACK, still live and still gated: `case presentation` is
+  // four months old, kind `event`, and carries no date any parser can resolve.
+  // Absent validity must behave exactly as it did before 056 — that property
+  // is what lets the migration land with no backfill, and it is silent when it
+  // breaks.
+  loadFixture(DYADS[1]);
+  const fallback = await recall(DYADS[1], "case presentation wala kya hua tha");
+  ok(
+    "[A-10b] an OLD, UNDATED, time-shaped row still gets the row-age hedge",
+    fallback.includes("already happened"),
+    fallback.slice(0, 260),
+  );
+  loadFixture(DYADS[0]);
   // PROVENANCE: the age travels with the row, or "kab bataya tha maine" is
   // unanswerable from a row the function already had in hand (P1-6).
   const prov = await recall(DYADS[0], "kab bataya tha maine zenith ke baare me");
@@ -367,30 +398,67 @@ console.log("\n§3b KNOWN RETRIEVAL GAPS — measured, deliberately NOT gated");
     console.log(`      why:    ${g.why}`);
   }
 
-  // ── A DEFECT THIS BENCHMARK FOUND ON ITS FIRST RUN ────────────────────
+  // ── A DEFECT THIS BENCHMARK FOUND ON ITS FIRST RUN — NOW CLOSED ───────
   //
-  // `staleNote` in api/memory.js hedges a plan with "whatever was ahead in
-  // this has already happened" when the ROW is more than 45 days old and its
-  // kind is plan/event or its summary looks time-bound. It keys on the AGE OF
-  // THE ROW, not on the date INSIDE the fact — so a plan told 67 days ago
-  // about something that is still two months in the FUTURE is handed to her
-  // pre-hedged as past. dyad-b's `neet pg` (a november exam, recorded in June)
-  // is that case exactly.
+  // WHAT IT WAS. `staleNote` in api/memory.js hedges a plan with "whatever was
+  // ahead in this has already happened" when the ROW is more than 45 days old
+  // and its kind is plan/event or its summary looks time-bound. It keyed on
+  // the AGE OF THE ROW, never on the date INSIDE the fact — so a plan told 67
+  // days ago about something still two months in the FUTURE was handed to her
+  // pre-hedged as past. dyad-b's `neet pg` (a November exam, recorded in June)
+  // is that case exactly, and it is the fixture the finding was filed against.
   //
-  // It is REPORTED, not gated and not fixed here: api/memory.js's recall
-  // semantics are WS-RECALL's, changing the predicate would move what every
-  // existing turn recalls, and "the row is old" is a genuinely useful signal
-  // that a better rule would keep. The right fix needs the fact's own dates,
-  // which is ROADMAP-100X item 4 (bi-temporal edges, valid-from/valid-to) —
-  // so this is filed as evidence FOR that item rather than patched around.
+  // WHAT CLOSED IT. WS-O, ROADMAP-100X item 4: bi-temporal fact edges. The
+  // fact now carries its own `valid_from`/`valid_to` (migration 056), derived
+  // at write time from timeline.ts's date table, and `staleNote` asks the
+  // horizon before it counts days. Row age is KEPT as the fallback for rows
+  // with no derivable date, which is most rows and every row written before
+  // 056 — so absence behaves exactly as before, which is what let the fix land
+  // without a backfill.
+  //
+  // It is now a GATE, in both directions, and it is asserted in §3 ([A-10] the
+  // ahead case, [A-10b] the row-age fallback) rather than printed here. This
+  // block stays as the ASSERTION THAT THE FIX IS STILL IN, because the failure
+  // mode is silent: she asks how an exam went, in August, in a fluent sentence
+  // that nothing about the output marks as wrong.
   {
     loadFixture(DYADS[1]);
     const fresh = await recall(DYADS[1], "exam kab hai");
     const hedged = fresh.includes("already happened");
+    ok(
+      "[B-12b] `stale-note-keys-on-row-age` stays closed — a November exam is not past in August",
+      !hedged,
+      fresh.slice(0, 260),
+    );
     console.log(
-      `\n  DEFECT (reported, not gated): a FUTURE plan recorded 67 days ago is ${hedged ? "hedged as already-past" : "no longer hedged as already-past"}` +
-        `\n      staleNote keys on ROW AGE, not on the date inside the fact (dyad-b 'neet pg', a november exam).` +
-        `\n      Evidence for ROADMAP-100X item 4 (bi-temporal edges); see §3b's comment for why it is not patched here.`,
+      `\n  CLOSED (was: DEFECT, reported not gated): a FUTURE plan recorded 67 days ago is ${hedged ? "STILL hedged as already-past — THE FIX IS GONE" : "no longer hedged as already-past"}` +
+        `\n      staleNote now asks the fact's own valid_to (migration 056) and falls back to row age only when there is none.` +
+        `\n      ROADMAP-100X item 4, shipped by WS-O; gated in §3 [A-10]/[A-10b] and by evals/run.mjs validity.`,
+    );
+  }
+
+  // ── A SECOND DEFECT THIS BENCHMARK SURFACED, in the parser ────────────
+  //
+  // Wiring `resolveWhen` into a stored `valid_to` made a latent bug in it
+  // visible for the first time. Its month pattern ended each abbreviation with
+  // `[a-z]*` — the three-letter prefix plus anything — so it matched the
+  // prefix INSIDE A LONGER WORD: married→March, marks→March, decade→December,
+  // junior→June, novel→November, janta→January. dyad-a's row "younger sister,
+  // getting married in nashik in december" resolved on "married" and landed in
+  // MARCH, five months behind the December it says.
+  //
+  // Invisible while `resolveWhen` had one consumer (hisClock, whose output is
+  // a coarse label a reader would forgive); load-bearing the moment the same
+  // answer became the timestamp that decides tense. Fixed in timeline.ts (the
+  // alternation now admits only real completions of each month name and closes
+  // with `\b`); the assertion lives here because this fixture is the evidence.
+  {
+    loadFixture(DYADS[0]);
+    const m = await recall(DYADS[0], "meghna ki shaadi kab hai");
+    ok(
+      "[A-14] a december wedding is not parsed as march by a month-prefix match",
+      !m.includes("already happened"),
+      m.slice(0, 260),
     );
   }
 }

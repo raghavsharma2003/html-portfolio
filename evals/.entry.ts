@@ -189,6 +189,18 @@ export {
   RECIPROCITY_BUDGET,
   DISCLOSURE_WEIGHT,
 } from "../src/engine/reciprocity";
+// WS-O (ROADMAP-100X item 4). Bi-temporal fact edges. `resolveWhen` rides
+// along beside the deriver on purpose: evals/validity.mjs asserts that the
+// deriver's horizons ARE `resolveWhen`'s answers rather than a second parser's,
+// and it can only assert that against the real function.
+export {
+  deriveFactValidity,
+  factStaleness,
+  validityOverlaps,
+  validityMs,
+  validityIso,
+} from "../src/engine/validity";
+export { resolveWhen, STALE_DAYS, TIME_BOUND } from "../src/engine/timeline";
 export {
   compile,
   TAIL_MANIFEST,
