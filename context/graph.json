@@ -2534,6 +2534,54 @@
       "kind": "open",
       "title": "migration 060 is unapplied, no statement in the reply lane has executed against a database, and no clone has ever spoken a Mirror Call turn aloud",
       "at": "2026-08-26"
+    },
+    {
+      "id": "video-enrollment-lane",
+      "kind": "component",
+      "title": "api/_video-enroll{.js,/windows.js,/quota.js} + api/video-enroll.js + migration 060: one YouTube link -> a ranked voice reference, a transcript and a sheet draft",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "media-extract-deployed",
+      "kind": "component",
+      "title": "vyakti-media-extract on Azure Container Apps: the extraction service, live, CPU, scale-to-zero, HMAC at the front door",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "youtube-extraction-blocked-from-azure",
+      "kind": "measurement",
+      "title": "/v1/extract returns extractor_bot_check on all 10 player clients from Azure egress; /v1/enumerate WORKS - n=10 clients, 1 video, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "media-extract-cost-per-video",
+      "kind": "measurement",
+      "title": "the extraction lane's measured CPU seconds: 47.9s cold start, 13.9s enumerate, 87s image build; a successful 15-min extraction is UNMEASURED",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "best-window-not-first-window",
+      "kind": "decision",
+      "title": "a voice reference is the best-scoring ~10s window anywhere in the recording, by a stored ranking - never the head of the file",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "player-clients-do-not-beat-a-datacenter-ip",
+      "kind": "rejection",
+      "title": "lever 1 of the documented three is exhausted: all 10 yt-dlp player clients bot-check from Azure Central India",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "provisioning-succeeded-is-not-serving",
+      "kind": "rejection",
+      "title": "four lever measurements were taken against a stale container revision; a dead-proxy negative control caught it, vigilance did not",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "noise-floor-from-a-percentile-of-speech",
+      "kind": "rejection",
+      "title": "the 10th-percentile noise floor IS speech on a mostly-speech lecture, so every window was rejected as silence while every number looked plausible",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4866,6 +4914,66 @@
       "src": "clone-initiative-record-has-no-absence",
       "rel": "constrains",
       "dst": "mirror-call-reply-is-the-one-door"
+    },
+    {
+      "src": "video-enrollment-lane",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "media-extract-deployed",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "best-window-not-first-window",
+      "rel": "constrains",
+      "dst": "video-enrollment-lane"
+    },
+    {
+      "src": "reference-window-beats-the-finetune",
+      "rel": "constrains",
+      "dst": "best-window-not-first-window"
+    },
+    {
+      "src": "video-enrollment-lane",
+      "rel": "measured_by",
+      "dst": "youtube-extraction-blocked-from-azure"
+    },
+    {
+      "src": "media-extract-deployed",
+      "rel": "measured_by",
+      "dst": "youtube-extraction-blocked-from-azure"
+    },
+    {
+      "src": "media-extract-deployed",
+      "rel": "measured_by",
+      "dst": "media-extract-cost-per-video"
+    },
+    {
+      "src": "youtube-extraction-blocked-from-azure",
+      "rel": "blocks",
+      "dst": "video-enrollment-lane"
+    },
+    {
+      "src": "player-clients-do-not-beat-a-datacenter-ip",
+      "rel": "caused_by",
+      "dst": "youtube-extraction-blocked-from-azure"
+    },
+    {
+      "src": "provisioning-succeeded-is-not-serving",
+      "rel": "constrains",
+      "dst": "youtube-extraction-blocked-from-azure"
+    },
+    {
+      "src": "noise-floor-from-a-percentile-of-speech",
+      "rel": "constrains",
+      "dst": "video-enrollment-lane"
+    },
+    {
+      "src": "offline-mocks-cannot-type-check-sql",
+      "rel": "constrains",
+      "dst": "video-enrollment-lane"
     }
   ]
 }

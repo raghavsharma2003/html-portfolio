@@ -324,6 +324,18 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      context_items as (delete from vy_context_item x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 060's single-video enrollment (WS-AD). FK-SHAPED, NOT FK, same
+     -- convention as 053/055/057 above — so there is no cascade to inherit and
+     -- these rows would simply outlive the replica. What they hold makes that
+     -- unacceptable twice over: the enrollment row names a real YouTube video
+     -- the person attested owning, and the window rows are a ranked, timestamped
+     -- map of the ten seconds of their own teaching voice this platform judged
+     -- best to clone from. CHILD FIRST — the windows name an enrollment, so
+     -- nothing can strand a ranking whose enrollment is already gone.
+     video_enrollment_windows as (delete from vy_video_enrollment_window x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     video_enrollments as (delete from vy_video_enrollment x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 059's Mirror Call. These five DO cascade from vy_replica (each carries a
      -- composite FK to (replica_id, owner_user_id) ON DELETE CASCADE), so
      -- relcheck's owner-lane reach walk is satisfied without a line here. They

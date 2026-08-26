@@ -3213,3 +3213,93 @@ design and a cold start is not.
 **The rule.** A three-outcome server needs a three-outcome client. Whenever a
 route gains a 2xx that is not the success body, grep every caller for
 `response.ok` — that is where the new state silently joins the old one.
+---
+
+## player-clients-do-not-beat-a-datacenter-ip
+
+**Tried (2026-08-26, WS-AD):** the first documented lever for the YouTube bot
+check — `MEDIA_EXTRACT_PLAYER_CLIENTS`, sweeping every player client yt-dlp
+2026.08.19 offers, from the deployed `vyakti-media-extract` container app on
+Azure Central India.
+
+**What broke:** all ten. `default, android, android_vr, ios, tv, tv_simply,
+mweb, web_embedded, web_safari, visionos` each returned *"Sign in to confirm
+you're not a bot"* at the **metadata probe**, before any stream URL was issued.
+n=10 clients × 1 video, one job execution, read out of the container's own
+stderr via Log Analytics. Numbers and method:
+`measurements.md#youtube-extraction-blocked-from-azure`.
+
+**Why it is worth writing down rather than just retrying:** the lever ordering
+in `docs/gurukul/youtube-extraction-posture.md` §3 is player-clients → cookies →
+proxy, cheapest first, and the cheapest one is now KNOWN not to work from this
+egress. A future session that re-runs the client sweep is spending money to
+re-derive this. The next lever costs something real — a cookie jar risks the
+account it comes from, and a residential proxy is a subscription — so the choice
+is the owner's, not a config change to guess at.
+
+**What would reverse it:** a different egress (the client sweep was never the
+variable — the IP was), or a PO-token provider plugin
+(`bgutil-ytdlp-pot-provider`) which is a different lever than the three
+documented. Note that **enumeration was never blocked** and still works, so
+"YouTube blocks us" is too coarse a summary: the player API blocks us and the
+channel listing does not.
+
+## provisioning-succeeded-is-not-serving
+
+**Tried (2026-08-26, WS-AD):** measuring the player-client lever by `PATCH`ing
+the container app's env, waiting for the APP's `provisioningState: Succeeded`,
+then sending a signed request.
+
+**What broke:** four lever measurements were taken against the OLD revision and
+recorded as results. Container Apps returns `Succeeded` on the app resource
+before the new revision carries traffic; the revision list showed
+`--0000001` … `--0000004` created and `Stopped` within seconds of each other
+while traffic still sat on the original revision. Every one of those four
+"levers did not help" readings was a reading of a container that had never seen
+the env var.
+
+**What caught it:** a negative control, not vigilance. Setting
+`MEDIA_EXTRACT_PROXY` to a dead address (`http://127.0.0.1:9`) and asserting the
+error code CHANGES — a request that cannot reach a proxy cannot possibly return
+`extractor_bot_check`. It returned `extractor_bot_check`, which is impossible,
+which is what exposed the whole sweep. After waiting on the REVISION's
+`runningState: Running` **and** `trafficWeight: 100`, the same control returned
+`extractor_failed`, and only then were the lever results trusted.
+
+**The general shape, which is the reusable part:** when sweeping a lever, first
+prove the lever is CONNECTED by setting it to a value whose failure is
+unmistakable and different. `plausible-return-hides-a-dead-pipeline` with the
+arrow pointing at the experiment rather than the product: a sweep where every
+arm returns the same plausible failure is exactly what a disconnected lever
+looks like, and it is indistinguishable from a real negative result without
+a control.
+
+## noise-floor-from-a-percentile-of-speech
+
+**Tried (2026-08-26, WS-AD):** estimating a recording's noise floor for
+reference-window scoring as the 10th percentile of frame RMS over the whole
+file — the standard, obvious estimator, and the one that reads as careful
+because it is per-file rather than per-window.
+
+**What broke:** on a recording that is **mostly continuous speech** — which
+every good lecture is, and which is the entire input class this lane exists for
+— the tenth percentile of frame energy *is speech*. The floor then sits at
+speaking level, the 3× voicing threshold sits above it, every frame fails the
+voicing test, every window is disqualified as `mostly_silence`, and the lane
+refuses `video_enroll_no_usable_window` on its single most normal input. Every
+number on every row looked plausible throughout: `voiced_fraction: 0`,
+`snr_db: 51.57`, a sensible-looking `noise_floor_rms`. Nothing threw.
+
+**How it was found:** `evals/videoenroll.mjs` failing with **zero eligible
+windows** on the fixture lecture. Not by review — the estimator survived being
+written, commented and read.
+
+**The fix:** cap the floor against a fraction of the file's own median
+(`min(p10, 0.2 × median)`), and cap the voicing threshold at 40% of median. The
+estimator now degrades toward "quiet relative to this speaker" instead of
+toward nonsense.
+
+**What would reverse it:** a real VAD. The whole probe is a signal heuristic
+standing in for one, it says so in `score_source`, and the day a diarizer or
+VAD is on the path for every enrollment, the voicing term should come from it
+rather than from percentiles of RMS.

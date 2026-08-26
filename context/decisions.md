@@ -4626,3 +4626,48 @@ absence of any other source for the string.
 *Reverses if* the mirror lane ever needs a synthesis parameter the preview panel
 cannot express — at which point the honest move is a shared handler with two
 callers, never a copy.
+---
+
+## best-window-not-first-window
+
+**Decided 2026-08-26 (WS-AD).** A voice reference extracted from a long
+recording is the **highest-scoring ~10 s window anywhere in it**, chosen by a
+ranking that scores every window and is kept, never the head of the file.
+
+**Why.** `measurements.md#reference-window-beats-the-finetune` established that
+Chatterbox truncates a reference to its first 10 s (s3gen) / 6 s (T3 prompt),
+and that WHICH 10 s spans 0.0625 ECAPA fidelity on the owner's own voice —
+three times the measured fine-tune delta, at zero training and zero inference
+cost, with the best window beating every fine-tuned arm. That entry closed by
+saying there was "no selection *rule* yet, only evidence that one would be worth
+having". `api/_video-enroll/windows.js` is that rule.
+
+The owner's brief is the other half of the argument and arrived independently:
+"it's not necessary that the first 10 seconds will be clear, so handle it". For
+a lecture the head of the file is the *worst* prior — throat-clearing, room
+noise, a mic being adjusted, a check that the class can hear. Taking it is the
+one choice guaranteed to be wrong on the input this lane is built for.
+
+**Why a ranking and not a heuristic about lectures.** A heuristic ("skip the
+first 30 s") encodes a guess about a genre and fails silently on the recording
+that does not match it. Scoring every window lets the head compete on the same
+terms and win when it deserves to, and — because the ranking is STORED — lets
+the studio offer "try the next best one" without re-extracting a 15-minute
+video, and lets a human audit the choice on the one occasion anybody will care,
+which is when a clone sounds wrong.
+
+**What it explicitly is not.** The scores are a WAV signal probe — voiced
+fraction, an SNR estimate, clipping, level stationarity, speaker purity — and
+they are NOT ECAPA fidelity. `score_source` says `wav-signal-probe/v1` on every
+row and every payload, for the same reason WS-X's `mirror_call` conditioning
+score names itself: when a real scorer lands, old rows must stay readable as
+what they actually were.
+
+**What would reverse it.** A reference-window sweep on real lecture audio
+showing the probe's ranking does not correlate with measured ECAPA fidelity. In
+that case the ranking is not wrong to KEEP — a stored ranking is strictly better
+than an unexamined default either way — but the selection would move to whatever
+does correlate, and the weights in `scoreWindow` (a stated prior, written in the
+open precisely so it can be replaced) would be replaced by fitted ones. If the
+correlation is negative, taking the head back would still be wrong; taking a
+RANDOM window would be worse than both, which that measurement already showed.
