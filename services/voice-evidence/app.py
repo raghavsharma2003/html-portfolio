@@ -342,8 +342,20 @@ async def lifespan(application: FastAPI):
         raise RuntimeError("voice_evidence_cuda_required")
     root = os.getenv("VOICE_EVIDENCE_MODEL_ROOT", "/models/voice-evidence")
     run_opts = {"device": str(application.state.device)}
-    application.state.ecapa = EncoderClassifier.from_hparams(source=f"{root}/ecapa", run_opts=run_opts)
-    application.state.xvector = EncoderClassifier.from_hparams(source=f"{root}/xvector", run_opts=run_opts)
+    # Both speaker-embedding hyperparams.yaml files hard-code
+    # `pretrained_path` to their Hugging Face repo id, and their Pretrainer
+    # resolves every checkpoint against that variable rather than against
+    # `source`. Pointing `source` at the baked-in directory is therefore not
+    # enough: without this override SpeechBrain still reaches for
+    # huggingface.co and dies under HF_HUB_OFFLINE=1. Sepformer needs no
+    # override -- its Pretrainer declares no `paths:` block, so it already
+    # resolves relative to `source`.
+    application.state.ecapa = EncoderClassifier.from_hparams(
+        source=f"{root}/ecapa", run_opts=run_opts,
+        overrides={"pretrained_path": f"{root}/ecapa"})
+    application.state.xvector = EncoderClassifier.from_hparams(
+        source=f"{root}/xvector", run_opts=run_opts,
+        overrides={"pretrained_path": f"{root}/xvector"})
     application.state.separator = SepformerSeparation.from_hparams(source=f"{root}/sepformer", run_opts=run_opts)
     application.state.vad = load_silero_vad(onnx=False)
     deepfilter_root = f"{root}/deepfilter/DeepFilterNet3"
