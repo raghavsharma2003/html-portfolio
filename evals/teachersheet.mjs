@@ -221,5 +221,28 @@ ok(
     consentGateBlockers({ status: "published", consent_artifact_id: PLACEHOLDER_CONSENT_ARTIFACT_ID }).length === 1,
 );
 
+// ── 5. the loader's publish predicate, offline ─────────────────────────────
+// api/_teachersheet.js's DB half needs a database and is not driven here (this
+// suite is offline by contract). Its GATE half is pure, and it is wired in
+// under the same `dead-writers` test as everything else: a loader nothing
+// exercises is indistinguishable from a loader that does not work. This is
+// also the check that the loader composes the two halves — content validity
+// AND consent — rather than either one alone.
+console.log("\n── api/_teachersheet.js: the publish predicate (no DB) ──");
+const { checkPublishable } = await import(pathToFileURL(join(REPO, "api/_teachersheet.js")).href);
+const realConsent = { consent_artifact_id: "b1000000-0000-4000-8000-000000000001" };
+ok("valid sheet + a real consent artifact -> publishable", checkPublishable(DEMO_TEACHER, realConsent).ok);
+const demoAsIs = checkPublishable(DEMO_TEACHER, null);
+ok(
+  "the demo teacher is NOT publishable — his placeholder is not a consent row",
+  !demoAsIs.ok && demoAsIs.blockers.includes("consent_artifact_placeholder") && demoAsIs.errors.length === 0,
+  demoAsIs.blockers.join(", "),
+);
+const brokenWithConsent = checkPublishable({ ...DEMO_TEACHER, crisisLines: "" }, realConsent);
+ok(
+  "a consent artifact does not buy past a content failure",
+  !brokenWithConsent.ok && brokenWithConsent.blockers.length === 0 && brokenWithConsent.errors.length > 0,
+);
+
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} CHECKS PASS`);
 process.exitCode = fail ? 1 : 0;

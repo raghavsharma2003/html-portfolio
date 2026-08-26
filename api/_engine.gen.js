@@ -5045,12 +5045,269 @@ async function decayObservations(q, agentId, now = /* @__PURE__ */ new Date(), h
   );
   return rows.length;
 }
+
+// src/engine/agents/fromSheet.ts
+function sheetToModule(sheet) {
+  return {
+    slug: sheet.slug,
+    displayName: sheet.name,
+    personaVersion: sheet.version,
+    buildSystemPromptParts: (user, messageCount, medium, dimsStage) => buildSystemPromptParts(user, messageCount, medium, dimsStage, sheet),
+    buildSpeechStyle: (engine) => buildSpeechStyle(engine, sheet),
+    WATCH_MODE_NOTE: buildWatchModeNote(sheet),
+    SEARCH_DECISION,
+    FORGET_DECISION,
+    CRISIS_LINES: sheet.crisisLines,
+    register: { script: "latin", honorificSystem: "hi-TV" }
+  };
+}
+var CHARACTER_STRING_FIELDS = [
+  "slug",
+  "name",
+  "version",
+  "identityWho",
+  "identityLife",
+  "languageVoiceRule",
+  "crisisLines",
+  "languageTextRule",
+  "textShortforms",
+  "textStretch",
+  "textLaughter",
+  "textEmojiRule",
+  "voiceStretch",
+  "voiceLaughter",
+  "voiceFillers",
+  "voiceSelfCorrect",
+  "voiceRepeat",
+  "voiceBreath",
+  "voiceSpelling",
+  "voiceLanguageBalance",
+  "lifeTexture",
+  "tasteTopics",
+  "curiosityTopics",
+  "voiceIdentityPhrase",
+  "sttSoundAlikes",
+  "sarvamScriptRule",
+  "stageNickname",
+  "shareSuggestLine",
+  "exSlangRepeat",
+  "exOneWordReplies",
+  "exMockShock",
+  "exDeflect",
+  "exNameRude",
+  "exSpecificWin",
+  "exNeverSeen",
+  "exDontKnow",
+  "exVoicenoteMood",
+  "exPhotoReact",
+  "exComfort",
+  "exWantSpecific",
+  "exThreadOpen",
+  "exRememberShown",
+  "exLateNightCallback",
+  "exMissedCatch",
+  "exCuriousAsk",
+  "exMoveOn",
+  "exPointerWords",
+  "exTinyCheck",
+  "exCutoffReact",
+  "exMockOffended",
+  "exNeverTyped",
+  "exGetInterested",
+  "exNameTheMiss",
+  "exNoHolding",
+  "exSearchHold",
+  "exCorrections",
+  "exSelfFix",
+  "exResurrect",
+  "exWatchOpinions",
+  "exScreenWarn",
+  "exQuickPickup"
+];
+var ARC_OVERRIDE_FIELDS = [
+  "stageEarly",
+  "stageGettingClose",
+  "stageEstablished",
+  "boundaryParagraph",
+  "ritualPatternShapes",
+  "abilityLabelBan",
+  "winMethodRule"
+];
+var TEACHER_STRING_FIELDS = [
+  "syllabusScope",
+  "outOfScopePolicy",
+  "technicalTermRule",
+  "explanationOrder",
+  "workedExamplePattern",
+  "firstMoveOnDoubt",
+  "notationConventions",
+  "cloneDisclosureFact",
+  "academicIntegrityStance",
+  "escalationRoute",
+  "credentialFacts",
+  "consentArtifactId"
+];
+var TEACHER_ARRAY_FIELDS = [
+  "subjectStrands",
+  "examTrack",
+  "doubtEscalationLadder",
+  "rigorFloor",
+  "boardVerbalisms",
+  "commonMistakeBank"
+];
+var REGISTER_BULLET_FIELDS = [
+  "languageVoiceRule",
+  "languageTextRule",
+  "textShortforms",
+  "textStretch",
+  "textLaughter",
+  "textEmojiRule",
+  "voiceStretch",
+  "voiceLaughter",
+  "voiceFillers",
+  "voiceSelfCorrect",
+  "voiceRepeat",
+  "voiceBreath",
+  "voiceSpelling",
+  "voiceLanguageBalance",
+  "sarvamScriptRule",
+  "technicalTermRule"
+];
+var LINTABLE_CONTENT_FIELDS = [
+  "commonMistakeBank",
+  "analogyBank",
+  "notationConventions",
+  "rigorFloor",
+  "credentialFacts",
+  "tasteTopics",
+  "curiosityTopics",
+  "lifeTexture"
+];
+var PACE_VALUES = /* @__PURE__ */ new Set(["push", "balanced", "drill"]);
+var SUBJECT_VALUES = /* @__PURE__ */ new Set(["physics", "chemistry", "maths"]);
+var VERBALISM_MAX_WORDS = 3;
+var VERBALISM_MAX_ITEMS = 12;
+var MIN_IDENTIFIER_DIGITS = 3;
+var digitsOf2 = (s) => s.replace(/\D+/g, "");
+var HELPLINE_DIGITS = new Set(PUBLISHED_HELPLINES.map(digitsOf2));
+function helplineNumbersIn(text) {
+  const out = [];
+  for (const m of text.match(/\+?\d[\d\s-]*\d|\d+/g) ?? []) {
+    const d = digitsOf2(m);
+    if (d.length >= MIN_IDENTIFIER_DIGITS) out.push(d);
+  }
+  return out;
+}
+function rowsOf(value) {
+  if (Array.isArray(value)) {
+    return value.map(
+      (v) => v && typeof v === "object" && "topic" in v ? (
+        // analogyBank: {topic, anchor}. The SENTENCE is never stored, so the
+        // row we lint is the pair rendered as one — which is also the shape
+        // any renderer of it will produce.
+        `${v.topic}: ${v.anchor}`
+      ) : String(v)
+    );
+  }
+  if (typeof value !== "string") return [];
+  return value.split(/[\n;·,]/).map((s) => s.trim()).filter(Boolean);
+}
+function verbalismFragments(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+  if (typeof value !== "string") return [];
+  return value.replace(/^[\s(]+|[\s)]+$/g, "").split(",").map((s) => s.trim().replace(/^["'`]+|["'`]+$/g, "").trim()).filter(Boolean);
+}
+function validateTeacherSheet(sheet) {
+  const errors = [];
+  const push = (field, code, detail) => errors.push(detail === void 0 ? { field, code } : { field, code, detail });
+  if (!sheet || typeof sheet !== "object") {
+    return { ok: false, errors: [{ field: "<sheet>", code: "not-an-object" }] };
+  }
+  const s = sheet;
+  const requiredStrings = [
+    ...CHARACTER_STRING_FIELDS,
+    ...ARC_OVERRIDE_FIELDS,
+    ...TEACHER_STRING_FIELDS
+  ];
+  for (const f of requiredStrings) {
+    const v = s[f];
+    if (typeof v !== "string") {
+      const arc = ARC_OVERRIDE_FIELDS.includes(f);
+      push(f, arc ? "arc-override-missing" : "missing-or-not-a-string", typeof v);
+    } else if (!v.trim()) {
+      const arc = ARC_OVERRIDE_FIELDS.includes(f);
+      push(f, arc ? "arc-override-missing" : "empty");
+    }
+  }
+  for (const f of TEACHER_ARRAY_FIELDS) {
+    const v = s[f];
+    if (!Array.isArray(v) || v.length === 0) push(f, "missing-or-empty-array");
+    else if (v.some((x) => typeof x !== "string" || !x.trim())) push(f, "non-string-row");
+  }
+  if (!Array.isArray(s.analogyBank)) push("analogyBank", "missing-or-empty-array");
+  else if (s.analogyBank.some(
+    (a) => !a || typeof a !== "object" || typeof a.topic !== "string" || typeof a.anchor !== "string"
+  )) {
+    push("analogyBank", "not-a-topic-anchor-pair");
+  }
+  if (!SUBJECT_VALUES.has(String(s.subjectDomain))) push("subjectDomain", "not-a-subject", String(s.subjectDomain));
+  if (!PACE_VALUES.has(String(s.pacePreference))) push("pacePreference", "not-a-pace", String(s.pacePreference));
+  for (const f of ["strictness", "warmth"]) {
+    const v = s[f];
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 4) push(f, "not-a-0-4-dial", String(v));
+  }
+  if (!(s.voiceCloneId === null || typeof s.voiceCloneId === "string")) {
+    push("voiceCloneId", "not-a-string-or-null", typeof s.voiceCloneId);
+  }
+  for (const f of ["crisisLines", "escalationRoute"]) {
+    const v = s[f];
+    if (typeof v !== "string" || !v.trim()) {
+      if (f === "crisisLines") push(f, "crisis-lines-empty");
+      continue;
+    }
+    for (const num of helplineNumbersIn(v)) {
+      if (!HELPLINE_DIGITS.has(num)) push(f, "helpline-not-published", num);
+    }
+  }
+  for (const f of REGISTER_BULLET_FIELDS) {
+    const v = s[f];
+    if (typeof v === "string" && v.trim() && !v.startsWith("- ")) {
+      push(f, "register-bullet-head-lost", v.slice(0, 24));
+    }
+  }
+  for (const f of LINTABLE_CONTENT_FIELDS) {
+    for (const row of rowsOf(s[f])) {
+      const violation = lintLine(row);
+      if (violation.reasons.length) push(f, "recitable-shape", `${row} \u2014 ${violation.reasons.join("; ")}`);
+    }
+  }
+  for (const f of ["boardVerbalisms", "exSlangRepeat"]) {
+    const items = verbalismFragments(s[f]);
+    if (items.length > VERBALISM_MAX_ITEMS) push(f, "phrase-bank-too-many", String(items.length));
+    for (const item of items) {
+      const words2 = item.split(/\s+/).filter(Boolean);
+      if (words2.length > VERBALISM_MAX_WORDS) push(f, "phrase-bank-too-long", item);
+      if (/[.?!]$/.test(item)) push(f, "phrase-bank-terminal-punctuation", item);
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+var PLACEHOLDER_CONSENT_ARTIFACT_ID = "00000000-0000-4000-8000-000000000000";
+function consentGateBlockers(row) {
+  const blockers = [];
+  if (row.status !== "published") blockers.push("sheet_not_published");
+  const consent = row.consent_artifact_id;
+  if (!consent) blockers.push("consent_artifact_missing");
+  else if (consent === PLACEHOLDER_CONSENT_ARTIFACT_ID) blockers.push("consent_artifact_placeholder");
+  return blockers;
+}
 export {
   CRISIS_LINES,
   KIN_BUDGET,
   MIN_SPAN_DAYS,
   MP_BRIDGE_BUDGET,
   MP_ROSTER_BUDGET,
+  PLACEHOLDER_CONSENT_ARTIFACT_ID,
   ROOM_INTRO_DIRECTIVE,
   ROOM_MEMBER_CAP,
   ROOM_MODE_NOTE,
@@ -5058,11 +5315,13 @@ export {
   UNADDRESSED_COOLDOWN_MS,
   allowedFrom,
   compile,
+  consentGateBlockers,
   decayObservations,
   decideParticipation,
   deriveSelfArc,
   deriveTexture,
   guardReply,
+  helplineNumbersIn,
   hisVocabulary,
   inspect,
   isExplicitlyAddressed,
@@ -5081,9 +5340,11 @@ export {
   renderMpRoster,
   seedFromStoryCatalog,
   sharedVocabulary,
+  sheetToModule,
   stripTextingDashes,
   untoldFor,
   upsertTexture,
+  validateTeacherSheet,
   writeIndiaProfile,
   writeKin,
   writeObservation

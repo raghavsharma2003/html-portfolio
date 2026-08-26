@@ -119,3 +119,30 @@ export {
 // the update set list, and each of those is a RULE about what a kin row means.
 // A second copy of them in api/ is a second definition of a person's family.
 export { writeKin, recordRitualOccurrence, writeIndiaProfile, renderKinLines, KIN_BUDGET, type KinRow } from "./india";
+
+// ── the teacher-sheet seam (Gurukul WS-B) ──────────────────────────────────
+// api/_teachersheet.js loads a PUBLISHED TeacherSheet row and constructs its
+// AgentModule server-side. Exported here for the reason this whole file
+// exists: the alternative is a hand-ported constructor in api/, which is a
+// SECOND definition of what a teacher clone is — and unlike a mirrored
+// deriver, this one would be a second definition of a clone of a real, named,
+// living person, published under their consent. It would drift on the first
+// edit to either copy, and the drifted half would still return 200.
+//
+// `validateTeacherSheet` rides along so the loader can re-validate the row it
+// actually read rather than trusting that whatever wrote it ran the gate.
+// Publish-time validation and load-time validation are the same function, on
+// purpose: a sheet that was valid when published and is not valid now (the
+// allowlist moved, a field's rule tightened) must fail closed at load, not
+// quietly serve the version that predates the rule.
+export {
+  sheetToModule,
+  validateTeacherSheet,
+  consentGateBlockers,
+  helplineNumbersIn,
+  PLACEHOLDER_CONSENT_ARTIFACT_ID,
+  type SheetValidation,
+  type SheetValidationError,
+  type TeacherSheetRowState,
+} from "./agents/fromSheet";
+export type { TeacherSheet } from "./agents/teacherTypes";
