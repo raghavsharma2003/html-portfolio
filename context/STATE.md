@@ -39,13 +39,15 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Auth | Google OAuth live; email OTP live (6-digit); built-in mailer capped ~2/hr until SMTP |
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
 | Meera production | untouched; its deploy trigger no longer matches this branch |
+| In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
 
 ## What is NOT live
 
-- **Voice**: no clone synthesized yet. Azure GPU stack (open-voice-runtime,
-  voice-evidence) deployment in progress on the $2K grant; Chatterbox is the
-  pinned model, per-expert LoRA is the quality path, cascade (not full-duplex)
-  is the realtime shape.
+- **Voice QUALITY**: the stack is LIVE (see the table above) but no consented
+  reference has been cloned and no ABX bench has run — the smoke test used a
+  buzz tone. Nothing may be claimed about how a clone sounds until the bench
+  in `docs/gurukul/research/voice-stack.md` runs. Cold start (161 s ready,
+  504 at 242 s) needs a warm-up before any user-facing use.
 - **Ingestion**: statistical half built and gated; ASR + LLM passes are seams
   awaiting keys/GPU. No teacher ingested.
 - **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not

@@ -3041,3 +3041,45 @@ healthy; the `vyakti-replica-private` storage bucket created; OpenRouter
 and Sarvam keys received (Sarvam untested — no free-tier ping without
 burning audio credits). Keys live in the chat transcript by owner's own
 paste: rotate Neon password + Supabase keys once Vercel env is set.
+
+## `voice-lane-live` — the in-house voice stack runs on Azure GPU, and quality is still unmeasured (2026-08-26)
+
+Self-hosted Chatterbox synthesises real audio end to end on the owner's Azure
+grant: RG `vyakti-voice` (Central India), ACR Basic, Container Apps env with a
+`Consumption-GPU-NC8as-T4` profile, GPU runtime + CPU admission broker + voice
+evidence, all `minReplicas: 0` (scale-to-zero verified). HMAC verified with a
+negative control (wrong key 401, right key 200).
+
+**Measured (n=1 deployment, WS-L):** warm synthesis 7.2 s wall / 4.36 s GPU,
+RTF 0.79 (faster than real time). First call on a fresh replica ~17 s (CUDA
+autotuning). Cold start from zero: ready at 161 s, but the triggering request
+504'd at 242 s — 9.70 GB image pull (78.65 s) dominates. Idle standing cost is
+the ACR fee alone (~$5/mo); GPU ~$0.53–0.60/hr of uptime; WS-L spent ~$0.35.
+
+**Four real source defects fixed** (none had ever built): `groupadd voice`
+collides with base-passwd GID 22; transformers/huggingface-hub pins mutually
+unsatisfiable; SpeechBrain `hyperparams.yaml` `pretrained_path` overrides the
+baked `source` so weights were fetched from the hub anyway; DeepFilterNet
+shells out to `git`. Plus a deploy law: **declaring only a Readiness probe is
+fatal on Container Apps** — the default liveness probe killed the runtime 3 s
+before startup completed; an explicit Startup probe took it from permanent
+crash-loop to 0 restarts.
+
+**Quota trap, logged so nobody repeats it:** `Microsoft.App/usages` reports
+`SubscriptionDedicatedNCA100Gpus 0/0` in all regions, which says NOTHING about
+serverless GPU — scheduling a replica returned an active driver. Also, a GPU
+workload profile adds ~45 min to environment creation (57 vs 12 for a control);
+that looks like failure and is not.
+
+**Explicitly NOT established:** voice QUALITY. The smoke test used a synthetic
+buzz-tone reference, so it proves the pipeline runs and nothing about how a
+clone sounds. The consented Hinglish ABX bench (protocol in
+`docs/gurukul/research/voice-stack.md`) is what decides whether this lane leads
+the provider registry. Reverses if that bench puts self-hosted materially below
+the vendor lane after fine-tuning effort — measured, never assumed.
+
+Open: cold-start needs a warm-up strategy (one wake ≈ 35 warm syntheses of
+cost); the runtime still pulls ~34.5 MB of spacy-pkuseg from GitHub on cold
+start despite the README claiming no network model access; three bicep defects
+(`gpu: 1`, `initialDelaySeconds: 240`, missing Startup probe) remain in the
+templates even though the deployed apps are correct.

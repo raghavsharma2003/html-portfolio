@@ -1940,6 +1940,24 @@
       "kind": "rejection",
       "title": "mocked DB proved control flow but no SQL types; two live-only defects (046 FK, uuid=text)",
       "at": "2026-08-26"
+    },
+    {
+      "id": "voice-lane-live",
+      "kind": "decision",
+      "title": "in-house Chatterbox synthesising on Azure GPU; RTF 0.79 warm; quality unmeasured",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "readiness-probe-only-is-fatal",
+      "kind": "rejection",
+      "title": "Container Apps default liveness probe kills a slow-booting GPU app; declare a Startup probe",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "gpu-usages-api-says-nothing-about-serverless",
+      "kind": "rejection",
+      "title": "Microsoft.App usages reports 0/0 dedicated A100 while serverless T4 works fine",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3562,6 +3580,21 @@
       "src": "first-live-apply",
       "rel": "part_of",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "voice-lane-live",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "readiness-probe-only-is-fatal",
+      "rel": "caused_by",
+      "dst": "voice-lane-live"
+    },
+    {
+      "src": "gpu-usages-api-says-nothing-about-serverless",
+      "rel": "caused_by",
+      "dst": "voice-lane-live"
     }
   ]
 }

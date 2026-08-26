@@ -2341,3 +2341,42 @@ smoke-tested against the real database before it is called done —
 `verify-release --live`, or a scripted call of the real exported functions
 with `NEON_URL` set. Fixed: casts in `api/_replica.js` (WS-M sweeps the rest),
 and `evals/sqlcast.mjs` makes the class statically unrepresentable.
+
+## `readiness-probe-only-is-fatal` — a Readiness probe alone kills a slow-booting GPU app (2026-08-26)
+
+**Tried:** declaring only a Readiness probe on the Chatterbox Container App,
+reasoning that readiness is what gates traffic and a slow model load would
+simply delay readiness.
+
+**What broke:** permanent crash-loop. Azure Container Apps installs a DEFAULT
+liveness probe when you declare any probe set without one, and it killed the
+container ~3 s BEFORE the app logged `Application startup complete`. The
+symptom reads as an application failure — restart after restart with no error
+in the app's own logs — so the instinct is to debug the model load, which is
+fine.
+
+**The fix:** an explicit Startup probe with a generous failure budget; the
+liveness probe then only begins after startup succeeds. Same app, same image:
+permanent crash-loop → ready with 0 restarts. Any GPU service whose first boot
+downloads or compiles weights needs this. Note the templates still carry
+`gpu: 1` and `initialDelaySeconds: 240`, which ARM rejects outright — the
+deployed apps are correct, `services/*/infra/main.bicep` is not yet.
+
+## `gpu-usages-api-says-nothing-about-serverless` — a 0/0 quota reading that means nothing (2026-08-26)
+
+**Tried:** reading `Microsoft.App/locations/{region}/usages` to decide whether
+the subscription could run GPU workloads before attempting a deployment — the
+obvious pre-flight, and the one a careful operator would trust.
+
+**What broke:** it reports `SubscriptionDedicatedNCA100Gpus = 0/0` in all 16
+regions, which reads as "no GPU quota anywhere, request an increase first."
+That row describes DEDICATED A100 capacity only and is silent about the
+Consumption-GPU (serverless T4) profile this platform actually uses.
+Scheduling a replica anyway returned `GpuDriverInfo: Your GPU environment is
+active! Driver 580.159.04` — it had worked the whole time.
+
+**The law:** for serverless GPU, the only trustworthy quota probe is
+scheduling a replica. Related timing trap from the same deployment: attaching
+a GPU workload profile adds ~45 minutes to environment creation (57 min
+measured, versus 12 min for a non-GPU control) — a wait that looks exactly
+like a hung deployment and is not.
