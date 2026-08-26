@@ -829,6 +829,21 @@ const suites = {
   // Offline, deterministic, $0, ~1s. No database, by design: a gate that needs
   // credentials is a gate CI skips.
   sqlcast: "sqlcast.mjs",
+
+  // WS-R. PERSON_TABLES completeness against the checked-in DDL.
+  //
+  // scripts/relcheck.mjs asks the same question of the LIVE database and is
+  // the better place to ask it — but it needs NEON_URL and skips without one,
+  // so every credential-free CI run said nothing at all about the one list
+  // whose omission is a privacy failure. A table missing from PERSON_TABLES is
+  // invisible to BOTH the forget cascade and the DSAR export: a person who
+  // asked to be forgotten keeps rows in it. Three such tables were live when
+  // this was written.
+  //
+  // Offline, deterministic, $0. It cannot see a table created straight against
+  // the database (relcheck is what catches that); it can see every table this
+  // repo wrote a migration for, on a laptop with no secrets.
+  persontables: "persontables.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

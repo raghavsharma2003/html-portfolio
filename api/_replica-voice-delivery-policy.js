@@ -345,6 +345,11 @@ export async function issueOwnedVoiceDeliveryHoldout(db, ownerUserId, input) {
        update vy_replica_voice_trial set state='expired'
         where delivery_policy_id=$5::uuid and replica_id=$1::uuid and owner_user_id=$2::uuid
           and phase='holdout' and state='issued' and expires_at<=now()
+       -- RETURNING is mandatory: "(select count(*) from expired)" below is a
+       -- reference, and a data-modifying CTE with no RETURNING cannot be
+       -- referenced. Without it the statement is rejected at parse time —
+       -- 0A000, "WITH query "expired" does not have a RETURNING clause".
+       returning trial_id
      ), target as materialized (
        select p.policy_id,p.replica_id,p.owner_user_id
          from vy_replica_voice_delivery_policy p
@@ -369,6 +374,10 @@ export async function issueOwnedVoiceDeliveryHoldout(db, ownerUserId, input) {
             and c.scope='training' and c.policy_version=r.policy_version and c.revoked_at is null and (c.expires_at is null or c.expires_at>now()))
           and exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
             and c.scope='inference' and c.policy_version=r.policy_version and c.revoked_at is null and (c.expires_at is null or c.expires_at>now()))
+          -- Reads the trials the CTE above actually expired. Total by design
+          -- (>=0 holds for the empty set): it names the dependency so the
+          -- expiry sweep runs before the active-trial check below, and must
+          -- not gate issuance on there having been something to expire.
           and (select count(*) from expired)>=0
           and not exists(select 1 from vy_replica_voice_trial active where active.delivery_policy_id=p.policy_id
             and active.phase='holdout' and active.state='issued' and active.expires_at>now())

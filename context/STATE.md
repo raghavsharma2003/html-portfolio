@@ -28,7 +28,10 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
   `docs/gurukul/ROADMAP-100X.md` is the build order;
   `docs/gurukul/research/` holds the competitor / memory-science / voice-stack
   sweeps behind those decisions.
-- Gates: `node scripts/verify-release.mjs` (11 checks, all green).
+- Gates: `node scripts/verify-release.mjs` (11 checks, all green; **13 with
+  `NEON_URL` in the environment** — the relational db gates used to be skipped
+  even when the env var was set, because the switch read `api/_config.js`
+  alone. `relcheck` is a hard gate wherever a URL is reachable).
 
 ## What is LIVE (verified, not assumed)
 
@@ -100,6 +103,14 @@ action, and it needs: the Sarvam key in Vercel env, a consented audio/video file
 - `aliveness-was-unreachable-not-meera-bound` — a seam can be complete at both
   ends and still be dead because nothing passes the argument between them.
   Before calling a capability "wired", grep for a CALLER, not a definition.
+  database before calling it done. A mock cannot even tell you the statement
+  PARSES: three shipped queries were 0A000 and had never executed once
+  (`statement-shapes-postgres-will-not-parse`). EXPLAIN it — one round trip,
+  no write (`explain-is-the-only-parser-we-have`).
+- `coverage-lists-that-enumerate-a-subset` — a coverage check is only as wide
+  as the thing it enumerates, and fixing ONE enumeration teaches you nothing
+  about the others in the same query. When you widen one, list every other
+  enumeration alongside it and widen or justify each.
 - `gurukul-no-production-glob` — a feature branch must never match another
   product's deploy trigger.
 - `recited-prompt` / `prompt-position` — write shapes, never lines; position is

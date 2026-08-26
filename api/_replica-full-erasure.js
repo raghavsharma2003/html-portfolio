@@ -233,7 +233,16 @@ export async function completeReplicaErasure(db, lease, receipt) {
            )
           and (r.agent_id is null or (a.slug='replica-'||replace(r.replica_id::text,'-','')
             and a.register->>'selfReplica'='true'))
-        for update
+        -- FOR UPDATE OF j,r, never a bare FOR UPDATE: vy_agent is joined LEFT
+        -- (a replica may legitimately have no agent yet), and Postgres refuses
+        -- FOR UPDATE on the nullable side of an outer join outright — 0A000,
+        -- "FOR UPDATE cannot be applied to the nullable side of an outer join",
+        -- at PARSE time, so a bare FOR UPDATE here can never execute at all.
+        -- The erasure guarantee needs the JOB and the REPLICA rows pinned for
+        -- the duration of the purge; "a" is read only for the slug/selfReplica
+        -- binding check and is itself deleted by "removed_agent" below, which
+        -- takes its own row lock. Locking it here buys nothing.
+        for update of j,r
      ), turn_legs as (delete from meera_turn_leg x using target t where x.agent_id=t.agent_id),
      turns as (delete from meera_turn x using target t where x.agent_id=t.agent_id),
      raw_logs as (delete from meera_log x using target t where x.agent_id=t.agent_id),
@@ -267,6 +276,23 @@ export async function completeReplicaErasure(db, lease, receipt) {
      sessions as (delete from vy_session x using target t where x.agent_id=t.agent_id),
      episodes as (delete from vy_episode x using target t where x.agent_id=t.agent_id),
      audit as (delete from vy_replica_audit x using target t where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- WS-R. Step 5 of docs/REPLICA-ERASURE.md says "all remaining
+     -- replica-local rows … through database cascades". Walking the LIVE FK
+     -- graph found four owner-keyed tables that "delete from vy_replica" does
+     -- NOT reach: vy_replica_audit (named above) and these three. 053 and 055
+     -- declare replica_id/owner_user_id FK-SHAPED BUT NOT FK on purpose, so
+     -- there is no cascade to inherit and the rows simply outlived the replica
+     -- — a channel binding, a watched source channel and its ingest runs,
+     -- still naming the owner, after the deletion receipt said the replica was
+     -- gone. Deleted here rather than given an FK because the erasure job is
+     -- the documented owner of ordering, and a new FK would change the
+     -- delete-time behaviour of every other path that touches these tables.
+     ingest_runs as (delete from vy_ingest_run x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     channel_watches as (delete from vy_channel_watch x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     clone_channels as (delete from vy_clone_channel x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,

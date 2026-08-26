@@ -42,6 +42,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSchema, needsCast } from "./sqlcast/schema.mjs";
 import { templateLiterals, looksLikeSql, analyzeSql } from "./sqlcast/scan.mjs";
+import { statementShapeDefects } from "./sqlcast/stmt.mjs";
 import { isStrict } from "./sqlcast/surface.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -177,6 +178,109 @@ console.log(
   `  controls: ${NEGATIVE.length} negative caught, ${POSITIVE.length} positive clean`,
 );
 
+// ───────────────────────────────── rule C/D controls: statement shape (0A000)
+//
+// Rule A/B are about VALUES: they need a call with the wrong type to bite.
+// Rule C and D are worse — Postgres refuses the statement at PARSE time, so it
+// can never execute for anybody, and an offline mock never asks it to parse.
+// All three seed cases below are the real defects WS-M's EXPLAIN sweep found
+// shipped in the tree, reduced; the repaired forms are what replaced them.
+const SHAPE_BAD = [
+  {
+    name: "bare FOR UPDATE over a LEFT JOIN (api/_replica-full-erasure.js)",
+    sql: `with target as (
+            select j.job_id,r.agent_id from vy_replica_erasure_job j
+              join vy_replica r on r.replica_id=j.replica_id
+              left join vy_agent a on a.agent_id=r.agent_id
+             where j.job_id=$1::uuid for update
+          ) select job_id from target`,
+  },
+  {
+    name: "FOR UPDATE OF naming the left-joined alias",
+    sql: `select r.replica_id from vy_replica r
+            left join vy_agent a on a.agent_id=r.agent_id
+           where r.replica_id=$1::uuid for update of r,a`,
+  },
+  {
+    name: "data-modifying CTE with no RETURNING, referenced (api/_replica-source-erasure.js)",
+    sql: `with touched as (
+            update vy_replica_source s set state='deleting' where s.replica_id=$1::uuid
+          ), gone as (
+            delete from vy_replica_claim c where c.replica_id=$1::uuid
+              and (select count(*) from touched)>=0 returning c.replica_id
+          ) select replica_id from gone`,
+  },
+  {
+    name: "data-modifying CTE with no RETURNING, referenced (api/_replica-voice-delivery-policy.js)",
+    sql: `with expired as (
+            update vy_replica_voice_trial set state='expired' where replica_id=$1::uuid
+          ) select t.trial_id from vy_replica_voice_trial t
+             where t.replica_id=$1::uuid and (select count(*) from expired)>=0`,
+  },
+];
+
+const SHAPE_OK = [
+  {
+    name: "FOR UPDATE OF the non-nullable relations only — the repair",
+    sql: `with target as (
+            select j.job_id,r.agent_id from vy_replica_erasure_job j
+              join vy_replica r on r.replica_id=j.replica_id
+              left join vy_agent a on a.agent_id=r.agent_id
+             where j.job_id=$1::uuid for update of j,r
+          ) select job_id from target`,
+  },
+  {
+    name: "bare FOR UPDATE with no outer join anywhere — legal, must NOT be flagged",
+    sql: `select s.source_id from vy_replica_source s
+           where s.replica_id=$1::uuid order by s.updated_at
+           for update skip locked limit 1`,
+  },
+  {
+    name: "a LEFT JOIN in a DIFFERENT CTE from the lock — must NOT be flagged",
+    sql: `with a as (
+            select r.replica_id,g.agent_id from vy_replica r
+              left join vy_agent g on g.agent_id=r.agent_id where r.replica_id=$1::uuid
+          ), b as (
+            select s.source_id from vy_replica_source s where s.replica_id=$1::uuid for update
+          ) select source_id from b`,
+  },
+  {
+    name: "the same CTE, with RETURNING — the repair",
+    sql: `with expired as (
+            update vy_replica_voice_trial set state='expired' where replica_id=$1::uuid
+            returning trial_id
+          ) select t.trial_id from vy_replica_voice_trial t
+             where t.replica_id=$1::uuid and (select count(*) from expired)>=0`,
+  },
+  {
+    name: "no RETURNING and nothing references it — legal, must NOT be flagged",
+    sql: `with expired as (
+            update vy_replica_voice_trial set state='expired' where replica_id=$1::uuid
+          ) select t.trial_id from vy_replica_voice_trial t where t.replica_id=$1::uuid`,
+  },
+  {
+    name: "a read-only CTE with no RETURNING, referenced — legal, must NOT be flagged",
+    sql: `with live as (
+            select s.source_id from vy_replica_source s where s.replica_id=$1::uuid
+          ) select source_id from live`,
+  },
+];
+
+for (const c of SHAPE_BAD) {
+  if (!statementShapeDefects(c.sql).length) {
+    problem(`shape control NOT caught: ${c.name}`);
+  }
+}
+for (const c of SHAPE_OK) {
+  const d = statementShapeDefects(c.sql);
+  if (d.length) {
+    problem(`shape control wrongly flagged: ${c.name} — ${d.map((x) => x.detail).join("; ")}`);
+  }
+}
+console.log(
+  `  shape controls: ${SHAPE_BAD.length} negative caught, ${SHAPE_OK.length} positive clean`,
+);
+
 // ──────────────────────────────────────────────────────────── the real scan
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -190,7 +294,8 @@ function walk(dir, out = []) {
 let statements = 0,
   strictStatements = 0,
   conflictCount = 0,
-  violationCount = 0;
+  violationCount = 0,
+  shapeCount = 0;
 
 for (const file of walk(path.join(ROOT, "api")).sort()) {
   const rel = path.relative(ROOT, file).split(path.sep).join("/");
@@ -200,6 +305,12 @@ for (const file of walk(path.join(ROOT, "api")).sort()) {
     statements++;
     if (strict) strictStatements++;
     const { violations, conflicts } = analyzeSql(t.sql, schema, needsCast);
+    // Rule C/D apply EVERYWHERE, like rule A: a statement Postgres refuses to
+    // parse is broken on the oldest surface exactly as much as the newest.
+    for (const s of statementShapeDefects(t.sql)) {
+      shapeCount++;
+      problem(`${rel}:${t.line} — ${s.detail}`);
+    }
     for (const c of conflicts) {
       conflictCount++;
       problem(`${rel}:${t.line} — ${c.detail}`);
@@ -217,6 +328,7 @@ console.log(
 );
 console.log(`  rule A (everywhere)      : ${conflictCount} conflicts`);
 console.log(`  rule B (strict surface)  : ${violationCount} uncast sites`);
+console.log(`  rule C/D (everywhere)    : ${shapeCount} unparseable statement shapes`);
 
 if (failed) {
   console.log(`\nsqlcast: ${failed} FAILED`);
