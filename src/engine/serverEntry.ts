@@ -147,6 +147,45 @@ export {
 } from "./agents/fromSheet";
 export type { TeacherSheet } from "./agents/teacherTypes";
 
+// ── the clone aliveness seam (Gurukul WS-Q) ────────────────────────────────
+// A published clone's present moment and its right to speak first. Both cross
+// here for this file's standing reason: the server lane is where a clone is
+// actually served, and a hand-ported copy in api/ would be a second definition
+// of when a clone of a real teacher may message a sixteen-year-old first. The
+// drifted half would still return 200.
+export {
+  cloneNowAt,
+  renderCloneNow,
+  localParts,
+  shapeForDow,
+  validateCloneLife,
+  cloneLifeRows,
+  CLONE_NOW_BUDGET,
+  CLONE_NOW_HEADER,
+  CLONE_TRANSITION_MIN,
+  MAX_TODAY_BEATS as CLONE_MAX_TODAY_BEATS,
+  type CloneLifeShape,
+  type CloneDaySlot,
+  type CloneWeekBeat,
+  type CloneNowEntry,
+} from "./agents/cloneLife";
+export {
+  initiativeVerdict,
+  renderInitiative,
+  INITIATIVE_BUDGET,
+  INITIATIVE_HEADER,
+  DAYTIME_FROM_MIN,
+  DAYTIME_TO_MIN,
+  OVERDUE_GRACE_MS,
+  STATED_TIME_LEAD_MS,
+  STATED_TIME_TRAIL_MS,
+  PATTERN_MIN_OBSERVATIONS,
+  PATTERN_FRESH_MS,
+  type InitiativeRecord,
+  type InitiativeVerdict,
+  type InitiativeKind,
+} from "./agents/initiative";
+
 // ── the ingestion seam (Gurukul WS-F) ──────────────────────────────────────
 // `verifyPhraseBank` is the half `fromSheet.ts`'s validator explicitly refused
 // to approximate: teacher-sheet-spec.md §4.3's ">=5 occurrences in the
