@@ -2980,3 +2980,37 @@ which point the seam is filled and the scope line moves.
 Every tail slot now carries a written DROP CLASS (cosmetic / relational /
 honesty-adjacent / floor) and the suite fails if a manifest row appears without
 one — a new slot with no class is a slot whose drop policy nobody decided.
+
+## `gurukul-ws45-landed` — waves 4 and 5: the platform loop closes offline (2026-08-26)
+
+Four workstreams merged onto `claude/gurukul-platform`, all 11 gates green
+after each merge:
+
+- **WS-I** — channel-watch + ingest-run migrations (053), YouTube-OAuth and
+  ASR provider seams (Sarvam protocol-coded; self-hosted lane mirrors the
+  chatterbox admission broker with signed-URL audio), 6-hourly sweep that
+  produces PROPOSED deltas only (additions-only; provably never touches
+  vy_teacher_sheet — asserted over every SQL string). YouTube fetchAudio is
+  an honest refusal naming the lawful paths.
+- **WS-J** — self-hosted voice lane is PRIMARY (VOICE_LANE_ORDER, one
+  place); fidelity score (migration 054) gates activation as a PEER of the
+  seven qualification suites — disagreement surfaces as two blockers, never
+  averaged; voice_model_ref added so a fine-tune cannot inherit the base
+  model's pass; thresholds explicitly provisional-until-benched. Open gap,
+  named: an already-active capability is not auto-revoked on fidelity
+  regression — revocation ownership unassigned.
+- **WS-K** — disclosure-reciprocity ledger (pure fold, T17 tail slot,
+  absent-by-default: byte-identity 83/83 intact), within-session drift
+  probe suite (structural arm live, behavioural arm a provider seam that
+  reports judged:false so a fake can never read as a measurement), memory
+  recall benchmark (3 dyads × 50 questions over the REAL recall path with a
+  resolution-hook DB mock). First bench run surfaced
+  `stale-note-keys-on-row-age` (open): staleNote hedges by row age, not the
+  fact's own date — direct evidence for bi-temporal edges (ROADMAP-100X
+  item 4). No offline numbers written to measurements.md — the extractor
+  leg is unexercised and a false baseline poisons the first keyed run.
+
+With WS-F's endpoint, the self-serve loop now exists end to end offline:
+channel/upload → transcript → stats + drafted sheet deltas → teacher
+approval → publish gates → dynamic agent → student surfaces — every lane
+behind fail-closed seams awaiting keys, GPUs, and migrations.

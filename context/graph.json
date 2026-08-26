@@ -1922,6 +1922,12 @@
       "kind": "open",
       "title": "a future plan recorded >45d ago is hedged as already-past; needs the fact's own validity interval",
       "at": "2026-08-26"
+    },
+    {
+      "id": "gurukul-ws45-landed",
+      "kind": "decision",
+      "title": "waves 4-5 landed: ingestion loop, in-house voice + fidelity gate, reciprocity/drift/recallbench",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3524,6 +3530,11 @@
       "src": "stale-note-keys-on-row-age",
       "rel": "caused_by",
       "dst": "recall-bench-v1"
+    },
+    {
+      "src": "gurukul-ws45-landed",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
     }
   ]
 }
