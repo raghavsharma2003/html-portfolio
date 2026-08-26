@@ -629,7 +629,13 @@ const LANE_REQUIREMENTS = Object.freeze({
   channel_video: Object.freeze(["YOUTUBE_API_KEY|YOUTUBE_OAUTH_CLIENT_ID|MEDIA_EXTRACT_ORIGIN", "SARVAM_API_KEY", "CRON_SECRET"]),
   channel_watch: Object.freeze(["YOUTUBE_API_KEY|YOUTUBE_OAUTH_CLIENT_ID|MEDIA_EXTRACT_ORIGIN", "CRON_SECRET"]),
   voice_model_build: Object.freeze(["CRON_SECRET"]),
-  upload_processing: Object.freeze(["SUPABASE_URL", "SUPABASE_SERVICE_KEY"]),
+  // SUPABASE_SERVICE_ROLE_KEY, not SUPABASE_SERVICE_KEY. The short name exists
+  // nowhere else in this repo, so this lane reported "not connected yet" while
+  // it was demonstrably running: the owner's recording completed all eight
+  // steps and the same screen still told them the lane was not set up. A
+  // requirement list that names a variable nobody sets is worse than no list,
+  // because it sends someone to configure something that is already correct.
+  upload_processing: Object.freeze(["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]),
   // Nothing in this repo runs a fine-tune. There is no env var that would make
   // it true, so the missing piece is named as a service rather than a variable.
   mirror_finetune: Object.freeze(["a fine-tune runner, which does not exist in this repo yet"]),
