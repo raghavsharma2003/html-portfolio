@@ -57,6 +57,17 @@
 //     because losing it flips the studio's whole copy mid-flow (BREAK 1 by a
 //     second route). Section 7 covers the parser and the query writer,
 //     including hostile input.
+//
+//  7. OURS IS NEVER RENDERED AS THEIRS (WS-AJ). The studio shipped "9 things on
+//     Meet it are still waiting on you" while the true blocker was a processing
+//     queue nothing drained. Section 8 asserts, over the whole input space,
+//     that no platform-owned blocker's prose blames the person and that no
+//     blocking sentence counts opaque things, and it carries the strongest
+//     negative control in this file: the exact sentence the owner was shown,
+//     asserted to FAIL. If that check goes quiet the sentence can come back.
+//
+//  8. A BUTTON SAYS WHERE IT GOES. Section 9. "Next: Deploy it" is a step name
+//     in a sentence slot, and DESIGN-LAW §1's read-aloud test is the gate.
 import { execSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -67,7 +78,16 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..");
 const OUT = mkdtempSync(join(tmpdir(), "studiowizard-"));
 const ENTRY = join(OUT, "entry.ts");
-writeFileSync(ENTRY, `export * from ${JSON.stringify(join(REPO, "src/studio/wizardModel"))};\n`);
+// Both pure modules, bundled from the REAL source on every run. `blockerClass`
+// is exported alongside the wizard rather than reached through it because §8
+// asserts on its detectors directly, and a suite that can only see a rule
+// through the code it is meant to police is a suite that goes quiet the moment
+// that code stops calling it.
+writeFileSync(
+  ENTRY,
+  `export * from ${JSON.stringify(join(REPO, "src/studio/wizardModel"))};\n` +
+  `export * as honesty from ${JSON.stringify(join(REPO, "src/studio/blockerClass"))};\n`,
+);
 const BUNDLE = join(OUT, "wizard.bundle.mjs");
 execSync(
   `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
@@ -82,10 +102,18 @@ const {
   blockerMeta,
   nextStep,
   previousStep,
+  stepTitle,
   stepFromQuery,
   queryForStep,
   STEP_ORDER,
+  stepBlockReason,
+  nextLabel,
+  backLabel,
+  allBlockerCodes,
+  honesty,
 } = M;
+
+const { blamesThePerson, countsOpaqueThings, reasonIsHonest, activityClass, CLASS_COPY } = honesty;
 
 let pass = 0;
 let fail = 0;
@@ -107,6 +135,10 @@ const BLANK = {
   mode: "teacher",
   runtime: null,
   connectedChannels: null,
+  // WS-AJ. `null` is "the activity surface has not answered", and it must
+  // reclassify nothing: the wizard has to behave exactly as it did before this
+  // field existed when it is absent. §8 asserts that directly.
+  platformWork: null,
 };
 
 const input = (over = {}) => ({ ...BLANK, ...over });
@@ -140,6 +172,21 @@ const RUNTIMES = [
   { active: true, blockers: [], voiceGenomeVersion: 4 },
 ];
 
+/* The platform's own state, in the four shapes that change an answer.
+ *
+ * `null` is the unread case and is the one that must change nothing.
+ * `IDLE` is the platform having answered and having nothing in flight, which is
+ * NOT the same as `null` and is the pair that catches an `?? {}` written by
+ * someone tidying up. The last two are the two ways work is ours: moving, and
+ * stopped. The stuck one is the owner's actual situation on the day they
+ * tested, with audio sitting at `quarantined` behind a queue nothing drained. */
+const PLATFORM_WORK = [
+  null,
+  { running: 0, stuck: 0, undeployedLanes: [] },
+  { running: 2, stuck: 0, undeployedLanes: [] },
+  { running: 0, stuck: 1, undeployedLanes: ["Uploaded recordings"] },
+];
+
 const universe = [];
 for (const stopped of BOOLS) {
   for (const sourceConsent of BOOLS) {
@@ -151,11 +198,13 @@ for (const stopped of BOOLS) {
               for (const mode of ["generic", "teacher"]) {
                 for (const runtime of RUNTIMES) {
                   for (const connectedChannels of TRISTATE) {
-                    universe.push(input({
-                      stopped, sourceConsent, sourceCount, contextItemCount,
-                      identityVerified, livenessVerified, sheetPersisted, mode,
-                      runtime, connectedChannels,
-                    }));
+                    for (const platformWork of PLATFORM_WORK) {
+                      universe.push(input({
+                        stopped, sourceConsent, sourceCount, contextItemCount,
+                        identityVerified, livenessVerified, sheetPersisted, mode,
+                        runtime, connectedChannels, platformWork,
+                      }));
+                    }
                   }
                 }
               }
@@ -295,7 +344,7 @@ console.log("\n── 5. an unrecognised gate still counts ──");
   ok(
     "blockersForStep routes each known code to exactly one step",
     ["identity_verification_required", "qualification_incomplete"].every((code) => {
-      const hits = STEP_ORDER.filter((id) => blockersForStep([code], id).length > 0);
+      const hits = STEP_ORDER.filter((id) => blockersForStep([code], id, input()).length > 0);
       return hits.length === 1;
     }),
   );
@@ -375,6 +424,280 @@ console.log("\n── 7. refresh, bookmark and Back all land where you were ─�
   ok(
     "every step id survives a write then a read",
     STEP_ORDER.every((id) => stepFromQuery(queryForStep("?mode=teacher", id)) === id),
+  );
+}
+
+// ── 8. the honesty split is a PROPERTY, not a rendering accident ──────────
+//
+// WHAT THIS SECTION IS FOR, AND WHAT IT COSTS TO LOSE IT
+//
+// The studio shipped this, on a phone, under a disabled button:
+//
+//     "Your clone is not activatable yet. 9 things on Meet it are still
+//      waiting on you, and every channel below stays refused until they clear."
+//
+// At the moment that rendered, the owner's uploaded audio was sitting at
+// `quarantined` because nothing deployed drains the processing queue. Not one
+// of those nine was an act they could perform. We told a person, nine times
+// over, that our unfinished work was their unfinished work.
+//
+// That sentence was not a typo. It was structurally reachable: `stepEntryWarning`
+// returned a bare STRING, and a string has no class, so nothing downstream
+// could render "ours" differently from "yours" and nothing anywhere could
+// check that a sentence had not blamed the wrong party. The repair is a type
+// (`blockerClass.ts`), and a type without a check is a suggestion, so:
+//
+//   8a. every `us`-class string this build can produce is blame-free, over the
+//       WHOLE input space, not over a demo path;
+//   8b. no blocking sentence counts opaque things;
+//   8c. `null` platform state reclassifies nothing, so the field is safe to
+//       land before its backend is reliable;
+//   8d. THE NEGATIVE CONTROL: a blocker that is ours, rendered as the person's
+//       fault, must FAIL. Both detectors are run against the actual sentence
+//       from the screenshot. If that stops failing, this section has gone quiet
+//       and the sentence can come back.
+console.log("\n── 8. ours is never rendered as theirs ──");
+
+{
+  // 8d FIRST, because a suite whose negative control is at the bottom is a
+  // suite that gets read as green before anyone reaches it.
+  const THE_SENTENCE =
+    "Your clone is not activatable yet. 9 things on Meet it are still waiting on you, " +
+    "and every channel below stays refused until they clear.";
+
+  ok(
+    "NEGATIVE CONTROL: the exact sentence the owner was shown is caught as blame",
+    blamesThePerson(THE_SENTENCE),
+  );
+  ok(
+    "NEGATIVE CONTROL: it is also caught as an opaque count",
+    countsOpaqueThings(THE_SENTENCE),
+  );
+  ok(
+    "NEGATIVE CONTROL: a hand-built OURS reason carrying that sentence is rejected",
+    reasonIsHonest({
+      kind: "us",
+      classLabel: CLASS_COPY.us.label,
+      headline: THE_SENTENCE,
+      next: "Nothing for you to do here.",
+    }) === false,
+  );
+  ok(
+    "NEGATIVE CONTROL: the blame lands in `next` as well as in `headline`",
+    reasonIsHonest({
+      kind: "us",
+      classLabel: CLASS_COPY.us.label,
+      headline: "We are still processing your recordings.",
+      next: "You still need to finish this before we can continue.",
+    }) === false,
+  );
+  ok(
+    "NEGATIVE CONTROL: an empty half is rejected, so a reason cannot be a shrug",
+    reasonIsHonest({ kind: "us", classLabel: CLASS_COPY.us.label, headline: "Something is wrong.", next: "" }) === false,
+  );
+  // And the detector is not simply always-true: correct copy must survive it,
+  // or the check is a switch nobody can turn green and gets deleted.
+  ok(
+    "the detector passes copy that is honest, so it is not a blanket refusal",
+    reasonIsHonest({
+      kind: "us",
+      classLabel: CLASS_COPY.us.label,
+      headline: "We are still processing what you gave us.",
+      next: "Nothing for you to do here. You can pick this up when processing finishes.",
+    }) === true,
+  );
+  // The near miss, kept because it is the one a well-meaning edit reaches for:
+  // "this becomes your turn" is a promise, not an accusation, and the detector
+  // cannot tell them apart. It is rejected, and the fix is the copy rather than
+  // a looser rule. A detector relaxed to admit a nicer sentence is a detector
+  // that admits the sentence it exists to catch.
+  ok(
+    "NEGATIVE CONTROL: even a well-meant \"this becomes your turn\" is refused in an OURS reason",
+    reasonIsHonest({
+      kind: "us",
+      classLabel: CLASS_COPY.us.label,
+      headline: "We are still processing what you gave us.",
+      next: "This becomes your turn when processing finishes.",
+    }) === false,
+  );
+  ok(
+    "and it does not fire on the second person used correctly in a YOURS reason",
+    reasonIsHonest({
+      kind: "you",
+      classLabel: CLASS_COPY.you.label,
+      headline: "The box is empty, so there is nothing to say.",
+      next: "Type a line for your clone to read aloud.",
+    }) === true,
+  );
+}
+
+{
+  // 8a. Every `us` row, every `us` sentence, across the whole space.
+  let blamedRows = 0;
+  let blamedReasons = 0;
+  let countedThings = 0;
+  let classless = 0;
+  let dishonest = 0;
+  let firstBad = "";
+
+  for (const row of universe) {
+    const view = computeWizard(row);
+    for (const step of view.steps) {
+      for (const m of step.missing) {
+        if (m.cls !== "you" && m.cls !== "us") classless++;
+        if (m.cls === "us" && (blamesThePerson(m.note) || blamesThePerson(m.label))) {
+          blamedRows++;
+          if (!firstBad) firstBad = `${m.code}: ${m.note}`;
+        }
+        if (countsOpaqueThings(m.note)) countedThings++;
+      }
+    }
+    for (const id of STEP_ORDER) {
+      const reason = stepBlockReason(id, row);
+      if (!reason) continue;
+      if (!reasonIsHonest(reason)) {
+        dishonest++;
+        if (!firstBad) firstBad = `${id}: ${reason.headline} ${reason.next}`;
+      }
+      if (reason.kind === "us" && (blamesThePerson(reason.headline) || blamesThePerson(reason.next))) blamedReasons++;
+      if (countsOpaqueThings(reason.headline) || countsOpaqueThings(reason.next)) countedThings++;
+    }
+  }
+
+  ok(`every missing row carries a class, across all ${universe.length} inputs`, classless === 0, `bad=${classless}`);
+  ok("no OURS row blames the person", blamedRows === 0, `bad=${blamedRows} ${firstBad}`);
+  ok("no OURS blocking sentence blames the person", blamedReasons === 0, `bad=${blamedReasons}`);
+  ok("no blocking sentence counts opaque things", countedThings === 0, `bad=${countedThings}`);
+  ok("every blocking sentence is honest by its own definition", dishonest === 0, `bad=${dishonest} ${firstBad}`);
+}
+
+{
+  // The whole shipped vocabulary, swept directly. `computeWizard` only reaches
+  // a code the runtime happened to report in `RUNTIMES`; this reaches all of
+  // them, so a new blocker added with careless copy is caught on the day it is
+  // written rather than on the day a runtime first emits it.
+  const codes = allBlockerCodes();
+  ok("the blocker vocabulary is non-empty, so this sweep is not vacuous", codes.length > 0, `n=${codes.length}`);
+  const bad = codes.filter((code) => {
+    const meta = blockerMeta(code);
+    return meta.owner === "platform" && (blamesThePerson(meta.note) || blamesThePerson(meta.label));
+  });
+  ok("no platform-owned blocker in the table blames the person", bad.length === 0, bad.join(","));
+  ok(
+    "no blocker note counts opaque things",
+    codes.every((code) => !countsOpaqueThings(blockerMeta(code).note)),
+  );
+}
+
+{
+  // 8c. The safe default. This is the property that makes the field landable
+  // ahead of the backend it reads from: absent must mean unchanged, not
+  // "assume idle" and not "assume busy".
+  const withNull = universe.filter((row) => row.platformWork === null);
+  const same = withNull.every((row) => {
+    const a = computeWizard(row);
+    const { platformWork: _drop, ...withoutField } = row;
+    const b = computeWizard(withoutField);
+    return JSON.stringify(a) === JSON.stringify(b);
+  });
+  ok("an absent platform state behaves exactly as a null one", same, `n=${withNull.length}`);
+
+  // And the reclassification actually happens when it should, or the field is
+  // decoration. `person_profile_not_approved` is nominally the owner's turn and
+  // is unreachable until our processing has produced something to approve.
+  const busy = input({
+    identityVerified: true,
+    livenessVerified: true,
+    sheetPersisted: true,
+    mode: "generic",
+    sourceConsent: true,
+    sourceCount: 2,
+    runtime: { active: false, blockers: ["person_profile_not_approved"], voiceGenomeVersion: null },
+    platformWork: { running: 1, stuck: 0, undeployedLanes: [] },
+  });
+  const idle = input({ ...busy, platformWork: { running: 0, stuck: 0, undeployedLanes: [] } });
+  const rowWhenBusy = stepOf(computeWizard(busy), "meet").missing.find((m) => m.code === "person_profile_not_approved");
+  const rowWhenIdle = stepOf(computeWizard(idle), "meet").missing.find((m) => m.code === "person_profile_not_approved");
+  ok("a gate that needs processed material is OURS while we are still processing", rowWhenBusy?.cls === "us");
+  ok("and it is the person's turn once we are done", rowWhenIdle?.cls === "you");
+  ok("the reclassified note says what is happening, not what they failed to do", !blamesThePerson(rowWhenBusy?.note || "x you have not"));
+  ok(
+    "and the step does not glow ember while the only open gate is ours",
+    stepOf(computeWizard(busy), "meet").state === "running",
+    stepOf(computeWizard(busy), "meet").state,
+  );
+  ok(
+    "the same step IS ember once it is genuinely their turn",
+    stepOf(computeWizard(idle), "meet").state === "waiting",
+    stepOf(computeWizard(idle), "meet").state,
+  );
+}
+
+{
+  // The compact surfaces have one line each, and that line must be a NAME.
+  let namedTop = 0;
+  let countedTop = 0;
+  for (const row of universe) {
+    for (const step of computeWizard(row).steps) {
+      if (step.state === "done" || step.state === "stopped") continue;
+      if (step.missing.length === 0) continue;
+      if (!step.top || !step.top.label) continue;
+      namedTop++;
+      if (countsOpaqueThings(step.top.label)) countedTop++;
+    }
+  }
+  ok("a step with open items always names one", namedTop > 0, `n=${namedTop}`);
+  ok("and the named one is never a count", countedTop === 0, `bad=${countedTop}`);
+  ok(
+    "the top item is the person's own next act whenever they have one",
+    universe.every((row) => computeWizard(row).steps.every((s) => {
+      const mine = s.missing.find((m) => m.cls === "you");
+      return !mine || s.top === mine || s.top?.cls === "you";
+    })),
+  );
+}
+
+{
+  // 8e. WS-AF's vocabulary, projected once. A second status vocabulary is a
+  // second place for the truth to drift, so this asserts the mapping rather
+  // than letting each surface decide.
+  ok("waiting_on_you is the only activity state that is the person's turn", activityClass("waiting_on_you") === "you");
+  ok("running is ours", activityClass("running") === "us");
+  ok("queued is ours", activityClass("queued") === "us");
+  ok("blocked is ours, which is where a quarantined upload sits", activityClass("blocked") === "us");
+  ok("failed is ours", activityClass("failed") === "us");
+  ok(
+    "a state this build has never heard of is OURS, because not understanding it is our gap",
+    activityClass("some_state_from_a_future_lane") === "us",
+  );
+  ok(
+    "and a lane that is not deployed is ours whatever its rows say",
+    activityClass("waiting_on_you", false) === "us",
+  );
+}
+
+// ── 9. a button says where it goes, in words a person would use ───────────
+console.log("\n── 9. navigation copy ──");
+
+{
+  // The owner's report: "Next: Deploy it" and "Back to Feed it" read as jargon.
+  // They are STEP names, and a step name is a label on a rail, not a
+  // destination in a sentence. DESIGN-LAW §1's read-aloud test is the gate.
+  const nexts = STEP_ORDER.map((id) => nextLabel(id));
+  const backs = STEP_ORDER.map((id) => backLabel(id));
+  ok("every step has a Next label", nexts.every((s) => s.startsWith("Next: ") && s.length > 12), nexts.join(" | "));
+  ok("every step has a Back label", backs.every((s) => s.startsWith("Back to ") && s.length > 12), backs.join(" | "));
+  // Read through the REAL `stepTitle` rather than a copy of the three titles.
+  // A hardcoded `{ feed: "Feed it", ... }` here would keep passing on the day
+  // somebody renames a step, which is the frozen-copy failure this repo already
+  // has a name for.
+  ok(
+    "no navigation label is just the step name restated",
+    STEP_ORDER.every((id) => !nextLabel(id).includes(stepTitle(id)) && !backLabel(id).includes(stepTitle(id))),
+  );
+  ok(
+    "and none of them carries a dash, which the copy gate bans in user-visible strings",
+    [...nexts, ...backs].every((s) => !/[—–]/.test(s)),
   );
 }
 

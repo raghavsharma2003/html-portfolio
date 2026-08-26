@@ -17,6 +17,8 @@ import { ReplicaApiError } from "./replicaApi";
 import { friendlyError } from "./errorCopy";
 import type { ReplicaReview } from "./types";
 import { requestVoicePanelPreview, type VoicePanelWarming } from "./voicePanelApi";
+import { disabledReason, type DisabledReason } from "./blockerClass";
+import { DisabledAction } from "./BlockerNotice";
 
 const MAX_TEXT = 280;
 
@@ -131,6 +133,59 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
 
   const busy = phase.kind === "synthesizing" || phase.kind === "warming";
 
+  // ── why the button is dead, in the button's own box ─────────────────────
+  //
+  // THE OWNER'S REPORT, VERBATIM: "Preview my voice" rendered DISABLED with no
+  // visible reason attached to it. The reason existed, in `hear-voice-note`
+  // below, but only for the `!draft` case and only after `loading` had
+  // finished, so during the load there was a dead primary button and nothing
+  // else, and on a 390pt screen the note that eventually appeared was under
+  // the fold anyway.
+  //
+  // Every branch that disables the button now produces a reason, and the
+  // reason names its CLASS, because "we have not built your draft voice yet"
+  // and "your text is too long" ask for opposite behaviour from the reader:
+  // one means wait, the other means type. A disabled control that does not say
+  // which is a control that gets read as a bug.
+  //
+  // ORDER MATTERS. It is the order a person would discover them in: our
+  // problems first (there is nothing to preview, or the machine is busy), then
+  // theirs (the box is empty, or too long). Reporting "your text is too long"
+  // while there is no voice model at all would be true and useless.
+  const reason: DisabledReason | null = loading
+    ? disabledReason(
+      "us",
+      "We are still checking whether you have a draft voice.",
+      "This takes a moment. The button turns on by itself when the check comes back.",
+    )
+    : !draft
+      ? disabledReason(
+        "us",
+        "There is no draft voice to preview yet, because we have not built one from your recordings.",
+        "Nothing here needs you. Once a recording has been through processing and a draft voice is built, this turns on. The activity panel on this step shows where your recordings are.",
+      )
+      : busy
+        ? disabledReason(
+          "us",
+          phase.kind === "warming"
+            ? "The voice runtime is starting up, which takes two to three minutes after a quiet period."
+            : "Your line is being generated right now.",
+          "It retries by itself. You can leave this open or go and do something else on this step.",
+        )
+        : !text.trim()
+          ? disabledReason(
+            "you",
+            "The box is empty, so there is nothing to say.",
+            "Type a line for your clone to read aloud.",
+          )
+          : overLimit
+            ? disabledReason(
+              "you",
+              `That is longer than the ${MAX_TEXT} characters a preview can take.`,
+              "Shorten it and the button turns on.",
+            )
+            : null;
+
   return (
     <section className="hear-voice" aria-labelledby="hear-voice-title">
       <div className="section-heading">
@@ -169,21 +224,30 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
             </small>
           </label>
 
-          <button
-            className="button primary-button hear-voice-go"
-            type="button"
-            disabled={!draft || busy || !text.trim() || overLimit}
-            onClick={() => void run(0)}
-          >
-            {phase.kind === "synthesizing" ? "Generating" : phase.kind === "warming" ? "Waking the voice lab" : "Preview my voice"}
-          </button>
-
-          {!loading && !draft && (
-            <p className="hear-voice-note">
-              There is no draft voice yet. Accept a processed recording in the review step and build a
-              draft voice model first. Nothing here can speak before that exists.
-            </p>
-          )}
+          {/* The reason lives INSIDE the same box as the button, so it cannot
+              drift below a fold in a later layout change. On a 390pt screen
+              "adjacent" and "in the same element" are the same requirement. */}
+          <DisabledAction reason={reason}>
+            <button
+              className="button primary-button hear-voice-go"
+              type="button"
+              disabled={Boolean(reason)}
+              // Press feedback fires on pointerdown, and so does the work: a
+              // cold voice runtime takes two to three minutes, and spending
+              // the click duration on top of that for nothing is the exact
+              // latency DESIGN-LAW §2 calls the enemy. The keyboard path is
+              // separate because pointerdown never fires for it.
+              onPointerDown={() => { if (!reason) void run(0); }}
+              onKeyDown={(event) => {
+                if ((event.key === "Enter" || event.key === " ") && !reason) {
+                  event.preventDefault();
+                  void run(0);
+                }
+              }}
+            >
+              {phase.kind === "synthesizing" ? "Generating" : phase.kind === "warming" ? "Waking the voice lab" : "Preview my voice"}
+            </button>
+          </DisabledAction>
         </div>
 
         <div className="hear-voice-stage" aria-live="polite">

@@ -1088,7 +1088,18 @@ const suites = {
   // while Activate stayed disabled; and no step reports done while it still
   // lists something missing.
   //
-  // Offline, deterministic, $0, no DB, no browser, ~2s.
+  // WS-AJ added the honesty split as a fifth property, and it is the one with
+  // the sharpest negative control in the file: the exact sentence the owner was
+  // shown on a phone ("9 things on Meet it are still waiting on you") is
+  // asserted to FAIL both detectors. It rendered while their uploaded audio sat
+  // at `quarantined` behind a queue nothing drained, so every one of those nine
+  // was ours. A blocker is now typed `you` or `us`, a gate that needs processed
+  // material reclassifies to `us` while we are still holding that work, and no
+  // `us` prose may blame the reader anywhere in the input space. Section 9
+  // covers the navigation copy, where a step NAME had been standing in a
+  // sentence slot ("Next: Deploy it").
+  //
+  // Offline, deterministic, $0, no DB, no browser, ~4s.
   studiowizard: "studiowizard.mjs",
   // WS-AF. The activity surface — the owner's ask that they be able to see
   // whether the YouTube video arrived, whether processing finished, and what

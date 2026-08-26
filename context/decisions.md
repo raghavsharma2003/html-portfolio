@@ -4928,3 +4928,80 @@ answers "where am I" from data, and the step head, which says "Step 2 of 3".
 which is a real thing to want: `DESIGN-SYSTEM.md` §2 calls the numbered panel the
 visual argument for the whole product. If it returns it must return as ONE
 register with one owner, not as a per-panel literal.
+
+## `blocker-class-is-a-type` — "waiting on you" and "waiting on us" are two kinds, not two words (2026-08-26, WS-AJ)
+
+**The decision.** Every blocker the studio can render carries a
+`BlockerClass` of `you` or `us` (`src/studio/blockerClass.ts`), the two render
+differently and are labelled with a WORD in both cases, and no `us`-class prose
+may attribute the blocker to the reader. `evals/studiowizard.mjs` §8 asserts
+this over the wizard's whole input space, with the failing sentence itself as
+the negative control.
+
+**Why.** The owner tested on a phone and was shown, under a disabled button:
+"Your clone is not activatable yet. 9 things on Meet it are still waiting on
+you, and every channel below stays refused until they clear." At that moment
+their uploaded audio was sitting at `quarantined`, because nothing deployed
+drains the processing queue. Not one of those nine was an act they could
+perform. Two defects in one line, and only one of them is layout: a COUNT OF
+OPAQUE THINGS, which is not startable, and a misattribution of our unfinished
+work to them, which is the failure `docs/HONESTY.md` exists to prevent.
+
+**Why it is a type rather than a convention.** `stepEntryWarning` returned a
+bare `string`. A string has no class, so nothing downstream could paint "ours"
+differently from "yours" and nothing anywhere could check that a sentence had
+not blamed the wrong party. The sentence was structurally reachable, not a
+typo, and a convention would have made it reachable again on the next surface.
+
+**The reclassification, which is the non-obvious half.** `owner` and `cls` are
+NOT the same field. Two runtime gates (`person_profile_not_approved`,
+`calibration_not_approved`) are nominally the owner's turn and are unreachable
+until our processing has produced something to approve, so while
+`WizardInput.platformWork` says we are holding that work they render `us`, with
+what is happening and what changes it. The rail's ember keys on `cls`, so a step
+whose only open gate is ours no longer glows "your turn" in paint.
+
+**The safe default.** `platformWork: null` means the activity surface has not
+answered and reclassifies nothing; the eval asserts an absent field behaves
+byte-identically to a null one. That is what made the field landable while
+WS-AH's processing sweep was still in flight.
+
+**What would reverse it.** Evidence that people read the two classes as the same
+thing, or that the `us` class becomes a place blockers are filed to avoid asking
+for anything. The second is the real risk and the guard against it is that a
+`you` reason must name an act: a "waiting on you" with no control on the same
+screen is a "waiting on us" wearing the wrong badge, and if that inversion
+starts happening the split has stopped meaning anything.
+
+## `the-studio-phone-layout-is-stated-not-subtracted` (2026-08-26, WS-AJ)
+
+**The decision.** The studio's phone layout lives in one file,
+`src/studio/design/mobile.css`, at one breakpoint (720px, shared with
+`useCompact.ts`), written as what a 390pt screen IS rather than as removals from
+the desktop. The three structural choices that CSS cannot express (which rail is
+rendered, which panels start open, whether the step explanation is inline) are
+made in React from `matchMedia`.
+
+**Why.** `studio.css` had fourteen media queries and every one of them was
+conscientious. They were also all subtractive, and the sum of fourteen correct
+subtractions was a first viewport spent on a masthead, an eyebrow, a 43px serif
+title, a four-line paragraph and a four-card dashboard before any control
+appeared. No single rule was wrong; the composition was. A composition defect
+cannot be fixed by a fifteenth subtraction.
+
+**Measured shape of the fix**, per step: page furniture from about 300px to
+about 90px, primary action above the fold on all three steps, every band except
+the step's first collapsed by default, 44pt minimum on every control, `100dvh`
+rather than `100vh`, and 16px text inputs so iOS Safari does not zoom the
+viewport on focus and leave it zoomed.
+
+**Why a separate file rather than more of studio.css.** The same mechanical
+reason `design/tokens.css` gives: `studio.css` is the most contended file in the
+repo and a layout that only exists as a diff inside a contended file is a layout
+that loses a merge.
+
+**What would reverse it.** A third viewport class earning its own structure
+(a tablet that wants the full rail and the compact bands, say). At that point
+the boolean `compact` is the wrong shape and it should become a named size,
+because a second boolean would produce four combinations and two of them would
+never be designed.

@@ -153,6 +153,7 @@ export default function ActivityPanel({
   where = "feed",
   onAuthError,
   onAct,
+  onView,
 }: {
   token: string;
   replicaId: string;
@@ -165,6 +166,15 @@ export default function ActivityPanel({
    *  ContextLockerPanel's precedent: a screen that jumps while the owner is
    *  reading a failure reason takes the reason away with it. */
   onAct?: (job: ActivityJob) => void;
+  /** Every successful read, handed up (WS-AJ).
+   *
+   *  This exists so the wizard can tell the two blocker classes apart without a
+   *  SECOND poll of the same endpoint. `/api/replica-activity` is polled on a
+   *  server-decided interval and every call is a billed serverless invocation;
+   *  a parallel fetch in `StudioApp` purely to ask "is the platform busy" would
+   *  double that for an answer this component already has in hand. It is
+   *  additive and optional, so a mount that does not care is unchanged. */
+  onView?: (view: ActivityView) => void;
 }) {
   const [view, setView] = useState<ActivityView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -186,6 +196,7 @@ export default function ActivityPanel({
       unchanged.current = sameActivity(latest.current, next) ? unchanged.current + 1 : 0;
       latest.current = next;
       setView(next);
+      onView?.(next);
       setError("");
       return next.next_poll_ms;
     } catch (cause) {
@@ -201,7 +212,7 @@ export default function ActivityPanel({
     } finally {
       setLoading(false);
     }
-  }, [token, replicaId, onAuthError]);
+  }, [token, replicaId, onAuthError, onView]);
 
   useEffect(() => {
     const controller = new AbortController();

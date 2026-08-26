@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ensureStudioSession,
   googleSignIn,
@@ -47,16 +47,27 @@ import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
 import MirrorCallStudio from "./MirrorCallStudio";
 import VideoLinkMount from "./VideoLinkMount";
-import ProcessingStatusMount from "./ProcessingStatusMount";
-import { AdvancedArea, StepBlockers, StepPager, WizardRail } from "./WizardRail";
+import ActivityPanel from "./ActivityPanel";
+import {
+  AdvancedArea,
+  Band,
+  CompactRail,
+  StepBlockers,
+  StepHead,
+  StepPager,
+  WizardRail,
+} from "./WizardRail";
+import { useCompact } from "./useCompact";
+import { BlockerNotice } from "./BlockerNotice";
+import { CLASS_COPY } from "./blockerClass";
+import type { ActivityView } from "./activityApi";
 import {
   computeWizard,
   nextStep,
   previousStep,
   queryForStep,
-  stepEntryWarning,
+  stepBlockReason,
   stepFromQuery,
-  stepTitle,
   type StepId,
   type WizardInput,
 } from "./wizardModel";
@@ -239,38 +250,12 @@ function Spinner({ label }: { label: string }) {
 // A/B, a text dialogue lab). The required gates now sit in the open, on the
 // step where they bind.
 
-/**
- * The band heading that groups panels inside a step.
- *
- * A step is not a list of panels, it is two or three moves.
- *
- * IT CARRIES NO NUMBER, and that is the interesting part. UX-Q-07 asked for
- * phase-scoped numbering to kill the `04`/`04` collision between
- * `ProcessingReview` and `ModelConsentGate`; `docs/gurukul/DESIGN-LAW.md` §1
- * then banned section-numbering eyebrows outright, and DESIGN-LAW wins where it
- * disagrees with a prior UI decision. Deleting the numbers kills the collision
- * more permanently than renumbering it would have: there is no longer a number
- * for the next workstream to pick 04 again.
- */
-function Band({
-  title,
-  blurb,
-  children,
-}: {
-  title: string;
-  blurb: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="wizard-band">
-      <header className="wizard-band-head">
-        <h2>{title}</h2>
-        <p>{blurb}</p>
-      </header>
-      <div className="wizard-band-body">{children}</div>
-    </section>
-  );
-}
+// `Band` moved to `WizardRail.tsx` (WS-AJ), where it gained a collapsible phone
+// form. It still carries no number, for the reason it never did: UX-Q-07 asked
+// for phase-scoped numbering to kill the `04`/`04` collision between
+// `ProcessingReview` and `ModelConsentGate`, then DESIGN-LAW §1 banned
+// section-numbering eyebrows outright, and deleting the numbers killed the
+// collision more permanently than renumbering it would have.
 
 function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy }) {
   const [step, setStep] = useState<AuthStep>("email");
@@ -532,13 +517,84 @@ function VoiceUnlockNotice({ replica }: { replica: Replica }) {
     : identity ? "a live challenge" : "identity";
   return (
     <aside className="voice-unlock" role="status">
-      <p className="eyebrow">Verify to activate your voice</p>
+      {/* Carries the class label like every other blocked state on the studio,
+          because this genuinely IS the person's turn and saying so in the same
+          words the rest of the product uses is what makes "waiting on us"
+          believable when it appears. A vocabulary that is only honest in the
+          places where honesty is cheap is not a vocabulary. */}
+      <p className="voice-unlock-class">{CLASS_COPY.you.label}</p>
       <p>
         The preview above is private and works right now. To let this voice speak to anyone else we need {missing},
         because a voice is a person and this product only ever clones its own owner.
       </p>
       <a className="text-button" href="#identity-proofing">Verify below on this step</a>
     </aside>
+  );
+}
+
+/**
+ * The four readiness cards, and their phone form.
+ *
+ * Same numbers, same derivation, two layouts. On a phone it is a `<details>`
+ * whose summary carries the one number a person is actually tracking, because
+ * a four-card grid above the first control is a dashboard where a task should
+ * be. Nothing is hidden that is not still one tap away, and nothing here was
+ * ever an action, which is what makes it eligible to collapse at all.
+ */
+function ReadinessStrip({
+  compact,
+  verificationCount,
+  sourceCount,
+  runtimeStatus,
+}: {
+  compact: boolean;
+  verificationCount: number;
+  sourceCount: number;
+  runtimeStatus: ReplicaRuntimeStatus | null;
+}) {
+  const cards = (
+    <>
+      <article className="readiness-card readiness-primary">
+        <p className="eyebrow">Activation readiness</p>
+        <strong>{verificationCount}/3</strong>
+        <span>identity checks complete</span>
+        <div className="progress-track"><span style={{ transform: `scaleX(${verificationCount * 0.33333})` }} /></div>
+      </article>
+      <article className="readiness-card">
+        <span className="metric-label">Sources</span>
+        <strong>{sourceCount}</strong>
+        <span>{sourceCount ? "Private ledger entries" : "Nothing uploaded"}</span>
+      </article>
+      <article className="readiness-card">
+        <span className="metric-label">Voice versions</span>
+        <strong>{runtimeStatus ? (runtimeStatus.versions.voice_genome ?? 0) : "—"}{/* emdash-ok: the empty-value placeholder, not prose */}</strong>
+        <span>
+          {!runtimeStatus
+            ? "Checking"
+            : runtimeStatus.versions.voice_genome
+              ? "Approved voice model"
+              : "Not built yet"}
+        </span>
+      </article>
+      <article className="readiness-card trust-card">
+        <span className="metric-label">Public voice library</span>
+        <strong>Never</strong>
+        <span>Your voice is never listed or shared</span>
+      </article>
+    </>
+  );
+
+  if (!compact) {
+    return <section className="readiness-grid" aria-label="Replica readiness">{cards}</section>;
+  }
+  return (
+    <details className="readiness-compact">
+      <summary>
+        <span className="readiness-compact-count">{verificationCount} of 3</span>
+        <span className="readiness-compact-label">identity checks complete</span>
+      </summary>
+      <div className="readiness-grid" aria-label="Replica readiness">{cards}</div>
+    </details>
   );
 }
 
@@ -579,6 +635,8 @@ function ReplicaWorkspace({
   revoking,
   accessToken,
   onReviewAuthError,
+  compact,
+  onActivityView,
 }: {
   replica: Replica;
   mode: StudioMode;
@@ -632,6 +690,10 @@ function ReplicaWorkspace({
   revoking: boolean;
   accessToken: string;
   onReviewAuthError: (cause: unknown) => void;
+  /** Phone-sized viewport. Structural, not cosmetic. See `useCompact.ts`. */
+  compact: boolean;
+  /** Must be reference-stable: it is a dependency of ActivityPanel's poll. */
+  onActivityView: (view: ActivityView) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -658,22 +720,40 @@ function ReplicaWorkspace({
 
   return (
     <>
-      <section className="workspace-heading">
-        <div>
-          <div className="workspace-kicker">
-            <span className={`state-dot state-${replica.lifecycle}`} />
-            {lifecycleLabel(replica.lifecycle)}
-            <span className="tiny-divider" />
-            {copy.workspaceNoun}
+      {/* THE PAGE FURNITURE, AND WHAT A PHONE PAYS FOR IT.
+          On a wide screen this is a 67px serif name, a kicker, a created-on
+          line and a rotated wax seal: a masthead, and it earns its space.
+          On a 390pt screen the same block was about a third of the first
+          viewport, spent restating a workspace name the person just tapped to
+          get here. So on a phone it collapses to one line at --text-small, and
+          the details move behind it. The seal is gone entirely below 590px in
+          studio.css already; what is new is that the name stops being a
+          display heading, because there is only room for one display heading
+          on a phone and the STEP TITLE has to be it. */}
+      {compact ? (
+        <section className="workspace-heading workspace-heading-compact">
+          <span className={`state-dot state-${replica.lifecycle}`} />
+          <strong>{replica.display_name}</strong>
+          <small>{stopped ? lifecycleLabel(replica.lifecycle) : copy.workspaceNoun}</small>
+        </section>
+      ) : (
+        <section className="workspace-heading">
+          <div>
+            <div className="workspace-kicker">
+              <span className={`state-dot state-${replica.lifecycle}`} />
+              {lifecycleLabel(replica.lifecycle)}
+              <span className="tiny-divider" />
+              {copy.workspaceNoun}
+            </div>
+            <h1>{replica.display_name}</h1>
+            <p>Created {dateLabel(replica.created_at)} · Policy {replica.policy_version}</p>
           </div>
-          <h1>{replica.display_name}</h1>
-          <p>Created {dateLabel(replica.created_at)} · Policy {replica.policy_version}</p>
-        </div>
-        <div className="control-seal">
-          <span>{stopped ? "STOPPED" : "OWNER CONTROLLED"}</span>
-          <small>{stopped ? (erased ? "Erasure verified" : "Erasure in progress") : "Private workspace"}</small>
-        </div>
-      </section>
+          <div className="control-seal">
+            <span>{stopped ? "STOPPED" : "OWNER CONTROLLED"}</span>
+            <small>{stopped ? (erased ? "Erasure verified" : "Erasure in progress") : "Private workspace"}</small>
+          </div>
+        </section>
+      )}
 
       {stopped ? (
         <section className="stopped-panel" role="status">
@@ -701,56 +781,53 @@ function ReplicaWorkspace({
         </section>
       ) : (
         <>
-          <section className="step-head" aria-labelledby="step-title">
-            <p className="eyebrow">Step {stepNumber} of {wizard.steps.length}</p>
-            <h2 id="step-title">{view.title}</h2>
-            <p className="step-promise">{view.promise}</p>
-          </section>
+          {/* The eyebrow ("Step 2 of 3") is gone on a phone and the promise is
+              one tap away. The rail directly above already answers which step
+              this is, and answering it twice inside 40px of a 390pt screen is
+              exactly the "so much nonsense written on it" DESIGN-LAW \u00a71 names.
+              `stepNumber` still drives the wide layout's numbering. */}
+          {compact ? (
+            <StepHead title={view.title} promise={view.promise} compact />
+          ) : (
+            <section className="step-head" aria-labelledby="step-title">
+              <p className="eyebrow">Step {stepNumber} of {wizard.steps.length}</p>
+              <h2 id="step-title">{view.title}</h2>
+              <p className="step-promise">{view.promise}</p>
+            </section>
+          )}
 
           {/* Every number on this strip is derived. The old version rendered a
               literal "Voice versions 0 / No model trained" regardless of the
               real `runtime.versions.voice_genome`, and a "Public access / Off /
               Cannot be changed" claim that ChannelsStudio exists to falsify
               (UX-Q-04, copy audit C5 and C6). A status this product cannot
-              derive is not shown. */}
-          <section className="readiness-grid" aria-label="Replica readiness">
-            <article className="readiness-card readiness-primary">
-              <p className="eyebrow">Activation readiness</p>
-              <strong>{verificationCount}/3</strong>
-              <span>identity checks complete</span>
-              <div className="progress-track"><span style={{ transform: `scaleX(${verificationCount * 0.33333})` }} /></div>
-            </article>
-            <article className="readiness-card">
-              <span className="metric-label">Sources</span>
-              <strong>{sources.length}</strong>
-              <span>{sources.length ? "Private ledger entries" : "Nothing uploaded"}</span>
-            </article>
-            <article className="readiness-card">
-              <span className="metric-label">Voice versions</span>
-              <strong>{runtimeStatus ? (runtimeStatus.versions.voice_genome ?? 0) : "\u2014"}{/* emdash-ok: the empty-value placeholder, not prose */}</strong>
-              <span>
-                {!runtimeStatus
-                  ? "Checking"
-                  : runtimeStatus.versions.voice_genome
-                    ? "Approved voice model"
-                    : "Not built yet"}
-              </span>
-            </article>
-            <article className="readiness-card trust-card">
-              <span className="metric-label">Public voice library</span>
-              <strong>Never</strong>
-              <span>Your voice is never listed or shared</span>
-            </article>
-          </section>
+              derive is not shown.
 
-          {(() => {
-            const warning = stepEntryWarning(step, wizardInput);
-            return warning ? <p className="step-warning" role="status">{warning}</p> : null;
-          })()}
+              ON A PHONE IT IS COLLAPSED, and it is the clearest case in the
+              studio for collapsing something: four cards, none of which is an
+              ACTION, sitting between the step title and the first control. It
+              is a dashboard, and a dashboard above the fold on a step whose job
+              is one task is the fold spent on furniture. The summary keeps the
+              one number that changes ("2 of 3 identity checks"), so nothing a
+              person is tracking disappears. */}
+          <ReadinessStrip
+            compact={compact}
+            verificationCount={verificationCount}
+            sourceCount={sources.length}
+            runtimeStatus={runtimeStatus}
+          />
+
+          {/* The blocking line, now carrying its class. This is the surface the
+              owner's screenshot caught saying "9 things ... are still waiting
+              on you" while the real blocker was a processing queue nothing
+              drained. It names one thing, and it says whose it is. */}
+          <BlockerNotice reason={stepBlockReason(step, wizardInput)} className="step-block" />
 
           {step === "feed" && (
             <>
               <Band
+                collapsible={compact}
+                defaultOpen
                 title="Permission, then your material"
                 blurb="Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."
               >
@@ -768,6 +845,8 @@ function ReplicaWorkspace({
               </Band>
 
               <Band
+                collapsible={compact}
+                defaultOpen={false}
                 title="Files, links, videos, channels"
                 blurb="Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your clone."
               >
@@ -791,9 +870,31 @@ function ReplicaWorkspace({
                   replicaId={replica.replica_id}
                   onAuthError={onReviewAuthError}
                 />
-                {/* WS-AF's processing-status surface belongs here: the moment
-                    after a drop, while the owner still has the file in hand. */}
-                <ProcessingStatusMount where="feed" />
+              </Band>
+
+              {/* WS-AF's activity surface, in its own band rather than buried
+                  at the foot of the intake band. It is now the thing that
+                  answers "did that land, and is anything stuck", which on the
+                  day the owner tested was the ONLY honest answer available:
+                  their audio was sitting at quarantined because nothing drained
+                  the processing queue. It is also the wizard's source of truth
+                  for the "waiting on us" class, which is why `onView` is here.
+                  UX-Q-AE-02 is closed by this mount and the labelled hole
+                  (`ProcessingStatusMount.tsx`) is deleted. */}
+              <Band
+                collapsible={compact}
+                defaultOpen={false}
+                title="Where each upload is right now"
+                blurb="Everything you have handed over, and what is happening to it. Anything that needs you is at the top, and anything stuck on our side says so."
+              >
+                <ActivityPanel
+                  key={`activity-feed-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  where="feed"
+                  onAuthError={onReviewAuthError}
+                  onView={onActivityView}
+                />
               </Band>
             </>
           )}
@@ -801,6 +902,8 @@ function ReplicaWorkspace({
           {step === "meet" && (
             <>
               <Band
+                collapsible={compact}
+                defaultOpen
                 title="Hear it, then talk to it"
                 blurb="This is the whole point of the product. The preview is private, and the call is where the clone learns from you while you watch."
               >
@@ -821,6 +924,8 @@ function ReplicaWorkspace({
               </Band>
 
               <Band
+                collapsible={compact}
+                defaultOpen={false}
                 title="Check it and correct it"
                 blurb="What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."
               >
@@ -845,9 +950,17 @@ function ReplicaWorkspace({
                   sourceCount={sources.length}
                   onAuthError={onReviewAuthError}
                 />
-                {/* WS-AF's second slot: "why does it not know that yet". Same
-                    component, different question. See ProcessingStatusMount. */}
-                <ProcessingStatusMount where="meet" />
+                {/* WS-AF's second mood: "why does it not know that yet". Same
+                    data, unfinished work FIRST, because here the unfinished
+                    work is the answer rather than the reassurance. */}
+                <ActivityPanel
+                  key={`activity-meet-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  where="meet"
+                  onAuthError={onReviewAuthError}
+                  onView={onActivityView}
+                />
               </Band>
 
               {/* UX-Q-05. Required, therefore open. These four are the gates
@@ -855,6 +968,8 @@ function ReplicaWorkspace({
                   step whose voice they unlock rather than in a drawer called
                   "Advanced". */}
               <Band
+                collapsible={compact}
+                defaultOpen={false}
                 title="Prove it is you"
                 blurb="A voice is a person. These are the checks that let your clone speak to anyone other than you, and they are the only reason this product can exist."
               >
@@ -931,7 +1046,14 @@ function ReplicaWorkspace({
           {step === "deploy" && (
             <>
               {mode === "teacher" && (
+                // Collapsed on a phone, and the gates band below is the one that
+                // opens: the primary ACT on this step is activation, and a step
+                // that opens onto reading material puts the act below a fold.
+                // The summary still names what is inside, and the disclosure
+                // itself is unchanged and one tap away.
                 <Band
+                  collapsible={compact}
+                  defaultOpen={false}
                   title="What every student is told first"
                   blurb="Read this before you decide where the clone can be reached. The order is the informed half of informed consent."
                 >
@@ -959,6 +1081,8 @@ function ReplicaWorkspace({
               )}
 
               <Band
+                collapsible={compact}
+                defaultOpen
                 title="The gates, then the switch"
                 blurb="Activation is refused until every check has passed. The list below is the runtime's own answer, not a summary of it."
               >
@@ -974,6 +1098,8 @@ function ReplicaWorkspace({
 
               {mode === "teacher" && (
                 <Band
+                  collapsible={compact}
+                  defaultOpen={false}
                   title="Where it can be reached"
                   blurb="One address at a time, each connected separately, each revocable on its own."
                 >
@@ -1025,14 +1151,12 @@ function ReplicaWorkspace({
             </>
           )}
 
-          <StepBlockers step={view} />
+          <StepBlockers step={view} compact={compact} />
 
           <StepPager
             back={back}
             next={forward}
-            backLabel={back ? stepTitle(back) : ""}
-            nextLabel={forward ? stepTitle(forward) : ""}
-            caution={forward ? stepEntryWarning(forward, wizardInput) : null}
+            caution={forward ? stepBlockReason(forward, wizardInput) : null}
             onGo={onGoStep}
           />
         </>
@@ -1116,6 +1240,47 @@ export default function StudioApp() {
   const [contextItemCount, setContextItemCount] = useState<number | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<number | null>(null);
   const [sheetDraft, setSheetDraft] = useState<TeacherSheet | null>(null);
+
+  // Phone-sized viewport. Structural, not cosmetic: see `useCompact.ts` for why
+  // three of this file's decisions cannot be a media query.
+  const compact = useCompact();
+
+  // ── what the PLATFORM is doing ────────────────────────────────────────
+  //
+  // Reduced from WS-AF's activity view, which `ActivityPanel` already polls on
+  // a server-decided interval. It is fed UP from that component rather than
+  // fetched again here, because a second poll of the same endpoint would double
+  // a billed serverless invocation to learn something the first one knows.
+  //
+  // WHAT IT IS FOR. Two of the runtime's gates ("approved person model",
+  // "approved behavior calibration") are nominally the owner's turn and are
+  // unreachable while our processing has not finished. Without this field the
+  // wizard could not tell those apart and told the owner nine things were
+  // waiting on them while their audio sat at `quarantined`.
+  //
+  // It is NOT cleared when the panel unmounts (moving to the Deploy step, which
+  // has no activity mount). That is deliberate and it errs in the safe
+  // direction: the last measured state of our own queue is better evidence than
+  // nothing, and if it is stale the cost is that we keep saying a blocker is
+  // OURS slightly longer than it was. Erring the other way means blaming a
+  // person for our queue, which is the defect this whole field exists to
+  // remove.
+  const [platformWork, setPlatformWork] = useState<WizardInput["platformWork"]>(null);
+
+  // `useCallback` is load-bearing, not tidiness: this is a dependency of
+  // ActivityPanel's poll effect, and an identity that changed on every render
+  // would restart the poll loop on every render.
+  const handleActivityView = useCallback((view: ActivityView) => {
+    setPlatformWork({
+      running: view.jobs.filter((job) => job.state === "running" || job.state === "queued").length,
+      stuck: view.jobs.filter((job) => job.state === "blocked").length,
+      undeployedLanes: view.lanes.filter((lane) => !lane.deployed).map((lane) => lane.label),
+    });
+  }, []);
+
+  // A new workspace is a new queue. Carrying the previous one's platform state
+  // across a switch would be the stale-value failure without the excuse.
+  useEffect(() => { setPlatformWork(null); }, [selected?.replica_id]);
 
   const goStep = useCallback((next: StepId) => {
     setStep(next);
@@ -1665,7 +1830,8 @@ export default function StudioApp() {
       }
       : null,
     connectedChannels,
-  }), [connectedChannels, consents, contextItemCount, mode, runtimeStatus, selected, sheetDraft, sources.length]);
+    platformWork,
+  }), [connectedChannels, consents, contextItemCount, mode, platformWork, runtimeStatus, selected, sheetDraft, sources.length]);
 
   const wizard = useMemo(() => computeWizard(wizardInput), [wizardInput]);
 
@@ -1711,6 +1877,20 @@ export default function StudioApp() {
             times and changes workspace approximately never. The rail is hidden
             while there is no workspace to be in a step of, rather than rendered
             with three empty states. */}
+        {/* THE RAIL, IN TWO FORMS, AND ONLY ONE OF THEM IS RENDERED.
+            On a phone the three-row rail costs about a third of the first
+            viewport before any control appears, so the phone gets a segmented
+            control plus one named line: same three answers (where am I, what
+            state is each step in, what is left here), about 90px instead of
+            about 300px. It is sticky under the header because "where am I" is a
+            question people ask again halfway down a long form. Different DOM
+            rather than the same DOM hidden, so a phone does not carry a desktop
+            rail it never shows. */}
+        {compact ? (
+          selected && !showCreate ? (
+            <CompactRail steps={wizard.steps} current={step} onGo={goStep} />
+          ) : null
+        ) : (
         <div className="studio-rail">
           {selected && !showCreate && (
             <WizardRail steps={wizard.steps} current={step} onGo={goStep} />
@@ -1722,6 +1902,7 @@ export default function StudioApp() {
             onNew={() => setShowCreate(true)}
           />
         </div>
+        )}
 
         <main className="studio-main">
           {notice && (
@@ -1786,8 +1967,31 @@ export default function StudioApp() {
               revoking={revoking}
               accessToken={session.accessToken}
               onReviewAuthError={handleReviewAuthError}
+              compact={compact}
+              onActivityView={handleActivityView}
             />
           ) : null}
+
+          {/* The workspace switcher, on a phone, lives at the FOOT of the page
+              rather than above the step. An owner changes step several times a
+              visit and changes workspace approximately never, and a horizontal
+              scroller of workspace tabs above the fold is a control nobody uses
+              taking the space the control everybody uses needs. It is still one
+              scroll away, still complete, and collapsed by default. */}
+          {compact && (
+            <details className="workspace-switch">
+              <summary>
+                <strong>{selected ? selected.display_name : "Your workspaces"}</strong>
+                <span>Switch workspace, or start another one</span>
+              </summary>
+              <ReplicaList
+                replicas={replicas}
+                selectedId={selected?.replica_id ?? null}
+                onSelect={(id) => void selectReplica(id)}
+                onNew={() => setShowCreate(true)}
+              />
+            </details>
+          )}
         </main>
       </div>
     </div>
