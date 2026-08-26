@@ -92,6 +92,14 @@ export const ACTIVITY_LANES = Object.freeze({
  *  agree, which is the check that would catch a ninth step being added. */
 export const AUDIO_DAG_STEPS = 8;
 
+// The one import this module allows itself, and why it is not the thing the
+// note above refuses. `capability-codes.js` is a leaf: two frozen constants and
+// a predicate, no provider chain, no database, no pipeline. Importing it does
+// not put the worker's import path on the request path, and duplicating five
+// exact strings that decide whether the owner is told to re-upload a file would
+// be the worse trade. WS-AH.
+import { isCapabilityAbsence } from "./_replica-processing/capability-codes.js";
+
 export class ActivityError extends Error {
   constructor(code, status = 400) {
     super(code);
@@ -134,6 +142,24 @@ const REASONS = Object.freeze({
   replica_revoked: "You revoked this replica, so the job was stopped.",
   no_audio_stream: "This file has no audio track in it.",
   asr_unavailable: "The transcription service could not be reached.",
+
+  // ── capability absences (WS-AH) ─────────────────────────────────────────
+  // These five are not about the recording. They say that a piece of OUR
+  // pipeline is not deployed or not configured in the runtime that picked the
+  // job up. Each one names the missing piece, says the recording is fine, and
+  // says what happens next without asking the owner to do anything, because
+  // there is nothing they can do and a button that cannot help is worse than
+  // no button. `isCapabilityAbsence` routes them to a wait action below.
+  private_storage_not_configured:
+    "Your recording is safe in storage, but the server that processes it is missing the key that lets it read private files, so it has not started. This is on us, not on your file. It will start on its own once the key is in place.",
+  malware_scanner_unavailable:
+    "Your recording passed the first check. The virus scanner is not running on the machine that picked this up, and we will not mark a file as clean without actually scanning it. This is on us, not on your file. It will carry on by itself once the scanner is running.",
+  media_probe_tool_unavailable:
+    "Your recording passed the first checks. The tool that reads the audio track is not installed on the machine that picked this up, so we cannot yet tell how long it is or how it was encoded. This is on us, not on your file. It will carry on by itself once the tool is installed.",
+  voice_evidence_unconfigured:
+    "Your recording got as far as the voice analysis, which runs on a separate service that is not switched on yet. This is on us, not on your file. It will carry on by itself once that service is connected.",
+  asr_unconfigured:
+    "Your recording got as far as the transcription step, and the transcription service is not connected yet. This is on us, not on your file. It will carry on by itself once that service is connected.",
 });
 
 /** A code with its underscores opened out, first letter raised, full stop
@@ -254,6 +280,23 @@ export function normaliseUpload(row) {
   }
   if (row.failure_code || row.failure_state) {
     const blocked = row.failure_state === "blocked";
+    // A capability absence is NOT a failed recording, and must not be dressed
+    // as one. The bytes are fine; a piece of our own pipeline is missing, and
+    // the sweep puts the job back by itself the moment that piece arrives
+    // (`requeueRecoveredProcessingJobs`). So it reports as still waiting, with
+    // a wait action, and never as "upload this again", which would send the
+    // owner to re-upload a 32.9 MB file to fix a problem on our side.
+    //
+    // The state is `blocked` rather than `queued` for the reason the non-audio
+    // case above gives: `queued` in this lane means in_flight, and nothing is
+    // in flight here. A stopped job that spins a progress indicator is the
+    // animated lie this whole surface exists to stop telling.
+    if (isCapabilityAbsence(row.failure_code)) {
+      return job({ ...base, state: "blocked", progress,
+        updated_at: iso(row.last_job_at || row.updated_at),
+        state_reason: reasonFor(row.failure_code),
+        next_action: action("wait", "It will carry on by itself once that part is running") });
+    }
     return job({ ...base, state: blocked ? "blocked" : "failed", progress,
       finished_at: iso(row.last_job_at || row.updated_at),
       state_reason: reasonFor(row.failure_code, `The ${String(row.failed_step || "processing").replaceAll("_", " ")} step stopped and no reason was recorded.`),

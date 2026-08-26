@@ -4928,3 +4928,65 @@ answers "where am I" from data, and the step head, which says "Step 2 of 3".
 which is a real thing to want: `DESIGN-SYSTEM.md` §2 calls the numbered panel the
 visual argument for the whole product. If it returns it must return as ONE
 register with one owner, not as a per-panel literal.
+
+
+## `processing-sweep-drains-the-enrollment-queue` (2026-08-26, WS-AH)
+
+**Decision.** `api/replica-processing-sweep.js` runs on a `*/5 * * * *` Vercel
+cron, CRON_SECRET-bearer authed via `timingSafeEqual`, `maxDuration: 300`, and
+drives `runNextProcessingJob` for at most 3 jobs per invocation inside a 270s
+budget with a 30s reserve. The lease stays at 15 minutes, deliberately LONGER
+than the function's own wall clock: if the platform kills the invocation
+mid-stage the job stays leased until the lease expires and
+`leaseNextProcessingJob` re-leases it and records `lease_expired` on the
+abandoned attempt. A lease shorter than the runtime is the dangerous direction,
+because it puts two workers on one job.
+
+**Why a Vercel cron and not the container.** The intended consumer is the Azure
+Container Apps Job in `services/replica-processing-worker/`, which has ClamAV
+and ffprobe in its image. It is not deployed and deploying it is an owner-scoped
+infrastructure decision with a real bill attached. The cron is the consumer that
+exists on the platform this product actually runs on, and it is explicit about
+the steps it cannot serve rather than pretending to serve them.
+
+**What would reverse it.** Deploying the container job. At that point the two
+consumers would race for the same leases, which the lease protocol survives but
+which doubles cost for no gain. When the container lands, either delete this
+cron entry or set `REPLICA_PROCESSING_KILL=1`, which the handler already honours.
+
+## `every-step-always-has-an-adapter` (2026-08-26, WS-AH)
+
+**Decision.** `composeProcessingAdapters` never omits a step. A step whose
+capability is absent gets `unavailableAdapter(step, code)`: correct adapter
+provenance, no billing meter so it can never reserve spend, and a method that
+throws a `ProcessingAdapterError` with that capability's own named code and
+`retryable: false`. The five canonical absence codes live in the leaf module
+`api/_replica-processing/capability-codes.js`.
+
+**Why.** Omission collapses five distinct absences into
+`missing_processing_adapter`. Terminal rather than retryable because retrying an
+undeployed scanner five times burns the attempt budget and lands in the same
+place with a worse code.
+
+**What would reverse it.** A step whose absence is genuinely transient rather
+than structural. That one wants a retry, not a terminal stop, and it should be
+argued for on its own rather than by loosening this rule.
+
+## `capability-absence-is-not-a-failed-recording` (2026-08-26, WS-AH)
+
+**Decision.** `normaliseUpload` routes the five capability-absence codes to
+`state: "blocked"` with a `wait` next action, never to `failed` with
+`fix_input`. The sweep opens each run by requeuing jobs whose failure code is a
+capability absence that is no longer absent, resetting `attempt` to 0.
+
+**Why.** Telling an owner to re-upload a 32.9 MB file because OUR scanner is not
+deployed is a lie with a button on it. `blocked` rather than `queued` because
+`queued` in this lane means `in_flight`, and a stopped job that animates a
+progress indicator is the exact lie the Activity surface exists to stop telling.
+The requeue is what stops terminal-plus-nothing from being a dead end.
+
+**What would reverse it.** Evidence that the requeue re-runs work that actually
+costs money. It is fenced on both sides today (only the five codes, and only
+where that step is live in the running process), and only `integrity` through
+`media_probe` are free; if a paid step ever enters the absence set, the fence
+needs a spend check before it stays.
