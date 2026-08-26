@@ -212,6 +212,31 @@ const suites = {
   // client and the real worker, driven through a fake network that VERIFIES
   // the signature the client produced — a fake network, not a fake contract.
   mediaextract: "mediaextract.mjs",
+  // WS-AI (Gurukul extraction routes). The seam that makes the choice of HOW
+  // we reach YouTube one environment variable instead of a rewrite.
+  //
+  // Wired here rather than left as a script because the property it protects is
+  // invisible on the happy path and expensive when it breaks: a residential
+  // proxy costs money per gigabyte, and an extraction that quietly went out
+  // direct returns exactly the same WAV as one that went through the proxy that
+  // was paid for. The only moment the difference exists is the moment something
+  // asserts the route the service reports against the route we asked for, so
+  // that assertion has a negative control run in both directions.
+  //
+  //  - ROUTE SELECTION. Explicit beats inferred; nothing is silently upgraded.
+  //  - NAMED REFUSALS. Every route without its credential refuses as ITSELF,
+  //    with a distinct code, and every one of those codes reaches the owner's
+  //    Activity surface as a written sentence AND a next action, because the
+  //    fix is a thing only the owner can do.
+  //  - PROVENANCE. The route that served the bytes is the route recorded, or
+  //    the extraction is refused.
+  //  - THE TWO HALVES. A working transcript route must never be able to hide a
+  //    blocked audio route, which is what one combined readiness answer does.
+  //
+  // Offline, deterministic, $0, no network. The measurements that motivate it
+  // are `measurements.md#youtube-extraction-blocked-from-azure` (WS-AD) and
+  // `measurements.md#po-token-helps-until-the-ip-is-burned` (WS-AI).
+  extractroutes: "extractroutes.mjs",
   // WS-N (Gurukul deployment). "Deploy the clone anywhere": the clone↔surface
   // binding (migration 055), the generalized surface resolution, and the
   // embeddable web widget.

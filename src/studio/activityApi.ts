@@ -22,7 +22,13 @@ export type ActivityLane =
   | "upload_processing" | "channel_video" | "channel_watch"
   | "context_item" | "voice_model_build" | "mirror_finetune" | "erasure";
 
-export type NextActionKind = "none" | "wait" | "review" | "retry" | "fix_input";
+/** `owner_setup` (WS-AI) is the kind with no button behind it: it names a
+ *  DEPLOYMENT setting somebody has to change, and there is no operation in this
+ *  app that changes one. `ActivityPanel` renders it as text alongside `wait`
+ *  and `none` for that reason. It exists because the alternative was telling an
+ *  owner whose proxy credential is missing that "the next channel check will
+ *  try this video again", which is a promise the system cannot keep. */
+export type NextActionKind = "none" | "wait" | "review" | "retry" | "fix_input" | "owner_setup";
 
 export interface ActivityProgress {
   done: number;

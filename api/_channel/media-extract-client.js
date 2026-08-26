@@ -18,6 +18,7 @@
 // In: a digest, a byte count, a duration, a sample rate, an extractor
 // version. Never bytes. The media went straight to storage.
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { assertRouteServed, audioRouteFor } from "./extract-routes.js";
 
 const PROTOCOL = "vyakti-media-extract/v1";
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -65,11 +66,18 @@ export function mediaExtractConfig(env = process.env) {
   if (!Number.isSafeInteger(maxDurationMs) || maxDurationMs < 60_000 || maxDurationMs > 21_600_000) {
     fail("media_extract_max_duration_invalid", 503);
   }
+  // The route is resolved at CONFIG time, not per request, so a deploy whose
+  // named route has no credential fails when the client is constructed rather
+  // than once per teacher per video. `audioRouteFor` throws that route's own
+  // code and it travels out of here unchanged.
+  const route = audioRouteFor(env);
   return Object.freeze({
     origin: origin.origin,
     transportSecret: secretBytes(env.MEDIA_EXTRACT_HMAC_SECRET),
     timeoutMs,
     maxDurationMs,
+    route: route.route,
+    routeProvider: route.provider || "",
   });
 }
 
@@ -161,6 +169,10 @@ export function createMediaExtractClient(options = {}) {
   return Object.freeze({
     protocol: PROTOCOL,
     maxDurationMs: config.maxDurationMs,
+    /** The route THIS client will ask for. Read by the studio's readiness
+     *  panel and by `youtube-extract.js`, which stamps it on the audio ref. */
+    route: config.route,
+    routeProvider: config.routeProvider,
 
     /** One video → one WAV at the caller's pre-signed upload target. */
     async extractAudio({ videoId, attestation, upload, maxDurationMs }) {
@@ -173,6 +185,11 @@ export function createMediaExtractClient(options = {}) {
         max_duration_ms: ceiling,
         attestation: envelope(attestation),
         upload: { url: upload.url, headers: upload.headers || {} },
+        // Named in the request and therefore covered by the same signature as
+        // the attestation. A service that received an unsigned route could be
+        // told to use the cheap one by anything sitting on the wire.
+        route: config.route,
+        route_provider: config.routeProvider || undefined,
       }, fetchImpl);
       const sha256 = String(result?.sha256 || "").toLowerCase();
       const byteSize = Number(result?.byte_size);
@@ -187,6 +204,12 @@ export function createMediaExtractClient(options = {}) {
         // measurements that look comparable and are not.
         fail("channel_extract_normalization_invalid");
       }
+      // THE PROVENANCE CHECK. The service reports which route actually served
+      // the bytes; if that is not the route we asked for, this is a typed
+      // failure and not a success with a wrong stamp. See
+      // `extract-routes.js#assertRouteServed` and the negative control in
+      // `evals/extractroutes.mjs`.
+      const route = assertRouteServed(config.route, result?.route);
       return Object.freeze({
         sha256,
         byteSize,
@@ -194,6 +217,7 @@ export function createMediaExtractClient(options = {}) {
         sampleRateHz: 16_000,
         mime: "audio/wav",
         extractorVersion: String(result?.extractor_version || "unknown").slice(0, 32),
+        route,
       });
     },
 
@@ -203,6 +227,12 @@ export function createMediaExtractClient(options = {}) {
         attestation: envelope(attestation),
         after_video_id: String(afterVideoId || ""),
         limit: Math.max(1, Math.min(200, Number(limit) || 50)),
+        // Sent so enumeration and extraction leave by the same egress, but NOT
+        // echo-asserted: enumeration returns ids, not bytes, and WS-AD measured
+        // it working on the `direct` route while extraction was refused. A
+        // provenance assertion here would break a lane that is not broken.
+        route: config.route,
+        route_provider: config.routeProvider || undefined,
       }, fetchImpl);
       const videos = Array.isArray(result?.videos) ? result.videos : fail("channel_extract_response_invalid");
       return Object.freeze({

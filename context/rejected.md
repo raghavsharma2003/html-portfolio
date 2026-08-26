@@ -3392,3 +3392,88 @@ can reach).
 **The general shape.** This is `gates-that-live-nowhere`'s sibling: a command
 that is safe in a single checkout and quietly shared in a multi-worktree one.
 Treat every `.git`-level stack (stash, index locks, reflog surgery) as global.
+
+## po-token-is-a-warm-ip-mitigation-not-a-route
+
+**Tried (2026-08-26, WS-AI):** `bgutil-ytdlp-pot-provider` 1.3.2, built from
+source and run in both script mode and HTTP-server mode against yt-dlp
+2026.08.19, from a Google Cloud egress in Ohio (`160.79.106.128`, AS396982).
+This is the exact lever
+`rejected.md#player-clients-do-not-beat-a-datacenter-ip` named as its own
+reversal condition and did not test.
+
+**What worked, and it is worth saying first:** it is the only thing measured in
+this repo that has ever moved the bot check. Interleaved A/B on the metadata
+probe, n = 6 pairs: **5 of 6 succeeded with the provider, 1 of 6 without**.
+Connected, real, free, MIT, self-hostable.
+
+**What broke:** two things, and the second is the one that decides it.
+
+1. **It never produced audio bytes. 0 of 12** across three arms (script mode
+   default clients, forced `player_client=web` and `tv`, HTTP-server mode with a
+   persistent session cache and 90 s spacing). The best trial reached
+   `Downloading 1 format(s): 251` and then `unable to download video data: HTTP
+   Error 403`. So a PO token can win the player response and still lose the
+   media fetch, which are different gates.
+2. **After about forty requests over thirty minutes, it stopped helping at all.**
+   The same interleaved A/B returned **0 of 4 with the provider and 0 of 4
+   without**. Not degraded: gone. Intermediate runs showed `HTTP 429` on the
+   watch page and `403` on the InnerTube API before the bot check.
+
+**Why it is worth writing down rather than just retrying:** the shape of this
+result is a trap. A session that ran only the first six trials would have
+recorded "the PO token provider defeats the bot check from a datacenter IP",
+which is TRUE of a warm IP, FALSE of a burned one, and would have been used to
+argue against buying a proxy. The measurement that matters is the one taken
+after the IP has been spent, and it is the one nobody runs, because by then the
+tool appears to be working.
+
+**The general shape, which is the reusable part:** when a lever's effect depends
+on a resource that the act of measuring CONSUMES, an early sample measures the
+resource and not the lever. IP reputation is such a resource. So is a rate-limit
+budget, a free tier, and a cache. Measure late as well as early, and report both.
+
+**What would reverse it:** audio bytes returned from a datacenter egress across
+n >= 10 spaced trials on an IP that was not freshly warmed. Metadata success is
+explicitly not enough, because metadata success with a 403 on the media fetch is
+what was actually observed. Numbers and method:
+`measurements.md#po-token-helps-until-the-ip-is-burned`. The route is wired as
+`MEDIA_EXTRACT_ROUTE=pot` and is flagged `measuredBlocked` in
+`api/_channel/extract-routes.js` so a deploy cannot select it and be told it is
+ready.
+
+## public-youtube-frontends-are-not-a-transcript-route
+
+**Tried (2026-08-26, WS-AI):** reaching transcripts without media bytes and
+without a credential, so that half of the product could ship today. Seven public
+Invidious and Piped instances, the public `timedtext` surface, the InnerTube
+`/youtubei/v1/player` API across four client contexts, `youtube-transcript-api`,
+scraping `captionTracks` out of the watch page HTML, and cobalt's public API.
+
+**What broke: all of it, from a datacenter IP.** The seven frontends returned
+`401`, `403 Endpoint disabled`, `403`, `502`, `526`, `403`, `502` — zero usable.
+`timedtext` returned `429` with Google's "Sorry" interstitial. InnerTube WEB
+returned `LOGIN_REQUIRED` / "Sign in to confirm you're not a bot" with zero
+caption tracks and zero formats; ANDROID and IOS contexts returned `HTTP 400`;
+TVHTML5 returned "no longer supported in this application or device".
+`youtube-transcript-api` raised its own `IpBlocked`. The watch page returned
+`200` and 1.2 MB and contained **zero occurrences of `captionTracks`**. cobalt
+returned `400 error.api.auth.jwt.missing`, so anonymous access is closed.
+
+**The one thing that DID work, and why it does not rescue this:** the official
+Data API answered a datacenter IP normally (`403 "Method doesn't allow
+unregistered callers"` in 150 ms, an ordinary API error rather than a bot
+check). But `captions.download` returns only manually uploaded tracks, which
+Hinglish coaching lectures essentially never have.
+
+**Why it is worth writing down:** "get the transcript instead, it is easier" is
+the obvious next idea after audio extraction is blocked, and it is wrong for a
+non-obvious reason: everything except the sanctioned OAuth surface reaches the
+transcript through the SAME player API that the audio does, so it is blocked by
+the same IP reputation and is not a separate lever at all. A future session
+should not spend a day rediscovering that the easy half is the same half.
+
+**What would reverse it:** a proxy or cookie credential, which unblocks the
+transcript half more cheaply than the audio half (about 4 MB versus 11 MB per
+video), or a paid third-party transcript API. Full sweep table:
+`measurements.md#po-token-helps-until-the-ip-is-burned`.

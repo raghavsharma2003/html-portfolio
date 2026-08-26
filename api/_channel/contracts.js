@@ -220,8 +220,25 @@ export function audioRef(value) {
   if (!Number.isSafeInteger(byteSize) || byteSize < 1 || byteSize > 268_435_456) fail("channel_audio_size_invalid");
   const durationMs = Number(value?.durationMs ?? value?.duration_ms ?? 0);
   if (!Number.isFinite(durationMs) || durationMs < 0) fail("channel_audio_duration_invalid");
-  return Object.freeze({ storagePath, sha256, mime, byteSize, durationMs: Math.round(durationMs) });
+  // WHICH EGRESS SERVED THESE BYTES. Optional, because the upload lane and the
+  // fake store have no route and inventing one for them would be a fabricated
+  // provenance field. Present, it must be a route name this build knows: an
+  // unrecognized string here is a service speaking a protocol we do not, and
+  // a row stamped with it would be unreadable a month from now.
+  const extractionRoute = clean(value?.extractionRoute ?? value?.extraction_route, 32);
+  if (extractionRoute && !EXTRACTION_ROUTES.has(extractionRoute)) fail("channel_audio_route_invalid");
+  return Object.freeze({
+    storagePath, sha256, mime, byteSize,
+    durationMs: Math.round(durationMs),
+    extractionRoute,
+  });
 }
+
+/** Kept as a literal set rather than imported from `extract-routes.js` so this
+ *  contracts module stays dependency-free, which is what lets every provider
+ *  and every eval import it without dragging config-reading code along.
+ *  `evals/extractroutes.mjs` asserts the two lists have not drifted apart. */
+const EXTRACTION_ROUTES = new Set(["proxy", "provider", "cookies", "pot", "direct"]);
 
 /** An owner-uploaded caption track, when a provider can lawfully reach one.
  *  `turns` is the SAME shape ASR returns, so the worker has one downstream

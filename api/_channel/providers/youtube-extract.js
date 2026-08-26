@@ -158,6 +158,11 @@ export function createYouTubeExtractChannelProvider(options = {}) {
         mime: result.mime,
         byteSize: result.byteSize,
         durationMs: result.durationMs,
+        // The route the SERVICE reported, already checked against the route
+        // this deploy asked for by `media-extract-client.js`. Carried onto the
+        // ref so the run row records which egress produced the bytes, which is
+        // the only way a proxy bill can ever be reconciled against work done.
+        extractionRoute: result.route,
       });
     },
 

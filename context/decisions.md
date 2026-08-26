@@ -4928,3 +4928,84 @@ answers "where am I" from data, and the step head, which says "Step 2 of 3".
 which is a real thing to want: `DESIGN-SYSTEM.md` §2 calls the numbered panel the
 visual argument for the whole product. If it returns it must return as ONE
 register with one owner, not as a per-panel literal.
+
+## residential-proxy-is-the-audio-route
+
+**Date:** 2026-08-26. **Who:** WS-AI, answering the owner's "can at least we
+have youtube video scraping if not the channel full scraping for now? what can
+we do, should we do some 3rd party thing here because we need it to work."
+
+**The decision: recommend a residential proxy, specifically IPRoyal pay-as-you-go
+at $7.00/GB with a $7 minimum and non-expiring traffic, as the audio route. Ship
+the SEAM now so the choice is one environment variable, and do not buy anything,
+because this session has no authority to commit the owner's funds.**
+
+**The two halves are decided separately, and that is part of the decision.**
+The transcript half is already unblocked for manually captioned videos through
+the Data API's `captions.download`, which was measured reachable from a
+datacenter in 150 ms with an ordinary API error rather than a bot check. It is
+NOT unblocked for uncaptioned lectures, which is nearly the whole corpus: every
+unauthenticated surface that could produce words for those is blocked by the
+same IP reputation the audio is. Reporting one number for "YouTube works" would
+have hidden that in either direction, so `extractionPosture` returns two.
+
+**Why a proxy rather than the alternatives.**
+
+- It is the only lever that changes the variable two independent measurements
+  have now isolated. WS-AD: all ten player clients refused from Azure Central
+  India. WS-AI: a PO-token provider moves metadata 5/6 vs 1/6 on a warm GCP IP,
+  produces 0 of 12 audio extractions, and stops working entirely once that IP is
+  burned. Nothing except a different IP has ever moved this.
+- **It is the cheapest route to the first ANSWER, which is the decision actually
+  in front of us, and that is why IPRoyal beats a cheaper vendor.** Evomi is
+  $0.49/GB, fourteen times cheaper, behind a 100 GB/month floor of $49.99/month.
+  IPRoyal is $7 once, its traffic does not expire, and $7 buys about 90
+  fifteen-minute lectures. Optimizing the per-GB price before knowing whether
+  the route works at all is optimizing the wrong number.
+- It beats every third-party API measured or quoted. Apify's actor is $0.41 per
+  video, five times a 15-minute proxy extraction, and has no audio-only mode, so
+  it also ships video frames we discard. cobalt's public API is closed to
+  anonymous callers (`error.api.auth.jwt.missing`) and self-hosting it relocates
+  our IP problem rather than solving it. The RapidAPI vendors would not confirm
+  current per-request pricing and mostly publish no terms.
+- It buys both halves with one credential: a proxy that fetches audio also
+  fetches the caption track for an uncaptioned lecture, at roughly 4 MB instead
+  of 11 MB.
+- **It does not risk an account.** Cookies is free and is the only route on the
+  page whose downside is somebody's Google account being flagged or terminated.
+  It is wired, it is documented plainly in
+  `docs/gurukul/youtube-extraction-routes.md` §5, and it is deliberately ranked
+  below `provider` in the preference order so it can never win by being cheapest.
+
+**The number:** about **$0.077 per 15 minute lecture**, roughly 11 MB through the
+proxy (about 6.8 MB of Opus at format 251 plus about 4 MB of watch page, player
+JavaScript and player API JSON). A 300 video back catalogue of 45 minute
+lectures is about 10 GB, so about $70.
+
+**Why the seam is the deliverable rather than a working route.** The owner
+cannot be handed a route this session cannot buy, and a session that guessed at
+one and reported it working would be worse than useless. What CAN be shipped
+honestly is the property that switching route later is one variable and not a
+rewrite, that a route without its credential refuses BY NAME on the owner's
+Activity surface with a next action, and that the provenance records which route
+served the bytes. That last one is not decoration: a paid proxy extraction and a
+free direct one return an identical WAV, so without an asserted echo there is no
+way to ever reconcile a proxy bill against work done.
+
+**What would reverse it.**
+
+- **A measured working free route.** If a PO-token provider, a self-hosted
+  cobalt, or anything else returns audio bytes from a datacenter egress across
+  n >= 10 spaced trials on a NOT-freshly-warmed IP, the proxy recommendation
+  goes. The bar is bytes, not metadata: metadata has already been shown to
+  succeed while the media fetch 403s.
+- **The proxy failing its own trial.** If IPRoyal residential is bought and does
+  not deliver bytes, the next thing to try is a third-party API with an
+  audio-only mode, not a second proxy vendor, because the failure would then be
+  evidence that residential IP alone is not sufficient.
+- **Volume changing the shape.** Past roughly 100 GB/month the "cheapest first
+  answer" argument stops applying and Evomi's $0.49/GB or a committed Bright Data
+  plan wins on price. Switching is one environment variable by construction.
+- **The teacher-upload lane becoming sufficient.** If teachers reliably export
+  their own audio, extraction stops being the lane that reaches the back
+  catalogue and this whole decision is moot.

@@ -3818,3 +3818,110 @@ line comments, so a refactor that strips comments before testing for the marker
 silently deletes every exemption in the repo. That regression was written and
 caught in the same hour, by `src/components/Chat.tsx`'s legitimate brain-facing
 placeholder, which is the only reason it is recorded here.
+
+## po-token-helps-until-the-ip-is-burned
+
+**Date:** 2026-08-26. **Who:** WS-AI. **Cost:** $0 (no paid credential, no cloud
+resource; a sandbox container, a pip install and a `npm install` of an MIT
+plugin).
+
+**The question:** `rejected.md#player-clients-do-not-beat-a-datacenter-ip` named
+its own reversal condition and then did not test it. The condition was "a
+PO-token provider plugin (`bgutil-ytdlp-pot-provider`), which is a different
+lever than the three documented". This is that test, plus the transcript-half
+sweep the owner's ask forced open.
+
+### Egress
+
+**Google Cloud, `160.79.106.128` / `.138`, AS396982, Columbus Ohio** — a second,
+independent datacenter egress from WS-AD's Azure Central India `20.207.113.242`.
+That independence is the point: two unrelated cloud networks is a much stronger
+claim than one.
+
+### The audio half, with the PO-token lever
+
+`yt-dlp 2026.08.19` (the same pin the service ships), `bgutil-ytdlp-pot-provider
+1.3.2` built from source, node 22 for the script runtime. Video `Q5_BtWc-G7Y`
+(NASA, US Government work, public domain — WS-AD's choice, kept so the two
+sessions are comparable).
+
+**Interleaved A/B, arm A = with the provider, arm B = the identical command with
+the provider absent. Interleaved so drift in IP reputation hits both arms
+equally. Metadata probe (`--skip-download --print %(title)s`), n = 6 pairs:**
+
+| | OK | bot check |
+|---|---|---|
+| with PO token | **5** | 1 |
+| without | **1** | 5 |
+
+The lever is CONNECTED and the effect is real. This is the first thing measured
+in this repo that moves the bot check at all.
+
+**Audio bytes, same provider, same session: 0 of 12.** Three arms tried:
+script mode with default clients (n=3), forced `player_client=web` (n=2) and
+`tv` (n=2), and HTTP-server mode with a persistent session cache (n=5, spaced
+90 s apart so the trials were not themselves the cause of the throttling they
+measured). The best any trial reached was `Downloading 1 format(s): 251` then
+`unable to download video data: HTTP Error 403`. Metadata is winnable; the
+media fetch is not.
+
+### The finding that matters more than the A/B
+
+**After roughly forty requests over about thirty minutes, the same interleaved
+A/B returned 0 of 4 with the provider and 0 of 4 without.** The 5-of-6 benefit
+did not degrade — it disappeared. Intermediate runs showed `HTTP 429` on the
+watch page and `HTTP 403` on the InnerTube API before the bot check fired.
+
+So: **a PO token is a mitigation for a WARM datacenter IP and is not a route.**
+It buys metadata while the IP still has reputation, and it buys nothing once the
+IP has spent it. WS-AD's summary ("the client sweep was never the variable — the
+IP was") survives this test and is strengthened by it: a lever that provably
+works on a warm IP still cannot produce bytes, and stops working entirely on a
+burned one.
+
+### The transcript half, same egress, same session
+
+The owner's ask required splitting transcript from voice, so every route that
+could produce WORDS without media bytes was probed:
+
+| surface | result | time |
+|---|---|---|
+| **Data API v3** `videos.list`, no key | `403 "Method doesn't allow unregistered callers"` | **0.15 s** |
+| public `timedtext?v=…&lang=en&fmt=json3` | `429`, Google "Sorry" interstitial, 1103 bytes | 0.37 s |
+| InnerTube `/youtubei/v1/player`, WEB ctx | `LOGIN_REQUIRED`, "Sign in to confirm you're not a bot", 0 captions, 0 formats | 0.3 s |
+| InnerTube, ANDROID ctx | `HTTP 400` | — |
+| InnerTube, IOS ctx | `HTTP 400` | — |
+| InnerTube, TVHTML5_SIMPLY_EMBEDDED ctx | `ERROR`, "no longer supported in this application or device" | 0.3 s |
+| `youtube-transcript-api` (Python) | its own `IpBlocked` exception | 1.5 s |
+| watch page HTML, browser UA | `200`, 1,202,264 bytes, **0 occurrences of `captionTracks`** | — |
+| 7 public Invidious / Piped instances | **0 usable**: `401`, `403 Endpoint disabled`, `403`, `502 tunnel`, `526`, `403`, `502` | 0.6–1.3 s |
+| `POST https://api.cobalt.tools/` | `400 {"error":{"code":"error.api.auth.jwt.missing"}}` | — |
+
+**The Data API line is the important one and it is a POSITIVE result.** A plain
+`403` naming an unregistered caller, in 150 ms, is an ordinary API error and not
+a bot check: the sanctioned surface has no IP-reputation problem, and the
+transcript half is unblocked from a datacenter for exactly the videos
+`captions.download` covers, which is manually uploaded tracks only.
+
+Everything else that could produce words for an UNCAPTIONED lecture goes through
+the same player surface the audio does and is blocked by the same reputation.
+**There is no free transcript route hiding behind the audio problem**, which was
+the specific thing the brief asked not to be wrong about.
+
+### What this does and does not settle
+
+- **Settled:** the PO-token lever named in `rejected.md` as the reversal
+  condition has been tried. It moves metadata on a warm IP (5/6 vs 1/6, n=6
+  pairs) and produces no audio bytes (0/12).
+- **Settled:** it stops helping once the IP is burned (0/4 vs 0/4, n=4 pairs),
+  so it is a mitigation and not a route.
+- **Settled:** the Data API is reachable from a datacenter; every unauthenticated
+  YouTube surface is not; every public Invidious/Piped instance probed is dead.
+- **NOT tried, and deliberately:** proxy and cookies still need credentials this
+  session has no authority to buy or create. The recommendation, its numbers and
+  its reversal condition are in `decisions.md#residential-proxy-is-the-audio-route`
+  and `docs/gurukul/youtube-extraction-routes.md`.
+- **Confound, stated:** the burn was caused by this session's own ~40 requests.
+  A production deploy pacing one extraction per replica would burn its IP more
+  slowly. That changes the timescale and not the direction, and the direction is
+  what the recommendation rests on.

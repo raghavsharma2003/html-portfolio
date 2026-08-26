@@ -269,28 +269,107 @@ def _classify(stderr: bytes) -> str:
     return "extractor_failed"
 
 
-def _common_args() -> list[str]:
+# ── routes ───────────────────────────────────────────────────────────────────
+#
+# WS-AD measured that the `direct` route does not return bytes from an Azure
+# datacenter egress: all ten yt-dlp player clients returned "Sign in to confirm
+# you're not a bot" at the metadata probe. WS-AI measured that a self-hosted PO
+# token provider rescues a WARM datacenter IP and does not rescue a burned one.
+# Both point at the same variable, which is the egress IP, and every lever that
+# changes it is a credential somebody has to buy or grant.
+#
+# So the route is a REQUEST FIELD, covered by the same signature as the
+# attestation, and this service does three things with it:
+#
+#   1. Refuses, by that route's own name, when the route's credential is absent
+#      from THIS service's environment. `route_proxy_credential_missing` tells
+#      an operator which env var to set. `extractor_failed` does not.
+#   2. Builds only that route's yt-dlp arguments. No route silently borrows
+#      another's credential, so a deploy that still has a stale
+#      MEDIA_EXTRACT_PROXY set cannot serve a `direct` request through it and
+#      report `direct`.
+#   3. ECHOES the route it ran in the response, which the client asserts
+#      against the route it asked for. That is what makes the provenance a
+#      measurement rather than a label.
+
+KNOWN_ROUTES = ("proxy", "provider", "cookies", "pot", "direct")
+PROVIDER_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{1,31}$")
+
+
+def _cookies_path() -> str:
+    """Either a mounted file or a base64 jar written once to scratch.
+
+    The jar is never logged and never returned. It is a Google session and it
+    is the one credential in this service whose leak costs somebody an account
+    rather than costing us money.
+    """
+    path = os.getenv("MEDIA_EXTRACT_COOKIES_FILE", "")
+    if path and os.path.isfile(path):
+        return path
+    encoded = os.getenv("MEDIA_EXTRACT_COOKIES_B64", "")
+    if not encoded:
+        return ""
+    target = os.path.join(app.state.workroot, "cookies.txt")
+    if not os.path.isfile(target):
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except Exception as exc:  # noqa: BLE001
+            raise ServiceError("route_cookies_credential_invalid", 503) from exc
+        with open(os.open(target, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), "wb") as handle:
+            handle.write(raw)
+    return target
+
+
+def _route(payload: dict[str, Any]) -> dict[str, str]:
+    name = str(payload.get("route") or "direct").strip().lower()
+    if name not in KNOWN_ROUTES:
+        raise ServiceError("route_unknown", 400)
+    provider = str(payload.get("route_provider") or "").strip().lower()
+    if name == "provider":
+        if not PROVIDER_NAME_RE.fullmatch(provider):
+            raise ServiceError("route_provider_not_named", 400)
+        if not os.getenv("MEDIA_EXTRACT_PROVIDER_KEY", ""):
+            raise ServiceError("route_provider_credential_missing", 503)
+        # No provider adapter ships in this build. Saying so by name is the
+        # honest answer; the alternative is a route that reports success
+        # because it quietly ran the direct one.
+        raise ServiceError("route_provider_adapter_unavailable", 501)
+    if name == "proxy" and not os.getenv("MEDIA_EXTRACT_PROXY", ""):
+        raise ServiceError("route_proxy_credential_missing", 503)
+    if name == "cookies" and not _cookies_path():
+        raise ServiceError("route_cookies_credential_missing", 503)
+    if name == "pot" and not os.getenv("MEDIA_EXTRACT_POT_PROVIDER_URL", ""):
+        raise ServiceError("route_pot_provider_missing", 503)
+    return {"route": name, "provider": provider}
+
+
+def _common_args(route: dict[str, str] | None = None) -> list[str]:
     argv = ["yt-dlp", "--no-progress", "--no-playlist", "--no-warnings", "--ignore-config"]
-    cookies = os.getenv("MEDIA_EXTRACT_COOKIES_FILE", "")
-    if cookies and os.path.isfile(cookies):
-        argv += ["--cookies", cookies]
-    proxy = os.getenv("MEDIA_EXTRACT_PROXY", "")
-    if proxy:
-        argv += ["--proxy", proxy]
+    name = (route or {}).get("route", "direct")
+    # ONE ROUTE'S CREDENTIALS, NEVER TWO. The previous shape read all three env
+    # vars unconditionally, which meant a request could not be attributed to a
+    # route at all: cookies and a proxy would both apply and the response would
+    # have had nothing true to echo.
+    if name == "cookies":
+        argv += ["--cookies", _cookies_path()]
+    elif name == "proxy":
+        argv += ["--proxy", os.getenv("MEDIA_EXTRACT_PROXY", "")]
+    elif name == "pot":
+        argv += ["--extractor-args", f"youtubepot-bgutilhttp:base_url={os.getenv('MEDIA_EXTRACT_POT_PROVIDER_URL', '')}"]
     clients = os.getenv("MEDIA_EXTRACT_PLAYER_CLIENTS", "")
     if clients:
         argv += ["--extractor-args", f"youtube:player_client={clients}"]
     return argv
 
 
-def _probe(video_id: str) -> dict[str, Any]:
+def _probe(video_id: str, route: dict[str, str] | None = None) -> dict[str, Any]:
     """Metadata FIRST, always. This is the ordering that turns the attestation
     from a claim into a check: the uploader is read from YouTube itself before
     a single media byte is requested, so a mismatched video costs one metadata
     call and downloads nothing.
     """
     result = _run(
-        _common_args() + ["--skip-download", "--dump-single-json", f"https://www.youtube.com/watch?v={video_id}"],
+        _common_args(route) + ["--skip-download", "--dump-single-json", f"https://www.youtube.com/watch?v={video_id}"],
         timeout=min(180, EXTRACT_TIMEOUT_SECONDS),
     )
     if result.returncode != 0:
@@ -313,10 +392,10 @@ def _binds_to(info: dict[str, Any], channel_key: str) -> bool:
     return key in candidates
 
 
-def _extract_to_wav(video_id: str, workdir: str) -> str:
+def _extract_to_wav(video_id: str, workdir: str, route: dict[str, str] | None = None) -> str:
     template = os.path.join(workdir, "audio.%(ext)s")
     result = _run(
-        _common_args()
+        _common_args(route)
         + [
             "--format",
             "bestaudio/best",
@@ -402,8 +481,12 @@ def _extract(payload: dict[str, Any]) -> dict[str, Any]:
     ceiling_ms = int(payload.get("max_duration_ms") or 0)
     if ceiling_ms < 1000 or ceiling_ms > MAX_DURATION_SECONDS * 1000:
         raise ServiceError("duration_ceiling_invalid", 400)
+    # BEFORE the metadata probe, so a route whose credential is missing costs
+    # zero requests to YouTube and returns the name of the missing credential
+    # rather than whatever the bot check happened to say today.
+    route = _route(payload)
 
-    info = _probe(video_id)
+    info = _probe(video_id, route)
     if not _binds_to(info, attestation["channel_key"]):
         raise ServiceError("channel_binding_mismatch", 403)
     duration_ms = int(round(float(info.get("duration") or 0) * 1000))
@@ -416,7 +499,7 @@ def _extract(payload: dict[str, Any]) -> dict[str, Any]:
 
     workdir = tempfile.mkdtemp(prefix="mx-", dir=app.state.workroot)
     try:
-        path = _extract_to_wav(video_id, workdir)
+        path = _extract_to_wav(video_id, workdir, route)
         facts = _wav_facts(path)
         _upload(path, target)
     finally:
@@ -428,6 +511,11 @@ def _extract(payload: dict[str, Any]) -> dict[str, Any]:
         "extractor": "yt-dlp",
         "extractor_version": app.state.extractor_version,
         "attestation_receipt_hash": attestation["receipt_hash"],
+        # The route that ACTUALLY served these bytes, read back from the same
+        # dict `_common_args` built its arguments from rather than from the
+        # request, so a future branch that overrides the route cannot leave the
+        # echo behind saying the old one.
+        "route": route["route"],
         **facts,
     }
 
@@ -458,10 +546,11 @@ def _enumerate(payload: dict[str, Any]) -> dict[str, Any]:
     if after and not VIDEO_ID_RE.fullmatch(after):
         raise ServiceError("video_id_invalid", 400)
 
+    route = _route(payload)
     key = attestation["channel_key"]
     target = f"https://www.youtube.com/{key if key.startswith('@') else 'channel/' + key}/videos"
     result = _run(
-        _common_args() + ["--flat-playlist", "--dump-single-json", "--playlist-items", f"1:{MAX_CATALOGUE_PAGE * 5}", target],
+        _common_args(route) + ["--flat-playlist", "--dump-single-json", "--playlist-items", f"1:{MAX_CATALOGUE_PAGE * 5}", target],
         timeout=min(600, EXTRACT_TIMEOUT_SECONDS),
     )
     if result.returncode != 0:
@@ -503,6 +592,7 @@ def _enumerate(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "protocol": PROTOCOL,
         "channel_key": key,
+        "route": route["route"],
         "extractor_version": app.state.extractor_version,
         "exhausted": len(videos) <= limit,
         "videos": videos[:limit],

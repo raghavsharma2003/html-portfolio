@@ -133,6 +133,13 @@ function fakeService(options = {}) {
           extractor: "yt-dlp",
           extractor_version: "2026.8.19",
           attestation_receipt_hash: payload.attestation.receipt_hash,
+          // The route the service says it ran, echoed from the request the way
+          // the real service does (WS-AI). It is deliberately read back off
+          // `payload` rather than hard-coded: a fixture that always said
+          // "direct" would make this suite pass only for one route, and the
+          // route-mismatch property has its own negative control in
+          // `evals/extractroutes.mjs` rather than living here.
+          route: payload.route,
         }
         : { error: options.error || "extractor_bot_check" };
       const responseBytes = Buffer.from(JSON.stringify(value));

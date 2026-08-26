@@ -134,7 +134,86 @@ const REASONS = Object.freeze({
   replica_revoked: "You revoked this replica, so the job was stopped.",
   no_audio_stream: "This file has no audio track in it.",
   asr_unavailable: "The transcription service could not be reached.",
+
+  // ── extraction routes (WS-AI) ───────────────────────────────────────────
+  //
+  // These are the only failure codes in this file whose fix is not ours and is
+  // not the owner re-uploading something. They are "somebody has to switch a
+  // route on", and the whole reason the route table names them separately is
+  // that "extraction failed" sends the owner looking in the wrong place. Every
+  // one of them pairs with a next action in `ROUTE_NEXT_ACTIONS` below, because
+  // a reason with no action is a reason a person cannot act on.
+  channel_extract_no_route_configured:
+    "No way of reaching YouTube is switched on for this deployment, so the audio was not downloaded.",
+  channel_extract_route_unknown:
+    "This deployment names a way of reaching YouTube that this build does not know about.",
+  channel_extract_route_proxy_credential_missing:
+    "This deployment is set to reach YouTube through a proxy, but no proxy address has been given to it.",
+  channel_extract_route_proxy_url_invalid:
+    "The proxy address given to this deployment is not a usable address.",
+  channel_extract_route_cookies_credential_missing:
+    "This deployment is set to reach YouTube with a signed-in session, but no session file has been given to it.",
+  channel_extract_route_cookies_credential_invalid:
+    "The signed-in session file given to this deployment could not be read.",
+  channel_extract_route_provider_not_named:
+    "This deployment is set to use an outside download service, but no service has been named.",
+  channel_extract_route_provider_unknown:
+    "This deployment names an outside download service that this build cannot speak to.",
+  channel_extract_route_provider_credential_missing:
+    "This deployment is set to use an outside download service, but no key for it has been given.",
+  channel_extract_route_provider_adapter_unavailable:
+    "An outside download service is configured, but no adapter for it is built yet, so nothing was downloaded.",
+  channel_extract_route_pot_provider_missing:
+    "This deployment is set to use a proof of origin helper, but the helper address is missing.",
+  channel_extract_route_pot_provider_invalid:
+    "The proof of origin helper address given to this deployment is not a usable address.",
+  channel_extract_route_unreported:
+    "The download service did not say which route it used, so we did not record where the audio came from and did not keep it.",
+  channel_extract_route_mismatch:
+    "The download service used a different route than it was asked to use, so the audio was not kept.",
+  channel_extract_service_not_configured:
+    "No download service is connected to this deployment, so audio cannot be taken from YouTube here.",
 });
+
+/** What the owner can actually DO about a route failure.
+ *
+ *  `normaliseChannelVideo`'s default for a failed video is "the next channel
+ *  check will try this video again", which is true for a transient extractor
+ *  failure and FALSE for every code above: nothing retries its way out of a
+ *  missing credential, and telling somebody to wait for a retry that cannot
+ *  succeed is worse than telling them nothing. So the route codes carry their
+ *  own action and the default applies only where waiting is the honest answer.
+ *
+ *  `kind: "owner_setup"` rather than `retry` or `fix_input`: the fix is not in
+ *  the studio and it is not a file the teacher can upload. It is a deployment
+ *  setting, and the surface should say so rather than offering a button. */
+const ROUTE_NEXT_ACTIONS = Object.freeze({
+  channel_extract_no_route_configured: "Choose how this deployment reaches YouTube and set it up",
+  channel_extract_route_unknown: "Correct the route name in the deployment settings",
+  channel_extract_route_proxy_credential_missing: "Add the proxy address to the deployment settings",
+  channel_extract_route_proxy_url_invalid: "Correct the proxy address in the deployment settings",
+  channel_extract_route_cookies_credential_missing: "Add the signed-in session file to the deployment settings",
+  channel_extract_route_cookies_credential_invalid: "Replace the signed-in session file in the deployment settings",
+  channel_extract_route_provider_not_named: "Name the outside download service in the deployment settings",
+  channel_extract_route_provider_unknown: "Correct the outside download service name in the deployment settings",
+  channel_extract_route_provider_credential_missing: "Add the outside download service key to the deployment settings",
+  channel_extract_route_provider_adapter_unavailable: "Pick a route this build supports, or wait for the adapter",
+  channel_extract_route_pot_provider_missing: "Add the proof of origin helper address to the deployment settings",
+  channel_extract_route_pot_provider_invalid: "Correct the proof of origin helper address in the deployment settings",
+  channel_extract_route_unreported: "Update the download service to a build that reports its route",
+  channel_extract_route_mismatch: "Check the download service settings against the route this deployment asked for",
+  channel_extract_service_not_configured: "Connect a download service, or add captions by hand instead",
+  // Not a credential, and retrying does not help either: WS-AD measured all ten
+  // player clients refused from a datacenter egress, so the fix is a different
+  // egress and that is a decision, not a wait.
+  channel_extract_extractor_bot_check: "Switch this deployment to a proxy route, or add captions by hand instead",
+});
+
+/** The route action for a code, or null when waiting really is the answer. */
+export function routeNextAction(code) {
+  const label = ROUTE_NEXT_ACTIONS[String(code || "").trim()];
+  return label ? Object.freeze({ kind: "owner_setup", label }) : null;
+}
 
 /** A code with its underscores opened out, first letter raised, full stop
  *  added. Deliberately NOT a friendly rewrite: the owner can quote this back at
@@ -297,7 +376,14 @@ export function normaliseChannelVideo(row) {
       // re-opens a failed run (api/_channel-ingest.js openRun's `on conflict
       // ... where status = 'failed'`), so the honest affordance is the truth
       // about what happens next, not a button that calls nothing.
-      next_action: action("wait", "The next channel check will try this video again") });
+      //
+      // EXCEPT when the code says the retry cannot succeed. A missing proxy
+      // credential does not resolve itself on the next sweep, and "we will try
+      // again" is then a promise the system cannot keep. `routeNextAction`
+      // returns null for every code where waiting IS the answer, so the
+      // default below is unchanged for everything it does not name.
+      next_action: routeNextAction(row.failure_code) ||
+        action("wait", "The next channel check will try this video again") });
   }
   if (row.status === "applied") {
     return job({ ...base, state: "done", finished_at: iso(row.decided_at || row.updated_at),
@@ -346,7 +432,10 @@ export function normaliseChannelWatch(row) {
       // retries on its own clock, so the honest affordance is to say so. A
       // button labelled "check again" that called nothing would be the
       // interface equivalent of a fake progress bar.
-      next_action: action("wait", "The next scheduled check will try again") });
+      // Same exception as the per-video lane: a route with no credential is
+      // not something the next cron tick fixes.
+      next_action: routeNextAction(row.last_sweep_reason) ||
+        action("wait", "The next scheduled check will try again") });
   }
   if (!row.last_checked_at) {
     return job({ ...base, state: "queued",
