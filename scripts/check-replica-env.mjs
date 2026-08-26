@@ -166,6 +166,28 @@ const VERCEL_APP = [
     note: "api/replica-voice-preview.js — the approval-FREE voice lane; also needs provenance_protection_client and replica_storage LIVE to deliver end to end",
   },
   {
+    // WS-I, the stays-current loop. Both halves are needed before
+    // /api/channel-ingest-sweep does anything: with either dark it answers
+    // {ok:true, disabled:true} rather than half-working.
+    id: "channel_watch_youtube",
+    required: ["YOUTUBE_OAUTH_CLIENT_ID", "YOUTUBE_OAUTH_CLIENT_SECRET"],
+    note: "api/_channel/registry.js — new-video detection. The teacher's refresh token is NOT an env var: vy_channel_watch stores a uuid grant REF and the provider takes an injected grant store",
+  },
+  {
+    id: "asr_self_hosted",
+    required: ["ASR_SELF_HOSTED_ORIGIN", "ASR_HMAC_SECRET"],
+    note: "api/_asr/providers/self-hosted.js — the in-house ASR lane (SPEC §8 item 1). Preferred over Sarvam whenever LIVE",
+  },
+  {
+    // "any" because SARVAM_API_KEY alone is a working lane — the model and
+    // origin have defaults. A halfway state is not reachable here and
+    // pretending otherwise would print a warning that can never be acted on.
+    id: "asr_sarvam",
+    mode: "any",
+    required: ["SARVAM_API_KEY"],
+    note: "api/_asr/registry.js — the vendor ASR lane, used when asr_self_hosted is DARK. NOT spend-fenced: ingestion-research.md §3's pricing sources conflict by 3x and the real rate must be confirmed before the first paid run",
+  },
+  {
     id: "voice_evidence_client",
     required: ["AZURE_VOICE_EVIDENCE_ORIGIN", "AZURE_VOICE_EVIDENCE_HMAC_SECRET"],
     note: "api/_replica-processing/providers/azure-voice-evidence.js, called from the processing pipeline",
