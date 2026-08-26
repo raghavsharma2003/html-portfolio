@@ -1892,6 +1892,12 @@
       "kind": "decision",
       "title": "owner reweight: in-house replica stack, expert platform, fidelity guarantee; meera deprioritized",
       "at": "2026-08-26"
+    },
+    {
+      "id": "roadmap-100x",
+      "kind": "decision",
+      "title": "research synthesis: voice stack pinned, fidelity two-gate law, wave-5 build order",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3469,6 +3475,11 @@
       "src": "platform-north-star",
       "rel": "constrains",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "roadmap-100x",
+      "rel": "part_of",
+      "dst": "platform-north-star"
     }
   ]
 }

@@ -2882,3 +2882,29 @@ carries the binding consequences. Reverses if: the self-hosted lane's
 fidelity bench stays materially below the vendor lane after fine-tuning
 effort (then vendor becomes primary again and in-house stays the research
 track — measured, not assumed).
+
+## `roadmap-100x` — research fleet synthesized into the build order (2026-08-26)
+
+Three commissioned sweeps landed (docs/gurukul/research/: competitors,
+relationalos-100x, voice-stack); docs/gurukul/ROADMAP-100X.md is the
+judgment layer. Standing decisions it sets:
+
+- Chatterbox Multilingual V3 stays the primary voice model (only candidate
+  passing MIT license + Hindi + fine-tunability); per-expert LoRA (~30 min
+  audio) is the beat-instant-cloning path; realtime stays a cascade until
+  Moshi's Hindi + cloned-voice unknowns fall. Reverses if: a licensed
+  Hindi-capable model beats it on OUR Hinglish bench (protocol in the
+  voice-stack report) — bench result, never a MOS claim from the wild
+  (public numbers conflict by >1 MOS point).
+- Fidelity-scoring law: embedding similarity is a regression floor (drop
+  blocks), blind owner calibration gates activation quality — because
+  `azure-tts` measured axes diverging from ear judgment. Neither gate
+  substitutes for the other.
+- RelationalOS wave-5 build order: (1) disclosure-reciprocity ledger,
+  (2) within-session drift probe suite, (3) in-house memory recall
+  benchmark — the three highest evidence-per-cost items; bi-temporal fact
+  edges and the example-dialogue format A/B follow.
+- Market read logged: per-listener durable memory is the competitors' open
+  wound (Replika + Character.AI both broke it publicly in April 2026;
+  Delphi is conversation-scoped); teacher-clone seat empty; voice
+  commoditized; consent UX becoming law. Positioning follows.
