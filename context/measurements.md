@@ -4557,3 +4557,44 @@ was written for exactly this kind of file), so the fix was to route the OUTPUT
 through a file the same way `probeBytes` already routes the INPUT through one,
 and to reuse `readPcm16Wav` for the final slice rather than assuming a fixed
 offset. See `context/rejected.md` for the same finding as a named rejection.
+
+## `self-test-four-gates-measured-blocking` — REPLICA_SELF_TEST_MODE, proven both ways against the real database (2026-08-26, WS-AQ)
+
+**Method.** Two fully isolated fixture replicas (random uuids, no real owner,
+no real bytes) built directly against the live Neon database, reproducing the
+exact stuck shape from tonight's incident: one `vy_replica_source` at
+`state='ready'`, one `enhance`/wav artifact, and seven evidence rows spanning
+`media_probe`, `speaker_segment`, `language_span`, two `voice_embedding`
+families (`ecapa`/`xvector`), `voice_measurement` and `quality_measurement` --
+the same shape `readiness()` in `api/_replica-review.js` checks.
+
+**Negative control (flag absent).** `selfTestModeEnabled({})` returned
+`false`. `applySelfTestAutoGrant` returned `{applied:false,reason:"flag_off"}`
+and wrote nothing: `voice_genome_readiness.blockers` were the identical 8
+codes before and after
+(`liveness_verification_required, biometric_consent_required,
+training_consent_required, two_independent_embedding_families_required,
+reviewed_voice_measurement_required, reviewed_quality_measurement_required,
+reviewed_speaker_segment_required, owner_selected_voice_candidate_required`),
+0 consent rows existed, and calling the real `queueOwnedVoiceGenome` directly
+still threw `409 voice_genome_not_ready` with the same 8 blockers in its
+`details`.
+
+**Positive (flag `"true"`, `subject_mode='self'`).** All 8 blockers cleared:
+3 consent scopes granted (`biometric`, `training`, `inference`), 7/7 evidence
+rows accepted, 1 artifact selected, `liveness_verified_at` set,
+`queueOwnedVoiceGenome` (the real function, unmodified) queued a build
+(`state:'queued'`, `target_version:1`) computing its own `source_set_hash` --
+nothing here wrote that hash by hand. `review.self_test_mode` read `true` on
+the same call a studio panel would make.
+
+**Revocation, proven as its own step.** `scripts/revoke-self-test-grants.mjs`,
+run for real (not `--dry-run`) against a third fresh fixture already granted
+by the flag: `consent_revoked:3, replicas_reset:1, evidence_reversed:7,
+artifacts_reversed:1`. Re-reading `voice_genome_readiness` afterward showed
+all 8 blockers back, byte-for-byte the same set as the negative control's.
+
+n=3 fixture replicas (positive / negative / revocation), each built and torn
+down in the same run, 2026-08-26. Every fixture was deleted (`delete from
+vy_replica ...`) after its assertions ran; a follow-up count query confirmed
+zero leftover rows in the live database.

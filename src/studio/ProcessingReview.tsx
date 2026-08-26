@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { disabledReason } from "./blockerClass";
 import { decideReplicaEvidence, getArtifactAudition, getReplicaReview, queueVoiceGenome, selectVoiceArtifact } from "./processingApi";
 import type { EvidenceDecision, ReplicaReview, ReviewEvidence } from "./types";
+
+// The owner's directive said three times: no identity or liveness check for
+// internal, self-only testing. REPLICA_SELF_TEST_MODE (default off) grants
+// them automatically instead of blocking on them -- but the studio must never
+// let the owner wonder later whether a clone was actually verified. This
+// reuses blockerClass.ts's own vocabulary ("us"-class: ours, not the owner's
+// job, never phrased as a task for them) rather than inventing a second one.
+const SELF_TEST_NOTICE = disabledReason(
+  "us",
+  "Identity and liveness checks are turned off for this replica.",
+  "REPLICA_SELF_TEST_MODE is on (self-only, internal testing). Nothing below was identity- or liveness-verified by a human.",
+);
 
 const REASONS: Record<EvidenceDecision, Array<[string, string]>> = {
   accepted: [["matches_subject", "Matches me"], ["clean_identity_signal", "Clean identity signal"], ["measurement_verified", "Measurement verified"], ["segment_verified", "Speaker segment verified"]],
@@ -153,6 +166,12 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
             </details>
           ))}
         </div>
+
+        {review?.self_test_mode && <div className="self-test-banner" role="status">
+          <span className={`self-test-badge blocker-${SELF_TEST_NOTICE.kind}`}>{SELF_TEST_NOTICE.classLabel}</span>
+          <strong>{SELF_TEST_NOTICE.headline}</strong>
+          <p>{SELF_TEST_NOTICE.next}</p>
+        </div>}
 
         {review && <article className="build-readiness">
           <div><p className="eyebrow">Draft only</p><h3>Voice model build gate</h3><p>A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation are still required.</p></div>

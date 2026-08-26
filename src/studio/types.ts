@@ -184,6 +184,11 @@ export interface ReviewEvidence {
 
 export interface ReplicaReview {
   replica_id: string;
+  /** true only when REPLICA_SELF_TEST_MODE granted this replica's identity
+   * checks and review decisions automatically (self-only, default off). See
+   * blockerClass.ts's `disabledReason("us", ...)` for how the studio must
+   * say so on screen -- never silently. */
+  self_test_mode: boolean;
   sources: Array<Pick<ReplicaSource, "source_id" | "kind" | "capture_mode" | "mime" | "byte_size" | "state" | "contains_third_parties" | "rejection_code" | "created_at" | "updated_at"> & { duration_ms: number | null }>;
   jobs: Array<{ job_id: string; source_id: string; step: string; revision: number; state: string; attempt: number; failure_code: string; next_attempt_at: string; created_at: string; updated_at: string }>;
   attempts: Array<{ job_id: string; attempt: number; outcome: string; provenance: ReviewProvenance; failure_code: string; facts: Record<string, string | number | boolean>; started_at: string; finished_at: string | null }>;

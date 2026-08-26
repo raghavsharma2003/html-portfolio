@@ -1,5 +1,6 @@
 import { leaseNextProcessingJob, retryProcessingJob, stopProcessingJob } from "./queue.js";
 import { commitProcessingOutput } from "./repository.js";
+import { applySelfTestAutoGrant, selfTestModeEnabled } from "./self-test.js";
 import { executeProcessingJob } from "./worker.js";
 
 // `transcribe` deliberately does NOT chain through `enhance` here. Before
@@ -74,13 +75,31 @@ export async function loadLeasedProcessingContext(db, job) {
   });
 }
 
-async function settle(db, leased, output) {
+async function settle(db, leased, output, env) {
   if (output.outcome === "complete") {
     const committed = await commitProcessingOutput(db, {
       jobId: leased.job.job_id,
       leaseToken: leased.leaseToken,
       output,
     });
+    // `voice_quality` is the one step that flips `vy_replica_source.state` to
+    // 'ready' (repository.js's `source_state` CTE) -- the earliest moment a
+    // voice genome could ever be buildable for this source. REPLICA_SELF_TEST_MODE
+    // hooks exactly here, not on a timer or a second endpoint, so "upload,
+    // wait, preview" has no extra step for the owner to trigger by hand. A
+    // no-op when the flag is off or the replica is not subject_mode='self'
+    // (self-test.js checks both) and never allowed to fail the real
+    // completion it rides on: the DAG's own state is already committed above
+    // by the time this runs, so a self-test error here is logged and
+    // swallowed rather than turning a successful `voice_quality` commit into
+    // a failed job.
+    if (leased.job.step === "voice_quality" && selfTestModeEnabled(env)) {
+      try {
+        await applySelfTestAutoGrant(db, { ownerUserId: leased.job.owner_user_id, replicaId: leased.job.replica_id, env });
+      } catch (error) {
+        console.error("self_test_auto_grant_failed", { replica_id: leased.job.replica_id, code: error?.code || error?.message });
+      }
+    }
     return Object.freeze({ outcome: "complete", job_id: leased.job.job_id, step: leased.job.step, next_steps: committed.next_steps });
   }
   if (output.outcome === "retry") {
@@ -132,5 +151,5 @@ export async function runNextProcessingJob(options) {
       retry_after_ms: error?.retryable ? 30_000 : null,
     });
   }
-  return settle(options.db, leased, output);
+  return settle(options.db, leased, output, options.env || options.budgetEnv || process.env);
 }

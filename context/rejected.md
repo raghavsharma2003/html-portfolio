@@ -4102,3 +4102,32 @@ stream rather than materialise (a much longer per-call extraction where the
 temp-file write itself becomes the bottleneck). Nothing in this lane is close
 to that; the owner's own diarized-speech total for the file that motivated this
 change is 663.5 s, comfortably inside one temp file per candidate run.
+
+## `self-test-mode-must-not-hand-write-source-set-hash` — the shortcut that looked obvious, tried once tonight, and was correctly refused (2026-08-26, WS-AQ)
+
+**What was tried.** Facing the same stuck state this flag now fixes, the main
+session tried to get a draft voice genome built by hand: manually satisfying
+`liveness_verified_at`/consent/evidence decisions directly in production, then
+inserting a `vy_replica_model_build` row with a `source_set_hash` computed (or
+guessed) outside `queueOwnedVoiceGenome`.
+
+**What broke.** `queueOwnedVoiceGenome`'s insert is `on conflict
+(replica_id, build_kind, source_set_hash) do update ... returning`, and the
+builder that later reads `vy_replica_model_build` cross-checks the hash
+against the ACCEPTED evidence/artifact set it can see through
+`loadAcceptedVoiceGenomeInput`. A hash computed anywhere else -- even
+correctly, even by the same formula -- does not necessarily equal what that
+function derives from the CURRENT accepted set, and when it did not match,
+the builder correctly refused with `model_build_source_set_changed` rather
+than building against an unverifiable input set. The safety property held:
+nothing can quietly become "the accepted set" without literally being the
+rows `loadAcceptedVoiceGenomeInput` reads.
+
+**Why this stays a law and not a one-off fix.** `REPLICA_SELF_TEST_MODE`
+(`context/decisions.md#replica-self-test-mode`) removes the review FRICTION,
+never the HASH COMPUTATION -- it calls `acceptAllOwnedEvidenceForSelfTest`,
+`selectOwnedVoiceArtifact` and `queueOwnedVoiceGenome` unmodified, so the
+hash is always derived from whatever those functions actually accepted,
+exactly as it would be for a human reviewer. Any future "just satisfy the
+gate" shortcut that computes or copies a `source_set_hash` instead of calling
+`queueOwnedVoiceGenome` will hit the identical refusal, by design.

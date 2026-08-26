@@ -3104,6 +3104,24 @@
       "kind": "rejection",
       "title": "ffmpeg -f wav pipe:1 writes a 0xFFFFFFFF placeholder data size and an INFO LIST chunk before data, so a fixed-44-byte-header slice both throws window_audio_truncated and would misalign if it did not; fixed by writing output to a temp file, same reason probeBytes already does for input",
       "at": "2026-08-26"
+    },
+    {
+      "id": "replica-self-test-mode",
+      "kind": "decision",
+      "title": "REPLICA_SELF_TEST_MODE (default off): a subject_mode='self' replica gets identity/liveness/consent and evidence/artifact review auto-granted through the real code paths as its sources reach 'ready', so the owner's own loop is upload-wait-preview with no identity or liveness check, for internal testing only",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "self-test-four-gates-measured-blocking",
+      "kind": "measurement",
+      "title": "against the real Neon database: a fixture replica with 7 real-shaped evidence rows and one enhance/wav artifact stayed at 8 named blockers and a 409 voice_genome_not_ready with the flag absent (negative control); with the flag on, all 4 gates cleared through the real functions and queueOwnedVoiceGenome queued a draft build; the one revocation query (scripts/revoke-self-test-grants.mjs) then restored all 8 blockers exactly",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "self-test-mode-must-not-hand-write-source-set-hash",
+      "kind": "rejection",
+      "title": "the main session tried satisfying the builder by hand tonight and invented a source_set_hash, which queueOwnedVoiceGenome correctly refused as model_build_source_set_changed; the fix is to call the real acceptance/selection/queue functions and let the real path compute the hash, never to write vy_replica_model_build directly",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -6051,6 +6069,21 @@
       "src": "owner-reference-window-selected",
       "rel": "caused_by",
       "dst": "ffmpeg-pipe-output-cannot-carry-a-sized-wav-chunk"
+    },
+    {
+      "src": "replica-self-test-mode",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "replica-self-test-mode",
+      "rel": "measured_by",
+      "dst": "self-test-four-gates-measured-blocking"
+    },
+    {
+      "src": "replica-self-test-mode",
+      "rel": "caused_by",
+      "dst": "self-test-mode-must-not-hand-write-source-set-hash"
     }
   ]
 }

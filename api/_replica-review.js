@@ -3,7 +3,7 @@ import { acceptedSourceSetHash } from "./_replica-processing/builders.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
 
 const DECISIONS = new Set(["accepted", "rejected", "superseded"]);
-const VOICE_REVIEW_TYPES = new Set([
+export const VOICE_REVIEW_TYPES = new Set([
   "media_probe",
   "speaker_segment",
   "language_span",
@@ -133,6 +133,7 @@ function readiness(rows, replica, artifacts = []) {
 }
 
 const OWNED = `select r.replica_id, r.liveness_verified_at, r.identity_expires_at,
+  coalesce(r.metadata->>'self_test_mode','')='true' self_test_mode,
   exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) biometric_consent,
   exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='training' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) training_consent
   from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle not in ('revoked','purging')`;
@@ -235,6 +236,7 @@ export async function ownedReviewStatus(db, ownerUserId, value) {
   if (!replicas[0]) return null;
   return {
     replica_id: rid,
+    self_test_mode: replicas[0].self_test_mode === true,
     sources: sources.map((row) => ({ ...row, byte_size: Number(row.byte_size), duration_ms: row.duration_ms == null ? null : Number(row.duration_ms) })),
     jobs: jobs.map((row) => ({ ...row, revision: Number(row.revision), attempt: Number(row.attempt) })),
     attempts: attempts.map((row) => ({ job_id: row.job_id, attempt: Number(row.attempt), outcome: row.outcome, provenance: { family: row.adapter_family, name: row.adapter_name, version: row.adapter_version }, failure_code: row.failure_code, facts: safeFacts(row.facts), started_at: row.started_at, finished_at: row.finished_at })),
@@ -281,9 +283,15 @@ export async function getOwnedArtifactAudition(db, ownerUserId, value) {
   return rows[0] || null;
 }
 
-export async function selectOwnedVoiceArtifact(db, ownerUserId, value) {
+// `metadata` is additive and defaults to `{}` -- every caller before
+// REPLICA_SELF_TEST_MODE existed passes nothing and gets byte-for-byte the
+// same row it always did. Self-test is the one caller that passes
+// `{self_test_mode:true,granted_by:'REPLICA_SELF_TEST_MODE'}` so its
+// selection is tagged the same way its evidence acceptances are.
+export async function selectOwnedVoiceArtifact(db, ownerUserId, value, metadata = {}) {
   const rid = replicaId(value.replica_id);
   const artifactId = replicaId(value.artifact_id);
+  const metadataJson = JSON.stringify(metadata || {});
   const rows = await db(
     `with owned as (${OWNED}), target as materialized (
        select a.artifact_id,a.source_id,a.replica_id,a.owner_user_id
@@ -310,8 +318,8 @@ export async function selectOwnedVoiceArtifact(db, ownerUserId, value) {
        insert into vy_replica_processing_artifact_decision(artifact_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id)
        select artifact_id,replica_id,owner_user_id,'superseded','better_candidate',$2::uuid from previous
      ), selected as (
-       insert into vy_replica_processing_artifact_decision(artifact_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id)
-       select artifact_id,replica_id,owner_user_id,'selected','owner_voice_match',$2::uuid from locked where acquired
+       insert into vy_replica_processing_artifact_decision(artifact_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id,metadata)
+       select artifact_id,replica_id,owner_user_id,'selected','owner_voice_match',$2::uuid,$4::jsonb from locked where acquired
        returning decision_id,artifact_id,decision,reason_code,created_at
      ), stale_builds as (
        update vy_replica_model_build b set state='retired',failure_code='owner_candidate_changed',updated_at=now()
@@ -325,7 +333,7 @@ export async function selectOwnedVoiceArtifact(db, ownerUserId, value) {
        select $1::uuid,$2::uuid,'processing.artifact.select','processing_artifact',artifact_id::text,
               'artifact-selection/v1','allowed','{}'::jsonb from selected
      ) select * from selected`,
-    [rid, ownerUserId, artifactId],
+    [rid, ownerUserId, artifactId, metadataJson],
   );
   if (rows[0]) return rows[0];
   const owned = await db(`select 1 ok from vy_replica_processing_artifact where artifact_id=$3::uuid and replica_id=$1::uuid and owner_user_id=$2::uuid`, [rid, ownerUserId, artifactId]);
@@ -344,6 +352,58 @@ export async function decideOwnedEvidence(db, ownerUserId, value) {
   const owned = await db(`select 1 ok from vy_replica_processing_evidence e join vy_replica r on r.replica_id=e.replica_id where e.evidence_id=$3::uuid and e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and r.owner_user_id=$2::uuid`, [rid, ownerUserId, evidenceId]);
   if (owned[0]) throw Object.assign(new Error("evidence_review_busy"), { status: 409 });
   return null;
+}
+
+// The batch sibling of decideOwnedEvidence, for exactly one caller:
+// REPLICA_SELF_TEST_MODE (api/_replica-processing/self-test.js). Everything a
+// human reviewer would have had to click 'accept' on, one row at a time, gets
+// the SAME decision shape decideOwnedEvidence writes (same table, same
+// reviewer_user_id=owner_user_id constraint, same reason vocabulary) in one
+// statement instead of hundreds. It never touches a row that already carries
+// a decision — a real rejection or acceptance a person made is never
+// overwritten — and it is scoped to subject_mode='self' at the SQL level, not
+// only by its caller, so a bug in the caller cannot widen it. Every row it
+// writes is tagged in `metadata` (migration 063) so it is findable and
+// revocable; see context/decisions.md#replica-self-test-mode.
+export async function acceptAllOwnedEvidenceForSelfTest(db, ownerUserId, replicaOrValue, metadata) {
+  const rid = replicaId(replicaOrValue);
+  const rows = await db(
+    `with owned as (
+       select r.replica_id, r.owner_user_id from vy_replica r
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
+          and r.lifecycle not in ('revoked','purging')
+     ), locked as materialized (
+       select o.*, pg_advisory_xact_lock(hashtextextended(o.replica_id::text || ':voice_genome_review',0)) from owned o
+     ), latest as (
+       select distinct on (d.evidence_id) d.evidence_id, d.decision
+         from vy_replica_processing_evidence_decision d
+         join locked l on l.replica_id=d.replica_id and l.owner_user_id=d.owner_user_id
+        order by d.evidence_id, d.created_at desc, d.decision_id desc
+     ), candidates as (
+       select e.evidence_id, e.replica_id, e.owner_user_id
+         from vy_replica_processing_evidence e
+         join locked l on l.replica_id=e.replica_id and l.owner_user_id=e.owner_user_id
+         join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
+          and s.owner_user_id=e.owner_user_id and s.contains_third_parties=false
+        where e.evidence_type=any($4::text[])
+          and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version) !~ '(fake|fixture|test|mock)'
+          and not exists (select 1 from latest where latest.evidence_id=e.evidence_id)
+     ), inserted as (
+       insert into vy_replica_processing_evidence_decision
+         (evidence_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id,metadata)
+       select evidence_id,replica_id,owner_user_id,'accepted','matches_subject',$2::uuid,$3::jsonb
+         from candidates
+       returning decision_id, evidence_id
+     ), audit as (
+       insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
+       select $1::uuid,$2::uuid,'self_test.evidence_bulk_accept','processing_evidence',
+              (select count(*) from inserted)::text,'replica-self-test/v1','allowed',$3::jsonb
+        where (select count(*) from inserted) > 0
+     )
+     select count(*)::int accepted from inserted`,
+    [rid, ownerUserId, JSON.stringify(metadata || {}), [...VOICE_REVIEW_TYPES]],
+  );
+  return Number(rows[0]?.accepted || 0);
 }
 
 export async function queueOwnedVoiceGenome(db, ownerUserId, value) {

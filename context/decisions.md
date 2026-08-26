@@ -5637,3 +5637,73 @@ opaque code rather than narrowing it.
 **Generalises.** Any `eligible`-style CTE in this codebase has the same defect
 shape. An empty join result is not an authorization verdict.
 
+
+## `replica-self-test-mode` — no identity or liveness check for self-only internal testing, gated by one env flag (2026-08-26, WS-AQ)
+
+**What.** `REPLICA_SELF_TEST_MODE`, default OFF/absent. When set to exactly
+`"true"`, a replica with `subject_mode='self'` gets all four things that
+blocked the owner's real upload tonight satisfied automatically, the moment
+each becomes possible:
+
+1. `age_verified_at` / `identity_verified_at` / `liveness_verified_at` /
+   `identity_expires_at` on `vy_replica`.
+2. The `biometric`, `training` and `inference` consent scopes (method
+   `account_attestation`, the check constraint's own vocabulary for "the
+   account owner attested this, no separate ceremony ran").
+3. Every reviewable evidence row without an existing decision, `accepted`.
+4. One `enhance`/wav artifact candidate, `selected` — then
+   `queueOwnedVoiceGenome` (the real function) is called to queue the draft
+   build.
+
+**Why.** The owner's directive, said three times, verbatim: "just give the
+whole permission allow for once only so we don't have to do any liveness
+check or identity check whatsoever," for internal testing, not deployed
+anywhere, for weeks. Tonight's incident is the concrete cost of not having
+this: eight DAG steps completed and then nothing happened, because a person
+would have had to click "accept" on 337 evidence rows one at a time, and the
+main session ended up satisfying every gate by hand, directly in production,
+to get a draft genome built at all.
+
+**Shape, and the two rules that make it safe rather than a deletion.**
+First, every write goes through the SAME functions and the SAME tables a
+human reviewer's decisions go through --
+`acceptAllOwnedEvidenceForSelfTest`/`selectOwnedVoiceArtifact`/
+`queueOwnedVoiceGenome` in `api/_replica-review.js`, called from
+`api/_replica-processing/self-test.js`. It never hand-writes a
+`vy_replica_model_build` row or a `source_set_hash` -- seeing exactly that
+mistake made and refused tonight (`model_build_source_set_changed`) is why
+this is a rule, not a preference. Second, every row it writes carries
+`metadata.self_test_mode=true` and `metadata.granted_by='REPLICA_SELF_TEST_MODE'`
+(migration 063 added the `metadata` column to the two decision tables that
+did not already have one), so `scripts/revoke-self-test-grants.mjs` can find
+and reverse all of it in one statement, for every replica, at once.
+
+**Where it hooks.** `runNextProcessingJob`'s `settle()`
+(`api/_replica-processing/runtime.js`), immediately after `commitProcessingOutput`
+for the `voice_quality` step -- the one step that flips
+`vy_replica_source.state` to `'ready'`, which is the earliest a voice genome
+could ever be buildable. No second endpoint, no timer: the owner's loop stays
+"upload, wait, preview."
+
+**Self only, at the SQL level, not only by convention.** Every statement this
+module runs filters `subject_mode='self'` inside its own `WHERE`, not only in
+the caller -- `vy_replica.subject_mode` is itself constrained to only
+`'self'` by the schema today (migration 015), so this is currently
+belt-and-suspenders, but it stays load-bearing the day that check constraint
+is ever widened.
+
+**On screen.** `ProcessingReview.tsx` shows a banner, gated on
+`review.self_test_mode` (added to `ownedReviewStatus`'s response), built with
+`blockerClass.ts`'s existing `disabledReason("us", ...)` -- not a second
+vocabulary. The owner is told plainly, every time the review panel is open,
+that identity and liveness checks are off for this replica.
+
+**Verified live**, not mocked: see `self-test-four-gates-measured-blocking`.
+A negative control ran first -- flag absent, same fixture shape, all 8
+blockers held and `queueOwnedVoiceGenome` still threw 409.
+
+**What would reverse it.** The product has ANY user who is not the owner.
+At that point this flag must be off in every environment that user can
+reach, and `scripts/revoke-self-test-grants.mjs` should be run to clear
+whatever it granted during the owner's own testing before that user's data
+ever shares a database with it.

@@ -2669,3 +2669,23 @@ alter table vy_channel_watch add constraint vy_channel_watch_sweep_failure_named
 alter table vy_channel_watch drop constraint if exists vy_channel_watch_sweep_videos_nonneg;
 alter table vy_channel_watch add constraint vy_channel_watch_sweep_videos_nonneg
   check (last_sweep_videos >= 0);
+
+-- Migration 063 — REPLICA_SELF_TEST_MODE provenance (WS-AQ). Every table an
+-- auto-grant from the self-test flag can touch gets a `metadata` jsonb column
+-- so the grants are findable and revocable by one query; see
+-- api/_replica-processing/self-test.js for the flag itself, default OFF.
+alter table vy_replica
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table vy_replica_processing_evidence_decision
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table vy_replica_processing_artifact_decision
+  add column if not exists metadata jsonb not null default '{}'::jsonb;
+create index if not exists vy_replica_self_test_ix
+  on vy_replica ((metadata ->> 'self_test_mode'))
+  where metadata ->> 'self_test_mode' = 'true';
+create index if not exists vy_replica_evidence_decision_self_test_ix
+  on vy_replica_processing_evidence_decision ((metadata ->> 'self_test_mode'))
+  where metadata ->> 'self_test_mode' = 'true';
+create index if not exists vy_replica_artifact_decision_self_test_ix
+  on vy_replica_processing_artifact_decision ((metadata ->> 'self_test_mode'))
+  where metadata ->> 'self_test_mode' = 'true';
