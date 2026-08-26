@@ -177,6 +177,26 @@ const suites = {
   // disclosure measure from quietly becoming a usage metric (inner.ts G1).
   // Offline, deterministic, $0, no DB, no model call, ~1s.
   reciprocity: "reciprocity.mjs",
+  // WS-K (ROADMAP-100X item 2). The WITHIN-SESSION drift probe suite: a 44-turn
+  // session compiled turn by turn on both lanes, with the anchors, the safety
+  // floor, the register bullets, the stage band and the drop order asserted at
+  // EVERY turn rather than at one convenient one.
+  //
+  // Every other eval in this tree tests a TURN. The external literature this
+  // was built from (Identity Drift, ContextEcho) measures drift as a function
+  // of SESSION LENGTH, and its named mechanism — persona instructions occupying
+  // a shrinking fraction of context — is invisible to a single-turn suite by
+  // construction: the existing gates would pass identically on a build whose
+  // anchors survive turn one and are shouldered out by turn forty.
+  //
+  // It is STRUCTURAL only and says so in its own output: the behavioural half
+  // (does her register actually hold) needs a judge and money, and plugs in
+  // behind the provider seam in §5 rather than being faked into a number here.
+  // Carries three negative controls, including the literal `prompt-position`
+  // defect (the appended-last rules moved mid-brief).
+  //
+  // Offline, deterministic, $0, no DB, ZERO model calls, ~4s.
+  drift: "drift.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of

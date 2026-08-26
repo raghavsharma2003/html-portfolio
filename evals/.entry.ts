@@ -203,3 +203,8 @@ export {
   SYSTEM_MAX,
   OPERATIONAL_TAIL_CAP,
 } from "../src/engine/compiler";
+
+// WS-K (ROADMAP-100X item 2). The injected persona module, so evals/drift.mjs
+// can compile a REAL session and — for its negative controls — a deliberately
+// broken copy of the same module.
+export { DEFAULT_AGENT, getAgent, listAgents } from "../src/engine/agents/registry";
