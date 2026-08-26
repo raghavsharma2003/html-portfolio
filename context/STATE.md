@@ -9,11 +9,13 @@ Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, a
 
 ## What the product is
 
-Vyakti: a self-serve platform where an expert (edtech first: JEE teachers)
-builds an AI version of themselves — voice, personality, style — that
-**remembers each person it talks to** and carries a **measured guarantee it
-still sounds like them**. Cloning through deployment: the finished clone
-ships to students as an app. North star and binding consequences:
+Vyakti: a self-serve platform where ANYONE builds an exact AI version of
+themselves — mind, voice, relation, long-term continuity — from their own
+context (files, links, channels, calls), iterates on it frictionlessly, and
+deploys it anywhere. It **remembers each person it talks to** and carries a
+**measured guarantee it still sounds like them**. Edtech (JEE teachers →
+student app) is the first vertical and wedge, not the boundary
+(`horizontal-platform-reweight`, 2026-08-26). North star and binding consequences:
 `docs/gurukul/SPEC-GURUKUL.md` §8 (owner reweight, 2026-08-26).
 
 Standing owner directives: in-house replica stack (self-hosted open weights

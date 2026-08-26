@@ -4058,3 +4058,27 @@ moves in-house); seed-vc (GPL-3.0 and archived read-only) and WeClone
 (AGPL-3.0) as code, though WeClone's Presidio PII-scrub stage is an idea we
 adopt; multi-reference conditioning (does not compose with Chatterbox's single
 `audio_prompt_path` without model surgery the audio-floor law forbids).
+
+## `horizontal-platform-reweight` — anyone, any context, an exact human clone (2026-08-26, owner directive)
+
+**The directive.** The platform is for EVERYONE, not a teacher vertical:
+anyone logs their context — multiple files, multiple links, channels — and
+builds an exact clone of themselves (mind + voice + relation + long-term
+continuity), iterates on it frictionlessly until it is right, and deploys it
+in multiple ways. Multimodality and "so many things around this" are implied,
+not enumerated — `owner-intent-is-the-spec` governs the gaps. The bar
+restated: human + mind + voice + relation cracked at a level no one has
+reached; learn from the top research and projects, open AND closed, and take
+the best.
+
+**What this changes.** Edtech/JEE remains the FIRST VERTICAL and go-to-market
+wedge — nothing built for it is discarded — but every new capability is built
+person-generic first with the vertical as a configuration (the Kabir/
+TeacherSheet precedent already proved personas are data). Concrete new gap it
+names: ingestion today is YouTube-channel + voice-upload; there is no
+universal "bring your context" lane (files, arbitrary links, documents, chat
+exports) feeding the Person Model. That lane is now on the build list.
+
+**What would reverse this.** Only the owner narrowing it. Evidence that the
+horizontal surface dilutes the vertical's quality would trigger a sequencing
+conversation with the owner, not a silent narrowing.
