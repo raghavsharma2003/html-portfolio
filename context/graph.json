@@ -2828,6 +2828,18 @@
       "kind": "rejection",
       "title": "reading per-step durations from vy_replica_processing_attempt: a requeue resets attempt to 0, the retry's insert conflicts onto the first attempt's row, and the span silently becomes wait time plus work time",
       "at": "2026-08-26"
+    },
+    {
+      "id": "windowing-belongs-before-the-embedder-not-before-diarize",
+      "kind": "decision",
+      "title": "the evidence duration cap was raised 600->1200s as an unblock for one file; windowing to the best 10s before diarize was rejected because diarize is not the embedder and one shared /v1/analyze endpoint caps all four steps",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "source-duration-was-never-persisted",
+      "kind": "rejection",
+      "title": "media_probe wrote the measured duration only into evidence, leaving vy_replica_source.duration_ms NULL, so every later step declared a null duration on the input reference for a recording whose length was already known",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5458,6 +5470,21 @@
     },
     {
       "src": "requeue-resets-attempt-and-the-timing-row-survives",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "windowing-belongs-before-the-embedder-not-before-diarize",
+      "rel": "caused_by",
+      "dst": "owners-recording-exceeds-the-evidence-duration-cap"
+    },
+    {
+      "src": "windowing-belongs-before-the-embedder-not-before-diarize",
+      "rel": "part_of",
+      "dst": "voice-genome-still-blocked-on-asr"
+    },
+    {
+      "src": "source-duration-was-never-persisted",
       "rel": "part_of",
       "dst": "replica-processing-worker-deployed"
     }

@@ -3629,3 +3629,30 @@ counter. Both change what an "attempt" means to everything that reads it.
 use to answer "is the pipeline getting slower". It currently answers a different
 question, how long a step waited for a human, in the same units, with no way to
 tell which is which from the row.
+
+## `source-duration-was-never-persisted` (2026-08-26, WS-AK)
+
+**What was tried.** Letting `media_probe` record the recording's duration where
+it naturally lands: in its own evidence row, `{"duration_ms": 822720, ...}`.
+
+**What broke.** `vy_replica_source.duration_ms` stayed NULL. That column is not
+decoration: `worker.js` builds the input reference every later step sends to the
+evidence service from the source row, and puts `source.duration_ms ?? null` on
+it. So `diarize`, `separate`, `enhance` and `voice_quality` each declared a null
+duration for a recording whose length the pipeline had already measured and
+written down one step earlier. Nothing rejected the null, which is why it
+survived: it is a trap set for whichever future step decides to trust that field.
+
+**Fixed by** having the `media_probe` commit set `duration_ms` on the source
+from the evidence it is writing in the same statement. It reads
+`desired_evidence`, which is an ordinary CTE over a parameter and therefore IS
+visible, rather than the inserted rows, which are not - the same visibility rule
+as `data-modifying-ctes-cannot-see-each-other`, applied deliberately this time.
+
+**The owner's existing row was backfilled from its own evidence row**, not from
+a typed-in number, so the value has the same provenance it would have had if the
+fixed code had written it.
+
+**The reusable part.** A measurement written to exactly one place is a
+measurement half the system cannot see. When a step derives a fact that a later
+step's input contract has a field for, filling that field is part of deriving it.

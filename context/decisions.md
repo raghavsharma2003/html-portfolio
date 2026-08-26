@@ -5055,3 +5055,50 @@ person can see.
 for enrollment. The fallback is already written and one line long: restore the
 cron entry, and the queue drains as far as a serverless runtime honestly can,
 with named absences for the rest.
+
+## `windowing-belongs-before-the-embedder-not-before-diarize` (2026-08-26, WS-AK)
+
+**Decided.** `VOICE_EVIDENCE_MAX_DURATION_SECONDS` was raised from 600 to 1200
+on `vyakti-voice-evidence` as an **unblock for one file**, not as the fix. The
+proposal to window the recording down to the best ~10 s *before* the evidence
+call was NOT adopted at this point in the DAG, and the reason is structural
+rather than a matter of effort.
+
+**Why windowing here would be wrong.** `best-window-not-first-window` is right,
+and WS-U's spread (0.7433 to 0.8058 on window choice, against a 0.0206 fine-tune
+delta) makes it the highest-leverage decision in the clone pipeline. But it is a
+decision about **the reference that conditions synthesis**, which is the
+embedder's input. `diarize` is not the embedder. Windowing before it would:
+
+- destroy the thing diarize exists to produce. Its output is `speaker_segment`
+  evidence with spans and a `target_likelihood` across the WHOLE recording, and
+  that is the mechanism that tells the target speaker from a second voice.
+  `vy_replica_source.contains_third_parties` is consent-critical, and a 10 s
+  window cannot establish it for the other 13 minutes.
+- starve `separate` and `enhance`, which take diarize's segments as input.
+- truncate `transcribe` to ten seconds of a thirteen-minute recording, when the
+  transcript is what the sheet and persona work read.
+- choose that window with `_video-enroll/windows.js`, which says plainly of
+  itself that its scores are a **proxy** - voiced fraction, SNR estimate,
+  clipping, level, stationarity - and have never been benched against fidelity
+  on lecture audio. Replacing speaker-aware evidence with an unbenched signal
+  proxy for a consent-critical determination is the wrong direction.
+
+**And it would not have unblocked this file anyway.** `services/voice-evidence`
+exposes exactly ONE endpoint, `/v1/analyze`, and all four evidence steps POST to
+it. The duration guard lives in the shared `_load_audio`, so it applies to
+diarize, separate, enhance and voice_quality alike. Windowing before the
+embedder alone leaves the first three capped exactly where they were.
+
+**What the real fix is, and why it is a different workstream.** Chunk the
+recording and call `/v1/analyze` per chunk, aggregating evidence across chunks.
+That makes duration irrelevant for all four steps without discarding audio. It
+changes the span semantics of the evidence schema and the per-step contract of
+four DAG stages, which is a design change with its own eval surface, not
+something to land inside a deployment.
+
+**What would reverse the interim cap.** A file longer than 1200 s, which is not
+hypothetical: a 30-minute lecture is squarely in the product's use case and
+still fails, and 1200 s is a HARD ceiling compiled into `app.py`
+(`min(20*60, ...)`), so going past it needs a service change and a rebuild of a
+5.34 GB GPU image, not an env var.

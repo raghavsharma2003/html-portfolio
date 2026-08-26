@@ -211,8 +211,21 @@ export async function commitProcessingOutput(db, input) {
               adapter_version=$9,finished_at=now()
          from settled s where a.job_id=s.job_id and a.attempt=s.attempt
      ), source_state as (
+       -- media_probe measures the recording's duration and, until now, wrote it
+       -- only into its evidence row. vy_replica_source.duration_ms stayed
+       -- NULL, and worker.js puts that field on the input reference every later
+       -- step sends to the evidence service, so every one of them declared a
+       -- null duration for a recording whose length was already known and
+       -- recorded. Read straight from desired_evidence: it is an ordinary CTE
+       -- over a parameter, so unlike the inserted rows it IS visible here.
        update vy_replica_source source
-          set state=case when s.step='voice_quality' then 'ready' else 'processing' end,updated_at=now()
+          set state=case when s.step='voice_quality' then 'ready' else 'processing' end,
+              duration_ms=case when s.step='media_probe' then coalesce((
+                select (d.item#>>'{value,duration_ms}')::bigint from desired_evidence d
+                 where d.item->>'evidence_type'='media_probe'
+                   and (d.item#>>'{value,duration_ms}') ~ '^[0-9]+$'
+                 limit 1), source.duration_ms) else source.duration_ms end,
+              updated_at=now()
          from settled s where source.source_id=s.source_id and source.replica_id=s.replica_id
           and source.owner_user_id=s.owner_user_id and source.state in ('quarantined','processing')
      ), enqueued as (
