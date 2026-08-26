@@ -2150,6 +2150,60 @@
       "kind": "measurement",
       "title": "relcheck erasure-reach walk failed the build within an hour of migration 057 creating a new owner-keyed table",
       "at": "2026-08-26"
+    },
+    {
+      "id": "first-real-clone",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "First fidelity number about a real person: ECAPA 0.7753 clone-vs-owner against a 0.8869 self-vs-self ceiling, zero-shot, n=2 runs"
+    },
+    {
+      "id": "supabase-object-info-is-not-json",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "object/info answers HEAD-style, so every upload finalize failed closed and nothing downstream of storage had ever run"
+    },
+    {
+      "id": "sarvam-batch-paths-were-three-guesses",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "Three of five batch addresses wrong; a job Sarvam completed in 126 s died at a 10-minute timeout"
+    },
+    {
+      "id": "hmac-skew-shorter-than-cold-start",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "60 s signature window vs 176 s cold start: the request that wakes the service is rejected 401, not timed out"
+    },
+    {
+      "id": "romanised-lexicon-meets-devanagari-asr",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "Tokenizer dropped Devanagari matras; the code-switch lexicon is romanised and the ASR returns Devanagari, so the ratio measures 0.000"
+    },
+    {
+      "id": "first-clone-is-the-entry-point",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "scripts/first-clone.mjs is the one supported path from consented audio to a fidelity number, and fails loudly per stage"
+    },
+    {
+      "id": "fidelity-needs-its-ceiling-printed",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "Every fidelity run prints the subject-vs-themselves control, because a similarity score without a ceiling has no top"
+    },
+    {
+      "id": "voice-evidence-round-trip",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "services/voice-evidence voice_quality: 71 s in 4 windows -> 8 embeddings in 4977 ms warm; 176 s cold start from zero"
+    },
+    {
+      "id": "clone-activation-still-gated",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "12 live activation blockers remain; the fidelity row cannot be persisted without liveness-verified biometric consent"
     }
   ],
   "edges": [
@@ -3997,6 +4051,51 @@
       "src": "attestation-caught-by-its-own-gate",
       "rel": "part_of",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "first-clone-is-the-entry-point",
+      "rel": "measured_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "fidelity-needs-its-ceiling-printed",
+      "rel": "measured_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "first-clone-is-the-entry-point",
+      "rel": "caused_by",
+      "dst": "supabase-object-info-is-not-json"
+    },
+    {
+      "src": "first-clone-is-the-entry-point",
+      "rel": "caused_by",
+      "dst": "sarvam-batch-paths-were-three-guesses"
+    },
+    {
+      "src": "first-clone-is-the-entry-point",
+      "rel": "caused_by",
+      "dst": "hmac-skew-shorter-than-cold-start"
+    },
+    {
+      "src": "supabase-object-info-is-not-json",
+      "rel": "caused_by",
+      "dst": "offline-mocks-cannot-type-check-sql"
+    },
+    {
+      "src": "voice-evidence-round-trip",
+      "rel": "measured_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "clone-activation-still-gated",
+      "rel": "blocks",
+      "dst": "first-clone-is-the-entry-point"
+    },
+    {
+      "src": "romanised-lexicon-meets-devanagari-asr",
+      "rel": "constrains",
+      "dst": "first-real-clone"
     }
   ]
 }

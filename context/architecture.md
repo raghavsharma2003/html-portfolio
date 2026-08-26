@@ -130,3 +130,63 @@ Gated by `evals/movevoice.mjs` (in `run.mjs`; offline, $0, carries the owner's
 case as a fixture and its own negative control) and measured in a real browser
 by `evals/movevoice-browser.mjs`, which times every one of her turns in a full
 game against the same table the component reads.
+
+## The first-clone chain (WS-T, 2026-08-26)
+
+The order in which a consented audio file becomes a scored clone, and which
+process owns each hop. `scripts/first-clone.mjs` walks exactly this and prints
+one row per hop.
+
+```
+  audio.wav (24 kHz mono PCM16)
+      |
+      |  api/_audio/wav.js::probeEnrollmentWav      [local]
+      v
+  /api/replica create -> /api/replica-consent grant (capture, storage,
+      transcription; account attestation, no liveness needed)
+      |
+      |  /api/replica-source create_upload -> signed PUT -> finalize
+      v
+  Supabase `vyakti-replica-private`   [state: pending_upload -> quarantined,
+      |                                which is what enqueues the `integrity` job]
+      |
+      +--> services/voice-evidence  /v1/analyze {operation: voice_quality}
+      |        4 reference windows -> 4 ECAPA + 4 x-vector unit vectors
+      |        (Azure Container Apps, T4, internal ingress, HMAC per request)
+      |
+      +--> services/open-voice-runtime  /v1/synthesize   [via the CPU
+      |        admission broker; zero-shot, conditioned on the reference]
+      |        -> N clone clips, PerTh-watermarked and verified
+      |             |
+      |             +--> voice-evidence again -> candidate vectors
+      |                        |
+      |                        v
+      |                  api/_fidelity.js  fidelityScore / fidelityVerdict
+      |                        |            + the self-vs-self ceiling control
+      |                        v
+      |                  api/_replica-runtime.js runtimeBlockers
+      |                        (fidelity is a PEER of the 7-suite pass)
+      |
+      +--> api/_asr/providers/sarvam-saaras.js
+               sync <=30 s | batch above it (directory SAS in, `0.json` out)
+                    -> transcriptStats -> draftFromSignals
+                    -> a partial sheet + every gap, with a reason each
+```
+
+Three properties of this chain are not obvious from the diagram and cost a live
+run each to learn:
+
+- **The two GPU services are woken separately and neither wake fits inside a
+  request.** 161 s (runtime) and 176 s (evidence) from zero replicas. Worse,
+  both authenticate with a 60 s HMAC timestamp window, so the waking request is
+  rejected as a *signature* failure — wake on `/healthz` before signing
+  anything (`hmac-skew-shorter-than-cold-start`).
+- **`voice-evidence` has internal ingress and Vercel is not inside its
+  environment.** WS-T reached it by flipping ingress to external for the
+  duration of the run and back afterwards, which is a measurement scaffold and
+  not an answer. `AZURE-DEPLOY-STATE.md` §12 is still the open question: either
+  the processing worker runs inside the managed environment, or evidence needs
+  the same CPU admission broker the runtime already proves works.
+- **`voice_quality` takes at most 4 inputs per call**, and
+  `DEFAULT_FIDELITY_POLICY` wants >=2 references and >=3 candidate windows. Four
+  equal windows per side is the most evidence one call each can carry.

@@ -3273,3 +3273,109 @@ helpers were called, never a copy: `activePersonTables` + `keysOf` for the
 export loop, `wipeWhereSql` + `wipeParams` for the forget loop. All 4 returned
 by export; all 4 deleted to zero by forget; zero probe rows left in any table
 in the `0000…0003xx` range afterwards.
+## `first-real-clone` — the first fidelity number about a real person (2026-08-26, WS-T)
+
+**Scope line first.** Every number here is a live-service response seen in this
+run. The fidelity figure is ECAPA-TDNN speaker-embedding cosine similarity and
+nothing else: it is the FIRST of the automated gates `api/_fidelity.js` names,
+not the blind ABX bench in `docs/gurukul/research/voice-stack.md`, and it
+licenses no claim about how the clone SOUNDS. The clone is ZERO-SHOT — no
+per-speaker fine-tune exists — so this is a floor for this voice, not a ceiling.
+
+**Subject.** The owner's own WhatsApp voice note, supplied by them in session
+with explicit consent to build their clone. 71.0 s, converted with ffmpeg to
+24 kHz mono PCM16 (no resampling of content, container only). Measured by
+`probeEnrollmentWav`: rms 0.0370, peak 0.490, 0 clipping, 60.7% active. Spoken
+Hinglish, one speaker.
+
+**Method.** `node scripts/first-clone.mjs owner-voice.wav "Raghav"` against the
+live services. Reference split into 4 x 17.75 s windows -> `voice-evidence`
+`voice_quality` -> 4 ECAPA vectors. Four Hinglish lines synthesised zero-shot by
+the deployed Chatterbox runtime conditioned on the whole 71 s reference -> 4
+clips -> the same evidence call -> 4 ECAPA vectors. `fidelityScore` +
+`fidelityVerdict` at stock `DEFAULT_FIDELITY_POLICY`.
+
+### Fidelity
+
+| measure | mean | p10 | worst | windows | refs |
+|---|---|---|---|---|---|
+| **clone vs owner (ECAPA, 192-d)** | **0.7753** | 0.7479 | 0.7479 | 4 | 4 |
+| owner vs owner, different windows of the same recording — **the ceiling** | 0.8869 | 0.8795 | 0.8795 | 2 | 2 |
+| clone vs owner, x-vector second opinion (512-d) | 0.9974 | 0.9972 | 0.9972 | 4 | 4 |
+
+Verdict **warn** (`below_warn_band`): above the 0.70 activation floor, below the
+0.78 warn band, headroom +0.0753. It would activate, with a drift warning.
+
+n = 2 independent end-to-end runs, 25 minutes apart, different synthesis
+requests: mean 0.775276 and 0.775275. The spread is 1e-6, so the number is
+reproducible to six decimal places across runs and the clone is 87.4% of the
+ceiling this scale reaches on the subject's own voice.
+
+**The x-vector row is a finding, not a second opinion.** Raw cosine over
+`speechbrain-xvector-voxceleb` returns 0.997 between a clone and its reference,
+which is not a similarity measurement — x-vectors need PLDA scoring to
+discriminate and a bare dot product over them saturates. `api/_fidelity.js`
+already scores ECAPA only and says the agreement rate is unmeasured; it is now
+measured once, and the answer is that the second family cannot be used this way.
+
+### voice-evidence — the round trip that had never run
+
+| call | audio in | embeddings out | latency |
+|---|---|---|---|
+| reference, 4 windows | 71.0 s | 8 (2 families x 4) | **4 977 ms** |
+| candidate, 4 clips | 45.2 s | 8 | **3 956 ms** |
+
+Per-window signal quality came back too: usable speech 11.2–13.8 s per 17.75 s
+window, SNR 8.5–27.4 dB (one genuinely noisy window), rms −26 to −31 dBFS.
+
+**Cold start from zero replicas: 176 s** to the first 200 on `/healthz`
+(n = 1, 5 s poll granularity, so ready at or before 176 s). Compare
+`open-voice-runtime`'s 161 s. A second wake in the same session measured 194 s.
+
+### The clone runtime, on a real reference
+
+| call | rtf | note |
+|---|---|---|
+| first on a fresh replica | 1.77 | CUDA autotune, matches WS-L's 1.83 |
+| warm (n = 3) | 0.79–0.80 | 12 680 / 11 240 / 10 320 ms of audio |
+
+`perth_watermark_verified: true`, `perth_score: 1.0` on every clip. A 71 s
+conditioning reference is accepted as-is — no trim was needed under the
+runtime's 5–90 s cap.
+
+### ASR — Sarvam, both paths
+
+| path | model | audio | result |
+|---|---|---|---|
+| sync `POST /speech-to-text` | `saarika:v2.5` | 25 s trim | **200 in 4 134 ms** |
+| sync | `saarika:v2.5` | full 71 s | **400** — "Audio duration exceeds the maximum limit of 30 seconds" |
+| batch, through the real provider | `saaras:v3` | 71 s | **Completed, 5 diarized turns, 136 874 ms** |
+| batch, same bytes again | `saaras:v3` | 71 s | 12 024 ms — Sarvam returns a cached result keyed on `audio_hash` |
+
+The batch job carries second-resolution timings and one speaker id for all five
+turns, which is the correct answer for a single-speaker recording.
+
+### Sheet draft
+
+125 tokens over 5 turns -> 0 drafted fields, **92 real gaps**: 32
+`needs-template`, 24 `needs-qualitative-pass`, 16 `needs-teacher-input`, 12
+`measured-needs-canonical-bullet`, 3 `platform-assigned`, 3 `platform-floor`,
+2 `needs-teacher-confirmation`. 8 phrase-bank candidates, unverified (no
+held-out half). Code-switch token ratio **0.000** on an obviously bilingual
+transcript — see `romanised-lexicon-meets-devanagari-asr`.
+
+### End to end
+
+643.6 s wall clock for the whole chain including two cold starts; 8 of 9 stages
+green. The one failure is `finalize`, and it is a deployment lag, not a defect
+that survives: see `supabase-object-info-is-not-json`.
+
+### Spend
+
+Measured windows of GPU uptime, at Central India list rates from
+`AZURE-DEPLOY-STATE.md` §9 (~$0.55/hr per T4 app): `open-voice` ~26 min,
+`voice-evidence` ~22 min => **~$0.44**. Sarvam: ~3.9 minutes of audio across
+five calls; at the higher of the two conflicting published rates (Rs 90/hr)
+that is **~$0.07**, and the rate is still unresolved. Neon, Supabase, Vercel and
+the CPU broker: within existing plans, nothing metered above noise. **Total
+~$0.51**, against a ~$2 ceiling.

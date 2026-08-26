@@ -2611,3 +2611,127 @@ is asked OFFLINE against the checked-in DDL by `evals/persontables.mjs`, which
 needs no credentials and therefore cannot be skipped; and `verify-release`
 reads the env var. **When you widen an enumeration, list every other
 enumeration in the same query and widen or justify each one.**
+## `supabase-object-info-is-not-json` — every upload finalize failed closed, and nothing downstream had ever run (2026-08-26, WS-T)
+
+**What was tried.** `api/_replica-storage.js::replicaObjectInfo` read Supabase's
+`GET /storage/v1/object/info/{bucket}/{path}` as a JSON document and pulled
+`size` and `mimetype` out of the body, failing with `storage_metadata_incomplete`
+when either was absent.
+
+**What broke.** That route answers HEAD-style. The metadata IS the response
+headers — `content-length`, `content-type` — and the body is empty. So
+`await response.json()` returned null on a perfectly healthy object and every
+finalize threw. The first real consented upload made this visible in one shot:
+the signed PUT into `vyakti-replica-private` returned **HTTP 200 in 2 451 ms**
+for 3.41 MB, and finalize then returned **409 `storage_metadata_incomplete`**.
+That code is only reachable on a **2xx** info response — a 404 or 500 would have
+raised `private_storage_failure` instead — so the object existed, was readable
+with the service role, and was rejected anyway.
+
+**Why it mattered more than it looks.** `pending_upload -> quarantined` is the
+only transition that enqueues the `integrity` processing job. With finalize
+failing closed, no source could ever leave `pending_upload`, so the entire
+processing pipeline downstream of storage had never executed once — while every
+offline test stayed green, because no offline test can see a vendor's response
+SHAPE. This is `offline-mocks-cannot-type-check-sql` wearing a different hat:
+the mock proved the control flow and the control flow was never the problem.
+
+**The fix.** Read the JSON shapes first, then fall back to the response headers,
+so a storage-api that does start returning a body keeps working. Committed.
+
+**What is NOT proven.** The deployed studio still runs a build from before this
+commit, and the branch is not pushed, so `finalize` returning 200 has not been
+observed. The evidence is one-directional: the failure is fully explained and
+the fix addresses exactly that explanation. Re-run
+`node scripts/first-clone.mjs` after a redeploy; the script prints that hint by
+name when it sees the old error.
+
+## `sarvam-batch-paths-were-three-guesses` — a job that completed in 126 s died at a ten-minute timeout (2026-08-26, WS-T)
+
+**What was tried.** `api/_asr/providers/sarvam-saaras.js` implemented the batch
+lane from a research write-up, and said so in its own header. The five-step
+SHAPE — init, upload, start, poll, collect — was right. Three of the five
+ADDRESSES were wrong, and no amount of review could have told.
+
+**What broke, in the order it broke.**
+
+1. `PUT input_storage_path` -> **409**. That value is an Azure *directory* SAS
+   (`sr=d`, `sp=wl`), not a blob URL. Bytes go to `<dir>/<name>?<sas>`, which
+   answers **201**.
+2. `GET /speech-to-text/job/{id}` -> **404, forever**. The status resource is
+   `/speech-to-text/job/{id}/status`. The provider read the 404 as "not
+   finished", polled it 120 times and raised `asr_sarvam_job_timeout` after ten
+   minutes — on a job Sarvam had **Completed in 126 s**. The worst available
+   failure shape: slow, billed, and indistinguishable from a real timeout.
+3. `GET output_storage_path` -> a directory, not JSON. The result blob is named
+   by INPUT INDEX (`0.json`), never by the file name uploaded.
+
+**The lesson that generalises.** Every one of the three failures is a place
+where a wrong address returns something *plausible* rather than an error: a
+409, a 404 that reads as "pending", a 200 that is not the document you wanted.
+A protocol coded from prose is not half-verified because its shape is right —
+until it has been called, the addresses are folklore. The header comment that
+said so was correct and was not enough to stop the lane shipping.
+
+**Fixed and verified**: full chain to 5 diarized turns with second-resolution
+timings. Committed.
+
+## `hmac-skew-shorter-than-cold-start` — the request that wakes a service can never authenticate (2026-08-26, WS-T)
+
+**What was tried.** Calling `voice-evidence` at zero replicas the way the
+processing worker would: sign the request, send it, let the platform wake the
+app.
+
+**What broke.** **401 `transport_signature_invalid`.** Not a timeout — an
+authentication failure. `services/voice-evidence/app.py` allows
+`MAX_CLOCK_SKEW_SECONDS = 60` on `X-Vyakti-Timestamp`, and the service takes
+**176 s** to come up from zero. The signature is minted before the wake and
+verified after it, so the timestamp is ~3x outside the window by the time
+anything checks it. The very first request after any scale-to-zero is therefore
+*guaranteed* to fail, and it fails wearing the mask of a wrong key.
+
+Note what that costs beyond the failed call: `azure-voice-evidence.js` marks a
+401 **non-retryable** (`retryable` is set only for 429 and 5xx), which is
+correct for a genuine auth failure and exactly wrong here. A worker would
+permanently fail a job because its own cold start outran its own clock window.
+
+**The fix used.** Wake the app on the *unauthenticated* `/healthz` and sign
+nothing until it answers 200. `scripts/first-clone.mjs` does this and reports
+the warm-up time as a measurement (194 505 ms on the run that found it).
+
+**What was deliberately NOT done.** Widening the skew window weakens replay
+protection to buy nothing a warm-up does not already buy, and making 401
+retryable in the adapter would blur a real wrong-key failure into a latency
+one — the negative control WS-L ran exists precisely to keep those apart. Which
+component owns the warm-up is an owner decision and sits with the same open
+question as `AZURE-DEPLOY-STATE.md` §12.
+
+## `romanised-lexicon-meets-devanagari-asr` — the code-switch signal measured 0.000 on a bilingual transcript (2026-08-26, WS-T)
+
+**What was tried.** Running the real ingestion statistical pass over the first
+real Sarvam transcript of a real consented Hinglish recording.
+
+**What broke, twice.**
+
+**(a) The tokenizer shredded the script.** `normalizeText` kept `\p{L}`,
+`\p{N}`, apostrophe and space. Devanagari vowel signs are `Mark_Nonspacing`, so
+every matra became a space and every word fell apart into bare consonants: 213
+characters measured as 74 single-glyph "tokens" and a phrase-bank candidate
+list headed by `"म" x10`. Fixed by keeping `\p{M}`; the same transcript then
+measures 47 real word tokens. Every abugida the product targets had this.
+
+**(b) The lexicon is looking at the wrong script, and this is NOT fixed.**
+`HINDI_MARKER_WORDS` is a romanised list — `hai`, `nahi`, `kya`. Sarvam returns
+**Devanagari**, and transliterates the English half into Devanagari too
+(`माय नेम इज़ राघव`). So on a 127-token, visibly bilingual transcript the
+measured code-switch token ratio is **0.000** and the filler count is **0**.
+The measurement ran, returned, and is honestly reported — it is measuring a
+script that is not present.
+
+Not patched here on purpose: extending the lexicon changes a *measured signal*
+that register bullets and the `languageVoiceRule` gap reason rest on, and doing
+that without a bench would replace a visible zero with an invisible guess. The
+decision is which of three: transliterate the ASR output to Latin before
+measuring, add Devanagari spellings to the lexicon, or pick an ASR model that
+returns romanised Hinglish. `scripts/first-clone.mjs` prints the warning
+whenever it sees ratio 0 on a non-trivial transcript, so this cannot go quiet.

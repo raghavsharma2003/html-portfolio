@@ -5,7 +5,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26 (session: gurukul build + first live deploy; WS-N channels)
+Last updated: 2026-08-26 (WS-T: the first real human voice through the clone pipeline)
 
 ## What the product is
 
@@ -44,30 +44,41 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
 
-## The three ingestion/voice pipelines — verified status (2026-08-26)
+## The three ingestion/voice pipelines — verified status (2026-08-26, after WS-T)
 
-Asked directly by the owner; each answer verified in code, not asserted.
+Each row is a live run, not a code read. The command that produces them is
+`node scripts/first-clone.mjs <audio.wav> "<name>"`; numbers in
+`measurements.md#first-real-clone`.
 
 | pipeline | status | the exact blocker |
 |---|---|---|
-| **Voice learning / cloning** | **NOT working end to end** | The Azure stack IS live and synthesises (RTF 0.79 warm). But no real voice has ever been cloned: the only smoke test used a synthetic buzz tone. `voice-evidence` (speaker embeddings) boots healthy with **no round trip ever run**. No fine-tune has run. Quality is entirely unmeasured. |
-| **YouTube channel ingest** | **NOT working** | Two independent blocks. (1) `api/_channel/providers/youtube-oauth.js`'s `fetchAudio` is an honest REFUSAL — the YouTube Data API has no download endpoint and `captions.download` refuses even for the owner. (2) Nothing in `api/` ever INSERTs into `vy_channel_watch`, so the loop cannot be started even if audio could be fetched (found by WS-M's sweep). |
-| **Video/audio file upload** | **partially** — upload + storage + quarantine work; the LEARNING half does not | Providers exist (`native-media`, `azure-fast-transcription`, `azure-voice-evidence`) and the studio can take a file. But no processing round trip has run end to end, and the ASR lane needs `SARVAM_API_KEY` set in Vercel (the key exists; it is not wired into the deployed env yet). |
+| **Voice learning / cloning** | **RUNS END TO END on a real consented human voice** — for the first time | A real 71 s consented Hinglish sample was cloned zero-shot on the deployed stack and scored: ECAPA fidelity **0.7753** (verdict `warn`) against a **0.8869** self-vs-self ceiling, n=2 runs. The `voice-evidence` round trip that had never run now runs: 71 s in 4 windows -> 8 embeddings in 4 977 ms warm, 176 s cold from zero. What is still NOT done: no fine-tune, so this is a zero-shot FLOOR; no blind ABX bench, so nothing may be claimed about how it SOUNDS; and the fidelity row cannot be PERSISTED — `recordOwnedFidelity` needs a voice profile, which needs biometric consent, which needs a human liveness challenge. |
+| **YouTube channel ingest** | **NOT working** (unchanged) | Two independent blocks. (1) `api/_channel/providers/youtube-oauth.js`'s `fetchAudio` is an honest REFUSAL — the YouTube Data API has no download endpoint and `captions.download` refuses even for the owner. (2) Nothing in `api/` ever INSERTs into `vy_channel_watch`, so the loop cannot be started even if audio could be fetched. |
+| **Video/audio file upload** | **upload + ASR + sheet draft now RUN; finalize is one redeploy away** | The signed private upload works live (**HTTP 200**, 3.41 MB in 2 451 ms). `finalize` still returns 409 `storage_metadata_incomplete` **on the deployed build** — the fix is committed (`supabase-object-info-is-not-json`) and the branch is not pushed, so the deployment is behind. Until it lands, no source leaves `pending_upload` and the `integrity` job is never enqueued. Sarvam ASR now works on both paths after three wrong addresses were fixed (`sarvam-batch-paths-were-three-guesses`): 71 s -> 5 diarized turns in 137 s batch; sync is capped at 30 s. A real sheet draft with **92 real gaps** comes out the far end. |
 
-**The honest summary:** every pipeline is BUILT and GATED and none has processed a
-real human yet. The first real teacher ingest is the single most valuable next
-action, and it needs: the Sarvam key in Vercel env, a consented audio/video file
-(direct upload, not YouTube), and one `voice-evidence` round trip.
+**The honest summary:** the voice-cloning lane has processed a real human and
+has a real number. The upload lane needs one redeploy. The three things that
+gate a live clone are, in order: **push the branch and redeploy** (finalize),
+**a human liveness challenge** (biometric consent -> voice profile -> a
+persistable fidelity row), and **the ABX bench** before any quality claim.
 
 ## What is NOT live
 
-- **Voice QUALITY**: the stack is LIVE (see the table above) but no consented
-  reference has been cloned and no ABX bench has run — the smoke test used a
-  buzz tone. Nothing may be claimed about how a clone sounds until the bench
-  in `docs/gurukul/research/voice-stack.md` runs. Cold start (161 s ready,
-  504 at 242 s) needs a warm-up before any user-facing use.
-- **Ingestion**: statistical half built and gated; ASR + LLM passes are seams
-  awaiting keys/GPU. No teacher ingested.
+- **Voice QUALITY**: a consented reference HAS now been cloned and scored
+  (`first-real-clone`), but that is speaker-embedding similarity — **no ABX
+  bench has run**, and nothing may be claimed about how a clone sounds until
+  the bench in `docs/gurukul/research/voice-stack.md` does. Cold start (161 s
+  ready, 504 at 242 s for the runtime; 176 s for `voice-evidence`) still needs
+  a warm-up before any user-facing use — and note it is not only a latency
+  problem: the HMAC signature window is 60 s, so the request that wakes a
+  service is rejected 401, not timed out (`hmac-skew-shorter-than-cold-start`).
+- **Ingestion**: the statistical half now runs on a real transcript and
+  produces a real sheet draft with 92 real gaps. Two things it does NOT do:
+  the LLM qualitative pass is still a seam, and the code-switch signal reads
+  **0.000** on visibly bilingual speech because `HINDI_MARKER_WORDS` is
+  romanised while Sarvam returns Devanagari
+  (`romanised-lexicon-meets-devanagari-asr` — deliberately unpatched, it is a
+  choice between three options and needs a bench, not a guess).
 - **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not
   deployed as its own project.
 - **Channels** (WS-N, "deploy the clone anywhere"): the binding layer, the
@@ -78,18 +89,30 @@ action, and it needs: the Sarvam key in Vercel env, a consented audio/video file
   connected until a secret store is configured (`CHANNEL_SECRET_BACKEND`
   defaults to `none` and refuses). No byte has left this process on any wire.
   Instagram DM is deliberately NOT built — `docs/gurukul/INSTAGRAM-DM-GAP.md`.
-- **Fidelity thresholds**: provisional; nothing benched against ElevenLabs yet.
+- **Fidelity thresholds**: still provisional and nothing is benched against
+  ElevenLabs — but they now have one real anchor. On the owner's own voice the
+  self-vs-self ceiling is 0.8869, so the 0.85 `target` sits just under the best
+  the scale reaches for that speaker (`fidelity-needs-its-ceiling-printed`).
+  The x-vector family cannot serve as a second opinion at all: raw cosine over
+  it returns 0.997 and is saturated.
+- **A persistable fidelity row**: `recordOwnedFidelity` needs a voice profile
+  ref, which needs `biometric` consent, which `consentScopes` grants only
+  through a live challenge. A score can be computed today; it cannot be stored
+  or clear the activation gate without a human doing liveness.
 
 ## Open owner items
 
-1. Google App Password → SMTP (removes the email rate cap).
-2. Rotate everything pasted into a chat transcript: Neon password, Supabase
+1. **Push `claude/gurukul-platform` and redeploy the studio.** The upload
+   finalize fix is committed and the deployment is behind it, so today every
+   real upload still dies at 409 `storage_metadata_incomplete`.
+2. Google App Password → SMTP (removes the email rate cap).
+3. Rotate everything pasted into a chat transcript: Neon password, Supabase
    keys + management token, Azure SP secret, Google OAuth secret, and the two
    keys flagged in `session-2026-08-25b-close`.
-3. Azure GPU quota, if the deploy agent reports the subscription has none.
-4. Apply migration 055 and set `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
+4. Azure GPU quota, if the deploy agent reports the subscription has none.
+5. Apply migration 055 and set `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
    `openssl rand -base64 48`) — without it the embeddable widget is off.
-5. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`
+6. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`
    plus `AZURE_KEY_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` /
    `AZURE_CLIENT_SECRET`, or accept that Telegram and WhatsApp channels cannot
    be connected. Web widget and embed need none of it.

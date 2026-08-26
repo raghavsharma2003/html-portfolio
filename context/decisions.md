@@ -3690,3 +3690,67 @@ enforced by a walk over the live schema keeps working as the schema grows; a
 coverage rule maintained as a list rots the moment someone adds a table.**
 Reverses if: the walk starts producing false positives that push people to
 weaken it — then narrow the rule, never disable the walk.
+## `first-clone-is-the-entry-point` — one command owns the whole chain (2026-08-26, WS-T)
+
+**The decision.** `scripts/first-clone.mjs` is the single supported way to take
+a consented audio file to a fidelity number, and it is the command the owner
+runs with their own voice:
+
+```
+node scripts/first-clone.mjs <audio.wav> "<display name>"
+```
+
+**Why one script rather than a documented sequence.** Every pipeline in this
+repo was built and gated long before any of them had processed a human, and the
+reason is visible in what one live run found: three wrong Sarvam addresses, a
+storage finalize that could never succeed, an HMAC window shorter than its own
+cold start, and a tokenizer that shredded Devanagari. Not one of those is
+reachable from a document describing the steps — each needed the steps actually
+taken, in order, against the live services. A runbook cannot fail; a script can,
+and that is the whole point of it.
+
+**The two rules it enforces on itself**, both learned here rather than assumed:
+
+- *No stage is ever skipped silently.* A missing credential prints a `SKIP` row
+  naming the exact environment variable, and the process exits non-zero if any
+  stage did not run green. `gates-that-live-nowhere` is the precedent: a gate
+  that quietly does nothing reports a pass on a tree it never read.
+- *No number is carried forward unless a live service returned it in this run.*
+  Where a stage cannot produce a number the row says so. It never prints a
+  default as though it were measured.
+
+**What would reverse this.** If the studio grows a server-side job that drives
+the same chain from an uploaded file — which is where the product is going, and
+what `api/_replica-processing/worker.js` is shaped for — this script becomes a
+local debugging tool rather than the entry point. It should then be rewritten to
+call that job and poll it, not deleted: the value is that one command exercises
+every seam in one process, and that stays true whoever runs the middle.
+
+## `fidelity-needs-its-ceiling-printed` — a similarity score without a self-vs-self control is a decimal with no top (2026-08-26, WS-T)
+
+**The decision.** Every fidelity run reports two numbers: the clone against the
+subject, and the subject against THEMSELVES across different windows of the same
+recording. `scripts/first-clone.mjs` computes both and prints both.
+
+**Why.** The first real measurement makes the case on its own. The clone scored
+**0.7753** — which reads as mediocre against `DEFAULT_FIDELITY_POLICY`'s 0.85
+target, and reads very differently once you know the subject's own voice scores
+**0.8869** against itself on the same recording, the same windowing and the same
+model. The clone is at 87.4% of the ceiling that scale physically reaches for
+this speaker. `api/_fidelity.js` already says its thresholds are provisional and
+"shaped from the ordinary published range for ECAPA-TDNN VoxCeleb" rather than
+from anything of ours; the self-vs-self control is the cheapest possible step
+toward numbers that are ours, because it comes free with evidence already
+collected and it is per-subject, so it also absorbs recording quality.
+
+**Corollary already paid for.** The same run measured the x-vector family at
+**0.997** clone-vs-reference. That is not a second opinion, it is a saturated
+statistic — raw cosine over x-vectors without PLDA does not discriminate. The
+choice of ECAPA in `api/_fidelity.js` is now measured rather than argued.
+
+**What would reverse this.** A bench over genuine different-speaker controls
+that fixes an absolute floor and ceiling for the scale. Once the distribution is
+known from a population, a per-run self-control becomes a redundant second
+measurement of something already established — and until that bench exists, an
+absolute threshold is exactly the dogma-with-a-decimal-point the module warns
+about.
