@@ -82,7 +82,18 @@ ok("evidence persistence, lease settlement, source state and next enqueue share 
 ok("a lost lease cannot insert partial manifests before completion", dbCalls.some((sql) => /from desired_artifacts d cross join eligible_job j[\s\S]*created_by_job_id[\s\S]*from desired_evidence d cross join eligible_job j/i.test(sql)));
 
 const runOnce = readFileSync(join(ROOT, "services/replica-processing-worker/run-once.js"), "utf8");
-const nativeSource = readFileSync(join(ROOT, "services/replica-processing-worker/native.js"), "utf8");
+// The container's native seam and the shared subprocess contract it delegates
+// to. WS-AH moved the spawn/verdict logic into api/_replica-processing/
+// native-tools.js so the serverless sweep and this container cannot hold two
+// different opinions about when a file may be called clean. Both files are read
+// here because the PROPERTY being asserted (streams bytes to clamdscan and
+// ffprobe on stdin, never through a temporary file) is a property of the
+// implementation wherever it lives, and an assertion pinned to a path stops
+// testing anything the moment the code moves.
+const nativeSource = [
+  "services/replica-processing-worker/native.js",
+  "api/_replica-processing/native-tools.js",
+].map((path) => readFileSync(join(ROOT, path), "utf8")).join("\n");
 const docker = readFileSync(join(ROOT, "services/replica-processing-worker/Dockerfile"), "utf8");
 const entrypoint = readFileSync(join(ROOT, "services/replica-processing-worker/entrypoint.sh"), "utf8");
 const workerInfra = readFileSync(join(ROOT, "services/replica-processing-worker/infra/main.bicep"), "utf8");
