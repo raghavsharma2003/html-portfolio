@@ -170,19 +170,48 @@ export const LAUGHTER_TOKENS: readonly string[] = [
 ];
 
 /**
- * Function words trimmed from the ENDS of an n-gram before it is counted.
- * Interior function words are kept — "theek hai na" is a real fragment and
- * "hai" is what makes it one; it is a phrase that STARTS or ENDS on a
- * connective that is a fragment of a sentence rather than a fragment anyone
- * repeats. Small and closed on purpose: a large stopword list silently deletes
- * the code-switched half of every phrase.
+ * Function words trimmed from the ENDS of an n-gram before it is counted. A
+ * phrase that starts or ends on a connective is a fragment of a SENTENCE
+ * rather than a fragment anyone repeats.
+ *
+ * ── what is deliberately NOT in here, and why it matters ──────────────────
+ * The copula (`hai`, `hain`) and the tag particles (`na`, `bhi`) are absent on
+ * purpose, and the absence is load-bearing rather than an oversight. This
+ * list's whole job is to make catchphrase candidates good, and the catchphrases
+ * this product mines are Hinglish: "theek hai", "ho gaya", "samajh aaya",
+ * "theek hai na". Every one of those ENDS on the copula or a tag — that is what
+ * makes it a Hinglish fragment rather than an English one — so a stopword list
+ * carrying `hai` deletes the field it was built to fill. The demo teacher's own
+ * `boardVerbalisms` contains "theek hai", which is how this was caught.
+ *
+ * So: English function words, and the Hindi POSTPOSITIONS (`ke`, `ka`, `ki`,
+ * `ko`, `se`, `mein`, `par`), which genuinely cannot end a repeated fragment.
+ * Nothing else. A large stopword list silently deletes the code-switched half
+ * of every phrase.
  */
 export const EDGE_STOPWORDS: ReadonlySet<string> = new Set([
   "the", "a", "an", "and", "or", "but", "of", "to", "in", "on", "at", "is",
   "are", "was", "were", "be", "this", "that", "it", "we", "you", "i", "will",
   "can", "if", "as", "for", "with", "from", "by", "then", "so", "aur", "ke",
-  "ka", "ki", "ko", "se", "me", "mein", "par", "hi", "bhi", "ye", "yeh", "wo",
-  "woh", "jo", "na", "hai", "hain", "kar",
+  "ka", "ki", "ko", "se", "me", "mein", "par", "hi", "ye", "yeh", "wo",
+  "woh", "jo",
+]);
+
+/**
+ * Grammatical words that are never a catchphrase ON THEIR OWN, though they are
+ * exactly what a real catchphrase ends on. `EDGE_STOPWORDS` plus the copula,
+ * the tense auxiliaries and the tag particles.
+ *
+ * The two lists exist because the same word plays two roles. "theek hai" is a
+ * fragment and "hai" is not, so `hai` must be legal at the END of a bigram and
+ * illegal as a unigram — one list cannot say both, and collapsing them gives
+ * you either a candidate list led by the copula (25 occurrences, top of the
+ * table, meaningless) or no Hinglish bigrams at all.
+ */
+export const BARE_STOPWORDS: ReadonlySet<string> = new Set([
+  ...EDGE_STOPWORDS,
+  "hai", "hain", "tha", "thi", "na", "bhi", "kar", "ho", "hota", "hoti",
+  "raha", "rahi", "rahe", "koi", "kuch", "phir", "abhi", "jab", "tab",
 ]);
 
 // ── the publish rule's two numbers, in one place ──────────────────────────
@@ -269,6 +298,44 @@ const counted = (fragment: string, count: number, tokens: number): CountedFragme
  *  threshold of two would report the vocabulary as the signal. */
 const STRETCH_RE = /(.)\1{2,}/u;
 
+/**
+ * Drop an n-gram that is fully ABSORBED by a longer one — a shorter window
+ * that never occurs outside some longer window containing it.
+ *
+ * Not a frequency heuristic and not a tuning knob. If "socho zara" occurs 8
+ * times and "socho" occurs 8 times, then "socho" never occurred alone: it is a
+ * PREFIX of the fragment, not a fragment. Offering both to a teacher as
+ * separate catchphrase candidates asks them to confirm the same habit twice
+ * and, worse, invites the truncated half into `boardVerbalisms` — which is the
+ * field that ends up in a prompt, said aloud, by a clone of them.
+ *
+ * The condition is strict absorption (`count(longer) >= count(shorter)`), so a
+ * word that also appears on its own survives: "ab" occurring 8 times with "ab
+ * batao" at 5 means three bare "ab"s, and both are real.
+ */
+function maximalOnly(counts: ReadonlyMap<string, number>): Map<string, number> {
+  const out = new Map<string, number>();
+  const entries = [...counts.entries()];
+  for (const [fragment, count] of entries) {
+    const words = fragment.split(" ");
+    const absorbed = entries.some(([other, otherCount]) => {
+      if (other === fragment || otherCount < count) return false;
+      const otherWords = other.split(" ");
+      if (otherWords.length <= words.length) return false;
+      for (let i = 0; i + words.length <= otherWords.length; i++) {
+        let hit = true;
+        for (let j = 0; j < words.length; j++) {
+          if (otherWords[i + j] !== words[j]) { hit = false; break; }
+        }
+        if (hit) return true;
+      }
+      return false;
+    });
+    if (!absorbed) out.set(fragment, count);
+  }
+  return out;
+}
+
 // ── the measurement ───────────────────────────────────────────────────────
 
 function chooseSpeaker(
@@ -347,16 +414,20 @@ export function transcriptStats(
     for (let n = 1; n <= PHRASE_BANK_MAX_WORDS; n++) {
       for (let i = 0; i + n <= turnTokens.length; i++) {
         const window = turnTokens.slice(i, i + n);
-        // Trimmed at the ENDS only. A window that is nothing but function
-        // words disappears, which is the intent.
-        if (EDGE_STOPWORDS.has(window[0]) || EDGE_STOPWORDS.has(window[window.length - 1])) continue;
+        // Unigrams answer to the stricter list; multi-word windows are trimmed
+        // at the ENDS only, so interior function words survive.
+        if (n === 1) {
+          if (BARE_STOPWORDS.has(window[0])) continue;
+        } else if (EDGE_STOPWORDS.has(window[0]) || EDGE_STOPWORDS.has(window[window.length - 1])) {
+          continue;
+        }
         const key = window.join(" ");
         ngramCounts.set(key, (ngramCounts.get(key) ?? 0) + 1);
       }
     }
   }
   const catchphrases: CountedFragment[] = [];
-  for (const [fragment, count] of ngramCounts) {
+  for (const [fragment, count] of maximalOnly(ngramCounts)) {
     if (count >= minCount) catchphrases.push(counted(fragment, count, total));
   }
 
@@ -510,20 +581,38 @@ function heldOutTokens(
  * VERIFIED against (`teacher-sheet-spec.md` §4.6: "every ING field is derived
  * on half the corpus and checked against the other half").
  *
- * Split by turn INDEX PARITY rather than by cutting the corpus in two. A
- * lecture is not stationary — the first half is exposition and the second is
- * worked problems — so a contiguous cut measures two different registers and
- * reports their difference as a corpus-heterogeneity failure. Interleaving
- * gives both halves the same mixture, which is what makes a difference between
- * them mean what §4.6 says it means.
+ * Split by turn PARITY rather than by cutting the corpus in two. A lecture is
+ * not stationary — the first half is exposition and the second is worked
+ * problems — so a contiguous cut measures two different registers and reports
+ * their difference as a corpus-heterogeneity failure. Interleaving gives both
+ * halves the same mixture, which is what makes a difference between them mean
+ * what §4.6 says it means.
+ *
+ * ── the parity is PER SPEAKER, and that is not a detail ───────────────────
+ * A global index parity looks equivalent and is catastrophic on the most
+ * ordinary transcript there is: a doubt session alternates teacher, student,
+ * teacher, student, so every even index is the teacher and every odd one is
+ * the student. The split would hand `derive` the entire teacher and `heldOut`
+ * an entire corpus of somebody else's words, every fragment would score zero
+ * occurrences, and the verifier would confidently reject a real teacher's real
+ * catchphrases with a code that says they are lines he said once. The failure
+ * is silent, total, and looks exactly like a working check — so the counter
+ * below runs per speaker label and each speaker's own turns alternate between
+ * the halves.
  */
 export function splitHeldOut(turns: readonly TranscriptTurn[]): {
   derive: readonly TranscriptTurn[];
   heldOut: readonly TranscriptTurn[];
 } {
   const all = Array.isArray(turns) ? turns : [];
-  return {
-    derive: all.filter((_, i) => i % 2 === 0),
-    heldOut: all.filter((_, i) => i % 2 === 1),
-  };
+  const seen = new Map<string, number>();
+  const derive: TranscriptTurn[] = [];
+  const heldOut: TranscriptTurn[] = [];
+  for (const turn of all) {
+    const label = String(turn?.speaker ?? "");
+    const n = seen.get(label) ?? 0;
+    seen.set(label, n + 1);
+    (n % 2 === 0 ? derive : heldOut).push(turn);
+  }
+  return { derive, heldOut };
 }

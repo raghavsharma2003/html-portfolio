@@ -5441,16 +5441,33 @@ var EDGE_STOPWORDS = /* @__PURE__ */ new Set([
   "mein",
   "par",
   "hi",
-  "bhi",
   "ye",
   "yeh",
   "wo",
   "woh",
-  "jo",
-  "na",
+  "jo"
+]);
+var BARE_STOPWORDS = /* @__PURE__ */ new Set([
+  ...EDGE_STOPWORDS,
   "hai",
   "hain",
-  "kar"
+  "tha",
+  "thi",
+  "na",
+  "bhi",
+  "kar",
+  "ho",
+  "hota",
+  "hoti",
+  "raha",
+  "rahi",
+  "rahe",
+  "koi",
+  "kuch",
+  "phir",
+  "abhi",
+  "jab",
+  "tab"
 ]);
 var PHRASE_BANK_MAX_WORDS = 3;
 var PHRASE_BANK_MIN_OCCURRENCES = 5;
@@ -5492,6 +5509,31 @@ var counted = (fragment, count, tokens2) => ({
   per1k: tokens2 ? round(count / tokens2 * 1e3, 2) : 0
 });
 var STRETCH_RE = /(.)\1{2,}/u;
+function maximalOnly(counts) {
+  const out = /* @__PURE__ */ new Map();
+  const entries = [...counts.entries()];
+  for (const [fragment, count] of entries) {
+    const words2 = fragment.split(" ");
+    const absorbed = entries.some(([other, otherCount]) => {
+      if (other === fragment || otherCount < count) return false;
+      const otherWords = other.split(" ");
+      if (otherWords.length <= words2.length) return false;
+      for (let i = 0; i + words2.length <= otherWords.length; i++) {
+        let hit = true;
+        for (let j = 0; j < words2.length; j++) {
+          if (otherWords[i + j] !== words2[j]) {
+            hit = false;
+            break;
+          }
+        }
+        if (hit) return true;
+      }
+      return false;
+    });
+    if (!absorbed) out.set(fragment, count);
+  }
+  return out;
+}
 function chooseSpeaker(turns, given) {
   if (given) return { label: given, chosenBy: "given" };
   const totals = /* @__PURE__ */ new Map();
@@ -5547,14 +5589,18 @@ function transcriptStats(turns, options = {}) {
     for (let n = 1; n <= PHRASE_BANK_MAX_WORDS; n++) {
       for (let i = 0; i + n <= turnTokens.length; i++) {
         const window2 = turnTokens.slice(i, i + n);
-        if (EDGE_STOPWORDS.has(window2[0]) || EDGE_STOPWORDS.has(window2[window2.length - 1])) continue;
+        if (n === 1) {
+          if (BARE_STOPWORDS.has(window2[0])) continue;
+        } else if (EDGE_STOPWORDS.has(window2[0]) || EDGE_STOPWORDS.has(window2[window2.length - 1])) {
+          continue;
+        }
         const key = window2.join(" ");
         ngramCounts.set(key, (ngramCounts.get(key) ?? 0) + 1);
       }
     }
   }
   const catchphrases = [];
-  for (const [fragment, count] of ngramCounts) {
+  for (const [fragment, count] of maximalOnly(ngramCounts)) {
     if (count >= minCount) catchphrases.push(counted(fragment, count, total));
   }
   return {
@@ -5619,10 +5665,16 @@ function heldOutTokens(heldOut, teacherSpeaker) {
 }
 function splitHeldOut(turns) {
   const all = Array.isArray(turns) ? turns : [];
-  return {
-    derive: all.filter((_, i) => i % 2 === 0),
-    heldOut: all.filter((_, i) => i % 2 === 1)
-  };
+  const seen = /* @__PURE__ */ new Map();
+  const derive = [];
+  const heldOut = [];
+  for (const turn of all) {
+    const label = String(turn?.speaker ?? "");
+    const n = seen.get(label) ?? 0;
+    seen.set(label, n + 1);
+    (n % 2 === 0 ? derive : heldOut).push(turn);
+  }
+  return { derive, heldOut };
 }
 
 // src/engine/ingest/sheetDraft.ts
@@ -5728,6 +5780,19 @@ var FIELD_SOURCE_CLASS = Object.freeze({
   exMockOffended: "ING?"
 });
 var VERBALISM_CAP = 12;
+var PHRASE_BANK_FIELDS = /* @__PURE__ */ new Set(["boardVerbalisms", "exSlangRepeat"]);
+function normalizeFragments(value) {
+  const raw = Array.isArray(value) ? value.map((v) => String(v)) : typeof value === "string" ? value.replace(/^[\s(]+|[\s)]+$/g, "").split(",") : [];
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const item of raw) {
+    const fragment = item.trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+    if (!fragment || seen.has(fragment)) continue;
+    seen.add(fragment);
+    out.push(fragment);
+  }
+  return out;
+}
 function renderSlangList(items) {
   return `(${items.map((i) => `"${i}"`).join(", ")})`;
 }
@@ -5737,6 +5802,7 @@ function acceptedTeacherFields(input) {
     const cls = FIELD_SOURCE_CLASS[field];
     if (!cls) continue;
     if (cls === "FLOOR") continue;
+    if (PHRASE_BANK_FIELDS.has(field)) continue;
     if (value === void 0 || value === null) continue;
     if (typeof value === "string" && !value.trim()) continue;
     if (Array.isArray(value) && !value.length) continue;
@@ -5780,22 +5846,27 @@ function draftFromSignals(stats, teacherInput = {}, options = {}) {
     draft[field] = value;
     provenance.push({ field, origin: "teacher-input" });
   }
-  const candidates = stats.catchphrases.filter(
-    (c) => c.fragment.split(" ").length <= PHRASE_BANK_MAX_WORDS
-  );
   const cap = Math.max(0, options.maxVerbalisms ?? VERBALISM_CAP);
-  const proposed = candidates.slice(0, cap).map((c) => c.fragment);
+  const mined = stats.catchphrases.filter((c) => c.fragment.split(" ").length <= PHRASE_BANK_MAX_WORDS).slice(0, cap);
+  const selected = [
+    ...normalizeFragments(teacherInput.boardVerbalisms),
+    ...normalizeFragments(teacherInput.exSlangRepeat)
+  ];
   const heldOut = options.heldOut ?? null;
-  const phraseBank = verifyPhraseBank(proposed, heldOut, {
+  const phraseBank = verifyPhraseBank(selected, heldOut, {
     teacherSpeaker: stats.speaker.label
   });
-  const kept = phraseBank.verified ? proposed : phraseBank.findings.filter((f) => f.ok).map((f) => f.fragment);
-  if (!phraseBank.unverifiedReason && kept.length) {
+  const kept = phraseBank.findings.filter((f) => f.ok).map((f) => f.fragment);
+  const candidateVerdict = verifyPhraseBank(mined.map((c) => c.fragment), heldOut, {
+    teacherSpeaker: stats.speaker.label
+  });
+  const candidates = phraseBank.unverifiedReason ? mined : mined.filter((c) => candidateVerdict.findings.find((f) => f.fragment === c.fragment)?.ok);
+  if (selected.length && !phraseBank.unverifiedReason && kept.length) {
     draft.boardVerbalisms = kept;
     provenance.push({
       field: "boardVerbalisms",
       origin: "transcript-stats",
-      signal: "catchphrase-ngrams + held-out >=5 occurrences",
+      signal: "teacher selection, pruned by held-out >=5 occurrences",
       detail: kept.map((f) => `${f}=${phraseBank.findings.find((x) => x.fragment === f)?.occurrences ?? 0}`).join(", ")
     });
     const single = kept.filter((f) => !f.includes(" "));
@@ -5816,8 +5887,8 @@ function draftFromSignals(stats, teacherInput = {}, options = {}) {
       gaps.push({
         field,
         sourceClass: cls,
-        reason: phraseBank.unverifiedReason ? "unverified-no-held-out-evidence" : "insufficient-evidence",
-        detail: phraseBank.unverifiedReason ? `${candidates.length} candidate(s) mined, none verifiable without a held-out corpus` : `${candidates.length} candidate(s) mined, ${kept.length} cleared the >=5 rule`
+        reason: !selected.length ? "needs-teacher-confirmation" : phraseBank.unverifiedReason ? "unverified-no-held-out-evidence" : "insufficient-evidence",
+        detail: !selected.length ? `${candidates.length} candidate(s) offered, none selected yet` : phraseBank.unverifiedReason ? `${selected.length} selected, none verifiable without a held-out corpus` : `${selected.length} selected, ${kept.length} cleared the >=5 rule`
       });
       continue;
     }

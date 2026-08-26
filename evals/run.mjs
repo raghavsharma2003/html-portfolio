@@ -95,6 +95,36 @@ const suites = {
   // Standalone, offline, deterministic, $0, no DB. Re-bundles from the real
   // source on every run.
   teachersheet: "teachersheet.mjs",
+  // WS-F (Gurukul ingestion). The statistical pass, the phrase-bank rule, the
+  // draft assembler's honesty, and the studio endpoint's dispatch.
+  //
+  // Three of its assertions are the ones worth naming here, because each would
+  // go quiet under an ordinary-looking simplification:
+  //
+  //  - THE HELD-OUT CONTROL. The fixture contains a fragment that occurs 8
+  //    times in the half a draft is mined from and 2 times in the half it is
+  //    checked against. An in-sample check passes it; the suite asserts it is
+  //    rejected. That is the only thing standing between "a habit this teacher
+  //    has" and "a memorable line he said once", which is the difference
+  //    teacher-sheet-spec.md §4.3 exists to draw, on the field the core
+  //    deliberately licenses for REPETITION.
+  //  - THE SPLIT'S OWN NEGATIVE CONTROL. Global-index parity is the obvious
+  //    implementation and it hands one half every teacher turn of an
+  //    alternating doubt session and the other half a corpus of a student's
+  //    words. Both copies run here; the wrong one must be visibly wrong.
+  //  - THE DRAFTER'S HONESTY, WITH A DISHONEST TWIN. `draft` ∪ `gaps` must be
+  //    exactly the sheet contract, and a deliberately faking copy of the
+  //    assembler — one field filled with something plausible and quietly
+  //    dropped from the gap list — must fail the same predicate. That is the
+  //    `silent-truncation` failure in miniature, and the shape
+  //    teacher-sheet-spec.md §0 says a pipeline sized for the wrong number of
+  //    fields produces: a sheet that looks complete and speaks with nothing in
+  //    fifteen of its slots.
+  //
+  // The endpoint's logic runs against a FAKE db (api/replica-claims.js's split
+  // is what makes that possible), so this suite stays offline, deterministic,
+  // $0 and DB-free like everything else here.
+  ingest: "ingest.mjs",
   // WS-D (Gurukul student surface). The mastery fold: thresholds, no
   // decay-by-absence, order-independence/monotonicity, and XP strictly from
   // graded outcomes — the properties `src/engine/practice/mastery.ts`'s

@@ -123,6 +123,10 @@ export type GapReason =
   | "needs-qualitative-pass"
   /** ING and statistical, but the corpus produced nothing above threshold */
   | "insufficient-evidence"
+  /** ING and mined, but the spec marks the field "confirm + prune" and the
+   *  candidates are sitting in `candidates` waiting for a teacher to pick.
+   *  Mining proposes; it does not choose what a clone of a named person says. */
+  | "needs-teacher-confirmation"
   /** ING and statistical, but no HELD-OUT corpus was supplied, so the
    *  phrase-bank rule could not be applied. Candidates are offered; the field
    *  is not filled from an unverified mine. */
@@ -171,9 +175,9 @@ export interface SheetDraftResult {
   gaps: readonly SheetGap[];
   provenance: readonly SheetProvenance[];
   measurements: DraftMeasurements;
-  /** mined phrase-bank candidates that did NOT make the draft — offered to the
-   *  studio so the teacher can see what was heard and why it was not kept.
-   *  Offered, never merged: `culture.ts`'s match-then-inject asymmetry. */
+  /** mined phrase-bank candidates, for the teacher to pick from. Offered,
+   *  never merged: `culture.ts`'s match-then-inject asymmetry — nothing is
+   *  pushed at the sheet, a row enters only when a human matched it. */
   candidates: readonly CountedFragment[];
   /** the phrase-bank verdict this draft rests on. `verified:false` with a
    *  reason is the normal answer when no held-out half was supplied. */
@@ -198,6 +202,32 @@ export interface DraftOptions {
 
 const VERBALISM_CAP = 12;
 
+/** The two fields the core deliberately licenses for REPETITION
+ *  (`persona.ts:131`), which is exactly what makes them the phrase bank
+ *  `recited-prompt` measured at 4/5 turns. Never carried through from teacher
+ *  input verbatim — they go the long way round, through the verifier. */
+const PHRASE_BANK_FIELDS: ReadonlySet<string> = new Set(["boardVerbalisms", "exSlangRepeat"]);
+
+/** Fragments out of either phrase-bank spelling: `boardVerbalisms` is an array,
+ *  `exSlangRepeat` is a parenthesised quoted list. Deduplicated, order kept —
+ *  a teacher's ordering is a teacher's ordering. */
+function normalizeFragments(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value.map((v) => String(v))
+    : typeof value === "string"
+      ? value.replace(/^[\s(]+|[\s)]+$/g, "").split(",")
+      : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    const fragment = item.trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+    if (!fragment || seen.has(fragment)) continue;
+    seen.add(fragment);
+    out.push(fragment);
+  }
+  return out;
+}
+
 /** `exSlangRepeat` ships as a parenthesised quoted list — `fromSheet.ts`'s
  *  `verbalismFragments` unwraps exactly this shape, so the renderer and the
  *  parser are one round trip and not two guesses. */
@@ -219,6 +249,9 @@ function acceptedTeacherFields(input: TeacherInput): [string, unknown][] {
     // teacher cannot edit, shorten, localize away, or 'make it sound more like
     // me'." The gate would catch a changed value; this stops it being carried.
     if (cls === "FLOOR") continue;
+    // The phrase-bank fields are a teacher's SELECTION, not their value. They
+    // are assembled below, after the held-out verifier has pruned them.
+    if (PHRASE_BANK_FIELDS.has(field)) continue;
     if (value === undefined || value === null) continue;
     if (typeof value === "string" && !value.trim()) continue;
     if (Array.isArray(value) && !value.length) continue;
@@ -279,36 +312,64 @@ export function draftFromSignals(
     provenance.push({ field, origin: "teacher-input" });
   }
 
-  // ── 2. the phrase bank, and only if a held-out half proves it ────────────
-  const candidates = stats.catchphrases.filter(
-    (c) => c.fragment.split(" ").length <= PHRASE_BANK_MAX_WORDS,
-  );
+  // ── 2. the phrase bank ───────────────────────────────────────────────────
+  //
+  // Mining PROPOSES; it does not choose. `teacher-sheet-spec.md` marks
+  // `boardVerbalisms` "confirm + prune — HIGHEST recitation risk in the sheet",
+  // and an auto-filled catchphrase field is the `recited-prompt` failure with a
+  // pipeline in front of it: on this suite's own fixture the top mined
+  // candidates include "squared", "equals" and "r", which are the LECTURE, not
+  // the teacher. So the candidate list is offered, and the field is filled only
+  // from fragments the teacher themselves selected — with the machine doing the
+  // half a human cannot, which is checking each selection against the held-out
+  // corpus and PRUNING the ones that are lines rather than habits.
+  //
+  // That is the division of labour the spec asks for, in the only order that is
+  // safe: a human picks what a clone of them may repeat, a counter proves they
+  // actually repeat it.
   const cap = Math.max(0, options.maxVerbalisms ?? VERBALISM_CAP);
-  const proposed = candidates.slice(0, cap).map((c) => c.fragment);
+  const mined = stats.catchphrases
+    .filter((c) => c.fragment.split(" ").length <= PHRASE_BANK_MAX_WORDS)
+    .slice(0, cap);
+
+  const selected = [
+    ...normalizeFragments(teacherInput.boardVerbalisms),
+    ...normalizeFragments(teacherInput.exSlangRepeat),
+  ];
   const heldOut = options.heldOut ?? null;
-  const phraseBank = verifyPhraseBank(proposed, heldOut, {
+  const phraseBank = verifyPhraseBank(selected, heldOut, {
     teacherSpeaker: stats.speaker.label,
   });
+  const kept = phraseBank.findings.filter((f) => f.ok).map((f) => f.fragment);
 
-  const kept = phraseBank.verified
-    ? proposed
-    : phraseBank.findings.filter((f) => f.ok).map((f) => f.fragment);
+  // Candidates are reported with their held-out standing too, so a studio ranks
+  // by what is PROVEN habitual rather than by what was loudest in the half the
+  // draft was mined from.
+  const candidateVerdict = verifyPhraseBank(mined.map((c) => c.fragment), heldOut, {
+    teacherSpeaker: stats.speaker.label,
+  });
+  const candidates = phraseBank.unverifiedReason
+    ? mined
+    : mined.filter((c) => candidateVerdict.findings.find((f) => f.fragment === c.fragment)?.ok);
 
-  if (!phraseBank.unverifiedReason && kept.length) {
+  if (selected.length && !phraseBank.unverifiedReason && kept.length) {
+    // A teacher's selection is not carried verbatim — the pruned set is what
+    // lands. Carrying an unverified pick would mean the endpoint's publish gate
+    // is the only thing standing between a memorable LINE and a prompt.
     draft.boardVerbalisms = kept;
     provenance.push({
       field: "boardVerbalisms",
       origin: "transcript-stats",
-      signal: "catchphrase-ngrams + held-out >=5 occurrences",
+      signal: "teacher selection, pruned by held-out >=5 occurrences",
       detail: kept
         .map((f) => `${f}=${phraseBank.findings.find((x) => x.fragment === f)?.occurrences ?? 0}`)
         .join(", "),
     });
 
     // `exSlangRepeat` is the UNIGRAM half of the same evidence — "the short
-    // ordinary slang the teacher genuinely repeats" (spec row 29). Same
-    // corpus, same threshold, one word each, so it is derived from the kept
-    // set rather than mined a second time with a second opinion.
+    // ordinary slang the teacher genuinely repeats" (spec row 29). Same corpus,
+    // same threshold, one word each, derived from the kept set rather than
+    // mined a second time with a second opinion.
     const single = kept.filter((f) => !f.includes(" "));
     if (single.length) {
       draft.exSlangRepeat = renderSlangList(single);
@@ -329,12 +390,16 @@ export function draftFromSignals(
       gaps.push({
         field,
         sourceClass: cls,
-        reason: phraseBank.unverifiedReason
-          ? "unverified-no-held-out-evidence"
-          : "insufficient-evidence",
-        detail: phraseBank.unverifiedReason
-          ? `${candidates.length} candidate(s) mined, none verifiable without a held-out corpus`
-          : `${candidates.length} candidate(s) mined, ${kept.length} cleared the >=5 rule`,
+        reason: !selected.length
+          ? "needs-teacher-confirmation"
+          : phraseBank.unverifiedReason
+            ? "unverified-no-held-out-evidence"
+            : "insufficient-evidence",
+        detail: !selected.length
+          ? `${candidates.length} candidate(s) offered, none selected yet`
+          : phraseBank.unverifiedReason
+            ? `${selected.length} selected, none verifiable without a held-out corpus`
+            : `${selected.length} selected, ${kept.length} cleared the >=5 rule`,
       });
       continue;
     }

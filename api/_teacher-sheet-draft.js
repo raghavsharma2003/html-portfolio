@@ -251,14 +251,28 @@ export async function publishOwnedTeacherSheet(db, ownerUserId, replicaIdValue, 
   if (!row) fail("teacher_sheet_not_found", 404, { replica_id: replicaId });
 
   const sheet = typeof row.sheet === "string" ? sheetBodyOf(row.sheet) : row.sheet;
-  const verdict = checkPublishable(sheet, row, evidenceOf(options.evidence));
 
-  if (!verdict.ok) {
+  // The consent blocker is computed from the COLUMN here, before
+  // `checkPublishable` gets a chance to fall back to the sheet's own
+  // `consentArtifactId`. That fallback is correct where it lives — the studio's
+  // dry-run has no row to read and a claimed id is the only thing available —
+  // but on THIS path a row exists, and `fromSheet.ts` states the distinction
+  // exactly: "a `consentArtifactId` inside the sheet jsonb is the studio's
+  // CLAIM, the column is the platform's RECORD, and the gate reads the column."
+  // Without this line a studio could type a plausible uuid into the jsonb and
+  // clear the JS gate; only the SQL predicate would still refuse, and a gate
+  // whose JS half can be talked past is a gate that will be talked past the
+  // day someone widens the SQL.
+  const columnBlockers = row.consent_artifact_id ? [] : ["consent_artifact_missing"];
+  const verdict = checkPublishable(sheet, row, evidenceOf(options.evidence));
+  const blockers = [...new Set([...columnBlockers, ...verdict.blockers])];
+
+  if (!verdict.ok || blockers.length) {
     // NOT an exception. A publish that cannot proceed is a normal answer with
     // a list of reasons — the same posture `checkPublishable`'s own header
     // gives ("publishing is the one moment where 'not yet' is a normal answer
     // rather than an error"), and the studio needs every row at once.
-    return { ok: false, errors: verdict.errors, blockers: verdict.blockers, phraseBank: verdict.phraseBank, sheet: clientSheet(row) };
+    return { ok: false, errors: verdict.errors, blockers, phraseBank: verdict.phraseBank, sheet: clientSheet(row) };
   }
 
   const rows = await db(
