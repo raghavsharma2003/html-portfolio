@@ -3942,3 +3942,119 @@ own negative control, never a relaxed copy of this one.
 audio. It has not: no Azure credentials exist in the sandbox this was built in,
 so the synthesis half has never run from this code path. See
 `measurements.md#voice-panel-admission-probe` for what WAS measured.
+---
+
+## `mirror-learning-is-selection-not-accumulation` — the Mirror Call's voice loop learns by choosing, not by collecting (2026-08-26, WS-Z)
+
+Research sweep: `docs/gurukul/research/mirror-learning.md`. Scope: the academic
+and open-source state of the art for ongoing/online mirroring — incremental
+voice adaptation, online persona learning from conversation, human-in-the-loop
+calibration UX, and continual-learning pitfalls — against the build shape in
+`docs/gurukul/MIRROR-CALL-SPEC.md`.
+
+**The finding that forces the decision is a code read, not a paper.** In
+Chatterbox — our pinned, MIT-licensed primary — `prepare_conditionals()` slices
+the reference twice before the model sees it: `DEC_COND_LEN = 10 * S3GEN_SR`
+(10 s for the S3Gen conditioning) and `ENC_COND_LEN = 6 * S3_SR` (6 s for the
+T3 speech-prompt tokens). `s3gen.embed_ref()` prints
+`"WARNING: s3gen received ref longer than 10s"` above that. `generate()` takes
+one `audio_prompt_path`; there is no multi-reference input.
+
+So the spec's voice loop — "call audio accumulates into the reference set…
+the next clone turn synthesises off the enriched reference" — is **mechanically
+inert under the model we actually ship**. Turn 40 of a Mirror Call conditions
+on at most 10 s, exactly as turn 2 did. Our own numbers sit exactly where this
+predicts: ECAPA **0.7753 at 71 s** against a **0.8869** self-vs-self ceiling
+(`first-real-clone`). 71 s is already seven times the truncation window, so the
+residual gap is **not a reference-duration deficit** and no amount of call audio
+closes it.
+
+**What is decided.**
+
+1. **The voice loop's mechanism is reference SELECTION over an accumulating
+   pool, cached as a Chatterbox `Conditionals` blob** — not accumulation.
+   *Reverses if* the truncation experiment (§5.1 of the sweep: full-71 s vs
+   first-10 s vs three different 10 s windows) shows full-length conditioning
+   beating the truncated slice — which would mean the shipped code path is not
+   the path we are actually calling — **or** if we move off prompt-conditioned
+   TTS to a matching-set architecture (kNN-VC family), where more minutes
+   genuinely buy coverage (5 min knee, degrades below 30 s, arXiv:2305.18975).
+2. **The fidelity meter splits into two labelled numbers**: how well we can
+   MEASURE the owner (grows with the pool, ECAPA over all windows) and what the
+   next turn will SYNTHESISE from (the selected window). One number that moves
+   while the clone cannot have changed is the same class of defect as
+   `disclosure-announces-the-clone`. *Reverses if* the two are ever shown to
+   move together on real calls — then one number is honest.
+3. **Owner-only admission is a hard predicate on BOTH learning paths** —
+   reference windows and transcript mining. No window overlapping a
+   clone-speaking interval; an ECAPA floor against the enrolled profile; a
+   second speaker never admitted. Grounds: recursive-training collapse
+   (Shumailov et al., Nature 631:755–759, 2024 — tails of the distribution
+   disappear irreversibly; remedy is fresh human data plus serious filtering of
+   generated data), and consent, since a third party audible on the owner's
+   side consented to nothing. *Reverses if* never for the consent half; the
+   collapse half reverses only on evidence that clone-audio re-ingestion is
+   provably neutral at our scale, which nothing suggests.
+4. **The personality and feedback loops take CIPHER's shape** (Gao et al.,
+   NeurIPS 2024, arXiv:2404.15269): induce a *described* preference from a
+   correction, key it to context, retrieve k=5 at generation, keep it
+   human-readable and editable. Its Table 2 carries two results we act on: an
+   induced description beats replaying the raw edit (CIPHER 32,974 vs
+   ICL-edit 39,734 cumulative edit distance on summarization), and **a single
+   rolling, continuously-overwritten global preference LOST to not learning at
+   all** (Continual-LPI 57,915 vs no-learning 48,269). That is published
+   evidence for persona-collapse-to-the-last-session, and it means deltas are
+   additive and context-keyed with citations, never a wholesale field rewrite.
+   *Reverses if* an in-house A/B shows a single consolidated sheet field
+   beating context-keyed retrieval on our own transcripts.
+5. **No gradient-based preference learning from Mirror Call feedback in v1**,
+   and **no unattended self-critique loop between calls.** The feedback shape is
+   unpaired (a 👎 gives a rejected turn and no preferred one) and the volume is
+   tens of judgements per call; and self-correction without external feedback
+   can degrade performance outright (Huang et al., ICLR 2024,
+   arXiv:2310.01798). The owner on the line IS the external signal; without
+   them the loop does not run. Feedback events are logged in a KTO-compatible
+   unpaired desirable/undesirable shape and left there. *Reverses if* the logged
+   corpus reaches a scale where a held-out preference-learning run beats the
+   prompt-level store on our own probe set.
+6. **The chip rail is weighted to FEATURE queries with a per-minute budget.**
+   Cakmak & Thomaz (HRI 2012) found feature queries preferred (72% called them
+   the smartest) and that people dislike a constant stream of questions. "You
+   say 'basically' a lot — add to phrase habits?" is a feature query; "was that
+   turn good?" is a label query. 👍/👎 stays available but the clone never asks
+   for it. *Reverses if* our own acceptance-rate-by-chip-type measurement
+   inverts the ordering. **[the 72% figure is search-summary tier — the PDF
+   would not decode; re-read before quoting it to the owner]**
+7. **Chips carry evidence counts and confidence accumulates ACROSS calls.**
+   Stylometry's published floor is 2,000–5,000 words, with <3,000-word samples
+   producing >60% false attribution; our own arithmetic puts a 30-minute Mirror
+   Call at ~1,800–2,300 owner words — below every threshold. One call cannot
+   make a reliable idiolect claim, so a chip is a hypothesis with a visible n.
+   *Reverses if* a measured word count per real call lands materially above
+   5,000. **[the stylometry thresholds are search-summary tier — both Eder PDFs
+   failed to decode]**
+8. **One LoRA adapter per expert, composed at load — never sequential
+   fine-tunes on a shared base**, with a regression re-measure of a previously
+   fine-tuned voice after each new one lands. Sequential per-speaker adaptation
+   collapses a multi-speaker TTS toward the newest speaker
+   (arXiv:2103.14512). *Reverses if* a measured run shows voice A's floor
+   unmoved after N sequential fine-tunes.
+
+**What this decision does NOT license.** Any claim that the Mirror Call makes a
+clone measurably better. Nothing here has been measured on our stack — the
+truncation experiment (the cheapest and most decision-relevant, one GPU-warm
+session and no new code) has not been run, and the selection ceiling (how much
+of the 0.7753 → 0.8869 gap best-window selection recovers) is the number that
+decides whether the voice loop is worth building at all. Also: **no paper found
+in this sweep evaluates a Mirror-Call-shaped loop end to end.** We are past the
+literature, which is why these measurements are not optional.
+
+**Rejected outright, with reasons in the sweep:** denoising accumulated call
+audio before it becomes reference (the one primary measurement says enhancement
+raised UTMOS/DNSMOS and LOWERED speaker similarity, SECS 0.35 → 0.28,
+arXiv:2602.05770); persona vectors / activation steering (needs open weights
+and activation access we do not have — arXiv:2507.21509 — re-open if the brain
+moves in-house); seed-vc (GPL-3.0 and archived read-only) and WeClone
+(AGPL-3.0) as code, though WeClone's Presidio PII-scrub stage is an idea we
+adopt; multi-reference conditioning (does not compose with Chatterbox's single
+`audio_prompt_path` without model surgery the audio-floor law forbids).

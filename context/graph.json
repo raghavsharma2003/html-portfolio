@@ -2288,6 +2288,18 @@
       "kind": "decision",
       "title": "owner states intent; platform fills every gap \u2014 product/UX quality is a hard bar, not polish",
       "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-learning-is-selection-not-accumulation",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "Mirror Call learns by SELECTING a conditioning window, not by accumulating reference audio: Chatterbox truncates the reference to 10s/6s, so growth past that is inert"
+    },
+    {
+      "id": "mirror-learning-sweep",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "The truncation experiment and the selection ceiling are unrun: no number yet says whether reference selection recovers any of the 0.7753 to 0.8869 gap"
     }
   ],
   "edges": [
@@ -4275,6 +4287,51 @@
       "src": "owner-intent-is-the-spec",
       "rel": "constrains",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "mirror-learning-is-selection-not-accumulation",
+      "rel": "caused_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "mirror-learning-is-selection-not-accumulation",
+      "rel": "constrains",
+      "dst": "earbench"
+    },
+    {
+      "src": "first-clone-is-the-entry-point",
+      "rel": "constrains",
+      "dst": "mirror-learning-is-selection-not-accumulation"
+    },
+    {
+      "src": "recited-prompt",
+      "rel": "constrains",
+      "dst": "mirror-learning-is-selection-not-accumulation"
+    },
+    {
+      "src": "prompt-position",
+      "rel": "constrains",
+      "dst": "mirror-learning-is-selection-not-accumulation"
+    },
+    {
+      "src": "fidelity-needs-its-ceiling-printed",
+      "rel": "constrains",
+      "dst": "mirror-learning-is-selection-not-accumulation"
+    },
+    {
+      "src": "disclosure-announces-the-clone",
+      "rel": "constrains",
+      "dst": "mirror-learning-is-selection-not-accumulation"
+    },
+    {
+      "src": "personality-is-a-sheet",
+      "rel": "constrains",
+      "dst": "mirror-learning-is-selection-not-accumulation"
+    },
+    {
+      "src": "mirror-learning-sweep",
+      "rel": "blocks",
+      "dst": "mirror-learning-is-selection-not-accumulation"
     }
   ]
 }
