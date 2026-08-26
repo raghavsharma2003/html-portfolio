@@ -1020,6 +1020,55 @@ const suites = {
   // WS-X's backend suite for the same feature, and the two gate different
   // halves of the same wire contract.
   mirrorcallapi: "mirrorcallapi.mjs",
+  // WS-AD. One link, one clone — the single-video enrollment lane.
+  //
+  // The suite exists for one assertion above all others, and it is a
+  // MEASUREMENT rather than a smoke test: on a fixture lecture built to have
+  // exactly the defect the owner described — a noisy, clipped, half-silent
+  // opening and the clean teaching voice three minutes in — the chosen
+  // conditioning window must NOT be the head of the file, and the ranking must
+  // report by how much it beat the head.
+  // `context/measurements.md#reference-window-beats-the-finetune` is why that
+  // matters more than it looks: window choice moved fidelity 0.0625 on the
+  // owner's own voice, three times the measured fine-tune delta, at zero
+  // training cost. A lane that silently took the first ten seconds would pass
+  // any test that merely checked a window came back.
+  //
+  // Alongside it: byte-identical determinism including tie-breaks, the consent
+  // gate refusing before a quota slot is spent, the four caps refusing BY NAME
+  // with their numbers, the not-your-video control (`channel_binding_mismatch`
+  // carried through verbatim), and honest-state coverage for
+  // `channel_extract_extractor_bot_check` — which per
+  // `context/measurements.md#youtube-extraction-blocked-from-azure` is the
+  // state this deploy is actually in, so it is the state that most needs to
+  // stay legible rather than collapsing into "failed".
+  //
+  // Offline, deterministic, $0, no DB and no network — the four service seams
+  // are injected. What it CANNOT see is SQL types and referential integrity:
+  // migration 060 is UNAPPLIED and no statement in this lane has ever executed
+  // against a database (`offline-mocks-cannot-type-check-sql`).
+  videoenroll: "videoenroll.mjs",
+  // WS-AE. The three-step wizard's state machine, run over its whole input
+  // space (6 912 combinations) rather than over the one path a demo takes.
+  //
+  // It exists because the restructure's real risk is not a wrong layout, it is
+  // a rail of confident green ticks over a runtime that is still refusing to
+  // activate. `PRODUCT-JOURNEY.md` §3.2's rule is the suite's spine: no rail
+  // row may render a status that is not derived from data. BREAK 8 (a literal
+  // "0 / No model trained") and BREAK 11 (a hardcoded class that made a 3-step
+  // checklist structurally unable to reach 3/3) were that defect twice, in two
+  // files, both written by people who knew better.
+  //
+  // Four properties are the ones worth naming: at most ONE ember on the rail
+  // (with a stated negative control, since a per-row implementation lights two
+  // on the normal input); `null` means UNKNOWN and never becomes "you have
+  // none"; a blocker code this build has no copy for is RENDERED rather than
+  // filtered out, which is how the retired QuickStartPath could read clear
+  // while Activate stayed disabled; and no step reports done while it still
+  // lists something missing.
+  //
+  // Offline, deterministic, $0, no DB, no browser, ~2s.
+  studiowizard: "studiowizard.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
