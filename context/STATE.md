@@ -37,7 +37,7 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 
 | thing | state |
 |---|---|
-| Neon Postgres | migrations 015–054 applied; 111 tables. **055 (`vy_clone_channel`) is written and NOT applied** |
+| Neon Postgres | migrations 015–056 applied and verified live (113 tables). `verify-release` runs **13** checks when `NEON_URL` is set — the two relational DB gates that had never actually run — and 11 with a printed skip when it is absent |
 | Supabase (new project, separate from Meera's) | auth working; `vyakti-replica-private` bucket created |
 | Auth | Google OAuth live; email OTP live (6-digit); built-in mailer capped ~2/hr until SMTP |
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
