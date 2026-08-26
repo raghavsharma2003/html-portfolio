@@ -7,7 +7,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 export function replicaId(value) {
   const id = String(value || "").trim();
-  if (!UUID.test(id)) throw Object.assign(new Error("valid replica_id required"), { status: 400 });
+  // A named code, not only a status. A route that maps errors by code turns an
+  // uncoded refusal into a 500, which is how the voice preview lane reported
+  // "you sent no replica_id" as a server crash. The message is for a log; the
+  // code is the contract.
+  if (!UUID.test(id)) {
+    throw Object.assign(new Error("valid replica_id required"), {
+      status: 400, code: "valid_replica_id_required",
+    });
+  }
   return id;
 }
 

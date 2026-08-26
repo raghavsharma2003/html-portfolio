@@ -97,10 +97,16 @@ export default async function handler(req, res) {
     // The code is logged either way, because an operator who cannot see why a
     // production request failed will guess, and guessing is how the last one
     // stayed broken.
+    // A 4xx is honoured whether or not the thrower named itself. Sixteen
+    // validators in this codebase still throw a bare `{ status: 400 }`, and
+    // requiring a code here would keep reporting every one of them as a server
+    // crash. An unnamed refusal gets a stable fallback code so the client has
+    // something to branch on and the log has something to grep.
     const status = Number(error?.status);
-    if (Number.isInteger(status) && status >= 400 && status < 500 && code) {
-      console.warn(`[voice-preview] refused ${status} ${code}`);
-      return res.status(status).json({ state: "error", error: code });
+    if (Number.isInteger(status) && status >= 400 && status < 500) {
+      const named = code || "voice_preview_invalid_request";
+      console.warn(`[voice-preview] refused ${status} ${named}`);
+      return res.status(status).json({ state: "error", error: named });
     }
     console.error(`[voice-preview] failed: ${code || "unnamed"}`);
     return res.status(500).json({ state: "error", error: "voice_preview_failed" });
