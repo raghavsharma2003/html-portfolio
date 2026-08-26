@@ -3818,3 +3818,60 @@ line comments, so a refactor that strips comments before testing for the marker
 silently deletes every exemption in the repo. That regression was written and
 caught in the same hour, by `src/components/Chat.tsx`'s legitimate brain-facing
 placeholder, which is the only reason it is recorded here.
+## `owner-upload-stuck-and-drained` (2026-08-26, WS-AH)
+
+**The stuck state, measured on production Neon (project `lucky-sun-80291432`,
+branch `br-falling-pond-avofhmfy`), n=1 because n=1 is the entire table.**
+
+`select ... from vy_replica_processing_job` returned exactly one row:
+`step=integrity`, `state=queued`, `revision=1`, `attempt=0`,
+`lease_expires_at=null`, `failure_code=''`,
+`created_at=2026-08-26T15:28:50.082Z`, unchanged at `updated_at`. Its source
+`886cc5dc` is `kind=audio`, `state=quarantined`, `mime=audio/mpeg`,
+`byte_size=32908934`, `duration_ms=null`, `storage_bucket=vyakti-replica-private`.
+`attempt=0` with a null lease is the proof of the defect: not a job that failed,
+a job nothing ever picked up, ~2.6 hours after it was enqueued.
+
+**The drain, measured on a copy-on-write Neon branch of that exact row
+(`br-round-frost-avv3g04c`, created from the default branch so the row is the
+real one), n=1, method: `runProcessingSweep({db: q, maxJobs: 3})` driven by
+`node` against the branch over `api/_db.js`.**
+
+Transitions actually observed:
+
+| stage | source.state | job.state | attempt | failure_code |
+|---|---|---|---|---|
+| before | quarantined | queued | 0 | `''` |
+| after sweep | quarantined | failed | 1 | `private_storage_not_configured` |
+
+`vy_replica_processing_attempt` gained exactly one row,
+`attempt=1, outcome=failed, failure_code=private_storage_not_configured`. The
+sweep reported `processed: 1` then `idle` on its second lease attempt, so the
+bound and the drain both behaved. The queue drains; this is the first time a job
+in this table has ever been leased.
+
+**Where it stopped and why.** At `integrity`, the FIRST step, on
+`private_storage_not_configured`. This is an artefact of the verification
+environment, not of the pipeline: this container's `api/_config.js` is the
+CI-generated stub with every value empty, so there is no `SUPABASE_URL` or
+`SUPABASE_SERVICE_ROLE_KEY` and nothing can read the bytes. Deployed on Vercel,
+where those two are set, `integrity` is live and the predicted stop moves to
+`malware_scan` with `malware_scanner_unavailable`, because a serverless runtime
+has no `clamdscan`. That prediction is NOT measured and is not claimed as such.
+
+**The recovery, same branch, same row, n=1.**
+
+| step | requeued | job.state | attempt | failure_code |
+|---|---|---|---|---|
+| requeue, nothing live | 0 | failed | 1 | `private_storage_not_configured` |
+| requeue, integrity live | 1 | queued | 0 | `''` |
+| requeue vs `integrity_mismatch`, everything live | 0 | failed | 0 | `integrity_mismatch` |
+
+The fence holds in both directions on the real row: a capability absence comes
+back when the capability lands, and a genuine failure is never requeued even
+with every step live.
+
+**Not done.** Production was NOT drained. With no storage credentials in this
+environment, draining it would have written
+`failed/private_storage_not_configured` onto the owner's only job, which is a
+worse state than the one the deployed sweep will produce on its first tick.

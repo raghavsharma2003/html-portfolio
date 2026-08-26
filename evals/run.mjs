@@ -478,6 +478,15 @@ const suites = {
   // byte verification, current ClamAV, ffprobe, exact evidence adapters,
   // immutable persistence and one-step DAG settlement.
   processingworker: "processing-worker/run.mjs",
+  // WS-AH. The CALLER for the above. `runNextProcessingJob` was a complete
+  // runner that nothing invoked, so one real 32.9 MB upload sat at
+  // integrity/queued and never moved. This suite holds the sweep's auth
+  // refusal, its job bound, its legible degradation when a credential or a
+  // binary is absent, and the property that matters most: a step we cannot
+  // perform NEVER yields a clean verdict. That last one carries its own
+  // negative control, because an assertion that a scanner refuses is worthless
+  // unless something proves the scanner could have said yes.
+  processingsweep: "processing-sweep/run.mjs",
   // Owner processing review: strict tenant binding, append-only controlled
   // decisions, privacy-safe summaries, real-evidence readiness and an
   // idempotent draft-only VoiceGenome queue.

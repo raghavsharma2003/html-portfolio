@@ -2696,6 +2696,48 @@
       "kind": "open",
       "title": "WS-AF's processing-status surface has labelled mount points on Feed and Meet and no backend",
       "at": "2026-08-26"
+    },
+    {
+      "id": "processing-sweep-drains-the-enrollment-queue",
+      "kind": "decision",
+      "title": "api/replica-processing-sweep.js on a */5 cron drives runNextProcessingJob for 3 jobs per run; the 15 min lease is deliberately longer than the 300s function",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "every-step-always-has-an-adapter",
+      "kind": "decision",
+      "title": "a step whose capability is absent gets a named-throwing stub, never omission, so five distinct absences never collapse into missing_processing_adapter",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "capability-absence-is-not-a-failed-recording",
+      "kind": "decision",
+      "title": "the five absence codes render as blocked plus a wait action and are requeued once the capability lands, never as failed plus re-upload",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "owner-upload-stuck-and-drained",
+      "kind": "measurement",
+      "title": "the owner's 32.9 MB job sat at integrity/queued attempt=0 for ~2.6h; on a branch copy the sweep leased and settled it, and the requeue fence held both ways",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "a-runner-nobody-runs",
+      "kind": "rejection",
+      "title": "the enrollment pipeline was complete at the producer and at the runner and had no caller and no cron, so one real upload never moved",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "a-scan-we-did-not-run-must-never-say-clean",
+      "kind": "rejection",
+      "title": "composing only the adapters whose credentials exist degrades a missing malware scanner into a fabricated clean verdict",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "processing-sweep",
+      "kind": "component",
+      "title": "api/replica-processing-sweep.js + _replica-processing/sweep.js + composition.js + native-tools.js + capability-codes.js: the caller that drains the eight-step audio DAG",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5208,6 +5250,56 @@
       "src": "processing-status-not-connected",
       "rel": "blocks",
       "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "processing-sweep-drains-the-enrollment-queue",
+      "rel": "constrains",
+      "dst": "processing-sweep"
+    },
+    {
+      "src": "every-step-always-has-an-adapter",
+      "rel": "constrains",
+      "dst": "processing-sweep"
+    },
+    {
+      "src": "capability-absence-is-not-a-failed-recording",
+      "rel": "constrains",
+      "dst": "processing-sweep"
+    },
+    {
+      "src": "processing-sweep-drains-the-enrollment-queue",
+      "rel": "caused_by",
+      "dst": "a-runner-nobody-runs"
+    },
+    {
+      "src": "every-step-always-has-an-adapter",
+      "rel": "caused_by",
+      "dst": "a-scan-we-did-not-run-must-never-say-clean"
+    },
+    {
+      "src": "processing-sweep",
+      "rel": "measured_by",
+      "dst": "owner-upload-stuck-and-drained"
+    },
+    {
+      "src": "a-runner-nobody-runs",
+      "rel": "constrains",
+      "dst": "processing-sweep"
+    },
+    {
+      "src": "a-scan-we-did-not-run-must-never-say-clean",
+      "rel": "constrains",
+      "dst": "processing-sweep"
+    },
+    {
+      "src": "capability-absence-is-not-a-failed-recording",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "a-runner-nobody-runs",
+      "rel": "caused_by",
+      "dst": "aliveness-was-unreachable-not-meera-bound"
     }
   ]
 }

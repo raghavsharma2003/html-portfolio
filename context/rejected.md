@@ -3392,3 +3392,62 @@ can reach).
 **The general shape.** This is `gates-that-live-nowhere`'s sibling: a command
 that is safe in a single checkout and quietly shared in a multi-worktree one.
 Treat every `.git`-level stack (stash, index locks, reflog surgery) as global.
+
+## `a-runner-nobody-runs` — the enrollment pipeline was complete at both ends and had no caller (2026-08-26, WS-AH)
+
+**What was there.** `api/_replica-source.js` finalize enqueues a
+`vy_replica_processing_job` row at `step='integrity', state='queued'` for every
+uploaded audio source and parks the source at `quarantined`.
+`api/_replica-processing/runtime.js` exports `runNextProcessingJob`, a complete
+lease/execute/settle runner over a reviewed eight-step DAG, with adapters,
+artifact manifests, evidence records, budget reservation and lease recovery.
+`services/replica-processing-worker/` is a whole containerised consumer with
+ClamAV, ffprobe and Bicep infra.
+
+**What broke.** Nothing called any of it. There was no
+`api/replica-processing-sweep.js` and no cron entry; the container job was never
+deployed. The owner uploaded a real 32.9 MB MP3 on 2026-08-26T15:28:50Z and its
+job row sat at `integrity/queued` with `attempt=0` and `lease_expires_at=null`,
+never leased, while the source stayed `quarantined`. Measured live, not
+inferred: exactly one job row existed in the whole table.
+
+**Why no amount of reading either end finds this.** Both ends are correct and
+both ends are finished. The producer's test passes, the runner's test passes,
+the adapters' tests pass. The defect is the ABSENCE of an edge, and an absent
+edge is invisible to every test that starts from a node. This is
+`aliveness-was-unreachable-not-meera-bound` again, and it is now the second time
+this shape has cost this project a working feature.
+
+**What was done.** `api/replica-processing-sweep.js` plus
+`api/_replica-processing/sweep.js`, on a `*/5 * * * *` cron.
+
+**The generalisation worth keeping.** For every queue table in this repo, the
+question is not "is the consumer correct" but "name the line of code that calls
+it, and the schedule that calls that". If the answer is a service that is not
+deployed, the queue does not drain. A cron entry is a load-bearing part of a
+feature, not deployment trivia, and it belongs in the same review as the runner.
+
+## `a-scan-we-did-not-run-must-never-say-clean` — the tempting shape for a missing capability (2026-08-26, WS-AH)
+
+**What was tried and rejected.** The obvious composition for the serverless
+sweep is to build the adapters whose credentials are present and leave the rest
+out of the map. It is one line shorter and it is wrong twice over.
+
+**What specifically breaks.** First, `assertAdapter` turns every absent adapter
+into ONE code, `missing_processing_adapter`, so an undeployed malware scanner, an
+unset Azure key and an expired storage role key all reach the owner as the same
+sentence, and those have three different next actions. Second, and worse: the
+serverless runtime has no `clamdscan` and no `ffprobe`, so any implementation of
+`scanBytes` that "degrades gracefully" degrades into claiming a file is clean.
+A fabricated clean verdict is strictly worse than no scan, because downstream
+cannot tell it from a real one.
+
+**What was done instead.** Every step ALWAYS has an adapter. A step whose
+capability is genuinely absent gets a stub carrying that capability's own named
+code, which throws terminally and returns nothing. `native-tools.js` has exactly
+three outcomes and no fourth: tool says OK, tool says FOUND, or throw. An
+unreadable scanner exit is `clamav_scan_failed`, never `{safe:true}`.
+
+**The generalisation worth keeping.** A default value is a positive claim. Ask
+of every fallback: if this fires, what am I asserting, and would I sign it? For
+a safety check the honest fallback is always an exception, never a verdict.
