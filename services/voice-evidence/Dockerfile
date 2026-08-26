@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VOICE_EVIDENCE_MODEL_ROOT=/models/voice-evidence
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends ffmpeg libsndfile1 ca-certificates \
+    && apt-get install --yes --no-install-recommends git ffmpeg libsndfile1 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10002 evidence \
     && useradd --system --uid 10002 --gid evidence --create-home evidence

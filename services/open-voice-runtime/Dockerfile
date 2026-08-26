@@ -13,8 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends git ffmpeg libsndfile1 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system --gid 10003 voice \
-    && useradd --system --uid 10003 --gid voice --create-home voice
+    && groupadd --system --gid 10003 openvoice \
+    && useradd --system --uid 10003 --gid openvoice --create-home voice
 
 WORKDIR /srv/open-voice
 COPY requirements.txt ./requirements.txt
@@ -24,7 +24,7 @@ RUN python -m pip install --requirement requirements.txt \
 COPY fetch_models.py ./fetch_models.py
 RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python fetch_models.py
 COPY app.py ./app.py
-RUN chown -R voice:voice /srv/open-voice /models
+RUN chown -R voice:openvoice /srv/open-voice /models
 
 USER 10003:10003
 EXPOSE 8080
