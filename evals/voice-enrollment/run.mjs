@@ -154,7 +154,7 @@ const loaded = await loadOwnedAzureVoiceEnrollment(async (sql, params) => {
   return [enrollment];
 }, OWNER, RID, 3);
 ok("enrollment load is exact owner replica and approved genome version scoped", loaded === enrollment &&
-  /r\.owner_user_id=\$2/.test(loadSql) && /vg\.version=\$3 and vg\.status='approved'/.test(loadSql));
+  /r\.owner_user_id=\$2(?:::uuid)?/.test(loadSql) && /vg\.version=\$3(?:::int4)? and vg\.status='approved'/.test(loadSql));
 ok("load requires verified self identity current training rights and uploaded provider evidence",
   /r\.subject_mode='self'/.test(loadSql) && /identity_verified_at is not null/.test(loadSql) &&
   /array\['capture','storage','biometric','training'\]/.test(loadSql) && /x\.state='uploaded'/.test(loadSql));

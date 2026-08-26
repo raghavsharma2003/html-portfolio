@@ -193,7 +193,9 @@ const snapshot = await loadPrivateRelationshipSnapshot(async (sql, params) => {
   if (/vy_phrase/i.test(sql)) return [{ phrase: "scene kya hai", gloss: "shared check-in" }];
   return [];
 }, internal);
-ok("every relationship read is scoped by exact agent and person", relationshipCalls.length === 6 && relationshipCalls.every((call) => call.params[0] === AGENT && call.params[1] === PERSON && /agent_id=\$1 and person_id=\$2/i.test(call.sql)));
+// `(?:::uuid)?` — the property is the exact agent+person scoping, not the
+// literal spelling. evals/sqlcast.mjs requires the cast on this surface.
+ok("every relationship read is scoped by exact agent and person", relationshipCalls.length === 6 && relationshipCalls.every((call) => call.params[0] === AGENT && call.params[1] === PERSON && /agent_id=\$1(?:::uuid)? and person_id=\$2(?:::uuid)?/i.test(call.sql)));
 ok("relationship tail renders state and shared language", /trust: 0.8/.test(compileRelationshipTail(snapshot)) && /scene kya hai/.test(compileRelationshipTail(snapshot)));
 
 const generationCalls = [];

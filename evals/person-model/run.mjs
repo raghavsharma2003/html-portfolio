@@ -96,7 +96,10 @@ const decision = await decideOwnedClaim(async (sql, params) => {
   return [{ decision_id: RID, claim_id: "1", decision: params[3], reason_code: params[4], created_at: "2026-08-24T00:00:00.000Z" }];
 }, OWNER, { replica_id: RID, claim_id: "1", decision: "accepted", reason_code: "representative" });
 ok("claim review appends a controlled owner decision", decision.decision === "accepted");
-ok("claim decision SQL binds claim, replica and owner before mutation", /c\.claim_id=\$1 and c\.replica_id=\$2 and c\.owner_user_id=\$3/i.test(decisionCalls[0].sql));
+ok("claim decision SQL binds claim, replica and owner before mutation", // claim_id is bigint and the replica/owner ids are uuid, so the casts
+// evals/sqlcast.mjs requires here differ per column; the property under test is
+// the binding order, not the spelling.
+/c\.claim_id=\$1(?:::\w+)? and c\.replica_id=\$2(?:::\w+)? and c\.owner_user_id=\$3(?:::\w+)?/i.test(decisionCalls[0].sql));
 await assert.rejects(decideOwnedClaim(async () => [], OWNER, { replica_id: RID, claim_id: "1", decision: "accepted", reason_code: "inaccurate" }), /invalid_claim_decision/);
 ok("decision and reason vocabularies cannot be mixed", true);
 
