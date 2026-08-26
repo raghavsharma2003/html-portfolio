@@ -3582,3 +3582,65 @@ should not spend a day rediscovering that the easy half is the same half.
 transcript half more cheaply than the audio half (about 4 MB versus 11 MB per
 video), or a paid third-party transcript API. Full sweep table:
 `measurements.md#po-token-helps-until-the-ip-is-burned`.
+
+## `a-coded-catch-hides-an-uncoded-throw` — mapping errors by code turns every uncoded refusal into a 500 (2026-08-26, main loop)
+
+**What was tried.** `api/voice-preview.js` mapped errors to responses by
+matching `error.code` against three names, and returned 500 for anything else.
+It read as careful.
+
+**What broke.** `replicaId()` in `api/_replica.js` threw a bare
+`{ status: 400 }` with no code. Sixteen validators in `api/` do the same. So
+"you sent no replica_id" reached the browser as a server crash, with nothing in
+the logs, and the studio showed a server error for a user mistake. The same
+catch also swallowed `audio_protection_origin_required`, which is a DEPLOYMENT
+FACT that `docs/gurukul/ENV-MANIFEST.md` §6 already specifies as a 503 — so the
+route was contradicting its own documented contract.
+
+**Three separate mistakes, and each is worth naming.**
+1. Requiring a `code` when a `status` is present. A 4xx that named its own
+   status is an ANSWER; flattening it to 500 discards the answer.
+2. Enumerating configuration-absence codes by NAME. The list cannot include a
+   service that does not exist yet, and one did not. Matching the SHAPE of a
+   configuration refusal (`*_origin_required`, `*_secret_required`,
+   `*_not_configured`) is the only version that stays true.
+3. Catching without logging. This is what made it unfindable: the crash had no
+   cause anywhere. ONE line of `console.warn` turned an unanswerable production
+   500 into a one-line answer.
+
+**The rule.** A refusal that chose its own 4xx keeps it, with a stable fallback
+code if the thrower did not name itself. A configuration absence answers 503 by
+shape. The code is logged either way, because an operator who cannot see why a
+production request failed will guess, and guessing is how the previous one
+stayed broken.
+
+**What would reverse it.** Nothing about the shape rule. If a validator ever
+needs a 4xx that must NOT reach the client verbatim, it gets an explicit
+mapping, not a return to the flatten-everything default.
+
+## `the-browser-cannot-reach-production-but-the-product-can-still-be-tested` — 2026-08-26, main loop
+
+**What was tried.** Driving the deployed studio with Playwright pointed at
+`https://vyakti-replica-lab.vercel.app`.
+
+**What broke.** Every navigation returned `ERR_CONNECTION_RESET`. The container
+routes outbound HTTPS through an agent proxy; `curl` and node's `fetch` work,
+and the browser reaches the proxy (a plain-HTTP request is logged by it), but
+the browser's HTTPS CONNECT is reset and never appears in the proxy log.
+Passing the proxy explicitly, `--no-sandbox`, and `ignoreHTTPSErrors` all
+failed. Time was spent here; do not spend it again.
+
+**What worked instead, and it is better than it sounds.** A loopback bridge:
+node `fetch` pulls the REAL production bytes and serves them on 127.0.0.1,
+relaying `/api/*` back to production. The browser can reach loopback. That
+gives real rendering of the real deployed bundle, real API responses, a real
+signed-in user, at a real mobile viewport. It found four product defects in
+two runs, including the four-layer preview bug.
+
+**What it CANNOT test, stated rather than implied:** anything depending on the
+production ORIGIN itself — cookie domains, the real CSP (the bridge strips it,
+because the production CSP is written for the production host), CDN edge rules.
+Those are untested, not assumed working.
+
+**What would reverse it.** An egress policy that lets the browser CONNECT.
+Then point the harness at the real URL and delete the bridge.

@@ -5,12 +5,13 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
-Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
-Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
-Last updated: 2026-08-26 (WS-AC: the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked)
-Last updated: 2026-08-26 (WS-AD: media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it)
-Last updated: 2026-08-26 (WS-AF: the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing)
+Last updated: 2026-08-26 19:15Z, after the first end-to-end test driven through
+the REAL deployed frontend in a real mobile browser. Six stacked "Last updated"
+lines used to sit here: the merge helper unions append-only files, and a header
+is not append-only. If you see two of these again, collapse them.
+
+**Other agents:** `AGENTS.md` at the repo root is the tool-neutral entry point
+and points back here. `CLAUDE.md` carries the same rules for Claude Code.
 
 ## What the product is
 
@@ -44,12 +45,86 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 
 | thing | state |
 |---|---|
-| Neon Postgres | migrations 015–056 applied and verified live (113 tables). `verify-release` runs **13** checks when `NEON_URL` is set — the two relational DB gates that had never actually run — and 11 with a printed skip when it is absent |
+| Neon Postgres | migrations 015–062 applied and verified live (**125 tables**, checked 19:00Z). `verify-release` runs **13** checks when `NEON_URL` is set — the two relational DB gates that had never actually run — and 11 with a printed skip when it is absent |
 | Supabase (new project, separate from Meera's) | auth working; `vyakti-replica-private` bucket created |
 | Auth | Google OAuth live; email OTP live (6-digit); built-in mailer capped ~2/hr until SMTP |
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
+
+## WHERE THE PRODUCT ACTUALLY STANDS (2026-08-26 19:15Z, measured)
+
+The single most useful section for a new agent: this was established by driving
+the REAL deployed frontend in a real mobile browser against the REAL backend,
+not by reading code. The harness lives in the session scratchpad, and the
+technique is reusable and worth rebuilding if it is gone:
+**the container's egress policy resets the browser's HTTPS, so a loopback
+bridge serves production bytes fetched with node and relays `/api/*` back to
+production.** Real rendering, real API, real signed-in user.
+
+**Journey score: 12 of 15 steps pass.** Passing: landing, no horizontal
+overflow at 390pt, real signed-in session, studio renders, primary action above
+the fold (632px), create workspace, the three-step wizard visible, reaching the
+Meet step, no blame text, every disabled control carries a reason, the activity
+surface answers 200, the Mirror Call contract answers 200. Failing: three
+symptoms of ONE cause, the audio-protection service being undeployed.
+
+### The owner's real 32.9 MB upload, live pipeline position
+
+| step | state | note |
+|---|---|---|
+| integrity | complete | byte verification passed |
+| malware_scan | complete | the deployed scanner works |
+| media_probe | complete | measured 822 720 ms (13.7 min), mp3, 2ch, 48 kHz |
+| diarize | **failed** `audio_duration_invalid` | the file is 822 s; `VOICE_EVIDENCE_MAX_DURATION_SECONDS` defaults to 600 s (hard ceiling 1200 s) |
+
+Two facts a new agent must not re-derive:
+- **`vy_replica_source.duration_ms` is NULL** even though `media_probe` wrote
+  the duration into `vy_replica_processing_evidence`. Nothing propagates it to
+  the row later steps read. A trap for the next file.
+- **Raising the cap is an unblock, not a fix.** A 30-minute lecture is squarely
+  the product's use case and would still fail. The decided fix is
+  `best-window-not-first-window`: never send a whole recording to the embedder,
+  send the best-scoring ~10 s windows. WS-U measured window choice moving
+  fidelity more than fine-tuning does (0.7433-0.8058 spread versus a 0.0206
+  fine-tune delta), so windowing is both correct and higher quality.
+
+### "Preview my voice" was broken in FOUR stacked layers
+
+Each hid the next; all four are worth knowing because the pattern recurs.
+1. The panel sends no `style`; the validator refused an ABSENT style with the
+   same 400 as a typo, so every preview from the default path failed.
+2. The route flattened that named 400 into an opaque 500 **and logged nothing**,
+   which is why nobody could see layer 1.
+3. The route only mapped errors carrying a `code`; sixteen validators in `api/`
+   throw a bare `{status:400}`. Fixed as a class, not an instance.
+4. **Root: the audio-protection service was never deployed.** Every clip must
+   carry the spoken disclosure and the PerTh watermark before delivery, so NO
+   replica audio can leave for anyone. `AZURE_AUDIO_PROTECTION_ORIGIN` and
+   `AZURE_AUDIO_PROTECTION_HMAC_SECRET` are unset on Vercel.
+   **Never stub or bypass this to get a green screen.**
+
+The lesson, now encoded: a refusal that chose its own 4xx keeps it, a
+configuration absence answers 503 BY SHAPE rather than by a list of names, and
+the code is always logged. One line of logging turned an unfindable crash into
+a one-line answer from production.
+
+### YouTube: measured to the end, and it needs a credential
+
+- Audio extraction from a datacenter IP is **blocked** and every free lever is
+  exhausted (all ten yt-dlp player clients; the PO-token provider moved the
+  metadata check 5/6 versus 1/6 but yielded 0/12 audio bytes and the benefit
+  vanished after ~40 requests).
+- The transcript half does NOT rescue it. The sanctioned Data API answers a
+  datacenter IP normally, but `captions.download` returns only manually
+  uploaded tracks, which lecture channels do not have. Every auto-caption route
+  goes through the same blocked player surface. There is no free transcript
+  route hiding behind the audio problem.
+- Recommendation on the table for the owner, **not purchased**: IPRoyal
+  residential pay-as-you-go, about $0.077 per 15-minute lecture, $7 minimum,
+  traffic does not expire. Switching it on is one env var
+  (`MEDIA_EXTRACT_ROUTE=proxy` plus the URL); absent credentials refuse by name
+  rather than falling back silently.
 
 ## The three ingestion/voice pipelines — status after the first real clone (2026-08-26)
 

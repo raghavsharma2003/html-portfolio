@@ -2804,6 +2804,18 @@
       "kind": "open",
       "at": "2026-08-26",
       "title": "the recommended residential proxy needs the owner to buy a credential; until then MEDIA_EXTRACT_ROUTE resolves to direct, which is measured blocked"
+    },
+    {
+      "id": "a-coded-catch-hides-an-uncoded-throw",
+      "kind": "rejection",
+      "title": "mapping errors by code turns every uncoded 4xx into a 500; match shape and always log",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-browser-cannot-reach-production-but-the-product-can-still-be-tested",
+      "kind": "rejection",
+      "title": "egress resets the browser's HTTPS; a loopback bridge serving production bytes tests the real frontend",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5456,6 +5468,16 @@
       "src": "extraction-success-from-datacenter-egress-unmeasured",
       "rel": "measured_by",
       "dst": "po-token-helps-until-the-ip-is-burned"
+    },
+    {
+      "src": "a-coded-catch-hides-an-uncoded-throw",
+      "rel": "constrains",
+      "dst": "plausible-return-hides-a-dead-pipeline"
+    },
+    {
+      "src": "the-browser-cannot-reach-production-but-the-product-can-still-be-tested",
+      "rel": "constrains",
+      "dst": "offline-mocks-cannot-type-check-sql"
     }
   ]
 }
