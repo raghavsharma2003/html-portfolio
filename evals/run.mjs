@@ -125,6 +125,36 @@ const suites = {
   // is what makes that possible), so this suite stays offline, deterministic,
   // $0 and DB-free like everything else here.
   ingest: "ingest.mjs",
+  // WS-I (Gurukul stays-current loop). The re-ingestion worker end to end:
+  // a new video on a watched channel becomes a PROPOSED delta on a
+  // `vy_ingest_run` row, and stops there.
+  //
+  // Four of its assertions are the ones worth naming, because each would go
+  // quiet under an ordinary-looking simplification:
+  //
+  //  - THE NEVER-SILENT-UPDATE NEGATIVE CONTROL. SPEC-GURUKUL.md §8 item 3
+  //    is "never silent self-update of a live persona", and the suite writes
+  //    the violating code itself: the approval op's UPDATE with the approver
+  //    and the decision time struck out. The fake db enforces migration 053's
+  //    `vy_ingest_run_approval_gate` exactly as Postgres does, so the twin is
+  //    REFUSED. A fake that ignored the constraint would report an approval
+  //    the database would have rejected.
+  //  - THE SHEET IS NEVER NAMED. Not written, not READ. Asserted over every
+  //    SQL string the sweep issued, because a worker that reads the published
+  //    sheet to "compare" is one edit away from a worker that writes it, and
+  //    that diff looks like a query which was already there.
+  //  - IDEMPOTENCE THROUGH THE INDEX, NOT ONLY THE CURSOR. The suite resets
+  //    `last_seen_video_id` by hand and sweeps again: the unique index on
+  //    (replica_id, video_ref) must swallow every re-open. Reaching that
+  //    point in production means an ASR bill would otherwise be paid twice,
+  //    so a cursor-only check is a check of the cheap half.
+  //  - A REVOKED WATCH PRODUCES ZERO CALLS. Counted, not filtered — the only
+  //    honest way to assert an absence, and a revoked watch is a teacher who
+  //    withdrew permission for their channel to be read.
+  //
+  // Offline, deterministic, $0, no DB and no network: the real worker driven
+  // through a fake `db` and the fixture channel/ASR providers.
+  channel: "channel.mjs",
   // WS-D (Gurukul student surface). The mastery fold: thresholds, no
   // decay-by-absence, order-independence/monotonicity, and XP strictly from
   // graded outcomes — the properties `src/engine/practice/mastery.ts`'s
