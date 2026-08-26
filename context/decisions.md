@@ -3487,3 +3487,44 @@ Widening a DELETE's blast radius is exactly what
 `offline-mocks-cannot-type-check-sql` forbids without a live verification,
 and a half-done forget is the worst possible half — it is the first thing
 the next keyed session should do.
+
+## `session-2026-08-26-close` — the gurukul session, logged before compaction
+
+**What this session did:** founded the Vyakti/Gurukul product on
+`claude/gurukul-platform` (PR #5) as the verified union of the RelationalOS
+companion line and the voice-cloning Replica Lab, then ran eleven build
+workstreams (WS-A/B/C/D/E/F/G/I/J/L/M/N/O/P/Q) plus a three-sweep research
+fleet, and took the platform LIVE for the first time.
+
+**Live and verified (each by a real call, not a claim):** Neon with migrations
+015-056 applied (113 tables); the new Supabase project with Google OAuth +
+6-digit email OTP both proven end to end; the teacher studio at
+`vyakti-replica-lab.vercel.app`; replica create/list and the memory recall
+path both returning 200 against the real database; the in-house Chatterbox
+voice stack on Azure GPU (scale-to-zero, RTF 0.79 warm, ~$0.35 spent).
+
+**The measured headline:** 89.2% of recall was being lost when a person moved
+between surfaces — `api/_surface.js` stated the law and retrieval violated it.
+Closed to a named 13.5% residual.
+
+**The defect classes this session taught the project** (all in rejected.md):
+`offline-mocks-cannot-type-check-sql` (a mocked DB proves control flow, never
+types — it hid two live-only defects), `aliveness-was-unreachable-not-meera-
+bound` (both ends of a seam complete, nothing passing the argument: grep for a
+CALLER not a definition), `readiness-probe-only-is-fatal`,
+`gpu-usages-api-says-nothing-about-serverless`, `month-prefix-parse`.
+
+**The honest gap, stated plainly:** every ingestion and voice pipeline is
+built, gated and deployed, and NONE has processed a real human yet. See
+STATE.md's pipeline table. The first consented teacher ingest is the highest-
+value next action in the whole project; it needs the Sarvam key in Vercel env,
+a consented upload (not YouTube — that lane is lawfully blocked), and one
+voice-evidence round trip.
+
+**Open, owner:** SMTP app password; rotate everything pasted into this
+transcript (Neon, Supabase keys + management token, Azure SP, Google OAuth);
+`CLONE_WIDGET_SESSION_SECRET`; channel secret backend decision.
+**Open, engineering:** `legacy-forget-is-device-scoped` (a whole wipe on one
+surface leaves another's legacy rows — needs a live-verified widened DELETE,
+first thing next session), WS-R's four defects (in flight), the voice quality
+bench, and `vy_channel_watch` having no writer.

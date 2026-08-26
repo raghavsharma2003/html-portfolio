@@ -41,6 +41,21 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
 
+## The three ingestion/voice pipelines — verified status (2026-08-26)
+
+Asked directly by the owner; each answer verified in code, not asserted.
+
+| pipeline | status | the exact blocker |
+|---|---|---|
+| **Voice learning / cloning** | **NOT working end to end** | The Azure stack IS live and synthesises (RTF 0.79 warm). But no real voice has ever been cloned: the only smoke test used a synthetic buzz tone. `voice-evidence` (speaker embeddings) boots healthy with **no round trip ever run**. No fine-tune has run. Quality is entirely unmeasured. |
+| **YouTube channel ingest** | **NOT working** | Two independent blocks. (1) `api/_channel/providers/youtube-oauth.js`'s `fetchAudio` is an honest REFUSAL — the YouTube Data API has no download endpoint and `captions.download` refuses even for the owner. (2) Nothing in `api/` ever INSERTs into `vy_channel_watch`, so the loop cannot be started even if audio could be fetched (found by WS-M's sweep). |
+| **Video/audio file upload** | **partially** — upload + storage + quarantine work; the LEARNING half does not | Providers exist (`native-media`, `azure-fast-transcription`, `azure-voice-evidence`) and the studio can take a file. But no processing round trip has run end to end, and the ASR lane needs `SARVAM_API_KEY` set in Vercel (the key exists; it is not wired into the deployed env yet). |
+
+**The honest summary:** every pipeline is BUILT and GATED and none has processed a
+real human yet. The first real teacher ingest is the single most valuable next
+action, and it needs: the Sarvam key in Vercel env, a consented audio/video file
+(direct upload, not YouTube), and one `voice-evidence` round trip.
+
 ## What is NOT live
 
 - **Voice QUALITY**: the stack is LIVE (see the table above) but no consented

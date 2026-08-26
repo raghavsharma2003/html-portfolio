@@ -2072,6 +2072,12 @@
       "kind": "measurement",
       "title": "migration 056 live; recall path 200 against real DB; 89.2% cross-surface loss closed to 13.5%",
       "at": "2026-08-26"
+    },
+    {
+      "id": "session-2026-08-26-close",
+      "kind": "decision",
+      "title": "gurukul session close: platform live, 11 workstreams, no pipeline has processed a real human yet",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3849,6 +3855,16 @@
       "src": "ws-o-live-verified",
       "rel": "part_of",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "session-2026-08-26-close",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "session-2026-08-26-close",
+      "rel": "caused_by",
+      "dst": "platform-north-star"
     }
   ]
 }
