@@ -4082,3 +4082,109 @@ exports) feeding the Person Model. That lane is now on the build list.
 **What would reverse this.** Only the owner narrowing it. Evidence that the
 horizontal surface dilutes the vertical's quality would trigger a sequencing
 conversation with the owner, not a silent narrowing.
+
+## `mirror-call-approval-is-one-sql-clause` — the never-silent-update law is a predicate, not a policy (2026-08-26, WS-X)
+
+The Mirror Call edits the persona of a real, named, living person while that
+person is on the phone with it. SPEC-GURUKUL §8 item 3 forbids a silent
+self-update of a live persona, and `MIRROR-CALL-SPEC.md` resolves the tension by
+making approval AMBIENT rather than absent: every learned delta is a chip the
+owner taps.
+
+**What is decided.** "The owner tapped it" is enforced as ONE SQL CLAUSE in ONE
+statement, and nothing else in `api/` can write a mined value onto a
+TeacherSheet. `api/_mirrorcall-store.js::decideMirrorDelta` is that statement.
+Its sheet write is gated on `candidate ... where d.state in
+('proposed','deferred')` and `writable ... where target_field <> '' and $5 =
+'accepted'`, and — this is the half that is easy to get backwards — the sheet
+write is UPSTREAM of the state flip. So a decision whose sheet write did not
+land leaves the delta still un-actioned rather than "accepted but silently
+unapplied". A tap that did nothing must not look like a tap that worked.
+
+Three further copies of the same law exist on purpose, the
+`api/_teachersheet.js` three-gates argument transferred: `applied_at is null or
+state = 'accepted'` as a CHECK (a row that touched the sheet without a tap
+cannot exist); `origin <> 'judgement' or target_field = ''` as a CHECK (the
+owner's approval of their own clone can never itself edit the clone); and the
+JS `fragmentRejection` guard at the merge.
+
+`evals/mirrorcall.mjs` §5 strikes the clause out of the shipping string and
+FAILS unless the struck copy lets an already-REJECTED chip land on the sheet,
+with a positive control beside it — because "nothing was written" is also true
+of a pipeline that never writes at all.
+
+*Reverses if* a reviewed, benched path for applying a delta without a tap is
+ever wanted (it is not today), or if the sheet write moves out of this statement
+— at which point the strike test is measuring a clause nothing depends on and
+must move with it.
+
+## `mirror-call-writes-only-the-phrase-bank` — a statistical pass may not write prose into a prompt (2026-08-26, WS-X)
+
+`transcriptStats` measures six things. Only two TeacherSheet fields are lists of
+measured fragments (`boardVerbalisms`, `exSlangRepeat`); every other ING field
+the mine touches — `voiceFillers`, `voiceLaughter`, `voiceStretch`,
+`voiceLanguageBalance` — is a STRING, a register bullet written as prose that
+lands in a compiled prompt and is said aloud by a clone of a named person.
+
+**What is decided.** A Mirror Call delta may write ONLY the two phrase-bank
+fields. Every other mined signal is an ADVISORY chip: it carries the number, it
+is accept/rejectable so the owner's judgement is recorded, and accepting it
+writes no sheet field. `target_field = ''` is that fact and migration 058's
+`check (target_field in ('','boardVerbalisms','exSlangRepeat'))` makes it
+structural.
+
+This is `recited-prompt` applied one layer out. `sheetDraft.ts` already refuses
+to write those fields and names the refusal `measured-needs-canonical-bullet` —
+"the measurement is in `measurements`; the sentence is not this module's to
+write". A Mirror Call rendering a measured filler ratio into a prose bullet
+mid-call, on a tap, under time pressure, with no editor, is the same defect with
+worse conditions.
+
+*Reverses if* a canonical-bullet renderer lands with a human confirming the
+SENTENCE (not the number) — then the advisory kinds get target fields.
+
+## `mirror-call-takes-a-source-handle-not-multipart` — window audio never touches the function (2026-08-26, WS-X)
+
+WS-Y's client contract (`src/studio/mirrorCallApi.ts`) posts window audio as
+multipart and names the alternative: "the `enrollmentApi` pattern", a signed
+upload handle. **This backend takes the handle**, and `ingest_window` answers a
+multipart request 415 with the JSON shape named in the body rather than failing
+in a way that reads as a bad window.
+
+Three reasons, in order of weight:
+
+1. **A second path into the private biometric bucket would exist.**
+   `api/_replica-storage.js` is the one place that may know how that bucket is
+   addressed, and `/api/replica-source` is the one consented lane into it —
+   capture and storage scopes checked in SQL, stored object size and mime
+   verified, and the row inside `docs/REPLICA-ERASURE.md`'s chain. Multipart
+   would need all of that re-implemented next to a serverless body parser.
+2. **The body limit is a ceiling nobody re-checks.** A 30 s window of 24 kHz
+   mono PCM16 is ~1.4 MB, which fits today and stops fitting the moment anyone
+   raises the sample rate or sends anything but PCM16.
+3. **An ASR retry re-reads the same object** instead of asking the owner to
+   speak again.
+
+The deviation is DECLARED on the handshake (`transport` on
+`GET ?op=contract`), not discovered mid-call. Client cost: two functions.
+
+*Reverses if* the source lane ever gains a per-upload cost or latency that a
+per-window rate makes prohibitive — three round trips per window is the price
+being paid here, and nobody has measured it against a live call yet.
+
+## `mirror-call-turn-voice-is-declared-unserved` — an optional op refused loudly beats an op that answers silence (2026-08-26, WS-X)
+
+The clone's REPLY — engine text, then synthesis through the admission broker —
+is not built in WS-X. `GET ?op=contract` therefore lists `turn_voice` under
+`unserved_ops` with a reason, the op answers **501** (not 404: the route exists
+and this op does not, and an operator reading a log needs those apart), and
+every window result returns `turn: null` with `turn_absent_reason`.
+
+WS-Y's contract already makes `turn_voice` optional so that "the call runs with
+captions only and says so" is a supported state. Advertising the op and
+returning silence would be the fake-progress-bar failure with a speaker
+attached, and it is the exact shape `plausible-return-hides-a-dead-pipeline`
+names.
+
+*Reverses when* the reply lane lands: the op moves from `MIRROR_CALL_UNSERVED_OPS`
+to `MIRROR_CALL_OPS` in `api/_mirrorcall-wire.js` and nothing else changes.

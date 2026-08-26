@@ -34,6 +34,13 @@ export const STRICT_SURFACE = [
   /^api\/_channel\//,
   /^api\/channel-ingest-sweep\.js$/,
   /^api\/_fidelity\.js$/,
+  // WS-X, the Mirror Call. On the strict list from its first commit rather
+  // than after its first live 500: it is the newest surface in the repo, its
+  // decide statement is a nine-CTE write against a real person's clone, and
+  // `offline-mocks-cannot-type-check-sql` says a mock proves control flow and
+  // not types. Nothing here has ever run against a database.
+  /^api\/_mirrorcall[^/]*\.js$/,
+  /^api\/mirror-call\.js$/,
 ];
 
 export function isStrict(rel) {
