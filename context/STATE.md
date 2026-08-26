@@ -159,8 +159,9 @@ service response, not a claim.
   and `surface-switch-recall` says so in its own entry.
 - **Memory is never keyed by surface** (`api/_surface.js` §4). Retrieval
   violated this until 2026-08-26 and lost 89.2% of recall on a surface switch;
-  the legacy FORGET lane still violates it (`legacy-forget-is-device-scoped`,
-  open).
+  the legacy FORGET lane violated it until later the same day
+  (`forget-follows-the-person` closed `legacy-forget-is-device-scoped`; live
+  eval `evals/forget/crosssurface.mjs --live`, 39/39 with negative controls).
 - A mock branch keyed on a TABLE NAME will one day answer a different query
   than it was written for, and a mock that OVER-RETURNS hides real defects while
   every assertion stays green

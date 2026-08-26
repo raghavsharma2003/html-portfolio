@@ -3754,3 +3754,50 @@ known from a population, a per-run self-control becomes a redundant second
 measurement of something already established — and until that bench exists, an
 absolute threshold is exactly the dogma-with-a-decimal-point the module warns
 about.
+
+## `forget-follows-the-person` — the legacy forget lane widened from the device to the person (2026-08-26, main loop)
+
+**The decision.** `opForget` resolves the person's whole device set once
+(`personDeviceSet`, capped at 64, built from `vy_person_device`) and every
+legacy-lane statement it owns takes `device_id = any($n)` over that set — the
+node/edge/log deletes, the suppression list, telemetry, diag, the synced blob,
+events, the turn trace, the photo sweeps, and the manifest wipe loop
+(`wipeWhereSql` grew an opt-in `deviceSet` flag; `export.js` keeps the narrow
+default). This closes `legacy-forget-is-device-scoped`: a whole wipe asked for
+on the web now takes the Telegram rows too.
+
+**Why this shape.**
+- *Resolved once, threaded down* — a set re-read between two statements can
+  tear, and a torn forget strands edges whose nodes are already gone.
+- *Fails closed and narrow* — if the mapping read throws, the set degrades to
+  `[device]` (today's behaviour). For a forget the safe failure is deleting
+  LESS than asked and hedging the receipt, never more.
+- *Rooms are unreachable by construction* — the set is built from
+  `vy_person_device` and a room's synthetic device is in nobody's mapping, so
+  a personal wipe structurally cannot take a room's shared history.
+- *The suppression list is written per device, on every device* — a term
+  suppressed only where it was asked would be re-derived on the other surface
+  from that surface's own turns, and the forget would come undone by the back
+  door.
+
+**Verified live, not assumed** (`evals/forget/crosssurface.mjs`): the offline
+arm is a structural gate in `evals/run.mjs` (`forgetxs`) proving no predicate
+narrows back to `= $1`; the `--live` arm seeded two surfaces of one synthetic
+person plus two negative controls against the real database, wiped through the
+real handler, and got: both surfaces empty, another person's rows SURVIVE, a
+group room's rows SURVIVE, the identity mapping gone. 39/39.
+
+**What the live smoke test caught that review could not** — and why the rule
+"smoke-test a widened DELETE against the real database first" was the right
+paranoia: five legacy tables (`meera_tel`, `meera_tel_session`, `meera_diag`,
+`meera_turn`, `meera_turn_leg`) carry a TEXT `device_id`, not uuid, so the
+uniform `any($1::uuid[])` cast was 42883 on exactly those five and nowhere
+else. And the recount statement briefly carried `$1::text[]` and `$1::uuid[]`
+in one statement — the exact one-type-per-parameter law WS-M documented,
+recommitted within a day. Every one of the 32 widened statement shapes now
+EXPLAINs clean against the live catalog.
+
+**What would reverse this.** A person-merge feature (two humans' devices mapped
+to one person) would make this wipe over-broad by design and the set would need
+a consent boundary; and if `vy_person_device` ever grows rows for room devices,
+property 2 collapses and the eval's room control catches it.

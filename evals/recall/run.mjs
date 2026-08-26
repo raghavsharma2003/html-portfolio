@@ -587,8 +587,12 @@ ok("…and both are reachable by a window too",
     /created_at >= \$2::timestamptz and created_at < \$3::timestamptz/.test(MEMORY_SRC));
 
 // (e) meera_state: purged on a wipe, REWRITTEN on a scope
+// `forget-follows-the-person` (2026-08-26) renamed the argument to the
+// person's device SET. The property asserted here — every scope reaches the
+// synced blob — is unchanged and strictly stronger, so the pattern accepts
+// either spelling rather than pinning a variable name.
 ok("a whole wipe deletes the synced state row",
-  /purgeSyncedState\(device, \{ all: true \}\)/.test(OP_FORGET));
+  /purgeSyncedState\(devices?, \{ all: true \}\)/.test(OP_FORGET));
 // A1 (survey §Q5) widened the term an item forget carries: the referring
 // expression is resolved to nodes at mutation time and their NAMES join the
 // predicate, so the argument is now `rxWide` rather than `rx`. The property
@@ -596,8 +600,8 @@ ok("a whole wipe deletes the synced state row",
 // TERM and not only by window — is unchanged and strictly stronger, so the
 // pattern accepts either spelling rather than pinning one variable name.
 ok("an item forget rewrites it by term",
-  /purgeSyncedState\(device, \{ rx(: rxWide)? \}\)/.test(OP_FORGET));
-ok("a window forget rewrites it by window", /purgeSyncedState\(device, \{ from, to \}\)/.test(OP_FORGET));
+  /purgeSyncedState\(devices?, \{ rx(: rxWide)? \}\)/.test(OP_FORGET));
+ok("a window forget rewrites it by window", /purgeSyncedState\(devices?, \{ from, to \}\)/.test(OP_FORGET));
 ok("the rewrite never leaves a NULL where the client expects an array",
   /coalesce\(\(select jsonb_agg/.test(MEMORY_SRC));
 ok("the window comparison casts epoch ms to a number, not text",

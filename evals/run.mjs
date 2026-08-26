@@ -738,6 +738,15 @@ const suites = {
   // explicit lane, and is deliberately not reachable from here
   // (`dryrun-still-spends`).
   forgethook: "forget/a1.mjs",
+  // WS-FORGET-XS (`legacy-forget-is-device-scoped`, closed 2026-08-26). The
+  // structural half of the cross-surface forget gate: every legacy-lane
+  // device predicate reachable from opForget must be written over the
+  // person's device SET, resolved exactly once, failing closed to the asking
+  // device. The functional half — seed two surfaces, wipe through the real
+  // handler, both empty, another person and a group room SURVIVE — needs a
+  // live database and runs with `--live`; it is deliberately not reachable
+  // from here. Offline, $0, ~1s.
+  forgetxs: "forget/crosssurface.mjs",
   // WS-FELTBATTERY (docs/MEMORY-FELT.md §9). The OFFLINE half of the
   // felt-memory acceptance battery: 14 long-horizon dyads compiled through the
   // REAL engine, the pre-registration hash checked against the committed

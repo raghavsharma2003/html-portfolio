@@ -2459,28 +2459,38 @@ const FORGET_TERMS_CAP = 200;
 // recall, never joined into a prompt, and its only consumer is the filter in
 // opRemember. Scope "all" deletes it too, since a list of things they wanted
 // gone is itself a record of them.
-async function noteForgotten(device, terms, agentId = MEERA_AGENT_ID) {
+async function noteForgotten(devices, terms, agentId = MEERA_AGENT_ID) {
   const clean = [
     ...new Set(terms.map((t) => String(t || "").trim().toLowerCase()).filter((t) => t.length >= 3)),
   ].slice(0, 12);
-  for (const t of clean) {
-    await q(
-      `insert into meera_forget (device_id, term, agent_id)
-       values ($1,$2,${agentValue("$3")})
-       on conflict (agent_id, device_id, lower(term)) do nothing`,
-      [device, t.slice(0, 60), agentId],
-    ).catch(() => {});
+  // The suppression list is written on EVERY device the person owns, not just
+  // the one they asked from. It is what stops the extractor and the M3
+  // consolidator re-deriving what the cascade just took — and a term suppressed
+  // only on the web surface would be re-derived on Telegram from that surface's
+  // own turns, which is the forget coming undone by the back door. The per-row
+  // cap is applied per device below for the same reason it exists at all.
+  for (const device of devices) {
+    for (const t of clean) {
+      await q(
+        `insert into meera_forget (device_id, term, agent_id)
+         values ($1,$2,${agentValue("$3")})
+         on conflict (agent_id, device_id, lower(term)) do nothing`,
+        [device, t.slice(0, 60), agentId],
+      ).catch(() => {});
+    }
   }
   if (!clean.length) return;
-  await q(
-    `delete from meera_forget f where device_id = $1
-       ${agentScopePredicate("f", { agentId: "$2" })}
-       and id not in (
-         select id from meera_forget k where device_id = $1
-           ${agentScopePredicate("k", { agentId: "$2" })}
-         order by at desc limit ${FORGET_TERMS_CAP})`,
-    [device, agentId],
-  ).catch(() => {});
+  for (const device of devices) {
+    await q(
+      `delete from meera_forget f where device_id = $1
+         ${agentScopePredicate("f", { agentId: "$2" })}
+         and id not in (
+           select id from meera_forget k where device_id = $1
+             ${agentScopePredicate("k", { agentId: "$2" })}
+           order by at desc limit ${FORGET_TERMS_CAP})`,
+      [device, agentId],
+    ).catch(() => {});
+  }
 }
 
 // ── the relational store: one manifest, three consumers ────────────────────
@@ -2905,11 +2915,21 @@ const MP_TABLES = new Set([
  *  OR'd together, plus the entry's exclusive-rows restriction if it has one.
  *  Params are $1..$n in `keysOf` order. Forget only — export must not apply
  *  `wipeWhere` (see the manifest header). */
-export function wipeWhereSql(t) {
+export function wipeWhereSql(t, { deviceSet = false } = {}) {
   const cols = keysOf(t)
-    .map((k, i) => `${k} = $${i + 1}`)
+    .map((k, i) => ownerEq(k, `$${i + 1}`, deviceSet))
     .join(" or ");
   return t.wipeWhere ? `(${cols}) and ${t.wipeWhere}` : `(${cols})`;
+}
+
+/** One owning column compared to one param. `deviceSet` is what makes a forget
+ *  reach the whole PERSON rather than the one surface they happened to ask
+ *  from (`personDeviceSet`): the device column takes an id ARRAY and every
+ *  other owning column stays scalar, because only `device_id` is minted per
+ *  surface. Off by default so `export.js` and the evals that share this
+ *  generator emit exactly the SQL they always did. */
+export function ownerEq(col, param, deviceSet = false) {
+  return col === "device_id" && deviceSet ? `${col} = any(${param}::uuid[])` : `${col} = ${param}`;
 }
 
 /** Values for wipeWhereSql's params: device for device-keyed columns, person
@@ -2926,6 +2946,47 @@ export async function personIdFor(device) {
     () => [],
   );
   return r[0]?.person_id || device;
+}
+
+/** Every device the same human owns, this one first.
+ *
+ *  `api/_surface.js` §4: memory is never keyed by surface. `bindSurfaceDmDevice`
+ *  mints a device PER SURFACE, so the legacy graph tables — which key on
+ *  `device_id` — hold one human's memory under several ids. The read path was
+ *  widened to the person in WS-O; the FORGET path was not, and a whole wipe on
+ *  the web left the Telegram rows standing (`legacy-forget-is-device-scoped`).
+ *  This is the resolver both halves needed: opForget resolves the set ONCE and
+ *  every legacy-lane statement takes `device_id = any($n::uuid[])` over it.
+ *
+ *  Three properties this shape has, and each is load-bearing:
+ *
+ *  1. ABSENT BY DEFAULT. A person with one device (and an unmapped device,
+ *     which IS its own person by §2.1) resolves to `[device]`, so every
+ *     statement is byte-identical to what it was before this existed. The
+ *     widening cannot change a single-surface forget in any way.
+ *  2. GROUP ROOMS CANNOT BE REACHED. A room turn is written under
+ *     `vy_group.room_device_id`, a synthetic uuid that (PERSON_TABLES' own
+ *     note) appears in NOBODY's `vy_person_device` mapping. The set is built
+ *     from that mapping, so a room device is not in it and a personal forget
+ *     structurally cannot delete a room's shared history. No predicate is
+ *     re-implemented here to achieve that; the join simply does not contain
+ *     those rows.
+ *  3. FAILS CLOSED, NARROW. If the mapping read throws, the set degrades to
+ *     `[device]` — today's behaviour — rather than widening a DELETE on a
+ *     result nobody could verify. For forget, the safe failure is deleting
+ *     LESS than asked and saying so in the receipt, never more.
+ *
+ *  The cap is a safety rail, not a product limit: a human with more than 64
+ *  bound devices is a bug or an attack, and either way an unbounded id list
+ *  should not be pasted into a delete.
+ */
+export async function personDeviceSet(device) {
+  const person = await personIdFor(device);
+  const rows = await q(
+    `select device_id from vy_person_device where person_id = $1::uuid limit 64`,
+    [person],
+  ).catch(() => []);
+  return [...new Set([device, ...rows.map((r) => r.device_id).filter(Boolean)])];
 }
 
 // ── forget cascade v2 (SPEC §9.1, steps 2–6) ───────────────────────────────
@@ -3098,8 +3159,12 @@ export async function withdrawSharedRows(
   return out;
 }
 
-async function purgeRelational(device, scope, { logIds = [], rx = null, from = NaN, to = NaN } = {}) {
-  const person = await personIdFor(device);
+async function purgeRelational(devices, scope, { logIds = [], rx = null, from = NaN, to = NaN } = {}) {
+  // The relational store is person-keyed (SPEC §2), so most of this function
+  // never saw a device at all. The exceptions are the manifest rows that carry
+  // a `device_id` owning column and the identity mapping itself — both below,
+  // both widened to the person's whole device set.
+  const person = await personIdFor(devices[0]);
   const out = {
     episodes: 0, facts: 0, rel_events: 0, patterns: 0, kin: 0, currency: 0,
     rituals: 0, phrases: 0, embeddings: 0, derivations: 0, sessions: 0,
@@ -3118,15 +3183,22 @@ async function purgeRelational(device, scope, { logIds = [], rx = null, from = N
     for (const t of await activePersonTables()) {
       if (t.lane !== "relational") continue;
       const gone = await q(
-        `delete from ${t.table} where ${wipeWhereSql(t)} returning 1 as x`,
-        wipeParams(t, { device, person }),
+        `delete from ${t.table} where ${wipeWhereSql(t, { deviceSet: true })} returning 1 as x`,
+        wipeParams(t, { device: devices, person }),
         30_000,
       );
       if (gone.length) out[t.table] = gone.length;
     }
     // the mapping and (if no other device shares it) the person row itself:
     // a full wipe that kept the identity row would keep a record of them
-    const m = await q(`delete from vy_person_device where device_id = $1 returning person_id`, [device]);
+    // EVERY mapping row, not just the asking device's. Leaving the others
+    // behind would keep a record of which surfaces this human used, and would
+    // also block the person-row delete below, whose `not exists` guard reads
+    // exactly this table.
+    const m = await q(
+      `delete from vy_person_device where device_id = any($1::uuid[]) returning person_id`,
+      [devices],
+    );
     await q(
       `delete from vy_person p where p.person_id = $1
         and not exists (select 1 from vy_person_device d where d.person_id = p.person_id)`,
@@ -3435,13 +3507,13 @@ async function rebuildRelState(person, agentId = MEERA_AGENT_ID) {
 
 // an orphaned edge is a relation between two things that no longer exist —
 // it survives every node-level delete unless it is chased explicitly
-async function dropEdgesFor(device, ids, agentId = MEERA_AGENT_ID) {
+async function dropEdgesFor(devices, ids, agentId = MEERA_AGENT_ID) {
   if (!ids.length) return 0;
   const gone = await q(
-    `delete from meera_edges e where device_id = $1
+    `delete from meera_edges e where device_id = any($1::uuid[])
       ${agentScopePredicate("e", { agentId: "$3" })}
       and (src = any($2) or dst = any($2)) returning id`,
-    [device, ids, agentId],
+    [devices, ids, agentId],
   ).catch(() => []);
   return gone.length;
 }
@@ -3500,9 +3572,12 @@ async function dropEdgesFor(device, ids, agentId = MEERA_AGENT_ID) {
 // a forget that bricks the app on the next load is not a forget.
 //
 // Not .catch()-swallowed for the same reason nothing else in this cascade is.
-async function purgeSyncedState(device, { rx, from, to, all }) {
+async function purgeSyncedState(devices, { rx, from, to, all }) {
   if (all) {
-    const gone = await q(`delete from meera_state where device_id = $1 returning user_id`, [device]);
+    const gone = await q(
+      `delete from meera_state where device_id = any($1::uuid[]) returning user_id`,
+      [devices],
+    );
     return { rows: gone.length, rewritten: 0 };
   }
   const prune = async (field, whereKept, params) => {
@@ -3512,7 +3587,7 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
                 coalesce((select jsonb_agg(e) from jsonb_array_elements(state->'${field}') e
                            where ${whereKept}), '[]'::jsonb)),
               updated_at = now()
-        where device_id = $1 and jsonb_typeof(state->'${field}') = 'array'
+        where device_id = any($1::uuid[]) and jsonb_typeof(state->'${field}') = 'array'
         returning user_id`,
       params,
     );
@@ -3525,10 +3600,10 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
     rewritten += await prune(
       "messages",
       `not (coalesce(e->>'text','') ~* $2 or coalesce(e->>'desc','') ~* $2)`,
-      [device, rx],
+      [devices, rx],
     );
     // activityEpisodeSummary's own text: "chess, 22 aug, you left it on move 6"
-    rewritten += await prune("activities", `not (coalesce(e->>'summary','') ~* $2)`, [device, rx]);
+    rewritten += await prune("activities", `not (coalesce(e->>'summary','') ~* $2)`, [devices, rx]);
   } else if (Number.isFinite(from) && Number.isFinite(to)) {
     // `at` is epoch ms in AppState (src/engine/memory.ts's Message), and the
     // ->> extraction is text — the cast is what makes the comparison numeric
@@ -3537,12 +3612,12 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
     rewritten += await prune(
       "messages",
       `not (coalesce((e->>'at')::bigint, 0) >= $2::bigint and coalesce((e->>'at')::bigint, 0) < $3::bigint)`,
-      [device, String(Math.floor(from)), String(Math.floor(to))],
+      [devices, String(Math.floor(from)), String(Math.floor(to))],
     );
     rewritten += await prune(
       "activities",
       `not (coalesce((e->>'startedAt')::bigint, 0) >= $2::bigint and coalesce((e->>'startedAt')::bigint, 0) < $3::bigint)`,
-      [device, String(Math.floor(from)), String(Math.floor(to))],
+      [devices, String(Math.floor(from)), String(Math.floor(to))],
     );
   }
   return { rows: 0, rewritten };
@@ -3571,25 +3646,31 @@ async function purgeSyncedState(device, { rx, from, to, all }) {
 // forget matches a WORD, and there are no words in these tables to match. A
 // trace row is deleted when the person is wiped, or when the stretch it timed
 // is wiped. Saying that here beats a branch that silently matches nothing.
-async function purgeTurnTrace(device, { from, to, all }) {
+async function purgeTurnTrace(devices, { from, to, all }) {
   const del = async (sql, params) => (await q(sql, params).catch(() => [])).length;
   if (all) {
     // legs first: the detail table's rows are reachable only through their
     // turn, so taking the spine first would strand them (no FK, house law)
-    const legs = await del(`delete from meera_turn_leg where device_id = $1 returning id`, [device]);
-    const turns = await del(`delete from meera_turn where device_id = $1 returning turn_id`, [device]);
+    const legs = await del(
+      `delete from meera_turn_leg where device_id = any($1::text[]) returning id`,
+      [devices],
+    );
+    const turns = await del(
+      `delete from meera_turn where device_id = any($1::text[]) returning turn_id`,
+      [devices],
+    );
     return legs + turns;
   }
   if (Number.isFinite(from) && Number.isFinite(to)) {
     const a = new Date(from).toISOString();
     const b = new Date(to).toISOString();
     const legs = await del(
-      `delete from meera_turn_leg where device_id = $1 and at >= $2 and at < $3 returning id`,
-      [device, a, b],
+      `delete from meera_turn_leg where device_id = any($1::text[]) and at >= $2 and at < $3 returning id`,
+      [devices, a, b],
     );
     const turns = await del(
-      `delete from meera_turn where device_id = $1 and started_at >= $2 and started_at < $3 returning turn_id`,
-      [device, a, b],
+      `delete from meera_turn where device_id = any($1::text[]) and started_at >= $2 and started_at < $3 returning turn_id`,
+      [devices, a, b],
     );
     return legs + turns;
   }
@@ -3600,31 +3681,32 @@ async function purgeTurnTrace(device, { from, to, all }) {
  *  Its own function rather than a branch inside purgeTelemetry because
  *  meera_events has no session rollup to repair and no `props::text` draft
  *  exception to reason about — it is one table and one predicate. */
-async function purgeEvents(device, { rx, from, to, all }) {
+async function purgeEvents(devices, { rx, from, to, all }) {
   if (all) {
-    const gone = await q(`delete from meera_events where device_id = $1 returning id`, [device]).catch(
-      () => [],
-    );
+    const gone = await q(
+      `delete from meera_events where device_id = any($1::uuid[]) returning id`,
+      [devices],
+    ).catch(() => []);
     return gone.length;
   }
   if (rx) {
     const gone = await q(
-      `delete from meera_events where device_id = $1 and props::text ~* $2 returning id`,
-      [device, rx],
+      `delete from meera_events where device_id = any($1::uuid[]) and props::text ~* $2 returning id`,
+      [devices, rx],
     ).catch(() => []);
     return gone.length;
   }
   if (Number.isFinite(from) && Number.isFinite(to)) {
     const gone = await q(
-      `delete from meera_events where device_id = $1 and at >= $2 and at < $3 returning id`,
-      [device, new Date(from).toISOString(), new Date(to).toISOString()],
+      `delete from meera_events where device_id = any($1::uuid[]) and at >= $2 and at < $3 returning id`,
+      [devices, new Date(from).toISOString(), new Date(to).toISOString()],
     ).catch(() => []);
     return gone.length;
   }
   return 0;
 }
 
-async function purgeTelemetry(device, { rx, from, to, all }) {
+async function purgeTelemetry(devices, { rx, from, to, all }) {
   let gone = [];
   // meera_diag rides every branch of this function on exactly rule 3's terms.
   // It is the call-path audit trail, its `detail` jsonb can carry turn-shaped
@@ -3636,39 +3718,41 @@ async function purgeTelemetry(device, { rx, from, to, all }) {
   const diag = async (where, params) =>
     (await q(`delete from meera_diag where ${where} returning id`, params).catch(() => [])).length;
   if (all) {
-    gone = await q(`delete from meera_tel where device_id = $1 returning id`, [device]);
-    await q(`delete from meera_tel_session where device_id = $1`, [device]).catch(() => {});
-    await diag(`device_id = $1`, [device]);
+    gone = await q(`delete from meera_tel where device_id = any($1::text[]) returning id`, [devices]);
+    await q(`delete from meera_tel_session where device_id = any($1::text[])`, [devices]).catch(
+      () => {},
+    );
+    await diag(`device_id = any($1::text[])`, [devices]);
     return gone.length;
   }
   if (rx) {
-    gone = await q(`delete from meera_tel where device_id = $1 and props::text ~* $2 returning id`, [
-      device,
-      rx,
-    ]);
-    await diag(`device_id = $1 and detail::text ~* $2`, [device, rx]);
+    gone = await q(
+      `delete from meera_tel where device_id = any($1::text[]) and props::text ~* $2 returning id`,
+      [devices, rx],
+    );
+    await diag(`device_id = any($1::text[]) and detail::text ~* $2`, [devices, rx]);
   } else if (Number.isFinite(from) && Number.isFinite(to)) {
     gone = await q(
-      `delete from meera_tel where device_id = $1 and at >= $2 and at < $3 returning id`,
-      [device, new Date(from).toISOString(), new Date(to).toISOString()],
+      `delete from meera_tel where device_id = any($1::text[]) and at >= $2 and at < $3 returning id`,
+      [devices, new Date(from).toISOString(), new Date(to).toISOString()],
     );
-    await diag(`device_id = $1 and at >= $2 and at < $3`, [
-      device,
+    await diag(`device_id = any($1::text[]) and at >= $2 and at < $3`, [
+      devices,
       new Date(from).toISOString(),
       new Date(to).toISOString(),
     ]);
   }
   if (!gone.length) return 0;
   await q(
-    `delete from meera_tel_session s where s.device_id = $1
+    `delete from meera_tel_session s where s.device_id = any($1::text[])
        and not exists (select 1 from meera_tel t where t.session_id = s.session_id)`,
-    [device],
+    [devices],
   ).catch(() => {});
   await q(
     `update meera_tel_session s set events = c.n
-       from (select session_id, count(*)::int n from meera_tel where device_id = $1 group by session_id) c
-      where s.session_id = c.session_id and s.device_id = $1 and s.events <> c.n`,
-    [device],
+       from (select session_id, count(*)::int n from meera_tel where device_id = any($1::text[]) group by session_id) c
+      where s.session_id = c.session_id and s.device_id = any($1::text[]) and s.events <> c.n`,
+    [devices],
   ).catch(() => {});
   return gone.length;
 }
@@ -3854,7 +3938,7 @@ export function parseForgetHook(text, allowedIds) {
 }
 
 /** The candidate rows: what the existing predicate found, then recency. */
-async function forgetCandidates(device, name, rx, agentId = MEERA_AGENT_ID) {
+async function forgetCandidates(devices, name, rx, agentId = MEERA_AGENT_ID) {
   const seen = new Map();
   const add = (rows) => {
     for (const r of rows) {
@@ -3871,19 +3955,19 @@ async function forgetCandidates(device, name, rx, agentId = MEERA_AGENT_ID) {
   add(
     await q(
       `select id, name, summary from meera_nodes n
-        where device_id = $1 and (name = $2 or name ~* $3 or summary ~* $3)
+        where device_id = any($1::uuid[]) and (name = $2 or name ~* $3 or summary ~* $3)
         ${agentScopePredicate("n", { agentId: "$4" })}
         order by updated_at desc limit ${FORGET_HOOK_LEX_CAP}`,
-      [device, name, rx, agentId],
+      [devices, name, rx, agentId],
     ).catch(() => []),
   );
   add(
     await q(
       `select id, name, summary from meera_nodes n
-        where device_id = $1
+        where device_id = any($1::uuid[])
         ${agentScopePredicate("n", { agentId: "$2" })}
         order by updated_at desc limit ${FORGET_HOOK_RECENT}`,
-      [device, agentId],
+      [devices, agentId],
     ).catch(() => []),
   );
   return [...seen.values()];
@@ -4018,9 +4102,26 @@ async function opForget(device, body) {
   // Until room ingestion writes speaker_person_id it is NULL on every row, so
   // the added disjunct matches nothing and behaviour today is unchanged.
   const person = await personIdFor(device);
+  // ── THE DEVICE SET, RESOLVED ONCE (`legacy-forget-is-device-scoped`) ──────
+  //
+  // `bindSurfaceDmDevice` mints a device per surface, and every legacy-lane
+  // table below keys on `device_id`. Until this line, a whole wipe asked for on
+  // the web deleted the web rows and left the same human's Telegram graph
+  // standing — the strongest promise in the product, kept on one surface. The
+  // read path was widened to the person in WS-O; this is the other half.
+  //
+  // Resolved ONCE and threaded down rather than re-read per statement: a set
+  // that changed between the node delete and the edge delete would strand
+  // edges pointing at deleted nodes, and a forget is the one path where a
+  // torn read is unrecoverable — the rows it would have needed are gone.
+  //
+  // For a person with one device this is `[device]` and every statement is
+  // byte-identical to what it was. See `personDeviceSet` for why it cannot
+  // reach a group room and why it fails closed and narrow.
+  const devices = await personDeviceSet(device);
   const LOG = (await activePersonTables()).find((t) => t.table === "meera_log");
-  const logOwner = keysOf(LOG).map((k, i) => `${k} = $${i + 1}`).join(" or ");
-  const logOwnerVals = [...wipeParams(LOG, { device, person }), agentId];
+  const logOwner = keysOf(LOG).map((k, i) => ownerEq(k, `$${i + 1}`, true)).join(" or ");
+  const logOwnerVals = [...wipeParams(LOG, { device: devices, person }), agentId];
   const logAgentP = `$${logOwnerVals.length}`;
   const logP = (n) => `$${logOwnerVals.length + n}`; // 1-based extra params
 
@@ -4045,7 +4146,7 @@ async function opForget(device, body) {
     // `nohook` is the SPOKEN lane opting out (src/engine/memory.ts). It takes
     // the fallback path deliberately rather than being a second, quieter
     // implementation of it — one code path, one receipt vocabulary.
-    const candidates = body.nohook ? [] : await forgetCandidates(device, name, rx, agentId);
+    const candidates = body.nohook ? [] : await forgetCandidates(devices, name, rx, agentId);
     const resolved = body.nohook
       ? { failed: true }
       : await askForgetHook(name, candidates).catch(() => ({ failed: true }));
@@ -4079,34 +4180,34 @@ async function opForget(device, body) {
     // this law, so the hook may only ever ADD to what the lexical predicate
     // already found. A hook that picks nothing degrades exactly to today.
     nodeRows = await q(
-      `delete from meera_nodes n where device_id = $1
+      `delete from meera_nodes n where device_id = any($1::uuid[])
        ${agentScopePredicate("n", { agentId: "$5" })}
        and ((name = $2 or name ~* $3 or summary ~* $3) or id::text = any($4))
        returning id, name`,
-      [device, name, rx, hookIds, agentId],
+      [devices, name, rx, hookIds, agentId],
     );
-    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id), agentId);
+    edges = await dropEdgesFor(devices, nodeRows.map((n) => n.id), agentId);
     logRows = await q(
       `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid
        and content ~* ${logP(1)} returning id`,
       [...logOwnerVals, rxWide],
     );
-    telemetry = await purgeTelemetry(device, { rx: rxWide });
+    telemetry = await purgeTelemetry(devices, { rx: rxWide });
     // P2-1: the same word, in the server's copy of the conversation and in the
     // analytics rows. Before the relational cascade, so that if the cascade
     // throws the receipt is never sent while the blob is still standing.
-    synced = await purgeSyncedState(device, { rx: rxWide });
-    events = await purgeEvents(device, { rx: rxWide });
+    synced = await purgeSyncedState(devices, { rx: rxWide });
+    events = await purgeEvents(devices, { rx: rxWide });
     // the turn trace holds no words, so an item scope has nothing to match on
     // — called anyway, and returning 0, so the receipt's shape is the same on
     // every scope and a future rx-able column cannot land unwired
-    traces = await purgeTurnTrace(device, { rx: rxWide });
+    traces = await purgeTurnTrace(devices, { rx: rxWide });
     // derived state: episodes citing the deleted rows, then everything citing
     // those episodes, lineage chased, snapshot replayed (§9.1 steps 2–6).
     // rxWide, not rx: the cascade is the half of forget that is actually good,
     // and handing it the un-widened term would be resolving the referent and
     // then throwing the answer away one line before the part that uses it.
-    relational = await purgeRelational(device, scope, {
+    relational = await purgeRelational(devices, scope, {
       logIds: logRows.map((r) => r.id),
       rx: rxWide,
     });
@@ -4114,7 +4215,7 @@ async function opForget(device, body) {
     // so deletePhotos() (which needs one) never ran for this scope and the
     // JPEG outlived its own memory. Last, after every row delete has already
     // committed, and unable to fail the forget either way.
-    photos = await deletePhotoObjects(device, relational?.photoNames);
+    photos = await deletePhotoObjects(devices, relational?.photoNames);
   } else if (scope === "session" || scope === "day") {
     const [from, to] = scope === "day" ? dayWindow(body) : [Number(body.from), Number(body.to)];
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return { error: "bad window" };
@@ -4133,35 +4234,35 @@ async function opForget(device, body) {
     // it. Taking too much here is the safe direction; leaving the stretch
     // standing in summary form is not.
     nodeRows = await q(
-      `delete from meera_nodes n where device_id = $1
+      `delete from meera_nodes n where device_id = any($1::uuid[])
        ${agentScopePredicate("n", { agentId: "$4" })}
        and updated_at >= $2 and updated_at < $3
        returning id, name`,
-      [device, a, b, agentId],
+      [devices, a, b, agentId],
     );
-    edges = await dropEdgesFor(device, nodeRows.map((n) => n.id), agentId);
+    edges = await dropEdgesFor(devices, nodeRows.map((n) => n.id), agentId);
     const inWindow = await q(
-      `delete from meera_edges e where device_id = $1
+      `delete from meera_edges e where device_id = any($1::uuid[])
        ${agentScopePredicate("e", { agentId: "$4" })}
        and created_at >= $2 and created_at < $3 returning id`,
-      [device, a, b, agentId],
+      [devices, a, b, agentId],
     ).catch(() => []);
     edges += inWindow.length;
     // The whole window goes, not just the events whose area matches `channel`.
     // "forget that call" is a time window; a chat event sitting inside it is
     // part of the same stretch, and the node delete directly above already
     // takes the window unfiltered for the same reason.
-    telemetry = await purgeTelemetry(device, { from, to });
+    telemetry = await purgeTelemetry(devices, { from, to });
     // P2-1: the same window, pruned out of the synced blob. This is the exact
     // arithmetic src/engine/memory.ts's `messagesAfterForget` runs on the
     // device — the two must agree, or the next sync merges the window back in
     // from whichever side kept it.
-    synced = await purgeSyncedState(device, { from, to });
-    events = await purgeEvents(device, { from, to });
-    traces = await purgeTurnTrace(device, { from, to });
+    synced = await purgeSyncedState(devices, { from, to });
+    events = await purgeEvents(devices, { from, to });
+    traces = await purgeTurnTrace(devices, { from, to });
     // the pictures they sent during that stretch go with it
-    photos = await deletePhotos(device, from, to).catch(() => 0);
-    relational = await purgeRelational(device, scope, {
+    photos = await deletePhotos(devices, from, to).catch(() => 0);
+    relational = await purgeRelational(devices, scope, {
       logIds: logRows.map((r) => r.id),
       from,
       to,
@@ -4174,43 +4275,43 @@ async function opForget(device, body) {
     // window sweep above skips it and it would otherwise survive its own
     // memory. Deduplicated by construction: a second delete of an object the
     // sweep already took returns nothing and adds nothing.
-    photos += await deletePhotoObjects(device, relational?.photoNames);
+    photos += await deletePhotoObjects(devices, relational?.photoNames);
   } else {
     logRows = await q(
       `delete from meera_log where (${logOwner}) and agent_id = (${logAgentP})::uuid returning id`,
       logOwnerVals,
     );
     nodeRows = await q(
-      `delete from meera_nodes n where device_id = $1
+      `delete from meera_nodes n where device_id = any($1::uuid[])
        ${agentScopePredicate("n", { agentId: "$2" })} returning id, name`,
-      [device, agentId],
+      [devices, agentId],
     );
     const e = await q(
-      `delete from meera_edges e where device_id = $1
+      `delete from meera_edges e where device_id = any($1::uuid[])
        ${agentScopePredicate("e", { agentId: "$2" })} returning id`,
-      [device, agentId],
+      [devices, agentId],
     ).catch(
       () => [],
     );
     edges = e.length;
     await q(
-      `delete from meera_forget f where device_id = $1
+      `delete from meera_forget f where device_id = any($1::uuid[])
        ${agentScopePredicate("f", { agentId: "$2" })}`,
-      [device, agentId],
+      [devices, agentId],
     ).catch(() => {});
     // a wipe takes telemetry outright, rollup included — rule 3
-    telemetry = await purgeTelemetry(device, { all: true });
+    telemetry = await purgeTelemetry(devices, { all: true });
     // P2-1: and the whole synced row. This is the one that made "forget
     // everything" a lie for every signed-in user: the graph went, the blob
     // stayed, and the next load_state handed the conversation back.
-    synced = await purgeSyncedState(device, { all: true });
-    events = await purgeEvents(device, { all: true });
-    traces = await purgeTurnTrace(device, { all: true });
+    synced = await purgeSyncedState(devices, { all: true });
+    events = await purgeEvents(devices, { all: true });
+    traces = await purgeTurnTrace(devices, { all: true });
     // a full wipe takes every picture, including any whose filename carries no
     // parseable timestamp — this is the one path that is allowed to be total
-    photos = await deletePhotos(device).catch(() => 0);
+    photos = await deletePhotos(devices).catch(() => 0);
     // the whole relational store, manifest-driven, mapping row included
-    relational = await purgeRelational(device, "all");
+    relational = await purgeRelational(devices, "all");
   }
 
   if (scope !== "all") {
@@ -4220,7 +4321,7 @@ async function opForget(device, body) {
     // phrases and currency topics join the list, so neither the extractor
     // nor the M3 consolidator can re-derive what the cascade just took
     if (relational?.terms?.length) terms.push(...relational.terms);
-    await noteForgotten(device, terms, agentId);
+    await noteForgotten(devices, terms, agentId);
   }
 
   if (relational) delete relational.terms; // suppression list never leaves the server
@@ -4298,7 +4399,16 @@ async function opForget(device, body) {
 // The upload path names each object `${device}/${Date.now()}-rand.jpg`, so the
 // timestamp travels in the filename and a windowed forget can honour its own
 // window instead of falling back to all-or-nothing.
-async function deletePhotos(device, from, to) {
+async function deletePhotos(devices, from, to) {
+  let total = 0;
+  // The bucket prefixes every object with the uploading device's id, so unlike
+  // the SQL above this widening is a loop rather than a predicate. Same law:
+  // a picture sent from one surface is not a different person's picture.
+  for (const device of devices) total += await deletePhotosForDevice(device, from, to);
+  return total;
+}
+
+async function deletePhotosForDevice(device, from, to) {
   const prefix = `${device}/`;
   const paths = [];
   // list is paginated; the upload quota caps a device at 500 objects, so this
@@ -4392,8 +4502,8 @@ export function photoPathsFromFactNames(device, names) {
  *  AFTER every row delete has already succeeded, it swallows its own errors,
  *  and its return value is a count for the receipt, never a condition. The
  *  rows are the promise; the file is the promise kept. */
-async function deletePhotoObjects(device, factNames) {
-  const paths = photoPathsFromFactNames(device, factNames);
+async function deletePhotoObjects(devices, factNames) {
+  const paths = devices.flatMap((d) => photoPathsFromFactNames(d, factNames));
   if (!paths.length) return 0;
   try {
     const n = await deleteStorageObjects(paths);
@@ -4871,6 +4981,10 @@ export default async function handler(req, res) {
     if (op === "forget") return res.status(200).json(await opForget(device, req.body));
     return res.status(400).json({ error: "unknown op" });
   } catch (e) {
+    // the message goes to the server log only — the client gets the same
+    // opaque error it always did, but an operator can now see WHICH statement
+    // a forget died on instead of diagnosing "memory failure" from nothing
+    console.error("[memory] op failed:", e?.message || e);
     return res.status(500).json({ error: "memory failure" });
   }
 }

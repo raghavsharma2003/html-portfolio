@@ -105,10 +105,10 @@ sweep looked outward and this one is ours. `api/_surface.js` states the law
 ("memory is never keyed by surface") and retrieval violated it: **89.2% of
 recall was lost when a person moved from one surface to another**, measured on
 identical rows with `device_id` as the only variable. Closed for the READ path
-by an additive, consent-atomic leg (13.5% residual, named). Still open for the
-FORGET path — `legacy-forget-is-device-scoped` — which needs a live database to
-verify a widened DELETE against and is therefore the first thing a keyed
-session should do.
+by an additive, consent-atomic leg (13.5% residual, named). The FORGET path
+followed on 2026-08-26 (`forget-follows-the-person`): the widened DELETEs were
+EXPLAINed and then run against the live database, which caught five TEXT-keyed
+device columns the uuid cast would have broken. Both halves of §4 now hold.
 
 Later, evidence-gated: hallucination-taxonomy split in the honesty gates,
 sycophancy audit, procedural "what worked with this student" memory,
