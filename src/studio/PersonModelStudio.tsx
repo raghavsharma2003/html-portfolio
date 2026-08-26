@@ -149,14 +149,14 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
     <section id="person-model-studio" className="person-model" aria-labelledby="person-model-title">
       <div className="person-model-head">
         <div>
-          <p className="eyebrow">05 · Person Model</p>
-          <h2 id="person-model-title">Not a persona prompt. A model you can inspect.</h2>
+          <p className="eyebrow">What we learned about you</p>
+          <h2 id="person-model-title">Everything we think we learned about you, one claim at a time</h2>
           <p>
             Confirm identity, language, behavior, values, boundaries, and autobiography as separate evidence-backed claims.
             Conflicts stay visible instead of being averaged into a confident fiction.
           </p>
         </div>
-        <div className="model-version"><strong>{approved ? `v${approved.version}` : "—"}</strong><span>approved version</span></div>
+        <div className="model-version"><strong>{approved ? `v${approved.version}` : "\u2014"}</strong><span>approved version</span></div>
       </div>
 
       {loading ? <div className="runtime-loading" role="status">Loading reviewed claims…</div> : error ? (
@@ -170,8 +170,8 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
           </div>
           <section className="claim-extraction" aria-labelledby="claim-extraction-title">
             <div className="claim-extraction-copy">
-              <p className="eyebrow">Private cited extraction</p>
-              <h3 id="claim-extraction-title">Turn your reviewed voice evidence into claims you control.</h3>
+              <p className="eyebrow">Cited extraction</p>
+              <h3 id="claim-extraction-title">Turn your reviewed recordings into claims you control</h3>
               <p>
                 Only accepted target-speaker transcript spans qualify. Raw transcripts stay server-side, direct identifiers are
                 masked before the model call, and every result remains a proposal until you review it below.

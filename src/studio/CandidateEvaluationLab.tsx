@@ -92,8 +92,8 @@ export default function CandidateEvaluationLab({
     <section className="candidate-eval-lab" aria-labelledby="candidate-eval-title">
       <div className="candidate-eval-head">
         <div>
-          <p className="eyebrow">Blind fidelity lab</p>
-          <h2 id="candidate-eval-title">Teach the model without knowing which model spoke.</h2>
+          <p className="eyebrow">Blind comparison</p>
+          <h2 id="candidate-eval-title">Pick the closer voice, without being told which is which</h2>
           <p>Compare two hidden outputs layer by layer. Their identity stays sealed until the full evaluation is complete.</p>
         </div>
         <div className="candidate-eval-seal" aria-label="Evaluation blinding status">

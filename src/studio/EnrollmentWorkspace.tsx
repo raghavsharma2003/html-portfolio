@@ -407,13 +407,12 @@ export default function EnrollmentWorkspace({
       <div className="section-heading enrollment-heading">
         <div>
           <p className="eyebrow">Controlled enrollment</p>
-          <h2 id="enrollment-title">Permission before evidence</h2>
+          <h2 id="enrollment-title">Permission first, then anything you upload</h2>
         </div>
         <p>Account consent opens private source intake. Biometric modeling, training, inference, and sharing stay locked.</p>
       </div>
 
       <article className={`consent-panel ${consentActive ? "consent-active" : ""}`}>
-        <div className="panel-index">01</div>
         <div className="consent-content">
           <div className="panel-title-row">
             <div>
@@ -482,7 +481,6 @@ export default function EnrollmentWorkspace({
       </article>
 
       <article className={`evidence-panel ${consentActive ? "evidence-open" : "evidence-locked"}`}>
-        <div className="panel-index">02</div>
         <div className="evidence-content">
           <div className="panel-title-row">
             <div>

@@ -1020,6 +1020,27 @@ const suites = {
   // WS-X's backend suite for the same feature, and the two gate different
   // halves of the same wire contract.
   mirrorcallapi: "mirrorcallapi.mjs",
+  // WS-AE. The three-step wizard's state machine, run over its whole input
+  // space (6 912 combinations) rather than over the one path a demo takes.
+  //
+  // It exists because the restructure's real risk is not a wrong layout, it is
+  // a rail of confident green ticks over a runtime that is still refusing to
+  // activate. `PRODUCT-JOURNEY.md` §3.2's rule is the suite's spine: no rail
+  // row may render a status that is not derived from data. BREAK 8 (a literal
+  // "0 / No model trained") and BREAK 11 (a hardcoded class that made a 3-step
+  // checklist structurally unable to reach 3/3) were that defect twice, in two
+  // files, both written by people who knew better.
+  //
+  // Four properties are the ones worth naming: at most ONE ember on the rail
+  // (with a stated negative control, since a per-row implementation lights two
+  // on the normal input); `null` means UNKNOWN and never becomes "you have
+  // none"; a blocker code this build has no copy for is RENDERED rather than
+  // filtered out, which is how the retired QuickStartPath could read clear
+  // while Activate stayed disabled; and no step reports done while it still
+  // lists something missing.
+  //
+  // Offline, deterministic, $0, no DB, no browser, ~2s.
+  studiowizard: "studiowizard.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

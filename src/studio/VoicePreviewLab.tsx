@@ -238,7 +238,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
     <section className="voice-preview-lab" aria-labelledby="voice-preview-title">
       <div className="voice-preview-heading">
         <div>
-          <h2 id="voice-preview-title">Hear the evidence become a voice.</h2>
+          <h2 id="voice-preview-title">Build a draft voice and compare two takes</h2>
           <p>This private draft is for your ears and judgment. It cannot join calls or activate a replica.</p>
         </div>
         <button className="review-refresh" type="button" disabled={loading || generating || pairBusy} onClick={() => void load()}>{loading ? "Checking" : "Refresh draft"}</button>
@@ -247,7 +247,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       <div className="voice-preview-workbench">
         <div className="voice-preview-compose">
           <div className="voice-preview-version">
-            <span>{draft ? `VoiceGenome v${draft.version}` : "Draft required"}</span>
+            <span>{draft ? `Draft voice model, version ${draft.version}` : "Draft required"}</span>
             <small>{draft ? `${draft.embedding_families} identity models bound` : "Review and build your selected voice first"}</small>
           </div>
           <fieldset className="voice-preview-language">
@@ -289,7 +289,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
             <>
               <div className="voice-preview-empty-mark" aria-hidden="true">V</div>
               <h3>{draft ? "The room is ready" : "No draft can speak yet"}</h3>
-              <p>{draft ? "Choose the words and delivery. No audio leaves the protection boundary unmarked." : "Select a processed voice candidate, accept its evidence, and build a draft VoiceGenome."}</p>
+              <p>{draft ? "Choose the words and delivery. No audio leaves the protection boundary unmarked." : "You need a processed recording first. Add one on the Feed step, and we will build a draft voice from it."}</p>
               <div className="voice-preview-proof"><span>Owner-only</span><span>Self-replica</span><span>No runtime access</span></div>
             </>
           )}

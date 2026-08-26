@@ -493,7 +493,7 @@ export default function LivenessCapture({
                     <p className="challenge-failure">Request a new randomized challenge to try again. This provider session has been deleted.</p>
                   ) : (
                     <button className="button secondary-button" type="button" disabled={faceBusy} onClick={() => void pollFaceSession()}>
-                      {faceBusy ? "Checking and deleting session" : "I finished — check result"}
+                      {faceBusy ? "Checking and deleting session" : "I finished, check the result"}
                     </button>
                   )}
                   <small>Pop-ups must be allowed for the Azure-hosted check. Do not share its one-time link.</small>

@@ -2969,3 +2969,401 @@
 .context-result.is-refused .context-result-state { color: var(--danger); }
 .context-result.is-routed { border-left-color: var(--ink-faint); }
 .context-result.is-error { border-left-color: var(--danger); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE THREE-STEP WIZARD (WS-AE)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   `context/decisions.md#three-step-wizard-ia` and `docs/gurukul/DESIGN-LAW.md`.
+   Every value below comes from `design/tokens.css`. An ad-hoc pixel here is the
+   defect this block replaces, and the reason the studio read as ten stacked
+   apps instead of one document.
+
+   Three things in this block are deliberate and would look like mistakes:
+
+   1. NOTHING TRANSITIONS EXCEPT `transform`, `opacity` and colour. Not a
+      convention, a gate: `scripts/check-motion.mjs` blocks layout-property
+      animation and caps a UI transition at 300ms.
+   2. PRESS FEEDBACK IS `:active`, NOT A CLASS TOGGLED ON CLICK. `:active`
+      fires on pointer DOWN, which is what DESIGN-LAW §2 asks for. A React
+      onClick handler is one frame plus a release away and feels dead.
+   3. NOTHING OVERSHOOTS. `--ease-emphasis` is the only curve here with any
+      bounce and it is used on exactly one thing: a rail row ticking to done,
+      which is a state CHANGING. A panel arriving does not bounce, because the
+      owner's hand did not throw it.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* The left column. `--space-*` and a sticky offset that matches the header. */
+  .studio-rail {
+    position: sticky;
+    top: 76px;
+    height: calc(100svh - 76px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-block);
+    border-right: var(--hairline) solid var(--line);
+    padding: var(--space-block) var(--space-item) var(--space-item);
+    overflow-y: auto;
+    /* Translucent chrome with the page moving beneath it, per DESIGN-LAW §2.
+       Reduced-transparency and high-contrast users get the solid version at
+       the foot of this block. */
+    background: rgba(237, 233, 223, 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+
+  /* The nested list keeps its look and loses its own sticky positioning: two
+     sticky boxes in one column fight, and the outer one is the real column. */
+  .studio-rail .replica-rail {
+    position: static;
+    height: auto;
+    border-right: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .wizard-rail { display: grid; gap: var(--space-tight); }
+
+  .wizard-steps {
+    display: grid;
+    gap: var(--space-tight);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-step {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-row);
+    border: var(--hairline) solid transparent;
+    border-radius: var(--radius-sm);
+    padding: var(--space-row);
+    text-align: left;
+    background: transparent;
+    font-family: var(--sans);
+    transition:
+      background-color var(--motion-quick) var(--ease-standard),
+      border-color var(--motion-quick) var(--ease-standard),
+      transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .wizard-step:hover { background: rgba(255, 255, 255, 0.58); }
+  .wizard-step:active { transform: scale(0.985); }
+  .wizard-step:focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
+  .wizard-step.current {
+    border-color: var(--line);
+    background: var(--panel-solid);
+  }
+
+  .wizard-step-number {
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    color: var(--ink-soft);
+    font-family: var(--mono);
+    font-size: var(--text-micro);
+  }
+
+  .wizard-step.current .wizard-step-number {
+    border-color: var(--forest);
+    color: white;
+    background: var(--forest);
+  }
+
+  .wizard-step-copy { min-width: 0; display: grid; gap: var(--space-hair); }
+  .wizard-step-copy strong {
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--text-lead);
+    font-weight: var(--weight-normal);
+    line-height: var(--leading-tight);
+  }
+  .wizard-step-copy small {
+    color: var(--ink-faint);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
+  .wizard-step-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+    margin-top: var(--space-hair);
+    color: var(--ink-soft);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .wizard-step-owed {
+    padding: 2px var(--space-tight);
+    border-radius: var(--radius-pill);
+    color: var(--state-waiting);
+    background: var(--state-waiting-soft);
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: var(--weight-medium);
+  }
+
+  /* Never a bare colour: the word sits beside every one of these dots
+     (DESIGN-SYSTEM §5 rule 2), and this is only the mark. */
+  .wizard-dot {
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+    border-radius: var(--radius-pill);
+    background: var(--ink-faint);
+  }
+  /* The one place `--ease-emphasis` is allowed: a step ticking to done is a
+     state changing, not a thing appearing. */
+  .wizard-dot-done {
+    background: var(--state-done);
+    transition: transform var(--motion-quick) var(--ease-emphasis);
+  }
+  .wizard-dot-waiting { background: var(--state-waiting); }
+  .wizard-dot-running { background: var(--state-running); }
+  .wizard-dot-stopped { background: var(--state-stopped); }
+  .wizard-dot-later { background: var(--ink-faint); opacity: 0.55; }
+
+  /* ── the step body ──────────────────────────────────────────────────── */
+
+  .step-head { margin-bottom: var(--space-block); }
+  .step-head h2 {
+    margin: var(--space-hair) 0 0;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--text-heading);
+    font-weight: var(--weight-normal);
+    /* DESIGN-LAW §2: tracking and leading are size-specific. Display type gets
+       negative tracking and tight leading; body sits near zero and 1.5+. */
+    letter-spacing: -0.015em;
+    line-height: var(--leading-tight);
+  }
+  .step-promise {
+    max-width: var(--measure);
+    margin: var(--space-tight) 0 0;
+    color: var(--ink-soft);
+    font-size: var(--text-lead);
+    letter-spacing: 0;
+    line-height: var(--leading-body);
+  }
+
+  .step-warning {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-block);
+    border: var(--hairline) solid var(--state-waiting);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    color: var(--state-waiting);
+    background: var(--state-waiting-soft);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .wizard-band { margin: 0 0 var(--space-section); }
+
+  .wizard-band-head {
+    max-width: var(--measure);
+    margin-bottom: var(--space-item);
+    padding-bottom: var(--space-row);
+    border-bottom: var(--hairline) solid var(--line);
+  }
+  .wizard-band-head h2 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--text-title);
+    font-weight: var(--weight-normal);
+    letter-spacing: -0.01em;
+    line-height: var(--leading-tight);
+  }
+  .wizard-band-head p {
+    margin: var(--space-tight) 0 0;
+    color: var(--ink-faint);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+  .wizard-band-body { display: grid; gap: var(--space-block); }
+
+  /* ── the inline unlock, the pager and the open-items list ───────────── */
+
+  .voice-unlock {
+    max-width: var(--measure);
+    display: grid;
+    gap: var(--space-tight);
+    border: var(--hairline) solid var(--state-waiting);
+    border-radius: var(--radius);
+    padding: var(--space-item) var(--space-pad);
+    background: var(--state-waiting-soft);
+  }
+  .voice-unlock .eyebrow { color: var(--state-waiting); }
+  .voice-unlock p {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .wizard-blockers {
+    margin: var(--space-section) 0 var(--space-block);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: var(--panel);
+  }
+  .wizard-blockers h3 {
+    margin: 0 0 var(--space-item);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: var(--text-title);
+    font-weight: var(--weight-normal);
+  }
+  .wizard-blockers-columns {
+    display: grid;
+    gap: var(--space-block);
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+  .wizard-blockers-owner {
+    margin: 0 0 var(--space-row);
+    color: var(--ink-faint);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+  .wizard-blockers ul { display: grid; gap: var(--space-row); margin: 0; padding: 0; list-style: none; }
+  .wizard-blockers li {
+    display: grid;
+    gap: var(--space-hair);
+    border-left: 2px solid var(--line-strong);
+    padding-left: var(--space-row);
+  }
+  .wizard-blockers li span { color: var(--ink); font-size: var(--text-body); }
+  .wizard-blockers li small { color: var(--ink-faint); font-size: var(--text-small); line-height: var(--leading-snug); }
+
+  .wizard-pager {
+    position: sticky;
+    bottom: 0;
+    display: grid;
+    gap: var(--space-row);
+    margin-top: var(--space-section);
+    padding: var(--space-item) 0;
+    /* Floating chrome: translucent, with the page moving under it, and a
+       scroll-edge fade rather than a hard divider (DESIGN-LAW §2). */
+    background: linear-gradient(to top, var(--paper) 62%, rgba(244, 241, 233, 0));
+    backdrop-filter: blur(12px);
+  }
+  .wizard-pager-caution {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+  .wizard-pager-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-item);
+  }
+
+  /* ── WS-AD's labelled hole ───────────────────────────────────────────── */
+
+  .video-link-mount {
+    border: var(--hairline) dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-pad);
+    background: var(--paper-deep);
+  }
+  .video-link-body { display: grid; gap: var(--space-tight); max-width: var(--measure); }
+
+  /* WS-AF's slot wears the same dashed border as WS-AD's: a labelled hole is a
+     recognisable object in this product, and two of them should look like the
+     same kind of thing rather than like two half-finished panels. */
+  .processing-status-mount {
+    border: var(--hairline) dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-pad);
+    background: var(--paper-deep);
+  }
+
+  /* ── press feedback everywhere, on pointer down ──────────────────────── */
+
+  .button:active:not(:disabled),
+  .text-button:active:not(:disabled),
+  .replica-tab:active,
+  .new-replica:active {
+    transform: scale(0.97);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  /* 44px is the floor, and the studio shipped 34 to 38px controls
+     (DESIGN-SYSTEM §5 rule 4). Applied here rather than by editing five
+     scattered rules so the floor has one home. */
+  .review-refresh,
+  .artifact-actions button,
+  .review-controls select {
+    min-height: 44px;
+  }
+
+  /* The focus ring was `rgba(23, 73, 59, .28)`, about 1.9:1 on paper and under
+     WCAG 2.2's 3:1 for a focus indicator, on a product whose primary user is
+     filling a long consent form from a keyboard. */
+  .studio-shell :is(button, a, input, select, textarea, summary):focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
+}
+
+@layer responsive {
+  @media (max-width: 900px) {
+    .studio-rail {
+      position: static;
+      height: auto;
+      border-right: 0;
+      border-bottom: var(--hairline) solid var(--line);
+    }
+    .wizard-pager-actions { flex-direction: column-reverse; align-items: stretch; }
+  }
+
+  /* DESIGN-LAW §2: three preferences, honoured at the token and material
+     level rather than re-derived per component. */
+  @media (prefers-reduced-transparency: reduce) {
+    .studio-rail,
+    .wizard-pager {
+      background: var(--paper-deep);
+      backdrop-filter: none;
+    }
+  }
+
+  @media (prefers-contrast: more) {
+    .studio-rail,
+    .wizard-pager { background: var(--paper); backdrop-filter: none; }
+    .wizard-step { border-color: var(--line); }
+    .wizard-dot-later { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* The durations already collapse at the token level in tokens.css. What
+       cannot collapse there is the press SCALE, which is a transform rather
+       than a duration, so it is removed here instead. */
+    .button:active:not(:disabled),
+    .text-button:active:not(:disabled),
+    .replica-tab:active,
+    .new-replica:active,
+    .wizard-step:active { transform: none; }
+  }
+}

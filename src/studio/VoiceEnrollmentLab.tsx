@@ -30,7 +30,7 @@ function words(value: string) {
 
 function statusCopy(profile: VoiceProfile | null) {
   if (!profile) return "No provider voice has been created.";
-  if (profile.status === "ready") return `Ready from approved VoiceGenome v${profile.genome_version}.`;
+  if (profile.status === "ready") return `Ready from approved voice model version ${profile.genome_version}.`;
   if (profile.status === "creating") return "Azure is validating and creating the private voice profile.";
   if (profile.status === "deleting") return "Disabled now. Provider erasure is pending.";
   return "Provider creation failed. Review the gate before retrying.";
@@ -246,7 +246,7 @@ export default function VoiceEnrollmentLab({
     <section id="voice-enrollment-lab" className="voice-enrollment-section" aria-labelledby="voice-enrollment-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Provider voice · Gate 07</p>
+          <p className="eyebrow">Provider voice</p>
           <h2 id="voice-enrollment-title">Create a voice only Microsoft can verify</h2>
         </div>
         <span className={`voice-provider-state ${profile?.status === "ready" ? "ready" : ""}`}>
@@ -255,7 +255,7 @@ export default function VoiceEnrollmentLab({
       </div>
       <p className="voice-enrollment-intro">
         Your platform permissions are not provider consent. Microsoft requires a separate spoken legal statement,
-        then Vyakti binds it to one reviewed VoiceGenome and one private, metered profile.
+        then Vyakti binds it to one reviewed voice model and one private, metered profile.
       </p>
 
       {blockers.length > 0 && (
@@ -268,7 +268,7 @@ export default function VoiceEnrollmentLab({
 
       <div className="voice-enrollment-grid">
         <article className="voice-enrollment-card">
-          <span className="voice-step">01 · Provider statement</span>
+          <span className="voice-step">Provider statement</span>
           <h3>Record exact consent</h3>
           {!challengeLive && providerConsent?.state !== "uploaded" && providerConsent?.state !== "accepted" && (
             <>
@@ -322,13 +322,13 @@ export default function VoiceEnrollmentLab({
         </article>
 
         <article className="voice-enrollment-card">
-          <span className="voice-step">02 · Exact model binding</span>
+          <span className="voice-step">Exact model binding</span>
           <h3>Build the private voice</h3>
           <p>{statusCopy(profile)}</p>
           <div className="voice-binding-list">
             <span><i className={providerConsent?.state === "uploaded" || providerConsent?.state === "accepted" ? "done" : ""} />Provider statement</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />Approved VoiceGenome</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />30–90 sec reviewed WAV</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />Approved voice model</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />30 to 90 seconds of reviewed WAV</span>
             <span><i className={profile?.status === "ready" ? "done" : ""} />Azure spend reservation</span>
           </div>
           {!profile && (

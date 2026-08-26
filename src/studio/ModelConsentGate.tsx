@@ -71,7 +71,7 @@ export default function ModelConsentGate({
   return (
     <section id="model-consent-gate" className="model-consent-section" aria-labelledby="model-consent-title">
       <div className="section-heading">
-        <div><p className="eyebrow">Verified permission · Gate 04</p><h2 id="model-consent-title">Choose what your verified identity may become</h2></div>
+        <div><p className="eyebrow">Permission to build the model</p><h2 id="model-consent-title">This is the consent that lets your clone exist</h2></div>
         <span className={`model-consent-state ${modelReady ? "ready" : ""}`}>{modelReady ? "Granted" : "Locked"}</span>
       </div>
       <p className="voice-enrollment-intro">Uploading memories never grants model rights. This separate ceremony is bound to your passed live identity proof and can be withdrawn at any time.</p>

@@ -24,6 +24,7 @@ import { readTeacherSheetDraft, saveTeacherSheetDraft } from "./teacherSheetApi"
 import { SYLLABUS } from "../engine/practice/syllabus";
 import type { SubjectId } from "../engine/practice/syllabus";
 import type { TeacherSheet, TeacherStrictness, TeacherWarmth } from "../engine/agents/teacherTypes";
+import type { SheetProvenance } from "./sheetSeed";
 
 const SUBJECT_ID: Record<TeacherSheet["subjectDomain"], SubjectId> = {
   physics: "p",
@@ -32,15 +33,15 @@ const SUBJECT_ID: Record<TeacherSheet["subjectDomain"], SubjectId> = {
 };
 
 const STRICTNESS_LABELS: Record<TeacherStrictness, string> = {
-  0: "Never names it — reframes every miss as nearly right",
-  1: "Gentle — softens most corrections",
+  0: "Never names it, reframes every miss as nearly right",
+  1: "Gentle, softens most corrections",
   2: "Direct about the answer, easy about the person",
   3: "Names a wrong step plainly, in the same breath it's met",
-  4: "No cushioning — the sharpest read of a mistake",
+  4: "No cushioning, the sharpest read of a mistake",
 };
 
 const WARMTH_LABELS: Record<TeacherWarmth, string> = {
-  0: "All business — no encouragement beyond the correction itself",
+  0: "All business, no encouragement beyond the correction itself",
   1: "Occasional, and only for a real specific win",
   2: "Steady encouragement, always tied to something they did",
   3: "Warm by default, still specific",
@@ -69,13 +70,20 @@ export default function TeacherSheetStudio({
   token,
   replicaId,
   sheetDraft,
+  sheetProvenance,
   onAuthError,
 }: {
   token: string;
   replicaId: string;
-  /** Storybook-style default so this screen renders fully before WS-F ships:
-   *  pass the demo teacher sheet (`DEMO_TEACHER`) until a real draft exists. */
+  /** The sheet to render. Either a saved draft read back from
+   *  `/api/teacher-sheet`, or a SEED built from this owner's own replica by
+   *  `sheetSeed.ts`. It is never the demo teacher: rendering a fixture's name
+   *  on a real teacher's consent screen is the defect UX-Q-02 names. */
   sheetDraft: TeacherSheet;
+  /** Which of those two the sheet above is. Drives the provenance labels: a
+   *  seed may not be captioned "drafted from your uploads", because nothing was
+   *  drafted and nothing was uploaded (copy audit C17). */
+  sheetProvenance: SheetProvenance;
   onAuthError: (cause: unknown) => void;
 }) {
   const [sheet, setSheet] = useState<TeacherSheet>(sheetDraft);
@@ -145,7 +153,7 @@ export default function TeacherSheetStudio({
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       // Same soft-fail idiom: the draft is never lost, it just isn't synced.
       setServiceUnavailable(true);
-      setNotice("Kept locally — the sheet service isn't connected yet.");
+      setNotice("Not saved to your account. The sheet service did not answer, so this draft is still only in this browser.");
     } finally {
       setSaving(false);
     }
@@ -155,11 +163,11 @@ export default function TeacherSheetStudio({
     <section id="teacher-sheet-studio" className="teacher-sheet-studio" aria-labelledby="teacher-sheet-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Teacher clone · Sheet review</p>
+          <p className="eyebrow">Sheet review</p>
           <h2 id="teacher-sheet-title">Review and confirm how {sheet.name || "this teacher"} teaches</h2>
           <p>
-            Only what a teacher must decide is editable here. Everything drafted from your uploads renders read-only
-            below — confirm or correct it in the claims step once ingestion is connected.
+            Only what you have to decide is editable here. What we drafted from your uploads is read only, and you
+            correct it in the claims step.
           </p>
         </div>
         <button className="text-button" type="button" onClick={() => void load()}>
@@ -167,9 +175,20 @@ export default function TeacherSheetStudio({
         </button>
       </div>
 
+      {/* C16 / UX-Q-06. The old panel announced "kept locally" AFTER the
+          teacher had filled it in. Provenance is announced at panel open
+          instead, because that is when it changes what a person decides to do
+          with the next twenty minutes. */}
+      {sheetProvenance === "seed" && (
+        <p className="field-note" role="status">
+          Nothing is saved for this clone yet. The fields below are blank or set to a middle default, and they carry
+          your name because we will never show you somebody else's. Save when you are ready.
+        </p>
+      )}
+
       {serviceUnavailable && (
         <p className="inline-error" role="status">
-          The teacher-sheet service isn't available yet — this draft is being kept in this screen only.
+          The sheet service did not answer. Anything you type stays in this browser and is not saved to your account.
         </p>
       )}
 
@@ -198,7 +217,7 @@ export default function TeacherSheetStudio({
           />
 
           <p className="field-note">
-            Chapter coverage — check every chapter this clone should teach. A physics teacher's clone answering
+            Check every chapter this clone should teach. A physics teacher's clone answering
             organic chemistry is a misrepresentation of them.
           </p>
           <div className="syllabus-coverage" role="group" aria-label="Chapter coverage">
@@ -225,10 +244,10 @@ export default function TeacherSheetStudio({
         <article className="teacher-sheet-card">
           <h3>Strictness &amp; warmth</h3>
           <p className="field-note">
-            Teacher-confirmed, never inferred alone — an over-read here is a real harm to a 16-year-old
+            You confirm these, we never infer them alone. An over-read here is a real harm to a 16-year-old
             (teacher-sheet-spec.md §3).
           </p>
-          <label className="field-label" htmlFor="strictness">Strictness — how bluntly a wrong answer is named</label>
+          <label className="field-label" htmlFor="strictness">Strictness: how bluntly a wrong answer is named</label>
           <select
             id="strictness"
             className="field"
@@ -236,11 +255,11 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
           >
             {[0, 1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>{value} — {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
+              <option key={value} value={value}>{value}. {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
             ))}
           </select>
 
-          <label className="field-label" htmlFor="warmth">Warmth — encouragement density, independent of strictness</label>
+          <label className="field-label" htmlFor="warmth">Warmth: encouragement density, independent of strictness</label>
           <select
             id="warmth"
             className="field"
@@ -248,7 +267,7 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
           >
             {[0, 1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>{value} — {WARMTH_LABELS[value as TeacherWarmth]}</option>
+              <option key={value} value={value}>{value}. {WARMTH_LABELS[value as TeacherWarmth]}</option>
             ))}
           </select>
         </article>
@@ -256,7 +275,7 @@ export default function TeacherSheetStudio({
         <article className="teacher-sheet-card">
           <h3>Doubt-handling ladder</h3>
           <p className="field-note">
-            The ordered hint rungs given before any full solution — this is the academic-integrity spine. A full
+            The ordered hint rungs given before any full solution. This is the academic integrity spine. A full
             solution is never the first response.
           </p>
           <ol className="ladder-list">
@@ -289,7 +308,7 @@ export default function TeacherSheetStudio({
         <article className="teacher-sheet-card">
           <h3>Boundaries</h3>
           <p className="field-note">
-            <code>identityLife</code> is teacher-authored, never ingested — a teacher's private life is not consented
+            <code>identityLife</code> is yours to write and is never ingested. A teacher's private life is not consented
             training material even when it appears in your own uploaded videos.
           </p>
           <label className="field-label" htmlFor="identity-life">Teaching life, in one breath</label>
@@ -308,17 +327,22 @@ export default function TeacherSheetStudio({
       </div>
 
       <section className="teacher-sheet-ingested" aria-labelledby="ingested-title">
-        <h3 id="ingested-title">Drafted from your uploads</h3>
+        <h3 id="ingested-title">
+          {sheetProvenance === "draft" ? "Drafted from your uploads" : "Nothing drafted yet"}
+        </h3>
         <p className="field-note">
-          Read-only until the ingestion pipeline is connected. Review or correct each one in the claims step —
-          nothing here can be edited from this screen.
+          {sheetProvenance === "draft"
+            ? "Read only here. Review or correct each one in the claims step."
+            : "These fill in once your uploads are processed. Read only here either way, and corrected in the claims step."}
         </p>
         <div className="teacher-sheet-ingested-grid">
           {INGESTED_PREVIEW.map((item) => (
             <div key={String(item.key)} className="teacher-sheet-readonly">
               <span className="claim-meta">{item.label}</span>
               <p>{item.render(sheet)}</p>
-              <small>Drafted from your uploads — review in the claims step</small>
+              <small>
+                {sheetProvenance === "draft" ? "Drafted from your uploads" : "Not learned yet"}
+              </small>
             </div>
           ))}
         </div>

@@ -46,8 +46,25 @@ import IngestChannelStudio from "./IngestChannelStudio";
 import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
 import MirrorCallStudio from "./MirrorCallStudio";
-import QuickStartPath from "./QuickStartPath";
-import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
+import VideoLinkMount from "./VideoLinkMount";
+import ProcessingStatusMount from "./ProcessingStatusMount";
+import { AdvancedArea, StepBlockers, StepPager, WizardRail } from "./WizardRail";
+import {
+  computeWizard,
+  nextStep,
+  previousStep,
+  queryForStep,
+  stepEntryWarning,
+  stepFromQuery,
+  stepTitle,
+  type StepId,
+  type WizardInput,
+} from "./wizardModel";
+import { seedSheetFor, type SheetProvenance } from "./sheetSeed";
+import { readRuntimeStatus } from "./runtimeApi";
+import { listChannels } from "./channelsApi";
+import { readTeacherSheetDraft } from "./teacherSheetApi";
+import type { TeacherSheet } from "../engine/agents/teacherTypes";
 import {
   createSourceUpload,
   deleteSource,
@@ -117,15 +134,19 @@ const GENERIC_COPY: StudioCopy = {
   nameLabel: "Replica name",
   namePlaceholder: "Your name",
   fieldNote: "You may create a replica only of yourself. Verification comes next.",
-  createdNotice: "Private workspace created. Enrollment remains locked until verification services are ready.",
+  // C4 (UX-QUEUE copy audit): the old line spent most of a first success on
+  // what does not work. The truth is unchanged and still stated on the panels
+  // that own each gate; what changes is that the first thing a person reads
+  // after their first action tells them what to do next.
+  createdNotice: "Your workspace is ready. Add one file or link on this step, and you can hear a private draft voice before any verification.",
 };
 
 const TEACHER_COPY: StudioCopy = {
   brandTag: "GURUKUL TEACHER STUDIO",
   introEyebrow: "Verified, consented, disclosed",
-  introTitle: "A teaching clone that begins with your permission — and is disclosed to every student.",
+  introTitle: "A teaching clone that begins with your permission, and is disclosed to every student.",
   introBody:
-    "Build and control a consent-verified teaching clone of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told plainly — before every session — that they are talking to an AI clone, not you.",
+    "Build and control a consent-verified teaching clone of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told before every session that they are talking to an AI clone, not you.",
   workspaceNoun: "Self-teaching-clone",
   firstEyebrow: "Your first teaching clone",
   firstTitle: "Begin with identity, not an upload.",
@@ -134,7 +155,7 @@ const TEACHER_COPY: StudioCopy = {
   nameLabel: "Teacher / clone name",
   namePlaceholder: "Your name, as students will see it",
   fieldNote: "You may create a teaching clone only of yourself. Verification comes next.",
-  createdNotice: "Teaching clone created. Enrollment remains locked until verification services are ready.",
+  createdNotice: "Your teaching clone has a workspace. Add one lecture or link on this step, and you can hear a private draft voice before any verification.",
 };
 
 const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
@@ -162,15 +183,11 @@ function storeErasureRequest(userId: string, requestId: string | null) {
   }
 }
 
-const STAGES = [
-  {
-    id: "multimodal",
-    number: "08",
-    title: "Embodiment laboratory",
-    copy: "Calibrate face, gaze, gesture, timing, and cross-modal identity against the same person model.",
-    availability: "Visual modeling remains disabled",
-  },
-] as const;
+// UX-Q-10. The permanently-locked "08 Embodiment laboratory" stage list used to
+// sit here: a never-shipping visual-modelling teaser inside a teacher's launch
+// path, telling them something was missing that was not missing. Removed rather
+// than relabelled. A roadmap item is not a step, and a step that can never
+// complete is a step that makes the other three look untrustworthy.
 
 function hasSourceConsent(consents: ConsentReceipt[]) {
   const now = Date.now();
@@ -210,24 +227,48 @@ function Spinner({ label }: { label: string }) {
   return <span className="spinner" role="status" aria-label={label} />;
 }
 
-// AdvancedSurface — progressive disclosure for the expert / verification
-// path (WS-P). Teacher mode collapses it behind a native <details> so the
-// default path shows only the quick-start minimum; nothing inside is
-// removed, disabled, or lazily unmounted — it is still full markup, just
-// closed, so screen readers and in-page anchors (QuickStartPath's
-// `jumpTo`) both still reach it. Generic (self-replica) mode renders the
-// same children with no wrapper at all — byte-identical to before this
-// change, per this file's own mode-seam comment.
-function AdvancedSurface({ mode, children }: { mode: StudioMode; children: ReactNode }) {
-  if (mode !== "teacher") return <>{children}</>;
+// The old `AdvancedSurface` lived here: a single `<details>` in teacher mode
+// holding identity, liveness, provider consent, voice training AND launch.
+//
+// It is gone because it collapsed the wrong axis (UX-Q-05 / BREAK 15).
+// Progressive disclosure hides what is OPTIONAL; every one of those five is a
+// mandatory gate that `RuntimeGate` refuses activation without, and filing the
+// mandatory path under "Advanced" teaches a teacher that required steps are
+// optional. What replaces it is `AdvancedArea` in `WizardRail.tsx`, used once
+// per step and only for genuinely elective surfaces (a calibration lab, a blind
+// A/B, a text dialogue lab). The required gates now sit in the open, on the
+// step where they bind.
+
+/**
+ * The band heading that groups panels inside a step.
+ *
+ * A step is not a list of panels, it is two or three moves.
+ *
+ * IT CARRIES NO NUMBER, and that is the interesting part. UX-Q-07 asked for
+ * phase-scoped numbering to kill the `04`/`04` collision between
+ * `ProcessingReview` and `ModelConsentGate`; `docs/gurukul/DESIGN-LAW.md` §1
+ * then banned section-numbering eyebrows outright, and DESIGN-LAW wins where it
+ * disagrees with a prior UI decision. Deleting the numbers kills the collision
+ * more permanently than renumbering it would have: there is no longer a number
+ * for the next workstream to pick 04 again.
+ */
+function Band({
+  title,
+  blurb,
+  children,
+}: {
+  title: string;
+  blurb: string;
+  children: ReactNode;
+}) {
   return (
-    <details className="advanced-disclosure">
-      <summary>
-        <strong>Advanced &amp; verification steps</strong>
-        <span>Identity, liveness, provider consent, voice training, and launch — open this to work through them directly.</span>
-      </summary>
-      <div className="advanced-disclosure-body">{children}</div>
-    </details>
+    <section className="wizard-band">
+      <header className="wizard-band-head">
+        <h2>{title}</h2>
+        <p>{blurb}</p>
+      </header>
+      <div className="wizard-band-body">{children}</div>
+    </section>
   );
 }
 
@@ -299,7 +340,7 @@ function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => vo
         <h2 id="signin-title">{step === "email" ? "Enter your studio" : "Check your inbox"}</h2>
         <p className="card-copy">
           {step === "email"
-            ? "Use the same account as Meera. Your existing session is recognized automatically."
+            ? "Sign in with the email you want to manage this clone from. If you are already signed in on this device, we will recognise you."
             : `We sent a six-digit code to ${email}.`}
         </p>
 
@@ -343,14 +384,6 @@ function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => vo
               onClick={() => void sendCode()}
             >
               {busy ? <><Spinner label="Sending sign-in code" />Sending code</> : "Continue securely"}
-            </button>
-            <button
-              className="button secondary-button"
-              type="button"
-              disabled={!email.includes("@")}
-              onClick={() => { setError(""); setStep("code"); }}
-            >
-              I already have a code
             </button>
           </>
         ) : (
@@ -479,16 +512,55 @@ function ReplicaList({
   );
 }
 
+/**
+ * VoiceUnlockNotice — the inline unlock, where it actually gates.
+ *
+ * Identity and liveness used to be a wall in their own collapsed section, asked
+ * for BEFORE the owner had any evidence we could do the thing. They are now on
+ * the Meet step next to the voice they unlock, and this line is the sentence
+ * that connects the two. It appears only while something is genuinely missing,
+ * and it never claims the preview is blocked, because it is not: the draft
+ * preview is private and works unverified. What is gated is ACTIVATION, and
+ * that is what it says.
+ */
+function VoiceUnlockNotice({ replica }: { replica: Replica }) {
+  const identity = replica.identity_verified;
+  const liveness = replica.liveness_verified;
+  if (identity && liveness) return null;
+  const missing = !identity && !liveness
+    ? "identity and a live challenge"
+    : identity ? "a live challenge" : "identity";
+  return (
+    <aside className="voice-unlock" role="status">
+      <p className="eyebrow">Verify to activate your voice</p>
+      <p>
+        The preview above is private and works right now. To let this voice speak to anyone else we need {missing},
+        because a voice is a person and this product only ever clones its own owner.
+      </p>
+      <a className="text-button" href="#identity-proofing">Verify below on this step</a>
+    </aside>
+  );
+}
+
 function ReplicaWorkspace({
   replica,
   mode,
   copy,
+  step,
+  wizard,
+  wizardInput,
+  onGoStep,
+  sheet,
+  sheetProvenance,
   erasureStatus,
   consents,
   sources,
   enrollmentLoading,
   challenge,
   livenessLoading,
+  runtimeStatus,
+  onRuntimeStatus,
+  onContextCount,
   onGrantConsent,
   onRevokeConsent,
   onCreateUpload,
@@ -511,12 +583,21 @@ function ReplicaWorkspace({
   replica: Replica;
   mode: StudioMode;
   copy: StudioCopy;
+  step: StepId;
+  wizard: ReturnType<typeof computeWizard>;
+  wizardInput: WizardInput;
+  onGoStep: (next: StepId) => void;
+  sheet: TeacherSheet;
+  sheetProvenance: SheetProvenance;
   erasureStatus: ReplicaErasureStatus | null;
   consents: ConsentReceipt[];
   sources: ReplicaSource[];
   enrollmentLoading: boolean;
   challenge: LivenessChallenge | null;
   livenessLoading: boolean;
+  runtimeStatus: ReplicaRuntimeStatus | null;
+  onRuntimeStatus: (status: ReplicaRuntimeStatus) => void;
+  onContextCount: (count: number) => void;
   onGrantConsent: () => Promise<void>;
   onRevokeConsent: () => Promise<void>;
   onCreateUpload: (input: {
@@ -554,10 +635,13 @@ function ReplicaWorkspace({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
-  const [runtimeStatus, setRuntimeStatus] = useState<ReplicaRuntimeStatus | null>(null);
   const stopped = replica.lifecycle === "revoked" || replica.lifecycle === "purging";
   const erased = erasureStatus?.state === "complete";
   const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
+  const view = wizard.steps.find((row) => row.id === step) ?? wizard.steps[0];
+  const stepNumber = view.number;
+  const back = previousStep(step);
+  const forward = nextStep(step);
 
   useEffect(() => {
     if (stopped) setConfirming(false);
@@ -617,6 +701,18 @@ function ReplicaWorkspace({
         </section>
       ) : (
         <>
+          <section className="step-head" aria-labelledby="step-title">
+            <p className="eyebrow">Step {stepNumber} of {wizard.steps.length}</p>
+            <h2 id="step-title">{view.title}</h2>
+            <p className="step-promise">{view.promise}</p>
+          </section>
+
+          {/* Every number on this strip is derived. The old version rendered a
+              literal "Voice versions 0 / No model trained" regardless of the
+              real `runtime.versions.voice_genome`, and a "Public access / Off /
+              Cannot be changed" claim that ChannelsStudio exists to falsify
+              (UX-Q-04, copy audit C5 and C6). A status this product cannot
+              derive is not shown. */}
           <section className="readiness-grid" aria-label="Replica readiness">
             <article className="readiness-card readiness-primary">
               <p className="eyebrow">Activation readiness</p>
@@ -631,265 +727,315 @@ function ReplicaWorkspace({
             </article>
             <article className="readiness-card">
               <span className="metric-label">Voice versions</span>
-              <strong>0</strong>
-              <span>No model trained</span>
+              <strong>{runtimeStatus ? (runtimeStatus.versions.voice_genome ?? 0) : "\u2014"}{/* emdash-ok: the empty-value placeholder, not prose */}</strong>
+              <span>
+                {!runtimeStatus
+                  ? "Checking"
+                  : runtimeStatus.versions.voice_genome
+                    ? "Approved voice model"
+                    : "Not built yet"}
+              </span>
             </article>
             <article className="readiness-card trust-card">
-              <span className="metric-label">Public access</span>
-              <strong>Off</strong>
-              <span>Cannot be changed</span>
+              <span className="metric-label">Public voice library</span>
+              <strong>Never</strong>
+              <span>Your voice is never listed or shared</span>
             </article>
           </section>
 
-          {mode === "teacher" && (
-            <QuickStartPath
-              token={accessToken}
-              replica={replica}
-              consents={consents}
-              sources={sources}
-              onAuthError={onReviewAuthError}
-            />
-          )}
+          {(() => {
+            const warning = stepEntryWarning(step, wizardInput);
+            return warning ? <p className="step-warning" role="status">{warning}</p> : null;
+          })()}
 
-          <EnrollmentWorkspace
-            consents={consents}
-            sources={sources}
-            loading={enrollmentLoading}
-            onGrantConsent={onGrantConsent}
-            onRevokeConsent={onRevokeConsent}
-            onCreateUpload={onCreateUpload}
-            onRetryUpload={onRetryUpload}
-            onFinalizeUpload={onFinalizeUpload}
-            onDeleteSource={onDeleteSource}
-          />
-
-          {/* WS-AB. "Bring your context" sits in BOTH modes, directly after the
-              enrollment ledger, for the same reason MirrorCallStudio does: it
-              is not a verification step, it is the thing an owner actually came
-              to do. It is also the horizontal lane by definition — a teacher's
-              lectures are one kind of context, and everyone else's files and
-              links are the rest — so gating it on `mode === "teacher"` would
-              re-narrow the platform the reweight just widened
-              (`horizontal-platform-reweight`). Placed after EnrollmentWorkspace
-              because that panel is about the owner's VOICE and this one is
-              about their WORDS, and the voice half already has its own consent
-              ceremony above. */}
-          <ContextLockerPanel
-            key={`context-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            onAuthError={onReviewAuthError}
-          />
-
-          {mode === "teacher" && (
+          {step === "feed" && (
             <>
-              <TeacherSheetStudio
-                token={accessToken}
-                replicaId={replica.replica_id}
-                sheetDraft={DEMO_TEACHER}
-                onAuthError={onReviewAuthError}
-              />
-              {/* WS-S. Placed with the sheet rather than with Channels below:
-                  this is where the clone's MATERIAL comes from, and the sheet
-                  is what that material fills in. ChannelsStudio, further down,
-                  is the opposite direction — where the finished clone can be
-                  reached. Two surfaces that both say "channel"; keeping them
-                  visually apart is the cheapest way to stop them being
-                  confused. */}
-              <IngestChannelStudio
-                key={`ingest-${replica.replica_id}`}
-                token={accessToken}
-                replicaId={replica.replica_id}
-                onAuthError={onReviewAuthError}
-              />
-              <DisclosurePreview sheet={DEMO_TEACHER} />
-              {/* Channels comes AFTER the disclosure preview on purpose: a
-                  teacher decides where their clone can be reached only once
-                  they have seen exactly what every person reaching it is told
-                  first. The order is the informed half of informed consent. */}
-              <ChannelsStudio
-                key={`channels-${replica.replica_id}`}
-                token={accessToken}
-                replicaId={replica.replica_id}
-                slug={DEMO_TEACHER.slug}
-                onAuthError={onReviewAuthError}
-              />
+              <Band
+                title="Permission, then your material"
+                blurb="Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."
+              >
+                <EnrollmentWorkspace
+                  consents={consents}
+                  sources={sources}
+                  loading={enrollmentLoading}
+                  onGrantConsent={onGrantConsent}
+                  onRevokeConsent={onRevokeConsent}
+                  onCreateUpload={onCreateUpload}
+                  onRetryUpload={onRetryUpload}
+                  onFinalizeUpload={onFinalizeUpload}
+                  onDeleteSource={onDeleteSource}
+                />
+              </Band>
+
+              <Band
+                title="Files, links, videos, channels"
+                blurb="Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your clone."
+              >
+                <ContextLockerPanel
+                  key={`context-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                  onItemCount={onContextCount}
+                />
+                {/* WS-AD's single-video lane has not landed. A labelled hole,
+                    never a field that swallows a URL. See VideoLinkMount.tsx. */}
+                <VideoLinkMount />
+                {/* WS-S. The channel lane is horizontal by the same argument
+                    the Context Locker is: a teacher's uploads are one kind of
+                    channel and everyone else's are the rest, so it is no longer
+                    gated on teacher mode. */}
+                <IngestChannelStudio
+                  key={`ingest-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                />
+                {/* WS-AF's processing-status surface belongs here: the moment
+                    after a drop, while the owner still has the file in hand. */}
+                <ProcessingStatusMount where="feed" />
+              </Band>
             </>
           )}
 
-          {/* WS-W. "Preview my voice" sits in the DEFAULT path, above the
-              advanced surface, on purpose: it is the first moment an owner
-              meets their own clone, and it was previously reachable only
-              inside a collapsed expert section as one control of a
-              seven-condition calibration lab. VoicePreviewLab is still down
-              there and still does the calibration work — this panel is the one
-              button, and it is the only surface that models the runtime's cold
-              start as a state rather than as a hung request. */}
-          <VoicePreviewPanel
-            key={`hear-voice-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            onAuthError={onReviewAuthError}
+          {step === "meet" && (
+            <>
+              <Band
+                title="Hear it, then talk to it"
+                blurb="This is the whole point of the product. The preview is private, and the call is where the clone learns from you while you watch."
+              >
+                <VoicePreviewPanel
+                  key={`hear-voice-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                />
+                <VoiceUnlockNotice replica={replica} />
+                <MirrorCallStudio
+                  key={`mirror-call-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  stopped={stopped}
+                  onAuthError={onReviewAuthError}
+                />
+              </Band>
+
+              <Band
+                title="Check it and correct it"
+                blurb="What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."
+              >
+                {mode === "teacher" && (
+                  <TeacherSheetStudio
+                    key={`sheet-${replica.replica_id}-${sheetProvenance}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    sheetDraft={sheet}
+                    sheetProvenance={sheetProvenance}
+                    onAuthError={onReviewAuthError}
+                  />
+                )}
+                <PersonModelStudio
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                />
+                <ProcessingReview
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  sourceCount={sources.length}
+                  onAuthError={onReviewAuthError}
+                />
+                {/* WS-AF's second slot: "why does it not know that yet". Same
+                    component, different question. See ProcessingStatusMount. */}
+                <ProcessingStatusMount where="meet" />
+              </Band>
+
+              {/* UX-Q-05. Required, therefore open. These four are the gates
+                  `RuntimeGate` refuses activation without, and they live on the
+                  step whose voice they unlock rather than in a drawer called
+                  "Advanced". */}
+              <Band
+                title="Prove it is you"
+                blurb="A voice is a person. These are the checks that let your clone speak to anyone other than you, and they are the only reason this product can exist."
+              >
+                <IdentityProofing
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  sources={sources}
+                  onChanged={onIdentityChanged}
+                  onAuthError={onReviewAuthError}
+                />
+                <LivenessCapture
+                  consentActive={hasSourceConsent(consents) && replica.age_verified}
+                  challenge={challenge}
+                  loading={livenessLoading}
+                  onIssue={onIssueChallenge}
+                  onStartFace={onStartFaceSession}
+                  onPollFace={onPollFaceSession}
+                  onCancel={onCancelChallenge}
+                  onCreateUpload={onCreateLivenessUpload}
+                  onRetryUpload={onRetryUpload}
+                  onFinalize={onFinalizeLiveness}
+                />
+                <ModelConsentGate
+                  token={accessToken}
+                  replica={replica}
+                  consents={consents}
+                  onChanged={onVerifiedConsentChanged}
+                  onAuthError={onReviewAuthError}
+                />
+                <VoiceEnrollmentLab
+                  key={`voice-enrollment-${replica.replica_id}`}
+                  token={accessToken}
+                  replica={replica}
+                  consents={consents}
+                  onAuthError={onReviewAuthError}
+                />
+              </Band>
+
+              <AdvancedArea
+                id="advanced-meet"
+                title="Advanced tuning, all optional"
+                blurb="Four labs for people who want to go further. Nothing in here is required to activate a clone, and skipping all of it costs you nothing."
+              >
+                <VoicePreviewLab
+                  key={`voice-preview-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                />
+                <CalibrationStudio
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                />
+                <ReplicaDialogueLab
+                  key={`dialogue-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  stopped={stopped}
+                  onAuthError={onReviewAuthError}
+                  runtimeStatus={runtimeStatus?.replica_id === replica.replica_id ? runtimeStatus : null}
+                />
+                <CandidateEvaluationLab
+                  key={`candidate-eval-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  stopped={stopped}
+                  onAuthError={onReviewAuthError}
+                />
+              </AdvancedArea>
+            </>
+          )}
+
+          {step === "deploy" && (
+            <>
+              {mode === "teacher" && (
+                <Band
+                  title="What every student is told first"
+                  blurb="Read this before you decide where the clone can be reached. The order is the informed half of informed consent."
+                >
+                  {sheetProvenance === "draft" ? (
+                    <DisclosurePreview sheet={sheet} />
+                  ) : (
+                    <section className="disclosure-preview" aria-labelledby="disclosure-empty-title">
+                      <div className="section-heading">
+                        <div>
+                          <p className="eyebrow">Nothing saved yet</p>
+                          <h2 id="disclosure-empty-title">Your sheet has not been saved, so there is nothing to preview</h2>
+                          <p>
+                            The disclosure card names the teacher a student is talking to. We will not show you a
+                            preview with somebody else's name on it. Save your sheet on the Meet it step and come
+                            back, and this will show exactly what a student sees.
+                          </p>
+                        </div>
+                      </div>
+                      <button className="button secondary-button" type="button" onClick={() => onGoStep("meet")}>
+                        Go and save your sheet
+                      </button>
+                    </section>
+                  )}
+                </Band>
+              )}
+
+              <Band
+                title="The gates, then the switch"
+                blurb="Activation is refused until every check has passed. The list below is the runtime's own answer, not a summary of it."
+              >
+                <RuntimeGate
+                  key={`runtime-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  stopped={stopped}
+                  onAuthError={onReviewAuthError}
+                  onStatusChange={onRuntimeStatus}
+                />
+              </Band>
+
+              {mode === "teacher" && (
+                <Band
+                  title="Where it can be reached"
+                  blurb="One address at a time, each connected separately, each revocable on its own."
+                >
+                  {sheetProvenance === "draft" ? (
+                    <ChannelsStudio
+                      key={`channels-${replica.replica_id}`}
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      slug={sheet.slug}
+                      onAuthError={onReviewAuthError}
+                    />
+                  ) : (
+                    <section id="channels-studio" className="channels-studio" aria-labelledby="channels-empty-title">
+                      <div className="section-heading">
+                        <div>
+                          <p className="eyebrow">Nothing saved yet</p>
+                          <h2 id="channels-empty-title">A channel needs a saved sheet first</h2>
+                          <p>
+                            The embed code and the widget address are built from your clone's public slug, and that
+                            comes from your saved sheet. Until then any snippet we showed you would point somewhere
+                            that is not yours.
+                          </p>
+                        </div>
+                      </div>
+                      <button className="button secondary-button" type="button" onClick={() => onGoStep("meet")}>
+                        Go and save your sheet
+                      </button>
+                    </section>
+                  )}
+                </Band>
+              )}
+
+              <AdvancedArea
+                id="advanced-deploy"
+                title="Owner control, including erasure"
+                blurb="Revoking stops future use immediately and queues every stored artifact, derived model and provider copy for verified deletion."
+              >
+                <section className="danger-zone" aria-labelledby="control-title">
+                  <div>
+                    <p className="eyebrow">Owner control</p>
+                    <h2 id="control-title">Revoke this replica</h2>
+                    <p>Future use stops immediately. Private artifacts and provider copies are then queued for erasure.</p>
+                  </div>
+                  <button className="button danger-button" type="button" onClick={() => setConfirming(true)}>
+                    Revoke access
+                  </button>
+                </section>
+              </AdvancedArea>
+            </>
+          )}
+
+          <StepBlockers step={view} />
+
+          <StepPager
+            back={back}
+            next={forward}
+            backLabel={back ? stepTitle(back) : ""}
+            nextLabel={forward ? stepTitle(forward) : ""}
+            caution={forward ? stepEntryWarning(forward, wizardInput) : null}
+            onGo={onGoStep}
           />
-
-          {/* WS-Y. The Mirror Call sits ABOVE the advanced disclosure and in
-              both modes, because it is not a verification step — it is the
-              thing the owner came to do, and the one surface where the clone
-              improves while they watch. It renders its own honest state when
-              `api/mirror-call.js` is not deployed, so placing it here does not
-              put a dead button on the default path. Below the one-line voice
-              preview: hear yourself first, then teach yourself. */}
-          <MirrorCallStudio
-            key={`mirror-call-${replica.replica_id}`}
-            token={accessToken}
-            replicaId={replica.replica_id}
-            stopped={stopped}
-            onAuthError={onReviewAuthError}
-          />
-
-          {/* Progressive disclosure (WS-P): in teacher mode, everything below
-              this line is the expert / verification path — identity,
-              liveness, provider consent, voice training, launch. Collapsed by
-              default so the default path shows the minimum; nothing is
-              removed and every row stays reachable, and QuickStartPath's
-              "Go there" / "See status" links open this automatically via
-              `jumpTo`'s `closest("details")`. Generic (self-replica) mode
-              renders this exact same content, uncollapsed — its behavior
-              stays byte-identical, per this file's own mode-seam comment. */}
-          <AdvancedSurface mode={mode}>
-            <IdentityProofing
-              token={accessToken}
-              replicaId={replica.replica_id}
-              sources={sources}
-              onChanged={onIdentityChanged}
-              onAuthError={onReviewAuthError}
-            />
-
-            <LivenessCapture
-              consentActive={hasSourceConsent(consents) && replica.age_verified}
-              challenge={challenge}
-              loading={livenessLoading}
-              onIssue={onIssueChallenge}
-              onStartFace={onStartFaceSession}
-              onPollFace={onPollFaceSession}
-              onCancel={onCancelChallenge}
-              onCreateUpload={onCreateLivenessUpload}
-              onRetryUpload={onRetryUpload}
-              onFinalize={onFinalizeLiveness}
-            />
-
-            <ModelConsentGate
-              token={accessToken}
-              replica={replica}
-              consents={consents}
-              onChanged={onVerifiedConsentChanged}
-              onAuthError={onReviewAuthError}
-            />
-
-            <ProcessingReview
-              token={accessToken}
-              replicaId={replica.replica_id}
-              sourceCount={sources.length}
-              onAuthError={onReviewAuthError}
-            />
-
-            <VoicePreviewLab
-              key={`voice-preview-${replica.replica_id}`}
-              token={accessToken}
-              replicaId={replica.replica_id}
-              onAuthError={onReviewAuthError}
-            />
-
-            <PersonModelStudio
-              token={accessToken}
-              replicaId={replica.replica_id}
-              onAuthError={onReviewAuthError}
-            />
-
-            <CalibrationStudio
-              token={accessToken}
-              replicaId={replica.replica_id}
-              onAuthError={onReviewAuthError}
-            />
-
-            <VoiceEnrollmentLab
-              key={`voice-enrollment-${replica.replica_id}`}
-              token={accessToken}
-              replica={replica}
-              consents={consents}
-              onAuthError={onReviewAuthError}
-            />
-
-            <section className="stage-section locked-path" aria-labelledby="path-title">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Not yet enabled</p>
-                  <h2 id="path-title">Modeling gates</h2>
-                </div>
-                <p>Uploading evidence does not authorize biometric modeling, training, inference, or generation.</p>
-              </div>
-              <div className="stage-list">
-                {STAGES.map((stage, index) => (
-                  <article className="stage-row locked" key={stage.id}>
-                    <span className="stage-number">{stage.number}</span>
-                    <span className="stage-line" aria-hidden="true" />
-                    <div className="stage-copy">
-                      <h3>{stage.title}</h3>
-                      <p>{stage.copy}</p>
-                    </div>
-                    <div className="stage-lock">
-                      <span className="lock-icon" aria-hidden="true" />
-                      <span>
-                        <strong>Not available</strong>
-                        <small>{stage.availability}</small>
-                      </span>
-                    </div>
-                    {index === 0 && <span className="stage-next">LOCKED</span>}
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <RuntimeGate
-              key={`runtime-${replica.replica_id}`}
-              token={accessToken}
-              replicaId={replica.replica_id}
-              stopped={stopped}
-              onAuthError={onReviewAuthError}
-              onStatusChange={setRuntimeStatus}
-            />
-
-            <ReplicaDialogueLab
-              key={`dialogue-${replica.replica_id}`}
-              token={accessToken}
-              replicaId={replica.replica_id}
-              stopped={stopped}
-              onAuthError={onReviewAuthError}
-              runtimeStatus={runtimeStatus?.replica_id === replica.replica_id ? runtimeStatus : null}
-            />
-
-            <CandidateEvaluationLab
-              key={`candidate-eval-${replica.replica_id}`}
-              token={accessToken}
-              replicaId={replica.replica_id}
-              stopped={stopped}
-              onAuthError={onReviewAuthError}
-            />
-          </AdvancedSurface>
         </>
-      )}
-
-      {!stopped && (
-        <section className="danger-zone" aria-labelledby="control-title">
-          <div>
-            <p className="eyebrow">Owner control</p>
-            <h2 id="control-title">Revoke this replica</h2>
-            <p>Future use stops immediately. Private artifacts and provider copies are then queued for erasure.</p>
-          </div>
-          <button className="button danger-button" type="button" onClick={() => setConfirming(true)}>
-            Revoke access
-          </button>
-        </section>
       )}
 
       {confirming && (
@@ -955,6 +1101,41 @@ export default function StudioApp() {
   const [livenessLoading, setLivenessLoading] = useState(false);
   const [erasureRequestId, setErasureRequestId] = useState("");
   const [erasureStatus, setErasureStatus] = useState<ReplicaErasureStatus | null>(null);
+
+  // ── the wizard ────────────────────────────────────────────────────────
+  //
+  // The step lives in the URL, not only in state, for the plainest reason
+  // there is: a person who refreshes, bookmarks, or hits the browser Back
+  // button in the middle of a three-step flow must land where they were.
+  // `?step=` rather than a hash so it sits next to `?mode=teacher` and
+  // `queryForStep` can preserve it, and because a hash is already spoken for
+  // by every in-page anchor on these panels (`#identity-proofing` and the
+  // rest), which would fight it on every "Go there" click.
+  const [step, setStep] = useState<StepId>(() => stepFromQuery(window.location.search));
+  const [runtimeStatus, setRuntimeStatus] = useState<ReplicaRuntimeStatus | null>(null);
+  const [contextItemCount, setContextItemCount] = useState<number | null>(null);
+  const [connectedChannels, setConnectedChannels] = useState<number | null>(null);
+  const [sheetDraft, setSheetDraft] = useState<TeacherSheet | null>(null);
+
+  const goStep = useCallback((next: StepId) => {
+    setStep(next);
+    try {
+      window.history.pushState({ step: next }, "", queryForStep(window.location.search, next));
+    } catch {
+      // A blocked history write must never cost the navigation itself. The
+      // step still changes; only the URL falls behind.
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  // Back and Forward move between steps rather than leaving the studio. The
+  // listener reads the URL rather than the event state so a hand-edited
+  // `?step=` in the address bar behaves the same as a click.
+  useEffect(() => {
+    const onPop = () => setStep(stepFromQuery(window.location.search));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const identity = useMemo(() => session?.email || session?.phone || "Signed in account", [session]);
   const selectedId = selected?.replica_id ?? null;
@@ -1087,24 +1268,56 @@ export default function StudioApp() {
       setConsents([]);
       setSources([]);
       setChallenge(null);
+      setRuntimeStatus(null);
+      setContextItemCount(null);
+      setConnectedChannels(null);
+      setSheetDraft(null);
       return;
     }
     let live = true;
     const replicaId = selectedId;
     setEnrollmentLoading(true);
     setLivenessLoading(true);
+    // Every one of the four new reads below is `allSettled` and every one of
+    // them leaves its state at `null` on failure. `null` is UNKNOWN in
+    // `wizardModel`, and unknown never renders as "none" or "not done yet" on
+    // the rail. A rail that reports a status because a fetch failed is the
+    // same defect as a rail that reports a literal.
+    setRuntimeStatus(null);
+    setContextItemCount(null);
+    setConnectedChannels(null);
+    setSheetDraft(null);
     void (async () => {
       try {
         const fresh = await refreshForRequest(session);
-        const [consentResult, sourceResult, challengeResult] = await Promise.allSettled([
+        const [
+          consentResult,
+          sourceResult,
+          challengeResult,
+          runtimeResult,
+          sheetResult,
+          channelResult,
+        ] = await Promise.allSettled([
           listEnrollmentConsent(fresh.accessToken, replicaId),
           listSources(fresh.accessToken, replicaId),
           livenessStatus(fresh.accessToken, replicaId),
+          readRuntimeStatus(fresh.accessToken, replicaId),
+          mode === "teacher" ? readTeacherSheetDraft(fresh.accessToken, replicaId) : Promise.resolve(null),
+          mode === "teacher" ? listChannels(fresh.accessToken, replicaId) : Promise.resolve(null),
         ]);
         if (!live) return;
         if (consentResult.status === "fulfilled") setConsents(consentResult.value);
         if (sourceResult.status === "fulfilled") setSources(sourceResult.value);
         if (challengeResult.status === "fulfilled") setChallenge(challengeResult.value);
+        if (runtimeResult.status === "fulfilled") setRuntimeStatus(runtimeResult.value);
+        if (sheetResult.status === "fulfilled" && sheetResult.value) setSheetDraft(sheetResult.value.draft);
+        if (channelResult.status === "fulfilled" && channelResult.value) {
+          setConnectedChannels(channelResult.value.filter((row) => row.status === "connected").length);
+        }
+        // Only the three that were already surfaced raise a banner. A runtime,
+        // sheet or channel read that fails degrades the rail to "unknown",
+        // which is honest and quiet; interrupting an upload with a banner about
+        // a status widget would be the wrong trade.
         const failed = [consentResult, sourceResult, challengeResult].find((result) => result.status === "rejected");
         if (failed?.status === "rejected") handleApiError(failed.reason, "Some enrollment controls could not be loaded");
       } catch (cause) {
@@ -1115,7 +1328,7 @@ export default function StudioApp() {
       }
     })();
     return () => { live = false; };
-  }, [handleApiError, refreshForRequest, selectedId, session]);
+  }, [handleApiError, mode, refreshForRequest, selectedId, session]);
 
   useEffect(() => {
     if (!session || !selectedId || !activeChallengeId || !["uploaded", "verifying"].includes(activeChallengeState)) return;
@@ -1429,6 +1642,42 @@ export default function StudioApp() {
     }
   }
 
+  // ── the one place readiness is computed ───────────────────────────────
+  //
+  // Above every early return, because hooks may not sit behind a conditional,
+  // and `selected` may legitimately be null while the list is still loading. A
+  // null replica produces an input that is honest about knowing nothing rather
+  // than an input full of falses: `runtime: null`, `contextItemCount: null`.
+  const wizardInput = useMemo<WizardInput>(() => ({
+    stopped: selected ? selected.lifecycle === "revoked" || selected.lifecycle === "purging" : false,
+    sourceConsent: hasSourceConsent(consents),
+    sourceCount: sources.length,
+    contextItemCount,
+    identityVerified: Boolean(selected?.identity_verified),
+    livenessVerified: Boolean(selected?.liveness_verified),
+    sheetPersisted: Boolean(sheetDraft),
+    mode,
+    runtime: runtimeStatus
+      ? {
+        active: runtimeStatus.active,
+        blockers: runtimeStatus.blockers,
+        voiceGenomeVersion: runtimeStatus.versions.voice_genome,
+      }
+      : null,
+    connectedChannels,
+  }), [connectedChannels, consents, contextItemCount, mode, runtimeStatus, selected, sheetDraft, sources.length]);
+
+  const wizard = useMemo(() => computeWizard(wizardInput), [wizardInput]);
+
+  // The sheet the consent surfaces render. A saved draft when there is one, a
+  // seed carrying THIS owner's name when there is not, and never the demo
+  // teacher either way. `sheetSeed.ts` carries the whole argument.
+  const sheetProvenance: SheetProvenance = sheetDraft ? "draft" : "seed";
+  const sheet = useMemo<TeacherSheet | null>(
+    () => sheetDraft ?? (selected ? seedSheetFor(selected) : null),
+    [selected, sheetDraft],
+  );
+
   if (!authChecked) {
     return (
       <main className="boot-page">
@@ -1456,12 +1705,23 @@ export default function StudioApp() {
       </header>
 
       <div className="studio-layout">
-        <ReplicaList
-          replicas={replicas}
-          selectedId={selected?.replica_id ?? null}
-          onSelect={(id) => void selectReplica(id)}
-          onNew={() => setShowCreate(true)}
-        />
+        {/* The two-column shell from PRODUCT-JOURNEY §3.2. The wizard rail sits
+            ABOVE the workspace list because the wizard is the journey and the
+            list is a switcher: on any given visit an owner changes step several
+            times and changes workspace approximately never. The rail is hidden
+            while there is no workspace to be in a step of, rather than rendered
+            with three empty states. */}
+        <div className="studio-rail">
+          {selected && !showCreate && (
+            <WizardRail steps={wizard.steps} current={step} onGo={goStep} />
+          )}
+          <ReplicaList
+            replicas={replicas}
+            selectedId={selected?.replica_id ?? null}
+            onSelect={(id) => void selectReplica(id)}
+            onNew={() => setShowCreate(true)}
+          />
+        </div>
 
         <main className="studio-main">
           {notice && (
@@ -1488,11 +1748,20 @@ export default function StudioApp() {
             </div>
           ) : showCreate || (!selected && loadState === "ready") ? (
             <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
-          ) : selected ? (
+          ) : selected && sheet ? (
             <ReplicaWorkspace
               replica={selected}
               mode={mode}
               copy={copy}
+              step={step}
+              wizard={wizard}
+              wizardInput={wizardInput}
+              onGoStep={goStep}
+              sheet={sheet}
+              sheetProvenance={sheetProvenance}
+              runtimeStatus={runtimeStatus}
+              onRuntimeStatus={setRuntimeStatus}
+              onContextCount={setContextItemCount}
               erasureStatus={erasureStatus}
               consents={consents}
               sources={sources}

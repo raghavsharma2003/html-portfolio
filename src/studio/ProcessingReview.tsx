@@ -88,7 +88,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
 
   async function queueBuild() {
     setBusyId("build"); setError(""); setNotice("");
-    try { await queueVoiceGenome(token, replicaId); setNotice("Draft VoiceGenome build queued. It still requires human approval before use."); await load(); }
+    try { await queueVoiceGenome(token, replicaId); setNotice("Draft voice model queued for building. It still needs your approval before anything can use it."); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Draft build could not be queued"); onAuthError(cause); }
     finally { setBusyId(""); }
   }
@@ -106,7 +106,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     setBusyId(`select:${artifactId}`); setError(""); setNotice("");
     try {
       await selectVoiceArtifact(token, { replicaId, artifactId });
-      setNotice("Voice candidate selected. Existing drafts were retired so the next VoiceGenome can bind this exact audio.");
+      setNotice("Voice candidate selected. Existing drafts were retired so the next voice model binds this exact audio.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Voice candidate could not be selected"); onAuthError(cause); }
     finally { setBusyId(""); }
@@ -114,10 +114,9 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
 
   return (
     <section id="processing-review" className="processing-review" aria-labelledby="processing-review-title">
-      <div className="panel-index">04</div>
       <div className="processing-review-content">
         <div className="panel-title-row">
-          <div><p className="eyebrow">Owner review boundary</p><h2 id="processing-review-title">Inspect processing, then decide</h2></div>
+          <div><p className="eyebrow">Your review</p><h2 id="processing-review-title">See what we extracted, then approve it</h2></div>
           <button className="review-refresh" type="button" disabled={loading} onClick={() => void load()}>{loading ? "Refreshing" : "Refresh"}</button>
         </div>
         <p className="review-intro">Only review-safe measurements are shown. Raw transcripts, voice vectors, storage locations, provider references, and durable download links never enter this page. A private audition link is minted only after you press Listen and expires within 60 seconds.</p>
@@ -156,15 +155,15 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
         </div>
 
         {review && <article className="build-readiness">
-          <div><p className="eyebrow">Draft only</p><h3>VoiceGenome build gate</h3><p>A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation are still required.</p></div>
+          <div><p className="eyebrow">Draft only</p><h3>Voice model build gate</h3><p>A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation are still required.</p></div>
           <div className="readiness-counts"><span><strong>{review.voice_genome_readiness.embedding_families}/2</strong> embedding families</span><span><strong>{review.voice_genome_readiness.voice_measurements}</strong> voice measurements</span><span><strong>{review.voice_genome_readiness.quality_measurements}</strong> quality measurements</span><span><strong>{review.voice_genome_readiness.speaker_segments}</strong> speaker segments</span></div>
           {review.voice_genome_readiness.blockers.length > 0 && <ul>{review.voice_genome_readiness.blockers.map((blocker) => <li key={blocker}>{words(blocker)}</li>)}</ul>}
-          <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? "Queueing draft" : "Queue draft VoiceGenome"}</button>
+          <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? "Queueing draft" : "Queue a draft voice model"}</button>
           {review.builds.length > 0 && <div className="build-ledger"><strong>Build ledger</strong>{review.builds.map((build) => <span key={build.build_id}>v{build.target_version} · {words(build.state)} · {when(build.created_at)}</span>)}</div>}
           {review.voice_genomes.length > 0 && <div className="genome-draft-ledger">
             <strong>Immutable draft ledger</strong>
             {review.voice_genomes.map((genome) => <div key={genome.version}>
-              <span>VoiceGenome v{genome.version} · {words(genome.status)}</span>
+              <span>Voice model version {genome.version}, {words(genome.status)}</span>
               <small>{genome.embedding_families} independent embeddings · {genome.target_segments} target segments · {genome.enrollment_artifacts} private enrollment artifacts</small>
               <code>{genome.manifest_hash.slice(0, 16)}…</code>
             </div>)}

@@ -17,10 +17,10 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
     <section id="disclosure-preview" className="disclosure-preview" aria-labelledby="disclosure-preview-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Teacher clone · Disclosure preview</p>
+          <p className="eyebrow">Disclosure preview</p>
           <h2 id="disclosure-preview-title">What every student sees, before you decide anything else</h2>
           <p>
-            This is the floor, not a draft — it is identical for every published teacher clone and cannot be
+            This is the floor, not a draft. It is identical for every published teacher clone and cannot be
             edited, shortened, or turned off. It exists here so your consent is informed by exactly what a
             student will experience, not by a summary of it.
           </p>
@@ -31,7 +31,7 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
         <span className="disclosure-card-kicker">Session-open card · shown before the first turn, every session</span>
         <h3 id="disclosure-card-title">You're talking with an AI clone of {name}</h3>
         <p>
-          Built from {name}'s own recorded teaching, published by them. This is not {name} — they are not reading
+          Built from {name}'s own recorded teaching, published by them. This is not {name}. They are not reading
           these conversations, and nothing said here reaches them unless you're told plainly that it will.
         </p>
       </article>
@@ -40,7 +40,7 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
         <span className="disclosure-card-kicker">Spoken opening · every synthesized call, non-disableable</span>
         <h3 id="disclosure-spoken-title">The first thing a student hears on a call</h3>
         <p>
-          "Hi — quick reminder before we start: I'm an AI clone of {name}, built from their own teaching. I'm not
+          "Quick reminder before we start. I'm an AI clone of {name}, built from their own teaching. I'm not
           {" "}{name}, and this conversation stays between us unless you tell someone about it yourself."
         </p>
       </article>
@@ -50,14 +50,14 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
         <p>
           It corrects the mistake the first time, briefly, without apology or ceremony, and carries straight on
           with the work (safety-floor-teacher.md §1.2). It also never claims you saw, read, or were told anything
-          said in a session — that is a separate, structural honesty rule (<code>teacher-relay-claim</code>), not a
+          said in a session. That is a separate, structural honesty rule (<code>teacher-relay-claim</code>), not a
           request made of the clone.
         </p>
       </div>
 
       <p className="field-note">
-        Watermarked and provenance-signed on every synthesized call, and fired at the start of every session — not
-        only at a time boundary — so it is the one disclosure guaranteed to be seen (P1, safety-floor-teacher.md).
+        Watermarked and provenance-signed on every synthesized call, and fired at the start of every session
+        rather than only at a time boundary, so it is the one disclosure guaranteed to be seen.
       </p>
     </section>
   );
