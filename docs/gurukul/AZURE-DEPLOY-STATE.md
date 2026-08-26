@@ -24,15 +24,20 @@ POST /v1/synthesize -> HTTP 200
 
 Hindi (`language_id: "hi"`), disclosure prefix enforced, PerTh watermark
 verified by the service before it would return, response HMAC bound. **Warm
-synthesis runs faster than real time.**
+synthesis runs faster than real time.** `voice-evidence` also boots healthy on
+GPU and scales cleanly back to zero.
 
-Two things to know before anything else:
+Three things to know before anything else:
 
 - **There is no GPU quota blocker.** Serverless T4 works on this subscription
   as-is. The `usages` API says otherwise and is misleading; see §5.
 - **The blocker was four defects in the services' own source**, none visible to
   code review, each found only by building and booting for real. All four are
-  fixed on branch `gurukul-ws-l`, **not pushed**. See §4.
+  fixed and confirmed working. They are on branch `gurukul-ws-l`, **not
+  pushed**. See §4.
+- **A cold start cannot be absorbed by a user request.** The runtime is ready
+  161 s after a wake, but the triggering request dies at ~240 s on a platform
+  timeout. This needs a warm-up strategy before launch; see §8.
 
 ---
 
@@ -42,21 +47,21 @@ Subscription: the owner's Sponsored (grant-credit) subscription. Everything is
 in the single resource group `vyakti-voice`. Nothing was created outside it and
 nothing pre-existing was touched.
 
-| resource | name | notes |
+| resource | name | state |
 |---|---|---|
 | Resource group | `vyakti-voice` | Central India |
 | Container registry | `vyaktivoiceacr.azurecr.io` | Basic, admin user enabled |
 | Log Analytics | `vyakti-voice-law` | PerGB2018, 30-day retention |
 | Container Apps env | `vyakti-voice-env` | `Consumption` + `Consumption-GPU-NC8as-T4` |
 | Container Apps env | `vyakti-ctrl-env` | control experiment (§5) — **safe to delete** |
-| Container app | `vyakti-open-voice` | GPU, internal ingress, `minReplicas: 0`, **healthy, 0 restarts** |
-| Container app | `vyakti-open-voice-admission` | CPU broker, external ingress, `minReplicas: 0`, **healthy** |
-| Container app | `vyakti-voice-evidence` | GPU, internal ingress, `minReplicas: 0`, **not yet booting** (§4.4) |
+| Container app | `vyakti-open-voice` | GPU, internal, `minReplicas: 0` — **healthy, synthesising, scale-to-zero verified** |
+| Container app | `vyakti-open-voice-admission` | CPU broker, external, `minReplicas: 0` — **healthy** |
+| Container app | `vyakti-voice-evidence` | GPU, internal, `minReplicas: 0` — **boots healthy, scale-to-zero verified; no round trip run** |
 | User-assigned identity | `vyakti-voice-pull` | created, **unused** (§6) |
 
 **Endpoints** (not secrets):
 
-- Public admission broker — this is the one the app plane calls:
+- Public admission broker — the one the app plane calls:
   `https://vyakti-open-voice-admission.purpletree-6dea69e2.centralindia.azurecontainerapps.io`
 - Private GPU runtime (environment-internal only, never public):
   `https://vyakti-open-voice.internal.purpletree-6dea69e2.centralindia.azurecontainerapps.io`
@@ -89,16 +94,16 @@ All built by **ACR Tasks**, server-side. No local Docker anywhere.
 | image | built from | outcome |
 |---|---|---|
 | `open-voice-admission:v1` | public branch, git context URL | Succeeded first try, 50 s |
-| `voice-evidence:v1` | public branch, git context URL | Succeeded first try, 9m37s (but cannot boot — §4.3) |
+| `voice-evidence:v1` | public branch, git context URL | Succeeded, but cannot boot (§4.3) |
 | `open-voice-runtime:v1` | **patched worktree tarball** | Succeeded after §4.1 + §4.2, 12m55s |
-| `voice-evidence:v2` | **patched worktree tarball** | Succeeded, carries §4.3 |
-| `voice-evidence:v3` | **patched worktree tarball** | carries §4.3 + §4.4 |
+| `voice-evidence:v2` | **patched worktree tarball** | §4.3 — got past SpeechBrain, died at §4.4 |
+| `voice-evidence:v3` | **patched worktree tarball** | §4.3 + §4.4 — **boots healthy** |
 
 Digests currently deployed:
 
 - `open-voice-admission@sha256:3229c6479f83a0864faa0a2f81d43402b115341bbac318209d5b97c8463ceeb1`
 - `open-voice-runtime@sha256:9a0331745963a874093094db74f19bc13bd713670677488ff8b79cea8bd83ea8`
-- `voice-evidence@sha256:605e86fc644114c04acbc49fcbd6424ca959e30e28a2f72cb738945030ee294c` (v2)
+- `voice-evidence@sha256:924036e47a7c290cc8beb28fb6676e50c66f1f8aad2360c5a08f015030462157` (v3)
 
 Image sizes, from the platform's own pull records:
 
@@ -119,8 +124,8 @@ $0.10/GiB/month, so this is a small cost note, not a wall.
 
 ## 4. Four defects in the services' source
 
-All four fixed on `gurukul-ws-l`, **not pushed**. Each was invisible to review
-and appeared only under a real build or a real boot.
+All four fixed on `gurukul-ws-l`, **not pushed**, and all four confirmed by a
+subsequent successful build or boot. Each was invisible to review.
 
 ### 4.1 `open-voice-runtime` — reserved group name (build-blocking)
 
@@ -146,8 +151,8 @@ The transformers pin is the correct one: the pinned Chatterbox source commit
 exact revision rather than assumed. So `huggingface-hub` moved instead, the
 minimum distance, to `1.3.0`. `fetch_models.py` uses only
 `snapshot_download(repo_id, revision, local_dir, allow_patterns)`, unchanged
-across the 0.x → 1.x boundary. Confirmed correct by the image then building and
-the model loading on GPU.
+across the 0.x → 1.x boundary. Confirmed by the image then building and the
+model loading and synthesising on GPU.
 
 ### 4.3 `voice-evidence` — baked weights fetched from the hub anyway (boot-blocking)
 
@@ -171,8 +176,7 @@ against `source`. Verified by reading both yaml files at the exact revisions
 
 Fixed by overriding `pretrained_path` to the same local directory. Sepformer is
 deliberately untouched — its Pretrainer declares no `paths:` block, so it
-already resolves relative to `source`. **Confirmed fixed:** the next boot got
-past SpeechBrain entirely and failed at the following stage (§4.4).
+already resolves relative to `source`.
 
 ### 4.4 `voice-evidence` — DeepFilterNet shells out to a `git` that is not installed (boot-blocking)
 
@@ -189,15 +193,16 @@ to stamp a build hash into a log line. DeepFilterNet guards that call against
 image the error kills application startup outright — for a log annotation.
 
 Fixed by adding `git` to the existing apt layer, which is what
-`open-voice-runtime` already does. **Built as `voice-evidence:v3`; the boot past
-this point is not yet confirmed** — see §10.
+`open-voice-runtime` already does. **Confirmed:** with `git` present the call
+now fails cleanly (`fatal: not a git repository`, which DeepFilterNet handles)
+and startup completes.
 
 ---
 
 ## 5. GPU capacity — and two traps
 
-Both traps below cost real time. They are written down so the next person does
-not pay for them twice.
+Both traps cost real time. They are written down so the next person does not
+pay for them twice.
 
 **Trap 1 — the quota API lies by omission.**
 `Microsoft.App/locations/{region}/usages` returns exactly one GPU row,
@@ -269,7 +274,9 @@ Everything else is faithful: workload profile names, ingress direction (runtime
 and evidence internal, broker external), CPU/memory, env var names, and
 `minReplicas: 0`.
 
-**Scale-to-zero is on for every app.**
+**Scale-to-zero is on for every app, and verified** — the GPU runtime was
+observed dropping to 0 replicas after idle, and `voice-evidence` shut down
+cleanly to `ScaledToZero`.
 
 ---
 
@@ -297,19 +304,21 @@ are gone and the apps must be redeployed with fresh ones.
 
 ### End-to-end synthesis, through the broker, on GPU
 
-Two consecutive real requests. Same 6-second generated 24 kHz mono WAV
-reference, same Hindi text with the mandatory
-`This is an AI-generated voice replica. ` prefix, `seed: 12345`.
+Real requests. Same 6-second generated 24 kHz mono WAV reference, same Hindi
+text with the mandatory `This is an AI-generated voice replica. ` prefix,
+`seed: 12345`.
 
 | call | wall clock | service `elapsed_ms` | audio out | real-time factor |
 |---|---|---|---|---|
-| first, on a just-ready replica | **20.0 s** | 17 221 ms | 5 520 ms | 3.12 |
-| second, warm | **7.2 s** | 4 359 ms | 5 520 ms | **0.79** |
+| first on a fresh replica | 20.0 s | 17 221 ms | 5 520 ms | 3.12 |
+| first on a fresh replica (repeat, different replica) | 19.9 s | 17 024 ms | 5 520 ms | 3.08 |
+| **warm (steady state)** | **7.2 s** | **4 359 ms** | 5 520 ms | **0.79** |
 
-The first call pays CUDA kernel autotuning and lazy init; the steady state is
-the second row. `perth_watermark_verified: true` with `perth_score: 1.0` on
-both — the service verifies its own watermark before returning, and refuses to
-return audio that fails.
+The first call on any new replica pays CUDA kernel autotuning and lazy init —
+consistently ~17 s. The steady state is ~4.4 s, i.e. faster than real time.
+`perth_watermark_verified: true` with `perth_score: 1.0` on every call — the
+service verifies its own watermark before returning and refuses to return audio
+that fails.
 
 ### HMAC admission, positive and negative
 
@@ -323,34 +332,62 @@ return audio that fails.
 
 The negative control matters: a wrong key is rejected at admission with a
 different code than a signed request that merely cannot reach the runtime. So
-the HMAC binding is genuinely being enforced, not merely configured.
+the HMAC binding is genuinely enforced, not merely configured.
 
 The client speaks the protocol read straight out of `broker.py::_admit` and
 `app.py::_verified_json`: `HMAC-SHA256(secret, "\n".join((protocol, method,
 path, timestamp, nonce, sha256hex(body))))`, base64url, unpadded.
 
-### Cold start
+### Cold start from true zero — measured, and it does not fit a request
 
-| stage | measured |
+A single request was sent to a runtime sitting at 0 replicas. Timeline from the
+platform's own logs:
+
+| t+ | event |
 |---|---|
-| `open-voice-runtime` image pull, cold node (9.70 GB) | **72.21 s** |
-| same image, node already has it | **15 ms** |
-| `voice-evidence` image pull, cold node (5.34 GB) | ~113 s |
-| same image, cached | 17–20 ms |
-| container start → `Application startup complete` (runtime, GPU) | **~13 s** |
-| CPU broker, full cold start to HTTP 200 | **21.8 s** |
+| 0 s | request sent (10:04:08) |
+| **+34 s** | replica scheduled onto a GPU node |
+| +37 s | GPU driver active, image pull begins |
+| **+114 s** | image pulled — **78.65 s** for 9.70 GB |
+| +137 s | container created and started |
+| **+161 s** | `Application startup complete` — service ready |
+| +242 s | **the triggering request returned HTTP 504 `stream timeout`** |
 
-So a scaled-to-zero GPU wake is roughly **90–130 s** on a cold node and much
-less where the image is already cached. The model load itself is fast (~13 s);
-**the image pull dominates**, which is the argument for keeping these images
-smaller if wake latency ever matters.
+So the service was ready at 161 s and the request that woke it still died. The
+model load itself is fast (~13 s); **the image pull dominates**, and the
+platform's request path gives up before the pull-plus-start completes.
 
-**One caveat with teeth:** the broker's upstream HTTP timeout is **220 s**
-(`broker.py`, `httpx.Timeout(220.0)`). A cold-node GPU wake fits inside that,
-but not by a wide margin — two of the runs here returned
-`open_voice_runtime_unreachable` at exactly 221.9 s while the runtime was still
-starting. If image sizes grow, that ceiling is the thing that breaks first.
-Consider a warm-up call rather than letting a user request absorb a cold start.
+Two ceilings are in play: the broker's own upstream timeout is **220 s**
+(`broker.py`, `httpx.Timeout(220.0)`), and the Container Apps ingress returns
+`504 stream timeout` at roughly 240 s.
+
+**Consequence for the app plane:** never let a user-facing request absorb a
+cold start. Either keep a warm replica during active hours, or issue a
+throwaway warm-up call and only route real traffic once `/healthz` answers. The
+same request replayed once warm returned 200 normally.
+
+`voice-evidence` boots much faster once its image is on the node —
+`Started server process` to `Application startup complete` in **~3 s** — so its
+wake is essentially image-pull-bound too.
+
+### An undocumented runtime network dependency
+
+The `open-voice-runtime` README says "Runtime network model access is
+disabled." That is true for Hugging Face (`HF_HUB_OFFLINE=1`) but **not
+absolutely true**: on every cold start the container downloads
+
+```
+https://github.com/explosion/spacy-pkuseg/releases/download/v0.0.26/spacy_ontonotes.zip
+```
+
+(~34.5 MB) into `/tmp/.pkuseg`. It also logs
+`WARNING: Could not load Cangjie mapping … cannot find the requested files in
+the local cache`, because that tokenizer asset is *not* baked and HF is
+offline. Neither is fatal for Hindi, and synthesis succeeds. But it means the
+image is not actually self-contained, a network outage or an egress lockdown
+would break cold starts, and the Chinese path is likely degraded. Worth baking
+both assets in `fetch_models.py`. **Not fixed here** — it is a behaviour change
+to the model pipeline, not a build fix, and it did not block the mission.
 
 ---
 
@@ -370,57 +407,62 @@ they multiply is measured.
 
 Standing bill with everything idle is **the ACR Basic fee and essentially
 nothing else** — about $5/month. That is what the scale-to-zero posture and the
-CPU admission broker in front of the GPU app buy.
+CPU admission broker in front of the GPU app buy, and both halves are now
+verified rather than assumed.
 
-Per-synthesis marginal cost at the measured warm rate (~4.4 s of GPU per
-5.5 s of audio) is on the order of **$0.0007 per utterance**, excluding cold
-starts. Cold starts are the real cost driver: a 130 s wake costs about as much
-as 30 warm syntheses.
+Per-synthesis marginal cost at the measured warm rate (~4.4 s of GPU per 5.5 s
+of audio) is roughly **$0.0007 per utterance**. **Cold starts are the real cost
+driver**: a 161 s wake costs about as much as 35 warm syntheses, which is a
+second, purely financial argument for the warm-up strategy in §8.
 
-**Spent by WS-L:** seven ACR Task builds (~50 min of 2-vCPU agent time) plus
-roughly 15 minutes of T4 uptime across the boot tests and smoke tests — on the
-order of **$0.20–0.30 total**. Well under the ~$5 ceiling.
+**Spent by WS-L:** seven ACR Task builds (~55 min of 2-vCPU agent time) plus
+roughly 25 minutes of T4 uptime across boot tests, smoke tests and the
+cold-start measurement — on the order of **$0.30–0.40 total**. Well under the
+~$5 ceiling.
 
 ---
 
-## 10. What is NOT working
+## 10. What is NOT established
 
-- **`vyakti-voice-evidence` does not boot yet.** §4.3 is fixed and confirmed;
-  §4.4 is fixed and built as `voice-evidence:v3` but **the boot past
-  DeepFilterNet is unverified**. There may be further stages behind it — the
-  pattern so far has been one defect per stage. Deploy v3, watch the console
-  log, expect to iterate. It is at `minReplicas: 0` and costing nothing
-  meanwhile.
-- **No evidence-service round trip was ever run**, so nothing about its
-  analysis path, latency, or GPU memory behaviour is known.
+- **No `voice-evidence` round trip has ever run.** It boots healthy, and that
+  is all that is known. Nothing about its analysis path, its output, its
+  latency or its GPU-memory behaviour has been measured. It also cannot be
+  called from outside the environment as deployed — see §12.
+- **Quality is completely unmeasured.** The synthesis above used a *synthetic
+  buzz-tone* reference, not a human voice. It proves the pipeline runs. It says
+  **nothing** about whether the voice is any good, and must not be read as
+  though it does. The README is explicit that promotion needs real consented
+  ABX tests for speaker identity, accent, Hinglish, prosody, noise robustness,
+  hallucination, latency and watermark survival. None of that happened here.
+- **The pkuseg / Cangjie network dependency** (§8) is diagnosed but not fixed.
 - **Key Vault** — not created; secrets are inline (§6).
 - **A budget alert** — `voice-evidence`'s README asks for one.
   `Microsoft.Consumption/budgets` is subscription-scope, outside the
   `vyakti-voice` RG, and the mission forbids creating anything outside it.
 - **Any fine-tuning pipeline** — explicitly out of scope.
-- **Quality** — one synthesis with a synthetic buzz-tone reference proves the
-  pipeline runs. It says **nothing** about whether the voice is any good. The
-  README is explicit that promotion needs real consented ABX tests; this is not
-  that and must not be read as that.
 
 ---
 
 ## 11. Exact remaining owner actions
 
-1. **Push the four WS-L commits** on `gurukul-ws-l` to
+1. **Push the four source-fix commits** on `gurukul-ws-l` to
    `claude/gurukul-platform`, then rebuild every patched image from the branch
    so the digests have public provenance (§3).
 2. **Copy the two HMAC values out of the scratchpad file now** (§7) — that
    directory is ephemeral and they are otherwise unrecoverable.
-3. **Deploy `voice-evidence:v3` and finish its boot** (§10).
-4. **Fix the three bicep problems** in §6 — especially the missing Startup
-   probe, which is the one that silently crash-loops a working image.
-5. **Delete `vyakti-ctrl-env`** once §5 has been read.
-6. **Add a subscription-scope budget alert.**
-7. Optionally, grant `AcrPull` to `vyakti-voice-pull` and move off admin
-   credentials (§6).
-8. **Run a real ABX fidelity bench** before this lane is treated as primary
-   (§10).
+3. **Fix the three bicep problems** in §6 — especially the missing Startup
+   probe, which silently crash-loops an otherwise working image.
+4. **Decide the warm-up strategy** (§8). Nothing user-facing should absorb a
+   161 s cold start, and it is the dominant cost line as well.
+5. **Run a `voice-evidence` round trip** and record its numbers here (§10).
+6. **Delete `vyakti-ctrl-env`** once §5 has been read.
+7. **Add a subscription-scope budget alert.**
+8. Optionally bake the pkuseg and Cangjie assets (§8), and grant `AcrPull` to
+   `vyakti-voice-pull` to move off admin credentials (§6).
+9. **Run a real ABX fidelity bench** before this lane is treated as primary
+   (§10). Per `context/decisions.md#platform-north-star`, that bench — not this
+   deployment — is what decides whether the self-hosted lane leads
+   `api/_voice/registry.js`.
 
 **No quota request is needed.**
 
@@ -453,7 +495,7 @@ both be true.
 
 `open-voice-runtime` solves the identical problem with a CPU admission broker
 in front of a private GPU app — and that pattern is now proven working end to
-end (§8). `voice-evidence` has no equivalent in the repo. Either the
-replica-processing worker runs inside the managed environment, or the evidence
-lane needs the same broker treatment. A decision for the owner, not something
-to guess at.
+end (§8), so it is a known-good template rather than a theory.
+`voice-evidence` has no equivalent in the repo. Either the replica-processing
+worker runs inside the managed environment, or the evidence lane needs the same
+broker treatment. A decision for the owner, not something to guess at.
