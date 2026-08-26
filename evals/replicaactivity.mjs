@@ -301,12 +301,31 @@ console.log("\n── 5. honest not-deployed ──");
 {
   const configured = A.laneDeployment({
     YOUTUBE_API_KEY: "k", SARVAM_API_KEY: "k", CRON_SECRET: "s",
-    SUPABASE_URL: "https://x", SUPABASE_SERVICE_KEY: "k",
+    // SUPABASE_SERVICE_ROLE_KEY is the name the rest of the repo actually uses.
+    // This fixture carried the same typo as the requirement list it checks, so
+    // the two agreed with each other and disagreed with production: the lane
+    // was asserted deployed here while reporting "not connected yet" to a real
+    // owner whose recording had just completed all eight steps. A fixture that
+    // repeats the bug under test cannot catch it.
+    SUPABASE_URL: "https://x", SUPABASE_SERVICE_ROLE_KEY: "k",
   });
   const byLane = new Map(configured.map((entry) => [entry.lane, entry]));
   eq(byLane.get("channel_video").deployed, true, "with the env set, the YouTube lane reports deployed");
   eq(byLane.get("channel_video").missing.length, 0, "...and names nothing missing");
   eq(byLane.get("upload_processing").deployed, true, "the upload lane reports deployed");
+  // NEGATIVE CONTROL for the typo above: the OLD short name must NOT satisfy
+  // the upload lane. Without this, someone can reintroduce SUPABASE_SERVICE_KEY
+  // in both the requirement list and this fixture, watch them agree, and ship a
+  // lane that tells every owner it is not connected while it is running.
+  {
+    const wrongName = new Map(A.laneDeployment({
+      SUPABASE_URL: "https://x", SUPABASE_SERVICE_KEY: "k",
+    }).map((entry) => [entry.lane, entry]));
+    eq(wrongName.get("upload_processing").deployed, false,
+      "...and the old SUPABASE_SERVICE_KEY name does not satisfy it");
+    eq(wrongName.get("upload_processing").missing.includes("SUPABASE_SERVICE_ROLE_KEY"), true,
+      "...naming the variable that is actually required");
+  }
   // NEGATIVE CONTROL: the alternation must be a real OR, not a substring match
   // that any of the three keys satisfies by accident.
   const oauthOnly = A.laneDeployment({ YOUTUBE_OAUTH_CLIENT_ID: "id", SARVAM_API_KEY: "k", CRON_SECRET: "s" });
