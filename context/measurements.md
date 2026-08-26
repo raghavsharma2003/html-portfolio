@@ -3372,10 +3372,34 @@ that survives: see `supabase-object-info-is-not-json`.
 
 ### Spend
 
-Measured windows of GPU uptime, at Central India list rates from
-`AZURE-DEPLOY-STATE.md` §9 (~$0.55/hr per T4 app): `open-voice` ~26 min,
-`voice-evidence` ~22 min => **~$0.44**. Sarvam: ~3.9 minutes of audio across
-five calls; at the higher of the two conflicting published rates (Rs 90/hr)
-that is **~$0.07**, and the rate is still unresolved. Neon, Supabase, Vercel and
-the CPU broker: within existing plans, nothing metered above noise. **Total
-~$0.51**, against a ~$2 ceiling.
+This is an ESTIMATE from measured wall-clock windows, not a billing read — the
+subscription's cost API was not queried, and Container Apps bills replica
+uptime including the idle window before scale-down, which is inferred rather
+than observed. Rates from `AZURE-DEPLOY-STATE.md` §9 (~$0.53–0.60/hr per T4
+app, Central India list).
+
+| thing | measured active window | estimated |
+|---|---|---|
+| `vyakti-open-voice` (T4) | ~29 min across 2 wakes | ~$0.28 |
+| `vyakti-voice-evidence` (T4) | ~33 min across 3 wakes | ~$0.31 |
+| `vyakti-open-voice-admission` (CPU) | same windows, ~$0.01/hr | <$0.01 |
+| Sarvam | ~3.9 min of audio over 5 calls; at the higher of the two conflicting published rates (Rs 90/hr) | ~$0.07 |
+| Neon / Supabase / Vercel | within existing plans, nothing metered above noise | ~$0 |
+
+**Total ~$0.66**, against a ~$2 ceiling. Cold starts dominate as WS-L predicted:
+three of the six GPU wakes were pure warm-up and produced no output at all, and
+they are roughly a third of the bill.
+
+Every app was confirmed back at `minReplicas: 0` with internal ingress after the
+run, so the standing cost returns to the ACR Basic fee.
+
+### The ingress scaffold, stated so it is not mistaken for architecture
+
+`voice-evidence` is deployed with **internal** ingress and Vercel is not inside
+its Container Apps environment (`AZURE-DEPLOY-STATE.md` §12, still open). To run
+the round trip at all, WS-T flipped its ingress to external, ran, and flipped it
+back — confirmed `external: false` afterwards, and every app confirmed at
+`minReplicas: 0`. The service authenticates every `/v1/analyze` call itself, so
+this was never an authorisation hole; `/healthz` is unauthenticated, so it WAS a
+cost surface for the duration. This is a measurement scaffold. It is not an
+answer to §12, and the numbers above do not depend on which answer is chosen.
