@@ -46,7 +46,10 @@ node scripts/ota-bundle.mjs
 # to the teacher studio instead of serving the companion landing — one build,
 # two products, the difference is a per-project env var, never a branch.
 mv dist/index.html dist/chat.html
-if [ "${STUDIO_ROOT:-}" = "1" ]; then
+# Studio-root when explicitly flagged OR when this is a gurukul-platform build
+# (the vyakti product's branch) — so the replica project shows the studio at /
+# with no per-project env var, while the companion branch keeps Meera's landing.
+if [ "${STUDIO_ROOT:-}" = "1" ] || [ "${VERCEL_GIT_COMMIT_REF:-}" = "claude/gurukul-platform" ]; then
   printf '<!doctype html><meta http-equiv="refresh" content="0;url=/studio?mode=teacher"><link rel="canonical" href="/studio"><title>Vyakti Studio</title>' > dist/index.html
 else
   cp site/index.html dist/index.html
