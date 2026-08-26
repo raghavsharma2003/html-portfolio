@@ -609,3 +609,288 @@ Added cost: 20 more syntheses and 6 more evidence calls on already-warm apps,
 plus one more evidence cold start (~220 s) because the flip back to internal had
 let it scale to zero — call it **~$0.15**, bringing WS-U's total to roughly
 **$0.70**.
+
+---
+
+## 14. Audio protection (WS-AL, 2026-08-26)
+
+**`services/audio-protection` is deployed and serving.** It was in
+`ENV-MANIFEST.md` but had never been deployed, which is why the owner's
+"Preview my voice" returned 500 with `audio_protection_origin_required` in the
+production log: the last of four layers, and the only one that was not a code
+defect.
+
+Every number in this section is a REST read-back, a platform log line, or a
+wall-clock measurement of a real signed request.
+
+### 14.1 What is live
+
+| resource | name | note |
+|---|---|---|
+| Container app | `vyakti-audio-protection` | Consumption (CPU), external ingress, `minReplicas: 0` |
+| Key Vault | `vyakti-protect-kv` | Standard, **access policies, not RBAC** (see 14.5), soft delete 7 days |
+| KV certificate + key | `vyakti-c2pa-signer` | self-signed EC P-256, non-exportable |
+| User-assigned identity | `vyakti-protect-id` | the app's only Key Vault credential, `get` + `sign` only |
+
+Nothing pre-existing was modified. WS-AK was deploying the enrollment
+processing worker into the same resource group at the same time; no resource of
+its was touched, and no shared infrastructure was changed. The ACR, the Log
+Analytics workspace and the `vyakti-voice-env` environment were **read from and
+joined, not reconfigured**.
+
+**Endpoint** (not a secret):
+
+```
+https://vyakti-audio-protection.purpletree-6dea69e2.centralindia.azurecontainerapps.io
+```
+
+**Serving revision and digest:**
+
+```
+revision : vyakti-audio-protection--0000002
+image    : vyaktivoiceacr.azurecr.io/audio-protection@sha256:a5c12a02f2f0d380dbff786bab34db743aac0385860f05f615f41d2b73985079
+tag      : audio-protection:v3   (ACR Task run cup)
+size     : 424,673,280 bytes (424.7 MB), from the platform's own pull record
+```
+
+### 14.2 It serves, not merely provisions
+
+`context/rejected.md#provisioning-succeeded-is-not-serving` exists because
+Container Apps reports Succeeded before a revision serves. Measured against
+revision `--0000002` with real HMAC-signed requests, response signatures
+verified on every one:
+
+| probe | result |
+|---|---|
+| `GET /healthz` warm | 200 `{"ready":true}` in 1.29 s |
+| `POST /v1/watermark` (3 s of 24 kHz mono) | **200**, confidence 1.0, message verified, 3.28 s |
+| `POST /v1/watermark` warm repeat | 200 in 2.72 s |
+| `POST /v1/c2pa` | **200**, 12,350-byte external manifest, ES256, 5.20 s |
+| `POST /v1/sign` | **200**, ES256 from the Key Vault key, 4.40 s |
+| **negative control, wrong key** | **401 `transport_signature_invalid`** in 1.45 s |
+
+The negative control matters for the same reason it did for WS-L: a wrong key
+fails with a different code than a correct key against a broken service, so the
+HMAC binding is enforced rather than merely configured.
+
+**The real production client was then run against the live service**: the
+unmodified `api/_provenance/providers/azure-protection.js` with the exact env
+values the owner is being asked to paste. Disclosure, watermark, C2PA manifest
+and receipt signature all succeeded over the wire, and undisclosed audio was
+refused with `provider_disclosure_evidence_missing`. Full protection cost for a
+3-second clip: **6.7 s** (3.02 s watermark + 2.61 s C2PA + 1.06 s signature).
+
+### 14.3 The watermark was verified independently, with a negative control
+
+The service verifies its own watermark before it will return audio. That is
+necessary and not sufficient, so the returned bytes were also run through a
+**separate process** using the same official detector, alongside the identical
+audio from before the service saw it:
+
+```
+SERVICE OUTPUT    confidence=1.000000  message_matches=True
+NEGATIVE CONTROL  confidence=0.000000  message_matches=False
+```
+
+The exact 16-bit token was recovered from the output and not from the control.
+Without the second line the first would prove nothing.
+
+The spoken disclosure is enforced structurally rather than checked afterwards:
+the voice provider synthesises text that already begins with
+`This is an AI-generated voice replica. `, the protection client refuses any
+clip whose provider evidence does not start with exactly that, and
+`delivery.js` asserts the disclosure proof before a single byte is forwarded.
+Both halves are now asserted in `evals/production-protection/run.mjs`.
+
+### 14.4 Three defects that only a real build and a real request could find
+
+None was visible to code review, and each one passed the gate before it.
+
+**14.4.1 The service was written for a base image it cannot use as deployed.**
+`app.py` imports `numpy` and `torch`; `requirements.txt` listed neither,
+relying entirely on the `pytorch/pytorch:...-cuda12.8` base. Both are now
+explicit, `numpy` pinned in `requirements.txt` and `torch==2.8.0` installed
+from the CPU wheel index in the Dockerfile.
+
+**14.4.2 The AudioSeal checkpoints were not baked, so every cold start
+downloaded them.** Fixed by `bake_models.py`, which downloads both to the exact
+path `audioseal.loader` resolves from `AUDIOSEAL_CACHE_DIR`.
+
+**14.4.3 The one that actually broke it: `torch.compile` needs a C++ compiler
+at FIRST CALL.** AudioSeal's bundled moshi SEANet encoder wraps its forward
+pass in `torch.compile`. TorchInductor shells out to `g++` the first time that
+function runs, and nowhere earlier. So on a slim image:
+
+- the image builds green,
+- the container boots,
+- `/healthz` answers `{"ready":true}`,
+- and every single `/v1/watermark` call returns 503 `audio_protection_failed`.
+
+Diagnosed only after adding data-free exception diagnostics (14.6), which
+printed `InductorError<-InvalidCxxCompiler at ... compile.py:52:_wrapped`.
+Fixed with `NO_TORCH_COMPILE=1`, which is moshi's own documented off switch and
+returns the plain eager function. Eager is the right trade: the model is small,
+and shipping a C++ toolchain inside a fail-closed signing service is not.
+
+**The lasting fix is that the build now proves it.** `bake_models.py` runs a
+full streaming watermark and a detection at build time and asserts the message
+comes back. A build that can load the models but not use them now fails:
+
+```
+audioseal baked and exercised: confidence=1.000000 message_recovered=True
+```
+
+### 14.5 Deviations, and why
+
+**Key Vault uses access policies, not Azure RBAC.** The deploying principal
+holds Contributor, which excludes `Microsoft.Authorization/roleAssignments/write`
+(the same wall WS-L hit for `AcrPull`). Setting a vault access policy is
+`vaults/write`, which Contributor does have. So the vault is created with
+`enableRbacAuthorization: false` and two policies: the deploying principal, and
+`vyakti-protect-id` with `get` and `sign` on keys and nothing else.
+
+**Microsoft Graph is not granted to this principal.** Resolving the principal's
+own object id via Graph returns an error. The `oid` claim in its own ARM token
+is the same value and needs no extra permission.
+
+**Image pull uses ACR admin credentials**, for the same role-assignment reason
+as WS-L.
+
+**Ingress is external.** See `context/decisions.md#audio-protection-ingress`.
+The README asks for no public ingress; a Vercel function is not inside the
+managed environment, so as written that and a working preview cannot both be
+true. This is the same unresolved tension as section 12. The service is its own
+admission broker: every route is HMAC-bound, timestamp-bound, content-hash-bound
+and single-use-nonce replay-protected inside `app.py`, it keeps no access log,
+and `/healthz` is the only thing an unsigned caller can reach. Building the
+separate CPU broker that `open-voice-runtime` has would be strictly better and
+is recorded as open.
+
+**The container runs on CPU.** See `context/decisions.md#audio-protection-cpu`.
+It is a recorded decision with a reversal condition, not a silent flag flip.
+
+### 14.6 A generic 503 was undebuggable, and now is not
+
+`_run` caught every unexpected exception and answered
+`{"error": "audio_protection_failed"}` with no trace anywhere, because the
+service is forbidden from logging audio or request bodies. That is the correct
+privacy posture and it made 14.4.3 invisible.
+
+`_diagnostic()` now prints the exception class chain and the traceback's
+`file:line:function` frames, and nothing else: no message, no `repr`, no
+arguments, no payload. `evals/production-protection/run.mjs` enumerates every
+output statement in the service and asserts that no interpolated expression
+names anything derived from a request. The old check was a blanket "no output
+statement of any kind", which is a proxy for the real invariant, and the proxy
+is what would have blocked the fix.
+
+### 14.7 Measured performance
+
+Cold start is the headline, because on this stack it is what decides whether a
+user-facing feature works at all.
+
+| t+ | event (platform's own system log, revision `--0000002`) |
+|---|---|
+| 0 s | replica scheduled onto a node |
+| +2.0 s | image pull begins |
+| **+10.0 s** | image pulled: **9.73 s for 424.7 MB** |
+| +15.9 s | container created and started |
+| **+19.5 s** | `Application startup complete` |
+
+**Cold start from true zero, measured end to end:** the app was allowed to
+scale to zero (confirmed 0 running replicas at 19:24:41), then one request was
+sent. `GET /healthz` returned **200 in 35.60 s**, and the immediately following
+real `POST /v1/watermark` returned **200 in 3.43 s**.
+
+**The triggering request survived.** That is the whole point of the CPU base
+image. WS-L measured the GPU runtime ready at 161 s with the request that woke
+it dying at 240 s on a platform timeout (section 8). Here the same event costs
+**35.6 s and returns 200**. A preview can absorb this cold start; it provably
+could not absorb the GPU lane's.
+
+Warm steady state, 3 seconds of 24 kHz mono audio:
+
+| operation | warm |
+|---|---|
+| `/v1/watermark` | **2.72 s** (real-time factor 0.91) |
+| `/v1/c2pa` | 5.20 s first call, includes the DigiCert timestamp round trip |
+| `/v1/sign` | ~1.06 s |
+| full protection of a 3 s clip through the production client | **6.7 s** |
+
+### 14.8 Cost
+
+Central India list prices. Consumption CPU at 2 vCPU / 4 GiB is roughly
+**$0.04 per hour of replica uptime**, and uptime includes the cold start.
+
+| thing | idle | active |
+|---|---|---|
+| `vyakti-audio-protection` | **$0** (scale-to-zero, verified) | ~$0.04/hr of replica uptime |
+| `vyakti-protect-kv` | ~$0 (a Standard vault has no standing fee) | $0.03 per 10,000 key operations |
+| `vyakti-protect-id` | $0 | $0 |
+| ACR storage for a 424.7 MB image | counts against the Basic 10 GiB allowance | negligible |
+
+Per-preview marginal cost at the measured warm rate is on the order of
+**$0.00005**. A cold start costs about **$0.0004**, which is roughly eight warm
+previews: an order of magnitude cheaper per wake than the GPU lane, and the
+reason the warm-up problem is much less urgent here than in section 8.
+
+**Spent by WS-AL:** four ACR Task builds (about 8 minutes of 2-vCPU agent
+time), one verification build, and roughly 25 minutes of CPU replica uptime
+across boot tests, three probe rounds and the cold-start measurement. **On the
+order of $0.05 total.**
+
+### 14.9 Vercel environment variables — names only
+
+Values are **not** in this file. They are in the scratchpad file named in
+section 14.11, which is ephemeral.
+
+| Vercel env var | where the value comes from |
+|---|---|
+| `AZURE_AUDIO_PROTECTION_ORIGIN` | the endpoint in 14.1. Not a secret; readable from Azure at any time. |
+| `AZURE_AUDIO_PROTECTION_HMAC_SECRET` | generated `openssl rand -hex 32`. The same value is the container app secret `protection-hmac`, so **Azure is the durable copy** and it can be read back with `listSecrets` exactly as the secret-recovery section above section 13 describes. |
+| `REPLICA_WATERMARK_TOKEN_SECRET` | generated `openssl rand -hex 32`. **Vercel-side only, no Azure copy.** The protection service never sees it. |
+| `REPLICA_COMMITMENT_SECRET` | generated `openssl rand -hex 32`. **Vercel-side only, no Azure copy.** |
+| `REPLICA_PROTECTION_MAX_PCM_BYTES` | optional; `33554432` matches what the service is deployed with. |
+
+The last two have no durable copy anywhere. If the scratchpad is reclaimed
+before they are pasted into Vercel they must be regenerated, which invalidates
+the commitment of every clip already issued. Copy them first.
+
+### 14.10 What is NOT established
+
+- **The owner's preview has not been observed producing audio.** Everything
+  between the Vercel function and the protected bytes is proven, using the real
+  client against the real service. What has not happened is the two things this
+  agent cannot do: write the five Vercel environment variables (no env-write
+  tool exists here), and authenticate as the owner to
+  `POST /api/replica-voice-preview`, which is behind `requireUser`. **The
+  remaining step is one dashboard paste and a redeploy.** It is not a code
+  change and not an Azure change.
+- **Quality is unmeasured.** The probes used a synthetic 220 Hz tone. This
+  proves the protection pipeline runs and that the watermark survives it. It
+  says nothing about how the voice sounds, and must not be read as if it does.
+- **Watermark robustness is unmeasured.** Detection was verified on the exact
+  bytes returned. Survival through MP3, resampling, or a re-record was not
+  tested. AudioSeal claims robustness; this deployment has not confirmed it.
+- **No load or concurrency testing.** `maxReplicas` is 3 with a concurrency
+  target of 2. Those numbers are a guess, not a measurement.
+- **The C2PA signing certificate is self-signed** and valid for 24 months. It
+  satisfies the C2PA signing profile (X.509 v3, EC P-256, ECDSA-SHA256,
+  `digitalSignature` critical, `CA:FALSE`, EKU `emailProtection`) and c2pa-rs
+  accepts it, so manifests sign. But it chains to no public trust list, so an
+  external verifier will report a valid signature from an untrusted signer.
+  Promoting to a real C2PA-recognised issuer is an owner decision.
+- **No budget alert**, for the same subscription-scope reason as section 10.
+
+### 14.11 Remaining owner actions
+
+1. **Paste the five variables** into `vyakti-replica-lab` and redeploy. This is
+   what makes "Preview my voice" work. The values are in the session scratchpad
+   at `.sec/al-vercel-handover.txt`, mode 0600, never committed and never
+   printed.
+2. **Copy `REPLICA_WATERMARK_TOKEN_SECRET` and `REPLICA_COMMITMENT_SECRET` out
+   of that file first** (14.9). They exist nowhere else.
+3. Decide the ingress posture (14.5): leave the service as its own HMAC broker,
+   or build it the CPU admission broker `open-voice-runtime` has.
+4. Decide whether the C2PA signer should chain to a recognised issuer (14.10).
+5. Measure watermark robustness through the delivery encoding actually used.

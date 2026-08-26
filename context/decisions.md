@@ -5290,3 +5290,106 @@ evidence.
 readiness, or an ingress that starts answering it on the app's behalf. Both turn
 this from a readiness check back into a front door, and the failure would be
 silent: requests would be signed too early again and the 401s would return.
+## audio-protection-cpu
+
+**The audio protection service runs on CPU, and `AUDIO_PROTECTION_REQUIRE_CUDA`
+is set to `false` on the deployment.** WS-AL, 2026-08-26.
+
+The service's README calls itself "intentionally fail-closed: startup fails
+without CUDA", and `app.py` defaults `AUDIO_PROTECTION_REQUIRE_CUDA` to `true`.
+Turning that off is exactly the kind of quiet flag flip that a safety-critical
+service should not receive without an argument, so here is the argument.
+
+**Why CPU is correct here, not merely cheaper.**
+
+- **The device does not change the watermark.** AudioSeal's generator is a small
+  SEANet model. The weights, the 16-bit message, and `alpha=1` are identical on
+  either device; only the arithmetic backend differs. There is no quality knob
+  being turned down.
+- **The service refuses to ship an unverified watermark either way.** Before
+  returning a single byte, `_watermark` runs the official detector over its own
+  output and raises `audioseal_self_verification_failed` (503) unless confidence
+  clears `AUDIOSEAL_GENERATION_MIN_CONFIDENCE` (0.80) **and** all sixteen
+  decoded bits match. So a device that degraded the watermark would fail closed,
+  loudly, per request. Measured on CPU: confidence **1.0**, message verified, on
+  every call, plus an independent detection in a separate process at
+  **1.000000** against a negative control at **0.000000**
+  (`measurements.md#audio-protection-cpu-serving`).
+- **CPU is fast enough.** 3 seconds of 24 kHz mono is watermarked in **2.72 s
+  warm**, a real-time factor of 0.91. A preview clip is seconds long.
+- **GPU would break the feature it exists to serve.** The CUDA base image is
+  9.70 GB and WS-L measured that lane at **161 s to ready with the triggering
+  request dying at 240 s** on a platform timeout
+  (`docs/gurukul/AZURE-DEPLOY-STATE.md` section 8). The CPU image is **424.7 MB**
+  and cold starts in **35.6 s with the triggering request returning 200**. On a
+  scale-to-zero service in front of a user-facing preview, that is the
+  difference between working and not.
+- **GPU costs about 14x more per hour** (~$0.53-0.60 versus ~$0.04) for work
+  that is not the bottleneck.
+
+**What this costs.** Nothing measurable in watermark quality, and two real
+things: no headroom for a future duplex or streaming corridor that must
+watermark many concurrent calls in real time, and a ~1 s per-clip latency floor
+that a GPU would shrink. Both are throughput and latency concerns, not
+integrity concerns.
+
+**What would reverse it.**
+
+- **Throughput.** If concurrent previews or a duplex call lane push sustained
+  demand past what a 2-vCPU replica serves at RTF 0.91, move to the existing
+  `Consumption-GPU-NC8as-T4` profile. The flag flips back and nothing else
+  changes.
+- **A measured device-dependent difference in the watermark.** If a paired CPU
+  versus GPU comparison at n >= 20 clips ever shows a detector-confidence or
+  bit-error difference, that is a real integrity finding and the fail-closed
+  default was right. Nothing in the round trips run here suggests it.
+- **A longer-clip regime.** These numbers are from 3-second clips. If the
+  product starts protecting minutes of audio per request, re-measure RTF before
+  assuming it holds.
+
+## audio-protection-ingress
+
+**The protection service is deployed with external ingress and acts as its own
+HMAC admission broker.** WS-AL, 2026-08-26.
+
+Its README says "the service must have no public ingress" and the bicep pattern
+for its siblings is internal-only. But `docs/gurukul/ENV-MANIFEST.md` section 6
+has a **Vercel function** calling it, and a Vercel function is not inside the
+Container Apps managed environment. This is the same contradiction WS-L recorded
+as the open design question in section 12 for `voice-evidence`, and it cannot be
+resolved by choosing a side: internal ingress means the owner's preview cannot
+work at all.
+
+**Why external is defensible here specifically.** `open-voice-runtime` solves
+this with a separate cheap CPU broker in front of a private GPU app. The reason
+that broker exists is that the GPU runtime does no authentication of its own.
+`audio-protection` is not in that position: every route is protocol-bound,
+timestamp-bound (60 s skew), content-hash-bound, HMAC-signed, and
+single-use-nonce replay-protected inside `app.py` before any handler runs, it
+signs its own responses, and it keeps no access log. An unsigned caller reaches
+`/healthz` and nothing else. Verified: a deliberately wrong key returns **401
+`transport_signature_invalid`**, distinguishable from a correct key against a
+broken service.
+
+So the broker's job is already done, in-process, by the service itself. Adding a
+second copy of the same check in front of it would be defence in depth, which is
+worth having and is not worth blocking the feature on.
+
+**What this costs.** The service can be woken from the internet, so a stranger
+can make it scale from zero and burn CPU minutes. At ~$0.04/hr and a 35.6 s wake
+that is a nuisance, not a bill. More seriously, it is one HMAC implementation
+away from exposure rather than two, and it is a deviation from a written README
+instruction rather than a decision the README anticipated.
+
+**What would reverse it.**
+
+- **The obvious fix.** Build `audio-protection` the same CPU admission broker
+  `open-voice-runtime` has, flip this app to internal, and point Vercel at the
+  broker. That is strictly better and is recorded as an owner action in
+  `docs/gurukul/AZURE-DEPLOY-STATE.md` section 14.11.
+- **The replica-processing worker moving inside the environment.** If the
+  protection call ever originates from inside the managed environment rather
+  than from a Vercel function, the reason for external ingress disappears
+  entirely and this app should go internal the same day.
+- **Any evidence of abuse.** Unsigned traffic waking the app in the platform
+  logs is sufficient reason to bring the broker forward.

@@ -2942,6 +2942,60 @@
       "kind": "measurement",
       "title": "separate failed twice with voice_evidence_failed, the service's bare 503 catch-all; app.py:241 passes all 13.16M samples to Sepformer in one forward pass on a T4, so CUDA OOM is the leading hypothesis - traceback NOT yet ingested, 2026-08-26",
       "at": "2026-08-26"
+    },
+    {
+      "id": "audio-protection-service",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "services/audio-protection: the only production path from disclosed replica PCM to deliverable audio; AudioSeal streaming watermark, external C2PA sidecar, Key Vault ES256 receipts"
+    },
+    {
+      "id": "audio-protection-cpu",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "the protection service runs on CPU with AUDIO_PROTECTION_REQUIRE_CUDA=false; the device does not change the watermark, the service self-verifies every clip, and a 9.7 GB CUDA image cold-starts past the request timeout"
+    },
+    {
+      "id": "audio-protection-ingress",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "the protection service takes external ingress and is its own HMAC admission broker, because a Vercel function cannot reach an environment-internal app and the service already authenticates every route in-process"
+    },
+    {
+      "id": "audio-protection-cpu-serving",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "the deployed revision serves all three endpoints on CPU: watermark RTF 0.91 warm, independent detection 1.000000 against a 0.000000 negative control, cold start 35.6 s from true zero with the triggering request returning 200"
+    },
+    {
+      "id": "a-green-build-and-a-green-healthz-can-both-lie-about-a-model",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "loading a model is not evidence it can run: AudioSeal's torch.compile needs a C++ compiler at first call, so build, boot and healthz were all green while every watermark request returned 503"
+    },
+    {
+      "id": "a-cuda-base-image-is-not-free-on-a-scale-to-zero-service",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "keeping the service's original 9.7 GB CUDA base looked like minimum distance and would have made the first press of Preview my voice always fail; on Container Apps with minReplicas 0, image size is a correctness property of a user-facing path"
+    },
+    {
+      "id": "audio-protection-vercel-env-not-written",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "the five Vercel variables for vyakti-replica-lab are prepared but not written; no env-write tool exists in the deploying session and the preview route is behind requireUser, so the last step is one dashboard paste"
+    },
+    {
+      "id": "audio-protection-has-no-admission-broker",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "the protection service carries its own HMAC check instead of the separate CPU broker open-voice-runtime has; strictly better would be to build the broker and flip the app to internal ingress"
+    },
+    {
+      "id": "audio-protection-c2pa-signer-is-self-signed",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "the C2PA claim signer is a self-signed Key Vault EC certificate; it meets the C2PA signing profile and c2pa-rs accepts it, but it chains to no public trust list so external verifiers will report an untrusted signer"
     }
   ],
   "edges": [
@@ -5719,6 +5773,66 @@
       "src": "separate-fails-on-the-whole-recording",
       "rel": "caused_by",
       "dst": "windowing-belongs-before-the-embedder-not-before-diarize"
+    },
+    {
+      "src": "audio-protection-cpu",
+      "rel": "measured_by",
+      "dst": "audio-protection-cpu-serving"
+    },
+    {
+      "src": "audio-protection-cpu",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "audio-protection-ingress",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "audio-protection-cpu-serving",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "audio-protection-cpu",
+      "rel": "caused_by",
+      "dst": "a-cuda-base-image-is-not-free-on-a-scale-to-zero-service"
+    },
+    {
+      "src": "a-green-build-and-a-green-healthz-can-both-lie-about-a-model",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "a-cuda-base-image-is-not-free-on-a-scale-to-zero-service",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "audio-protection-cpu-serving",
+      "rel": "constrains",
+      "dst": "provisioning-succeeded-is-not-serving"
+    },
+    {
+      "src": "audio-protection-vercel-env-not-written",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "audio-protection-vercel-env-not-written",
+      "rel": "blocks",
+      "dst": "audio-protection-service"
+    },
+    {
+      "src": "audio-protection-has-no-admission-broker",
+      "rel": "part_of",
+      "dst": "audio-protection-ingress"
+    },
+    {
+      "src": "audio-protection-c2pa-signer-is-self-signed",
+      "rel": "part_of",
+      "dst": "audio-protection-service"
     }
   ]
 }

@@ -4206,3 +4206,115 @@ is where whole-recording processing actually breaks. Raising
 `separate` rather than removing it, which is the concrete evidence for
 `windowing-belongs-before-the-embedder-not-before-diarize`: the fix is chunked
 analysis, not a larger number.
+
+## audio-protection-cpu-serving
+
+**The audio protection service serves real watermarked, C2PA-signed audio on
+CPU.** WS-AL, 2026-08-26.
+
+**Method.** Container app `vyakti-audio-protection`, revision
+`vyakti-audio-protection--0000002`, image
+`vyaktivoiceacr.azurecr.io/audio-protection@sha256:a5c12a02f2f0d380dbff786bab34db743aac0385860f05f615f41d2b73985079`,
+2 vCPU / 4 GiB Consumption profile in `vyakti-voice`, Central India. Every
+request was HMAC-signed with the deployed transport secret per
+`vyakti-audio-protection/v1`, and every response signature was verified by the
+client before the body was read. Test audio: 3.000 s of 24 kHz mono
+`pcm_s16le`, a 220 Hz sine at amplitude 9000 (144,000 bytes). This is a
+synthetic tone, not a voice: it measures the pipeline, not fidelity.
+
+### Round trip, n = 5 signed requests across 3 probe rounds
+
+| probe | result | wall clock |
+|---|---|---|
+| `GET /healthz` warm | 200 `{"ready":true}` | 1.04 s, 1.24 s, 1.29 s |
+| `POST /v1/watermark` first on a fresh replica | 200 | 3.28 s, 3.43 s |
+| `POST /v1/watermark` warm | 200 | 2.72 s, 2.79 s |
+| `POST /v1/c2pa` | 200, 12,350-byte manifest | 5.20 s |
+| `POST /v1/sign` | 200, ES256 | 4.40 s, 4.65 s, 4.96 s |
+| **wrong key, negative control** | **401 `transport_signature_invalid`** | 1.44 s, 1.45 s, 1.57 s |
+
+Warm real-time factor for watermarking: **2.72 s of compute for 3.000 s of
+audio = 0.91**, i.e. faster than real time on 2 vCPU.
+
+Every 200 from `/v1/watermark` carried `embedded: true`, `streaming: true`,
+`message_verified: true`, `verification_confidence: 1.0`, the echoed token hash,
+and an `output_sha256` that the client independently recomputed and matched.
+Output length equalled input length exactly (144,000 bytes) and **76,253 of
+144,000 bytes differed**, so the watermark measurably altered the audio rather
+than passing it through.
+
+### Independent watermark detection, with a negative control
+
+The service verifies its own watermark before returning. That is necessary and
+not sufficient, so the returned bytes were scored by a **separate process** (an
+ACR Task build running the same official `audioseal_detector_streaming` from the
+baked checkpoints), against the identical audio from before the service saw it:
+
+```
+SERVICE OUTPUT    confidence=1.000000  message_matches=True
+NEGATIVE CONTROL  confidence=0.000000  message_matches=False
+expected message bits [0,0,1,0,1,0,1,0,0,1,1,1,1,1,1,1]
+decoded from output   [0,0,1,0,1,0,1,0,0,1,1,1,1,1,1,1]
+```
+
+n = 1 clip, 2 arms. The control is what makes the first line mean anything: a
+detector that answered "watermarked" to everything would produce line one and
+not line two.
+
+### The production client against the live service, n = 1 full sequence
+
+The unmodified `api/_provenance/providers/azure-protection.js` with the exact
+env values prepared for Vercel, over the real network:
+
+| stage | measured |
+|---|---|
+| watermark over the wire | 3,020 ms |
+| C2PA manifest | 2,614 ms |
+| Key Vault receipt signature | 1,058 ms |
+| **total protection of a 3 s clip** | **6,692 ms** |
+| undisclosed audio | refused, `provider_disclosure_evidence_missing` |
+
+### Cold start, n = 1 from true zero
+
+The app was confirmed at 0 running replicas at 19:24:41 UTC, then one request
+was sent.
+
+| measurement | value |
+|---|---|
+| `GET /healthz` that triggered the wake | **200 in 35.60 s** |
+| immediately following real `POST /v1/watermark` | **200 in 3.43 s** |
+
+From the platform's own system log for the same revision's first start:
+replica scheduled at t+0, pull begins t+2.0 s, **image pulled t+10.0 s (9.73 s
+for 424,673,280 bytes)**, container started t+15.9 s, **`Application startup
+complete` t+19.5 s**.
+
+**Comparison that matters.** WS-L measured the GPU voice runtime at 161 s to
+ready with the triggering request dying at 240 s
+(`docs/gurukul/AZURE-DEPLOY-STATE.md` section 8, 9.70 GB image). Same platform,
+same resource group, same scale-to-zero posture: **35.6 s and a 200** versus
+**161 s and a 504**. The difference is almost entirely image size.
+
+### What this does and does not settle
+
+- **Settled:** the protection service serves all three endpoints on CPU, the
+  watermark is present and independently detectable with the exact 16-bit
+  message, and the HMAC transport is enforced rather than merely configured.
+- **Settled:** a user request can absorb this service's cold start. It provably
+  could not absorb the GPU lane's.
+- **Settled:** the Key Vault chain works end to end. A user-assigned identity
+  with `get` and `sign` only, against a non-exportable EC P-256 key, produces
+  ES256 signatures that c2pa-rs accepts into a real 12,350-byte manifest.
+- **NOT settled: voice quality.** The input was a 220 Hz tone. Nothing here says
+  anything about how a replica sounds.
+- **NOT settled: watermark robustness.** Detection was verified on the exact
+  bytes returned. Survival through lossy encoding, resampling or re-recording
+  was not tested.
+- **NOT settled: the owner's preview.** The five Vercel environment variables
+  are prepared but not written, because this session has no Vercel env-write
+  tool, and `POST /api/replica-voice-preview` is behind `requireUser`. The
+  remaining step is one dashboard paste and a redeploy.
+- **Confound, stated:** n is small. The cold start is a single observation and
+  the latencies are 2 to 3 observations each. They are consistent with each
+  other and none is a tight call, but nothing here supports a confidence
+  interval.

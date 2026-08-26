@@ -5,20 +5,19 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26 19:15Z, after the first end-to-end test driven through
-the REAL deployed frontend in a real mobile browser. Six stacked "Last updated"
-lines used to sit here: the merge helper unions append-only files, and a header
-is not append-only. If you see two of these again, collapse them.
+Last updated: 2026-08-26, and this line is the ONLY one of its kind in this
+file. **Do not add a "Last updated" line here.** Put what your session did in
+the SESSION LOG at the bottom of this page instead.
+
+Why that rule exists, so it is not undone as fussiness: this header is not
+append-only, but the merge helper that resolves `context/` conflicts unions
+append-only files line by line. Every agent that added its own header line here
+therefore survived the union, and eight of them stacked up twice. The bottom of
+the file IS append-only, so a line placed there merges correctly by
+construction rather than by anyone remembering to tidy up.
 
 **Other agents:** `AGENTS.md` at the repo root is the tool-neutral entry point
 and points back here. `CLAUDE.md` carries the same rules for Claude Code.
-Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
-Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
-Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
-Last updated: 2026-08-26 (WS-AC: the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked)
-Last updated: 2026-08-26 (WS-AD: media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it)
-Last updated: 2026-08-26 (WS-AF: the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing)
-Last updated: 2026-08-26 (WS-AK: the processing worker deployed as an Azure Container Apps Job — and the commit statement that had never once written a piece of evidence)
 
 ## What the product is
 
@@ -84,7 +83,13 @@ symptoms of ONE cause, the audio-protection service being undeployed.
 | integrity | complete | byte verification passed |
 | malware_scan | complete | the deployed scanner works |
 | media_probe | complete | measured 822 720 ms (13.7 min), mp3, 2ch, 48 kHz |
-| diarize | **failed** `audio_duration_invalid` | the file is 822 s; `VOICE_EVIDENCE_MAX_DURATION_SECONDS` defaults to 600 s (hard ceiling 1200 s) |
+| diarize | **complete** | 278 speaker segments, mean confidence 0.877. Cluster 1 is the owner (663.5 s over 231 segments); cluster 2 is 25.9 s of someone else. The first voice evidence this system has ever written. Unblocked by WS-AK: the service is scale-to-zero, its cold start is 100-160 s, and the request signature only lives 60 s, so every cold request was guaranteed to fail. Wake it, THEN sign |
+| separate | leased | throws on the GPU for a whole 822.7 s recording |
+| transcribe | blocked | needs `AZURE_SPEECH_ENDPOINT` / `AZURE_SPEECH_KEY`, and the subscription has **zero** Cognitive Services accounts. Sarvam ASR adapters already exist and are proven on Hinglish (`api/_asr/providers/sarvam-saaras.js`, `sarvam-sync.js`); pointing `transcribe` at them avoids a new vendor and a new bill. Owner's call |
+
+A 30-minute lecture would still fail here even with a raised cap: 1200 s is a
+hard ceiling compiled into `app.py`. That is why `best-window-not-first-window`
+is the decided fix and a cap raise is only an unblock.
 
 Two facts a new agent must not re-derive:
 - **`vy_replica_source.duration_ms` is NULL** even though `media_probe` wrote
@@ -108,9 +113,18 @@ Each hid the next; all four are worth knowing because the pattern recurs.
    throw a bare `{status:400}`. Fixed as a class, not an instance.
 4. **Root: the audio-protection service was never deployed.** Every clip must
    carry the spoken disclosure and the PerTh watermark before delivery, so NO
-   replica audio can leave for anyone. `AZURE_AUDIO_PROTECTION_ORIGIN` and
-   `AZURE_AUDIO_PROTECTION_HMAC_SECRET` are unset on Vercel.
+   replica audio can leave for anyone.
    **Never stub or bypass this to get a green screen.**
+
+Layers 1 to 3 are fixed in code. Layer 4 is fixed in infrastructure: WS-AL
+deployed `vyakti-audio-protection` to the `vyakti-voice` resource group and it
+is serving, with the build now proving the watermark model actually runs rather
+than only that the image builds. What remains is **not code**: five environment
+variables have to be pasted into the Vercel project `vyakti-replica-lab` before
+any replica audio can reach a person. This session has no tool that can write a
+Vercel environment variable, so it is an owner action, and Preview stays
+correctly refused until it is done. The values and where each one comes from
+are in the credentials handover file the owner already holds.
 
 The lesson, now encoded: a refusal that chose its own 4xx keeps it, a
 configuration absence answers 503 BY SHAPE rather than by a list of names, and
@@ -199,6 +213,26 @@ service response, not a claim.
   which this environment does not have. Its central assumption — that a 12 s
   flush window is long enough for the platform to begin scheduling the GPU
   replica — is **untested** (`voice-panel-has-never-synthesised`).
+- **The audio protection service** (WS-AL): `services/audio-protection` is
+  **DEPLOYED AND SERVING** on Azure, which it had never been despite appearing
+  in `ENV-MANIFEST.md`. That absence was the root cause of the owner's "Preview
+  my voice" 500 (`audio_protection_origin_required`), under three code defects
+  that were fixed the same day. All three endpoints answer on the serving
+  revision `vyakti-audio-protection--0000002`, the watermark is
+  **independently** detectable at confidence 1.000000 against a 0.000000
+  negative control, and a cold start from true zero is **35.6 s with the
+  triggering request returning 200** — where the GPU voice lane's is 161 s with
+  the triggering request dying at 240 s. Numbers, method and n:
+  `measurements.md#audio-protection-cpu-serving`. Full deployment state:
+  `docs/gurukul/AZURE-DEPLOY-STATE.md` section 14.
+  **The one remaining step is an owner dashboard paste**: five environment
+  variables on `vyakti-replica-lab` and a redeploy
+  (`audio-protection-vercel-env-not-written`). This session has no Vercel
+  env-write tool and the preview route is behind `requireUser`, so the last
+  link could not be closed here and is not claimed to be. Two decisions carry
+  reversal conditions rather than being silent flag flips:
+  `decisions.md#audio-protection-cpu` and `decisions.md#audio-protection-ingress`.
+  The costly lesson is `rejected.md#a-green-build-and-a-green-healthz-can-both-lie-about-a-model`.
 - **The Context Locker** (WS-AB, the universal "bring your context" lane):
   `/api/context-items`, `api/_context-locker.js`, `api/_context/*`, migration
   058, `src/studio/ContextLockerPanel.tsx` (MOUNTED in StudioApp.tsx, both
@@ -419,3 +453,19 @@ service response, not a claim.
   than it was written for, and a mock that OVER-RETURNS hides real defects while
   every assertion stays green
   (`router-matched-a-table-instead-of-a-statement`).
+
+## Session log
+
+Append-only. One line per workstream, newest at the bottom. This lives at the
+END of the file on purpose: the merge helper unions append-only regions, so a
+line added here by two agents at once merges cleanly, while a line added to the
+header stacks up. See the header for the full reason.
+
+- **WS-W** — "Preview my voice" — the owner-facing panel, and the cold start told honestly
+- **WS-AL** — the audio protection service deployed and serving; "Preview my voice" is one dashboard paste from real audio
+- **WS-U** — per-speaker fine-tuning built, and its delta measured
+- **WS-X** — the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates
+- **WS-AC** — the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked
+- **WS-AD** — media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it
+- **WS-AF** — the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing
+- **WS-AK** — the processing worker deployed as an Azure Container Apps Job — and the commit statement that had never once written a piece of evidence

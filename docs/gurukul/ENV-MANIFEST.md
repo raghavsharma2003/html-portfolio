@@ -518,10 +518,21 @@ scale-to-zero. The client side is §10 (app) and part of §20 (worker).
 | `VOICE_EVIDENCE_MAX_SPEAKERS` | `app.py:351` | optional | defaults `4`, clamped 1-8 | none |
 | `VOICE_EVIDENCE_CLUSTER_COSINE_THRESHOLD` | `app.py:352` | optional | defaults `0.68` | none |
 
-## 18. audio-protection — standalone GPU service (`audio-protection`)
+## 18. audio-protection — standalone service (`audio-protection`)
 
-`services/audio-protection/app.py`. No public ingress, fail-closed at
-startup. The client side is §6.
+`services/audio-protection/app.py`. Fail-closed at startup. The client side
+is §6.
+
+> **Deployed 2026-08-26 by WS-AL**, on **CPU**, with **external** ingress. Both
+> are recorded decisions with reversal conditions, not silent flag flips:
+> `context/decisions.md#audio-protection-cpu` and
+> `#audio-protection-ingress`. The service is its own HMAC admission broker.
+> Endpoint, digest, serving revision and measured cold start are in
+> `docs/gurukul/AZURE-DEPLOY-STATE.md` section 14. As deployed it therefore sets
+> `AUDIO_PROTECTION_REQUIRE_CUDA=false`, and the image sets
+> `NO_TORCH_COMPILE=1`, without which every watermark request answers 503 while
+> `/healthz` stays green
+> (`context/rejected.md#a-green-build-and-a-green-healthz-can-both-lie-about-a-model`).
 
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
@@ -533,6 +544,8 @@ startup. The client side is §6.
 | `AUDIO_PROTECTION_MAX_PCM_BYTES` | `app.py:40` | optional | defaults 32 MiB, clamped 1 MiB-64 MiB | none |
 | `AUDIO_PROTECTION_REQUIRE_CUDA` | `app.py:294` | optional | defaults `"true"`; startup fails without CUDA if true | README: fail-closed without CUDA in production |
 | `AUDIOSEAL_GENERATION_MIN_CONFIDENCE` | `app.py:298` | optional | defaults `0.80` | none |
+| `AZURE_CLIENT_ID` | `DefaultAzureCredential`, not read by `app.py` directly | required **when using a user-assigned managed identity** | with none set the credential tries the system-assigned identity and Key Vault signing fails at the first `/v1/sign` or `/v1/c2pa` | receipts and C2PA manifests 503; the watermark path still works, so this failure is partial and easy to misread |
+| `NO_TORCH_COMPILE` | set in the Dockerfile, read by AudioSeal's bundled moshi `compile.py` | **required in any image without a C++ toolchain** | unset, TorchInductor shells out to `g++` on the first watermark call | **every `/v1/watermark` returns 503 while the build, the boot and `/healthz` all stay green** |
 
 ## 19. open-voice-runtime — standalone GPU service + admission broker, two apps (`open-voice-runtime`)
 
