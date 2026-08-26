@@ -208,3 +208,38 @@ export {
 // can compile a REAL session and — for its negative controls — a deliberately
 // broken copy of the same module.
 export { DEFAULT_AGENT, getAgent, listAgents } from "../src/engine/agents/registry";
+
+// WS-Q. The clone aliveness seam, so evals/clonelife/run.mjs and evals/drift.mjs
+// can drive the REAL modules rather than a copy: the clone's present, the
+// speak-first predicate, the sheet that fills them, and the constructor that
+// turns that sheet into an AgentModule a real compile can take.
+export {
+  cloneNowAt,
+  renderCloneNow,
+  localParts,
+  shapeForDow,
+  validateCloneLife,
+  cloneLifeRows,
+  CLONE_NOW_BUDGET,
+  CLONE_NOW_HEADER,
+  CLONE_TRANSITION_MIN,
+  MINUTES_IN_DAY,
+} from "../src/engine/agents/cloneLife";
+export {
+  initiativeVerdict,
+  renderInitiative,
+  INITIATIVE_BUDGET,
+  INITIATIVE_HEADER,
+  DAYTIME_FROM_MIN,
+  DAYTIME_TO_MIN,
+  OVERDUE_GRACE_MS,
+  STATED_TIME_LEAD_MS,
+  STATED_TIME_TRAIL_MS,
+  PATTERN_MIN_OBSERVATIONS,
+  PATTERN_FRESH_MS,
+} from "../src/engine/agents/initiative";
+export { DEMO_TEACHER } from "../src/engine/agents/characters/demoTeacher";
+export { sheetToModule, validateTeacherSheet } from "../src/engine/agents/fromSheet";
+// `lintLine` is already exported above (evals/reciprocity.mjs's surface) — one
+// export, two readers, rather than a second name for the same function.
+export { moodWordsIn } from "../src/engine/timeline";

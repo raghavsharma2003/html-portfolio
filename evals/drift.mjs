@@ -66,6 +66,13 @@ import {
   applyDropOrder,
   OPERATIONAL_TAIL_CAP,
   reciprocityState,
+  // WS-Q §7 — the clone aliveness layer, driven through the SAME session
+  // sweep. Imported from the same bundle as everything else here, so this
+  // section gates the real modules rather than a copy of them.
+  cloneNowAt,
+  CLONE_NOW_HEADER,
+  sheetToModule,
+  DEMO_TEACHER,
 } from "./.bundle.mjs";
 
 let fail = 0;
@@ -340,6 +347,17 @@ const CLASS = {
   T12: "cosmetic",   // how she has changed
   T13: "cosmetic",   // what she has not told them yet
   "mp.bridge": "relational",
+  // WS-Q. T18 is RELATIONAL and not cosmetic: a clone with no day is not a
+  // thinner clone, it is one that answers "what are you up to" out of nothing,
+  // which is the failure the whole aliveness layer exists to close. It is the
+  // least protected of its class, so it goes before recall or anything already
+  // said — see its manifest row.
+  T18: "relational", // where the clone is in its own day
+  // T19 is HONESTY, beside T14/T16, and for the same species of reason: those
+  // two stop a clone re-raising what was answered and forgetting what it
+  // promised; this one stops it opening a conversation with no reason in front
+  // of it, which is the mechanic `persona.ts` deleted on ethical grounds.
+  T19: "honesty",    // the one citable reason this turn is the clone's
   T7: "relational",  // what she has already told them about her own life
   T5: "relational",  // recall.facts — amnesiac without it
   T6: "relational",
@@ -586,6 +604,110 @@ const REGISTER_STRUCK_AGENT = {
   const { kept, dropped } = applyDropOrder(sabotaged, 700);
   const inverted = dropped.some((d) => RANK[CLASS[d.id]] > 0) && kept.some((k) => RANK[CLASS[k.id]] === 0);
   ok("control 3: an inverted priority IS seen dropping a relational slot while a cosmetic one stands", inverted);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log(`\n§7 WS-Q — a CLONE's stated life does not drift across the same ${SESSION_TURNS} turns`);
+// ═════════════════════════════════════════════════════════════════════════
+//
+// The session sweep above measures whether the PERSONA's anchors survive turn
+// 40. This section asks the same question of the aliveness layer, which is the
+// half that makes a clone a continuous being rather than a persona answering
+// questions: at turn 40, does it still say the same thing about its own life
+// as it did at turn 1?
+//
+// That is not a free property. T18 is DROPPABLE (priority 13) and the tail
+// grows with the session — which is the exact mechanism the literature names,
+// applied to a block whose whole value is that it does not change. A build
+// where the life block is shouldered out at turn 30 would pass every other
+// probe in this file.
+{
+  const clone = sheetToModule(DEMO_TEACHER);
+  const at = FROZEN;
+  const entry = cloneNowAt(DEMO_TEACHER.life, at);
+  const verdict = {
+    mayInitiate: true,
+    kind: "promised-followup",
+    reason: "promised: rotational-inertia problem set",
+    citedAt: at - 24 * 60 * 60_000,
+  };
+  const compileClone = (turn) => {
+    const turns = transcriptThrough(turn);
+    return compile({
+      user: USER,
+      messageCount: START_COUNT + turn,
+      medium: "text",
+      mode: "chat",
+      voiceEngine: "gemini",
+      isDirective: false,
+      watching: false,
+      innerThread: "",
+      innerWants: "",
+      memories: turn ? `- probe-${turn} (fact, 2 days ago): ${"x".repeat(120 * turn)}` : "",
+      herLife: "",
+      cultureNoteText: "",
+      latestUserText: turns.length ? turns[turns.length - 1].text : "",
+      recentTurns: turns,
+      nowMs: at,
+      agent: clone,
+      cloneNow: entry,
+      initiative: turn === 1 ? verdict : null,
+    });
+  };
+
+  const lifeBlock = (system) => {
+    const i = system.indexOf(CLONE_NOW_HEADER);
+    if (i < 0) return "";
+    const rest = system.slice(i);
+    const end = rest.indexOf("\n\n");
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+
+  const sweep = [];
+  for (let t = 1; t <= SESSION_TURNS; t++) sweep.push({ turn: t, out: compileClone(t) });
+
+  const blocks = sweep.map((s) => lifeBlock(s.out.system));
+  const missing = sweep.filter((s, i) => !blocks[i]).map((s) => s.turn);
+  ok(
+    `the clone's life block is present at every one of ${SESSION_TURNS} turns`,
+    missing.length === 0,
+    missing.length ? `absent at turns ${missing.slice(0, 5).join(", ")}` : "",
+  );
+
+  const first = blocks[0];
+  const drifted = blocks.filter((b) => b !== first).length;
+  ok("…and says exactly the same thing at turn 1 and turn " + SESSION_TURNS, drifted === 0,
+    `${drifted}/${SESSION_TURNS} turns differ`);
+
+  // The safety floor is unaffected by carrying a clone's life — asserted here
+  // rather than assumed, because this is the first block in the tree that adds
+  // a per-clone paragraph to every single turn.
+  const floorHeld = sweep.every((s) => s.out.system.includes(DEMO_TEACHER.crisisLines.slice(0, 40)));
+  ok("the clone's crisis lines survive every turn of the sweep with the life block present", floorHeld);
+  ok(
+    "the appended-last set is still literally last at every turn",
+    sweep.every((s) => s.out.system.endsWith(clone.SEARCH_DECISION + clone.FORGET_DECISION)),
+  );
+
+  // T19 fires ONCE, on the turn the clone started, and never again. A block
+  // that persisted would be a reason re-read on every subsequent turn, which
+  // is how "why am I saying this" becomes a thing the clone announces.
+  const initiativeTurns = sweep.filter((s) => (s.out.sections?.T19 ?? 0) > 0).map((s) => s.turn);
+  ok("the speak-first block renders on exactly the turn it was supplied for",
+    initiativeTurns.length === 1 && initiativeTurns[0] === 1,
+    initiativeTurns.join(", "));
+
+  // ── CONTROL: the life block dropped under pressure must be SEEN going
+  // missing. Without this the two assertions above pass on a build where the
+  // block never renders at all.
+  const noLife = lifeBlock(
+    compile({
+      user: USER, messageCount: START_COUNT, medium: "text", mode: "chat", voiceEngine: "gemini",
+      isDirective: false, watching: false, innerThread: "", innerWants: "", memories: "",
+      herLife: "", cultureNoteText: "", nowMs: at, agent: clone, cloneNow: null,
+    }).system,
+  );
+  ok("control: with no life supplied, the block IS seen absent", noLife === "");
 }
 
 globalThis.Date = RealDate;

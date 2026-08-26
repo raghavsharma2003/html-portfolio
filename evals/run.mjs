@@ -244,6 +244,26 @@ const suites = {
   // every score is a lower bound and no number from it is written to
   // measurements.md. Offline, deterministic, $0, no DB, no network, ~1s.
   recallbench: "recallbench/run.mjs",
+  // WS-Q. THE CLONE ALIVENESS GATE — a published clone's own life, and its
+  // right to speak first.
+  //
+  // Wired here on the same `dead-writers` test as everything around it, and
+  // for one specific reason worth naming: this suite carries the negative
+  // control for the ONE mechanic `persona.ts` deleted on ethical grounds
+  // ("do not re-add a silence-triggered ping in any form") and that
+  // `teacher-arc.md` §7 rows 8/9 ban outright for minors. Every way that ban
+  // fails is silent — a clone that pings a sixteen-year-old because they went
+  // quiet looks like a working product from every log line — so the suite
+  // sweeps an empty record across gaps from one minute to one year and asserts
+  // zero verdicts, then rebuilds the deleted idle nudge and asserts the rebuilt
+  // copy IS caught firing on the same input.
+  //
+  // It also carries gate Q1: with no clone fields present the compiled prompt
+  // is byte-identical, which is the property that keeps the 83-fixture battery
+  // meaningful after a seam is added to the compiler.
+  //
+  // Offline, deterministic, $0, no DB, no network, ZERO model calls, ~1s.
+  clonelife: "clonelife/run.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of
