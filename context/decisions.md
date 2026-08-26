@@ -5532,3 +5532,62 @@ change them, and that is the standing cost of this decision.
 **How it is held.** `scripts/check-layout.mjs` measures the contrast of every
 enabled control on nine screens, so an inverted cascade shows up as a failing
 gate rather than as an unreadable button nobody measured.
+## `windowing-belongs-at-separate-now-that-diarize-is-done` (2026-08-26, WS-AO)
+
+**Decided.** `separate` no longer sends the whole recording to the GPU. It
+selects the single best-scoring ~10 s window from the OWNER's own diarized
+speech (never a second speaker's, never the whole file) and sends only that.
+
+**Why this does not reopen `windowing-belongs-before-the-embedder-not-before-
+diarize`.** That decision was right and stands: windowing BEFORE `diarize`
+would destroy the speaker segmentation `contains_third_parties` rests on, and
+the evidence service's single shared `/v1/analyze` endpoint meant windowing
+there wouldn't have unblocked anything anyway. Neither objection applies here.
+`diarize` is a hard DAG dependency of `separate` (`pipeline.js`'s
+`AUDIO_PROCESSING_DAG`), so its segments are always complete and durable in
+`vy_replica_processing_evidence` before this code ever runs, and this module
+reads them rather than skipping past them. The window is drawn ONLY from the
+cluster with the most total diarized speech, so a second voice's segments
+(cluster-2, 25.9 s on the owner's own upload) never reach the GPU at all — a
+stronger consent posture than sending the whole mixed recording ever was.
+
+**What it does.** `api/_replica-processing/reference-window.js`: merges the
+dominant cluster's segments into contiguous runs (a synthetic splice between
+two far-apart segments is exactly the level lurch WS-AD's own scorer
+penalises), extracts each run from the ORIGINAL recording via ffmpeg, and
+scores every ~10 s window across every run with `api/_video-enroll/windows.js`'s
+`rankReferenceWindows` -- WS-AD's scorer, reused rather than reimplemented, per
+this workstream's brief. Only the single highest-scoring window is written to
+storage and sent to `separate`'s adapter; the rest of the extracted audio never
+leaves this container.
+
+**Which cluster is "the owner".** Diarize itself refuses to name a target --
+`services/voice-evidence/app.py`'s `_diarize` writes `target_likelihood: 0.5`
+on every segment because it has no enrolled anchor to compare against. Absent
+that, "the cluster with the most total speech in a recording the owner
+uploaded of themselves" is the same working assumption
+`context/measurements.md#separate-fails-on-the-whole-recording` already carries
+for this exact file. Carried forward here, not invented here. **What would
+reverse it:** an enrolled voice profile giving diarize (or a step downstream of
+it) a real anchor to compare against, at which point the owner's cluster should
+be picked by that anchor and not by duration.
+
+**`transcribe` deliberately does NOT inherit the narrowed window.** Before this
+change, `enhance`'s candidates always covered the whole recording, so
+`transcribe` reading them (`runtime.js`'s `INPUT_STAGE`) was free lineage. Now
+that `separate`/`enhance` narrow to ~10 s, chaining `transcribe` the same way
+would have silently capped the TeacherSheet's transcript at ten seconds of a
+lecture the moment ASR is configured -- and nothing would have noticed today,
+because `transcribe` is blocked on `AZURE_SPEECH_ENDPOINT`/`AZURE_SPEECH_KEY`
+regardless. `transcribe` now falls back to the full original source instead,
+the same way `separate` itself always has: ASR reads the whole recording, the
+reference window stays scoped to voice identity. **What would reverse it:** a
+product decision that the TeacherSheet only ever needs the owner's best-window
+speech rather than the full lecture -- nothing in the current spec says that.
+
+**What would reverse the whole decision.** A future service change that lets
+`voice-evidence` chunk-and-aggregate a whole recording server-side (the "real
+fix" `windowing-belongs-before-the-embedder-not-before-diarize` named and
+deliberately deferred). If that lands, `separate`/`enhance`/`voice_quality`
+could see the FULL recording again rather than one window, and this module
+would become the fallback for services that stay single-shot.

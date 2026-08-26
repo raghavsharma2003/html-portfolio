@@ -44,6 +44,17 @@ export const NATIVE_TOOLS = Object.freeze({
     override: "FFPROBE_PATH",
     absentCode: "media_probe_tool_unavailable",
   }),
+  // `separate`'s own windowing (WS-AO) needs to cut short spans of owner
+  // speech out of the original recording before anything is sent to the GPU.
+  // Same binary as media_probe -- ffmpeg and ffprobe ship together -- but
+  // named separately so a runtime that has ffprobe without the encoder half
+  // (unusual, but not this repo's job to assume) reports its own absence
+  // rather than borrowing media_probe's code for a different capability.
+  reference_window: Object.freeze({
+    binary: "ffmpeg",
+    override: "FFMPEG_PATH",
+    absentCode: "reference_window_tool_unavailable",
+  }),
 });
 
 function toolError(code, retryable = false) {
@@ -234,6 +245,64 @@ export function createNativeToolRunners(options = {}) {
       } finally {
         // The source bytes must not outlive the probe. Best effort by
         // necessity: a failure to clean up must not mask the probe's verdict.
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
+    },
+
+    // Materialise the ORIGINAL recording once, so `extractWindow` below can be
+    // called many times (once per candidate owner-speech run) against the same
+    // file instead of rewriting a 30+ MB buffer to disk on every call. Same
+    // "ffmpeg wants a seekable file, not a pipe" reasoning as probeBytes above
+    // -- `-ss` before `-i` does fast, seek-based trimming, and a pipe cannot be
+    // seeked.
+    async withMaterializedAudio(bytes, fn, callOptions = {}) {
+      const command = resolveNativeTool("reference_window", env);
+      if (!command) throw toolError(NATIVE_TOOLS.reference_window.absentCode);
+      const dir = await mkdtemp(join(options.tmpDir || tmpdir(), "refwin-"));
+      const file = join(dir, randomBytes(8).toString("hex"));
+      try {
+        await writeFile(file, bytes);
+        return await fn({
+          // One short span [startMs, endMs) of the ORIGINAL recording,
+          // resampled to the 16 kHz mono PCM16 WAV shape `windows.js` scores
+          // and `separate`'s adapter accepts. `-ss` before `-i` is an INPUT
+          // seek (fast; accurate to the nearest decodable frame, which is all
+          // window SELECTION needs -- this is not a legal transcript
+          // timestamp). Bounded to 10 minutes per call so a malformed span
+          // cannot turn into an unbounded ffmpeg run.
+          //
+          // The OUTPUT is also a file, not a pipe. Measured: ffmpeg writing a
+          // WAV to `pipe:1` cannot seek back to patch the `data` chunk's size
+          // once it knows the real one, so it emits the placeholder
+          // `0xFFFFFFFF` -- and `readPcm16Wav` (correctly, for the on-disk
+          // uploads it was built for) treats a `data` size that overruns the
+          // buffer as `window_audio_truncated`, refusing every single window
+          // this call would ever produce. A file gets ffmpeg's real,
+          // seeked-back size, same as `probeBytes` above needs a file for the
+          // matching reason on the READ side.
+          async extractWindow(startMs, endMs) {
+            const startSec = Math.max(0, Number(startMs) / 1000);
+            const durSec = (Number(endMs) - Number(startMs)) / 1000;
+            if (!(durSec > 0) || durSec > 600) throw toolError("reference_window_span_invalid");
+            const outFile = join(dir, `${randomBytes(8).toString("hex")}.wav`);
+            try {
+              const result = await runTool(command, [
+                "-nostdin", "-y", "-v", "error",
+                "-ss", startSec.toFixed(3), "-i", file, "-t", durSec.toFixed(3),
+                "-vn", "-ac", "1", "-ar", "16000", "-sample_fmt", "s16",
+                "-f", "wav", outFile,
+              ], "", { signal: callOptions.signal, timeoutMs: 60_000, code: "reference_window", maxOutput: 4 * 1024 });
+              if (result.exitCode !== 0) throw toolError("reference_window_extract_failed");
+              const { readFile } = await import("node:fs/promises");
+              const wav = await readFile(outFile);
+              if (wav.length < 44) throw toolError("reference_window_extract_failed");
+              return wav;
+            } finally {
+              await rm(outFile, { force: true }).catch(() => {});
+            }
+          },
+        });
+      } finally {
         await rm(dir, { recursive: true, force: true }).catch(() => {});
       }
     },

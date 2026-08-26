@@ -130,6 +130,8 @@ async function main() {
         db,
         adapters: composed.adapters,
         artifactStore: composed.storage.artifactStore,
+        resolveInput: composed.resolveInput,
+        withMaterializedAudio: composed.withMaterializedAudio,
         budgetEnv: process.env,
         leaseMs: 900_000,
         maxAttempts: 5,

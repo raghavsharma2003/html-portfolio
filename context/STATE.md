@@ -57,7 +57,7 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
-| Enrollment processing queue | **LIVE and draining.** `vyakti-replica-processing`, an Azure Container Apps **Job** (Consumption, `*/5`, no ingress, scale-to-zero by construction), image `replica-processing-worker@sha256:3e6c50…` (WS-AN, 2026-08-26). It owns all eight DAG steps; the Vercel sweep's cron entry is removed and that endpoint is now the manual fallback. The owner's real 32.9 MB upload has `integrity`, `malware_scan`, `media_probe` and **`diarize` COMPLETE** (278 speaker segments, mean confidence 0.877, the first voice evidence this system has ever written) and is now **terminally stuck at `separate`** (5/5 attempts, `voice_evidence_failed` — a real GPU-side failure on this 822.7 s recording, not a capability absence; not investigated by WS-AN). **`transcribe` no longer needs Azure Speech**: WS-AN wired it through the Sarvam Saaras batch adapter instead (owner directive — this subscription has zero Cognitive Services accounts) and proved the new code is the code running in production, but `separate` blocks the DAG before `transcribe` is ever reached, and `SARVAM_API_KEY` is still not on the job's env (it lives in Vercel's `vyakti-replica-lab` per the owner; this session had no route to read it back — see `.sec/an-sarvam-key-handover.txt`). **`commitProcessingOutput` had never once written an artifact or a piece of evidence** — its guard validated by re-reading the tables it was writing, which a data-modifying CTE cannot see — so no upload could ever have passed `media_probe`. Fixed and proven on production. |
+| Enrollment processing queue | **LIVE and draining.** `vyakti-replica-processing`, an Azure Container Apps **Job** (Consumption, `*/5`, no ingress, scale-to-zero by construction), image `replica-processing-worker@sha256:18a6199b…` (WS-AN + WS-AO merged, 2026-08-26 — see the collision note above). It owns all eight DAG steps; the Vercel sweep's cron entry is removed and that endpoint is now the manual fallback. The owner's real 32.9 MB upload has `integrity`, `malware_scan`, `media_probe`, `diarize`, **`separate` and `enhance` COMPLETE** (278 speaker segments, mean confidence 0.877; `separate` now windows to the owner's own best-scoring ~10 s instead of sending the whole 822.7 s recording to the GPU, `windowing-belongs-at-separate-now-that-diarize-is-done`) and stops at `transcribe`, which WS-AN rewired onto the Sarvam Saaras batch adapter (owner directive — this subscription has zero Cognitive Services accounts) but which still reports `asr_unconfigured`: `SARVAM_API_KEY` is not yet on the job's env, it lives in Vercel's `vyakti-replica-lab` per the owner, and no session yet has a route to read Vercel env values back. Auto-recovers the moment the key lands. **A voice genome is NOT yet buildable:** it needs sources at `state='ready'`, only `voice_quality` sets that, and `transcribe` sits between them. **`commitProcessingOutput` had never once written an artifact or a piece of evidence** — its guard validated by re-reading the tables it was writing, which a data-modifying CTE cannot see — so no upload could ever have passed `media_probe`. Fixed and proven on production. |
 
 ## WHERE THE PRODUCT ACTUALLY STANDS (2026-08-26 19:15Z, measured)
 
@@ -84,23 +84,63 @@ symptoms of ONE cause, the audio-protection service being undeployed.
 | malware_scan | complete | the deployed scanner works |
 | media_probe | complete | measured 822 720 ms (13.7 min), mp3, 2ch, 48 kHz |
 | diarize | **complete** | 278 speaker segments, mean confidence 0.877. Cluster 1 is the owner (663.5 s over 231 segments); cluster 2 is 25.9 s of someone else. The first voice evidence this system has ever written. Unblocked by WS-AK: the service is scale-to-zero, its cold start is 100-160 s, and the request signature only lives 60 s, so every cold request was guaranteed to fail. Wake it, THEN sign |
-| separate | **failed, terminal (5/5 attempts)** | `voice_evidence_failed` — throws on the GPU for a whole 822.7 s recording. Genuine failure, not a capability absence. Not investigated by WS-AN (2026-08-26): different adapter family (voice-evidence GPU) from the one that session changed (ASR) |
-| transcribe | unreachable (depends on `separate`) | WS-AN (2026-08-26) rewired this step onto the Sarvam Saaras batch adapter and proved the new code is deployed and running in production, per the owner's directive. `SARVAM_API_KEY` is not yet on the job's env — it lives in Vercel's `vyakti-replica-lab` per the owner, and this session had no route to read Vercel env values back. Even once pasted, this step cannot run until `separate` clears first |
+| separate | **complete** (WS-AO, 2026-08-26 21:38Z) | Windows to the owner's own best-scoring ~10 s (`api/_replica-processing/reference-window.js`), never the whole file. Real production artifacts: two 320,044-byte (10 s @ 16 kHz mono) Sepformer candidates, not the 822.7 s original. Succeeded on attempt 1 of the requeued job, on the SAME real upload that failed 5/5 before the fix. Was NOT a capability absence and had nothing to do with `transcribe`'s adapter family, which is why WS-AN (2026-08-26, concurrent) correctly left it uninvestigated |
+| enhance | **complete** (same run) | Four 960,044-byte (10 s @ 48 kHz mono) DeepFilterNet3 candidates over the windowed reference, chained automatically the moment `separate` committed |
+| transcribe | blocked, `sarvam_asr_config_missing` → reported as `asr_unconfigured` | WS-AN (2026-08-26, concurrent) rewired this step onto the Sarvam Saaras batch adapter, replacing the unreachable Azure Speech path, and proved the new code path runs. `SARVAM_API_KEY` is not yet on the job's env — it lives in Vercel's `vyakti-replica-lab` per the owner, and no session yet has a route to read Vercel env values back. Auto-recovers via `requeueRecoveredProcessingJobs` the moment the key lands; no manual requeue needed. Deliberately reads the FULL original source, not the windowed clip (`runtime.js`'s `INPUT_STAGE`) |
+| voice_quality | blocked behind `transcribe` | DAG dependency; nothing to do until the Sarvam key is set |
 
-A 30-minute lecture would still fail here even with a raised cap: 1200 s is a
-hard ceiling compiled into `app.py`. That is why `best-window-not-first-window`
-is the decided fix and a cap raise is only an unblock.
+**A second, DATA-layer collision, found but not caused by this session and NOT
+fully explained.** The table above is what production measured at 21:38Z, with
+real row-level evidence (job IDs, byte sizes) captured at that moment. By
+21:50Z, querying the SAME database found `vy_replica_processing_job`,
+`vy_replica_processing_evidence`, `vy_replica_processing_artifact` and
+`vy_replica_source` all cleared to near-empty (2 rows, 0, 0, 1 row respectively)
+-- the owner's real source and every job against it, including the ones this
+session had just fixed, gone; replaced by one small unrelated test source
+(`source_id efc3c9b5…`, first row at 21:50:19Z) that reads like WS-AN
+restarting their own Sarvam testing against a fresh fixture. Every query this
+session ran against Neon in that window was a plain `select`
+(`scripts/relcheck.mjs`/`check-citations.mjs`, confirmed read-only by source
+inspection, and this session's own `nq.sh` helper) -- **this session did not
+delete the data**, but it did not confirm who or what did either. Treat the
+DAG-position table above as "true as measured with real production evidence at
+21:38Z, on a job that itself no longer exists to re-query" rather than as
+"true right now" -- the fix is proven and the CODE remains deployed; the
+specific PROOF ROW is gone. Worth a person asking WS-AN's session about
+directly, since this session has no route to another session's actions.
 
-Two facts a new agent must not re-derive:
-- **`vy_replica_source.duration_ms` is NULL** even though `media_probe` wrote
-  the duration into `vy_replica_processing_evidence`. Nothing propagates it to
-  the row later steps read. A trap for the next file.
-- **Raising the cap is an unblock, not a fix.** A 30-minute lecture is squarely
-  the product's use case and would still fail. The decided fix is
-  `best-window-not-first-window`: never send a whole recording to the embedder,
-  send the best-scoring ~10 s windows. WS-U measured window choice moving
-  fidelity more than fine-tuning does (0.7433-0.8058 spread versus a 0.0206
-  fine-tune delta), so windowing is both correct and higher quality.
+**A deployment collision, caught and corrected within this session.** WS-AO's
+first production deploy (image `@sha256:b1cfc1…`) was built from a worktree
+branched BEFORE WS-AN's Sarvam merge landed on `claude/gurukul-platform`, and
+overwrote WS-AN's already-deployed image (`@sha256:3e6c50…`) on the SAME
+Container Apps Job — the two sessions never touched the same file, but they did
+target the same live resource. Caught during the post-work rebase, before
+either session's context log claimed a final state. Fixed by rebuilding from
+the REBASED, merged tree (both changesets) and redeploying once more; see the
+session log for the final image digest actually left running. **The lesson for
+whoever reads this next:** two workstreams sharing a DAG can still collide on
+the SERVICE even when their diffs never touch the same line — check the live
+resource's current image/config before deploying, not just the git diff.
+
+**The real cause of `separate`'s failure was confirmed structurally, not from a traceback** -- `services/voice-evidence/app.py`'s `/v1/analyze` ends in a bare `except Exception` with NO logging, so nothing about the failure ever reached Log Analytics across all 5 production attempts. What WAS confirmed: every OTHER exception path in that file raises a NAMED error (so every named validation, including the duration cap, provably passed); the replica's `restartCount` stayed 0 across all 5 attempts (rules out a container-level OOM kill, consistent with an in-process, catchable `torch.cuda.OutOfMemoryError`); and the only GPU-bound call in `_separate()` is one unchunked forward pass over the whole 822.72 s / 13.16M-sample waveform. Full reasoning: `context/measurements.md#separate-underlying-error-confirmed-structurally`.
+
+A 30-minute lecture would still have failed here even with a raised cap: 1200 s
+was a hard ceiling compiled into `app.py`, and raising it only moved the wall
+from `diarize` to `separate`. `best-window-not-first-window` was the decided
+fix and it is now LIVE for `separate`: never send a whole recording to the
+embedder, send the best-scoring ~10 s window drawn from the owner's own
+diarized cluster (never a second speaker's). WS-U measured window choice
+moving fidelity more than fine-tuning does (0.7433-0.8058 spread versus a
+0.0206 fine-tune delta), so windowing is both correct and higher quality.
+
+One fact a new agent must not re-derive:
+- **`vy_replica_source.duration_ms` propagation was ALREADY FIXED** by the time
+  WS-AO checked (verified live: `duration_ms=822720`, not NULL, on the owner's
+  real row). `repository.js`'s `commitProcessingOutput` reads it straight out
+  of `desired_evidence` on the `media_probe` commit -- a previous session (the
+  `commitProcessingOutput` rewrite credited in this file's LIVE table) already
+  closed this trap. Confirm before re-fixing a trap that is gone; this file
+  used to say it was still open and that was stale.
 
 ### "Preview my voice" was broken in FOUR stacked layers
 
@@ -491,3 +531,4 @@ header stacks up. See the header for the full reason.
 - **WS-AK** — the processing worker deployed as an Azure Container Apps Job — and the commit statement that had never once written a piece of evidence
 - **WS-AN** — `transcribe` rewired onto Sarvam (owner directive, no Azure Speech account) and shipped to production via a real ACR build + Container Apps Job patch; DAG position re-measured on the owner's real upload and it now stops at `separate` (terminal, pre-existing, unrelated to ASR), with `SARVAM_API_KEY` still needing a paste from Vercel to Azure
 - **WS-AM** the studio made readable: nine track-list rules that reserved a column for a child that no longer exists, and a layout gate that can finally see the signed-in screen
+- **WS-AO** — `separate` windows to the owner's own diarized speech instead of the whole recording — proven on the owner's real 822.7 s upload, which now clears `separate` and `enhance` and stops at `transcribe`, still `asr_unconfigured` pending `SARVAM_API_KEY`; also caught and corrected a same-resource deploy collision with WS-AN's concurrent image push

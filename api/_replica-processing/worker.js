@@ -13,6 +13,7 @@ import {
   stableUuid,
 } from "./contracts.js";
 import { assertDependencies, classifyProcessingFailure, nextProcessingSteps } from "./pipeline.js";
+import { selectOwnerReferenceWindow } from "./reference-window.js";
 import {
   beginProviderSpend,
   markProviderSpendUncertain,
@@ -173,8 +174,68 @@ async function writeCandidates({ job, source, adapter, candidates, artifactStore
   return artifacts;
 }
 
-async function runStage({ job, source, adapter, artifactStore, inputArtifacts, signal, billing }) {
-  const references = inputReferences(source, inputArtifacts);
+// `separate` used to receive the whole recording as its one input -- see
+// `inputReferences`'s fallback below, which is exactly what every OTHER step
+// still gets. Measured on the owner's real 822.72 s upload: that fails the GPU
+// every time (`context/measurements.md#separate-fails-on-the-whole-recording`).
+//
+// This builds the one input `separate` gets instead: the single highest-
+// scoring ~10 s window drawn from the OWNER's own diarized speech (never the
+// whole recording, never a second speaker's segments). The scoring itself is
+// `api/_video-enroll/windows.js`'s `rankReferenceWindows` -- WS-AD's scorer,
+// reused rather than reimplemented, exactly per this workstream's brief.
+//
+// The window is written to private storage as an ordinary immutable object
+// (same bucket, same content-addressed shape every derived candidate uses) so
+// the adapter's existing `resolveInput` + sha256 verification path needs no
+// special case for it. It is NOT registered as a `vy_replica_processing_
+// artifact` row: it is an INPUT this job constructs for itself, not an output
+// the DAG hands to a later step, and `commitProcessingOutput`'s collision
+// guard is written to expect exactly the artifact set a step's adapter
+// produces. Giving the studio a way to show which window was picked is a real
+// follow-up; the object path and score are on the retryable failure/complete
+// path below either way, so nothing about that follow-up needs re-deriving.
+async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, resolveInput, withMaterializedAudio, artifactStore }) {
+  if (typeof resolveInput !== "function" || typeof withMaterializedAudio !== "function") {
+    throw Object.assign(new ProcessingContractError("reference window selection requires storage and ffmpeg"), {
+      code: "reference_window_capability_missing",
+    });
+  }
+  const original = await resolveInput({
+    source,
+    input: { object_path: source.object_path, sha256: source.sha256, mime: source.mime },
+  });
+  const selected = await selectOwnerReferenceWindow({
+    segments: diarizeSegments,
+    withMaterializedAudio,
+    sourceBytes: original.body,
+  });
+  if (!selected) {
+    // The owner's own cluster never holds ten contiguous seconds. Genuinely
+    // rare -- diarize's own chunking already caps a single segment at 8 s, so
+    // this means even ADJACENT same-speaker segments never close a 10 s run --
+    // and worth a name a human can act on rather than a retry that will never
+    // succeed differently.
+    throw Object.assign(new ProcessingContractError("no contiguous 10s owner-speech window available"), {
+      code: "reference_window_no_candidate", retryable: false,
+    });
+  }
+  const artifactId = stableUuid(`${job.job_id}:${job.revision}:reference-window`);
+  const objectPath = derivedArtifactPath({
+    ownerUserId: source.owner_user_id, replicaId: source.replica_id, sourceId: source.source_id,
+    transformVersion: "reference-window-v1", stage: "separate", artifactId,
+  });
+  const stored = await artifactStore.writeImmutable({
+    bucket: source.storage_bucket, objectPath, body: selected.wavBytes, mime: "audio/wav",
+    expectedSha256: sha256Hex(selected.wavBytes), ifNoneMatch: "*",
+  });
+  return [{ artifact_id: null, sha256: stored.sha256, mime: "audio/wav", duration_ms: selected.durationMs, object_path: objectPath }];
+}
+
+async function runStage({ job, source, adapter, artifactStore, inputArtifacts, diarizeSegments, resolveInput, withMaterializedAudio, signal, billing }) {
+  const references = job.step === "separate"
+    ? await buildOwnerReferenceWindowInput({ job, source, diarizeSegments, resolveInput, withMaterializedAudio, artifactStore })
+    : inputReferences(source, inputArtifacts);
   const common = { source, inputs: references, signal, billing };
   switch (job.step) {
     case "integrity": { // Server-side stream/digest implementation belongs behind this seam.
@@ -337,7 +398,9 @@ export async function executeProcessingJob(input) {
     }
     const output = await runStage({
       job, source, adapter, artifactStore: input.artifactStore,
-      inputArtifacts: input.inputArtifacts || [], signal: input.signal, billing,
+      inputArtifacts: input.inputArtifacts || [], diarizeSegments: input.diarizeSegments || [],
+      resolveInput: input.resolveInput, withMaterializedAudio: input.withMaterializedAudio,
+      signal: input.signal, billing,
     });
     let billingState = "not_metered";
     if (reservation) {

@@ -156,6 +156,8 @@ const REASONS = Object.freeze({
     "Your recording passed the first check. The virus scanner is not running on the machine that picked this up, and we will not mark a file as clean without actually scanning it. This is on us, not on your file. It will carry on by itself once the scanner is running.",
   media_probe_tool_unavailable:
     "Your recording passed the first checks. The tool that reads the audio track is not installed on the machine that picked this up, so we cannot yet tell how long it is or how it was encoded. This is on us, not on your file. It will carry on by itself once the tool is installed.",
+  reference_window_tool_unavailable:
+    "Your recording passed diarization. The tool that trims your voice down to the short reference clip is not installed on the machine that picked this up. This is on us, not on your file. It will carry on by itself once the tool is installed.",
   voice_evidence_unconfigured:
     "Your recording got as far as the voice analysis, which runs on a separate service that is not switched on yet. This is on us, not on your file. It will carry on by itself once that service is connected.",
   asr_unconfigured:

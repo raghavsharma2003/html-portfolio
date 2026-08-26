@@ -4466,3 +4466,94 @@ present on the untouched base branch. See
 | negative control: 58px rail on `.processing-review` | **passed** (did not fire) | FAIL, exit 1, names the element and 415px / 884px wasted |
 | negative control: chevron column pin removed | not detectable | FAIL, exit 1, 9 findings across narrow, sliver and overflow |
 | restored | n/a | ok, exit 0, 264 blocks |
+## `separate-underlying-error-confirmed-structurally` (2026-08-26, WS-AO)
+
+**What was measured, and how.** The owner's real job (`job_id b9e23181...`,
+`source_id 886cc5dc...`) was left running against production: the Azure
+Container Apps Job fires on its own `*/5` cron, so five consecutive attempts
+(20:04:31Z, 20:05:24Z/51Z, 20:10:24Z, ... through 21:05:22Z) were observed live
+via Neon (`vy_replica_processing_job`), Log Analytics (`ContainerAppConsoleLogs_
+CL` for both the processing job and `vyakti-voice-evidence`), and the Container
+Apps REST API's replica listing, without touching the code first. At attempt 5
+the job hit `state='failed'` (terminal -- `classifyProcessingFailure`'s
+`maxAttempts`), `failure_code='voice_evidence_failed'` on every attempt.
+
+**The underlying error was NOT recoverable from a traceback, and that is itself
+a finding.** `services/voice-evidence/app.py`'s `/v1/analyze` handler ends in a
+bare `except Exception: return _signed_response(request, 503, {"error":
+"voice_evidence_failed"})` with no logging call of any kind (line 392-393,
+confirmed by reading the deployed source). Log Analytics for
+`vyakti-voice-evidence` carries zero lines in any time window overlapping any
+of the five failing requests -- not an ingestion delay (other apps' logs for
+the same windows are present) but the service genuinely printing nothing on
+this path.
+
+**What WAS confirmed, structurally and operationally, in place of a
+traceback:**
+- Every OTHER exception path in `app.py` raises a NAMED `ServiceError`
+  (`audio_duration_invalid`, `audio_integrity_invalid`, `audio_decode_failed`,
+  `separation_output_invalid`, ...), each with its own string. `voice_evidence_
+  failed` is reachable ONLY through the bare `except Exception`, so every named
+  validation -- including the `MAX_DURATION_SECONDS` check the raised cap was
+  supposed to relieve -- provably passed.
+- The replica's `restartCount` stayed **0** across all five attempts (Container
+  Apps replica listing, checked live). A container-level OOM kill (the Linux
+  kernel killing the process) would show as a restart; it did not. This is
+  consistent with an IN-PROCESS, CATCHABLE exception -- exactly the shape of a
+  `torch.cuda.OutOfMemoryError`, which PyTorch raises as an ordinary `Exception`
+  subclass rather than crashing the process.
+- The only GPU-bound operation in `_separate()` is one unchunked forward pass,
+  `separator.separate_batch(waveform.unsqueeze(0).to(device))`, over the WHOLE
+  waveform: 822.72 s at 16 kHz = 13,163,520 samples in one tensor on a T4-class
+  card, for a Sepformer dual-path model whose memory grows with sequence
+  length.
+
+**What would have confirmed it beyond structural inference, and was not done.**
+Adding a logging line to the bare `except` and rebuilding/redeploying the
+5.34 GB GPU image, to catch a live traceback on the job's next automatic retry.
+Not done: out of scope for this workstream (the decided fix is windowing, not
+hardening the evidence service's error handling) and costly to rebuild for a
+diagnostic that the code-path elimination above already answers with high
+confidence. **Named honestly rather than left implicit: this is a structural
+and operational confirmation, not a captured stack trace.**
+
+**Empirical confirmation, after the fix.** Windowing eliminates the whole-file
+forward pass by construction -- `separate` now sends a single ~10 s clip, never
+the 822.72 s file -- so if length was the true cause, `separate` succeeding
+after this change on the SAME 822.72 s upload is the strongest evidence
+available without the traceback. See the session's DAG-position report in
+`context/STATE.md`'s session log for whether that requeue was observed to
+complete.
+
+## `owner-reference-window-selected` (2026-08-26, WS-AO)
+
+**Method.** `api/_replica-processing/reference-window.js` exercised three ways:
+(1) pure-JS unit test of `ownerClusterSegments`/`mergeRuns` against synthetic
+diarize segments -- confirms the dominant-duration cluster is picked and a
+second cluster's segments are excluded from candidacy entirely; (2) a real-
+ffmpeg integration test (`ffmpeg 6.1.1`, ffprobe from the same build) against a
+synthesised MP3 with a "noisy" 11 s owner run, a 2 s cluster-2 blip, and a
+"clean" 11 s owner run, confirmed the extraction/scoring/slicing round-trip
+produces a byte-exact 10 s (320,044-byte) WAV and NEVER cites the cluster-2
+span; (3) a full `executeProcessingJob` run for `job.step==='separate'` against
+fake adapters/artifact store with the same synthetic MP3, confirming the
+complete worker.js integration path (resolve full source -> select window ->
+write derived artifact -> call adapter -> commit candidates) completes with
+`outcome: 'complete'` and the stored reference object is exactly 320,044 bytes
+-- never the 26,458 ms of the synthetic source. n=1 synthetic file per test,
+run once each, 2026-08-26. **Not yet run against the owner's real 822.72 s
+recording** -- that requires the fix deployed and the job requeued in
+production; see `context/STATE.md` for whether that had happened by the end of
+this session.
+
+**A real bug this testing caught before production, worth recording:** the
+first implementation sliced the selected window out of ffmpeg's raw output
+assuming a fixed 44-byte WAV header. ffmpeg writing to a pipe cannot seek back
+to patch the `data` chunk's declared size once it knows the true one, so it
+emits `0xFFFFFFFF` as a placeholder, and measured against the real binary it
+also writes an INFO `LIST` chunk before `data` -- pushing the real payload to
+byte 78, not 44. `windows.js`'s own `readPcm16Wav` handles this correctly (it
+was written for exactly this kind of file), so the fix was to route the OUTPUT
+through a file the same way `probeBytes` already routes the INPUT through one,
+and to reuse `readPcm16Wav` for the final slice rather than assuming a fixed
+offset. See `context/rejected.md` for the same finding as a named rejection.

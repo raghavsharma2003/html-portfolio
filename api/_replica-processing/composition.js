@@ -206,6 +206,12 @@ export function composeProcessingAdapters(options = {}) {
     adapters: Object.freeze(adapters),
     capabilities: Object.freeze(capabilities),
     storage,
+    // `separate`'s reference-window selection (WS-AO) needs both the raw
+    // resolver -- to read the ORIGINAL recording once -- and ffmpeg, which on
+    // Vercel's serverless runtime is absent for the same reason `media_probe`
+    // is. Exposed here rather than re-derived by every caller.
+    resolveInput: storage.resolveInput,
+    withMaterializedAudio: runners.withMaterializedAudio,
   });
 }
 

@@ -2,7 +2,18 @@ import { leaseNextProcessingJob, retryProcessingJob, stopProcessingJob } from ".
 import { commitProcessingOutput } from "./repository.js";
 import { executeProcessingJob } from "./worker.js";
 
-const INPUT_STAGE = Object.freeze({ enhance: "separate", transcribe: "enhance", voice_quality: "enhance" });
+// `transcribe` deliberately does NOT chain through `enhance` here. Before
+// WS-AO, `enhance`'s candidates always covered the whole recording, so reading
+// them was free lineage. Now that `separate` (and so `enhance`, which takes
+// `separate`'s own candidate as its input) narrows to the OWNER's best ~10 s
+// reference window, chaining `transcribe` the same way would truncate the
+// TeacherSheet's transcript to ten seconds of a lecture the moment ASR is
+// configured -- a regression that would ship silently, because `transcribe`
+// is blocked on `AZURE_SPEECH_ENDPOINT`/`AZURE_SPEECH_KEY` today and nothing
+// would notice until it wasn't. `transcribe` falls back to the full original
+// source instead, the same way `separate` itself always has: ASR reads the
+// whole recording, and the reference window stays scoped to voice identity.
+const INPUT_STAGE = Object.freeze({ enhance: "separate", voice_quality: "enhance" });
 
 export async function loadLeasedProcessingContext(db, job) {
   const sources = await db(
@@ -32,6 +43,20 @@ export async function loadLeasedProcessingContext(db, job) {
   if (inputStage && !artifacts.length) {
     throw Object.assign(new Error("processing input artifact unavailable"), { code: "processing_input_artifact_unavailable" });
   }
+  // `separate` windows down to the owner's own diarized speech (WS-AO) rather
+  // than sending the whole recording to the GPU. `diarize` is a hard DAG
+  // dependency of `separate`, so its segments are always durable here by the
+  // time this runs; fetched only for this one step so every other step's
+  // context load stays exactly as cheap as it was.
+  const diarizeSegments = job.step === "separate" ? await db(
+    `select span_start_ms as start_ms, span_end_ms as end_ms,
+            value->>'speaker_key' as speaker_key, confidence
+       from vy_replica_processing_evidence
+      where source_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid
+        and evidence_type='speaker_segment'
+      order by span_start_ms`,
+    [job.source_id, job.replica_id, job.owner_user_id],
+  ) : [];
   return Object.freeze({
     source: Object.freeze({ ...sources[0], byte_size: Number(sources[0].byte_size), duration_ms: sources[0].duration_ms == null ? null : Number(sources[0].duration_ms) }),
     completedSteps: Object.freeze(completed.map((row) => row.step)),
@@ -39,6 +64,12 @@ export async function loadLeasedProcessingContext(db, job) {
       ...row,
       byte_size: Number(row.byte_size),
       duration_ms: row.duration_ms == null ? null : Number(row.duration_ms),
+    }))),
+    diarizeSegments: Object.freeze(diarizeSegments.map((row) => Object.freeze({
+      start_ms: Number(row.start_ms),
+      end_ms: Number(row.end_ms),
+      speaker_key: String(row.speaker_key || ""),
+      confidence: row.confidence == null ? null : Number(row.confidence),
     }))),
   });
 }
@@ -86,6 +117,9 @@ export async function runNextProcessingJob(options) {
       artifactStore: options.artifactStore,
       inputArtifacts: context.inputArtifacts,
       completedSteps: context.completedSteps,
+      diarizeSegments: context.diarizeSegments,
+      resolveInput: options.resolveInput,
+      withMaterializedAudio: options.withMaterializedAudio,
       spendDb: options.db,
       budgetEnv: options.budgetEnv,
       maxAttempts: options.maxAttempts || 5,

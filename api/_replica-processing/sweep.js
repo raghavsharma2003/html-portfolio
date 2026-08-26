@@ -86,6 +86,8 @@ export async function runProcessingSweep(options = {}) {
       db,
       adapters: composed.adapters,
       artifactStore: composed.storage.artifactStore,
+      resolveInput: composed.resolveInput,
+      withMaterializedAudio: composed.withMaterializedAudio,
       budgetEnv: env,
       leaseMs: bounded(options.leaseMs, 900_000, 60_000, 900_000),
       maxAttempts: 5,

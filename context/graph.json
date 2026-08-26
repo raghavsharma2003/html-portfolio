@@ -3080,6 +3080,30 @@
       "kind": "open",
       "at": "2026-08-26",
       "title": "Between about 721px and 1080px the replica rail still takes 276px, leaving a 475px content column; the inner grids now adapt to it but the rail itself has not been redesigned for that band"
+    },
+    {
+      "id": "windowing-belongs-at-separate-now-that-diarize-is-done",
+      "kind": "decision",
+      "title": "separate windows to the owner best-scoring ~10s from their own diarized cluster instead of the whole file, now that diarize durably names the segments; transcribe deliberately keeps reading the full source",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "separate-underlying-error-confirmed-structurally",
+      "kind": "measurement",
+      "title": "voice_evidence_failed traced to a bare except with zero logging; every named ServiceError eliminated, zero container restarts across 5 attempts rules out an OOM kill, consistent with a caught CUDA OOM in separate_batch on the whole 822.72s waveform",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "owner-reference-window-selected",
+      "kind": "measurement",
+      "title": "reference-window.js validated end to end: pure-JS cluster/run selection, real-ffmpeg extraction+scoring on a synthetic MP3, and a full executeProcessingJob(separate) run producing a byte-exact 320044-byte 10s WAV, never the whole file",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ffmpeg-pipe-output-cannot-carry-a-sized-wav-chunk",
+      "kind": "rejection",
+      "title": "ffmpeg -f wav pipe:1 writes a 0xFFFFFFFF placeholder data size and an INFO LIST chunk before data, so a fixed-44-byte-header slice both throws window_audio_truncated and would misalign if it did not; fixed by writing output to a temp file, same reason probeBytes already does for input",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -6002,6 +6026,31 @@
       "src": "studio-tablet-column-is-276px-narrower-than-the-viewport",
       "rel": "part_of",
       "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "windowing-belongs-at-separate-now-that-diarize-is-done",
+      "rel": "caused_by",
+      "dst": "separate-fails-on-the-whole-recording"
+    },
+    {
+      "src": "windowing-belongs-at-separate-now-that-diarize-is-done",
+      "rel": "measured_by",
+      "dst": "separate-underlying-error-confirmed-structurally"
+    },
+    {
+      "src": "windowing-belongs-at-separate-now-that-diarize-is-done",
+      "rel": "measured_by",
+      "dst": "owner-reference-window-selected"
+    },
+    {
+      "src": "windowing-belongs-at-separate-now-that-diarize-is-done",
+      "rel": "part_of",
+      "dst": "best-window-not-first-window"
+    },
+    {
+      "src": "owner-reference-window-selected",
+      "rel": "caused_by",
+      "dst": "ffmpeg-pipe-output-cannot-carry-a-sized-wav-chunk"
     }
   ]
 }

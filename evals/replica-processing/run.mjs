@@ -16,6 +16,8 @@ const Fake = await import(pathToFileURL(join(ROOT, "api/_replica-processing/prov
 const AzureFast = await import(pathToFileURL(join(ROOT, "api/_replica-processing/providers/azure-fast-transcription.js")));
 const Repository = await import(pathToFileURL(join(ROOT, "api/_replica-processing/repository.js")));
 const { splitSql } = await import(pathToFileURL(join(ROOT, "db/migrations/apply.mjs")));
+const Windows = await import(pathToFileURL(join(ROOT, "api/_video-enroll/windows.js")));
+const RefWindow = await import(pathToFileURL(join(ROOT, "api/_replica-processing/reference-window.js")));
 
 let failed = 0;
 const ok = (name, condition, extra = "") => {
@@ -121,11 +123,55 @@ const diarization = await Worker.executeProcessingJob({
 ok("speaker evidence retains offsets, confidence and adapter provenance",
   diarization.evidence.every((entry) => entry.span.end_ms > entry.span.start_ms && entry.confidence != null && entry.adapter.family === "diarization"));
 
+// `separate` (WS-AO) windows down to the owner's own diarized speech instead
+// of sending the whole recording. Offline and deterministic, same as every
+// other fixture in this file: a synthetic 16 kHz mono PCM16 WAV standing in
+// for the source's bytes, `diarizeSegments` built from the SAME evidence
+// `diarization` above just produced (never re-derived by hand, so this test
+// cannot silently drift from what `diarize` actually wrote), and a fake
+// `withMaterializedAudio` that slices the in-memory fixture directly rather
+// than shelling out to ffmpeg -- this suite proves boundaries and lineage,
+// never a real subprocess.
+const fixtureAudioMs = 24_000;
+const fixtureAudio = RefWindow.wavBytesForSamples(
+  Buffer.alloc((fixtureAudioMs / 1000) * 16_000 * 2, 0).map((_, index) => (index % 2 === 0 ? 120 : 0)),
+);
+const diarizeSegments = diarization.evidence
+  .filter((entry) => entry.evidence_type === "speaker_segment")
+  .map((entry) => ({ start_ms: entry.span.start_ms, end_ms: entry.span.end_ms, speaker_key: entry.value.speaker_key, confidence: entry.confidence }));
+const resolveFixtureInput = async ({ input }) => {
+  if (input.object_path !== source.object_path) throw new Error(`unexpected object_path ${input.object_path}`);
+  return { mime: "audio/wav", byteSize: fixtureAudio.length, body: fixtureAudio };
+};
+const withFixtureMaterializedAudio = async (bytes, fn) => fn({
+  async extractWindow(startMs, endMs) {
+    const parsed = Windows.readPcm16Wav(bytes);
+    const startSample = Math.round((startMs / 1000) * 16_000);
+    const endSample = Math.round((endMs / 1000) * 16_000);
+    return RefWindow.wavBytesForSamples(parsed.samples.subarray(startSample * 2, endSample * 2));
+  },
+});
+
 const separated = await Worker.executeProcessingJob({
   job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate,
+  diarizeSegments, resolveInput: resolveFixtureInput, withMaterializedAudio: withFixtureMaterializedAudio,
 });
 ok("separation creates an immutable foreground candidate before enhancement",
   separated.outcome === "complete" && separated.artifacts.length === 1 && separated.artifacts[0].stage === "separate");
+
+const missingWindowCapability = await Worker.executeProcessingJob({
+  job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate, diarizeSegments,
+});
+ok("separate refuses by name when the window tool/storage capability is absent, rather than falling back to the whole file",
+  missingWindowCapability.outcome === "failed" && missingWindowCapability.failure_code === "reference_window_capability_missing");
+
+const noOwnerRun = await Worker.executeProcessingJob({
+  job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate,
+  diarizeSegments: [{ start_ms: 0, end_ms: 4_000, speaker_key: "subject-candidate", confidence: 0.9 }],
+  resolveInput: resolveFixtureInput, withMaterializedAudio: withFixtureMaterializedAudio,
+});
+ok("separate refuses rather than pad or splice when no owner run reaches one full window",
+  noOwnerRun.outcome === "failed" && noOwnerRun.failure_code === "reference_window_no_candidate");
 
 const enhanced = await Worker.executeProcessingJob({
   job: job("enhance"), source, adapters, artifactStore: store, completedSteps: dependencies.enhance,
@@ -144,7 +190,11 @@ ok("candidate manifests and nested provenance are frozen after hashing",
   Object.isFrozen(enhanced.artifacts[0].transform) && Object.isFrozen(enhanced.artifacts[0].quality));
 ok("retrying the same revision is byte/manifest idempotent",
   enhanced.artifacts.map((entry) => entry.manifest_hash).join() === repeatedEnhancement.artifacts.map((entry) => entry.manifest_hash).join() &&
-  store.snapshot().length === 3);
+  // 1 separated candidate + 2 enhanced candidates + 1 owner reference window
+  // (WS-AO's `separate` input, written once and reused byte-identically by
+  // every retry -- see `reference_window_capability_missing` above for the
+  // retry that has no window to reuse at all).
+  store.snapshot().length === 4);
 ok("enhancement refuses to skip the separated parent artifact", (await Worker.executeProcessingJob({
   job: job("enhance"), source, adapters, artifactStore: store, completedSteps: dependencies.enhance,
 })).failure_code === "separation_artifact_missing");

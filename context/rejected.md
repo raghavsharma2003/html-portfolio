@@ -4058,3 +4058,47 @@ rule is that a media query is the right tool only for a decision about the
 VIEWPORT (is this a phone, is the rail shown). Any decision about whether
 content fits belongs to the container, and grid has had a container-driven
 answer since `auto-fit` shipped.
+## `ffmpeg-pipe-output-cannot-carry-a-sized-wav-chunk` (2026-08-26, WS-AO)
+
+**Tried.** The first cut of `reference-window.js`'s window extraction ran
+ffmpeg with output to `pipe:1` (`-f wav pipe:1`), captured stdout, and sliced
+the selected window's samples out starting at a hard-coded offset of 44 bytes
+-- the size of a minimal canonical WAV header, and the same assumption the
+scorer's own `wavBytesForSamples` writer uses when it BUILDS a WAV from raw
+PCM.
+
+**What broke.** Every extraction threw `window_audio_truncated` from
+`windows.js`'s `readPcm16Wav`, on real audio through real ffmpeg (not a mock --
+`ffmpeg 6.1.1-3ubuntu5`, installed and run in this session). Two things ffmpeg
+does when writing a WAV to a PIPE rather than a seekable file explain it, both
+confirmed by walking the actual output bytes chunk by chunk:
+- It cannot come back and patch the `data` chunk's declared byte count once it
+  knows the real one (a pipe cannot be seeked backward), so it writes the
+  placeholder `0xFFFFFFFF` instead of the true size. `readPcm16Wav` reads that
+  literally and correctly refuses it as a truncated/malformed declaration --
+  the check exists for real uploads that really are cut short, and a streamed
+  ffmpeg output looks identical to one on the wire.
+- It also writes an INFO `LIST` chunk (encoder metadata) BEFORE `data`, so even
+  ignoring the size placeholder, the real PCM payload starts at byte 78 in the
+  measured case, not byte 44. A fixed-offset slice would have silently read
+  the wrong 10 seconds -- 34 bytes of header/metadata plus part of the true
+  first frame -- rather than erroring, which would have been the worse failure
+  to ship.
+
+**The fix, and why it is consistent with an existing pattern rather than a new
+one.** Write ffmpeg's OUTPUT to a temp file (same directory, cleaned up in a
+`finally`) and read it back, exactly mirroring why `probeBytes` already writes
+its INPUT to a temp file for ffprobe -- a real file lets ffmpeg seek back and
+patch the header with the true size once encoding finishes, the same way a
+seekable file lets ffprobe find an MP3's duration by reading its Xing frame or
+seeking to the end. And route the final slice through `readPcm16Wav`'s own
+chunk walk instead of a fixed offset, since it already handles exactly this
+shape correctly (it was written for real-world uploads, which is why the
+`Math.min(body+size, buffer.length)` clamp exists at all) -- reuse rather than
+a second, narrower parser.
+
+**What would reverse it:** a future ffmpeg invocation that has a real reason to
+stream rather than materialise (a much longer per-call extraction where the
+temp-file write itself becomes the bottleneck). Nothing in this lane is close
+to that; the owner's own diarized-speech total for the file that motivated this
+change is 663.5 s, comfortably inside one temp file per candidate run.

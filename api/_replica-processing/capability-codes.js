@@ -19,6 +19,7 @@ export const CAPABILITY_ABSENCE_CODES = Object.freeze([
   "private_storage_not_configured",
   "malware_scanner_unavailable",
   "media_probe_tool_unavailable",
+  "reference_window_tool_unavailable",
   "voice_evidence_unconfigured",
   "asr_unconfigured",
 ]);
