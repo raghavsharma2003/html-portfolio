@@ -82,6 +82,9 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 - `offline-mocks-cannot-type-check-sql` — a mocked DB proves control flow, not
   types or referential integrity. Smoke-test every lane against the real
   database before calling it done.
+- `aliveness-was-unreachable-not-meera-bound` — a seam can be complete at both
+  ends and still be dead because nothing passes the argument between them.
+  Before calling a capability "wired", grep for a CALLER, not a definition.
 - `gurukul-no-production-glob` — a feature branch must never match another
   product's deploy trigger.
 - `recited-prompt` / `prompt-position` — write shapes, never lines; position is
