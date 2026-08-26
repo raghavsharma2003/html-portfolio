@@ -16,17 +16,22 @@
 //    that might be 3x wrong is a fence that reports a budget it is not
 //    holding. Wiring it is a prerequisite for the first paid run, and it
 //    needs the real number first.
-// 2. THE ENDPOINT PATHS BELOW ARE CODED FROM §3's ACCOUNT OF THE BATCH API,
-//    not from a request that has been made. They are protocol-complete in
-//    SHAPE — init, upload, start, poll, fetch — which is the part that
-//    determines this file's structure and its failure modes. The exact path
-//    strings must be checked against Sarvam's live docs before the first
-//    call, and `SARVAM_API_ORIGIN` exists so that check does not require a
-//    code change.
+// 2. THE ENDPOINT PATHS HAVE NOW BEEN RUN (WS-T, 2026-08-26) against the live
+//    API with a real consented 71 s Hinglish sample, and three of them were
+//    wrong. The shape §3 described — init, upload, start, poll, fetch — was
+//    right; three of the five addresses were not, and each failed in a way
+//    code review could not see:
+//      * upload PUT to `input_storage_path` -> 409. It is a DIRECTORY SAS.
+//      * poll GET `/job/{id}` -> 404 forever, read as "still running", so a
+//        job that completed in 126 s died at the 10-minute timeout.
+//      * collect GET `output_storage_path` -> a directory, not JSON. The
+//        result blob is named by input index (`0.json`).
+//    All three are fixed below and the whole chain was then run end to end.
+//    `SARVAM_API_ORIGIN` still exists so a future path change needs no code
+//    change.
 //
-// Both of those are the reason this lane is env-gated and unreachable from
-// any eval: nothing here has been measured, and a provider whose numbers are
-// unverified must not be able to run by accident.
+// Pricing (1) is still unresolved, and that alone is why this lane stays
+// env-gated and out of `api/_provider-budget.js`.
 //
 // ── diarization is requested, and its absence is reported, never faked ───
 // `with_diarization` is on because a lecture has a teacher and it has
@@ -60,6 +65,48 @@ async function json(fetchImpl, url, options, code) {
   try { body = text ? JSON.parse(text) : null; } catch { fail(`${code}_response_invalid`); }
   if (!response.ok) fail(`${code}_http_${response.status}`, response.status === 429 ? 429 : 502);
   return body;
+}
+
+/** Both storage paths Sarvam hands back are Azure DIRECTORY SAS URLs — the
+ *  query string is the credential and the path is a directory, so a blob under
+ *  it is addressed by appending a name to the PATH while keeping the query
+ *  intact. Verified against the live API 2026-08-26: PUT to the bare directory
+ *  answers 409, PUT to `<dir>/<name>?<sas>` answers 201. */
+function inDirectory(directoryUrl, name) {
+  let url;
+  try { url = new URL(String(directoryUrl)); }
+  catch { fail("asr_sarvam_storage_path_invalid"); }
+  if (url.protocol !== "https:") fail("asr_sarvam_storage_path_invalid");
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/${encodeURIComponent(name)}`;
+  return url.toString();
+}
+
+/** Names of the blobs under a directory SAS, via the Blob container listing
+ *  (`restype=container&comp=list&prefix=`), which the `sp=...l` list permission
+ *  on that SAS covers. Returned relative to the directory. */
+async function listDirectory(fetchImpl, directoryUrl) {
+  let url;
+  try { url = new URL(String(directoryUrl)); }
+  catch { fail("asr_sarvam_storage_path_invalid"); }
+  const [, container, ...rest] = url.pathname.split("/");
+  const prefix = rest.join("/");
+  const listing = new URL(`${url.origin}/${container}${url.search}`);
+  listing.searchParams.set("restype", "container");
+  listing.searchParams.set("comp", "list");
+  listing.searchParams.set("prefix", `${prefix}/`);
+  let response;
+  try { response = await fetchImpl(listing.toString(), { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }); }
+  catch { fail("asr_sarvam_output_unreachable", 503); }
+  if (!response.ok) fail(`asr_sarvam_output_list_http_${response.status}`);
+  const xml = await response.text();
+  const names = [];
+  // The listing is a small, fixed-shape XML document from Azure Storage; a
+  // <Name> scan is the whole of what is needed and pulls in no parser.
+  for (const match of xml.matchAll(/<Name>([^<]+)<\/Name>/g)) {
+    const name = match[1].startsWith(`${prefix}/`) ? match[1].slice(prefix.length + 1) : match[1];
+    if (name && !name.includes("/")) names.push(name);
+  }
+  return names;
 }
 
 /** Sarvam's diarized output: one entry per utterance with a speaker id and
@@ -121,12 +168,16 @@ export function createSarvamSaarasProvider(options = {}) {
       if (!jobId || !inputPath || !outputPath) fail("asr_sarvam_init_incomplete");
 
       // 2. upload — the bytes leave our storage exactly once, for this job.
+      //    `input_storage_path` is a DIRECTORY SAS (`sr=d`, `sp=wl`), not a
+      //    blob URL: PUTting the directory itself answers 409. The file name
+      //    inside it is ours to choose and never reaches the output, which is
+      //    indexed by position (see step 5).
       const object = await readAudio(ref);
       const body = object?.body;
       if (!body || !body.length) fail("asr_audio_unreadable", 502);
       let upload;
       try {
-        upload = await fetchImpl(`${inputPath}`, {
+        upload = await fetchImpl(inDirectory(inputPath, "input-0.wav"), {
           method: "PUT",
           headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": ref.mime || "audio/wav" },
           body,
@@ -149,21 +200,30 @@ export function createSarvamSaarasProvider(options = {}) {
         }),
       }, "asr_sarvam_start");
 
-      // 4. poll
+      // 4. poll — the status resource is `/job/{id}/status`. `/job/{id}` is a
+      //    404 forever, which the old code read as "not finished yet" and rode
+      //    all the way to a ten-minute `asr_sarvam_job_timeout` on a job that
+      //    had in fact completed in two minutes.
       let state = "";
       for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
-        const status = await json(fetchImpl, `${origin}/speech-to-text/job/${encodeURIComponent(jobId)}`, {
+        const status = await json(fetchImpl, `${origin}/speech-to-text/job/${encodeURIComponent(jobId)}/status`, {
           headers: { ...auth, Accept: "application/json" },
         }, "asr_sarvam_status");
         state = String(status?.job_state || status?.status || "");
         if (state === "Completed") break;
-        if (state === "Failed") fail("asr_sarvam_job_failed", 502, { jobId });
+        if (state === "Failed") fail("asr_sarvam_job_failed", 502, { jobId, error: String(status?.error_message || "") });
         await sleep(POLL_INTERVAL_MS);
       }
       if (state !== "Completed") fail("asr_sarvam_job_timeout", 504, { jobId });
 
-      // 5. collect
-      const payload = await json(fetchImpl, outputPath, { headers: { Accept: "application/json" } }, "asr_sarvam_output");
+      // 5. collect — `output_storage_path` is a directory SAS too, and the
+      //    result blob is named by INPUT INDEX (`0.json`), never by the name we
+      //    uploaded. The directory is listed rather than guessed so a change to
+      //    that convention surfaces as "no output" and not as a wrong file.
+      const outputs = await listDirectory(fetchImpl, outputPath);
+      const first = outputs.find((name) => name.toLowerCase().endsWith(".json"));
+      if (!first) fail("asr_sarvam_output_missing", 502, { jobId });
+      const payload = await json(fetchImpl, inDirectory(outputPath, first), { headers: { Accept: "application/json" } }, "asr_sarvam_output");
       return asrResult({ turns: turnsFrom(payload), provider: NAME, model }, { name: NAME, model });
     },
   });
