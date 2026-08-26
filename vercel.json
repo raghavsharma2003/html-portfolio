@@ -6,7 +6,8 @@
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/studio", "destination": "/studio.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/delete-account", "destination": "/delete-account.html" }
+    { "source": "/delete-account", "destination": "/delete-account.html" },
+    { "source": "/embed.js", "destination": "/api/embed.js" }
   ],
   "crons": [
     { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },

@@ -352,6 +352,83 @@ reads at the moment it matters:**
    determines the file's structure and failure modes and is not in doubt; the
    exact path strings must be checked against Sarvam's live docs first.
 
+## 15c. Clone channels — "deploy the clone anywhere" (`vercel-app`)
+
+Gurukul WS-N. The surfaces a published clone can be reached on: an embeddable
+web widget, Telegram, WhatsApp. Migration 055 (`vy_clone_channel`) stores the
+BINDING; none of it stores a credential, because `credentials_ref` is a `uuid`
+and a bot token cannot be cast into one. Every variable below is fail-closed
+and none of them can be *un*set into a working lane.
+
+### The widget's session signing key
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `CLONE_WIDGET_SESSION_SECRET` | `api/_clonechat.js:sessionSecret()` | required, **≥32 chars** | none — throws `clone_widget_unconfigured` (503) | the embeddable widget refuses every request. Nothing degrades: no session can be minted, so no turn can be taken |
+
+It signs the widget's session token, which carries **the disclosure card's
+digest** and **the transcript's digest**. Both bindings are the mechanism
+behind safety-floor-teacher.md §1's P1 and the anti-forgery rule, so an unset
+key does not mean "the widget runs without signatures" — it means the widget is
+off. Generate with `openssl rand -base64 48`. Rotating it invalidates every
+open widget session, which shows up as one re-opened panel per visitor and one
+re-rendered disclosure card; that is the correct consequence and not a reason
+to avoid rotating.
+
+### The channel secret store — where a bot token actually lives
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `CHANNEL_SECRET_BACKEND` | `api/_channel-secrets.js:activeBackend()` | optional | `none` | with the default, `putChannelSecret`/`getChannelSecret` throw `channel_secret_store_unconfigured` (503) — a credentialed channel (Telegram, WhatsApp) **cannot be connected at all**. The web widget and embed are unaffected: they need no credential |
+| `AZURE_KEY_VAULT_URL` | `api/_channel-secrets.js:keyVaultAuth()` | required when backend is `azure-keyvault` | none — throws `channel_secret_store_unconfigured` | same as above |
+| `AZURE_TENANT_ID` | `api/_channel-secrets.js:keyVaultAuth()` | same | same | same |
+| `AZURE_CLIENT_ID` | `api/_channel-secrets.js:keyVaultAuth()` | same | same | same |
+| `AZURE_CLIENT_SECRET` | `api/_channel-secrets.js:keyVaultAuth()` | same | same | same |
+
+All four Key Vault values are checked **together** (`if (!vault || !tenant ||
+!clientId || !clientSecret) throw`) — §1's rule: a partial set is the same as
+none, so a half-configured store fails at boot with a name rather than at write
+time with a provider error nobody can act on.
+
+`AZURE_KEY_VAULT_URL` and the three service-principal values are **new to
+`vercel-app`**. `services/audio-protection` already reads
+`AZURE_KEY_VAULT_KEY_ID` (§18) against a vault of its own; per this file's
+opening rule, these are **not one setting** — they are independent settings in
+independent deployments that happen to name the same provider. Pointing both at
+one vault is a choice, not a default.
+
+**NOT VERIFIED:** no secret has ever been written. There are no service
+principal credentials in this environment, so what is proven offline is the
+refusal path, the reference shape, and the request the backend would make —
+never a round trip.
+
+### Telegram, per clone
+
+No new variable. A per-clone bot's token is a **secret-store entry**, not an
+env var — that is the whole point of `credentials_ref`, and it is why a hundred
+teachers do not mean a hundred environment variables. The existing
+`TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` / `TELEGRAM_BOT_USERNAME`
+(§22) still describe **Meera's own bot** and today's single-agent lane, which
+is reached when the webhook URL carries no `?ch=` parameter.
+
+`TELEGRAM_WEBHOOK_SECRET` becomes deployment-wide rather than Meera-specific:
+it is the value an owner pastes into their own `setWebhook` call, and it is
+compared in constant time on every update regardless of which clone the `?ch=`
+resolves to. A missing configured secret refuses every request, unchanged.
+
+### WhatsApp, per clone
+
+The existing `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` remain
+**deployment-wide** — they authenticate Meta's webhook to us and are not
+per-teacher. `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` remain the
+fallback pair for a single-tenant lane; a bound clone gets its own
+`phone_number_id` from `vy_clone_channel.external_ref` and its own access token
+from the secret store, and never touches either variable.
+
+See `docs/gurukul/INSTAGRAM-DM-GAP.md` §3 for why WhatsApp is not yet
+self-serve (Tech Provider enrolment + Embedded Signup) and §1–2 for why
+Instagram DM has no adapter and no variables at all.
+
 ## 16. azure-verifier — standalone service, its own deployment (`azure-verifier`)
 
 `services/azure-verifier/src/config.js:57-124`. Node 24, one Container App,

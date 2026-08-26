@@ -2110,3 +2110,42 @@ create table if not exists vy_ingest_run (
 create unique index if not exists vy_ingest_run_video_ix on vy_ingest_run (replica_id, video_ref);
 create index if not exists vy_ingest_run_owner_recent_ix on vy_ingest_run (owner_user_id, replica_id, created_at desc);
 create index if not exists vy_ingest_run_review_ix on vy_ingest_run (replica_id, status, created_at desc);
+
+-- ── migration 055 — vy_clone_channel: which published clone answers where ──
+--
+-- A surface is a TRANSPORT, never a tenant (docs/SURFACES.md §0), so this
+-- table does not scope memory — it answers exactly one question: on this wire,
+-- at this address, WHICH published clone replies. `api/_surface.js` used to
+-- answer it with a constant (`MEERA_AGENT_ID`), which made a second clone on
+-- Telegram a code change and a hundred clones a hundred of them.
+--
+-- `credentials_ref` is a uuid because a Telegram bot token or a Meta access
+-- token cannot be cast into one — migration 053's `oauth_grant_ref` argument,
+-- transferred. The value lives in api/_channel-secrets.js's backend (default
+-- `none`, which refuses), never here.
+--
+-- The connect gate is a CHECK rather than a branch (`gate0-structural`): a
+-- connected channel has an address, and a connected third-party channel also
+-- has a credential reference. The partial unique index on (kind, external_ref)
+-- is the routing law — without it two clones can claim one bot and the answer
+-- to "who replies here" depends on write ordering.
+create table if not exists vy_clone_channel (
+  channel_id uuid primary key,
+  agent_id uuid not null,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  kind text not null check (kind in ('web_embed','web_widget','telegram','whatsapp','instagram_dm')),
+  external_ref text not null default '',
+  credentials_ref uuid,
+  status text not null default 'draft' check (status in ('draft','connected','paused','revoked')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_clone_channel_connect_gate check (
+    status <> 'connected'
+    or (external_ref <> '' and (kind in ('web_embed','web_widget') or credentials_ref is not null))
+  )
+);
+create unique index if not exists vy_clone_channel_route_ix on vy_clone_channel (kind, external_ref) where status = 'connected';
+create unique index if not exists vy_clone_channel_one_per_kind_ix on vy_clone_channel (agent_id, kind) where status = 'connected';
+create index if not exists vy_clone_channel_owner_ix on vy_clone_channel (owner_user_id, replica_id, kind);
+create index if not exists vy_clone_channel_agent_ix on vy_clone_channel (agent_id, status);

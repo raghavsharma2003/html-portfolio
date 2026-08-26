@@ -161,6 +161,13 @@ const ident = (n) => n;
  *           Does this inbound event mean "link me"? Telegram's `/start r<id>`
  *           deep link is the shipped instance; a surface without deep links
  *           returns null and links on first contact instead.
+ * @property {*} [agent]
+ *           The AgentModule that answers on this wire, or null for Meera's
+ *           compile-time default. Set by `api/_clonechannel.js`'s inbound
+ *           resolution — see the CLONE BINDING note below.
+ * @property {string} [agentId]
+ *           The uuid the same clone's rows are written under. Defaults to
+ *           MEERA_AGENT_ID so every existing lane is byte-identical.
  * @property {(roomId:number)=>string|null} [linkFor]
  *           A URL that onboards a room member, for the room card's button.
  *           Null on surfaces with no deep-link mechanic — the card still goes,
@@ -210,6 +217,40 @@ export const withdrawReceipt = (n) =>
 /** The react tier's one glyph. Shared so two surfaces cannot disagree about
  *  what "she noticed" looks like. */
 export const NOTICED_EMOJI = "👀";
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE CLONE BINDING (Gurukul WS-N) — why `agent` and `agentId` are on ctx
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Everything in this file used to answer as exactly one agent. Not by a
+// setting — by a CONSTANT: `MEERA_AGENT_ID` appeared in the two writers below,
+// and `compile()` took no `agent`, so it fell to the engine's default. That is
+// correct for a product with one persona and it is precisely why a second
+// clone on Telegram was a code change.
+//
+// The generalization is two fields on ctx and nothing else:
+//
+//   ctx.agent    the AgentModule that answers here, or null for the default
+//   ctx.agentId  the uuid its rows are written under, defaulting to Meera's
+//
+// Both are resolved by `api/_clonechannel.js` AT THE HTTP EDGE, from
+// `vy_clone_channel`, before an event reaches `dispatch()`. This file does not
+// know how that resolution works and must never learn: a surface layer that
+// could decide WHICH clone answers is a surface layer that has become a
+// tenancy boundary, and docs/SURFACES.md §0's first sentence is that a surface
+// scopes nothing.
+//
+// WHAT DID NOT CHANGE, and is the load-bearing half:
+//
+//   - `vy_surface_identity` still has no `agent_id`. Identity resolution is
+//     agent-independent (§4). The agent enters at RETRIEVAL — which is what
+//     `ctx.agentId` reaching the two writers below actually means.
+//   - `gatedReply()` is still the ONLY call site of `ctx.reply` in this file.
+//     A clone inherits every honesty family for free, and cannot opt out,
+//     because there is no second door.
+//   - Defaults are Meera's, so every existing lane compiles the same bytes.
+//     `evals/surface.mjs` and `evals/mp/tgbot.mjs` are the proof of that, and
+//     they were not edited for this change.
 
 // ─────────────────────────────────────────────────────────────────────────
 // THE ENGINE
@@ -646,7 +687,7 @@ export async function roomForChat(surface, chatKey, t = ident) {
 export async function ensureRoomForSurfaceChat(
   surface,
   chatKey,
-  { name = "", kind = "friend_group" } = {},
+  { name = "", kind = "friend_group", agentId = MEERA_AGENT_ID } = {},
   t = ident,
 ) {
   const have = await roomForChat(surface, chatKey, t);
@@ -658,7 +699,10 @@ export async function ensureRoomForSurfaceChat(
        (agent_id, name, kind, room_device_id, surface, surface_chat_id, tg_chat_id)
      values ($1,$2,$3,$4,$5,$6,$7) on conflict do nothing`,
     [
-      MEERA_AGENT_ID,
+      // The clone that owns this room, not a constant. Defaulted above to
+      // MEERA_AGENT_ID so a caller that never heard of clones writes exactly
+      // the rows it always wrote.
+      agentId,
       String(name || "").slice(0, 120),
       kind,
       surfaceRoomDeviceId(surface, key),
@@ -684,7 +728,7 @@ export async function ensureRoomForSurfaceChat(
  */
 export async function upsertRoomMember(
   groupId,
-  { personId, surface = null, surfaceUserId = null },
+  { personId, surface = null, surfaceUserId = null, agentId = MEERA_AGENT_ID },
   t = ident,
 ) {
   const key = surfaceUserId == null ? null : String(surfaceUserId);
@@ -698,7 +742,7 @@ export async function upsertRoomMember(
        surface = coalesce(excluded.surface, ${m}.surface),
        surface_user_id = coalesce(excluded.surface_user_id, ${m}.surface_user_id),
        tg_user_id = coalesce(excluded.tg_user_id, ${m}.tg_user_id)`,
-    [MEERA_AGENT_ID, groupId, personId, surface || null, key, legacyUserId(surface, key)],
+    [agentId, groupId, personId, surface || null, key, legacyUserId(surface, key)],
   );
 }
 
@@ -748,7 +792,12 @@ export async function dispatch(ev, ctx) {
 export async function onBotMembership(ev, ctx) {
   if (!ev.isGroup) return { ok: true, skipped: "not a room" };
   const status = ev.adminBits?.selfStatus ?? null;
-  const room = await ensureRoomForSurfaceChat(ev.surface, ev.chatKey, { name: ev.chatName || "" }, ctx.t);
+  const room = await ensureRoomForSurfaceChat(
+    ev.surface,
+    ev.chatKey,
+    { name: ev.chatName || "", agentId: ctx.agentId },
+    ctx.t,
+  );
   if (!room) return { ok: false, error: "room not created" };
 
   if (status === "left" || status === "kicked") {
@@ -795,7 +844,7 @@ export async function onMemberChange(ev, ctx) {
     return { ok: true, room: room.id, joined: false, full: true };
   await upsertRoomMember(
     room.id,
-    { personId: bound.person_id, surface: ev.surface, surfaceUserId: bits.subjectUserId },
+    { personId: bound.person_id, surface: ev.surface, surfaceUserId: bits.subjectUserId, agentId: ctx.agentId },
     ctx.t,
   );
   return { ok: true, room: room.id, joined: true };
@@ -817,7 +866,7 @@ export async function onJoin(ev, ctx) {
     if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t))) continue;
     await upsertRoomMember(
       room.id,
-      { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId },
+      { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId, agentId: ctx.agentId },
       ctx.t,
     );
     added++;
@@ -867,6 +916,7 @@ export async function onDirectMessage(ev, ctx) {
   // have anyone else's DMs, because she was not.
   const facts = await dmRecall(person, {}, ctx.t);
   const compiled = ctx.engine.compile({
+    agent: ctx.agent ?? undefined,
     user: { name: ev.handle, vibe: [], facts: {} },
     messageCount: 999,
     medium: "text",
@@ -927,7 +977,7 @@ async function onLinkTap(ev, intent, ctx) {
     if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t)) {
       await upsertRoomMember(
         roomRef,
-        { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId },
+        { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
         ctx.t,
       );
       await linkMember(roomRef, linked.personId, ctx.t);
@@ -947,6 +997,7 @@ async function onLinkTap(ev, intent, ctx) {
     // The 1:1 lane, unchanged: NO roomBundle, so this compile takes exactly
     // today's path (gate G1) — the DM she just opened is a DM, not a room.
     const compiled = ctx.engine.compile({
+      agent: ctx.agent ?? undefined,
       user: { name: ev.handle, vibe: [], facts: {} },
       messageCount: 0,
       medium: "text",
@@ -1044,7 +1095,7 @@ export async function onGroupMessage(ev, ctx) {
   if (speaker)
     await upsertRoomMember(
       room.id,
-      { personId: speaker, surface: ev.surface, surfaceUserId: ev.surfaceUserId },
+      { personId: speaker, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
       ctx.t,
     );
   const memberRow = speaker
@@ -1146,6 +1197,7 @@ export async function onGroupMessage(ev, ctx) {
 
   // ── RENDER through the REAL compiler, with the mp slots live.
   const compiled = ctx.engine.compile({
+    agent: ctx.agent ?? undefined,
     user: { name: ev.handle, vibe: [], facts: {} },
     messageCount: 999,
     medium: "text",
@@ -1334,6 +1386,10 @@ export function makeCtx(adapter, deps = {}) {
     reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
     send: deps.send || ((chatKey, msg) => adapter.send(chatKey, msg)),
     botHandle: deps.botHandle || "",
+    // The clone binding (see THE CLONE BINDING above). Both default to
+    // Meera's, so a caller that passes neither gets today's behaviour exactly.
+    agent: deps.agent ?? null,
+    agentId: deps.agentId || MEERA_AGENT_ID,
     linkIntent: deps.linkIntent || null,
     linkFor: deps.linkFor || null,
   };

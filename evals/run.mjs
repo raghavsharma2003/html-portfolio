@@ -155,6 +155,32 @@ const suites = {
   // Offline, deterministic, $0, no DB and no network: the real worker driven
   // through a fake `db` and the fixture channel/ASR providers.
   channel: "channel.mjs",
+  // WS-N (Gurukul deployment). "Deploy the clone anywhere": the clone↔surface
+  // binding (migration 055), the generalized surface resolution, and the
+  // embeddable web widget.
+  //
+  // Wired here on the same `dead-writers` test as everything around it, and
+  // for a sharper reason than most: every way this seam fails is silent AND
+  // it fails in front of a student.
+  //
+  //  - THE WRONG CLONE ANSWERS. A mis-resolved binding replies just as
+  //    promptly as a correct one and every log line looks healthy — the
+  //    student asked their physics teacher and reached a persona built for
+  //    consenting adults. So the suite asserts the resolution by AGENT ID and
+  //    by the COMPILED CORE, not by "it replied".
+  //  - THE FAIL-CLOSED SET IS INDISTINGUISHABLE. Unbound, paused, revoked and
+  //    consent-withdrawn must be four situations and one error code, or a
+  //    caller can enumerate which teachers took their clone down.
+  //  - THE DISCLOSURE IS BOUND, NOT REQUESTED. The widget runs on somebody
+  //    else's website, so "it renders the card" cannot be the mechanism. The
+  //    session token carries the card's digest and a stale one cannot buy a
+  //    turn — safety-floor-teacher.md §1's P1 as a predicate.
+  //  - THE NEGATIVE CONTROL. The resolution predicate is re-run with its
+  //    `status = 'connected'` clause struck, and the suite FAILS unless the
+  //    struck copy answers the revoked binding.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  clonechannel: "clonechannel.mjs",
   // WS-D (Gurukul student surface). The mastery fold: thresholds, no
   // decay-by-absence, order-independence/monotonicity, and XP strictly from
   // graded outcomes — the properties `src/engine/practice/mastery.ts`'s

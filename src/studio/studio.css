@@ -2697,6 +2697,12 @@
 .teacher-sheet-readonly > p { margin: 6px 0 0; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
 .teacher-sheet-readonly > small { display: block; margin-top: 8px; color: var(--ink-faint); font-size: 10px; }
 
+/* The embed snippet is the one block on this screen a teacher COPIES, so it
+   scrolls inside its own box rather than wrapping: a wrapped script tag
+   copied out of a UI is a script tag with a newline in the wrong place. */
+.embed-snippet { margin: 12px 0 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); overflow-x: auto; }
+.embed-snippet code { font: 500 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); white-space: pre; }
+
 .teacher-sheet-ingested { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
 .teacher-sheet-ingested h3 { margin: 0 0 6px; color: var(--forest-deep); font: 500 18px/1.2 var(--serif); }
 .teacher-sheet-ingested-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
