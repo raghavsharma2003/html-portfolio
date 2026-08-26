@@ -53,8 +53,19 @@ const PREVIEW_FENCE = `
               and newer.owner_user_id=d.owner_user_id
               and (newer.created_at,newer.decision_id)>(d.created_at,d.decision_id))))`;
 
+// ABSENT is not INVALID. The calibration lab names a preset on every call; the
+// one-button preview panel has no style control to name one with, and until now
+// its omission failed the same 400 as a typo, so EVERY preview from the default
+// path refused and the route reported it as a server error. A caller that says
+// nothing gets the identity preset, which is the right default for the only
+// question that panel asks: does this sound like me. A caller that names a
+// preset we do not have is still a 400, because that is a real mistake.
+export const DEFAULT_VOICE_PREVIEW_STYLE = "identity_anchor";
+
 export function voicePreviewStyle(value) {
-  const style = STYLE_PRESETS[String(value || "")];
+  const named = String(value ?? "").trim();
+  if (!named) return STYLE_PRESETS[DEFAULT_VOICE_PREVIEW_STYLE];
+  const style = STYLE_PRESETS[named];
   if (!style) fail("voice_preview_style_invalid", 400);
   return style;
 }

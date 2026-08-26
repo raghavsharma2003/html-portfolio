@@ -90,6 +90,19 @@ export default async function handler(req, res) {
         code === "open_voice_hmac_secret_required") {
       return res.status(503).json({ state: "error", error: code });
     }
+    // A refusal that CHOSE its own status and code is an answer, not a crash.
+    // Flattening one into a 500 cost this lane its whole default path: the
+    // panel omitted a style, the validator refused with a named 400, and the
+    // owner was shown a server error with nothing in the logs to explain it.
+    // The code is logged either way, because an operator who cannot see why a
+    // production request failed will guess, and guessing is how the last one
+    // stayed broken.
+    const status = Number(error?.status);
+    if (Number.isInteger(status) && status >= 400 && status < 500 && code) {
+      console.warn(`[voice-preview] refused ${status} ${code}`);
+      return res.status(status).json({ state: "error", error: code });
+    }
+    console.error(`[voice-preview] failed: ${code || "unnamed"}`);
     return res.status(500).json({ state: "error", error: "voice_preview_failed" });
   } finally {
     clearTimeout(deadline);
