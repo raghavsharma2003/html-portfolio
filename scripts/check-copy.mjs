@@ -96,10 +96,11 @@ const SKIP_FILE = /\.(gen|bundle)\.[jt]sx?$/;
  * waiver. A waiver that survives the condition that justified it is how a
  * temporary exception becomes permanent, so this one cannot.
  */
-const WAIVED = new Map([
-  ["src/studio/StudioApp.tsx", "owned by WS-AE, purging its own copy this window (UX-QUEUE UX-Q-AG-01)"],
-  ["src/studio/VideoEnrollPanel.tsx", "owned by WS-AF, landed after this gate was written (UX-QUEUE UX-Q-AG-04)"],
-]);
+// Empty, and the check above keeps it that way: a waiver whose file has become
+// clean is itself a failure, so a temporary exemption cannot quietly become
+// permanent. Both original entries (StudioApp.tsx, VideoEnrollPanel.tsx) were
+// retired when their owning workstreams merged and their copy came back clean.
+const WAIVED = new Map([]);
 
 /* ═══ 2. THE RULES ══════════════════════════════════════════════════════════
  *
