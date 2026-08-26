@@ -3003,3 +3003,85 @@ caution is CORRECT — the user-role tail is not behaviorally free, and
 the judged equivalence run (or a crisis-focused targeted battery) stays
 required before PAID_CACHE serves real traffic. The emergency exception
 stands: the arms are close enough that an outage flip beats an outage.
+
+## `recall-bench-v1` — the memory recall benchmark (harness landed 2026-08-26, UNMEASURED)
+
+ROADMAP-100X item 3. The harness is `evals/recallbench/` and it is wired into
+`evals/run.mjs`. **There is deliberately no number in this entry**, and this
+paragraph is the reason rather than an omission.
+
+CLAUDE.md's rule for this file: a measurement needs n, METHOD and date, because
+"a number without those cannot be compared against a future one, which is the
+only thing numbers are for." The offline harness runs the REAL `opRecall` over
+authored graph rows with the database mocked at `api/_db.js`'s module boundary,
+and it does NOT run two of the three things a recall figure would be read as
+covering:
+
+- **the LLM extractor** — the graph rows are authored, not extracted. Whether
+  the real extractor produces them from the same 190 turns is a separate
+  measurement and the harness makes no claim about it.
+- **the semantic (halfvec) leg** — the embedder is off, so the "same thing, no
+  shared words" path contributes nothing. Every offline score is therefore a
+  LOWER BOUND on the shipping system.
+
+Writing the offline numbers here would create exactly the false baseline a
+future keyed run gets compared against. So the template below is filled in by
+the first keyed session that runs the extractor over `evals/recallbench/
+fixtures/`'s turns and re-runs the sweep against what IT produced.
+
+<!-- TEMPLATE — fill in from a keyed run; delete the comment markers then.
+Method: `node evals/recallbench/run.mjs --live` (extractor ON, embedder ON),
+3 dyads / 190 authored Hinglish turns / 50 ground-truth questions, run <DATE>,
+cost $<X>. Extraction: <MODEL> over the fixture turns; the graph it produced
+replaces the authored rows. Scored over the ANSWER blocks only (STANDING
+BACKGROUND is continuity, not an answer).
+
+| class          |  n | precision | recall | perfect |
+|----------------|----|-----------|--------|---------|
+| single-hop     | 22 |           |        |         |
+| multi-hop      |  9 |           |        |         |
+| temporal       |  3 |           |        |         |
+| old-fact       |  2 |           |        |         |
+| activity       |  3 |           |        |         |
+| watch          |  4 |           |        |         |
+| contradiction  |  1 |           |        |         |
+| forget         |  3 |    n/a    |  n/a   |         |
+| absent         |  3 |    n/a    |  n/a   |         |
+| OVERALL        | 44 |           |        |         |
+
+Extraction coverage (the half the offline harness cannot see): <k>/<n> of the
+authored rows were produced by the extractor, <m> rows it produced that were
+not authored, judged by <METHOD>.
+Latency p50/p95 and tokens/query: <...> (Postgres and the embedder are live in
+this arm, so both are real numbers here and are absent offline by construction).
+Delta vs the offline lower bound: <...>
+-->
+
+Offline harness health (NOT a product measurement, and not comparable to the
+table above): the suite gates on its own floor — every question in the fixtures
+is answerable from rows that are in the store by legs that are running, so a
+drop below it means a retrieval leg went dark, never that memory is imperfect.
+
+### Findings the harness produced on its first run (2026-08-26)
+
+Reported by the run, deliberately not gated, and each one evidence rather than a
+number:
+
+1. **`staleNote` keys on ROW AGE, not on the date inside the fact.** A plan
+   recorded 67 days ago about an event still two months in the FUTURE is handed
+   to her pre-hedged as "whatever was ahead in this has already happened"
+   (fixture: dyad-b's november `neet pg` exam, recorded in June). Not patched
+   here: the predicate is WS-RECALL's, changing it moves what every existing
+   turn recalls, and "the row is old" is a useful signal a better rule would
+   keep. **This is direct evidence for ROADMAP-100X item 4 (bi-temporal edges,
+   valid-from/valid-to)** — the fix needs the fact's own validity interval,
+   which is precisely what that item adds.
+2. **A Hinglish question about a game reaches the activity leg and matches
+   nothing.** "kya khela tha humne" tokenises to `[khela, humne]`; the activity
+   leg word-matches over an ENGLISH body ("chess together on 10 aug — …") and
+   the no-query-words fallback does not fire, because there ARE query words.
+   Same shape as `forget/a4.mjs`'s cross-lingual referent gap.
+3. **Hinglish kinship terms miss English summaries.** "meri behen ka naam kya
+   tha" does not match a row whose summary says "younger sister"; the row
+   reaches the prompt only through STANDING BACKGROUND. The `bg-only` column in
+   the run's table is what makes this countable.

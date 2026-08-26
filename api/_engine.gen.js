@@ -2235,6 +2235,29 @@ ${lines.map((l) => `- ${l}`).join("\n")}`;
   return { text, lint: { clean: violations === 0, violations } };
 }
 
+// src/engine/reciprocity.ts
+var RECIPROCITY_MIN_TURNS = 12;
+var RECIPROCITY_MIN_EVIDENCE = 2.5;
+var RECIPROCITY_THRESHOLD = 0.5;
+var RECIPROCITY_BUDGET = 260;
+function reciprocityLean(state) {
+  if (!state) return null;
+  if (!Number.isFinite(state.balance)) return null;
+  if (state.n < RECIPROCITY_MIN_TURNS) return null;
+  if (state.evidence < RECIPROCITY_MIN_EVIDENCE) return null;
+  if (Math.abs(state.balance) < RECIPROCITY_THRESHOLD) return null;
+  return state.balance < 0 ? "she-holds-back" : "she-carries-it";
+}
+var RECIPROCITY_HEADER = "HOW MUCH OF YOURSELF IS IN THIS LATELY \u2014 context only, never raise unprompted and never mention noticing it; this is not a cue to talk about yourself and never a reason to invent anything new about your life:";
+function reciprocityNote(state) {
+  const lean = reciprocityLean(state);
+  if (!lean) return "";
+  const row = lean === "she-holds-back" ? "lately: theirs open, yours held back" : "lately: yours open, theirs held back";
+  const text = `${RECIPROCITY_HEADER}
+- ${row}`;
+  return text.length <= RECIPROCITY_BUDGET ? text : "";
+}
+
 // src/engine/selfarc.ts
 var SELF_ARC_DIMS = [
   "boundaries",
@@ -3453,6 +3476,13 @@ ${t4.text}`;
 ${t11.text}`;
   }
   _track("T11");
+  {
+    const t17 = reciprocityNote(input.reciprocity);
+    if (t17) tail += `
+
+${t17}`;
+  }
+  _track("T17");
   if (input.memories) {
     tail += `
 

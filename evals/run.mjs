@@ -198,6 +198,52 @@ const suites = {
   // $0, ~5s. Re-bundles from the real source on every run.
   tttparity: "ttt/parity.mjs",
   relleak: "relational/leak.mjs",
+  // WS-K (ROADMAP-100X item 1). The disclosure-reciprocity ledger and its T17
+  // wiring. Wired here on the same `dead-writers` test as everything else, and
+  // for a specific reason: this block TOUCHES THE COMPILER, and the property
+  // that makes that safe — an absent state moves zero bytes — is one nothing
+  // else in the tree checks except by proxy. The suite also carries the
+  // classifier's precision negatives, which are the half that keeps a
+  // disclosure measure from quietly becoming a usage metric (inner.ts G1).
+  // Offline, deterministic, $0, no DB, no model call, ~1s.
+  reciprocity: "reciprocity.mjs",
+  // WS-K (ROADMAP-100X item 2). The WITHIN-SESSION drift probe suite: a 44-turn
+  // session compiled turn by turn on both lanes, with the anchors, the safety
+  // floor, the register bullets, the stage band and the drop order asserted at
+  // EVERY turn rather than at one convenient one.
+  //
+  // Every other eval in this tree tests a TURN. The external literature this
+  // was built from (Identity Drift, ContextEcho) measures drift as a function
+  // of SESSION LENGTH, and its named mechanism — persona instructions occupying
+  // a shrinking fraction of context — is invisible to a single-turn suite by
+  // construction: the existing gates would pass identically on a build whose
+  // anchors survive turn one and are shouldered out by turn forty.
+  //
+  // It is STRUCTURAL only and says so in its own output: the behavioural half
+  // (does her register actually hold) needs a judge and money, and plugs in
+  // behind the provider seam in §5 rather than being faked into a number here.
+  // Carries three negative controls, including the literal `prompt-position`
+  // defect (the appended-last rules moved mid-brief).
+  //
+  // Offline, deterministic, $0, no DB, ZERO model calls, ~4s.
+  drift: "drift.mjs",
+  // WS-K (ROADMAP-100X item 3). The MEMORY RECALL BENCHMARK: 3 authored dyads
+  // (190 Hinglish turns, 50 ground-truth questions across nine question
+  // classes) driven through the REAL api/memory.js opRecall, with the database
+  // mocked at api/_db.js's own module boundary.
+  //
+  // It exists because "does she remember correctly" was judged informally and
+  // measured nowhere, which contradicts the house ethos in the one place it
+  // matters most. It is a GATE rather than a report because everything it
+  // asserts is silent when it breaks: a retrieval leg that reads zero rows
+  // looks exactly like an empty store (`realtime-recall-never`), which is why
+  // the router refuses to answer a statement it does not recognise.
+  //
+  // Honest about its own coverage, in the run header and not only in a
+  // comment: the LLM EXTRACTOR and the SEMANTIC LEG are NOT exercised, so
+  // every score is a lower bound and no number from it is written to
+  // measurements.md. Offline, deterministic, $0, no DB, no network, ~1s.
+  recallbench: "recallbench/run.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of
