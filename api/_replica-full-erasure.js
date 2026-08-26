@@ -41,6 +41,12 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       "provider_voice", "provider_face_session", "provider_consent", "private_originals", "private_derivatives",
       "replica_models", "replica_feedback", "replica_runtime", "replica_audit",
       "agent_relational_memory", "agent_identity",
+      // WS-AB. The Context Locker is its own CLASS on the receipt, not a
+      // detail of one: it is the only place this platform stores the person's
+      // OWN DOCUMENTS in full — a CV, a chat export, an article they saved —
+      // and a deletion receipt that did not name them would understate what
+      // was held. Additive; the eval asserts membership, never the exact list.
+      "owner_context_locker",
     ]),
   });
 }
@@ -300,6 +306,18 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- the replica is a standing record that this person authorised cloning a
      -- channel — exactly the claim revocation is meant to end.
      channel_attestations as (delete from vy_channel_attestation x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 058's Context Locker (WS-AB). Same shape, same reason, and the text
+     -- table is the sharper case: `vy_context_item_text` holds the OWNER'S OWN
+     -- DOCUMENTS in full — a CV, a chat export, whatever they uploaded about
+     -- themselves — so a row of it outliving the replica is the person's own
+     -- writing standing in this database after the deletion receipt said the
+     -- replica was gone. CHILD FIRST, as the runtime chain above is ordered:
+     -- the text row is deleted before the item row that names it, so nothing
+     -- can strand a body whose item is already gone.
+     context_item_texts as (delete from vy_context_item_text x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     context_items as (delete from vy_context_item x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt

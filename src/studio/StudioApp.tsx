@@ -43,6 +43,7 @@ import VoicePreviewPanel from "./VoicePreviewPanel";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
+import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
 import MirrorCallStudio from "./MirrorCallStudio";
 import QuickStartPath from "./QuickStartPath";
@@ -660,6 +661,24 @@ function ReplicaWorkspace({
             onRetryUpload={onRetryUpload}
             onFinalizeUpload={onFinalizeUpload}
             onDeleteSource={onDeleteSource}
+          />
+
+          {/* WS-AB. "Bring your context" sits in BOTH modes, directly after the
+              enrollment ledger, for the same reason MirrorCallStudio does: it
+              is not a verification step, it is the thing an owner actually came
+              to do. It is also the horizontal lane by definition — a teacher's
+              lectures are one kind of context, and everyone else's files and
+              links are the rest — so gating it on `mode === "teacher"` would
+              re-narrow the platform the reweight just widened
+              (`horizontal-platform-reweight`). Placed after EnrollmentWorkspace
+              because that panel is about the owner's VOICE and this one is
+              about their WORDS, and the voice half already has its own consent
+              ceremony above. */}
+          <ContextLockerPanel
+            key={`context-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
           />
 
           {mode === "teacher" && (

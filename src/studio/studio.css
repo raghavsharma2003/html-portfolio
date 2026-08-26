@@ -2933,3 +2933,39 @@
 .mirror-chip-ev-single { border-left: 3px solid var(--line-strong); }
 .mirror-chip-ev-thin { border-left: 3px solid var(--signal); }
 .mirror-chip-ev-repeated { border-left: 3px solid var(--forest); }
+/* ── the Context step (WS-AB) ────────────────────────────────────────────
+   "Bring your context": drop many files, paste many links, and every item
+   states what it became. The visual grammar is deliberately flat — five
+   states, one colour each, no progress theatre. An item that is still being
+   read says so with a word, not a shimmer: the honest answer to work you
+   cannot see is a label, and `.hear-voice`'s block above makes the same
+   argument for the same reason.
+
+   The drop zone animates only `border-color`, `background` and `transform`.
+   No width/height/padding transitions anywhere in this block — a layout
+   property on a hover state repaints the whole list under it, and
+   scripts/check-motion.mjs blocks it. */
+.context-locker { margin-bottom: 55px; }
+.context-dropzone { display: grid; gap: 10px; justify-items: start; padding: clamp(20px, 2.6vw, 30px); border: 1px dashed var(--line); border-radius: 20px; background: var(--paper); transition: border-color 160ms ease, background 160ms ease, transform 160ms ease; }
+.context-dropzone.is-dragging { border-color: var(--forest); background: var(--forest-soft); transform: scale(1.004); }
+.context-dropzone-title { margin: 0; color: var(--ink); font: 500 17px/1.3 var(--serif); }
+.context-file-input { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.context-ack { margin: 14px 0; }
+.context-locker-error { color: var(--danger) !important; }
+.context-list-title { margin: 30px 0 12px; color: var(--ink); font: 500 15px/1.3 var(--serif); }
+
+.context-results { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+.context-result { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 12px; background: var(--paper); }
+.context-result-name { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.context-result-state { color: var(--ink-soft); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.context-result-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* One colour per state, on the left edge only. A whole-card tint would make a
+   list of nine files read as an alarm; the edge reads as a margin note. */
+.context-result.is-mined { border-left-color: var(--forest); }
+.context-result.is-mined .context-result-state { color: var(--forest-deep); }
+.context-result.is-extracted { border-left-color: #bd844a; }
+.context-result.is-refused { border-left-color: var(--danger); }
+.context-result.is-refused .context-result-state { color: var(--danger); }
+.context-result.is-routed { border-left-color: var(--ink-faint); }
+.context-result.is-error { border-left-color: var(--danger); }

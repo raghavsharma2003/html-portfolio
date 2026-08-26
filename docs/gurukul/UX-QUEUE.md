@@ -251,3 +251,27 @@ does not have to unpack.
 | C28 | `IdentityProofing.tsx:121, 137`, `LivenessCapture.tsx:394` | "Bind one real person to this replica" / "No name, date of birth, document number, address, portrait, or OCR transcript is written to the replica database" / "Prove this recording was made now" | **Keep verbatim.** | The best copy in the product and the standard the rest should be rewritten toward. Surface `:137` *before* the upload, not after. |
 | C29 | `session.ts:4` | `STATE_KEY = "meera.state.v1"` | `"vyakti.studio.state.v1"`, with a one-time migration read of the old key | Not user-visible, but it is the same category of error as C1 and will become visible the first time both products share an origin. |
 | C30 | All of `src/studio/` | 73 em-dashes in UI copy | Comma, colon or full stop; `// emdash-ok:` on the ~6 that are the `"—"` empty-value placeholder | `docs/DESIGN-STANDARDS.md`'s ban, currently unenforced on this half of the repo (UX-Q-16). |
+## WS-AB — the Context step ("bring your context"), MOUNTED
+
+Filed here as a queue item and then resolved in the same pass, because the
+condition that would have made it a queue item stopped holding: WS-Y and WS-AA
+both merged into `claude/gurukul-platform` while this workstream was building,
+so `StudioApp.tsx` had exactly one owner again and the insertion was
+mechanical — which is what this file's own header predicted ("the wave after
+WS-W and WS-Y merge should be mechanical").
+
+`<ContextLockerPanel>` is mounted in the DEFAULT path in both modes, directly
+after `EnrollmentWorkspace`, on MirrorCallStudio's precedent: it is not a
+verification step. Gating it on `mode === "teacher"` would re-narrow the
+platform that `horizontal-platform-reweight` just widened — a teacher's
+lectures are one kind of context and everyone else's files are the rest.
+
+`onProposals?: (count: number) => void` is an optional fifth prop, currently
+unwired. Wire it to whatever nudges the owner toward the sheet-review surface;
+the panel deliberately does not navigate on its own, because a screen that jumps
+while a nine-file batch is still uploading throws away the rest of the batch's
+answers.
+
+Backing: `/api/context-items`, `api/_context-locker.js`, migration 058,
+`evals/contextlocker.mjs` (77 checks). Matrix:
+`docs/gurukul/context-locker.md`.

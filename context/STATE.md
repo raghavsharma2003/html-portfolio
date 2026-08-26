@@ -111,6 +111,18 @@ service response, not a claim.
   which this environment does not have. Its central assumption — that a 12 s
   flush window is long enough for the platform to begin scheduling the GPU
   replica — is **untested** (`voice-panel-has-never-synthesised`).
+- **The Context Locker** (WS-AB, the universal "bring your context" lane):
+  `/api/context-items`, `api/_context-locker.js`, `api/_context/*`, migration
+  058, `src/studio/ContextLockerPanel.tsx` (MOUNTED in StudioApp.tsx, both
+  modes, after EnrollmentWorkspace). Code-complete and gated offline
+  (`evals/contextlocker.mjs`, 77 checks with three negative controls: a
+  fabricated citation, an uncited addition, and a wrong-speaker chat export).
+  **Nothing is live.** Migration 058 is unapplied and no statement in it or in
+  the lane has ever been EXPLAINed — this environment has no `NEON_URL` and no
+  `api/_config.js`, so the relational gates were skipped
+  (`offline-mocks-cannot-type-check-sql` applies in full), so every request to
+  `/api/context-items` will 500 until 058 is applied. The matrix of what is
+  accepted, refused and routed is `docs/gurukul/context-locker.md`.
 - **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not
   deployed as its own project.
 - **Channels** (WS-N, "deploy the clone anywhere"): the binding layer, the

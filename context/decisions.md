@@ -4303,3 +4303,98 @@ delta. `evals/open-voice/run.mjs` gates exactly that case.
 (migration 054) lands with a different derivation, in which case ONE of the two
 must be adopted everywhere rather than both existing — a voice with two
 different "which network made this" strings is worse than a voice with none.
+
+## `context-locker-reuses-the-ingest-run-review-shape` — the universal "bring your context" lane, and why it has no review surface of its own (2026-08-26, WS-AB)
+
+**The gap.** `horizontal-platform-reweight` named it: ingestion was
+YouTube-channel + voice-upload, and there was no lane for the material most
+people actually have — their own files and their own links. WS-AB is that lane
+(`api/context-items.js`, `api/_context-locker.js`, `api/_context/*`,
+migration 058).
+
+**The decision.** A context item's mined delta lands on `vy_ingest_run` with
+`transcript_source='context_item'` and `video_ref='context:<item_id>'`, NOT on
+a new proposals table. Three things follow for free and none of them is
+re-implemented: migration 053's `vy_ingest_run_approval_gate` (status='applied'
+is unreachable without a named approver and a decision time),
+`listIngestRunsForReview`, and `applyIngestRunDelta` / `rejectIngestRun`. The
+unique index on `(replica_id, video_ref)` then means "one proposal per item"
+exactly as it already means "one run per video", so a re-mine cannot reset a
+proposal the owner is mid-review on.
+
+The alternative — a `vy_context_proposal` table — would have been a SECOND
+answer to "may this clone say this", and the drifted copy would keep returning
+200. `api/_teachersheet.js` refuses a second definition of what a teacher clone
+IS for the same reason.
+
+**The provenance half, which the channel lane never needed.** Every addition
+names an item AND a character span, and the span is checked to contain the
+fragment BEFORE it is stored (`citationViolations` runs on the write path, not
+only in the eval). A delta with an unresolvable citation is not stored at all;
+the item is marked `extracted` with `mine_skip_reason='citation_integrity_failed'`.
+
+**What would reverse this.** A proposal kind that does not fit
+`vy_ingest_run`'s columns — the qualitative LLM pass, if it proposes field
+EDITS rather than phrase-bank additions, is the likely one. That is a new table
+with a `supersedes` edge, not a widening of this one. Also reversible by
+measurement: if the two lanes' deltas need different review UI badly enough
+that the shared reader grows a `case`, the sharing has stopped paying.
+
+## `unclaimed-text-is-not-evidence-of-how-you-write` — authorship and speaker attribution are REQUIRED inputs, not inferences (2026-08-26, WS-AB)
+
+**The decision.** The Context Locker mines style evidence from a document only
+when the owner has declared it their own writing, and from a chat export only
+for the sender the owner has named. The defaults mine NOTHING, with a named
+reason on the row (`not_owner_authored_no_style_evidence`,
+`speaker_unattributed_no_style_evidence`). An article link is never the owner's
+writing whatever they tick — there is no checkbox that makes a journalist's
+sentences into someone's habits.
+
+**Why not infer.** Every available heuristic (first person, filename, the
+majority speaker in an export) is right most of the time, and the cost of the
+minority case is not small: somebody else's phrasing enters a clone of a real,
+named, living person, cited, well-formed, and indistinguishable from evidence.
+`evals/contextlocker.mjs`'s wrong-speaker control is the demonstration — mining
+an export under the wrong declared speaker produces confident, resolvable,
+correctly-cited proposals that are entirely the other party's.
+
+**The cost, stated.** The lane is useless by default and the studio has to ask
+two questions. That is the intended trade: a person answering "yes, that's my
+writing" once per document is cheap, and a clone that talks like the owner's
+mother is not recoverable by the next turn.
+
+**What would reverse this.** A measured attribution signal with a false-positive
+rate low enough to be worth its failure mode — which, given the failure mode, is
+close to zero. More likely: keeping the requirement but reducing it to one
+question per BATCH rather than per item, if drop-off is measured at the second
+question.
+
+## `refusal-is-a-stored-outcome-with-a-name` — what the platform will not pretend to have read (2026-08-26, WS-AB)
+
+**The decision.** A file the extractors cannot honestly read is stored with
+`status='refused'` and a named `refusal_reason`, and the reason is rendered
+verbatim to the owner. It is never accepted-and-ignored, and it is never
+dropped: the row is the record that this file was looked at and declined, so
+the owner does not re-upload it forever (051's "revoked rows are kept",
+transferred). Migration 058 makes the blank case unrepresentable —
+`vy_context_item_refusal_named` and `vy_context_item_routing_named` are CHECK
+constraints, so a future writer that forgets the reason is refused by Postgres
+rather than by a code review.
+
+The sharp instance is the PDF text layer. A subset-encoded or CID font yields
+glyph indices, and decoding those as characters produces confident-looking
+garbage that would be stored, mined, cited, and eventually told to a person as
+their own habitual phrases. `assertReadable` in `api/_context/limits.js` is the
+structural answer: nothing leaves the extractors that does not read as
+language, and the failure is `pdf_text_layer_unreadable` with the reason.
+
+Routing is a THIRD outcome, distinct from both: audio and YouTube links are
+`status='routed'` naming the lane that already carries their consent gates.
+Nothing is wrong with them; they are simply not this lane's, and duplicating
+either would be a second definition of a permission a real person granted once.
+
+**What would reverse this.** A measured refusal rate on real owner uploads
+above roughly 20% for PDFs would mean the readability gate is costing more than
+it saves — and the answer then is a real font-map pass or a vendored parser,
+NOT a loosened gate. Loosening the gate turns every refusal into a silent
+wrong answer, which is the thing being bought protection from.

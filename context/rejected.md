@@ -2930,3 +2930,94 @@ isolate it or measure it. A confound that changes the OUTPUT without changing
 the SHAPE of the output is invisible to every check that does not know to look
 for it. Same family as `plausible-return-hides-a-dead-pipeline`: the failure
 mode is a believable value, not an error.
+
+## `mine-everything-you-are-handed` — the Context Locker design that would have put other people's words in a clone (2026-08-26, WS-AB)
+
+**What was tried.** The obvious first shape for "bring your context": accept
+every file and link, extract whatever text comes out, run the statistical pass
+over all of it, propose the result. It is the shape the brief's own words most
+directly suggest ("mines them into their clone's Person Model") and it was
+built far enough to see what it does.
+
+**What broke.** Three things, and the second is the expensive one.
+
+1. A chat export's majority speaker is often not the owner. Mining an export
+   whole, or mining its majority speaker, produces a phrase bank of the OTHER
+   party's habits — cited, resolvable, well-formed, and completely wrong.
+   `evals/contextlocker.mjs`'s wrong-speaker control reproduces this on demand:
+   declaring the wrong sender yields proposals that pass every structural check
+   the pipeline has.
+2. An uploaded document is not necessarily the uploader's writing. A textbook
+   extract, a colleague's report, an article saved as PDF — all of them mine
+   cleanly, and there is no signal in the file that says whose sentences these
+   are. The failure is silent by construction and there is no later stage that
+   can catch it, because by then the phrases look exactly like evidence.
+3. An article LINK is never the owner's writing at all, and no owner checkbox
+   changes that.
+
+**What replaced it.** Attribution is a required input, defaults mine nothing,
+and every not-mined item carries a named reason
+(`unclaimed-text-is-not-evidence-of-how-you-write`).
+
+**The generalisation.** "We have text about this person, therefore we have
+evidence of how this person talks" is a non sequitur that every ingestion lane
+will be tempted by. The question is never "is this text about them" — it is
+"did they write it", and only a human can answer that.
+
+## `pdf-text-is-whatever-the-bytes-decode-to` — the extractor that would have cited glyph indices as catchphrases (2026-08-26, WS-AB)
+
+**What was tried.** A dependency-light PDF text extractor: inflate the content
+streams, scan for `Tj`/`TJ`, collect the literal string arguments, return them.
+For a PDF from a word processor or a browser print this is correct and the text
+comes out clean.
+
+**What broke.** For a subset-embedded font with a `/Differences` encoding, or
+any 2-byte CID font, the literal bytes in a `Tj` argument are GLYPH INDICES,
+not characters. Decoding them as characters returns a string — a plausible,
+non-empty, storable string of accented-Latin noise. Downstream, nothing can
+tell: the readability of a corpus is not something `transcriptStats` measures,
+so the noise would be n-grammed, the repeated glyph runs would clear the
+>=5-occurrence rule handsomely (noise repeats more regularly than language
+does), and the owner would be shown a phrase bank of garbage presented as their
+own habitual phrases with resolvable citations.
+
+**What replaced it.** `assertReadable` — a structural gate on every extractor's
+output: enough letters, enough word breaks, no replacement characters, or the
+extraction fails with `pdf_text_layer_unreadable` naming the cause. A scanned
+PDF hits the same wall from the other side and is refused as
+`pdf_no_text_layer`, naming OCR as a lane this platform does not have.
+
+**The generalisation.** This is `plausible-return-hides-a-dead-pipeline` at the
+very first step of a pipeline, and it is worse there than anywhere else: every
+later stage inherits the plausibility. An extractor's contract is not "return a
+string", it is "return text or say why not".
+
+## `owner-keyed-tables-belong-in-person_tables` — the wiring that would have made erasure WEAKER (2026-08-26, WS-AB)
+
+**What was tried.** The brief for this workstream asked for the new locker
+tables to be "wired into PERSON_TABLES + the erasure cascade". Both halves were
+attempted.
+
+**What broke.** `PERSON_TABLES` is wrong for them, and the repo already says so
+in two places that would have been contradicted. `api/memory.js`'s "WHAT IS
+DELIBERATELY NOT IN THE LIST ABOVE" excludes all 48 `owner_user_id` tables on
+purpose — the replica lane's rows are the only pointers to objects outside
+Postgres, and a manifest loop deleting them early would strand data in object
+storage while the receipt said it was gone. `scripts/relcheck.mjs` encodes the
+same verdict mechanically: its manifest-coverage check filters `ownerOnly`
+tables OUT, so adding them would not have made the gate happier — it would have
+made the two disagree.
+
+**What replaced it.** The tables carry `owner_user_id` and no FK (053/055/057's
+convention), so they are deleted BY NAME in `api/_replica-full-erasure.js`,
+child (`vy_context_item_text`) before parent (`vy_context_item`) — which is what
+relcheck's owner-lane REACH walk actually requires, and what it would have
+failed the build over the moment the tables existed. `owner_context_locker` was
+added to the deletion receipt's `deletedClasses`, because this is the only place
+the platform stores a person's own documents in full and a receipt that did not
+name them would understate what was held.
+
+**The generalisation.** "Wire it into the manifest" is the right instinct and
+the wrong mechanism for a lane whose rows point at things Postgres cannot
+delete. Read which gate actually covers the table before adding it to the one
+whose name sounds right.

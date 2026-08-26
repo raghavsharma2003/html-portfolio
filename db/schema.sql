@@ -2194,3 +2194,72 @@ alter table vy_channel_watch add column if not exists backfill_state text not nu
 alter table vy_channel_watch drop constraint if exists vy_channel_watch_backfill_state_check;
 alter table vy_channel_watch add constraint vy_channel_watch_backfill_state_check check (backfill_state in ('idle','running','done'));
 create index if not exists vy_channel_watch_backfill_ix on vy_channel_watch (backfill_state, last_checked_at asc) where backfill_state = 'running';
+
+-- ── migration 058 — the Context Locker (WS-AB) ────────────────────────────
+--
+-- The universal "bring your context" lane: an owner hands the platform files
+-- and links about themselves and each one becomes an owned, consent-scoped,
+-- content-hashed, quota-capped row. See db/migrations/058_context_locker.sql
+-- for the full argument; the two load-bearing points are that a refusal must
+-- be NAMED (the CHECK constraints below, so a future writer cannot store an
+-- item as silently-ignored) and that both tables carry owner_user_id with no
+-- FK, so both are deleted BY NAME in api/_replica-full-erasure.js — which is
+-- what scripts/relcheck.mjs's owner-lane reach walk requires and would have
+-- failed the build over.
+create table if not exists vy_context_item (
+  item_id         uuid primary key,
+  replica_id      uuid not null,
+  owner_user_id   uuid not null,
+  kind            text not null check (kind in ('file','link')),
+  format          text not null default 'unknown',
+  source_name     text not null default '',
+  source_url      text not null default '',
+  content_sha256  text not null check (content_sha256 ~ '^[0-9a-f]{64}$'),
+  byte_size       bigint not null default 0 check (byte_size >= 0),
+  extracted_chars integer not null default 0 check (extracted_chars >= 0),
+  extractor       text not null default '',
+  status          text not null default 'received'
+                  check (status in ('received','extracted','mined','refused','routed')),
+  refusal_reason  text not null default '',
+  routed_to       text not null default '',
+  mine_skip_reason text not null default '',
+  authorship      text not null default 'unknown'
+                  check (authorship in ('mine','not_mine','unknown')),
+  owner_speaker   text not null default '',
+  consent_scope   text not null default 'own_context',
+  run_id          uuid,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint vy_context_item_refusal_named
+    check (status <> 'refused' or refusal_reason <> ''),
+  constraint vy_context_item_routing_named
+    check (status <> 'routed' or routed_to <> '')
+);
+create unique index if not exists vy_context_item_dedup_ix on vy_context_item (replica_id, content_sha256);
+create index if not exists vy_context_item_owner_ix on vy_context_item (owner_user_id, replica_id, created_at desc);
+create index if not exists vy_context_item_status_ix on vy_context_item (replica_id, status, created_at desc);
+create index if not exists vy_context_item_quota_ix on vy_context_item (owner_user_id) include (byte_size);
+
+-- The extracted body a citation resolves against. Split from the row above on
+-- a SIZE boundary, not a concern boundary: every list read, quota aggregate and
+-- status render touches vy_context_item and none of them wants a 400 000-char
+-- column coming back.
+create table if not exists vy_context_item_text (
+  item_id       uuid primary key,
+  replica_id    uuid not null,
+  owner_user_id uuid not null,
+  body          text not null,
+  chars         integer not null default 0 check (chars >= 0),
+  created_at    timestamptz not null default now()
+);
+create index if not exists vy_context_item_text_owner_ix on vy_context_item_text (owner_user_id, replica_id);
+
+-- The review surface is NOT duplicated: a context item's proposal is a
+-- vy_ingest_run row in the shape 053 already defined, so the approval gate,
+-- the review read and the apply/reject ops all apply unchanged. `video_ref`
+-- holds `context:<item_id>` for these rows, which makes 053's unique index on
+-- (replica_id, video_ref) mean "one proposal per item".
+alter table vy_ingest_run drop constraint if exists vy_ingest_run_transcript_source_check;
+alter table vy_ingest_run drop constraint if exists vy_ingest_run_transcript_source_ck;
+alter table vy_ingest_run add constraint vy_ingest_run_transcript_source_ck
+  check (transcript_source in ('asr','captions','upload','context_item'));

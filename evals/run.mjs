@@ -238,6 +238,31 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   clonechannel: "clonechannel.mjs",
+  // WS-AB (the universal "bring your context" lane). The Context Locker end to
+  // end: many files and many links become owned, hashed, quota-capped items,
+  // and the ones this platform can honestly read become CITED proposals on the
+  // review surface the channel lane already uses.
+  //
+  //  - THE ITEM-TYPE MATRIX. Every accepted format extracts, every refused one
+  //    refuses BY NAME (including a corrupted file, an encrypted PDF and a
+  //    scan with no text layer), and audio/YouTube are ROUTED to the lanes that
+  //    already carry their permissions. A format silently stored-and-ignored is
+  //    the failure this half exists to catch.
+  //  - CITATION INTEGRITY, WITH TWO NEGATIVE CONTROLS. Every proposed addition
+  //    names an item and a span and `body.slice(span)` really contains the
+  //    fragment; a FABRICATED citation and an UNCITED addition must both fail.
+  //    Without them, "cited" is a word the pipeline prints.
+  //  - SPEAKER ATTRIBUTION, WITH ITS WRONG-SPEAKER CONTROL. A chat export is
+  //    mined only for the declared owner; the control re-mines it declaring the
+  //    other party and asserts not one citation lands on the owner's messages.
+  //    A lane that got this wrong would still return confident, well-formed,
+  //    resolvable citations — and a person's clone would talk like their mother.
+  //  - The caps are REFUSALS with their numbers, never trims (`silent-
+  //    truncation`), ownership is a predicate rather than a filter, and NO
+  //    statement the lane issues names `vy_teacher_sheet`.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  contextlocker: "contextlocker.mjs",
   // WS-D (Gurukul student surface). The mastery fold: thresholds, no
   // decay-by-absence, order-independence/monotonicity, and XP strictly from
   // graded outcomes — the properties `src/engine/practice/mastery.ts`'s
