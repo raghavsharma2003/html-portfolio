@@ -1090,6 +1090,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no browser, ~2s.
   studiowizard: "studiowizard.mjs",
+  // WS-AF. The activity surface — the owner's ask that they be able to see
+  // whether the YouTube video arrived, whether processing finished, and what
+  // everything else is doing.
+  //
+  // It gates the properties that make that report HONEST rather than merely
+  // present: one normalised shape across all seven lanes, ownership as a SQL
+  // predicate with a stranger's refusal, the no-fake-progress rule with a
+  // negative control (a fabricated fraction on a lane that has none must be
+  // caught), a lane that is not deployed rendering as a NAMED absence rather
+  // than an empty success, a lane with no runner saying so, and the poll
+  // backoff and its stop rule read off both halves of the wire.
+  //
+  // It also holds migration 060 to the splitter's rules and to the erasure
+  // reach, both layers.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity: `evals/sqlcast`'s strict
+  // surface covers the first and `scripts/relcheck.mjs` the second, and
+  // migration 060 has never been applied to any database.
+  replicaactivity: "replicaactivity.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -48,6 +48,10 @@
 import { randomUUID } from "node:crypto";
 import { assertChannelProvider, channelWatch, ChannelError } from "./_channel/contracts.js";
 import { assertAsrProvider } from "./_asr/contracts.js";
+// WS-AF. Fail-soft by construction (see its own header): a report must never be
+// able to break the thing it reports on, so nothing in this file branches on
+// its return value.
+import { recordActivity } from "./_replica-activity.js";
 import { draftFromTranscript, transcriptStats } from "./_engine.gen.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -110,16 +114,27 @@ function bounded(value) {
  *  `applied`/`rejected` returns NO ROW and is skipped, while a previous
  *  FAILURE is retried. The `where` on the update is what makes the difference
  *  — without it, a retry would reset a proposal a teacher was mid-review on.
+ *
+ *  WS-AF added `video_title`. The owner's question about this lane is "have we
+ *  received the YT video", and `video_ref` holds `dQw4w9WgXcQ`. The title was
+ *  already on the object the provider hands us and was simply dropped at the
+ *  door, which left the one row that answers their question unreadable by them.
+ *  `coalesce(nullif(excluded.video_title,''), vy_ingest_run.video_title)` on the
+ *  retry path so a provider that stops returning titles cannot blank one we
+ *  already have.
  */
 async function openRun(db, watch, video, transcriptSource) {
   const rows = await db(
-    `insert into vy_ingest_run (run_id, replica_id, owner_user_id, watch_id, video_ref, transcript_source, status)
-     values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, 'fetched')
+    `insert into vy_ingest_run (run_id, replica_id, owner_user_id, watch_id, video_ref, video_title, transcript_source, status)
+     values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $7, $6, 'fetched')
      on conflict (replica_id, video_ref) do update
-        set status = 'fetched', failure_code = '', transcript_source = excluded.transcript_source, updated_at = now()
+        set status = 'fetched', failure_code = '', transcript_source = excluded.transcript_source,
+            video_title = coalesce(nullif(excluded.video_title, ''), vy_ingest_run.video_title),
+            updated_at = now()
       where vy_ingest_run.status = 'failed' and vy_ingest_run.owner_user_id = $3::uuid
-     returning run_id, replica_id, owner_user_id, video_ref, status`,
-    [randomUUID(), watch.replicaId, watch.ownerUserId, watch.watchId, video.videoId, transcriptSource],
+     returning run_id, replica_id, owner_user_id, video_ref, video_title, status`,
+    [randomUUID(), watch.replicaId, watch.ownerUserId, watch.watchId, video.videoId, transcriptSource,
+      String(video.title || "").slice(0, 200)],
   );
   return rows[0] || null;
 }
@@ -221,6 +236,21 @@ async function ingestVideo(db, deps, watch, video) {
   // No row means the video already has a run that is not `failed` — the
   // idempotence case, and the correct answer is silence.
   if (!opened) return { videoId: video.videoId, skipped: true, ok: true };
+  // WS-AF. The transitions, with their times. `vy_ingest_run` carries one
+  // `updated_at`, so after the fact it can say a run is `proposed` and cannot
+  // say when it stopped being `fetched` — which is the difference between "it
+  // is working" and "it has been stuck on the transcribe hop for two hours".
+  // `subject` is carried on every event so the trail stays readable after the
+  // run row itself is gone.
+  const subject = String(video.title || video.videoId || "").slice(0, 300);
+  const trace = (state, reason) => recordActivity(db, {
+    replicaId: watch.replicaId, ownerUserId: watch.ownerUserId,
+    lane: "channel_video", jobRef: opened.run_id, subject, state, reason,
+    // `queued` happens once per run. The dedupe key keeps a re-opened failed
+    // run from stamping a second start over the first one's timestamp.
+    dedupeKey: state === "queued" ? `channel_video:${opened.run_id}:queued` : "",
+  });
+  await trace("queued", "received from the channel");
   try {
     const transcript = await transcriptFor(deps.channelProvider, deps.asr, video, watch, deps);
     await markRun(db, watch.ownerUserId, opened.run_id, {
@@ -228,6 +258,7 @@ async function ingestVideo(db, deps, watch, video) {
       transcriptSource: transcript.source,
       stats: { transcript: { provider: transcript.provider, model: transcript.model, turns: transcript.turns.length } },
     });
+    await trace("running", `transcribed from ${transcript.source}`);
     const proposal = proposalFrom(transcript.turns);
     await markRun(db, watch.ownerUserId, opened.run_id, {
       status: "proposed",
@@ -235,21 +266,47 @@ async function ingestVideo(db, deps, watch, video) {
       delta: proposal.delta,
       deltaCount: proposal.deltaCount,
     });
+    await trace("waiting_on_you", `${proposal.deltaCount} suggestions proposed`);
     return { videoId: video.videoId, runId: opened.run_id, ok: true, proposed: proposal.deltaCount };
   } catch (error) {
-    await markRun(db, watch.ownerUserId, opened.run_id, { status: "failed", failureCode: codeOf(error) })
+    const failureCode = codeOf(error);
+    await markRun(db, watch.ownerUserId, opened.run_id, { status: "failed", failureCode })
       .catch(() => null);
-    return { videoId: video.videoId, runId: opened.run_id, ok: false, failureCode: codeOf(error) };
+    await trace("failed", failureCode);
+    return { videoId: video.videoId, runId: opened.run_id, ok: false, failureCode };
   }
 }
 
-async function touchWatch(db, watch, lastSeenVideoId) {
+/** WS-AF. This function used to write `last_checked_at = now()` and nothing
+ *  else, which made a channel that has failed its listing on every tick for a
+ *  week indistinguishable from one that has been checked on every tick and had
+ *  nothing new: both show a recent timestamp and there is no error anywhere a
+ *  person can reach. That is `plausible-return-hides-a-dead-pipeline` with the
+ *  clock as the plausible value.
+ *
+ *  It matters more on this lane than on any other, because the one failure this
+ *  lane already PREDICTS lands exactly here:
+ *  `docs/gurukul/youtube-extraction-posture.md` expects
+ *  `channel_extract_extractor_bot_check` from a datacentre IP on the first real
+ *  sweep, and the caller's catch below swallowed it into a timestamp.
+ *
+ *  So the outcome is recorded with the check: `checked` or `failed`, the reason
+ *  when it failed, and how many videos the listing actually returned. Migration
+ *  060's `vy_channel_watch_sweep_failure_named` refuses a failed sweep with no
+ *  reason, so a future caller cannot re-introduce the silence by forgetting.
+ */
+async function touchWatch(db, watch, lastSeenVideoId, outcome = {}) {
+  const state = outcome.failureCode ? "failed" : "checked";
   await db(
     `update vy_channel_watch
         set last_checked_at = now(),
-            last_seen_video_id = case when $3 <> '' then $3 else last_seen_video_id end
+            last_seen_video_id = case when $3 <> '' then $3 else last_seen_video_id end,
+            last_sweep_state = $4,
+            last_sweep_reason = $5,
+            last_sweep_videos = $6::int4
       where watch_id = $1::uuid and owner_user_id = $2::uuid and status = 'active'`,
-    [watch.watchId, watch.ownerUserId, String(lastSeenVideoId || "")],
+    [watch.watchId, watch.ownerUserId, String(lastSeenVideoId || ""),
+      state, String(outcome.failureCode || ""), Math.max(0, Number(outcome.videos || 0))],
   );
 }
 
@@ -262,8 +319,19 @@ async function sweepWatch(db, deps, row, maxVideos) {
     // A listing failure is the watch's failure, not any video's. It gets no
     // run row — there is no video to attach one to — and the cursor does not
     // move, so nothing is lost.
-    await touchWatch(db, watch, "").catch(() => null);
-    return { watchId: watch.watchId, listed: 0, ingested: 0, failed: 0, failureCode: codeOf(error) };
+    //
+    // WS-AF: it now also gets a NAMED outcome on the watch row and an activity
+    // event, because until this line the only trace it left was a fresher
+    // `last_checked_at`, and a fresher timestamp is what a successful check
+    // looks like.
+    const failureCode = codeOf(error);
+    await touchWatch(db, watch, "", { failureCode }).catch(() => null);
+    await recordActivity(db, {
+      replicaId: watch.replicaId, ownerUserId: watch.ownerUserId,
+      lane: "channel_watch", jobRef: watch.watchId, subject: watch.channel?.url || "",
+      state: "failed", reason: failureCode,
+    });
+    return { watchId: watch.watchId, listed: 0, ingested: 0, failed: 0, failureCode };
   }
   const slice = videos.slice(0, Math.max(0, maxVideos));
   let cursor = "";
@@ -277,7 +345,12 @@ async function sweepWatch(db, deps, row, maxVideos) {
     cursor = video.videoId;
     if (!result.skipped) ingested++;
   }
-  await touchWatch(db, watch, cursor);
+  await touchWatch(db, watch, cursor, { videos: videos.length });
+  await recordActivity(db, {
+    replicaId: watch.replicaId, ownerUserId: watch.ownerUserId,
+    lane: "channel_watch", jobRef: watch.watchId, subject: watch.channel?.url || "",
+    state: "done", reason: `${videos.length} listed, ${ingested} taken in`,
+  });
   const backfill = failed ? null : await backfillWatch(db, deps, watch, maxVideos);
   return { watchId: watch.watchId, listed: videos.length, ingested, failed, runs, backfill };
 }

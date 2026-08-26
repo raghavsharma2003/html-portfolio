@@ -41,6 +41,18 @@ export const STRICT_SURFACE = [
   // not types. Nothing here has ever run against a database.
   /^api\/_mirrorcall[^/]*\.js$/,
   /^api\/mirror-call\.js$/,
+  // WS-AF, the activity surface. On the strict list from its first commit, for
+  // WS-X's reason and one more of its own: this is the endpoint that gets
+  // POLLED, so a type error here does not 500 once, it 500s every three seconds
+  // on the one screen a worried owner is staring at.
+  //
+  // `api/_replica-activity.js` already matches `^api\/_replica[^/]*\.js$`
+  // above; `api/replica-activity.js` already matches `^api\/replica[^/]*\.js$`.
+  // Both are listed anyway, because the day one of those patterns is narrowed
+  // the coverage should be lost visibly rather than silently
+  // (`coverage-lists-that-enumerate-a-subset`).
+  /^api\/_replica-activity\.js$/,
+  /^api\/replica-activity\.js$/,
 ];
 
 export function isStrict(rel) {

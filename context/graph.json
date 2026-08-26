@@ -2582,6 +2582,36 @@
       "kind": "rejection",
       "title": "the 10th-percentile noise floor IS speech on a mostly-speech lecture, so every window was rejected as silence while every number looked plausible",
       "at": "2026-08-26"
+    },
+    {
+      "id": "activity-surface",
+      "kind": "component",
+      "title": "api/replica-activity.js + _replica-activity.js + src/studio/ActivityPanel.tsx + migration 060: one honest activity read across all seven async lanes",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "activity-is-a-read-not-a-progress-bar",
+      "kind": "decision",
+      "title": "one normalised job shape across seven lanes; progress is null unless a REAL fraction exists (only the 8-step enrollment DAG has one)",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "an-undeployed-lane-is-a-state-not-an-empty-list",
+      "kind": "decision",
+      "title": "a lane with no provider/cron/secret renders as a NAMED absence, never as an empty success",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "a-fresh-timestamp-is-what-success-looks-like",
+      "kind": "rejection",
+      "title": "the channel sweep swallowed every listing failure into last_checked_at, so a week of bot-checks looked like a week of quiet checks",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "a-video-id-is-not-a-name",
+      "kind": "rejection",
+      "title": "vy_ingest_run kept the YouTube id and dropped the title, so the row answering the owners question was unreadable by them",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4974,6 +5004,46 @@
       "src": "offline-mocks-cannot-type-check-sql",
       "rel": "constrains",
       "dst": "video-enrollment-lane"
+    },
+    {
+      "src": "owner-intent-is-the-spec",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "activity-is-a-read-not-a-progress-bar",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "an-undeployed-lane-is-a-state-not-an-empty-list",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "offline-mocks-cannot-type-check-sql",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "three-step-wizard-ia",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "activity-is-a-read-not-a-progress-bar",
+      "rel": "caused_by",
+      "dst": "plausible-return-hides-a-dead-pipeline"
+    },
+    {
+      "src": "a-fresh-timestamp-is-what-success-looks-like",
+      "rel": "constrains",
+      "dst": "activity-surface"
+    },
+    {
+      "src": "a-video-id-is-not-a-name",
+      "rel": "constrains",
+      "dst": "activity-surface"
     }
   ]
 }

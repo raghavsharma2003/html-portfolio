@@ -3303,3 +3303,58 @@ toward nonsense.
 standing in for one, it says so in `score_source`, and the day a diarizer or
 VAD is on the path for every enrollment, the voicing term should come from it
 rather than from percentiles of RMS.
+## `a-fresh-timestamp-is-what-success-looks-like` — the channel sweep swallowed every listing failure into a clock (2026-08-26, WS-AF)
+
+**What was there.** `api/_channel-ingest.js`'s `sweepWatch()` caught a listing
+failure, called `touchWatch()`, and returned. `touchWatch()` wrote
+`last_checked_at = now()` and nothing else. The failure code was returned to the
+cron's JSON response, which nobody reads, and was written down nowhere.
+
+**What that means in the database.** A channel that has failed its listing on
+every tick for a week is INDISTINGUISHABLE from a channel that has been checked
+on every tick and had nothing new. Both show a recent `last_checked_at`, both
+show no error, and there is no error column to show one in. The plausible value
+here is the clock itself.
+
+**Why it matters more on this lane than any other.** The one failure this lane
+already PREDICTS lands exactly in that catch:
+`docs/gurukul/youtube-extraction-posture.md` expects
+`channel_extract_extractor_bot_check` from a datacentre IP on the first real
+sweep. Had that sweep run before this was fixed, the owner would have seen a
+channel that said it was checked a minute ago, that never ingested anything, and
+that gave no reason anywhere.
+
+**What was done.** Migration 060 adds `last_sweep_state` / `last_sweep_reason` /
+`last_sweep_videos` to `vy_channel_watch`, with
+`vy_channel_watch_sweep_failure_named` as a CHECK so a future writer cannot
+re-introduce the silence by forgetting the reason — 058's
+`vy_context_item_refusal_named` argument, transferred. `touchWatch()` now takes
+the outcome, and both paths also write a `vy_replica_activity` row.
+
+**The generalisation.** Same family as `plausible-return-hides-a-dead-pipeline`,
+with a new disguise: the plausible value was not a return value at all, it was a
+SIDE EFFECT that happens on both the success and the failure path. Any "mark
+that we tried" write that does not also record what happened has this shape.
+
+## `a-video-id-is-not-a-name` — the one string that made the owner's question answerable was dropped at the door (2026-08-26, WS-AF)
+
+**What was there.** `vy_ingest_run.video_ref` holds `dQw4w9WgXcQ`. The
+provider's video object carries a `title` (`api/_channel/contracts.js` clamps it
+to 200 chars, `youtube-oauth.js` reads it from `snippet.title`) and `openRun()`
+never persisted it.
+
+**What broke.** The owner's question is literally "have we received the YT
+video". Nobody recognises their own lecture by its YouTube id, so the row that
+answers the question was unreadable by the person asking it, and every possible
+surface over it would have rendered a wall of eleven-character strings.
+
+**What was done.** `video_title` in migration 060, written on open and on the
+retry path with `coalesce(nullif(excluded.video_title,''), …)` so a provider
+that stops returning titles cannot blank one we already have. Rows written
+before 060 have no title and the surface renders `Video <id>` rather than a
+blank, which is honest about what we kept.
+
+**The generalisation worth keeping.** The cheapest data to lose is the data that
+is only useful to a HUMAN. Every field on a provider payload that no query joins
+on is a field a schema review will not miss. Ask of each one: which question does
+a person ask that this string is the only answer to?
