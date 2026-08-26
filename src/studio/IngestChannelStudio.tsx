@@ -45,7 +45,7 @@ const STATEMENT_COPY: Record<string, string> = {
   authorizes_audio_extraction_for_own_replica:
     "I authorise this platform to take the AUDIO from those videos and use it to build my own clone.",
   understands_tos_exposure_is_not_copyright_permission:
-    "I understand that my permission covers copyright, and that downloading from YouTube is separately restricted by YouTube's own Terms, which are a matter between YouTube and the account used and are not something my permission removes.",
+    "I understand that my permission covers copyright, and that downloading from YouTube is separately restricted by YouTube's own Terms. That is a matter between YouTube and the account used, and my permission does not remove it.",
   understands_revocation_stops_extraction:
     "I understand that withdrawing this permission stops all further extraction immediately.",
 };
@@ -256,7 +256,7 @@ export default function IngestChannelStudio({
             {(view?.watches ?? []).map((watch) => (
               <li key={watch.watch_id}>
                 <p>
-                  <strong>{watch.channel_url}</strong>: {STATUS_COPY[watch.status] ?? watch.status}
+                  <strong>{watch.channel_url}</strong>{" "}{STATUS_COPY[watch.status] ?? watch.status}
                 </p>
                 {!watch.attested && (
                   // A watch predating migration 057. It reads as unattested

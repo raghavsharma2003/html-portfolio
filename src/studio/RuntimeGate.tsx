@@ -13,7 +13,7 @@ const LABELS: Record<string, string> = {
   inference_consent_required: "Inference permission",
   person_profile_not_approved: "Approved person model",
   calibration_not_approved: "Approved behavior calibration",
-  voice_genome_not_approved: "Approved VoiceGenome",
+  voice_genome_not_approved: "Approved voice model",
   voice_not_ready: "Production voice mapping",
   production_voice_required: "Non-test voice provider",
   qualification_incomplete: "Seven-suite qualification",
@@ -75,10 +75,10 @@ export default function RuntimeGate({
     <section id="runtime-gate" className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
-          <p className="eyebrow">Private runtime</p>
-          <h2 id="runtime-gate-title">One qualified identity, frozen at launch.</h2>
+          <p className="eyebrow">Runtime</p>
+          <h2 id="runtime-gate-title">What has to pass before your clone can talk to anyone</h2>
           <p>
-            Launch binds the exact person model, VoiceGenome, provider voice, relationship namespace,
+            Launch binds the exact person model, voice model, provider voice, relationship namespace,
             and evaluation set. New drafts cannot silently change an active replica.
           </p>
         </div>
@@ -98,9 +98,9 @@ export default function RuntimeGate({
         <>
           <div className="runtime-score">
             <div><strong>{runtime.qualification.passed}/{runtime.qualification.required}</strong><span>qualification suites passed</span></div>
-            <div><strong>{runtime.versions.profile ?? "none yet"}</strong><span>person model version</span></div>
-            <div><strong>{runtime.versions.calibration ?? "none yet"}</strong><span>calibration version</span></div>
-            <div><strong>{runtime.versions.voice_genome ?? "none yet"}</strong><span>VoiceGenome version</span></div>
+            <div><strong>{runtime.versions.profile ?? "\u2014"}</strong><span>person model version</span></div>
+            <div><strong>{runtime.versions.calibration ?? "\u2014"}</strong><span>calibration version</span></div>
+            <div><strong>{runtime.versions.voice_genome ?? "\u2014"}</strong><span>voice model version</span></div>
           </div>
           {blockers.length > 0 && (
             <div className="runtime-blockers">
@@ -109,7 +109,7 @@ export default function RuntimeGate({
             </div>
           )}
           <div className="runtime-action">
-            <p>Replica calls use protected cascade speech only. There is no fallback to another cloud voice and none to device TTS.</p>
+            <p>Replica calls use protected cascade speech only. There is no fallback to another cloud voice or to device text to speech.</p>
             <button
               className="button primary-button"
               type="button"

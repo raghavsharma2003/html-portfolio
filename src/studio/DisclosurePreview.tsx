@@ -17,7 +17,7 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
     <section id="disclosure-preview" className="disclosure-preview" aria-labelledby="disclosure-preview-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Teacher clone · Disclosure preview</p>
+          <p className="eyebrow">Disclosure preview</p>
           <h2 id="disclosure-preview-title">What every student sees, before you decide anything else</h2>
           <p>
             This is the floor, not a draft. It is identical for every published teacher clone and cannot be
@@ -40,7 +40,7 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
         <span className="disclosure-card-kicker">Spoken opening · every synthesized call, non-disableable</span>
         <h3 id="disclosure-spoken-title">The first thing a student hears on a call</h3>
         <p>
-          "Hi, quick reminder before we start: I'm an AI clone of {name}, built from their own teaching. I'm not
+          "Quick reminder before we start. I'm an AI clone of {name}, built from their own teaching. I'm not
           {" "}{name}, and this conversation stays between us unless you tell someone about it yourself."
         </p>
       </article>
@@ -56,8 +56,8 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
       </div>
 
       <p className="field-note">
-        Watermarked and provenance-signed on every synthesized call, and fired at the start of every session, not
-        only at a time boundary, so it is the one disclosure guaranteed to be seen (P1, safety-floor-teacher.md).
+        Watermarked and provenance-signed on every synthesized call, and fired at the start of every session
+        rather than only at a time boundary, so it is the one disclosure guaranteed to be seen.
       </p>
     </section>
   );

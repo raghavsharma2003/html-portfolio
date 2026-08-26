@@ -2636,6 +2636,66 @@
       "kind": "measurement",
       "title": "120 copy-law violations found by the widened gate, 117 fixed, 3 waived in a peer-owned file",
       "at": "2026-08-26"
+    },
+    {
+      "id": "wizard-readiness-is-a-pure-function",
+      "kind": "decision",
+      "title": "the studio rail's status comes only from wizardModel.ts, never from JSX; an eval runs it over the whole input space",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "a-step-is-never-silently-blocked",
+      "kind": "decision",
+      "title": "every wizard step is reachable; readiness changes what the step SAYS, never whether it opens",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "demo-teacher-is-not-a-placeholder",
+      "kind": "decision",
+      "title": "a fixture may never stand in on a consent surface; a seed carries the owner's own name and mined fields stay blank",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "numbered-eyebrows-are-gone-rather-than-renumbered",
+      "kind": "decision",
+      "title": "section-numbering eyebrows deleted and gated, which ends the 04/04 race rather than resetting it",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "wizard-input-space-6912",
+      "kind": "measurement",
+      "title": "6912 inputs over computeWizard: 0 double embers, 0 done-with-missing, 0 done without a runtime answer",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "studio-dash-purge-95",
+      "kind": "measurement",
+      "title": "95 offending dash lines in src/studio before the purge, 0 after; WS-AA had counted 73 em-dashes only",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "stash-in-a-shared-git-dir",
+      "kind": "rejection",
+      "title": "git stash from a worktree crossed with a sibling workstream: the stash stack is global to one .git",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "studio-wizard-shell",
+      "kind": "component",
+      "title": "the three-step studio shell: wizardModel.ts, WizardRail.tsx, the step bodies in StudioApp.tsx",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "video-link-lane-not-connected",
+      "kind": "open",
+      "title": "WS-AD's single-video-by-link lane has a labelled mount point on Feed and no backend",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "processing-status-not-connected",
+      "kind": "open",
+      "title": "WS-AF's processing-status surface has labelled mount points on Feed and Meet and no backend",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5093,6 +5153,61 @@
       "src": "landing-hero-is-four-elements",
       "rel": "measured_by",
       "dst": "ink-faint-fails-aa"
+    },
+    {
+      "src": "studio-wizard-shell",
+      "rel": "caused_by",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "wizard-readiness-is-a-pure-function",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "wizard-readiness-is-a-pure-function",
+      "rel": "measured_by",
+      "dst": "wizard-input-space-6912"
+    },
+    {
+      "src": "wizard-readiness-is-a-pure-function",
+      "rel": "caused_by",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "a-step-is-never-silently-blocked",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "a-step-is-never-silently-blocked",
+      "rel": "caused_by",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "demo-teacher-is-not-a-placeholder",
+      "rel": "caused_by",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "numbered-eyebrows-are-gone-rather-than-renumbered",
+      "rel": "measured_by",
+      "dst": "studio-dash-purge-95"
+    },
+    {
+      "src": "numbered-eyebrows-are-gone-rather-than-renumbered",
+      "rel": "caused_by",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "video-link-lane-not-connected",
+      "rel": "blocks",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "processing-status-not-connected",
+      "rel": "blocks",
+      "dst": "studio-wizard-shell"
     }
   ]
 }

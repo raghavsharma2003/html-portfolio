@@ -209,7 +209,7 @@ export function dropCopy(reason: MirrorCallDropReason) {
     case "asr_empty": return "Missed that. Nothing came through. Say it again?";
     case "asr_timeout": return "Missed that. Transcription timed out. Say it again?";
     case "audio_unusable": return "Missed that. The audio came through unusable. Say it again?";
-    case "rate_limited": return "Missed that. The transcription lane is rate-limited right now. Give it a moment and say it again?";
+    case "rate_limited": return "Missed that. The transcription lane is rate limited right now. Give it a moment and say it again?";
     default: return "Missed that. Say it again?";
   }
 }
@@ -658,10 +658,10 @@ export function evidenceLine(delta: MirrorCallDelta) {
   if (total > here) parts.push(`${total}x across ${calls} call${calls === 1 ? "" : "s"}`);
   switch (evidenceStrength(delta)) {
     case "single":
-      return `${parts.join(" · ")}. Once is a guess, not a habit.`;
+      return `${parts.join(", ")}, and once is a guess, not a habit.`;
     case "thin":
-      return `${parts.join(" · ")}. One call is below the length where phrasing claims hold up.`;
+      return `${parts.join(", ")}, and one call is below the length where phrasing claims hold up.`;
     default:
-      return `${parts.join(" · ")}. Repeated enough to be worth a look.`;
+      return `${parts.join(", ")}, repeated enough to be worth a look.`;
   }
 }

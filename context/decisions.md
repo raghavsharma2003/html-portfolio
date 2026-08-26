@@ -4811,3 +4811,120 @@ simplification of it.
 
 *Reverses when* a measured funnel shows the fold placement costs starts, which
 would move the CTA, not restore the strip.
+## `wizard-readiness-is-a-pure-function` — the rail may not compute its own status (2026-08-26, WS-AE)
+
+**The decision.** Every status the three-step rail renders comes from
+`src/studio/wizardModel.ts`: no React, no fetch, no DOM, one exported function
+from a plain input object to a `WizardView`. The components that draw the rail
+(`WizardRail.tsx`) and the step bodies (`StudioApp.tsx`) are forbidden from
+deciding whether anything is done. `evals/studiowizard.mjs` runs the function
+over 6 912 inputs on every `verify-release`.
+
+**Why, and it is not tidiness.** The studio has now shipped this defect twice
+in two files, both written by people who knew better:
+`StudioApp.tsx` rendered a literal `0` / "No model trained" beside a real
+`runtime.versions.voice_genome` it already had (BREAK 8), and
+`QuickStartPath.tsx` hardcoded `className="quickstart-step next"` on step 3, so
+its own checklist was structurally incapable of reaching 3/3 (BREAK 11). Both
+were one-line conveniences inside JSX. `PRODUCT-JOURNEY.md` §3.2's answer is the
+rule this implements: **no rail row may render a status that is not derived from
+data.** A status computed in JSX will eventually be typed by hand; a status
+computed by a function an eval can call thousands of times will not.
+
+**Four properties the eval holds, each of which would go quiet under an
+ordinary-looking simplification:**
+
+1. **At most one ember.** `DESIGN-SYSTEM.md` §4.1 caps `--state-waiting` at one
+   on screen. The obvious implementation is per-row ("am I not done?"), which
+   lights two on the normal input, so the ember is assigned centrally, after all
+   three steps are computed. The suite carries the negative control: it asserts
+   that inputs with two incomplete steps genuinely exist.
+2. **`null` is UNKNOWN, and unknown is not zero.** Three inputs can be null
+   (context items, channels, runtime). The tempting `?? 0` turns "we did not
+   ask" into "you have none", which is a status derived from a spinner.
+3. **An unrecognised blocker is rendered, not dropped.** `QuickStartPath`
+   filtered `runtime.blockers` to codes it had copy for, so an unknown gate
+   could hold Activate shut while the checklist read clear.
+4. **Done means done.** No step may report `done` while listing something
+   missing.
+
+**What would reverse it.** Nothing short of the rail ceasing to exist. If a
+future status genuinely cannot be derived (a human judgement, say), the answer
+is to not render it, which is rule 3 of `DESIGN-SYSTEM.md` §5.
+
+## `a-step-is-never-silently-blocked` — the wizard gates by what it says, not by what it locks (2026-08-26, WS-AE)
+
+**The decision.** Every step in the studio wizard is always reachable: the rail
+rows are buttons, the Next button is never disabled, and the URL accepts any
+step. What changes with readiness is what the step SAYS. `stepEntryWarning`
+returns the honest line for arriving early, and it names the specific thing that
+will be empty ("you have not added anything yet, so the clone has nothing of
+yours to speak from") rather than refusing entry.
+
+**Why.** The owner's defect report ends "the major thing is to interact with the
+agent, check it, tweak it". A wizard that refuses to open MEET until FEED is
+complete is the same wall the owner rejected, wearing a progress bar: it puts a
+checklist between a person and the only part of the product that proves the
+product works. The gates that actually matter are unaffected, because they are
+enforced server-side by `/api/replica-runtime` and were never enforced by
+navigation.
+
+**The line this does not cross.** Reachable is not the same as functional. Every
+consent gate, identity gate and activation gate stays exactly as strict, and the
+step says which of them is missing. Nothing here weakens a safety step; it
+removes a navigational one that was never a safety step.
+
+**What would reverse it.** Measured evidence that owners reach MEET, find it
+empty, and leave rather than going back. That would move the warning's
+prominence, and only then the boundary.
+
+## `demo-teacher-is-not-a-placeholder` — a fixture may never stand in on a consent surface (2026-08-26, WS-AE)
+
+**The decision.** `DEMO_TEACHER` (Arjun Sir, fictional) is removed from every
+surface `StudioApp` renders for a real replica. The sheet is read from
+`/api/teacher-sheet`; when there is no saved draft, `src/studio/sheetSeed.ts`
+builds a seed carrying the OWNER'S name and a slug derived from their own
+replica, with every mined field blank and `credentialFacts` and the fabricated
+background life emptied. The disclosure preview and the channel snippet do not
+render a seed at all: they render a labelled empty state that sends the owner
+back to save their sheet.
+
+**Why this was not a rough edge.** `DisclosurePreview` exists so that a teacher's
+consent to publish is informed by exactly what a student sees. It was rendering
+"You're talking with an AI clone of Arjun Sir" to a teacher named someone else,
+and `ChannelsStudio` was building the embed snippet a teacher is invited to copy
+against `teacher-demo-arjun`. A fixture on a consent screen is not a placeholder,
+it is a false statement on the one screen that may not carry one.
+
+**The general form, which is the part worth keeping.** A storybook default is
+safe on a screen that demonstrates a capability and unsafe on a screen that
+records a decision. `TeacherSheetStudio` takes a `sheetProvenance` prop for
+exactly this reason: a seed may not be captioned "drafted from your uploads",
+because nothing was drafted and nothing was uploaded.
+
+**What would reverse it.** Nothing. If the sheet service is unavailable the
+answer is the labelled empty state, not the fixture.
+
+## `numbered-eyebrows-are-gone-rather-than-renumbered` (2026-08-26, WS-AE)
+
+**The decision.** The studio's section-numbering eyebrows (`06 · Behavior
+calibration`, `09 · Private runtime`, `Verified permission · Gate 04`, the `01`
+/ `02` / `04` panel-index blocks) are deleted, not renumbered, and
+`scripts/check-copy.mjs` now fails on the pattern.
+
+**Why, given UX-Q-07 asked for phase-scoped renumbering instead.**
+`docs/gurukul/DESIGN-LAW.md` §1 bans numbered eyebrows outright and its own
+scope note says it wins where it disagrees with a prior UI decision. It also
+happens to be the better fix for the defect UX-Q-07 was chasing: the `04`/`04`
+collision between `ProcessingReview` and `ModelConsentGate` happened because ten
+workstreams each picked a number for their own panel with no register of who had
+which. Renumbering resets that race. Deleting the numbers ends it, because there
+is no longer a number for the eleventh workstream to pick.
+
+**What replaces the wayfinding they were pretending to provide.** The rail, which
+answers "where am I" from data, and the step head, which says "Step 2 of 3".
+
+**What would reverse it.** The owner asking for the ledger's numbered motif back,
+which is a real thing to want: `DESIGN-SYSTEM.md` §2 calls the numbered panel the
+visual argument for the whole product. If it returns it must return as ONE
+register with one owner, not as a per-panel literal.

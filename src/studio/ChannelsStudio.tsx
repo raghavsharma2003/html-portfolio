@@ -86,10 +86,10 @@ const KINDS: ReadonlyArray<KindSpec> = [
 ];
 
 const STATUS_COPY: Record<CloneChannel["status"], string> = {
-  draft: "Not live. Finish the details below",
+  draft: "Not live. Finish the details below.",
   connected: "Live",
-  paused: "Paused. Nothing is answered here",
-  revoked: "Revoked. This address is retired for good",
+  paused: "Paused. Nothing is answered here.",
+  revoked: "Revoked. This address is retired for good.",
 };
 
 export default function ChannelsStudio({
@@ -205,11 +205,11 @@ export default function ChannelsStudio({
     <section className="stage-section" aria-labelledby="channels-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Teacher clone · Channels</p>
+          <p className="eyebrow">Channels</p>
           <h2 id="channels-title">Where your clone can be reached</h2>
           <p>
-            Publishing makes the clone exist. This is where it meets people. Every channel below is one you own:
-            your site, your bot, your business number. You can pause or retire any of them at any time
+            Publishing makes the clone exist. This is where it meets people. Every channel below is one you
+            own: your site, your bot, your business number. You can pause or retire any of them at any time
             without asking us.
           </p>
         </div>
@@ -278,7 +278,7 @@ export default function ChannelsStudio({
                           type="password"
                           autoComplete="off"
                           spellCheck={false}
-                          placeholder={channel?.credential === "present" ? "On file. Paste a new one to replace it" : spec.secretPlaceholder}
+                          placeholder={channel?.credential === "present" ? "On file. Paste a new one to replace it." : spec.secretPlaceholder}
                           value={secrets[spec.kind] ?? ""}
                           onChange={(event) => setSecrets((c) => ({ ...c, [spec.kind]: event.target.value }))}
                         />

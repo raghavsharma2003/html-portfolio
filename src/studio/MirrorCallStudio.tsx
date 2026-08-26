@@ -41,7 +41,6 @@ import {
   ingestAudioWindow,
   listMirrorCallDeltas,
   MirrorCallBackendAbsent,
-  MirrorCallVoiceWarming,
   probeMirrorCallBackend,
   saveMirrorCallTurnFeedback,
   type MirrorCallDelta,
@@ -110,10 +109,6 @@ export default function MirrorCallStudio({
   const [tab, setTab] = useState<TabKey>("call");
   const [micLevel, setMicLevel] = useState(0);
   const [autoCutNotice, setAutoCutNotice] = useState(false);
-  /** The 202-warming copy, verbatim from the server. Cleared on the next
-   *  successful clip, because a stale "starting up" beside a clone that is
-   *  already talking is its own small lie. */
-  const [voiceWarming, setVoiceWarming] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState<{ turnId: string } | null>(null);
   const captureRef = useRef<CallCapture | null>(null);
@@ -283,7 +278,6 @@ export default function MirrorCallStudio({
     dispatch({ type: "SPEAK_START", turnId });
     try {
       const blob = await fetchMirrorCallTurnVoice(token, { sessionId: state.session.session_id, turnId });
-      setVoiceWarming("");
       audioRef.current?.pause();
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       const url = URL.createObjectURL(blob);
@@ -298,15 +292,6 @@ export default function MirrorCallStudio({
         // The synthesis seam is not wired. Captions only, said out loud —
         // never a substitute voice.
         dispatch({ type: "VOICE_UNAVAILABLE", detail: cause.detail });
-        return;
-      }
-      if (cause instanceof MirrorCallVoiceWarming) {
-        // NOT the same state. The seam IS wired and the GPU is booting, so the
-        // notice is temporary and the caption still stands. Held in local state
-        // rather than flipping `voiceAvailable`, because that flag is
-        // permanent-for-this-call by design and a cold start is not.
-        setVoiceWarming(cause.message);
-        dispatch({ type: "SPEAK_END" });
         return;
       }
       dispatch({ type: "SPEAK_END" });
@@ -403,7 +388,7 @@ export default function MirrorCallStudio({
           <p className="eyebrow">Mirror Call</p>
           <h2 id="mirror-call-title">Talk to your clone and correct it while it listens.</h2>
           <p>
-            Your side goes up in windows of up to 30 seconds: speak, send, hear the reply. Nothing it learns
+            Your side goes up in windows of up to 30 seconds. Speak, send, hear the reply. Nothing it learns
             reaches your sheet until you tap it.
           </p>
         </div>
@@ -475,7 +460,7 @@ export default function MirrorCallStudio({
                     A cold start usually takes two to three minutes. That is an estimate from past starts, not a
                     countdown of anything being measured
                     {state.session?.gpu.estimated_ready_seconds !== null && state.session?.gpu.estimated_ready_seconds !== undefined
-                      ? `, and the server's own estimate is about ${Math.round(state.session.gpu.estimated_ready_seconds / 60)} minute(s)`
+                      ? `. The server's own estimate is about ${Math.round(state.session.gpu.estimated_ready_seconds / 60)} more minutes`
                       : ""}.
                   </p>
                 </div>
@@ -513,9 +498,6 @@ export default function MirrorCallStudio({
                 ) : null}
                 {!state.voiceAvailable ? (
                   <p className="mirror-note">Captions only on this environment. The clone's voice route is not deployed.</p>
-                ) : null}
-                {state.voiceAvailable && voiceWarming ? (
-                  <p className="mirror-note" role="status">{voiceWarming}</p>
                 ) : null}
               </div>
             ) : null}
@@ -572,14 +554,14 @@ export default function MirrorCallStudio({
                 <div className="mirror-meter" key={meter.kind}>
                   <div className="mirror-fidelity-head">
                     <span>{meter.label}</span>
-                    <strong>{meter.score === null ? "not yet" : meter.score.toFixed(4)}</strong>
+                    <strong>{meter.score === null ? "\u2014" : meter.score.toFixed(4)}</strong>
                   </div>
                   <div className="mirror-fidelity-track" aria-hidden="true">
                     <span style={{ transform: `scaleX(${meter.ofCeiling ?? 0})` }} />
                   </div>
                   <div className="mirror-fidelity-legend">
                     <span>{meter.ceiling === null ? "no printed ceiling" : `ceiling ${meter.ceiling.toFixed(4)}`}</span>
-                    <span>{meter.ofCeiling === null ? "not yet" : `${percent(meter.ofCeiling)} of ceiling`}</span>
+                    <span>{meter.ofCeiling === null ? "\u2014" : `${percent(meter.ofCeiling)} of ceiling`}</span>
                     {meter.kind === "measurement" ? (
                       <>
                         <span>{meter.windows} window{meter.windows === 1 ? "" : "s"}</span>
@@ -691,7 +673,7 @@ export default function MirrorCallStudio({
               <span>{state.ended.accepted_count} accepted · {state.ended.rejected_count} rejected · {state.ended.deferred.length} deferred</span>
               <small>
                 {state.ended.finetune.queued
-                  ? "A voice fine-tune is queued. It runs on GPU time after the call. This screen will not show it finishing."
+                  ? "A voice fine-tune is queued. It runs on GPU time after the call, so this screen will not show it finishing."
                   : `No fine-tune was queued${state.ended.finetune.reason ? ` (${state.ended.finetune.reason.replaceAll("_", " ")})` : ""}.`}
               </small>
             </div>

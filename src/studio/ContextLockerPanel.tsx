@@ -90,10 +90,10 @@ const REASON_COPY: Record<string, string> = {
   article_no_text: "That page had no readable text.",
   article_unreadable: "That page did not read as language.",
   // routing
-  channel_lane: "This is YouTube. It belongs to the Channel step, which asks you to confirm the channel is yours before reading a single video.",
-  voice_evidence_lane: "This is audio. It belongs to the Voice step, which carries the consent your voice needs.",
+  channel_lane: "This is YouTube. It belongs to the channel lane, which asks you to confirm the channel is yours before reading a single video.",
+  voice_evidence_lane: "This is audio. It belongs to the voice lane, which carries the consent your voice needs.",
   // mined-nothing reasons
-  not_owner_authored_no_style_evidence: "Read, but not used for how you talk. It is not your own writing. Mark it as yours if it is.",
+  not_owner_authored_no_style_evidence: "Read, but not used for how you talk, because it is not your own writing. Mark it as yours if it is.",
   speaker_unattributed_no_style_evidence: "Read. Tell us which of these people is you and we will mine only your messages.",
   declared_speaker_not_in_export: "Nobody by that name sends messages in this export.",
   no_candidates_cleared_held_out: "Read, but nothing in it repeated often enough to be worth proposing. That is normal for a short document.",
@@ -135,6 +135,7 @@ export default function ContextLockerPanel({
   replicaId,
   onAuthError,
   onProposals,
+  onItemCount,
 }: {
   token: string;
   replicaId: string;
@@ -144,6 +145,11 @@ export default function ContextLockerPanel({
    *  navigate on its own — a screen that jumps while a batch is still uploading
    *  loses the rest of the batch's answers. */
   onProposals?: (count: number) => void;
+  /** Called with the number of items in the locker after every load. The step
+   *  rail needs to know whether this owner has brought ANY material, and this
+   *  panel is the only thing that asks the server. Reporting it up is cheaper
+   *  and more honest than a second fetch that could disagree with this one. */
+  onItemCount?: (count: number) => void;
 }) {
   const [view, setView] = useState<ContextLockerView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,14 +175,16 @@ export default function ContextLockerPanel({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setView(await loadContextLocker(token, replicaId));
+      const next = await loadContextLocker(token, replicaId);
+      setView(next);
+      onItemCount?.(next.items.length);
       setError("");
     } catch (e) {
       fail(e);
     } finally {
       setLoading(false);
     }
-  }, [token, replicaId, fail]);
+  }, [token, replicaId, fail, onItemCount]);
 
   useEffect(() => {
     void load();
@@ -292,7 +300,7 @@ export default function ContextLockerPanel({
         <p className="field-note">
           Text, Markdown, Word documents, PDFs with real text in them, and WhatsApp chat exports.
           Up to {view ? humanBytes(view.limits.max_item_bytes) : "a few MB"} each.
-          Audio goes to the Voice step; YouTube goes to the Channel step. Paste those and we will
+          Audio goes to the voice lane and YouTube goes to the channel lane. Paste those and we will
           point you there rather than doing it twice.
         </p>
         <button
