@@ -2417,3 +2417,88 @@ the self-serve flow. The Channels screen says so in that surface's cost line.
 **The law:** a surface's cost is the approval chain, not the adapter. Check the
 current requirements before promising a channel, and when the chain is someone
 else's queue, say so in the product rather than in a comment.
+
+## `statement-shapes-postgres-will-not-parse` — three shipped queries that could never run (2026-08-26)
+
+**Tried:** two SQL idioms that read as obviously correct and are not
+representable in Postgres at all. Both shipped, in erasure and voice-holdout
+paths, and both are 0A000 — rejected at PARSE time, so the statement could
+never execute for anybody on any call.
+
+1. **`for update` in a query block containing a `left join`.** A bare
+   `FOR UPDATE` locks EVERY relation in the FROM clause, the outer-joined one
+   included, and Postgres refuses: `FOR UPDATE cannot be applied to the
+   nullable side of an outer join`. Found at `api/_replica-full-erasure.js`
+   `completeReplicaErasure` — the FINAL database purge of a replica erasure,
+   the one statement in the chain that must work.
+
+2. **A data-modifying CTE with no `RETURNING`, referenced by
+   `(select count(*) from x) >= 0`.** Postgres executes every data-modifying
+   CTE exactly once whether or not it is referenced, so the guard never had to
+   exist to force the write — but once written it IS a reference, and a
+   data-modifying CTE with no RETURNING has no output relation to reference:
+   `WITH query "x" does not have a RETURNING clause`. Found twice, at
+   `api/_replica-source-erasure.js:134` and
+   `api/_replica-voice-delivery-policy.js:344`.
+
+**What specifically broke, and why nothing saw it:** nothing broke, ever —
+that is the point. These are not bugs that need the wrong VALUE to bite, like
+the `uuid = text` class `sqlcast` already gates. They need nothing at all. And
+every offline suite in the repo mocks `api/_db.js` at the module boundary, so
+Postgres is never asked to parse the text; the suites proved the control flow
+around three statements that could not run. `EXPLAIN (verbose, costs off)`
+against the live database returned the error in one round trip, with no write
+and no valid data.
+
+**Two repairs that are NOT the fix:**
+- Making the outer join inner. The left join is load-bearing: a replica may
+  legitimately have no agent, and the predicate says so
+  (`r.agent_id is null or …`). `for update of j,r` names the relations the
+  lock is actually for, which is also the honest statement of intent.
+- Deleting the `count(*)` reference. It is legal to delete and the writes
+  still happen — but the reference documents an ordering dependency a reader
+  would otherwise have to know Postgres's execution rules to see. `RETURNING`
+  is the repair; the predicate stays TOTAL (`>= 0` holds for the empty set)
+  because the sweep must not be skipped when there is nothing to sweep.
+
+**The law:** both classes are decidable from the SQL text, so they are gated
+statically — `evals/sqlcast/stmt.mjs` rules C and D, run over every SQL
+template literal under `api/`, with 4 negative and 6 positive controls.
+Replayed against the pre-fix tree it names all three; on the fixed tree, 0
+across 458 statements. And the wider rule: **a mocked database cannot even
+tell you the statement is well-formed.** EXPLAIN it.
+
+## `coverage-lists-that-enumerate-a-subset` — the third time, one level down (2026-08-26)
+
+**Tried:** trusting `scripts/relcheck.mjs`'s manifest-coverage check, which
+exists precisely so that a user-data table nobody listed fails loudly.
+
+**What broke:** it enumerated three column names —
+`('person_id','device_id','user_id')` — so it could not see
+`vy_replica_runtime_capability` (keyed `subject_person_id`), could not see
+`vy_disclosure_grant` (`granted_by`/`granted_to`), and had never once
+considered the 48 tables keyed on `owner_user_id`. Four person-keyed tables
+were in neither the forget cascade nor the DSAR export: a person who asked to
+be forgotten kept rows in them.
+
+This is the SAME defect the same function already carries a long comment
+about. P2-1 fixed the check when its `table_name like 'vy\_%'` filter hid
+`meera_state`, wrote down the rule — A COVERAGE CHECK IS ONLY AS WIDE AS THE
+THING IT ENUMERATES — and then narrowed the check on a different axis in the
+same breath. Fixing an enumeration teaches you nothing about the OTHER
+enumerations in the same query.
+
+**What compounded it:** the check skips without `NEON_URL`, so every
+credential-free CI run said nothing at all about the list. Worse,
+`scripts/verify-release.mjs` decided whether it had a database by reading
+`api/_config.js` alone, while `api/_db.js` has always read
+`process.env.NEON_URL` FIRST — so a runner supplying the string the ordinary
+way ran the queries fine and still printed `SKIPPED (no NEON_URL in this
+environment)`. Not silent: it named a reason that was false.
+
+**Fixed three ways, because one was not enough the last two times:** the
+column list is now every name that means a natural person; the same question
+is asked OFFLINE against the checked-in DDL by `evals/persontables.mjs`, which
+needs no credentials and therefore cannot be skipped; and `verify-release`
+reads the env var. **When you widen an enumeration, list every other
+enumeration in the same query and widen or justify each one.**

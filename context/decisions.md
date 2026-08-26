@@ -3172,3 +3172,54 @@ logged-in student, say), the transcript digest becomes redundant and should go
 rather than be maintained alongside a source of truth. The DISCLOSURE digest
 does not: it is what makes the card's delivery structural rather than trusted,
 and that argument survives any amount of server-side state.
+
+## `explain-is-the-only-parser-we-have` — EXPLAIN against the live DB is a gate input, not a debugging step (2026-08-26)
+
+WS-M's sweep found three shipped statements that Postgres refuses at PARSE
+time (0A000) — a bare `for update` over a `left join`, and two data-modifying
+CTEs with no `RETURNING` that something referenced. WS-R fixed them. None had
+ever executed, for anybody, on any call; the offline suites mock the database
+and so never ask Postgres to parse anything, which is why 5,000 green checks
+said nothing. `EXPLAIN (verbose, costs off)` plans a statement without running
+it, needs no valid data and no write, and answers exactly the question the
+mocks cannot: **will Postgres accept this at all.**
+
+So EXPLAIN against the live database is now the accepted evidence for "this
+statement works", alongside the offline static gate, and a claim that a query
+is correct without one is a claim nothing checked. It costs one round trip.
+
+**Reversal condition.** If a statement class appears that EXPLAIN cannot reach
+(one whose text is assembled from data at runtime, say), the class needs a
+different proof and this rule must say so rather than quietly not covering it.
+
+## `owner-lane-erasure-is-not-the-person-manifest` — two erasure paths, on purpose (2026-08-26)
+
+48 tables carry `owner_user_id` — the replica owner's Supabase auth id, a
+natural person — and none of them is in `PERSON_TABLES`. The instinct is to
+add all 48. That would make erasure WEAKER: the replica lane's rows are the
+only pointers this system has to objects OUTSIDE Postgres (provider Personal
+Voice, private-bucket originals and derivatives, Azure face sessions), and
+`docs/REPLICA-ERASURE.md`'s chain deletes those FIRST and the rows LAST
+precisely because a row deleted early is an object nobody can find again. A
+manifest loop issuing `delete from vy_replica_source` would strand a person's
+biometric audio in storage while the receipt said it was gone.
+
+So: the **person** lane (person_id / device_id / subject_person_id) is erased
+by the `PERSON_TABLES` manifest loop, the **owner** lane by the erasure job.
+A table naming both people — a runtime capability, session or dialogue turn —
+is in BOTH, because both claims are real and they are answered by different
+paths, and nothing is stranded since those three point at no outside object.
+
+The exclusion is CHECKED rather than asserted: `scripts/relcheck.mjs` walks the
+live FK graph and requires every owner-keyed table to be reached by ON DELETE
+CASCADE from `vy_replica` or named outright in `api/_replica-full-erasure.js`.
+That walk immediately found three tables reachable by neither (053 and 055
+declare `replica_id`/`owner_user_id` FK-shaped but not FK), which is the
+argument for writing the check instead of the sentence.
+
+**Reversal condition.** If a teacher-facing "delete my account" is ever needed,
+it gets its own op that CALLS the erasure job per replica. It does not get rows
+in `PERSON_TABLES`. And if a replica-lane table is ever added that holds only
+Postgres-local content with no outside pointer, the stranding argument does not
+apply to it and it may join the manifest — the argument is about pointers, not
+about the prefix.

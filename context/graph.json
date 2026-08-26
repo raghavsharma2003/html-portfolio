@@ -1982,6 +1982,36 @@
       "kind": "rejection",
       "title": "an Instagram adapter against credentials that cannot exist — the gap is App Review, not code",
       "at": "2026-08-26"
+    },
+    {
+      "id": "explain-is-the-only-parser-we-have",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "EXPLAIN against the live DB is accepted evidence that a statement works; a mock cannot say it parses"
+    },
+    {
+      "id": "owner-lane-erasure-is-not-the-person-manifest",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "person lane erased by PERSON_TABLES, owner lane by the erasure chain; the split is FK-walked, not asserted"
+    },
+    {
+      "id": "statement-shapes-postgres-will-not-parse",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "bare FOR UPDATE over a LEFT JOIN, and a referenced data-modifying CTE with no RETURNING — three shipped statements that could never execute"
+    },
+    {
+      "id": "coverage-lists-that-enumerate-a-subset",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "relcheck's manifest coverage enumerated three column names, so four person-keyed tables were in neither forget nor export"
+    },
+    {
+      "id": "ws-r-statement-shape-and-coverage",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "3 unexecutable statements before / 0 after by EXPLAIN; manifest coverage 61 -> 89 tables seen, 4 gaps -> 0"
     }
   ],
   "edges": [
@@ -3639,6 +3669,31 @@
       "src": "fake-the-instagram-adapter",
       "rel": "caused_by",
       "dst": "clone-channel-binding"
+    },
+    {
+      "src": "statement-shapes-postgres-will-not-parse",
+      "rel": "caused_by",
+      "dst": "offline-mocks-cannot-type-check-sql"
+    },
+    {
+      "src": "explain-is-the-only-parser-we-have",
+      "rel": "caused_by",
+      "dst": "statement-shapes-postgres-will-not-parse"
+    },
+    {
+      "src": "explain-is-the-only-parser-we-have",
+      "rel": "measured_by",
+      "dst": "ws-r-statement-shape-and-coverage"
+    },
+    {
+      "src": "owner-lane-erasure-is-not-the-person-manifest",
+      "rel": "caused_by",
+      "dst": "coverage-lists-that-enumerate-a-subset"
+    },
+    {
+      "src": "owner-lane-erasure-is-not-the-person-manifest",
+      "rel": "measured_by",
+      "dst": "ws-r-statement-shape-and-coverage"
     }
   ]
 }

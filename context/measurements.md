@@ -3085,3 +3085,55 @@ number:
    tha" does not match a row whose summary says "younger sister"; the row
    reaches the prompt only through STANDING BACKGROUND. The `bg-only` column in
    the run's table is what makes this countable.
+
+## `ws-r-statement-shape-and-coverage` — three unexecutable statements, four uncovered tables (2026-08-26)
+
+**Method.** `EXPLAIN (verbose, costs off)` of each statement's exact template
+literal, extracted from the source file and sent over Neon's SQL-over-HTTP
+endpoint with dummy parameters. EXPLAIN plans without executing, so no row was
+written. Manifest figures from `information_schema.columns` and `pg_constraint`
+on the live database (migrations 015–055 applied, 112 tables).
+
+| statement | before | after |
+|---|---|---|
+| `_replica-full-erasure.js:219` completeReplicaErasure | 0A000 FOR UPDATE cannot be applied to the nullable side of an outer join | plans clean, 421 plan rows |
+| `_replica-source-erasure.js:99` completeSourceErasure | 0A000 WITH query "identity_challenge_sources" does not have a RETURNING clause | plans clean, 326 plan rows |
+| `_replica-voice-delivery-policy.js:344` issueOwnedVoiceDeliveryHoldout | 0A000 WITH query "expired" does not have a RETURNING clause | plans clean, 102 plan rows |
+
+n = 3 statements, each EXPLAINed once before and once after. All three were
+UNEXECUTABLE, not merely wrong on some inputs: the error is raised at parse
+time, so the true prior success rate of each is 0 calls out of every call ever
+made.
+
+**Static gate.** `evals/sqlcast/stmt.mjs` rules C and D over every SQL template
+literal under `api/`: 3 defects on the pre-fix tree (exactly the three above,
+no false positives), 0 on the fixed tree, 458 statements scanned. Controls: 4
+negative caught, 6 positive clean.
+
+**Manifest coverage** (`scripts/relcheck.mjs`, live):
+
+| | before | after |
+|---|---|---|
+| owning columns enumerated | 3 | 9 |
+| tables with an owning column seen | 61 | 89 |
+| person-keyed tables absent from PERSON_TABLES | 3 reported (4 real) | 0 |
+| owner-keyed tables unreachable by the erasure job | not checked | 0 (was 3) |
+| relcheck verdict | FAIL | green, 27 checks, 1.4 s |
+| verify-release checks with NEON_URL in env | 11 (db gates SKIPPED) | 13 |
+
+The fourth missing table (`vy_replica_runtime_capability`) was invisible to
+relcheck itself until the column list widened — it is keyed
+`subject_person_id`. The three unreachable owner-keyed tables
+(`vy_channel_watch`, `vy_clone_channel`, `vy_ingest_run`) were found by walking
+`pg_constraint` for ON DELETE CASCADE paths rooted at `vy_replica`: 44 of 48
+owner-keyed tables fall out of `delete from vy_replica` by cascade, 4 are named
+explicitly, and before this change only 1 of those 4 was.
+
+**Live forget/export probe.** n = 1 synthetic person (`0000…0003xx`) with one
+real row in each of the four added tables, built through the full FK chain
+(person → device → account bridge → agent → replica → genome → profile → voice
+profile → capability → session → log → dialogue turn). The REAL exported
+helpers were called, never a copy: `activePersonTables` + `keysOf` for the
+export loop, `wipeWhereSql` + `wipeParams` for the forget loop. All 4 returned
+by export; all 4 deleted to zero by forget; zero probe rows left in any table
+in the `0000…0003xx` range afterwards.
