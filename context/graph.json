@@ -1982,6 +1982,30 @@
       "kind": "rejection",
       "title": "an Instagram adapter against credentials that cannot exist — the gap is App Review, not code",
       "at": "2026-08-26"
+    },
+    {
+      "id": "clone-aliveness-stack",
+      "kind": "decision",
+      "title": "a published clone gets the aliveness layer from its own sheet; T18/T19 absent-by-default",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "clone-drop-priority-renumber",
+      "kind": "decision",
+      "title": "T18 took drop priority 4; relational/honesty bands shifted +1 so class ordering holds",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "clone-initiative-record-has-no-absence",
+      "kind": "constraint",
+      "title": "the speak-first record has no field for silence, gap or streak - absence is unrepresentable, not merely refused",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "aliveness-was-unreachable-not-meera-bound",
+      "kind": "rejection",
+      "title": "assumed content-bound; measured, brain.ts passed no agent and loadTeacherAgent had zero callers",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3639,6 +3663,31 @@
       "src": "fake-the-instagram-adapter",
       "rel": "caused_by",
       "dst": "clone-channel-binding"
+    },
+    {
+      "src": "clone-aliveness-stack",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "clone-aliveness-stack",
+      "rel": "caused_by",
+      "dst": "aliveness-was-unreachable-not-meera-bound"
+    },
+    {
+      "src": "clone-drop-priority-renumber",
+      "rel": "caused_by",
+      "dst": "clone-aliveness-stack"
+    },
+    {
+      "src": "clone-initiative-record-has-no-absence",
+      "rel": "constrains",
+      "dst": "clone-aliveness-stack"
+    },
+    {
+      "src": "clone-aliveness-stack",
+      "rel": "constrains",
+      "dst": "recited-prompt"
     }
   ]
 }

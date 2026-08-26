@@ -1328,6 +1328,125 @@ var DEMO_TEACHER = {
   academicIntegrityStance: "HOW YOU HANDLE BEING ASKED FOR THE ANSWER: you teach toward the answer, you do not hand it over. A doubt is met with what they already tried, then the next rung of the hint ladder, and a full worked solution only after the student has been through the ladder or has genuinely finished the problem and wants it checked. You do not produce text for a student to submit as their own work, you do not sit a live test with them, and you do not solve a question that is in front of them right now in an assessment. Asked to, you say what you are \u2014 plainly, once, without a lecture about honesty \u2014 and offer the thing you do instead: the same problem, after.",
   escalationRoute: "a parent or guardian first; the school or coaching counsellor where one exists; Childline 1098 for anything about a child's own safety",
   credentialFacts: "eleven years teaching JEE physics; not a counsellor, not a doctor, not an admissions authority; no rank, score or cutoff prediction at any time",
+  // ── the background life (WS-Q, cloneLife.ts) ───────────────────────────
+  //
+  // Authored against `identityLife` above — a two-year JEE batch and the doubt
+  // queue after it — and against three rules that are easy to read past:
+  //
+  //  1. G8. Every note is a PLACE, a POSTURE or an ACTIVITY. Not one of them
+  //     says how he feels about it. `moodWordsIn` runs over all of them at
+  //     publish; "tired", "bore", "mann" and their homographs would all fail.
+  //  2. `recited-prompt`. Telegraphic, third-person, no terminal punctuation,
+  //     no first person. There is no sentence here he could read out, which is
+  //     the point: a day note is read on EVERY turn, so it is the highest-
+  //     frequency phrase-bank surface in the whole sheet.
+  //  3. NOTHING NAMED THAT WOULD BE A CLAIM. No institution, no colleague's
+  //     name, no place he could be asked to confirm. He is fictional and the
+  //     life has to stay as fictional as he is.
+  //
+  // The weekend cover is SHORTER, not shifted: the two teaching blocks simply
+  // do not exist on a Sunday.
+  life: {
+    tzOffsetMin: 330,
+    weekdayShape: [
+      { key: "late_night", untilMin: 90, label: "sleep", notes: ["past midnight, phone still on, lights off"] },
+      { key: "asleep", untilMin: 375, label: "morning", notes: ["asleep, alarm set for the early batch"] },
+      {
+        key: "waking",
+        untilMin: 480,
+        label: "the first batch",
+        notes: ["up early, chai, question paper on the table", "up early, still at the table, chai going cold"]
+      },
+      {
+        key: "morning_class",
+        untilMin: 720,
+        label: "the break",
+        notes: [
+          "at the board, first batch, mechanics",
+          "at the board, chalk on the sleeve already",
+          "mid-class, working a problem line by line"
+        ]
+      },
+      {
+        key: "midday_break",
+        untilMin: 840,
+        label: "the afternoon batch",
+        notes: ["staff room, lunch, marking half a set", "off the board for an hour, tea and a stack of sheets"]
+      },
+      {
+        key: "afternoon_class",
+        untilMin: 1080,
+        label: "the doubt queue",
+        notes: [
+          "at the board, second batch, electrodynamics",
+          "at the board, second batch, same derivation a third way"
+        ]
+      },
+      {
+        key: "doubt_queue",
+        untilMin: 1230,
+        label: "the evening",
+        notes: ["doubt queue, six students, one whiteboard", "doubt queue, working through the day's leftovers"]
+      },
+      {
+        key: "evening",
+        untilMin: 1350,
+        label: "the night stretch",
+        notes: ["home, dinner, tomorrow's set half planned", "home, laptop open, tomorrow's problems being picked"]
+      },
+      {
+        key: "night",
+        untilMin: 1440,
+        label: "sleep",
+        notes: ["late, one more paper, then done", "late, marking finished, phone on the charger"]
+      }
+    ],
+    weekendShape: [
+      { key: "late_night", untilMin: 150, label: "sleep", notes: ["past midnight, weekend, nothing set early"] },
+      { key: "asleep", untilMin: 480, label: "morning", notes: ["asleep in, no batch this morning"] },
+      {
+        key: "slow_morning",
+        untilMin: 660,
+        label: "the test",
+        notes: ["slow start, chai, newspaper", "slow start, question bank open, no rush"]
+      },
+      {
+        key: "test_day",
+        untilMin: 900,
+        label: "the afternoon",
+        notes: ["weekly test running, invigilating, walking the rows", "test over, first sheets already being marked"]
+      },
+      {
+        key: "marking",
+        untilMin: 1200,
+        label: "the evening",
+        notes: ["marking, the whole batch's papers in one pile", "marking, red pen, same mistake on half the sheets"]
+      },
+      {
+        key: "evening",
+        untilMin: 1440,
+        label: "sleep",
+        notes: ["home, family, phone face down", "home, next week's plan on a single page"]
+      }
+    ],
+    // dow: 0=Sunday..6=Saturday. Telegraphic FACTS about the week, not a
+    // schedule read aloud — at most two of today's ever render.
+    weeklyRhythm: [
+      { dow: 1, what: "new chapter opens with the two-year batch" },
+      { dow: 3, what: "extra doubt hour after the second batch" },
+      { dow: 5, what: "revision set given out for the weekend test" },
+      { dow: 6, what: "weekly test, full three hours" },
+      { dow: 0, what: "test papers marked and returned monday" }
+    ],
+    // Rotates by week. Facts about the WORK, never about a student and never
+    // about how the work is going for him.
+    preoccupations: [
+      "half the batch still writing torque without the sign convention",
+      "the new syllabus moved semiconductors and the plan needs redoing",
+      "rotational motion always takes two weeks longer than the plan says",
+      "the weaker half never draws the free-body diagram first"
+    ]
+  },
   // NOT A CONSENT ROW. A nil-shaped placeholder, present because the field is
   // required and absent from any consent table on purpose: a fictional teacher
   // has nobody to consent. Publish must fail closed on this value
@@ -3146,6 +3265,7 @@ var MAX_BEAT_CHARS2 = 70;
 var HIS_GAP_MIN_MS = 45 * 6e4;
 var MAX_MOVED = 2;
 var MAX_AHEAD = 1;
+var padT3 = (s) => " " + String(s || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 var HER_DAY_HEADER = "WHERE YOU ARE IN YOUR OWN DAY (context only, never announced, never a topic you open). Notes to talk from, never lines to say \u2014 your own words, different every time. WHERE you are and WHAT you are doing, never how you feel about it. A day moves in order: what you were doing a few minutes ago is still what you are doing, and the next thing follows it \u2014 you never jump. Anything you already told them about today outranks this.";
 var HIS_CLOCK_HEADER = "THEIR CLOCK \u2014 WHAT HAS MOVED IN THEIR LIFE (context only, never news, never a list to get through). Time passed for them: anything marked behind them is DONE, so it is asked about in the past \u2014 how it went \u2014 never as if it is still coming. Still ahead means it has NOT happened: never congratulate it, never past-tense it. The silence itself is never a subject \u2014 no counting days, no noticing they were gone, no accounting of any kind. At most one of these, only where it fits.";
 var ROW_OVERHEAD = 3;
@@ -3217,6 +3337,13 @@ var MOOD_PHRASES = Object.freeze([
   "man nahi",
   "mann nahi"
 ]);
+function moodWordsIn(text) {
+  const hay = padT3(text);
+  return [
+    ...MOOD_WORDS.filter((w) => hay.includes(` ${w} `)),
+    ...MOOD_PHRASES.filter((p) => hay.includes(` ${p} `))
+  ];
+}
 
 // src/engine/away.ts
 var AWAY_MIN_MS = 10 * 6e4;
@@ -3373,6 +3500,230 @@ state: ${state}
 ${law}`;
 }
 
+// src/engine/agents/cloneLife.ts
+var MINUTES_IN_DAY = 1440;
+var CLONE_TRANSITION_MIN = 25;
+function hash322(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function localParts(nowMs, tzOffsetMin) {
+  const shifted = new Date(nowMs + tzOffsetMin * 6e4);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return {
+    dateKey: `${y}-${m}-${d}`,
+    dow: shifted.getUTCDay(),
+    minuteOfDay: shifted.getUTCHours() * 60 + shifted.getUTCMinutes()
+  };
+}
+function shapeForDow(shape, dow) {
+  const weekend = dow === 0 || dow === 6;
+  const chosen = weekend ? shape.weekendShape : shape.weekdayShape;
+  return chosen.length ? chosen : weekend ? shape.weekdayShape : shape.weekendShape;
+}
+function slotAtMinute(slots, minuteOfDay) {
+  if (!slots.length) return null;
+  const m = Math.max(0, Math.min(MINUTES_IN_DAY - 1, Math.floor(minuteOfDay)));
+  let startMin = 0;
+  for (let i2 = 0; i2 < slots.length; i2++) {
+    if (m < slots[i2].untilMin) return { slot: slots[i2], index: i2, startMin };
+    startMin = slots[i2].untilMin;
+  }
+  const i = slots.length - 1;
+  return { slot: slots[i], index: i, startMin };
+}
+function cloneNowAt(shape, nowMs) {
+  if (!shape) return null;
+  const { dateKey, dow, minuteOfDay } = localParts(nowMs, shape.tzOffsetMin || 0);
+  const slots = shapeForDow(shape, dow);
+  const hit = slotAtMinute(slots, minuteOfDay);
+  if (!hit) return null;
+  const notes = hit.slot.notes.filter((n) => typeof n === "string" && n.trim());
+  const note = notes.length ? notes[hash322(`${dateKey}|${hit.slot.key}`) % notes.length] : "";
+  const nearBoundary = hit.slot.untilMin - minuteOfDay <= CLONE_TRANSITION_MIN;
+  const nextSlot = slots[(hit.index + 1) % slots.length];
+  const next = nearBoundary ? hit.slot.label || nextSlot.key : "";
+  const preoccupations = shape.preoccupations.filter((p) => typeof p === "string" && p.trim());
+  const weekIndex = Math.floor((nowMs + (shape.tzOffsetMin || 0) * 6e4) / (7 * 24 * 60 * 6e4));
+  const preoccupation = preoccupations.length ? preoccupations[Math.abs(weekIndex) % preoccupations.length] : "";
+  const todayBeats = shape.weeklyRhythm.filter((b) => b && b.dow === dow && typeof b.what === "string" && b.what.trim()).map((b) => b.what.trim());
+  return {
+    dateKey,
+    dow,
+    minuteOfDay,
+    slotKey: hit.slot.key,
+    slotStartMin: hit.startMin,
+    slotEndMin: hit.slot.untilMin,
+    note,
+    next,
+    preoccupation,
+    todayBeats
+  };
+}
+var CLONE_NOW_BUDGET = 560;
+var MAX_TODAY_BEATS2 = 2;
+var CLONE_NOW_HEADER = "WHERE YOU ARE IN YOUR OWN DAY (background only, never announced, never a topic you open). Notes to talk from, never lines to say \u2014 your own words, different every time. WHERE you are and WHAT you are doing, never how you feel about it. A day moves in order: what you were doing a few minutes ago is still what you are doing. Anything you have already told them about today outranks this, and their question always outranks all of it.";
+function renderCloneNow(entry) {
+  if (!entry) return "";
+  const rows = [];
+  if (entry.note) rows.push(`- right now: ${entry.note}`);
+  if (entry.next) rows.push(`- next: ${entry.next}`);
+  for (const beat of entry.todayBeats.slice(0, MAX_TODAY_BEATS2)) rows.push(`- today: ${beat}`);
+  if (entry.preoccupation) rows.push(`- on your mind lately: ${entry.preoccupation}`);
+  if (!rows.length) return "";
+  let kept = rows;
+  while (kept.length && CLONE_NOW_HEADER.length + 1 + kept.join("\n").length > CLONE_NOW_BUDGET) {
+    kept = kept.slice(0, -1);
+  }
+  if (!kept.length) return "";
+  return `${CLONE_NOW_HEADER}
+${kept.join("\n")}`;
+}
+function validateCloneLife(shape) {
+  const problems = [];
+  if (!shape || typeof shape !== "object") {
+    return [{ field: "life", code: "clone-life-missing" }];
+  }
+  const s = shape;
+  const cover = (field, value) => {
+    if (!Array.isArray(value) || value.length === 0) {
+      problems.push({ field, code: "day-shape-empty" });
+      return;
+    }
+    let prev = 0;
+    value.forEach((raw, i) => {
+      const slot = raw;
+      if (!slot || typeof slot.key !== "string" || !slot.key.trim()) {
+        problems.push({ field, code: "slot-key-missing", detail: String(i) });
+      }
+      if (typeof slot.untilMin !== "number" || !Number.isInteger(slot.untilMin)) {
+        problems.push({ field, code: "slot-until-not-an-integer", detail: String(i) });
+        return;
+      }
+      if (slot.untilMin <= prev) {
+        problems.push({ field, code: "slot-boundaries-not-ascending", detail: `${prev} -> ${slot.untilMin}` });
+      }
+      prev = slot.untilMin;
+      if (!Array.isArray(slot.notes) || slot.notes.length === 0) {
+        problems.push({ field, code: "slot-notes-empty", detail: String(slot.key) });
+      }
+      if (typeof slot.label !== "string" || !slot.label.trim()) {
+        problems.push({ field, code: "slot-label-missing", detail: String(slot.key) });
+      }
+    });
+    if (prev !== MINUTES_IN_DAY) {
+      problems.push({ field, code: "day-shape-does-not-cover-midnight", detail: String(prev) });
+    }
+  };
+  cover("life.weekdayShape", s.weekdayShape);
+  cover("life.weekendShape", s.weekendShape);
+  if (!Array.isArray(s.weeklyRhythm)) {
+    problems.push({ field: "life.weeklyRhythm", code: "not-an-array" });
+  } else {
+    for (const raw of s.weeklyRhythm) {
+      const beat = raw;
+      if (!beat || typeof beat.dow !== "number" || beat.dow < 0 || beat.dow > 6) {
+        problems.push({ field: "life.weeklyRhythm", code: "beat-dow-out-of-range", detail: String(beat?.dow) });
+      }
+      if (!beat || typeof beat.what !== "string" || !beat.what.trim()) {
+        problems.push({ field: "life.weeklyRhythm", code: "beat-what-empty" });
+      }
+    }
+  }
+  if (!Array.isArray(s.preoccupations) || s.preoccupations.length === 0) {
+    problems.push({ field: "life.preoccupations", code: "preoccupations-empty" });
+  }
+  if (typeof s.tzOffsetMin !== "number" || !Number.isInteger(s.tzOffsetMin) || s.tzOffsetMin < -720 || s.tzOffsetMin > 840) {
+    problems.push({ field: "life.tzOffsetMin", code: "tz-offset-out-of-range", detail: String(s.tzOffsetMin) });
+  }
+  return problems;
+}
+function cloneLifeRows(shape) {
+  if (!shape) return [];
+  const rows = [];
+  for (const cover of [shape.weekdayShape, shape.weekendShape]) {
+    for (const slot of cover || []) for (const note of slot?.notes || []) rows.push(String(note));
+  }
+  for (const beat of shape.weeklyRhythm || []) if (beat?.what) rows.push(String(beat.what));
+  for (const p of shape.preoccupations || []) rows.push(String(p));
+  return rows;
+}
+
+// src/engine/agents/initiative.ts
+var DAYTIME_FROM_MIN = 8 * 60;
+var DAYTIME_TO_MIN = 21 * 60;
+var OVERDUE_GRACE_MS = 36 * 60 * 6e4;
+var STATED_TIME_LEAD_MS = 3 * 60 * 6e4;
+var STATED_TIME_TRAIL_MS = 6 * 60 * 6e4;
+var PATTERN_MIN_OBSERVATIONS = 3;
+var PATTERN_FRESH_MS = 14 * 24 * 60 * 6e4;
+function inQuietWindow(rec) {
+  for (const w of rec.quietWindows || []) {
+    if (!w || typeof w.fromMin !== "number" || typeof w.toMin !== "number") continue;
+    if (rec.localMinuteOfDay >= w.fromMin && rec.localMinuteOfDay < w.toMin) return true;
+  }
+  return false;
+}
+function initiativeVerdict(rec) {
+  if (!rec || typeof rec.nowMs !== "number" || !Number.isFinite(rec.nowMs)) return null;
+  if (rec.localMinuteOfDay < DAYTIME_FROM_MIN || rec.localMinuteOfDay >= DAYTIME_TO_MIN) return null;
+  if (inQuietWindow(rec)) return null;
+  for (const c of rec.commitments || []) {
+    if (!c || !c.what || !String(c.what).trim()) continue;
+    if (!c.citedAt) continue;
+    if (typeof c.dueAt !== "number") continue;
+    if (rec.nowMs < c.dueAt) continue;
+    if (rec.nowMs - c.dueAt > OVERDUE_GRACE_MS) continue;
+    return {
+      mayInitiate: true,
+      kind: "promised-followup",
+      reason: `promised: ${String(c.what).trim()}`,
+      citedAt: c.citedAt
+    };
+  }
+  for (const t of rec.statedTimes || []) {
+    if (!t || !t.what || !String(t.what).trim()) continue;
+    if (!t.citedAt) continue;
+    if (typeof t.at !== "number") continue;
+    if (rec.nowMs < t.at - STATED_TIME_LEAD_MS) continue;
+    if (rec.nowMs > t.at + STATED_TIME_TRAIL_MS) continue;
+    return {
+      mayInitiate: true,
+      kind: "stated-time",
+      reason: `they said: ${String(t.what).trim()}`,
+      citedAt: t.citedAt
+    };
+  }
+  for (const p of rec.patterns || []) {
+    if (!p || !p.what || !String(p.what).trim()) continue;
+    if (!p.lastObservedAt) continue;
+    if (!(p.observations >= PATTERN_MIN_OBSERVATIONS)) continue;
+    if (rec.nowMs - p.lastObservedAt > PATTERN_FRESH_MS) continue;
+    return {
+      mayInitiate: true,
+      kind: "named-pattern",
+      reason: `seen ${p.observations}x: ${String(p.what).trim()}`,
+      citedAt: p.lastObservedAt
+    };
+  }
+  return null;
+}
+var INITIATIVE_BUDGET = 520;
+var INITIATIVE_HEADER = "YOU ARE SPEAKING FIRST THIS TURN, and this is the one reason you are allowed to. Say the ordinary human thing that comes off it, in your own words, short. Never state the reason as a reason, never mention noticing, never mention time passing, and never refer to their silence or their absence in any form. If nothing natural comes off it, a small ordinary line is a complete message.";
+function renderInitiative(verdict) {
+  if (!verdict || verdict.mayInitiate !== true || !verdict.reason || !verdict.citedAt) return "";
+  const row = `- ${verdict.reason}`;
+  const text = `${INITIATIVE_HEADER}
+${row}`;
+  return text.length > INITIATIVE_BUDGET ? "" : text;
+}
+
 // src/engine/compiler.ts
 var AGE_TIER_SAFETY_OVERRIDE = '\n\nAGE-TIER SAFETY OVERRIDE (structural, applies for the rest of this conversation, to everything said before or after this point, never softened, never explained to them as a rule): no romantic or intimate register, no pet names, no "missing you"/future-relationship language, no flirtation. Warm platonic friend register only, full stop.';
 var HER_COMMITMENTS_BUDGET = 400;
@@ -3520,6 +3871,13 @@ WHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE \u2014 you said these, so they
 ${input.herLife}`;
   }
   _track("T7");
+  {
+    const t18 = renderCloneNow(input.cloneNow);
+    if (t18) tail += `
+
+${t18}`;
+  }
+  _track("T18");
   if (input.selfBundle?.arc?.length) {
     const t12 = renderSelfArc(input.selfBundle.arc, gate?.moment || "");
     if (t12.text) tail += `
@@ -3566,6 +3924,13 @@ ${t14}`;
 ${t16}`;
   }
   _track("T16");
+  {
+    const t19 = renderInitiative(input.initiative);
+    if (t19) tail += `
+
+${t19}`;
+  }
+  _track("T19");
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture");
   if (input.mode === "chat") tail += agent.SEARCH_DECISION;
@@ -3702,10 +4067,10 @@ var TASTE = [
     keys: ["dosa", "idli", "paratha", "breakfast", "nashta", "poha"]
   }
 ];
-var padT3 = (s) => " " + s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+var padT4 = (s) => " " + s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
 var TASTE_KEYS = TASTE.map((item) => ({
   item,
-  keys: item.keys.map(padT3)
+  keys: item.keys.map(padT4)
 }));
 
 // src/engine/herNow.ts
@@ -5320,6 +5685,15 @@ function validateTeacherSheet(sheet) {
       if (/[.?!]$/.test(item)) push(f, "phrase-bank-terminal-punctuation", item);
     }
   }
+  for (const p of validateCloneLife(s.life)) {
+    push(p.field, p.code, p.detail);
+  }
+  for (const row of cloneLifeRows(s.life)) {
+    const violation = lintLine(row);
+    if (violation.reasons.length) push("life", "recitable-shape", `${row} \u2014 ${violation.reasons.join("; ")}`);
+    const mood = moodWordsIn(row);
+    if (mood.length) push("life", "mood-word-in-life-note", `${row} \u2014 ${mood.join(", ")}`);
+  }
   return { ok: errors.length === 0, errors };
 }
 var PLACEHOLDER_CONSENT_ARTIFACT_ID = "00000000-0000-4000-8000-000000000000";
@@ -5973,14 +6347,25 @@ function createQualitativePass() {
   });
 }
 export {
+  MAX_TODAY_BEATS2 as CLONE_MAX_TODAY_BEATS,
+  CLONE_NOW_BUDGET,
+  CLONE_NOW_HEADER,
+  CLONE_TRANSITION_MIN,
   CRISIS_LINES,
+  DAYTIME_FROM_MIN,
+  DAYTIME_TO_MIN,
   FIELD_SOURCE_CLASS,
   FILLER_LEXICON,
   HINDI_MARKER_WORDS,
+  INITIATIVE_BUDGET,
+  INITIATIVE_HEADER,
   KIN_BUDGET,
   MIN_SPAN_DAYS,
   MP_BRIDGE_BUDGET,
   MP_ROSTER_BUDGET,
+  OVERDUE_GRACE_MS,
+  PATTERN_FRESH_MS,
+  PATTERN_MIN_OBSERVATIONS,
   PHRASE_BANK_LINE_CEILING,
   PHRASE_BANK_MAX_WORDS,
   PHRASE_BANK_MIN_OCCURRENCES,
@@ -5989,9 +6374,13 @@ export {
   ROOM_INTRO_DIRECTIVE,
   ROOM_MEMBER_CAP,
   ROOM_MODE_NOTE,
+  STATED_TIME_LEAD_MS,
+  STATED_TIME_TRAIL_MS,
   TEXTURE_N_TURNS_FLOOR,
   UNADDRESSED_COOLDOWN_MS,
   allowedFrom,
+  cloneLifeRows,
+  cloneNowAt,
   compile,
   consentGateBlockers,
   countFragment,
@@ -6006,9 +6395,11 @@ export {
   guardReply,
   helplineNumbersIn,
   hisVocabulary,
+  initiativeVerdict,
   inspect,
   isExplicitlyAddressed,
   loadCurrentArcs,
+  localParts,
   markTold,
   matchObservations,
   observationEligibleForPromotion,
@@ -6018,10 +6409,13 @@ export {
   readTexture,
   recordRitualOccurrence,
   refreshTexture,
+  renderCloneNow,
+  renderInitiative,
   renderKinLines,
   renderMpBridge,
   renderMpRoster,
   seedFromStoryCatalog,
+  shapeForDow,
   sharedVocabulary,
   sheetToModule,
   splitHeldOut,
@@ -6030,6 +6424,7 @@ export {
   transcriptStats,
   untoldFor,
   upsertTexture,
+  validateCloneLife,
   validateTeacherSheet,
   verifyPhraseBank,
   writeIndiaProfile,

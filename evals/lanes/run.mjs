@@ -213,6 +213,22 @@ const BLOCKS = [
     watch: "the watch compile passes no `activity`. A share starts MID-CALL and this prompt is frozen when it starts, so a board opened later cannot ride it either way; mid-call state travels by direct(). NOT stated at the call site — WS-SYNC+MEMEVAL flagged it for whoever owns useCallEngine.ts" },
   { id: "T16", what: "her.commitments", chat: P, cascade: P, live: P, watch: P },
   { id: "T17", what: "rel.reciprocity", chat: P, cascade: P, live: P, watch: P },
+  // WS-Q. Both blocks are CLONE-ONLY by construction: they render from fields
+  // a published TeacherSheet supplies, and these four lanes are Meera's, whose
+  // sheet has no life shape and no speak-first record. Exempt on every lane
+  // here, and that is the same zero-byte property gate Q1 states — asserted in
+  // this table too, rather than only in evals/clonelife, because THIS is the
+  // file that would notice a compiler edit quietly lighting them up for Meera.
+  { id: "T18", what: "clone.now",
+    chat: "Meera's aliveness comes from herNow.ts + T7 via brain.ts, not from a sheet life shape — a second answer to 'what are you doing right now' is the defect herNow.ts exists to close, so this stays dark on every incumbent lane",
+    cascade: "same: no sheet life shape on an incumbent agent, so cloneNowAt() is never called and the slot renders zero bytes (gate Q1)",
+    live: "same: no sheet life shape on an incumbent agent, so cloneNowAt() is never called and the slot renders zero bytes (gate Q1)",
+    watch: "same: no sheet life shape on an incumbent agent, so cloneNowAt() is never called and the slot renders zero bytes (gate Q1)" },
+  { id: "T19", what: "clone.initiative",
+    chat: "these fixtures are all turns HE started; the slot renders only on a turn the clone opened, and only with a citable reason on the record — an incumbent lane supplies no initiative verdict at all",
+    cascade: "a spoken turn is never a turn the clone opened unprompted; no initiative verdict is supplied and the slot renders zero bytes",
+    live: "a spoken turn is never a turn the clone opened unprompted; no initiative verdict is supplied and the slot renders zero bytes",
+    watch: "a watch turn is a frame arriving mid-call, never an opening the clone chose; no initiative verdict is supplied and the slot renders zero bytes" },
   { id: "mp.roster", what: "multiparty roster", chat: "no roomBundle on a dyadic lane: the room layer is a separate surface (WS-TGBOT) and every dyadic fixture must render it as exactly zero bytes — gate G1",
     cascade: "no roomBundle on a dyadic lane — same G1 zero-byte property",
     live: "no roomBundle on a dyadic lane — same G1 zero-byte property",

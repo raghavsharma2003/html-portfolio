@@ -3172,3 +3172,91 @@ logged-in student, say), the transcript digest becomes redundant and should go
 rather than be maintained alongside a source of truth. The DISCLOSURE digest
 does not: it is what makes the card's delivery structural rather than trusted,
 and that argument survives any amount of server-side state.
+## `clone-aliveness-stack` — a published clone gets the aliveness layer, from its own sheet (2026-08-26, WS-Q)
+
+Owner intent: *"can we make a literal human in every way using relationalOS"* —
+a clone must be a continuous being with a life, not a persona that answers
+questions.
+
+**The audit first, because the premise it corrects is the useful part.** The
+brief's hypothesis was that the aliveness modules are wired to Meera's content
+tables and product surfaces. Measured against the tree, that is right about
+ONE module and wrong about the rest, and the real binding is somewhere else
+entirely:
+
+- `texture` `selfarc` `repeat` `away` `moment` `reciprocity` `observation`
+  `milestones` `greeting` are **character-agnostic already**. They derive
+  everything from transcripts or from agent-scoped rows (`agentId` is a
+  parameter that merely *defaults* to `MEERA_AGENT_ID`). A clone gets them the
+  moment a clone has rows.
+- `timeline` is Meera-authored content AND a **tombstone**: its prompt render
+  was retired 2026-08-23 as a dead writer and `evals/lifecycle` §5 enforces
+  zero importers. It was never a seam a clone could be added to.
+- `herNow` is Meera-authored content (`storyCatalog`'s pictures) and is the
+  ONE module that genuinely needed a parameterized twin.
+- `culture` is bound to Meera by a hardcoded production host.
+- **The actual blocker was neither content nor tables.** `brain.ts` — where the
+  entire client-side aliveness stack is assembled — called `compile()` with **no
+  `agent` at all**, and `api/_teachersheet.js`'s `loadTeacherAgent` had **zero
+  callers**. A clone could only ever be served by a lane that assembled none of
+  it. The stack was not Meera-bound; it was *unreachable*.
+
+**What was built.** `agents/cloneLife.ts` (a clone's present as a pure function
+of its sheet's day cover and the clock — no ledger, so a four-minute re-ask
+agrees *by construction* rather than by consulting a record, which is a stronger
+form of the fix `herNow.ts` bought with state); `agents/initiative.ts` (the
+speak-first predicate); compiler slots **T18 `clone.now`** and **T19
+`clone.initiative`**, both absent-by-default; `TeacherSheet.life` as a REQUIRED
+field on the arc-override precedent; the `brain.ts` seam (`keys.agent` /
+`cloneNow` / `initiative`).
+
+**Proactivity is reason-contingent, held by the TYPE.** `persona.ts` deleted
+Meera's idle nudge because it fired on silence ("incentive salience
+engineering... cannot be made honest, because the trigger itself is their
+inattention"); `teacher-arc.md` §7 rows 8/9 ban absence-keyed rituals and
+streaks outright for minors. `InitiativeRecord` therefore has **no field for
+absence** — no last-seen, no gap, no streak, no session count — so a
+silence-triggered ping is not a wrong answer this module can reach, it is not a
+value it can construct. Every verdict carries `citedAt > 0`.
+
+**Byte identity is the gate, not the hope (Q1).** 83/83 fixtures unchanged; T18
+and T19 render exactly 0 bytes on all four Meera lanes (`evals/lanes`);
+`compile()` with the fields absent and with them explicitly null are
+byte-identical.
+
+**Reversal conditions.**
+- If a clone's day cover ever needs to depend on something other than the wall
+  clock and the sheet — a real calendar integration, a teacher publishing live
+  availability — `cloneNowAt`'s purity is what must be revisited first, and the
+  continuity property in `evals/clonelife` §2 is what would have to be re-argued
+  rather than deleted.
+- If measurement ever shows T18 costing more than it buys (a clone reciting its
+  day, a register defection traced to it), the block is DROPPED, not softened:
+  its drop priority is already the least-protected relational slot precisely so
+  that experiment is one constant.
+- `InitiativeKind` is a closed union of three. Widening it is the edit that must
+  be argued for — and any proposed fourth kind that is a function of elapsed
+  time is the deleted idle nudge with a new name.
+- If `engagementMechanics` ever becomes true for any surface this serves, the
+  daytime and quiet-window fences stop being sufficient and this whole predicate
+  needs re-deriving against `clock.ts` rather than beside it.
+
+## `clone-drop-priority-renumber` — T18 took priority 4 and the relational/honesty bands shifted +1 (2026-08-26, WS-Q)
+
+`compiler.ts`'s manifest header prefers a FRESH HIGH NUMBER for a new block over
+a renumber. That rule is right for its stated reason and wrong here, and the
+trade is logged rather than buried in a comment: a fresh high number means MOST
+PROTECTED, and `evals/drift.mjs` §4 hard-asserts that no slot of a lower class
+outranks one of a higher class. A no-renumber T18 would have outranked the
+commitment ledger — a drop policy nobody would have written on purpose.
+
+So T18 took 4 (least protected relational) and 4→5 … 12→13 shifted by one. The
+header's warning was about desynchronising `check-prompt-budget.mjs`'s
+drop-order fixture; that fixture is SYNTHETIC (hand-set priorities, never read
+from the manifest), and `evals/self/wiring.mjs` pins only the cosmetic band
+1/2/3, which does not move. Both were checked before the renumber, not after.
+
+**Reversal condition:** if any gate is ever found asserting a literal
+relational- or honesty-band priority, this renumber is the change that broke it,
+and the fix is to pin that gate to the CLASS ordering (drift.mjs's shape) rather
+than to restore the old numbers.
