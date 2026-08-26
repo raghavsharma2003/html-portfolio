@@ -2015,3 +2015,21 @@ create table if not exists vy_replica_voice_delivery_qualification (
   constraint vy_replica_voice_delivery_qualification_policy_fk foreign key (policy_id,replica_id,owner_user_id) references vy_replica_voice_delivery_policy(policy_id,replica_id,owner_user_id) on delete cascade
 );
 create index if not exists vy_replica_voice_delivery_qualification_owner_ix on vy_replica_voice_delivery_qualification(owner_user_id,replica_id,created_at desc);
+
+-- Migration 051 - DB-backed teacher sheets. agent_id is FK-shaped and carries
+-- no FK constraint (009's convention for every agent-scoped table); the
+-- publish gate is a CHECK because a predicate is a guarantee and a code path
+-- is a preference (safety-floor-teacher.md, `gate0-structural`).
+create table if not exists vy_teacher_sheet (
+  sheet_id uuid primary key,
+  agent_id uuid not null,
+  version text not null default '',
+  sheet jsonb not null,
+  status text not null default 'draft' check (status in ('draft','validated','published','revoked')),
+  consent_artifact_id uuid,
+  created_at timestamptz not null default now(),
+  published_at timestamptz,
+  constraint vy_teacher_sheet_publish_gate check (status <> 'published' or (consent_artifact_id is not null and published_at is not null))
+);
+create index if not exists vy_teacher_sheet_agent_status_ix on vy_teacher_sheet (agent_id, status, published_at desc);
+create unique index if not exists vy_teacher_sheet_one_published_ix on vy_teacher_sheet (agent_id) where status = 'published';

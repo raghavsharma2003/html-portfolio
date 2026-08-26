@@ -77,6 +77,24 @@ const suites = {
   // Standalone, offline, deterministic, $0, ~2s. Re-bundles from the real
   // source on every run.
   practice: "practice.mjs",
+  // WS-B (Gurukul). The teacher-sheet seam: the publish-time validator, the
+  // runtime AgentModule constructor, and the consent gate.
+  //
+  // Wired here on the same `dead-writers` test as the suites around it, and
+  // for a sharper reason than most: this suite is the only thing that checks
+  // the PUBLISH GATE, and every way that gate fails is silent. A sheet with a
+  // helpline the honesty allowlist does not carry publishes fine and ships a
+  // clone that cannot say the child helpline. A sheet missing an arc override
+  // publishes fine and ships a clone of a real named teacher, talking to a
+  // sixteen-year-old, wearing the companion arc. Neither throws.
+  //
+  // It also carries the consent gate's negative control — the predicate
+  // re-run with its consent clause struck, which must go quiet — because a
+  // gate that passes against the bug it exists to catch is not a gate.
+  //
+  // Standalone, offline, deterministic, $0, no DB. Re-bundles from the real
+  // source on every run.
+  teachersheet: "teachersheet.mjs",
   // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.
