@@ -3754,3 +3754,61 @@ known from a population, a per-run self-control becomes a redundant second
 measurement of something already established — and until that bench exists, an
 absolute threshold is exactly the dogma-with-a-decimal-point the module warns
 about.
+
+## `adapters-travel-in-the-signed-body` — how a per-speaker fine-tune reaches the GPU (2026-08-26, WS-U)
+
+**Decision.** A per-speaker LoRA adapter is sent to `open-voice-runtime` **inline
+in the `/v1/synthesize` request body**, content-addressed by sha256, rather than
+fetched by the runtime from an adapter store.
+
+**Rationale.** The runtime is deliberately the least-privileged thing in this
+system: environment-internal ingress, no tenant or person identifiers, no
+credential for anything, one HMAC secret shared with the broker in front of it.
+An adapter store would give it a second trust path — a URL to resolve, a
+credential to hold, and a class of failure (fetched the wrong adapter, fetched a
+poisoned one) that the request HMAC does not cover. Inline, the adapter is
+covered by the **same** signature that already admits the call, verified by the
+same digest check the reference audio already gets, and the service stays
+stateless. It also mirrors an existing, working precedent: the reference audio
+has always travelled this way.
+
+The cost is real and bounded: an r=16 fp32 adapter is 15.8 MB, so an adapted
+request is ~26 MB against the existing 32 MB `MAX_REQUEST_BYTES`. That is tight
+enough to be the thing that reverses this.
+
+**Reversal condition.** Move to a fetched store if **either**: (a) a rank, target
+set or dtype is chosen that puts a typical adapted request over ~28 MB, since
+the total request cap is the real constraint and raising it widens the
+denial-of-service surface on a GPU service; or (b) the same adapter is sent on
+enough consecutive calls that re-uploading it dominates latency — measurable as
+adapter bytes per second of audio produced. Neither is true at the measured
+r=16/120-projection configuration.
+
+Measured by `lora-vs-zero-shot-71s`: 32 live adapted syntheses across two runs,
+every one HMAC-bound, watermark-verified and correctly adapter-bound.
+
+## `fine-tuned-synthesis-commits-to-model-and-adapter` (2026-08-26, WS-U)
+
+**Decision.** An adapted response carries
+`synthesis_commitment = sha256(model_commitment:lora:adapter_sha256)`, derived
+independently by the runtime and by `api/_voice/providers/open-chatterbox-preview.js`,
+with disagreement failing the call closed. Without an adapter the value collapses
+to `model_commitment` exactly.
+
+**Rationale.** `model_commitment` pins *which weights ran*. Once an adapter can
+change the network, reporting the base commitment for an adapted synthesis lets
+two different networks sign the same receipt — the provenance chain would say
+"chatterbox-multilingual-v3" for audio that a per-speaker network produced. The
+collapse-to-base property is what keeps every pre-adapter receipt and verifier
+valid unchanged.
+
+The second reason is measurement, and it is why this is a hard binding rather
+than a field: **a service that silently ignores an adapter returns perfectly
+good audio.** A dropped adapter and a working one are indistinguishable from the
+clip, so a fine-tune-vs-zero-shot delta could quietly be a zero-shot-vs-zero-shot
+delta. `evals/open-voice/run.mjs` gates exactly that case.
+
+**Reversal condition.** Revisit if `voice_model_ref` on `vy_voice_fidelity`
+(migration 054) lands with a different derivation, in which case ONE of the two
+must be adopted everywhere rather than both existing — a voice with two
+different "which network made this" strings is worse than a voice with none.

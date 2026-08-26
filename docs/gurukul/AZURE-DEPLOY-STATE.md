@@ -102,7 +102,8 @@ All built by **ACR Tasks**, server-side. No local Docker anywhere.
 Digests currently deployed:
 
 - `open-voice-admission@sha256:3229c6479f83a0864faa0a2f81d43402b115341bbac318209d5b97c8463ceeb1`
-- `open-voice-runtime@sha256:9a0331745963a874093094db74f19bc13bd713670677488ff8b79cea8bd83ea8`
+- ~~`open-voice-runtime@sha256:9a0331745963a874093094db74f19bc13bd713670677488ff8b79cea8bd83ea8`~~
+  **superseded 2026-08-26 by `ft3` — see §13. That digest is the rollback target.**
 - `voice-evidence@sha256:924036e47a7c290cc8beb28fb6676e50c66f1f8aad2360c5a08f015030462157` (v3)
 
 Image sizes, from the platform's own pull records:
@@ -439,7 +440,8 @@ cold-start measurement — on the order of **$0.30–0.40 total**. Well under th
 - **A budget alert** — `voice-evidence`'s README asks for one.
   `Microsoft.Consumption/budgets` is subscription-scope, outside the
   `vyakti-voice` RG, and the mission forbids creating anything outside it.
-- **Any fine-tuning pipeline** — explicitly out of scope.
+- ~~**Any fine-tuning pipeline** — explicitly out of scope.~~ **Built and run
+  2026-08-26 by WS-U; see §13.**
 
 ---
 
@@ -523,3 +525,87 @@ If a rotation is ever wanted, the pair must change in BOTH places in one go:
 the container app secret and the Vercel env var. Mismatched halves fail closed
 (401 at the admission broker), which is the correct failure and is what the
 negative control in WS-L's smoke test exercised.
+
+---
+
+## 13. Per-speaker fine-tuning (WS-U, 2026-08-26)
+
+Fine-tuning ran on this subscription and produced a measured delta:
+`context/measurements.md#lora-vs-zero-shot-71s`. Every number there is a live
+service response. This section records only what now EXISTS in Azure and what
+it costs.
+
+### New resources, all inside `vyakti-voice`
+
+| resource | name | note |
+|---|---|---|
+| Storage account | `vyaktivoicewsu` | Standard_LRS, Hot, TLS1.2, **no public blob access**. One container, `finetune`, holding the training bundle, three adapters and one report. Total < 60 MB. |
+| Container Apps **Job** | `vyakti-voice-finetune` | Manual trigger, GPU workload profile, `replicaTimeout` 7200, `replicaRetryLimit` 0. **Jobs bill only while a replica runs**, so an idle job costs nothing. |
+
+`Microsoft.Storage` had to be **registered on the subscription** first — it was
+`NotRegistered` and the create failed 409 `MissingSubscriptionRegistration`,
+exactly like the four namespaces WS-L registered. Registration took ~80 s.
+
+The job holds **no long-lived credential**. It receives three pre-signed blob
+SAS URLs as container-app secrets, uses them, and exits.
+
+### New images
+
+| image | derived from | build time |
+|---|---|---|
+| `voice-finetune:v3` | `open-voice-runtime@sha256:9a033174…` | ~4 min |
+| `open-voice-runtime:ft3` | same digest | ~4 min |
+
+Both are **one small layer on the existing 9.70 GB runtime image**. Deriving
+rather than rebuilding is what keeps the pinned Chatterbox commit, the baked
+checkpoints and `lora.py` identical across trainer and runtime — and what makes
+these builds minutes instead of the runtime image's 12m55s. Note the ACR agent
+still re-pulls the 9.7 GB base each run, which is most of those four minutes.
+
+**`vyakti-open-voice` now runs `open-voice-runtime@sha256:433e4abc…` (`ft3`),
+not the digest in §3.** That image is the same runtime plus `lora.py` and the
+adapter seam in `app.py`. Rolling back is one `deploy.py` call to the §3 digest;
+nothing else changed.
+
+### Two operational notes
+
+- **`vyakti-voice-evidence` was flipped to external ingress and flipped back**,
+  the same temporary scaffold WS-T used and for the same reason (§12 is still
+  unresolved — a Vercel function cannot reach an internal app). It is
+  **internal again as of the end of this session**. Verify before assuming.
+- **A JOB's console logs carry an empty `ContainerAppName_s`.** They are keyed
+  by `ContainerGroupName_s == "<job>-<execution>-<replica>"`. A Log Analytics
+  query filtered on the app column returns an empty list for every job in this
+  RG — which reads exactly like "the job produced no output" and cost real time
+  here. The ARM-proxied query API also answers in **PascalCase** (`Tables`,
+  `Columns[].ColumnName`); reading the camelCase shape returns an empty list
+  rather than an error, with the same misleading appearance.
+
+### Measured cost of the whole experiment
+
+| item | measured | est. cost |
+|---|---|---|
+| ACR Task builds (6 runs, 2-vCPU agent) | ~26 min | ~$0.02 |
+| Fine-tune GPU job | **140.4 s of T4 training**, ~5 min replica uptime including image pull | ~$0.05 |
+| One failed job (device-mismatch crash) | ~2 min T4 | ~$0.02 |
+| Synthesis + evidence, 2 full measurement runs | 32 clips + 10 evidence calls, ~50 min of T4 across both apps including two cold starts | ~$0.45 |
+| `vyaktivoicewsu` storage | < 60 MB | < $0.01/mo |
+
+**Total on the order of $0.55.** The dominant line is GPU uptime for the
+*measurement*, not the training — 140 s of T4 trained the adapter, and roughly
+twenty times that went on waking services and synthesising the clips to score
+it. That is the same conclusion §9 reached from the other direction: cold starts
+and idle-warm GPU, not compute, are what this stack actually costs.
+
+### Addendum — the reference-window sweep
+
+A second experiment ran on the same warm services
+(`context/measurements.md#reference-window-beats-the-finetune`): five zero-shot
+arms varying only which slice of the reference conditions the model. It found
+that **window choice moves fidelity three times as much as the fine-tune does**,
+which is the cheapest known lever on this stack and needs no GPU training at all.
+
+Added cost: 20 more syntheses and 6 more evidence calls on already-warm apps,
+plus one more evidence cold start (~220 s) because the flip back to internal had
+let it scale to zero — call it **~$0.15**, bringing WS-U's total to roughly
+**$0.70**.
