@@ -5,7 +5,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26 (WS-T: the first real human voice through the clone pipeline)
+Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
 
 ## What the product is
 
@@ -62,7 +62,7 @@ service response, not a claim.
 **Known-open, deliberately not guessed at:**
 - Code-switch ratio reads 0.000 on visibly bilingual speech — `HINDI_MARKER_WORDS` is romanised, Sarvam returns Devanagari. Needs a decision (transliterate / extend lexicon / different model), not a patch.
 - Fidelity cannot be persisted or clear activation until a voice profile + biometric consent + human liveness challenge exist.
-- HMAC skew window (60 s) is shorter than a 176 s cold start, so the waking request returns 401 — an auth error for a latency problem. Worked around by pinging `/healthz` first; ownership unassigned.
+- HMAC skew window (60 s) is shorter than `voice-evidence`'s 176 s cold start, so the waking request returns 401 — an auth error for a latency problem. Worked around by pinging `/healthz` first. **The open-voice lane fails differently and this line used to blur the two:** its broker verifies the signature the moment the request lands and only then forwards it, so a cold *GPU runtime* is a **timeout**, not a 401. Owned as of WS-W by `api/_voice/warmup.js` for the studio panel; the processing worker's copy of the problem is still unassigned (`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`).
 
 **The command, once env is set:** `node scripts/first-clone.mjs /path/to/voice.wav "Name"`
 (input must be 24 kHz mono PCM16: `ffmpeg -i in.m4a -ac 1 -ar 24000 -c:a pcm_s16le out.wav`).
@@ -83,9 +83,13 @@ service response, not a claim.
   so unblinds any listening test unless trimmed
   (`disclosure-announces-the-clone`). Cold start (161 s
   ready, 504 at 242 s for the runtime; 176 s for `voice-evidence`) still needs
-  a warm-up before any user-facing use — and note it is not only a latency
-  problem: the HMAC signature window is 60 s, so the request that wakes a
-  service is rejected 401, not timed out (`hmac-skew-shorter-than-cold-start`).
+  a warm-up before any user-facing use — and the two lanes fail differently:
+  the GPU RUNTIME times out behind its broker, while `voice-evidence`, which
+  has no broker, is rejected **401** because the HMAC window is 60 s
+  (`hmac-skew-shorter-than-cold-start`,
+  `broker-healthz-is-a-front-door-not-a-readiness-check`). The studio panel now
+  owns the first of those (`preview-cold-start-is-a-state`); the processing
+  worker does not yet own the second.
 - **Ingestion**: the statistical half now runs on a real transcript and
   produces a real sheet draft with 92 real gaps. Two things it does NOT do:
   the LLM qualitative pass is still a seam, and the code-switch signal reads
@@ -93,6 +97,15 @@ service response, not a claim.
   romanised while Sarvam returns Devanagari
   (`romanised-lexicon-meets-devanagari-asr` — deliberately unpatched, it is a
   choice between three options and needs a bench, not a guess).
+- **"Preview my voice"** (WS-W): the studio panel, its route
+  (`/api/voice-preview`) and its cold-start state machine are code-complete and
+  gated offline (`evals/voicepanel.mjs`, 85 checks with negative controls).
+  **Nothing has been synthesised through it.** The only live thing measured is
+  the unauthenticated admission probe (`measurements.md#voice-panel-admission-probe`);
+  the signed half needs `AZURE_OPEN_VOICE_ORIGIN` + `OPEN_VOICE_HMAC_SECRET`,
+  which this environment does not have. Its central assumption — that a 12 s
+  flush window is long enough for the platform to begin scheduling the GPU
+  replica — is **untested** (`voice-panel-has-never-synthesised`).
 - **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not
   deployed as its own project.
 - **Channels** (WS-N, "deploy the clone anywhere"): the binding layer, the
@@ -131,6 +144,18 @@ service response, not a claim.
    `AZURE_CLIENT_SECRET`, or accept that Telegram and WhatsApp channels cannot
    be connected. Web widget and embed need none of it.
    (`docs/gurukul/ENV-MANIFEST.md` §15c.)
+7. **Set `AZURE_OPEN_VOICE_ORIGIN` and `OPEN_VOICE_HMAC_SECRET` on Vercel** —
+   both recoverable from the container app's `listSecrets` (see this file's
+   own §"Secret recovery"). Until they exist, `/api/voice-preview` answers
+   `503 open_voice_origin_required` and the studio panel can never produce
+   audio. This is the single blocker on the first owner ever hearing their own
+   clone in a browser.
+8. **Decide whether the broker gets a cheap readiness route.** Today nothing in
+   the app plane can wake or observe the private GPU runtime except a real
+   `POST /v1/synthesize`, so every cold start costs a wasted synthesis. A
+   `POST /v1/warm` on `services/open-voice-runtime/broker.py` would remove
+   that; it is a service change, not an app-plane one, and was deliberately not
+   guessed at (`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`).
 
 ## The laws a new session must not relearn
 

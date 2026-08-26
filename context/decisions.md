@@ -3859,3 +3859,64 @@ produced a unanimous measured "switch" and a correct human "no".
 sounds. No human has listened through this bench. The instrument is verified
 mechanically — including a simulated perfect discriminator and a simulated coin
 flip being reported differently — and mechanically only.
+
+## `preview-cold-start-is-a-state` — the panel tells the truth about a sleeping GPU (2026-08-26, WS-W)
+
+**The decision.** `/api/voice-preview` — the studio's "Preview my voice" panel —
+answers with **three** outcomes, not two: `200` audio, `4xx/5xx` error, and
+**`202` warming**. The warming answer is a first-class, structured state
+(`stage`, `eta_seconds_low/high`, `retry_after_ms`, `Retry-After`) that the UI
+renders as a countdown that retries itself.
+
+**Why.** `docs/gurukul/AZURE-DEPLOY-STATE.md` §8 measured the two facts that
+make an audio-or-error contract a lie on this stack: the GPU runtime is ready
+**161 s** after a wake, and **the request that woke it died at 242 s** on a
+Container Apps `504 stream timeout`. There is no honest way to render that in a
+two-outcome contract. Every alternative was available and is worse: a spinner
+held open until the platform kills it (a four-minute lie that ends in a
+generic failure), a fake progress bar (a lie with a shape), or an error for a
+service that is merely asleep — which trains an owner to distrust a working
+product.
+
+**Four sub-decisions inside it.**
+
+1. **Nothing is signed until the unauthenticated `/healthz` answers 200.**
+   Directly inherited from `rejected.md#hmac-skew-shorter-than-cold-start` and
+   `scripts/first-clone.mjs`'s `warmEvidence`. The broker's skew window is 60 s
+   (`services/open-voice-runtime/broker.py`, `MAX_CLOCK_SKEW_SECONDS`) and its
+   own cold answer is 21.8 s — comfortable, but only because the wake happens
+   first. *Reverses if* the broker ever gains a route that wakes the GPU app
+   without synthesising; then the probe becomes a real readiness check instead
+   of a front-door check and the flush window below can go away.
+2. **The cold request IS the wake, and it is dispatched rather than awaited.**
+   The broker forwards only `POST /v1/synthesize`, so nothing else can wake the
+   runtime. The handler sends it, stops WAITING after `flushMs` (12 s), and
+   deliberately does **not** abort the signal — aborting would cancel the
+   forward and undo the very wake the timeout exists to survive. *Reverses if*
+   a warm-pool or minReplicas≥1 posture is adopted during active hours
+   (`AZURE-DEPLOY-STATE.md` §11 item 4), which makes the whole branch dead code.
+3. **Warmth is a per-process hint, never an authorization input.** Same shape
+   and same honesty as `api/_ratelimit.js`. A false "cold" costs one extra 12 s
+   probe; a false "warm" costs one long request that ends in the same warming
+   answer. Both fail into honest states. *Reverses if* the panel ever needs
+   cross-instance warmth — that wants a row or a cache, and the moment it has
+   one it must still not become an input to who may synthesise.
+4. **A wrong key is never reported as a cold start.** `classifyPreviewFailure`
+   maps `open_voice_unreachable` / `open_voice_http_5xx` / timeouts to warming
+   and leaves `transport_binding_invalid` an error, because WS-L's negative
+   control at the broker exists precisely to keep those apart and folding them
+   on the client would undo it. *Reverses if* never — this is the same
+   reasoning `isquota-only-folding` was rejected under.
+
+**Also decided: the panel does not fork the fence.** It calls the same
+`beginOwnedVoicePreview` as the calibration lab, so ownership, self-subject
+mode, age/identity/liveness, the three live consents and the
+selected-enhance-artifact-of-a-ready-source predicate are one piece of SQL with
+one caller-visible behaviour. *Reverses if* the panel ever needs a genuinely
+different eligibility rule — in which case it gets its own named fence and its
+own negative control, never a relaxed copy of this one.
+
+**What this decision does NOT license.** Any claim that the panel has produced
+audio. It has not: no Azure credentials exist in the sandbox this was built in,
+so the synthesis half has never run from this code path. See
+`measurements.md#voice-panel-admission-probe` for what WAS measured.

@@ -1,0 +1,99 @@
+// POST /api/voice-preview — the studio's "Preview my voice" panel.
+//
+// A thin adapter. Every decision lives in `api/_voice/preview-panel.js`, which
+// takes its collaborators as arguments so the eval suite can drive the whole
+// state machine with no credentials; this file is the only place the real
+// database, bucket, HMAC provider and protection ledger are wired to it.
+//
+// Identity comes from `requireUser` and nowhere else. `replica_id` in the body
+// is a claim that the SQL fence in `beginOwnedVoicePreview` either accepts for
+// this owner or refuses — it is never treated as proof.
+import { randomUUID } from "node:crypto";
+import { q } from "./_db.js";
+import { requireUser, AuthError } from "./_auth.js";
+import { allow, ipOf } from "./_ratelimit.js";
+import { readPrivateReplicaObject } from "./_replica-storage.js";
+import { createProductionProtectionAdapters } from "./_provenance/registry.js";
+import { protectReplicaStream } from "./_provenance/delivery.js";
+import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
+import { handleVoicePreviewPanel } from "./_voice/preview-panel.js";
+import { voiceWarmth } from "./_voice/warmup.js";
+import {
+  beginOwnedVoicePreview,
+  createNeonVoicePreviewLedger,
+  markVoicePreviewFailed,
+} from "./_replica-voice-preview.js";
+
+function cors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader("Access-Control-Expose-Headers",
+    "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, Retry-After");
+  res.setHeader("Cache-Control", "no-store");
+}
+
+export default async function handler(req, res) {
+  cors(res);
+  if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method !== "POST") return res.status(405).json({ state: "error", error: "POST only" });
+  // Per-IP first, so an unauthenticated flood cannot reach Supabase either.
+  if (!allow(ipOf(req), "voice_preview_panel_ip", 12)) {
+    return res.status(429).json({ state: "error", error: "slow_down" });
+  }
+
+  const aborter = new AbortController();
+  req.on?.("aborted", () => aborter.abort(new Error("client_aborted")));
+  const deadline = setTimeout(() => aborter.abort(new Error("voice_preview_timeout")), 240_000);
+  try {
+    const user = await requireUser(req);
+    const body = req.body || {};
+    // Two buckets on purpose. `status` is cheap and the UI polls it while a
+    // wake is in flight; `preview` is GPU money and gets four per minute.
+    const bucket = String(body.op || "preview") === "status" ? "voice_preview_panel_status" : "voice_preview_panel_run";
+    if (!allow(user.id, bucket, bucket.endsWith("status") ? 20 : 4)) {
+      return res.status(429).json({ state: "error", error: "slow_down" });
+    }
+
+    const provider = createOpenChatterboxPreviewProvider();
+    const protection = createProductionProtectionAdapters({ db: q });
+    const result = await handleVoicePreviewPanel(body, {
+      origin: process.env.AZURE_OPEN_VOICE_ORIGIN,
+      warmth: voiceWarmth,
+      traceId: `panel_${randomUUID().replaceAll("-", "")}`,
+      signal: aborter.signal,
+      provider,
+      authorize: (input) => beginOwnedVoicePreview(q, user.id, input),
+      markFailed: (generationId, error) => markVoicePreviewFailed(q, user.id, generationId, error),
+      readObject: (objectPath) => readPrivateReplicaObject(objectPath, {
+        maxBytes: 20 * 1024 * 1024,
+        timeoutMs: 30_000,
+      }),
+      protect: (input) => protectReplicaStream({
+        ...input,
+        adapters: Object.freeze({ ...protection, ledger: createNeonVoicePreviewLedger(q) }),
+      }),
+    });
+
+    for (const [name, value] of Object.entries(result.headers || {})) res.setHeader(name, value);
+    if (result.kind === "audio") {
+      res.setHeader("Content-Length", String(result.body.length));
+      return res.status(result.status).send(result.body);
+    }
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    if (error instanceof AuthError) return res.status(error.status).json({ state: "error", error: error.code });
+    // Provider construction fails closed when the origin or the HMAC secret is
+    // absent. That is a deployment fact, not a cold start, and says so.
+    const code = String(error?.code || "");
+    if (code === "open_voice_origin_required" || code === "open_voice_origin_invalid" ||
+        code === "open_voice_hmac_secret_required") {
+      return res.status(503).json({ state: "error", error: code });
+    }
+    return res.status(500).json({ state: "error", error: "voice_preview_failed" });
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+export const config = { maxDuration: 300 };

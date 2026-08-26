@@ -2717,3 +2717,36 @@
   .teacher-sheet-studio, .disclosure-preview { padding: 23px 17px; }
   .teacher-sheet-grid, .teacher-sheet-ingested-grid { grid-template-columns: 1fr; }
 }
+
+/* "Preview my voice" (WS-W). Deliberately quieter than the calibration lab
+   below it: one composer, one stage, and a state line that is allowed to say
+   "warming up" without dressing it as progress. No keyframes anywhere in this
+   block — the honest answer to a two-minute wait is a number that counts down,
+   not a shimmer that implies work is visible. */
+.hear-voice { margin-bottom: 55px; }
+.hear-voice-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 0; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: var(--paper); }
+.hear-voice-compose { min-width: 0; padding: clamp(20px, 2.6vw, 30px); }
+.hear-voice-stage { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; padding: clamp(20px, 2.6vw, 30px); border-left: 1px solid var(--line); background: var(--forest-soft); }
+.hear-voice-go { width: 100%; }
+.hear-voice-note { margin: 14px 0 0; color: var(--ink-faint); font-size: 12px; line-height: 1.6; }
+.hear-voice-over { color: var(--danger); font-weight: 700; }
+.hear-voice-state { margin: 0; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.hear-voice-state.ready { color: var(--forest-deep); }
+.hear-voice-state.warming, .hear-voice-state.working { color: var(--ink-soft); }
+.hear-voice-state.failed { color: var(--danger); }
+.hear-voice-state.idle { color: var(--ink-faint); }
+.hear-voice-message { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
+.hear-voice-stage small { color: var(--ink-faint); font-size: 11px; line-height: 1.55; }
+.hear-voice-stage audio { width: 100%; margin: 4px 0; }
+.hear-voice-stage .review-refresh { align-self: flex-start; margin-top: 6px; }
+.hear-voice-countdown { display: flex; align-items: baseline; gap: 9px; margin: 2px 0 0; }
+.hear-voice-countdown strong { color: var(--forest-deep); font: 500 26px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.hear-voice-countdown span { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.hear-voice-proof { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 0; }
+.hear-voice-proof dt { color: var(--ink-faint); font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.hear-voice-proof dd { margin: 3px 0 0; color: var(--forest-deep); font-size: 12px; }
+
+@media (max-width: 780px) {
+  .hear-voice-body { grid-template-columns: 1fr; }
+  .hear-voice-stage { border-left: 0; border-top: 1px solid var(--line); }
+}
