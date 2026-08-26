@@ -222,6 +222,25 @@ ok("an ASR-unverified run says so in its own report", caveats.includes("arithmet
 ok("a self-test run is stamped in its own report", caveats.includes("NOT A BENCH RESULT"));
 
 // ══════════════════════════════════════════════════════════════════════════
+// 4b. the listening page itself
+// ══════════════════════════════════════════════════════════════════════════
+const page = readFileSync(join(ROOT, "evals/earbench/page.html"), "utf8");
+ok("the page is self-contained — no external src/href at all", !/(?:src|href)="https?:/.test(page));
+const script = page.match(/<script>([\s\S]*?)<\/script>/);
+ok("the page has exactly one inline script", script && page.split("<script").length === 2);
+// A syntax error in the page is invisible until somebody sits down to listen,
+// which is the most expensive moment in this whole workstream to discover one.
+assert.doesNotThrow(() => new Function(script[1]), "the page script must parse");
+ok("the page script parses", true);
+ok("the page never asks for anything outside the four served shapes",
+  [...page.matchAll(/fetch\("([^"]+)"/g)].every(([, path]) => ["/answers", "/manifest.json", "/trials.json"].includes(path)));
+// Checked on the SCRIPT, not the page: the page's own comment explains why it
+// renders no duration, and a whole-file substring search would fail on the
+// sentence that documents the rule.
+ok("the page renders no clip length, scrubber or filename",
+  !script[1].includes("duration") && !script[1].includes("controls") && !page.includes("<progress"));
+
+// ══════════════════════════════════════════════════════════════════════════
 // 5. end to end: the real CLI, in a temporary home, plus the local server
 // ══════════════════════════════════════════════════════════════════════════
 const home = mkdtempSync(join(tmpdir(), "earbench-"));

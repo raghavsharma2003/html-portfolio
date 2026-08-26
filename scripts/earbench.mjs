@@ -86,7 +86,10 @@ const flag = (name, fallback = null) => (flags.has(name) ? flags.get(name) : fal
 const num = (name, fallback) => (flags.has(name) ? Number(flags.get(name)) : fallback);
 
 function usage(code = 2) {
-  console.log(readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 12).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  // Lines 2-9 of this file: the banner and the five commands, and nothing
+  // past them — usage that spills into the rationale stops being usage.
+  console.log(readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 9).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  console.log("full instructions: docs/gurukul/EARBENCH.md");
   process.exit(code);
 }
 
@@ -338,14 +341,25 @@ async function buildStimuli({ selfTest = false } = {}) {
         pcm = Buffer.from(cutPcm(referencePcm, item.realFrom.t0, item.realFrom.t1));
       } else {
         const prompt = arm === "clone-short" ? shortPrompt : fullPrompt;
-        const result = await synthesizeWithRetry(chatterbox, {
-          requestId: randomUUID(),
-          text: item.text,
-          languageId: String(flag("language", "hi")),
-          seed: 41_000 + index,
-          reference: { bytes: prompt },
-          style: { exaggeration: 0.45, cfgWeight: 0.5, temperature: 0.8 },
-        });
+        // Same seed and same style across the two clone arms: the ONLY thing
+        // that differs between them is how much reference audio conditioned
+        // them, which is the question the second arm exists to ask.
+        let result;
+        try {
+          result = await synthesizeWithRetry(chatterbox, {
+            requestId: randomUUID(),
+            text: item.text,
+            languageId: String(flag("language", "hi")),
+            seed: 41_000 + index,
+            reference: { bytes: prompt },
+            style: { exaggeration: 0.45, cfgWeight: 0.5, temperature: 0.8 },
+          });
+        } catch (error) {
+          console.error(`\nsynthesis failed on ${arm}/${item.id}: ${`${error?.code || ""} ${error?.message || error}`.trim()}`);
+          console.error("Nothing was written. A partial stimulus set is worse than none: it would be");
+          console.error("unbalanced by exactly the clips the runtime happened to refuse.");
+          process.exit(1);
+        }
         pcm = await drain(result.stream);
         receipt = { arm, item: item.id, ...result.receipt };
         receipts.push(receipt);
