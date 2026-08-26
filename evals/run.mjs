@@ -463,6 +463,24 @@ const suites = {
   // deterministic, $0, no GPU, no model, no network — every embedding is a
   // fixture vector, which is exactly what the audio/vectors seam buys.
   fidelity: "fidelity/run.mjs",
+  // WS-V. earbench — the MECHANICAL half of the blind listening bench that the
+  // fidelity law above depends on and that did not exist until now. The ECAPA
+  // number is a regression monitor by decision; activation quality is decided
+  // by a blind owner pass, on the precedent of `rejected.md#azure-tts` where
+  // every measured axis said switch and the ear said no.
+  //
+  // What is wired here is the INSTRUMENT, never the listening: blinding (opaque
+  // ids, one file size, one wire length, no arm anywhere a listener can reach),
+  // counterbalance, the disclosure trim and its fail-closed refusals, the local
+  // server's inability to serve its own answer key, and the scorer's three
+  // verdicts — distinguishable / indistinguishable-from-chance / under-powered.
+  // That third one is the point: "not significant" is not evidence of sameness,
+  // and a bench that conflates them would license a claim nobody measured.
+  //
+  // Offline, deterministic, $0, loopback only, ~3s. The listening pass itself
+  // is deliberately NOT reachable from here — a gate that waits for a human to
+  // put headphones on would wedge CI until they did.
+  earbench: "earbench/run.mjs",
   // Evidence-backed personality: append-only owner claim decisions,
   // contradiction-preserving typed Person Models, deterministic source-set
   // builds and explicit exact-version approval.

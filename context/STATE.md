@@ -72,7 +72,16 @@ service response, not a claim.
 - **Voice QUALITY**: a consented reference HAS now been cloned and scored
   (`first-real-clone`), but that is speaker-embedding similarity — **no ABX
   bench has run**, and nothing may be claimed about how a clone sounds until
-  the bench in `docs/gurukul/research/voice-stack.md` does. Cold start (161 s
+  the bench in `docs/gurukul/research/voice-stack.md` does. The INSTRUMENT for
+  that bench now exists and is verified mechanically (WS-V,
+  `earbench-is-the-listening-instrument`, run instructions in
+  `docs/gurukul/EARBENCH.md`, one command: `node scripts/earbench.mjs stimuli`
+  → `listen` → `score`). **No human has listened through it**
+  (`no-human-has-listened`), and its two network reads — the Supabase reference
+  and the Azure synthesis — have never run for want of credentials. Note the
+  defect it surfaced: every synthesised clip SPEAKS the disclosure sentence and
+  so unblinds any listening test unless trimmed
+  (`disclosure-announces-the-clone`). Cold start (161 s
   ready, 504 at 242 s for the runtime; 176 s for `voice-evidence`) still needs
   a warm-up before any user-facing use — and note it is not only a latency
   problem: the HMAC signature window is 60 s, so the request that wakes a
