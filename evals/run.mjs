@@ -77,6 +77,13 @@ const suites = {
   // Standalone, offline, deterministic, $0, ~2s. Re-bundles from the real
   // source on every run.
   practice: "practice.mjs",
+  // WS-D (Gurukul student surface). The mastery fold: thresholds, no
+  // decay-by-absence, order-independence/monotonicity, and XP strictly from
+  // graded outcomes — the properties `src/engine/practice/mastery.ts`'s
+  // header names. UI correctness (PracticeActivity, MasteryMap) is carried by
+  // typecheck + the web build, not by an eval — neither screen computes
+  // anything this suite does not already cover at the engine layer.
+  mastery: "mastery.mjs",
   // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.
