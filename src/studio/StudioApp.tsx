@@ -39,6 +39,7 @@ import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
 import VoicePreviewLab from "./VoicePreviewLab";
 import TeacherSheetStudio from "./TeacherSheetStudio";
+import ChannelsStudio from "./ChannelsStudio";
 import DisclosurePreview from "./DisclosurePreview";
 import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
 import {
@@ -683,6 +684,17 @@ function ReplicaWorkspace({
                 onAuthError={onReviewAuthError}
               />
               <DisclosurePreview sheet={DEMO_TEACHER} />
+              {/* Channels comes AFTER the disclosure preview on purpose: a
+                  teacher decides where their clone can be reached only once
+                  they have seen exactly what every person reaching it is told
+                  first. The order is the informed half of informed consent. */}
+              <ChannelsStudio
+                key={`channels-${replica.replica_id}`}
+                token={accessToken}
+                replicaId={replica.replica_id}
+                slug={DEMO_TEACHER.slug}
+                onAuthError={onReviewAuthError}
+              />
             </>
           )}
 
