@@ -71,6 +71,15 @@ await gate("board legibility", "node", ["scripts/check-contrast.mjs"]);
 // The em-dash ban, on the half of the app it never bound: product chrome.
 // She has stripTextingDashes on every bubble; the humans had nothing.
 await gate("chrome copy", "node", ["scripts/check-copy.mjs"]);
+// The rate `services/voice-evidence/app.py`'s enhance stage EMITS and the rate
+// `api/_audio/wav.js`'s probeEnrollmentWav DEMANDS are two numbers with no
+// shared import (Node/Python, three deploy boundaries) that already drifted
+// once: every enrollment reference shipped at 48 kHz while the gate before
+// synthesis required 24 kHz, so "Preview my voice" failed closed after a ten
+// minute GPU wait with `wav format unsupported`. Mirrored across all four
+// sites and asserted equal here, with its own negative control, so they
+// cannot drift apart again without this gate naming exactly which site moved.
+await gate("enrollment sample rate", "node", ["scripts/check-enrollment-sample-rate.mjs"]);
 // The room path (api/tg.js and every future surface) does not import src/ — it
 // reads the committed bundle api/_engine.gen.js. So a change to the engine that
 // is not regenerated ships a DIFFERENT Meera to Telegram than the one every
