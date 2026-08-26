@@ -72,7 +72,7 @@ export default function RuntimeGate({
 
   const blockers = runtime?.blockers ?? [];
   return (
-    <section className="runtime-gate" aria-labelledby="runtime-gate-title">
+    <section id="runtime-gate" className="runtime-gate" aria-labelledby="runtime-gate-title">
       <div className="runtime-gate-head">
         <div>
           <p className="eyebrow">09 · Private runtime</p>

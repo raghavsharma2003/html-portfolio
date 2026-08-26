@@ -123,7 +123,7 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
   }
 
   return (
-    <section className="calibration-studio" aria-labelledby="calibration-title">
+    <section id="calibration-studio" className="calibration-studio" aria-labelledby="calibration-title">
       <div className="calibration-head">
         <div>
           <p className="eyebrow">06 · Behavior calibration</p>

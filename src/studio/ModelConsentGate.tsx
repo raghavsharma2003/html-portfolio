@@ -69,7 +69,7 @@ export default function ModelConsentGate({
   }
 
   return (
-    <section className="model-consent-section" aria-labelledby="model-consent-title">
+    <section id="model-consent-gate" className="model-consent-section" aria-labelledby="model-consent-title">
       <div className="section-heading">
         <div><p className="eyebrow">Verified permission · Gate 04</p><h2 id="model-consent-title">Choose what your verified identity may become</h2></div>
         <span className={`model-consent-state ${modelReady ? "ready" : ""}`}>{modelReady ? "Granted" : "Locked"}</span>

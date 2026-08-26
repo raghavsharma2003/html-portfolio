@@ -403,7 +403,7 @@ export default function EnrollmentWorkspace({
   }
 
   return (
-    <section className="enrollment-section" aria-labelledby="enrollment-title">
+    <section id="enrollment-workspace" className="enrollment-section" aria-labelledby="enrollment-title">
       <div className="section-heading enrollment-heading">
         <div>
           <p className="eyebrow">Controlled enrollment</p>

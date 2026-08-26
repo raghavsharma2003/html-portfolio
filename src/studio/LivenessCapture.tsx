@@ -385,7 +385,7 @@ export default function LivenessCapture({
   }
 
   return (
-    <section className="liveness-section" aria-labelledby="liveness-title">
+    <section id="liveness-capture" className="liveness-section" aria-labelledby="liveness-title">
       <div className="liveness-index">04</div>
       <div className="liveness-body">
         <div className="panel-title-row">

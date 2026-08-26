@@ -14,7 +14,7 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
   const name = sheet.name || "this teacher";
 
   return (
-    <section className="disclosure-preview" aria-labelledby="disclosure-preview-title">
+    <section id="disclosure-preview" className="disclosure-preview" aria-labelledby="disclosure-preview-title">
       <div className="section-heading">
         <div>
           <p className="eyebrow">Teacher clone · Disclosure preview</p>

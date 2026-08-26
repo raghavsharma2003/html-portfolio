@@ -113,7 +113,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
   }
 
   return (
-    <section className="processing-review" aria-labelledby="processing-review-title">
+    <section id="processing-review" className="processing-review" aria-labelledby="processing-review-title">
       <div className="panel-index">04</div>
       <div className="processing-review-content">
         <div className="panel-title-row">

@@ -146,7 +146,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
   }
 
   return (
-    <section className="person-model" aria-labelledby="person-model-title">
+    <section id="person-model-studio" className="person-model" aria-labelledby="person-model-title">
       <div className="person-model-head">
         <div>
           <p className="eyebrow">05 · Person Model</p>

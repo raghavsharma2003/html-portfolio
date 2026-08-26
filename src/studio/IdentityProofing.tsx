@@ -114,7 +114,7 @@ export default function IdentityProofing({
   }
 
   return (
-    <section className="identity-section" aria-labelledby="identity-title">
+    <section id="identity-proofing" className="identity-section" aria-labelledby="identity-title">
       <div className="identity-index">03</div>
       <div className="identity-body">
         <div className="panel-title-row">

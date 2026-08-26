@@ -152,7 +152,7 @@ export default function TeacherSheetStudio({
   }
 
   return (
-    <section className="teacher-sheet-studio" aria-labelledby="teacher-sheet-title">
+    <section id="teacher-sheet-studio" className="teacher-sheet-studio" aria-labelledby="teacher-sheet-title">
       <div className="section-heading">
         <div>
           <p className="eyebrow">Teacher clone · Sheet review</p>

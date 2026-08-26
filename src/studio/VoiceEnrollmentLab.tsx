@@ -243,7 +243,7 @@ export default function VoiceEnrollmentLab({
   }
 
   return (
-    <section className="voice-enrollment-section" aria-labelledby="voice-enrollment-title">
+    <section id="voice-enrollment-lab" className="voice-enrollment-section" aria-labelledby="voice-enrollment-title">
       <div className="section-heading">
         <div>
           <p className="eyebrow">Provider voice · Gate 07</p>
