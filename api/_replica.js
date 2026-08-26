@@ -54,7 +54,7 @@ export async function createSelfReplica(db, ownerUserId, displayName) {
      ), existing_person as (
        select ap.person_id
          from vy_account_person ap, owner_lock
-        where ap.auth_user_id = $1
+        where ap.auth_user_id = $1::uuid
      ), created_person as (
        insert into vy_person (age_tier)
        select 'unverified' from owner_lock
@@ -67,20 +67,20 @@ export async function createSelfReplica(db, ownerUserId, displayName) {
        limit 1
      ), account_bridge as (
        insert into vy_account_person (auth_user_id, person_id)
-       select $1, person_id from owner_person
+       select $1::uuid, person_id from owner_person
        on conflict (auth_user_id) do update
          set auth_user_id = excluded.auth_user_id
        returning person_id
      ), replica as (
        insert into vy_replica
          (owner_user_id, subject_person_id, display_name, subject_mode, lifecycle, policy_version)
-       select $1, person_id, $2, 'self', 'consent_pending', $3
+       select $1::uuid, person_id, $2, 'self', 'consent_pending', $3
          from account_bridge
        returning ${RETURNING}
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select replica_id, $1, 'replica.create', 'replica', replica_id::text, $3, 'allowed', '{}'::jsonb
+       select replica_id, $1::uuid, 'replica.create', 'replica', replica_id::text, $3, 'allowed', '{}'::jsonb
          from replica
      )
      select * from replica`,
@@ -92,7 +92,7 @@ export async function createSelfReplica(db, ownerUserId, displayName) {
 export async function listOwnedReplicas(db, ownerUserId) {
   const rows = await db(
     `select ${RETURNING} from vy_replica
-      where owner_user_id = $1
+      where owner_user_id = $1::uuid
       order by created_at desc limit 50`,
     [ownerUserId],
   );
@@ -102,7 +102,7 @@ export async function listOwnedReplicas(db, ownerUserId) {
 export async function getOwnedReplica(db, ownerUserId, id) {
   const rows = await db(
     `select ${RETURNING} from vy_replica
-      where replica_id = $1 and owner_user_id = $2 limit 1`,
+      where replica_id = $1::uuid and owner_user_id = $2::uuid limit 1`,
     [replicaId(id), ownerUserId],
   );
   return clientReplica(rows[0]);
@@ -114,7 +114,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
     `with revoked as (
        update vy_replica
           set lifecycle = 'revoked', revoked_at = coalesce(revoked_at, now()), updated_at = now()
-        where replica_id = $1 and owner_user_id = $2 and lifecycle <> 'purging'
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and lifecycle <> 'purging'
         returning ${RETURNING}
      ), audit as (
        insert into vy_replica_audit
@@ -126,26 +126,26 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
        update vy_replica_runtime_capability c
           set state = 'revoked', revoked_at = coalesce(revoked_at, now())
          from revoked r
-        where c.replica_id = r.replica_id and c.owner_user_id = $2 and c.state = 'active'
+        where c.replica_id = r.replica_id and c.owner_user_id = $2::uuid and c.state = 'active'
      ), runtime_sessions as (
        update vy_replica_runtime_session s
           set state = 'revoked', ended_at = coalesce(ended_at, now()), updated_at = now()
          from revoked r
-        where s.replica_id = r.replica_id and s.owner_user_id = $2 and s.state = 'active'
+        where s.replica_id = r.replica_id and s.owner_user_id = $2::uuid and s.state = 'active'
      ), open_generations as (
        update vy_replica_generation g
           set state = 'aborted', failure_code = 'replica_revoked', updated_at = now()
          from revoked r
-        where g.replica_id = r.replica_id and g.owner_user_id = $2
+        where g.replica_id = r.replica_id and g.owner_user_id = $2::uuid
           and g.state in ('authorized','streaming')
      ), voice_profiles as (
        update vy_replica_voice_profile vp set status = 'deleting', updated_at = now()
-        from revoked r where vp.replica_id = r.replica_id and vp.owner_user_id = $2
+        from revoked r where vp.replica_id = r.replica_id and vp.owner_user_id = $2::uuid
           and vp.status <> 'deleting'
      ), provider_consents as (
        update vy_replica_provider_consent pc set state = 'revoked',
               revoked_at = coalesce(revoked_at, now()), updated_at = now()
-        from revoked r where pc.replica_id = r.replica_id and pc.owner_user_id = $2
+        from revoked r where pc.replica_id = r.replica_id and pc.owner_user_id = $2::uuid
            and pc.state <> 'revoked'
      ), face_sessions as (
        update vy_replica_liveness_challenge ch set state='failed',failure_code='replica_revoked',
@@ -155,7 +155,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
                 else ch.face_session_state end,
               verification_lease_token_hash='',verification_leased_at=null,
               verification_lease_expires_at=null,updated_at=now()
-        from revoked r where ch.replica_id=r.replica_id and ch.owner_user_id=$2
+        from revoked r where ch.replica_id=r.replica_id and ch.owner_user_id= $2::uuid
        returning ch.challenge_id,ch.verification_attempt
      ), liveness_attempts as (
        update vy_replica_liveness_verification_attempt a set outcome='failed',
@@ -164,7 +164,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
           and a.attempt=ch.verification_attempt and a.outcome='running'
      ), biometric_verification_grants as (
        update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
-        from revoked r where g.replica_id=r.replica_id and g.owner_user_id=$2 and g.state='active'
+        from revoked r where g.replica_id=r.replica_id and g.owner_user_id= $2::uuid and g.state='active'
      ), erasure as (
        insert into vy_replica_erasure_job (replica_id, owner_user_id, state)
        select replica_id, $2, 'pending' from revoked
@@ -184,7 +184,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
               r.age_verified_at,r.identity_verified_at,r.liveness_verified_at,r.identity_expires_at,r.created_at,r.updated_at,
               j.job_id as erasure_request_id from vy_replica r
         join vy_replica_erasure_job j on j.replica_id=r.replica_id and j.owner_user_id=r.owner_user_id
-        where r.replica_id = $1 and r.owner_user_id = $2 and r.lifecycle = 'purging' limit 1`,
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.lifecycle = 'purging' limit 1`,
       [rid, ownerUserId],
     );
   }
