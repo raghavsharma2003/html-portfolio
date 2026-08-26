@@ -168,6 +168,15 @@ const suites = {
   // $0, ~5s. Re-bundles from the real source on every run.
   tttparity: "ttt/parity.mjs",
   relleak: "relational/leak.mjs",
+  // WS-K (ROADMAP-100X item 1). The disclosure-reciprocity ledger and its T17
+  // wiring. Wired here on the same `dead-writers` test as everything else, and
+  // for a specific reason: this block TOUCHES THE COMPILER, and the property
+  // that makes that safe — an absent state moves zero bytes — is one nothing
+  // else in the tree checks except by proxy. The suite also carries the
+  // classifier's precision negatives, which are the half that keeps a
+  // disclosure measure from quietly becoming a usage metric (inner.ts G1).
+  // Offline, deterministic, $0, no DB, no model call, ~1s.
+  reciprocity: "reciprocity.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of

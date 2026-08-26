@@ -170,3 +170,36 @@ export { STORY_POOL, slotForStory, slotStartedAt, pickFor } from "../src/engine/
 export { formatHerLife } from "../src/engine/brain";
 export { mergeHerNow } from "../src/state/merge";
 export { lintLine } from "../src/engine/shapelint";
+
+// WS-K (ROADMAP-100X item 1). The disclosure-reciprocity ledger, plus the
+// compiler surface evals/reciprocity.mjs needs to prove the T17 slot is really
+// wired (manifest row, drop priority, tail order) rather than merely written.
+export {
+  classifyDisclosure,
+  reciprocityState,
+  reciprocityLean,
+  reciprocityNote,
+  renderReciprocity,
+  initialReciprocityState,
+  RECIPROCITY_WINDOW,
+  RECIPROCITY_DECAY,
+  RECIPROCITY_THRESHOLD,
+  RECIPROCITY_MIN_TURNS,
+  RECIPROCITY_MIN_EVIDENCE,
+  RECIPROCITY_BUDGET,
+  DISCLOSURE_WEIGHT,
+} from "../src/engine/reciprocity";
+export {
+  compile,
+  TAIL_MANIFEST,
+  TAIL_ORDER,
+  CORE_MANIFEST,
+  applyDropOrder,
+  assertManifestArithmetic,
+  computeManifestArithmetic,
+  hashManifest,
+  TAIL_CAP,
+  CORE_CAP,
+  SYSTEM_MAX,
+  OPERATIONAL_TAIL_CAP,
+} from "../src/engine/compiler";

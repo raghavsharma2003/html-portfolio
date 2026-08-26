@@ -63,6 +63,13 @@ import { renderIndiaDynamic, type RitualRow, type CurrencyRow, type KinRow } fro
 // landed. The 83 byte-identity fixtures set no selfBundle, which is why they
 // still pass unchanged.
 import { renderTexture, type TextureRow } from "./texture";
+// ── WS-K, ROADMAP-100X item 1: the disclosure-reciprocity ledger. Same seam
+// discipline as every optional bundle above — `input.reciprocity` absent means
+// `reciprocityNote` is never called, so the tail is byte-identical to before
+// this landed and the 83 byte-identity fixtures (which set no reciprocity) are
+// untouched. reciprocity.ts imports only shapelint, so this cannot become a
+// cycle and drags nothing new into the client bundle.
+import { reciprocityNote, type ReciprocityState } from "./reciprocity";
 import { renderSelfArc, type SelfArcRow } from "./selfarc";
 import { renderUntold, type UntoldRow } from "./life";
 // WS-TGBOT: the room layer (PROPOSAL-MULTIPARTY-V1 §5.2/§5.3, WS-MP's own
@@ -262,6 +269,16 @@ export interface CompileInput {
   // added after a fork land in one copy and are discoverable only by diffing
   // two things nobody thinks of as the same thing.
   activity?: ActivityState | null;
+  // ── T17 rel.reciprocity — how much of HERSELF is in this lately.
+  //
+  // The CALLER computes it (`reciprocityState(recentTurns)` in reciprocity.ts)
+  // and hands the folded state over, exactly as `herCommitments` and
+  // `recentTurns` hand over their derived rows: compile() stays a pure
+  // function of its input, and the fold stays out of a function the
+  // byte-identity gate compiles twice and compares. Absent/null is the
+  // default, so every existing caller and all 83 byte-identity fixtures
+  // render exactly zero bytes for it.
+  reciprocity?: ReciprocityState | null;
   // ── WS-INTEGRATE seam 2 (age-tier hard-refusal) — absent/undefined means
   // "unrestricted" (today's behavior, byte-identical); the caller (brain.ts)
   // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
@@ -577,6 +594,26 @@ export function compile(input: CompileInput): CompiledPrompt {
   }
   _track("T11");
 
+  // ── T17 rel.reciprocity — WS-K, ROADMAP-100X item 1.
+  //
+  // Sits immediately after T11 because the two answer adjacent questions about
+  // the same relationship and are read together: T11 is how it SOUNDS
+  // (teasing, humour, swearing), T17 is whether SHE IS IN IT. Gated on
+  // `input.reciprocity` alone, deliberately outside the relBundle branch and
+  // for the reason T11's own comment gives: a caller holding a transcript and
+  // no rel-state row still has everything this needs, and nesting it would
+  // have blacked the block out for exactly the early relationships where
+  // disclosure asymmetry is most consequential.
+  //
+  // `reciprocityNote` returns "" for every balance inside its threshold, which
+  // is the common case — so this block renders zero bytes on most turns even
+  // when a state IS supplied.
+  {
+    const t17 = reciprocityNote(input.reciprocity);
+    if (t17) tail += `\n\n${t17}`;
+  }
+  _track("T17");
+
   if (input.memories) {
     tail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
 - Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
@@ -724,7 +761,15 @@ ${input.memories}`;
 // duplicates (validated below) — never contiguous — so a new block takes a
 // fresh number rather than renumbering nine rows and desynchronising
 // check-prompt-budget's drop-order fixture for the second time.
-export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+// 0 exists for T17 `rel.reciprocity` (WS-K). A new block normally takes a
+// FRESH HIGH number rather than renumbering (see the paragraph above), but a
+// fresh high number means MOST PROTECTED, and T17 is the cheapest thing in the
+// tail: it is a two-state descriptive band, it renders on a minority of turns,
+// and losing it under pressure costs nothing anyone can see. Renumbering the
+// self layer to open up 1 would desynchronise nine rows for a cosmetic block,
+// so the drop order is extended DOWNWARD instead. The validator's only
+// requirement is that the set has no duplicates, which 0 satisfies.
+export type DropPriority = "never" | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export type SourceStatus =
   // this file computes it directly from a real, already-wired input
@@ -959,6 +1004,21 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     dropPriority: 3,
     sourceStatus: "wired", // renderUntold, G2 turn-gated, on input.selfBundle.untold
   },
+  // ── WS-K, ROADMAP-100X item 1 ─────────────────────────────────────────
+  {
+    id: "T17",
+    label: "rel.reciprocity",
+    // header (~230) + one telegraphic row. The row set is CLOSED at two
+    // possible strings (`reciprocityNote` has exactly two branches), so this
+    // block cannot grow with the transcript the way a ledger can.
+    budget: 260,
+    // 0 = FIRST DROPPED, ahead of even the self layer. See DropPriority's own
+    // note for why the number goes down rather than up: this is the cheapest
+    // block in the tail, and it is the one thing here whose absence changes
+    // nothing a reader could point at.
+    dropPriority: 0,
+    sourceStatus: "wired", // reciprocityNote(input.reciprocity) — gate: node evals/run.mjs reciprocity
+  },
   {
     id: "T15",
     label: "session.activity",
@@ -1083,6 +1143,10 @@ export const TAIL_ORDER: readonly string[] = [
   "T3",
   "T4",
   "T11",
+  // T17 sits with T11: how it sounds, then whether she is in it. Matches
+  // compile()'s actual assembly order — a manifest that ordered it anywhere
+  // else would be documenting a layout this file does not produce.
+  "T17",
   "T5",
   "T6",
   "mp.roster",
