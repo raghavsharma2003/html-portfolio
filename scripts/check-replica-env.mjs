@@ -185,7 +185,7 @@ const VERCEL_APP = [
     id: "asr_sarvam",
     mode: "any",
     required: ["SARVAM_API_KEY"],
-    note: "api/_asr/registry.js — the vendor ASR lane, used when asr_self_hosted is DARK. NOT spend-fenced: ingestion-research.md §3's pricing sources conflict by 3x and the real rate must be confirmed before the first paid run",
+    note: "api/_asr/registry.js (mirror-call, channel ingest) picks this when asr_self_hosted is DARK. The processing-worker DAG's `transcribe` step (api/_replica-processing/providers/sarvam-transcription.js, WS-AN 2026-08-26) goes straight to Sarvam regardless of asr_self_hosted, by design — see that file's header. NOT spend-fenced: ingestion-research.md §3's pricing sources conflict by 3x and the real rate must be confirmed before the first paid run",
   },
   {
     id: "voice_evidence_client",
@@ -195,7 +195,7 @@ const VERCEL_APP = [
   {
     id: "fast_transcription_budget",
     required: ["AZURE_REPLICA_APP_BUDGET_USD", "AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR"],
-    note: "fences Azure Speech fast-transcription spend, reserved from the processing worker",
+    note: "fenced Azure Speech fast-transcription spend. Dormant since WS-AN (2026-08-26): `transcribe` runs through Sarvam now, whose adapter sets no billing meter, so worker.js's `azure_speech_audio_ms` reservation path never fires. Left checked in case Azure Fast Transcription is ever reintroduced as a second lane",
   },
   {
     id: "replica_storage",
@@ -276,8 +276,8 @@ const SERVICES = [
   {
     id: "svc_processing_worker",
     target: "processing-worker",
-    required: ["NEON_URL", "AZURE_SPEECH_ENDPOINT", "AZURE_SPEECH_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "AZURE_VOICE_EVIDENCE_ORIGIN", "AZURE_VOICE_EVIDENCE_HMAC_SECRET", "AZURE_REPLICA_APP_BUDGET_USD", "AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR"],
-    note: "services/replica-processing-worker — Container Apps Job, reuses api/_replica-processing/* and api/_replica-storage.js directly",
+    required: ["NEON_URL", "SARVAM_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "AZURE_VOICE_EVIDENCE_ORIGIN", "AZURE_VOICE_EVIDENCE_HMAC_SECRET"],
+    note: "services/replica-processing-worker — Container Apps Job, reuses api/_replica-processing/* and api/_replica-storage.js directly. SARVAM_API_KEY as of WS-AN (2026-08-26): `transcribe` no longer needs AZURE_SPEECH_ENDPOINT/AZURE_SPEECH_KEY, which this subscription has never had (zero Cognitive Services accounts)",
   },
 ];
 

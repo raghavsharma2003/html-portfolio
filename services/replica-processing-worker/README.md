@@ -88,8 +88,11 @@ did exactly that, and step 2 above is what caught it.
   ClamAV's signature CDN. No inbound access.
 - Credentials are Container Apps secrets. Never in job arguments or logs.
 - 15-minute replica timeout, `parallelism: 1`, and a hard Azure budget alert.
-- `AZURE_SPEECH_KEY` is supported. Replace it with managed identity once the
-  Speech resource role and token path are deployed and proven.
+- `transcribe` runs through Sarvam (`SARVAM_API_KEY`), not Azure Speech, as of
+  WS-AN (2026-08-26): this subscription has zero Cognitive Services accounts,
+  and the owner's directive was to use the Sarvam adapters that already exist
+  rather than stand one up. See `api/_replica-processing/providers/
+  sarvam-transcription.js`'s header for the full reasoning.
 
 The worker emits only content-free outcome codes. It never logs tenant IDs,
 paths, transcripts, vectors, audio, or provider request IDs.

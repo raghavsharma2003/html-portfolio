@@ -3938,3 +3938,51 @@ the request that pays for the pull survive it".
 user request ever absorbs a cold start. With `minReplicas: 1` the image size
 argument weakens a lot, though it never disappears, since deploys and scale-outs
 still pay it.
+
+## `registry-selection-leaks-a-pull-url-into-the-dag` — the obvious reuse would have widened what an external ASR lane can read (2026-08-26, WS-AN)
+
+**What was tried.** Wiring `transcribe` through `api/_asr/registry.js`'s
+`createProductionAsrProvider(env)` directly — the function that already picks
+between the self-hosted ASR lane and Sarvam, in the order SPEC-GURUKUL §8 item
+1 requires. This looked like the correct reuse: one selection, used
+everywhere, instead of a second copy of "self-hosted wins" logic inside the
+processing DAG.
+
+**What specifically breaks.** The self-hosted lane's `transcribe` (`api/_asr/
+providers/self-hosted.js`) does not take bytes — it signs a short-lived PULL
+URL and hands that to a remote worker over HTTPS. Every OTHER adapter in the
+eight-step audio DAG enforces the opposite invariant on purpose:
+`azure-fast-transcription.js`'s `resolvePrivateInput` explicitly THROWS
+`azure_asr_private_url_forbidden` if its resolver is ever handed a URL instead
+of bytes, so a provider can only ever act on bytes THIS process already
+fetched and integrity-checked through `storage.resolveInput`'s scoped path
+validation. Routing `transcribe` through the registry's selection would have
+made that guarantee conditional on which lane happened to be configured: fine
+while only Sarvam is live, silently gone the day `ASR_SELF_HOSTED_ORIGIN` is
+set, because the registry's own selection order prefers self-hosted whenever
+it is present. Nobody would have decided that; it would have happened as a
+side effect of an unrelated env var being set on a different service.
+
+**The fix used.** `sarvam-transcription.js` reuses the Sarvam PROTOCOL
+implementation (`createSarvamSaarasProvider` — init/upload/start/poll/collect)
+directly, via its documented `readAudio` injection seam, fed with bytes
+already resolved by `storage.resolveInput`. The self-hosted-vs-Sarvam
+SELECTION stays exactly where it was, serving the two callers that actually
+need it (channel ingest, mirror-call); the DAG gets Sarvam specifically,
+matching the owner's actual instruction, and the byte-only invariant holds for
+every adapter in the DAG without exception.
+
+**The lesson that generalises.** "This selection already exists, reuse it" is
+not automatically the house pattern (`WS-AC`'s reused synthesis path IS the
+house pattern) — reuse is only free when the two call sites share every
+invariant the reused code depends on. Here they did not: one caller's security
+property (bytes only, never a URL) was incompatible with what the shared
+selection could hand back. Reusing the narrower, correctly-scoped piece
+(the protocol implementation) instead of the broader one (the selection) kept
+the invariant intact.
+
+**What would reverse this.** If the self-hosted ASR provider is ever changed
+to accept bytes directly (matching the shape every DAG adapter already
+requires) rather than a signed pull URL, `registry.js`'s selection becomes
+safe to route the DAG through directly, and this bridge collapses to a
+one-line call.

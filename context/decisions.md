@@ -5393,3 +5393,65 @@ instruction rather than a decision the README anticipated.
   entirely and this app should go internal the same day.
 - **Any evidence of abuse.** Unsigned traffic waking the app in the platform
   logs is sufficient reason to bring the broker forward.
+
+## transcribe-runs-through-sarvam
+
+**`transcribe` routes through the Sarvam Saaras batch adapter, not Azure Fast
+Transcription.** WS-AN, 2026-08-26, owner directive.
+
+`api/_replica-processing/providers/sarvam-transcription.js` wraps the existing,
+already-proven `api/_asr/providers/sarvam-saaras.js` (init/upload/start/poll/
+collect, measured working on Hinglish —
+`rejected.md#sarvam-batch-paths-were-three-guesses`) behind the DAG's own
+`transcribe(common) -> {segments}` contract. `composition.js`'s ASR block now
+builds this instead of `createAzureFastTranscriptionAdapter`; the Azure module
+is untouched in the tree in case a future dual-lane decision wants it back.
+
+**Why not stand up an Azure Speech resource instead**, which was the obvious
+alternative: the subscription has zero Cognitive Services accounts, and the
+owner explicitly ruled out adding one. Sarvam adapters already existed, were
+already measured on the product's actual language (Hinglish), and needed no
+new vendor relationship or bill.
+
+**The cost of this choice, stated rather than hidden.** Sarvam's batch API
+(docs.sarvam.ai, checked 2026-08-26) returns no confidence score at any
+granularity — not per word, not per chunk. `api/_replica-claims.js` gates
+claim extraction at `e.confidence>=0.55`. Rather than invent a plausible
+number that would let unscored text pass that gate as if it had been measured,
+every segment this adapter writes carries `confidence: 0` — the honest floor,
+documented at length in the adapter's own header. Every Sarvam-sourced
+transcript span is therefore excluded from automated claim mining until a
+human reviews it in the studio. The transcript TEXT is real and is still
+written as evidence; only the automatic-trust path is closed.
+
+A second, smaller cost: `segment.language` is the language hint this adapter
+requested (`hi-IN` by default), not a detected value, because neither Sarvam
+lane's turn shape returns one through the shared ingestion seam
+(`api/_asr/contracts.js`).
+
+**Why this does NOT go through `api/_asr/registry.js`'s existing self-hosted-
+or-Sarvam selection**, even though that selection already exists and reuse was
+the instinct: the self-hosted lane hands its remote worker a SIGNED PULL URL,
+not bytes. Every other adapter in this DAG enforces the opposite — a provider
+only ever receives bytes this process already fetched and integrity-checked
+(`azure-fast-transcription.js`'s `resolvePrivateInput` explicitly THROWS
+`azure_asr_private_url_forbidden` if a resolver ever returns a URL). Reusing
+the registry's selection wholesale would have silently let a future
+self-hosted-ASR deploy start handing out signed pull URLs from inside this
+DAG — a security posture change nobody asked for or reviewed. So this adapter
+reuses the Sarvam PROTOCOL implementation specifically, named in the task, not
+the broader provider selection.
+
+**What would reverse it.**
+
+- **Sarvam ships a real per-segment confidence score.** Then `confidence: 0`
+  becomes the actual value and this decision's honest-floor half is retired in
+  one line, with a `measured_by` edge to whatever proved it.
+- **The owner wants Sarvam-sourced spans eligible for claim mining before that
+  happens.** That is a product decision about trusting unscored transcripts,
+  not an engineering one, and belongs to the owner, not to this file.
+- **An Azure Cognitive Services resource is later provisioned** (subscription
+  policy changes, or a second market where Sarvam's coverage is worse). The
+  Azure adapter is untouched and composition.js's ASR block is the one place
+  to add a second lane, selected the same way the self-hosted/Sarvam split in
+  `registry.js` already is.

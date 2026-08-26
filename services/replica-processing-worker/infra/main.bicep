@@ -14,8 +14,8 @@ param supabaseUrl string
 @description('Private evidence origin. Empty means the four voice-evidence steps stop at voice_evidence_unconfigured, which is a state rather than a failure.')
 param privateEvidenceOrigin string = ''
 
-@description('Azure Speech endpoint. Empty means transcribe stops at asr_unconfigured.')
-param azureSpeechEndpoint string = ''
+@description('Sarvam ASR model override. Empty uses the adapter default (saaras:v3).')
+param sarvamAsrModel string = ''
 
 // Inline secrets, not Key Vault references.
 //
@@ -32,8 +32,9 @@ param neonUrl string
 param supabaseServiceRoleKey string
 @secure()
 param evidenceHmacSecret string = ''
+@description('Sarvam API key. Empty means transcribe stops at asr_unconfigured (WS-AN, 2026-08-26: this subscription has zero Cognitive Services accounts, so Azure Speech was replaced by the Sarvam adapters instead of standing one up).')
 @secure()
-param azureSpeechKey string = ''
+param sarvamApiKey string = ''
 @secure()
 param acrPassword string
 param acrServer string = 'vyaktivoiceacr.azurecr.io'
@@ -51,12 +52,11 @@ var evidenceEnv = empty(privateEvidenceOrigin) ? [] : [
   { name: 'AZURE_VOICE_EVIDENCE_ORIGIN', value: privateEvidenceOrigin }
   { name: 'AZURE_VOICE_EVIDENCE_HMAC_SECRET', secretRef: 'evidence-hmac' }
 ]
-var speechEnv = empty(azureSpeechEndpoint) ? [] : [
-  { name: 'AZURE_SPEECH_ENDPOINT', value: azureSpeechEndpoint }
-  { name: 'AZURE_SPEECH_KEY', secretRef: 'speech-key' }
-  { name: 'AZURE_SPEECH_LOCALES', value: 'en-IN,hi-IN' }
-  { name: 'AZURE_SPEECH_MAX_SPEAKERS', value: '4' }
-]
+var sarvamEnv = empty(sarvamApiKey) ? [] : concat([
+  { name: 'SARVAM_API_KEY', secretRef: 'sarvam-key' }
+], empty(sarvamAsrModel) ? [] : [
+  { name: 'SARVAM_ASR_MODEL', value: sarvamAsrModel }
+])
 
 resource worker 'Microsoft.App/jobs@2024-03-01' = {
   name: jobName
@@ -83,8 +83,8 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
         { name: 'acr-password', value: acrPassword }
       ], empty(privateEvidenceOrigin) ? [] : [
         { name: 'evidence-hmac', value: evidenceHmacSecret }
-      ], empty(azureSpeechEndpoint) ? [] : [
-        { name: 'speech-key', value: azureSpeechKey }
+      ], empty(sarvamApiKey) ? [] : [
+        { name: 'sarvam-key', value: sarvamApiKey }
       ])
       registries: [
         {
@@ -106,10 +106,9 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
             { name: 'CLAMAV_ADAPTER_VERSION', value: 'clamav-1.4.3-debian12' }
             { name: 'FFPROBE_ADAPTER_VERSION', value: 'ffprobe-debian12' }
             { name: 'AZURE_REPLICA_APP_BUDGET_USD', value: string(azureApplicationBudgetUsd) }
-            { name: 'AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR', value: '0.36' }
             { name: 'PROCESSING_JOBS_PER_RUN', value: '4' }
             { name: 'PROCESSING_RUN_BUDGET_MS', value: '780000' }
-          ], evidenceEnv, speechEnv)
+          ], evidenceEnv, sarvamEnv)
           resources: { cpu: json('1.0'), memory: '2Gi' }
         }
       ]

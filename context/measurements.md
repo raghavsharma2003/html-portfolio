@@ -4318,3 +4318,71 @@ same resource group, same scale-to-zero posture: **35.6 s and a 200** versus
   the latencies are 2 to 3 observations each. They are consistent with each
   other and none is a tight call, but nothing here supports a confidence
   interval.
+
+### `sarvam-transcribe-production-dag-position` — the owner's real upload, DAG position after WS-AN's Sarvam wiring shipped to production (n=1, 2026-08-26)
+
+Method: the new code (`api/_replica-processing/providers/sarvam-transcription.js`
+plus the `composition.js` rewire) was built into a real container image via an
+ACR Quick Task (`vyaktivoiceacr`, run id `cus`, `DockerBuildRequest`,
+succeeded in 90 s, pushed
+`replica-processing-worker@sha256:3e6c507c8c3f8fbe860c2a233cd993702977921b28e9558d2d8fa8ee190fd697`),
+patched onto the live Azure Container Apps Job `vyakti-replica-processing`
+(resource group `vyakti-voice`) via the Container Apps management REST API
+(no az CLI in this session), and one execution was started and observed to
+`Succeeded` (24 s). The DAG position was then read directly off production —
+Neon, over its own SQL-over-HTTP endpoint (`https://{host}/sql`, the same
+transport `api/_db.js` uses), not inferred:
+
+```
+select step, state, attempt, failure_code, updated_at
+from vy_replica_processing_job
+where source_id = '886cc5dc-5b7a-4888-b08c-0e1173797bb1'
+order by updated_at desc;
+```
+
+| step | state | attempt | failure_code |
+|---|---|---|---|
+| `separate` | **failed** | 5/5 | `voice_evidence_failed` |
+| `diarize` | complete | 1 | — |
+| `media_probe` | complete | 1 | — |
+| `malware_scan` | complete | 1 | — |
+| `integrity` | complete | 1 | — |
+
+**What this settles.** The Sarvam wiring itself did not move the DAG, and
+could not have: `separate` is terminally failed (`attempt=5`, the configured
+ceiling) with a GENUINE failure code — `voice_evidence_failed` is not in
+`CAPABILITY_ABSENCE_CODES`, so it is a real GPU-side failure on this specific
+822.7 s recording, not a missing-capability state, and it sits BEFORE
+`transcribe` in the DAG (`enhance` and `transcribe` both depend on `separate`
+completing). This predates this session — WS-AK had already flagged
+"`separate` throws on the GPU for a whole 822.7 s recording" — and this
+session did not investigate it further; it is a different adapter family
+(voice-evidence GPU) from the one this task changed (ASR).
+
+**What this does NOT settle.** Whether the Sarvam adapter itself produces a
+correct transcript against this recording once `separate`/`enhance` clear —
+that call has not been made, because `SARVAM_API_KEY` is also not present on
+the job's env (verified by reading the job resource's
+`template.containers[0].env` both before and after this session's image
+patch: only `NEON_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`CLAMAV_ADAPTER_VERSION`, `FFPROBE_ADAPTER_VERSION`,
+`AZURE_REPLICA_APP_BUDGET_USD`, `AZURE_VOICE_EVIDENCE_ORIGIN`,
+`AZURE_VOICE_EVIDENCE_HMAC_SECRET` and two run-tuning vars were present,
+neither the old `AZURE_SPEECH_*` pair nor a new `SARVAM_API_KEY`), and this
+session had no route to read the value back out of the Vercel project
+`vyakti-replica-lab` where the owner says it already lives. Handover:
+`.sec/an-sarvam-key-handover.txt` in this session's scratchpad.
+
+### `sarvam-batch-duration-ceiling` — Sarvam batch API's own duration/size ceiling (n=1 doc fetch, 2026-08-26)
+
+Method: fetched `docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/
+batch-api.md` (the batch endpoint's own reference page) via WebFetch and asked
+it directly for stated limits, since neither `api/_asr/providers/
+sarvam-saaras.js` nor `context/` recorded one. Answer: **files up to 2 hours
+long, up to 20 files per job**, no separate byte-size ceiling documented
+beyond that. The owner's 822.7 s (13.7 min) recording is about 17% of that
+ceiling. Conclusion acted on: no chunking is implemented in
+`sarvam-transcription.js` — the file is sent whole. This is a single doc
+fetch, not a measured API round trip against a file near the ceiling; if a
+much longer recording (multi-hour) is ever ingested, re-verify against the
+live API rather than trusting the doc a second time.

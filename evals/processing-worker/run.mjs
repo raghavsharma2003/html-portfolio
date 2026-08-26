@@ -101,8 +101,11 @@ const evidenceInfra = readFileSync(join(ROOT, "services/voice-evidence/infra/mai
 // adapters before it leased anything and the two steps this container exists
 // to serve never ran. The property is unchanged - the production job gets
 // native, evidence and ASR families and no fixtures - so it is asserted where
-// the composition now happens.
-ok("production job composes native safety, real evidence and Azure ASR adapters", /composeProcessingAdapters/.test(runOnce) && /createNativeMediaAdapters/.test(composition) && /createAzureVoiceEvidenceAdapters/.test(composition) && /createAzureFastTranscriptionAdapter/.test(composition));
+// the composition now happens. ASR is Sarvam, not Azure, as of WS-AN
+// (2026-08-26, owner directive): this subscription has zero Cognitive
+// Services accounts, so `transcribe` runs through the Sarvam adapters that
+// already exist and are proven on Hinglish instead.
+ok("production job composes native safety, real evidence and Sarvam ASR adapters", /composeProcessingAdapters/.test(runOnce) && /createNativeMediaAdapters/.test(composition) && /createAzureVoiceEvidenceAdapters/.test(composition) && /createSarvamTranscriptionAdapter/.test(composition));
 ok("production job has no fixture adapter path", !/fake|fixture/i.test(runOnce));
 ok("worker is a scale-to-zero run-once process, not a public HTTP server", !/createServer|listen\(|EXPOSE/i.test(runOnce + docker));
 // The shell entrypoint is gone, so `set -euo pipefail` is no longer where this

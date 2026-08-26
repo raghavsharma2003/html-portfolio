@@ -1,18 +1,18 @@
 import { CAPABILITY_ABSENCE_CODES } from "./capability-codes.js";
 import { ProcessingAdapterError } from "./contracts.js";
 import { createNativeToolRunners, nativeToolStatus } from "./native-tools.js";
-import { createAzureFastTranscriptionAdapter } from "./providers/azure-fast-transcription.js";
 import { createAzureVoiceEvidenceAdapters } from "./providers/azure-voice-evidence.js";
 import { createNativeMediaAdapters } from "./providers/native-media.js";
+import { createSarvamTranscriptionAdapter } from "./providers/sarvam-transcription.js";
 import { createReplicaProcessingStorage } from "./storage.js";
 
 // COMPOSING THE REAL PIPELINE, INCLUDING THE PARTS THAT ARE NOT THERE
 // ---------------------------------------------------------------------------
 // The eight-step audio DAG is served by three adapter families, and every one
 // of them needs something this process may not have: two need binaries on the
-// PATH, two need a private GPU service and an HMAC secret, one needs an Azure
-// Speech endpoint and key, and all eight need private storage credentials to
-// read the bytes at all.
+// PATH, two need a private GPU service and an HMAC secret, one needs a Sarvam
+// API key, and all eight need private storage credentials to read the bytes
+// at all.
 //
 // The tempting shape is to build what we can and leave the rest out. That is
 // the shape this module refuses, for a mechanical reason: `assertAdapter` turns
@@ -174,25 +174,27 @@ export function composeProcessingAdapters(options = {}) {
   }
 
   // ── the ASR family: transcribe ───────────────────────────────────────────
-  const asr = tryBuild(() => createAzureFastTranscriptionAdapter({
-    endpoint: env.AZURE_SPEECH_ENDPOINT,
-    apiKey: env.AZURE_SPEECH_KEY,
-    locales: String(env.AZURE_SPEECH_LOCALES || "en-IN,hi-IN").split(",").map((entry) => entry.trim()).filter(Boolean),
-    diarizationMaxSpeakers: boundedInteger(env.AZURE_SPEECH_MAX_SPEAKERS, 4, 2, 8),
-    maxInputBytes: boundedInteger(env.VOICE_EVIDENCE_MAX_AUDIO_BYTES, 33_554_432, 1_048_576, 67_108_864),
-    timeoutMs: 180_000,
+  // Sarvam, not Azure Fast Transcription (owner directive, 2026-08-26): this
+  // subscription has zero Cognitive Services accounts, and standing that up
+  // was explicitly ruled out in favour of the Sarvam adapters that already
+  // exist and are proven on Hinglish. See providers/sarvam-transcription.js
+  // for the full reasoning, including why confidence is reported as 0.
+  const asr = tryBuild(() => createSarvamTranscriptionAdapter({
+    apiKey: env.SARVAM_API_KEY,
+    model: env.SARVAM_ASR_MODEL,
+    langHint: env.ASR_INGEST_LANG_HINT,
     resolveInput: storage.resolveInput,
     fetchImpl: options.fetchImpl,
   }));
   //
-  // The factory says `azure_asr_config_missing` when the endpoint or key is
-  // unset. That is normalised to `asr_unconfigured` for the same reason the
-  // evidence family is: the canonical per-capability code is what the requeue
-  // and the Activity surface key on, and a second spelling for "not configured"
-  // is a job that never recovers and a sentence the owner never sees. Any OTHER
-  // code from the factory (a malformed endpoint, a bad bound) is a real
-  // misconfiguration and is passed through unchanged, because it needs a human.
-  const asrUnconfigured = new Set(["azure_asr_config_missing", "azure_asr_endpoint_required", ""]);
+  // The factory says `sarvam_asr_config_missing` when the key is unset. That
+  // is normalised to `asr_unconfigured` for the same reason the evidence
+  // family is: the canonical per-capability code is what the requeue and the
+  // Activity surface key on, and a second spelling for "not configured" is a
+  // job that never recovers and a sentence the owner never sees. Any OTHER
+  // code from the factory is a real misconfiguration and is passed through
+  // unchanged, because it needs a human.
+  const asrUnconfigured = new Set(["sarvam_asr_config_missing", ""]);
   if (asr.value) {
     adapters.transcribe = asr.value;
     declare("transcribe", "");

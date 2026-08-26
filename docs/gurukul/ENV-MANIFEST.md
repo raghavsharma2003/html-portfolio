@@ -246,13 +246,19 @@ service never holds a storage credential of its own.
 
 `api/_provider-budget.js`'s `reserveAzureFastTranscriptionSpend` (function
 name inferred from the pattern at lines 39-42; called with `budgetEnv` from
-`services/replica-processing-worker/run-once.js:61`).
+`services/replica-processing-worker/run-once.js:61`). **Dormant since WS-AN
+(2026-08-26):** `transcribe` runs through Sarvam now, whose adapter
+(`api/_replica-processing/providers/sarvam-transcription.js`) sets no billing
+meter, so `worker.js`'s `adapter.billing?.meter === "azure_speech_audio_ms"`
+check never matches and this reservation path never fires for `transcribe`.
+Left in place in case Azure Fast Transcription is ever reintroduced as a
+second lane.
 
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
 | `AZURE_REPLICA_BUDGET_ID` | `api/_provider-budget.js:39` | optional | see §2 | shared budget id |
-| `AZURE_REPLICA_APP_BUDGET_USD` | `api/_provider-budget.js:41` | required | throws | reservation refuses |
-| `AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR` | `api/_provider-budget.js:42` | required | throws `provider_audio_rate_required` | transcription reservation refuses — the worker cannot bill the Foundry-adjacent budget for Azure Speech time |
+| `AZURE_REPLICA_APP_BUDGET_USD` | `api/_provider-budget.js:41` | required | throws | reservation refuses — also fences the (still-live) voice-evidence spend, so this var stays required regardless |
+| `AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR` | `api/_provider-budget.js:42` | required only if the Azure Fast Transcription path is ever called again | throws `provider_audio_rate_required` | nothing today — the path it fences is unreachable from `transcribe` |
 
 ## 12. Replica private storage (`vercel-app` + `processing-worker`)
 
@@ -612,15 +618,13 @@ and §12 applies here too, read from this job's own env, not the Vercel app's.
 | `NEON_URL` | `db.js:2` (shared Meera var, own copy in this deployment) | required | throws `neon_url_required` / `neon_url_invalid` | job cannot lease or write jobs at all |
 | `CLAMAV_ADAPTER_VERSION` | `run-once.js:20` | optional | defaults `"clamav-debian12"` | cosmetic — recorded as the malware-scan adapter version, not a functional gate (ClamAV itself is a hard dependency via `entrypoint.sh`, not this var) |
 | `FFPROBE_ADAPTER_VERSION` | `run-once.js:21` | optional | defaults `"ffprobe-debian12"` | cosmetic, same reasoning |
-| `AZURE_SPEECH_ENDPOINT` | `run-once.js:25` | required (transcription step) | undefined passed through; the transcription adapter will fail at call time, not at startup | Hinglish transcription step fails; earlier DAG stages (integrity, malware, probe, evidence) are unaffected |
-| `AZURE_SPEECH_KEY` | `run-once.js:26` | required (transcription step) | same | same — README notes this is a stopgap: "Replace it with managed identity once the Speech resource role and token path are deployed" |
-| `AZURE_SPEECH_LOCALES` | `run-once.js:27` | optional | defaults `"en-IN,hi-IN"` | none |
-| `AZURE_SPEECH_MAX_SPEAKERS` | `run-once.js:28` | optional | defaults `4`, clamped 2-8 | none |
+| `SARVAM_API_KEY` | `composition.js`'s ASR block, via `createSarvamTranscriptionAdapter` | required (transcription step) | undefined passed through; `transcribe` stops at `asr_unconfigured`, not a crash at startup | Hinglish transcription step fails; earlier DAG stages (integrity, malware, probe, evidence) are unaffected. As of WS-AN (2026-08-26) this replaces `AZURE_SPEECH_ENDPOINT`/`AZURE_SPEECH_KEY` — this subscription has zero Cognitive Services accounts |
+| `SARVAM_ASR_MODEL` | `composition.js`'s ASR block | optional | defaults `"saaras:v3"` | none |
 | `PROCESSING_JOBS_PER_RUN` | `run-once.js:46` | optional | defaults `4`, clamped 1-20 | none — throughput knob |
 | `PROCESSING_RUN_BUDGET_MS` | `run-once.js:47` | optional | defaults `840_000` (14 min), clamped 60s-850s\* | \*bounded so the job self-aborts before the README's 15-minute replica timeout |
 | `AZURE_VOICE_EVIDENCE_ORIGIN`, `AZURE_VOICE_EVIDENCE_HMAC_SECRET`, `VOICE_EVIDENCE_MAX_AUDIO_BYTES`, `VOICE_EVIDENCE_TIMEOUT_MS` | via `createAzureVoiceEvidenceAdapters({env,...})`, `run-once.js:23` → §10 | see §10 | see §10 | evidence steps (diarize/separate/enhance/voice_quality) fail without the required two |
 | `REPLICA_STORAGE_BUCKET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | via `createReplicaProcessingStorage`, `run-once.js:5` → §12 | see §12 | see §12 | the job cannot resolve or write any object |
-| `AZURE_REPLICA_BUDGET_ID`, `AZURE_REPLICA_APP_BUDGET_USD`, `AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR` | via `budgetEnv: process.env`, `run-once.js:61` → §11 | see §11 | see §11 | transcription spend cannot be reserved |
+| `AZURE_REPLICA_BUDGET_ID`, `AZURE_REPLICA_APP_BUDGET_USD` | via `budgetEnv: process.env`, `run-once.js:61` → §11 | see §11 | see §11 | fences the OTHER Azure-billed steps (voice evidence); `transcribe` is unmetered now — see the Sarvam row above and its adapter's header for why |
 
 The Dockerfile's ClamAV signature refresh (`entrypoint.sh`) is a hard startup
 dependency with no env var — a failed `freshclam` update blocks the job
@@ -724,7 +728,11 @@ AZURE_VOICE_EVIDENCE_ORIGIN
 AZURE_VOICE_EVIDENCE_HMAC_SECRET
 VOICE_EVIDENCE_MAX_AUDIO_BYTES     (optional)
 VOICE_EVIDENCE_TIMEOUT_MS          (optional)
-AZURE_SPEECH_FAST_TRANSCRIPTION_USD_PER_HOUR
+```
+And, for `transcribe` specifically (Sarvam, not Azure Speech, as of WS-AN 2026-08-26):
+```
+SARVAM_API_KEY
+SARVAM_ASR_MODEL                  (optional, defaults saaras:v3)
 ```
 
 `open-voice-runtime` service env: `OPEN_VOICE_HMAC_SECRET` (its own copy),

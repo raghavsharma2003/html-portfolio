@@ -2996,6 +2996,42 @@
       "kind": "open",
       "at": "2026-08-26",
       "title": "the C2PA claim signer is a self-signed Key Vault EC certificate; it meets the C2PA signing profile and c2pa-rs accepts it, but it chains to no public trust list so external verifiers will report an untrusted signer"
+    },
+    {
+      "id": "transcribe-runs-through-sarvam",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "transcribe routes through the Sarvam Saaras batch adapter, not Azure Fast Transcription; confidence is reported as 0 because Sarvam has none, keeping every span out of automated claim mining"
+    },
+    {
+      "id": "sarvam-transcribe-production-dag-position",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "owners real upload, DAG position after the Sarvam wiring shipped to production: separate failed 5/5 attempts (voice_evidence_failed), transcribe unreachable and SARVAM_API_KEY still absent from the job env"
+    },
+    {
+      "id": "sarvam-batch-duration-ceiling",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "Sarvam batch API accepts files up to 2 hours long and up to 20 files per job per its own docs; the owners 822.7 s recording is well inside that, so no chunking is implemented"
+    },
+    {
+      "id": "registry-selection-leaks-a-pull-url-into-the-dag",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "routing transcribe through api/_asr/registry.js selection directly was rejected: the self-hosted lane hands out a signed pull URL, breaking the DAGs bytes-only invariant every other adapter enforces"
+    },
+    {
+      "id": "separate-still-blocks-the-owners-upload",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "separate is terminally failed (5/5 attempts, voice_evidence_failed, a genuine GPU-side failure not a capability absence) for the owners 822.7 s recording, upstream of transcribe; not investigated this session, different adapter family (voice-evidence GPU) from the one this task changed (ASR)"
+    },
+    {
+      "id": "sarvam-api-key-not-on-processing-job",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "SARVAM_API_KEY is set in the Vercel project vyakti-replica-lab per the owner but not on the Azure Container Apps Job vyakti-replica-processing; this session had no route to read the Vercel value back, see .sec/an-sarvam-key-handover.txt"
     }
   ],
   "edges": [
@@ -5833,6 +5869,46 @@
       "src": "audio-protection-c2pa-signer-is-self-signed",
       "rel": "part_of",
       "dst": "audio-protection-service"
+    },
+    {
+      "src": "transcribe-runs-through-sarvam",
+      "rel": "supersedes",
+      "dst": "voice-genome-still-blocked-on-asr"
+    },
+    {
+      "src": "transcribe-runs-through-sarvam",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "transcribe-runs-through-sarvam",
+      "rel": "measured_by",
+      "dst": "sarvam-transcribe-production-dag-position"
+    },
+    {
+      "src": "transcribe-runs-through-sarvam",
+      "rel": "measured_by",
+      "dst": "sarvam-batch-duration-ceiling"
+    },
+    {
+      "src": "transcribe-runs-through-sarvam",
+      "rel": "caused_by",
+      "dst": "registry-selection-leaks-a-pull-url-into-the-dag"
+    },
+    {
+      "src": "separate-still-blocks-the-owners-upload",
+      "rel": "blocks",
+      "dst": "sarvam-transcribe-production-dag-position"
+    },
+    {
+      "src": "sarvam-api-key-not-on-processing-job",
+      "rel": "blocks",
+      "dst": "transcribe-runs-through-sarvam"
+    },
+    {
+      "src": "sarvam-api-key-not-on-processing-job",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
     }
   ]
 }
