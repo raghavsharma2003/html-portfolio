@@ -3014,3 +3014,30 @@ With WS-F's endpoint, the self-serve loop now exists end to end offline:
 channel/upload → transcript → stats + drafted sheet deltas → teacher
 approval → publish gates → dynamic agent → student surfaces — every lane
 behind fail-closed seams awaiting keys, GPUs, and migrations.
+
+## `first-live-apply` — migrations 015-054 applied to production Neon; one latent defect found and fixed (2026-08-26)
+
+Owner supplied credentials and the go-ahead; migrations 015-054 applied to
+the meera Neon project (lucky-sun-80291432) via the house runner over
+SQL-HTTP. Database now holds 111 tables (54 vy_replica*, plus
+vy_teacher_sheet / vy_channel_watch / vy_ingest_run / vy_voice_fidelity).
+016 (memory consent) is now live, closing the long-open owner item.
+
+The first real apply surfaced what no offline suite could: migration 046's
+left/right preference FKs reference vy_replica_generation's
+(generation_id,replica_id,owner_user_id) tuple, and NO migration created a
+unique constraint on that exact tuple (029's identity index carries a 4th
+column, which an FK cannot target). Fixed in 046 itself with a
+trivially-unique arbiter index (generation_id is already the PK) — the same
+compat-index pattern as 009. Lesson, logged where the next person will look:
+the offline migration suites verify statement shape and idempotence, never
+referential targets — only `verify-release --live`'s DB gates or a real
+apply exercise those, which is why they must run before any future
+migration batch is called done.
+
+Also this session: new Supabase project (ref chvduaujdztgjcnoswhh, separate
+account — deliberate isolation from the legacy Meera project) verified
+healthy; the `vyakti-replica-private` storage bucket created; OpenRouter
+and Sarvam keys received (Sarvam untested — no free-tier ping without
+burning audio credits). Keys live in the chat transcript by owner's own
+paste: rotate Neon password + Supabase keys once Vercel env is set.

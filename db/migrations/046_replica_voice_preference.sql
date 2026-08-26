@@ -29,6 +29,17 @@ begin
 end;
 $replica_voice_preference_generation_constraints$;
 
+-- The preference table's left/right FKs reference the OWNER TUPLE
+-- (generation_id,replica_id,owner_user_id). No earlier migration creates a
+-- unique constraint on that exact tuple (029's identity index carries a 4th
+-- column, which an FK cannot target), so the first LIVE apply of this file
+-- failed here — the offline suites verify statement shape, never referential
+-- targets. generation_id is already the primary key, so this composite is
+-- trivially unique; the index exists purely as the FK's arbiter, the same
+-- compat-index pattern 009 uses for its ON CONFLICT arbiters.
+create unique index if not exists vy_replica_generation_owner_tuple_ix
+  on vy_replica_generation (generation_id,replica_id,owner_user_id);
+
 create table if not exists vy_replica_voice_preference (
   preference_id          uuid primary key,
   replica_id             uuid not null,

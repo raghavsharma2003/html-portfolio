@@ -1928,6 +1928,12 @@
       "kind": "decision",
       "title": "waves 4-5 landed: ingestion loop, in-house voice + fidelity gate, reciprocity/drift/recallbench",
       "at": "2026-08-26"
+    },
+    {
+      "id": "first-live-apply",
+      "kind": "decision",
+      "title": "migrations 015-054 live on Neon; 046 latent FK-arbiter defect found and fixed",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3533,6 +3539,11 @@
     },
     {
       "src": "gurukul-ws45-landed",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "first-live-apply",
       "rel": "part_of",
       "dst": "gurukul-founding"
     }
