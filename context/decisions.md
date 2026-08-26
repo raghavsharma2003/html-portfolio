@@ -5591,3 +5591,49 @@ fix" `windowing-belongs-before-the-embedder-not-before-diarize` named and
 deliberately deferred). If that lands, `separate`/`enhance`/`voice_quality`
 could see the FULL recording again rather than one window, and this module
 would become the fallback for services that stay single-shot.
+
+## refusal-names-its-precondition
+
+**Decided** 2026-08-26. A refusal from a query that joins across many
+preconditions must NAME the precondition it is waiting on, and must carry which
+side of the blocker split it falls on.
+
+**Why.** `beginOwnedVoicePreview`'s `eligible` CTE joins across fifteen
+conditions: three consent scopes, four identity checks, source readiness, third
+party absence, a draft genome at the requested version, a selected artifact at
+the `enhance` stage, and the trial binding. Any one unmet returns zero rows, and
+all fifteen surfaced as `voice_preview_not_authorized`. The end to end journey
+scored 13/15 on this single code, and both of its failures were it.
+
+Two things were wrong, and the second is the serious one. It was unactionable:
+a person cannot tell a missed consent box from a pipeline still working. And it
+BLAMED THEM for our latency, which breaks the waiting-on-you versus
+waiting-on-us law in the most visible panel in the product. An
+authorization-flavoured word is not a neutral default; it asserts the user is at
+fault.
+
+**Shape.** On an empty result, ONE diagnostic query, scoped to the same
+(replica_id, owner_user_id) pair so it can never describe another person's
+replica, checks each precondition and returns the first unmet one in the order a
+person actually meets them. Consent before a genome they have never heard of.
+The class rides along with the code, the route passes it through, and the studio
+has copy per code that never says "try again" where retrying cannot help.
+
+Two refusals to guess are part of the decision, not incidental: a diagnostic
+that cannot run falls back to the old opaque code rather than inventing a
+reason, and a refusal from a precondition the diagnostic does not cover says
+exactly that and stays on our side of the split.
+
+**Verified** by EXECUTING the diagnostic against the live database, not a mock.
+A mocked database cannot type-check SQL and three shipped queries in this repo
+were once 0A000 and had never run.
+
+**What would reverse it.** If the precondition set becomes cheap to express as
+a single query returning a reason column, fold the diagnostic into the main
+statement and drop the second round trip. If a diagnostic is ever measured
+leaking the existence of another person's replica, remove it and return the
+opaque code rather than narrowing it.
+
+**Generalises.** Any `eligible`-style CTE in this codebase has the same defect
+shape. An empty join result is not an authorization verdict.
+
