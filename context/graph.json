@@ -2212,6 +2212,36 @@
       "at": "2026-08-26"
     },
     {
+      "id": "earbench-is-the-listening-instrument",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "scripts/earbench.mjs is the one blind listening bench: ABX + three rating axes, three verdicts, no mock arm, not a CI gate on human input"
+    },
+    {
+      "id": "earbench",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "evals/earbench + scripts/earbench.mjs: blinded stimulus builder, local listening page, sealed key, ABX/rating scorer with a chance baseline"
+    },
+    {
+      "id": "disclosure-announces-the-clone",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "Every synthesised clip speaks 'This is an AI-generated voice replica.', unblinding any listening test; and the obvious ear-check unblinds the only listener"
+    },
+    {
+      "id": "alternating-is-not-counterbalanced",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "Alternating the two ABX choices at different periods gave 10 correct-A vs 8 correct-B over 18 trials; a four-cell cycle is exact"
+    },
+    {
+      "id": "no-human-has-listened",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "The blind bench exists and has never been run on an ear: no MOS, no similarity, no accent-authenticity number, no ABX result for any voice"
+    },
+    {
       "id": "forget-follows-the-person",
       "kind": "decision",
       "title": "legacy forget lane widened from device to person; verified live with negative controls",
@@ -4118,6 +4148,46 @@
       "src": "plausible-return-hides-a-dead-pipeline",
       "rel": "part_of",
       "dst": "offline-mocks-cannot-type-check-sql"
+    },
+    {
+      "src": "earbench",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "earbench-is-the-listening-instrument",
+      "rel": "caused_by",
+      "dst": "azure-tts"
+    },
+    {
+      "src": "earbench-is-the-listening-instrument",
+      "rel": "measured_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "fidelity-needs-its-ceiling-printed",
+      "rel": "blocks",
+      "dst": "no-human-has-listened"
+    },
+    {
+      "src": "disclosure-announces-the-clone",
+      "rel": "constrains",
+      "dst": "earbench"
+    },
+    {
+      "src": "alternating-is-not-counterbalanced",
+      "rel": "constrains",
+      "dst": "earbench"
+    },
+    {
+      "src": "no-human-has-listened",
+      "rel": "blocks",
+      "dst": "clone-activation-still-gated"
+    },
+    {
+      "src": "earbench",
+      "rel": "caused_by",
+      "dst": "earbench-is-the-listening-instrument"
     },
     {
       "src": "forget-follows-the-person",

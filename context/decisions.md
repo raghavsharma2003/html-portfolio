@@ -3801,3 +3801,61 @@ EXPLAINs clean against the live catalog.
 to one person) would make this wipe over-broad by design and the set would need
 a consent boundary; and if `vy_person_device` ever grows rows for room devices,
 property 2 collapses and the eval's room control catches it.
+## `earbench-is-the-listening-instrument` — the blind bench the fidelity law already depended on (2026-08-26, WS-V)
+
+**The decision.** `scripts/earbench.mjs` + `evals/earbench/` is the one supported
+way to ask a human how a cloned voice sounds. It builds a blinded, matched,
+counterbalanced stimulus set through the REAL deployed runtime, serves a local
+listening page, and scores ABX plus a three-axis rating pass against a sealed
+key. Run instructions: `docs/gurukul/EARBENCH.md`.
+
+**Why it had to exist before any quality claim.** The fidelity law
+(`api/_fidelity.js`, SPEC-GURUKUL §8.2, and `fidelity-needs-its-ceiling-printed`
+above) makes the ECAPA cosine a regression monitor and puts activation quality
+behind a blind owner pass. That pass had no instrument. The project therefore
+had `first-real-clone`'s 0.7753/0.8869 and **nothing at all** about how the
+clone sounds — and `rejected.md#azure-tts` is the case where exactly that gap
+produced a unanimous measured "switch" and a correct human "no".
+
+**The five choices worth naming, each with what would reverse it.**
+
+1. **Three verdicts, not two.** `distinguishable` / `indistinguishable-from-
+   chance` / `inconclusive`, with an equivalence bound (0.65) and an exact
+   binomial plus a Wilson interval behind each. "Not significant" is never
+   reported as "no difference": at n=6 a 50% score is under-powered, and a bench
+   that called that equivalence would license the strongest claim the product
+   can make off the weakest run it can do. *Reverses if* a listener panel large
+   enough to make the equivalence region uninformative becomes routine — then
+   the bound is doing nothing and should be re-derived from the panel's own
+   spread rather than fixed.
+2. **Accent authenticity is its own axis**, alongside similarity and
+   naturalness, on the direct instruction in `azure-tts`. *Reverses if* a run
+   ever shows accent and similarity moving together across every arm and every
+   listener — that would make it one axis measured twice. It has never been
+   measured at all, so this is a standing instruction, not a finding.
+3. **Content is matched across arms.** The default path transcribes the
+   consented reference (Sarvam batch, the lane `first-clone.mjs` already uses)
+   and makes the clone say the speaker's own sentences over the speaker's own
+   recordings of them. Otherwise "which is the clone" is answerable off the
+   WORDS. The scripted-corpus fallback still exists and every report it produces
+   says "content is a cue" in its own text. *Reverses if* ASR quality on the
+   subject's speech is bad enough that matched items are wrong transcriptions —
+   then a scripted corpus read aloud by the subject is the better reference
+   recording, and the fix is at capture time, not here.
+4. **No mock arm, ever.** Clone stimuli come from the deployed Chatterbox
+   runtime or the command refuses and writes nothing. A bench whose synthetic
+   arm was produced by something other than the thing that ships measures
+   nothing that ships. *Reverses if* never — this is the `offline-mocks-cannot-
+   type-check-sql` law applied to audio.
+5. **It is not a CI gate.** The mechanical self-check IS wired into
+   `evals/run.mjs` (and so into `verify-release`'s eval-suite gate) because an
+   unblinding bug is silent and only a test can see it. The listening pass is
+   deliberately unreachable from CI: a gate that waits for a human to put
+   headphones on wedges every build until they do. *Reverses if* an automated
+   listener ever becomes trustworthy on accent identity, which nothing in
+   `voice-stack.md` suggests is close.
+
+**What this decision does NOT license.** Any statement about how any clone
+sounds. No human has listened through this bench. The instrument is verified
+mechanically — including a simulated perfect discriminator and a simulated coin
+flip being reported differently — and mechanically only.

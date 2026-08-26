@@ -2769,3 +2769,64 @@ dead. Only driving the whole chain with real input found it. Related to
 meera-bound`: three different disguises for the same thing — code that looks
 finished, is reached by no test that would notice, and returns something
 believable.
+
+---
+
+## `disclosure-announces-the-clone` — every synthetic clip says out loud that it is synthetic (2026-08-26, WS-V)
+
+**What was tried.** Building the blind listening bench by doing what looks
+sufficient: opaque filenames, shuffled order, a UI that names no arm.
+
+**What broke.** `api/_voice/contracts.js::renderTextWithDisclosure` prepends the
+literal sentence **"This is an AI-generated voice replica."** to every synthesis
+request, and `services/open-voice-runtime` **speaks it**. Every clone clip
+therefore announces its arm in its own first two seconds, in every trial, to
+every listener, regardless of how the files are named. `scripts/first-clone.mjs`
+never had to care — it measures embeddings, and the disclosure is just more
+audio of the same speaker. A listening bench is the first thing in this repo
+where the disclosure is a defect, and it would have made an ABX result
+meaningless while every file-level blinding check stayed green.
+
+**What was done instead.** The clone arms are cut at the pause after the
+disclosure, and the REAL arm goes through the identical trim/normalise/fade
+path so the treatment is a constant of the bench rather than a cue. The trimmer
+**fails closed**: no pause inside a plausible window, or an implausible
+chars-per-second on what is left, and the command writes nothing. Where
+`SARVAM_API_KEY` is set, every trimmed clip is transcribed and the run is
+refused if the disclosure survives.
+
+**The second trap, which is the more interesting one.** The obvious verification
+— "the operator listens to a few clips and confirms the disclosure is gone" —
+**unblinds the only listener the bench has**, because on this bench the operator
+IS the subject and the panel. `earbench.mjs verify-trim` exists for exactly
+that: it writes only the REMOVED PREFIXES, shuffled and unlabelled, so the ear
+check happens on the audio that was thrown away and reveals nothing about which
+stimulus is which.
+
+**The generalisation.** A safety feature that must be present in production can
+be a measurement defect in the bench that validates production, and it will not
+show up as an error anywhere. Before benching anything, ask what the shipping
+path ADDS to the artifact.
+
+---
+
+## `alternating-is-not-counterbalanced` — a counterbalance that produced 10 A and 8 B (2026-08-26, WS-V)
+
+**What was tried.** Counterbalancing the two binary choices in an ABX trial by
+alternating them at different periods: the arm X is drawn from flips every
+trial, the side the matching clip sits on flips every two.
+
+**What broke.** Over 18 trials that yields **10 correct-A and 8 correct-B**. It
+is only balanced at multiples of four, and a real design is 3 arm pairs x an
+arbitrary item count. A listener with any side bias — and side bias is one of
+the best-documented effects in forced-choice listening — reads as a signal on a
+design skewed 10:8.
+
+**What was done instead.** A four-cell cycle over (which arm X comes from, which
+side matches), reset per arm pair, walking a shuffled item order. Exact balance
+at every multiple of two.
+
+**How it was caught, which is the point.** Not by reading the code: by
+`counterbalanceReport()` printing `position balanced false` on the first
+self-test run. The check was written before the bug existed, because the whole
+suite was written on the assumption that the blinding would be wrong somewhere.

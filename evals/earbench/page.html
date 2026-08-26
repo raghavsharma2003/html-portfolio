@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>earbench — blind listening</title>
+<!--
+  Served ONLY from 127.0.0.1 by `node scripts/earbench.mjs listen`. Self
+  contained: no fonts, no CDN, no analytics, nothing that leaves the machine.
+
+  Every design choice in here is a blinding choice:
+   * A and B are always rendered by the same code path, in the same order, with
+     the same control, and which one is the match is decided in the KEY, which
+     this page has never seen.
+   * Nothing displays a filename, a duration, a byte size or a progress bar —
+     a scrubber shows clip length, and clip length used to be a cue.
+   * Trial order is the order in trials.json, which was shuffled at build time.
+   * No trial can be answered without playing X at least once; the page will not
+     accept a click that was never listened to.
+-->
+<style>
+  :root { color-scheme: light dark; --bg:#faf9f7; --fg:#1c1b19; --line:#dcd8d2; --accent:#3b5bdb; --muted:#6b6862; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141414; --fg:#eceae6; --line:#2e2e2e; --accent:#8ea2ff; --muted:#9a978f; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 20px 96px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:18px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  button { font:inherit; padding:12px 18px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color:#fff; border-color: var(--accent); }
+  button.choice { flex:1; min-width:120px; padding:18px; font-size:17px; }
+  button[disabled] { opacity:.45; cursor:not-allowed; }
+  label { display:block; margin: 18px 0 6px; font-size:14px; }
+  .scale { display:flex; gap:6px; }
+  .scale button { flex:1; }
+  .scale button[aria-pressed="true"] { background: var(--accent); color:#fff; border-color:var(--accent); }
+  .ends { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:4px; }
+  .progress { font-size:13px; color:var(--muted); margin-bottom:10px; }
+  .warn { border-left:3px solid #d9822b; padding-left:12px; color:var(--muted); font-size:13px; }
+  input[type=text] { font:inherit; padding:10px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--fg); width:100%; }
+  .done { font-size:15px; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const app = document.getElementById("app");
+const state = {
+  manifest: null, trials: null, listener: "",
+  phase: "intro", index: 0,
+  abx: {}, ratings: {}, played: new Set(), startedAt: null,
+};
+const el = (tag, props = {}, children = []) => {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const child of [].concat(children)) node.append(child);
+  return node;
+};
+let audio = null;
+function play(id, onEnded) {
+  if (audio) { audio.pause(); audio = null; }
+  audio = new Audio(`/stimuli/${id}.wav`);
+  state.played.add(id);
+  audio.play().then(() => {}, () => {});
+  audio.onended = () => { if (onEnded) onEnded(); };
+}
+
+function save(done) {
+  const body = {
+    listener: state.listener, runId: state.manifest.runId,
+    startedAt: state.startedAt, finishedAt: new Date().toISOString(),
+    abx: state.abx, ratings: state.ratings, complete: Boolean(done),
+  };
+  return fetch("/answers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    .then((r) => r.json());
+}
+
+function intro() {
+  const name = el("input", { type: "text", placeholder: "a short name for this listening session", value: state.listener });
+  const start = el("button", { className: "primary", textContent: "Start" });
+  start.onclick = () => {
+    state.listener = (name.value || "anonymous").trim();
+    state.startedAt = new Date().toISOString();
+    state.phase = "abx"; state.index = 0; render();
+  };
+  app.replaceChildren(
+    el("h1", { textContent: "Blind listening bench" }),
+    el("div", { className: "sub", textContent: `run ${state.manifest.runId}` }),
+    el("div", { className: "card" }, [
+      el("p", { textContent: `Part 1 — ${state.trials.abx.length} short trials. You hear X, then A and B. Pick whichever of A and B is the SAME SPEAKER as X. A and B say the same sentence as each other; X says a different one, so the words cannot tell you.` }),
+      el("p", { textContent: `Part 2 — ${state.trials.ratings.length} clips, each rated on ${state.trials.axes.length} axes against a reference recording of the real speaker.` }),
+      el("p", { className: "warn", textContent: "Use headphones, in a quiet room, and do not change the volume between trials. Guess if you must — guessing is a measurable answer here, and the scorer can tell a guess from a judgement." }),
+      state.manifest.selfTest ? el("p", { className: "warn", textContent: "SELF-TEST RUN: these are synthetic tones, not a voice." }) : "",
+      el("label", { textContent: "Listener" }), name,
+      el("div", { className: "row", style: "margin-top:18px" }, [start]),
+    ]),
+  );
+}
+
+function abxScreen() {
+  const trial = state.trials.abx[state.index];
+  const answered = state.abx[trial.trialId];
+  const heardX = state.played.has(trial.xId);
+  const heardBoth = state.played.has(trial.aId) && state.played.has(trial.bId);
+  const t0 = Date.now();
+
+  const mk = (label, id) => {
+    const b = el("button", { className: "choice", textContent: `▶ ${label}` });
+    b.onclick = () => { play(id); render(); };
+    return b;
+  };
+  const choose = (choice) => {
+    state.abx[trial.trialId] = { choice, ms: Date.now() - t0, confidence: null };
+    if (state.index + 1 < state.trials.abx.length) { state.index += 1; state.played = new Set(); }
+    else { state.phase = "ratings"; state.index = 0; }
+    save(false); render();
+  };
+  const pickA = el("button", { className: "choice primary", textContent: "A matches X", disabled: !(heardX && heardBoth) });
+  const pickB = el("button", { className: "choice primary", textContent: "B matches X", disabled: !(heardX && heardBoth) });
+  pickA.onclick = () => choose("A");
+  pickB.onclick = () => choose("B");
+
+  app.replaceChildren(
+    el("h1", { textContent: "Which is the same speaker as X?" }),
+    el("div", { className: "progress", textContent: `trial ${state.index + 1} of ${state.trials.abx.length}` }),
+    el("div", { className: "card" }, [
+      el("div", { className: "row" }, [mk("X", trial.xId)]),
+      el("div", { style: "height:14px" }),
+      el("div", { className: "row" }, [mk("A", trial.aId), mk("B", trial.bId)]),
+      el("div", { style: "height:22px" }),
+      el("div", { className: "row" }, [pickA, pickB]),
+      heardX && heardBoth ? "" : el("p", { className: "warn", textContent: "Play X, A and B at least once before answering." }),
+      answered ? el("p", { className: "sub", textContent: "already answered — answering again replaces it" }) : "",
+    ]),
+  );
+}
+
+function ratingScreen() {
+  const rating = state.trials.ratings[state.index];
+  const current = state.ratings[rating.ratingId] || {};
+  const playRef = el("button", { textContent: "▶ reference (the real speaker)" });
+  playRef.onclick = () => play(rating.referenceId);
+  const playClip = el("button", { className: "primary", textContent: "▶ this clip" });
+  playClip.onclick = () => play(rating.stimulusId);
+
+  const blocks = [];
+  for (const axis of state.trials.axes) {
+    const scale = el("div", { className: "scale" });
+    for (let v = 1; v <= 5; v += 1) {
+      const b = el("button", { textContent: String(v) });
+      b.setAttribute("aria-pressed", String(current[axis.id] === v));
+      b.onclick = () => {
+        state.ratings[rating.ratingId] = { ...(state.ratings[rating.ratingId] || {}), [axis.id]: v };
+        render();
+      };
+      scale.append(b);
+    }
+    blocks.push(el("label", { textContent: axis.label }), scale,
+      el("div", { className: "ends" }, [el("span", { textContent: `1 — ${axis.low}` }), el("span", { textContent: `5 — ${axis.high}` })]));
+  }
+  const complete = state.trials.axes.every((axis) => Number.isFinite(current[axis.id]));
+  const next = el("button", { className: "primary", textContent: state.index + 1 < state.trials.ratings.length ? "Next clip" : "Finish", disabled: !complete });
+  next.onclick = () => {
+    if (state.index + 1 < state.trials.ratings.length) { state.index += 1; state.played = new Set(); save(false); render(); }
+    else { state.phase = "done"; save(true).then(render); }
+  };
+  const back = el("button", { textContent: "Back", disabled: state.index === 0 });
+  back.onclick = () => { state.index -= 1; render(); };
+
+  app.replaceChildren(
+    el("h1", { textContent: "Rate this clip" }),
+    el("div", { className: "progress", textContent: `clip ${state.index + 1} of ${state.trials.ratings.length}` }),
+    el("div", { className: "card" }, [
+      el("div", { className: "row" }, [playClip, playRef]),
+      ...blocks,
+      el("div", { className: "row", style: "margin-top:22px" }, [back, next]),
+    ]),
+  );
+}
+
+function done() {
+  app.replaceChildren(
+    el("h1", { textContent: "Done — thank you" }),
+    el("div", { className: "card done" }, [
+      el("p", { textContent: "Your answers are saved on this machine. Nothing about which clip was which was ever sent to this page." }),
+      el("p", { textContent: "Score the run with:" }),
+      el("pre", { textContent: "node scripts/earbench.mjs score" }),
+    ]),
+  );
+}
+
+function render() {
+  if (state.phase === "intro") return intro();
+  if (state.phase === "abx") return abxScreen();
+  if (state.phase === "ratings") return ratingScreen();
+  return done();
+}
+
+Promise.all([fetch("/manifest.json").then((r) => r.json()), fetch("/trials.json").then((r) => r.json())])
+  .then(([manifest, trials]) => { state.manifest = manifest; state.trials = trials; render(); })
+  .catch(() => { app.textContent = "could not load the bench — is `node scripts/earbench.mjs listen` still running?"; });
+</script>
+</body>
+</html>

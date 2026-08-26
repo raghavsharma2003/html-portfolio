@@ -63,3 +63,11 @@ api/google-keys.env
 
 # Claude Code agent worktrees (harness-managed, never source)
 .claude/worktrees/
+
+# earbench (WS-V) run artifacts: stimulus WAVs, the listener-facing trial list,
+# answer sheets, reports — and, crucially, THE ANSWER KEY, which carries the
+# per-run blinding secret and the arm of every clip. Nothing in here belongs in
+# a commit: the audio is a person's consented voice and a clone of it, and a
+# committed key would unblind every future run of the same stimuli. The
+# instrument is in the repo; its output is not.
+earbench-out/
