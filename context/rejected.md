@@ -2384,3 +2384,31 @@ something too.
 Fixed by replacing `[a-z]*` with an alternation admitting only the real
 completions of each month name, closed with `\b`. Fixture: `evals/run.mjs
 recallbench` [A-14], over dyad-a's "getting married in nashik in december".
+
+---
+
+## `router-matched-a-table-instead-of-a-statement` — a mock that swallowed the query under test
+
+`evals/recallbench/store.mjs` routed the person lookup with
+`s.includes("from vy_person_device")`. WS-O's surface-switch leg names
+`vy_person_device` in a SUBQUERY, so that branch swallowed the new statement
+whole and answered it with a person row.
+
+The result was the worst available one: the leg ran, issued its query, got a
+plausible-looking answer, contributed nothing, and **every assertion in the
+suite stayed green**. The only visible symptom was a route-count line nobody
+would read. It took a printf inside the leg to find it, after two rounds of
+looking for the bug in the shipping code — which was correct the whole time.
+
+Fixed by matching the STATEMENT (`select person_id from vy_person_device`)
+rather than a table that appears in it. The general rule, and the reason this
+is written down rather than just patched: **a mock branch keyed on a table name
+is a branch that will one day answer a different query than it was written
+for.** The watch branches in the same file already carried an ordering note for
+the same species of trap; this is the second instance, which is what makes it a
+rule.
+
+Related, from the same session and the same file: the router used to IGNORE
+`device_id` entirely and serve fixture rows to any caller. A mock that
+OVER-RETURNS is the more dangerous kind — it made an 89.2% cross-surface recall
+loss invisible while the whole benchmark read as healthy.

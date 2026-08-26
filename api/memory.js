@@ -1014,7 +1014,108 @@ async function opRecall(device, body) {
   // person a third time, and it degrades to `self: null` on any failure.
   const selfBundleFetch = personPromise.then((person) => fetchSelfBundle(person, agentId)).catch(() => null);
 
-  const [[bgRaw, matchedRaw = []], semanticRaw, activityRaw, watchRaw, relBundle, selfBundle] =
+  // ── THE SURFACE-SWITCH LEG (WS-O) ──────────────────────────────────────
+  //
+  // WHAT IS BROKEN. `api/_surface.js`'s own header states the law: "A surface
+  // is a TRANSPORT... The same human on Telegram and on the web is the same
+  // relationship, so identity resolution here is AGENT-INDEPENDENT and memory
+  // is never keyed by surface. Anything that keys memory by surface
+  // reintroduces the amnesia the relational layer exists to delete."
+  //
+  // Identity really is shared — `vy_surface_identity` maps (surface,
+  // surface_user_id) to ONE person_id. But `_room.js`'s `bindSurfaceDmDevice`
+  // mints a device PER SURFACE, and the two biggest legs above
+  // (`meera_nodes`: standing background and the keyword match) plus
+  // `meera_edges` are device-keyed. The vy_ store is person-keyed and follows
+  // the person; the graph store does not.
+  //
+  // MEASURED, on the same 44 scorable questions over the same fixture rows,
+  // with the device_id as the ONLY variable (`evals/run.mjs recallbench` §3c):
+  // mean recall 0.841 on the device the rows were formed on, 0.091 from
+  // another device the same person owns. **89.2% of what she had, gone on a
+  // surface switch**, silently, with a 200 on every call.
+  //
+  // ── WHY THIS IS AN ADDITIVE LEG AND NOT A WIDER `where` ────────────────
+  // The obvious fix is to widen the existing predicates to the person's device
+  // set. It was refused, for two reasons that are about failure modes rather
+  // than taste:
+  //
+  //   1. Those two statements are the ones every recalled prompt is built
+  //      from, and each is wrapped in `.catch(() => [])`. A SQL error in a
+  //      widened predicate — a uuid/text mismatch in the subquery, say — would
+  //      not raise: it would return an empty array, and she would silently
+  //      have no memory at all. That is `silent-truncation` in the retrieval
+  //      path, and `offline-mocks-cannot-type-check-sql` is explicit that a
+  //      mocked DB proves control flow and not SQL types. There is no live
+  //      database in this session to smoke-test against.
+  //   2. As a separate leg, the failure mode is the opposite one: this query
+  //      dies, the cross-surface rows are absent, and the recall is exactly
+  //      what it is today. The feature degrades; the product does not.
+  //
+  // ── CONSENT: THE HALF THAT DECIDES THE SHAPE ───────────────────────────
+  // `opRecall` has NO read-side forget suppression — forget is a hard DELETE,
+  // and the legacy lane's delete is device-scoped. So reading another device's
+  // rows without any further work would let her say, on the very device where
+  // she was asked to forget something, a thing already forgotten there.
+  //
+  // Hence the term query below, and hence the ATOMIC RULE: the cross-surface
+  // rows are used ONLY if the forget-term read also succeeded. If the terms
+  // cannot be read, the rows are dropped. A memory that arrives without its
+  // suppression list is not a partially-good feature, it is a consent defect,
+  // so the two travel as one result or not at all.
+  //
+  // Terms are read across ALL of the person's devices, this one included —
+  // broader than what any single-device path does today, and broad in the only
+  // safe direction.
+  //
+  // ── WHAT CANNOT LEAK THROUGH THIS, BY CONSTRUCTION ─────────────────────
+  // Group rooms. A room turn is written under `vy_group.room_device_id`, a
+  // synthetic uuid that (PERSON_TABLES' own note) "appears in NOBODY's
+  // vy_person_device mapping". So the subquery cannot reach a room device, and
+  // the §2.3 disclosure predicate is not being re-implemented here or relied
+  // on — the join simply does not contain those rows. Agent scope is carried
+  // explicitly on both statements, exactly as every other leg carries it.
+  //
+  // ABSENT BY DEFAULT: a person with one device has no other devices, both
+  // queries return nothing, and every byte of the recalled prompt is what it
+  // was before this leg existed.
+  const crossSurfaceFetch = (async () => {
+    const person = await personPromise;
+    if (!person) return null;
+    const clauses = words.map((_, i) => `(n.name ~* $${i + 4} or n.summary ~* $${i + 4})`);
+    const [rows, terms] = await Promise.all([
+      q(
+        `select ${COLS}, salience, ${RANK} as r
+           from meera_nodes n
+          where n.device_id <> $1
+            and n.device_id in (select d.device_id from vy_person_device d where d.person_id = $2)
+            ${agentScopePredicate("n", { agentId: "$3" })}
+            ${clauses.length ? `and (${clauses.join(" or ")})` : ""}
+          order by r desc, updated_at desc
+          limit 6`,
+        [device, person, agentId, ...words.map((w) => `\\m${w}\\M`)],
+        2_500,
+      ),
+      q(
+        `select f.term from meera_forget f
+          where f.device_id in (select d.device_id from vy_person_device d where d.person_id = $1)
+            ${agentScopePredicate("f", { agentId: "$2" })}
+          limit 200`,
+        [person, agentId],
+        2_500,
+      ),
+    ]).catch(() => [null, null]);
+    // THE ATOMIC RULE. Either both halves are here, or this leg contributed
+    // nothing. `null` is the failure signal; `[]` is a real empty answer.
+    if (!Array.isArray(rows) || !Array.isArray(terms)) return null;
+    const rxs = terms.map((r) => termRe(String(r.term)));
+    const kept = rxs.length
+      ? rows.filter((n) => !rxs.some((rx) => rx.test(n.name || "") || rx.test(n.summary || "")))
+      : rows;
+    return kept;
+  })().catch(() => null);
+
+  const [[bgRaw, matchedRaw = []], semanticRaw, activityRaw, watchRaw, relBundle, selfBundle, crossRaw] =
     await Promise.all([
       Promise.all(fetches),
       semanticFetch,
@@ -1022,14 +1123,50 @@ async function opRecall(device, body) {
       watchFetch,
       relBundleFetch,
       selfBundleFetch,
+      crossSurfaceFetch,
     ]);
   // slot 0 = the five ranked rows, slot 1 = the reserved oldest-high-salience
   // row. `union all` does not promise an order, so the reservation is put back
   // where it belongs here rather than trusted to arrive there.
-  const background = (Array.isArray(bgRaw) ? bgRaw : [])
+  const backgroundHome = (Array.isArray(bgRaw) ? bgRaw : [])
     .slice()
     .sort((a, b) => Number(a.slot ?? 0) - Number(b.slot ?? 0) || Number(b.r ?? 0) - Number(a.r ?? 0));
-  const matched = Array.isArray(matchedRaw) ? matchedRaw : [];
+  const matchedHome = Array.isArray(matchedRaw) ? matchedRaw : [];
+
+  // ── THE SURFACE-SWITCH MERGE (WS-O) ────────────────────────────────────
+  //
+  // The other devices' rows join the SAME two sets the home device's rows are
+  // in, and nothing downstream learns which surface a row came from. That is
+  // the point rather than an omission: the surface a memory was formed on is
+  // not something she should ever know or mention, and a row tagged with its
+  // origin is a row a model will eventually narrate ("you told me this on
+  // WhatsApp"), which is both wrong and creepy.
+  //
+  // WHICH SET a cross row joins is decided by the same rule the home legs use:
+  // there were query words, so it word-matched, so it is an ANSWER; there were
+  // none, so it is CONTINUITY. One rule, not a second opinion.
+  //
+  // DEDUP IS BY NAME, not by id. The same person's "amma" on two devices is
+  // two rows with two ids and one meaning, and an id-dedup would render her
+  // mother twice. The HOME row always wins — it is the one whose salience and
+  // mentions this device's conversations actually moved.
+  //
+  // The cross rows are appended AFTER the home rows in both sets, so the
+  // existing order is untouched and the T5 budget drop sheds the imported rows
+  // first. A person with one device gets an empty array here and the two
+  // consts below are the two that already existed, byte for byte.
+  const crossRows = Array.isArray(crossRaw) ? crossRaw : [];
+  const haveName = new Set(
+    [...matchedHome, ...backgroundHome].map((n) => String(n.name || "").toLowerCase()),
+  );
+  const crossNew = crossRows.filter((n) => {
+    const k = String(n.name || "").toLowerCase();
+    if (!k || haveName.has(k)) return false;
+    haveName.add(k);
+    return true;
+  });
+  const background = words.length ? backgroundHome : [...backgroundHome, ...crossNew];
+  const matched = words.length ? [...matchedHome, ...crossNew] : matchedHome;
   const semanticAll = Array.isArray(semanticRaw) ? semanticRaw : [];
   const activities = (Array.isArray(activityRaw) ? activityRaw : []).slice(0, 4);
   const watched = watchRaw && typeof watchRaw === "object" ? watchRaw : { moments: [], photos: [] };

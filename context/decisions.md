@@ -3156,3 +3156,84 @@ at arm A's rate AND scoring at least as well on register, example dialogue
 becomes a technique this repo can use and `recited-prompt` gains a format
 carve-out. If arm C recites materially above arm A, the law is confirmed as
 written and item 5 closes as a rejection.
+
+## `surface-switch-recall-leg` — the graph store follows the person, as an ADDITIVE leg (2026-08-26)
+
+WS-O, the third piece. Measurement: `context/measurements.md#surface-switch-recall`.
+
+**What was broken, and it is the product's own stated law being violated.**
+`api/_surface.js`'s header: "A surface is a TRANSPORT… memory is never keyed by
+surface. Anything that keys memory by surface reintroduces the amnesia the
+relational layer exists to delete." Identity obeys that. Retrieval did not —
+`bindSurfaceDmDevice` mints a device per surface and opRecall's two biggest legs
+are device-keyed. **Measured: 89.2% of recall lost on a surface switch**, on
+identical rows, with device_id as the only variable.
+
+**Decision 1 — an ADDITIVE LEG, not a wider `where`.** The obvious fix is to
+widen the two existing predicates to the person's device set. Refused, on
+failure modes rather than taste: those two statements build every recalled
+prompt and are each wrapped in `.catch(() => [])`, so a SQL error in a widened
+predicate would not raise — it would return `[]` and she would silently have no
+memory at all. That is `silent-truncation` in the retrieval path, and
+`offline-mocks-cannot-type-check-sql` is explicit that a mocked DB proves
+control flow and not SQL types. There is no live database in this session. As a
+separate leg the failure mode inverts: the leg dies, the imported rows are
+absent, recall is exactly what it is today. **Asserted, not hoped:** [SS-4] and
+[SS-5] check that home recall is bit-for-bit identical whether the leg works or
+throws.
+
+**Decision 2 — consent decides the shape.** `opRecall` has NO read-side forget
+suppression (forget is a hard DELETE) and the legacy delete is device-scoped. An
+imported row is therefore the one place in that function where a forgotten thing
+could return — on the very device where the person asked. So the leg reads the
+forget terms across ALL of the person's devices and filters imports through
+them, and the two reads are **atomic: no terms, no rows.** A memory that arrives
+without its suppression list is not a partially-good feature, it is a consent
+defect. [SS-6] is the positive control (the row really does import), [SS-7] the
+suppression.
+
+**Decision 3 — the imported rows are not labelled with their surface.** They
+join the same two sets the home rows are in and nothing downstream learns where
+they came from. A row tagged with its origin is a row a model will eventually
+narrate ("you told me this on WhatsApp"), which is both wrong and creepy. Which
+set a row joins is decided by the rule the home legs already use — words present
+means it word-matched means it is an ANSWER; no words means CONTINUITY.
+
+**Decision 4 — dedup by NAME and the home row wins.** The same person's "amma"
+on two devices is two ids and one meaning; an id-dedup renders her mother twice.
+The home row wins because it is the one whose salience and mentions this
+device's conversations actually moved.
+
+**Decision 5 — a cap of 6, and no relations.** Deliberately smaller than the 14
+the two home legs return together: a bigger cap would let another surface's
+memory outweigh this one's. Relations are not imported at all — edges between
+two imported rows would need a second import and a second dedup. Both are why
+the residual after the fix is 13.5% rather than 0, and the residual is printed
+in the run so it cannot be mistaken for "fixed".
+
+**What is deliberately NOT done, and it is the larger half.** The legacy FORGET
+lane is still device-scoped: a whole wipe on the web leaves the Telegram
+`meera_nodes` rows standing. That is a defect TODAY, independent of this leg
+(the whole wipe detaches the wiping device from the person, so this leg cannot
+reach those rows and does not worsen it — but it does not fix it either).
+Widening a DELETE's blast radius with no live database to verify the SQL against
+is exactly what `offline-mocks-cannot-type-check-sql` forbids, and a half-done
+forget is the worst possible half. Filed as `legacy-forget-is-device-scoped`
+(open), with the fix stated: resolve the person's device set once and pass it to
+every legacy-lane statement in `opForget`, smoke-tested against the real
+database first.
+
+**What would reverse this.** If a live smoke test shows the leg's two statements
+failing (a uuid/text mismatch in the subquery is the plausible one), the leg is
+dead weight and either gets fixed against the real types or removed — and
+removing it costs nothing, which is the property Decision 1 bought. If the
+imported rows measurably degrade answer PRECISION in a keyed run — a real risk,
+since they are imported without the ranking context of their own device — the
+cap comes down or the leg becomes words-only.
+
+**Gate.** `node evals/run.mjs recallbench` §3c: [SS-1] the pre-fix loss is real,
+[SS-2] the leg restores most of it, [SS-3] neither call errored, [SS-4] the home
+device is unchanged, [SS-5] the fail-safe degrade, [SS-6]/[SS-7] the consent
+pair. Plus the router itself gained device scope — it used to serve fixture rows
+to any caller, which made this whole class of defect invisible while every
+assertion stayed green.

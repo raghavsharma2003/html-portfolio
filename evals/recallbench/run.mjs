@@ -70,7 +70,7 @@ register(pathToFileURL(join(HERE, "loader.mjs")));
 process.env.SUPABASE_URL = "https://recallbench.invalid";
 process.env.SUPABASE_KEY = "recallbench-not-a-key";
 
-const { loadFixture, unroutedQueries, routeCounts } = await import(pathToFileURL(join(HERE, "store.mjs")).href);
+const { loadFixture, unroutedQueries, routeCounts, setCrossSurface } = await import(pathToFileURL(join(HERE, "store.mjs")).href);
 const memory = await import(pathToFileURL(join(HERE, "..", "..", "api", "memory.js")).href);
 const handler = memory.default;
 
@@ -461,6 +461,143 @@ console.log("\n§3b KNOWN RETRIEVAL GAPS — measured, deliberately NOT gated");
       m.slice(0, 260),
     );
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§3c THE SURFACE SWITCH — the same person, a different device (WS-O)");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// ── THE LAW, AS THE PRODUCT ALREADY STATES IT ──────────────────────────
+// `api/_surface.js`'s own header: "A surface is a TRANSPORT... The same human
+// on Telegram and on the web is the same relationship, so identity resolution
+// here is AGENT-INDEPENDENT and memory is never keyed by surface. Anything
+// that keys memory by surface reintroduces the amnesia the relational layer
+// exists to delete."
+//
+// ── WHAT THE ENGINE ACTUALLY DOES ───────────────────────────────────────
+// Identity IS shared: `vy_surface_identity` maps (surface, surface_user_id) to
+// ONE person_id, with no agent and no surface in the key. But `_room.js`'s
+// `bindSurfaceDmDevice` mints a device per surface (`surfaceDmDeviceId(surface,
+// surfaceUserId)`), and opRecall's two largest legs — the keyword MATCHED leg
+// and the STANDING BACKGROUND leg — read `meera_nodes ... where device_id =
+// $1`, as do `meera_edges` and the neighbour-name resolution. The vy_ store
+// (facts, activities, watch moments, rel/self bundles) is person-keyed and
+// follows the person.
+//
+// So a person who says something on the web app and then opens WhatsApp keeps
+// half of her memory and loses the other half, silently, with no error and a
+// 200 on every call.
+//
+// ── HOW THIS IS MEASURED ────────────────────────────────────────────────
+// The identical 50 questions, over the identical fixture rows, from a device
+// the fixture's person also owns — which is what `personIdFor` returns for
+// both, because the mock resolves any device to the fixture's person exactly
+// as `vy_surface_identity` would. The only variable is the device_id bound
+// into the legacy-lane statements. Nothing about the store changes.
+//
+// REPORTED, NOT GATED, and the reason is the one §3b gives: the fix is a
+// coordinated change to recall AND to the legacy forget lane, and half of it
+// is a consent regression (see the note under the table).
+{
+  let threw = null;
+  const arm = async (crossOn) => {
+    setCrossSurface(crossOn);
+    const home = [];
+    const away = [];
+    for (const d of DYADS) {
+      loadFixture(d);
+      const keys = keysOf(d);
+      // A DIFFERENT, VALID uuid. It must be valid: `opRecall` 400s on a
+      // malformed device before it reads anything, and a 400 would look exactly
+      // like total recall loss — which is the number this section reports, so
+      // getting it by accident would be the worst available outcome. [SS-3]
+      // asserts both calls actually returned a prompt.
+      const suffix = DYADS.indexOf(d).toString(16).repeat(12).slice(0, 12);
+      const other = { ...d, deviceId: `ffffffff-9999-4999-8999-${suffix}` };
+      for (const question of d.questions) {
+        const expected = question.expect || [];
+        if (!expected.length) continue; // forget/absent are boolean, not recall
+        const h = await recall(d, question.q).catch((e) => `THREW ${e.message}`);
+        const a = await recall(other, question.q).catch((e) => `THREW ${e.message}`);
+        threw = threw || (h.startsWith("THREW") ? h : a.startsWith("THREW") ? a : null);
+        const hit = (str) => retrievedFrom(str, keys).filter((k) => expected.includes(k)).length / expected.length;
+        home.push(hit(h));
+        away.push(hit(a));
+      }
+    }
+    return { home, away };
+  };
+  const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
+  // The PRE-FIX arm first: the leg's two statements throw, exactly as a SQL
+  // error would, so `api/memory.js`'s catch drops the whole contribution.
+  const off = await arm(false);
+  const on = await arm(true);
+  setCrossSurface(true);
+  const pct = (x, y) => (x > 0 ? (((x - y) / x) * 100).toFixed(1) : "0.0");
+  console.log(
+    `  n = ${on.home.length} recall questions (the scorable ones, across all three dyads)` +
+      `\n` +
+      `\n                                   | same device | after a surface switch | loss` +
+      `\n  --------------------------------+-------------+------------------------+------` +
+      `\n  surface-switch leg OFF (pre-fix) |    ${mean(off.home).toFixed(3)}    |         ${mean(off.away).toFixed(3)}          | ${pct(mean(off.home), mean(off.away))}%` +
+      `\n  surface-switch leg ON            |    ${mean(on.home).toFixed(3)}    |         ${mean(on.away).toFixed(3)}          | ${pct(mean(on.home), mean(on.away))}%` +
+      `\n` +
+      `\n  What survived the switch WITHOUT the leg: the vy_ store only — facts,` +
+      `\n    activities, watch moments, and the rel/self bundles. All person-keyed.` +
+      `\n  What was lost: meera_nodes (the MATCHED and STANDING BACKGROUND legs),` +
+      `\n    meera_edges, and the neighbour-name resolution. All device-keyed.` +
+      `\n` +
+      `\n  THE RESIDUAL is real and is not a rounding error. \`meera_edges\` is still` +
+      `\n  device-keyed and the leg does not import relations, so a multi-hop question` +
+      `\n  answered through an edge on the home device is still answered without it` +
+      `\n  after a switch; and the leg is capped at 6 rows where the two home legs` +
+      `\n  together return up to 14. Both are deliberate: relations between two` +
+      `\n  imported rows would need a second import and a second dedup, and a cap` +
+      `\n  bigger than the home legs would let another surface's memory outweigh this` +
+      `\n  one\'s. Named here so the number is not mistaken for "fixed".`,
+  );
+  // GATES ON THE MEASUREMENT ITSELF, not on the defect.
+  ok("[SS-1] the pre-fix arm really loses most of recall (the defect is real)", mean(off.home) - mean(off.away) > 0.5, `${mean(off.home).toFixed(3)} -> ${mean(off.away).toFixed(3)}`);
+  ok("[SS-2] the leg restores most of it (the fix works)", mean(on.away) > mean(off.away) + 0.4, `${mean(off.away).toFixed(3)} -> ${mean(on.away).toFixed(3)}`);
+  // THE BYTE-IDENTITY PROPERTY, from this leg's own side: on the device the
+  // rows live on, a person with no other devices must recall EXACTLY what they
+  // recalled before the leg existed. If this ever fails, the leg is not
+  // absent-by-default and every existing fixture is at risk.
+  ok("[SS-4] on the home device the leg changes NOTHING", Math.abs(mean(on.home) - mean(off.home)) < 1e-9, `${mean(off.home).toFixed(6)} vs ${mean(on.home).toFixed(6)}`);
+  // THE FAIL-SAFE DEGRADE PATH, proved rather than asserted: the OFF arm above
+  // IS the leg failing the way a SQL error would, and the home column is
+  // unchanged in it. A feature that takes the product down with it when it
+  // breaks is not additive.
+  ok("[SS-5] when the leg fails, home recall is untouched (fail-safe degrade)", Math.abs(mean(off.home) - mean(on.home)) < 1e-9);
+
+  // ── THE CONSENT HALF, which decides whether this leg may exist at all ──
+  //
+  // `opRecall` has NO read-side forget suppression: forget is a hard DELETE and
+  // the legacy lane's delete is device-scoped. So an imported row is the one
+  // place in this function where a thing the person asked her to forget could
+  // come back — on the very device where they asked. The leg reads the forget
+  // terms across ALL of the person's devices and filters imported rows through
+  // them, and the two reads are ATOMIC: no terms, no rows.
+  //
+  // Both halves are tested. A suppression test with no positive control passes
+  // on a leg that imports nothing.
+  {
+    setCrossSurface(true);
+    const d = DYADS[0];
+    const suffix = "0".repeat(12);
+    const other = { ...d, deviceId: `ffffffff-9999-4999-8999-${suffix}` };
+
+    loadFixture(d);
+    const beforeForget = await recall(other, "meghna ki shaadi kab hai").catch(() => "");
+    ok("[SS-6] positive control: the row DOES import across the switch", beforeForget.toLowerCase().includes("meghna"), beforeForget.slice(0, 160));
+
+    loadFixture({ ...d, forgetTerms: ["meghna"] });
+    const afterForget = await recall(other, "meghna ki shaadi kab hai").catch(() => "");
+    ok("[SS-7] a forget term on ANY of the person's devices suppresses the imported row", !afterForget.toLowerCase().includes("meghna"), afterForget.slice(0, 240));
+
+    loadFixture(d);
+  }
+  ok("[SS-3] neither the home nor the away call errored — the loss is retrieval, not a rejected request", threw === null, String(threw));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

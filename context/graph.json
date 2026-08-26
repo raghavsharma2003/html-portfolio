@@ -1976,6 +1976,30 @@
       "kind": "decision",
       "title": "item 5 stays open: the surface is measured, no law is written, the judged arm is a seam",
       "at": "2026-08-26"
+    },
+    {
+      "id": "surface-switch-recall",
+      "kind": "measurement",
+      "title": "89.2% of recall lost on a surface switch (0.841 -> 0.091); 13.5% after the additive leg",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "surface-switch-recall-leg",
+      "kind": "decision",
+      "title": "the graph store follows the person as an ADDITIVE leg, atomic with its forget terms",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "legacy-forget-is-device-scoped",
+      "kind": "open",
+      "title": "a whole wipe on one surface leaves the other surface's meera_nodes standing; needs a live-verified DELETE widening",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "router-matched-a-table-instead-of-a-statement",
+      "kind": "rejection",
+      "title": "a mock branch keyed on a table name swallowed the query under test; every assertion stayed green",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3653,6 +3677,41 @@
       "src": "example-dialogue-unresolved",
       "rel": "blocks",
       "dst": "exdialog-surface-only"
+    },
+    {
+      "src": "surface-switch-recall-leg",
+      "rel": "measured_by",
+      "dst": "surface-switch-recall"
+    },
+    {
+      "src": "surface-switch-recall-leg",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "surface-switch-recall",
+      "rel": "caused_by",
+      "dst": "recall-bench-v1"
+    },
+    {
+      "src": "surface-switch-recall-leg",
+      "rel": "constrains",
+      "dst": "legacy-forget-is-device-scoped"
+    },
+    {
+      "src": "legacy-forget-is-device-scoped",
+      "rel": "caused_by",
+      "dst": "offline-mocks-cannot-type-check-sql"
+    },
+    {
+      "src": "router-matched-a-table-instead-of-a-statement",
+      "rel": "caused_by",
+      "dst": "surface-switch-recall-leg"
+    },
+    {
+      "src": "router-matched-a-table-instead-of-a-statement",
+      "rel": "constrains",
+      "dst": "recall-bench-v1"
     }
   ]
 }

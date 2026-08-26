@@ -3174,3 +3174,51 @@ shapelint clean. Not patched: shapelint runs over TAIL content rows, where a
 quoted span is legitimately a person's own words ("their own words for it" is a
 live feature of `api/memory.js`'s fact renderer), so a quote-delimiter rule
 would fire on the wrong file. Filed as `shapelint-blind-to-hinglish-quotes`.
+
+---
+
+## `surface-switch-recall` — 89.2% of recall is lost when a person changes surface (2026-08-26)
+
+WS-O. `node evals/run.mjs recallbench` §3c. Offline harness (the same one WS-K
+built, with the DB mocked at `api/_db.js`'s module boundary), so this is a
+LOWER-BOUND structural number and not a live product measurement — the same
+scope caveat the rest of that suite carries, restated in its own §0.
+
+Method: the 44 scorable questions across the three authored dyads, over the
+identical fixture rows, through the real `opRecall`. The ONLY variable is the
+`device_id` bound into the legacy-lane statements — the mock resolves either
+device to the same person, exactly as `vy_surface_identity` does for one human
+on two surfaces. The pre-fix arm is produced by making the new leg's statements
+THROW, which is what a SQL error would do and what `api/memory.js`'s `.catch`
+turns into a dropped contribution — so it is a negative control, not a second
+copy of the code.
+
+| arm | same device | after a surface switch | loss |
+|---|---|---|---|
+| surface-switch leg OFF (pre-fix) | 0.841 | 0.091 | **89.2%** |
+| surface-switch leg ON | 0.841 | 0.727 | 13.5% |
+
+**Why.** `api/_surface.js`'s own header states the law — "memory is never keyed
+by surface. Anything that keys memory by surface reintroduces the amnesia the
+relational layer exists to delete." Identity obeys it (`vy_surface_identity` has
+no surface in its key and must never gain an `agent_id`). Retrieval did not:
+`_room.js`'s `bindSurfaceDmDevice` mints a device per surface, and opRecall's
+two largest legs (STANDING BACKGROUND and the keyword MATCH) plus `meera_edges`
+and the neighbour-name resolution all read `where device_id = $1`. The vy_ store
+— facts, activities, watch moments, the rel and self bundles — is person-keyed
+and followed the person. Half the memory travelled and half did not, silently,
+with a 200 on every call.
+
+**The residual 13.5% is named, not rounded away.** `meera_edges` is still
+device-keyed and the leg imports no relations, so a multi-hop question answered
+through an edge at home is answered without it after a switch; and the leg is
+capped at 6 rows where the two home legs together return up to 14. Both caps are
+deliberate (see `context/decisions.md#surface-switch-recall-leg`).
+
+**This number is not the same kind as a live one**, and the difference matters
+for exactly one reason: the mock proves control flow, not SQL types
+(`offline-mocks-cannot-type-check-sql`). The leg's two statements have never run
+against Postgres. Its failure mode is designed for that: both reads are atomic
+and any error drops the whole contribution, so an untyped-parameter error costs
+the feature and not the recall. [SS-4] and [SS-5] assert exactly that — home
+recall is bit-for-bit unchanged whether the leg works or dies.
