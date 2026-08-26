@@ -4527,3 +4527,73 @@ surfaces.
 
 **What would reverse this.** The owner reshaping it, or measured evidence a
 step boundary loses users (which would move a boundary, not restore the wall).
+
+## `activity-is-a-read-not-a-progress-bar` — the owner's activity surface, and the one lane allowed a fraction (2026-08-26, WS-AF)
+
+**The owner's ask, verbatim:** "I should also see that have we received the YT
+video and that processing done or not, and all the other processing going on we
+should see, in a user view."
+
+Seven asynchronous lanes run in this platform (upload processing, context
+locker, channel sweep, per-video ingest, voice model build, mirror-call
+fine-tune queue, erasure). The person who started them could see none of them.
+The rows existed; nothing read them together.
+
+**The decision.** One owner-scoped, replica-scoped read (`/api/replica-activity`,
+`api/_replica-activity.js`) normalises every lane to one job shape:
+`{job_id, ref, lane, subject, state, state_reason, started_at, updated_at,
+finished_at, progress, next_action, in_flight}`, with `state` closed over seven
+values that migration 060, the read and the UI all share.
+
+**The load-bearing part is `progress: null`.** Exactly ONE lane in this platform
+can compute a real fraction: the enrollment DAG, where completed processing jobs
+over the eight steps of `AUDIO_PROCESSING_DAG` is finished work over a known
+total. Every other lane returns null and gets a sentence. A status ladder
+(`fetched` -> `transcribed` -> `proposed`) is not a fraction of work: a two-hour
+lecture is not half done when the row says `transcribed`, because `transcribed`
+is the END of the expensive part, so a bar built on that ladder would crawl and
+then jump. `plausible-return-hides-a-dead-pipeline` is this repo's most
+expensive law and a progress bar is its purest form: a bar at 60% driven by a
+schedule tells the owner something is happening at the exact moment nothing is.
+Words that name the stage cannot lie about the remainder.
+
+**`in_flight` is server-decided, per lane, and it is what stops the poll.** Each
+lane declares what advances it: `worker` (a queued job is genuinely in flight,
+poll), `schedule` (a cron moves it on its own clock, so queued can mean "in an
+hour" and polling would spin), or `nobody` (the fine-tune queue: migration 059
+gave it no lease columns and no runner, so `queued` means "you asked and nothing
+has run it", and saying that is the row's whole value). The server returns
+`next_poll_ms`, backing off 3s toward 30s across unchanged polls and returning
+`null` the moment nothing is in flight.
+
+**A failure reports WHY in words.** Every lane stores a code; `reasonFor` maps
+the codes we actually emit to sentences and its fallback opens the underscores
+out rather than saying "something went wrong", so an unmapped code stays
+searchable and quotable instead of becoming indistinguishable from a bug.
+
+**A one-click retry is offered only where one exists.** The only safe one in the
+platform is re-running finalize on a source stranded at `pending_upload`: the
+bytes are already in storage, the owner's disk is not needed, and it is the
+recovery path for every upload the finalize defect stranded. A rejected
+recording gets `fix_input` (only the owner can supply different bytes) and a
+failed channel video gets `wait` naming what the next sweep will do, because
+there is no per-video retry op and a button that called nothing would be a fake
+progress bar with a label on it.
+
+*Reverses when* a lane gains a genuinely measurable denominator (a chunked
+transcription that reports chunks done, a fine-tune that reports steps), at
+which point that lane returns a real `progress` and nothing else changes. It
+does NOT reverse because a bar would look better.
+
+## `an-undeployed-lane-is-a-state-not-an-empty-list` (2026-08-26, WS-AF)
+
+A lane whose provider, cron or secret is absent returns zero rows. Zero rows
+renders as an empty list, and an empty list is indistinguishable from "nothing
+has happened yet" — which is a SUCCESS shape for a lane that cannot work at all.
+So `/api/replica-activity` returns a per-lane deployment verdict computed from
+the same environment the workers read, and the surface renders "not connected
+yet" with the missing piece NAMED (`SARVAM_API_KEY`, `CRON_SECRET`, or, for the
+fine-tune lane, "a fine-tune runner, which does not exist in this repo yet" —
+named as a service because no env var would make it true).
+
+*Reverses when* every lane is deployed everywhere, which will not happen.

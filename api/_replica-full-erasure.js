@@ -52,6 +52,11 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // from it, and a deletion receipt that could not say those were included
       // would be answering a narrower question than the one asked.
       "mirror_call_sessions",
+      // 060 (WS-AF). The activity trail is its own class for the same reason
+      // the two above are: it is a dated record of what this person handed us
+      // and when, video titles included, and a receipt that did not name it
+      // would understate what was held.
+      "owner_activity_trail",
     ]),
   });
 }
@@ -350,6 +355,15 @@ export async function completeReplicaErasure(db, lease, receipt) {
      mirror_windows as (delete from vy_mirror_window x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_sessions as (delete from vy_mirror_session x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 060's activity trail (WS-AF). It carries a composite FK to
+     -- (replica_id, owner_user_id) ON DELETE CASCADE, so relcheck's owner-lane
+     -- reach walk is satisfied without this line. It is deleted by name anyway,
+     -- on 059's precedent and for 059's reason: this table is a dated record of
+     -- what a named person handed us and when, including the titles of their own
+     -- videos, and relying on a cascade for that means relying on an FK nobody
+     -- re-checks. Two independent layers for a harm the next turn does not undo.
+     activity as (delete from vy_replica_activity x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt

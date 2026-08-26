@@ -8,6 +8,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
 Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
 Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
+Last updated: 2026-08-26 (WS-AF: the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing)
 
 ## What the product is
 
@@ -124,6 +125,25 @@ service response, not a claim.
   (`offline-mocks-cannot-type-check-sql` applies in full), so every request to
   `/api/context-items` will 500 until 058 is applied. The matrix of what is
   accepted, refused and routed is `docs/gurukul/context-locker.md`.
+- **The Activity surface** (WS-AF, the owner's "we should see all the other
+  processing going on, in a user view"): `/api/replica-activity`,
+  `api/_replica-activity.js`, migration **060**, `src/studio/ActivityPanel.tsx`
+  + `activity.css` + `activityApi.ts`. Code-complete and gated offline
+  (`evals/replicaactivity.mjs`, 221 checks, wired into `evals/run.mjs`, with a
+  negative control for the no-fake-progress rule and one for the deployment
+  alternation). It normalises all seven async lanes to one job shape and emits
+  `progress` for exactly ONE of them (the 8-step enrollment DAG); the other six
+  return null and words. **Nothing is live.** Migration 060 is UNAPPLIED and no
+  statement in it or in the read has ever been EXPLAINed — this environment has
+  no `NEON_URL` and no `api/_config.js`, so the relational gates were skipped
+  (`offline-mocks-cannot-type-check-sql` applies in full) and every request to
+  `/api/replica-activity` will 500 until 060 is applied. It is NOT mounted:
+  WS-AE owns `StudioApp.tsx` and left a named slot
+  (`ProcessingStatusMount.tsx`, `where="feed"|"meet"`); the five-line swap is in
+  `docs/gurukul/UX-QUEUE.md`. Two lanes that reported nothing at all now do:
+  `vy_channel_watch` records its sweep outcome and reason
+  (`a-fresh-timestamp-is-what-success-looks-like`) and `vy_ingest_run` keeps the
+  video TITLE (`a-video-id-is-not-a-name`).
 - **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not
   deployed as its own project.
 - **Channels** (WS-N, "deploy the clone anywhere"): the binding layer, the
@@ -197,7 +217,9 @@ service response, not a claim.
    keys + management token, Azure SP secret, Google OAuth secret, and the two
    keys flagged in `session-2026-08-25b-close`.
 4. Azure GPU quota, if the deploy agent reports the subscription has none.
-5. Apply migrations 055 and **058** (the Mirror Call), and set
+5. Apply migrations 055, **058**, **059** (the Mirror Call) and **060** (the
+   Activity surface: `vy_replica_activity`, `vy_ingest_run.video_title`, the
+   three `vy_channel_watch` sweep columns), and set
    `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
    `openssl rand -base64 48`) — without it the embeddable widget is off.
 6. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`

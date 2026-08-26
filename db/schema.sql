@@ -2446,3 +2446,83 @@ create table if not exists vy_mirror_finetune_job (
 create unique index if not exists vy_mirror_finetune_session_ix on vy_mirror_finetune_job (session_id);
 create index if not exists vy_mirror_finetune_queue_ix on vy_mirror_finetune_job (state, requested_at) where state = 'queued';
 create index if not exists vy_mirror_finetune_owner_ix on vy_mirror_finetune_job (owner_user_id, replica_id, requested_at desc);
+
+-- ── migration 060 — vy_replica_activity: the one honest activity trail ─────
+--
+-- The owner's ask: "I should also see that have we received the YT video and
+-- that processing done or not, and all the other processing going on we should
+-- see, in a user view." Every lane already had a `state` column and an
+-- `updated_at`; between them they answer "what is this row's state right now"
+-- and nothing else. This append-only transition log answers when work started,
+-- when it finished, how long it sat, and what the failure BEFORE the last one
+-- was, for every lane at once.
+--
+-- There is no `progress` column and there will not be one. Exactly one lane in
+-- this platform can compute a real fraction (the enrollment DAG: completed
+-- steps over the eight in AUDIO_PROCESSING_DAG) and it computes it from rows
+-- that already exist. A column here would invite the other six lanes to fill
+-- it, and a bar that moves on a schedule rather than on work is
+-- `plausible-return-hides-a-dead-pipeline` rendered in paint.
+--
+-- `state` is a CHECK over the same seven values the read API and the UI use, so
+-- a lane cannot invent an eighth nothing knows how to render.
+-- `vy_replica_activity_failure_named` is 058's refusal-named argument
+-- transferred: a writer that records `failed` and forgets the reason is refused
+-- by Postgres, not by a code review.
+--
+-- `dedupe_key` is OPT-IN at-most-once. A sweep that ticks twice a minute passes
+-- one and the partial index makes the second write a no-op; a lane that wants
+-- every transition passes '' and the index does not apply. Dedupe by default
+-- would have silently collapsed the retry history this table exists to keep.
+create table if not exists vy_replica_activity (
+  event_id      uuid primary key default gen_random_uuid(),
+  replica_id    uuid not null,
+  owner_user_id uuid not null,
+  lane          text not null
+                check (lane in ('upload_processing','context_item','channel_watch',
+                                'channel_video','voice_model_build','mirror_finetune','erasure')),
+  job_ref       text not null,
+  subject       text not null default '',
+  state         text not null
+                check (state in ('queued','running','waiting_on_you','done','failed','blocked','cancelled')),
+  reason        text not null default '',
+  dedupe_key    text not null default '',
+  at            timestamptz not null default now(),
+  constraint vy_replica_activity_job_ref_present check (job_ref <> ''),
+  constraint vy_replica_activity_failure_named
+    check (state not in ('failed','blocked') or reason <> ''),
+  constraint vy_replica_activity_owner_fk
+    foreign key (replica_id, owner_user_id)
+    references vy_replica (replica_id, owner_user_id) on delete cascade
+);
+create index if not exists vy_replica_activity_owner_ix
+  on vy_replica_activity (owner_user_id, replica_id, at desc);
+create index if not exists vy_replica_activity_job_ix
+  on vy_replica_activity (replica_id, lane, job_ref, at);
+create unique index if not exists vy_replica_activity_dedupe_ix
+  on vy_replica_activity (replica_id, dedupe_key) where dedupe_key <> '';
+
+-- The owner asked whether we received "the YT video". `video_ref` holds
+-- `dQw4w9WgXcQ` and nobody recognises their own lecture by its YouTube id. The
+-- title is already on the object the provider hands us and was simply never
+-- persisted.
+alter table vy_ingest_run add column if not exists video_title text not null default '';
+
+-- `plausible-return-hides-a-dead-pipeline`, live: sweepWatch() catches a
+-- listing failure and touchWatch() writes `last_checked_at = now()`, so a
+-- channel failing every tick for a week looks exactly like one checked every
+-- tick with nothing new. The failure this lane already predicts
+-- (`channel_extract_extractor_bot_check` from a datacenter IP) lands in exactly
+-- that swallowed catch.
+alter table vy_channel_watch add column if not exists last_sweep_state text not null default '';
+alter table vy_channel_watch add column if not exists last_sweep_reason text not null default '';
+alter table vy_channel_watch add column if not exists last_sweep_videos integer not null default 0;
+alter table vy_channel_watch drop constraint if exists vy_channel_watch_sweep_state_named;
+alter table vy_channel_watch add constraint vy_channel_watch_sweep_state_named
+  check (last_sweep_state in ('','checked','failed'));
+alter table vy_channel_watch drop constraint if exists vy_channel_watch_sweep_failure_named;
+alter table vy_channel_watch add constraint vy_channel_watch_sweep_failure_named
+  check (last_sweep_state <> 'failed' or last_sweep_reason <> '');
+alter table vy_channel_watch drop constraint if exists vy_channel_watch_sweep_videos_nonneg;
+alter table vy_channel_watch add constraint vy_channel_watch_sweep_videos_nonneg
+  check (last_sweep_videos >= 0);

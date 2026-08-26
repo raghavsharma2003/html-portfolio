@@ -275,3 +275,23 @@ answers.
 Backing: `/api/context-items`, `api/_context-locker.js`, migration 058,
 `evals/contextlocker.mjs` (77 checks). Matrix:
 `docs/gurukul/context-locker.md`.
+
+## WS-AF — the Activity surface, ready to mount
+
+`<ActivityPanel token replicaId where onAuthError onAct />` (default export,
+`src/studio/ActivityPanel.tsx`, styles in its own `activity.css`, wire in
+`activityApi.ts`). It takes WS-AE's `where: "feed" | "meet"` verbatim and keeps
+the two moods rather than shipping one panel twice, and it keeps the mount's
+`id="processing-status-{where}"` so existing anchors still work.
+
+**To integrate:** replace both `<ProcessingStatusMount where="feed"|"meet" />`
+mounts in `StudioApp.tsx` with `<ActivityPanel token={…} replicaId={…}
+where="feed"|"meet" onAuthError={…} onAct={job => …} />`, then delete
+`ProcessingStatusMount.tsx`. `onAct` is where the wizard navigates: a job with
+`next_action.kind === "review"` wants the suggestions surface, `"fix_input"`
+wants the step that owns that item. The panel handles its own one safe retry
+(re-running finalize on a stranded upload) and does not navigate on its own.
+
+Backing: `/api/replica-activity`, `api/_replica-activity.js`, migration 060,
+`evals/replicaactivity.mjs` (221 checks, wired into `evals/run.mjs`). Migration
+060 is UNAPPLIED, so every request to the route 500s until it is.
