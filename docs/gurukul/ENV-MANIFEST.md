@@ -275,7 +275,82 @@ back to this file.
 
 | name | consumed at | required | fallback | breaks without it |
 |---|---|---|---|---|
-| `CRON_SECRET` | `api/replica-identity-sweep.js:7`, `api/replica-face-session-sweep.js:9`, `api/replica-liveness-sweep.js:7`, `api/replica-model-build-sweep.js:6`, `api/replica-erasure-sweep.js:19` (OR'd with `REPLICA_ERASURE_SECRET`), and pre-existing `api/consolidate-sweep.js:117` | required (5 of 6 sweeps have no alternate; erasure alone has one) | unset → `expected.length` is 0, `timingSafeEqual`'s length check fails first, every cron call gets 401 (`replica-erasure-sweep.js` gets 403 via its own comparator) | **this is the exact failure SPEC §4 names**: all five replica sweeps silently 401/403 forever, on schedule, with no error surfaced anywhere except a Vercel cron-invocation log nobody is watching |
+| `CRON_SECRET` | `api/replica-identity-sweep.js:7`, `api/replica-face-session-sweep.js:9`, `api/replica-liveness-sweep.js:7`, `api/replica-model-build-sweep.js:6`, `api/channel-ingest-sweep.js:19`, `api/replica-erasure-sweep.js:19` (OR'd with `REPLICA_ERASURE_SECRET`), and pre-existing `api/consolidate-sweep.js:117` | required (5 of 6 sweeps have no alternate; erasure alone has one) | unset → `expected.length` is 0, `timingSafeEqual`'s length check fails first, every cron call gets 401 (`replica-erasure-sweep.js` gets 403 via its own comparator) | **this is the exact failure SPEC §4 names**: all five replica sweeps silently 401/403 forever, on schedule, with no error surfaced anywhere except a Vercel cron-invocation log nobody is watching |
+
+## 15b. Channel watch + ASR — the stays-current loop (`vercel-app`)
+
+Gurukul WS-I. `SPEC-GURUKUL.md` §8 item 3: "Channel link → new-video
+detection → re-ingestion → PROPOSED claims/sheet deltas the expert approves
+— never silent self-update of a live persona." Two seams, both fail-closed,
+both following `api/_claim-extraction/registry.js`'s pattern: the registry
+reads env and throws a coded 503 when it is incomplete, and neither registry
+imports a fixture provider, so no variable below can be *un*set into a
+fixture lane.
+
+`/api/channel-ingest-sweep` is registered in `vercel.json` crons at
+`0 */6 * * *` and is authenticated by **`CRON_SECRET`** (§15) — the same
+comparator, the same 24-byte minimum, added to that row's consumer list.
+
+### Channel provider — YouTube Data API v3, acting as the channel's owner
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `YOUTUBE_OAUTH_CLIENT_ID` | `api/_channel/registry.js:14` | required | none — throws `channel_provider_unavailable` (503) | the sweep answers `{ok:true, disabled:true}`; no channel is ever listed |
+| `YOUTUBE_OAUTH_CLIENT_SECRET` | `api/_channel/registry.js:15` | required | same as above | same as above |
+
+Both are checked together (`if (!clientId || !clientSecret) throw`) — a
+partial set is the same as none.
+
+**Not an env var, and deliberately so:** the teacher's OAuth **refresh
+token**. Migration 053 stores `vy_channel_watch.oauth_grant_ref` as a `uuid`
+— a reference and never a credential, enforced by the column type rather
+than by a comment — and
+`api/_channel/providers/youtube-oauth.js` takes an injected `grantStore`
+(`refreshToken(grantRef)`) rather than reading a token from a row or from
+the environment. The vault behind that seam belongs to the consent lane
+(WS-E), where every other credential for a real named person already lives.
+Without a grant store the provider fails closed with
+`channel_oauth_grant_store_unavailable`.
+
+### ASR — self-hosted first, Sarvam Saaras second
+
+`api/_asr/registry.js` prefers the self-hosted lane whenever it is
+configured, per SPEC §8 item 1's in-house directive. That order is a
+**strategy** decision (vendor independence), not a quality claim: nothing has
+yet measured the in-house lane against Sarvam on this corpus, and the first
+measurement that does belongs in `context/measurements.md` with n, method and
+date.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `ASR_SELF_HOSTED_ORIGIN` | `api/_asr/registry.js:28`, `api/_asr/providers/self-hosted.js:72` | optional (lane selector) | absent → the Sarvam lane is used | in-house lane unreachable; throws `asr_origin_required` if set but not a bare `https://` origin |
+| `ASR_HMAC_SECRET` | `api/_asr/registry.js:28`, `api/_asr/providers/self-hosted.js:79` | required *with* the origin | throws `asr_hmac_secret_required` (min 32 bytes decoded, hex or base64url) | in-house lane 503s |
+| `ASR_SELF_HOSTED_MODEL` | `api/_asr/providers/self-hosted.js:80` | optional | `"indic-conformer-hinglish-v1"` | none — but the value is asserted against the runtime's echoed `model`, so a mismatch fails `asr_response_binding_invalid` |
+| `ASR_SELF_HOSTED_MODEL_COMMITMENT` | `api/_asr/providers/self-hosted.js:81` | optional | `""` → the commitment check is skipped | the transcript no longer names the exact weights that produced it, which is what SPEC §8 item 2's per-clone fidelity recomputation rests on |
+| `SARVAM_API_KEY` | `api/_asr/registry.js:31` | required for the Sarvam lane | none — throws `asr_provider_unavailable` (503) | with no self-hosted origin either, the sweep answers `{ok:true, disabled:true}` |
+| `SARVAM_ASR_MODEL` | `api/_asr/registry.js:35` | optional | `"saaras:v3"` | none |
+| `SARVAM_API_ORIGIN` | `api/_asr/providers/sarvam-saaras.js:91` | optional | `"https://api.sarvam.ai"` | none — it exists so the endpoint-path verification below does not require a code change |
+
+`ASR_HMAC_SECRET` is a **third independent secret** from
+`OPEN_VOICE_HMAC_SECRET` (§9) and `AZURE_AUDIO_PROTECTION_HMAC_SECRET` (§6),
+in the sense this file's header sets out: same mechanism, different
+deployments, and setting one does not set the others.
+
+**Two flags carried from `docs/gurukul/ingestion-research.md` §3, restated
+here because a caveat that lives only in a research doc is a caveat nobody
+reads at the moment it matters:**
+
+1. The Sarvam lane is **not** wired into `api/_provider-budget.js`'s spend
+   fencing, unlike every Foundry and Personal Voice call (§2, §8). §3's own
+   pricing figures conflict by 3x (₹30/hr vs ₹1.5/min = ₹90/hr) and a fence
+   built on a rate that might be wrong reports a budget it is not holding.
+   Resolving the real rate and adding the fence is a prerequisite for the
+   first paid run.
+2. The Sarvam batch endpoint **paths** in `providers/sarvam-saaras.js` are
+   coded from §3's account of the API, not from a request that has been made.
+   The protocol SHAPE (init → upload → start → poll → fetch) is what
+   determines the file's structure and failure modes and is not in doubt; the
+   exact path strings must be checked against Sarvam's live docs first.
 
 ## 16. azure-verifier — standalone service, its own deployment (`azure-verifier`)
 
@@ -531,6 +606,17 @@ the replica lanes too):
   two different deployments as two settings (per the "not one setting" rule
   in the header): **106 individual env var settings** across `vercel-app`
   and the five standalone services.
+
+**WS-I adds 7 names to `vercel-app` (§15b)**, all of them optional in the
+sense that matters for a deploy — with none of them set, the stays-current
+sweep answers `{ok:true, disabled:true}` and nothing else in the app changes:
+`YOUTUBE_OAUTH_CLIENT_ID`, `YOUTUBE_OAUTH_CLIENT_SECRET`,
+`ASR_SELF_HOSTED_ORIGIN`, `ASR_HMAC_SECRET`, `ASR_SELF_HOSTED_MODEL`,
+`ASR_SELF_HOSTED_MODEL_COMMITMENT`, `SARVAM_API_KEY`, `SARVAM_ASR_MODEL`,
+`SARVAM_API_ORIGIN` — 9 names, of which 4 are optional-with-defaults, so
+**5 new required-if-you-want-the-lane settings**. The totals above predate
+them and are stated as of §1-20; add 9 to the vercel-app name count and to
+the all-targets count for the current tree.
 
 SPEC §4's "~55" is a reasonable estimate **if and only if** it was scoped to
 the Vercel app's *unique names* (61 replica-specific names is close to 55;
