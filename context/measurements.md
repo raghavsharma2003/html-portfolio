@@ -3613,3 +3613,98 @@ Two further readings:
   this ranking is untested.
 - Still speaker-embedding cosine, still no ABX, still says nothing about how
   any of these sound.
+
+## `ink-faint-fails-aa` — the studio's caption grey is below WCAG AA on both grounds (2026-08-26, WS-AG)
+
+**Method.** WCAG 2.x relative-luminance contrast ratio, computed on the exact
+hex values in `docs/gurukul/DESIGN-SYSTEM.md` §4.1. n/a (deterministic, not
+sampled); reproducible from the two ground colours and the foreground.
+
+| foreground | on `--paper` #f4f1e9 | on `--panel` #fffef9 | AA (4.5:1, text under 18px) |
+|---|---|---|---|
+| `--ink-faint` #7a7e74 (shipped) | **3.67:1** | **4.11:1** | fails both |
+| `--ink-faint` #676b62 (proposed) | 4.82:1 | 5.39:1 | passes both |
+| `--ink-soft` #52564e | 6.65:1 | 7.43:1 | passes |
+| `--forest` #17493b | 9.06:1 | 10.13:1 | passes |
+| `--panel` on `--forest` (the CTA) | n/a | 10.13:1 | passes |
+
+`--ink-faint` is used for captions, metadata and help text at 11px to 13px, so
+every one of those uses is a real AA failure and not a borderline one. Fixed in
+`site/vyakti.html` in this pass; `studio.css` owns the token and is queued as
+`UX-Q-AG-02` in `docs/gurukul/UX-QUEUE.md`.
+
+## `copy-law-violations-before-after` — what the widened gate found (2026-08-26, WS-AG)
+
+**Method.** `node scripts/check-copy.mjs` on `gurukul-ws-ag`, before and after
+the fix pass. Scope: `src/studio/`, `src/gurukul/`, `src/replica/`, `site/`
+(full rule set) and `src/components/` (dash only, unchanged). n = every `.ts`,
+`.tsx` and `.html` file in those trees.
+
+| | before | after |
+|---|---|---|
+| total | 120 | 3 (all waived, all in `StudioApp.tsx`) |
+| em-dash / en-dash | 113 | 3 |
+| numbered eyebrow (`06 · x`) | 6 | 0 |
+| codename `Meera` in teacher copy | 1 | 0 |
+
+Largest single files: `TeacherSheetStudio.tsx` 17, `ContextLockerPanel.tsx` 15,
+`QuickStartPath.tsx` 13, `mirrorCallMachine.ts` 12, `errorCopy.ts` 12,
+`ChannelsStudio.tsx` 11. `site/` carried ZERO dashes before the pass, because
+the old gate already covered it; the entire 113 were in the half nothing
+scanned, which is the measurement that matters here.
+
+The one codename leak was `RuntimeGate.tsx:112`, "There is no fallback to
+Meera, another cloud voice, or device TTS" — the other product named on a
+teacher-facing screen, exactly the recurring offender DESIGN-LAW §1 predicted.
+
+## `wizard-input-space-6912` — the rail's status logic, exhausted (2026-08-26, WS-AE)
+
+**n = 6 912.** The full cross product of `WizardInput`'s ten fields at their
+boundary values: stopped (2) x source consent (2) x source count {0, 2} x
+context items {null, 0, 3} x identity (2) x liveness (2) x sheet saved (2) x
+mode (2) x runtime {null, idle, one-owner-blocker, two-platform-blockers,
+qualification-only, active} x channels {null, 0, 3}.
+
+**Method.** `evals/studiowizard.mjs` bundles the real
+`src/studio/wizardModel.ts` with esbuild on every run (no frozen copy) and calls
+`computeWizard` on each input, asserting four properties over the whole space.
+Offline, deterministic, $0, no DB, no browser, about 2 s. Runs inside
+`node scripts/verify-release.mjs` as suite `studiowizard`.
+
+**Result.** 0 inputs light more than one ember. 0 inputs disagree between
+`emberStep` and the rendered waiting row. 0 inputs put an ember on a step with
+nothing to act on. 0 inputs ask a revoked workspace's owner for anything.
+0 inputs report a step `done` while it still lists something missing. 0 inputs
+complete Deploy without a runtime answer.
+
+**What the number is for.** It is a floor to compare against, not a boast. If a
+future change adds a field to `WizardInput`, the space grows and the same six
+counts must stay at zero; a non-zero count names which property broke.
+
+**What it does not measure.** Whether the three steps are the right three, or
+whether an owner can find anything. This is a property suite over a state
+machine, not a usability result, and no usability result exists for this
+surface yet.
+
+## `studio-dash-purge-95` — the copy law, applied to the studio (2026-08-26, WS-AE)
+
+**n = 95 offending lines**, across 15 files in `src/studio/`, measured by
+applying `scripts/check-copy.mjs`'s own extraction (block comments blanked, line
+comments stripped, `emdash-ok:` exempted) to that directory before the purge.
+
+WS-AA's audit had counted **73**; the higher number is not a disagreement. It
+covers en-dashes as well as em-dashes (`DESIGN-LAW.md` §1 bans both, and
+`30–90 sec` was in `VoiceEnrollmentLab.tsx`), and it counts LINES rather than
+occurrences, and `src/studio/` had grown by two workstreams between the audit
+and the purge.
+
+**After: 0**, plus 6 `—` empty-value placeholders rewritten as escapes so
+they are unambiguously data rather than prose. Two numbered eyebrows in
+`VoiceEnrollmentLab.tsx` and one internal codename in `StudioApp.tsx`'s sign-in
+copy were found by the widened gate in the same pass.
+
+**Method note worth keeping.** The gate's own `emdash-ok:` exemptions live in
+line comments, so a refactor that strips comments before testing for the marker
+silently deletes every exemption in the repo. That regression was written and
+caught in the same hour, by `src/components/Chat.tsx`'s legitimate brain-facing
+placeholder, which is the only reason it is recorded here.

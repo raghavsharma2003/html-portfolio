@@ -275,3 +275,140 @@ answers.
 Backing: `/api/context-items`, `api/_context-locker.js`, migration 058,
 `evals/contextlocker.mjs` (77 checks). Matrix:
 `docs/gurukul/context-locker.md`.
+
+---
+
+# WS-AG — queued for the two files this workstream may not touch
+
+**WS-AG, 2026-08-26.** `scripts/check-copy.mjs` is now the mechanical copy gate
+for DESIGN-LAW §1 and it scans `src/studio/`, `src/gurukul/`, `src/replica/` and
+`site/`. It found 120 violations; 117 are fixed on `gurukul-ws-ag`. The three
+below are in `src/studio/StudioApp.tsx`, which WS-AE owns this window.
+
+They are **waived, not muted**: the gate prints them in full on every run and
+exits 0, and it FAILS THE BUILD the moment the file comes back clean, telling
+whoever fixed it to delete the waiver entry. Fix these, delete the `WAIVED` map
+entry in `scripts/check-copy.mjs`, and the gate is fully closed.
+
+Replacement strings are ready to paste. Each turns one em-dash into a full stop
+or a comma without changing a claim.
+
+### UX-Q-AG-01 · Three em-dashes in `StudioApp.tsx` (DESIGN-LAW §1)
+**Owner: WS-AE.** Verify with `node scripts/check-copy.mjs`.
+
+`StudioApp.tsx:126` — `introTitle`
+```
+- "A teaching clone that begins with your permission — and is disclosed to every student."
++ "A teaching clone that begins with your permission, and is disclosed to every student."
+```
+
+`StudioApp.tsx:128` — the intro body
+```
+- ...and students are told plainly — before every session — that they are talking to an AI clone, not you.
++ ...and students are told plainly, before every session, that they are talking to an AI clone, not you.
+```
+
+`StudioApp.tsx:227` — the launch-rail summary
+```
+- <span>Identity, liveness, provider consent, voice training, and launch — open this to work through them directly.</span>
++ <span>Identity, liveness, provider consent, voice training, and launch. Open this to work through them directly.</span>
+```
+
+### UX-Q-AG-02 · `--ink-faint` fails WCAG AA and is used for body-size text
+**Owner: whoever holds `src/studio/studio.css`.** MEASURED, not judged:
+`--ink-faint` is `#7a7e74`, which is **3.67:1 on `--paper`** and **4.11:1 on
+`--panel`**, against AA's 4.5:1 for text under 18px. `studio.css` uses it for
+captions, metadata and help text at 11px to 13px, and `site/vyakti.html` used it
+for 12.5px body copy until this pass.
+
+**Do:** `--ink-faint: #676b62` in `studio.css`'s `@layer tokens` block. That is
+**4.82:1 on paper and 5.39:1 on panel**, clears AA at every size the studio uses
+it at, and is a hue-preserving darkening (same warm neutral, one step down), so
+nothing else in the palette has to move. `site/vyakti.html` already ships the
+new value; `tokens.css` cannot fix it because studio.css declares the same name
+later in the same cascade layer and wins by source order, which is exactly the
+ordering `tokens.css`'s own header describes.
+
+**Verify:** the numbers above are reproducible from the WCAG 2.x relative
+luminance formula on the two ground colours in `DESIGN-SYSTEM.md` §4.1.
+
+### UX-Q-AG-03 · Numbered eyebrows removed outside StudioApp, may exist inside
+DESIGN-LAW §1 bans the `06 · how it works` eyebrow shape. WS-AG removed five
+(`CalibrationStudio`, `PersonModelStudio`, `ReplicaDialogueLab`, `RuntimeGate`,
+and the two `voice-step` spans in `VoiceEnrollmentLab`, which became "Step one"
+and "Step two" because the ORDER there is real and only the decoration was
+not). If WS-AE or WS-AF adds one, `check-copy.mjs`'s `section-number` rule
+fails the build and names the line. There is nothing to do here unless a new one
+appears; this entry exists so the rule is not mistaken for a style preference.
+
+## WS-AE — the wizard landed; what it closed, and what it handed on
+
+**2026-08-26.** `src/studio/StudioApp.tsx` is now a three-step wizard
+(`context/decisions.md#three-step-wizard-ia`). Closed in that pass:
+
+| item | how |
+|---|---|
+| UX-Q-02 | `sheetSeed.ts`; the disclosure preview and channel snippet refuse to render without a saved draft rather than rendering the demo teacher |
+| UX-Q-04 | both halves: voice versions derive from `runtime.versions.voice_genome`, the "Public access / Off" claim is replaced by the true no-library one, and `QuickStartPath`'s hardcoded `next` is gone with the file |
+| UX-Q-05 | identity, liveness, model consent and provider voice sit in the open on Meet; `AdvancedArea` now holds only elective labs |
+| UX-Q-06 (half) | `TeacherSheetStudio` announces its provenance at panel open instead of at save (C16, C17) |
+| UX-Q-07 | the rail, absorbing `QuickStartPath`; numbering deleted rather than rescoped (see the decision) |
+| UX-Q-09 (part) | `#channels-studio`, `#video-link-mount`, `#processing-status-feed`, `#processing-status-meet` are anchorable; the rail's "Go there" opens a collapsed `<details>` on the way |
+| UX-Q-10 | the permanently-locked "08 Embodiment laboratory" is deleted |
+| UX-Q-16 / UX-Q-17 (part) | the dash purge, the numbered eyebrows, the codename, C1, C2, C4, C5, C6, C7, C12, C16, C17, C20 to C26 |
+| DESIGN-SYSTEM §5 rules 3 and 4 | no literal in a status position; the 44px floor applied to `.review-refresh`, `.artifact-actions button`, `.review-controls select`; the focus ring raised to the opaque forest |
+
+### Still open, with target files
+
+**UX-Q-AE-01 · The single-video lane has no backend.**
+`src/studio/VideoLinkMount.tsx` is a labelled hole on Feed with deliberately no
+input field, because a box that swallows a URL costs the owner the paste and the
+wait and tells them nothing true. WS-AD owns the lane.
+**Do:** replace the mount with WS-AD's panel in the same slot in `StudioApp.tsx`
+(search `VideoLinkMount`) and delete the file. It holds no state.
+
+**UX-Q-AE-02 · Processing status has no backend.**
+`src/studio/ProcessingStatusMount.tsx`, mounted TWICE with a `where` prop:
+`where="feed"` answers "did that land?" while the owner still has the file in
+hand; `where="meet"` answers "why does it not know that yet?" when the clone
+answers without something the owner is sure they gave it. WS-AF should keep the
+distinction rather than shipping one panel twice.
+
+**UX-Q-AE-03 · `errorCopy` is still not the only path to an error string**
+(UX-Q-15 / BREAK 27 remains open). `AuthGate`'s `sendCode` still does
+`cause.message.replaceAll("_", " ")` (C3), and `EnrollmentWorkspace` and
+`TeacherSheetStudio` still roll their own `cause instanceof Error` fallbacks.
+`friendlyError` still has no `retryLabel` or owner field.
+**Files:** `src/studio/errorCopy.ts`, `StudioApp.tsx` `AuthGate`,
+`EnrollmentWorkspace.tsx`, `TeacherSheetStudio.tsx`, `VoicePreviewLab.tsx`.
+
+**UX-Q-AE-04 · The resend control C2 asked for does not exist.**
+The button that jumped to the code step without sending a code is deleted, which
+removes the lie. What C2 actually specified is a resend control that states the
+rate cap ("You can request a new code in 0:42. Codes are limited to about two an
+hour"), and that needs a countdown and the real cap from `studioAuth`.
+**Files:** `src/studio/StudioApp.tsx` `AuthGate`, `src/studio/studioAuth.ts`.
+
+**UX-Q-AE-05 · Wait states (UX-Q-14) are untouched by this wave.** The cold-start
+timer, the 401-that-is-really-a-cold-start, and the copy change at 240 s are
+still queued. The wizard makes them more visible, not less: `VoicePreviewPanel`
+is now the first panel on the heart of the product.
+
+**UX-Q-AE-06 · Loading is still a generic skeleton in one place.**
+`DESIGN-LAW.md` §3 asks for skeletons shaped like the real content. The
+workspace skeleton in `StudioApp.tsx` is four cards and a panel, which is close;
+the step bodies have none, so a slow `/api/replica-runtime` shows a rail with
+three "Not started" rows for a moment. Honest, but it reads as a verdict rather
+than a load.
+**Files:** `src/studio/StudioApp.tsx`, `src/studio/studio.css`.
+
+**UX-Q-AE-07 · `src/studio/design/tokens.css` lost a sibling workstream's
+uncommitted edit** during the stash incident recorded at
+`context/rejected.md#stash-in-a-shared-git-dir`. The file is back at its
+committed state. Whoever was raising `--ink-faint` for AA contrast needs to
+re-apply it.
+
+**UX-Q-AE-08 · Only the shell consumes the tokens.** UX-Q-18's migration is
+one component at a time and this wave did the wizard chrome, the touch-target
+floor and the focus ring. The 2 700 lines of panel CSS still carry their own
+scales.

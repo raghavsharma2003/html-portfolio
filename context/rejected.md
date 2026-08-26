@@ -3138,3 +3138,38 @@ happened AGAIN, in the same file, after the lesson had just been learned and
 written down. Two statements sharing a column alias is enough. The durable fix
 is not vigilance: it is that an unmatched statement THROWS, so the failure is
 always loud, plus most-specific-first ordering as a habit.
+
+## `stash-in-a-shared-git-dir` — never `git stash` from a worktree (2026-08-26, WS-AE)
+
+**What was tried.** To confirm that `verify-release`'s two failures (`stuck-turn
+endpoint`, `eval suite`) were the known sandbox gaps rather than damage from a
+restructure, WS-AE ran `git stash push -u`, re-ran the gate on the clean tree,
+and ran `git stash pop`.
+
+**What broke.** Every worktree in this repo shares one `.git`, and **the stash
+stack is global to it, not per-worktree.** A sibling workstream stashed at the
+same moment. `stash@{0}` is whatever was pushed last by anybody, so the two pops
+crossed: WS-AE's entire restructure left its own worktree, another workstream's
+in-flight changes arrived in it, and the tracked files of both were briefly in
+the wrong tree. Nothing was lost only because a popped stash's commit stays in
+the object store: `git fsck --unreachable`, then locating the `WIP on
+gurukul-ws-ae` commit and its untracked-files parent, then
+`git checkout <commit> -- <paths>` recovered it. One file that a sibling had
+modified in the working tree and never committed (`src/studio/design/tokens.css`)
+was overwritten by the recovery and is genuinely gone.
+
+**Why the obvious defence does not work.** `git stash push -- <paths>` narrows
+what is stashed but not which entry `pop` takes, and `git stash pop stash@{n}`
+races the same way because indices shift under a concurrent push.
+
+**What to do instead.** To compare against a clean tree, never move the working
+tree. Read the base from git without touching it:
+`git show <ref>:<path>` for one file, `git worktree add` a throwaway directory
+for a whole build, or simply reason from the error (`api/_config.js` is
+gitignored and `evals/echosim/build/` is a generated artifact, both of which are
+absent by construction in this sandbox and neither of which any studio change
+can reach).
+
+**The general shape.** This is `gates-that-live-nowhere`'s sibling: a command
+that is safe in a single checkout and quietly shared in a multi-worktree one.
+Treat every `.git`-level stack (stash, index locks, reflog surgery) as global.
