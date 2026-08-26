@@ -41,9 +41,16 @@ npx vite build
 # index.html when it is packed. See docs/AUTOUPDATE.md.
 node scripts/ota-bundle.mjs
 
-# / is the landing page, /chat is the app (see vercel.json rewrite)
+# / is the landing page, /chat is the app (see vercel.json rewrite).
+# On the studio project (vyakti-replica-lab sets STUDIO_ROOT=1), / redirects
+# to the teacher studio instead of serving the companion landing — one build,
+# two products, the difference is a per-project env var, never a branch.
 mv dist/index.html dist/chat.html
-cp site/index.html dist/index.html
+if [ "${STUDIO_ROOT:-}" = "1" ]; then
+  printf '<!doctype html><meta http-equiv="refresh" content="0;url=/studio?mode=teacher"><link rel="canonical" href="/studio"><title>Vyakti Studio</title>' > dist/index.html
+else
+  cp site/index.html dist/index.html
+fi
 cp site/styles.css dist/styles.css
 cp site/privacy.html dist/privacy.html
 cp site/delete-account.html dist/delete-account.html
