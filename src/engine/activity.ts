@@ -50,7 +50,7 @@
 // number that makes her sound like a computer.
 
 /** Activities that exist today. A new game adds a member and an adapter. */
-export type ActivityKind = "chess" | "watch" | "wyr" | "ttt";
+export type ActivityKind = "chess" | "watch" | "wyr" | "ttt" | "practice";
 
 export interface ActivityState {
   kind: ActivityKind;
@@ -213,7 +213,41 @@ export const LABEL: Record<ActivityKind, string> = {
   watch: "watching their screen",
   wyr: "a round of would-you-rather",
   ttt: "a game of tic tac toe",
+  practice: "a practice set",
 };
+
+/**
+ * The terminal fence, per activity kind.
+ *
+ * `STATE_LAW` above is written in chess's nouns because chess is where both
+ * defects it answers were measured. Every kind that is a GAME inherits it
+ * unchanged and byte for byte — the four kinds that existed when it was
+ * written render exactly the string they always rendered, which is the whole
+ * property this table is built to preserve.
+ *
+ * `practice` gets its own, and this is not a style preference. A practice set
+ * has the same two failure modes with different names: closing out a set that
+ * is not finished (`student-app-spec.md` §3.4 — "don't let her congratulate a
+ * finished session that isn't finished"), and replaying a previous set as
+ * though it were the one open now. What it does NOT have is a winner, and a
+ * fence that spends its bytes forbidding a claim of checkmate inside a JEE
+ * revision session is teaching the model that a graded set is a game with a
+ * result — the exact register a minor's academics may not be put in.
+ *
+ * One override table rather than two strings assembled at the call sites, for
+ * the reason `warm-count-unscoped` gives: two renderings of one rule drift,
+ * invisibly.
+ */
+const KIND_STATE_LAW: Partial<Record<ActivityKind, string>> = {
+  practice:
+    "`state:` is read off the graded record by the engine and is the only thing that says whether this set is finished — unless it says the set is finished you may not treat it as over, may not total it up, and may not talk about a question they have not answered yet. Any earlier set is MEMORY, never the one in front of you now.",
+};
+
+/** The fence this activity renders. `STATE_LAW` for everything that has not
+ *  overridden it, which is every kind that existed before this table. */
+export function stateLawFor(kind: ActivityKind): string {
+  return KIND_STATE_LAW[kind] ?? STATE_LAW;
+}
 
 /**
  * Renders the activity into the prompt tail.
@@ -272,9 +306,10 @@ function truthBlock(a: ActivityState): string {
   const state = a.state?.trim();
   const idea = a.idea?.trim();
   if (!state) return idea ? `\nher idea: ${idea}` : "";
-  const full = `\nstate: ${state}${idea ? `\nher idea: ${idea}` : ""}\n${STATE_LAW}`;
+  const law = stateLawFor(a.kind);
+  const full = `\nstate: ${state}${idea ? `\nher idea: ${idea}` : ""}\n${law}`;
   if (full.length <= ACTIVITY_TRUTH_MAX) return full;
-  return `\nstate: ${state}\n${STATE_LAW}`;
+  return `\nstate: ${state}\n${law}`;
 }
 
 /**
@@ -300,6 +335,13 @@ function truthBlock(a: ActivityState): string {
 export interface NoteTruth {
   state?: string;
   idea?: string;
+  /**
+   * Which activity's fence rides along. Optional, and absent means `chess`'s —
+   * so every call site that existed before this field sends the bytes it
+   * always sent. A practice note that omitted it would carry a fence about
+   * checkmate into a JEE revision session; see `stateLawFor`.
+   */
+  kind?: ActivityKind;
 }
 
 export function activityNote(fact: string, truth?: NoteTruth): string {
@@ -317,7 +359,7 @@ export function activityNote(fact: string, truth?: NoteTruth): string {
   const state = truth?.state?.trim();
   const idea = truth?.idea?.trim();
   const rider = state
-    ? ` state: ${state}.${idea ? ` her idea: ${idea}.` : ""} ${STATE_LAW}`
+    ? ` state: ${state}.${idea ? ` her idea: ${idea}.` : ""} ${truth?.kind ? stateLawFor(truth.kind) : STATE_LAW}`
     : idea
       ? ` her idea: ${idea}.`
       : "";

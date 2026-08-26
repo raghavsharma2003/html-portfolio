@@ -3310,8 +3310,15 @@ var LABEL = {
   chess: "a game of chess",
   watch: "watching their screen",
   wyr: "a round of would-you-rather",
-  ttt: "a game of tic tac toe"
+  ttt: "a game of tic tac toe",
+  practice: "a practice set"
 };
+var KIND_STATE_LAW = {
+  practice: "`state:` is read off the graded record by the engine and is the only thing that says whether this set is finished \u2014 unless it says the set is finished you may not treat it as over, may not total it up, and may not talk about a question they have not answered yet. Any earlier set is MEMORY, never the one in front of you now."
+};
+function stateLawFor(kind) {
+  return KIND_STATE_LAW[kind] ?? STATE_LAW;
+}
 function renderActivity(a, nowMs) {
   if (!a || !a.facts.length) return "";
   const mins = nowMs && a.startedAt && nowMs > a.startedAt ? Math.floor((nowMs - a.startedAt) / 6e4) : null;
@@ -3332,14 +3339,15 @@ function truthBlock(a) {
   const idea = a.idea?.trim();
   if (!state) return idea ? `
 her idea: ${idea}` : "";
+  const law = stateLawFor(a.kind);
   const full = `
 state: ${state}${idea ? `
 her idea: ${idea}` : ""}
-${STATE_LAW}`;
+${law}`;
   if (full.length <= ACTIVITY_TRUTH_MAX) return full;
   return `
 state: ${state}
-${STATE_LAW}`;
+${law}`;
 }
 
 // src/engine/compiler.ts

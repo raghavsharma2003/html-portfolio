@@ -62,6 +62,21 @@ const suites = {
   chess: "chess.mjs",
   // WS-GAMES: the chess→words layer — opening book, threat facts, shapelint.
   chesstalk: "chesstalk.mjs",
+  // WS-C (Gurukul pedagogy). The practice stack: the JEE Advanced syllabus
+  // taxonomy, the grading state machine, and the practice→words adapter.
+  //
+  // Wired the moment it landed rather than left standalone, because
+  // `dead-writers` bites hardest here: this suite is the only thing that
+  // checks the JEE Advanced partial-marking scheme, and a marking bug is
+  // SILENT — it does not crash, it moves a mastery track by the wrong amount
+  // and chooses a sixteen-year-old's next problem on the strength of it. It
+  // also carries the ability-label ban's negative control, which is the one
+  // check in the practice stack that guards a promise made to a minor rather
+  // than a number.
+  //
+  // Standalone, offline, deterministic, $0, ~2s. Re-bundles from the real
+  // source on every run.
+  practice: "practice.mjs",
   // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.
