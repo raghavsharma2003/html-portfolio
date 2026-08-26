@@ -312,13 +312,36 @@ async def health() -> JSONResponse:
     return JSONResponse(status_code=200 if getattr(app.state, "ready", False) else 503, content={"ready": bool(getattr(app.state, "ready", False))})
 
 
+def _diagnostic(error: BaseException) -> str:
+    """A data-free trace of where an unexpected failure happened.
+
+    Only the exception class names and the code locations are emitted: never a
+    message, an argument, a request body or a sample of audio. Without this the
+    generic 503 is indistinguishable from every other cause and the service is
+    undebuggable in production, which is how an hour was lost here once.
+    """
+    frames = []
+    trace = error.__traceback__
+    while trace is not None and len(frames) < 12:
+        frame = trace.tb_frame
+        frames.append(f"{os.path.basename(frame.f_code.co_filename)}:{trace.tb_lineno}:{frame.f_code.co_name}")
+        trace = trace.tb_next
+    chain = []
+    cause: BaseException | None = error
+    while cause is not None and len(chain) < 4:
+        chain.append(type(cause).__name__)
+        cause = cause.__cause__ or cause.__context__
+    return f"{'<-'.join(chain)} at {' -> '.join(frames)}"
+
+
 async def _run(request: Request, operation) -> JSONResponse:
     try:
         payload = await _verified_json(request)
         return _signed_response(request, 200, operation(payload))
     except ServiceError as error:
         return _signed_response(request, error.status, {"error": error.code})
-    except Exception:
+    except Exception as error:
+        print(f"[audio-protection] unexpected failure on {request.url.path}: {_diagnostic(error)}", flush=True)
         return _signed_response(request, 503, {"error": "audio_protection_failed"})
 
 

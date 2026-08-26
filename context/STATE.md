@@ -5,7 +5,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
+Last updated: 2026-08-26 (WS-AL: the audio protection service deployed and serving; "Preview my voice" is one dashboard paste from real audio)
 Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
 Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
 Last updated: 2026-08-26 (WS-AC: the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked)
@@ -116,6 +116,26 @@ service response, not a claim.
   which this environment does not have. Its central assumption — that a 12 s
   flush window is long enough for the platform to begin scheduling the GPU
   replica — is **untested** (`voice-panel-has-never-synthesised`).
+- **The audio protection service** (WS-AL): `services/audio-protection` is
+  **DEPLOYED AND SERVING** on Azure, which it had never been despite appearing
+  in `ENV-MANIFEST.md`. That absence was the root cause of the owner's "Preview
+  my voice" 500 (`audio_protection_origin_required`), under three code defects
+  that were fixed the same day. All three endpoints answer on the serving
+  revision `vyakti-audio-protection--0000002`, the watermark is
+  **independently** detectable at confidence 1.000000 against a 0.000000
+  negative control, and a cold start from true zero is **35.6 s with the
+  triggering request returning 200** — where the GPU voice lane's is 161 s with
+  the triggering request dying at 240 s. Numbers, method and n:
+  `measurements.md#audio-protection-cpu-serving`. Full deployment state:
+  `docs/gurukul/AZURE-DEPLOY-STATE.md` section 14.
+  **The one remaining step is an owner dashboard paste**: five environment
+  variables on `vyakti-replica-lab` and a redeploy
+  (`audio-protection-vercel-env-not-written`). This session has no Vercel
+  env-write tool and the preview route is behind `requireUser`, so the last
+  link could not be closed here and is not claimed to be. Two decisions carry
+  reversal conditions rather than being silent flag flips:
+  `decisions.md#audio-protection-cpu` and `decisions.md#audio-protection-ingress`.
+  The costly lesson is `rejected.md#a-green-build-and-a-green-healthz-can-both-lie-about-a-model`.
 - **The Context Locker** (WS-AB, the universal "bring your context" lane):
   `/api/context-items`, `api/_context-locker.js`, `api/_context/*`, migration
   058, `src/studio/ContextLockerPanel.tsx` (MOUNTED in StudioApp.tsx, both

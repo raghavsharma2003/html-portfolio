@@ -3582,3 +3582,93 @@ should not spend a day rediscovering that the easy half is the same half.
 transcript half more cheaply than the audio half (about 4 MB versus 11 MB per
 video), or a paid third-party transcript API. Full sweep table:
 `measurements.md#po-token-helps-until-the-ip-is-burned`.
+
+## a-green-build-and-a-green-healthz-can-both-lie-about-a-model
+
+**What was tried:** deploying `services/audio-protection` on a slim CPU base
+image with the AudioSeal checkpoints baked in, having verified at build time
+that both the generator and the detector **load**. WS-AL, 2026-08-26.
+
+**What specifically broke:** every single `/v1/watermark` call returned 503
+`audio_protection_failed`, while:
+
+- the ACR build succeeded,
+- the container started,
+- `/healthz` answered `{"ready":true}`,
+- `/v1/sign` and the whole Key Vault chain worked,
+- and the container logged nothing but a `weight_norm` deprecation warning.
+
+The cause: AudioSeal's bundled moshi SEANet encoder wraps its forward pass in
+`torch.compile`, and TorchInductor shells out to a **C++ compiler on the first
+call to that function** and nowhere earlier. `python:3.11-slim` has no `g++`.
+So the compiler dependency is invisible to the build, invisible to import,
+invisible to model construction, invisible to the readiness probe, and fatal to
+every real request.
+
+**Why this is worth writing down.** The instinct after "the models load" is that
+the model works. It does not follow, and on this stack it did not: three
+independent green signals (build, boot, healthz) all reported success on a
+service that could not do the one thing it exists to do. `startup fails without
+CUDA` in the README reads like the fail-closed guard for exactly this, and it is
+not: it guards the device, not the ability to execute.
+
+**The two fixes, and only one of them is the real one.**
+
+1. Set `NO_TORCH_COMPILE=1`, moshi's own documented off switch
+   (`libs/moshi/utils/compile.py`), which returns the plain eager function. This
+   makes it work.
+2. **Make the build exercise the model, not just load it.**
+   `services/audio-protection/bake_models.py` now runs a full streaming
+   watermark and a detection at build time and asserts the 16-bit message comes
+   back. This is what stops the next person paying for it. A build that can load
+   the models but not use them now fails, loudly, in the build log.
+
+**A second thing this cost, and its fix.** The failure was undiagnosable for as
+long as it was, because `_run` caught every unexpected exception and answered a
+generic `audio_protection_failed` with no trace anywhere, correctly, since the
+service is forbidden from logging audio or request bodies. The eval enforced
+that with `!/print\(|logging\./`, i.e. no output statement of ANY kind, which is
+a proxy for the real invariant. A data-free diagnostic (exception class chain
+plus traceback `file:line:function`, never a message or an argument) named the
+cause in one request. The eval now tests the actual invariant: it enumerates
+every output statement and asserts no interpolated expression names anything
+derived from a request. See
+`docs/gurukul/AZURE-DEPLOY-STATE.md` section 14.4 and 14.6.
+
+**What would reverse the `NO_TORCH_COMPILE` half:** a measured throughput need
+that eager mode cannot meet. Then add a C++ toolchain to the image, or move to
+the GPU profile where the pytorch base already carries one, and re-measure. The
+build-time exercise half should never be reversed.
+
+## a-cuda-base-image-is-not-free-on-a-scale-to-zero-service
+
+**What was tried:** keeping `services/audio-protection`'s original
+`pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime` base, on the reasonable ground
+that it is what the source shipped with and minimum distance is usually right.
+WS-AL, 2026-08-26.
+
+**What specifically breaks:** the image is ~9.7 GB in that family, and WS-L had
+already measured what that costs on this exact platform: image pull dominates
+cold start, the service is ready at 161 s, and **the request that woke it dies
+at 240 s** on a Container Apps ingress timeout
+(`docs/gurukul/AZURE-DEPLOY-STATE.md` section 8). For a scale-to-zero service
+sitting directly behind a user pressing "Preview my voice", that is not a
+performance note. It means the first press always fails.
+
+Rebuilt on `python:3.11-slim-bookworm` with the CPU torch wheel, the image is
+**424,673,280 bytes (424.7 MB)**, a 23x reduction. Measured: pull 9.73 s, ready
+19.5 s after scheduling, and a **cold start from true zero of 35.6 s with the
+triggering request returning 200**.
+
+**Why it is worth writing down:** "use the base image the service shipped with"
+is the safe-looking choice and here it was the one that breaks the feature. The
+generalisable rule for this repo is that on Container Apps with
+`minReplicas: 0`, **image size is a correctness property of any user-facing
+path**, not a cost line. The relevant question is not "does it fit" but "does
+the request that pays for the pull survive it".
+
+**What would reverse it:** needing CUDA at all (see
+`decisions.md#audio-protection-cpu`), or a warm-replica strategy that means no
+user request ever absorbs a cold start. With `minReplicas: 1` the image size
+argument weakens a lot, though it never disappears, since deploys and scale-outs
+still pay it.

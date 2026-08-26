@@ -196,6 +196,105 @@ ok("C2PA is external, asset-bound and Key Vault signed", /builder\.set_no_embed\
 ok("transport authenticates request content and signs response content", /transport_signature_invalid/.test(service) && /X-Vyakti-Response-Signature/.test(service));
 ok("authenticated request nonces are single-use within the replay window", /transport_replay_denied/.test(service) && /seen_nonces/.test(service));
 ok("container is non-root and disables request access logs", /USER 10001:10001/.test(dockerfile) && /--no-access-log/.test(dockerfile));
-ok("service contains no PCM or body logging path", !/print\(|logging\.|logger\.|access_log=True/.test(service));
+
+// This check used to be `!/print\(|logging\./` — no output statement of any
+// kind. That proxy broke the moment the service needed to say WHY an unexpected
+// failure happened, and a generic 503 with no diagnostic is undebuggable in
+// production. So the invariant is now tested directly instead of by proxy:
+// every output statement in the service is enumerated, and none of them may
+// mention audio, a request body, or anything derived from one.
+const prints = [...service.matchAll(/^\s*(print\(.*|logging\..*|logger\..*|.*access_log=True.*)$/gm)].map((m) => m[1]);
+const PAYLOAD_WORDS = /pcm|audio|body|payload|message|manifest|waveform|samples|token_hash|secret|chunk|bits/i;
+// What matters is what FLOWS, not what is spelled: a constant tag may say
+// "audio-protection", but no interpolated expression and no bare argument may
+// name anything derived from a request. So constant string literals are dropped
+// and their f-string interpolations are kept.
+function dataBearing(line) {
+  const interpolated = [...line.matchAll(/\{([^{}]*)\}/g)].map((m) => m[1]);
+  const outsideLiterals = line.replace(/f?"[^"]*"|f?'[^']*'/g, " ");
+  return [...interpolated, outsideLiterals].join(" ");
+}
+ok("every output statement in the service is enumerated and data-free",
+  prints.length > 0 && prints.every((line) => !PAYLOAD_WORDS.test(dataBearing(line))));
+ok("the only diagnostic emitted names exception classes and code locations, never values",
+  /def _diagnostic/.test(service) &&
+  /type\(cause\)\.__name__/.test(service) &&
+  /tb_lineno/.test(service) &&
+  // no str(error), no repr, no args: a message can carry caller data
+  !/str\(error\)|repr\(error\)|error\.args/.test(service));
+ok("access logs stay disabled and no request body is ever read into a log", !/access_log=True/.test(service) && !/print\(.*await request/.test(service));
+
+// An UNDEPLOYED or unreachable protection service must be a named 503 on every
+// path, never a crash and never a silent degrade. The route side of this was
+// fixed already; these assert the client and registry side is equally legible,
+// because "no audio at all" and "audio without a watermark" are the same bug
+// class and only the first one is safe.
+function absence(name, env, fetchImpl) {
+  let thrown = null;
+  try {
+    const built = createAzureProtectionAdapters({ db, env, fetchImpl: fetchImpl || mockFetch });
+    return { built, thrown: null };
+  } catch (error) { thrown = error; }
+  return { built: null, thrown };
+}
+
+for (const [label, patch, code] of [
+  ["origin", { AZURE_AUDIO_PROTECTION_ORIGIN: "" }, "audio_protection_origin_required"],
+  ["transport secret", { AZURE_AUDIO_PROTECTION_HMAC_SECRET: "" }, "audio_protection_hmac_secret_required"],
+  ["watermark token secret", { REPLICA_WATERMARK_TOKEN_SECRET: "" }, "watermark_token_secret_required"],
+  ["commitment secret", { REPLICA_COMMITMENT_SECRET: "" }, "replica_commitment_secret_required"],
+]) {
+  const { thrown } = absence(label, { ...ENV, ...patch });
+  ok(`an absent ${label} is a named 503, not a crash`,
+    thrown?.code === code && thrown?.status === 503 && thrown instanceof Error);
+}
+
+const unreachable = createAzureProtectionAdapters({ db, env: ENV, fetchImpl: async () => { throw new TypeError("fetch failed"); } });
+await assert.rejects(unreachable.signer.sign({ bytes: Uint8Array.from([1]), purpose: "vyakti-generation-receipt-v1" }),
+  (error) => error.code === "audio_protection_unreachable" && error.status === 503);
+ok("a protection service that is not deployed at all is audio_protection_unreachable, a named 503", true);
+
+const notReady = createAzureProtectionAdapters({ db, env: ENV, fetchImpl: async (url, init) => {
+  const path = new URL(url).pathname;
+  // What app.py's own /healthz and its catch-all actually answer before the
+  // AudioSeal models, the Key Vault key or the certificate chain are present.
+  return signedResponse(path, new Headers(init.headers).get("x-vyakti-nonce"), 503, { error: "audio_protection_failed" });
+} });
+await assert.rejects(notReady.signer.sign({ bytes: Uint8Array.from([1]), purpose: "vyakti-generation-receipt-v1" }),
+  (error) => error.code === "audio_protection_failed" && error.status === 503);
+ok("a deployed but unready protection service keeps its own error name through the client", true);
+
+const garbled = createAzureProtectionAdapters({ db, env: ENV, fetchImpl: async (url, init) => {
+  const path = new URL(url).pathname;
+  const nonce = new Headers(init.headers).get("x-vyakti-nonce");
+  const body = Buffer.from("<html>502 Bad Gateway</html>");
+  const signature = hmac([PROTOCOL, "response", path, nonce, "502", sha256Hex(body)].join("\n"));
+  return new Response(body, { status: 502, headers: { "X-Vyakti-Response-Signature": signature } });
+} });
+await assert.rejects(garbled.signer.sign({ bytes: Uint8Array.from([1]), purpose: "vyakti-generation-receipt-v1" }),
+  (error) => error.code === "audio_protection_response_invalid" && error.status === 503);
+ok("an ingress error page in place of the service is a named 503, not a parse crash", true);
+
+let registryError = null;
+try { createProductionProtectionAdapters({ db, env: {}, fetchImpl: mockFetch }); }
+catch (error) { registryError = error; }
+ok("the registry surfaces a named, 503-shaped failure with no fake fallback",
+  registryError?.code === "audio_protection_origin_required" && registryError?.status === 503);
+
+let unnamedError = null;
+try { createProductionProtectionAdapters({ db: null, env: ENV, fetchImpl: mockFetch }); }
+catch (error) { unnamedError = error; }
+ok("even an unnamed construction failure becomes a named 503", Boolean(unnamedError?.code) && unnamedError?.status === 503);
+
+// The two invariants that must survive every deployment decision, asserted
+// against the shipped source rather than assumed from the README.
+ok("the service refuses to return audio whose watermark it cannot itself detect and decode",
+  /confidence_value < app\.state\.detector_threshold or decoded_bits != bits/.test(service) &&
+  /raise ServiceError\("audioseal_self_verification_failed", 503\)/.test(service));
+ok("the disclosure is the provider's rendered speech, and unproven disclosure blocks every byte",
+  /renderedText\.startsWith\(`\$\{SYNTHETIC_AUDIO_DISCLOSURE\} `\)/.test(
+    readFileSync(join(ROOT, "api/_provenance/providers/azure-protection.js"), "utf8")) &&
+  /assertDisclosureProof\(disclosureResult\?\.proof\)/.test(
+    readFileSync(join(ROOT, "api/_provenance/delivery.js"), "utf8")));
 
 console.log(`\n${checks} production protection checks passed`);
