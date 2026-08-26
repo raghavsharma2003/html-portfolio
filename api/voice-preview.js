@@ -117,7 +117,16 @@ export default async function handler(req, res) {
     if (Number.isInteger(status) && status >= 400 && status < 500) {
       const named = code || "voice_preview_invalid_request";
       console.warn(`[voice-preview] refused ${status} ${named}`);
-      return res.status(status).json({ state: "error", error: named });
+      // `blocker` rides along when the thrower knows WHOSE turn it is. The
+      // preview refusal used to be one opaque word for fifteen preconditions,
+      // which read as "you are not allowed" even when the truth was "we have
+      // not finished building your voice". The panel needs the class to pick
+      // the right voice, and the split is a law here rather than a nicety, so
+      // it travels with the code instead of being re-guessed on the client.
+      const blocker = error?.blockerClass;
+      return res.status(status).json(
+        blocker ? { state: "error", error: named, blocker } : { state: "error", error: named },
+      );
     }
     console.error(`[voice-preview] failed: ${code || "unnamed"}`);
     return res.status(500).json({ state: "error", error: "voice_preview_failed" });

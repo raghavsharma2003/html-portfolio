@@ -20,6 +20,94 @@ function fail(code, status = 409) {
   throw Object.assign(new Error(code), { code, status });
 }
 
+// WHY THIS EXISTS. The `eligible` CTE below joins across fifteen distinct
+// preconditions: three consent scopes, four identity checks, source readiness,
+// third-party absence, a draft genome at the requested version, a selected
+// artifact at the `enhance` stage, and the trial binding. When ANY one of them
+// is unmet the CTE simply returns no rows, and every one of those fifteen
+// causes used to surface as the single word `voice_preview_not_authorized`.
+//
+// That is wrong twice over. It is unactionable, because a person told "not
+// authorized" cannot tell whether they skipped a consent box or whether their
+// audio is still being processed. And it BLAMES THE USER for what is usually
+// our own pipeline still working: `not authorized` reads like a permissions
+// refusal even when the honest answer is "we have not built your voice yet".
+// The blocker split ("waiting on you" versus "waiting on us") is a law here,
+// and collapsing both sides into one authorization-flavoured word breaks it.
+//
+// So on the empty result we run ONE diagnostic query and name the first unmet
+// precondition, in the order a person meets them. Ordering matters: someone
+// who has done nothing yet should hear about consent, not about a genome they
+// have never heard of.
+//
+// The diagnostic is scoped to the same (replica_id, owner_user_id) pair as the
+// query it explains, so it can never describe another person's replica. It is
+// a single statement because Neon's SQL-over-HTTP allows exactly one.
+const PREVIEW_REFUSALS = [
+  // [column, code, blocker class]. First unmet wins.
+  ["has_replica", "voice_preview_replica_not_found", "you"],
+  ["has_identity", "voice_preview_identity_incomplete", "you"],
+  ["has_consent_inference", "voice_preview_consent_missing", "you"],
+  ["has_consent_biometric", "voice_preview_consent_missing", "you"],
+  ["has_consent_training", "voice_preview_consent_missing", "you"],
+  ["has_any_source", "voice_preview_no_audio_yet", "you"],
+  ["source_is_solo", "voice_preview_source_has_other_speakers", "you"],
+  ["has_ready_source", "voice_preview_audio_still_processing", "us"],
+  ["has_genome", "voice_preview_voice_not_built_yet", "us"],
+  ["has_selected_audio", "voice_preview_no_selected_audio", "us"],
+];
+
+async function diagnoseVoicePreviewRefusal(db, ownerUserId, rid, genomeVersion) {
+  const rows = await db(
+    `select
+       exists(select 1 from vy_replica r
+               where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid) has_replica,
+       exists(select 1 from vy_replica r
+               where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
+                 and r.age_verified_at is not null and r.identity_verified_at is not null
+                 and r.liveness_verified_at is not null and r.identity_expires_at>now()) has_identity,
+       exists(select 1 from vy_replica_consent c
+               where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='inference'
+                 and c.revoked_at is null
+                 and (c.expires_at is null or c.expires_at>now())) has_consent_inference,
+       exists(select 1 from vy_replica_consent c
+               where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric'
+                 and c.revoked_at is null
+                 and (c.expires_at is null or c.expires_at>now())) has_consent_biometric,
+       exists(select 1 from vy_replica_consent c
+               where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='training'
+                 and c.revoked_at is null
+                 and (c.expires_at is null or c.expires_at>now())) has_consent_training,
+       exists(select 1 from vy_replica_source s
+               where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid) has_any_source,
+       not exists(select 1 from vy_replica_source s
+                   where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+                     and s.contains_third_parties=true) source_is_solo,
+       exists(select 1 from vy_replica_source s
+               where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
+                 and s.state='ready') has_ready_source,
+       exists(select 1 from vy_replica_voice_genome vg
+               where vg.replica_id=$1::uuid and vg.version=$3::int4
+                 and vg.status='draft') has_genome,
+       exists(select 1 from vy_replica_processing_artifact a
+               where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid
+                 and a.stage='enhance') has_selected_audio`,
+    [rid, ownerUserId, genomeVersion],
+  ).catch(() => []);
+  const row = rows[0];
+  // A diagnostic that cannot run must not invent a reason. Fall back to the
+  // old opaque code rather than guessing, and say nothing we did not measure.
+  if (!row) return ["voice_preview_not_authorized", "us"];
+  for (const [column, code, cls] of PREVIEW_REFUSALS) {
+    if (!row[column]) return [code, cls];
+  }
+  // Every precondition this diagnostic knows about holds, so the refusal came
+  // from one it does not cover: the trial binding, the artifact-to-genome
+  // reference link, or a policy_version mismatch. Say exactly that instead of
+  // pretending to a reason, and keep it on our side of the blocker split.
+  return ["voice_preview_preconditions_unmet", "us"];
+}
+
 const PREVIEW_FENCE = `
   g.purpose='voice_preview' and g.channel='studio_preview'
   and r.subject_mode='self' and r.lifecycle in ('enrolling','calibrating','ready','active','paused')
@@ -196,7 +284,10 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
       languageId, textHash, JSON.stringify(previewStyle), previewSeed, trialId, trialSide],
   );
   const row = rows[0];
-  if (!row) fail("voice_preview_not_authorized");
+  if (!row) {
+    const [code, cls] = await diagnoseVoicePreviewRefusal(db, ownerUserId, rid, genomeVersion);
+    throw Object.assign(new Error(code), { code, status: 409, blockerClass: cls });
+  }
   const authorizationInput = {
     request: {
       generationId: row.generation_id,
