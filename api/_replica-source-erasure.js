@@ -138,9 +138,19 @@ export async function completeSourceErasure(db, lease) {
          join target t on t.replica_id=b.replica_id and t.owner_user_id=b.owner_user_id
         where live.source_id=ch.source_id and live.replica_id=ch.replica_id
           and live.owner_user_id=ch.owner_user_id and live.source_id<>t.source_id
+       -- RETURNING is mandatory, not decoration: a data-modifying CTE with no
+       -- RETURNING clause cannot be REFERENCED, and the "count(*)" below is a
+       -- reference. Without it Postgres rejects the whole statement at parse
+       -- time — 0A000, "WITH query "identity_challenge_sources" does not have a
+       -- RETURNING clause" — so it could never execute.
+       returning live.source_id
      ), identity_cases as (
        delete from vy_replica_identity_case ic using identity_binding b
         where ic.identity_case_id=b.identity_case_id and not b.preserve
+          -- Reads the rows the CTE above actually marked. The predicate is
+          -- deliberately total (>=0 holds for an empty set too): its job is to
+          -- name the dependency, not to filter. Marking the challenge sources
+          -- for deletion must not be skipped when there happen to be none.
           and (select count(*) from identity_challenge_sources)>=0
        returning ic.replica_id,ic.owner_user_id
      ), identity_replica as (

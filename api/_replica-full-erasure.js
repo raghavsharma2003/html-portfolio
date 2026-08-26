@@ -233,7 +233,16 @@ export async function completeReplicaErasure(db, lease, receipt) {
            )
           and (r.agent_id is null or (a.slug='replica-'||replace(r.replica_id::text,'-','')
             and a.register->>'selfReplica'='true'))
-        for update
+        -- FOR UPDATE OF j,r, never a bare FOR UPDATE: vy_agent is joined LEFT
+        -- (a replica may legitimately have no agent yet), and Postgres refuses
+        -- FOR UPDATE on the nullable side of an outer join outright — 0A000,
+        -- "FOR UPDATE cannot be applied to the nullable side of an outer join",
+        -- at PARSE time, so a bare FOR UPDATE here can never execute at all.
+        -- The erasure guarantee needs the JOB and the REPLICA rows pinned for
+        -- the duration of the purge; "a" is read only for the slug/selfReplica
+        -- binding check and is itself deleted by "removed_agent" below, which
+        -- takes its own row lock. Locking it here buys nothing.
+        for update of j,r
      ), turn_legs as (delete from meera_turn_leg x using target t where x.agent_id=t.agent_id),
      turns as (delete from meera_turn x using target t where x.agent_id=t.agent_id),
      raw_logs as (delete from meera_log x using target t where x.agent_id=t.agent_id),
