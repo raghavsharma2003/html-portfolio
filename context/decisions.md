@@ -3041,3 +3041,93 @@ healthy; the `vyakti-replica-private` storage bucket created; OpenRouter
 and Sarvam keys received (Sarvam untested — no free-tier ping without
 burning audio credits). Keys live in the chat transcript by owner's own
 paste: rotate Neon password + Supabase keys once Vercel env is set.
+
+## `clone-channel-binding` — a surface answers as whichever clone a row says, not as a constant (2026-08-26)
+
+WS-N. Migration 055 (`vy_clone_channel`) plus `api/_clonechannel.js` replace
+the one thing that made "deploy the clone anywhere" a code change per
+customer: `api/_surface.js` resolved every inbound event to `MEERA_AGENT_ID`,
+a constant named in two writers, and `compile()` took no `agent` at all.
+
+**The shape.** `(kind, external_ref)` → binding → `vy_agent.slug` →
+`loadTeacherAgent` → an AgentModule on `ctx.agent`, with `ctx.agentId` for the
+writes. Both default to Meera's, so every existing lane compiles the same
+bytes and `evals/mp/*` were not edited. An adapter's whole obligation is two
+lines: put the binding address on the event as `channelRef` (NOT the chatKey —
+one addresses a human, the other addresses the bot), and drop the event when
+`deps.bind` returns null.
+
+**What did NOT change, deliberately.** `vy_surface_identity` still carries no
+`agent_id`. A surface is still a transport that scopes nothing; the binding
+yields an agent, never a person and never a scope. And `gatedReply()` is still
+the only call site of `ctx.reply` in the surface layer, so a clone inherits
+every honesty family and cannot opt out.
+
+**Fail closed, with ONE error.** Unbound / paused / revoked / unpublished /
+consent-withdrawn all flatten to `clone_unavailable`. A caller that could tell
+them apart could enumerate which teachers had taken their clone down. There is
+no fallback branch anywhere in the resolution — a wrong-agent fallback is the
+disaster case (`api/_teachersheet.js`'s words: a student asks their physics
+teacher and reaches a companion persona built for consenting adults), and it
+would look healthy in every log line.
+
+**Reversal condition.** If a second clone ever needs to answer on the SAME
+`(kind, external_ref)` — a shared bot routing by command prefix, say — the
+partial unique index `vy_clone_channel_route_ix` is what has to go, and it
+should not go without a replacement law that makes "who replies here"
+answerable without reading write order. If `ctx.agent` ever needs to vary
+WITHIN one event, the ctx-field design is wrong and the binding belongs on the
+event instead.
+
+## `credential-ref-not-credential` — a channel secret is a uuid in Postgres and a value somewhere else (2026-08-26)
+
+`vy_clone_channel.credentials_ref` is a `uuid`, not `text`, for migration
+053's `oauth_grant_ref` reason transferred verbatim: a Telegram bot token or a
+Meta access token **cannot be cast into one**, so a live credential belonging
+to a real named teacher structurally cannot sit in a table the routing path
+selects, joins and logs on every inbound event. A `text` column with a comment
+saying so is a preference; the column type is the guarantee.
+
+The value lives in `api/_channel-secrets.js` behind a backend seam whose
+DEFAULT is `none` and REFUSES both directions. A deployment with no configured
+secret store therefore cannot connect a credentialed channel at all: the
+connect flow fails loudly at the moment the owner pastes the token, rather than
+succeeding and leaving a channel row that looks live and can never send. The
+alternative — "write it to the database for now" — is `silent-truncation`
+wearing a different hat.
+
+`api/clone-channel.js` writes the SECRET FIRST and the ROW SECOND, and the
+order is load-bearing: a failed secret write leaves a DRAFT row and an owner
+who is told to try again, where the other order leaves a connected row whose
+credential does not exist.
+
+**Reversal condition.** If a surface ever needs a credential that is not
+expressible as one opaque string per channel (a key pair, a rotating cert),
+the one-secret-per-reference assumption breaks and the store needs a shape,
+not a string. Nothing about the uuid column changes.
+
+## `widget-disclosure-is-bound-not-rendered` — a disclosure that runs on someone else's page cannot be a request (2026-08-26)
+
+safety-floor-teacher.md §1's P1 says the session-open card fires at n=0 of
+every session. The embeddable widget runs on a teacher's own website, where we
+control nothing — so "the widget renders the card" is not a mechanism: a fork
+that deleted the render would still chat, and everything would return 200.
+
+So the card is bound into the session token. `open` computes the card, hashes
+it, and mints a token carrying the digest; `say` recomputes the card for the
+resolved clone and refuses a token whose digest does not match. **A session
+that never received the current card cannot produce a turn.** That is
+`clock.ts`'s move for the statutory session clock, at a surface we do not own,
+and the same governing measurement is why: instruction ≠ emission, so a
+disclosure riding on anyone's good behaviour is a preference.
+
+The same signature carries a transcript digest, because the widget is
+anonymous and stateless and its history therefore rides on the request. Without
+it, a client could invent an `assistant` turn — words in a real, named, living
+teacher's clone's mouth — and ask the clone to continue from there.
+
+**Reversal condition.** If the widget ever gains server-side session state (a
+logged-in student, say), the transcript digest becomes redundant and should go
+rather than be maintained alongside a source of truth. The DISCLOSURE digest
+does not: it is what makes the card's delivery structural rather than trusted,
+and that argument survives any amount of server-side state.

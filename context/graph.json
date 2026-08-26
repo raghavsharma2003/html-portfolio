@@ -1940,6 +1940,30 @@
       "kind": "rejection",
       "title": "mocked DB proved control flow but no SQL types; two live-only defects (046 FK, uuid=text)",
       "at": "2026-08-26"
+    },
+    {
+      "id": "clone-channel-binding",
+      "kind": "decision",
+      "title": "a surface answers as whichever clone vy_clone_channel names, not as MEERA_AGENT_ID",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "credential-ref-not-credential",
+      "kind": "decision",
+      "title": "channel secrets are a uuid reference in Postgres; the value lives in a store whose default backend refuses",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "widget-disclosure-is-bound-not-rendered",
+      "kind": "decision",
+      "title": "the widget's session token carries the disclosure card's digest, so a session without the card cannot take a turn",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "fake-the-instagram-adapter",
+      "kind": "rejection",
+      "title": "an Instagram adapter against credentials that cannot exist — the gap is App Review, not code",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3562,6 +3586,26 @@
       "src": "first-live-apply",
       "rel": "part_of",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "clone-channel-binding",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "credential-ref-not-credential",
+      "rel": "part_of",
+      "dst": "clone-channel-binding"
+    },
+    {
+      "src": "widget-disclosure-is-bound-not-rendered",
+      "rel": "part_of",
+      "dst": "clone-channel-binding"
+    },
+    {
+      "src": "fake-the-instagram-adapter",
+      "rel": "caused_by",
+      "dst": "clone-channel-binding"
     }
   ]
 }

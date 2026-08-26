@@ -2341,3 +2341,41 @@ smoke-tested against the real database before it is called done —
 `verify-release --live`, or a scripted call of the real exported functions
 with `NEON_URL` set. Fixed: casts in `api/_replica.js` (WS-M sweeps the rest),
 and `evals/sqlcast.mjs` makes the class statically unrepresentable.
+
+
+## `fake-the-instagram-adapter` — writing an adapter against credentials that cannot exist (2026-08-26)
+
+**Tried:** during WS-N, the obvious symmetry was to write `api/instagram.js`
+beside `api/whatsapp.js` — the same four functions, the same shape, ~200 lines
+— so the Channels screen could list all four surfaces and the gap would be
+"just credentials", like Telegram's.
+
+**What broke, on reading Meta's current documentation rather than remembering
+it:** Instagram DM is not a credentials gap. Serving accounts we do not own
+requires **Advanced Access**, which requires **App Review**, which requires
+**Meta Business Verification of our legal entity**, a Live-mode app, a privacy
+policy, a data-deletion path, and a recorded screencast of the integration
+working. Granted per app, not per teacher; reported turnaround weeks to
+months. And the messaging window's only extension past 24 hours is the
+`human_agent` tag, which Meta restricts explicitly to **a real human, not an
+automated system**, with detection for misuse — so an AI clone answering
+outside the window is not a feature we are missing, it is a policy violation
+we would be building.
+
+The adapter is the SMALLEST part of that list, which is the finding: shipping
+it would have put a file in the tree nobody can prove and that the next reader
+would reasonably assume had been. `dead-writers`, at a surface.
+
+**Instead:** `instagram_dm` is in migration 055's `kind` domain and absent from
+`CONNECTABLE_KINDS`, so it is storable and not connectable; the studio shows
+the blockers instead of a button; and `docs/gurukul/INSTAGRAM-DM-GAP.md`
+records the requirements with sources and the date they were checked. It also
+records the WhatsApp finding nobody was looking for: since `api/whatsapp.js`
+was scaffolded, Meta has made **Tech Provider enrolment mandatory** for ISVs
+and **Embedded Signup the default onboarding path**, so the phone-id-plus-token
+form that shipped is correct for a teacher who already has a WABA and is NOT
+the self-serve flow. The Channels screen says so in that surface's cost line.
+
+**The law:** a surface's cost is the approval chain, not the adapter. Check the
+current requirements before promising a channel, and when the chain is someone
+else's queue, say so in the product rather than in a comment.

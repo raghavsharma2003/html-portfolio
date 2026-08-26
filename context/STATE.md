@@ -5,7 +5,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26 (session: gurukul build + first live deploy)
+Last updated: 2026-08-26 (session: gurukul build + first live deploy; WS-N channels)
 
 ## What the product is
 
@@ -34,7 +34,7 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 
 | thing | state |
 |---|---|
-| Neon Postgres | migrations 015–054 applied; 111 tables |
+| Neon Postgres | migrations 015–054 applied; 111 tables. **055 (`vy_clone_channel`) is written and NOT applied** |
 | Supabase (new project, separate from Meera's) | auth working; `vyakti-replica-private` bucket created |
 | Auth | Google OAuth live; email OTP live (6-digit); built-in mailer capped ~2/hr until SMTP |
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
@@ -50,6 +50,14 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
   awaiting keys/GPU. No teacher ingested.
 - **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not
   deployed as its own project.
+- **Channels** (WS-N, "deploy the clone anywhere"): the binding layer, the
+  embeddable widget (`/embed.js` + `/api/clone-chat`) and the studio Channels
+  step are code-complete and gated offline (`evals/clonechannel.mjs`, 64
+  checks). Nothing is LIVE: migration 055 is unapplied, the widget refuses
+  without `CLONE_WIDGET_SESSION_SECRET`, and no credentialed channel can be
+  connected until a secret store is configured (`CHANNEL_SECRET_BACKEND`
+  defaults to `none` and refuses). No byte has left this process on any wire.
+  Instagram DM is deliberately NOT built — `docs/gurukul/INSTAGRAM-DM-GAP.md`.
 - **Fidelity thresholds**: provisional; nothing benched against ElevenLabs yet.
 
 ## Open owner items
@@ -59,6 +67,13 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
    keys + management token, Azure SP secret, Google OAuth secret, and the two
    keys flagged in `session-2026-08-25b-close`.
 3. Azure GPU quota, if the deploy agent reports the subscription has none.
+4. Apply migration 055 and set `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
+   `openssl rand -base64 48`) — without it the embeddable widget is off.
+5. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`
+   plus `AZURE_KEY_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` /
+   `AZURE_CLIENT_SECRET`, or accept that Telegram and WhatsApp channels cannot
+   be connected. Web widget and embed need none of it.
+   (`docs/gurukul/ENV-MANIFEST.md` §15c.)
 
 ## The laws a new session must not relearn
 
