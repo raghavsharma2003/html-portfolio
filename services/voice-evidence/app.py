@@ -57,7 +57,21 @@ MODEL_REVISIONS = {
     "speechbrain-ecapa": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
     "speechbrain-xvector": "56895a2df401be4150a159f3a1c653f00051d477",
     "speechbrain-sepformer-whamr16k": "21a5b500c6f52fddc387c5d9e5fb13ffd6f039c5",
-    "deepfilternet": "deepfilternet3-49c52edc8947ae1f9bf50d81530beaf3a2c3245aeaf34b6f31ff535cd22284d2",
+    # Changed (not just suffixed) on 2026-08-26: the model weights are
+    # unchanged, but `_enhance`'s OUTPUT format changed (48 kHz -> resampled to
+    # ENROLLMENT_SAMPLE_RATE), and `vy_replica_artifact_variant_unique`
+    # (source_id, stage, transform_version, variant_key, input_sha256) keys an
+    # artifact's identity on this string, not on its bytes. Leaving it
+    # unchanged after an output-format fix means a re-run over the same input
+    # collides on that constraint (SQLSTATE 23505) instead of writing the
+    # corrected bytes -- caught while proving this exact fix in production.
+    # transform_version must change whenever a transform's OUTPUT changes for
+    # the same input, not only when the underlying model does. Kept short and
+    # under the JS-side candidate validator's 80-char SAFE cap rather than
+    # appending to the old hash-suffixed string, which is 89 chars and was
+    # rejected with voice_evidence_candidate_contract_invalid -- also caught
+    # live, on the very next attempt.
+    "deepfilternet": "deepfilternet3-enroll24k-v1",
 }
 
 
