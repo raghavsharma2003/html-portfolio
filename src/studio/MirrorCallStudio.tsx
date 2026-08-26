@@ -403,7 +403,7 @@ export default function MirrorCallStudio({
           <p className="eyebrow">Mirror Call</p>
           <h2 id="mirror-call-title">Talk to your clone and correct it while it listens.</h2>
           <p>
-            Your side goes up in windows of up to 30 seconds — speak, send, hear the reply. Nothing it learns
+            Your side goes up in windows of up to 30 seconds: speak, send, hear the reply. Nothing it learns
             reaches your sheet until you tap it.
           </p>
         </div>
@@ -475,7 +475,7 @@ export default function MirrorCallStudio({
                     A cold start usually takes two to three minutes. That is an estimate from past starts, not a
                     countdown of anything being measured
                     {state.session?.gpu.estimated_ready_seconds !== null && state.session?.gpu.estimated_ready_seconds !== undefined
-                      ? ` — the server's own estimate is about ${Math.round(state.session.gpu.estimated_ready_seconds / 60)} minute(s)`
+                      ? `, and the server's own estimate is about ${Math.round(state.session.gpu.estimated_ready_seconds / 60)} minute(s)`
                       : ""}.
                   </p>
                 </div>
@@ -503,16 +503,16 @@ export default function MirrorCallStudio({
                 )}
                 <small>
                   {state.turnPhase === "capturing"
-                    ? "Recording. The window is capped at 30 seconds — it is sent when you say so, or cut at the cap."
+                    ? "Recording. The window is capped at 30 seconds. It is sent when you say so, or cut at the cap."
                     : "One window at a time: your side, then its side. This is the cascade lane, not a duplex call."}
                 </small>
                 {autoCutNotice ? (
                   <p className="mirror-autocut" role="status">
-                    The 30-second cap cut this window. Send it and say the rest in the next one — nothing was quietly dropped.
+                    The 30-second cap cut this window. Send it and say the rest in the next one. Nothing was quietly dropped.
                   </p>
                 ) : null}
                 {!state.voiceAvailable ? (
-                  <p className="mirror-note">Captions only on this environment — the clone's voice route is not deployed.</p>
+                  <p className="mirror-note">Captions only on this environment. The clone's voice route is not deployed.</p>
                 ) : null}
                 {state.voiceAvailable && voiceWarming ? (
                   <p className="mirror-note" role="status">{voiceWarming}</p>
@@ -572,14 +572,14 @@ export default function MirrorCallStudio({
                 <div className="mirror-meter" key={meter.kind}>
                   <div className="mirror-fidelity-head">
                     <span>{meter.label}</span>
-                    <strong>{meter.score === null ? "—" : meter.score.toFixed(4)}</strong>
+                    <strong>{meter.score === null ? "not yet" : meter.score.toFixed(4)}</strong>
                   </div>
                   <div className="mirror-fidelity-track" aria-hidden="true">
                     <span style={{ transform: `scaleX(${meter.ofCeiling ?? 0})` }} />
                   </div>
                   <div className="mirror-fidelity-legend">
                     <span>{meter.ceiling === null ? "no printed ceiling" : `ceiling ${meter.ceiling.toFixed(4)}`}</span>
-                    <span>{meter.ofCeiling === null ? "—" : `${percent(meter.ofCeiling)} of ceiling`}</span>
+                    <span>{meter.ofCeiling === null ? "not yet" : `${percent(meter.ofCeiling)} of ceiling`}</span>
                     {meter.kind === "measurement" ? (
                       <>
                         <span>{meter.windows} window{meter.windows === 1 ? "" : "s"}</span>
@@ -658,7 +658,7 @@ export default function MirrorCallStudio({
                   <span className="metric-label">Actioned this call</span>
                   {actioned.map((chip) => (
                     <p key={chip.delta.delta_id} className={chipIsApplied(chip) ? "applied" : "dismissed"}>
-                      {chipIsApplied(chip) ? "Applied" : chip.status === "accepted" ? "Accepted — not yet on the sheet" : "Rejected"} · {chip.delta.proposal}
+                      {chipIsApplied(chip) ? "Applied" : chip.status === "accepted" ? "Accepted, not yet on the sheet" : "Rejected"} · {chip.delta.proposal}
                     </p>
                   ))}
                 </div>
@@ -691,7 +691,7 @@ export default function MirrorCallStudio({
               <span>{state.ended.accepted_count} accepted · {state.ended.rejected_count} rejected · {state.ended.deferred.length} deferred</span>
               <small>
                 {state.ended.finetune.queued
-                  ? "A voice fine-tune is queued. It runs on GPU time after the call — this screen will not show it finishing."
+                  ? "A voice fine-tune is queued. It runs on GPU time after the call. This screen will not show it finishing."
                   : `No fine-tune was queued${state.ended.finetune.reason ? ` (${state.ended.finetune.reason.replaceAll("_", " ")})` : ""}.`}
               </small>
             </div>

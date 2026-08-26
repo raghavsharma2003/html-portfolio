@@ -4741,3 +4741,73 @@ fine-tune lane, "a fine-tune runner, which does not exist in this repo yet" —
 named as a service because no env var would make it true).
 
 *Reverses when* every lane is deployed everywhere, which will not happen.
+
+## `copy-law-is-a-gate-not-a-guideline` — every ban in DESIGN-LAW §1 ships with the check that bites (2026-08-26, WS-AG)
+
+`scripts/check-copy.mjs` used to enforce one rule (the em-dash) on two places
+(`src/components/`, `site/*.html`). DESIGN-LAW §1 bans nine shapes of copy
+across four surfaces, and §5 says outright that "a rule here without a check is
+a wish". The gap was measurable: 120 violations, 113 of them em-dashes, in the
+half of the repo nothing scanned.
+
+**What is encoded, and the one hard decision inside it.** The bans divide into
+two kinds and they cannot share an extraction:
+
+- The DASH runs BROADLY, on comment-stripped lines, because in `.tsx` an
+  em-dash outside a comment is inside a string or a JSX text node by
+  construction. There is nowhere else for it to be.
+- Every WORD ban (version stamps, `01 · Eyebrow`, scroll cues, filler verbs,
+  the codename, the middot run) runs ONLY on strings the checker has proven
+  render: JSX and HTML text nodes, literals bound to a visible prop name
+  (`label`, `title`, `placeholder`, `aria-label`, `alt`, ...), and every literal
+  in a copy-constants module. Comments are blanked by a scanner that tracks
+  string state, so `//` inside a URL is not a comment.
+
+That split is the whole decision. A word ban run broadly fires on
+`elevation`, on a path containing `beta`, on `import ... from "../engine/meera"`
+— and a gate that argues with the code gets switched off, which is worse than
+no gate because it looks like coverage.
+
+**Two rules deliberately NOT encoded, and why.** A data-derived version (a
+teacher's own `v4` voice model) is not a build stamp; the rule fires only on
+literal `v1.4.2` / `BETA` / `Build 0048` text, because DESIGN-SYSTEM §2 makes
+the user's own version stamps load-bearing. And `beautifully` was in the filler
+list for exactly one run: it fired on `site/index.html`'s "Beautifully human in
+how she talks", which is the other product's real claim, and it is not a shape
+DESIGN-LAW names. A gate that invents bans beyond its law loses the argument
+about the bans that are in it.
+
+**The waiver expires itself.** `src/studio/StudioApp.tsx` is owned by another
+workstream mid-purge, so its three remaining offences are printed on every run
+and do not fail the build — and the gate FAILS if a waived file comes back
+clean, so the exception cannot outlive the condition that justified it.
+
+*Reverses when* a rule produces a false positive on true copy twice. The
+response is to narrow that rule and say so here (as `beautifully` already was),
+never to widen the exemption list, because an exemption list is where a gate
+goes to die.
+
+## `landing-hero-is-four-elements` — the honest strip moved, it did not go (2026-08-26, WS-AG)
+
+`site/vyakti.html`'s hero carried six stacked elements against DESIGN-LAW §4's
+cap of four, including a build-status trust strip the law bans in a hero and a
+55-word lede against a 20-word cap, which put the CTA below the fold on a
+laptop. Rebuilt to four: headline (two lines at desktop, at 26ch and 56px, a
+pair that has to be re-counted together), a 16-word subtext, one button, one
+line of fine print.
+
+**The strip was not deleted.** "This is a private build, voice activation is
+still gated" is a truth the page owes under `context/rejected.md`'s
+honest-states law, and it is now the FIRST item of the section that exists for
+unproven claims. Honest is not the same as first, and a landing that leads with
+its own caveat is not more honest, only less readable.
+
+Also in the same pass: six auto-fit cards that rendered as three equal columns
+became prose at one measure; five eyebrows became one; the second accent (an
+ember dot and an orange radial glow) went, leaving forest alone; and the
+nine-step path became the three steps `three-step-wizard-ia` actually
+implements, which is the page catching up to the product rather than a
+simplification of it.
+
+*Reverses when* a measured funnel shows the fold placement costs starts, which
+would move the CTA, not restore the strip.

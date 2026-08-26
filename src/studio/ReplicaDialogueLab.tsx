@@ -101,7 +101,7 @@ export default function ReplicaDialogueLab({
     <section className={`dialogue-lab ${active ? "active" : "sealed"}`} aria-labelledby="dialogue-lab-title">
       <div className="dialogue-lab-head">
         <div>
-          <p className="eyebrow">10 · Private conversation</p>
+          <p className="eyebrow">Private conversation</p>
           <h2 id="dialogue-lab-title">Meet the model, not a generic chatbot.</h2>
           <p>
             Every answer is generated from the frozen Person Model, owner calibration, this relationship's private state,

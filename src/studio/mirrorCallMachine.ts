@@ -204,13 +204,13 @@ function caption(kind: CaptionKind, text: string, extra: Partial<CaptionLine> = 
  *  is the sentence that makes a person distrust the whole screen. */
 export function dropCopy(reason: MirrorCallDropReason) {
   switch (reason) {
-    case "too_short": return "Missed that — it was too short to hear. Say it again?";
+    case "too_short": return "Missed that. It was too short to hear. Say it again?";
     case "too_long": return "That window ran past the 30-second cap and was cut. Say the rest again?";
-    case "asr_empty": return "Missed that — nothing came through. Say it again?";
-    case "asr_timeout": return "Missed that — transcription timed out. Say it again?";
-    case "audio_unusable": return "Missed that — the audio came through unusable. Say it again?";
-    case "rate_limited": return "Missed that — the transcription lane is rate-limited right now. Give it a moment and say it again?";
-    default: return "Missed that — say it again?";
+    case "asr_empty": return "Missed that. Nothing came through. Say it again?";
+    case "asr_timeout": return "Missed that. Transcription timed out. Say it again?";
+    case "audio_unusable": return "Missed that. The audio came through unusable. Say it again?";
+    case "rate_limited": return "Missed that. The transcription lane is rate-limited right now. Give it a moment and say it again?";
+    default: return "Missed that. Say it again?";
   }
 }
 
@@ -295,7 +295,7 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
           caption(
             "system",
             event.session.state === "live"
-              ? "Connected. Talk normally — your side is sent in windows of up to 30 seconds."
+              ? "Connected. Talk normally. Your side is sent in windows of up to 30 seconds."
               : "Connected. The voice GPU is cold and usually takes two to three minutes to be ready.",
           ),
         ],
@@ -464,7 +464,7 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
           caption(
             "system",
             event.end.finetune.queued
-              ? "Call ended. A fine-tune job is queued — it runs on GPU time after the call, not during it."
+              ? "Call ended. A fine-tune job is queued. It runs on GPU time after the call, not during it."
               : `Call ended. No fine-tune was queued${event.end.finetune.reason ? ` (${event.end.finetune.reason.replaceAll("_", " ")})` : ""}.`,
           ),
         ],
@@ -537,7 +537,7 @@ export const MEASUREMENT_CAVEAT =
   "This is how well we can measure you, not how good the clone is. It rises as your call audio pools; the clone does not change when it does.";
 /** The conditioning meter's. */
 export const CONDITIONING_CAVEAT =
-  "This is the reference window the next reply is built from. The model reads about 10 seconds, so this moves only when a better window is chosen — never because more audio was collected.";
+  "This is the reference window the next reply is built from. The model reads about 10 seconds, so this moves only when a better window is chosen, never because more audio was collected.";
 
 function band(score: number | null, ceiling: number | null, windows: number, activationFloor: number): FidelityReading["band"] {
   if (score === null) return "unmeasured";
@@ -658,10 +658,10 @@ export function evidenceLine(delta: MirrorCallDelta) {
   if (total > here) parts.push(`${total}x across ${calls} call${calls === 1 ? "" : "s"}`);
   switch (evidenceStrength(delta)) {
     case "single":
-      return `${parts.join(" · ")} — once is a guess, not a habit.`;
+      return `${parts.join(" · ")}. Once is a guess, not a habit.`;
     case "thin":
-      return `${parts.join(" · ")} — one call is below the length where phrasing claims hold up.`;
+      return `${parts.join(" · ")}. One call is below the length where phrasing claims hold up.`;
     default:
-      return `${parts.join(" · ")} — repeated enough to be worth a look.`;
+      return `${parts.join(" · ")}. Repeated enough to be worth a look.`;
   }
 }

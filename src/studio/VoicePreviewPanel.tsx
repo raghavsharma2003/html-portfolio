@@ -23,7 +23,7 @@ const MAX_TEXT = 280;
 // Shapes, not a phrase bank: two short greetings an owner will immediately
 // rewrite. Kept under the cap so the counter never opens on a violation.
 const WELCOME = {
-  hi: "Namaste! Main aapka apna AI version hoon. Aaj kya padhna hai — physics, chemistry ya maths?",
+  hi: "Namaste! Main aapka apna AI version hoon. Aaj kya padhna hai? Physics, chemistry ya maths?",
   en: "Hello, this is my AI version. Tell me what you are stuck on today and we will work through it together.",
 } as const;
 
@@ -181,7 +181,7 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
           {!loading && !draft && (
             <p className="hear-voice-note">
               There is no draft voice yet. Accept a processed recording in the review step and build a
-              draft VoiceGenome first — nothing here can speak before that exists.
+              draft VoiceGenome first. Nothing here can speak before that exists.
             </p>
           )}
         </div>
@@ -203,7 +203,7 @@ export default function VoicePreviewPanel({ token, replicaId, onAuthError }: {
               <p className="hear-voice-message">{phase.warming.message}</p>
               <p className="hear-voice-countdown">
                 <strong>{remaining}s</strong>
-                <span>until the next attempt — you can leave this open, it retries itself.</span>
+                <span>until the next attempt. You can leave this open, it retries itself.</span>
               </p>
               <small>
                 The voice runtime sleeps when nobody is using it, which is why the first preview of the

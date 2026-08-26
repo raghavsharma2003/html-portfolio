@@ -3724,3 +3724,45 @@ the GPU lane (`AZURE-DEPLOY-STATE.md` §9: ~$0.53–0.60/hr of T4), so extractio
 is not where this product's money goes — cold starts on the GPU side still are.
 
 Total WS-AD spend: **~$0.05**, against the session's smoke-test allowance.
+## `ink-faint-fails-aa` — the studio's caption grey is below WCAG AA on both grounds (2026-08-26, WS-AG)
+
+**Method.** WCAG 2.x relative-luminance contrast ratio, computed on the exact
+hex values in `docs/gurukul/DESIGN-SYSTEM.md` §4.1. n/a (deterministic, not
+sampled); reproducible from the two ground colours and the foreground.
+
+| foreground | on `--paper` #f4f1e9 | on `--panel` #fffef9 | AA (4.5:1, text under 18px) |
+|---|---|---|---|
+| `--ink-faint` #7a7e74 (shipped) | **3.67:1** | **4.11:1** | fails both |
+| `--ink-faint` #676b62 (proposed) | 4.82:1 | 5.39:1 | passes both |
+| `--ink-soft` #52564e | 6.65:1 | 7.43:1 | passes |
+| `--forest` #17493b | 9.06:1 | 10.13:1 | passes |
+| `--panel` on `--forest` (the CTA) | n/a | 10.13:1 | passes |
+
+`--ink-faint` is used for captions, metadata and help text at 11px to 13px, so
+every one of those uses is a real AA failure and not a borderline one. Fixed in
+`site/vyakti.html` in this pass; `studio.css` owns the token and is queued as
+`UX-Q-AG-02` in `docs/gurukul/UX-QUEUE.md`.
+
+## `copy-law-violations-before-after` — what the widened gate found (2026-08-26, WS-AG)
+
+**Method.** `node scripts/check-copy.mjs` on `gurukul-ws-ag`, before and after
+the fix pass. Scope: `src/studio/`, `src/gurukul/`, `src/replica/`, `site/`
+(full rule set) and `src/components/` (dash only, unchanged). n = every `.ts`,
+`.tsx` and `.html` file in those trees.
+
+| | before | after |
+|---|---|---|
+| total | 120 | 3 (all waived, all in `StudioApp.tsx`) |
+| em-dash / en-dash | 113 | 3 |
+| numbered eyebrow (`06 · x`) | 6 | 0 |
+| codename `Meera` in teacher copy | 1 | 0 |
+
+Largest single files: `TeacherSheetStudio.tsx` 17, `ContextLockerPanel.tsx` 15,
+`QuickStartPath.tsx` 13, `mirrorCallMachine.ts` 12, `errorCopy.ts` 12,
+`ChannelsStudio.tsx` 11. `site/` carried ZERO dashes before the pass, because
+the old gate already covered it; the entire 113 were in the half nothing
+scanned, which is the measurement that matters here.
+
+The one codename leak was `RuntimeGate.tsx:112`, "There is no fallback to
+Meera, another cloud voice, or device TTS" — the other product named on a
+teacher-facing screen, exactly the recurring offender DESIGN-LAW §1 predicted.

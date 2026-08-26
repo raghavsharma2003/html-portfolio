@@ -268,7 +268,7 @@ export default function VoiceEnrollmentLab({
 
       <div className="voice-enrollment-grid">
         <article className="voice-enrollment-card">
-          <span className="voice-step">01 · Provider statement</span>
+          <span className="voice-step">Step one · Provider statement</span>
           <h3>Record exact consent</h3>
           {!challengeLive && providerConsent?.state !== "uploaded" && providerConsent?.state !== "accepted" && (
             <>
@@ -322,13 +322,13 @@ export default function VoiceEnrollmentLab({
         </article>
 
         <article className="voice-enrollment-card">
-          <span className="voice-step">02 · Exact model binding</span>
+          <span className="voice-step">Step two · Exact model binding</span>
           <h3>Build the private voice</h3>
           <p>{statusCopy(profile)}</p>
           <div className="voice-binding-list">
             <span><i className={providerConsent?.state === "uploaded" || providerConsent?.state === "accepted" ? "done" : ""} />Provider statement</span>
             <span><i className={profile?.status === "ready" ? "done" : ""} />Approved VoiceGenome</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />30–90 sec reviewed WAV</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />30 to 90 sec reviewed WAV</span>
             <span><i className={profile?.status === "ready" ? "done" : ""} />Azure spend reservation</span>
           </div>
           {!profile && (

@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <title>Vyakti &middot; your teaching, in a voice that is measurably yours</title>
+  <title>Vyakti</title>
   <meta name="description" content="A teacher builds an AI version of themselves from their own recordings. It remembers every student separately, discloses what it is before every session, and carries a published number for how close it sounds." />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Vyakti &middot; your teaching, in a voice that is measurably yours" />
+  <meta property="og:title" content="Vyakti" />
   <meta property="og:description" content="Consent first, provenance on every second of audio, and a fidelity score we publish instead of a promise we cannot keep." />
   <meta name="theme-color" content="#f4f1e9" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -31,12 +31,48 @@
     the honest framing is the actual pitch: a vendor that publishes the
     ceiling of its own metric is making a different kind of promise than one
     that publishes a superlative. No testimonials, no logos, no invented
-    users, no "trusted by" — there are none yet, and a fabricated one on the
+    users, no "trusted by" - there are none yet, and a fabricated one on the
     consent page of an identity product would be the single most
     self-defeating sentence we could write.
 
-    The em-dash ban (`scripts/check-copy.mjs`) covers every site/*.html.
-    HTML comments are exempt, body copy is not.
+    ══ WS-AG REVAMP, 2026-08-26: WHAT CHANGED AND WHY ══════════════════════
+    Against `docs/gurukul/DESIGN-LAW.md`. The previous version of this page
+    was honest and well-written and broke six composition rules:
+
+    1. The HERO carried six stacked elements (a build-status pill, an h1, a
+       55-word lede, two buttons, a fine-print line, and a three-cell figure)
+       against a limit of four, with a trust strip the law bans outright and
+       subtext at nearly three times the 20-word cap. The CTA sat below the
+       fold on a laptop. Hero is now four elements: headline, 16-word
+       subtext, one button, one line of fine print.
+    2. The build-status pill was not deleted. It is a truth the page owes and
+       `context/rejected.md`'s honest-states law requires, so it moved to the
+       section that exists for exactly that, as its first item. Honest is not
+       the same as first.
+    3. SIX EQUAL CARDS in an auto-fit grid rendered as three equal columns on
+       any desktop. They are now a prose list at one measure. The claims did
+       not change; the shape stopped pretending they were six features of
+       equal weight when one of them (disclosure) is a safety floor.
+    4. FIVE EYEBROWS across five sections against a limit of one per three.
+       One survives, on the section that has earned an interrupt.
+    5. TWO ACCENTS: forest, plus an ember dot and a large orange radial glow
+       behind the hero. The ember means "your turn to act" in this system
+       (`DESIGN-SYSTEM.md` §4.1) and there is no such state on a landing
+       page, so it is gone and forest is the only accent here.
+    6. NINE STEPS, from an ordering that `context/decisions.md#three-step-
+       wizard-ia` has since replaced with Feed, Meet, Deploy. The page now
+       says the three the studio actually implements.
+
+    MEASURED DEFECT, worth carrying elsewhere: `--ink-faint` (#7a7e74) is
+    3.67:1 on the paper ground and 4.11:1 on panel, under WCAG AA's 4.5:1,
+    and this page used it for 12.5px and 13px body text. It is #676b62 here
+    (4.82:1 on paper, 5.39:1 on panel). studio.css defines the old value and
+    is owned elsewhere this window; queued in docs/gurukul/UX-QUEUE.md.
+
+    The em-dash ban (`scripts/check-copy.mjs`) covers every site/*.html, and
+    since today so do the version-stamp, numbered-eyebrow, scroll-cue,
+    filler-verb and one-middot rules. HTML comments are exempt, body copy is
+    not - which is why this comment may use the punctuation the page may not.
   -->
 
   <style>
@@ -56,7 +92,10 @@
        The same values as src/studio/design/tokens.css, restated because this
        file ships with no build step and cannot import from src/. Any change
        to one belongs in the other; docs/gurukul/DESIGN-SYSTEM.md is the
-       single description both are implementations of. */
+       single description both are implementations of.
+
+       One theme, locked. `color-scheme: light` is a commitment, not an
+       omission (DESIGN-SYSTEM §5.1): a records office has no night mode. */
     :root {
       color-scheme: light;
       --paper: #f4f1e9;
@@ -64,15 +103,14 @@
       --panel: #fffef9;
       --ink: #171915;
       --ink-soft: #52564e;
-      --ink-faint: #7a7e74;
+      --ink-faint: #676b62; /* AA on paper (4.82:1) and on panel (5.39:1) */
       --line: rgba(28, 32, 26, 0.12);
       --line-strong: rgba(28, 32, 26, 0.22);
+
+      /* ONE accent. Forest is it. */
       --forest: #17493b;
       --forest-deep: #0e352a;
       --forest-soft: #e1eee7;
-      --ember: #b4551f;
-      --ember-soft: #fbead9;
-      --slate: #4c5a6b;
 
       --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --serif: Georgia, "Times New Roman", serif;
@@ -82,11 +120,24 @@
       --radius: 20px;
       --radius-lg: 28px;
 
+      /* Tracking is size-specific (DESIGN-LAW §2). One letter-spacing value
+         across all sizes is always wrong somewhere: display type needs the
+         negative, body needs zero, uppercase micro-type needs the positive. */
+      --tracking-display: -0.021em;
+      --tracking-heading: -0.012em;
+      --tracking-body: 0;
+      --tracking-caps: 0.06em;
+
+      --leading-display: 1.06;
+      --leading-tight: 1.25;
+      --leading-body: 1.6;
+
       --measure: 68ch;
-      --space-section: clamp(56px, 9vw, 112px);
+      --space-section: clamp(56px, 9vw, 108px);
       --space-pad: clamp(22px, 4vw, 44px);
 
       --shadow: 0 24px 70px rgba(41, 43, 35, 0.1), 0 3px 12px rgba(41, 43, 35, 0.04);
+      --motion-instant: 90ms;
       --motion-quick: 160ms;
       --ease-standard: cubic-bezier(0.2, 0, 0, 1);
     }
@@ -94,18 +145,18 @@
     /* ── base ──────────────────────────────────────────────────────────── */
     body {
       min-width: 320px;
-      background:
-        radial-gradient(circle at 84% -6%, rgba(231, 165, 117, 0.20), transparent 34rem),
-        radial-gradient(circle at 4% 42%, rgba(23, 73, 59, 0.06), transparent 30rem),
-        var(--paper);
+      background: var(--paper);
       color: var(--ink);
       font-family: var(--sans);
       font-synthesis: none;
       text-rendering: optimizeLegibility;
-      line-height: 1.6;
+      line-height: var(--leading-body);
+      letter-spacing: var(--tracking-body);
     }
 
-    h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 400; line-height: 1.2; }
+    h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 400; }
+    h1 { line-height: var(--leading-display); letter-spacing: var(--tracking-display); }
+    h2, h3 { line-height: var(--leading-tight); letter-spacing: var(--tracking-heading); }
     p { margin: 0; }
 
     :focus-visible { outline: 3px solid var(--forest); outline-offset: 3px; border-radius: 4px; }
@@ -113,12 +164,14 @@
     .wrap { width: min(1120px, 100% - 2 * var(--space-pad)); margin-inline: auto; }
     .measure { max-width: var(--measure); }
 
+    /* The ONE eyebrow on this page. Kept as a class rather than inlined so a
+       second use is visible in a diff. */
     .eyebrow {
-      margin: 0 0 12px;
+      margin: 0 0 14px;
       color: var(--forest);
       font-size: 11px;
       font-weight: 800;
-      letter-spacing: 0.06em;
+      letter-spacing: var(--tracking-caps);
       text-transform: uppercase;
     }
 
@@ -136,149 +189,134 @@
       padding: 7px;
       border-radius: 10px;
       background: var(--forest);
+      flex: none;
     }
     .mark i { width: 100%; border-radius: 999px; background: var(--paper); }
     .mark i:nth-child(1) { height: 42%; }
     .mark i:nth-child(2) { height: 100%; }
     .mark i:nth-child(3) { height: 68%; }
 
-    /* ── nav ───────────────────────────────────────────────────────────── */
+    /* ── nav ───────────────────────────────────────────────────────────────
+       No button here. The page has exactly one conversion action and putting
+       it in the nav as well would be the duplicate-intent CTA the law bans,
+       one scroll-height above its twin. The nav's job is identity and one
+       way out. */
     .nav {
       position: sticky;
       top: 0;
       z-index: 5;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 16px 0;
-      background: color-mix(in srgb, var(--paper) 86%, transparent);
+      padding: 14px 0;
+      background: color-mix(in srgb, var(--paper) 88%, transparent);
       backdrop-filter: saturate(1.4) blur(14px);
-      border-bottom: 1px solid transparent;
     }
     .nav .wrap { display: flex; align-items: center; gap: 14px; }
     .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
     .brand b { font-size: 15px; font-weight: 800; letter-spacing: 0.14em; }
-    .brand small { color: var(--ink-faint); font-size: 10px; font-weight: 800; letter-spacing: 0.1em; }
+    .brand small { color: var(--ink-faint); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; }
     .nav-spacer { flex: 1; }
+    .nav-link { color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
 
+    /* ── the one button ────────────────────────────────────────────────── */
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      min-height: 44px;
-      padding: 0 20px;
+      min-height: 52px;
+      padding: 0 26px;
       border: 1px solid var(--forest);
       border-radius: var(--radius-control);
       background: var(--forest);
-      color: var(--panel);
+      color: var(--panel); /* 10.13:1 */
       font-family: var(--sans);
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 700;
       text-decoration: none;
-      transition: opacity var(--motion-quick) var(--ease-standard), transform var(--motion-quick) var(--ease-standard);
+      transition: opacity var(--motion-quick) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
     }
     .btn:hover { opacity: 0.9; }
-    .btn:active { transform: scale(0.985); }
-    .btn-quiet { border-color: var(--line-strong); background: transparent; color: var(--ink); }
-    .btn-big { min-height: 54px; padding: 0 28px; font-size: 16px; }
+    .btn:active { transform: scale(0.97); }
 
-    /* ── hero ──────────────────────────────────────────────────────────── */
-    .hero { padding: clamp(48px, 9vw, 104px) 0 var(--space-section); }
-    .hero h1 { max-width: 17ch; font-size: clamp(38px, 6.4vw, 68px); letter-spacing: -0.015em; }
+    /* ── 1. hero: four stacked elements, and no fifth ──────────────────────
+       h1, subtext, button, fine print. Top padding maxes at 88px (5.5rem),
+       under the law's ~6rem, so the button is above the fold on a 640px-tall
+       laptop viewport with the nav included. */
+    .hero { padding: clamp(40px, 6vw, 88px) 0 var(--space-section); }
+    /* 26ch and 56px is the pair that lands this 50-character headline on TWO
+       lines at desktop, which is the law's cap. Changing either one without
+       re-counting the lines is how a hero quietly becomes three lines tall. */
+    .hero h1 { max-width: 26ch; font-size: clamp(34px, 5vw, 56px); }
     .hero h1 em { font-style: normal; color: var(--forest); }
-    .lede { max-width: 60ch; margin-top: 24px; color: var(--ink-soft); font-size: clamp(17px, 2vw, 20px); }
-    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
-    .fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
+    .hero p.lede { max-width: 46ch; margin-top: 22px; color: var(--ink-soft); font-size: clamp(17px, 1.8vw, 20px); }
+    .hero .btn { margin-top: 30px; }
+    .hero p.fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
 
-    /* The build-status strip. `context/rejected.md`'s honest-states law, on
-       the first screen: a landing that implies a shipped product while the
-       activation gate is refusing is the same defect as a spinner that spins
-       after the request died. */
-    .status {
-      display: inline-flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 28px;
-      padding: 8px 14px 8px 12px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel);
-      color: var(--ink-soft);
-      font-size: 12.5px;
-    }
-    .status b { color: var(--ink); font-weight: 700; }
-    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ember); box-shadow: 0 0 0 4px var(--ember-soft); }
-
-    /* ── the number ────────────────────────────────────────────────────────
-       The fidelity figure gets its own object because it is the product's
-       actual differentiator, and because printing a score next to its own
-       ceiling is a shape almost nobody uses. */
-    .figure {
+    /* ── 2. the numbers: an asymmetric ledger, not three equal cells ───────
+       The fidelity score and its own ceiling are one argument and are set as
+       one; the isolation count is a separate claim and sits apart. Making
+       all three the same size was the old page saying they weigh the same. */
+    .numbers {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
       gap: 1px;
-      margin-top: var(--space-section);
       overflow: hidden;
       border: 1px solid var(--line);
       border-radius: var(--radius-lg);
       background: var(--line);
       box-shadow: var(--shadow);
     }
-    .figure > div { padding: 26px var(--space-pad); background: var(--panel); }
-    .figure dt { color: var(--forest); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
-    .figure dd { margin: 10px 0 0; font-family: var(--serif); font-size: 40px; line-height: 1; letter-spacing: -0.02em; }
-    .figure small { display: block; margin-top: 12px; color: var(--ink-faint); font-size: 12.5px; line-height: 1.55; }
+    .numbers > div { padding: 30px var(--space-pad); background: var(--panel); }
+    .numbers .label { color: var(--forest); font-size: 11px; font-weight: 800; letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+    .numbers .value { margin-top: 12px; font-family: var(--serif); font-size: 32px; line-height: 1; letter-spacing: var(--tracking-display); }
+    .numbers .value.lead { font-size: clamp(44px, 6vw, 68px); }
+    .numbers .say { margin-top: 14px; color: var(--ink-soft); font-size: 14px; line-height: 1.55; max-width: 44ch; }
+    .numbers .ceiling { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line); }
+    .numbers-title { max-width: var(--measure); font-size: clamp(26px, 3.4vw, 34px); }
+    @media (max-width: 760px) { .numbers { grid-template-columns: minmax(0, 1fr); } }
 
-    /* ── sections ──────────────────────────────────────────────────────── */
+    /* ── 3. what you get: prose at one measure, not a card grid ────────── */
     section { padding: var(--space-section) 0; }
-    .section-head h2 { font-size: clamp(28px, 3.8vw, 40px); letter-spacing: -0.01em; }
-    .section-head p { max-width: var(--measure); margin-top: 16px; color: var(--ink-soft); font-size: 17px; }
+    .head h2 { font-size: clamp(28px, 3.8vw, 40px); max-width: 24ch; }
+    .head p { max-width: var(--measure); margin-top: 18px; color: var(--ink-soft); font-size: 17px; }
 
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 18px; margin-top: 44px; }
-    .card { padding: var(--space-pad); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-    .card h3 { font-size: 21px; }
-    .card p { margin-top: 12px; color: var(--ink-soft); font-size: 14.5px; }
-    .card code { font-family: var(--mono); font-size: 12.5px; color: var(--forest-deep); background: var(--forest-soft); border-radius: 5px; padding: 1px 5px; }
+    .claims { max-width: var(--measure); margin-top: 46px; display: grid; gap: 30px; }
+    .claims p { color: var(--ink-soft); font-size: 16px; }
+    .claims b { color: var(--ink); font-weight: 700; }
+    .claims code { font-family: var(--mono); font-size: 13px; color: var(--forest-deep); background: var(--forest-soft); border-radius: 5px; padding: 1px 5px; }
 
-    /* ── the steps ─────────────────────────────────────────────────────── */
-    .steps { display: grid; gap: 2px; margin-top: 44px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--line); }
-    .step { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: start; gap: 20px; padding: 26px var(--space-pad); background: var(--panel); }
-    .step b { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--forest); letter-spacing: 0.08em; padding-top: 4px; }
-    .step h3 { font-size: 19px; }
-    .step p { margin-top: 8px; max-width: var(--measure); color: var(--ink-soft); font-size: 14.5px; }
-    .step em { font-style: normal; color: var(--ink); font-weight: 600; }
+    /* ── 4. the path: three steps, a wide gutter, hairline rows ────────── */
+    .path { margin-top: 46px; display: grid; gap: 2px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); }
+    .path li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 24px; padding: 30px var(--space-pad); background: var(--panel); }
+    .path .name { font-family: var(--serif); font-size: 22px; color: var(--forest); }
+    .path h3 { font-size: 19px; }
+    .path p { margin-top: 10px; max-width: 62ch; color: var(--ink-soft); font-size: 15px; }
+    .path .owner { margin-top: 12px; color: var(--ink-faint); font-size: 13px; font-weight: 600; }
+    @media (max-width: 620px) { .path li { grid-template-columns: 1fr; gap: 8px; } }
 
-    /* ── the floor ─────────────────────────────────────────────────────── */
-    .floor { padding: var(--space-pad); border: 1px solid rgba(23, 73, 59, 0.2); border-radius: var(--radius-lg); background: var(--forest-soft); }
-    .floor h2 { font-size: clamp(26px, 3.4vw, 34px); }
-    .floor p { max-width: var(--measure); margin-top: 16px; color: #33473f; font-size: 15.5px; }
-    .floor ul { margin: 24px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
-    .floor li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; color: #33473f; font-size: 14.5px; }
+    /* ── 5. the floor: one filled panel ────────────────────────────────── */
+    .floor { padding: var(--space-pad); border: 1px solid rgba(23, 73, 59, 0.22); border-radius: var(--radius-lg); background: var(--forest-soft); }
+    .floor h2 { font-size: clamp(26px, 3.4vw, 34px); max-width: 22ch; }
+    .floor > p { max-width: var(--measure); margin-top: 18px; color: var(--forest-deep); font-size: 15.5px; }
+    .floor ul { margin: 28px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+    .floor li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; max-width: var(--measure); color: var(--forest-deep); font-size: 15px; }
     .floor li span { color: var(--forest); font-weight: 800; }
 
-    /* ── honest limits ─────────────────────────────────────────────────── */
+    /* ── 6. what is not proven: a dashed block, deliberately plain ─────── */
     .limits { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--space-pad); }
     .limits h2 { font-size: 26px; }
-    .limits ul { margin: 20px 0 0; padding-left: 20px; display: grid; gap: 10px; color: var(--ink-soft); font-size: 14.5px; max-width: var(--measure); }
+    .limits ul { margin: 24px 0 0; padding-left: 20px; display: grid; gap: 14px; max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
+    .limits strong { color: var(--ink); }
 
-    /* ── close + foot ──────────────────────────────────────────────────── */
+    /* ── 7. close: centred, one column ─────────────────────────────────── */
     .close { text-align: center; }
-    .close h2 { font-size: clamp(30px, 4.4vw, 46px); }
-    .close p { max-width: 54ch; margin: 18px auto 0; color: var(--ink-soft); font-size: 17px; }
-    .close .hero-actions { justify-content: center; }
-    .close .fine { text-align: center; }
+    .close h2 { font-size: clamp(30px, 4.4vw, 46px); max-width: 100%; }
+    .close p { max-width: 52ch; margin: 20px auto 0; color: var(--ink-soft); font-size: 17px; }
+    .close .btn { margin-top: 30px; }
+    .close .fine { margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
 
     .foot { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 13px; }
     .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
-    .foot p { max-width: 52ch; }
+    .foot p { max-width: 54ch; }
     .foot a { color: var(--ink-soft); }
-
-    @media (max-width: 560px) {
-      .step { grid-template-columns: 1fr; gap: 10px; }
-      .step b { padding-top: 0; }
-    }
   </style>
 </head>
 <body>
@@ -290,69 +328,61 @@
         <span><b>VYAKTI</b><br /><small>TEACHER STUDIO</small></span>
       </a>
       <span class="nav-spacer"></span>
-      <a class="btn btn-quiet" href="/studio?mode=teacher">Open the studio</a>
+      <a class="nav-link" href="#limits">What we have not proven</a>
     </div>
   </nav>
 
   <main>
 
-    <!-- ══ hero ══════════════════════════════════════════════════════════ -->
+    <!-- ══ 1. hero. Four elements. Count them before adding a fifth. ═════ -->
     <header class="hero">
       <div class="wrap">
-        <p class="status">
-          <span class="dot" aria-hidden="true"></span>
-          <b>Private build.</b> The studio is live. Voice activation is still gated on checks that have not all passed.
-        </p>
-
         <h1>Your teaching, in a voice that is <em>measurably</em> yours.</h1>
-
         <p class="lede">
-          A teacher gives Vyakti their own recordings and their own channel. Vyakti builds a version of them that
-          students can text and call, that remembers each student separately, and that says what it is before every
-          single session. We do not ask you to take the likeness on faith. We give you the number.
+          A teacher builds an AI version of themselves. We publish the number for how close it is.
         </p>
-
-        <div class="hero-actions">
-          <a class="btn btn-big" href="/studio?mode=teacher">Build your clone</a>
-          <a class="btn btn-quiet btn-big" href="#how">See how it works</a>
-        </div>
-        <p class="fine">You can only clone yourself. Identity and a live challenge are required before anything speaks.</p>
-
-        <!-- The differentiator, printed with its own ceiling. -->
-        <dl class="figure">
-          <div>
-            <dt>Fidelity, measured</dt>
-            <dd>0.7753</dd>
-            <small>
-              Speaker-embedding similarity (ECAPA) between a clone and its owner's own reference, zero-shot, with
-              no fine-tuning at all. Recomputed on every voice update and shown to you in the studio.
-            </small>
-          </div>
-          <div>
-            <dt>The ceiling of that scale</dt>
-            <dd>0.8869</dd>
-            <small>
-              The same person measured against themselves, on different windows of one recording. This is as high as
-              the metric goes for that speaker, so you can read 0.7753 as what it is instead of what it sounds like.
-            </small>
-          </div>
-          <div>
-            <dt>Cross-teacher leakage</dt>
-            <dd>0</dd>
-            <small>
-              In 31,122 row-by-scenario checks. Isolation between two teachers' students is a database predicate, not
-              an instruction we give a model. The same test caught 162 violations with the predicate removed.
-            </small>
-          </div>
-        </dl>
+        <a class="btn" href="/studio?mode=teacher">Start with one recording</a>
+        <p class="fine">You can only clone yourself. Identity and a live challenge come first.</p>
       </div>
     </header>
 
-    <!-- ══ what it is ════════════════════════════════════════════════════ -->
+    <!-- ══ 2. the numbers, each printed with what it does not mean ══════ -->
+    <section aria-labelledby="numbers-title">
+      <div class="wrap">
+        <h2 id="numbers-title" class="numbers-title">Two numbers, and the thing each one is not.</h2>
+        <div class="numbers">
+          <div>
+            <p class="label">Fidelity, measured</p>
+            <p class="value lead">0.7753</p>
+            <p class="say">
+              Speaker-embedding similarity (ECAPA) between a clone and its owner's own reference, zero-shot, with no
+              fine-tuning. Recomputed on every voice update and shown to you in the studio.
+            </p>
+            <div class="ceiling">
+              <p class="label">The ceiling of that same scale</p>
+              <p class="value">0.8869</p>
+              <p class="say">
+                The same person measured against themselves, on different windows of one recording. This is as high as
+                the metric goes for that speaker, so you can read 0.7753 as what it is rather than as what it sounds like.
+              </p>
+            </div>
+          </div>
+          <div>
+            <p class="label">Cross-teacher leakage</p>
+            <p class="value">0</p>
+            <p class="say">
+              In 31,122 row-by-scenario checks. Isolation between two teachers' students is a database predicate, not an
+              instruction given to a model. The same test caught 162 violations with the predicate removed.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 3. what you get. Prose, one measure, no card grid. ═══════════ -->
     <section aria-labelledby="what">
       <div class="wrap">
-        <div class="section-head">
-          <p class="eyebrow">What you get</p>
+        <div class="head">
           <h2 id="what">Not a voice clone. A person your students already know.</h2>
           <p>
             Voice is the part everyone demos. It is also the part that wears off in about a week if there is nothing
@@ -360,202 +390,137 @@
           </p>
         </div>
 
-        <div class="cards">
-          <div class="card">
-            <h3>It remembers each student separately.</h3>
-            <p>
-              Not a chat history. A per-student record: what they keep getting wrong, what they were dreading before
-              the last mock, what finally clicked. Rushing integration by parts is stored as a pattern with the two
-              sessions that evidenced it, and your clone can cite them.
-            </p>
-          </div>
-          <div class="card">
-            <h3>It stays current from your own channel.</h3>
-            <p>
-              Link your channel and a new video becomes a set of <em>proposed</em> updates to how your clone teaches.
-              Proposed, always. Nothing changes what your clone says to a student until you have read the change and
-              tapped accept.
-            </p>
-          </div>
-          <div class="card">
-            <h3>It teaches the way you teach.</h3>
-            <p>
-              Strictness and warmth are separate settings, because they are separate in real teachers. Your
-              doubt-handling ladder decides what a student gets before they get a full solution, which is also how
-              the product refuses to be a homework machine.
-            </p>
-          </div>
-          <div class="card">
-            <h3>It is disclosed, every time.</h3>
-            <p>
-              A card before the first turn and a spoken line at the top of every call: this is an AI clone, built
-              from your recordings, and it is not you. You see the exact wording in the studio before you publish.
-              It cannot be shortened or switched off, including by us.
-            </p>
-          </div>
-          <div class="card">
-            <h3>Every second of audio is signed.</h3>
-            <p>
-              Watermarked twice and signed with C2PA provenance. If a clip of your cloned voice turns up somewhere it
-              should not be, it is identifiable as synthetic and traceable to the generation that made it.
-            </p>
-          </div>
-          <div class="card">
-            <h3>Withdrawal actually deletes.</h3>
-            <p>
-              Revoking stops future use in the same transaction that invalidates the voice profile, then queues
-              provider copies and private storage for erasure with durable retries. The studio shows you each one
-              being confirmed, not a message saying it was requested.
-            </p>
-          </div>
+        <div class="claims">
+          <p>
+            <b>It remembers each student separately.</b> Not a chat history. A per-student record: what they keep getting
+            wrong, what they were dreading before the last mock, what finally clicked. Rushing integration by parts is
+            stored as a pattern with the two sessions that evidenced it, and your clone can cite them.
+          </p>
+          <p>
+            <b>It stays current from your own channel.</b> Link your channel and a new video becomes a set of proposed
+            updates to how your clone teaches. Proposed, always. Nothing changes what your clone says to a student until
+            you have read the change and tapped accept.
+          </p>
+          <p>
+            <b>It teaches the way you teach.</b> Strictness and warmth are separate settings, because they are separate
+            in real teachers. Your doubt-handling ladder decides what a student gets before they get a full solution,
+            which is also how the product refuses to be a homework machine.
+          </p>
+          <p>
+            <b>It is disclosed, every time.</b> A card before the first turn and a spoken line at the top of every call:
+            this is an AI clone, built from your recordings, and it is not you. You see the exact wording in the studio
+            before you publish. It cannot be shortened or switched off, including by us.
+          </p>
+          <p>
+            <b>Every second of audio is signed.</b> Watermarked twice and signed with <code>C2PA</code> provenance. If a
+            clip of your cloned voice turns up somewhere it should not be, it is identifiable as synthetic and traceable
+            to the generation that made it.
+          </p>
+          <p>
+            <b>Withdrawal actually deletes.</b> Revoking stops future use in the same transaction that invalidates the
+            voice profile, then queues provider copies and private storage for erasure with durable retries. The studio
+            shows you each one being confirmed, not a message saying it was requested.
+          </p>
         </div>
       </div>
     </section>
 
-    <!-- ══ how ═══════════════════════════════════════════════════════════ -->
+    <!-- ══ 4. the path. Three steps, because the studio has three. ══════ -->
     <section id="how" aria-labelledby="how-title">
       <div class="wrap">
-        <div class="section-head">
-          <p class="eyebrow">The path</p>
-          <h2 id="how-title">Nine steps, and you can see all nine from the first one.</h2>
+        <div class="head">
+          <h2 id="how-title">Three steps, and you can see all three from inside the first.</h2>
           <p>
-            The studio never hides what is still locked or who it is waiting on. Every step below says whether it is
-            your turn or ours.
+            The studio never hides what is still locked or who it is waiting on. Every step says whether it is your turn
+            or ours, and what it costs you in minutes.
           </p>
         </div>
 
-        <ol class="steps">
-          <li class="step">
-            <b>01</b>
+        <ol class="path">
+          <li>
+            <span class="name">Feed</span>
             <div>
-              <h3>Name your clone</h3>
-              <p>A workspace, and nothing else yet. <em>Your turn.</em> About a minute.</p>
-            </div>
-          </li>
-          <li class="step">
-            <b>02</b>
-            <div>
-              <h3>Give source permission</h3>
+              <h3>Give it something of yours</h3>
               <p>
-                Four statements you confirm yourself, recorded as a receipt you can withdraw. This permits us to
-                receive, transcribe and store what you send. It permits nothing else. <em>Your turn.</em>
+                Name the clone, confirm four permission statements you can withdraw later, and add one lecture, one
+                voice note or one PDF of your notes. One is enough to see a draft. The file is fingerprinted in your
+                browser before it moves, and the filename is never stored. Then you prove you are you, with a government
+                ID and a live challenge recorded on the spot, which is what makes cloning someone else structurally
+                impossible rather than against the rules. The raw ID and the challenge media are erased once the match
+                is bound.
               </p>
+              <p class="owner">Your turn. About fifteen minutes.</p>
             </div>
           </li>
-          <li class="step">
-            <b>03</b>
+          <li>
+            <span class="name">Meet</span>
             <div>
-              <h3>Add one recording</h3>
+              <h3>Hear it, then talk it into shape</h3>
               <p>
-                One lecture, one voice note, one PDF of your notes. One is enough to see a draft. The file is
-                fingerprinted in your browser before it moves, and the filename is never stored. <em>Your turn.</em>
+                Review the sheet we drafted from your uploads, with every claim cited to the moment it came from, and
+                approve it one line at a time. Hear a private preview that cannot join a call or activate anything. Pick
+                between two candidates without being told which is which, because you cannot judge your own voice once
+                you know the answer. Then take a calibration call with your own clone: it proposes changes while you are
+                talking, and nothing lands on your sheet without a tap.
               </p>
+              <p class="owner">Your turn, and the part teachers enjoy.</p>
             </div>
           </li>
-          <li class="step">
-            <b>04</b>
+          <li>
+            <span class="name">Deploy</span>
             <div>
-              <h3>Prove you are you</h3>
-              <p>
-                A government ID and a live challenge you record on the spot. This is the step that makes cloning
-                someone else structurally impossible rather than against the rules. The raw ID and the challenge
-                media are erased once the match is bound. <em>Your turn.</em>
-              </p>
-            </div>
-          </li>
-          <li class="step">
-            <b>05</b>
-            <div>
-              <h3>Review the sheet we drafted</h3>
-              <p>
-                Subject, syllabus coverage, strictness, warmth, the doubt ladder, the mistakes you see most. Drafted
-                from your uploads with every claim cited to the moment it came from, and approved by you one at a
-                time. <em>Your turn.</em>
-              </p>
-            </div>
-          </li>
-          <li class="step">
-            <b>06</b>
-            <div>
-              <h3>Hear it</h3>
-              <p>
-                A private preview that cannot join a call or activate anything. Then a blind A and B lab where you
-                pick which of two candidates is closer, without being told which is which, because you cannot judge
-                your own voice once you know the answer. <em>Your turn, and the part teachers enjoy.</em>
-              </p>
-            </div>
-          </li>
-          <li class="step">
-            <b>07</b>
-            <div>
-              <h3>Talk to it</h3>
-              <p>
-                A calibration call with your own clone. It listens to how you actually sound and how you actually
-                phrase things, and proposes changes while you are talking. You accept or ignore each one. Nothing
-                lands on your sheet without a tap. <em>Your turn.</em>
-              </p>
-            </div>
-          </li>
-          <li class="step">
-            <b>08</b>
-            <div>
-              <h3>We run the gates</h3>
+              <h3>We run the gates, then you choose where it can be reached</h3>
               <p>
                 Identity, intelligibility, artifacts, watermark, privacy and latency checks, plus the fidelity score
-                against your ceiling. If it does not clear, we refuse to activate and tell you which check failed.
-                <em>Ours. Nothing you can do to speed it up, and we will not pretend otherwise.</em>
+                against your own ceiling. If it does not clear, we refuse to activate and tell you which check failed.
+                What clears goes to a web link, an embed on your own site, or a messaging channel. You see the student's
+                disclosure card before you choose any of them, because that is the informed half of informed consent.
               </p>
-            </div>
-          </li>
-          <li class="step">
-            <b>09</b>
-            <div>
-              <h3>Choose where it can be reached</h3>
-              <p>
-                A web link, an embed on your own site, or a messaging channel. You see the student's disclosure card
-                before you choose any of them, because that is the informed half of informed consent.
-                <em>Your turn.</em>
-              </p>
+              <p class="owner">Ours, then yours. Nothing you can do to speed the gates up, and we will not pretend otherwise.</p>
             </div>
           </li>
         </ol>
       </div>
     </section>
 
-    <!-- ══ the floor ═════════════════════════════════════════════════════ -->
+    <!-- ══ 5. the floor ════════════════════════════════════════════════ -->
     <section aria-labelledby="floor">
       <div class="wrap">
         <div class="floor">
-          <p class="eyebrow">Non-negotiable</p>
           <h2 id="floor">The rules your clone cannot be talked out of.</h2>
           <p>
-            These are not settings, and they are not instructions given to a model in a prompt. They are checks on
-            the way out, which is the difference between a preference and a guarantee. Most of your students are
-            sixteen or seventeen years old, and that is the reason.
+            These are not settings, and they are not instructions given to a model in a prompt. They are checks on the
+            way out, which is the difference between a preference and a guarantee. Most of your students are sixteen or
+            seventeen years old, and that is the reason.
           </p>
           <ul>
-            <li><span>&check;</span> Your clone never denies being an AI, and never implies you read or saw anything a student said.</li>
-            <li><span>&check;</span> Crisis helplines are guaranteed present, verified by a test that fails the build if they go missing.</li>
-            <li><span>&check;</span> Every student account defaults to the minor-safe tier. Engagement mechanics are structurally off, not merely disabled.</li>
-            <li><span>&check;</span> No streak anxiety, no manufactured urgency, no countdown to the exam. A mechanic ships only if removing every fear from it leaves it intact.</li>
-            <li><span>&check;</span> Your clone never speaks first without a reason it can cite. Silence is not a reason.</li>
-            <li><span>&check;</span> A full solution is never the first answer to a doubt. Your ladder decides what comes before it.</li>
+            <li><span aria-hidden="true">&check;</span> Your clone never denies being an AI, and never implies you read or saw anything a student said.</li>
+            <li><span aria-hidden="true">&check;</span> Crisis helplines are guaranteed present, verified by a test that fails the build if they go missing.</li>
+            <li><span aria-hidden="true">&check;</span> Every student account defaults to the minor-safe tier. Engagement mechanics are structurally off, not merely disabled.</li>
+            <li><span aria-hidden="true">&check;</span> No streak anxiety, no manufactured urgency, no countdown to the exam. A mechanic ships only if removing every fear from it leaves it intact.</li>
+            <li><span aria-hidden="true">&check;</span> Your clone never speaks first without a reason it can cite. Silence is not a reason.</li>
+            <li><span aria-hidden="true">&check;</span> A full solution is never the first answer to a doubt. Your ladder decides what comes before it.</li>
           </ul>
         </div>
       </div>
     </section>
 
-    <!-- ══ what is not true yet ══════════════════════════════════════════ -->
-    <section aria-labelledby="limits">
+    <!-- ══ 6. what is not true yet. The page's one eyebrow lives here. ══ -->
+    <section id="limits" aria-labelledby="limits-title">
       <div class="wrap">
         <div class="limits">
           <p class="eyebrow">Read this before you sign up</p>
-          <h2 id="limits">What we have not proven yet.</h2>
+          <h2 id="limits-title">What we have not proven yet.</h2>
           <ul>
             <li>
-              <strong>No one has run a blind listening test.</strong> 0.7753 is embedding similarity, which is a
-              real measurement of a real thing and is not the same thing as sounding like you. The test rig exists.
-              Until a person has sat through it, we will not tell you how it sounds.
+              <strong>This is a private build.</strong> The studio is live and you can work through it today. Voice
+              activation is still gated on checks that have not all passed, so a clone you build now may not be able to
+              speak yet, and the studio will tell you which gate is holding it.
+            </li>
+            <li>
+              <strong>No one has run a blind listening test.</strong> 0.7753 is embedding similarity, which is a real
+              measurement of a real thing and is not the same thing as sounding like you. The test rig exists. Until a
+              person has sat through it, we will not tell you how it sounds.
             </li>
             <li>
               <strong>We have not benchmarked ourselves against ElevenLabs</strong> or anyone else. When we do, the
@@ -574,7 +539,7 @@
       </div>
     </section>
 
-    <!-- ══ close ═════════════════════════════════════════════════════════ -->
+    <!-- ══ 7. close ════════════════════════════════════════════════════ -->
     <section class="close" aria-labelledby="close-title">
       <div class="wrap">
         <h2 id="close-title">Start with one recording.</h2>
@@ -582,9 +547,7 @@
           You will have something to listen to before you have decided anything. Nothing you upload is used for
           training, sharing or anything else until you separately say so.
         </p>
-        <div class="hero-actions">
-          <a class="btn btn-big" href="/studio?mode=teacher">Open the studio</a>
-        </div>
+        <a class="btn" href="/studio?mode=teacher">Start with one recording</a>
         <p class="fine">Self-cloning only. No public voice library. Auditable deletion.</p>
       </div>
     </section>
@@ -596,7 +559,7 @@
       <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
       <p>Vyakti builds an AI version of an expert, from their own consented material, with the fidelity published rather than promised.</p>
       <span class="nav-spacer"></span>
-      <a href="/privacy">Privacy &amp; Terms</a>
+      <a href="/privacy">Privacy and Terms</a>
     </div>
   </footer>
 
