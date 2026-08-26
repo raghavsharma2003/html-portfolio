@@ -71,3 +71,5 @@ api/google-keys.env
 # committed key would unblind every future run of the same stimuli. The
 # instrument is in the repo; its output is not.
 earbench-out/
+vyakti-local.env
+api/_config.env
