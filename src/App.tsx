@@ -16,6 +16,8 @@ import ChessActivity from "./components/ChessActivity";
 import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
 import KnowsScreen from "./components/KnowsScreen";
+import PracticeActivity from "./components/PracticeActivity";
+import MasteryMap from "./components/MasteryMap";
 import { CloseIcon, ChevronIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme, watchSky } from "./engine/theme";
 import { configureSky, parseSkySeed } from "./engine/sky";
@@ -40,6 +42,7 @@ import UsScreen from "./components/UsScreen";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
 import { startSessionClock } from "./engine/clock";
+import { applyStudentSurfaceDefault, isGurukulStudentSurface } from "./gurukul/surface";
 import { tel, telIdentify, telRoute } from "./engine/telemetry";
 import { prewarmLiveToken } from "./voice/liveCall";
 import { primeCulture } from "./engine/culture";
@@ -172,6 +175,15 @@ export default function App() {
   // state that is not ours (the shape `activity-forgot-the-teardown` is filed
   // under). Everything else about it is the ordinary overlay contract below.
   const [knowsOpen, setKnowsOpen] = useState(false);
+  // Gurukul student surface only (SPEC-GURUKUL.md §5) — both are `false` and
+  // never opened on the Meera build, since the entry points below are gated
+  // on `isGurukulStudentSurface()` and nothing else sets them. Kept as plain
+  // overlay sentinels in the SAME depth-tracked stack as `usOpen`/`knowsOpen`
+  // (see `closeTop`/`overlayDepth` below) so the hardware back button and web
+  // back both close them exactly the way they close every other full-screen
+  // surface in this file.
+  const [practiceOpen, setPracticeOpen] = useState(false);
+  const [masteryOpen, setMasteryOpen] = useState(false);
   const [composePrefill, setComposePrefill] = useState<{ text: string; n: number }>({ text: "", n: 0 });
   useEffect(() => {
     const open = () => setKnowsOpen(true);
@@ -826,6 +838,14 @@ export default function App() {
       setUsOpen(false);
       return "overlay";
     }
+    if (practiceOpen) {
+      setPracticeOpen(false);
+      return "overlay";
+    }
+    if (masteryOpen) {
+      setMasteryOpen(false);
+      return "overlay";
+    }
     if (authOpen) {
       setAuthOpen(false);
       return "overlay";
@@ -835,7 +855,7 @@ export default function App() {
       return "chat";
     }
     return "none";
-  }, [activity, gamesOpen, storyOpen, usOpen, knowsOpen, authOpen, surface]);
+  }, [activity, gamesOpen, storyOpen, usOpen, knowsOpen, practiceOpen, masteryOpen, authOpen, surface]);
 
   // THE OVERLAY SENTINELS. One history entry per open overlay, so the WEB
   // back has something to consume and the two backs stay symmetric — pressing
@@ -854,6 +874,8 @@ export default function App() {
     (storyOpen ? 1 : 0) +
     (usOpen ? 1 : 0) +
     (knowsOpen ? 1 : 0) +
+    (practiceOpen ? 1 : 0) +
+    (masteryOpen ? 1 : 0) +
     (authOpen ? 1 : 0);
   const held = useRef(0);
   useEffect(() => {
@@ -999,6 +1021,15 @@ export default function App() {
   useEffect(() => {
     if (state.onboarded) startSessionClock(state.deviceId);
   }, [state.onboarded, state.deviceId]);
+
+  // Gurukul student surface (SPEC-GURUKUL.md §3 item 2): every account on the
+  // student build is pinned to the minor-safe tier before anything else can
+  // run, via clock.ts's own restriction-only `setAgeTier`. A no-op on the
+  // Meera build — `isGurukulStudentSurface()` is false unless the app was
+  // built with the Gurukul surface flag, so this line changes nothing there.
+  useEffect(() => {
+    if (isGurukulStudentSurface()) applyStudentSurfaceDefault();
+  }, []);
 
   // ── silent auto-update ──
   // A long-lived tab keeps running old code after a deploy (that's how bug
@@ -1485,6 +1516,29 @@ export default function App() {
       ) : (
         <>
           <ClockCard />
+          {/* ── GURUKUL STUDENT SURFACE ENTRY ─────────────────────────────
+              The two new siblings' only door in. Absent entirely off the
+              student surface — `isGurukulStudentSurface()` is a build-time
+              constant, so this branch does not exist in the Meera bundle's
+              rendered output any differently than any other dead branch, and
+              costs the Meera build nothing more than the constant check
+              already costs it. Deliberately NOT threaded through HomeScreen
+              or Chat's own prop surfaces (`onGames`, `onUs`, ...): those are
+              Meera-shaped contracts another workstream owns, and adding a
+              student-only prop to either would be exactly the kind of leak
+              `SPEC-GURUKUL.md` §3 item 2 is written to prevent. A fixed shell
+              sibling is the narrowest seam that reaches both `surface`
+              states (home and chat) without editing either component. */}
+          {isGurukulStudentSurface() && (
+            <nav className="gurukul-nav" aria-label="Gurukul">
+              <button type="button" onClick={() => setPracticeOpen(true)} data-tel="gurukul.open.practice">
+                Practice
+              </button>
+              <button type="button" onClick={() => setMasteryOpen(true)} data-tel="gurukul.open.mastery">
+                Mastery
+              </button>
+            </nav>
+          )}
           {/* ── THE THREAD ────────────────────────────────────────────────
               ALWAYS MOUNTED, exactly like it is under a board or a call, and
               for the same reason: it holds an in-flight reply cycle, a burst
@@ -1545,7 +1599,16 @@ export default function App() {
             // opaque call surface — on the most battery-sensitive screen in
             // the product. Covered means off.
             data-on={
-              surface === "home" && !inCall && activity === null && !storyOpen && !usOpen && !knowsOpen && !gamesOpen && !authOpen
+              surface === "home" &&
+              !inCall &&
+              activity === null &&
+              !storyOpen &&
+              !usOpen &&
+              !knowsOpen &&
+              !gamesOpen &&
+              !authOpen &&
+              !practiceOpen &&
+              !masteryOpen
                 ? ""
                 : undefined
             }
@@ -1693,6 +1756,16 @@ export default function App() {
             )}
           </ErrorBoundary>
           {usOpen && <UsScreen state={state} onExit={() => setUsOpen(false)} />}
+          {/* ── GURUKUL STUDENT SURFACE ───────────────────────────────────
+              Two more full-screen siblings, in the exact shape `usOpen`/
+              `knowsOpen` already use above — mounted only while their own
+              sentinel is true, torn down on exit, no state read from Meera's
+              relationship record. Entirely absent from the tree (not merely
+              hidden) whenever `isGurukulStudentSurface()` is false: the entry
+              points below are the only thing that can ever set these
+              sentinels, and they render nothing on the Meera build. */}
+          {practiceOpen && <PracticeActivity onExit={() => setPracticeOpen(false)} />}
+          {masteryOpen && <MasteryMap onExit={() => setMasteryOpen(false)} />}
           {knowsOpen && (
             <KnowsScreen
               state={state}
