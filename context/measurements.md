@@ -3951,3 +3951,59 @@ invocations back to back. Deleted afterwards.
 43 seconds, 48 kHz, stereo, mp3. That is what the pipeline now records as
 `media_probe` evidence, and it is comfortably above any plausible enrollment
 minimum.
+
+## `voice-evidence-round-trip-first-ever` (2026-08-26, WS-AK)
+
+**n = 3 real requests** from `vyakti-replica-processing` to the private
+`vyakti-voice-evidence` GPU service. WS-L deployed that service and recorded
+that it boots healthy but that **no round trip had ever been run**. These are
+the first.
+
+| attempt | service state | wall time | outcome |
+|---|---|---|---|
+| 1 | scaled to zero (cold) | 227 s execution | `transport_signature_invalid` (HTTP 401) |
+| 2 | warm | 20 s execution | `audio_duration_invalid` |
+
+**The cold-start failure is a clock-skew failure, and the mechanism is exact.**
+`services/voice-evidence/app.py` sets `MAX_CLOCK_SKEW_SECONDS = 60`. The client
+in `providers/azure-voice-evidence.js` stamps `new Date().toISOString()` and
+signs *before* sending. Container Apps then holds the request while it wakes the
+scale-to-zero GPU replica, which WS-L measured at about 161 s. By the time the
+service validates, the signed timestamp is older than its 60 s anti-replay
+window, so a correct request with a correct key is rejected.
+
+**Ruled out first, by measurement rather than assumption:** the HMAC secret is
+not the problem. The value deployed in the container app's `evidence-hmac`
+secret and the value in the session's `.sec/open-voice-hmac.env` were compared
+by SHA-256 digest (neither printed): both 64 characters, identical digest,
+`MATCH`. The confirming test is attempt 2 - against a warm replica the identical
+code signed, authenticated and was answered.
+
+**So the anti-replay window is shorter than the cold start it has to survive.**
+The first request to a scaled-to-zero evidence replica can never authenticate;
+every request inside the warm window does. Widening the window is the wrong fix -
+it weakens replay protection to paper over a scheduling problem. Warming the
+service and then signing, or signing per attempt on retry, are the fixes that
+keep the window narrow.
+
+## `owners-recording-exceeds-the-evidence-duration-cap` (2026-08-26, WS-AK)
+
+**Measured 2026-08-26.** With the transport working, `diarize` failed
+`audio_duration_invalid` in 20 s. The two limits on the deployed
+`vyakti-voice-evidence` app, read back from the container app resource:
+
+```
+VOICE_EVIDENCE_MAX_AUDIO_BYTES      = 33,554,432   owner's file 32,908,934  -> fits, 645,498 to spare
+VOICE_EVIDENCE_MAX_DURATION_SECONDS = 600          owner's file 822.72 s    -> over by 222.72 s
+```
+
+**The owner's real enrollment recording is 13 minutes 43 seconds and the
+evidence service accepts 10 minutes.** It squeaks under the byte cap and misses
+the duration cap, which is why this surfaced only after `media_probe` first
+succeeded and put a real duration on the record.
+
+**Not changed here, deliberately.** Raising the cap is a GPU time and memory
+decision on a T4 and a product decision about what enrollment accepts; both
+belong to the owner, not to a deploy. The three honest options are to raise the
+cap, to segment long uploads before the evidence steps, or to tell the owner the
+limit at upload time. Today nothing tells them.

@@ -3570,3 +3570,62 @@ ordinary lost lease reports `lost_processing_lease` rather than 22012.
 table it is writing. If a check inside a data-modifying CTE appears to validate
 the insert, it is validating the past. And a guard that can only ever fail is
 indistinguishable from a guard that never fires until something reaches it.
+
+## `signing-before-a-cold-start-cannot-authenticate` (2026-08-26, WS-AK)
+
+**What was tried.** Wiring `AZURE_VOICE_EVIDENCE_ORIGIN` and its HMAC secret
+into the processing job and letting `diarize` call the private GPU evidence
+service, which is deployed, healthy and scaled to zero.
+
+**What broke.** HTTP 401 `transport_signature_invalid`, with the correct key.
+The service's `MAX_CLOCK_SKEW_SECONDS` is 60. The client stamps and signs the
+request before sending it, Container Apps then holds it for the roughly 161 s
+that waking a scale-to-zero GPU replica takes, and the timestamp is stale by the
+time it is checked. A correct request, a correct secret, and a guaranteed 401.
+
+**How the wrong answer was avoided.** The obvious reading is "the secrets do not
+match", and the obvious fix is to rotate them - which would have changed nothing
+and destroyed the working key. The secrets were compared by SHA-256 digest
+instead, without printing either: identical. Then the same job was run again
+while the replica was still warm and the identical code authenticated in 20 s.
+Two measurements, one of them a positive control, turned a plausible guess into
+a mechanism.
+
+**Do not fix this by widening the window.** The window is the replay protection.
+The request has to be signed after the replica is awake, or re-signed per
+attempt, which is what a retry against a now-warm service already achieves by
+accident.
+
+**The reusable part.** An anti-replay window and a cold start are the same kind
+of quantity, and nobody compares them until one is inside the other. Any signed
+call to a scale-to-zero service has this bug unless the signing happens after
+the wake.
+
+## `requeue-resets-attempt-and-the-timing-row-survives` (2026-08-26, WS-AK)
+
+**What was tried.** Reading per-step durations out of
+`vy_replica_processing_attempt` for the owner's job, which is the table that
+exists to hold exactly that.
+
+**What broke.** The numbers are inflated, silently, by however long a job sat
+between attempts. `requeueRecoveredProcessingJobs` sets `attempt = 0`, the next
+lease sets it back to 1, and the lease's
+`insert into vy_replica_processing_attempt ... on conflict (job_id, attempt) do
+nothing` therefore lands on the row the FIRST attempt already wrote. The retry
+reuses it: `started_at` stays at the original attempt's start, `finished_at` is
+overwritten by the retry's finish.
+
+Measured on the owner's job: every one of the four steps has exactly one attempt
+row, and `malware_scan` reads as 783 s when the scan itself took about 1.4 s.
+The 783 s is the thirteen minutes it spent failed and waiting for a container to
+be deployed.
+
+**Not fixed here.** The fix is a design choice, not a patch: either the requeue
+resets `attempt` to the highest row that exists rather than to 0, or the retry
+gets a fresh row and the table grows an attempt sequence separate from the job's
+counter. Both change what an "attempt" means to everything that reads it.
+
+**Why it matters more than it looks.** This is the table a future session will
+use to answer "is the pipeline getting slower". It currently answers a different
+question, how long a step waited for a human, in the same units, with no way to
+tell which is which from the row.

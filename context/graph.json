@@ -2804,6 +2804,30 @@
       "kind": "open",
       "title": "a voice_genome build needs sources at state=ready, which only voice_quality sets; the DAG stops at diarize without AZURE_VOICE_EVIDENCE_ORIGIN and then at transcribe on AZURE_SPEECH_ENDPOINT, and the subscription has ZERO Cognitive Services accounts",
       "at": "2026-08-26"
+    },
+    {
+      "id": "voice-evidence-round-trip-first-ever",
+      "kind": "measurement",
+      "title": "the first three real requests ever made to the private GPU evidence service: cold gives 401 transport_signature_invalid in 227s, warm authenticates in 20s - n=3, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "owners-recording-exceeds-the-evidence-duration-cap",
+      "kind": "measurement",
+      "title": "the owner's enrollment recording is 822.72s against VOICE_EVIDENCE_MAX_DURATION_SECONDS=600, and 32,908,934 bytes against a 33,554,432 byte cap: under on bytes, over on duration by 222.72s",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "signing-before-a-cold-start-cannot-authenticate",
+      "kind": "rejection",
+      "title": "signing an HMAC request before waking a scale-to-zero GPU service: the 60s anti-replay window is shorter than the ~161s cold start, so a correct request with a correct key is always rejected",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "requeue-resets-attempt-and-the-timing-row-survives",
+      "kind": "rejection",
+      "title": "reading per-step durations from vy_replica_processing_attempt: a requeue resets attempt to 0, the retry's insert conflicts onto the first attempt's row, and the span silently becomes wait time plus work time",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5415,6 +5439,26 @@
     {
       "src": "voice-genome-still-blocked-on-asr",
       "rel": "caused_by",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "voice-evidence-round-trip-first-ever",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "signing-before-a-cold-start-cannot-authenticate",
+      "rel": "caused_by",
+      "dst": "voice-evidence-round-trip-first-ever"
+    },
+    {
+      "src": "owners-recording-exceeds-the-evidence-duration-cap",
+      "rel": "part_of",
+      "dst": "voice-genome-still-blocked-on-asr"
+    },
+    {
+      "src": "requeue-resets-attempt-and-the-timing-row-survives",
+      "rel": "part_of",
       "dst": "replica-processing-worker-deployed"
     }
   ]
