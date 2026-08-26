@@ -336,11 +336,18 @@ for (const f of soundFiles) {
 // delivers microphone frames; it is not a second audible output path.
 const studioCapture = code(src("src/studio/wavCapture.ts"));
 ok("Studio microphone capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(studioCapture));
+// WS-Y's Mirror Call capture is the same capture-only shape: its context may
+// exist ONLY under the same proof wavCapture carries — an exactly-zero gain
+// between the processor and the destination. Listing it without asserting the
+// silence would turn the enumeration into a bypass list.
+const callCapture = code(src("src/studio/callCapture.ts"));
+ok("Mirror Call capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(callCapture));
 const AUDIO_CONTEXT_OWNERS = new Set([
   "src/voice/speech.ts",
   "src/voice/liveCall.ts",
   "src/sound/index.ts",
   "src/studio/wavCapture.ts",
+  "src/studio/callCapture.ts",
 ]);
 for (const f of files) {
   if (AUDIO_CONTEXT_OWNERS.has(f)) continue;
