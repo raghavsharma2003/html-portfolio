@@ -2791,3 +2791,27 @@ workflow's push trigger is narrowed to `[main, claude/ai-companion-app-rkt1lv]`
 so gurukul pushes stop overwriting the live companion. Reverses if: the owner
 designates gurukul (or its successor) a production surface — then it gets its
 own deploy workflow and probe contract rather than inheriting Meera's alias.
+
+## `gurukul-ws1-landed` — first build wave: sheet seam, pedagogy engine, deploy manifest (2026-08-26)
+
+Three worktree workstreams merged onto `claude/gurukul-platform`, all 11
+verify-release gates green on the union (eval suite 5161 checks / 0 failures,
+practice suite included):
+
+- **WS-A** — arc-override seam (a sheet may supply its own stage arc; absent
+  fields keep Maya byte-identical, gated on the bytes), `TeacherSheet` (61
+  incumbent + 24 pedagogy fields), demo teacher "Arjun Sir" registered so the
+  safety-floor invariants run against him on every eval pass, cross-agent
+  leak guard generalised. Registration-at-publish stays the seam where a real
+  teacher's consent row will gate entry.
+- **WS-C** — JEE Advanced PCM syllabus as data, deterministic practice
+  grading state machine (formats incl. Advanced partial marking; verdicts,
+  moment shapes), practice→words adapter under the chessTalk discipline with
+  the ability-label ban and its negative control, wired into evals/run.mjs.
+- **WS-G** — ENV-MANIFEST.md (every replica/voice env var, consumer-verified
+  file:line), check-replica-env.mjs LIVE/DARK/BROKEN-HALFWAY preflight,
+  DEPLOY.md runbook (migrations, env batches, services CI/CD gap, Microsoft
+  Limited Access applications).
+
+Next: WS-B dynamic sheet loading, WS-D student surface, WS-E studio re-skin,
+WS-F ingestion — each depends on this wave.

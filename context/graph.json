@@ -1868,6 +1868,12 @@
       "kind": "decision",
       "title": "gurukul pushes must not production-deploy meera-silk; vite entry pinned to index",
       "at": "2026-08-25"
+    },
+    {
+      "id": "gurukul-ws1-landed",
+      "kind": "decision",
+      "title": "first gurukul build wave landed: sheet seam + pedagogy engine + deploy manifest",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3423,6 +3429,11 @@
     },
     {
       "src": "gurukul-no-production-glob",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "gurukul-ws1-landed",
       "rel": "part_of",
       "dst": "gurukul-founding"
     }
