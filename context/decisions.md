@@ -3668,3 +3668,25 @@ any `extractor_signature_failed` / `extractor_po_token_required` /
 `extractor_bot_check`, monthly at minimum, never unpin —
 `vy_ingest_run.stats.extractor_version` records the version precisely so two
 corpora stay comparable.
+
+## `attestation-caught-by-its-own-gate` — the erasure-reach gate caught a table hours old (2026-08-26)
+
+WS-S's migration 057 created `vy_channel_attestation` (the teacher's recorded
+statement that they own a channel). WS-R's `relcheck` owner-lane reach walk —
+written earlier the same session, which requires every `owner_user_id`-carrying
+table to be reached by cascade from `vy_replica` or deleted by name in
+`api/_replica-full-erasure.js` — **failed the build the moment the table
+existed**, before the merge was pushed. Fixed by naming it in the erasure job
+(the sibling pattern of `vy_ingest_run`/`vy_channel_watch`/`vy_clone_channel`).
+
+Why it mattered: an attestation outliving the replica is a standing record
+that a named person authorised cloning a named channel — precisely the claim
+revocation exists to end. It is also exactly the class WS-R had just fixed by
+hand for three tables; the difference is that this one was caught by a
+predicate in under an hour instead of by an audit months later.
+
+The general law, now demonstrated rather than argued: **a coverage rule
+enforced by a walk over the live schema keeps working as the schema grows; a
+coverage rule maintained as a list rots the moment someone adds a table.**
+Reverses if: the walk starts producing false positives that push people to
+weaken it — then narrow the rule, never disable the walk.

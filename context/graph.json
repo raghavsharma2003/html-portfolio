@@ -2144,6 +2144,12 @@
       "kind": "constraint",
       "at": "2026-08-26",
       "title": "yt-dlp==2026.8.19 must be bumped on any signature/PO-token/bot-check failure and monthly at minimum, and never unpinned - extractor_version is what makes two corpora comparable"
+    },
+    {
+      "id": "attestation-caught-by-its-own-gate",
+      "kind": "measurement",
+      "title": "relcheck erasure-reach walk failed the build within an hour of migration 057 creating a new owner-keyed table",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3986,6 +3992,11 @@
       "src": "media-extract-service",
       "rel": "constrains",
       "dst": "pinned-extractor-has-an-expiry"
+    },
+    {
+      "src": "attestation-caught-by-its-own-gate",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
     }
   ]
 }

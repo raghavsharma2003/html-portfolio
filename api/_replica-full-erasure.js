@@ -293,6 +293,14 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      clone_channels as (delete from vy_clone_channel x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 057's attestation. Added the same day the table was created, because
+     -- relcheck's owner-lane reach walk failed the build the moment it
+     -- existed: it carries owner_user_id and a channel_url the owner named,
+     -- and neither cascade nor manifest covered it. An attestation outliving
+     -- the replica is a standing record that this person authorised cloning a
+     -- channel — exactly the claim revocation is meant to end.
+     channel_attestations as (delete from vy_channel_attestation x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,
