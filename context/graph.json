@@ -1886,6 +1886,12 @@
       "kind": "decision",
       "title": "third gurukul build wave landed: teacher-sheet endpoint + offline ingestion",
       "at": "2026-08-26"
+    },
+    {
+      "id": "platform-north-star",
+      "kind": "decision",
+      "title": "owner reweight: in-house replica stack, expert platform, fidelity guarantee; meera deprioritized",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3457,6 +3463,11 @@
     {
       "src": "gurukul-ws3-landed",
       "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "platform-north-star",
+      "rel": "constrains",
       "dst": "gurukul-founding"
     }
   ]

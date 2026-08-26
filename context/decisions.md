@@ -2867,3 +2867,18 @@ would have silently zeroed every fragment.
 Still owner-gated: real ASR/upload lane, live model for the qualitative
 pass, all deployment (ENV-MANIFEST batches, migrations 015–052 on live
 Neon, Microsoft Limited Access, voice bench spend).
+
+## `platform-north-star` — owner reweight: in-house, expert platform, fidelity guarantee (2026-08-26)
+
+Owner directives, logged verbatim-in-substance: (1) build the replica stack
+IN-HOUSE — self-hosted open-weights voice on our own GPUs as the primary
+lane, Azure Personal Voice demoted to optional, Microsoft approvals off the
+critical path; (2) the product is a self-serve expert-clone platform
+(YouTube channel in → living, current, per-listener-memory clone out, with a
+measured "still sounds like them" guarantee), edtech first, aiming to beat
+Delphi.ai and ElevenLabs; (3) Maya/Meera deprioritized as a product — the
+engine gates stay, Meera surfaces get no further effort. SPEC-GURUKUL §8
+carries the binding consequences. Reverses if: the self-hosted lane's
+fidelity bench stays materially below the vendor lane after fine-tuning
+effort (then vendor becomes primary again and in-house stays the research
+track — measured, not assumed).

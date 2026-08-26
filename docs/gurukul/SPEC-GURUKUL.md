@@ -221,3 +221,36 @@ stack first (they need none of the above), replica activation second
 - `clock.ts` unverified→adult mapping: correct for Meera per owner decision,
   must not leak into the student surface (WS-D flips the default per
   product, not globally).
+
+---
+
+## 8. Owner reweight (2026-08-26, verbatim intent)
+
+North star: *"a self-serve platform where an expert builds an AI version of
+themselves that stays current just by giving some context and their YouTube
+channel — voice, style, personality, everything that makes a human — remembers
+each person it talks to, and comes with a MEASURED guarantee that it still
+sounds like them"*, running on RelationalOS end to end, cloning through
+deployment (edtech first: the clone deploys to students as an app). Long-run
+bar: beat Delphi.ai and ElevenLabs (instant cloning included). No compromises.
+
+Binding consequences:
+
+1. **In-house replica stack, vendor-independent.** The self-hosted lane
+   (`services/open-voice-runtime`, open weights on our own GPUs, fine-tuned
+   per expert) is the PRIMARY voice path, not the fallback. Azure Personal
+   Voice drops to optional; its Microsoft Limited Access application is no
+   longer on the critical path. Honest framing, held to by measurement: raw
+   TTS parity with ElevenLabs is a BENCH RESULT we chase (fine-tuning, our
+   own curricula), never a marketing claim; the durable moat is what no TTS
+   vendor has — RelationalOS person-ness, continuity memory per listener,
+   consent/provenance, and the fidelity guarantee below.
+2. **The fidelity guarantee is a product feature.** "Still sounds like them"
+   = a numeric fidelity score per clone (speaker-embedding similarity from
+   the voice-evidence stack + the blind owner-calibration pass), recomputed
+   on every voice/model update, surfaced to the expert, gating activation.
+3. **Stays-current is a loop, not an upload.** Channel link → new-video
+   detection → re-ingestion → PROPOSED claims/sheet deltas the expert
+   approves — never silent self-update of a live persona.
+4. **Maya/Meera is deprioritized as a product.** The engine gates stay (they
+   are what keep the OS honest); no further effort goes to Meera surfaces.

@@ -16,6 +16,20 @@ if [ ! -d src ]; then
   cp -Rn /tmp/meera-src/. .
 fi
 
+# api/_config.js is gitignored, so builds driven by Vercel's own GitHub
+# integration (html-portfolio previews, vyakti-replica-lab) arrive without it
+# and every API route 500s — including studio sign-in. Reconstruct it here
+# from the Vercel project's env vars (same generator CI uses). If the project
+# has no env vars yet, fall back to the stub LOUDLY: the static site still
+# deploys and renders, the APIs stay honestly dead until the values are set
+# (which ones: docs/gurukul/ENV-MANIFEST.md).
+if [ ! -f api/_config.js ]; then
+  if ! CI=1 node scripts/write-config.mjs; then
+    echo "WARNING: env vars not set on this Vercel project — API routes will fail until they are (docs/gurukul/ENV-MANIFEST.md). Building with stub config."
+    CI=1 node scripts/write-config.mjs --stub
+  fi
+fi
+
 npx vite build
 
 # The Android OTA bundle, zipped from dist BEFORE the shuffle below: the phone
