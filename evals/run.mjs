@@ -155,6 +155,44 @@ const suites = {
   // Offline, deterministic, $0, no DB and no network: the real worker driven
   // through a fake `db` and the fixture channel/ASR providers.
   channel: "channel.mjs",
+  // WS-S (Gurukul in-house YouTube extraction). The lane that made the
+  // stays-current loop able to reach a teacher's actual back catalogue —
+  // `api/_channel/providers/youtube-oauth.js`'s `fetchAudio` was an honest
+  // refusal, because the Data API has no download endpoint, and the answer is
+  // a self-hosted `services/media-extract` wrapping a pinned yt-dlp.
+  //
+  // This lane is different in kind from every other consent lane in the repo
+  // and the suite is shaped around that difference: the others gate what the
+  // platform does with what a teacher HANDED IT, while this one reaches out
+  // and reads media sitting on somebody else's platform. The only thing
+  // between "a teacher's own lectures" and "a general-purpose YouTube
+  // downloader" is a predicate, so the suite checks the predicate four ways:
+  //
+  //  - THE ATTESTATION GATE. No live `vy_channel_attestation` → refused, with
+  //    a typed code, and the transport is never reached. Asserted by counting
+  //    the fetches that must be ZERO, and the upload targets that must never
+  //    be signed — the absence, not the branch.
+  //  - THE BINDING GATE. A live attestation belonging to the SAME owner but
+  //    naming a DIFFERENT channel must not authorize this watch. This is
+  //    precisely the case an "is there an attestation?" check passes, and the
+  //    difference between that check and "is there one FOR THIS CHANNEL?" is
+  //    the entire design. A pre-057 row with a NULL `attestation_id` is
+  //    asserted to read as UNATTESTED rather than grandfathered.
+  //  - TYPED FAILURES, NEVER A CRASH. `extractor_bot_check`,
+  //    `extractor_signature_failed`, `channel_binding_mismatch` and the
+  //    duration ceiling each land as a DISTINCT `vy_ingest_run.failure_code`,
+  //    because an operator must tell "the teacher withdrew permission" from
+  //    "the yt-dlp pin is stale" from "this lecture is nine hours long"
+  //    without opening a log.
+  //  - THE NEGATIVE CONTROL. The attestation predicate is struck out and the
+  //    suite asserts an unattested video then DOES extract. A gate nobody has
+  //    watched fail is a gate nobody knows works, and this is the check that
+  //    turns the three above from claims into evidence.
+  //
+  // Offline, deterministic, $0: the real provider, the real HMAC transport
+  // client and the real worker, driven through a fake network that VERIFIES
+  // the signature the client produced — a fake network, not a fake contract.
+  mediaextract: "mediaextract.mjs",
   // WS-N (Gurukul deployment). "Deploy the clone anywhere": the clone↔surface
   // binding (migration 055), the generalized surface resolution, and the
   // embeddable web widget.
