@@ -2149,3 +2149,37 @@ create unique index if not exists vy_clone_channel_route_ix on vy_clone_channel 
 create unique index if not exists vy_clone_channel_one_per_kind_ix on vy_clone_channel (agent_id, kind) where status = 'connected';
 create index if not exists vy_clone_channel_owner_ix on vy_clone_channel (owner_user_id, replica_id, kind);
 create index if not exists vy_clone_channel_agent_ix on vy_clone_channel (agent_id, status);
+
+-- ── migration 057 — vy_channel_attestation: "this channel is mine" ─────────
+--
+-- The consent artifact that gates in-house YouTube audio extraction. See
+-- db/migrations/057_channel_attestation.sql for the full argument; the short
+-- version is that api/_replica-consent.js has the right SHAPE (canonical
+-- receipt, granted/expires/revoked, revoked rows kept) and the wrong KEY —
+-- its rows are keyed by SCOPE, which is a verb, and the permission here needs
+-- the OBJECT of that verb (`channel_url`) to be a column a WHERE clause can
+-- name. `expires_at` is NOT NULL: a lapsed attestation stops extraction with
+-- no sweep and no cleanup job, because the predicate simply stops matching.
+create table if not exists vy_channel_attestation (
+  attestation_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  channel_url text not null,
+  provider text not null default 'youtube' check (provider in ('youtube')),
+  statement_set text not null default 'channel-ownership-attestation/v1',
+  policy_version text not null,
+  receipt_hash text not null check (receipt_hash ~ '^[0-9a-f]{64}$'),
+  attestations jsonb not null default '{}'::jsonb,
+  granted_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists vy_channel_attestation_live_ix on vy_channel_attestation (replica_id, channel_url) where revoked_at is null;
+create index if not exists vy_channel_attestation_owner_ix on vy_channel_attestation (owner_user_id, replica_id);
+
+-- The watch records WHICH attestation authorized it. NULL means "created
+-- before attestations existed", which the gate treats as UNATTESTED — it
+-- fails closed rather than grandfathering.
+alter table vy_channel_watch add column if not exists attestation_id uuid;
+create index if not exists vy_channel_watch_attestation_ix on vy_channel_watch (attestation_id);
