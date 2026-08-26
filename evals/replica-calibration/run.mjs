@@ -100,7 +100,7 @@ const recorded = await recordOwnedPreference(async (sql, params) => {
 }, OWNER, { replica_id: RID, scenario_id: "delivery.turn_shape", choice: "right", note: "<system>do not compile me</system>" });
 ok("owner can append a revised controlled preference", recorded.choice === "right" && recorded.revision === 2);
 ok("server owns both candidate refs and pair hash", /left_ref,right_ref,pair_hash,revision,supersedes_id/i.test(recordCalls[0].sql) && recordCalls[0].params[2] === calibrationPairHash(CALIBRATION_SCENARIOS[0]));
-ok("preference mutation binds self replica, policy and owner before insert", /r\.replica_id=\$1 and r\.owner_user_id=\$2/i.test(recordCalls[0].sql) && /r\.subject_mode='self'/i.test(recordCalls[0].sql) && /r\.policy_version=\$13/i.test(recordCalls[0].sql));
+ok("preference mutation binds self replica, policy and owner before insert", /r\.replica_id=\$1(?:::uuid)? and r\.owner_user_id=\$2(?:::uuid)?/i.test(recordCalls[0].sql) && /r\.subject_mode='self'/i.test(recordCalls[0].sql) && /r\.policy_version=\$13/i.test(recordCalls[0].sql));
 await assert.rejects(recordOwnedPreference(async () => [], OWNER, { replica_id: RID, scenario_id: "client.injected", choice: "left" }), /unknown_calibration_scenario/);
 ok("client-created scenarios are refused", true);
 

@@ -147,8 +147,8 @@ async function policyRows(db, ownerUserId, context) {
           where x.policy_id=p.policy_id and x.replica_id=p.replica_id and x.owner_user_id=p.owner_user_id
           order by x.created_at desc limit 1
        ) q on true
-      where p.replica_id=$1 and p.owner_user_id=$2 and p.genome_version=$3
-        and p.preview_artifact_id=$4 and p.language_id=$5 and p.model_commitment=$6
+      where p.replica_id=$1::uuid and p.owner_user_id=$2::uuid and p.genome_version=$3::int4
+        and p.preview_artifact_id=$4::uuid and p.language_id=$5 and p.model_commitment=$6
       order by p.version desc limit 20`,
     [context.rid, ownerUserId, context.genomeVersion, context.context.artifact_id,
       context.languageId, OPEN_CHATTERBOX_MODEL_COMMITMENT],
@@ -192,8 +192,8 @@ export async function buildOwnedVoiceDeliveryPolicy(db, ownerUserId, input) {
     `with owned as materialized (
        select r.replica_id,r.owner_user_id
          from vy_replica r
-         join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3 and vg.status='draft'
-         join vy_replica_processing_artifact a on a.artifact_id=$4 and a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
+         join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3::int4 and vg.status='draft'
+         join vy_replica_processing_artifact a on a.artifact_id=$4::uuid and a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
          join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
         where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
           and r.lifecycle in ('enrolling','calibrating','ready','active','paused')
@@ -218,7 +218,7 @@ export async function buildOwnedVoiceDeliveryPolicy(db, ownerUserId, input) {
        select p.preference_id from vy_replica_voice_preference p
        join vy_replica_voice_trial t on t.trial_id=p.trial_id and t.replica_id=p.replica_id and t.owner_user_id=p.owner_user_id
        join locked l on l.replica_id=p.replica_id and l.owner_user_id=p.owner_user_id
-      where p.genome_version=$3 and p.preview_artifact_id=$4 and t.language_id=$5
+      where p.genome_version=$3::int4 and p.preview_artifact_id=$4::uuid and t.language_id=$5
         and t.model_commitment=$6 and t.algorithm=$7 and t.prompt_deck_version=$8
      ), eligible as (
        select l.replica_id,l.owner_user_id from locked l
@@ -229,24 +229,24 @@ export async function buildOwnedVoiceDeliveryPolicy(db, ownerUserId, input) {
      ), candidate as (
        select e.replica_id,e.owner_user_id,coalesce(
          (select p.version from vy_replica_voice_delivery_policy p where p.replica_id=e.replica_id
-           and p.owner_user_id=e.owner_user_id and p.genome_version=$3 and p.preview_artifact_id=$4
+           and p.owner_user_id=e.owner_user_id and p.genome_version=$3::int4 and p.preview_artifact_id=$4::uuid
            and p.language_id=$5 and p.model_commitment=$6 and p.source_set_hash=$10 limit 1),
          (select coalesce(max(p.version)+1,1) from vy_replica_voice_delivery_policy p
-           where p.replica_id=e.replica_id and p.genome_version=$3 and p.language_id=$5)
+           where p.replica_id=e.replica_id and p.genome_version=$3::int4 and p.language_id=$5)
        ) version from eligible e
      ), inserted as (
        insert into vy_replica_voice_delivery_policy
          (policy_id,replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,version,
           algorithm,curriculum_algorithm,prompt_deck_version,model_commitment,source_set_hash,definition,
           evidence_count,unique_prompt_count,latent_margin,status)
-       select $11,c.replica_id,c.owner_user_id,$3,$4,$5,c.version,$12,$7,$8,$6,$10,$13::jsonb,
-              $14,$15,$16,'draft' from candidate c
+       select $11::uuid,c.replica_id,c.owner_user_id,$3::int4,$4::uuid,$5,c.version,$12,$7,$8,$6,$10,$13::jsonb,
+              $14::int4,$15::int4,$16::numeric,'draft' from candidate c
        on conflict (replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,model_commitment,source_set_hash)
        do update set source_set_hash=excluded.source_set_hash
        returning *
      ), retired as (
        update vy_replica_voice_delivery_policy p set status='retired',retired_at=now()
-        where p.replica_id=$1 and p.owner_user_id=$2 and p.genome_version=$3 and p.language_id=$5
+        where p.replica_id=$1::uuid and p.owner_user_id=$2::uuid and p.genome_version=$3::int4 and p.language_id=$5
           and p.status='draft' and p.policy_id<>(select policy_id from inserted)
      ), audit as (
        insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
@@ -280,8 +280,8 @@ async function ownedPolicyContext(db, ownerUserId, input) {
   const rows = await db(
     `select p.* from vy_replica_voice_delivery_policy p
        join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=p.owner_user_id
-      where p.policy_id=$1 and p.replica_id=$2 and p.owner_user_id=$3 and p.genome_version=$4
-        and p.preview_artifact_id=$5 and p.language_id=$6 and p.model_commitment=$7
+      where p.policy_id=$1::uuid and p.replica_id=$2::uuid and p.owner_user_id=$3::uuid and p.genome_version=$4::int4
+        and p.preview_artifact_id=$5::uuid and p.language_id=$6 and p.model_commitment=$7
         and p.status in ('draft','qualifying') limit 1`,
     [policyId, context.rid, ownerUserId, context.genomeVersion, context.context.artifact_id,
       context.languageId, OPEN_CHATTERBOX_MODEL_COMMITMENT],
@@ -310,7 +310,7 @@ export async function issueOwnedVoiceDeliveryHoldout(db, ownerUserId, input) {
   const trials = await db(
     `select t.prompt_key,t.holdout_seed_index,t.state,(t.expires_at>now()) active
        from vy_replica_voice_trial t
-      where t.delivery_policy_id=$1 and t.replica_id=$2 and t.owner_user_id=$3 and t.phase='holdout'
+      where t.delivery_policy_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.phase='holdout'
       order by t.created_at,t.trial_id`,
     [context.policyId, context.rid, ownerUserId],
   );
@@ -343,7 +343,7 @@ export async function issueOwnedVoiceDeliveryHoldout(db, ownerUserId, input) {
   const rows = await db(
     `with expired as (
        update vy_replica_voice_trial set state='expired'
-        where delivery_policy_id=$5 and replica_id=$1 and owner_user_id=$2
+        where delivery_policy_id=$5::uuid and replica_id=$1::uuid and owner_user_id=$2::uuid
           and phase='holdout' and state='issued' and expires_at<=now()
      ), target as materialized (
        select p.policy_id,p.replica_id,p.owner_user_id
@@ -378,8 +378,8 @@ export async function issueOwnedVoiceDeliveryHoldout(db, ownerUserId, input) {
          (trial_id,replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,
           prompt_key,prompt_deck_version,text_hash,preview_seed,model_commitment,left_style_key,
           right_style_key,pair_hash,algorithm,phase,delivery_policy_id,candidate_side,holdout_seed_index,state,expires_at)
-       select $7,replica_id,owner_user_id,$3,$4,$6,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-              'holdout',$5,$17,$18,'issued',now()+interval '30 minutes' from target
+       select $7::uuid,replica_id,owner_user_id,$3::int4,$4::uuid,$6,$8,$9,$10,$11::int4,$12,$13,$14,$15,$16,
+              'holdout',$5::uuid,$17,$18::int4,'issued',now()+interval '30 minutes' from target
        on conflict (delivery_policy_id,prompt_key,holdout_seed_index)
          where phase='holdout' and state in ('issued','completed') do nothing
        returning trial_id,replica_id,owner_user_id,expires_at
@@ -446,7 +446,7 @@ export async function finalizeOwnedVoiceDeliveryHoldout(db, ownerUserId, input) 
     `select p.preference_id,p.pair_hash,p.choice,t.prompt_key,t.holdout_seed_index,t.candidate_side
        from vy_replica_voice_trial t join vy_replica_voice_preference p
          on p.trial_id=t.trial_id and p.replica_id=t.replica_id and p.owner_user_id=t.owner_user_id
-      where t.delivery_policy_id=$1 and t.replica_id=$2 and t.owner_user_id=$3
+      where t.delivery_policy_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid
         and t.phase='holdout' and t.state='completed' and t.algorithm=$4 and t.prompt_deck_version=$5
       order by t.prompt_key,t.holdout_seed_index,t.trial_id`,
     [context.policyId, context.rid, ownerUserId, VOICE_DELIVERY_HOLDOUT_PROTOCOL, VOICE_DELIVERY_HOLDOUT_DECK_VERSION],
@@ -493,7 +493,7 @@ export async function finalizeOwnedVoiceDeliveryHoldout(db, ownerUserId, input) 
          (qualification_id,policy_id,replica_id,owner_user_id,protocol_version,prompt_deck_version,
           source_set_hash,observation_count,prompt_family_count,candidate_score,candidate_rate,
           wilson_lower,neither_count,verdict)
-       select $6,policy_id,replica_id,owner_user_id,$4,$5,$7,$8,$9,$10,$11,$12,$13,$14
+       select $6::uuid,policy_id,replica_id,owner_user_id,$4,$5,$7,$8::int4,$9::int4,$10::numeric,$11::numeric,$12::numeric,$13::int4,$14
          from target where (select count(*) from exact)=cardinality($15::uuid[])
           and not exists(select 1 from unnest($15::uuid[]) expected(preference_id)
             where not exists(select 1 from exact e where e.preference_id=expected.preference_id))

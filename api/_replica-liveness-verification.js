@@ -415,7 +415,7 @@ export async function completeLivenessVerification(db, lease, verdict, options =
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
        select replica_id,owner_user_id,'liveness.verify','liveness_challenge',challenge_id::text,
               $10,case when $6='passed' then 'allowed' else 'denied' end,
-              jsonb_build_object('reason_code',$7,'verifier_policy',$15) from challenge
+              jsonb_build_object('reason_code',$7,'verifier_policy',$15::text) from challenge
      ) select challenge_id,state from challenge`,
     [lease.challengeId, lease.replicaId, lease.ownerUserId, lease.attempt,
       livenessVerificationLeaseHash(lease.leaseToken), verdict.passed ? "passed" : "failed",
@@ -440,8 +440,8 @@ export async function retryLivenessVerification(db, lease, input = {}) {
               verification_next_attempt_at=now()+($6::integer*interval '1 millisecond'),
               verification_lease_token_hash='',verification_leased_at=null,
               verification_lease_expires_at=null,updated_at=now()
-        where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3
-          and ch.state='verifying' and ch.verification_attempt=$4
+        where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
+          and ch.state='verifying' and ch.verification_attempt=$4::int4
           and ch.verification_lease_token_hash=$5 and ch.verification_lease_expires_at>now()
        returning ch.challenge_id,ch.verification_attempt
      ), attempted as (

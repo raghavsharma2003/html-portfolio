@@ -100,7 +100,7 @@ export async function completeProcessingJob(db, input) {
           set state = 'complete', result = $3::jsonb, failure_code = '',
               lease_token_hash = '', leased_at = null, lease_expires_at = null,
               updated_at = now()
-        where j.job_id = $1 and j.state = 'leased' and j.lease_token_hash = $2
+        where j.job_id = $1::uuid and j.state = 'leased' and j.lease_token_hash = $2
           and j.lease_expires_at > now() and j.step = $8
           and not exists (
             select 1 from jsonb_array_elements_text($3::jsonb -> 'artifact_ids') wanted(id)
@@ -145,7 +145,7 @@ export async function retryProcessingJob(db, input) {
               next_attempt_at = now() + ($4::integer * interval '1 millisecond'),
               lease_token_hash = '', leased_at = null, lease_expires_at = null,
               updated_at = now()
-        where job_id = $1 and state = 'leased' and lease_token_hash = $2
+        where job_id = $1::uuid and state = 'leased' and lease_token_hash = $2
           and lease_expires_at > now()
        returning *
      ), attempt as (
@@ -167,7 +167,7 @@ export async function stopProcessingJob(db, input) {
           set state = $3, result = '{}'::jsonb, failure_code = $4,
               lease_token_hash = '', leased_at = null, lease_expires_at = null,
               updated_at = now()
-        where job_id = $1 and state = 'leased' and lease_token_hash = $2
+        where job_id = $1::uuid and state = 'leased' and lease_token_hash = $2
           and lease_expires_at > now()
        returning *
      ), attempt as (

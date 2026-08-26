@@ -142,7 +142,7 @@ export async function leaseOwnedFaceSessionStart(db, ownerUserId, id, challenge,
           and ids.owner_user_id=ic.owner_user_id
          join vy_replica_biometric_verification_grant g on g.challenge_id=ch.challenge_id
           and g.replica_id=ch.replica_id and g.owner_user_id=ch.owner_user_id
-        where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3
+        where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
           and ch.state='issued' and ch.expires_at>now()+interval '2 minutes'
           and ch.face_session_state='not_started'
           and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
@@ -179,7 +179,7 @@ async function recoverableOwnedFaceSession(db, ownerUserId, id, challenge, clien
         and ids.owner_user_id=ic.owner_user_id
        join vy_replica_biometric_verification_grant g on g.challenge_id=ch.challenge_id
         and g.replica_id=ch.replica_id and g.owner_user_id=ch.owner_user_id
-      where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3
+      where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
         and ch.state='issued' and ch.expires_at>now() and ch.face_session_state='ready'
         and ch.face_session_handle<>'' and ch.face_session_expires_at>now()+interval '30 seconds'
         and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
@@ -201,7 +201,7 @@ async function releaseStart(db, claim, code) {
     `update vy_replica_liveness_challenge set face_session_state='not_started',
        face_session_lease_token_hash='',face_session_leased_at=null,face_session_lease_expires_at=null,
        failure_code=$6,updated_at=now()
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_state='issuing' and face_session_lease_token_hash=$5`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
       leaseHash(claim.leaseToken), String(code || "face_session_start_failed").slice(0, 80)],
@@ -217,7 +217,7 @@ export async function completeFaceSessionStart(db, claim, created, broker) {
               face_session_expires_at=$10::timestamptz,face_session_issued_at=now(),face_session_result='{}'::jsonb,
               face_session_lease_token_hash='',face_session_leased_at=null,face_session_lease_expires_at=null,
               failure_code='',updated_at=now()
-        where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3 and ch.face_session_attempt=$4
+        where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid and ch.face_session_attempt=$4::int4
           and ch.face_session_state='issuing' and ch.face_session_lease_token_hash=$5
           and ch.face_session_lease_expires_at>now() and $10::timestamptz<=ch.expires_at
           and $10::timestamptz>now()+interval '30 seconds'
@@ -266,7 +266,7 @@ async function quarantineCreatedSessionForDeletion(db, claim, created, broker, c
        face_session_expires_at=$10::timestamptz,face_session_issued_at=coalesce(face_session_issued_at,now()),
        face_session_lease_token_hash='',face_session_leased_at=null,face_session_lease_expires_at=null,
        failure_code=$11,updated_at=now()
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_state='issuing' and face_session_lease_token_hash=$5
       returning challenge_id`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
@@ -282,7 +282,7 @@ async function trackedCreatedSession(db, claim, created) {
   if (!handle) return null;
   const rows = await db(
     `select * from vy_replica_liveness_challenge
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_handle_hash=$5 limit 1`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
       createHash("sha256").update(handle).digest("hex")],
@@ -358,7 +358,7 @@ export async function leaseOwnedFaceSessionPoll(db, ownerUserId, id, challenge, 
           and ic.replica_id=ch.replica_id and ic.owner_user_id=ch.owner_user_id
          join vy_replica_source ids on ids.source_id=ic.source_id and ids.replica_id=ic.replica_id
           and ids.owner_user_id=ic.owner_user_id
-        where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3
+        where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
           and (ch.face_session_state in ('ready','passed_deleting','failed_deleting','expired_deleting')
             or (ch.face_session_state='polling' and ch.face_session_lease_expires_at<=now()))
           and ch.face_session_handle<>'' and ids.sha256=ch.face_session_reference_sha256
@@ -382,7 +382,7 @@ async function settlePending(db, claim) {
   const rows = await db(
     `update vy_replica_liveness_challenge set face_session_state='ready',face_session_lease_token_hash='',
        face_session_leased_at=null,face_session_lease_expires_at=null,updated_at=now()
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_state='polling' and face_session_lease_token_hash=$5
       returning *`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt, leaseHash(claim.leaseToken)],
@@ -399,7 +399,7 @@ async function settleTerminal(db, claim, result, broker) {
   const rows = await db(
     `update vy_replica_liveness_challenge set face_session_state=$6,face_session_result=$7::jsonb,
        face_session_terminal_at=now(),failure_code=$8,updated_at=now()
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_state='polling' and face_session_lease_token_hash=$5
       returning *`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
@@ -413,7 +413,7 @@ async function releasePoll(db, claim, code) {
   await db(
     `update vy_replica_liveness_challenge set face_session_state='ready',face_session_lease_token_hash='',
        face_session_leased_at=null,face_session_lease_expires_at=null,failure_code=$6,updated_at=now()
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_state='polling' and face_session_lease_token_hash=$5`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
       leaseHash(claim.leaseToken), String(code || "face_session_poll_failed").slice(0, 80)],
@@ -430,7 +430,7 @@ async function settleDeleted(db, claim) {
               face_session_provider_deleted_at=now(),face_session_lease_token_hash='',face_session_leased_at=null,
               face_session_lease_expires_at=null,state=case when $6 in ('failed_deleted','expired_deleted') then 'failed' else state end,
               updated_at=now()
-        where ch.challenge_id=$1 and ch.replica_id=$2 and ch.owner_user_id=$3 and ch.face_session_attempt=$4
+        where ch.challenge_id=$1::uuid and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid and ch.face_session_attempt=$4::int4
           and ch.face_session_state=$7 and ch.face_session_lease_token_hash=$5
         returning ch.*
      ), grant_done as (
@@ -455,7 +455,7 @@ async function releaseDelete(db, claim, code) {
   await db(
     `update vy_replica_liveness_challenge set face_session_lease_token_hash='',face_session_leased_at=null,
        face_session_lease_expires_at=null,failure_code=$6,updated_at=now()
-      where challenge_id=$1 and replica_id=$2 and owner_user_id=$3 and face_session_attempt=$4
+      where challenge_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and face_session_attempt=$4::int4
         and face_session_state=$7 and face_session_lease_token_hash=$5`,
     [claim.challengeId, claim.replicaId, claim.ownerUserId, claim.faceSessionAttempt,
       leaseHash(claim.leaseToken), String(code || "face_session_delete_failed").slice(0, 80), claim.faceSessionState],
@@ -511,7 +511,7 @@ export async function deleteOwnedFaceSessionNow(db, ownerUserId, id, challenge, 
     `update vy_replica_liveness_challenge ch set face_session_lease_token_hash=$4,
             face_session_leased_at=now(),face_session_lease_expires_at=now()+($5::integer*interval '1 millisecond'),
             updated_at=now()
-      where ($1::uuid is null or ch.challenge_id=$1) and ch.replica_id=$2 and ch.owner_user_id=$3
+      where ($1::uuid is null or ch.challenge_id=$1::uuid) and ch.replica_id=$2::uuid and ch.owner_user_id=$3::uuid
         and ch.face_session_handle<>''
         and ch.face_session_state in ('passed_deleting','failed_deleting','expired_deleting')
         and (ch.face_session_lease_token_hash='' or ch.face_session_lease_expires_at<=now())

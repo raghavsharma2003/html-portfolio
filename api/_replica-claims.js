@@ -13,7 +13,7 @@ select e.evidence_id,e.source_id,e.span_start_ms,e.span_end_ms,e.confidence,
   from vy_replica_processing_evidence e
   join vy_replica_source s
     on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=e.owner_user_id
- where e.replica_id=$1 and e.owner_user_id=$2 and e.evidence_type='transcript_span'
+ where e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and e.evidence_type='transcript_span'
    and e.confidence>=0.55 and length(e.value->>'text') between 1 and 8000
    and s.contains_third_parties=false and s.state in ('processing','ready')
    and lower(e.adapter_family||' '||e.adapter_name||' '||e.adapter_version) !~ '(fake|fixture|test|mock)'
@@ -39,7 +39,7 @@ const OWNED_EXTRACTION_SQL = `select r.replica_id,r.lifecycle,r.subject_mode,r.p
   exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
     and c.scope='training' and c.policy_version=r.policy_version and c.revoked_at is null
     and (c.expires_at is null or c.expires_at>now())) as training_consent
-from vy_replica r where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
   and r.policy_version=$3 and r.lifecycle not in ('revoked','purging') limit 1`;
 
 function truth(value) {
@@ -76,8 +76,8 @@ async function extractionState(db, ownerUserId, id) {
     db(OWNED_EXTRACTION_SQL, [rid, ownerUserId, REPLICA_POLICY_VERSION]),
     db(ELIGIBLE_TRANSCRIPTS_SQL, [rid, ownerUserId]),
     db(`select x.run_id,x.state,x.proposed_count,x.rejected_count,x.attempt,x.failure_code,x.created_at,x.completed_at
-          from vy_replica_claim_extraction x join vy_replica r on r.replica_id=x.replica_id and r.owner_user_id=$2
-         where x.replica_id=$1 and x.owner_user_id=$2 order by x.created_at desc limit 20`, [rid, ownerUserId]),
+          from vy_replica_claim_extraction x join vy_replica r on r.replica_id=x.replica_id and r.owner_user_id=$2::uuid
+         where x.replica_id=$1::uuid and x.owner_user_id=$2::uuid order by x.created_at desc limit 20`, [rid, ownerUserId]),
   ]);
   const owned = ownedRows[0];
   if (!owned) return null;
@@ -110,7 +110,7 @@ async function openRun(db, ownerUserId, state, extractor, batch) {
     `with authorized as (${OWNED_EXTRACTION_SQL})
      insert into vy_replica_claim_extraction
        (replica_id,owner_user_id,schema_version,provider_family,provider_name,provider_version,model,input_set_hash,consent_ids,state)
-     select replica_id,$2,$4,$5,$6,$7,$8,$9,$10::uuid[],'extracting' from authorized
+     select replica_id,$2::uuid,$4,$5,$6,$7,$8,$9,$10::uuid[],'extracting' from authorized
       where transcription_consent=true and training_consent=true and cardinality(consent_ids)>=2
      on conflict (replica_id,owner_user_id,schema_version,provider_name,provider_version,model,input_set_hash)
        do update set state=case when vy_replica_claim_extraction.state='complete' then 'complete' else 'extracting' end,
@@ -129,7 +129,7 @@ async function persistProposals(db, ownerUserId, state, run, batch, result) {
     `with authorized as (${OWNED_EXTRACTION_SQL}), active_run as (
        select x.run_id,x.replica_id,x.owner_user_id from vy_replica_claim_extraction x join authorized a
          on a.replica_id=x.replica_id
-        where x.run_id=$4 and x.owner_user_id=$2 and x.input_set_hash=$5 and x.state='extracting'
+        where x.run_id=$4::uuid and x.owner_user_id=$2::uuid and x.input_set_hash=$5 and x.state='extracting'
           and a.transcription_consent=true and a.training_consent=true
      ), proposal_rows as (
        select p.domain,p.key,p.body,p.origin,p.confidence,p.sensitive,p.t_valid_from,p.t_valid_to,
@@ -179,7 +179,7 @@ async function persistProposals(db, ownerUserId, state, run, batch, result) {
            on wanted.claim_id=stored.claim_id and wanted.evidence_id=stored.evidence_id
           and wanted.start_char=stored.start_char and wanted.end_char=stored.end_char
      ), finished as (
-       update vy_replica_claim_extraction x set state='complete',proposed_count=$7,rejected_count=$8,
+       update vy_replica_claim_extraction x set state='complete',proposed_count=$7::int4,rejected_count=$8::int4,
               failure_code='',completed_at=now(),updated_at=now()
          from active_run r where x.run_id=r.run_id and (select count(*) from covered_citations)=$9
        returning x.run_id,x.state,x.proposed_count,x.rejected_count,x.attempt,x.created_at,x.completed_at
@@ -193,7 +193,7 @@ async function persistProposals(db, ownerUserId, state, run, batch, result) {
 async function failRun(db, ownerUserId, runId, failureCode) {
   if (!runId) return;
   await db(`update vy_replica_claim_extraction set state='failed',failure_code=$3,updated_at=now()
-             where run_id=$1 and owner_user_id=$2 and state<>'complete'`, [runId, ownerUserId, failureCode]).catch(() => []);
+             where run_id=$1::uuid and owner_user_id=$2::uuid and state<>'complete'`, [runId, ownerUserId, failureCode]).catch(() => []);
 }
 
 export async function extractOwnedClaims(db, ownerUserId, id, extractor, signal) {

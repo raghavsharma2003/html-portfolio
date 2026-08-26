@@ -122,7 +122,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
      ), latest_selection as materialized (
        select distinct on (d.artifact_id) d.artifact_id,d.decision,d.created_at,d.decision_id
          from vy_replica_processing_artifact_decision d
-        where d.replica_id=$1 and d.owner_user_id=$2
+        where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid
         order by d.artifact_id,d.created_at desc,d.decision_id desc
      ), eligible as materialized (
        select r.*,vg.version genome_version,vg.status genome_status,
@@ -131,13 +131,13 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
               c.consent_id,c.scope consent_scope,c.policy_version consent_policy_version,
               c.granted_at consent_granted_at,c.expires_at consent_expires_at,c.revoked_at consent_revoked_at
          from vy_replica r
-         join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3 and vg.status='draft'
+         join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3::int4 and vg.status='draft'
          join vy_replica_processing_artifact a on a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
          join latest_selection selected on selected.artifact_id=a.artifact_id and selected.decision='selected'
          join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
           and s.owner_user_id=a.owner_user_id
          cross join inference_consent c
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.lifecycle in ('enrolling','calibrating','ready','active','paused')
           and r.policy_version=$7 and r.age_verified_at is not null and r.identity_verified_at is not null
           and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -153,10 +153,10 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
             and x.revoked_at is null
             and (x.expires_at is null or x.expires_at>now()))
           and (($13::uuid is null and $14::text is null) or exists (
-            select 1 from vy_replica_voice_trial t where t.trial_id=$13 and t.replica_id=r.replica_id
+            select 1 from vy_replica_voice_trial t where t.trial_id=$13::uuid and t.replica_id=r.replica_id
               and t.owner_user_id=r.owner_user_id and t.genome_version=vg.version
               and t.preview_artifact_id=a.artifact_id and t.language_id=$9 and t.text_hash=$10
-              and t.preview_seed=$12 and t.model_commitment=$8 and t.state='issued' and t.expires_at>now()
+              and t.preview_seed=$12::int4 and t.model_commitment=$8 and t.state='issued' and t.expires_at>now()
               and (($14='left' and t.left_style_key=($11::jsonb->>'key'))
                 or ($14='right' and t.right_style_key=($11::jsonb->>'key')))
           ))
@@ -168,7 +168,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
           watermark_algorithm,provenance_standard,preview_artifact_id,preview_model,preview_model_commitment,
           preview_language_id,preview_text_hash,preview_style,preview_seed,preview_trial_id,preview_trial_side)
        select replica_id,owner_user_id,null,genome_version,null,null,null,'studio_preview','voice_preview',
-              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,$11::jsonb,$12,$13,$14
+              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,$11::jsonb,$12::int4,$13::uuid,$14
          from eligible
        on conflict (preview_trial_id,preview_trial_side)
          where preview_trial_id is not null and state in ('authorized','streaming','sealed') do nothing
@@ -254,7 +254,7 @@ export async function markVoicePreviewFailed(db, ownerUserId, generationId, erro
   await db(
     `update vy_replica_generation set state=case when state='sealed' then state else 'failed' end,
             failure_code=case when state='sealed' then failure_code else $3 end,updated_at=now()
-      where generation_id=$1 and owner_user_id=$2 and purpose='voice_preview'`,
+      where generation_id=$1::uuid and owner_user_id=$2::uuid and purpose='voice_preview'`,
     [generationId, ownerUserId, code],
   ).catch(() => []);
 }
@@ -274,7 +274,7 @@ export function createNeonVoicePreviewLedger(db) {
                 disclosure_scheme=$4,watermark_algorithm=$5,provenance_standard=$6,
                 watermark_token_hash=$7,updated_at=now()
            from vy_replica r
-          where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
+          where g.generation_id=$1::uuid and g.replica_id=$2::uuid and g.owner_user_id=$3::uuid
             and r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
             and g.state='authorized' and ${PREVIEW_FENCE}
           returning g.generation_id`,
@@ -287,10 +287,10 @@ export function createNeonVoicePreviewLedger(db) {
         `insert into vy_replica_generation_segment_receipt
            (generation_id,sequence,byte_offset,byte_length,segment_sha256,previous_chain_sha256,
             chain_sha256,signature_algorithm,signer_key_id,chain_signature,issued_at)
-         select $1,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+         select $1::uuid,$4::int4,$5::int8,$6::int4,$7,$8,$9,$10,$11,$12,$13::timestamptz
            from vy_replica_generation g
            join vy_replica r on r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
-          where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
+          where g.generation_id=$1::uuid and g.replica_id=$2::uuid and g.owner_user_id=$3::uuid
             and g.state='streaming' and ${PREVIEW_FENCE}
          on conflict (generation_id,sequence) do update
            set issued_at=vy_replica_generation_segment_receipt.issued_at
@@ -313,10 +313,10 @@ export function createNeonVoicePreviewLedger(db) {
       return one(await db(
         `with sealed as (
            update vy_replica_generation g set state='sealed',audio_sha256=$4,watermark_token_hash=$5,
-                  manifest_sha256=$6,ledger_envelope_hash=$7,segment_count=$8,final_chain_sha256=$9,
-                  sealed_at=$10,updated_at=now()
+                  manifest_sha256=$6,ledger_envelope_hash=$7,segment_count=$8::int4,final_chain_sha256=$9,
+                  sealed_at=$10::timestamptz,updated_at=now()
              from vy_replica r
-            where g.generation_id=$1 and g.replica_id=$2 and g.owner_user_id=$3
+            where g.generation_id=$1::uuid and g.replica_id=$2::uuid and g.owner_user_id=$3::uuid
               and r.replica_id=g.replica_id and r.owner_user_id=g.owner_user_id
               and g.state='streaming' and ${PREVIEW_FENCE}
            returning g.generation_id
@@ -326,7 +326,7 @@ export function createNeonVoicePreviewLedger(db) {
               disclosure_text_hash,watermark_algorithm,watermark_token_hash,detector_policy_hash,
               provenance_standard,manifest_location,manifest_sha256,audio_sha256,segment_count,
               final_chain_sha256,envelope_sha256,signature_algorithm,signer_key_id,envelope_signature,issued_at)
-           select $1,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$6,$4,$8,$9,$7,$21,$22,$23,$24
+           select $1::uuid,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$6,$4,$8::int4,$9,$7,$21,$22,$23,$24::timestamptz
              from sealed returning generation_id
          ), public_envelope as (
            insert into vy_replica_generation_receipt_envelope
@@ -347,7 +347,7 @@ export function createNeonVoicePreviewLedger(db) {
       await db(
         `update vy_replica_generation set state=case when state='sealed' then state else 'aborted' end,
                 failure_code=case when state='sealed' then failure_code else $4 end,updated_at=now()
-          where generation_id=$1 and replica_id=$2 and owner_user_id=$3 and purpose='voice_preview'`,
+          where generation_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and purpose='voice_preview'`,
         [input.generationId,input.replicaId,input.ownerUserId,String(input.failureCode || "voice_preview_aborted").slice(0,120)],
       );
     },

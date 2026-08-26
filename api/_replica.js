@@ -119,7 +119,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select replica_id, $2, 'replica.revoke', 'replica', replica_id::text,
+       select replica_id, $2::uuid, 'replica.revoke', 'replica', replica_id::text,
               policy_version, 'allowed', '{}'::jsonb
          from revoked
      ), runtime_capabilities as (
@@ -167,7 +167,7 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
         from revoked r where g.replica_id=r.replica_id and g.owner_user_id= $2::uuid and g.state='active'
      ), erasure as (
        insert into vy_replica_erasure_job (replica_id, owner_user_id, state)
-       select replica_id, $2, 'pending' from revoked
+       select replica_id, $2::uuid, 'pending' from revoked
        on conflict (replica_id) do update
          set updated_at = now(),
              state = case when vy_replica_erasure_job.state = 'complete'

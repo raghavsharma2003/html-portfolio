@@ -52,8 +52,8 @@ async function ensureSession(db, ownerUserId, runtime, input) {
   const rows = await db(
     `update vy_replica_runtime_session s set last_active_at=now(),updated_at=now()
        from vy_replica_runtime_capability c,vy_replica r
-      where s.session_id=$1 and s.replica_id=$2 and s.owner_user_id=$3 and s.channel=$4
-        and s.capability_id=$5 and s.state='active' and s.last_active_at>now()-interval '12 hours'
+      where s.session_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.channel=$4
+        and s.capability_id=$5::uuid and s.state='active' and s.last_active_at>now()-interval '12 hours'
         and c.capability_id=s.capability_id and c.replica_id=s.replica_id and c.owner_user_id=s.owner_user_id
         and c.agent_id=s.agent_id and c.subject_person_id=s.person_id and c.state='active'
         and r.replica_id=s.replica_id and r.owner_user_id=s.owner_user_id and r.lifecycle='active'
@@ -73,8 +73,8 @@ async function loadSessionHistory(db, ownerUserId, runtime, sessionId) {
     `select recent.ordinal,u.content as user_content,a.content as assistant_content
        from (
          select t.* from vy_replica_dialogue_turn t
-          where t.session_id=$1 and t.replica_id=$2 and t.owner_user_id=$3
-            and t.agent_id=$4 and t.person_id=$5 and t.state='complete'
+          where t.session_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid
+            and t.agent_id=$4::uuid and t.person_id=$5::uuid and t.state='complete'
           order by t.ordinal desc limit 10
        ) recent
        join meera_log u on u.id=recent.user_log_id and u.agent_id=recent.agent_id and u.device_id=recent.device_id
@@ -101,7 +101,7 @@ async function beginDialogueTurn(db, ownerUserId, runtime, session, generator, i
          join lateral (
            select d.device_id from vy_person_device d where d.person_id=s.person_id order by d.linked_at desc limit 1
          ) pd on true
-        where s.session_id=$1 and s.replica_id=$2 and s.owner_user_id=$3 and s.capability_id=$4
+        where s.session_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.capability_id=$4::uuid
           and s.state='active' and s.last_active_at>now()-interval '12 hours'
           and r.lifecycle='active' and r.subject_mode='self'
           and exists(select 1 from vy_replica_consent x
@@ -150,7 +150,7 @@ async function finishDialogueTurn(db, ownerUserId, runtime, turn, output) {
           and c.agent_id=t.agent_id and c.subject_person_id=t.person_id and c.profile_version=t.profile_version
           and c.calibration_version=t.calibration_version and c.state='active'
          join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id and r.lifecycle='active'
-        where t.turn_id=$1 and t.replica_id=$2 and t.owner_user_id=$3 and t.state='generating'
+        where t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='generating'
           and exists(select 1 from vy_replica_consent x
             where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
               and x.scope='inference' and x.policy_version=$7 and x.revoked_at is null
@@ -179,7 +179,7 @@ async function failDialogueTurn(db, ownerUserId, turnId, code) {
   await db(
     `update vy_replica_dialogue_turn set state=case when state='complete' then state else 'failed' end,
             failure_code=case when state='complete' then failure_code else $3 end,updated_at=now()
-      where turn_id=$1 and owner_user_id=$2`,
+      where turn_id=$1::uuid and owner_user_id=$2::uuid`,
     [turnId, ownerUserId, cleanFailure(code)],
   ).catch(() => []);
 }
@@ -269,7 +269,7 @@ export async function loadOwnedDialogueSpeech(db, ownerUserId, input) {
         and c.agent_id=t.agent_id and c.subject_person_id=t.person_id and c.profile_version=t.profile_version
         and c.calibration_version=t.calibration_version and c.state='active'
        join vy_replica r on r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id and r.lifecycle='active'
-      where t.turn_id=$1 and t.replica_id=$2 and t.owner_user_id=$3 and t.state='complete'
+      where t.turn_id=$1::uuid and t.replica_id=$2::uuid and t.owner_user_id=$3::uuid and t.state='complete'
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$4 and x.revoked_at is null

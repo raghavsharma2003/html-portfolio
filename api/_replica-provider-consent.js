@@ -112,7 +112,7 @@ export async function issueOwnedProviderConsent(db, ownerUserId, id, value, opti
     `with owned as (
        select r.replica_id,r.policy_version
          from vy_replica r
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.policy_version=$8 and r.lifecycle not in ('revoked','purging')
           and r.age_verified_at is not null and r.identity_verified_at is not null
           and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -127,11 +127,11 @@ export async function issueOwnedProviderConsent(db, ownerUserId, id, value, opti
           )
      ), attempts as (
        select count(*)::integer as n from vy_replica_provider_consent
-        where replica_id=$1 and owner_user_id=$2 and provider='azure_personal_voice'
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and provider='azure_personal_voice'
           and issued_at>now()-interval '24 hours'
      ), expired as (
        update vy_replica_provider_consent set state='expired',updated_at=now()
-        where replica_id=$1 and owner_user_id=$2 and provider='azure_personal_voice'
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and provider='azure_personal_voice'
           and state='issued' and expires_at<=now() and exists(select 1 from owned)
        returning provider_consent_id
      ), issued as (
@@ -139,21 +139,21 @@ export async function issueOwnedProviderConsent(db, ownerUserId, id, value, opti
          (provider_consent_id,replica_id,owner_user_id,provider,policy_version,
           provider_policy_version,template_version,locale,statement_sha256,attempt,
           algorithm,key_id,nonce,ciphertext,auth_tag,wrapped_dek,wrap_nonce,wrap_auth_tag,aad_sha256,expires_at)
-       select $3,owned.replica_id,$2,'azure_personal_voice',owned.policy_version,
+       select $3::uuid,owned.replica_id,$2::uuid,'azure_personal_voice',owned.policy_version,
               $9,$10,$4,$5,attempts.n+1,$11,$12,decode($13,'base64'),decode($14,'base64'),
               decode($15,'base64'),decode($16,'base64'),decode($17,'base64'),decode($18,'base64'),$19,
               now()+interval '10 minutes'
          from owned cross join attempts cross join (select count(*) from expired) cleared
         where attempts.n<5 and not exists (
-          select 1 from vy_replica_provider_consent pc where pc.replica_id=$1
-            and pc.owner_user_id=$2 and pc.provider='azure_personal_voice'
+          select 1 from vy_replica_provider_consent pc where pc.replica_id=$1::uuid
+            and pc.owner_user_id=$2::uuid and pc.provider='azure_personal_voice'
             and pc.state in ('issued','uploaded')
         )
        returning ${RETURNING}
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'provider_consent.issue','provider_consent',provider_consent_id::text,
+       select $1::uuid,$2::uuid,'provider_consent.issue','provider_consent',provider_consent_id::text,
               $8,'allowed',jsonb_build_object('provider','azure_personal_voice','locale',$4,'attempt',attempt)
          from issued
      ) select * from issued`,
@@ -170,13 +170,13 @@ export async function latestOwnedProviderConsent(db, ownerUserId, id, options = 
   const rid = replicaId(id);
   await db(
     `update vy_replica_provider_consent set state='expired',updated_at=now()
-      where replica_id=$1 and owner_user_id=$2 and provider='azure_personal_voice'
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and provider='azure_personal_voice'
         and state='issued' and expires_at<=now()`,
     [rid, ownerUserId],
   );
   const rows = await db(
     `select ${RETURNING} from vy_replica_provider_consent
-      where replica_id=$1 and owner_user_id=$2 and provider='azure_personal_voice'
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and provider='azure_personal_voice'
       order by issued_at desc limit 1`,
     [rid, ownerUserId],
   );
@@ -222,12 +222,12 @@ export async function createProviderConsentSource(db, ownerUserId, id, consent, 
        select pc.provider_consent_id,pc.replica_id,r.policy_version
          from vy_replica_provider_consent pc
          join vy_replica r on r.replica_id=pc.replica_id and r.owner_user_id=pc.owner_user_id
-        where pc.provider_consent_id=$3 and pc.replica_id=$1 and pc.owner_user_id=$2
+        where pc.provider_consent_id=$3::uuid and pc.replica_id=$1::uuid and pc.owner_user_id=$2::uuid
           and pc.provider='azure_personal_voice' and pc.state='issued' and pc.expires_at>now()
           and pc.source_id is null and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
      ), capture as (
        select c.consent_id from vy_replica_consent c join challenge ch on ch.replica_id=c.replica_id
-        where c.owner_user_id=$2 and c.scope='capture' and c.policy_version=ch.policy_version
+        where c.owner_user_id=$2::uuid and c.scope='capture' and c.policy_version=ch.policy_version
           and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
         order by c.granted_at desc limit 1
      ), gates as (
@@ -235,7 +235,7 @@ export async function createProviderConsentSource(db, ownerUserId, id, consent, 
          select 1 from unnest(array['storage','biometric','training']::text[]) required(scope)
           where not exists (
             select 1 from vy_replica_consent c where c.replica_id=ch.replica_id
-              and c.owner_user_id=$2 and c.scope=required.scope and c.policy_version=ch.policy_version
+              and c.owner_user_id=$2::uuid and c.scope=required.scope and c.policy_version=ch.policy_version
               and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())
           )
        )
@@ -243,16 +243,16 @@ export async function createProviderConsentSource(db, ownerUserId, id, consent, 
        insert into vy_replica_source
          (source_id,replica_id,owner_user_id,consent_id,kind,capture_mode,storage_bucket,
           object_path,mime,byte_size,duration_ms,sha256,contains_third_parties,provenance)
-       select $4,challenge.replica_id,$2,capture.consent_id,'audio','provider_consent',$5,
-              $6,$7,$8,$9,$10,false,$11::jsonb from challenge cross join capture cross join gates
+       select $4::uuid,challenge.replica_id,$2::uuid,capture.consent_id,'audio','provider_consent',$5,
+              $6,$7,$8::int8,$9::int8,$10,false,$11::jsonb from challenge cross join capture cross join gates
        returning ${SOURCE_RETURNING}
      ), attached as (
        update vy_replica_provider_consent pc set source_id=inserted.source_id,updated_at=now()
-        from inserted where pc.provider_consent_id=$3
+        from inserted where pc.provider_consent_id=$3::uuid
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'provider_consent.upload.create','source',source_id::text,
+       select $1::uuid,$2::uuid,'provider_consent.upload.create','source',source_id::text,
               (select policy_version from challenge),'allowed',
               jsonb_build_object('provider','azure_personal_voice','byte_size',byte_size)
          from inserted
@@ -269,8 +269,8 @@ export async function getPendingProviderConsentSource(db, ownerUserId, id, conse
       join vy_replica_provider_consent pc on pc.source_id=s.source_id and pc.replica_id=s.replica_id
        and pc.owner_user_id=s.owner_user_id
       join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=s.owner_user_id
-      where s.replica_id=$1 and s.owner_user_id=$2 and s.source_id=$4
-        and pc.provider_consent_id=$3 and pc.provider='azure_personal_voice'
+      where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.source_id=$4::uuid
+        and pc.provider_consent_id=$3::uuid and pc.provider='azure_personal_voice'
         and pc.state='issued' and pc.expires_at>now() and s.capture_mode='provider_consent'
         and s.state='pending_upload' and r.subject_mode='self' and r.lifecycle not in ('revoked','purging')
       limit 1`,
@@ -321,7 +321,7 @@ export async function finalizeProviderConsentSource(
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'provider_consent.upload.finalize','provider_consent',
+       select $1::uuid,$2::uuid,'provider_consent.upload.finalize','provider_consent',
               provider_consent_id::text,$9,case when $8='uploaded' then 'allowed' else 'denied' end,
               jsonb_build_object('provider','azure_personal_voice','reason_code',$6)
          from updated_consent

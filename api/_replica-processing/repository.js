@@ -13,12 +13,12 @@ async function persistArtifact(db, artifact) {
           byte_size, duration_ms, sha256, input_sha256, transform_name,
           transform_version, parameter_hash, adapter_family, adapter_name,
           adapter_version, manifest, manifest_hash)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23)
+       values ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8,$9,$10,$11,$12::int8,$13::int4,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23)
        on conflict (artifact_id) do nothing
        returning artifact_id, manifest_hash
      ), identical as (
        select artifact_id, manifest_hash from vy_replica_processing_artifact
-        where artifact_id = $1 and source_id = $4 and replica_id = $2 and owner_user_id = $3
+        where artifact_id = $1::uuid and source_id = $4::uuid and replica_id = $2::uuid and owner_user_id = $3::uuid
           and sha256 = $14 and input_sha256 = $15 and manifest_hash = $23
      )
      select * from inserted union all select * from identical limit 1`,
@@ -41,12 +41,12 @@ async function persistEvidence(db, evidence) {
          (evidence_id, replica_id, owner_user_id, source_id, artifact_id,
           created_by_job_id, evidence_type, span_start_ms, span_end_ms, confidence,
           value, input_sha256, adapter_family, adapter_name, adapter_version, record_hash)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16)
+       values ($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7,$8::int4,$9::int4,$10::float8,$11::jsonb,$12,$13,$14,$15,$16)
        on conflict (evidence_id) do nothing
        returning evidence_id, record_hash
      ), identical as (
        select evidence_id, record_hash from vy_replica_processing_evidence
-        where evidence_id = $1 and source_id = $4 and replica_id = $2 and owner_user_id = $3
+        where evidence_id = $1::uuid and source_id = $4::uuid and replica_id = $2::uuid and owner_user_id = $3::uuid
           and input_sha256 = $12 and record_hash = $16
      )
      select * from inserted union all select * from identical limit 1`,
@@ -77,10 +77,10 @@ export async function enqueueProcessingSteps(db, input) {
   const rows = await db(
     `insert into vy_replica_processing_job
        (replica_id, owner_user_id, source_id, step, revision, state)
-     select parent.replica_id, parent.owner_user_id, parent.source_id, wanted.step, $3, 'queued'
+     select parent.replica_id, parent.owner_user_id, parent.source_id, wanted.step, $3::int4, 'queued'
        from vy_replica_processing_job parent
        cross join unnest($2::text[]) wanted(step)
-      where parent.job_id = $1 and parent.state = 'complete'
+      where parent.job_id = $1::uuid and parent.state = 'complete'
      on conflict (source_id, step, revision) do nothing
      returning job_id, step, state`,
     [input.completedJobId, steps, Number(input.revision || 1)],
@@ -102,7 +102,7 @@ export async function commitProcessingOutput(db, input) {
   const rows = await db(
     `with eligible_job as materialized (
        select * from vy_replica_processing_job
-        where job_id=$1 and state='leased' and lease_token_hash=$2
+        where job_id=$1::uuid and state='leased' and lease_token_hash=$2
           and lease_expires_at>now() and step=$10
      ), desired_artifacts as materialized (
        select value item from jsonb_array_elements($3::jsonb)

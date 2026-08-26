@@ -161,21 +161,21 @@ export async function grantAccountConsent(db, ownerUserId, id, input, options = 
   const rows = await db(
     `with owned as (
        select replica_id, policy_version from vy_replica
-        where replica_id = $1 and owner_user_id = $2
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
           and subject_mode = 'self'
           and policy_version = $7
           and lifecycle not in ('revoked','purging')
      ), revoked as (
        update vy_replica_consent
           set revoked_at = coalesce(revoked_at, $6::timestamptz)
-        where replica_id = $1 and owner_user_id = $2
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
           and scope = any($3::text[]) and revoked_at is null
           and exists (select 1 from owned)
      ), granted as (
        insert into vy_replica_consent
          (replica_id, owner_user_id, scope, method, policy_version,
           receipt_hash, granted_at, expires_at, metadata)
-       select owned.replica_id, $2, requested.scope, 'account_attestation',
+       select owned.replica_id, $2::uuid, requested.scope, 'account_attestation',
               owned.policy_version, $4, $6::timestamptz,
               $6::timestamptz + interval '1 year', $5::jsonb
          from owned cross join unnest($3::text[]) as requested(scope)
@@ -183,7 +183,7 @@ export async function grantAccountConsent(db, ownerUserId, id, input, options = 
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'consent.grant', 'consent_batch', $4,
+       select $1::uuid, $2::uuid, 'consent.grant', 'consent_batch', $4,
               $7, 'allowed', jsonb_build_object('scope_count', cardinality($3::text[]))
         where exists (select 1 from granted)
      )
@@ -198,7 +198,7 @@ export async function grantAccountConsent(db, ownerUserId, id, input, options = 
   // grant/list operation can safely advance it again.
   await db(
     `update vy_replica r set lifecycle = 'enrolling', updated_at = now()
-      where r.replica_id = $1 and r.owner_user_id = $2
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
         and r.lifecycle in ('draft','consent_pending')
         and not exists (
           select 1 from unnest(array['capture','storage']::text[]) required(scope)
@@ -217,7 +217,7 @@ export async function grantAccountConsent(db, ownerUserId, id, input, options = 
 export async function listOwnedConsent(db, ownerUserId, id) {
   const rows = await db(
     `select ${CONSENT_RETURNING} from vy_replica_consent
-      where replica_id = $1 and owner_user_id = $2
+      where replica_id = $1::uuid and owner_user_id = $2::uuid
       order by granted_at desc limit 100`,
     [replicaId(id), ownerUserId],
   );
@@ -236,7 +236,7 @@ export async function grantVerifiedModelConsent(db, ownerUserId, id, input, opti
     `select c.consent_id,c.receipt_hash,c.granted_at
        from vy_replica r
        join vy_replica_consent c on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id
-      where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
         and r.policy_version=$3 and r.lifecycle not in ('revoked','purging')
         and r.age_verified_at is not null and r.identity_verified_at is not null
         and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -261,9 +261,9 @@ export async function grantVerifiedModelConsent(db, ownerUserId, id, input, opti
     `with owned as (
        select r.replica_id,r.policy_version
          from vy_replica r
-         join vy_replica_consent basis on basis.consent_id=$4
+         join vy_replica_consent basis on basis.consent_id=$4::uuid
           and basis.replica_id=r.replica_id and basis.owner_user_id=r.owner_user_id
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.policy_version=$8 and r.lifecycle not in ('revoked','purging')
           and r.age_verified_at is not null and r.identity_verified_at is not null
           and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -272,13 +272,13 @@ export async function grantVerifiedModelConsent(db, ownerUserId, id, input, opti
           and basis.revoked_at is null and (basis.expires_at is null or basis.expires_at>now())
      ), revoked as (
        update vy_replica_consent set revoked_at=coalesce(revoked_at,$7::timestamptz)
-        where replica_id=$1 and owner_user_id=$2 and scope=any($3::text[])
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and scope=any($3::text[])
           and revoked_at is null and exists (select 1 from owned)
      ), granted as (
        insert into vy_replica_consent
          (replica_id,owner_user_id,scope,method,policy_version,receipt_hash,
           evidence_source_id,granted_at,expires_at,metadata)
-       select owned.replica_id,$2,requested.scope,'live_challenge',owned.policy_version,$6,null,
+       select owned.replica_id,$2::uuid,requested.scope,'live_challenge',owned.policy_version,$6,null,
               $7::timestamptz,$7::timestamptz + case when requested.scope='inference'
                 then interval '30 days' else interval '180 days' end,$9::jsonb
          from owned cross join unnest($3::text[]) requested(scope)
@@ -286,7 +286,7 @@ export async function grantVerifiedModelConsent(db, ownerUserId, id, input, opti
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'consent.verified_model_grant','consent_batch',$6,$8,'allowed',
+       select $1::uuid,$2::uuid,'consent.verified_model_grant','consent_batch',$6,$8,'allowed',
               jsonb_build_object('scope_count',cardinality($3::text[]),'basis_consent_id',$4)
         where exists (select 1 from granted)
      ) select * from granted order by scope`,
@@ -304,7 +304,7 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
     `with revoked as (
        update vy_replica_consent
           set revoked_at = coalesce(revoked_at, now())
-        where replica_id = $1 and owner_user_id = $2
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
           and scope = any($3::text[]) and revoked_at is null
           and exists (
             select 1 from vy_replica r where r.replica_id = $1 and r.owner_user_id = $2
@@ -314,29 +314,29 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
        update vy_replica set
          lifecycle = case when lifecycle in ('active','ready','calibrating') then 'paused' else 'consent_pending' end,
          updated_at = now()
-       where replica_id = $1 and owner_user_id = $2 and exists (select 1 from revoked)
+       where replica_id = $1::uuid and owner_user_id = $2::uuid and exists (select 1 from revoked)
      ), sources as (
        update vy_replica_source set state = 'deleting', updated_at = now()
-        where replica_id = $1 and owner_user_id = $2
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
           and state <> 'deleting' and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[]))
      ), provider_consents as (
        update vy_replica_provider_consent set state = 'revoked',
               revoked_at = coalesce(revoked_at, now()), updated_at = now()
-        where replica_id = $1 and owner_user_id = $2 and state <> 'revoked'
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and state <> 'revoked'
           and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
                or 'biometric' = any($3::text[]) or 'training' = any($3::text[]))
      ), identity_cases as (
        update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
               lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.state<>'revoked'
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.state<>'revoked'
           and exists (select 1 from revoked)
           and ('storage'=any($3::text[]) or 'capture'=any($3::text[]) or 'biometric'=any($3::text[]))
        returning c.identity_case_id,c.source_id
      ), identity_sources as (
        update vy_replica_source s set state='deleting',updated_at=now()
-        where s.replica_id=$1 and s.owner_user_id=$2
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
           and (s.source_id in (select source_id from identity_cases) or s.source_id in (
             select ch.source_id from vy_replica_liveness_challenge ch
              where ch.identity_case_id in (select identity_case_id from identity_cases)
@@ -359,7 +359,7 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
           and a.attempt=ch.verification_attempt and a.outcome='running'
      ), biometric_verification_grants as (
        update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
-        where g.replica_id=$1 and g.owner_user_id=$2 and g.state='active'
+        where g.replica_id=$1::uuid and g.owner_user_id=$2::uuid and g.state='active'
           and exists (select 1 from revoked)
           and ('storage'=any($3::text[]) or 'capture'=any($3::text[]) or 'biometric'=any($3::text[]))
      ), identity_replica as (
@@ -372,29 +372,29 @@ export async function revokeOwnedConsent(db, ownerUserId, id, value) {
         where exists (select 1 from identity_replica r where r.subject_person_id=p.person_id)
      ), claims as (
        update vy_replica_claim set status = 'superseded', updated_at = now()
-        where replica_id = $1 and status in ('proposed','approved')
+        where replica_id = $1::uuid and status in ('proposed','approved')
           and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[]))
      ), genomes as (
        update vy_replica_voice_genome set status = 'retired'
-        where replica_id = $1 and status <> 'retired' and exists (select 1 from revoked)
+        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
                or 'biometric' = any($3::text[]) or 'training' = any($3::text[]))
      ), profiles as (
        update vy_replica_profile set status = 'retired'
-        where replica_id = $1 and status <> 'retired' and exists (select 1 from revoked)
+        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'capture' = any($3::text[])
                or 'training' = any($3::text[]))
      ), voices as (
        update vy_replica_voice_profile set status = 'deleting', updated_at = now()
-        where replica_id = $1 and status <> 'deleting'
+        where replica_id = $1::uuid and status <> 'deleting'
           and exists (select 1 from revoked)
           and ('storage' = any($3::text[]) or 'biometric' = any($3::text[])
                or 'training' = any($3::text[]) or 'inference' = any($3::text[]))
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, policy, outcome, facts)
-       select $1, $2, 'consent.revoke', 'consent_batch', $4, 'allowed',
+       select $1::uuid, $2::uuid, 'consent.revoke', 'consent_batch', $4, 'allowed',
               jsonb_build_object('scope_count', cardinality($3::text[]))
         where exists (select 1 from revoked)
      )

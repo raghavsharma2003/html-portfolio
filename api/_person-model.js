@@ -190,23 +190,23 @@ const CLAIMS_SQL = `select c.claim_id,c.domain,c.key,c.body,c.origin,c.confidenc
   cardinality(c.source_ids) as source_count,c.t_valid_from,c.t_valid_to,c.created_at,c.updated_at,
   d.decision,d.reason_code,d.created_at as reviewed_at
 from vy_replica_claim c
-join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2
+join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2::uuid
 left join lateral (
   select x.decision,x.reason_code,x.created_at from vy_replica_claim_decision x
    where x.claim_id=c.claim_id and x.replica_id=c.replica_id and x.owner_user_id=c.owner_user_id
    order by x.created_at desc limit 1
 ) d on true
-where c.replica_id=$1 and c.owner_user_id=$2
+where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid
 order by c.created_at desc limit 500`;
 
 export async function ownedPersonModelStatus(db, ownerUserId, id) {
   const rid = replicaId(id);
   const [owned, rows, profiles] = await Promise.all([
-    db(`select replica_id from vy_replica where replica_id=$1 and owner_user_id=$2 limit 1`, [rid, ownerUserId]),
+    db(`select replica_id from vy_replica where replica_id=$1::uuid and owner_user_id=$2::uuid limit 1`, [rid, ownerUserId]),
     db(CLAIMS_SQL, [rid, ownerUserId]),
     db(`select p.version,p.source_set_hash,p.status,p.created_at
-          from vy_replica_profile p join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2
-         where p.replica_id=$1 order by p.version desc limit 20`, [rid, ownerUserId]),
+          from vy_replica_profile p join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2::uuid
+         where p.replica_id=$1::uuid order by p.version desc limit 20`, [rid, ownerUserId]),
   ]);
   if (!owned[0]) return null;
   const rawClaims = rows.map((row) => ({ ...row, claim_id: String(row.claim_id) }));
@@ -229,7 +229,7 @@ export async function decideOwnedClaim(db, ownerUserId, input) {
     `with owned as (
        select c.claim_id,c.replica_id,c.owner_user_id
          from vy_replica_claim c join vy_replica r on r.replica_id=c.replica_id
-        where c.claim_id=$1 and c.replica_id=$2 and c.owner_user_id=$3 and r.owner_user_id=$3
+        where c.claim_id=$1::int8 and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and r.owner_user_id=$3::uuid
      ), decision as (
        insert into vy_replica_claim_decision
          (claim_id,replica_id,owner_user_id,decision,reason_code,policy_version)
@@ -258,12 +258,12 @@ export async function buildOwnedPersonProfile(db, ownerUserId, id) {
   const rows = await db(
     `with owned as (
        select r.replica_id,pg_advisory_xact_lock(hashtextextended(r.replica_id::text||':person_profile',0))
-         from vy_replica r where r.replica_id=$1 and r.owner_user_id=$2
+         from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid
           and r.lifecycle not in ('revoked','purging')
      ), candidate as (
        select o.replica_id,coalesce((select version from vy_replica_profile
-         where replica_id=$1 and source_set_hash=$3 limit 1),
-         (select coalesce(max(version)+1,1) from vy_replica_profile where replica_id=$1)) as version
+         where replica_id=$1::uuid and source_set_hash=$3 limit 1),
+         (select coalesce(max(version)+1,1) from vy_replica_profile where replica_id=$1::uuid)) as version
        from owned o
      ), profile as (
        insert into vy_replica_profile(replica_id,version,source_set_hash,definition,status)
@@ -273,7 +273,7 @@ export async function buildOwnedPersonProfile(db, ownerUserId, id) {
      ), build as (
        insert into vy_replica_model_build
          (replica_id,owner_user_id,build_kind,target_version,builder_version,source_set_hash,state,manifest_hash)
-       select replica_id,$2,'person_profile',version,$5,$3,'review',$6 from profile
+       select replica_id,$2::uuid,'person_profile',version,$5,$3,'review',$6 from profile
        on conflict (replica_id,build_kind,source_set_hash) do update
          set state=case when vy_replica_model_build.state='approved' then vy_replica_model_build.state else 'review' end,
              manifest_hash=excluded.manifest_hash,updated_at=now()
@@ -295,8 +295,8 @@ export async function approveOwnedPersonProfile(db, ownerUserId, input) {
   const rows = await db(
     `with owned as (
        select p.replica_id,p.version from vy_replica_profile p
-       join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2
-       where p.replica_id=$1 and p.version=$3 and p.status='draft' and p.source_set_hash=$4
+       join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2::uuid
+       where p.replica_id=$1::uuid and p.version=$3::int4 and p.status='draft' and p.source_set_hash=$4
        for update
      ), retired as (
        update vy_replica_profile p set status='retired'
@@ -313,7 +313,7 @@ export async function approveOwnedPersonProfile(db, ownerUserId, input) {
           and b.target_version=a.version and b.source_set_hash=$4
      ), lifecycle as (
        update vy_replica r set lifecycle=case when lifecycle='enrolling' then 'calibrating' else lifecycle end,updated_at=now()
-        from approved a where r.replica_id=a.replica_id and r.owner_user_id=$2
+        from approved a where r.replica_id=a.replica_id and r.owner_user_id=$2::uuid
      ) select * from approved`,
     [rid, ownerUserId, version, sourceSetHash],
   );

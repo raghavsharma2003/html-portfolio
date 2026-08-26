@@ -134,7 +134,7 @@ ok("the opaque request capability resolves completion after owner and replica li
   completedStatus.state === "complete" && completedStatus.provider === "confirmed" &&
   /erasure_request_hash=\$3/.test(statusSql));
 ok("owner identity scopes the live job while only the unguessable request capability scopes the blinded receipt",
-  /j\.job_id=\$1 and j\.owner_user_id=\$2/.test(statusSql) &&
+  /j\.job_id=\$1(?:::uuid)? and j\.owner_user_id=\$2(?:::uuid)?/.test(statusSql) &&
   statusSql.includes("vy_replica_voice_profile") && statusSql.includes("vy_replica_source") &&
   statusSql.includes("vy_replica_liveness_challenge"));
 

@@ -113,10 +113,10 @@ function bounded(value) {
 async function openRun(db, watch, video, transcriptSource) {
   const rows = await db(
     `insert into vy_ingest_run (run_id, replica_id, owner_user_id, watch_id, video_ref, transcript_source, status)
-     values ($1, $2, $3, $4, $5, $6, 'fetched')
+     values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, 'fetched')
      on conflict (replica_id, video_ref) do update
         set status = 'fetched', failure_code = '', transcript_source = excluded.transcript_source, updated_at = now()
-      where vy_ingest_run.status = 'failed' and vy_ingest_run.owner_user_id = $3
+      where vy_ingest_run.status = 'failed' and vy_ingest_run.owner_user_id = $3::uuid
      returning run_id, replica_id, owner_user_id, video_ref, status`,
     [randomUUID(), watch.replicaId, watch.ownerUserId, watch.watchId, video.videoId, transcriptSource],
   );
@@ -130,7 +130,7 @@ async function markRun(db, ownerUserId, runId, patch) {
             stats = coalesce($5::jsonb, stats), proposed_delta = coalesce($6::jsonb, proposed_delta),
             proposed_delta_count = coalesce($7, proposed_delta_count),
             failure_code = $8, updated_at = now()
-      where run_id = $1 and owner_user_id = $2 and status not in ('applied','rejected')
+      where run_id = $1::uuid and owner_user_id = $2::uuid and status not in ('applied','rejected')
       returning run_id, status, proposed_delta_count, failure_code`,
     [runId, ownerUserId, patch.status, patch.transcriptSource ?? null,
       patch.stats ? bounded(patch.stats) : null,
@@ -236,7 +236,7 @@ async function touchWatch(db, watch, lastSeenVideoId) {
     `update vy_channel_watch
         set last_checked_at = now(),
             last_seen_video_id = case when $3 <> '' then $3 else last_seen_video_id end
-      where watch_id = $1 and owner_user_id = $2 and status = 'active'`,
+      where watch_id = $1::uuid and owner_user_id = $2::uuid and status = 'active'`,
     [watch.watchId, watch.ownerUserId, String(lastSeenVideoId || "")],
   );
 }
@@ -317,7 +317,7 @@ export async function listIngestRunsForReview(db, ownerUserId, replicaIdValue, l
     `select run_id, video_ref, transcript_source, status, proposed_delta, proposed_delta_count,
             failure_code, created_at, updated_at
        from vy_ingest_run
-      where replica_id = $1 and owner_user_id = $2
+      where replica_id = $1::uuid and owner_user_id = $2::uuid
       order by created_at desc limit $3`,
     [String(replicaIdValue).toLowerCase(), String(ownerUserId).toLowerCase(), Math.min(200, Math.max(1, limit))],
   );
@@ -354,8 +354,8 @@ export async function applyIngestRunDelta(db, ownerUserId, runId, approvedByUser
   }
   const rows = await db(
     `update vy_ingest_run
-        set status = 'applied', approved_by_user_id = $3, decided_at = now(), updated_at = now()
-      where run_id = $1 and owner_user_id = $2 and status = 'proposed'
+        set status = 'applied', approved_by_user_id = $3::uuid, decided_at = now(), updated_at = now()
+      where run_id = $1::uuid and owner_user_id = $2::uuid and status = 'proposed'
       returning run_id, status, proposed_delta, proposed_delta_count, approved_by_user_id, decided_at`,
     [String(runId).toLowerCase(), String(ownerUserId).toLowerCase(), String(approvedByUserId).toLowerCase()],
   );
@@ -372,8 +372,8 @@ export async function rejectIngestRun(db, ownerUserId, runId, decidedByUserId) {
   }
   const rows = await db(
     `update vy_ingest_run
-        set status = 'rejected', approved_by_user_id = $3, decided_at = now(), updated_at = now()
-      where run_id = $1 and owner_user_id = $2 and status = 'proposed'
+        set status = 'rejected', approved_by_user_id = $3::uuid, decided_at = now(), updated_at = now()
+      where run_id = $1::uuid and owner_user_id = $2::uuid and status = 'proposed'
       returning run_id, status, decided_at`,
     [String(runId).toLowerCase(), String(ownerUserId).toLowerCase(), String(decidedByUserId).toLowerCase()],
   );

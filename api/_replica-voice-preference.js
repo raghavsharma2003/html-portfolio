@@ -40,12 +40,12 @@ export async function recordOwnedVoicePreference(db, ownerUserId, input) {
     `with eligible as materialized (
        select l.replica_id,l.owner_user_id,l.genome_version,l.preview_artifact_id
          from vy_replica_generation l
-         join vy_replica_generation r on r.generation_id=$4 and r.replica_id=l.replica_id
+         join vy_replica_generation r on r.generation_id=$4::uuid and r.replica_id=l.replica_id
            and r.owner_user_id=l.owner_user_id
-         join vy_replica_voice_trial t on t.trial_id=$5 and t.replica_id=l.replica_id
+         join vy_replica_voice_trial t on t.trial_id=$5::uuid and t.replica_id=l.replica_id
           and t.owner_user_id=l.owner_user_id
          join vy_replica x on x.replica_id=l.replica_id and x.owner_user_id=l.owner_user_id
-        where l.generation_id=$3 and l.replica_id=$1 and l.owner_user_id=$2
+        where l.generation_id=$3::uuid and l.replica_id=$1::uuid and l.owner_user_id=$2::uuid
           and l.state='sealed' and r.state='sealed'
            and l.purpose='voice_preview' and r.purpose='voice_preview'
            and l.channel='studio_preview' and r.channel='studio_preview'
@@ -82,19 +82,19 @@ export async function recordOwnedVoicePreference(db, ownerUserId, input) {
        insert into vy_replica_voice_preference
          (preference_id,replica_id,owner_user_id,genome_version,preview_artifact_id,
            left_generation_id,right_generation_id,trial_id,pair_hash,choice,reason_codes,confidence,policy_version)
-       select $6,replica_id,owner_user_id,genome_version,preview_artifact_id,$3,$4,$5,$7,$8,$9::text[],$10,$13
+       select $6::uuid,replica_id,owner_user_id,genome_version,preview_artifact_id,$3::uuid,$4::uuid,$5::uuid,$7,$8,$9::text[],$10::numeric,$13
          from eligible
        on conflict (replica_id,owner_user_id,pair_hash) do nothing
        returning preference_id,replica_id,genome_version,left_generation_id,right_generation_id,
                  choice,reason_codes,confidence,created_at
      ), completed as (
        update vy_replica_voice_trial t set state='completed',completed_at=now()
-         from inserted i where t.trial_id=$5 and t.replica_id=i.replica_id and t.owner_user_id=$2
+         from inserted i where t.trial_id=$5::uuid and t.replica_id=i.replica_id and t.owner_user_id=$2::uuid
            and t.state='issued'
        returning t.left_style_key,t.right_style_key
      ), audit as (
        insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-        select replica_id,$2,'voice.preference.record','voice_preference',preference_id::text,$13,'allowed',
+        select replica_id,$2::uuid,'voice.preference.record','voice_preference',preference_id::text,$13,'allowed',
               jsonb_build_object('trial_id',$5,'pair_hash',$7,'choice',choice,'reason_codes',reason_codes,'confidence',confidence)
          from inserted
      ) select i.*,c.left_style_key,c.right_style_key from inserted i cross join completed c`,

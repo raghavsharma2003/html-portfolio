@@ -133,7 +133,11 @@ const audition = await getOwnedArtifactAudition(async (sql, params) => {
   auditionCalls.push({ sql, params });
   return [{ artifact_id: ARTIFACT, object_path: `${OWNER}/${RID}/${SOURCE}/derived/pinned/${ARTIFACT}`, mime: "audio/wav", duration_ms: 1000 }];
 }, OWNER, { replica_id: RID, artifact_id: ARTIFACT });
-ok("private audition is owner-scoped and creates a content-free audit row", audition.artifact_id === ARTIFACT && /a\.replica_id=\$1 and a\.owner_user_id=\$2/.test(auditionCalls[0].sql) && /processing\.artifact\.audition/.test(auditionCalls[0].sql));
+// The `(?:::uuid)?` is not slack in the assertion: the property under test is
+// that the read is scoped by the exact owner tuple, and an explicit cast on a
+// uuid parameter is required by evals/sqlcast.mjs on this surface. Pinning the
+// literal text would make that gate and this one contradict each other.
+ok("private audition is owner-scoped and creates a content-free audit row", audition.artifact_id === ARTIFACT && /a\.replica_id=\$1(?:::uuid)? and a\.owner_user_id=\$2(?:::uuid)?/.test(auditionCalls[0].sql) && /processing\.artifact\.audition/.test(auditionCalls[0].sql));
 
 const selectionCalls = [];
 const selected = await selectOwnedVoiceArtifact(async (sql, params) => {

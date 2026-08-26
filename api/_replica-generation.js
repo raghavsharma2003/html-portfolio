@@ -51,7 +51,7 @@ export async function beginOwnedPrivateGeneration(db, ownerUserId, input) {
          on dialogue.turn_id=$8::uuid and dialogue.replica_id=r.replica_id and dialogue.owner_user_id=r.owner_user_id
         and dialogue.capability_id=c.capability_id and dialogue.profile_version=c.profile_version
         and dialogue.calibration_version=c.calibration_version and dialogue.state='complete'
-      where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
         and r.lifecycle='active' and r.policy_version=$7
         and r.age_verified_at is not null and r.identity_verified_at is not null
         and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -104,7 +104,7 @@ export async function markGenerationFailed(db, ownerUserId, generationId, code) 
         set state=case when state='sealed' then state else 'failed' end,
             failure_code=case when state='sealed' then failure_code else $3 end,
             updated_at=now()
-      where generation_id=$1 and owner_user_id=$2`,
+      where generation_id=$1::uuid and owner_user_id=$2::uuid`,
     [generationId, ownerUserId, failure],
   ).catch(() => []);
 }

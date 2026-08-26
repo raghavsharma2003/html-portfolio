@@ -103,7 +103,7 @@ const ENROLLMENT_SQL = `select r.replica_id,r.owner_user_id,r.policy_version,
   join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
     and s.owner_user_id=a.owner_user_id),'[]'::jsonb) artifacts
  from vy_replica r
- join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3 and vg.status='approved'
+ join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3::int4 and vg.status='approved'
  join lateral (select x.* from vy_replica_provider_consent x
    where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
      and x.provider='azure_personal_voice' and x.state='uploaded'
@@ -113,7 +113,7 @@ const ENROLLMENT_SQL = `select r.replica_id,r.owner_user_id,r.policy_version,
  join vy_replica_source pcs on pcs.source_id=pc.source_id and pcs.replica_id=r.replica_id
    and pcs.owner_user_id=r.owner_user_id and pcs.capture_mode='provider_consent'
    and pcs.kind='audio' and pcs.state='quarantined' and pcs.contains_third_parties=false
- where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+ where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
    and r.policy_version=$7 and r.lifecycle not in ('revoked','purging')
    and r.age_verified_at is not null and r.identity_verified_at is not null and r.liveness_verified_at is not null
    and r.identity_expires_at>now()
@@ -134,8 +134,8 @@ export async function loadOwnedAzureVoiceEnrollment(db, ownerUserId, id, version
 export async function latestOwnedApprovedVoiceGenome(db, ownerUserId, id) {
   const rows = await db(
     `select vg.version from vy_replica_voice_genome vg
-      join vy_replica r on r.replica_id=vg.replica_id and r.owner_user_id=$2
-      where vg.replica_id=$1 and vg.status='approved' and r.subject_mode='self'
+      join vy_replica r on r.replica_id=vg.replica_id and r.owner_user_id=$2::uuid
+      where vg.replica_id=$1::uuid and vg.status='approved' and r.subject_mode='self'
         and r.lifecycle not in ('revoked','purging') order by vg.version desc limit 1`,
     [replicaId(id), ownerUserId],
   );
@@ -228,8 +228,8 @@ export async function getOwnedVoiceProfile(db, ownerUserId, id, version = null) 
   const rows = await db(
     `select ${PROFILE_SELECT} from vy_replica_voice_profile vp
       join vy_replica r on r.replica_id=vp.replica_id and r.owner_user_id=vp.owner_user_id
-      where vp.replica_id=$1 and vp.owner_user_id=$2 and vp.provider='azure_personal_voice'
-        and ($3::integer is null or vp.genome_version=$3)
+      where vp.replica_id=$1::uuid and vp.owner_user_id=$2::uuid and vp.provider='azure_personal_voice'
+        and ($3::integer is null or vp.genome_version=$3::int4)
       order by vp.created_at desc limit 1`,
     [rid, ownerUserId, requested],
   );
@@ -249,11 +249,11 @@ export async function persistCreatedVoiceProfile(db, ownerUserId, prepared, resu
     `with eligible as (
        select r.replica_id,r.owner_user_id,vg.version genome_version
         from vy_replica r join vy_replica_voice_genome vg on vg.replica_id=r.replica_id
-          and vg.version=$4 and vg.status='approved'
-        join vy_replica_provider_consent pc on pc.provider_consent_id=$5
+          and vg.version=$4::int4 and vg.status='approved'
+        join vy_replica_provider_consent pc on pc.provider_consent_id=$5::uuid
           and pc.replica_id=r.replica_id and pc.owner_user_id=r.owner_user_id
           and pc.provider='azure_personal_voice' and pc.state='uploaded'
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.lifecycle not in ('revoked','purging') and r.policy_version=$11
           and not exists (
             select 1 from unnest(array['capture','storage','biometric','training']::text[]) required(scope)
@@ -265,8 +265,8 @@ export async function persistCreatedVoiceProfile(db, ownerUserId, prepared, resu
        insert into vy_replica_voice_profile
          (voice_profile_id,replica_id,owner_user_id,genome_version,provider,model,provider_ref,
           capabilities,status,enrollment_commitment,provider_consent_id)
-       select $3,e.replica_id,e.owner_user_id,e.genome_version,'azure_personal_voice',$6,$7,
-              $8::jsonb,$9,$10,$5 from eligible e
+       select $3::uuid,e.replica_id,e.owner_user_id,e.genome_version,'azure_personal_voice',$6,$7,
+              $8::jsonb,$9,$10,$5::uuid from eligible e
        on conflict (replica_id,provider,enrollment_commitment) where enrollment_commitment<>''
        do update set provider_ref=excluded.provider_ref,model=excluded.model,
          capabilities=excluded.capabilities,status=excluded.status,failure_code='',
@@ -275,11 +275,11 @@ export async function persistCreatedVoiceProfile(db, ownerUserId, prepared, resu
      ), accepted as (
        update vy_replica_provider_consent pc set state='accepted',accepted_at=coalesce(accepted_at,now()),
               updated_at=now() from inserted vp where pc.provider_consent_id=vp.provider_consent_id
-         and pc.replica_id=vp.replica_id and pc.owner_user_id=$2 and pc.state in ('uploaded','accepted')
+         and pc.replica_id=vp.replica_id and pc.owner_user_id=$2::uuid and pc.state in ('uploaded','accepted')
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'voice_profile.create','voice_profile',voice_profile_id::text,$11,'allowed',
+       select $1::uuid,$2::uuid,'voice_profile.create','voice_profile',voice_profile_id::text,$11,'allowed',
               jsonb_build_object('provider','azure_personal_voice','genome_version',genome_version,'status',status)
          from inserted
      ) select * from inserted`,
@@ -298,7 +298,7 @@ export async function updateOwnedVoiceProfileStatus(db, ownerUserId, profile, st
     `with updated as (
        update vy_replica_voice_profile vp set status=$4,
               failure_code=case when $4='failed' then $5 else '' end,updated_at=now()
-        where vp.voice_profile_id=$3 and vp.replica_id=$1 and vp.owner_user_id=$2
+        where vp.voice_profile_id=$3::uuid and vp.replica_id=$1::uuid and vp.owner_user_id=$2::uuid
           and vp.status in ('creating','ready')
           and exists(select 1 from vy_replica r where r.replica_id=vp.replica_id
             and r.owner_user_id=vp.owner_user_id)
@@ -315,19 +315,19 @@ export async function markOwnedVoiceProfileDeleting(db, ownerUserId, id, profile
   const rows = await db(
     `with target as (
        update vy_replica_voice_profile vp set status='deleting',updated_at=now()
-        where vp.voice_profile_id=$3 and vp.replica_id=$1 and vp.owner_user_id=$2
+        where vp.voice_profile_id=$3::uuid and vp.replica_id=$1::uuid and vp.owner_user_id=$2::uuid
           and vp.status in ('creating','ready','failed')
        returning ${PROFILE_SELECT.replaceAll("vp.", "")}
      ), capabilities as (
        update vy_replica_runtime_capability c set state='revoked',revoked_at=coalesce(revoked_at,now())
-        from target t where c.replica_id=t.replica_id and c.owner_user_id=$2 and c.voice_profile_id=t.voice_profile_id
+        from target t where c.replica_id=t.replica_id and c.owner_user_id=$2::uuid and c.voice_profile_id=t.voice_profile_id
           and c.state='active'
      ), sessions as (
        update vy_replica_runtime_session s set state='revoked',ended_at=coalesce(ended_at,now()),updated_at=now()
-        from target t where s.replica_id=t.replica_id and s.owner_user_id=$2 and s.state='active'
+        from target t where s.replica_id=t.replica_id and s.owner_user_id=$2::uuid and s.state='active'
      ), generations as (
        update vy_replica_generation g set state='aborted',failure_code='voice_profile_deleted',updated_at=now()
-        from target t where g.replica_id=t.replica_id and g.owner_user_id=$2
+        from target t where g.replica_id=t.replica_id and g.owner_user_id=$2::uuid
           and g.voice_profile_id=t.voice_profile_id and g.state in ('authorized','streaming')
      ) select * from target`,
     [replicaId(id), ownerUserId, pid],
@@ -339,8 +339,8 @@ export async function completeOwnedVoiceProfileDeletion(db, ownerUserId, profile
   const rows = await db(
     `with target as (
        select voice_profile_id,replica_id,owner_user_id,provider_consent_id
-         from vy_replica_voice_profile where voice_profile_id=$3 and replica_id=$1
-          and owner_user_id=$2 and status='deleting' for update
+         from vy_replica_voice_profile where voice_profile_id=$3::uuid and replica_id=$1::uuid
+          and owner_user_id=$2::uuid and status='deleting' for update
      ), generations as (
        delete from vy_replica_generation g using target t
         where g.voice_profile_id=t.voice_profile_id and g.replica_id=t.replica_id
@@ -363,11 +363,11 @@ export async function completeOwnedVoiceProfileDeletion(db, ownerUserId, profile
        update vy_replica_provider_consent pc set state='revoked',
               revoked_at=coalesce(revoked_at,now()),updated_at=now()
         from removed r where pc.provider_consent_id=r.provider_consent_id
-          and pc.replica_id=r.replica_id and pc.owner_user_id=$2 and pc.state='accepted'
+          and pc.replica_id=r.replica_id and pc.owner_user_id=$2::uuid and pc.state='accepted'
      ), audit as (
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select replica_id,$2,'voice_profile.delete.complete','voice_profile',voice_profile_id::text,
+       select replica_id,$2::uuid,'voice_profile.delete.complete','voice_profile',voice_profile_id::text,
               $4,'allowed',jsonb_build_object('provider','azure_personal_voice') from removed
      ) select voice_profile_id from removed`,
     [profile.replica_id, ownerUserId, profile.voice_profile_id, REPLICA_POLICY_VERSION],

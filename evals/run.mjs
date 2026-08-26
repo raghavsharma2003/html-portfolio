@@ -726,6 +726,23 @@ const suites = {
   // deliberately not in this map, same by-construction reason the composer
   // note above gives: it needs a built app on a port.
   assetwire: "assetwire/run.mjs",
+  // WS-M. The SQL parameter-type gate for the replica/gurukul API.
+  //
+  // Wired here rather than left standalone for the reason that matters most in
+  // this particular case: it is the ONLY gate in the repo that can see the bug
+  // class it covers. Every other suite mocks the database, and a mock resolves
+  // no operators, so `operator does not exist: uuid = text` is invisible to all
+  // of them — the studio's first live "create replica" click was the test.
+  //
+  // Reads the checked-in DDL (db/schema.sql + db/migrations/*.sql) into a
+  // column→type map, then reads every SQL template literal under api/ the way
+  // Postgres will. Carries seven negative controls and six positive ones, plus
+  // floors on the parsed table/column counts — because the failure mode of a
+  // static gate is parsing nothing and passing everything.
+  //
+  // Offline, deterministic, $0, ~1s. No database, by design: a gate that needs
+  // credentials is a gate CI skips.
+  sqlcast: "sqlcast.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
