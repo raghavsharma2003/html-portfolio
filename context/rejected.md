@@ -2316,3 +2316,28 @@ failure are the EASY units — an INVALID-RUN agreement number is not a
 lower bound or a hint, it is upward-biased by the bench's difficulty
 gradient, and must never be quoted as evidence. Slot-A 46.0% (best on the
 bench — no position bias; accuracy, not bias, is what failed).
+
+## `offline-mocks-cannot-type-check-sql` — every SQL type error survived 5,000 green checks (2026-08-26)
+
+**Tried:** shipping the replica/gurukul API with its entire DB surface verified
+only by offline evals that mock `api/_db.js` at the module boundary.
+
+**What broke, twice, on the first contact with a real Postgres:**
+1. Migration 046's FK referenced `(generation_id,replica_id,owner_user_id)`
+   on `vy_replica_generation`, a tuple no migration ever made unique (029's
+   index carries a 4th column, which an FK cannot target). Every offline
+   migration suite passed: they check statement SHAPE and idempotence, never
+   referential targets.
+2. The studio's first live "create replica" click 500'd — `operator does not
+   exist: uuid = text` (42883), then `column auth_user_id is of type uuid but
+   expression is of type text` (42804). Bound params arrive as TEXT over
+   Neon's HTTP endpoint; comparisons and INSERT-SELECTs against `uuid`
+   columns need explicit `::uuid`. A mock returns fixture rows for any string
+   and cannot fail on operator resolution, so 5,161 green checks said nothing.
+
+**The law:** a mocked database proves control flow, never types or
+referential integrity. Any lane whose first live use is a user click must be
+smoke-tested against the real database before it is called done —
+`verify-release --live`, or a scripted call of the real exported functions
+with `NEON_URL` set. Fixed: casts in `api/_replica.js` (WS-M sweeps the rest),
+and `evals/sqlcast.mjs` makes the class statically unrepresentable.

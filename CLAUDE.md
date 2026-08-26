@@ -20,6 +20,7 @@ knowledge here is **what was already tried and did not work**.
 
 | file | what it holds |
 |---|---|
+| `context/STATE.md` | **READ FIRST** — one page: what the product is, what is LIVE vs not, open owner items, and the laws not to relearn |
 | `context/graph.json` | the index: nodes + edges, machine-readable |
 | `context/decisions.md` | what was decided, why, and what would reverse it |
 | `context/measurements.md` | every measured number, with n and method |

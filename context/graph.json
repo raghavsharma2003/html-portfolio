@@ -1934,6 +1934,12 @@
       "kind": "decision",
       "title": "migrations 015-054 live on Neon; 046 latent FK-arbiter defect found and fixed",
       "at": "2026-08-26"
+    },
+    {
+      "id": "offline-mocks-cannot-type-check-sql",
+      "kind": "rejection",
+      "title": "mocked DB proved control flow but no SQL types; two live-only defects (046 FK, uuid=text)",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3541,6 +3547,16 @@
       "src": "gurukul-ws45-landed",
       "rel": "part_of",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "first-live-apply",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "offline-mocks-cannot-type-check-sql",
+      "rel": "caused_by",
+      "dst": "first-live-apply"
     },
     {
       "src": "first-live-apply",
