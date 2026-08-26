@@ -25,7 +25,7 @@ export function createReplicaProvenanceHandler({ db }) {
              on r.generation_id=m.generation_id
             and r.manifest_sha256=m.manifest_sha256
             and r.provenance_standard=m.standard
-          where m.generation_id=$1`,
+          where m.generation_id=$1::uuid`,
         [generationId],
       );
       if (!rows[0]) return res.status(404).json({ error: "provenance_not_found" });
@@ -49,7 +49,7 @@ export function createReplicaProvenanceHandler({ db }) {
          from vy_replica_generation_receipt r
          join vy_replica_generation_receipt_envelope e
            on e.generation_id=r.generation_id and e.envelope_sha256=r.envelope_sha256
-        where r.generation_id=$1`,
+        where r.generation_id=$1::uuid`,
       [generationId],
     );
     if (!rows[0]) return res.status(404).json({ error: "provenance_not_found" });

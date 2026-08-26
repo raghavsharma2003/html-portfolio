@@ -102,7 +102,7 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
   const rows = await db(
     `with owned as (
        select r.replica_id, r.policy_version from vy_replica r
-        where r.replica_id = $1 and r.owner_user_id = $2
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
           and r.subject_mode = 'self' and r.policy_version = $6
           and r.lifecycle not in ('revoked','purging')
           and not exists (
@@ -129,15 +129,15 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
           )
      ), attempts as (
        select count(*)::integer as n from vy_replica_liveness_challenge
-        where replica_id = $1 and owner_user_id = $2 and issued_at > now() - interval '24 hours'
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and issued_at > now() - interval '24 hours'
      ), identity as (
        select c.identity_case_id from vy_replica_identity_case c join owned o on o.replica_id=c.replica_id
-        where c.owner_user_id=$2 and c.state='evidence_ready' and c.adult_evidence=true
+        where c.owner_user_id=$2::uuid and c.state='evidence_ready' and c.adult_evidence=true
           and c.document_authentic=true and c.document_current=true and c.face_reference_ready=true
           and c.credential_expires_at>now() order by c.verified_at desc limit 1
      ), expired as (
        update vy_replica_liveness_challenge set state = 'expired', updated_at = now()
-        where replica_id = $1 and owner_user_id = $2
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
           and state = 'issued' and exists (select 1 from owned)
         returning challenge_id,source_id
      ), expired_grants as (
@@ -147,13 +147,13 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
      ), expired_sources as (
        update vy_replica_source s set state='deleting',updated_at=now()
         from expired e where e.source_id is not null and s.source_id=e.source_id
-          and s.replica_id=$1 and s.owner_user_id=$2 and s.state in ('pending_upload','quarantined','rejected')
+          and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.state in ('pending_upload','quarantined','rejected')
        returning s.source_id
      ), issued as (
        insert into vy_replica_liveness_challenge
          (challenge_id, replica_id, owner_user_id, phrase, phrase_hash,
           policy_version, identity_case_id, attempt, expires_at)
-       select $3, owned.replica_id, $2, $4, $5, owned.policy_version,identity.identity_case_id,
+       select $3::uuid, owned.replica_id, $2::uuid, $4, $5, owned.policy_version,identity.identity_case_id,
               attempts.n + 1, now() + interval '10 minutes'
          from owned cross join attempts cross join identity
          cross join (select count(*) from expired) cleared
@@ -165,12 +165,12 @@ export async function issueOwnedChallenge(db, ownerUserId, id, options = {}) {
      ), biometric_grant as (
        insert into vy_replica_biometric_verification_grant
          (challenge_id,replica_id,owner_user_id,statement_set,receipt_hash,receipt_payload,granted_at,expires_at)
-       select challenge_id,replica_id,$2,$9,$7,$10::jsonb,$8::timestamptz,expires_at from issued
+       select challenge_id,replica_id,$2::uuid,$9,$7,$10::jsonb,$8::timestamptz,expires_at from issued
        returning challenge_id
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'liveness.challenge.issue', 'liveness_challenge',
+       select $1::uuid, $2::uuid, 'liveness.challenge.issue', 'liveness_challenge',
               challenge_id::text, $6, 'allowed', jsonb_build_object('attempt', attempt)
          from issued
      )
@@ -190,7 +190,7 @@ export async function latestOwnedChallenge(db, ownerUserId, id) {
                 when face_session_state in ('ready','polling') then 'expired_deleting'
                 else face_session_state end,
               updated_at=now()
-        where replica_id=$1 and owner_user_id=$2 and state='issued' and expires_at<=now()
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and state='issued' and expires_at<=now()
         returning challenge_id,source_id,face_session_state
      ), grants as (
        update vy_replica_biometric_verification_grant g set state='expired'
@@ -198,14 +198,14 @@ export async function latestOwnedChallenge(db, ownerUserId, id) {
      ), sources as (
        update vy_replica_source s set state='deleting',updated_at=now()
         from expired e where e.source_id is not null and s.source_id=e.source_id
-          and s.replica_id=$1 and s.owner_user_id=$2 and s.state in ('pending_upload','quarantined','rejected')
+          and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.state in ('pending_upload','quarantined','rejected')
      ) select challenge_id from expired`,
     [replicaId(id), ownerUserId],
   );
   void rows;
   const current = await db(
     `select ${CHALLENGE_RETURNING} from vy_replica_liveness_challenge
-      where replica_id = $1 and owner_user_id = $2 order by issued_at desc limit 1`,
+      where replica_id = $1::uuid and owner_user_id = $2::uuid order by issued_at desc limit 1`,
     [replicaId(id), ownerUserId],
   );
   return clientChallenge(current[0]);
@@ -282,23 +282,23 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
        select ch.challenge_id, ch.replica_id, r.policy_version
          from vy_replica_liveness_challenge ch
          join vy_replica r on r.replica_id = ch.replica_id and r.owner_user_id = ch.owner_user_id
-        where ch.challenge_id = $3 and ch.replica_id = $1 and ch.owner_user_id = $2
+        where ch.challenge_id = $3::uuid and ch.replica_id = $1::uuid and ch.owner_user_id = $2::uuid
           and ch.state = 'issued' and ch.expires_at > now() and ch.source_id is null
           and r.subject_mode = 'self' and r.lifecycle not in ('revoked','purging')
      ), capture as (
        select c.consent_id from vy_replica_consent c join challenge ch on ch.replica_id = c.replica_id
-        where c.owner_user_id = $2 and c.scope = 'capture'
+        where c.owner_user_id = $2::uuid and c.scope = 'capture'
           and c.policy_version = ch.policy_version and c.revoked_at is null
           and (c.expires_at is null or c.expires_at > now())
         order by c.granted_at desc limit 1
      ), storage_ok as (
        select 1 from vy_replica_consent c join challenge ch on ch.replica_id = c.replica_id
-        where c.owner_user_id = $2 and c.scope = 'storage'
+        where c.owner_user_id = $2::uuid and c.scope = 'storage'
           and c.policy_version = ch.policy_version and c.revoked_at is null
           and (c.expires_at is null or c.expires_at > now()) limit 1
      ), biometric_ok as (
        select 1 from vy_replica_biometric_verification_grant g join challenge ch on ch.challenge_id=g.challenge_id
-        where g.replica_id=ch.replica_id and g.owner_user_id=$2 and g.state='active' and g.expires_at>now()
+        where g.replica_id=ch.replica_id and g.owner_user_id=$2::uuid and g.state='active' and g.expires_at>now()
           and exists (
             select 1 from vy_replica_liveness_challenge live
              where live.challenge_id=ch.challenge_id and live.face_session_state='passed_deleted'
@@ -310,17 +310,17 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
           contains_third_parties, provenance)
-       select $4, challenge.replica_id, $2, capture.consent_id, $5, 'live_challenge',
-              $6, $7, $8, $9, $10, false, $11::jsonb
+       select $4::uuid, challenge.replica_id, $2::uuid, capture.consent_id, $5, 'live_challenge',
+              $6, $7, $8, $9::int8, $10, false, $11::jsonb
          from challenge cross join capture cross join storage_ok cross join biometric_ok
        returning ${LIVE_SOURCE_RETURNING}
      ), attached as (
        update vy_replica_liveness_challenge ch set source_id = inserted.source_id, updated_at = now()
-         from inserted where ch.challenge_id = $3
+         from inserted where ch.challenge_id = $3::uuid
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'liveness.challenge.upload.create', 'source', source_id::text,
+       select $1::uuid, $2::uuid, 'liveness.challenge.upload.create', 'source', source_id::text,
               (select policy_version from challenge), 'allowed',
               jsonb_build_object('kind', kind, 'byte_size', byte_size) from inserted
      )
@@ -335,13 +335,13 @@ export async function markChallengeUploaded(db, ownerUserId, id, challenge, sour
   const rows = await db(
     `with uploaded as (
        update vy_replica_liveness_challenge set state = 'uploaded', updated_at = now()
-        where challenge_id = $3 and replica_id = $1 and owner_user_id = $2
-          and source_id = $4 and state = 'issued' and expires_at > now()
+        where challenge_id = $3::uuid and replica_id = $1::uuid and owner_user_id = $2::uuid
+          and source_id = $4::uuid and state = 'issued' and expires_at > now()
        returning ${CHALLENGE_RETURNING}
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'liveness.challenge.upload.finalize', 'liveness_challenge',
+       select $1::uuid, $2::uuid, 'liveness.challenge.upload.finalize', 'liveness_challenge',
               challenge_id::text, $5, 'allowed', '{}'::jsonb from uploaded
      )
      select * from uploaded`,
@@ -418,7 +418,7 @@ export async function finalizeChallengeSource(
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'liveness.challenge.upload.finalize', 'liveness_challenge',
+       select $1::uuid, $2::uuid, 'liveness.challenge.upload.finalize', 'liveness_challenge',
               challenge_id::text, $9,
               case when $8 = 'uploaded' then 'allowed' else 'denied' end,
               jsonb_build_object('reason_code', $6)

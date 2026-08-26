@@ -197,11 +197,11 @@ async function ownedTrialContext(db, ownerUserId, rid, genomeVersion) {
      )
      select r.replica_id,r.owner_user_id,vg.version genome_version,a.artifact_id
        from vy_replica r
-       join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3 and vg.status='draft'
+       join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3::int4 and vg.status='draft'
        join vy_replica_processing_artifact a on a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
        join latest_selection d on d.artifact_id=a.artifact_id and d.decision='selected'
        join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
-      where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
         and r.lifecycle in ('enrolling','calibrating','ready','active','paused') and r.policy_version=$4
         and r.age_verified_at is not null and r.identity_verified_at is not null
         and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -239,7 +239,7 @@ export async function loadOwnedVoiceCurriculumContext(db, ownerUserId, input) {
        join vy_replica_voice_trial t on t.trial_id=p.trial_id and t.replica_id=p.replica_id and t.owner_user_id=p.owner_user_id
        join vy_replica_generation l on l.generation_id=p.left_generation_id and l.replica_id=p.replica_id and l.owner_user_id=p.owner_user_id
        join vy_replica_generation r on r.generation_id=p.right_generation_id and r.replica_id=p.replica_id and r.owner_user_id=p.owner_user_id
-      where p.replica_id=$1 and p.owner_user_id=$2 and p.genome_version=$3 and p.preview_artifact_id=$4
+      where p.replica_id=$1::uuid and p.owner_user_id=$2::uuid and p.genome_version=$3::int4 and p.preview_artifact_id=$4::uuid
         and l.preview_language_id=$5 and r.preview_language_id=$5
         and l.preview_model_commitment=$6 and r.preview_model_commitment=$6
         and t.algorithm=$7 and t.prompt_deck_version=$8
@@ -281,11 +281,11 @@ export async function issueOwnedVoiceTrial(db, ownerUserId, input) {
      insert into vy_replica_voice_trial
        (trial_id,replica_id,owner_user_id,genome_version,preview_artifact_id,language_id,prompt_key,prompt_deck_version,text_hash,
         preview_seed,model_commitment,left_style_key,right_style_key,pair_hash,algorithm,state,expires_at)
-     select $5,r.replica_id,r.owner_user_id,$3,$4,$6,$15,$16,$7,$8,$9,$10,$11,$12,$13,'issued',now()+interval '30 minutes'
-       from vy_replica r join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3 and vg.status='draft'
-       join vy_replica_processing_artifact a on a.artifact_id=$4 and a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
+     select $5::uuid,r.replica_id,r.owner_user_id,$3::int4,$4::uuid,$6,$15,$16,$7,$8::int4,$9,$10,$11,$12,$13,'issued',now()+interval '30 minutes'
+       from vy_replica r join vy_replica_voice_genome vg on vg.replica_id=r.replica_id and vg.version=$3::int4 and vg.status='draft'
+       join vy_replica_processing_artifact a on a.artifact_id=$4::uuid and a.replica_id=r.replica_id and a.owner_user_id=r.owner_user_id
        join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
-      where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self' and r.policy_version=$14
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self' and r.policy_version=$14
         and r.lifecycle in ('enrolling','calibrating','ready','active','paused')
         and r.identity_expires_at>now() and a.stage='enhance' and s.state='ready' and s.contains_third_parties=false
         and (vg.definition#>'{references,enrollment_artifact_ids}') ? a.artifact_id::text
@@ -343,7 +343,7 @@ export async function resolveOwnedVoiceTrialSide(db, ownerUserId, input) {
   const rows = await db(
     `select trial_id,preview_seed,case when $7='left' then left_style_key else right_style_key end style_key
        from vy_replica_voice_trial
-      where trial_id=$1 and replica_id=$2 and owner_user_id=$3 and genome_version=$4
+      where trial_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and genome_version=$4::int4
         and language_id=$5 and text_hash=$6 and state='issued' and expires_at>now()
         and model_commitment=$8`,
     [trialId, rid, ownerUserId, genomeVersion, languageId, textHash, side, OPEN_CHATTERBOX_MODEL_COMMITMENT],

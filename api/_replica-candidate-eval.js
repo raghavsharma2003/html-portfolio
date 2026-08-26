@@ -230,13 +230,13 @@ export async function persistCandidateEvaluationPackage(db, ownerUserId, pack) {
        select c.candidate_id,c.dataset_id,c.replica_id,c.owner_user_id
          from vy_replica_candidate c join vy_replica_feedback_dataset d
            on d.dataset_id=c.dataset_id and d.replica_id=c.replica_id and d.owner_user_id=c.owner_user_id
-        where c.candidate_id=$2 and c.dataset_id=$3 and c.replica_id=$4 and c.owner_user_id=$1
+        where c.candidate_id=$2::uuid and c.dataset_id=$3::uuid and c.replica_id=$4::uuid and c.owner_user_id=$1::uuid
           and c.status in ('draft','evaluating') and d.status='draft' and d.source_set_hash=$7
      ), inserted_run as (
        insert into vy_replica_candidate_eval_run
          (eval_run_id,candidate_id,dataset_id,replica_id,owner_user_id,protocol_version,run_commitment,
           dataset_source_set_hash,required_dimensions,assignment_count,state)
-       select $5,e.candidate_id,e.dataset_id,e.replica_id,e.owner_user_id,$6,$8,$7,$9::text[],$10,'collecting'
+       select $5::uuid,e.candidate_id,e.dataset_id,e.replica_id,e.owner_user_id,$6,$8,$7,$9::text[],$10::int4,'collecting'
          from eligible e
        on conflict (candidate_id,run_commitment) do nothing returning *
      ), active_run as (
@@ -418,7 +418,7 @@ export async function recordOwnedCandidateJudgment(db, ownerUserId, input) {
        join vy_replica_candidate_eval_run r
          on r.eval_run_id=a.eval_run_id and r.candidate_id=a.candidate_id
         and r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
-      where a.assignment_id=$1 and a.replica_id=$2 and a.owner_user_id=$3
+      where a.assignment_id=$1::uuid and a.replica_id=$2::uuid and a.owner_user_id=$3::uuid
         and a.assignment_hash=$4 and a.state in ('pending','submitted') and r.state='collecting' limit 1`,
     [assignmentId, rid, ownerUserId, assignmentHash],
   );
@@ -437,7 +437,7 @@ export async function recordOwnedCandidateJudgment(db, ownerUserId, input) {
          join vy_replica_candidate_eval_run r
            on r.eval_run_id=a.eval_run_id and r.candidate_id=a.candidate_id
           and r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
-        where a.assignment_id=$1 and a.replica_id=$2 and a.owner_user_id=$3
+        where a.assignment_id=$1::uuid and a.replica_id=$2::uuid and a.owner_user_id=$3::uuid
           and a.assignment_hash=$4 and a.state in ('pending','submitted') and r.state='collecting'
      ), wanted as (
        select * from jsonb_to_recordset($5::jsonb) as x(judgment_id uuid,dimension text,position_winner text)
@@ -500,7 +500,7 @@ export async function loadCandidateOwnerObservations(db, ownerUserId, runId) {
        join vy_replica_candidate_eval_judgment j
          on j.assignment_id=a.assignment_id and j.eval_run_id=a.eval_run_id and j.candidate_id=a.candidate_id
         and j.replica_id=a.replica_id and j.owner_user_id=a.owner_user_id and j.assignment_hash=a.assignment_hash
-      where r.eval_run_id=$1 and r.owner_user_id=$2 and r.state='complete' and a.state='submitted'
+      where r.eval_run_id=$1::uuid and r.owner_user_id=$2::uuid and r.state='complete' and a.state='submitted'
       order by a.sequence,j.dimension`,
     [id, ownerUserId],
   );

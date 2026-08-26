@@ -164,7 +164,7 @@ const FEEDBACK_ROWS_SQL = `with active as (
   select r.replica_id,r.owner_user_id,c.profile_version,c.calibration_version
     from vy_replica r join vy_replica_runtime_capability c
       on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state='active'
-   where r.replica_id=$1 and r.owner_user_id=$2 and r.lifecycle='active' and r.subject_mode='self'
+   where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle='active' and r.subject_mode='self'
      and r.policy_version=$3 limit 1
 ), latest as (
   select distinct on (f.turn_id) f.* from vy_replica_turn_feedback f join active a
@@ -179,10 +179,10 @@ export async function buildOwnedFeedbackDataset(db, ownerUserId, rawReplicaId) {
   const rid = replicaId(rawReplicaId);
   const [rows, assignments, active] = await Promise.all([
     db(FEEDBACK_ROWS_SQL, [rid, ownerUserId, REPLICA_POLICY_VERSION]),
-    db(`select session_commitment,split from vy_replica_feedback_split where replica_id=$1 and owner_user_id=$2`, [rid, ownerUserId]),
+    db(`select session_commitment,split from vy_replica_feedback_split where replica_id=$1::uuid and owner_user_id=$2::uuid`, [rid, ownerUserId]),
     db(`select c.profile_version,c.calibration_version from vy_replica_runtime_capability c
          join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=c.owner_user_id
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.state='active' and r.lifecycle='active'
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.state='active' and r.lifecycle='active'
           and r.subject_mode='self' and r.policy_version=$3 limit 1`, [rid, ownerUserId, REPLICA_POLICY_VERSION]),
   ]);
   if (!active[0]) fail("feedback_dataset_runtime_not_active");
@@ -195,7 +195,7 @@ export async function buildOwnedFeedbackDataset(db, ownerUserId, rawReplicaId) {
          from vy_replica r join vy_replica_runtime_capability c
            on c.replica_id=r.replica_id and c.owner_user_id=r.owner_user_id and c.state='active'
         where r.replica_id=$1 and r.owner_user_id=$2 and r.lifecycle='active' and r.subject_mode='self'
-          and r.policy_version=$11 and c.profile_version=$4 and c.calibration_version=$5
+          and r.policy_version=$11 and c.profile_version=$4::int4 and c.calibration_version=$5::int4
         for update of r
      ), latest as (
        select distinct on (f.turn_id) f.feedback_id,f.revision from vy_replica_turn_feedback f join authorized a
@@ -213,7 +213,7 @@ export async function buildOwnedFeedbackDataset(db, ownerUserId, rawReplicaId) {
      ), compatible as (
        select 1 where not exists(
          select 1 from split_rows s join vy_replica_feedback_split x
-           on x.replica_id=$1 and x.owner_user_id=$2 and x.session_commitment=s.session_commitment
+           on x.replica_id=$1::uuid and x.owner_user_id=$2::uuid and x.session_commitment=s.session_commitment
           where x.split<>s.split
        )
      ), numbered as (
@@ -223,7 +223,7 @@ export async function buildOwnedFeedbackDataset(db, ownerUserId, rawReplicaId) {
        insert into vy_replica_feedback_dataset
          (dataset_id,replica_id,owner_user_id,version,profile_version,calibration_version,schema_version,
           source_set_hash,definition,readiness,status)
-       select $3,a.replica_id,a.owner_user_id,n.version,a.profile_version,a.calibration_version,$6,$7,$8::jsonb,$10::jsonb,'draft'
+       select $3::uuid,a.replica_id,a.owner_user_id,n.version,a.profile_version,a.calibration_version,$6,$7,$8::jsonb,$10::jsonb,'draft'
          from authorized a,numbered n,unchanged,compatible
        on conflict (replica_id,owner_user_id,profile_version,calibration_version,source_set_hash)
        do update set source_set_hash=excluded.source_set_hash

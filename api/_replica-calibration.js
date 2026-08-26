@@ -250,21 +250,21 @@ const PREFERENCES_SQL = `select p.preference_id,p.scenario_id,p.scenario_revisio
   p.pair_hash,p.revision,p.profile_version,p.created_at
 from vy_replica_preference p
 join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=p.owner_user_id
-where p.replica_id=$1 and p.owner_user_id=$2 and p.pair_hash is not null
+where p.replica_id=$1::uuid and p.owner_user_id=$2::uuid and p.pair_hash is not null
 order by p.pair_hash,p.revision desc,p.created_at desc`;
 
 async function calibrationState(db, ownerUserId, id) {
   const rid = replicaId(id);
   const [owned, profiles, rows, calibrations] = await Promise.all([
-    db(`select replica_id from vy_replica where replica_id=$1 and owner_user_id=$2
+    db(`select replica_id from vy_replica where replica_id=$1::uuid and owner_user_id=$2::uuid
          and subject_mode='self' and policy_version=$3 limit 1`, [rid, ownerUserId, REPLICA_POLICY_VERSION]),
     db(`select p.version from vy_replica_profile p
-         join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2
-        where p.replica_id=$1 and p.status='approved' order by p.version desc limit 1`, [rid, ownerUserId]),
+         join vy_replica r on r.replica_id=p.replica_id and r.owner_user_id=$2::uuid
+        where p.replica_id=$1::uuid and p.status='approved' order by p.version desc limit 1`, [rid, ownerUserId]),
     db(PREFERENCES_SQL, [rid, ownerUserId]),
     db(`select c.version,c.profile_version,c.status,c.created_at from vy_replica_calibration c
-         join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2
-        where c.replica_id=$1 and c.owner_user_id=$2 order by c.version desc limit 20`, [rid, ownerUserId]),
+         join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2::uuid
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid order by c.version desc limit 20`, [rid, ownerUserId]),
   ]);
   if (!owned[0]) return null;
   return { rid, profileVersion: number(profiles[0]?.version) || null, preferences: currentPreferences(rows), calibrations };
@@ -301,7 +301,7 @@ export async function recordOwnedPreference(db, ownerUserId, input) {
            select version from vy_replica_profile x where x.replica_id=r.replica_id and x.status='approved'
             order by version desc limit 1
          ) p on true
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.policy_version=$13 and r.lifecycle not in ('revoked','purging')
      ), previous as (
        select p.preference_id,p.revision from vy_replica_preference p join owned o
@@ -311,8 +311,8 @@ export async function recordOwnedPreference(db, ownerUserId, input) {
        insert into vy_replica_preference
          (replica_id,owner_user_id,profile_version,layer,scenario_id,scenario_revision,
           left_ref,right_ref,pair_hash,revision,supersedes_id,choice,confidence,note,policy_version)
-       select o.replica_id,o.owner_user_id,o.profile_version,$4,$5,$6,$7::jsonb,$8::jsonb,$3,
-              coalesce((select revision+1 from previous),1),(select preference_id from previous),$9,$10,$11,$12
+       select o.replica_id,o.owner_user_id,o.profile_version,$4,$5,$6::int4,$7::jsonb,$8::jsonb,$3,
+              coalesce((select revision+1 from previous),1),(select preference_id from previous),$9,$10::numeric,$11,$12
          from owned o
        returning preference_id,scenario_id,scenario_revision,layer,choice,confidence,pair_hash,revision,profile_version,created_at
      ) select * from inserted`,
@@ -331,15 +331,15 @@ export async function buildOwnedCalibration(db, ownerUserId, id) {
   const rows = await db(
     `with owned as (
        select r.replica_id,r.owner_user_id,pg_advisory_xact_lock(hashtextextended(r.replica_id::text||':calibration_build',0))
-         from vy_replica r where r.replica_id=$1 and r.owner_user_id=$2 and r.lifecycle not in ('revoked','purging')
+         from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle not in ('revoked','purging')
      ), candidate as (
        select o.replica_id,o.owner_user_id,coalesce(
-         (select version from vy_replica_calibration where replica_id=$1 and owner_user_id=$2 and profile_version=$3 and source_set_hash=$4 limit 1),
-         (select coalesce(max(version)+1,1) from vy_replica_calibration where replica_id=$1)
+         (select version from vy_replica_calibration where replica_id=$1::uuid and owner_user_id=$2::uuid and profile_version=$3::int4 and source_set_hash=$4 limit 1),
+         (select coalesce(max(version)+1,1) from vy_replica_calibration where replica_id=$1::uuid)
        ) as version from owned o
      )
      insert into vy_replica_calibration(replica_id,owner_user_id,version,profile_version,source_set_hash,definition,status)
-     select replica_id,owner_user_id,version,$3,$4,$5::jsonb,'draft' from candidate
+     select replica_id,owner_user_id,version,$3::int4,$4,$5::jsonb,'draft' from candidate
      on conflict (replica_id,owner_user_id,profile_version,source_set_hash)
        do update set source_set_hash=excluded.source_set_hash
      returning replica_id,version,profile_version,status,created_at`,
@@ -359,8 +359,8 @@ export async function approveOwnedCalibration(db, ownerUserId, input) {
   const rows = await db(
     `with owned as (
        select c.replica_id,c.version from vy_replica_calibration c
-       join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2
-       where c.replica_id=$1 and c.owner_user_id=$2 and c.version=$3 and c.profile_version=$4
+       join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2::uuid
+       where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.version=$3::int4 and c.profile_version=$4::int4
          and c.source_set_hash=$5 and c.status='draft' for update
      ), retired as (
        update vy_replica_calibration c set status='retired' from owned o

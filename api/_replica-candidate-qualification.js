@@ -175,12 +175,12 @@ export async function registerOwnedCandidate(db, ownerUserId, input) {
     `insert into vy_replica_candidate
        (candidate_id,dataset_id,replica_id,owner_user_id,base_capability_id,profile_version,calibration_version,
         kind,target_layers,artifact_sha256,base_model_commitment,build_manifest_hash,status)
-     select $3,d.dataset_id,d.replica_id,d.owner_user_id,c.capability_id,d.profile_version,d.calibration_version,
+     select $3::uuid,d.dataset_id,d.replica_id,d.owner_user_id,c.capability_id,d.profile_version,d.calibration_version,
             $6,$7::text[],$8,$9,$10,'draft'
        from vy_replica_feedback_dataset d join vy_replica_runtime_capability c
          on c.replica_id=d.replica_id and c.owner_user_id=d.owner_user_id and c.profile_version=d.profile_version
-        and c.calibration_version=d.calibration_version and c.capability_id=$5
-      where d.dataset_id=$4 and d.replica_id=$1 and d.owner_user_id=$2 and d.status='draft'
+        and c.calibration_version=d.calibration_version and c.capability_id=$5::uuid
+      where d.dataset_id=$4::uuid and d.replica_id=$1::uuid and d.owner_user_id=$2::uuid and d.status='draft'
         and coalesce((d.readiness->>'ready_for_candidate_dataset')::boolean,false)=true
         and c.state in ('active','superseded')
      on conflict (replica_id,dataset_id,artifact_sha256) do update set artifact_sha256=excluded.artifact_sha256
@@ -210,10 +210,10 @@ export async function recordOwnedCandidateQualification(db, ownerUserId, candida
        insert into vy_replica_candidate_qualification
          (qualification_id,candidate_id,replica_id,owner_user_id,protocol_version,test_set_hash,
           observation_hash,observation_count,metrics,verdict)
-       select $3,c.candidate_id,c.replica_id,c.owner_user_id,$4,$5,$6,$7,$8::jsonb,$9
+       select $3::uuid,c.candidate_id,c.replica_id,c.owner_user_id,$4,$5,$6,$7::int4,$8::jsonb,$9
          from vy_replica_candidate c join vy_replica_feedback_dataset d
            on d.dataset_id=c.dataset_id and d.replica_id=c.replica_id and d.owner_user_id=c.owner_user_id
-        where c.candidate_id=$1 and c.owner_user_id=$2 and c.status in ('draft','evaluating')
+        where c.candidate_id=$1::uuid and c.owner_user_id=$2::uuid and c.status in ('draft','evaluating')
           and d.status='draft' and d.source_set_hash=$10
        on conflict (candidate_id,protocol_version,test_set_hash,observation_hash)
        do update set observation_hash=excluded.observation_hash

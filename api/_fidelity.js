@@ -255,7 +255,7 @@ export function fidelityVerdict(score, policy = DEFAULT_FIDELITY_POLICY) {
 const FIDELITY_INSERT_SQL = `with superseded as (
   update vy_voice_fidelity f
      set superseded_at=now()
-   where f.replica_id=$1 and f.owner_user_id=$2 and f.voice_profile_ref=$3
+   where f.replica_id=$1::uuid and f.owner_user_id=$2::uuid and f.voice_profile_ref=$3::uuid
      and f.superseded_at is null
      and (f.voice_model_ref is distinct from $4 or f.policy_version is distinct from $7
           or f.genome_version is distinct from $5)
@@ -263,12 +263,12 @@ const FIDELITY_INSERT_SQL = `with superseded as (
 )
 insert into vy_voice_fidelity
   (replica_id,owner_user_id,voice_profile_ref,voice_model_ref,genome_version,score,policy_version,status)
-select $1,$2,$3,$4,$5,$6::jsonb,$7,$8
+select $1::uuid,$2::uuid,$3::uuid,$4,$5::int4,$6::jsonb,$7,$8
  where not exists (
    select 1 from vy_voice_fidelity f
-    where f.replica_id=$1 and f.owner_user_id=$2 and f.voice_profile_ref=$3
+    where f.replica_id=$1::uuid and f.owner_user_id=$2::uuid and f.voice_profile_ref=$3::uuid
       and f.superseded_at is null and f.voice_model_ref=$4
-      and f.genome_version=$5 and f.policy_version=$7
+      and f.genome_version=$5::int4 and f.policy_version=$7
  )
 returning fidelity_id,replica_id,voice_profile_ref,voice_model_ref,genome_version,score,policy_version,status,computed_at`;
 
@@ -303,7 +303,7 @@ export async function recordOwnedFidelity(db, ownerUserId, input) {
 export async function supersedeStandingFidelity(db, ownerUserId, replicaId, voiceProfileId) {
   const rows = await db(
     `update vy_voice_fidelity set superseded_at=now()
-      where replica_id=$1 and owner_user_id=$2 and voice_profile_ref=$3 and superseded_at is null
+      where replica_id=$1::uuid and owner_user_id=$2::uuid and voice_profile_ref=$3::uuid and superseded_at is null
       returning fidelity_id`,
     [replicaId, ownerUserId, voiceProfileId],
   );

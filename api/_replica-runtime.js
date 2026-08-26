@@ -193,7 +193,7 @@ left join lateral (
      order by e.suite,e.created_at desc
   ) latest
 ) q on true
-where r.replica_id=$1 and r.owner_user_id=$2 and r.policy_version=$3
+where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.policy_version=$3
 limit 1`;
 
 export async function ownedRuntimeStatus(db, ownerUserId, id) {
@@ -208,7 +208,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
   const rows = await db(
     `with locked as (
        select r.* from vy_replica r
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.policy_version=$3
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.policy_version=$3
         for update
      ), selected as (
        select r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id,r.display_name,
@@ -279,7 +279,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
           and count(distinct latest.suite)=$5
      ), existing_capability as (
        select c.* from vy_replica_runtime_capability c join locked r on r.replica_id=c.replica_id
-        where c.owner_user_id=$2 and c.state='active'
+        where c.owner_user_id=$2::uuid and c.state='active'
      ), created_agent as (
        insert into vy_agent (agent_id,slug,display_name,persona_version,register,status)
        select gen_random_uuid(),'replica-'||replace(s.replica_id::text,'-',''),s.display_name,
@@ -295,7 +295,7 @@ export async function activateOwnedRuntime(db, ownerUserId, id) {
        update vy_replica r
           set agent_id=x.resolved_agent_id,lifecycle='active',activated_at=coalesce(activated_at,now()),updated_at=now()
          from resolved x
-        where r.replica_id=x.replica_id and r.owner_user_id=$2
+        where r.replica_id=x.replica_id and r.owner_user_id=$2::uuid
           and x.resolved_agent_id is not null and not exists(select 1 from existing_capability)
        returning r.replica_id,r.owner_user_id,r.subject_person_id,r.agent_id
      ), created_capability as (
@@ -369,7 +369,7 @@ export async function loadOwnedRuntimeContext(db, ownerUserId, id) {
             and (x.expires_at is null or x.expires_at>now())
           order by x.granted_at desc limit 1
        ) consent on true
-      where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
         and r.lifecycle='active' and r.policy_version=$3
         and r.age_verified_at is not null and r.identity_verified_at is not null
         and r.liveness_verified_at is not null and r.identity_expires_at>now()
@@ -450,7 +450,7 @@ export async function openOwnedRuntimeSession(db, ownerUserId, input) {
        join vy_replica_calibration cal
          on cal.replica_id=c.replica_id and cal.owner_user_id=c.owner_user_id
         and cal.version=c.calibration_version and cal.profile_version=c.profile_version and cal.status='approved'
-      where r.replica_id=$1 and r.owner_user_id=$2 and r.lifecycle='active'
+      where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle='active'
         and exists(select 1 from vy_replica_consent x
           where x.replica_id=r.replica_id and x.owner_user_id=r.owner_user_id
             and x.scope='inference' and x.policy_version=$5 and x.revoked_at is null
@@ -569,14 +569,14 @@ export async function loadPrivateRelationshipSnapshot(db, runtime, options = {})
   const queries = [
     db(`select honorific,cs_ratio,cs_on_stress,trust,rupture_open,repair_state,
                ritual_density,pacing_gap_s,updated_at
-          from vy_rel_state where agent_id=$1 and person_id=$2 limit 1`, [agentId, personId]),
+          from vy_rel_state where agent_id=$1::uuid and person_id=$2::uuid limit 1`, [agentId, personId]),
     db(`select moment,if_shape,then_note,self_in_relation,support_count
-          from vy_pattern where agent_id=$1 and person_id=$2 and t_invalid is null and prompt_eligible=true
+          from vy_pattern where agent_id=$1::uuid and person_id=$2::uuid and t_invalid is null and prompt_eligible=true
          order by support_count desc limit 8`, [agentId, personId]),
-    db(`select key,last_at,count from vy_ritual where agent_id=$1 and person_id=$2 order by last_at desc limit 8`, [agentId, personId]),
-    db(`select topic,kind,last_used,uses from vy_currency where agent_id=$1 and person_id=$2 order by last_used desc limit 8`, [agentId, personId]),
-    db(`select phrase,gloss from vy_phrase where agent_id=$1 and person_id=$2 order by last_used desc nulls last limit 12`, [agentId, personId]),
-    db(`select name,relation,address_term,provisional from vy_kin where agent_id=$1 and person_id=$2 order by updated_at desc limit 8`, [agentId, personId]),
+    db(`select key,last_at,count from vy_ritual where agent_id=$1::uuid and person_id=$2::uuid order by last_at desc limit 8`, [agentId, personId]),
+    db(`select topic,kind,last_used,uses from vy_currency where agent_id=$1::uuid and person_id=$2::uuid order by last_used desc limit 8`, [agentId, personId]),
+    db(`select phrase,gloss from vy_phrase where agent_id=$1::uuid and person_id=$2::uuid order by last_used desc nulls last limit 12`, [agentId, personId]),
+    db(`select name,relation,address_term,provisional from vy_kin where agent_id=$1::uuid and person_id=$2::uuid order by updated_at desc limit 8`, [agentId, personId]),
   ];
   const [state, patterns, rituals, currencies, phrases, kin] = options.strict === true
     ? await Promise.all(queries)

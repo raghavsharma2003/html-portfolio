@@ -102,7 +102,7 @@ async function ownedReplica(db, ownerUserId, replicaId) {
   const rows = await db(
     `select r.replica_id, r.agent_id
        from vy_replica r
-      where r.replica_id = $1 and r.owner_user_id = $2
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
       limit 1`,
     [replicaId, ownerUserId],
   );
@@ -139,7 +139,7 @@ async function currentRow(db, ownerUserId, replicaId) {
             s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
        from vy_teacher_sheet s
        join vy_replica r on r.agent_id = s.agent_id
-      where r.replica_id = $1 and r.owner_user_id = $2
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
       order by s.created_at desc
       limit 1`,
     [replicaId, ownerUserId],
@@ -194,7 +194,7 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
   const rows = await db(
     `with owned as (
        select r.agent_id from vy_replica r
-        where r.replica_id = $1 and r.owner_user_id = $2 and r.agent_id is not null
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
      ), existing as (
        select s.sheet_id from vy_teacher_sheet s join owned o on o.agent_id = s.agent_id
         where s.status <> 'published' order by s.created_at desc limit 1
@@ -206,7 +206,7 @@ export async function saveOwnedTeacherSheetDraft(db, ownerUserId, replicaIdValue
                  s.consent_artifact_id, s.created_at, s.updated_at, s.published_at
      ), inserted as (
        insert into vy_teacher_sheet (sheet_id, agent_id, version, sheet, status)
-       select $5, o.agent_id, $4, $3::jsonb, 'draft' from owned o
+       select $5::uuid, o.agent_id, $4, $3::jsonb, 'draft' from owned o
         where not exists (select 1 from existing)
        returning sheet_id, agent_id, version, sheet, status,
                  consent_artifact_id, created_at, updated_at, published_at
@@ -278,17 +278,17 @@ export async function publishOwnedTeacherSheet(db, ownerUserId, replicaIdValue, 
   const rows = await db(
     `with owned as (
        select r.agent_id from vy_replica r
-        where r.replica_id = $1 and r.owner_user_id = $2 and r.agent_id is not null
+        where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and r.agent_id is not null
      ), demoted as (
        update vy_teacher_sheet s set status = 'validated'
          from owned o
-        where s.agent_id = o.agent_id and s.status = 'published' and s.sheet_id <> $3
+        where s.agent_id = o.agent_id and s.status = 'published' and s.sheet_id <> $3::uuid
        returning s.sheet_id
      )
      update vy_teacher_sheet s
         set status = 'published', published_at = now(), updated_at = now()
        from owned o
-      where s.sheet_id = $3 and s.agent_id = o.agent_id
+      where s.sheet_id = $3::uuid and s.agent_id = o.agent_id
         and s.consent_artifact_id is not null
     returning s.sheet_id, s.agent_id, s.version, s.sheet, s.status,
               s.consent_artifact_id, s.created_at, s.updated_at, s.published_at`,

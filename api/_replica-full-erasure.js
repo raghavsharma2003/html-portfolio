@@ -189,7 +189,7 @@ export async function retryReplicaErasure(db, lease, input = {}) {
     `with retried as (
        update vy_replica_erasure_job j set state='pending',next_attempt_at=now()+($3::integer*interval '1 millisecond'),
               lease_token_hash='',leased_at=null,lease_expires_at=null,last_error_code=$4,updated_at=now()
-        where j.job_id=$1 and j.state='running' and j.lease_token_hash=$2 and j.lease_expires_at>now()
+        where j.job_id=$1::uuid and j.state='running' and j.lease_token_hash=$2 and j.lease_expires_at>now()
        returning j.job_id,j.attempts
      ), attempted as (
        update vy_replica_erasure_attempt a set outcome='retry',failure_code=$4,finished_at=now()
@@ -221,7 +221,7 @@ export async function completeReplicaErasure(db, lease, receipt) {
          from vy_replica_erasure_job j join vy_replica r
           on r.replica_id=j.replica_id and r.owner_user_id=j.owner_user_id
          left join vy_agent a on a.agent_id=r.agent_id
-        where j.job_id=$1 and j.replica_id=$2 and j.owner_user_id=$3 and j.state='running'
+        where j.job_id=$1::uuid and j.replica_id=$2::uuid and j.owner_user_id=$3::uuid and j.state='running'
           and j.lease_token_hash=$4 and j.lease_expires_at>now() and r.lifecycle='purging'
            and not exists (select 1 from vy_replica_voice_profile v where v.replica_id=r.replica_id)
            and not exists (select 1 from vy_replica_source s where s.replica_id=r.replica_id)
@@ -337,7 +337,7 @@ export async function getReplicaErasureStatus(db, ownerUserId, requestId) {
                where s.replica_id=j.replica_id and s.owner_user_id=j.owner_user_id
             ) then 'pending' else 'confirmed' end storage_state,
             '{}'::text[] deleted_classes
-       from vy_replica_erasure_job j where j.job_id=$1 and j.owner_user_id=$2
+       from vy_replica_erasure_job j where j.job_id=$1::uuid and j.owner_user_id=$2::uuid
      union all
      select 'complete' state,r.completed_at requested_at,r.completed_at updated_at,r.completed_at,
             r.backup_expires_at,0 attempts,'confirmed' provider_state,

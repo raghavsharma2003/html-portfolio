@@ -101,7 +101,7 @@ export async function completeSourceErasure(db, lease) {
      ), target as (
        select s.source_id,s.replica_id,s.owner_user_id,s.erasure_attempts
          from vy_replica_source s cross join review_lock
-        where review_lock.acquired and s.source_id=$1 and s.replica_id=$2 and s.owner_user_id=$3
+        where review_lock.acquired and s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid
           and s.state='deleting' and s.erasure_lease_token_hash=$4
           and s.erasure_lease_expires_at>now()
            and not exists (select 1 from vy_replica_voice_profile vp
@@ -253,7 +253,7 @@ export async function retrySourceErasure(db, lease, input = {}) {
        update vy_replica_source s set erasure_next_attempt_at=now()+($5::integer*interval '1 millisecond'),
               erasure_lease_token_hash='',erasure_leased_at=null,erasure_lease_expires_at=null,
               erasure_last_error_code=$6,updated_at=now()
-        where s.source_id=$1 and s.replica_id=$2 and s.owner_user_id=$3 and s.state='deleting'
+        where s.source_id=$1::uuid and s.replica_id=$2::uuid and s.owner_user_id=$3::uuid and s.state='deleting'
           and s.erasure_lease_token_hash=$4 and s.erasure_lease_expires_at>now()
        returning s.source_id,s.erasure_attempts
      ), attempted as (

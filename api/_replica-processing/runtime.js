@@ -11,13 +11,13 @@ export async function loadLeasedProcessingContext(db, job) {
        from vy_replica_processing_job j
        join vy_replica_source s on s.source_id=j.source_id and s.replica_id=j.replica_id
         and s.owner_user_id=j.owner_user_id
-      where j.job_id=$1 and j.state='leased' and s.state in ('quarantined','processing')`,
+      where j.job_id=$1::uuid and j.state='leased' and s.state in ('quarantined','processing')`,
     [job.job_id],
   );
   if (!sources[0]) throw Object.assign(new Error("leased processing source unavailable"), { code: "processing_source_unavailable" });
   const completed = await db(
     `select step from vy_replica_processing_job
-      where source_id=$1 and replica_id=$2 and owner_user_id=$3 and revision=$4 and state='complete'`,
+      where source_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and revision=$4::int4 and state='complete'`,
     [job.source_id, job.replica_id, job.owner_user_id, job.revision],
   );
   const inputStage = INPUT_STAGE[job.step];
@@ -25,7 +25,7 @@ export async function loadLeasedProcessingContext(db, job) {
     `select artifact_id,replica_id,owner_user_id,source_id,stage,variant_key,storage_bucket,
             object_path,mime,byte_size,duration_ms,sha256,input_sha256,manifest_hash
        from vy_replica_processing_artifact
-      where source_id=$1 and replica_id=$2 and owner_user_id=$3 and stage=$4
+      where source_id=$1::uuid and replica_id=$2::uuid and owner_user_id=$3::uuid and stage=$4
       order by variant_key,artifact_id`,
     [job.source_id, job.replica_id, job.owner_user_id, inputStage],
   ) : [];

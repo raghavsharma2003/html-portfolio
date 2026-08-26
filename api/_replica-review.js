@@ -133,9 +133,9 @@ function readiness(rows, replica, artifacts = []) {
 }
 
 const OWNED = `select r.replica_id, r.liveness_verified_at, r.identity_expires_at,
-  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2 and c.scope='biometric' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) biometric_consent,
-  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2 and c.scope='training' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) training_consent
-  from vy_replica r where r.replica_id=$1 and r.owner_user_id=$2 and r.lifecycle not in ('revoked','purging')`;
+  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) biometric_consent,
+  exists(select 1 from vy_replica_consent c where c.replica_id=r.replica_id and c.owner_user_id=$2::uuid and c.scope='training' and c.revoked_at is null and (c.expires_at is null or c.expires_at>now())) training_consent
+  from vy_replica r where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.lifecycle not in ('revoked','purging')`;
 
 const EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
   select distinct on (d.evidence_id) d.evidence_id,d.decision,d.reason_code,d.created_at reviewed_at
@@ -143,7 +143,7 @@ const EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
  select e.evidence_id,e.source_id,e.artifact_id,e.evidence_type,e.span_start_ms,e.span_end_ms,e.confidence,e.value,e.input_sha256,e.record_hash,
   e.adapter_family,e.adapter_name,e.adapter_version,e.created_at,l.decision,l.reason_code,l.reviewed_at,s.contains_third_parties
  from vy_replica_processing_evidence e join owned o on o.replica_id=e.replica_id
- join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=$2
+ join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id and s.owner_user_id=$2::uuid
  left join latest l on l.evidence_id=e.evidence_id order by e.created_at desc limit 300`;
 
 const BUILD_EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
@@ -157,7 +157,7 @@ const BUILD_EVIDENCE_SQL = `with owned as (${OWNED}), latest as (
   e.created_at,l.decision,l.reason_code,l.reviewed_at,s.contains_third_parties
  from vy_replica_processing_evidence e join owned o on o.replica_id=e.replica_id
  join vy_replica_source s on s.source_id=e.source_id and s.replica_id=e.replica_id
-  and s.owner_user_id=$2 and s.state='ready' and s.contains_third_parties=false
+  and s.owner_user_id=$2::uuid and s.state='ready' and s.contains_third_parties=false
  join latest l on l.evidence_id=e.evidence_id and l.decision='accepted'
  where e.evidence_type=any($3::text[])
    and (e.artifact_id is null or exists (
@@ -186,13 +186,13 @@ export async function loadAcceptedVoiceGenomeInput(db, ownerUserId, value) {
        from vy_replica_processing_artifact a
        join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
         and s.owner_user_id=a.owner_user_id and s.state='ready' and s.contains_third_parties=false
-      where a.replica_id=$1 and a.owner_user_id=$2
+      where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid
         and (a.artifact_id=any($3::uuid[]) or (a.source_id=any($4::uuid[]) and a.stage='enhance'
           and exists (
             select 1 from (
               select distinct on (d.artifact_id) d.artifact_id,d.decision
                 from vy_replica_processing_artifact_decision d
-               where d.replica_id=$1 and d.owner_user_id=$2
+               where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid
                order by d.artifact_id,d.created_at desc,d.decision_id desc
             ) selected where selected.artifact_id=a.artifact_id and selected.decision='selected'
           )))
@@ -222,15 +222,15 @@ export async function ownedReviewStatus(db, ownerUserId, value) {
   const rid = replicaId(value);
   const [replicas, sources, jobs, attempts, artifacts, evidence, builds, genomes] = await Promise.all([
     db(OWNED, [rid, ownerUserId]),
-    db(`select s.source_id,s.kind,s.capture_mode,s.mime,s.byte_size,s.duration_ms,s.state,s.contains_third_parties,s.rejection_code,s.created_at,s.updated_at from vy_replica_source s join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=$2 where s.replica_id=$1 and s.owner_user_id=$2 order by s.created_at desc limit 100`, [rid, ownerUserId]),
-    db(`select j.job_id,j.source_id,j.step,j.revision,j.state,j.attempt,j.failure_code,j.next_attempt_at,j.created_at,j.updated_at from vy_replica_processing_job j join vy_replica r on r.replica_id=j.replica_id and r.owner_user_id=$2 where j.replica_id=$1 and j.owner_user_id=$2 order by j.created_at desc limit 500`, [rid, ownerUserId]),
-    db(`select a.job_id,a.attempt,a.outcome,a.adapter_family,a.adapter_name,a.adapter_version,a.failure_code,a.facts,a.started_at,a.finished_at from vy_replica_processing_attempt a join vy_replica_processing_job j on j.job_id=a.job_id join vy_replica r on r.replica_id=j.replica_id and r.owner_user_id=$2 where j.replica_id=$1 and j.owner_user_id=$2 order by a.started_at desc limit 500`, [rid, ownerUserId]),
-    db(`with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision,d.reason_code,d.created_at reviewed_at from vy_replica_processing_artifact_decision d where d.replica_id=$1 and d.owner_user_id=$2 order by d.artifact_id,d.created_at desc,d.decision_id desc) select a.artifact_id,a.source_id,a.parent_artifact_id,a.created_by_job_id,a.stage,a.variant_key,a.mime,a.byte_size,a.duration_ms,a.transform_name,a.transform_version,a.adapter_family,a.adapter_name,a.adapter_version,a.created_at,l.decision selection_decision,l.reason_code selection_reason,l.reviewed_at selection_reviewed_at from vy_replica_processing_artifact a join vy_replica r on r.replica_id=a.replica_id and r.owner_user_id=$2 left join latest l on l.artifact_id=a.artifact_id where a.replica_id=$1 and a.owner_user_id=$2 order by a.created_at desc limit 500`, [rid, ownerUserId]),
+    db(`select s.source_id,s.kind,s.capture_mode,s.mime,s.byte_size,s.duration_ms,s.state,s.contains_third_parties,s.rejection_code,s.created_at,s.updated_at from vy_replica_source s join vy_replica r on r.replica_id=s.replica_id and r.owner_user_id=$2::uuid where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid order by s.created_at desc limit 100`, [rid, ownerUserId]),
+    db(`select j.job_id,j.source_id,j.step,j.revision,j.state,j.attempt,j.failure_code,j.next_attempt_at,j.created_at,j.updated_at from vy_replica_processing_job j join vy_replica r on r.replica_id=j.replica_id and r.owner_user_id=$2::uuid where j.replica_id=$1::uuid and j.owner_user_id=$2::uuid order by j.created_at desc limit 500`, [rid, ownerUserId]),
+    db(`select a.job_id,a.attempt,a.outcome,a.adapter_family,a.adapter_name,a.adapter_version,a.failure_code,a.facts,a.started_at,a.finished_at from vy_replica_processing_attempt a join vy_replica_processing_job j on j.job_id=a.job_id join vy_replica r on r.replica_id=j.replica_id and r.owner_user_id=$2::uuid where j.replica_id=$1::uuid and j.owner_user_id=$2::uuid order by a.started_at desc limit 500`, [rid, ownerUserId]),
+    db(`with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision,d.reason_code,d.created_at reviewed_at from vy_replica_processing_artifact_decision d where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid order by d.artifact_id,d.created_at desc,d.decision_id desc) select a.artifact_id,a.source_id,a.parent_artifact_id,a.created_by_job_id,a.stage,a.variant_key,a.mime,a.byte_size,a.duration_ms,a.transform_name,a.transform_version,a.adapter_family,a.adapter_name,a.adapter_version,a.created_at,l.decision selection_decision,l.reason_code selection_reason,l.reviewed_at selection_reviewed_at from vy_replica_processing_artifact a join vy_replica r on r.replica_id=a.replica_id and r.owner_user_id=$2::uuid left join latest l on l.artifact_id=a.artifact_id where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid order by a.created_at desc limit 500`, [rid, ownerUserId]),
     db(EVIDENCE_SQL, [rid, ownerUserId]),
-    db(`select b.build_id,b.build_kind,b.target_version,b.builder_version,b.state,b.attempt,b.failure_code,b.created_at,b.updated_at from vy_replica_model_build b join vy_replica r on r.replica_id=b.replica_id and r.owner_user_id=$2 where b.replica_id=$1 and b.owner_user_id=$2 order by b.created_at desc limit 50`, [rid, ownerUserId]),
+    db(`select b.build_id,b.build_kind,b.target_version,b.builder_version,b.state,b.attempt,b.failure_code,b.created_at,b.updated_at from vy_replica_model_build b join vy_replica r on r.replica_id=b.replica_id and r.owner_user_id=$2::uuid where b.replica_id=$1::uuid and b.owner_user_id=$2::uuid order by b.created_at desc limit 50`, [rid, ownerUserId]),
     db(`select g.version,g.source_set_hash,g.definition,g.status,g.created_at
           from vy_replica_voice_genome g join vy_replica r on r.replica_id=g.replica_id
-         where g.replica_id=$1 and r.owner_user_id=$2 order by g.version desc limit 20`, [rid, ownerUserId]),
+         where g.replica_id=$1::uuid and r.owner_user_id=$2::uuid order by g.version desc limit 20`, [rid, ownerUserId]),
   ]);
   if (!replicas[0]) return null;
   return {
@@ -267,13 +267,13 @@ export async function getOwnedArtifactAudition(db, ownerUserId, value) {
          join vy_replica r on r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
          join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
           and s.owner_user_id=a.owner_user_id
-        where a.replica_id=$1 and a.owner_user_id=$2 and a.artifact_id=$3
+        where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.artifact_id=$3::uuid
           and a.stage in ('separate','enhance') and a.mime in ('audio/wav','audio/x-wav')
           and s.state in ('processing','ready') and r.subject_mode='self'
           and r.lifecycle not in ('revoked','purging')
      ), audit as (
        insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'processing.artifact.audition','processing_artifact',artifact_id::text,
+       select $1::uuid,$2::uuid,'processing.artifact.audition','processing_artifact',artifact_id::text,
               'artifact-audition/v1','allowed',jsonb_build_object('duration_ms',duration_ms) from target
      ) select * from target`,
     [rid, ownerUserId, artifactId],
@@ -290,7 +290,7 @@ export async function selectOwnedVoiceArtifact(db, ownerUserId, value) {
          from vy_replica_processing_artifact a join owned o on o.replica_id=a.replica_id
          join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
           and s.owner_user_id=a.owner_user_id
-        where a.artifact_id=$3 and a.stage='enhance' and a.mime in ('audio/wav','audio/x-wav')
+        where a.artifact_id=$3::uuid and a.stage='enhance' and a.mime in ('audio/wav','audio/x-wav')
           and s.state='ready' and s.contains_third_parties=false
           and o.liveness_verified_at is not null and o.identity_expires_at>now()
           and o.biometric_consent and o.training_consent
@@ -308,27 +308,27 @@ export async function selectOwnedVoiceArtifact(db, ownerUserId, value) {
        where l.acquired and a.artifact_id<>l.artifact_id
      ), superseded as (
        insert into vy_replica_processing_artifact_decision(artifact_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id)
-       select artifact_id,replica_id,owner_user_id,'superseded','better_candidate',$2 from previous
+       select artifact_id,replica_id,owner_user_id,'superseded','better_candidate',$2::uuid from previous
      ), selected as (
        insert into vy_replica_processing_artifact_decision(artifact_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id)
-       select artifact_id,replica_id,owner_user_id,'selected','owner_voice_match',$2 from locked where acquired
+       select artifact_id,replica_id,owner_user_id,'selected','owner_voice_match',$2::uuid from locked where acquired
        returning decision_id,artifact_id,decision,reason_code,created_at
      ), stale_builds as (
        update vy_replica_model_build b set state='retired',failure_code='owner_candidate_changed',updated_at=now()
-        where b.replica_id=$1 and b.owner_user_id=$2 and b.build_kind='voice_genome'
+        where b.replica_id=$1::uuid and b.owner_user_id=$2::uuid and b.build_kind='voice_genome'
           and b.state in ('queued','retry','review') and exists(select 1 from selected)
      ), stale_drafts as (
        update vy_replica_voice_genome g set status='retired'
-        where g.replica_id=$1 and g.status='draft' and exists(select 1 from selected)
+        where g.replica_id=$1::uuid and g.status='draft' and exists(select 1 from selected)
      ), audit as (
        insert into vy_replica_audit(replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
-       select $1,$2,'processing.artifact.select','processing_artifact',artifact_id::text,
+       select $1::uuid,$2::uuid,'processing.artifact.select','processing_artifact',artifact_id::text,
               'artifact-selection/v1','allowed','{}'::jsonb from selected
      ) select * from selected`,
     [rid, ownerUserId, artifactId],
   );
   if (rows[0]) return rows[0];
-  const owned = await db(`select 1 ok from vy_replica_processing_artifact where artifact_id=$3 and replica_id=$1 and owner_user_id=$2`, [rid, ownerUserId, artifactId]);
+  const owned = await db(`select 1 ok from vy_replica_processing_artifact where artifact_id=$3::uuid and replica_id=$1::uuid and owner_user_id=$2::uuid`, [rid, ownerUserId, artifactId]);
   if (owned[0]) throw Object.assign(new Error("artifact_selection_not_ready_or_busy"), { status: 409 });
   return null;
 }
@@ -339,9 +339,9 @@ export async function decideOwnedEvidence(db, ownerUserId, value) {
   const decision = String(value.decision || "");
   const reason = String(value.reason_code || "");
   if (!DECISIONS.has(decision) || !REVIEW_REASONS[decision].includes(reason)) throw Object.assign(new Error("valid decision and reason_code required"), { status: 400 });
-  const rows = await db(`with owned as (select e.evidence_id,e.replica_id,e.owner_user_id from vy_replica_processing_evidence e join vy_replica r on r.replica_id=e.replica_id and r.owner_user_id=$2 join vy_replica_source s on s.source_id=e.source_id and s.replica_id=$1 and s.owner_user_id=$2 where e.evidence_id=$3 and e.replica_id=$1 and e.owner_user_id=$2 and e.evidence_type=any($6::text[])), locked as materialized (select owned.*,pg_try_advisory_xact_lock(hashtextextended(owned.replica_id::text || ':voice_genome_review',0)) acquired from owned), inserted as (insert into vy_replica_processing_evidence_decision(evidence_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id) select evidence_id,replica_id,owner_user_id,$4,$5,$2 from locked where acquired returning decision_id,evidence_id,decision,reason_code,created_at) select * from inserted`, [rid, ownerUserId, evidenceId, decision, reason, [...VOICE_REVIEW_TYPES]]);
+  const rows = await db(`with owned as (select e.evidence_id,e.replica_id,e.owner_user_id from vy_replica_processing_evidence e join vy_replica r on r.replica_id=e.replica_id and r.owner_user_id=$2::uuid join vy_replica_source s on s.source_id=e.source_id and s.replica_id=$1::uuid and s.owner_user_id=$2::uuid where e.evidence_id=$3::uuid and e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and e.evidence_type=any($6::text[])), locked as materialized (select owned.*,pg_try_advisory_xact_lock(hashtextextended(owned.replica_id::text || ':voice_genome_review',0)) acquired from owned), inserted as (insert into vy_replica_processing_evidence_decision(evidence_id,replica_id,owner_user_id,decision,reason_code,reviewer_user_id) select evidence_id,replica_id,owner_user_id,$4,$5,$2::uuid from locked where acquired returning decision_id,evidence_id,decision,reason_code,created_at) select * from inserted`, [rid, ownerUserId, evidenceId, decision, reason, [...VOICE_REVIEW_TYPES]]);
   if (rows[0]) return rows[0];
-  const owned = await db(`select 1 ok from vy_replica_processing_evidence e join vy_replica r on r.replica_id=e.replica_id where e.evidence_id=$3 and e.replica_id=$1 and e.owner_user_id=$2 and r.owner_user_id=$2`, [rid, ownerUserId, evidenceId]);
+  const owned = await db(`select 1 ok from vy_replica_processing_evidence e join vy_replica r on r.replica_id=e.replica_id where e.evidence_id=$3::uuid and e.replica_id=$1::uuid and e.owner_user_id=$2::uuid and r.owner_user_id=$2::uuid`, [rid, ownerUserId, evidenceId]);
   if (owned[0]) throw Object.assign(new Error("evidence_review_busy"), { status: 409 });
   return null;
 }
@@ -352,17 +352,17 @@ export async function queueOwnedVoiceGenome(db, ownerUserId, value) {
   if (!replicas[0]) return null;
   const evidence = await db(EVIDENCE_SQL, [rid, ownerUserId]);
   const selectedArtifacts = await db(
-    `with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision from vy_replica_processing_artifact_decision d where d.replica_id=$1 and d.owner_user_id=$2 order by d.artifact_id,d.created_at desc,d.decision_id desc)
+    `with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision from vy_replica_processing_artifact_decision d where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid order by d.artifact_id,d.created_at desc,d.decision_id desc)
      select a.artifact_id,a.stage,l.decision selection_decision from vy_replica_processing_artifact a
      join latest l on l.artifact_id=a.artifact_id and l.decision='selected'
      join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id and s.owner_user_id=a.owner_user_id
-     where a.replica_id=$1 and a.owner_user_id=$2 and a.stage='enhance' and s.state='ready' and s.contains_third_parties=false`,
+     where a.replica_id=$1::uuid and a.owner_user_id=$2::uuid and a.stage='enhance' and s.state='ready' and s.contains_third_parties=false`,
     [rid, ownerUserId],
   );
   const state = readiness(evidence, replicas[0], selectedArtifacts);
   if (!state.ready) throw Object.assign(new Error("voice_genome_not_ready"), { status: 409, details: state });
   const acceptedInput = await loadAcceptedVoiceGenomeInput(db, ownerUserId, rid);
   const sourceSetHash = acceptedInput.sourceSetHash;
-  const rows = await db(`with owned as (${OWNED}), locked as materialized (select o.replica_id,pg_advisory_xact_lock(hashtextextended(o.replica_id::text || ':voice_genome',0)) from owned o), candidate as (select l.replica_id,coalesce((select target_version from vy_replica_model_build where replica_id=$1 and build_kind='voice_genome' and source_set_hash=$3 order by target_version desc limit 1),(select coalesce(max(target_version)+1,1) from vy_replica_model_build where replica_id=$1 and build_kind='voice_genome')) target_version from locked l), inserted as (insert into vy_replica_model_build(replica_id,owner_user_id,build_kind,target_version,builder_version,source_set_hash,state) select c.replica_id,$2,'voice_genome',c.target_version,'voice-genome-builder/v1',$3,'queued' from candidate c on conflict (replica_id,build_kind,source_set_hash) do update set source_set_hash=excluded.source_set_hash returning build_id,build_kind,target_version,builder_version,state,attempt,failure_code,created_at,updated_at) select * from inserted`, [rid, ownerUserId, sourceSetHash]);
+  const rows = await db(`with owned as (${OWNED}), locked as materialized (select o.replica_id,pg_advisory_xact_lock(hashtextextended(o.replica_id::text || ':voice_genome',0)) from owned o), candidate as (select l.replica_id,coalesce((select target_version from vy_replica_model_build where replica_id=$1::uuid and build_kind='voice_genome' and source_set_hash=$3 order by target_version desc limit 1),(select coalesce(max(target_version)+1,1) from vy_replica_model_build where replica_id=$1::uuid and build_kind='voice_genome')) target_version from locked l), inserted as (insert into vy_replica_model_build(replica_id,owner_user_id,build_kind,target_version,builder_version,source_set_hash,state) select c.replica_id,$2::uuid,'voice_genome',c.target_version,'voice-genome-builder/v1',$3,'queued' from candidate c on conflict (replica_id,build_kind,source_set_hash) do update set source_set_hash=excluded.source_set_hash returning build_id,build_kind,target_version,builder_version,state,attempt,failure_code,created_at,updated_at) select * from inserted`, [rid, ownerUserId, sourceSetHash]);
   return rows[0] ? { ...rows[0], target_version: Number(rows[0].target_version), attempt: Number(rows[0].attempt) } : null;
 }

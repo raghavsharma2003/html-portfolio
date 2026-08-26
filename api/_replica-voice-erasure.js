@@ -77,7 +77,7 @@ export async function completeVoiceErasure(db, lease) {
        select vp.voice_profile_id,vp.replica_id,vp.owner_user_id,vp.provider_consent_id,
               vp.provider,vp.erasure_attempts
          from vy_replica_voice_profile vp
-        where vp.voice_profile_id=$1 and vp.replica_id=$2 and vp.owner_user_id=$3
+        where vp.voice_profile_id=$1::uuid and vp.replica_id=$2::uuid and vp.owner_user_id=$3::uuid
           and vp.status='deleting' and vp.erasure_lease_token_hash=$4
           and vp.erasure_lease_expires_at>now()
         for update
@@ -137,7 +137,7 @@ export async function retryVoiceErasure(db, lease, input = {}) {
           set erasure_next_attempt_at=now()+($5::integer*interval '1 millisecond'),
               erasure_lease_token_hash='',erasure_leased_at=null,erasure_lease_expires_at=null,
               erasure_last_error_code=$6,failure_code=$6,updated_at=now()
-        where vp.voice_profile_id=$1 and vp.replica_id=$2 and vp.owner_user_id=$3
+        where vp.voice_profile_id=$1::uuid and vp.replica_id=$2::uuid and vp.owner_user_id=$3::uuid
           and vp.status='deleting' and vp.erasure_lease_token_hash=$4
           and vp.erasure_lease_expires_at>now()
        returning vp.voice_profile_id,vp.erasure_attempts

@@ -113,7 +113,7 @@ export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = p
          join vy_replica_runtime_capability c
            on c.capability_id=t.capability_id and c.replica_id=t.replica_id and c.owner_user_id=t.owner_user_id
           and c.profile_version=t.profile_version and c.calibration_version=t.calibration_version
-        where t.turn_id=$3 and t.replica_id=$1 and t.owner_user_id=$2 and t.state='complete'
+        where t.turn_id=$3::uuid and t.replica_id=$1::uuid and t.owner_user_id=$2::uuid and t.state='complete'
           and t.response_hash is not null and r.lifecycle='active' and r.subject_mode='self'
           and r.policy_version=$10 and c.state='active'
      ), previous as (
@@ -125,7 +125,7 @@ export async function recordOwnedTurnFeedback(db, ownerUserId, rawInput, env = p
          (feedback_id,turn_id,replica_id,owner_user_id,capability_id,profile_version,calibration_version,
           response_hash,source_generation_id,revision,supersedes_id,ratings,ratings_hash,reason_codes,
           correction_hash,policy_version)
-       select $4,a.turn_id,a.replica_id,a.owner_user_id,a.capability_id,a.profile_version,a.calibration_version,
+       select $4::uuid,a.turn_id,a.replica_id,a.owner_user_id,a.capability_id,a.profile_version,a.calibration_version,
               a.response_hash,case when $9::boolean then a.source_generation_id else null end,
               coalesce(p.revision,0)+1,p.feedback_id,$5::jsonb,$6,$7::text[],$8,$10
          from authorized a left join previous p on true
@@ -169,7 +169,7 @@ export async function loadOwnedFeedbackLearningExample(db, ownerUserId, feedback
        join meera_log a on a.id=t.assistant_log_id and a.agent_id=t.agent_id and a.device_id=t.device_id and a.role='her'
        left join vy_replica_turn_exemplar e
          on e.feedback_id=f.feedback_id and e.replica_id=f.replica_id and e.owner_user_id=f.owner_user_id
-      where f.feedback_id=$1 and f.owner_user_id=$2 limit 1`,
+      where f.feedback_id=$1::uuid and f.owner_user_id=$2::uuid limit 1`,
     [id, ownerUserId],
   );
   const row = rows[0];

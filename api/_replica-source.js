@@ -113,17 +113,17 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
   const rows = await db(
     `with owned as (
        select replica_id, policy_version from vy_replica
-        where replica_id = $1 and owner_user_id = $2 and subject_mode = 'self'
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and subject_mode = 'self'
           and lifecycle not in ('revoked','purging')
      ), capture as (
        select c.consent_id from vy_replica_consent c join owned o on o.replica_id = c.replica_id
-        where c.owner_user_id = $2 and c.scope = 'capture'
+        where c.owner_user_id = $2::uuid and c.scope = 'capture'
           and c.policy_version = o.policy_version and c.revoked_at is null
           and (c.expires_at is null or c.expires_at > now())
         order by c.granted_at desc limit 1
      ), storage_ok as (
        select 1 from vy_replica_consent c join owned o on o.replica_id = c.replica_id
-        where c.owner_user_id = $2 and c.scope = 'storage'
+        where c.owner_user_id = $2::uuid and c.scope = 'storage'
           and c.policy_version = o.policy_version and c.revoked_at is null
           and (c.expires_at is null or c.expires_at > now()) limit 1
      ), inserted as (
@@ -131,14 +131,14 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
           contains_third_parties, provenance)
-       select $3, owned.replica_id, $2, capture.consent_id, $4, $12,
-              $5, $6, $7, $8, $9, $10, $11::jsonb
+       select $3::uuid, owned.replica_id, $2::uuid, capture.consent_id, $4, $12,
+              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb
          from owned cross join capture cross join storage_ok
        returning ${SOURCE_RETURNING}
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'source.create_upload', 'source', source_id::text,
+       select $1::uuid, $2::uuid, 'source.create_upload', 'source', source_id::text,
               (select policy_version from owned), 'allowed',
               jsonb_build_object('kind', kind, 'byte_size', byte_size,
                                  'contains_third_parties', contains_third_parties,
@@ -156,7 +156,7 @@ export async function getPendingSource(db, ownerUserId, id, source) {
   const sid = replicaId(source);
   const rows = await db(
     `select ${SOURCE_RETURNING} from vy_replica_source s
-      where s.replica_id = $1 and s.owner_user_id = $2 and s.source_id = $3
+      where s.replica_id = $1::uuid and s.owner_user_id = $2::uuid and s.source_id = $3::uuid
         and s.state = 'pending_upload'
         and exists (
           select 1 from vy_replica r where r.replica_id = s.replica_id
@@ -179,7 +179,7 @@ export async function getPendingSource(db, ownerUserId, id, source) {
 export async function listOwnedSources(db, ownerUserId, id) {
   const rows = await db(
     `select ${SOURCE_RETURNING} from vy_replica_source
-      where replica_id = $1 and owner_user_id = $2
+      where replica_id = $1::uuid and owner_user_id = $2::uuid
       order by created_at desc limit 200`,
     [replicaId(id), ownerUserId],
   );
@@ -209,14 +209,14 @@ export async function finalizeOwnedSource(db, ownerUserId, id, source, objectInf
        update vy_replica_source
           set state = $4, rejection_code = $5, updated_at = now(),
               provenance = provenance || $6::jsonb
-        where replica_id = $1 and owner_user_id = $2 and source_id = $3
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
           and state = 'pending_upload'
        returning ${SOURCE_RETURNING}
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'source.finalize', 'source', source_id::text,
-              (select policy_version from vy_replica where replica_id = $1 and owner_user_id = $2),
+       select $1::uuid, $2::uuid, 'source.finalize', 'source', source_id::text,
+              (select policy_version from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid),
               case when $4 = 'quarantined' then 'allowed' else 'denied' end,
               jsonb_build_object('reason_code', $5)
          from updated
@@ -239,11 +239,11 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
   const rows = await db(
     `with target as (
        update vy_replica_source set state = 'deleting', updated_at = now()
-        where replica_id = $1 and owner_user_id = $2 and source_id = $3
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
         returning ${SOURCE_RETURNING}
      ), invalidated as (
        update vy_replica_claim set status = 'superseded', updated_at = now()
-        where replica_id = $1 and $3 = any(source_ids)
+        where replica_id = $1::uuid and $3 = any(source_ids)
           and status in ('proposed','approved') and exists (select 1 from target)
      ), liveness_challenges as (
        update vy_replica_liveness_challenge ch set state='failed',failure_code='liveness_evidence_deleted',
@@ -266,12 +266,12 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
         where r.replica_id=$1 and r.owner_user_id=$2 and exists (select 1 from liveness_challenges)
      ), liveness_consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.scope='biometric' and c.revoked_at is null
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
           and exists (select 1 from liveness_challenges)
      ), identity_cases as (
        update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
               lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.source_id=$3 and c.state<>'revoked'
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.source_id=$3 and c.state<>'revoked'
           and exists (select 1 from target)
        returning c.identity_case_id,c.replica_id,c.owner_user_id,c.source_id
      ), identity_challenges as (
@@ -297,7 +297,7 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
           and s.state in ('pending_upload','quarantined','rejected')
      ), biometric_verification_grants as (
        update vy_replica_biometric_verification_grant g set state='revoked',revoked_at=now()
-        where g.replica_id=$1 and g.owner_user_id=$2 and g.state='active'
+        where g.replica_id=$1::uuid and g.owner_user_id=$2::uuid and g.state='active'
           and (exists (select 1 from liveness_challenges ch where ch.challenge_id=g.challenge_id)
             or exists (select 1 from identity_challenges ch where ch.challenge_id=g.challenge_id))
      ), identity_replica as (
@@ -307,46 +307,46 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
        returning r.subject_person_id
      ), identity_consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.scope='biometric' and c.revoked_at is null
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
           and exists (select 1 from identity_cases)
      ), identity_person as (
        update vy_person p set age_tier='unverified'
         where exists (select 1 from identity_replica r where r.subject_person_id=p.person_id)
      ), genomes as (
        update vy_replica_voice_genome set status = 'retired'
-        where replica_id = $1 and status <> 'retired' and exists (select 1 from target)
+        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from target)
      ), profiles as (
        update vy_replica_profile set status = 'retired'
-        where replica_id = $1 and status <> 'retired' and exists (select 1 from target)
+        where replica_id = $1::uuid and status <> 'retired' and exists (select 1 from target)
      ), voices as (
        update vy_replica_voice_profile set status = 'deleting', updated_at = now()
-        where replica_id = $1 and status <> 'deleting' and exists (select 1 from target)
+        where replica_id = $1::uuid and status <> 'deleting' and exists (select 1 from target)
      ), runtime_capabilities as (
        update vy_replica_runtime_capability c set state='revoked',revoked_at=coalesce(revoked_at,now())
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.state in ('active','paused')
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.state in ('active','paused')
           and exists (select 1 from target)
      ), runtime_sessions as (
        update vy_replica_runtime_session s set state='revoked',ended_at=coalesce(ended_at,now()),updated_at=now()
-        where s.replica_id=$1 and s.owner_user_id=$2 and s.state='active'
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.state='active'
           and exists (select 1 from target)
      ), open_generations as (
        update vy_replica_generation g set state='aborted',failure_code='source_erased',updated_at=now()
-        where g.replica_id=$1 and g.owner_user_id=$2 and g.state in ('authorized','streaming')
+        where g.replica_id=$1::uuid and g.owner_user_id=$2::uuid and g.state in ('authorized','streaming')
           and exists (select 1 from target)
      ), provider_consents as (
        update vy_replica_provider_consent set state = 'revoked',
               revoked_at = coalesce(revoked_at, now()), updated_at = now()
-        where replica_id = $1 and owner_user_id = $2 and source_id = $3
+        where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
           and state <> 'revoked' and exists (select 1 from target)
      ), replica as (
        update vy_replica set lifecycle = 'enrolling', updated_at = now()
-        where replica_id = $1 and owner_user_id = $2
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
           and lifecycle not in ('revoked','purging') and exists (select 1 from target)
      ), audit as (
        insert into vy_replica_audit
          (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
-       select $1, $2, 'source.delete.request', 'source', source_id::text,
-              (select policy_version from vy_replica where replica_id = $1 and owner_user_id = $2),
+       select $1::uuid, $2::uuid, 'source.delete.request', 'source', source_id::text,
+              (select policy_version from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid),
               'allowed', jsonb_build_object('derived_models_invalidated', true)
          from target
      )
