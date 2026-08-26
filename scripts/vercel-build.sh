@@ -5,7 +5,11 @@
 # Local runs (src/ already present) skip the fetch entirely.
 set -euo pipefail
 
-BRANCH="claude/ai-companion-app-rkt1lv"
+# Prefer the branch Vercel is actually building (set on every git-connected
+# deploy); fall back to gurukul-platform for thin MCP deploys, which carry no
+# git ref. Git-connected builds have src/ present and skip the fetch entirely,
+# so this only decides which branch a thin deploy pulls source from.
+BRANCH="${VERCEL_GIT_COMMIT_REF:-claude/gurukul-platform}"
 TARBALL="https://codeload.github.com/raghavsharma2003/html-portfolio/tar.gz/refs/heads/$BRANCH"
 
 if [ ! -d src ]; then
