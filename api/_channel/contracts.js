@@ -132,6 +132,14 @@ export function channelWatch(row) {
       !UUID.test(String(row?.owner_user_id || ""))) fail("channel_watch_identity_invalid", 409);
   const grant = row?.oauth_grant_ref == null ? null : String(row.oauth_grant_ref);
   if (grant !== null && !UUID.test(grant)) fail("channel_watch_grant_ref_invalid", 409);
+  // Migration 057. `attestationId` is validated to uuid-or-null for the same
+  // reason `oauth_grant_ref` is: it is the reference the extraction gate
+  // joins on, and a reference that could be an arbitrary string is a
+  // reference a future writer can put a channel URL in.
+  const attestation = row?.attestation_id == null ? null : String(row.attestation_id);
+  if (attestation !== null && !UUID.test(attestation)) fail("channel_watch_attestation_ref_invalid", 409);
+  const backfillState = String(row?.backfill_state || "idle");
+  if (!new Set(["idle", "running", "done"]).has(backfillState)) fail("channel_watch_backfill_state_invalid", 409);
   return Object.freeze({
     watchId: String(row.watch_id).toLowerCase(),
     replicaId: String(row.replica_id).toLowerCase(),
@@ -140,6 +148,11 @@ export function channelWatch(row) {
     provider: String(row.provider || "youtube"),
     oauthGrantRef: grant ? grant.toLowerCase() : null,
     lastSeenVideoId: String(row.last_seen_video_id || ""),
+    // NULL means "created before attestations existed", which every gate
+    // treats as UNATTESTED. Failing closed rather than grandfathering.
+    attestationId: attestation ? attestation.toLowerCase() : null,
+    backfillState,
+    backfillAfterVideoId: String(row?.backfill_after_video_id || ""),
     status,
   });
 }

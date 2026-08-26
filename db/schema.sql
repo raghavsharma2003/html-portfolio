@@ -2183,3 +2183,14 @@ create index if not exists vy_channel_attestation_owner_ix on vy_channel_attesta
 -- fails closed rather than grandfathering.
 alter table vy_channel_watch add column if not exists attestation_id uuid;
 create index if not exists vy_channel_watch_attestation_ix on vy_channel_watch (attestation_id);
+
+-- The back catalogue is a SECOND cursor walking the other way. 053's
+-- `last_seen_video_id` answers "what is new"; this one answers "how far back
+-- have we got", oldest-first, resumable per tick. The two can never both be
+-- advanced by the same video — the unique index on (replica_id, video_ref)
+-- makes the overlap a no-op.
+alter table vy_channel_watch add column if not exists backfill_after_video_id text not null default '';
+alter table vy_channel_watch add column if not exists backfill_state text not null default 'idle';
+alter table vy_channel_watch drop constraint if exists vy_channel_watch_backfill_state_check;
+alter table vy_channel_watch add constraint vy_channel_watch_backfill_state_check check (backfill_state in ('idle','running','done'));
+create index if not exists vy_channel_watch_backfill_ix on vy_channel_watch (backfill_state, last_checked_at asc) where backfill_state = 'running';

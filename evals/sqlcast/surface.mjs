@@ -29,6 +29,8 @@ export const STRICT_SURFACE = [
   /^api\/_teacher-sheet-draft\.js$/,
   /^api\/teacher-sheet\.js$/,
   /^api\/_channel-ingest\.js$/,
+  /^api\/_channel-watch\.js$/,
+  /^api\/channel-watch\.js$/,
   /^api\/_channel\//,
   /^api\/channel-ingest-sweep\.js$/,
   /^api\/_fidelity\.js$/,

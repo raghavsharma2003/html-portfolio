@@ -82,7 +82,8 @@ export class ChannelIngestError extends Error {
  *  or escape through a branch added later — and a revoked watch is a teacher
  *  who withdrew permission for their channel to be read. */
 const DUE_WATCHES_SQL = `select watch_id, replica_id, owner_user_id, channel_url, provider,
-         oauth_grant_ref, last_seen_video_id, status
+         oauth_grant_ref, last_seen_video_id, status,
+         attestation_id, backfill_state, backfill_after_video_id
     from vy_channel_watch
    where status = 'active'
    order by last_checked_at asc nulls first, created_at asc
@@ -148,14 +149,25 @@ async function markRun(db, ownerUserId, runId, patch) {
  *  a phrase-bank number measured off a caption file and one measured off an
  *  ASR transcript are not the same measurement, and a future comparison
  *  between two runs has to be able to tell. */
-async function transcriptFor(channelProvider, asr, video, watch) {
+async function transcriptFor(channelProvider, asr, video, watch, deps = {}) {
   if (typeof channelProvider.fetchCaptions === "function") {
     const captions = await channelProvider.fetchCaptions(video, watch.oauthGrantRef);
     if (captions?.turns?.length) {
       return { source: "captions", turns: captions.turns, provider: channelProvider.name, model: captions.trackKind };
     }
   }
-  const audio = await channelProvider.fetchAudio(video, watch.oauthGrantRef);
+  // WS-S. The attestation is resolved HERE, lazily, at the one moment it is
+  // needed — after captions have already failed and immediately before the
+  // only operation that reads a teacher's media. Resolving it at the top of
+  // the sweep would spend a query per watch per tick on a gate most ticks
+  // never reach, and, worse, would let an attestation revoked DURING a sweep
+  // still authorize the extraction that follows it.
+  //
+  // `deps.attestations` is optional: a deployment with no extraction service
+  // has no resolver, passes null, and the OAuth provider's honest refusal is
+  // what happens — a null here is never silently treated as permission.
+  const attestation = typeof deps.attestations === "function" ? await deps.attestations(watch) : null;
+  const audio = await channelProvider.fetchAudio(video, watch.oauthGrantRef, { watch, attestation });
   const result = await asr.transcribe(audio, "hi-IN");
   return { source: "asr", turns: result.turns, provider: result.provider, model: result.model };
 }
@@ -210,7 +222,7 @@ async function ingestVideo(db, deps, watch, video) {
   // idempotence case, and the correct answer is silence.
   if (!opened) return { videoId: video.videoId, skipped: true, ok: true };
   try {
-    const transcript = await transcriptFor(deps.channelProvider, deps.asr, video, watch);
+    const transcript = await transcriptFor(deps.channelProvider, deps.asr, video, watch, deps);
     await markRun(db, watch.ownerUserId, opened.run_id, {
       status: "transcribed",
       transcriptSource: transcript.source,
@@ -266,7 +278,78 @@ async function sweepWatch(db, deps, row, maxVideos) {
     if (!result.skipped) ingested++;
   }
   await touchWatch(db, watch, cursor);
-  return { watchId: watch.watchId, listed: videos.length, ingested, failed, runs };
+  const backfill = failed ? null : await backfillWatch(db, deps, watch, maxVideos);
+  return { watchId: watch.watchId, listed: videos.length, ingested, failed, runs, backfill };
+}
+
+/** The back-catalogue lane (WS-S).
+ *
+ *  The forward lane answers "what is new". This one answers "how far back
+ *  have we got", and it exists because a teacher's own back catalogue is by
+ *  far the largest corpus this platform will ever have for one person — years
+ *  of their own lectures, in their own voice, with their own explanations.
+ *
+ *  Three properties, and all three are why it is a SEPARATE lane rather than
+ *  a wider slice of the forward one:
+ *
+ *  1. RESUMABLE. `backfill_after_video_id` advances only past a video that
+ *     actually succeeded, and a tick takes at most `maxVideos`. A cron killed
+ *     mid-lecture loses that lecture and nothing before it, and the next tick
+ *     resumes exactly there. A "just raise the limit" design instead loses
+ *     the whole page.
+ *  2. SUBORDINATE. It runs only after the forward lane, and not at all if the
+ *     forward lane failed. Staying current always beats catching up: a
+ *     backfill that starved new-video detection would make the clone
+ *     progressively more out of date the more history it had.
+ *  3. IDEMPOTENT AGAINST THE OTHER CURSOR. The two walk in opposite
+ *     directions over one channel and will eventually meet. The unique index
+ *     on (replica_id, video_ref) makes the overlap a skip rather than a
+ *     second ASR bill, and `openRun` returning no row is the mechanism —
+ *     which is the same mechanism the forward lane's idempotence already
+ *     relies on, tested by evals/channel.mjs.
+ */
+async function backfillWatch(db, deps, watch, maxVideos) {
+  if (watch.backfillState !== "running") return null;
+  if (typeof deps.channelProvider.listCatalogue !== "function") {
+    // A deployment with no extraction service has no enumeration seam. That
+    // is a lane that is ABSENT, not one that is broken, so it is reported and
+    // the state is parked rather than marked failed.
+    return { skipped: "catalogue_unavailable" };
+  }
+  const attestation = typeof deps.attestations === "function" ? await deps.attestations(watch) : null;
+  if (!attestation) return { skipped: "attestation_unavailable" };
+
+  let page;
+  try {
+    page = await deps.channelProvider.listCatalogue(watch.channel, watch.backfillAfterVideoId, {
+      attestation,
+      limit: Math.max(1, maxVideos),
+    });
+  } catch (error) {
+    return { skipped: codeOf(error) };
+  }
+  let cursor = "";
+  let ingested = 0;
+  let failed = 0;
+  for (const video of page.videos.slice(0, Math.max(0, maxVideos))) {
+    const result = await ingestVideo(db, deps, watch, video);
+    if (!result.ok) { failed++; break; }
+    cursor = video.videoId;
+    if (!result.skipped) ingested++;
+  }
+  // `exhausted` is reported by the enumeration, and it is only trusted when
+  // the page was walked to its end without a failure. A catalogue marked done
+  // while a video in it failed would strand that video forever, since nothing
+  // walks backwards a second time.
+  const done = page.exhausted && !failed && cursor === (page.videos[page.videos.length - 1]?.videoId || cursor);
+  await db(
+    `update vy_channel_watch
+        set backfill_after_video_id = case when $3 <> '' then $3 else backfill_after_video_id end,
+            backfill_state = case when $4 then 'done' else backfill_state end
+      where watch_id = ($1)::uuid and owner_user_id = ($2)::uuid and backfill_state = 'running'`,
+    [watch.watchId, watch.ownerUserId, cursor, Boolean(done)],
+  );
+  return { ingested, failed, exhausted: Boolean(done), listed: page.videos.length };
 }
 
 /**
@@ -290,7 +373,7 @@ export async function runChannelIngestSweep(options = {}) {
   const rows = await db(DUE_WATCHES_SQL, [Math.max(1, maxWatches)]);
   const watches = [];
   for (const row of rows) {
-    try { watches.push(await sweepWatch(db, { channelProvider, asr }, row, maxVideos)); }
+    try { watches.push(await sweepWatch(db, { channelProvider, asr, attestations: options.attestations }, row, maxVideos)); }
     catch (error) {
       // A malformed watch row (a grant ref that is not a uuid, a channel_url
       // that stopped parsing) must not take the sweep down with it.

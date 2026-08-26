@@ -97,3 +97,44 @@ alter table vy_channel_watch
 
 create index if not exists vy_channel_watch_attestation_ix
   on vy_channel_watch (attestation_id);
+
+-- ── the back catalogue: a second cursor, walking the other way ────────────
+--
+-- Migration 053's `last_seen_video_id` is a FORWARD cursor: it answers "what
+-- is new since we last looked", and the worker deliberately bounds a
+-- first-ever sweep to the newest slice because "stay current" is
+-- forward-looking. That is still right, and it means the thing a teacher
+-- actually has most of — years of uploaded lectures — was unreachable.
+--
+-- A back-catalogue import is a different operation with a different cursor,
+-- so it gets one rather than overloading the first. `backfill_after_video_id`
+-- walks OLDEST-FIRST and records the last video successfully ingested; a tick
+-- resumes exactly after it. Two cursors moving in opposite directions over
+-- one channel never disagree, because they can never both be advanced by the
+-- same video: the unique index on (replica_id, video_ref) makes a video the
+-- other cursor already reached a no-op.
+--
+-- `backfill_state` is the switch and it is a CHECK-constrained enum rather
+-- than a boolean because 'done' and 'idle' are different facts: idle means
+-- the teacher never asked, done means the catalogue was drained. A UI that
+-- could not tell them apart would offer "import my back catalogue" forever.
+alter table vy_channel_watch
+  add column if not exists backfill_after_video_id text not null default '';
+
+alter table vy_channel_watch
+  add column if not exists backfill_state text not null default 'idle';
+
+-- drop-if-exists then add: Postgres has no `add constraint if not exists`, so
+-- 008a_speaker_participants.sql's pair is the house spelling for an
+-- idempotent constraint. Kept separate from the `add column` above because
+-- an inline CHECK would be re-added on the second pass of an interrupted
+-- apply and fail.
+alter table vy_channel_watch
+  drop constraint if exists vy_channel_watch_backfill_state_check;
+
+alter table vy_channel_watch
+  add constraint vy_channel_watch_backfill_state_check
+  check (backfill_state in ('idle','running','done'));
+
+create index if not exists vy_channel_watch_backfill_ix
+  on vy_channel_watch (backfill_state, last_checked_at asc) where backfill_state = 'running';

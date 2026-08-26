@@ -432,6 +432,83 @@ def _extract(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ── back-catalogue enumeration ───────────────────────────────────────────────
+#
+# The teacher's own back catalogue is the richest corpus this platform will
+# ever have, and the Data API's `playlistItems` walk costs quota per page and
+# needs an OAuth grant the teacher may never have completed. `--flat-playlist`
+# reads the same list without either.
+#
+# It is gated by exactly the same attestation predicate, and the binding check
+# is even more direct here: the enumeration is ADDRESSED BY the attested
+# channel key, so there is no id the caller could substitute. It returns ids
+# and durations only — no titles, no descriptions, no thumbnails. A title is
+# text a third party controls and `api/_channel/contracts.js` already treats
+# it as untrusted; there is no reason for it to cross this boundary at all.
+
+MAX_CATALOGUE_PAGE = 200
+
+
+def _enumerate(payload: dict[str, Any]) -> dict[str, Any]:
+    attestation = _attestation(payload.get("attestation"))
+    limit = int(payload.get("limit") or 50)
+    if limit < 1 or limit > MAX_CATALOGUE_PAGE:
+        raise ServiceError("catalogue_limit_invalid", 400)
+    after = str(payload.get("after_video_id") or "")
+    if after and not VIDEO_ID_RE.fullmatch(after):
+        raise ServiceError("video_id_invalid", 400)
+
+    key = attestation["channel_key"]
+    target = f"https://www.youtube.com/{key if key.startswith('@') else 'channel/' + key}/videos"
+    result = _run(
+        _common_args() + ["--flat-playlist", "--dump-single-json", "--playlist-items", f"1:{MAX_CATALOGUE_PAGE * 5}", target],
+        timeout=min(600, EXTRACT_TIMEOUT_SECONDS),
+    )
+    if result.returncode != 0:
+        raise ServiceError(_classify(result.stderr), 502)
+    try:
+        listing = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ServiceError("extractor_metadata_invalid", 502) from exc
+
+    # yt-dlp reports a channel's uploads newest-first. The back-catalogue
+    # cursor walks the other way, so the reversal happens HERE, once, at the
+    # only place that knows the source ordering.
+    entries = list(reversed(listing.get("entries") or []))
+    videos = []
+    for entry in entries:
+        video_id = str((entry or {}).get("id") or "")
+        if not VIDEO_ID_RE.fullmatch(video_id):
+            continue
+        duration = entry.get("duration")
+        videos.append(
+            {
+                "video_id": video_id,
+                "duration_ms": int(round(float(duration) * 1000)) if duration else 0,
+                # yt-dlp's flat listing carries no reliable publish timestamp.
+                # Saying so with a null is the honest answer; inventing one
+                # would put a fabricated date on a measurement row.
+                "published_at": (entry or {}).get("upload_date") or None,
+            }
+        )
+    if after:
+        index = next((i for i, v in enumerate(videos) if v["video_id"] == after), None)
+        if index is None:
+            # The cursor is not in the listing any more — the teacher deleted
+            # or unlisted that video. Resuming from the start would re-walk
+            # the whole catalogue, so this is named rather than guessed at,
+            # and the caller decides.
+            raise ServiceError("catalogue_cursor_missing", 409)
+        videos = videos[index + 1 :]
+    return {
+        "protocol": PROTOCOL,
+        "channel_key": key,
+        "extractor_version": app.state.extractor_version,
+        "exhausted": len(videos) <= limit,
+        "videos": videos[:limit],
+    }
+
+
 app = FastAPI(title="vyakti-media-extract", docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -472,5 +549,17 @@ async def extract(request: Request) -> Response:
         # Deliberately opaque. An exception string from a subprocess wrapper
         # can carry a URL, a path or a cookie fragment, and this response
         # crosses a network boundary.
+        return _signed_response(request, 500, {"error": "media_extract_failed"})
+    return _signed_response(request, 200, result)
+
+
+@app.post("/v1/enumerate")
+async def enumerate_catalogue(request: Request) -> Response:
+    try:
+        payload = await _verified_json(request)
+        result = await anyio.to_thread.run_sync(_enumerate, payload)
+    except ServiceError as error:
+        return _signed_response(request, error.status, {"error": error.code})
+    except Exception:  # noqa: BLE001
         return _signed_response(request, 500, {"error": "media_extract_failed"})
     return _signed_response(request, 200, result)
