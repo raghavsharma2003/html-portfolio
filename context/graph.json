@@ -2840,6 +2840,30 @@
       "kind": "rejection",
       "title": "media_probe wrote the measured duration only into evidence, leaving vy_replica_source.duration_ms NULL, so every later step declared a null duration on the input reference for a recording whose length was already known",
       "at": "2026-08-26"
+    },
+    {
+      "id": "wake-then-sign-never-sign-then-wait",
+      "kind": "decision",
+      "title": "the evidence client polls the service's own /healthz until 200 before building the timestamp and signature, because a signature minted before a 100-160s GPU wake is stale by the time it is checked",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "wake-then-sign-unblocks-the-evidence-lane",
+      "kind": "measurement",
+      "title": "5 real diarize attempts: 4 sign-then-send cold attempts all failed on transport or response signature, the first wake-then-sign attempt completed COLD in 50s and wrote 278 speaker_segment rows - n=5, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "target-likelihood-is-a-neutral-prior-not-an-identification",
+      "kind": "open",
+      "title": "diarize returns target_likelihood 0.500 on every segment BY DESIGN - the service refuses to infer identity without an enrolled anchor, gated by two evals - so something downstream must supply the anchor or choose the cluster explicitly",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "separate-fails-on-the-whole-recording",
+      "kind": "measurement",
+      "title": "separate failed twice with voice_evidence_failed, the service's bare 503 catch-all; app.py:241 passes all 13.16M samples to Sepformer in one forward pass on a T4, so CUDA OOM is the leading hypothesis - traceback NOT yet ingested, 2026-08-26",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5487,6 +5511,36 @@
       "src": "source-duration-was-never-persisted",
       "rel": "part_of",
       "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "wake-then-sign-never-sign-then-wait",
+      "rel": "supersedes",
+      "dst": "signing-before-a-cold-start-cannot-authenticate"
+    },
+    {
+      "src": "wake-then-sign-unblocks-the-evidence-lane",
+      "rel": "part_of",
+      "dst": "wake-then-sign-never-sign-then-wait"
+    },
+    {
+      "src": "wake-then-sign-never-sign-then-wait",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "target-likelihood-is-a-neutral-prior-not-an-identification",
+      "rel": "caused_by",
+      "dst": "wake-then-sign-unblocks-the-evidence-lane"
+    },
+    {
+      "src": "separate-fails-on-the-whole-recording",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "separate-fails-on-the-whole-recording",
+      "rel": "caused_by",
+      "dst": "windowing-belongs-before-the-embedder-not-before-diarize"
     }
   ]
 }

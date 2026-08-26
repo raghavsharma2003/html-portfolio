@@ -5102,3 +5102,35 @@ hypothetical: a 30-minute lecture is squarely in the product's use case and
 still fails, and 1200 s is a HARD ceiling compiled into `app.py`
 (`min(20*60, ...)`), so going past it needs a service change and a rebuild of a
 5.34 GB GPU image, not an env var.
+
+## `wake-then-sign-never-sign-then-wait` (2026-08-26, WS-AK)
+
+**Decided.** `providers/azure-voice-evidence.js` now polls the evidence
+service's own `/healthz` until it returns 200, and only then builds the
+timestamp, nonce and signature for the real request. Bounded by
+`VOICE_EVIDENCE_READY_TIMEOUT_MS`, default 300 s, floor 60 s.
+
+**Why.** The service scales to zero and takes 100 to 160 s to load models. A
+request signed before that wait is held by Container Apps until the replica is
+up, by which time its timestamp is older than the service's 60 s anti-replay
+window, and it is rejected 401. Four consecutive cold attempts failed this way;
+the first attempt with this change completed, cold, in 50 s. See
+`measurements.md#wake-then-sign-unblocks-the-evidence-lane`.
+
+**Why not widen the window.** The window is the replay protection. Making it
+long enough to cover a GPU cold start would mean accepting a signature minted
+three minutes ago, which is the thing it exists to refuse.
+
+**Why `/healthz` here is not the trap in
+`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`.** That entry
+is about the open-voice BROKER, which answers at its own front door and forwards
+separately, so its health says nothing about the thing behind it. This endpoint
+is served by the evidence app itself and returns 200 only after its lifespan has
+loaded the models and set `ready`; while the app is up but still loading it
+returns 503. The probe's body is never read, so it is a timing gate and never
+evidence.
+
+**What would reverse it.** A service whose `/healthz` stops being gated on real
+readiness, or an ingress that starts answering it on the app's behalf. Both turn
+this from a readiness check back into a front door, and the failure would be
+silent: requests would be signed too early again and the 401s would return.

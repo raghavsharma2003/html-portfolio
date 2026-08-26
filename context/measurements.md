@@ -4007,3 +4007,96 @@ decision on a T4 and a product decision about what enrollment accepts; both
 belong to the owner, not to a deploy. The three honest options are to raise the
 cap, to segment long uploads before the evidence steps, or to tell the owner the
 limit at upload time. Today nothing tells them.
+
+## `wake-then-sign-unblocks-the-evidence-lane` (2026-08-26, WS-AK)
+
+**n = 5 real `diarize` attempts** against the private GPU evidence service from
+the deployed job, on the owner's 822.7 s recording.
+
+| # | client | service state | wall | outcome |
+|---|---|---|---|---|
+| 1 | sign-then-send | cold | 227 s | `transport_signature_invalid` (401) |
+| 2 | sign-then-send | warm | 20 s | `audio_duration_invalid` (cap 600 s) |
+| 3 | sign-then-send | cold, cap now 1200 | 264 s | `voice_evidence_response_signature_invalid` |
+| 4 | sign-then-send | cold | 217 s | `transport_signature_invalid` (401) |
+| 5 | **wake-then-sign** | **cold** | **50 s** | **`complete`** |
+
+**Method.** Each attempt is one manual execution of `vyakti-replica-processing`
+with the job requeued between attempts; state read from
+`vy_replica_processing_job`. Attempts 1-4 ran images that signed before sending;
+attempt 5 ran `replica-processing-worker@sha256:c274c369…`, which polls the
+service's own `/healthz` until it returns 200 and only then builds the
+timestamp, nonce and signature.
+
+**Attempt 5 was a COLD start and still took 50 s rather than 227 s.** Waiting
+for readiness before signing is not just more correct, it is faster than failing
+on a stale signature and being retried later, because the wake is being waited
+for either way.
+
+**Attempt 3 is the one worth remembering.** `voice_evidence_response_signature_invalid`
+is raised by the CLIENT when the response carries no valid signature header, and
+an ingress error page produced while the replica is still activating looks
+exactly like a tampered response. The code is doing the right thing and naming
+the wrong cause: infrastructure noise and an attack are indistinguishable to it.
+
+**What diarize actually produced**, the first voice evidence this system has
+ever written:
+
+```
+278 speaker_segment rows, spans 624 ms to 821,680 ms, mean confidence 0.877
+adapter silero-ecapa-cluster / vyakti-voice-evidence-v1
+cluster-1  231 segments  663.5 s      cluster-2  39 segments  25.9 s
+cluster-3    3 segments    2.7 s      cluster-4   5 segments   4.4 s
+overlaps detected: 0
+```
+
+**`target_likelihood` is 0.500 on every one of the 278 rows, and that is
+DELIBERATE, not a gap.** `evals/voice-evidence/run.mjs` gates it twice: "real
+diarization output remains explicitly target-unknown" and "service refuses to
+infer target identity without an anchor". The service will not guess which
+cluster is the owner without an enrolled reference to compare against, which is
+the right refusal for a consent-critical field.
+
+The consequence is still real and belongs to whatever comes next: cluster-1 is
+dominant at 663.5 s of about 696 s of voiced audio, but "dominant" is doing work
+that no stored number does. Something downstream has to supply the anchor or
+choose the cluster explicitly, and it must not read 0.500 as a measured
+likelihood.
+
+## `separate-fails-on-the-whole-recording` (2026-08-26, WS-AK)
+
+**Measured.** With `diarize` complete, `separate` was enqueued and failed twice,
+`voice_evidence_failed`, at 20:04:30.775Z and 20:05:50.753Z. That code is the
+evidence service's bare `except Exception: return _signed_response(request, 503,
+{"error": "voice_evidence_failed"})`, so it means an unhandled exception on the
+GPU rather than a validation refusal.
+
+**HYPOTHESIS, NOT CONFIRMED.** The Container Apps console logs for that window
+had not been ingested into Log Analytics by the end of this session, so there is
+no traceback yet. What the code says: `app.py:241` passes the entire waveform to
+Sepformer in one forward pass,
+`separator.separate_batch(waveform.unsqueeze(0).to(device))`. At 822.72 s and
+16 kHz that is 13.16 million samples in a single tensor on a T4. Sepformer is a
+dual-path transformer over raw audio and its memory grows with sequence length,
+so a CUDA out-of-memory is the obvious candidate, and `torch.cuda.OutOfMemoryError`
+is an `Exception` and would land in exactly that handler.
+
+A second problem sits behind the first regardless of whether OOM is the cause:
+the handler returns TWO full-length separated WAVs base64-encoded in the
+response body. At this duration that is about 52.6 MB of PCM before encoding and
+roughly 70 MB after, against the client's 80 MB response cap. Even a successful
+separation of a recording this long would be close to the ceiling, and a
+20-minute one would exceed it.
+
+**What would confirm it.** The traceback, once ingested: a
+`torch.cuda.OutOfMemoryError` naming an allocation size. **What would refute it.**
+Any other exception type, which would point at the model or the input shape
+rather than at length.
+
+**Why it matters for the cap decision.** `diarize` passed at 822 s because VAD
+and per-segment embeddings scale linearly and are computed piecewise. `separate`
+is where whole-recording processing actually breaks. Raising
+`VOICE_EVIDENCE_MAX_DURATION_SECONDS` moved the wall from `diarize` to
+`separate` rather than removing it, which is the concrete evidence for
+`windowing-belongs-before-the-embedder-not-before-diarize`: the fix is chunked
+analysis, not a larger number.
