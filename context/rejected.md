@@ -3138,3 +3138,78 @@ happened AGAIN, in the same file, after the lesson had just been learned and
 written down. Two statements sharing a column alias is enough. The durable fix
 is not vigilance: it is that an unmatched statement THROWS, so the failure is
 always loud, plus most-specific-first ordering as a habit.
+
+## `mirror-caption-longer-than-the-clip` — captioning the full reply and speaking only the first fragment (2026-08-26, WS-AC)
+
+**What was tried.** WS-W's panel caps synthesis text at 280 characters
+(`capPanelText`). A Mirror Call reply can exceed that. The obvious shape was to
+show the owner the FULL reply as a caption and synthesise the first fragment, so
+nothing the clone said was thrown away.
+
+**What breaks.** The screen would say more than the voice said, on the one
+surface where the owner is grading the voice AGAINST the text in front of them.
+That is `silent-truncation` with a speaker on it, and it corrupts the exact
+judgement the call collects: the owner marks the clone down for trailing off
+when the clone did not trail off, or marks it up for a sentence they read and
+never heard.
+
+**What it was replaced with.** `capMirrorReply` caps at assembly, at
+`splitForLimit`'s first fragment, and the CAPTION IS THE SAME STRING. The trim
+is not silent either — `assembled_chars` rides on the turn row and the wire
+carries a `truncated` block whenever it exceeds the spoken length.
+
+**The rule.** When one channel has to be shortened, shorten both. Two channels
+that disagree about what was said is worse than one channel that is honestly
+short, and it is worst on a surface whose purpose is comparing them.
+
+## `mirror-call-channel-in-the-generation-ledger` — widening 019's channel CHECK to add a `mirror_call` value (2026-08-26, WS-AC)
+
+**What was tried.** `turn_voice` authorizes through `beginOwnedVoicePreview`, so
+a Mirror Call clip books a `vy_replica_generation` row reading
+`purpose='voice_preview'`, `channel='studio_preview'`. That is slightly untrue on
+the ledger, and the tidy fix looked like adding `mirror_call` to migration 019's
+`channel` CHECK.
+
+**What breaks.** 045's `vy_replica_generation_preview_shape` constraint pins the
+whole preview lane to `purpose='voice_preview' and channel='studio_preview' and
+dialogue_turn_id is null`. A new channel value needs that constraint widened
+too, which makes the mirror lane a SECOND SHAPE the provenance path has to
+know about — the fork wearing a schema change instead of a code change. The one
+rule this workstream was given is not to fork the HMAC / watermark / disclosure
+path, and a fork that starts in the DDL is harder to see than one that starts in
+a function.
+
+**What it was replaced with.** `vy_mirror_turn.generation_id` (migration 060):
+the mirror-call meaning is recorded on the turn that CAUSED the generation, and
+`vy_mirror_turn_spoken_binding` makes `voice_state='spoken'` unrepresentable
+without it. The ledger row keeps the shape 045 already guarantees.
+
+**The rule.** When a reused lane's record is imprecise, add the precision on
+YOUR side of the join. Widening the shared table's vocabulary is how a reuse
+becomes a fork one CHECK at a time.
+
+## `mirror-turn-voice-202-read-as-corrupt-audio` — the warming state arriving as an integrity error (2026-08-26, WS-AC)
+
+**What was tried.** Nothing, in the sense that no code was written and then
+removed — this is a defect that existed in the tree the moment `turn_voice`
+started answering, and was found by reading WS-Y's client against WS-W's server.
+
+**What breaks.** `fetchMirrorCallTurnVoice` tested `response.status === 404 |
+405 | 501` for an absent seam, then `!response.ok` for an error, then read the
+blob and threw `"The clone's protected audio was invalid"` unless it was
+`audio/wav`. **202 is `response.ok`.** So the honest "your voice runtime is
+starting on a GPU, about 2 to 3 minutes" body — the one WS-W built the whole
+`dispatchWake` flush window to be able to send — would have surfaced to the
+owner as an audio INTEGRITY error. A cold start reported as corruption is the
+same mislabelling class as `hmac-skew-shorter-than-cold-start`, where a latency
+problem arrived as a 401.
+
+**What it was replaced with.** A `MirrorCallVoiceWarming` error carrying the
+server's own copy, thrown from a branch tested BEFORE the `ok` check, and a
+local notice in `MirrorCallStudio` that clears on the next successful clip. It
+is deliberately NOT `VOICE_UNAVAILABLE`: that flag is permanent-for-this-call by
+design and a cold start is not.
+
+**The rule.** A three-outcome server needs a three-outcome client. Whenever a
+route gains a 2xx that is not the success body, grep every caller for
+`response.ok` — that is where the new state silently joins the old one.

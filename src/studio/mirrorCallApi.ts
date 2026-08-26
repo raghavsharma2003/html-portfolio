@@ -68,6 +68,40 @@ export const REQUIRED_OPS: readonly MirrorCallOp[] = [
  *  studio waits on a real answer. Absent, the copy says it is an estimate. */
 export const OPTIONAL_OPS: readonly MirrorCallOp[] = ["turn_voice", "status"];
 
+/**
+ * The clone's voice runtime is booting. NOT an error and NOT an absent seam.
+ *
+ * `api/_voice/warmup.js` measured the two facts behind this: the GPU replica is
+ * ready 161 s after a wake, and the request that woke it dies at 242 s on a
+ * platform timeout. So the server dispatches the wake, stops WAITING at 12 s,
+ * and answers 202 with the honest band. That is a third outcome beside "audio"
+ * and "broken", and collapsing it into either is the fake-progress-bar failure
+ * (into an error: the owner is told their clone failed when it is starting;
+ * into a spinner: the owner watches a bar over a number nobody measured).
+ */
+export class MirrorCallVoiceWarming extends Error {
+  stage: string;
+
+  etaSecondsLow: number;
+
+  etaSecondsHigh: number;
+
+  retryAfterMs: number;
+
+  constructor(body: any) {
+    super(
+      typeof body?.message === "string" && body.message
+        ? body.message
+        : "Your voice runtime is starting on a GPU. From a cold start this takes about 2 to 3 minutes.",
+    );
+    this.name = "MirrorCallVoiceWarming";
+    this.stage = String(body?.stage || "runtime_cold");
+    this.etaSecondsLow = Number.isFinite(body?.eta_seconds_low) ? Number(body.eta_seconds_low) : 120;
+    this.etaSecondsHigh = Number.isFinite(body?.eta_seconds_high) ? Number(body.eta_seconds_high) : 180;
+    this.retryAfterMs = Number.isFinite(body?.retry_after_ms) ? Number(body.retry_after_ms) : 30_000;
+  }
+}
+
 export class MirrorCallBackendAbsent extends Error {
   detail: string;
 
@@ -578,6 +612,14 @@ export async function fetchMirrorCallTurnVoice(token: string, input: {
   });
   if (response.status === 404 || response.status === 405 || response.status === 501) {
     throw new MirrorCallBackendAbsent(`turn_voice answered ${response.status}`);
+  }
+  // 202 IS `response.ok`, which is why it is tested BEFORE the ok check rather
+  // than inside the error branch. Without this the warming JSON would fall
+  // through to the blob check below and surface as "the clone's protected audio
+  // was invalid" — an integrity error for a cold start, which is the same class
+  // of mislabelling `hmac-skew-shorter-than-cold-start` already cost us once.
+  if (response.status === 202) {
+    throw new MirrorCallVoiceWarming(await response.json().catch(() => ({}) as any));
   }
   if (!response.ok) throw await readError(response, `the clone's voice could not be fetched (${response.status})`);
   const audio = await response.blob();

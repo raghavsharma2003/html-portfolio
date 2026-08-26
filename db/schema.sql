@@ -2446,3 +2446,38 @@ create table if not exists vy_mirror_finetune_job (
 create unique index if not exists vy_mirror_finetune_session_ix on vy_mirror_finetune_job (session_id);
 create index if not exists vy_mirror_finetune_queue_ix on vy_mirror_finetune_job (state, requested_at) where state = 'queued';
 create index if not exists vy_mirror_finetune_owner_ix on vy_mirror_finetune_job (owner_user_id, replica_id, requested_at desc);
+
+-- The clone's own half of a Mirror Call (migration 060, WS-AC). The turn is a
+-- ROW rather than a response field because `turn_voice` synthesises the text in
+-- this row and never the text in its query string — the studio cannot make the
+-- clone say anything the server did not author, and that is the absence of a
+-- column rather than a check. `sheet_source` says which persona answered:
+-- calibrating before publishing is the normal case, so the draft sheet replies,
+-- and an owner who cannot tell a published clone from a draft one cannot judge
+-- either. There is deliberately no third value for a generic assistant.
+create table if not exists vy_mirror_turn (
+  turn_id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  window_id uuid not null references vy_mirror_window(window_id) on delete cascade,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  seq integer not null check (seq > 0),
+  text text not null check (text <> ''),
+  assembled_chars integer not null default 0 check (assembled_chars >= 0),
+  sheet_id uuid,
+  sheet_source text not null check (sheet_source in ('published','draft')),
+  agent_slug text not null default '',
+  gate_applied boolean not null default false,
+  gate_findings integer not null default 0 check (gate_findings >= 0),
+  generation_id uuid,
+  voice_state text not null default 'unspoken' check (voice_state in ('unspoken','warming','spoken','refused')),
+  voice_failure_code text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_mirror_turn_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade,
+  constraint vy_mirror_turn_voice_reason check (voice_state <> 'refused' or voice_failure_code <> ''),
+  constraint vy_mirror_turn_spoken_binding check (voice_state <> 'spoken' or generation_id is not null)
+);
+create unique index if not exists vy_mirror_turn_window_ix on vy_mirror_turn (window_id);
+create index if not exists vy_mirror_turn_session_ix on vy_mirror_turn (session_id, seq);
+create index if not exists vy_mirror_turn_owner_ix on vy_mirror_turn (owner_user_id, replica_id, created_at desc);

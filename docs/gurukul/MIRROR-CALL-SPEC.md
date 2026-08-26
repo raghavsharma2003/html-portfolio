@@ -74,6 +74,17 @@ voice-to-voice, and three loops run simultaneously:
 - Clone speech: synthesis through the existing admission broker (WS-W's route
   is the seam); cascade lane (ASR → engine → TTS), not full-duplex — the
   research already pinned that decision (`ROADMAP-100X.md` §Voice).
+  **Built by WS-AC** (2026-08-26). `api/_mirrorcall-reply.js` is the engine
+  half: `sheetToModule` over the owner's own sheet → `engine.compile` →
+  `gatedReply`, with no fallback persona and a named `turn_absent_reason` for
+  every way it can decline. `api/mirror-call.js`'s `opTurnVoice` is the TTS
+  half and calls WS-W's `handleVoicePreviewPanel` unchanged, so the HMAC,
+  the audible disclosure prefix, the watermark, the ledger and the 202-warming
+  contract are the SAME code and not a second copy. `vy_mirror_turn`
+  (migration 060) binds the two: `turn_voice` synthesises the text in the row,
+  never the text in its query string. Where the replica has no published sheet
+  the DRAFT one answers and `sheet_source` says so on every payload — an owner
+  who cannot tell a published clone from a draft one cannot judge either.
 - Everything gated: offline eval for the session state machine, delta
   proposal/approval (with a negative control proving an unapproved delta
   never lands), consent refusal, and the reference-set growth arithmetic.

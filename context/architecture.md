@@ -292,3 +292,78 @@ Two seams deliberately left as single functions to reconcile: `ingest_window`'s
 multipart body (WS-X may prefer the signed-upload handle `enrollmentApi` uses)
 and `turn_voice` (WS-W owns synthesis; WS-X may proxy or may not, and the UI
 degrades to captions-only and says so).
+
+**Both seams are now reconciled.** `ingest_window` takes the signed-upload
+handle (`mirror-call-window-audio-is-a-source-handle`, WS-X) and `turn_voice` is
+served (WS-AC, below).
+
+## The clone's reply inside a Mirror Call (WS-AC, 2026-08-26)
+
+The half that turns "the feature exists" into "the owner can talk to their
+clone". Two lanes, both of them deliberately made of parts that already existed.
+
+```
+  POST /api/mirror-call?op=ingest_window
+      |
+      +-- ASR (WS-X, unchanged) ....... owner window -> transcript
+      |
+      +-- cloneTurnFor()  <- api/mirror-call.js
+              |
+              +-- mirrorReplyAgent(db, owner, replica)   <- _mirrorcall-store.js
+              |     ONE owner-scoped read. Prefers a published+consented sheet,
+              |     else the newest non-revoked DRAFT. The ordering is the
+              |     policy, and it is in SQL so there is no second query that
+              |     could run without the first's owner clause.
+              |
+              +-- assembleMirrorReply()                  <- _mirrorcall-reply.js
+              |     sheetToModule -> engine.compile(medium:voice, mode:call)
+              |       -> gatedReply()   <- THE ONE DOOR (api/_surface.js)
+              |     NO fallback persona. No sheet -> no turn -> a named reason.
+              |     capMirrorReply() caps at 280 = capPanelText's cap, so the
+              |     CAPTION AND THE AUDIO ARE THE SAME STRING.
+              |
+              +-- recordMirrorTurn() -> vy_mirror_turn   <- migration 060
+                    on conflict (window_id) do nothing: an ingest retry is a
+                    retry, not a second clone turn for one thing the owner said.
+
+  GET /api/mirror-call?op=turn_voice&session_id=..&turn_id=..
+      |
+      +-- getMirrorTurn()  <- THE BINDING. The text comes from the ROW.
+      |     There is no branch that reads a string from the query, the body or
+      |     a header, so the studio cannot make the clone say anything the
+      |     server did not author.
+      |
+      +-- mirrorDraftGenomeVersion()  <- resolved server-side, never accepted
+      |     from the client: a caller may not choose which version of a
+      |     person's voice speaks any more than it may choose the words.
+      |
+      +-- handleVoicePreviewPanel()   <- WS-W's handler, UNFORKED
+              same provider, same protection adapters, same ledger, same
+              warmth registry as api/voice-preview.js wires. Therefore the
+              same HMAC admission, the same audible disclosure PREFIX, the
+              same watermark, the same provenance ledger row, and the same
+              202-warming body passed through with Retry-After.
+              |
+              +-- 200 audio/wav -> voice_state='spoken' + generation_id
+              +-- 202 warming   -> voice_state='warming', studio shows WS-W's
+              |                    own copy (MirrorCallVoiceWarming)
+              +-- 503/409/413   -> voice_state='refused' + a named code
+
+  evals/mirrorcallreply.mjs .... offline gate, wired into evals/run.mjs.
+      110 checks. Four negative controls, which are the point:
+        - a cooperative reply function cannot coax a turn out of a sheetless
+          replica (proves the no-fallback-persona claim);
+        - the owner clause struck out of the sheet read DOES leak to a
+          stranger (proves the shipping clause is what refuses them);
+        - a clip with the disclosure prefix stripped is REFUSED;
+        - a FORKED protection path whose watermark proof does not bind to the
+          issued token is REFUSED.
+```
+
+The one declared deviation: `beginOwnedVoicePreview` books the generation as
+`purpose='voice_preview'`, `channel='studio_preview'`, so on the provenance
+ledger a Mirror Call clip looks like a studio preview. Widening 019's `channel`
+CHECK was rejected (`mirror-call-channel-in-the-generation-ledger`); the mirror
+meaning lives on `vy_mirror_turn.generation_id` instead, and
+`vy_mirror_turn_spoken_binding` makes a `spoken` turn without one
+unrepresentable.

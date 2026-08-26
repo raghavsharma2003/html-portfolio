@@ -27,18 +27,25 @@ export const FIDELITY_FAMILY = "speechbrain-ecapa-voxceleb";
  *  named error at connect time rather than a mysterious 400 mid-call. */
 export const MIRROR_CALL_OPS = Object.freeze([
   "contract", "create", "status", "ingest_window", "deltas",
-  "delta_action", "turn_feedback", "end",
+  "delta_action", "turn_voice", "turn_feedback", "end",
 ]);
 
 /** Ops the client knows about that this deployment does NOT serve.
  *
- *  `turn_voice` is the clone actually speaking, and it is not built here: the
- *  clone's REPLY (text, then synthesis through the admission broker) is a lane
- *  this workstream does not own, and WS-Y's contract already makes `turn_voice`
- *  optional so "the call runs with captions only and says so" is a supported
- *  state. Advertising it and returning silence would be the fake-progress-bar
- *  failure with a speaker attached. It answers 501 with this code. */
-export const MIRROR_CALL_UNSERVED_OPS = Object.freeze(["turn_voice"]);
+ *  EMPTY as of WS-AC. `turn_voice` used to live here, and the comment that
+ *  stood in its place is kept in the git history rather than deleted from the
+ *  record: WS-X did not own the clone's reply lane, so the op answered 501 and
+ *  every window returned `turn: null` with `clone_reply_lane_not_wired`. It is
+ *  now served — the text through `api/_mirrorcall-reply.js` and the audio
+ *  through WS-W's admission broker, unforked.
+ *
+ *  The constant STAYS, and it stays exported, checked and empty. WS-Y's client
+ *  reads `unserved_ops` to say WHY a missing op is missing rather than guessing
+ *  from a 400, and an empty list is a positive statement ("this deployment
+ *  serves everything the contract names") that an absent field is not. It is
+ *  also the place the next unfinished op goes, and a list that has to be
+ *  reintroduced is a list that gets forgotten. */
+export const MIRROR_CALL_UNSERVED_OPS = Object.freeze([]);
 
 /** DEVIATION FROM THE CLIENT'S DEFAULT, declared on the handshake so the studio
  *  can see it rather than discover it.
@@ -215,3 +222,55 @@ export function wireDelta(row) {
 }
 
 export const wireDeltas = (rows) => (Array.isArray(rows) ? rows : []).map(wireDelta).filter(Boolean);
+
+/**
+ * One clone turn, in the studio's field names. WS-AC.
+ *
+ * The client's contract is three fields — `turn_id`, `text`, `can_voice` — and
+ * `ingestAudioWindow` reads exactly those. Everything past them is beyond the
+ * contract and ignored by the studio, and every one of them is here because a
+ * payload that carries a plausible reply and cannot say WHICH persona produced
+ * it, or whether the caption is the whole reply, is the shape
+ * `plausible-return-hides-a-dead-pipeline` warns about wearing a friendlier
+ * face.
+ *
+ * `can_voice` is a STATEMENT ABOUT THIS DEPLOYMENT, computed from whether the
+ * synthesis route is configured at all, and it is deliberately not optimistic.
+ * The studio only calls `turn_voice` when it is true, so a `true` on a
+ * deployment with no broker origin buys a guaranteed round trip that ends in a
+ * 503 — and the owner reads that as their clone failing rather than as an
+ * environment that was never wired. `voice_absent_reason` names which it is.
+ */
+export function wireTurn(row, { canVoice = false, voiceAbsentReason = "" } = {}) {
+  if (!row) return null;
+  const text = String(row.text || "");
+  if (!text) return null;
+  const assembled = Number(row.assembled_chars ?? text.length) || text.length;
+  return {
+    turn_id: String(row.turn_id || ""),
+    text,
+    can_voice: Boolean(canVoice),
+    // ── beyond the contract, ignored by the client, load-bearing for anyone
+    //    reading the payload ──
+    //
+    // 'draft' is the honest marker the brief asked for. It is not a warning
+    // and it is not an error: calibrating before publishing is the normal case
+    // and the whole reason the Mirror Call exists. It is a fact the owner is
+    // entitled to, because "which of my two personas did I just grade" has no
+    // other answer and a wrong answer costs them the call.
+    sheet_source: row.sheet_source,
+    sheet_id: row.sheet_id ?? null,
+    // Non-null only when the caption is SHORTER than what the engine produced.
+    // The caption and the audio are the same string in every case, so this is
+    // the one place the difference is visible, and leaving it out would make
+    // the trim silent (`silent-truncation`).
+    truncated: assembled > text.length
+      ? { spoken_chars: text.length, assembled_chars: assembled, cap: text.length }
+      : null,
+    agent_slug: row.agent_slug || "",
+    // Counts only. What the gate caught must not travel — `gateReply`'s rule.
+    gate: { applied: Boolean(row.gate_applied), findings: Number(row.gate_findings ?? 0) || 0 },
+    voice_state: row.voice_state || "unspoken",
+    voice_absent_reason: canVoice ? "" : String(voiceAbsentReason || ""),
+  };
+}

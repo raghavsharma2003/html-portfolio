@@ -4504,3 +4504,103 @@ names.
 
 *Reverses when* the reply lane lands: the op moves from `MIRROR_CALL_UNSERVED_OPS`
 to `MIRROR_CALL_OPS` in `api/_mirrorcall-wire.js` and nothing else changes.
+
+**Reversed 2026-08-26 by WS-AC** — and the reversal condition above was exactly
+right, which is why it is worth recording: the diff really was the two lines it
+predicted plus the lane behind them. See
+`mirror-call-reply-is-the-one-door` below.
+
+## `mirror-call-reply-is-the-one-door` — the clone's Mirror Call reply is assembled through `gatedReply`, from the owner's own sheet, with no fallback persona (2026-08-26, WS-AC)
+
+`api/_mirrorcall-reply.js` builds the clone's turn out of `sheetToModule` over
+the owner's own TeacherSheet, `engine.compile`, and `api/_surface.js`'s
+`gatedReply()` — the same single door every other surface's bytes leave by. It
+is not a second chat engine and it contains **no branch that returns a default
+agent**.
+
+The argument is `api/_clonechat.js`'s, transferred: a lane with its own reply
+path is `age-tier-never-realtime` in a new costume — a second assembler that
+misses every rule added after the fork, silently, while returning 200. On this
+surface the stake is higher than on the widget. The owner is listening to a
+clone **of themselves** in order to judge whether it sounds like them, so a
+generic assistant wearing their cloned voice would not merely be wrong, it would
+corrupt the only judgement the call exists to collect.
+
+Two concrete consequences:
+
+- **A replica with no sheet produces NO TURN**, and `turn_absent_reason` says
+  `clone_sheet_absent`. The refusal is the absence of a fallback branch, not a
+  check on one.
+- **The compile is spoken, not texted**: `medium: "voice"`, `mode: "call"`,
+  `voiceEngine: "device"`. Not `"live"` — that branch of `buildSpeechStyle`
+  tells her nothing she says is written down anywhere, which is FALSE here (a
+  Mirror Call turn is captioned and stored). The `[tone: …]` marker the
+  `"device"` branch asks for never reaches an ear because `parseBubbles`
+  extracts it inside `gatedReply`, which `evals/mirrorcallreply.mjs` §1 asserts
+  by driving a fake engine that `hasGate()` accepts.
+
+*Reverses if* a measured Mirror Call reply is worse than one from a purpose-built
+mirror prompt — but the bar is a MEASUREMENT, not a hunch, and the fork would
+need its own copy of the honesty gate before it could be compared at all.
+
+## `mirror-call-answers-from-the-draft-sheet-and-says-so` — calibrating happens before publishing, so the draft persona replies, with its source on every payload (2026-08-26, WS-AC)
+
+A Mirror Call is the thing an owner does BEFORE they publish. Refusing every
+unpublished replica would make the feature unreachable exactly when it is most
+useful. So `mirrorReplyAgent` prefers a published+consented sheet and otherwise
+answers from the newest non-revoked **draft**.
+
+The whole cost of that decision is paid by one field. `sheet_source` rides on
+the turn row (migration 060) and on every wire payload, because "the owner heard
+a plausible voice and could not tell which persona produced it" is
+`plausible-return-hides-a-dead-pipeline` with a speaker attached. There is
+deliberately **no third value** for a generic assistant: the enum is
+`('published','draft')` and a sheetless replica has no row at all.
+
+Two clauses that look like decoration and are not:
+
+- `s.status <> 'revoked'` — revocation DEREGISTERS a module
+  (`safety-floor-teacher.md` §2.2). Falling back to a revoked sheet because it
+  happened to be the newest row would be a withdrawal quietly failing to take
+  effect, on the owner's own voice, where nobody would notice.
+- A `'published'` row with a null `consent_artifact_id` is reported as
+  **draft**. Migration 051's CHECK makes that row impossible; the assembler
+  refusing to call it published anyway is the second layer, and it is the one
+  that survives somebody widening the constraint.
+
+*Reverses if* owners report grading a draft they thought was live — which would
+mean the marker is present and unrendered, and the fix would be in the studio,
+not here.
+
+## `mirror-call-synthesis-is-reused-not-forked` — `turn_voice` goes through WS-W's admission-broker handler unchanged, and records its mirror-call meaning on its own row (2026-08-26, WS-AC)
+
+`opTurnVoice` signs nothing, wakes nothing, prepends no disclosure, embeds no
+watermark and opens no ledger row. It calls `handleVoicePreviewPanel` with the
+same collaborators `api/voice-preview.js` wires — same provider, same protection
+adapters, same ledger, same warmth registry — and passes the 202-warming
+contract through byte for byte, `Retry-After` included.
+
+A second path to a cloned voice is a second place the disclosure prefix can be
+dropped, and `disclosure-announces-the-clone` is already on the books as a
+defect a fork would have made invisible rather than merely awkward.
+
+**The declared deviation.** `beginOwnedVoicePreview` books a
+`vy_replica_generation` row with `purpose='voice_preview'`,
+`channel='studio_preview'` — so on the ledger a Mirror Call clip looks like a
+studio preview. Widening migration 019's `channel` CHECK to add a `mirror_call`
+value was considered and rejected: it would make the mirror lane a second shape
+the provenance path has to know about, which is the fork wearing a schema
+change. The mirror meaning is recorded instead on `vy_mirror_turn.generation_id`
+— a binding on the turn that caused it, with 045's `preview_shape` check
+untouched.
+
+**The one thing the mirror lane adds is the binding.** The synthesised text
+comes from `getMirrorTurn` — a row the server wrote after the server assembled
+the reply. There is no branch that reads a string from the query, the body or a
+header, which is `src/studio/mirrorCallApi.ts`'s rule ("keeps the studio unable
+to make the clone say anything the server did not author") expressed as the
+absence of any other source for the string.
+
+*Reverses if* the mirror lane ever needs a synthesis parameter the preview panel
+cannot express — at which point the honest move is a shared handler with two
+callers, never a copy.

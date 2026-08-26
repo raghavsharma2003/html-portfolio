@@ -10,6 +10,7 @@
 //   GET  /api/mirror-call?op=contract              the deployment handshake
 //   GET  /api/mirror-call?op=status&session_id=…   is the GPU warm, where is fidelity
 //   GET  /api/mirror-call?op=deltas&session_id=…   the chip rail
+//   GET  /api/mirror-call?op=turn_voice&…          the clone's protected audio
 //   POST /api/mirror-call?op=create                { replica_id }
 //   POST /api/mirror-call?op=ingest_window         { session_id, seq, duration_ms, source_id }
 //   POST /api/mirror-call?op=delta_action          { session_id, delta_id, action }
@@ -30,13 +31,40 @@
 // file touches none of it. Capture and learning hang off the call's existing
 // seams: the studio already has the owner's audio and the turn boundaries.
 //
-// It is not the clone's voice, and it does not pretend to be. `turn_voice` is
-// answered 501: the clone's REPLY — text through the engine, then synthesis
-// through the admission broker — is a lane this workstream does not own, and
-// WS-Y's contract makes that op optional precisely so "captions only, and the
-// studio says so" is a supported state. Every window result therefore returns
-// `turn: null` with `turn_absent_reason` naming why. Advertising a lane that
-// answered silence would be the fake-progress-bar failure with a speaker on it.
+// ═════════════════════════════════════════════════════════════════════════
+// THE CLONE'S REPLY — WS-AC, and what changed
+// ═════════════════════════════════════════════════════════════════════════
+//
+// This block used to say that `turn_voice` answers 501 and that every window
+// returns `turn: null`. Both were true and neither is any more, and the text is
+// replaced rather than amended because a header that describes a lane the file
+// no longer has is the most expensive kind of stale comment.
+//
+// What happens now, on each half:
+//
+//  TEXT. After ASR, `api/_mirrorcall-reply.js` assembles the reply through the
+//  SAME door every other surface's bytes leave by — `sheetToModule` over the
+//  owner's own TeacherSheet, `engine.compile`, `gatedReply`. It is not a second
+//  chat engine and there is no fallback persona in it: a replica with no sheet
+//  produces NO TURN and a named reason. The turn is stored (migration 060) so
+//  the synthesis half can bind to it, and `sheet_source` rides on every payload
+//  so an owner always knows whether they just graded their published clone or
+//  their draft.
+//
+//  AUDIO. `opTurnVoice` synthesises THAT STORED TEXT through WS-W's
+//  `handleVoicePreviewPanel` — the admission broker, the HMAC, the audible
+//  disclosure prefix, the watermark and the provenance ledger, all of it
+//  unforked and none of it re-decided here. The one thing this file adds is the
+//  binding: the text comes from `getMirrorTurn`, never from the query string.
+//  The 202-warming contract is passed through byte for byte, so the studio's
+//  honest "your voice runtime is starting" state is the SAME state the preview
+//  panel shows, produced by the same code.
+//
+// What is still absent is still named. `turn_absent_reason` is a member of
+// `MIRROR_TURN_ABSENT_REASONS` and nothing else; `voice_absent_reason` says why
+// a turn that exists cannot be spoken on this deployment. A lane that answered
+// silence would be the fake-progress-bar failure with a speaker on it, and none
+// of the states below is silent.
 //
 // It is not an upload endpoint. Window audio reaches the private bucket through
 // the ordinary consented lane and arrives here as a `source_id`.
@@ -57,6 +85,7 @@
 // with pooled audio and a conditioning score that moves only when a better ten
 // seconds is SELECTED — and never a single figure that would climb beside a
 // clone which cannot have changed.
+import { randomUUID } from "node:crypto";
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
@@ -90,22 +119,35 @@ import {
   wireDelta,
   wireDeltas,
   wireFidelity,
+  wireTurn,
 } from "./_mirrorcall-wire.js";
+import {
+  MIRROR_REPLY_TEXT_MAX,
+  MIRROR_TURN_ABSENT_REASONS,
+  assembleMirrorReply,
+  mirrorReplyHistory,
+} from "./_mirrorcall-reply.js";
 import {
   decideMirrorDelta,
   endMirrorSession,
+  getMirrorTurn,
   getProposedMirrorDelta,
   listMirrorDeltas,
+  listMirrorTurns,
   listMirrorWindows,
   listUnactionedMirrorDeltas,
   mirrorCorpusTokens,
   mirrorDeltaTally,
+  mirrorDraftGenomeVersion,
   mirrorReferenceBaseline,
+  mirrorReplyAgent,
   mirrorSelectionCount,
   mirrorWindowAudioRef,
+  noteMirrorTurnVoice,
   openMirrorSession,
   proposeMirrorDelta,
   recordMirrorFeedback,
+  recordMirrorTurn,
   recordMirrorWindow,
   resolveMirrorSession,
   scoreMirrorWindow,
@@ -114,11 +156,26 @@ import {
   standingConditioning,
   standingMirrorFidelity,
 } from "./_mirrorcall-store.js";
+import { createProductionProtectionAdapters } from "./_provenance/registry.js";
+import { protectReplicaStream } from "./_provenance/delivery.js";
+import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
+import { handleVoicePreviewPanel } from "./_voice/preview-panel.js";
+import {
+  beginOwnedVoicePreview,
+  createNeonVoicePreviewLedger,
+  markVoicePreviewFailed,
+} from "./_replica-voice-preview.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  // The provenance headers a protected clip carries, plus the warming contract's
+  // Retry-After. Exposed for the same reason `api/voice-preview.js` exposes
+  // them: a clip whose generation id and disclosure scheme are unreadable from
+  // the browser is a clip nobody can trace back to its ledger row.
+  res.setHeader("Access-Control-Expose-Headers",
+    "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, Retry-After");
   res.setHeader("Cache-Control", "no-store");
 }
 
@@ -295,6 +352,86 @@ function citationFor(windows, delta) {
   };
 }
 
+/**
+ * Can this deployment carry a turn to a speaker at all?
+ *
+ * Deliberately pessimistic, and deliberately not a guess about the GPU. Warmth
+ * is a LATENCY question the 202 contract already answers honestly; this is a
+ * CONFIGURATION question, and answering it optimistically costs the owner a
+ * round trip that ends in a 503 they will read as their clone failing.
+ */
+function voiceRouteState() {
+  if (!String(process.env.AZURE_OPEN_VOICE_ORIGIN || "")) {
+    return { canVoice: false, reason: "voice_route_unconfigured" };
+  }
+  if (!String(process.env.OPEN_VOICE_HMAC_SECRET || "")) {
+    return { canVoice: false, reason: "voice_route_unconfigured" };
+  }
+  return { canVoice: true, reason: "" };
+}
+
+/**
+ * Assemble, store and wire one clone turn.
+ *
+ * Wrapped in its own try/catch for the same reason `scoreAndSelect` is: the
+ * personality loop and the caption rail are independent of the clone's reply,
+ * and a reply failure must never cost the owner the transcript, the chips and
+ * the fidelity numbers that same window earned. A failure here is a NAMED
+ * absent reason on a 200, never a 500 that loses all four.
+ */
+async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows) {
+  const route = voiceRouteState();
+  const absent = (reason) => ({ turn: null, reason, canVoice: false, voiceAbsentReason: "" });
+  try {
+    // Owner-scoped in SQL, both of them. A caller who does not own this replica
+    // never reached here (`resolveMirrorSession` refused), and if the predicate
+    // above were ever widened these two would still return nothing.
+    const [sheetRow, priorTurns] = await Promise.all([
+      mirrorReplyAgent(db, ownerUserId, replicaId),
+      listMirrorTurns(db, ownerUserId, replicaId, sessionId),
+    ]);
+
+    // The rolling call MINUS the window being answered — that one is
+    // `latestText`, and including it twice would show the clone the owner's
+    // last line as both history and prompt.
+    const history = mirrorReplyHistory(
+      windows.filter((w) => String(w.window_id) !== String(window.window_id)),
+      priorTurns,
+    );
+
+    const assembled = await assembleMirrorReply({
+      sheetRow,
+      history,
+      latestText: String(window.transcript || ""),
+    });
+    if (!assembled.ok) return absent(assembled.reason);
+
+    const row = await recordMirrorTurn(db, ownerUserId, replicaId, sessionId, {
+      windowId: window.window_id,
+      text: assembled.text,
+      assembledChars: assembled.assembledChars,
+      sheetSource: assembled.sheetSource,
+      sheetId: assembled.sheetId,
+      agentSlug: assembled.agentSlug,
+      gateApplied: assembled.gate.applied,
+      gateFindings: assembled.gate.findings,
+    });
+    // No row means the window was not this owner's or the session closed
+    // between the ASR call and now. Both are real, both are transient, and
+    // neither is "the clone had nothing to say".
+    if (!row) return absent("clone_reply_failed");
+
+    return {
+      turn: wireTurn(row, { canVoice: route.canVoice, voiceAbsentReason: route.reason }),
+      reason: "",
+      canVoice: route.canVoice,
+      voiceAbsentReason: route.reason,
+    };
+  } catch {
+    return absent("clone_reply_failed");
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // ops
 // ─────────────────────────────────────────────────────────────────────────
@@ -418,6 +555,17 @@ async function opIngestWindow(db, ownerUserId, req) {
   const mined = asr
     ? await mineAndPropose(db, ownerUserId, replicaId, sessionId, session, windows)
     : { proposed: [], stats: null, guarded: [], corpus: null };
+
+  // THE CLONE'S REPLY. Attempted only when the owner's window became words:
+  // "the clone does not answer nothing" is WS-Y's own comment on the `turn`
+  // field, and `clone-initiative-record-has-no-absence` is the law behind it —
+  // a dropped window is an ABSENCE, and an absence is not an input the reply
+  // predicate has. A clone that answered a silence would be answering something
+  // nobody said.
+  const reply = asr
+    ? await cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows)
+    : { turn: null, reason: "owner_window_dropped", canVoice: false, voiceAbsentReason: "" };
+
   const { fidelity, pool } = await fidelityFor(db, ownerUserId, replicaId, sessionId);
   const coverage = mirrorCoverage(windows);
 
@@ -432,11 +580,13 @@ async function opIngestWindow(db, ownerUserId, req) {
           ? { reason: dropReason(window.failure_code), failure_code: window.failure_code }
           : null,
         owner_transcript: window.asr_state === "transcribed" ? String(window.transcript || "") : "",
-        // The clone does not reply here. `turn_voice` is unserved and the reply
-        // lane is not this workstream's — a null turn with a named reason is
-        // the honest shape, and the client's contract admits it.
-        turn: null,
-        turn_absent_reason: "clone_reply_lane_not_wired",
+        turn: reply.turn,
+        // Present EXACTLY when `turn` is null, and drawn from a frozen
+        // vocabulary. WS-Y's normalizer refuses a payload carrying both a drop
+        // and a turn; this is the other side of that rule — a null turn with no
+        // reason is a clone that went quiet for a cause nobody can name, which
+        // is the state `no-silent-truncation` exists to make unrepresentable.
+        ...(reply.turn ? {} : { turn_absent_reason: reply.reason }),
         deltas: wireDeltas(mined.proposed),
         fidelity,
         reference: referenceBlock(window, pool),
@@ -601,6 +751,156 @@ async function opStatus(db, ownerUserId, sessionIdValue) {
   };
 }
 
+/**
+ * `turn_voice` — the clone speaking, in the owner's own cloned voice.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * WHAT THIS FUNCTION DOES NOT DO, WHICH IS MOST OF IT
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * It does not sign anything, wake anything, verify an owner's consent scopes,
+ * prepend a disclosure, embed a watermark, open a ledger row or decide what a
+ * cold start looks like. All of that is `api/_voice/preview-panel.js` and the
+ * fence it authorizes through, reached with the SAME collaborators
+ * `api/voice-preview.js` wires — the same provider, the same protection
+ * adapters, the same ledger, the same warmth registry.
+ *
+ * That is not laziness, it is the brief: a second path to a cloned voice is a
+ * second place the disclosure prefix can be dropped, and `disclosure-announces-
+ * the-clone` is already on the books as a defect that a fork would have made
+ * invisible instead of merely awkward. `evals/mirrorcallreply.mjs` §5 keeps a
+ * FORKED synthesis path beside the real one and fails unless the fork is caught
+ * — the negative control that proves the reuse is load-bearing.
+ *
+ * ═══════════════════════════════════════════════════════════════════════
+ * THE ONE THING IT DOES ADD
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * The binding. `text` comes from `getMirrorTurn` — a row the SERVER wrote after
+ * the SERVER assembled the reply — and there is no branch that reads a string
+ * from the query, the body or a header. The studio cannot make the clone say
+ * anything the server did not author, which is the rule
+ * `src/studio/mirrorCallApi.ts` states and this is where it is true.
+ *
+ * `genome_version` is resolved from the database for the same reason: the
+ * preview panel gets it from a screen, a call has no screen, and accepting it
+ * from the caller would let a client choose which version of a person's voice
+ * speaks.
+ */
+async function opTurnVoice(db, ownerUserId, query, makeDeps) {
+  const session = await resolveMirrorSession(db, ownerUserId, query?.session_id);
+  if (!session) return { status: 404, body: { error: "mirror_session_unavailable" } };
+  const replicaId = session.replica_id;
+  const sessionId = session.session_id;
+
+  const turn = await getMirrorTurn(db, ownerUserId, sessionId, query?.turn_id);
+  // ONE answer for "no such turn", "not in this session" and "not yours" —
+  // `api/_teachersheet.js`'s discipline. A caller that could tell them apart
+  // could enumerate another owner's calls.
+  if (!turn) return { status: 404, body: { error: "mirror_turn_unavailable" } };
+
+  const route = voiceRouteState();
+  if (!route.canVoice) {
+    await noteMirrorTurnVoice(db, ownerUserId, sessionId, turn.turn_id, {
+      state: "refused", failureCode: route.reason,
+    }).catch(() => null);
+    // 503, not 501. The route is served and the deployment is not configured —
+    // WS-Y reads 501 as "the seam is not wired" and falls back to captions
+    // permanently, which is the wrong permanence for a missing env var.
+    return { status: 503, body: { state: "error", error: "open_voice_origin_required" } };
+  }
+
+  // Belt-and-braces over `capMirrorReply`, which already caps assembly at this
+  // width. If the two ever disagree the honest answer is a NAMED refusal, not a
+  // clip of the first sentence — a voice that stops mid-thought and says
+  // nothing about it is the silent-truncation shape with a speaker on it.
+  if (turn.text.length > MIRROR_REPLY_TEXT_MAX) {
+    await noteMirrorTurnVoice(db, ownerUserId, sessionId, turn.turn_id, {
+      state: "refused", failureCode: "turn_longer_than_synthesis_cap",
+    }).catch(() => null);
+    return { status: 413, body: { state: "error", error: "mirror_turn_text_too_large" } };
+  }
+
+  const genomeVersion = await mirrorDraftGenomeVersion(db, ownerUserId, replicaId);
+  if (genomeVersion === null) {
+    await noteMirrorTurnVoice(db, ownerUserId, sessionId, turn.turn_id, {
+      state: "refused", failureCode: "voice_genome_absent",
+    }).catch(() => null);
+    return { status: 409, body: { state: "error", error: "mirror_turn_voice_no_genome" } };
+  }
+
+  // The deps are built HERE and not by the caller, because building them
+  // constructs the HMAC provider, which fails closed when the origin or the
+  // secret is absent. Constructing it before the route check above would turn
+  // an honest, named 503 into a 500 that says nothing.
+  let result;
+  try {
+    result = await handleVoicePreviewPanel(
+      {
+        op: "preview",
+        replica_id: replicaId,
+        genome_version: genomeVersion,
+        // THE SERVER'S OWN WORDS. See the header.
+        text: turn.text,
+        language_id: String(query?.language_id || "en").toLowerCase(),
+      },
+      makeDeps(),
+    );
+  } catch (error) {
+    const code = String(error?.code || "");
+    const configured = code === "open_voice_origin_required" || code === "open_voice_origin_invalid" ||
+      code === "open_voice_hmac_secret_required";
+    await noteMirrorTurnVoice(db, ownerUserId, sessionId, turn.turn_id, {
+      state: "refused", failureCode: configured ? code : "voice_preview_failed",
+    }).catch(() => null);
+    return configured
+      ? { status: 503, body: { state: "error", error: code } }
+      : { status: 500, body: { state: "error", error: "voice_preview_failed" } };
+  }
+
+  if (result.kind === "audio") {
+    await noteMirrorTurnVoice(db, ownerUserId, sessionId, turn.turn_id, {
+      state: "spoken",
+      generationId: result.headers?.["X-Vyakti-Generation"] || null,
+    }).catch(() => null);
+    return { status: result.status, audio: result.body, headers: result.headers, turnId: turn.turn_id };
+  }
+
+  // 202 is the warming contract, passed through unchanged including
+  // `Retry-After`. The studio's copy for it is the same copy the preview panel
+  // produces because it is literally the same body.
+  await noteMirrorTurnVoice(db, ownerUserId, sessionId, turn.turn_id, {
+    state: result.status === 202 ? "warming" : "refused",
+    failureCode: result.status === 202 ? "" : String(result.body?.error || "voice_preview_failed"),
+  }).catch(() => null);
+  return { status: result.status, body: result.body, headers: result.headers };
+}
+
+/** The collaborators `handleVoicePreviewPanel` takes. Identical to
+ *  `api/voice-preview.js`'s, assembled in one place so a change to the real
+ *  wiring cannot reach one route and miss the other. */
+function voicePanelDeps(db, ownerUserId, signal) {
+  const provider = createOpenChatterboxPreviewProvider();
+  const protection = createProductionProtectionAdapters({ db });
+  return {
+    origin: process.env.AZURE_OPEN_VOICE_ORIGIN,
+    warmth: voiceWarmth,
+    traceId: `mirror_${randomUUID().replaceAll("-", "")}`,
+    signal,
+    provider,
+    authorize: (input) => beginOwnedVoicePreview(db, ownerUserId, input),
+    markFailed: (generationId, error) => markVoicePreviewFailed(db, ownerUserId, generationId, error),
+    readObject: (objectPath) => readPrivateReplicaObject(objectPath, {
+      maxBytes: 20 * 1024 * 1024,
+      timeoutMs: 30_000,
+    }),
+    protect: (input) => protectReplicaStream({
+      ...input,
+      adapters: Object.freeze({ ...protection, ledger: createNeonVoicePreviewLedger(db) }),
+    }),
+  };
+}
+
 async function opDeltas(db, ownerUserId, sessionIdValue) {
   const session = await resolveMirrorSession(db, ownerUserId, sessionIdValue);
   if (!session) return { status: 404, body: { error: "mirror_session_unavailable" } };
@@ -629,18 +929,27 @@ export default async function handler(req, res) {
       return res.status(200).json({
         contract: MIRROR_CALL_CONTRACT,
         ops: [...MIRROR_CALL_OPS],
-        // Named, not merely absent: a client checking its REQUIRED_OPS sees
-        // turn_voice missing and can say WHY rather than guessing.
+        // Named, not merely absent. Empty as of WS-AC: every op the client
+        // knows about is served here. The field stays because an EMPTY list is
+        // a positive statement and an absent field is not.
         unserved_ops: [...MIRROR_CALL_UNSERVED_OPS],
-        unserved_reason: {
-          turn_voice: "the clone's reply lane (engine text + admission-broker synthesis) is not wired in this workstream; the call runs captions-only and says so",
-        },
+        unserved_reason: {},
         transport: MIRROR_CALL_TRANSPORT,
         limits: {
           window_ms_max: MIRROR_WINDOW_MAX_MS,
           chip_budget_per_min: MIRROR_CHIP_BUDGET_PER_MIN,
           conditioning_truncation_ms: CONDITIONING_S3GEN_MS,
+          reply_text_max: MIRROR_REPLY_TEXT_MAX,
         },
+        // Beyond the contract. `turn_voice` being SERVED and the deployment
+        // being able to reach a GPU are two different facts, and a studio that
+        // conflated them would tell the owner their clone is mute when the
+        // truth is an unset environment variable. WS-Y's client ignores this;
+        // an operator reading a handshake should not have to.
+        voice_route: voiceRouteState(),
+        // The complete vocabulary of `turn_absent_reason`, published so a
+        // client can render an unknown value as unknown rather than as blank.
+        turn_absent_reasons: [...MIRROR_TURN_ABSENT_REASONS],
       });
     }
 
@@ -660,7 +969,31 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       if (op === "status") result = await opStatus(q, user.id, req.query?.session_id);
       else if (op === "deltas") result = await opDeltas(q, user.id, req.query?.session_id);
-      else return res.status(400).json({ error: "unknown_op" });
+      else if (op === "turn_voice") {
+        // A SECOND, TIGHTER BUCKET. The shared `mirror_call_user` allowance is
+        // sized for windows and chip taps, which are cheap; a synthesis is GPU
+        // money. Four a minute is the same number `api/voice-preview.js` gives
+        // the panel, and a cascade call cannot outrun it — one window at a time
+        // means at most one turn every few seconds.
+        if (!allow(user.id, "mirror_turn_voice", 4)) {
+          return res.status(429).json({ state: "error", error: "slow_down" });
+        }
+        const aborter = new AbortController();
+        req.on?.("aborted", () => aborter.abort(new Error("client_aborted")));
+        const deadline = setTimeout(() => aborter.abort(new Error("voice_preview_timeout")), 240_000);
+        try {
+          result = await opTurnVoice(q, user.id, req.query || {},
+            () => voicePanelDeps(q, user.id, aborter.signal));
+        } finally {
+          clearTimeout(deadline);
+        }
+        for (const [name, value] of Object.entries(result.headers || {})) res.setHeader(name, value);
+        if (result.audio) {
+          res.setHeader("Content-Length", String(result.audio.length));
+          return res.status(result.status).send(result.audio);
+        }
+        return res.status(result.status).json(result.body);
+      } else return res.status(400).json({ error: "unknown_op" });
     } else if (op === "create") result = await opCreate(q, user.id, req.body || {});
     else if (op === "ingest_window") result = await opIngestWindow(q, user.id, req);
     else if (op === "delta_action") result = await opDeltaAction(q, user.id, req.body || {});
@@ -680,3 +1013,9 @@ export default async function handler(req, res) {
 }
 
 export { MirrorCallError };
+
+/** `turn_voice` may sit on a cold GPU. The panel route already carries this
+ *  ceiling and the wait shape below it is identical — `dispatchWake` gives up
+ *  WAITING at 12 s and answers 202, so the long tail here is a warm synthesis,
+ *  not a spinner. */
+export const config = { maxDuration: 300 };

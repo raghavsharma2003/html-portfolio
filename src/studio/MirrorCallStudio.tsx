@@ -41,6 +41,7 @@ import {
   ingestAudioWindow,
   listMirrorCallDeltas,
   MirrorCallBackendAbsent,
+  MirrorCallVoiceWarming,
   probeMirrorCallBackend,
   saveMirrorCallTurnFeedback,
   type MirrorCallDelta,
@@ -109,6 +110,10 @@ export default function MirrorCallStudio({
   const [tab, setTab] = useState<TabKey>("call");
   const [micLevel, setMicLevel] = useState(0);
   const [autoCutNotice, setAutoCutNotice] = useState(false);
+  /** The 202-warming copy, verbatim from the server. Cleared on the next
+   *  successful clip, because a stale "starting up" beside a clone that is
+   *  already talking is its own small lie. */
+  const [voiceWarming, setVoiceWarming] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState<{ turnId: string } | null>(null);
   const captureRef = useRef<CallCapture | null>(null);
@@ -278,6 +283,7 @@ export default function MirrorCallStudio({
     dispatch({ type: "SPEAK_START", turnId });
     try {
       const blob = await fetchMirrorCallTurnVoice(token, { sessionId: state.session.session_id, turnId });
+      setVoiceWarming("");
       audioRef.current?.pause();
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
       const url = URL.createObjectURL(blob);
@@ -292,6 +298,15 @@ export default function MirrorCallStudio({
         // The synthesis seam is not wired. Captions only, said out loud —
         // never a substitute voice.
         dispatch({ type: "VOICE_UNAVAILABLE", detail: cause.detail });
+        return;
+      }
+      if (cause instanceof MirrorCallVoiceWarming) {
+        // NOT the same state. The seam IS wired and the GPU is booting, so the
+        // notice is temporary and the caption still stands. Held in local state
+        // rather than flipping `voiceAvailable`, because that flag is
+        // permanent-for-this-call by design and a cold start is not.
+        setVoiceWarming(cause.message);
+        dispatch({ type: "SPEAK_END" });
         return;
       }
       dispatch({ type: "SPEAK_END" });
@@ -498,6 +513,9 @@ export default function MirrorCallStudio({
                 ) : null}
                 {!state.voiceAvailable ? (
                   <p className="mirror-note">Captions only on this environment — the clone's voice route is not deployed.</p>
+                ) : null}
+                {state.voiceAvailable && voiceWarming ? (
+                  <p className="mirror-note" role="status">{voiceWarming}</p>
                 ) : null}
               </div>
             ) : null}

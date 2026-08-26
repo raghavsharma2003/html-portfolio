@@ -1173,10 +1173,18 @@ console.log("\n── 8. the wire ──");
   for (const op of ["create", "end", "ingest_window", "deltas", "delta_action", "turn_feedback"]) {
     ok(wire.MIRROR_CALL_OPS.includes(op), `the handshake serves REQUIRED op ${op}`);
   }
-  ok(wire.MIRROR_CALL_UNSERVED_OPS.includes("turn_voice"),
-    "turn_voice is declared UNSERVED rather than advertised and silent");
-  ok(!wire.MIRROR_CALL_OPS.includes("turn_voice"),
-    "and it is absent from the served list, so the studio falls back to captions and says so");
+  // WS-AC INVERTED THESE TWO. They used to assert that `turn_voice` was on the
+  // UNSERVED list and absent from the served one, which was the correct check
+  // for a tree in which the clone's reply lane did not exist. It exists now, so
+  // the same two facts are asserted in the other direction — and the assertion
+  // is kept rather than deleted, because an op silently disappearing from the
+  // served list is exactly the regression this pair was written to catch.
+  ok(wire.MIRROR_CALL_OPS.includes("turn_voice"),
+    "turn_voice is SERVED — the clone's reply and its synthesis are wired (WS-AC)");
+  ok(!wire.MIRROR_CALL_UNSERVED_OPS.includes("turn_voice"),
+    "and it is off the unserved list, so the studio stops falling back to captions");
+  ok(Array.isArray(wire.MIRROR_CALL_UNSERVED_OPS) && wire.MIRROR_CALL_UNSERVED_OPS.length === 0,
+    "the unserved list is EMPTY and still exported — an empty list is a positive statement, an absent field is not");
   eq(wire.MIRROR_CALL_TRANSPORT.ingest_window, "source_handle",
     "the transport deviation is DECLARED on the handshake, not discovered mid-call");
 }
@@ -1227,9 +1235,14 @@ console.log("\n── 10. erasure reach ──");
 {
   const ddl = readFileSync(join(REPO, "db/schema.sql"), "utf8");
   const erasure = readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8");
+  // `coverage-lists-that-enumerate-a-subset`: a coverage check is only as wide
+  // as the thing it enumerates. `vy_mirror_turn` (migration 060) joined this
+  // list in the same commit that created it, because a table added after an
+  // enumeration was written is the exact way an enumeration goes quietly stale.
   const MIRROR_TABLES = [
     "vy_mirror_session", "vy_mirror_window", "vy_mirror_delta",
     "vy_mirror_feedback", "vy_mirror_finetune_job", "vy_mirror_conditioning",
+    "vy_mirror_turn",
   ];
   for (const table of MIRROR_TABLES) {
     const body = ddl.split(`create table if not exists ${table} (`)[1]?.split("\n);")[0] ?? "";
