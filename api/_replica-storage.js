@@ -258,21 +258,36 @@ export async function createSignedReplicaRead(objectPath, options = {}) {
   };
 }
 
+// Supabase's `/object/info/{bucket}/{path}` route answers HEAD-style: the
+// metadata IS the response headers (content-length, content-type, etag) and the
+// body is empty. Reading it as JSON only — which is what this did until
+// 2026-08-26 — makes `data` null on a perfectly good object, so EVERY upload
+// finalize failed closed with `storage_metadata_incomplete` and no source could
+// ever leave `pending_upload`. Measured, not reasoned: the first real consented
+// upload through the live signed-upload path returned HTTP 200 from storage and
+// then 409 `storage_metadata_incomplete` from finalize, which is only reachable
+// on a 2xx info response whose body could not be parsed. Headers are read as
+// the fallback so a future storage-api that does return JSON still works.
 export async function replicaObjectInfo(objectPath, fetchImpl = fetch) {
-  const { data } = await storageRequest(
+  const { response, data } = await storageRequest(
     `/object/info/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(objectPath)}`,
     { fetchImpl },
   );
   const metadata = data?.metadata && typeof data.metadata === "object" ? data.metadata : {};
-  const byteSize = Number(data?.size ?? metadata.size);
-  const mime = String(data?.mimetype ?? data?.mime_type ?? metadata.mimetype ?? metadata.mimeType ?? "")
+  const headerSize = response?.headers?.get("content-length");
+  const byteSize = Number(data?.size ?? metadata.size ?? headerSize);
+  const mime = String(
+    data?.mimetype ?? data?.mime_type ?? data?.contentType ?? data?.content_type
+    ?? metadata.mimetype ?? metadata.mimeType ?? metadata.contentType
+    ?? response?.headers?.get("content-type") ?? "",
+  )
     .split(";", 1)[0]
     .trim()
     .toLowerCase();
-  if (!data || !Number.isSafeInteger(byteSize) || byteSize < 0 || !mime) {
+  if (!Number.isSafeInteger(byteSize) || byteSize < 0 || !mime) {
     throw new ReplicaStorageError("storage_metadata_incomplete", 409);
   }
-  return { objectId: String(data.id || ""), byteSize, mime };
+  return { objectId: String(data?.id || ""), byteSize, mime };
 }
 
 export async function deleteReplicaObject(objectPath, fetchImpl = fetch) {
