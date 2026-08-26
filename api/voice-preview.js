@@ -86,8 +86,19 @@ export default async function handler(req, res) {
     // Provider construction fails closed when the origin or the HMAC secret is
     // absent. That is a deployment fact, not a cold start, and says so.
     const code = String(error?.code || "");
-    if (code === "open_voice_origin_required" || code === "open_voice_origin_invalid" ||
-        code === "open_voice_hmac_secret_required") {
+    // DEPLOYMENT ABSENCE IS A 503, AND IT IS A CLASS, NOT A LIST. The three
+    // open_voice_* codes were enumerated here by name, so when the protection
+    // adapters started refusing with `audio_protection_origin_required` the
+    // route reported a missing environment variable as a server crash, which
+    // is the exact contract ENV-MANIFEST.md §6 says it must not
+    // ("protection adapters unavailable (503)"). Matching the SHAPE of a
+    // configuration refusal covers the services that do not exist yet, which
+    // is the only version of this that stays true.
+    const configAbsent =
+      /_(origin|secret|key|endpoint|url)_(required|invalid)$/.test(code) ||
+      /_not_configured$/.test(code);
+    if (configAbsent) {
+      console.warn(`[voice-preview] not configured: ${code}`);
       return res.status(503).json({ state: "error", error: code });
     }
     // A refusal that CHOSE its own status and code is an answer, not a crash.
