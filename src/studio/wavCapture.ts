@@ -10,6 +10,13 @@ function permissionMessage(cause: unknown) {
   return "The browser could not open a private microphone session.";
 }
 
+// Exported for `callCapture.ts` (WS-Y, Mirror Call), which needs the same 24
+// kHz mono WAV bytes but emits MANY windows from ONE open microphone session
+// instead of one recording per session. Re-implementing these two there would
+// be two encoders that can drift, and a resampler that drifts produces audio
+// the fidelity meter scores lower for reasons nobody can find.
+export { encodeWav as encodeWav24kMono, resample as resampleForUpload, permissionMessage as micPermissionMessage };
+
 function encodeWav(samples: Float32Array, sampleRate: number) {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);

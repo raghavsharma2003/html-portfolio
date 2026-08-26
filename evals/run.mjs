@@ -125,6 +125,25 @@ const suites = {
   // is what makes that possible), so this suite stays offline, deterministic,
   // $0 and DB-free like everything else here.
   ingest: "ingest.mjs",
+  // WS-Y (Gurukul Mirror Call). The Call tab's state machine and the one
+  // property the whole ambient-approval design rests on: an un-accepted delta
+  // chip is never rendered as applied.
+  //
+  // Wired here rather than left as a studio harness because the studio's
+  // existing checks (`evals/studio-*/harness.tsx`) are browser pages a human
+  // opens, and nothing runs them. This half is pure — `mirrorCallMachine.ts`
+  // has no React and no DOM in it precisely so the property could be fuzzed
+  // by a node process instead of reviewed by eye.
+  //
+  // What it would catch: an optimistic accept (the obvious, friendly
+  // implementation — show it applied, reconcile later) makes the UI claim a
+  // change landed on the sheet that the server may have refused. That is
+  // SPEC-GURUKUL §8 item 3's silent self-update wearing a checkmark. The fuzz
+  // carries its own negative control: a reducer that trusts the tap must fail
+  // the same property, and the suite asserts that it does.
+  //
+  // Offline, deterministic, $0, no DB, no browser, ~2s.
+  mirrorcall: "mirrorcall.mjs",
   // WS-I (Gurukul stays-current loop). The re-ingestion worker end to end:
   // a new video on a watched channel becomes a PROPOSED delta on a
   // `vy_ingest_run` row, and stops there.

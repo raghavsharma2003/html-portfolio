@@ -190,3 +190,64 @@ run each to learn:
 - **`voice_quality` takes at most 4 inputs per call**, and
   `DEFAULT_FIDELITY_POLICY` wants >=2 references and >=3 candidate windows. Four
   equal windows per side is the most evidence one call each can carry.
+
+## The Mirror Call surface (WS-Y, 2026-08-26)
+
+The Call tab in the studio: the owner talks to their own clone and watches the
+three loops of `docs/gurukul/MIRROR-CALL-SPEC.md` run. UI only — the server half
+is `api/mirror-call.js` (WS-X) and is not written up here because at the time of
+writing it did not exist on origin.
+
+```
+  src/studio/StudioApp.tsx
+      |  renders <MirrorCallStudio> above AdvancedSurface, both modes
+      v
+  MirrorCallStudio.tsx ....... the screen: connect/end, captions,
+      |                        fidelity meter, chip rail, per-turn feedback
+      |
+      +-- mirrorCallMachine.ts ..... pure reducer, no React and no DOM, so the
+      |       |                      approval property is fuzz-testable offline
+      |       +-- phases: idle -> connecting -> warming -> live -> ending -> ended
+      |       |            plus backend_absent and failed
+      |       +-- turn phases: capturing -> uploading -> thinking -> speaking
+      |       +-- chipIsApplied()  <- THE property; see decisions.md
+      |       +-- readMeasurementFidelity() / readConditioningFidelity()
+      |       |     two meters, because Chatterbox reads only ~10s of
+      |       |     reference: the estimate improves with pooled audio, the
+      |       |     synthesis does not (mirror-learning.md A2)
+      |       +-- CHIPS_PER_MINUTE budget + evidenceLine()  <- A4/A5
+      |
+      +-- callCapture.ts ........... one open mic stream, many <=30s windows.
+      |       Shares wavCapture.ts's encoder and resampler by import (one
+      |       encoder, so no drift the fidelity meter would have to explain).
+      |       Cap enforced by timer AND sample clamp AND the API client.
+      |
+      +-- mirrorCallApi.ts ......... the ONLY file that knows the wire.
+              GET  ?op=contract        handshake; 404 here = route not deployed
+              POST ?op=create          session bound to (owner, replica)
+              GET  ?op=status          optional: is the GPU warm yet
+              POST ?op=ingest_window   multipart, <=30s WAV -> transcript,
+                                       clone turn, deltas, fidelity, reference
+                                       fidelity = {measurement_score,
+                                       measurement_confidence, pooled_seconds,
+                                       conditioning_window_score,
+                                       conditioning_seconds, window_selected_at,
+                                       window_selections, ceiling}
+              GET  ?op=deltas          the rolling chip list
+              POST ?op=delta_action    accept | reject -> server truth
+              GET  ?op=turn_voice      optional: WAV for one issued turn (WS-W)
+              POST ?op=turn_feedback   thumb + optional re-recorded correction
+              POST ?op=end             deferred chips, counts, queued fine-tune
+
+  evals/mirrorcall.mjs ......... offline gate, wired into evals/run.mjs.
+      63 checks: the phase machine, dropped-window honesty, the fuzzed chip
+      property with a negative control, the end-of-call sweep, the two meters'
+      forbidden vocabulary AND the split property (pooling moves one and must
+      not move the other), the per-minute chip budget, the evidence-strength
+      bands, and the normalizer against a dishonest server.
+```
+
+Two seams deliberately left as single functions to reconcile: `ingest_window`'s
+multipart body (WS-X may prefer the signed-upload handle `enrollmentApi` uses)
+and `turn_voice` (WS-W owns synthesis; WS-X may proxy or may not, and the UI
+degrades to captions-only and says so).

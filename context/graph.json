@@ -2246,6 +2246,24 @@
       "kind": "decision",
       "title": "legacy forget lane widened from device to person; verified live with negative controls",
       "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-approval-is-the-tap",
+      "kind": "decision",
+      "title": "the Call tab renders a delta chip as applied only on a server accept ack - no optimistic accept, and the end-of-call sweep defers rather than applies",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-ui",
+      "kind": "component",
+      "title": "the Mirror Call studio surface: MirrorCallStudio + mirrorCallMachine + mirrorCallApi + callCapture, gated by evals/mirrorcall.mjs",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-contract-unverified",
+      "kind": "open",
+      "title": "the client contract in mirrorCallApi.ts has never spoken to a running api/mirror-call.js - WS-X's branch was not on origin when the UI landed",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4198,6 +4216,31 @@
       "src": "explain-is-the-only-parser-we-have",
       "rel": "constrains",
       "dst": "forget-follows-the-person"
+    },
+    {
+      "src": "mirror-call-ui",
+      "rel": "caused_by",
+      "dst": "mirror-call-approval-is-the-tap"
+    },
+    {
+      "src": "clone-initiative-record-has-no-absence",
+      "rel": "constrains",
+      "dst": "mirror-call-ui"
+    },
+    {
+      "src": "fidelity-needs-its-ceiling-printed",
+      "rel": "constrains",
+      "dst": "mirror-call-ui"
+    },
+    {
+      "src": "earbench-is-the-listening-instrument",
+      "rel": "constrains",
+      "dst": "mirror-call-ui"
+    },
+    {
+      "src": "mirror-call-ui",
+      "rel": "blocks",
+      "dst": "mirror-call-contract-unverified"
     }
   ]
 }
