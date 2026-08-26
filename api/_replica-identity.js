@@ -126,8 +126,8 @@ export async function submitOwnedIdentityCase(db, ownerUserId, id, value, option
        select r.replica_id,r.policy_version,r.subject_person_id,s.source_id,s.sha256
          from vy_replica r join vy_replica_source s on s.replica_id=r.replica_id
           and s.owner_user_id=r.owner_user_id
-        where r.replica_id=$1 and r.owner_user_id=$2 and r.subject_mode='self'
-          and r.lifecycle not in ('revoked','purging') and s.source_id=$3
+        where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
+          and r.lifecycle not in ('revoked','purging') and s.source_id=$3::uuid
           and s.state='quarantined' and s.capture_mode='identity_document'
           and s.kind in ('image','document') and s.mime in ('image/jpeg','image/png','application/pdf')
           and s.contains_third_parties=false
@@ -142,14 +142,14 @@ export async function submitOwnedIdentityCase(db, ownerUserId, id, value, option
           )
      ), attempts as (
        select count(*)::integer n from vy_replica_identity_case
-        where replica_id=$1 and owner_user_id=$2 and created_at>now()-interval '24 hours'
+        where replica_id=$1::uuid and owner_user_id=$2::uuid and created_at>now()-interval '24 hours'
      ), inserted as (
        insert into vy_replica_identity_case
          (identity_case_id,replica_id,owner_user_id,source_id,policy_version,
           consent_receipt_hash,source_sha256,consented_at)
-       select $4,owned.replica_id,$2,owned.source_id,owned.policy_version,$5,owned.sha256,$6::timestamptz
+       select $4::uuid,owned.replica_id,$2::uuid,owned.source_id,owned.policy_version,$5,owned.sha256,$6::timestamptz
          from owned cross join attempts where attempts.n<$7 and not exists (
-           select 1 from vy_replica_identity_case c where c.replica_id=$1 and c.owner_user_id=$2
+           select 1 from vy_replica_identity_case c where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid
              and c.state in ('submitted','verifying','evidence_ready','verified')
          )
        returning ${RETURNING}
@@ -157,7 +157,7 @@ export async function submitOwnedIdentityCase(db, ownerUserId, id, value, option
        insert into vy_replica_audit
          (replica_id,owner_user_id,action,object_kind,object_id,policy,outcome,facts)
        select replica_id,owner_user_id,'identity.case.submit','identity_case',identity_case_id::text,
-              policy_version,'allowed',jsonb_build_object('statement_set',$8,'source_kind','government_id')
+              policy_version,'allowed',jsonb_build_object('statement_set',$8::text,'source_kind','government_id')
          from inserted
      ) select * from inserted`,
     [rid, ownerUserId, sourceId, caseId, receipt.hash, receipt.consentedAt,
@@ -169,7 +169,7 @@ export async function submitOwnedIdentityCase(db, ownerUserId, id, value, option
 export async function latestOwnedIdentityCase(db, ownerUserId, id) {
   const rows = await db(
     `select ${RETURNING} from vy_replica_identity_case
-      where replica_id=$1 and owner_user_id=$2 order by created_at desc limit 1`,
+      where replica_id=$1::uuid and owner_user_id=$2::uuid order by created_at desc limit 1`,
     [replicaId(id), ownerUserId],
   );
   return clientIdentityCase(rows[0]);
@@ -320,8 +320,8 @@ export async function completeIdentityCase(db, claim, verdict) {
           and c.verifier_version=$16 and a.verifier_version=$16
         for update of c
      ), completed as (
-       update vy_replica_identity_case c set state=$6,adult_evidence=$7,document_authentic=$8,
-              document_current=$9,face_reference_ready=$10,credential_expires_at=$11::timestamptz,
+       update vy_replica_identity_case c set state=$6,adult_evidence=$7::bool,document_authentic=$8::bool,
+              document_current=$9::bool,face_reference_ready=$10::bool,credential_expires_at=$11::timestamptz,
               evidence_digest=$12,result=$13::jsonb,failure_code=$17,
               verified_at=case when $6='evidence_ready' then now() else null end,
               lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()
@@ -368,7 +368,7 @@ export async function retryIdentityCase(db, claim, input = {}) {
        update vy_replica_identity_case c set state='submitted',failure_code=$7,
               next_attempt_at=now()+($6::integer*interval '1 millisecond'),lease_token_hash='',
               leased_at=null,lease_expires_at=null,updated_at=now()
-        where c.identity_case_id=$1 and c.replica_id=$2 and c.owner_user_id=$3 and c.attempt=$4
+        where c.identity_case_id=$1::uuid and c.replica_id=$2::uuid and c.owner_user_id=$3::uuid and c.attempt=$4::int4
           and c.state='verifying' and c.lease_token_hash=$5 and c.lease_expires_at>now()
        returning c.identity_case_id,c.attempt
      ), attempted as (
@@ -387,7 +387,7 @@ export async function revokeOwnedIdentityCase(db, ownerUserId, id, identityCaseI
     `with revoked as (
        update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
               lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()
-        where c.identity_case_id=$3 and c.replica_id=$1 and c.owner_user_id=$2
+        where c.identity_case_id=$3 and c.replica_id=$1::uuid and c.owner_user_id=$2::uuid
           and c.state<>'revoked' returning c.*
      ), challenges as (
        update vy_replica_liveness_challenge ch set state='failed',failure_code='identity_evidence_revoked',
@@ -431,19 +431,19 @@ export async function revokeOwnedIdentityCase(db, ownerUserId, id, identityCaseI
         from replica r where p.person_id=r.subject_person_id
      ), capabilities as (
        update vy_replica_runtime_capability c set state='revoked',revoked_at=coalesce(revoked_at,now())
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.state in ('active','paused')
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.state in ('active','paused')
           and exists (select 1 from replica)
      ), sessions as (
        update vy_replica_runtime_session s set state='revoked',ended_at=coalesce(ended_at,now()),updated_at=now()
-        where s.replica_id=$1 and s.owner_user_id=$2 and s.state='active'
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.state='active'
           and exists (select 1 from replica)
      ), generations as (
        update vy_replica_generation g set state='aborted',failure_code='identity_evidence_revoked',updated_at=now()
-        where g.replica_id=$1 and g.owner_user_id=$2 and g.state in ('authorized','streaming')
+        where g.replica_id=$1::uuid and g.owner_user_id=$2::uuid and g.state in ('authorized','streaming')
           and exists (select 1 from replica)
      ), consent as (
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
-        where c.replica_id=$1 and c.owner_user_id=$2 and c.scope='biometric' and c.revoked_at is null
+        where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
           and exists (select 1 from replica)
      ), audit as (
        insert into vy_replica_audit
