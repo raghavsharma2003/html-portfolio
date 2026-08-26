@@ -113,7 +113,19 @@ await gate("eval suite", "node", ["evals/run.mjs"]);
 // (api/_config.js is secrets-built only where deploys run). Skipping is
 // PRINTED, never silent: a skipped gate that looks like a passed gate is how
 // the meera_tel_session index shadowed its table for a day.
-const hasDb = await import("../api/_config.js").then((c) => Boolean(c.NEON_URL), () => false);
+//
+// WS-R: `process.env.NEON_URL ||` is not decoration. api/_db.js has ALWAYS
+// read `process.env.NEON_URL || NEON_URL`, so an environment that supplies the
+// connection string the ordinary way — an env var, which is how every CI
+// runner and every `--stub` build does it — could reach the database perfectly
+// well while this line looked only at the gitignored config and reported
+// SKIPPED. The skip prints, so it was never silent; it was worse than silent,
+// because it named a reason ("no NEON_URL in this environment") that was false.
+// The one gate that proves nobody's forget has a hole in it was the gate this
+// disagreement turned off.
+const hasDb =
+  Boolean(process.env.NEON_URL) ||
+  (await import("../api/_config.js").then((c) => Boolean(c.NEON_URL), () => false));
 if (hasDb) {
   console.log("\n── relational db gates ──");
   await gate("zero-orphan sweep", "node", ["scripts/relcheck.mjs"]);

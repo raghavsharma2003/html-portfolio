@@ -2456,9 +2456,68 @@ export const PERSON_TABLES = [
   // any person-keyed vy_* table that is absent from this list.
   { table: "vy_surface_identity", key: "person_id", lane: "relational" },
   { table: "vy_push_token", key: "device_id", lane: "relational", agent: true },
+  // ── WS-R: the replica lane's PERSON side (migrations 015, 023, 027) ───────
+  //
+  // scripts/relcheck.mjs failed against the live database naming three of
+  // these; auditing every owning column in the live schema rather than the
+  // three relcheck happened to enumerate found the fourth. Every one of them
+  // is keyed on a `person_id` in the SAME identity space this manifest already
+  // uses, so a person who asked to be forgotten was keeping rows here — and
+  // a DSAR export was returning an answer with a hole in it.
+  //
+  // Child before parent. The three runtime rows chain by ON DELETE CASCADE
+  // (capability -> session -> turn), so deleting the capability first would
+  // make the two deletes below it report zero for rows they really did remove.
+  // Listing them child-first keeps the receipt's counts honest, which is the
+  // only thing the ordering affects.
+  //
+  // vy_replica_dialogue_turn is keyed on BOTH: person_id is the speaker and
+  // device_id is the handset the turn came from, and they are the same human.
+  // `keys` ORs them, so a row whose person mapping was rewritten between the
+  // turn and the wipe is still reached.
+  { table: "vy_replica_dialogue_turn", key: "person_id", lane: "relational", agent: true,
+    keys: ["person_id", "device_id"] },
+  { table: "vy_replica_runtime_session", key: "person_id", lane: "relational", agent: true },
+  { table: "vy_replica_runtime_capability", key: "subject_person_id", lane: "relational", agent: true },
+  // The one server-written bridge between a Supabase auth identity and this
+  // schema's person layer (015's own header). It is a record OF a person — it
+  // is the row that says which person an account is — so a whole wipe that
+  // kept it would keep the single most identifying row in the database. It
+  // has ON DELETE CASCADE from vy_person, but that only fires when the person
+  // row itself goes, and the wipe's guarded tail deliberately SPARES vy_person
+  // when another device still maps to it. Listing it here is what closes that
+  // case: the bridge dies with the wipe either way.
+  { table: "vy_account_person", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
+
+// ── WHAT IS DELIBERATELY NOT IN THE LIST ABOVE ─────────────────────────────
+//
+// 48 tables in the live schema carry `owner_user_id`, and none of them is
+// here. That is a decision, not an oversight, and this is where it is written
+// down (scripts/relcheck.mjs holds the machine-checked half).
+//
+// `owner_user_id` is a Supabase AUTH id: the expert who owns a replica. It is
+// a natural person, so the instinct is to add all 48 and be done. That would
+// make erasure WEAKER, not stronger. The replica lane's rows are the only
+// pointers this system has to objects that live OUTSIDE Postgres — the
+// provider Personal Voice, the private-bucket originals and derivatives, the
+// Azure face sessions. docs/REPLICA-ERASURE.md's chain deletes those FIRST and
+// the rows LAST, precisely because a row deleted early is an object nobody can
+// find again. A manifest loop issuing `delete from vy_replica_source` would
+// strand a person's biometric audio in object storage while the receipt said
+// it was gone: the worst possible outcome of a deletion request.
+//
+// So the owner lane is erased by its own named path, and the check that it
+// really is covered lives in relcheck.mjs as a walk of the live FK graph —
+// 44 of the 48 fall out of `delete from vy_replica` by ON DELETE CASCADE, and
+// the other four are named explicitly in api/_replica-full-erasure.js. An
+// owner-lane table reachable by neither fails that gate.
+//
+// The reversal condition: if a teacher-facing "delete my account" ever needs
+// to erase an owner across replicas, it gets its own op that CALLS the erasure
+// job per replica. It does not get a row in PERSON_TABLES.
 
 /** The owning columns of a manifest entry, always as an array. `key` stays the
  *  primary one so every existing consumer keeps working unchanged; `keys` is
@@ -2501,8 +2560,22 @@ export async function multipartyApplied(t = (name) => name) {
 export async function activePersonTables() {
   const on = await multipartyApplied();
   const consent = await tableApplied("meera_consent");
+  // WS-R: the same per-table guard meera_consent already gets, for the replica
+  // lane's four person-keyed tables. They arrive with migrations 015/023/027,
+  // and the manifest loop's delete is not wrapped in a catch on purpose — the
+  // receipt may only be sent once the delete actually happened. A manifest
+  // naming a table this database does not have yet would turn every whole wipe
+  // into a 500 for a deploy-ordering reason. Provably lossless, same argument
+  // as 008's and 016's: a table that does not exist holds no rows.
+  const gated = await Promise.all(
+    REPLICA_PERSON_TABLES.map(async (n) => [n, await tableApplied(n)]),
+  );
+  const absent = new Set(gated.filter(([, present]) => !present).map(([n]) => n));
   return PERSON_TABLES.filter(
-    (t) => (!MP_TABLES.has(t.table) || on) && (t.table !== "meera_consent" || consent),
+    (t) =>
+      (!MP_TABLES.has(t.table) || on) &&
+      (t.table !== "meera_consent" || consent) &&
+      !absent.has(t.table),
   ).map((t) =>
     // `keys` and `wipeWhere` both name COLUMNS 008 adds (speaker_person_id,
     // group_id), so on a pre-008 database they are dropped along with the
@@ -2538,6 +2611,16 @@ export async function tableApplied(name) {
   _applied.set(name, present);
   return present;
 }
+
+/** The replica lane's person-keyed manifest entries, gated per table on the
+ *  migration that creates them (015, 023, 027) exactly as meera_consent is on
+ *  016. Named here so the guard cannot drift from the list it guards. */
+export const REPLICA_PERSON_TABLES = [
+  "vy_replica_dialogue_turn",
+  "vy_replica_runtime_session",
+  "vy_replica_runtime_capability",
+  "vy_account_person",
+];
 
 // tables and columns that migration 008 introduces
 const MP_TABLES = new Set([

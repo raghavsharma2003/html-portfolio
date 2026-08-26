@@ -485,6 +485,29 @@ const FATE = {
   vy_tg_person: "forget-only",
   vy_surface_identity: "forget-only",
 
+  // ── the replica lane's person side (WS-R; migrations 015, 023, 027) ──
+  //
+  // Found by scripts/relcheck.mjs against the LIVE database, which is the
+  // point: all four were person-keyed, none was in the manifest, so a person
+  // who asked to be forgotten kept rows in them and their export came back
+  // with a hole in it. The fourth (vy_replica_runtime_capability) was invisible
+  // even to relcheck until its column list widened — it is keyed on
+  // subject_person_id, and the coverage query enumerated three column names.
+  //
+  // forget-only, all four, for the reason vy_push_token is: none of them has a
+  // term a scoped "forget priya" could match. A dialogue turn stores hashes and
+  // ids, never the words; a session and a capability are grants and timestamps.
+  // Only the stronger door may take them.
+  vy_replica_dialogue_turn: "forget-only",
+  vy_replica_runtime_session: "forget-only",
+  vy_replica_runtime_capability: "forget-only",
+  // The auth↔person bridge (015). A whole wipe takes it because it is the row
+  // that says which person an account IS — the single most identifying row in
+  // the database. A scoped forget must not: unbinding an account from its
+  // person because someone asked to forget one topic would log them out of
+  // their own memory.
+  vy_account_person: "forget-only",
+
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the
   // one request whose promise is that nothing about them remains would break
