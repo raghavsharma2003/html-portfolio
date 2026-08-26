@@ -1940,6 +1940,42 @@
       "kind": "rejection",
       "title": "mocked DB proved control flow but no SQL types; two live-only defects (046 FK, uuid=text)",
       "at": "2026-08-26"
+    },
+    {
+      "id": "bitemporal-fact-edges",
+      "kind": "decision",
+      "title": "facts carry valid_from/valid_to; staleness and contradiction become queries over validity, not row age or an LLM call",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "month-prefix-parse",
+      "kind": "rejection",
+      "title": "resolveWhen matched month abbreviations inside longer words (married/marks -> March, decade -> December)",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "exdialog-surface",
+      "kind": "measurement",
+      "title": "example-dialogue format: quotable arm 6 emittable spans / 0.405 liftable, micro-scene 0 / 0.000, at matched length",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "example-dialogue-unresolved",
+      "kind": "open",
+      "title": "ROADMAP-100X item 5 needs a judged arm; the surface is measured, the recitation rate is not",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "shapelint-blind-to-hinglish-quotes",
+      "kind": "open",
+      "title": "shapelint's sentence-shape rule is English-anchored and flags 0/6 rows of a Hinglish phrase bank",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "exdialog-surface-only",
+      "kind": "decision",
+      "title": "item 5 stays open: the surface is measured, no law is written, the judged arm is a seam",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3562,6 +3598,61 @@
       "src": "first-live-apply",
       "rel": "part_of",
       "dst": "gurukul-founding"
+    },
+    {
+      "src": "bitemporal-fact-edges",
+      "rel": "supersedes",
+      "dst": "stale-note-keys-on-row-age"
+    },
+    {
+      "src": "bitemporal-fact-edges",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "bitemporal-fact-edges",
+      "rel": "caused_by",
+      "dst": "recall-bench-v1"
+    },
+    {
+      "src": "month-prefix-parse",
+      "rel": "caused_by",
+      "dst": "bitemporal-fact-edges"
+    },
+    {
+      "src": "exdialog-surface",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "exdialog-surface",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
+    },
+    {
+      "src": "example-dialogue-unresolved",
+      "rel": "caused_by",
+      "dst": "exdialog-surface"
+    },
+    {
+      "src": "shapelint-blind-to-hinglish-quotes",
+      "rel": "caused_by",
+      "dst": "exdialog-surface"
+    },
+    {
+      "src": "exdialog-surface-only",
+      "rel": "measured_by",
+      "dst": "exdialog-surface"
+    },
+    {
+      "src": "exdialog-surface-only",
+      "rel": "part_of",
+      "dst": "roadmap-100x"
+    },
+    {
+      "src": "example-dialogue-unresolved",
+      "rel": "blocks",
+      "dst": "exdialog-surface-only"
     }
   ]
 }

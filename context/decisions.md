@@ -3041,3 +3041,118 @@ healthy; the `vyakti-replica-private` storage bucket created; OpenRouter
 and Sarvam keys received (Sarvam untested — no free-tier ping without
 burning audio credits). Keys live in the chat transcript by owner's own
 paste: rotate Neon password + Supabase keys once Vercel env is set.
+
+## `bitemporal-fact-edges` — a fact carries its own validity, and staleness stops being a guess (2026-08-26)
+
+ROADMAP-100X item 4, WS-O. Closes `stale-note-keys-on-row-age`.
+
+**What was wrong.** `api/memory.js`'s `staleNote` hedged a recalled row as
+already-past when THE ROW was older than 45 days and looked time-shaped. Row age
+was a proxy for "the world has moved on" and it is the wrong variable: WS-K's
+recall benchmark caught a November exam recorded in June being handed to her in
+August pre-hedged as past. She asks how an exam went that has not happened, in a
+fluent sentence with nothing in it marking the error.
+
+**What was decided.**
+
+1. **Two column pairs, not one.** `valid_from`/`valid_to` (migration 056) are
+   EVENT time and sit beside the existing `t_valid`/`t_invalid`, which are
+   BELIEF time. They are not merged, and the reason is a product one:
+   `t_invalid is not null` is read as a hard exclusion in about a dozen WHERE
+   clauses, so making a November exam set it in November would DELETE the fact
+   from recall rather than re-tense it. A passed plan is still a fact about a
+   person; it is just no longer ahead of them.
+2. **`valid_to` is a HORIZON, not an end-of-life.** "shaadi december me hai" is
+   true from the day it is said until December, and a wrong statement after.
+   That transition is exactly what row age was trying to detect.
+3. **Both stores get the columns.** `vy_fact` AND `meera_nodes`. The renderer
+   carrying the bug reads `meera_nodes`; `vy_fact` alone would have been the
+   tidy migration that fixed nothing a user could see.
+4. **One parser.** The deriver reuses `timeline.ts`'s `resolveWhen` — the repo's
+   existing authored Hinglish date table — through the engine bundle. A second
+   date table would be a second definition of what "november" means.
+5. **The write path parses; the read path compares.** `staleNote` (the
+   latency-critical one) needs no parser, no import and no cold-start cost —
+   two timestamps and a `>`. This split is what let the fix land in the hot
+   path in two lines.
+6. **Contradiction resolution is a query over validity.** Supersede only when
+   the two facts' event-time intervals overlap. Two rows named `exam` with
+   disjoint horizons are two exams, not a contradiction — the old rule would
+   have set `t_invalid` on the November one the moment the May one was
+   mentioned.
+7. **Absent validity is byte-identical to today**, in both consumers, and there
+   is NO BACKFILL. Null makes `factStaleness` return "unknown" (the 45-day rule,
+   unchanged) and `validityOverlaps` return true (supersede by name, unchanged).
+   Every pre-056 row is null, so the migration changes zero recalled bytes on
+   the day it is applied and starts changing them only as new dated facts are
+   written. A backfill is possible and is deliberately not done: it would
+   re-tense every live person's rows in one step with no measurement in front of
+   it.
+
+**What would reverse it.** Two things, separately:
+
+- If the deriver's PRECISION turns out to be bad in production — a measurable
+  rate of horizons that are simply wrong — then a wrong horizon is worse than
+  row age, because row age at least degrades toward "old things are probably
+  done" while a wrong horizon asserts a specific tense with confidence. The
+  reversal is to gate the deriver behind provenance (`user_said` only) or to
+  turn it off; the columns and the fallback stay, so turning it off is a
+  one-line change and not a migration.
+- If the belief pair and the event pair ever need to be one thing — i.e. if a
+  consumer appears that genuinely cannot tell "we stopped believing this" from
+  "this stopped being true" — then #1 above was the wrong call and the two
+  should merge. Nothing needs that today and the dozen WHERE clauses say why.
+
+**Gates.** `node evals/run.mjs validity` (85 assertions: the defect as a
+fixture, a precision side that outnumbers the positives, the one-parser
+assertion, the absent-is-identical property, the migration's own idempotence
+split with the real runner's splitter). `node evals/run.mjs recallbench`
+[A-10]/[A-10b]/[A-14]/[B-12b]. Byte-identity 83/83 intact; all 11 gates green.
+
+**A gate can pin the wrong behaviour.** recallbench's [A-10] asserted "a
+past-dated plan carries the stale hedge" and passed on a December wedding
+recalled in August. The hedge fired, so the assertion was green, and the thing
+being asserted was the bug — the fix had to FAIL that gate before it could pass.
+Filed alongside `gates-that-live-nowhere` as its inverse: not a gate that runs
+nothing, but a gate that runs and defends the defect.
+
+## `exdialog-surface-only` — the example-dialogue question is measured on one side and left open (2026-08-26)
+
+ROADMAP-100X item 5, WS-O. See `context/measurements.md#exdialog-surface` for
+the table.
+
+**The decision is what NOT to conclude.** The structural arm is real and the
+numbers are in `measurements.md`: at matched content and matched length, the
+quotable-line format puts 6 ready-to-emit utterances and 40.5% of its block into
+the prompt where the micro-scene format puts 0 and 0.0%, with 4.5× the
+characteristic vocabulary. That is a large, clean, reproducible difference —
+and it is a difference in SURFACE, which is necessary for recitation and not
+sufficient for it.
+
+So no law is written. `recited-prompt` stands unchanged, persona.ts is
+untouched, and item 5 stays open (`example-dialogue-unresolved`). What lands is
+a harness, a protocol and a provider seam that reports `judged: false`, so the
+decisive comparison costs a keyed session rather than a redesign.
+
+**Why the restraint is the decision rather than the absence of one.** The
+temptation here is real: the structural gap is big enough that "micro-scenes are
+safe, ship them" would feel supported. It is not. Three things the harness
+cannot see, each of which could invert the answer — (a) recitation is a model
+behaviour and only one arm has a measured rate behind it (arm A, 0 at n=84);
+(b) arm B RECONSTRUCTS the 4-of-5 shape, because the original text is not in
+version control; (c) nothing here measures whether examples TEACH anything, so a
+format that recites nothing because it conveys nothing scores perfectly and is
+worthless.
+
+**What would close it.** The §5 protocol run with keys: N replies per arm over a
+probe set that includes turns the examples are NOT about (the original finding
+was recitation on unrelated turns, which is what makes it a phrase bank rather
+than a demonstration), scored as longest-common-substring against each arm's
+emittable spans, with a register/quality check so an arm cannot win by being
+empty.
+
+**What would reverse the restraint early.** If a judged run shows arm C reciting
+at arm A's rate AND scoring at least as well on register, example dialogue
+becomes a technique this repo can use and `recited-prompt` gains a format
+carve-out. If arm C recites materially above arm A, the law is confirmed as
+written and item 5 closes as a rejection.
