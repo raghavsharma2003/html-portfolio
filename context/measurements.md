@@ -3818,6 +3818,7 @@ line comments, so a refactor that strips comments before testing for the marker
 silently deletes every exemption in the repo. That regression was written and
 caught in the same hour, by `src/components/Chat.tsx`'s legitimate brain-facing
 placeholder, which is the only reason it is recorded here.
+
 ## `owner-upload-stuck-and-drained` (2026-08-26, WS-AH)
 
 **The stuck state, measured on production Neon (project `lucky-sun-80291432`,
@@ -3982,3 +3983,226 @@ the specific thing the brief asked not to be wrong about.
   A production deploy pacing one extraction per replica would burn its IP more
   slowly. That changes the timescale and not the direction, and the direction is
   what the recommendation rests on.
+## `commit-guard-had-never-committed-evidence` (2026-08-26, WS-AK)
+
+**n = the whole production database, one query.** Before any fix, on Neon
+project `lucky-sun-80291432`:
+
+```
+vy_replica_processing_evidence  0 rows
+vy_replica_processing_artifact  0 rows
+completed steps, all time       integrity, malware_scan
+```
+
+**Method.** A single `select count(*)` over both derived-data tables plus
+`string_agg(distinct step)` over `vy_replica_processing_job where state =
+'complete'`, run after `media_probe` had failed twice on production.
+
+**What it means.** `integrity` and `malware_scan` are the only two steps in the
+eight-step DAG that produce neither an artifact nor a piece of evidence. They
+are also the only two that had ever completed. `commitProcessingOutput` aborted
+every other step with SQLSTATE 22012, so the pipeline could not have gone past
+`media_probe` for any upload, ever, on any runtime - which is a different and
+larger blocker than the undeployed container, and was hidden behind it.
+
+**How the SQLSTATE was obtained.** Reproduced locally in about a second against
+production Neon, with real storage, real database, real builders and the real
+commit statement, stubbing only the ffprobe subprocess with facts already
+measured inside the container. That is the whole reason to keep the seam
+injectable.
+
+## `worker-execution-timings` (2026-08-26, WS-AK)
+
+Measured on `vyakti-replica-processing`, Consumption profile, 1.0 vCPU / 2 GiB,
+Central India, on the owner's real 32.9 MB (32,908,934 byte) MP3.
+
+| thing | measurement | n |
+|---|---|---|
+| ACR Task build, worker image | 98 s, 96 s, 107 s | 3 builds, 2-vCPU agent |
+| Execution that finds an empty queue | 23 s wall, no ClamAV started | 1 |
+| `clamd` ready after `--ping` answers | 10,052 ms | 1 |
+| `malware_scan` on 32.9 MB, clamdscan `--stream` | 1.4 s | 1 |
+| `integrity` (read 32.9 MB from Supabase + SHA-256) | 5.13 s | 1 |
+| ClamAV signatures baked into the image | main v63 (3,287,027 sigs), daily v28104 (355,623), bytecode v339 (80) | build log |
+
+**Method.** Wall clock from Container Apps execution `startTime`/`endTime`, from
+`vy_replica_processing_attempt.started_at`/`finished_at` for the per-step
+numbers, and from the worker's own content-free `clamd_ready_ms` field for the
+daemon.
+
+**The 23 s idle figure is the important one.** It is what the schedule costs
+when there is nothing to do, and it is 23 s rather than roughly 33 s because
+`pendingWork` runs before ClamAV is started. At `*/5` that is 288 executions a
+day; paying the 10 s signature load on each of them to discover an empty queue
+would be the dominant cost of the entire lane.
+
+## `ffprobe-pipe-versus-file-on-the-owners-mp3` (2026-08-26, WS-AK)
+
+**n = 1 file, 2 invocations, same binary and arguments,** inside the worker
+image on the owner's real upload:
+
+```
+ffprobe -v error -show_entries format=duration:stream=... -of json pipe:0
+  -> exit 0   streams: mp3, 48000 Hz, 2ch   format: {}
+
+ffprobe ... <same args> <file path>
+  -> exit 0   streams: mp3, 48000 Hz, 2ch   format: { "duration": "822.720000" }
+```
+
+**Method.** A throwaway Container Apps Job on the same image with a command
+override, fetching the object through the real storage adapter and running both
+invocations back to back. Deleted afterwards.
+
+**The number that matters downstream:** the recording is 822,720 ms, 13 minutes
+43 seconds, 48 kHz, stereo, mp3. That is what the pipeline now records as
+`media_probe` evidence, and it is comfortably above any plausible enrollment
+minimum.
+
+## `voice-evidence-round-trip-first-ever` (2026-08-26, WS-AK)
+
+**n = 3 real requests** from `vyakti-replica-processing` to the private
+`vyakti-voice-evidence` GPU service. WS-L deployed that service and recorded
+that it boots healthy but that **no round trip had ever been run**. These are
+the first.
+
+| attempt | service state | wall time | outcome |
+|---|---|---|---|
+| 1 | scaled to zero (cold) | 227 s execution | `transport_signature_invalid` (HTTP 401) |
+| 2 | warm | 20 s execution | `audio_duration_invalid` |
+
+**The cold-start failure is a clock-skew failure, and the mechanism is exact.**
+`services/voice-evidence/app.py` sets `MAX_CLOCK_SKEW_SECONDS = 60`. The client
+in `providers/azure-voice-evidence.js` stamps `new Date().toISOString()` and
+signs *before* sending. Container Apps then holds the request while it wakes the
+scale-to-zero GPU replica, which WS-L measured at about 161 s. By the time the
+service validates, the signed timestamp is older than its 60 s anti-replay
+window, so a correct request with a correct key is rejected.
+
+**Ruled out first, by measurement rather than assumption:** the HMAC secret is
+not the problem. The value deployed in the container app's `evidence-hmac`
+secret and the value in the session's `.sec/open-voice-hmac.env` were compared
+by SHA-256 digest (neither printed): both 64 characters, identical digest,
+`MATCH`. The confirming test is attempt 2 - against a warm replica the identical
+code signed, authenticated and was answered.
+
+**So the anti-replay window is shorter than the cold start it has to survive.**
+The first request to a scaled-to-zero evidence replica can never authenticate;
+every request inside the warm window does. Widening the window is the wrong fix -
+it weakens replay protection to paper over a scheduling problem. Warming the
+service and then signing, or signing per attempt on retry, are the fixes that
+keep the window narrow.
+
+## `owners-recording-exceeds-the-evidence-duration-cap` (2026-08-26, WS-AK)
+
+**Measured 2026-08-26.** With the transport working, `diarize` failed
+`audio_duration_invalid` in 20 s. The two limits on the deployed
+`vyakti-voice-evidence` app, read back from the container app resource:
+
+```
+VOICE_EVIDENCE_MAX_AUDIO_BYTES      = 33,554,432   owner's file 32,908,934  -> fits, 645,498 to spare
+VOICE_EVIDENCE_MAX_DURATION_SECONDS = 600          owner's file 822.72 s    -> over by 222.72 s
+```
+
+**The owner's real enrollment recording is 13 minutes 43 seconds and the
+evidence service accepts 10 minutes.** It squeaks under the byte cap and misses
+the duration cap, which is why this surfaced only after `media_probe` first
+succeeded and put a real duration on the record.
+
+**Not changed here, deliberately.** Raising the cap is a GPU time and memory
+decision on a T4 and a product decision about what enrollment accepts; both
+belong to the owner, not to a deploy. The three honest options are to raise the
+cap, to segment long uploads before the evidence steps, or to tell the owner the
+limit at upload time. Today nothing tells them.
+
+## `wake-then-sign-unblocks-the-evidence-lane` (2026-08-26, WS-AK)
+
+**n = 5 real `diarize` attempts** against the private GPU evidence service from
+the deployed job, on the owner's 822.7 s recording.
+
+| # | client | service state | wall | outcome |
+|---|---|---|---|---|
+| 1 | sign-then-send | cold | 227 s | `transport_signature_invalid` (401) |
+| 2 | sign-then-send | warm | 20 s | `audio_duration_invalid` (cap 600 s) |
+| 3 | sign-then-send | cold, cap now 1200 | 264 s | `voice_evidence_response_signature_invalid` |
+| 4 | sign-then-send | cold | 217 s | `transport_signature_invalid` (401) |
+| 5 | **wake-then-sign** | **cold** | **50 s** | **`complete`** |
+
+**Method.** Each attempt is one manual execution of `vyakti-replica-processing`
+with the job requeued between attempts; state read from
+`vy_replica_processing_job`. Attempts 1-4 ran images that signed before sending;
+attempt 5 ran `replica-processing-worker@sha256:c274c369…`, which polls the
+service's own `/healthz` until it returns 200 and only then builds the
+timestamp, nonce and signature.
+
+**Attempt 5 was a COLD start and still took 50 s rather than 227 s.** Waiting
+for readiness before signing is not just more correct, it is faster than failing
+on a stale signature and being retried later, because the wake is being waited
+for either way.
+
+**Attempt 3 is the one worth remembering.** `voice_evidence_response_signature_invalid`
+is raised by the CLIENT when the response carries no valid signature header, and
+an ingress error page produced while the replica is still activating looks
+exactly like a tampered response. The code is doing the right thing and naming
+the wrong cause: infrastructure noise and an attack are indistinguishable to it.
+
+**What diarize actually produced**, the first voice evidence this system has
+ever written:
+
+```
+278 speaker_segment rows, spans 624 ms to 821,680 ms, mean confidence 0.877
+adapter silero-ecapa-cluster / vyakti-voice-evidence-v1
+cluster-1  231 segments  663.5 s      cluster-2  39 segments  25.9 s
+cluster-3    3 segments    2.7 s      cluster-4   5 segments   4.4 s
+overlaps detected: 0
+```
+
+**`target_likelihood` is 0.500 on every one of the 278 rows, and that is
+DELIBERATE, not a gap.** `evals/voice-evidence/run.mjs` gates it twice: "real
+diarization output remains explicitly target-unknown" and "service refuses to
+infer target identity without an anchor". The service will not guess which
+cluster is the owner without an enrolled reference to compare against, which is
+the right refusal for a consent-critical field.
+
+The consequence is still real and belongs to whatever comes next: cluster-1 is
+dominant at 663.5 s of about 696 s of voiced audio, but "dominant" is doing work
+that no stored number does. Something downstream has to supply the anchor or
+choose the cluster explicitly, and it must not read 0.500 as a measured
+likelihood.
+
+## `separate-fails-on-the-whole-recording` (2026-08-26, WS-AK)
+
+**Measured.** With `diarize` complete, `separate` was enqueued and failed twice,
+`voice_evidence_failed`, at 20:04:30.775Z and 20:05:50.753Z. That code is the
+evidence service's bare `except Exception: return _signed_response(request, 503,
+{"error": "voice_evidence_failed"})`, so it means an unhandled exception on the
+GPU rather than a validation refusal.
+
+**HYPOTHESIS, NOT CONFIRMED.** The Container Apps console logs for that window
+had not been ingested into Log Analytics by the end of this session, so there is
+no traceback yet. What the code says: `app.py:241` passes the entire waveform to
+Sepformer in one forward pass,
+`separator.separate_batch(waveform.unsqueeze(0).to(device))`. At 822.72 s and
+16 kHz that is 13.16 million samples in a single tensor on a T4. Sepformer is a
+dual-path transformer over raw audio and its memory grows with sequence length,
+so a CUDA out-of-memory is the obvious candidate, and `torch.cuda.OutOfMemoryError`
+is an `Exception` and would land in exactly that handler.
+
+A second problem sits behind the first regardless of whether OOM is the cause:
+the handler returns TWO full-length separated WAVs base64-encoded in the
+response body. At this duration that is about 52.6 MB of PCM before encoding and
+roughly 70 MB after, against the client's 80 MB response cap. Even a successful
+separation of a recording this long would be close to the ceiling, and a
+20-minute one would exceed it.
+
+**What would confirm it.** The traceback, once ingested: a
+`torch.cuda.OutOfMemoryError` naming an allocation size. **What would refute it.**
+Any other exception type, which would point at the model or the input shape
+rather than at length.
+
+**Why it matters for the cap decision.** `diarize` passed at 822 s because VAD
+and per-segment embeddings scale linearly and are computed piecewise. `separate`
+is where whole-recording processing actually breaks. Raising
+`VOICE_EVIDENCE_MAX_DURATION_SECONDS` moved the wall from `diarize` to
+`separate` rather than removing it, which is the concrete evidence for
+`windowing-belongs-before-the-embedder-not-before-diarize`: the fix is chunked
+analysis, not a larger number.

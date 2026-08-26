@@ -523,3 +523,4 @@ re-apply it.
 one component at a time and this wave did the wizard chrome, the touch-target
 floor and the focus ring. The 2 700 lines of panel CSS still carry their own
 scales.
+

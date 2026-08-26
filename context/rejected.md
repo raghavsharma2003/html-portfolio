@@ -3393,6 +3393,7 @@ can reach).
 that is safe in a single checkout and quietly shared in a multi-worktree one.
 Treat every `.git`-level stack (stash, index locks, reflog surgery) as global.
 
+
 ## `a-runner-nobody-runs` — the enrollment pipeline was complete at both ends and had no caller (2026-08-26, WS-AH)
 
 **What was there.** `api/_replica-source.js` finalize enqueues a
@@ -3644,3 +3645,207 @@ Those are untested, not assumed working.
 
 **What would reverse it.** An egress policy that lets the browser CONNECT.
 Then point the harness at the real URL and delete the bridge.
+
+## `clamdscan-is-only-a-recommended-package` (2026-08-26, WS-AK)
+
+**Tried.** Building the worker image with
+`apt-get install --no-install-recommends ffmpeg clamav-daemon clamav-freshclam`,
+which is what `services/replica-processing-worker/Dockerfile` had said since it
+was written, and deploying it as the component whose entire purpose is to
+provide `malware_scan` and `media_probe`.
+
+**What broke.** The image has `clamd` and no `clamdscan`. On Debian,
+`clamdscan` is its own package and is only a *Recommended* of `clamav-daemon`,
+so `--no-install-recommends` - which the image wants for every other reason -
+drops it silently. `resolveNativeTool` then finds no `clamdscan` on the PATH and
+reports `malware_scanner_unavailable`: the exact code the container was deployed
+to stop producing. The build log says so in plain sight, under `Recommended
+packages:`, and nobody reads that section of a successful build.
+
+**What caught it.** Not review, and not the build. A `REQUIRED_STEPS` assertion
+added to `run-once.js` in the same session: the container checks that
+`integrity`, `malware_scan` and `media_probe` are all available before it does
+anything, and exits non-zero naming the missing ones. First execution printed
+`{"error":"worker_missing_required_capability:malware_scan"}` in 20 seconds.
+
+**The reusable part.** A component deployed to provide a capability should
+assert that it has that capability, at startup, by name. Without the assertion
+this container would have started, leased nothing it could serve, exited 0, and
+looked exactly like a healthy idle worker forever - the same shape as
+`aliveness-was-unreachable-not-meera-bound`, where both ends were fine and only
+the connection was missing.
+
+## `ffprobe-cannot-read-mp3-duration-from-a-pipe` (2026-08-26, WS-AK)
+
+**Tried.** Probing the owner's real 32.9 MB MP3 by streaming the bytes to
+`ffprobe ... pipe:0` on stdin, which is what `createNativeToolRunners().probeBytes`
+did and what the worker's own `native.js` had done before it.
+
+**What broke.** The step failed `media_probe_output_invalid` on a recording that
+is perfectly fine. Measured inside the worker image, same binary, same bytes,
+same arguments, only the input changed:
+
+```
+ffprobe ... pipe:0  -> exit 0, streams complete, "format": {}
+ffprobe ... <path>  -> exit 0, streams complete, "duration": "822.720000"
+```
+
+A pipe is not seekable, and an MP3's duration is not in a header that can be
+read going forwards - it comes from seeking to the end, or from a Xing frame
+that has to be seeked to. So on a pipe the duration is simply absent,
+`readFfprobeFacts` rightly refuses a result with no duration, and the failure
+lands on the recording instead of on the call.
+
+**Fixed by** writing the bytes to a temporary file and probing the path, then
+removing it in a `finally`. The bytes are already fully in memory, bounded by
+the storage read cap, so this costs one write and one delete and buys a probe
+that works for every container format rather than only the seek-free ones.
+
+**The reusable part.** `exit 0` from a media tool is not the same as a complete
+answer, and the parse that catches the difference will name the *file* as
+invalid, because that is all it can see. When a probe fails on real user media
+that plays fine everywhere else, suspect how the tool was invoked before
+suspecting the media.
+
+## `the-mission-brief-said-the-sweep-was-already-merged` (2026-08-26, WS-AK)
+
+**Tried.** Basing on `origin/claude/gurukul-platform` and expecting to find
+WS-AH's `api/replica-processing-sweep.js` there, as the brief stated.
+
+**What broke.** It is not there. The sweep exists only on `origin/gurukul-ws-ah`
+and was never merged to the platform branch, though it *is* deployed and running
+on production - the owner's `integrity` job completed at 18:35:21Z while this
+session was reading code that did not contain the thing that ran it.
+
+**Why it matters beyond the inconvenience.** Coordinating with a component means
+reading it, and a branch that does not contain it will not say so - it will just
+look like a queue with no drainer, which is the exact bug WS-AH had already
+fixed. `origin/gurukul-ws-ah` was merged into `gurukul-ws-ak` before any design
+work started.
+
+**The reusable part.** Deployed and merged are independent facts. Check the
+branch for the file rather than the brief for the claim, and when the two
+disagree, the repository is the one that is not guessing.
+
+## `data-modifying-ctes-cannot-see-each-other` (2026-08-26, WS-AK)
+
+**What was tried.** `commitProcessingOutput` writes the artifacts, the evidence,
+the settled job, the attempt, the source state and the next queued step in one
+PostgreSQL statement, which is right: a crash between any two of those strands
+the DAG. To make the write safe it then *validated* itself in the same
+statement, by re-reading `vy_replica_processing_artifact` and
+`vy_replica_processing_evidence` and joining them against the rows it had asked
+for, and aborting through a deliberate `1 / 0` if the counts disagreed.
+
+**What broke.** The re-read can never see the insert. Data-modifying CTEs all
+run against the same snapshot and cannot observe one another's effects, so
+`valid_evidence` counted the table as it was BEFORE `inserted_evidence` ran. For
+any step producing at least one row the counts always disagreed, the guard
+always fired, and the whole statement always rolled back with SQLSTATE 22012.
+
+**How large this was.** Every step in the eight-step DAG except `integrity` and
+`malware_scan` produces an artifact or a piece of evidence. Those two were the
+only steps that had ever completed, and the database held zero artifact rows and
+zero evidence rows in total. The commit had never once worked for a step with
+output, on any runtime, for any upload. It was hidden behind the undeployed
+container: nothing had ever got far enough to hit it.
+
+**Fixed by** counting a desired row as valid if this statement inserted it - it
+is in `inserted_artifacts` / `inserted_evidence`, which ARE visible as CTE
+results - *or* if an identical row already existed. Both halves are load-bearing.
+The first is the ordinary path. The second keeps a retry after a lost response
+settling instead of dead-ending. An id that exists with different content is in
+neither, so it still aborts, which is the collision the guard was written for.
+The guard was also made to stand down when there is no eligible job, so an
+ordinary lost lease reports `lost_processing_lease` rather than 22012.
+
+**The reusable part.** A statement cannot audit its own writes by re-reading the
+table it is writing. If a check inside a data-modifying CTE appears to validate
+the insert, it is validating the past. And a guard that can only ever fail is
+indistinguishable from a guard that never fires until something reaches it.
+
+## `signing-before-a-cold-start-cannot-authenticate` (2026-08-26, WS-AK)
+
+**What was tried.** Wiring `AZURE_VOICE_EVIDENCE_ORIGIN` and its HMAC secret
+into the processing job and letting `diarize` call the private GPU evidence
+service, which is deployed, healthy and scaled to zero.
+
+**What broke.** HTTP 401 `transport_signature_invalid`, with the correct key.
+The service's `MAX_CLOCK_SKEW_SECONDS` is 60. The client stamps and signs the
+request before sending it, Container Apps then holds it for the roughly 161 s
+that waking a scale-to-zero GPU replica takes, and the timestamp is stale by the
+time it is checked. A correct request, a correct secret, and a guaranteed 401.
+
+**How the wrong answer was avoided.** The obvious reading is "the secrets do not
+match", and the obvious fix is to rotate them - which would have changed nothing
+and destroyed the working key. The secrets were compared by SHA-256 digest
+instead, without printing either: identical. Then the same job was run again
+while the replica was still warm and the identical code authenticated in 20 s.
+Two measurements, one of them a positive control, turned a plausible guess into
+a mechanism.
+
+**Do not fix this by widening the window.** The window is the replay protection.
+The request has to be signed after the replica is awake, or re-signed per
+attempt, which is what a retry against a now-warm service already achieves by
+accident.
+
+**The reusable part.** An anti-replay window and a cold start are the same kind
+of quantity, and nobody compares them until one is inside the other. Any signed
+call to a scale-to-zero service has this bug unless the signing happens after
+the wake.
+
+## `requeue-resets-attempt-and-the-timing-row-survives` (2026-08-26, WS-AK)
+
+**What was tried.** Reading per-step durations out of
+`vy_replica_processing_attempt` for the owner's job, which is the table that
+exists to hold exactly that.
+
+**What broke.** The numbers are inflated, silently, by however long a job sat
+between attempts. `requeueRecoveredProcessingJobs` sets `attempt = 0`, the next
+lease sets it back to 1, and the lease's
+`insert into vy_replica_processing_attempt ... on conflict (job_id, attempt) do
+nothing` therefore lands on the row the FIRST attempt already wrote. The retry
+reuses it: `started_at` stays at the original attempt's start, `finished_at` is
+overwritten by the retry's finish.
+
+Measured on the owner's job: every one of the four steps has exactly one attempt
+row, and `malware_scan` reads as 783 s when the scan itself took about 1.4 s.
+The 783 s is the thirteen minutes it spent failed and waiting for a container to
+be deployed.
+
+**Not fixed here.** The fix is a design choice, not a patch: either the requeue
+resets `attempt` to the highest row that exists rather than to 0, or the retry
+gets a fresh row and the table grows an attempt sequence separate from the job's
+counter. Both change what an "attempt" means to everything that reads it.
+
+**Why it matters more than it looks.** This is the table a future session will
+use to answer "is the pipeline getting slower". It currently answers a different
+question, how long a step waited for a human, in the same units, with no way to
+tell which is which from the row.
+
+## `source-duration-was-never-persisted` (2026-08-26, WS-AK)
+
+**What was tried.** Letting `media_probe` record the recording's duration where
+it naturally lands: in its own evidence row, `{"duration_ms": 822720, ...}`.
+
+**What broke.** `vy_replica_source.duration_ms` stayed NULL. That column is not
+decoration: `worker.js` builds the input reference every later step sends to the
+evidence service from the source row, and puts `source.duration_ms ?? null` on
+it. So `diarize`, `separate`, `enhance` and `voice_quality` each declared a null
+duration for a recording whose length the pipeline had already measured and
+written down one step earlier. Nothing rejected the null, which is why it
+survived: it is a trap set for whichever future step decides to trust that field.
+
+**Fixed by** having the `media_probe` commit set `duration_ms` on the source
+from the evidence it is writing in the same statement. It reads
+`desired_evidence`, which is an ordinary CTE over a parameter and therefore IS
+visible, rather than the inserted rows, which are not - the same visibility rule
+as `data-modifying-ctes-cannot-see-each-other`, applied deliberately this time.
+
+**The owner's existing row was backfilled from its own evidence row**, not from
+a typed-in number, so the value has the same provenance it would have had if the
+fixed code had written it.
+
+**The reusable part.** A measurement written to exactly one place is a
+measurement half the system cannot see. When a step derives a fact that a later
+step's input contract has a field for, filling that field is part of deriving it.

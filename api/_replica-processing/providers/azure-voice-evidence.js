@@ -35,11 +35,20 @@ export function azureVoiceEvidenceConfig(env = process.env) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 30_000 || timeoutMs > 900_000) {
     fail("voice_evidence_timeout_invalid");
   }
+  // How long to wait for a scaled-to-zero replica to become ready before
+  // signing. The floor is above the measured GPU cold start (roughly 100 to
+  // 160 s) because a shorter budget would give up during a wake that is
+  // proceeding normally.
+  const readyTimeoutMs = Number(env.VOICE_EVIDENCE_READY_TIMEOUT_MS || 300_000);
+  if (!Number.isSafeInteger(readyTimeoutMs) || readyTimeoutMs < 60_000 || readyTimeoutMs > 600_000) {
+    fail("voice_evidence_ready_timeout_invalid");
+  }
   return Object.freeze({
     origin: origin.origin,
     transportSecret: secret(env.AZURE_VOICE_EVIDENCE_HMAC_SECRET),
     maxAudioBytes,
     timeoutMs,
+    readyTimeoutMs,
   });
 }
 
@@ -117,8 +126,55 @@ async function privateInputs(resolver, source, inputs, config, signal) {
   return output;
 }
 
+// WAKE FIRST, THEN SIGN. The order is the whole point.
+//
+// The evidence service scales to zero and takes roughly 100 to 160 s to load
+// its models. A signed request sent into that window is held by Container Apps
+// until the replica is up, and by then its timestamp is older than the
+// service's 60 s anti-replay window, so it is rejected with HTTP 401
+// transport_signature_invalid. Measured on production 2026-08-26: every cold
+// attempt failed that way, and the only attempt that authenticated was one sent
+// minutes after a previous run had already warmed the replica. A correct
+// request with the correct key, guaranteed to fail, for a reason that has
+// nothing to do with either.
+//
+// Widening the window is the wrong fix: the window IS the replay protection.
+// The signature has to be made after the service can receive it, which is what
+// this does.
+//
+// `/healthz` here is a REAL readiness check and not the trap in
+// rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check. That entry
+// is about the open-voice BROKER, which answers at the front door and forwards
+// separately. This endpoint is served by the evidence app itself and returns
+// 200 only once its lifespan has finished loading models and set `ready`; while
+// the app is up but still loading it returns 503. So a 200 here means the next
+// request can actually be served.
+//
+// The probe's body is never read. This is a timing gate, not evidence.
+async function awaitReady(config, fetchImpl, signal) {
+  const deadline = Date.now() + config.readyTimeoutMs;
+  let last = "none";
+  while (Date.now() < deadline) {
+    try {
+      const probe = await fetchImpl(`${config.origin}/healthz`, {
+        method: "GET",
+        signal: deadlineSignal(signal, 30_000),
+      });
+      last = String(probe.status);
+      try { await probe.body?.cancel(); } catch { /* provider response is not evidence */ }
+      if (probe.status === 200) return;
+    } catch {
+      // The wake itself can fail while the replica is still being scheduled.
+      last = "unreachable";
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  fail(last === "none" ? "voice_evidence_unreachable" : "voice_evidence_not_ready", true);
+}
+
 async function remote(config, operation, inputs, fetchImpl, signal) {
   const path = "/v1/analyze";
+  await awaitReady(config, fetchImpl, signal);
   const payload = {
     operation,
     inputs: inputs.map((entry) => ({

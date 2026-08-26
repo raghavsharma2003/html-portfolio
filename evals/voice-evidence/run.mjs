@@ -50,8 +50,21 @@ function candidate(input, variant, transform = "model-revision") {
 }
 
 const requests = [];
+const readiness = [];
 async function mockFetch(url, init) {
   const path = new URL(url).pathname;
+  // The adapter waits for readiness BEFORE it signs, because the real service
+  // scales to zero and a signature minted before a 100-160 s GPU wake is
+  // already outside its 60 s anti-replay window when it is finally checked.
+  // See decisions.md#wake-then-sign-never-sign-then-wait. The real service
+  // answers this unauthenticated and returns 200 only once its models are
+  // loaded, so the mock has to answer it too or it stops modelling the thing
+  // under test.
+  if (path === "/healthz") {
+    readiness.push(init?.method || "GET");
+    assert.equal(init?.body, undefined, "the readiness probe must not carry a body");
+    return new Response(JSON.stringify({ ready: true }), { status: 200 });
+  }
   const headers = new Headers(init.headers);
   const requestBytes = Buffer.from(init.body);
   const requestHash = sha256Hex(requestBytes);
@@ -115,6 +128,7 @@ const derivedInput = { ...rawInput, artifact_id: ARTIFACT };
 
 const diarization = await adapters.diarize.diarize({ source, inputs: [rawInput] });
 ok("real diarization output remains explicitly target-unknown", diarization.segments[0].target_likelihood === 0.5);
+ok("the service is woken and confirmed ready before any request is signed", readiness.length === 1 && requests.length === 1);
 const separated = await adapters.separate.separate({ source, inputs: [rawInput] });
 ok("separation preserves both speaker candidates without guessing identity", separated.candidates.length === 2 && separated.candidates.every((item) => item.parent_artifact_id === null));
 const enhanced = await adapters.enhance.enhance({ source, inputs: [derivedInput] });

@@ -16,7 +16,6 @@
     { "path": "/api/replica-identity-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-face-session-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-model-build-sweep", "schedule": "*/5 * * * *" },
-    { "path": "/api/replica-processing-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/channel-ingest-sweep", "schedule": "0 */6 * * *" }
   ]
 }

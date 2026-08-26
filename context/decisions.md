@@ -4929,6 +4929,7 @@ which is a real thing to want: `DESIGN-SYSTEM.md` §2 calls the numbered panel t
 visual argument for the whole product. If it returns it must return as ONE
 register with one owner, not as a per-panel literal.
 
+
 ## `processing-sweep-drains-the-enrollment-queue` (2026-08-26, WS-AH)
 
 **Decision.** `api/replica-processing-sweep.js` runs on a `*/5 * * * *` Vercel
@@ -5145,3 +5146,147 @@ way to ever reconcile a proxy bill against work done.
 - **The teacher-upload lane becoming sufficient.** If teachers reliably export
   their own audio, extraction stops being the lane that reaches the back
   catalogue and this whole decision is moot.
+
+## `processing-worker-is-a-job-not-an-app` (2026-08-26, WS-AK)
+
+**Decided.** `services/replica-processing-worker/` is deployed to
+`vyakti-voice` as a scheduled **Azure Container Apps Job**
+(`vyakti-replica-processing`, Consumption, `*/5 * * * *`, `parallelism: 1`,
+`replicaTimeout: 900`), not as a Container App and not as a smaller
+purpose-built container.
+
+**Why a Job.** The worker is already run-to-completion: `run-once.js` drains a
+bounded queue and returns. A Container App expects a long-lived server, so
+using one would mean inventing a listener, a readiness probe and an ingress
+that nothing would ever call. A Job also has genuine zero idle cost: it is not
+running between executions at all, rather than sitting at `minReplicas: 0` with
+a wake path.
+
+**Why no ingress, and why that is not a new security posture.** This is a queue
+*consumer*. It pulls work from Neon and talks outward to Supabase Storage and,
+when configured, to the private evidence service. It needs no inbound door. The
+HMAC admission broker pattern exists to protect services that must accept
+inbound requests (`open-voice-admission` in front of the GPU runtime); adding
+ingress here purely to have something to authenticate would create an attack
+surface rather than reuse a posture. There is already a Jobs precedent in this
+exact resource group: `vyakti-voice-finetune`.
+
+**Why not a smaller purpose-built container.** A container that only shelled out
+to `clamdscan` and `ffprobe` would need its own leasing, settling and DAG
+handling, which is a second implementation of the part of this system where a
+bug is most expensive. The existing worker shares one code path with the Vercel
+sweep through `api/_replica-processing/composition.js`, which is what lets the
+two agree on what a step's absence is called. The image is a few hundred
+megabytes, not the 5-10 GB of the GPU images, so size was never the argument.
+
+**What would reverse it.** A step that needs to answer a synchronous request
+from the app plane rather than drain a queue. That is a different component with
+a different shape, and it would go behind the admission broker like everything
+else with a door.
+
+## `the-container-owns-every-processing-step` (2026-08-26, WS-AK)
+
+**Decided.** `vyakti-replica-processing` owns all eight steps of the audio DAG.
+The Vercel sweep's cron entry was removed from `vercel.json`; the endpoint
+remains and still answers a `CRON_SECRET` bearer call, so it is a manual
+fallback rather than a second scheduled owner.
+
+**Why ownership had to be singular.** Not for correctness. The lease is atomic
+(`for update skip locked` plus a lease token hash), so two schedulers can never
+run one job twice - that hazard does not exist. The real hazard is capability
+flapping: the Vercel sweep terminally fails a tool-bound step with
+`malware_scanner_unavailable`, the container requeues it moments later because
+the capability is present there, and for as long as both are scheduled the pair
+would move the owner's Activity screen between blocked and progressing on a
+five-minute cycle. WS-AH named this exact race as their reversal condition.
+
+**Why the cron line rather than `REPLICA_PROCESSING_KILL=1`.** Both work, and
+the kill switch stays as the lever for silencing the endpoint itself. The cron
+line was chosen because it is *in the repository*: the split is enacted by the
+same push that deploys it, and it is visible to the next reader in the same
+diff as the container. An env var set in a dashboard is a split that only one
+person can see.
+
+**What would reverse it.** Azure being an unacceptable single point of failure
+for enrollment. The fallback is already written and one line long: restore the
+cron entry, and the queue drains as far as a serverless runtime honestly can,
+with named absences for the rest.
+
+## `windowing-belongs-before-the-embedder-not-before-diarize` (2026-08-26, WS-AK)
+
+**Decided.** `VOICE_EVIDENCE_MAX_DURATION_SECONDS` was raised from 600 to 1200
+on `vyakti-voice-evidence` as an **unblock for one file**, not as the fix. The
+proposal to window the recording down to the best ~10 s *before* the evidence
+call was NOT adopted at this point in the DAG, and the reason is structural
+rather than a matter of effort.
+
+**Why windowing here would be wrong.** `best-window-not-first-window` is right,
+and WS-U's spread (0.7433 to 0.8058 on window choice, against a 0.0206 fine-tune
+delta) makes it the highest-leverage decision in the clone pipeline. But it is a
+decision about **the reference that conditions synthesis**, which is the
+embedder's input. `diarize` is not the embedder. Windowing before it would:
+
+- destroy the thing diarize exists to produce. Its output is `speaker_segment`
+  evidence with spans and a `target_likelihood` across the WHOLE recording, and
+  that is the mechanism that tells the target speaker from a second voice.
+  `vy_replica_source.contains_third_parties` is consent-critical, and a 10 s
+  window cannot establish it for the other 13 minutes.
+- starve `separate` and `enhance`, which take diarize's segments as input.
+- truncate `transcribe` to ten seconds of a thirteen-minute recording, when the
+  transcript is what the sheet and persona work read.
+- choose that window with `_video-enroll/windows.js`, which says plainly of
+  itself that its scores are a **proxy** - voiced fraction, SNR estimate,
+  clipping, level, stationarity - and have never been benched against fidelity
+  on lecture audio. Replacing speaker-aware evidence with an unbenched signal
+  proxy for a consent-critical determination is the wrong direction.
+
+**And it would not have unblocked this file anyway.** `services/voice-evidence`
+exposes exactly ONE endpoint, `/v1/analyze`, and all four evidence steps POST to
+it. The duration guard lives in the shared `_load_audio`, so it applies to
+diarize, separate, enhance and voice_quality alike. Windowing before the
+embedder alone leaves the first three capped exactly where they were.
+
+**What the real fix is, and why it is a different workstream.** Chunk the
+recording and call `/v1/analyze` per chunk, aggregating evidence across chunks.
+That makes duration irrelevant for all four steps without discarding audio. It
+changes the span semantics of the evidence schema and the per-step contract of
+four DAG stages, which is a design change with its own eval surface, not
+something to land inside a deployment.
+
+**What would reverse the interim cap.** A file longer than 1200 s, which is not
+hypothetical: a 30-minute lecture is squarely in the product's use case and
+still fails, and 1200 s is a HARD ceiling compiled into `app.py`
+(`min(20*60, ...)`), so going past it needs a service change and a rebuild of a
+5.34 GB GPU image, not an env var.
+
+## `wake-then-sign-never-sign-then-wait` (2026-08-26, WS-AK)
+
+**Decided.** `providers/azure-voice-evidence.js` now polls the evidence
+service's own `/healthz` until it returns 200, and only then builds the
+timestamp, nonce and signature for the real request. Bounded by
+`VOICE_EVIDENCE_READY_TIMEOUT_MS`, default 300 s, floor 60 s.
+
+**Why.** The service scales to zero and takes 100 to 160 s to load models. A
+request signed before that wait is held by Container Apps until the replica is
+up, by which time its timestamp is older than the service's 60 s anti-replay
+window, and it is rejected 401. Four consecutive cold attempts failed this way;
+the first attempt with this change completed, cold, in 50 s. See
+`measurements.md#wake-then-sign-unblocks-the-evidence-lane`.
+
+**Why not widen the window.** The window is the replay protection. Making it
+long enough to cover a GPU cold start would mean accepting a signature minted
+three minutes ago, which is the thing it exists to refuse.
+
+**Why `/healthz` here is not the trap in
+`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`.** That entry
+is about the open-voice BROKER, which answers at its own front door and forwards
+separately, so its health says nothing about the thing behind it. This endpoint
+is served by the evidence app itself and returns 200 only after its lifespan has
+loaded the models and set `ready`; while the app is up but still loading it
+returns 503. The probe's body is never read, so it is a timing gate and never
+evidence.
+
+**What would reverse it.** A service whose `/healthz` stops being gated on real
+readiness, or an ingress that starts answering it on the app's behalf. Both turn
+this from a readiness check back into a front door, and the failure would be
+silent: requests would be signed too early again and the 401s would return.

@@ -2816,6 +2816,132 @@
       "kind": "rejection",
       "title": "egress resets the browser's HTTPS; a loopback bridge serving production bytes tests the real frontend",
       "at": "2026-08-26"
+    },
+    {
+      "id": "replica-processing-worker-deployed",
+      "kind": "component",
+      "title": "vyakti-replica-processing on Azure Container Apps: a scheduled JOB, Consumption, no ingress, that owns all eight steps of the audio DAG and is the only runtime with clamdscan and ffprobe",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "processing-worker-is-a-job-not-an-app",
+      "kind": "decision",
+      "title": "the worker deploys as a Container Apps Job rather than a Container App: it is run-to-completion, it is a queue consumer with no inbound door, and zero idle cost is real rather than scale-to-zero",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-container-owns-every-processing-step",
+      "kind": "decision",
+      "title": "one owner per step: the Azure job owns all eight, the Vercel sweep's cron entry is removed and the endpoint stays as a manual fallback, because two schedulers with different capabilities flap the owner's Activity screen",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "commit-guard-had-never-committed-evidence",
+      "kind": "measurement",
+      "title": "0 artifact rows and 0 evidence rows existed database-wide and the only steps ever completed were the two producing neither; commitProcessingOutput aborted every other step with SQLSTATE 22012 - n=whole production db, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "worker-execution-timings",
+      "kind": "measurement",
+      "title": "worker image builds 96-107s; an execution finding an empty queue costs 23s with no ClamAV started; clamd ready in 10,052ms; malware_scan on 32.9MB in 1.4s; integrity in 5.13s",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ffprobe-pipe-versus-file-on-the-owners-mp3",
+      "kind": "measurement",
+      "title": "same binary, same args, same bytes: pipe:0 yields format {} with no duration, a file path yields duration 822.720000 - the owner's recording is 822,720ms, 48kHz, stereo, mp3; n=1 file, 2 invocations, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "data-modifying-ctes-cannot-see-each-other",
+      "kind": "rejection",
+      "title": "validating an insert by re-reading the base table in the same statement: a data-modifying CTE's rows are invisible to the rest of the statement, so the check always failed and the collision guard divided by zero",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "clamdscan-is-only-a-recommended-package",
+      "kind": "rejection",
+      "title": "installing clamav-daemon with --no-install-recommends and expecting a scanner: clamdscan is a separate Debian package and only Recommended, so the image had the daemon and no client",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ffprobe-cannot-read-mp3-duration-from-a-pipe",
+      "kind": "rejection",
+      "title": "probing audio by streaming bytes to ffprobe pipe:0: a pipe is not seekable, MP3 duration needs a seek, so the step failed media_probe_output_invalid on a recording that is fine",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-mission-brief-said-the-sweep-was-already-merged",
+      "kind": "rejection",
+      "title": "trusting a brief that said WS-AH's sweep was already on the platform branch: it was deployed but never merged, so the branch showed a queue with no drainer",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-genome-still-blocked-on-asr",
+      "kind": "open",
+      "title": "a voice_genome build needs sources at state=ready, which only voice_quality sets; the DAG stops at diarize without AZURE_VOICE_EVIDENCE_ORIGIN and then at transcribe on AZURE_SPEECH_ENDPOINT, and the subscription has ZERO Cognitive Services accounts",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-evidence-round-trip-first-ever",
+      "kind": "measurement",
+      "title": "the first three real requests ever made to the private GPU evidence service: cold gives 401 transport_signature_invalid in 227s, warm authenticates in 20s - n=3, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "owners-recording-exceeds-the-evidence-duration-cap",
+      "kind": "measurement",
+      "title": "the owner's enrollment recording is 822.72s against VOICE_EVIDENCE_MAX_DURATION_SECONDS=600, and 32,908,934 bytes against a 33,554,432 byte cap: under on bytes, over on duration by 222.72s",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "signing-before-a-cold-start-cannot-authenticate",
+      "kind": "rejection",
+      "title": "signing an HMAC request before waking a scale-to-zero GPU service: the 60s anti-replay window is shorter than the ~161s cold start, so a correct request with a correct key is always rejected",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "requeue-resets-attempt-and-the-timing-row-survives",
+      "kind": "rejection",
+      "title": "reading per-step durations from vy_replica_processing_attempt: a requeue resets attempt to 0, the retry's insert conflicts onto the first attempt's row, and the span silently becomes wait time plus work time",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "windowing-belongs-before-the-embedder-not-before-diarize",
+      "kind": "decision",
+      "title": "the evidence duration cap was raised 600->1200s as an unblock for one file; windowing to the best 10s before diarize was rejected because diarize is not the embedder and one shared /v1/analyze endpoint caps all four steps",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "source-duration-was-never-persisted",
+      "kind": "rejection",
+      "title": "media_probe wrote the measured duration only into evidence, leaving vy_replica_source.duration_ms NULL, so every later step declared a null duration on the input reference for a recording whose length was already known",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "wake-then-sign-never-sign-then-wait",
+      "kind": "decision",
+      "title": "the evidence client polls the service's own /healthz until 200 before building the timestamp and signature, because a signature minted before a 100-160s GPU wake is stale by the time it is checked",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "wake-then-sign-unblocks-the-evidence-lane",
+      "kind": "measurement",
+      "title": "5 real diarize attempts: 4 sign-then-send cold attempts all failed on transport or response signature, the first wake-then-sign attempt completed COLD in 50s and wrote 278 speaker_segment rows - n=5, 2026-08-26",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "target-likelihood-is-a-neutral-prior-not-an-identification",
+      "kind": "open",
+      "title": "diarize returns target_likelihood 0.500 on every segment BY DESIGN - the service refuses to infer identity without an enrolled anchor, gated by two evals - so something downstream must supply the anchor or choose the cluster explicitly",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "separate-fails-on-the-whole-recording",
+      "kind": "measurement",
+      "title": "separate failed twice with voice_evidence_failed, the service's bare 503 catch-all; app.py:241 passes all 13.16M samples to Sepformer in one forward pass on a T4, so CUDA OOM is the leading hypothesis - traceback NOT yet ingested, 2026-08-26",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -5478,6 +5604,121 @@
       "src": "the-browser-cannot-reach-production-but-the-product-can-still-be-tested",
       "rel": "constrains",
       "dst": "offline-mocks-cannot-type-check-sql"
+    },
+    {
+      "src": "replica-processing-worker-deployed",
+      "rel": "part_of",
+      "dst": "media-extract-deployed"
+    },
+    {
+      "src": "processing-worker-is-a-job-not-an-app",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "the-container-owns-every-processing-step",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "commit-guard-had-never-committed-evidence",
+      "rel": "caused_by",
+      "dst": "data-modifying-ctes-cannot-see-each-other"
+    },
+    {
+      "src": "data-modifying-ctes-cannot-see-each-other",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "clamdscan-is-only-a-recommended-package",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "ffprobe-cannot-read-mp3-duration-from-a-pipe",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "ffprobe-pipe-versus-file-on-the-owners-mp3",
+      "rel": "part_of",
+      "dst": "ffprobe-cannot-read-mp3-duration-from-a-pipe"
+    },
+    {
+      "src": "worker-execution-timings",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "voice-genome-still-blocked-on-asr",
+      "rel": "caused_by",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "voice-evidence-round-trip-first-ever",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "signing-before-a-cold-start-cannot-authenticate",
+      "rel": "caused_by",
+      "dst": "voice-evidence-round-trip-first-ever"
+    },
+    {
+      "src": "owners-recording-exceeds-the-evidence-duration-cap",
+      "rel": "part_of",
+      "dst": "voice-genome-still-blocked-on-asr"
+    },
+    {
+      "src": "requeue-resets-attempt-and-the-timing-row-survives",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "windowing-belongs-before-the-embedder-not-before-diarize",
+      "rel": "caused_by",
+      "dst": "owners-recording-exceeds-the-evidence-duration-cap"
+    },
+    {
+      "src": "windowing-belongs-before-the-embedder-not-before-diarize",
+      "rel": "part_of",
+      "dst": "voice-genome-still-blocked-on-asr"
+    },
+    {
+      "src": "source-duration-was-never-persisted",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "wake-then-sign-never-sign-then-wait",
+      "rel": "supersedes",
+      "dst": "signing-before-a-cold-start-cannot-authenticate"
+    },
+    {
+      "src": "wake-then-sign-unblocks-the-evidence-lane",
+      "rel": "part_of",
+      "dst": "wake-then-sign-never-sign-then-wait"
+    },
+    {
+      "src": "wake-then-sign-never-sign-then-wait",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "target-likelihood-is-a-neutral-prior-not-an-identification",
+      "rel": "caused_by",
+      "dst": "wake-then-sign-unblocks-the-evidence-lane"
+    },
+    {
+      "src": "separate-fails-on-the-whole-recording",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "separate-fails-on-the-whole-recording",
+      "rel": "caused_by",
+      "dst": "windowing-belongs-before-the-embedder-not-before-diarize"
     }
   ]
 }

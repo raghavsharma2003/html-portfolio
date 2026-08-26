@@ -6,7 +6,7 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node run-once.js",
-    "check": "node --check run-once.js && node --check native.js && node --check db.js"
+    "check": "node --check run-once.js && node --check clamav.js && node --check db.js"
   }
 }
 

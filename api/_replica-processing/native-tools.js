@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { accessSync, constants } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { delimiter, isAbsolute, join } from "node:path";
 
 // THE TWO NATIVE SEAMS, AND THE ONE RULE THEY ARE HELD TO
@@ -201,13 +204,38 @@ export function createNativeToolRunners(options = {}) {
         signal: callOptions.signal, timeoutMs: 180_000, code: "clamav", maxOutput: 64 * 1024,
       }));
     },
+    // ffprobe is given a FILE, not a pipe, and that is load-bearing.
+    //
+    // Measured on the owner's real 32.9 MB MP3 inside the worker image, 2026-08-26:
+    //   ffprobe ... pipe:0   -> exit 0, streams complete, "format": {}
+    //   ffprobe ... <path>   -> exit 0, streams complete, "duration": "822.720000"
+    //
+    // Same binary, same bytes, same arguments. A pipe is not seekable, and an
+    // MP3's duration is not in a header ffprobe can read going forwards - it
+    // comes from seeking to the end or from a Xing frame it has to seek to. So
+    // on a pipe the duration is simply absent, `readFfprobeFacts` rightly
+    // refuses the result, and the step fails `media_probe_output_invalid` on a
+    // recording that is perfectly fine. That is what the owner's job did.
+    //
+    // The bytes are already fully in memory (bounded by the storage read cap),
+    // so materialising them costs a write and a delete, and buys a probe that
+    // works for every container format rather than only the seek-free ones.
     async probeBytes(bytes, callOptions = {}) {
       const command = resolveNativeTool("media_probe", env);
       if (!command) throw toolError(NATIVE_TOOLS.media_probe.absentCode);
-      return readFfprobeFacts(await runTool(command, [
-        "-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,sample_rate,channels",
-        "-of", "json", "pipe:0",
-      ], bytes, { signal: callOptions.signal, timeoutMs: 90_000, code: "ffprobe", maxOutput: 256 * 1024 }));
+      const dir = await mkdtemp(join(options.tmpDir || tmpdir(), "probe-"));
+      const file = join(dir, randomBytes(8).toString("hex"));
+      try {
+        await writeFile(file, bytes);
+        return readFfprobeFacts(await runTool(command, [
+          "-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,sample_rate,channels",
+          "-of", "json", file,
+        ], "", { signal: callOptions.signal, timeoutMs: 90_000, code: "ffprobe", maxOutput: 256 * 1024 }));
+      } finally {
+        // The source bytes must not outlive the probe. Best effort by
+        // necessity: a failure to clean up must not mask the probe's verdict.
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
     },
   });
 }

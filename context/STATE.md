@@ -12,6 +12,13 @@ is not append-only. If you see two of these again, collapse them.
 
 **Other agents:** `AGENTS.md` at the repo root is the tool-neutral entry point
 and points back here. `CLAUDE.md` carries the same rules for Claude Code.
+Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
+Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
+Last updated: 2026-08-26 (WS-X: the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates)
+Last updated: 2026-08-26 (WS-AC: the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked)
+Last updated: 2026-08-26 (WS-AD: media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it)
+Last updated: 2026-08-26 (WS-AF: the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing)
+Last updated: 2026-08-26 (WS-AK: the processing worker deployed as an Azure Container Apps Job — and the commit statement that had never once written a piece of evidence)
 
 ## What the product is
 
@@ -51,6 +58,7 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
+| Enrollment processing queue | **LIVE and draining.** `vyakti-replica-processing`, an Azure Container Apps **Job** (Consumption, `*/5`, no ingress, scale-to-zero by construction), image `replica-processing-worker@sha256:52df98…`. It owns all eight DAG steps; the Vercel sweep's cron entry is removed and that endpoint is now the manual fallback. The owner's real 32.9 MB upload has `integrity`, `malware_scan`, `media_probe` and **`diarize` COMPLETE** (278 speaker segments, mean confidence 0.877, the first voice evidence this system has ever written) and stops at `separate`, which throws on the GPU for a whole 822.7 s recording. **A voice genome is NOT yet buildable:** it needs sources at `state='ready'`, only `voice_quality` sets that, and `transcribe` sits between them needing an Azure Speech resource that does not exist on this subscription (zero Cognitive Services accounts). **`commitProcessingOutput` had never once written an artifact or a piece of evidence** — its guard validated by re-reading the tables it was writing, which a data-modifying CTE cannot see — so no upload could ever have passed `media_probe`. Fixed and proven on production. |
 
 ## WHERE THE PRODUCT ACTUALLY STANDS (2026-08-26 19:15Z, measured)
 
@@ -147,7 +155,7 @@ service response, not a claim.
 **Known-open, deliberately not guessed at:**
 - Code-switch ratio reads 0.000 on visibly bilingual speech — `HINDI_MARKER_WORDS` is romanised, Sarvam returns Devanagari. Needs a decision (transliterate / extend lexicon / different model), not a patch.
 - Fidelity cannot be persisted or clear activation until a voice profile + biometric consent + human liveness challenge exist.
-- HMAC skew window (60 s) is shorter than `voice-evidence`'s 176 s cold start, so the waking request returns 401 — an auth error for a latency problem. Worked around by pinging `/healthz` first. **The open-voice lane fails differently and this line used to blur the two:** its broker verifies the signature the moment the request lands and only then forwards it, so a cold *GPU runtime* is a **timeout**, not a 401. Owned as of WS-W by `api/_voice/warmup.js` for the studio panel; the processing worker's copy of the problem is still unassigned (`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`).
+- HMAC skew window (60 s) is shorter than `voice-evidence`'s 176 s cold start, so the waking request returns 401 — an auth error for a latency problem. Worked around by pinging `/healthz` first. **The open-voice lane fails differently and this line used to blur the two:** its broker verifies the signature the moment the request lands and only then forwards it, so a cold *GPU runtime* is a **timeout**, not a 401. Owned as of WS-W by `api/_voice/warmup.js` for the studio panel. **WS-AK has now measured the processing worker's copy of it on production and it is exactly this:** the deployed job's first `diarize` against a cold replica returned 401 `transport_signature_invalid`, the same code from a warm replica authenticated in 20 s, and the two HMAC secrets were confirmed identical by digest first so the obvious wrong fix (rotate the key) was not taken. Still unowned, now with numbers (`measurements.md#voice-evidence-round-trip-first-ever`, `rejected.md#signing-before-a-cold-start-cannot-authenticate`).
 
 **The command, once env is set:** `node scripts/first-clone.mjs /path/to/voice.wav "Name"`
 (input must be 24 kHz mono PCM16: `ffmpeg -i in.m4a -ac 1 -ar 24000 -c:a pcm_s16le out.wav`).
