@@ -2815,3 +2815,33 @@ practice suite included):
 
 Next: WS-B dynamic sheet loading, WS-D student surface, WS-E studio re-skin,
 WS-F ingestion — each depends on this wave.
+
+## `gurukul-ws2-landed` — second build wave: dynamic sheets, student surface, teacher studio (2026-08-26)
+
+Wave 2 merged onto `claude/gurukul-platform`, all 11 gates green after each
+merge (teachersheet suite 129/129; persona invariants 654/654 across three
+registered agents; practice suite untouched at 287):
+
+- **WS-B** — migration 051 `vy_teacher_sheet` with the publish gate as a
+  CHECK constraint (published requires a consent artifact — structural, per
+  `gate0-structural`), `sheetToModule`/`validateTeacherSheet` (content
+  validity split from consent blockers so the demo sheet validates while its
+  nil consent still fails closed), fail-closed server loader with ONE error
+  code for missing/unpublished/revoked so revocations cannot be enumerated.
+  Known circular-import hazard documented: registry must not reach shapelint
+  (compiler reads DEFAULT_AGENT at module scope), so `teacher.ts` and
+  `fromSheet.ts` are held byte-identical by an eval, not by sharing code.
+- **WS-D** — `src/gurukul/surface.ts` applies the minor default through
+  `setAgeTier()`'s restriction-only ratchet (never a clock.ts edit; minor is
+  sticky by construction), mastery fold with no-decay-by-absence and XP from
+  graded outcomes only, 12-question demo bank, PracticeActivity + MasteryMap
+  as App.tsx overlay siblings behind the surface flag.
+- **WS-E** — studio teacher mode behind `?mode=teacher` read once at mount
+  (generic replica mode byte-identical), TeacherSheetStudio editing only the
+  teacher-input fields, DisclosurePreview showing the student-facing
+  disclosure card + spoken line as non-editable floor.
+
+Open after this wave: WS-F ingestion (video/audio/text → sheet draft; the
+≥5-occurrences phrase-bank half lives there), practice's live-call lane
+wiring, revision queue / mock cycle screens, `/api/teacher-sheet` endpoint
+over WS-B's loader.

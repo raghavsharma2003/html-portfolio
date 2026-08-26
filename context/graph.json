@@ -1874,6 +1874,12 @@
       "kind": "decision",
       "title": "first gurukul build wave landed: sheet seam + pedagogy engine + deploy manifest",
       "at": "2026-08-26"
+    },
+    {
+      "id": "gurukul-ws2-landed",
+      "kind": "decision",
+      "title": "second gurukul build wave landed: dynamic sheets + student surface + teacher studio",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3434,6 +3440,11 @@
     },
     {
       "src": "gurukul-ws1-landed",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
+    },
+    {
+      "src": "gurukul-ws2-landed",
       "rel": "part_of",
       "dst": "gurukul-founding"
     }
