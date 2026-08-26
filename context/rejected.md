@@ -3451,3 +3451,50 @@ unreadable scanner exit is `clamav_scan_failed`, never `{safe:true}`.
 **The generalisation worth keeping.** A default value is a positive claim. Ask
 of every fallback: if this fires, what am I asserting, and would I sign it? For
 a safety check the honest fallback is always an exception, never a verdict.
+## `owner-field-was-not-the-blocker-class` — a two-value field that had to be three things (2026-08-26, WS-AJ)
+
+**What was tried.** `wizardModel.ts` already split every blocker by
+`owner: "you" | "platform"`, and `StepBlockers` already rendered two columns
+from it. The obvious read of the owner's phone report was that the split existed
+and the copy around it was sloppy, so the first attempt was to fix the sentences
+and leave the field alone.
+
+**What broke.** The field is right about WHO OWNS A GATE and wrong about WHOSE
+TURN IT IS, and those come apart in the exact situation the owner was in.
+`person_profile_not_approved` and `calibration_not_approved` are owned by the
+person: only they can approve a person model or a calibration. Both are also
+unreachable until the platform has processed the material behind them. With the
+owner's audio stuck at `quarantined`, both rendered `owner: "you"`, both counted
+toward the ember, and both were things no human action could clear. Rewriting
+the sentences would have made a truthful-sounding version of the same lie.
+
+**What replaced it.** A second field. `owner` stays, meaning what it always
+meant; `cls` is what every surface renders and what the ember keys on, and it
+reclassifies a person-owned gate to `us` while `platformWork` says we are
+holding the work it depends on. See `decisions.md#blocker-class-is-a-type`.
+
+**The general shape, and the reason this is worth a rejection entry.** A field
+that has been correct for months can be correct about a slightly different
+question than the one the UI is asking it. The tell is that no amount of copy
+work makes the screen honest: when better words cannot fix a sentence, the
+sentence is reading the wrong variable.
+
+## `your-turn-was-banned-from-honest-copy-too` (2026-08-26, WS-AJ)
+
+**What was tried.** `blamesThePerson` bans the phrase "your turn" in
+platform-owned prose. The first draft of the reclassified note read "this
+becomes your turn once processing finishes", which is a promise, not an
+accusation, and the eval failed it. The reflex was to loosen the detector with a
+lookbehind for "becomes".
+
+**Why that was rejected.** The detector cannot tell "this becomes your turn" from
+"it is your turn" without understanding tense and mood, and every exemption
+carved for a nicer sentence is an exemption the next author copies for a worse
+one. The copy moved instead: "you can pick this up once it clears" says the same
+thing and borrows none of the accusing phrase. The near miss is now itself a
+negative control in `evals/studiowizard.mjs` §8, so the loosening cannot be
+reintroduced quietly.
+
+**The general shape.** When a lint fires on copy you like, the cheap fix is the
+exemption and the correct fix is usually the copy. A detector relaxed to admit
+a nicer sentence is a detector that admits the sentence it exists to catch.

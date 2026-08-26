@@ -2692,9 +2692,27 @@
       "at": "2026-08-26"
     },
     {
-      "id": "processing-status-not-connected",
-      "kind": "open",
-      "title": "WS-AF's processing-status surface has labelled mount points on Feed and Meet and no backend",
+      "id": "blocker-class-is-a-type",
+      "kind": "decision",
+      "title": "Every studio blocker is typed `you` or `us`, and no `us` prose may blame the reader",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-studio-phone-layout-is-stated-not-subtracted",
+      "kind": "decision",
+      "title": "The studio's phone layout is written positively in one file at one breakpoint, not subtracted from the desktop",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "owner-field-was-not-the-blocker-class",
+      "kind": "rejection",
+      "title": "Reusing the existing `owner` field as the blocker class kept blaming the person for platform-held work",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "your-turn-was-banned-from-honest-copy-too",
+      "kind": "rejection",
+      "title": "Loosening the blame detector to admit 'this becomes your turn' was rejected; the copy moved instead",
       "at": "2026-08-26"
     },
     {
@@ -5247,8 +5265,38 @@
       "dst": "studio-wizard-shell"
     },
     {
-      "src": "processing-status-not-connected",
-      "rel": "blocks",
+      "src": "blocker-class-is-a-type",
+      "rel": "caused_by",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "blocker-class-is-a-type",
+      "rel": "caused_by",
+      "dst": "owner-field-was-not-the-blocker-class"
+    },
+    {
+      "src": "blocker-class-is-a-type",
+      "rel": "constrains",
+      "dst": "wizard-readiness-is-a-pure-function"
+    },
+    {
+      "src": "blocker-class-is-a-type",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "your-turn-was-banned-from-honest-copy-too",
+      "rel": "caused_by",
+      "dst": "blocker-class-is-a-type"
+    },
+    {
+      "src": "the-studio-phone-layout-is-stated-not-subtracted",
+      "rel": "caused_by",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "the-studio-phone-layout-is-stated-not-subtracted",
+      "rel": "part_of",
       "dst": "studio-wizard-shell"
     },
     {

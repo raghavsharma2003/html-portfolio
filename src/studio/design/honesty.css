@@ -1,0 +1,196 @@
+/* honesty.css — how the two blocker classes look, at every width. WS-AJ.
+ *
+ * The split itself is a type (`src/studio/blockerClass.ts`) and a property the
+ * eval asserts (`evals/studiowizard.mjs` §8). This file is the half of it a
+ * person actually sees, and it has one job: make "waiting on you" and "waiting
+ * on us" look as different as they mean, without either of them looking like an
+ * error.
+ *
+ * THREE RULES IT KEEPS, ALL OF THEM ALREADY LAW HERE
+ *
+ * 1. NEVER A BARE COLOUR. `DESIGN-SYSTEM.md` §5 rule 2. The class is a WORD in
+ *    a badge and the colour is confirmation, not the message. About 8% of men
+ *    cannot separate the ember from the slate, and 100% of people can read.
+ *
+ * 2. OURS IS NEVER PAINTED AS URGENT. `--state-running` (slate) is the most
+ *    neutral of the four state colours on purpose: a cold start takes about
+ *    three minutes in this system and a colour that looked urgent for three
+ *    minutes would be a lie told in paint. `--state-waiting` (ember) is
+ *    reserved for the one thing a person can act on, and DESIGN-SYSTEM §4.1
+ *    caps it at one on screen.
+ *
+ * 3. NEITHER IS AN ERROR. `--state-stopped` (danger) is not used here at all.
+ *    A queue that has not drained is not a failure the person needs to react
+ *    to, and painting it red is how a product teaches people to ignore red.
+ */
+
+@layer components {
+  /* ── the reason beside a disabled control ──────────────────────────── */
+
+  /* The wrapper exists so the reason cannot drift away from its control in a
+   * later layout change. On a 390pt screen "adjacent" and "in the same box"
+   * are the same requirement, because anything else is a scroll. */
+  .disabled-action { display: grid; gap: 0; }
+
+  .blocker-notice {
+    display: grid;
+    gap: var(--space-hair);
+    margin: var(--space-row) 0 0;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-row) var(--space-item);
+    font-size: var(--text-small);
+    letter-spacing: var(--tracking-body);
+    line-height: var(--leading-body);
+  }
+
+  /* The badge. Uppercase micro-type is the one size that genuinely wants the
+   * positive tracking, which is why `--tracking-caps` is used here and nowhere
+   * else in this file (DESIGN-LAW §2: tracking is size-specific). */
+  .blocker-notice-class {
+    justify-self: start;
+    padding: 2px var(--space-tight);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .blocker-notice-headline { color: var(--ink); font-weight: var(--weight-medium); }
+  .blocker-notice-next { color: var(--ink-soft); }
+
+  /* YOUR TURN. Ember, and it is the only class that gets it. */
+  .blocker-notice-you {
+    border-color: var(--state-waiting);
+    background: var(--state-waiting-soft);
+  }
+  .blocker-notice-you .blocker-notice-class {
+    color: white;
+    background: var(--state-waiting);
+  }
+
+  /* OURS. Slate: working, not waiting on you, and not an alarm. */
+  .blocker-notice-us {
+    border-color: var(--state-running);
+    background: var(--state-running-soft);
+  }
+  .blocker-notice-us .blocker-notice-class {
+    color: white;
+    background: var(--state-running);
+  }
+
+  /* The step-level line reuses the notice and only changes its rhythm.
+   *
+   * IT IS `.step-block`, NOT `.step-warning`, AND THE RENAME IS THE FIX. The
+   * old class in `studio.css` hardcodes the ember border and the ember
+   * background, because when it was written every blocked state was assumed to
+   * be the owner's turn. Reusing the name here would have meant a sentence
+   * about OUR unfinished queue arriving painted in the one colour this design
+   * system reserves for "your turn", which is the whole defect again, in CSS
+   * this time. A class whose paint encodes a claim cannot be reused for a
+   * different claim. `.step-warning` is left alone for whatever still uses it. */
+  .blocker-notice.step-block {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-block);
+    padding: var(--space-item);
+    font-size: var(--text-body);
+  }
+
+  .blocker-notice.wizard-pager-caution { max-width: var(--measure); margin: 0; }
+
+  /* ── the rail's named next thing ───────────────────────────────────── */
+
+  /* This replaced `.wizard-step-owed`, which rendered "9 waiting on you": a
+   * count with no names, which is the defect in its smallest form. */
+  .wizard-step-next {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: var(--space-hair);
+    min-width: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    letter-spacing: var(--tracking-body);
+    line-height: var(--leading-snug);
+    text-transform: none;
+  }
+  .wizard-step-next-class {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: var(--radius-pill);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+  }
+  .wizard-step-next-you .wizard-step-next-class {
+    color: var(--state-waiting);
+    background: var(--state-waiting-soft);
+  }
+  .wizard-step-next-us .wizard-step-next-class {
+    color: var(--state-running);
+    background: var(--state-running-soft);
+  }
+
+  /* ── the open-items panel ──────────────────────────────────────────── */
+
+  /* One named lead, the rest one expand away. Both halves matter: the name is
+   * what makes the panel startable, and the expansion is what stops it being a
+   * wall of eleven identical rows. */
+  .wizard-blockers-lead {
+    margin: 0 0 var(--space-item);
+    border-left: 3px solid var(--line-strong);
+    padding-left: var(--space-item);
+  }
+  .wizard-blockers-lead-you { border-left-color: var(--state-waiting); }
+  .wizard-blockers-lead-us { border-left-color: var(--state-running); }
+  .wizard-blockers-lead ul { margin: 0; padding: 0; list-style: none; }
+  .wizard-blockers-lead .wizard-blocker { border-left: 0; padding-left: 0; }
+
+  .wizard-blockers-lead-class {
+    margin: 0 0 var(--space-hair);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+  .wizard-blockers-lead-you .wizard-blockers-lead-class { color: var(--state-waiting); }
+  .wizard-blockers-lead-us .wizard-blockers-lead-class { color: var(--state-running); }
+
+  .wizard-blocker-label { color: var(--ink); font-size: var(--text-body); }
+  .wizard-blocker-you { border-left-color: var(--state-waiting); }
+  .wizard-blocker-us { border-left-color: var(--state-running); }
+
+  .wizard-blockers-rest > summary {
+    display: grid;
+    gap: 2px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .wizard-blockers-rest > summary::-webkit-details-marker { display: none; }
+  .wizard-blockers-rest > summary strong { color: var(--ink); font-size: var(--text-body); }
+  .wizard-blockers-rest > summary span { color: var(--ink-faint); font-size: var(--text-small); }
+  .wizard-blockers-rest[open] > summary { margin-bottom: var(--space-item); }
+
+  /* The inline voice unlock keeps its ember box and gains the class word, so a
+   * teacher meets the same two-word vocabulary everywhere it applies. A
+   * vocabulary that is only honest where honesty is cheap is not a vocabulary. */
+  .voice-unlock-class {
+    margin: 0;
+    color: var(--state-waiting);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+}
+
+@layer responsive {
+  @media (prefers-contrast: more) {
+    /* Soft tints go near-solid and every border is defined. The badge already
+     * carries the word, so nothing here depends on the tint surviving. */
+    .blocker-notice-you,
+    .blocker-notice-us { background: var(--paper); }
+    .blocker-notice { border-width: 2px; }
+  }
+}

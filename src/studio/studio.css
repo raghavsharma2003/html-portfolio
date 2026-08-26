@@ -3159,17 +3159,18 @@
     line-height: var(--leading-body);
   }
 
-  .step-warning {
-    max-width: var(--measure);
-    margin: 0 0 var(--space-block);
-    border: var(--hairline) solid var(--state-waiting);
-    border-radius: var(--radius-sm);
-    padding: var(--space-item);
-    color: var(--state-waiting);
-    background: var(--state-waiting-soft);
-    font-size: var(--text-body);
-    line-height: var(--leading-body);
-  }
+  /* `.step-warning` was here and is deleted rather than kept for later (WS-AJ).
+   *
+   * It painted EVERY blocked state in `--state-waiting`, the one colour this
+   * design system reserves for "your turn", because when it was written every
+   * blocked state was assumed to be the owner's doing. That assumption is the
+   * defect the owner caught on a phone: a sentence about our own undrained
+   * processing queue arrived in the colour that means they had failed to act.
+   *
+   * Its replacement is `.blocker-notice` in `design/honesty.css`, which takes a
+   * typed `BlockerClass` and paints ember for `you` and slate for `us`. A class
+   * whose paint encodes a claim cannot be reused for a different claim, so the
+   * name goes with the claim rather than being quietly restyled. */
 
   .wizard-band { margin: 0 0 var(--space-section); }
 

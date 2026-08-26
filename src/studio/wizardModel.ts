@@ -39,6 +39,19 @@
 // pattern (`DESIGN-SYSTEM.md` §4.6 rule 2) and it survives the restructure
 // because it was the one part of the old screen that was right.
 
+//
+// ── the honesty split (WS-AJ) ──────────────────────────────────────────────
+// The one import this module has, and it is a pure sibling with no imports of
+// its own, so the "an eval can run this without a database" property holds.
+// `blockerClass.ts` carries the whole argument for why the split is a type.
+import {
+  activityClass,
+  type BlockerClass,
+  CLASS_COPY,
+  disabledReason,
+  type DisabledReason,
+} from "./blockerClass";
+
 /** The three steps, in the owner's order and the owner's words. */
 export type StepId = "feed" | "meet" | "deploy";
 
@@ -60,6 +73,18 @@ export interface Missing {
   code: string;
   label: string;
   owner: Owner;
+  /**
+   * The rendered class, which is what the UI actually keys on.
+   *
+   * It is NOT always `owner === "you" ? "you" : "us"`, and that difference is
+   * the whole point of this field. A gate that is nominally the person's turn
+   * but is unreachable because a platform job has not finished is OURS while
+   * that is true. `person_profile_not_approved` is the live example: there is
+   * nothing for an owner to approve until we have processed what they gave us,
+   * and telling them it is their turn in that window is the defect this
+   * workstream exists to remove.
+   */
+  cls: BlockerClass;
   /** What to do about it, second person, present tense. */
   note: string;
   /** An in-page anchor on the step that owns it. Empty when there is none. */
@@ -105,6 +130,42 @@ export interface WizardInput {
    * literal in a status position wearing a variable's clothes.
    */
   connectedChannels: number | null;
+  /**
+   * What the PLATFORM is doing, reduced from `/api/replica-activity` (WS-AF).
+   *
+   * THE FIELD THE OWNER'S SCREENSHOT NEEDED AND DID NOT HAVE. Their uploaded
+   * audio was sitting at `quarantined` because nothing deployed drains the
+   * processing queue, and the wizard, which could not see that, told them nine
+   * things were waiting on them. Every one of those nine was downstream of a
+   * job we had not run.
+   *
+   * `null` means the activity surface has not answered, and `null` reclassifies
+   * NOTHING: the wizard behaves exactly as it did before this field existed.
+   * That is the safe default, and it is the honest one, because "we did not
+   * ask" is not "the platform is idle" (the same rule `connectedChannels`
+   * above is built on).
+   */
+  platformWork: {
+    /** Jobs running, or queued behind a worker. Ours, and moving. */
+    running: number;
+    /** Jobs stopped on our side: blocked, or failed with nothing to retry. */
+    stuck: number;
+    /** Human labels of lanes that are not deployed at all. */
+    undeployedLanes: readonly string[];
+  } | null;
+}
+
+/**
+ * Is the platform holding work that downstream gates depend on?
+ *
+ * Deliberately true for `stuck` and for an undeployed lane as well as for
+ * `running`. A queue nothing drains is not idle, it is broken, and both of
+ * those are ours. The only state that is not ours is an empty queue.
+ */
+export function platformIsHoldingWork(input: WizardInput): boolean {
+  const work = input.platformWork;
+  if (!work) return false;
+  return work.running > 0 || work.stuck > 0 || work.undeployedLanes.length > 0;
 }
 
 export interface StepView {
@@ -120,6 +181,14 @@ export interface StepView {
   missing: Missing[];
   /** Human summary of `state`, always a word, never only a colour. */
   statusLabel: string;
+  /**
+   * The one thing to name on a compact surface, or null when the step is clear.
+   *
+   * A phone rail has room for one line, and the line has to be a NAME. The old
+   * rail rendered "9 waiting on you" there, which is the count defect in its
+   * smallest form: nine is not a thing a person can start.
+   */
+  top: Missing | null;
 }
 
 export interface WizardView {
@@ -128,18 +197,44 @@ export interface WizardView {
   emberStep: StepId | null;
 }
 
-const TITLES: Record<StepId, { title: string; promise: string }> = {
+/**
+ * Titles, promises, and the two navigation phrases.
+ *
+ * WHY THE NAV PHRASES EXIST (WS-AJ, owner report). The pager used to render
+ * "Next: Deploy it" and "Back to Feed it". Those are the STEP names, and a step
+ * name is a label on a rail, not a destination in a sentence. Read aloud,
+ * "Back to Feed it" is not English, and DESIGN-LAW §1's read-aloud test is the
+ * whole gate. So a button says where it goes in the words a person would use:
+ * "Next: talk to your clone", "Back to your material".
+ *
+ * `nextPhrase` is imperative because it follows "Next:" and names an act.
+ * `backPhrase` is a noun phrase because it follows "Back to" and names a place.
+ * Two fields rather than one, because one field cannot be both, and the version
+ * that tried produced "Back to talk to your clone".
+ */
+const TITLES: Record<StepId, {
+  title: string;
+  promise: string;
+  nextPhrase: string;
+  backPhrase: string;
+}> = {
   feed: {
     title: "Feed it",
     promise: "Give it your files, your videos, your links, and your voice.",
+    nextPhrase: "add your material",
+    backPhrase: "your material",
   },
   meet: {
     title: "Meet it",
     promise: "Talk to your clone, hear it, and correct it while it listens.",
+    nextPhrase: "talk to your clone",
+    backPhrase: "talking to your clone",
   },
   deploy: {
     title: "Deploy it",
     promise: "Decide where it can be reached, after you have seen what it says first.",
+    nextPhrase: "choose where it can be reached",
+    backPhrase: "where it can be reached",
   },
 };
 
@@ -158,8 +253,24 @@ const STATUS_LABEL: Record<StepState, string> = {
  * `voice_not_ready` and `production_voice_required` keep their platform owner
  * and their honest note: the voice service genuinely is not connected, and a
  * teacher cannot unblock it. Saying so is the whole point (`docs/HONESTY.md`).
+ *
+ * `needsProcessedMaterial` is WS-AJ's addition and it is the field that stops
+ * the misattribution. Two of the person-owned gates below are only person-owned
+ * ONCE WE HAVE DONE OUR PART: there is nothing to approve in a person model or
+ * a calibration until the material behind it has been processed. While the
+ * platform is still holding that work, those rows render as ours, with what is
+ * happening and what happens next, instead of as an instruction the owner
+ * cannot follow.
  */
-const BLOCKER_META: Record<string, { label: string; owner: Owner; note: string; anchor: string; step: StepId }> = {
+const BLOCKER_META: Record<string, {
+  label: string;
+  owner: Owner;
+  note: string;
+  anchor: string;
+  step: StepId;
+  /** True when this gate cannot be acted on until our processing finishes. */
+  needsProcessedMaterial?: boolean;
+}> = {
   self_identity_not_bound: {
     label: "Verified account-to-person binding",
     owner: "you", step: "meet", anchor: "#identity-proofing",
@@ -189,11 +300,13 @@ const BLOCKER_META: Record<string, { label: string; owner: Owner; note: string; 
     label: "Approved person model",
     owner: "you", step: "meet", anchor: "#person-model-studio",
     note: "Review and confirm your claims in Advanced on this step.",
+    needsProcessedMaterial: true,
   },
   calibration_not_approved: {
     label: "Approved behavior calibration",
     owner: "you", step: "meet", anchor: "#calibration-studio",
     note: "Complete the calibration comparisons in Advanced on this step.",
+    needsProcessedMaterial: true,
   },
   voice_genome_not_approved: {
     label: "Approved voice model",
@@ -227,12 +340,78 @@ export function blockerMeta(code: string) {
   return BLOCKER_META[code] ?? null;
 }
 
+/** Every code in the table, so the eval can sweep the whole vocabulary. */
+export function allBlockerCodes(): string[] {
+  return Object.keys(BLOCKER_META);
+}
+
+/**
+ * What a row says while WE are the reason it cannot be acted on.
+ *
+ * One sentence, and it does three things in a fixed order because a person
+ * reading a blocked screen wants them in that order: what is happening, that it
+ * is not theirs to fix, and what changes it. No apology and no time estimate.
+ * A fabricated ETA is the same lie as a fabricated progress bar.
+ */
+function heldByUsNote(input: WizardInput): string {
+  const work = input.platformWork;
+  const lanes = work?.undeployedLanes ?? [];
+  // NOTE ON A PHRASE THAT IS NOT HERE. Every one of these three lines
+  // originally ended "this becomes your turn once it clears", which reads
+  // perfectly well and which `blamesThePerson` rejects, because it cannot tell
+  // that promise apart from the accusation "it is your turn". The check is
+  // right to be strict there and the copy is what should move: "you can pick it
+  // up then" says the same thing without borrowing the accusing phrase. A
+  // detector loosened to admit a nicer sentence is a detector that admits the
+  // sentence it exists to catch.
+  if (lanes.length > 0) {
+    return `We have not finished connecting ${lanes[0]}, so there is nothing here to review yet. Once that lane is running and your material has been through it, you can pick this up.`;
+  }
+  if ((work?.stuck ?? 0) > 0) {
+    return "Your material is stopped part way through our processing, so there is nothing here to review yet. We can see it, it is on our side, and you can pick this up once it clears.";
+  }
+  return "We are still processing what you gave us, so there is nothing here to review yet. You can pick this up as soon as processing finishes.";
+}
+
+/**
+ * The one place a `Missing` is built, so `cls` can never be forgotten.
+ *
+ * Everything above went through object literals that each set `owner` by hand;
+ * adding a second field of the same kind by hand would have been one more
+ * chance for a row to disagree with itself. This is the only constructor and
+ * `cls` is derived here, once.
+ */
+function missing(
+  row: { code: string; label: string; owner: Owner; note: string; anchor: string; needsProcessedMaterial?: boolean },
+  input: WizardInput,
+): Missing {
+  const heldByUs = Boolean(row.needsProcessedMaterial) && platformIsHoldingWork(input);
+  if (heldByUs) {
+    return {
+      code: row.code,
+      label: row.label,
+      owner: row.owner,
+      cls: "us",
+      note: heldByUsNote(input),
+      anchor: row.anchor,
+    };
+  }
+  return {
+    code: row.code,
+    label: row.label,
+    owner: row.owner,
+    cls: row.owner === "you" ? "you" : "us",
+    note: row.note,
+    anchor: row.anchor,
+  };
+}
+
 /** Blockers the runtime reported that this build has copy for, for one step. */
-export function blockersForStep(blockers: readonly string[], step: StepId): Missing[] {
+export function blockersForStep(blockers: readonly string[], step: StepId, input: WizardInput): Missing[] {
   return blockers
     .map((code) => ({ code, meta: BLOCKER_META[code] }))
     .filter((row): row is { code: string; meta: typeof BLOCKER_META[string] } => Boolean(row.meta) && row.meta.step === step)
-    .map(({ code, meta }) => ({ code, label: meta.label, owner: meta.owner, note: meta.note, anchor: meta.anchor }));
+    .map(({ code, meta }) => missing({ code, ...meta }, input));
 }
 
 /**
@@ -247,101 +426,106 @@ export function unknownBlockers(blockers: readonly string[]): string[] {
   return blockers.filter((code) => !BLOCKER_META[code]);
 }
 
+// The three step reducers. Their local arrays are `rows` rather than `missing`
+// so they do not shadow the `missing()` constructor above: every row in this
+// module goes through that one function, which is what makes `cls` impossible
+// to forget on a new blocker.
+
 function feedMissing(input: WizardInput): Missing[] {
-  const missing: Missing[] = [];
+  const rows: Missing[] = [];
   if (!input.sourceConsent) {
-    missing.push({
+    rows.push(missing({
       code: "source_consent_required",
       label: "Permission to hold your files",
       owner: "you",
       note: "Grant capture, transcription and storage permission before uploading anything.",
       anchor: "#enrollment-workspace",
-    });
+    }, input));
   }
   // `contextItemCount === null` is the Context Locker not having answered yet.
   // Claiming "you have nothing" during a load is a status derived from a
   // spinner, so the ask is withheld until both halves are actually known. The
   // step still reads as not-done, which is true.
   if (input.sourceCount === 0 && input.contextItemCount === 0) {
-    missing.push({
+    rows.push(missing({
       code: "no_material",
       label: "Something to learn from",
       owner: "you",
       note: "Add one file, one link, or one recording. One is enough to start.",
       anchor: "#context-locker",
-    });
+    }, input));
   }
-  return missing;
+  return rows;
 }
 
 function meetMissing(input: WizardInput): Missing[] {
-  const missing: Missing[] = [];
+  const rows: Missing[] = [];
   if (!input.identityVerified) {
-    missing.push({
+    rows.push(missing({
       code: "identity_not_verified",
       label: "Proof that this is you",
       owner: "you",
       note: "Verify your identity to activate your own voice.",
       anchor: "#identity-proofing",
-    });
+    }, input));
   }
   if (!input.livenessVerified) {
-    missing.push({
+    rows.push(missing({
       code: "liveness_not_verified",
       label: "A live challenge, recorded now",
       owner: "you",
       note: "Record the live phrase so the voice can be bound to a living person.",
       anchor: "#liveness-capture",
-    });
+    }, input));
   }
   if (input.mode === "teacher" && !input.sheetPersisted) {
-    missing.push({
+    rows.push(missing({
       code: "sheet_not_saved",
       label: "A saved teaching sheet",
       owner: "you",
       note: "Review the sheet and save it, so the clone answers as you and not as an example.",
       anchor: "#teacher-sheet-studio",
-    });
+    }, input));
   }
   // Runtime blockers that belong to this step are ADDED to, not merged with,
   // the checks above: the runtime can only report what it can see, and the
   // sheet is not one of the things it can see.
-  for (const row of blockersForStep(input.runtime?.blockers ?? [], "meet")) {
-    if (!missing.some((existing) => existing.label === row.label)) missing.push(row);
+  for (const row of blockersForStep(input.runtime?.blockers ?? [], "meet", input)) {
+    if (!rows.some((existing) => existing.label === row.label)) rows.push(row);
   }
-  return missing;
+  return rows;
 }
 
 function deployMissing(input: WizardInput): Missing[] {
-  const missing: Missing[] = blockersForStep(input.runtime?.blockers ?? [], "deploy");
+  const rows: Missing[] = blockersForStep(input.runtime?.blockers ?? [], "deploy", input);
   for (const code of unknownBlockers(input.runtime?.blockers ?? [])) {
-    missing.push({
+    rows.push(missing({
       code,
       label: code.replaceAll("_", " "),
       owner: "platform",
       note: "The runtime reported this gate and this build has no description for it. It is still holding activation shut.",
       anchor: "#runtime-gate",
-    });
+    }, input));
   }
-  if (input.runtime && !input.runtime.active && missing.length === 0) {
-    missing.push({
+  if (input.runtime && !input.runtime.active && rows.length === 0) {
+    rows.push(missing({
       code: "not_activated",
       label: "Activation",
       owner: "you",
       note: "Every gate is closed. Activate the runtime when you are ready.",
       anchor: "#runtime-gate",
-    });
+    }, input));
   }
   if (input.connectedChannels === 0) {
-    missing.push({
+    rows.push(missing({
       code: "no_channel",
       label: "One place it can be reached",
       owner: "you",
       note: "Connect at least one channel after you have read the disclosure card.",
       anchor: "#channels-studio",
-    });
+    }, input));
   }
-  return missing;
+  return rows;
 }
 
 function feedDone(input: WizardInput): boolean {
@@ -381,11 +565,16 @@ export function computeWizard(input: WizardInput): WizardView {
     deploy: deployDone(input),
   };
 
+  // The ember and the `running` state now key on `cls`, not on `owner`. That
+  // one-word change is the honesty fix at the rail level: a step whose only
+  // remaining person-owned gate is currently unreachable because WE have not
+  // finished processing does not glow ember, because glowing ember is the
+  // product saying "your turn" in paint, and it is not their turn.
   let ember: StepId | null = null;
   if (!input.stopped) {
     for (const id of STEP_ORDER) {
       if (doneByStep[id]) continue;
-      if (missingByStep[id].some((row) => row.owner === "you")) {
+      if (missingByStep[id].some((row) => row.cls === "you")) {
         ember = id;
         break;
       }
@@ -393,14 +582,14 @@ export function computeWizard(input: WizardInput): WizardView {
   }
 
   const steps = STEP_ORDER.map((id, index): StepView => {
-    const missing = missingByStep[id];
+    const rows = missingByStep[id];
     const state: StepState = input.stopped
       ? "stopped"
       : doneByStep[id]
         ? "done"
         : ember === id
           ? "waiting"
-          : missing.length > 0 && missing.every((row) => row.owner === "platform")
+          : rows.length > 0 && rows.every((row) => row.cls === "us")
             ? "running"
             : "later";
     return {
@@ -410,8 +599,12 @@ export function computeWizard(input: WizardInput): WizardView {
       promise: TITLES[id].promise,
       state,
       ember: state === "waiting",
-      missing,
+      missing: rows,
       statusLabel: STATUS_LABEL[state],
+      // The person's own next act wins the one line a compact surface has. If
+      // there is none, the first thing WE are holding takes it, so the line is
+      // never blank while something is genuinely open.
+      top: rows.find((row) => row.cls === "you") ?? rows[0] ?? null,
     };
   });
 
@@ -419,33 +612,111 @@ export function computeWizard(input: WizardInput): WizardView {
 }
 
 /**
- * The line a step shows when you arrive before it is ready.
+ * The blocking line a step shows when you arrive before it is ready.
  *
- * `null` means "say nothing": the step works. This is the honesty half of rule
- * 2 at the top of this file. It never says "you cannot be here" and it never
- * says "complete step 1 first" — it names the specific thing that will be
- * empty, because that is what a person actually needs in order to decide
- * whether to go back.
+ * Returned as a `DisabledReason` rather than a string, and that is the whole
+ * repair. The old signature returned `string | null`, which is why the sentence
+ * in the owner's screenshot could exist at all: a bare string carries no class,
+ * so nothing downstream could render "waiting on us" differently from "waiting
+ * on you", and nothing could check that it had not blamed the wrong party.
+ *
+ * The rules this now keeps, all three enforced in `evals/studiowizard.mjs`:
+ *
+ *   NAME, NEVER COUNT. "9 things are still waiting on you" is replaced by the
+ *   name of the top blocker. The rest are still listed, on the panel that owns
+ *   them, one expand away.
+ *
+ *   THE CLASS IS PART OF THE SENTENCE. A person reading a blocked screen needs
+ *   to know whether to start working or to stop worrying, and those are
+ *   opposite actions behind the same disabled button.
+ *
+ *   OURS IS NEVER PHRASED AS THEIRS. `reasonIsHonest` is run over every string
+ *   this function can produce, across the whole input space.
  */
-export function stepEntryWarning(step: StepId, input: WizardInput): string | null {
-  if (input.stopped) return "This workspace is revoked. Nothing on this step can run.";
+export function stepBlockReason(step: StepId, input: WizardInput): DisabledReason | null {
+  if (input.stopped) {
+    return disabledReason(
+      "us",
+      "This workspace is revoked, so nothing on this step can run.",
+      "Erasure is running. Create a new workspace if you want to start again.",
+    );
+  }
   if (step === "meet" && !input.sourceConsent) {
-    return "You have not granted source permission yet, so nothing you say here is kept and the clone has nothing of yours to learn from.";
+    return disabledReason(
+      "you",
+      "You have not granted source permission yet, so nothing you say here is kept.",
+      "Grant capture, transcription and storage permission on the step before this one.",
+    );
   }
   // Only claimed once BOTH intake surfaces have actually answered. See
   // `feedMissing` for why an unanswered locker may not become a sentence about
   // what the owner has or has not done.
   if (step === "meet" && input.sourceCount === 0 && input.contextItemCount === 0) {
-    return "You have not added anything yet, so the clone has nothing of yours to speak from. You can still talk to it, and it will sound generic until you feed it.";
+    return disabledReason(
+      "you",
+      "Nothing has been added yet, so the clone has nothing of yours to speak from.",
+      "You can still talk to it. It will sound generic until you add one file, link or recording.",
+    );
   }
   if (step === "deploy" && !meetDone(input)) {
-    const owed = meetMissing(input).filter((row) => row.owner === "you").length;
-    return owed > 0
-      ? `Your clone is not activatable yet. ${owed} thing${owed === 1 ? "" : "s"} on Meet it are still waiting on you, and every channel below stays refused until they clear.`
-      : "Your clone is not activatable yet. The remaining gates are waiting on us, not on you, and every channel below stays refused until they clear.";
+    const rows = meetMissing(input);
+    const mine = rows.find((row) => row.cls === "you");
+    if (mine) {
+      return disabledReason(
+        "you",
+        `Your clone cannot be activated yet. The next one is ${lowerFirst(mine.label)}.`,
+        `${mine.note} Every channel below stays refused until the gates on Meet it clear.`,
+      );
+    }
+    const ours = rows[0];
+    return disabledReason(
+      "us",
+      ours
+        ? `Your clone cannot be activated yet, and the reason is on our side: ${lowerFirst(ours.label)}.`
+        : "Your clone cannot be activated yet, and the reason is on our side.",
+      ours
+        ? `${ours.note} Every channel below stays refused until it clears.`
+        : "Every channel below stays refused until it clears. Nothing for you to do here.",
+    );
   }
   return null;
 }
+
+/**
+ * The old string-shaped entry point, kept so nothing that reads a sentence has
+ * to learn a type. It is the reason line, flattened, and it is the one the
+ * eval's blame sweep runs over as well.
+ */
+export function stepEntryWarning(step: StepId, input: WizardInput): string | null {
+  const reason = stepBlockReason(step, input);
+  return reason ? `${reason.headline} ${reason.next}` : null;
+}
+
+/**
+ * Lower-case an initial letter unless the word looks like a proper noun.
+ *
+ * Blocker labels are written as headings ("Approved voice model") and have to
+ * read as clauses inside a sentence. The acronym guard stops "AI disclosure"
+ * becoming "aI disclosure", which is the kind of small wrongness that makes a
+ * screen feel machine-written.
+ */
+function lowerFirst(text: string): string {
+  if (/^[A-Z]{2,}/.test(text)) return text;
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+/**
+ * The reason to render next to a disabled control, from a class and two lines.
+ *
+ * Re-exported from `blockerClass` so a component needs one import rather than
+ * two, and so there is exactly one construction path for the thing DESIGN-LAW
+ * §2 requires beside every disabled control.
+ */
+export { disabledReason, CLASS_COPY };
+export type { DisabledReason, BlockerClass };
+
+/** WS-AF's activity states, projected onto the two classes. One mapper. */
+export { activityClass };
 
 /** The label on the Next button, which always says where it goes. */
 export function nextStep(step: StepId): StepId | null {
@@ -460,6 +731,22 @@ export function previousStep(step: StepId): StepId | null {
 
 export function stepTitle(step: StepId): string {
   return TITLES[step].title;
+}
+
+/**
+ * The two navigation labels, whole, so no caller assembles its own.
+ *
+ * `StepPager` used to interpolate `Next: ${stepTitle(next)}`, which is how
+ * "Next: Deploy it" happened: the title is right on a rail and wrong in a
+ * sentence, and the only place that difference can be recorded is next to the
+ * titles themselves.
+ */
+export function nextLabel(step: StepId): string {
+  return `Next: ${TITLES[step].nextPhrase}`;
+}
+
+export function backLabel(step: StepId): string {
+  return `Back to ${TITLES[step].backPhrase}`;
 }
 
 /**

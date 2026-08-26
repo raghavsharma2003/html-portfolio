@@ -440,12 +440,50 @@ wait and tells them nothing true. WS-AD owns the lane.
 **Do:** replace the mount with WS-AD's panel in the same slot in `StudioApp.tsx`
 (search `VideoLinkMount`) and delete the file. It holds no state.
 
-**UX-Q-AE-02 · Processing status has no backend.**
-`src/studio/ProcessingStatusMount.tsx`, mounted TWICE with a `where` prop:
+**UX-Q-AE-02 · CLOSED (WS-AJ).** `ProcessingStatusMount.tsx` is deleted and
+WS-AF's `ActivityPanel` is mounted in both slots, keeping the two moods:
 `where="feed"` answers "did that land?" while the owner still has the file in
-hand; `where="meet"` answers "why does it not know that yet?" when the clone
-answers without something the owner is sure they gave it. WS-AF should keep the
-distinction rather than shipping one panel twice.
+hand; `where="meet"` answers "why does it not know that yet?". The panel gained
+one optional prop, `onView`, so the wizard can read the platform's own in-flight
+state without a second poll of the same billed endpoint.
+
+---
+
+## Note for the API owner (WS-AH), from WS-AJ
+
+**The field the honesty split needs, and the safe default it ships with.**
+
+`src/studio/wizardModel.ts` now carries `WizardInput.platformWork`, reduced in
+`StudioApp` from `/api/replica-activity`'s existing response:
+
+```
+platformWork: {
+  running: number;                    // jobs with state running or queued
+  stuck: number;                      // jobs with state blocked
+  undeployedLanes: readonly string[]; // labels of lanes where deployed === false
+} | null                              // null = the activity surface has not answered
+```
+
+Nothing new is required of the API for this: every input is already on the wire
+(`ActivityJob.state`, `ActivityLaneStatus.deployed`, `.label`). `null` is the
+safe default and reclassifies nothing, and `evals/studiowizard.mjs` §8 asserts
+that an absent field behaves byte-identically to a null one, so this is landable
+ahead of any backend change.
+
+**What would make it better, and is genuinely missing.** A `quarantined` upload
+currently reaches the client as `state: "blocked"` with a reason sentence, which
+is enough to classify it as ours but not enough to say WHY it is not moving. The
+two cases behind that one state are different in kind and a person can act on
+one of them:
+
+- the lane has no runner deployed (nothing will ever drain it), versus
+- the runner exists and this row is waiting its turn.
+
+If `_replica-activity.js` can distinguish them, the field worth adding to
+`ActivityJob` is `blocked_by: "no_runner" | "queue" | "input"`. Until it exists
+the studio treats every `blocked` row as ours, which is the correct direction to
+err: the failure this whole change exists to remove is telling a person that our
+unfinished queue is their unfinished work.
 
 **UX-Q-AE-03 · `errorCopy` is still not the only path to an error string**
 (UX-Q-15 / BREAK 27 remains open). `AuthGate`'s `sendCode` still does
