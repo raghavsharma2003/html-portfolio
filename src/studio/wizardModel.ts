@@ -211,6 +211,13 @@ export interface WizardView {
  * `backPhrase` is a noun phrase because it follows "Back to" and names a place.
  * Two fields rather than one, because one field cannot be both, and the version
  * that tried produced "Back to talk to your clone".
+ *
+ * WS-AP, 2026-08-26: `nextPhrase`/`backPhrase` are unread now that the sticky
+ * pager they fed is deleted (owner directive; see the note where `nextStep`
+ * used to live, a few hundred lines down). Left in the record rather than
+ * stripped out: they cost nothing sitting here as data, and a future surface
+ * that needs "Back to your material" phrasing again should not have to
+ * reinvent it.
  */
 const TITLES: Record<StepId, {
   title: string;
@@ -308,10 +315,23 @@ const BLOCKER_META: Record<string, {
     note: "Complete the calibration comparisons in Advanced on this step.",
     needsProcessedMaterial: true,
   },
+  // OWNER: "you", not "platform" — this was the class inverted, and it was
+  // inverted in the single most important panel in the product. Approving a
+  // voice genome is a DELIBERATE human tap (`queueOwnedVoiceGenome` is only
+  // ever reached from a person pressing "Queue a draft voice model" in
+  // Processing Review, and that is correct: a persona never self-updates
+  // without one). So the honest owner of "review and approve" is the person,
+  // exactly like `person_profile_not_approved` and `calibration_not_approved`
+  // beside it, and it takes the same `needsProcessedMaterial` treatment: while
+  // we are still holding processing work, nobody has anything to review yet
+  // and the row reads `us`; the moment that clears, it is genuinely their turn.
+  // A production run measured the old copy telling an owner "nothing to do
+  // here" while their own review-and-approve tap was the entire blocker.
   voice_genome_not_approved: {
     label: "Approved voice model",
-    owner: "platform", step: "meet", anchor: "#processing-review",
-    note: "We are waiting on processing review and approval. Nothing for you to do.",
+    owner: "you", step: "meet", anchor: "#processing-review",
+    note: "Review the evidence and queue a draft voice model under Check it and correct it on this step.",
+    needsProcessedMaterial: true,
   },
   voice_not_ready: {
     label: "Production voice mapping",
@@ -612,6 +632,43 @@ export function computeWizard(input: WizardInput): WizardView {
 }
 
 /**
+ * Why "Preview my voice" has no draft to play, and whose turn closes it
+ * (WS-AP, from a measured production defect).
+ *
+ * The panel used to hardcode `disabledReason("us", ...)` for every reason a
+ * draft could be missing. On the owner's real replica, with all eight
+ * processing steps complete, the true blockers were their OWN identity and
+ * liveness verification and their own unreviewed evidence in Processing
+ * Review — both `cls: "you"` — and the panel told them "nothing for you to do
+ * here" anyway. `meetMissing` (via `computeWizard`) already knows the honest
+ * class for every one of those gates; this walks them in the order a person
+ * would actually clear them, so this is the ONLY place that decides and a
+ * panel importing it cannot drift from the rail again.
+ */
+export function voicePreviewBlockReason(input: WizardInput): DisabledReason {
+  const rows = computeWizard(input).steps.find((row) => row.id === "meet")?.missing ?? [];
+  const lead =
+    rows.find((row) => row.code === "identity_not_verified") ??
+    rows.find((row) => row.code === "liveness_not_verified") ??
+    rows.find((row) => row.code === "voice_genome_not_approved") ??
+    rows.find((row) => row.code === "voice_not_ready" || row.code === "production_voice_required") ??
+    rows[0] ??
+    null;
+  if (!lead) {
+    return disabledReason(
+      "us",
+      "There is no draft voice to preview yet, because we have not built one from your recordings.",
+      "Nothing here needs you. Once a recording has been through processing and a draft voice is built, this turns on. The activity panel on this step shows where your recordings are.",
+    );
+  }
+  return disabledReason(
+    lead.cls,
+    `There is no draft voice to preview yet. The next thing that closes it is ${lowerFirst(lead.label)}.`,
+    lead.note,
+  );
+}
+
+/**
  * The blocking line a step shows when you arrive before it is ready.
  *
  * Returned as a `DisabledReason` rather than a string, and that is the whole
@@ -718,36 +775,16 @@ export type { DisabledReason, BlockerClass };
 /** WS-AF's activity states, projected onto the two classes. One mapper. */
 export { activityClass };
 
-/** The label on the Next button, which always says where it goes. */
-export function nextStep(step: StepId): StepId | null {
-  const index = STEP_ORDER.indexOf(step);
-  return index >= 0 && index < STEP_ORDER.length - 1 ? STEP_ORDER[index + 1] : null;
-}
-
-export function previousStep(step: StepId): StepId | null {
-  const index = STEP_ORDER.indexOf(step);
-  return index > 0 ? STEP_ORDER[index - 1] : null;
-}
-
-export function stepTitle(step: StepId): string {
-  return TITLES[step].title;
-}
-
 /**
- * The two navigation labels, whole, so no caller assembles its own.
- *
- * `StepPager` used to interpolate `Next: ${stepTitle(next)}`, which is how
- * "Next: Deploy it" happened: the title is right on a rail and wrong in a
- * sentence, and the only place that difference can be recorded is next to the
- * titles themselves.
+ * WS-AP, 2026-08-26: `nextStep`, `previousStep`, `nextLabel` and `backLabel`
+ * lived here to serve the sticky pager (`StepPager`, deleted per owner
+ * directive: `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`).
+ * Nothing calls them any more, and this repo's own law is to grep for a
+ * CALLER before trusting a capability is wired, so they went with the pager
+ * rather than being left as a dangling forward-navigation API nobody reads.
+ * `STEP_ORDER` above is still the one place step order lives; rebuild from
+ * that, not from memory of this comment, if a future surface needs it.
  */
-export function nextLabel(step: StepId): string {
-  return `Next: ${TITLES[step].nextPhrase}`;
-}
-
-export function backLabel(step: StepId): string {
-  return `Back to ${TITLES[step].backPhrase}`;
-}
 
 /**
  * Read the step out of a URL query string.

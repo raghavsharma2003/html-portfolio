@@ -52,19 +52,18 @@ import {
   AdvancedArea,
   Band,
   CompactRail,
+  jumpTo,
+  PlatformWorkBanner,
   StepBlockers,
   StepHead,
-  StepPager,
   WizardRail,
 } from "./WizardRail";
 import { useCompact } from "./useCompact";
 import { BlockerNotice } from "./BlockerNotice";
 import { CLASS_COPY } from "./blockerClass";
-import type { ActivityView } from "./activityApi";
+import type { ActivityJob, ActivityView } from "./activityApi";
 import {
   computeWizard,
-  nextStep,
-  previousStep,
   queryForStep,
   stepBlockReason,
   stepFromQuery,
@@ -568,12 +567,19 @@ function ReadinessStrip({
       <article className="readiness-card">
         <span className="metric-label">Voice versions</span>
         <strong>{runtimeStatus ? (runtimeStatus.versions.voice_genome ?? 0) : "—"}{/* emdash-ok: the empty-value placeholder, not prose */}</strong>
+        {/* WS-AP, from a measured production defect: this read "0 / Not built
+            yet" while a real draft genome existed, because the count itself
+            used to be scoped to approved-only and the label assumed any
+            non-zero count meant approved. Both are fixed together: the count
+            is now the newest genome that EXISTS (any status,
+            `api/_replica-runtime.js`), and the label reads its own status
+            rather than inferring one from a number. */}
         <span>
-          {!runtimeStatus
-            ? "Checking"
-            : runtimeStatus.versions.voice_genome
+          {!runtimeStatus || !runtimeStatus.versions.voice_genome
+            ? (!runtimeStatus ? "Checking" : "Not built yet")
+            : runtimeStatus.voice_genome_status === "approved"
               ? "Approved voice model"
-              : "Not built yet"}
+              : "Draft, needs your approval"}
         </span>
       </article>
       <article className="readiness-card trust-card">
@@ -637,6 +643,7 @@ function ReplicaWorkspace({
   onReviewAuthError,
   compact,
   onActivityView,
+  onActivityAct,
 }: {
   replica: Replica;
   mode: StudioMode;
@@ -694,6 +701,10 @@ function ReplicaWorkspace({
   compact: boolean;
   /** Must be reference-stable: it is a dependency of ActivityPanel's poll. */
   onActivityView: (view: ActivityView) => void;
+  /** What to do with a job whose next action is not a safe self-retry (the
+   *  "Look at the build" tap and anything like it). See `handleActivityAct`'s
+   *  own comment for the dead-click defect this closes. */
+  onActivityAct: (job: ActivityJob) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -702,8 +713,6 @@ function ReplicaWorkspace({
   const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
   const view = wizard.steps.find((row) => row.id === step) ?? wizard.steps[0];
   const stepNumber = view.number;
-  const back = previousStep(step);
-  const forward = nextStep(step);
 
   useEffect(() => {
     if (stopped) setConfirming(false);
@@ -823,6 +832,21 @@ function ReplicaWorkspace({
               drained. It names one thing, and it says whose it is. */}
           <BlockerNotice reason={stepBlockReason(step, wizardInput)} className="step-block" />
 
+          {/* THE OWNER'S REPORT, VERBATIM: "I have to scroll down the whole
+              page to know that the audio is processing." One line, on every
+              step, directly under the step head, so it is above the fold at
+              every width this product ships. Feed and Meet both mount the
+              Activity panel; Deploy does not, so its "see what is happening"
+              sends the person to the step that does rather than jumping at an
+              anchor that is not on the page. */}
+          <PlatformWorkBanner
+            work={wizardInput.platformWork}
+            onSeeActivity={() => {
+              if (step === "deploy") { onGoStep("feed"); return; }
+              jumpTo(`#processing-status-${step}`, "where each upload is right now");
+            }}
+          />
+
           {step === "feed" && (
             <>
               <Band
@@ -892,8 +916,13 @@ function ReplicaWorkspace({
                   token={accessToken}
                   replicaId={replica.replica_id}
                   where="feed"
+                  // The Band above already carries this exact title and a
+                  // blurb that says the same thing; the panel's own heading
+                  // is what the owner's screenshot showed rendering twice.
+                  showHeading={false}
                   onAuthError={onReviewAuthError}
                   onView={onActivityView}
+                  onAct={onActivityAct}
                 />
               </Band>
             </>
@@ -911,6 +940,7 @@ function ReplicaWorkspace({
                   key={`hear-voice-${replica.replica_id}`}
                   token={accessToken}
                   replicaId={replica.replica_id}
+                  wizardInput={wizardInput}
                   onAuthError={onReviewAuthError}
                 />
                 <VoiceUnlockNotice replica={replica} />
@@ -960,6 +990,7 @@ function ReplicaWorkspace({
                   where="meet"
                   onAuthError={onReviewAuthError}
                   onView={onActivityView}
+                  onAct={onActivityAct}
                 />
               </Band>
 
@@ -1152,13 +1183,6 @@ function ReplicaWorkspace({
           )}
 
           <StepBlockers step={view} compact={compact} />
-
-          <StepPager
-            back={back}
-            next={forward}
-            caution={forward ? stepBlockReason(forward, wizardInput) : null}
-            onGo={onGoStep}
-          />
         </>
       )}
 
@@ -1218,6 +1242,20 @@ export default function StudioApp() {
   const [showCreate, setShowCreate] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<ReturnType<typeof friendlyError> | null>(null);
+  // Focus moves here the moment an error appears (WS-AP): "if there is an
+  // error my page should be redirected to that error and the error should
+  // come into focus, especially on mobile." `role="alert"` alone announces
+  // the text but does not bring a phone's viewport to it, which is the half
+  // that actually matters when the banner rendered off the bottom of a long
+  // step.
+  const errorBannerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!error) return;
+    const el = errorBannerRef.current;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.focus({ preventScroll: true });
+  }, [error]);
   const [consents, setConsents] = useState<ConsentReceipt[]>([]);
   const [sources, setSources] = useState<ReplicaSource[]>([]);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
@@ -1292,6 +1330,27 @@ export default function StudioApp() {
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  // THE DEAD CLICK (WS-AP, from the owner's screenshots): the Activity panel
+  // has always been able to render "Look at the build" on a voice model
+  // waiting for approval (`api/_replica-activity.js`'s `normaliseModelBuild`,
+  // `state === "review"`), but `ActivityPanel`'s `onAct` prop was never wired
+  // to anything here, so `onAct?.(job)` ran against `undefined` and the tap
+  // did nothing. That is the shape of a THIRD hidden approval gate: a real
+  // human decision the product could name but not let a person reach. This
+  // does not invent an approval action that does not exist on the backend; it
+  // takes the person to the one place that decision is actually visible and
+  // actionable today, Processing Review's build ledger, on the step it lives
+  // on.
+  const handleActivityAct = useCallback((job: ActivityJob) => {
+    if (job.lane === "voice_model_build" && job.next_action.kind === "review") {
+      goStep("meet");
+      // `ProcessingReview` is not mounted on Feed and may not be on screen
+      // yet the instant `step` flips; give the render a tick before asking
+      // `jumpTo` to find `#processing-review`.
+      window.setTimeout(() => jumpTo("#processing-review", "the build ledger"), 60);
+    }
+  }, [goStep]);
 
   // Back and Forward move between steps rather than leaving the studio. The
   // listener reads the URL rather than the event state so a hand-edited
@@ -1912,7 +1971,7 @@ export default function StudioApp() {
             </div>
           )}
           {error && (
-            <div className="error-banner" role="alert">
+            <div className="error-banner" role="alert" tabIndex={-1} ref={errorBannerRef}>
               <span>!</span><div><strong>{error.headline}</strong><p>{error.detail}</p></div>
               <button type="button" onClick={() => session && void loadReplicas(session)}>Try again</button>
             </div>
@@ -1969,6 +2028,7 @@ export default function StudioApp() {
               onReviewAuthError={handleReviewAuthError}
               compact={compact}
               onActivityView={handleActivityView}
+              onActivityAct={handleActivityAct}
             />
           ) : null}
 

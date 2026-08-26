@@ -3122,6 +3122,54 @@
       "kind": "rejection",
       "title": "the main session tried satisfying the builder by hand tonight and invented a source_set_hash, which queueOwnedVoiceGenome correctly refused as model_build_source_set_changed; the fix is to call the real acceptance/selection/queue functions and let the real path compute the hash, never to write vy_replica_model_build directly",
       "at": "2026-08-26"
+    },
+    {
+      "id": "one-honest-next-action-lives-in-the-rail-never-a-sticky-button",
+      "kind": "decision",
+      "title": "the sticky forward-nav pager (StepPager, .wizard-pager) is deleted outright per owner directive, not shrunk or gated; WizardRail/CompactRail, already computed from computeWizard, are the entire replacement",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-sticky-pager-was-deleted-not-shrunk",
+      "kind": "rejection",
+      "title": "two prior fixes to the sticky pager (stop it covering content; gate its Next button on step readiness) were each correct against their own diagnosis and each followed by the same owner complaint restated; the object itself was the bug",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "the-sticky-pager-negative-control-bites",
+      "kind": "measurement",
+      "title": "scripts/check-layout.mjs pager-returned finding: 0 findings on the clean tree, 18 findings when a .wizard-pager + Next: button is reintroduced, 0 again on revert",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-genome-approval-is-the-owners-turn-not-the-platforms",
+      "kind": "decision",
+      "title": "BLOCKER_META.voice_genome_not_approved reclassified from owner: platform to owner: you + needsProcessedMaterial, matching person_profile_not_approved/calibration_not_approved, after a production run showed the panel saying waiting on us while the true blocker was the owners own unreviewed evidence",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "a-panel-hardcoding-its-own-blocker-class-will-drift-from-the-rail",
+      "kind": "rejection",
+      "title": "VoicePreviewPanel hardcoded disabledReason(us, ...) for every no-draft-yet case; replaced with wizardModel.voicePreviewBlockReason so the panel cannot disagree with the rail by construction",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-preview-block-reason-production-shape",
+      "kind": "measurement",
+      "title": "voicePreviewBlockReason: production shape reads you not us; 27648-row universe sweep, 0 dishonest reasons, 0 disagreements with the rails own class for the gate named",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "replica-runtime-genome-latest-query-explained-live",
+      "kind": "measurement",
+      "title": "the modified RUNTIME_STATUS_SQL (new vg_latest lateral join) EXPLAINed and executed against the live Neon database, 200 both times; caught and fixed a backtick-inside-template-literal syntax error before any gate ran",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-versions-counter-and-the-third-hidden-gate",
+      "kind": "rejection",
+      "title": "the Voice versions counter read 0 / Not built yet while a real draft genome existed, because its query was scoped to status=approved and its label assumed nonzero meant approved; fixed with an unscoped vg_latest join. The build-approval action a coordinator report named as a third hidden gate turned out to be the same voice_genome_not_approved gate already reclassified; what was actually missing was ActivityPanel onAct wiring, and no approve-a-genome endpoint exists in api/ at all",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -6084,6 +6132,56 @@
       "src": "replica-self-test-mode",
       "rel": "caused_by",
       "dst": "self-test-mode-must-not-hand-write-source-set-hash"
+    },
+    {
+      "src": "one-honest-next-action-lives-in-the-rail-never-a-sticky-button",
+      "rel": "measured_by",
+      "dst": "the-sticky-pager-negative-control-bites"
+    },
+    {
+      "src": "one-honest-next-action-lives-in-the-rail-never-a-sticky-button",
+      "rel": "caused_by",
+      "dst": "the-sticky-pager-was-deleted-not-shrunk"
+    },
+    {
+      "src": "one-honest-next-action-lives-in-the-rail-never-a-sticky-button",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "the-sticky-pager-was-deleted-not-shrunk",
+      "rel": "part_of",
+      "dst": "wizard-readiness-is-a-pure-function"
+    },
+    {
+      "src": "voice-genome-approval-is-the-owners-turn-not-the-platforms",
+      "rel": "part_of",
+      "dst": "blocker-class-is-a-type"
+    },
+    {
+      "src": "voice-genome-approval-is-the-owners-turn-not-the-platforms",
+      "rel": "measured_by",
+      "dst": "voice-preview-block-reason-production-shape"
+    },
+    {
+      "src": "voice-genome-approval-is-the-owners-turn-not-the-platforms",
+      "rel": "caused_by",
+      "dst": "a-panel-hardcoding-its-own-blocker-class-will-drift-from-the-rail"
+    },
+    {
+      "src": "a-panel-hardcoding-its-own-blocker-class-will-drift-from-the-rail",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "voice-versions-counter-and-the-third-hidden-gate",
+      "rel": "measured_by",
+      "dst": "replica-runtime-genome-latest-query-explained-live"
+    },
+    {
+      "src": "voice-versions-counter-and-the-third-hidden-gate",
+      "rel": "caused_by",
+      "dst": "voice-genome-approval-is-the-owners-turn-not-the-platforms"
     }
   ]
 }

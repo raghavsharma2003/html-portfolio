@@ -246,6 +246,27 @@ function audit(limits) {
     }
   }
 
+  // ── 5. THE STICKY PAGER MUST NEVER COME BACK (WS-AP, owner directive) ────
+  // A fixed bar used to sit at the foot of every step with a "Next:" button
+  // that pointed at a step it simultaneously called refused. Owner, verbatim:
+  // "Remove it. Not shrink it, not reword it, not make it conditional. Delete
+  // it." This is the negative control staying ARMED rather than a one-time
+  // fix: `.wizard-pager` returning, or ANY button labelled "Next: " anywhere
+  // on the page, fails here, on every step, at every width. Reintroduce
+  // `StepPager`'s old JSX and this must fail; the run that proved it is in
+  // `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`.
+  for (const el of document.querySelectorAll(".wizard-pager")) {
+    if (!vis(el)) continue;
+    add("pager-returned", { el: name(el), n: 1, unit: "", text: "a .wizard-pager element rendered" });
+  }
+  for (const el of document.querySelectorAll("button, .button, a.button")) {
+    if (!vis(el)) continue;
+    const label = (el.textContent || "").trim();
+    if (label.startsWith("Next: ")) {
+      add("pager-returned", { el: name(el), n: 1, unit: "", text: label.slice(0, 44) });
+    }
+  }
+
   // COVERAGE, asked structurally rather than by counting paragraphs. A phone
   // screen legitimately carries less prose than a desktop one, because the
   // bands start collapsed there, so a prose-count floor per screen either
@@ -276,6 +297,7 @@ const EXPLAIN = {
   contrast: "a control's label does not read against its own background. DESIGN-LAW\n        section 3: that is a shipping defect, not a preference.",
   coverage: "the gate could not see the panels it exists to judge. Do not 'fix' this by\n        lowering the threshold; fix what stopped the fixture rendering.",
   overflow: "the document scrolls sideways.",
+  "pager-returned": "the sticky forward-nav pager is back. Owner directive, 2026-08-26: delete it,\n        do not shrink or reword it. See context/rejected.md#the-sticky-pager-was-deleted-not-shrunk.",
 };
 
 async function main() {

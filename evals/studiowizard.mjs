@@ -100,16 +100,12 @@ const {
   blockersForStep,
   unknownBlockers,
   blockerMeta,
-  nextStep,
-  previousStep,
-  stepTitle,
   stepFromQuery,
   queryForStep,
   STEP_ORDER,
   stepBlockReason,
-  nextLabel,
-  backLabel,
   allBlockerCodes,
+  voicePreviewBlockReason,
   honesty,
 } = M;
 
@@ -322,8 +318,10 @@ console.log("\n── 4. reachable, with an honest line ──");
     "no warning tells the owner they may not be here",
     !nagging.some((text) => /cannot be here|not allowed|complete step/i.test(text)),
   );
-  ok("nav is a simple chain with no dead ends", nextStep("feed") === "meet" && nextStep("meet") === "deploy" && nextStep("deploy") === null);
-  ok("and it walks back", previousStep("deploy") === "meet" && previousStep("meet") === "feed" && previousStep("feed") === null);
+  // `STEP_ORDER` itself is still the property to assert: three steps, in the
+  // owner's order, is checked in section 1. Per-step chain helpers
+  // (`nextStep`/`previousStep`) were deleted with the sticky pager they fed
+  // (WS-AP, `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`).
 }
 
 // ── 5. an unrecognised gate is rendered, not dropped ──────────────────────
@@ -676,29 +674,111 @@ console.log("\n── 8. ours is never rendered as theirs ──");
   );
 }
 
-// ── 9. a button says where it goes, in words a person would use ───────────
-console.log("\n── 9. navigation copy ──");
+// WS-AP, 2026-08-26, owner directive: the sticky pager (`StepPager`) that
+// used to live here — and the "one honest primary action" model
+// (`pagerAction`/`PagerAction`) that fed it — are deleted, not shrunk. The
+// owner's own words: "Remove it. Not shrink it, not reword it, not make it
+// conditional. Delete it." Its two defects (a "Next:" button pointing at a
+// step it simultaneously called refused; a caution sentence that truncated
+// mid-word in the space it was given) are gone because the element is gone.
+// What used to be sections 9 and 10 here — navigation-label copy checks and
+// the `pagerAction` property/negative-control pair — tested that component
+// and its model function directly and went with them.
+//
+// THE NEGATIVE CONTROL THIS SECTION USED TO CARRY IS NOW A DOM ASSERTION,
+// NOT A MODEL ONE, because there is no longer a function to unit-test: the
+// property is "this element does not exist in the rendered page", which only
+// a real render can check. That assertion lives in `scripts/check-layout.mjs`
+// (`pager-returned`), run against the real built studio in a real browser at
+// three widths, with its own negative control proving IT bites (see that
+// file's header and `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`
+// for the reintroduce-and-confirm-FAIL run). `STEP_ORDER`'s three-step
+// shape and the honesty properties on `stepBlockReason` (section 8, still the
+// line every panel-level "waiting on us/you" reads from) are unaffected and
+// still enforced above.
+
+// ── 10. "Preview my voice" cannot invent its own class ────────────────────
+//
+// WS-AP, from a measured production defect. `VoicePreviewPanel` used to
+// hardcode `disabledReason("us", ...)` for the "no draft yet" case
+// unconditionally. On the owner's real replica — all eight processing steps
+// complete, genome unapproved — the true blockers were the owner's OWN
+// identity, liveness and an unreviewed evidence set, all `cls: "you"`, and
+// the panel told them "nothing for you to do here" regardless.
+// `voicePreviewBlockReason` is the one place that now decides, and it has to
+// read the SAME classification `computeWizard` renders on the rail, or the
+// two surfaces can disagree with each other again.
+console.log('\n── 10. "Preview my voice" reads the rail\'s own classification ──');
 
 {
-  // The owner's report: "Next: Deploy it" and "Back to Feed it" read as jargon.
-  // They are STEP names, and a step name is a label on a rail, not a
-  // destination in a sentence. DESIGN-LAW §1's read-aloud test is the gate.
-  const nexts = STEP_ORDER.map((id) => nextLabel(id));
-  const backs = STEP_ORDER.map((id) => backLabel(id));
-  ok("every step has a Next label", nexts.every((s) => s.startsWith("Next: ") && s.length > 12), nexts.join(" | "));
-  ok("every step has a Back label", backs.every((s) => s.startsWith("Back to ") && s.length > 12), backs.join(" | "));
-  // Read through the REAL `stepTitle` rather than a copy of the three titles.
-  // A hardcoded `{ feed: "Feed it", ... }` here would keep passing on the day
-  // somebody renames a step, which is the frozen-copy failure this repo already
-  // has a name for.
+  // THE EXACT PRODUCTION SHAPE: eight processing steps complete (no platform
+  // work in flight), identity and liveness NOT verified, no runtime blockers
+  // reported yet (a build has not even been queued, so there is nothing for
+  // the runtime endpoint to name). This must not read "us".
+  const ownerCase = input({
+    sourceConsent: true,
+    sourceCount: 1,
+    identityVerified: false,
+    livenessVerified: false,
+    mode: "generic",
+    runtime: null,
+    platformWork: { running: 0, stuck: 0, undeployedLanes: [] },
+  });
+  const ownerReason = voicePreviewBlockReason(ownerCase);
   ok(
-    "no navigation label is just the step name restated",
-    STEP_ORDER.every((id) => !nextLabel(id).includes(stepTitle(id)) && !backLabel(id).includes(stepTitle(id))),
+    "NEGATIVE CONTROL, PRODUCTION SHAPE: unverified identity is never reported as 'us'",
+    ownerReason.kind === "you",
+    ownerReason.kind,
   );
+  ok("and it points at the identity gate specifically", /identity/i.test(ownerReason.next) || /identity/i.test(ownerReason.headline));
+
+  // Identity and liveness done, but the review-and-approve gate is open and
+  // our own queue is idle: also "you", because approving is a deliberate
+  // human tap, never something that happens for a person.
+  const reviewPending = input({
+    sourceConsent: true,
+    sourceCount: 1,
+    identityVerified: true,
+    livenessVerified: true,
+    mode: "generic",
+    runtime: { active: false, blockers: ["voice_genome_not_approved"], voiceGenomeVersion: null },
+    platformWork: { running: 0, stuck: 0, undeployedLanes: [] },
+  });
   ok(
-    "and none of them carries a dash, which the copy gate bans in user-visible strings",
-    [...nexts, ...backs].every((s) => !/[—–]/.test(s)),
+    "and once identity/liveness are done, an unreviewed genome is 'you', not 'us'",
+    voicePreviewBlockReason(reviewPending).kind === "you",
   );
+
+  // The same gate WHILE we are still processing is genuinely ours — there is
+  // nothing yet to review — which is `needsProcessedMaterial` doing its job.
+  const stillProcessing = input({ ...reviewPending, platformWork: { running: 1, stuck: 0, undeployedLanes: [] } });
+  ok(
+    "and the identical gate reads 'us' while we are still processing",
+    voicePreviewBlockReason(stillProcessing).kind === "us",
+  );
+
+  // Every reason this function can produce, over the whole space, is honest
+  // by the house definition — the same law every other reason in this file
+  // answers to.
+  let dishonestPreview = 0;
+  for (const row of universe) {
+    if (!reasonIsHonest(voicePreviewBlockReason(row))) dishonestPreview++;
+  }
+  ok(`every voicePreviewBlockReason is honest, across all ${universe.length} inputs`, dishonestPreview === 0, `bad=${dishonestPreview}`);
+
+  // And it never disagrees with the rail: whatever class the panel reports
+  // for a still-open gate, `computeWizard`'s own Meet row for that gate (when
+  // one exists) must report the same class. This is the property that keeps
+  // a second surface from drifting away from the first one again.
+  let disagreements = 0;
+  for (const row of universe) {
+    const meetRows = stepOf(computeWizard(row), "meet").missing;
+    if (meetRows.length === 0) continue;
+    const panelReason = voicePreviewBlockReason(row);
+    const named = meetRows.find((m) => panelReason.headline.includes(m.label) || panelReason.next === m.note);
+    if (named && named.cls !== panelReason.kind) disagreements++;
+  }
+  ok("the panel's class never disagrees with the rail's class for the gate it names", disagreements === 0, `bad=${disagreements}`);
 }
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} CHECKS PASS`);

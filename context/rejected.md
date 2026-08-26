@@ -4131,3 +4131,75 @@ hash is always derived from whatever those functions actually accepted,
 exactly as it would be for a human reviewer. Any future "just satisfy the
 gate" shortcut that computes or copies a `source_set_hash` instead of calling
 `queueOwnedVoiceGenome` will hit the identical refusal, by design.
+## the-sticky-pager-was-deleted-not-shrunk (2026-08-26, WS-AP)
+
+**What was tried, by an earlier session, and why it looked right.** The sticky
+pager (`.wizard-pager`, `position: sticky; bottom: 0`) covered readable prose:
+a translucent bar stacking an opaque `.blocker-notice` card, up to 343x186px
+of content gone on tablet, which is DESIGN-LAW section 2's "never stack two
+light translucent surfaces" violated in pixels. The fix landed was real and
+measured: strip the notice's own border/background so the bar reads as one
+surface, cap it at two lines with an ellipsis, add `scroll-padding-bottom` so
+the last card on a step never parks underneath it. All of that shipped and
+worked, exactly as diagnosed.
+
+**What was wrong anyway.** The diagnosis was scoped to "the bar covers
+content", which is a real defect and not the owner's defect. Their actual
+report, both times it was raised, was that the bar's PRIMARY BUTTON pushed a
+person into a step it simultaneously called refused ("I click Meet It and it
+tells me to move to the next section even if nothing is ready"), and that its
+own explanatory sentence truncated mid word in the two-line box the previous
+fix gave it. Shrinking the footprint of a button that lies about where it goes
+is polish on the wrong layer: the object was the bug, not its size. A second
+attempt (`wizardModel.pagerAction`, gating the Next button on
+`computeWizard`'s `state === "running"`) fixed the lying-button symptom
+correctly and STILL was not what got asked for, because the owner's next
+report named the object itself: "Remove it. Not shrink it, not reword it, not
+make it conditional. Delete it."
+
+**What replaced it.** Nothing. `WizardRail`/`CompactRail` were already
+always-visible and already computed from the same wizard model; navigation did
+not need rebuilding, because the honest place for it already existed beside
+the dishonest one. See `context/decisions.md#one-honest-next-action-lives-in-the-rail-never-a-sticky-button`.
+
+**The generalisation worth keeping.** Two consecutive fixes to the same
+element, each correct against its own diagnosis and each followed by the SAME
+owner complaint restated, is the sign the diagnosis is scoped to a symptom
+one layer too shallow. The question to ask before a third patch is not "what
+is wrong with this element" but "should this element exist at all" — and here
+the answer, asked directly, was no.
+
+## a-panel-hardcoding-its-own-blocker-class-will-drift-from-the-rail (2026-08-26, WS-AP)
+
+**What was found.** `VoicePreviewPanel.tsx` ("Preview my voice") computed its
+own "no draft yet" reason as `disabledReason("us", ...)` unconditionally,
+regardless of WHY the draft was missing. On the owner's real replica the true
+blockers were the owner's own unverified identity/liveness and an unreviewed
+evidence set sitting in Processing Review — both `cls: "you"` on the SAME
+step's rail — and the panel told them "nothing for you to do here" while the
+rail, one scroll away, was naming an act they could take. Two surfaces
+computing the same fact and disagreeing is worse than either surface being
+wrong alone, because a person has no way to know which one to believe.
+
+**What specifically broke.** The panel's author had a real reason to reach for
+`"us"`: the panel's job is to explain why the button is dead, and in the
+common case (nothing processed yet) `"us"` is correct. But "the common case"
+is not "the only case", and a literal in a status position is a literal
+regardless of how often it happens to be right.
+
+**What replaced it.** `wizardModel.voicePreviewBlockReason(input)` — the ONE
+place that decides, built by walking `computeWizard(input)`'s own Meet-step
+`missing` rows in the order a person would clear them (identity, liveness, the
+review-and-approve gate, the voice service). The panel imports it rather than
+constructing its own reason, so it CANNOT drift from the rail: they read the
+same computed rows by construction, not by convention. Proven by a new eval
+property (`evals/studiowizard.mjs` section 10, "the panel's class never
+disagrees with the rail's class for the gate it names") over the whole input
+space, not just the production shape that caught it.
+
+**The generalisation worth keeping.** Any surface that renders a `you`/`us`
+judgement about a gate `wizardModel.ts` already computes is a candidate for
+this exact defect the moment someone reaches for a "the obvious answer here is
+X" shortcut. The fix is never "make the shortcut smarter" — it is "route
+through the one function", because a second decision point is a second place
+for the two to disagree, and they will, on exactly the input nobody tested.

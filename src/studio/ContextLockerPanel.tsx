@@ -273,8 +273,11 @@ export default function ContextLockerPanel({
     return map;
   }, [recent]);
 
+  // `id` matches the anchor `wizardModel.ts`'s `no_material` blocker already
+  // carries (`#context-locker`), so "Go there" actually lands somewhere
+  // instead of `jumpTo` silently finding nothing.
   return (
-    <section className="stage-section context-locker" aria-labelledby="context-locker-title">
+    <section id="context-locker" className="stage-section context-locker" aria-labelledby="context-locker-title">
       <header className="section-heading">
         <div>
           <h2 id="context-locker-title">Bring your context</h2>

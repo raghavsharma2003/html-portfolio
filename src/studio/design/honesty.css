@@ -97,7 +97,19 @@
     font-size: var(--text-body);
   }
 
-  .blocker-notice.wizard-pager-caution { max-width: var(--measure); margin: 0; }
+  /* `.wizard-pager-caution` / `.wizard-pager-waiting` lived here for the
+   * sticky pager's own `.blocker-notice`. The pager is deleted, not shrunk
+   * (owner directive, 2026-08-26:
+   * `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`), so there
+   * is no bar left for either rule to style. */
+
+  /* ── the status line above the fold on every step (WS-AP) ────────────
+   * The owner: "I have to scroll down the whole page to know that the audio
+   * is processing." This sits directly under the step head so it never
+   * needs a scroll, at any width. */
+  .platform-work-banner { display: grid; gap: var(--space-hair); margin: 0 0 var(--space-block); }
+  .platform-work-banner .blocker-notice { margin: 0; max-width: var(--measure); }
+  .platform-work-banner > .text-button { justify-self: start; }
 
   /* ── the rail's named next thing ───────────────────────────────────── */
 

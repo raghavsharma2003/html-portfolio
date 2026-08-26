@@ -206,7 +206,14 @@ export interface ReplicaRuntimeStatus {
   can_activate: boolean;
   blockers: string[];
   qualification: { passed: number; required: number };
+  /** `voice_genome` is the newest genome that EXISTS, any status (WS-AP: a
+   *  production run measured this reading 0 while a real draft genome sat in
+   *  the database, because it used to be scoped to `status='approved'`).
+   *  `voice_genome_status` says which status that version is in. `optional`
+   *  because `activateOwnedRuntime`'s own response, taken right after a
+   *  successful activation, has no draft/approved ambiguity to report. */
   versions: { profile: number | null; calibration: number | null; voice_genome: number | null };
+  voice_genome_status?: string | null;
   activated_at: string | null;
 }
 
