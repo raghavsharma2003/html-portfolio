@@ -499,3 +499,27 @@ end (§8), so it is a known-good template rather than a theory.
 `voice-evidence` has no equivalent in the repo. Either the replica-processing
 worker runs inside the managed environment, or the evidence lane needs the same
 broker treatment. A decision for the owner, not something to guess at.
+
+## Secret recovery — the scratchpad is NOT the only copy
+
+WS-L's handover called the generated HMAC values "otherwise unrecoverable"
+because it wrote them to an ephemeral session directory. That is wrong, and
+verified wrong: Container Apps stores them, and a Contributor service
+principal can read them back at any time.
+
+```
+POST https://management.azure.com/subscriptions/{sub}/resourceGroups/vyakti-voice/
+     providers/Microsoft.App/containerApps/{app}/listSecrets?api-version=2024-03-01
+```
+(needs `Content-Length: 0`; an empty POST body without it fails to parse.)
+
+Verified 2026-08-26 against `vyakti-open-voice-admission`: returns
+`acr-password` and `open-voice-hmac` with values present. So **Azure is the
+durable store** — the Vercel side (`OPEN_VOICE_HMAC_SECRET`,
+`AZURE_VOICE_EVIDENCE_HMAC_SECRET`) can be filled from there whenever the app
+lane is wired, and losing the scratchpad costs nothing.
+
+If a rotation is ever wanted, the pair must change in BOTH places in one go:
+the container app secret and the Vercel env var. Mismatched halves fail closed
+(401 at the admission broker), which is the correct failure and is what the
+negative control in WS-L's smoke test exercised.
