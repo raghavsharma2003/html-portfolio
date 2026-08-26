@@ -2480,6 +2480,12 @@
       "kind": "component",
       "title": "api/mirror-call.js + _mirrorcall{,-store,-wire}.js: the Mirror Call's server half, mirror-call/v1",
       "at": "2026-08-26"
+    },
+    {
+      "id": "three-step-wizard-ia",
+      "kind": "decision",
+      "title": "studio IA: Feed -> Meet (interact/tweak, the heart) -> Deploy; never one continuous screen",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4742,6 +4748,11 @@
       "src": "offline-mocks-cannot-type-check-sql",
       "rel": "constrains",
       "dst": "mirror-call-backend"
+    },
+    {
+      "src": "three-step-wizard-ia",
+      "rel": "constrains",
+      "dst": "owner-intent-is-the-spec"
     }
   ]
 }

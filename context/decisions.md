@@ -4504,3 +4504,26 @@ names.
 
 *Reverses when* the reply lane lands: the op moves from `MIRROR_CALL_UNSERVED_OPS`
 to `MIRROR_CALL_OPS` in `api/_mirrorcall-wire.js` and nothing else changes.
+
+## `three-step-wizard-ia` — the studio is a wizard, not a wall (2026-08-26, owner directive)
+
+**The defect, in the owner's words:** the studio is "one single screen of
+nonsense, one continuous screen." Correct — every workstream mounted its panel
+onto the same page, so the journey has no shape.
+
+**The binding information architecture, from the owner:**
+1. **FEED** — bring your context: files, a YouTube video link, a YouTube
+   channel link, other reference links the agent can scrape. Then Next.
+2. **MEET** — the clone is RIGHT THERE on the next page: interact with it
+   (text, voice, call), with the tweak/feedback mechanism and on-the-go
+   learning directly beneath the conversation. "The major thing is to
+   interact with the agent, check it, tweak it."
+3. **DEPLOY** — channels, widget, app — at the end.
+
+Verification (identity/liveness/consent) is woven into the steps where each
+gate actually binds, never presented as its own wall. Existing panels are
+REUSED inside steps — this is a shell restructure, not a rewrite of working
+surfaces.
+
+**What would reverse this.** The owner reshaping it, or measured evidence a
+step boundary loses users (which would move a boundary, not restore the wall).
