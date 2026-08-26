@@ -428,6 +428,26 @@ service response, not a claim.
   enumeration alongside it and widen or justify each.
 - `gurukul-no-production-glob` — a feature branch must never match another
   product's deploy trigger.
+- `track-lists-must-not-assume-a-child-exists` — a grid or flex track reserved
+  for a child collapses the column the moment that child is deleted, and NO
+  overflow check can see it, because a collapsed column overflows nothing. Nine
+  such rules were found in `src/studio/`. Guard the rail with `:has()`, or pin
+  the children to their columns explicitly. `scripts/check-layout.mjs` holds it
+  and its negative control is written in its header.
+- `a-check-must-be-able-to-reach-the-screen-it-judges` — the layout gate pointed
+  at signed-out `/studio` measured six blocks of sign-in copy and reported OK
+  against the exact bug that shipped. Assert COVERAGE in every gate, and pair
+  the assertion with a way to satisfy it that needs no secret: the answer here
+  was `studio-layout-fixture.html`, the real components against fixture props.
+- `a-media-query-cannot-see-a-narrow-container` — the studio's content column is
+  276px narrower than the viewport because the rail is beside it. Breakpoints
+  written against the viewport fire in the wrong place. Use
+  `repeat(auto-fit, minmax(min(100%, N), 1fr))`, which asks the container.
+- `layer-order-must-survive-the-minifier` — LightningCSS strips a standalone
+  `@layer a, b, c;` statement. That inverted the studio's cascade and shipped
+  every primary CTA at 1.73:1 contrast. The order is declared in an inline
+  `<style>` in `studio.html`'s head; if you change the layer names, change it
+  there too.
 - `recited-prompt` / `prompt-position` — write shapes, never lines; position is
   mechanism.
 - Isolation is a SQL predicate, never a prompt instruction.
@@ -469,3 +489,4 @@ header stacks up. See the header for the full reason.
 - **WS-AD** — media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it
 - **WS-AF** — the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing
 - **WS-AK** — the processing worker deployed as an Azure Container Apps Job — and the commit statement that had never once written a piece of evidence
+- **WS-AM** the studio made readable: nine track-list rules that reserved a column for a child that no longer exists, and a layout gate that can finally see the signed-in screen

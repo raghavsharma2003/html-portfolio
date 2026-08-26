@@ -11,7 +11,14 @@
 @layer components {
   .processing-review {
     display: grid;
-    grid-template-columns: 54px minmax(0, 1fr);
+    /* One column by default. The 54px track here was the sixth instance of the
+       rail-for-a-deleted-child bug and the one the first sweep missed: the five
+       sibling panels were given this single-column default, `.processing-review`
+       was not, so it kept squeezing its whole content column into 54px at
+       tablet and desktop while 419px and 888px sat empty beside it. The rail
+       comes back through the `:has(> .panel-index)` rule at the end of this
+       file, which asks the DOM instead of remembering it. */
+    grid-template-columns: minmax(0, 1fr);
     margin-top: 22px;
     overflow: hidden;
     border: 1px solid var(--line);
@@ -1088,7 +1095,12 @@
   .empty-card > div:last-child > p:not(.eyebrow) { max-width: 550px; color: var(--ink-soft); font-size: 13px; line-height: 1.65; }
   .create-form { margin-top: 32px; }
   .create-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
-  .field-note { margin: 9px 0 0 !important; color: var(--ink-faint) !important; font-size: 9px !important; }
+  /* 9px was below the readable floor `tokens.css` sets (`--text-micro`, 11px)
+     and this rule shouted it with `!important`, which is why the correction at
+     the end of this file could not land: for important declarations the cascade
+     REVERSES layer order, so an unlayered `!important` loses to a layered one.
+     Fixed at the source instead, and the shout is gone with it. */
+  .field-note { margin: var(--space-tight) 0 0; color: var(--ink-faint); font-size: var(--text-small); }
 
   .notice, .error-banner {
     position: relative;
@@ -1394,8 +1406,17 @@
     background: rgba(44, 48, 41, 0.025);
   }
 
-  .evidence-gate strong { font-size: 11px; }
-  .evidence-gate p { margin: 4px 0 0; color: var(--ink-faint); font-size: 9px; line-height: 1.45; }
+  /* This is an EMPTY STATE explaining why a control is unavailable, which
+     DESIGN-LAW section 3 requires to say how to fill it. It was set at 9px,
+     under the readable floor. Same migration as `.field-note`. */
+  .evidence-gate strong { font-size: var(--text-body); }
+  .evidence-gate p {
+    max-width: var(--measure);
+    margin: var(--space-hair) 0 0;
+    color: var(--ink-faint);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
 
   .large-lock {
     position: relative;
@@ -2260,7 +2281,12 @@
     .confirm-modal { padding: 28px 22px; }
     .modal-actions { grid-template-columns: 1fr; }
     .skeleton-grid { grid-template-columns: 1fr 1fr; }
-    .consent-panel, .evidence-panel { grid-template-columns: 39px minmax(0, 1fr); }
+    /* Same rail, same missing child, one media query lower down. The base rule
+       was corrected to a single column; this override put the 39px track back
+       at phone width, which is where it hurt most: the consent panel's whole
+       content column rendered 39px wide. `:has` so the rail follows the DOM. */
+    .consent-panel:has(> .panel-index),
+    .evidence-panel:has(> .panel-index) { grid-template-columns: 39px minmax(0, 1fr); }
     .panel-index { padding-top: 25px; }
     .consent-content, .evidence-content { padding: 23px 17px; }
     .panel-title-row { display: block; }
@@ -2274,7 +2300,7 @@
     .source-state { grid-column: 2; justify-self: start; }
     .source-actions { grid-column: 3; grid-row: 1 / 3; flex-direction: column; }
     .evidence-gate { align-items: flex-start; }
-    .liveness-section { grid-template-columns: 39px minmax(0, 1fr); }
+    .liveness-section:has(> .liveness-index) { grid-template-columns: 39px minmax(0, 1fr); }
     .liveness-index { padding-top: 25px; }
     .liveness-body { padding: 23px 17px; }
     .verification-pending { align-items: flex-start; flex-direction: column; }
@@ -2673,7 +2699,7 @@
 .identity-boundary { margin: 20px 0 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 8px; line-height: 1.5; }
 
 @media (max-width: 590px) {
-  .identity-section { grid-template-columns: 39px minmax(0, 1fr); }
+  .identity-section:has(> .identity-index) { grid-template-columns: 39px minmax(0, 1fr); }
   .identity-index { padding-top: 25px; }
   .identity-body { padding: 23px 17px; }
   .identity-state { align-items: flex-start; flex-direction: column; }
@@ -3396,9 +3422,298 @@
    what the DOM used to contain. */
 .consent-panel:has(> .panel-index),
 .evidence-panel:has(> .panel-index),
-.liveness-section:has(> .panel-index),
 .official-face-gate:has(> .panel-index),
-.identity-section:has(> .panel-index),
 .processing-review:has(> .panel-index) {
   grid-template-columns: 58px minmax(0, 1fr);
 }
+
+/* These two never used `.panel-index`; they had their own `.liveness-index` and
+   `.identity-index` children, so the guard above never matched them and their
+   rails were dead selectors pretending to be live ones. Named correctly here so
+   the rule states something true. Both children are now removed (DESIGN-LAW
+   section 1 bans numbering eyebrows), which is exactly the removal that used to
+   collapse a column and now does not. */
+.liveness-section:has(> .liveness-index),
+.identity-section:has(> .identity-index) {
+  grid-template-columns: 58px minmax(0, 1fr);
+}
+
+/* ── content grids answer to their CONTAINER, not to the viewport ────────────
+
+   The tablet complaint ("panels colliding, prose one word per line") was not a
+   second bug. It was the first bug's cousin: these grids split into two columns
+   on a VIEWPORT media query, while the element they split lives inside the
+   studio's content column, which is 276px narrower than the viewport because
+   the replica rail is beside it. At an 834px viewport the content column is
+   558px and `.wizard-band-body` is 475px, so a `repeat(2, 1fr)` that looked
+   generous against the viewport handed each card 200px and each paragraph 159px.
+   Measured, tablet, 834px, before this block: `.teacher-sheet-grid` 200px
+   columns, `.blocker-notice` 115px, `p.field-note` 159px.
+
+   A media query cannot fix this, because the query and the container disagree
+   about how wide "here" is. `auto-fit` with a `min()` floor asks the container
+   directly and needs no query at all, so it stays right when the rail changes
+   width, when a panel is nested one level deeper, or when someone adds a
+   sidebar. The floor is `min(100%, Npx)` rather than plain `Npx` so a container
+   narrower than the floor gets one full-width column instead of an overflow.
+
+   N is 260px for grids that carry sentences (about 40 characters at this type
+   size, which is the floor for prose) and 150px for grids of short labels and
+   counts, which are legible in a narrow cell and only look silly stacked. */
+.teacher-sheet-grid,
+.teacher-sheet-ingested-grid,
+.voice-enrollment-grid,
+.voice-preference-players,
+.quickstart-locked-columns,
+.people-declaration,
+.attestation-list,
+.model-blockers {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+
+.hear-voice-body,
+.mirror-body,
+.voice-preview-workbench,
+.claim-extraction,
+.build-readiness,
+.review-evidence-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.readiness-grid,
+.readiness-counts,
+.hear-voice-proof,
+.voice-consent-receipt,
+.receipt-grid,
+.scope-grid,
+.capture-mode,
+.voice-preview-styles,
+.voice-preview-language {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+
+/* `.build-readiness` also had children wider than their own column: its counts
+   grid and its primary button were measured spilling 477px out of the panel at
+   both tablet and desktop. Grid children default to `min-width: auto`, which
+   refuses to shrink below their content, so a long word or a wide nested grid
+   pushes straight through the panel's padding. */
+.build-readiness > *,
+.mirror-body > *,
+.hear-voice-body > *,
+.claim-extraction > *,
+.voice-preview-workbench > * { min-width: 0; }
+
+/* ── type that can be read, at the size and the measure ──────────────────────
+
+   Two defects, both measured, both DESIGN-LAW section 2 ("typography is
+   size-specific") and both fixed here rather than at 30 call sites.
+
+   TOO SMALL. `tokens.css` declares `--text-micro: 11px` as the FLOOR and names
+   the 9px and 10px caption text as the thing to migrate toward it, with the
+   reason spelled out: "that is below the size at which a teacher on a phone
+   reads a consent label, and consent labels are the last copy in this product
+   that may be hard to read." Measured on this tree before this block: eleven
+   distinct blocks at 8px and 9px, including both identity boundary statements
+   and every `.field-note`. `.field-note` carried `font-size: 9px !important`,
+   so the floor has to be `!important` too or it loses to a shout.
+
+   TOO LONG. The same paragraphs, on a 1355px desktop, ran 130 to 216 characters
+   per line because nothing capped them: `.identity-boundary` measured 866px at
+   8px, which is 216 characters on one line. `--measure` (68ch) is the cap the
+   token file already defines for exactly this, and it is in `ch` so it tracks
+   the font size rather than fighting it.
+
+   Neither change moves a layout. Both change what a sentence looks like when a
+   person tries to read it, which is the whole complaint. */
+.field-note {
+  max-width: var(--measure-tight);
+  line-height: var(--leading-body);
+}
+
+.identity-boundary,
+.liveness-boundary,
+.voice-preference-empty,
+.voice-enrollment-note {
+  max-width: var(--measure);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.consent-lede,
+.identity-intro,
+.review-intro {
+  max-width: var(--measure);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+/* The attestation and consent checkboxes are the copy a teacher is legally
+   agreeing to. They were the smallest type on the screen. */
+.attestation-list label,
+.biometric-consent-list label,
+.identity-statements label,
+.model-consent-check {
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+/* The catch-all for prose inside a step, so a paragraph added tomorrow gets the
+   measure without anyone remembering to ask for it. Scoped to the wizard body
+   so it cannot reach the rail, the header or a table cell. */
+.wizard-band-body p,
+.wizard-band-head p {
+  max-width: var(--measure);
+}
+
+/* ── header rows wrap instead of crushing the sentence beside the button ─────
+
+   `.section-heading`, `.calibration-head`, `.candidate-eval-head`,
+   `.runtime-gate-head` and `.person-model-action` are all the same shape: a
+   flex row with a title and a sentence on one side and a control or a badge on
+   the other, `justify-content: space-between`, and no `flex-wrap`. A flex row
+   that cannot wrap has only one way to fit: take the space out of whichever
+   child will give it up, which is always the prose. Measured at tablet before
+   this block: the calibration lede in 208px of a 371px row, the candidate lab
+   lede in 169px, the runtime lede in 218px. `.section-heading` had gone one
+   step further and its two children OVERLAPPED by 120x6px, because past a point
+   there is no space left to take.
+
+   Wrapping is the honest answer: below the width where both fit side by side,
+   the control goes to its own line and the sentence gets the full column. */
+.section-heading,
+.calibration-head,
+.candidate-eval-head,
+.runtime-gate-head,
+.person-model-action {
+  flex-wrap: wrap;
+}
+
+.section-heading > *,
+.calibration-head > *,
+.candidate-eval-head > *,
+.runtime-gate-head > *,
+.person-model-action > * {
+  min-width: 0;
+}
+
+/* Right-aligned against a left-aligned heading reads as a mistake once the two
+   have wrapped onto separate lines. */
+.section-heading > p { max-width: var(--measure); text-align: left; }
+
+/* A card grid whose cards carry multi-sentence boundary statements needs a
+   wider floor than one carrying labels: at 260px the desktop grid made three
+   276px columns and put a 589 character paragraph in one of them. */
+.teacher-sheet-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+
+/* Last two under the readable floor. */
+.dialogue-trust {
+  max-width: var(--measure);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+/* The consent checkboxes' text is a `<span>` inside a `<label>`, so the
+   paragraph measure above never reached it, and it ran 147 characters per line
+   on desktop. This is the copy a teacher is agreeing to; it gets a measure. */
+.model-consent-check > span,
+.identity-statements label > span,
+.biometric-consent-list label > span,
+.attestation-list label > span {
+  max-width: var(--measure);
+}
+
+/* ── an inline badge's padding is not part of the line box ───────────────────
+
+   `.voice-provider-state` and `.model-consent-state` are `<span>`s with
+   `padding: 8px 12px`, sitting after a block-level heading inside
+   `.section-heading`. At phone width that container becomes `display: block`,
+   so the span is laid out INLINE, and vertical padding on an inline box does
+   not contribute to the height of its line. The padding therefore rendered on
+   top of the heading above it: measured 120x7px of overlap at 390px.
+
+   `inline-flex` gives the badge a box whose padding is real, which is what it
+   always looked like it had. Nothing moves on a wide screen, where the parent
+   is still flex and the span was already a flex item. */
+.voice-provider-state,
+.model-consent-state {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The last two sentences on the screen without a measure. Both are `<span>`s or
+   sit in a wrapper the paragraph rule cannot reach, and both ran about 150
+   characters per line on a 1355px desktop. */
+.advanced-disclosure > summary span,
+.dialogue-locked p {
+  display: block;
+  max-width: var(--measure);
+}
+
+/* ── the sticky pager stops sitting on the page ──────────────────────────────
+
+   The owner's third symptom was "notices floating over content", and this is
+   it. `.wizard-pager` is `position: sticky; bottom: 0` and correctly translucent
+   (DESIGN-LAW section 2 asks for exactly that), but it CONTAINS a
+   `.blocker-notice`, which is an opaque bordered card with its own background.
+   So the bar was a translucent surface with a solid card stacked on it, which
+   the same section of the law forbids in as many words: "Never stack two light
+   translucent surfaces." The measured result, at every width and every step:
+   the pager covered readable prose at every scroll position, up to 343x186px of
+   it on tablet, and the card is opaque so what it covered was simply gone.
+
+   The caution is not deleted. It is the sentence that stops someone advancing
+   past a gate, and it is still there, still classed, still read by the same
+   `role="status"`. It just stops pretending to be a second panel: no border, no
+   fill, no padding of its own, so the translucent bar is ONE surface and the
+   page reads through it as designed. The class badge keeps its colour, which is
+   the part that carries the claim.
+
+   The bar is also capped, so a long reason cannot grow it into a wall: past two
+   lines it ellipsises, and the full sentence is in the step body above, where
+   this notice is already shown in full. */
+.wizard-pager > .blocker-notice.wizard-pager-caution {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+.wizard-pager-caution .blocker-notice-headline,
+.wizard-pager-caution .blocker-notice-next {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* And the page gets room to scroll clear of the bar, so the last card on a step
+   is never parked underneath it. */
+.studio-main {
+  scroll-padding-bottom: 25vh;
+}
+
+/* ── the last two controls that did not read ─────────────────────────────────
+
+   An unselected tab is a control, and DESIGN-LAW section 3 asks for WCAG AA on
+   every CTA and form control. `--ink-faint` on paper measured 4.11:1, just
+   under the 4.5:1 floor, so the inactive Mirror Call tab was the one label on
+   that panel a person had to look twice at. `--ink-soft` is the same family one
+   step darker and clears it, and the ACTIVE tab still separates from it by
+   colour and by its underline, so nothing is lost by making the inactive one
+   legible.
+
+   Disabled controls are exempt from the contrast floor, and they keep an
+   obviously-disabled look here. But in this studio a disabled button is where
+   the reason lives, so it still has to be READ: 0.48 opacity put the primary
+   ones at 3.64:1. 0.6 reads at a glance as unavailable and puts the label back
+   above the floor, which matters because these are the buttons that say what a
+   teacher cannot do yet. */
+.mirror-tabs button:not(.active) { color: var(--ink-soft); }
+
+.button:disabled { opacity: 0.6; }
+
+/* The review controls carried their own disabled opacity, 0.5, written before
+   the shared one existed. One value, one meaning. */
+.review-refresh:disabled,
+.review-save:disabled { opacity: 0.6; }

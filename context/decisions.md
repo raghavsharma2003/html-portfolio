@@ -5393,3 +5393,81 @@ instruction rather than a decision the README anticipated.
   entirely and this app should go internal the same day.
 - **Any evidence of abuse.** Unsigned traffic waking the app in the platform
   logs is sufficient reason to bring the broker forward.
+
+## layout-fixture
+
+**Decided (2026-08-26, WS-AM):** the layout gate renders a dedicated fixture
+page, `studio-layout-fixture.html`, which mounts the REAL `StudioApp` from
+source with a replica seeded into `localStorage` and every `/api/*` route
+answered from a fixture table by a stubbed `window.fetch`. It is a normal vite
+build input, it is `noindex`, nothing links to it, and it refuses to render
+anywhere but loopback.
+
+**Why.** The gate has to see the signed-in panels, because that is where the
+defect class lives, and it has to run in CI, which means it cannot have a
+secret. Those two requirements have exactly one intersection. See
+`rejected.md#a-layout-gate-that-cannot-reach-the-signed-in-screen` for the two
+things tried before this.
+
+**Why the real component and not a copy.** A hand-built page of representative
+markup would drift from the studio the first time anyone edited a panel, and a
+gate that judges a stale copy is the `gates-that-live-nowhere` failure again.
+Importing `StudioApp` means the gate exercises the tree being shipped, by
+construction, the same property `evals/run.mjs` gets from re-bundling.
+
+**Why empty states rather than populated ones.** Unlisted routes return `{}`,
+which lands each panel in its EMPTY or BLOCKED state deliberately. Those states
+carry the longest prose in the studio and they are where every collapsed column
+was found. A fixture that only ever showed populated panels would have missed
+the defects that prompted it.
+
+**What it costs.** A third HTML entry point ships in `dist/`. It is inert (the
+loopback guard) and unreferenced, but it is real surface area, and the fixture
+table has to be kept honest: three times during this session a panel threw
+because a fixture shape was missing a key the component read without a guard
+(`limits.max_item_bytes`, `attestations`, `jobs`). Each time the gate's coverage
+assertion caught it rather than passing on a blank page, which is the assertion
+working as designed.
+
+**What would reverse it.** A test-only build target that can exclude the page
+from production output would remove the shipped-surface objection and should be
+taken. If the studio ever gains a genuine read-only demo mode driven by real
+fixtures, the gate should point at that instead and this page should go. And if
+keeping the fixture table honest ever becomes the reason a panel change is
+painful, that is the signal that the stub is too detailed and should be replaced
+by a recorded-response fixture captured from a real session.
+
+## cascade-layer-order-must-be-declared-where-a-minifier-cannot-drop-it
+
+**Decided (2026-08-26, WS-AM):** the studio's `@layer` ordering statement is
+declared in an inline `<style>` in the head of `studio.html` (and the fixture
+page), not only at the top of `studio.css` and `tokens.css`.
+
+**Why.** Both CSS files open with
+`@layer reset, tokens, base, components, responsive;` and LightningCSS, the
+minifier in this vite build, treats a standalone layer statement as redundant
+and strips it. The shipped stylesheet therefore began `@layer components{`, and
+layer order fell back to first appearance: **components, reset, tokens, base,
+responsive**, with `reset` outranking everything it was written to lose to.
+
+**What that shipped.** `button { color: inherit }` in the reset beat
+`.primary-button { color: #fffef9 }`, so every primary call to action in the
+studio rendered near-black ink on forest green at a measured **1.73:1**, against
+a WCAG AA floor of 4.5:1. "Next: talk to your clone", "Start the call", "Choose
+files", "Save sheet draft" and six more. This was present on the untouched base
+branch and was verified there before being fixed, so it is not a regression from
+this session's work. See `measurements.md#studio-layout-repair`.
+
+**Why this fix and not higher specificity.** Writing `.button.primary-button` to
+out-specify the reset fixes the one symptom and leaves the cascade inverted for
+every other rule in `reset` and `base`. The order is the bug.
+
+**What would reverse it.** A vite or LightningCSS setting that preserves the
+statement, or a build that stops minifying CSS, would make the head declaration
+redundant, and it should then be removed rather than left as two sources of
+truth. If the layer names ever change, the head statement is a third place to
+change them, and that is the standing cost of this decision.
+
+**How it is held.** `scripts/check-layout.mjs` measures the contrast of every
+enabled control on nine screens, so an inverted cascade shows up as a failing
+gate rather than as an unreadable button nobody measured.

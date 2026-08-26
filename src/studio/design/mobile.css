@@ -341,6 +341,31 @@
     .wizard-band-collapsible > summary::-webkit-details-marker,
     .wizard-blockers-rest > summary::-webkit-details-marker { display: none; }
 
+    /* THE SECOND HALF OF THE TRACK-LIST CLASS, and the one that actually put a
+     * paragraph on screen sixteen pixels wide.
+     *
+     * The summaries above are `minmax(0, 1fr) 16px`, where the 16px track
+     * belongs to the `::after` chevron. A pseudo-element does not take part in
+     * auto-placement, so the SECOND real child of the summary auto-flows into
+     * the chevron's column and renders one word per line under it. Every one of
+     * these summaries has two real children: a title and a sentence under it.
+     *
+     * The over-count detector cannot see this variant, because here the track
+     * count and the child count agree; it is the placement that is wrong. So
+     * the text is pinned to column 1 explicitly rather than left to auto-flow,
+     * which is also what makes the rule survive someone adding a third child.
+     * The chevron owns column 2 and says so where it is defined. */
+    .workspace-switch > summary > *,
+    .wizard-band-collapsible > summary > *,
+    .wizard-blockers-rest > summary > * { grid-column: 1; min-width: 0; }
+
+    /* `.readiness-compact` is the three-track version: count, label, chevron.
+     * Its two children happen to auto-place correctly today, which is luck
+     * rather than instruction, and luck is what the rest of this comment is
+     * about. Stated explicitly so it stays true. */
+    .readiness-compact > summary > :nth-child(1) { grid-column: 1; }
+    .readiness-compact > summary > :nth-child(2) { grid-column: 2; min-width: 0; }
+
     .readiness-compact > summary:active,
     .workspace-switch > summary:active,
     .wizard-band-collapsible > summary:active,
