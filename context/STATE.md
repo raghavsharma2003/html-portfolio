@@ -6,6 +6,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 **If this file and any other disagree, the other files win — fix this one.**
 
 Last updated: 2026-08-26 (WS-W: "Preview my voice" — the owner-facing panel, and the cold start told honestly)
+Last updated: 2026-08-26 (WS-U: per-speaker fine-tuning built, and its delta measured)
 
 ## What the product is
 
@@ -54,7 +55,9 @@ service response, not a claim.
 
 | pipeline | status | evidence |
 |---|---|---|
-| **Voice cloning** | **WORKS, measured** | Zero-shot clone of the owner from their own 71 s reference. **ECAPA fidelity 0.7753** (p10 0.7479) against a **0.8869 self-vs-self ceiling**; verdict `warn`, so the activation gate correctly refuses (12 blockers). rtf 0.79–0.80 warm. n=2, spread 1e-6. **Zero-shot, no fine-tune — a floor, not a ceiling, and NOT a claim about how it sounds** (that needs the blind ABX bench). |
+| **Voice cloning** | **WORKS, measured** | Zero-shot clone of the owner from their own 71 s reference. **ECAPA fidelity 0.7753** (p10 0.7479) against a **0.8869 self-vs-self ceiling**; verdict `warn`, so the activation gate correctly refuses (12 blockers). rtf 0.79–0.80 warm. n=2, spread 1e-6. **Zero-shot floor — NOT a claim about how it sounds** (that needs the blind ABX bench). |
+| **Reference-window choice** | **measured, and it is the bigger lever** | Chatterbox truncates a reference to its **first 10 s** (s3gen) / **6 s** (T3 prompt); only the speaker embedding sees the rest. Which 10 s you pass spans **0.7433–0.8058** on the owner's voice — **0.0625, three times the fine-tune delta, at zero training cost** — and the best window beats every fine-tuned arm. Zero-shot; interaction with the adapter unmeasured. `reference-window-beats-the-finetune`. |
+| **Per-speaker fine-tuning** | **BUILT and measured** | `services/voice-finetune` trains a LoRA adapter on a GPU job; the runtime loads it per request inside the same HMAC, disclosure and watermark path. On the owner's 71 s (62.1 s transcribed): **0.7753 → 0.7959, +0.0206, 18.4% of the gap to the ceiling, `warn` → `pass`**, n=2 spread 1e-5. Costs ~26% of synthesis speed (rtf 0.79 → 0.99). **A 71 s smoke test against a ≥30 min recommendation** — `lora-vs-zero-shot-71s`. |
 | **voice-evidence round trip** | **WORKS — first ever run** | 71 s → 4 windows → 8 embeddings in **4 977 ms** warm; **176 s** cold start from zero. |
 | **ASR (Sarvam)** | **WORKS** | sync `saarika:v2.5` 25 s → 200 in 4 134 ms (**hard 30 s cap**); batch `saaras:v3` 71 s → **5 diarized turns in 137 s**. `saarika:v2` is deprecated. |
 | **transcript → sheet draft** | **WORKS** | 5 turns, 127 tokens, **92 honest `gaps`**, 8 phrase candidates. |
@@ -134,6 +137,12 @@ service response, not a claim.
   untested half fails visibly rather than convincingly. Contract to satisfy:
   `src/studio/mirrorCallApi.ts`, which is the only file in the UI that knows a
   route or a JSON key.
+- **A production-grade fine-tune**: the lane is built and works, but the only
+  number is from **62.1 s** of speech against a **≥30 min** community
+  recommendation, on **n=1 speaker**, with no held-out set and no ABX
+  (`finetune-30min-corpus-unmeasured`). Note also that p10 PEAKS at 15 epochs
+  and falls by 60 while the mean keeps rising — 60 epochs is not established as
+  the right stopping point.
 - **Fidelity thresholds**: still provisional and nothing is benched against
   ElevenLabs — but they now have one real anchor. On the owner's own voice the
   self-vs-self ceiling is 0.8869, so the 0.85 `target` sits just under the best

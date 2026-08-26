@@ -2890,3 +2890,43 @@ the general shape — a state machine whose transitions are each correct and who
 composition is not — and the assertion that caught it ("a 504 clears the warm
 belief so the next click waits properly") is the one to keep if this file is
 ever tidied.
+## `adapter-init-stole-the-sampling-seed` — a fidelity delta that would have been part sampling noise (2026-08-26, WS-U)
+
+**What was tried.** The obvious LoRA implementation: wrap each target `nn.Linear`
+and initialise the A matrix with `nn.init.kaiming_uniform_`, the way every LoRA
+tutorial and `peft` itself does it. It was written, built into a GPU image and
+deployed before the problem was spotted — the code was correct as LoRA and
+wrong as an experiment.
+
+**What broke.** `services/open-voice-runtime/app.py::_synthesize_sync` seeds the
+**global** torch RNG from the request's `seed`, and Chatterbox then samples
+speech tokens from that same global stream at `temperature 0.8`. Injecting the
+adapter happens *after* the seeding and *before* generation, and
+`nn.init.kaiming_uniform_` draws from the global generator. So attaching an
+adapter advanced the RNG by 3.9 M draws, and the adapted arm sampled a
+**different token stream** than the zero-shot arm at the identical seed.
+
+Nothing fails. No test goes red. Both arms produce good watermarked audio and a
+clean fidelity number. The measurement simply stops being a comparison: part of
+whatever delta appeared would have been sampling noise wearing the adapter's
+name, and there is no way to tell from the output how much.
+
+**The fix.** LoRA initialisation draws from a **private** `torch.Generator`
+seeded from a constant (`lora.default_generator()`), shared across one
+injection. The global stream is never touched, so the two arms are
+seed-identical and the adapter is the only difference between them. Cost: one
+extra ~12 minute image rebuild before any number was taken.
+
+**The confirmation.** With the fix in, the zero-shot control re-measured
+**0.775278** against `first-real-clone`'s **0.775276** — 2e-6 apart, on a
+different day and a different image. That agreement is what makes the delta in
+`lora-vs-zero-shot-71s` a delta rather than a coincidence, and it would have been
+unavailable if the adapter arm had been quietly resampling.
+
+**The law.** *Anything a treatment does to shared global state is part of the
+treatment.* Before comparing two arms, ask what the experimental arm consumes
+that the control does not — RNG, caches, clocks, connection pools — and either
+isolate it or measure it. A confound that changes the OUTPUT without changing
+the SHAPE of the output is invisible to every check that does not know to look
+for it. Same family as `plausible-return-hides-a-dead-pipeline`: the failure
+mode is a believable value, not an error.

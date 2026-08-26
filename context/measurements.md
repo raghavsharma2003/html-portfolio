@@ -3458,3 +3458,158 @@ is signed against a broker proven awake.
 its cold-start wall clock, and whether the 12 s flush window is long enough for
 the platform to have begun scheduling the GPU replica. That last one is the
 assumption the design rests on and it is untested.
+## `lora-vs-zero-shot-71s` — the first fine-tuned-vs-zero-shot delta on this stack (2026-08-26, WS-U)
+
+**Scope line first.** This is ECAPA-TDNN speaker-embedding cosine similarity and
+nothing else — the first automated gate `api/_fidelity.js` names, not the blind
+ABX bench in `docs/gurukul/research/voice-stack.md`. It licenses no claim about
+how anything SOUNDS. It is also a **71-second smoke test**: the Chatterbox
+community recommendation is **≥30 minutes** of clean single-speaker audio
+(`voice-stack.md` §2), and this had 62.1 s of transcribed speech. It was run
+anyway, deliberately, because a real number with its scope stated beats a plan.
+Treat it as evidence that the lane WORKS and that the direction is positive, not
+as the production-grade figure.
+
+**Subject.** The same 71.0 s consented Hinglish voice note as `first-real-clone`
+(the owner's own voice, own consent), sha256
+`c242261b9caa779eb6ddeeda24623c11c2aec01f8f7acafe47970bc17a1cb9b6`, canonical
+24 kHz mono PCM16.
+
+**Training.** `services/voice-finetune` on an Azure Container Apps **GPU job**
+(`Consumption-GPU-NC8as-T4`, Tesla T4), image derived from the deployed runtime
+image digest. LoRA r=16, alpha=32, lr 1e-4 cosine with warmup, AdamW,
+`text_loss_weight` 0.1, seed 12345, batch size 1. Targets: the 120 `q/k/v/o_proj`
+projections of the T3 backbone — **3 932 160 trainable parameters of
+539 921 408 (0.728%)**. Corpus: the 5 diarized Sarvam `saaras:v3` turns from
+`first-real-clone`, 62.1 s of the 71.0 s, 29–230 text tokens and 67–590 speech
+tokens each. **140.4 s of T4 wall clock for all 60 epochs (300 steps).**
+Mean speech cross-entropy **5.046 → 1.651**; text CE 2.372 → 1.145.
+
+**Measurement.** Identical protocol to `scripts/first-clone.mjs`, so the numbers
+are directly comparable to `first-real-clone`: the same 4 x 17.75 s reference
+windows, the same four Hinglish lines, the same seeds 31000–31003, the same
+`exaggeration 0.45 / cfg 0.5 / temperature 0.8`, the same live `voice-evidence`
+call, the same `fidelityScore`. **The zero-shot control was re-run in the same
+session** rather than compared against the stored number — otherwise the day,
+the image and the service wake would all sit inside the delta.
+
+### The delta
+
+| arm | mean | p10 / worst | verdict | delta vs zero-shot | share of the gap to the ceiling |
+|---|---|---|---|---|---|
+| zero-shot (control, re-run today) | **0.775278** | 0.747865 | `warn` | — | — |
+| LoRA, 15 epochs | 0.783134 | 0.769145 | `pass` | **+0.0079** | 7.0% |
+| LoRA, 30 epochs | 0.791674 | 0.768346 | `pass` | **+0.0164** | 14.7% |
+| **LoRA, 60 epochs** | **0.795857** | 0.759275 | `pass` | **+0.0206** | **18.4%** |
+| owner vs owner — the ceiling | 0.886850 | 0.879505 | — | — | 100% |
+
+n = 2 independent end-to-end runs per arm, ~25 minutes apart, different
+synthesis requests. Spread across runs: zero-shot 6e-6, e15 3e-6, e30 4e-6,
+e60 1e-6. **The control reproduced `first-real-clone`'s 0.775276 to 2e-6** on a
+different day, a different runtime image and a different revision — which is the
+evidence that these two entries are on the same scale and may be compared.
+
+**A 71-second per-speaker LoRA closes 18.4% of the zero-shot-to-ceiling gap and
+moves the verdict from `warn` to `pass`,** across the 0.78 warn band. It gets
+nowhere near the 0.85 `target`.
+
+### Three things the table does not say
+
+1. **The worst window gets worse while the mean gets better.** p10 peaks at
+   e15 (0.7691) and falls by e60 (0.7593) even as the mean rises monotonically.
+   More training tightened the average and widened the spread. Any decision
+   about how long to train has to look at p10, and 60 epochs is not obviously
+   the right stopping point on this evidence.
+2. **The adapter costs ~26% of synthesis speed.** Warm real-time factor moved
+   from **0.79 zero-shot to 0.99–1.01 adapted** — from comfortably faster than
+   real time to roughly real time. That is a per-utterance latency cost on every
+   adapted call, and it is a cost the zero-shot lane does not pay.
+3. **The e15 and e30 points are not "a completed 15-epoch run".** All three
+   checkpoints come from ONE 60-epoch cosine schedule, so the earlier two were
+   taken mid-anneal at lr 8.8e-5 and 5.2e-5. They describe the curve of this
+   run, not three independently-tuned runs.
+
+### Scope, stated plainly
+
+- **n = 1 speaker.** Everything here is one voice, and it is the owner's.
+- The transcript is Sarvam `saaras:v3` output, which returns **Devanagari for
+  the English half** of this bilingual speech
+  (`romanised-lexicon-meets-devanagari-asr`). The fine-tune therefore learned
+  Hinglish written in one script throughout. Whether that helps or hurts is
+  unmeasured.
+- **No held-out set exists.** Five segments is too few to hold one out and still
+  train, so the loss curve above is training loss and says nothing about
+  generalisation. The fidelity numbers are the only out-of-sample evidence here:
+  the four measured lines are not in the training corpus.
+- Nothing was benched against ElevenLabs, and no ABX ran.
+
+Artifacts: adapters `4ff8ba5c…` (e15), `e6d4c280…` (e30), `e3b45c67…` (e60),
+15 807 634 bytes each; synthesis commitments `81da1cab…`, `57bfc668…`,
+`7e448af7…` versus base `b66dbbe2…`. PerTh watermark verified with score 1.0 on
+all 32 clips across both runs, adapted and not.
+
+## `reference-window-beats-the-finetune` — which 10 s you condition on moves fidelity more than training does (2026-08-26, WS-U)
+
+**Scope line first.** Same ECAPA-cosine gate, same caveats, same subject and
+protocol as `lora-vs-zero-shot-71s`. Every arm here is **ZERO-SHOT** — no
+adapter — so this isolates reference-window choice from fine-tuning entirely.
+
+**Why it was run.** Chatterbox does not use all of a long reference the way the
+caller might assume. Read at the pinned commit `5de7a54`,
+`ChatterboxMultilingualTTS.prepare_conditionals` truncates to
+`DEC_COND_LEN = 10 * S3GEN_SR` for the s3gen decoder reference and
+`ENC_COND_LEN = 6 * S3_SR` for the T3 conditioning prompt tokens — **the first
+10 s and the first 6 s**. Only the voice-encoder speaker embedding sees the
+whole input. So passing 71 s is mostly passing its first ten seconds, and WHICH
+ten seconds becomes a free parameter nobody had measured.
+
+**Method.** Five zero-shot arms, identical in everything but the conditioning
+prompt: the full 71 s, and four 10 s windows starting at 0 s, 25 s, 40 s and
+58 s. The reference side of the score is held **fixed** at the same four
+17.75 s windows of the whole recording for every arm — scoring each arm against
+its own window would move the yardstick and the treatment together. Same four
+lines, same seeds 31000–31003, same style, same live `voice-evidence` call.
+n = 1 run per arm, on a stack whose reproducibility is established at 1e-5 by
+`lora-vs-zero-shot-71s` (and whose full-71 s arm reproduced here to 5e-6 across
+a third independent run).
+
+| conditioning reference | mean | p10 | verdict | vs full 71 s |
+|---|---|---|---|---|
+| **10 s from 25 s** | **0.805756** | 0.784009 | `pass` | **+0.0305** |
+| 10 s from 0 s (what truncation gives you anyway) | 0.782513 | 0.771050 | `pass` | +0.0072 |
+| full 71 s | 0.775273 | 0.747858 | `warn` | — |
+| 10 s from 40 s | 0.769987 | 0.745895 | `warn` | −0.0053 |
+| 10 s from 58 s | 0.743313 | 0.734999 | `warn` | −0.0320 |
+| owner vs owner — the ceiling | 0.886850 | 0.879505 | — | +0.1116 |
+
+### What this says
+
+**Window choice spans 0.0625 on this voice — three times the +0.0206 that
+60 epochs of LoRA bought, at zero training cost and zero inference cost.** The
+best single 10 s window (0.8058) scores **higher than the best fine-tuned arm**
+(0.7959, `lora-vs-zero-shot-71s`), and it does so on the untouched base model.
+
+Two further readings:
+
+- **Handing the model more audio made it worse than handing it the right ten
+  seconds.** The full 71 s arm scores *below* both the 0 s and 25 s windows.
+  "Give it everything" is not a strategy; it is an unexamined default that
+  happens to land on whatever the first ten seconds contain.
+- **A bad window is a real risk, not a theoretical one.** The 58 s window loses
+  0.0320 and stays in `warn`. Two of four windows scored below the full
+  reference. So this is a lever that cuts both ways, and picking windows *at
+  random* would be worse than picking none.
+
+### What this does NOT say
+
+- **The interaction with fine-tuning is unmeasured.** Every arm here is
+  zero-shot. Whether the adapter adds to, overlaps with, or fights the good
+  window is exactly the next experiment and was not run.
+- **n = 1 speaker, and the windows were chosen by clock position, not by any
+  signal.** Nothing here identifies WHAT makes 25–35 s better — SNR, phonetic
+  coverage, pitch range, absence of laughter — so there is no selection *rule*
+  yet, only evidence that one would be worth having. The evidence service
+  already returns per-window SNR and usable-speech; whether either predicts
+  this ranking is untested.
+- Still speaker-embedding cosine, still no ABX, still says nothing about how
+  any of these sound.

@@ -73,6 +73,16 @@ function signedResponse(url, init, mutate = (value) => value) {
     model_commitment: OPEN_CHATTERBOX_MODEL_COMMITMENT,
     perth_watermark_verified: true,
     perth_score: 0.99,
+    // Mirrors services/open-voice-runtime/app.py: adapter fields are echoed
+    // only when one was sent, and the commitment collapses to the base model's
+    // without one.
+    ...(request.adapter_sha256 ? {
+      adapter_id: request.adapter_id,
+      adapter_sha256: request.adapter_sha256,
+    } : {}),
+    synthesis_commitment: request.adapter_sha256
+      ? digest(Buffer.from(`${OPEN_CHATTERBOX_MODEL_COMMITMENT}:lora:${request.adapter_sha256}`))
+      : OPEN_CHATTERBOX_MODEL_COMMITMENT,
   });
   const body = Buffer.from(JSON.stringify(result));
   const path = new URL(url).pathname;
@@ -128,6 +138,69 @@ const badSignature = createOpenChatterboxPreviewProvider({
 });
 await assert.rejects(badSignature.synthesizePreview({ text: "Private preview.", languageId: "en", seed: 1, reference: { bytes: reference } }), /open_voice_response_signature_invalid/);
 ok("unsigned or tampered service responses fail closed", true);
+
+// ── per-speaker adapter seam (WS-U) ──────────────────────────────────────
+// A zero-shot receipt must still carry the BASE commitment and no adapter, or
+// every receipt written before adapters existed silently changes meaning.
+ok("a request without an adapter sends no adapter field and commits to the base model",
+  !Object.keys(observed.request).some((key) => key.startsWith("adapter_")) &&
+  result.receipt.adapterSha256 === null &&
+  result.receipt.synthesisCommitment === OPEN_CHATTERBOX_MODEL_COMMITMENT);
+
+const adapterBytes = Buffer.alloc(4_096, 9);
+const adapterSha = digest(adapterBytes);
+let adapted;
+const adapterProvider = createOpenChatterboxPreviewProvider({
+  env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
+  fetchImpl: async (url, init) => {
+    adapted = signedResponse(url, init);
+    return adapted.response;
+  },
+});
+const adaptedResult = await adapterProvider.synthesizePreview({
+  text: "Namaste, main tumhari private calibration preview hoon.",
+  languageId: "hi", seed: 42,
+  reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000 },
+  adapter: { id: "owner-hinglish-71s", bytes: adapterBytes },
+});
+ok("an adapter crosses the contract content-addressed, inside the signed body",
+  adapted.request.adapter_sha256 === adapterSha &&
+  Buffer.from(adapted.request.adapter_base64, "base64").equals(adapterBytes));
+ok("an adapted request still carries the exact audible disclosure and no identifiers",
+  adapted.request.text.startsWith(`${OPEN_CHATTERBOX_DISCLOSURE} `) &&
+  !Object.keys(adapted.request).some((key) => /(owner|replica|email|provider_ref)/i.test(key)));
+ok("an adapted receipt commits to model AND adapter, not the base model alone",
+  adaptedResult.receipt.adapterSha256 === adapterSha &&
+  adaptedResult.receipt.synthesisCommitment === digest(Buffer.from(`${OPEN_CHATTERBOX_MODEL_COMMITMENT}:lora:${adapterSha}`)) &&
+  adaptedResult.receipt.synthesisCommitment !== OPEN_CHATTERBOX_MODEL_COMMITMENT);
+
+// The failure this exists for: a service that IGNORES the adapter returns
+// perfectly good audio. Without this check a zero-shot clip would be scored as
+// a fine-tuned one and the measured delta would be zero for the wrong reason.
+const droppedAdapter = createOpenChatterboxPreviewProvider({
+  env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
+  fetchImpl: async (url, init) => signedResponse(url, init, (value) => {
+    delete value.adapter_id;
+    delete value.adapter_sha256;
+    value.synthesis_commitment = OPEN_CHATTERBOX_MODEL_COMMITMENT;
+    return value;
+  }).response,
+});
+await assert.rejects(droppedAdapter.synthesizePreview({
+  text: "Private preview.", languageId: "en", seed: 1,
+  reference: { bytes: reference }, adapter: { id: "owner-hinglish-71s", bytes: adapterBytes },
+}), /open_voice_adapter_binding_invalid/);
+ok("a service that silently ignores the adapter fails closed instead of returning zero-shot audio", true);
+
+await assert.rejects(provider.synthesizePreview({
+  text: "Private preview.", languageId: "en", seed: 1,
+  reference: { bytes: reference }, adapter: { id: "NOT a valid id", bytes: adapterBytes },
+}), /open_voice_adapter_id_invalid/);
+await assert.rejects(provider.synthesizePreview({
+  text: "Private preview.", languageId: "en", seed: 1,
+  reference: { bytes: reference }, adapter: { id: "owner-hinglish-71s", bytes: adapterBytes, sha256: "0".repeat(64) },
+}), /open_voice_adapter_hash_mismatch/);
+ok("adapter identity and digest are validated before any GPU is woken", true);
 
 const wrongModel = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },

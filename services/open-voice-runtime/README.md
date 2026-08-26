@@ -47,15 +47,48 @@ This service does not claim quality from its architecture. Promotion requires
 real consented ABX tests for speaker identity, accent, Hinglish, prosody,
 noise robustness, hallucination, latency, and watermark survival.
 
-## Per-expert fine-tuning seam (named, not built)
+## Per-expert fine-tuning seam (BUILT — WS-U, 2026-08-26)
 
 SPEC-GURUKUL.md §8.1 makes this lane the primary voice path and says it is
-"fine-tuned per expert". **No training pipeline exists in this repository and
-none is built here.** Fine-tuning needs GPU budget, a training image, a
-curriculum and a held-out protocol, all of which are future work with an owner
-spend decision in front of them. What exists today is the seam, written down so
-that work lands against a named interface instead of rearchitecting the
-service around itself.
+"fine-tuned per expert". The training pipeline now exists:
+`services/voice-finetune/` produces per-speaker LoRA adapters, this service
+loads them per request, and `services/open-voice-runtime/lora.py` is the single
+implementation both sides share. Read `services/voice-finetune/README.md` for
+the training half.
+
+**Two halves of the seam are built; one is not.** Built: training, transport,
+loading, and the versioned model ref. **Not** built: persistence of that ref
+onto `vy_voice_fidelity`, because a fidelity row still cannot be written at all
+(`context/STATE.md` — it needs a voice profile, which needs `biometric` consent,
+which needs a live human liveness challenge). Everything below marked *lands*
+describes where it lands once that unblocks; nothing below is claiming it does
+today.
+
+### On the wire
+
+`/v1/synthesize` accepts three optional fields — `adapter_id`,
+`adapter_sha256`, `adapter_base64` — and omitting them takes the identical
+pre-adapter code path. The adapter travels **inside the signed body**, so the
+request HMAC that already admits the call covers it: the runtime gains no
+credential, no store, and no second trust path. Every other check is unmoved —
+the disclosure prefix is validated before an adapter is parsed, the PerTh
+watermark is still verified before audio is returned, and the adapter is applied
+around one `generate()` and removed in a `finally` so it cannot leak into the
+next caller's voice on the shared model.
+
+The signed response gains `synthesis_commitment` — the versioned model ref this
+section used to only name:
+
+```
+synthesis_commitment = sha256(f"{MODEL_COMMITMENT}:lora:{adapter_sha256}")
+```
+
+and it collapses to `MODEL_COMMITMENT` exactly when no adapter is in play, so
+every receipt and verifier that predates adapters is untouched. Both sides
+derive it independently and `open-chatterbox-preview.js` fails the call on
+disagreement, so a response that quietly dropped the adapter cannot be mistaken
+for a fine-tuned one — which is precisely the measurement error that would
+destroy a fine-tune-vs-zero-shot delta.
 
 The seam, in one line: **approved evidence set in, versioned model ref out, and
 that model ref flows into the same fidelity gate every other voice passes.**
@@ -70,7 +103,7 @@ that model ref flows into the same fidelity gate every other voice passes.**
   adapter/checkpoint, pinned the way `MODEL_COMMITMENT` pins the base
   checkpoint today (source commit + weights commit, hashed). One expert may have
   many model refs over time; a ref is never reused or mutated in place.
-- **Where it lands.** `voice_model_ref` is a column on `vy_voice_fidelity`
+- **Where it lands** (*not yet wired — see above*). `voice_model_ref` is a column on `vy_voice_fidelity`
   (migration 054). A new model ref supersedes the standing fidelity row for
   that voice profile, so a fine-tune cannot inherit the base model's fidelity
   pass — it is unmeasured until it is measured, and unmeasured never activates.
@@ -85,9 +118,7 @@ that model ref flows into the same fidelity gate every other voice passes.**
   effort, the order in `api/_voice/registry.js` flips back. Measured, not
   assumed.
 
-The synthesis request already carries the shape a model ref would slot into —
-`/v1/synthesize` binds a `model` and `model_commitment` in its signed response
-and `api/_voice/providers/open-chatterbox-preview.js` verifies both against a
-constant. A per-expert model turns that constant into a per-request expected
-value; nothing else in the transport, the HMAC binding, the PerTh verification
-or the PCM contract changes. That is the whole point of naming the seam now.
+That last point still stands and is now the live reversal condition rather than
+a hypothetical: the first measured fine-tuned-vs-zero-shot delta on this stack
+is `context/measurements.md#lora-vs-zero-shot-71s`, and it is a 71-second smoke
+test, far under the ≥30 min the Chatterbox community recommends.

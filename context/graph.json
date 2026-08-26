@@ -2342,6 +2342,54 @@
       "kind": "open",
       "title": "the student surface has no session-open disclosure card; disclosure there rides on a prompt field, not a predicate",
       "at": "2026-08-26"
+    },
+    {
+      "id": "lora-vs-zero-shot-71s",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "a 71 s per-speaker LoRA closes 18.4% of the zero-shot-to-ceiling fidelity gap (0.7753 -> 0.7959, ceiling 0.8869); n=2, spread 1e-5"
+    },
+    {
+      "id": "voice-finetune",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "services/voice-finetune: GPU batch job producing per-speaker LoRA adapters, image derived from the runtime image"
+    },
+    {
+      "id": "adapters-travel-in-the-signed-body",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "an adapter is sent inline and content-addressed inside the request HMAC, not fetched from a store"
+    },
+    {
+      "id": "fine-tuned-synthesis-commits-to-model-and-adapter",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "adapted receipts carry sha256(model:lora:adapter); a silently-ignored adapter fails closed"
+    },
+    {
+      "id": "adapter-init-stole-the-sampling-seed",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "LoRA init drew from the global torch RNG, so the adapted arm sampled a different token stream than its control"
+    },
+    {
+      "id": "finetune-30min-corpus-unmeasured",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "the measured fine-tune used 62.1 s of speech against a >=30 min community recommendation; the production-grade number is unmeasured"
+    },
+    {
+      "id": "reference-window-beats-the-finetune",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "which 10 s of reference you condition on spans 0.0625 ECAPA fidelity - 3x the fine-tune delta, at zero training cost; Chatterbox truncates to the FIRST 10 s / 6 s"
+    },
+    {
+      "id": "reference-window-selection-rule-unknown",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "the best 10 s window wins by 0.03 but nothing identifies WHAT makes it best, so there is no selection rule - only evidence one is worth having"
     }
   ],
   "edges": [
@@ -4424,6 +4472,71 @@
       "src": "journey-is-a-surface-not-a-stack",
       "rel": "blocks",
       "dst": "student-disclosure-has-no-ui"
+    },
+    {
+      "src": "lora-vs-zero-shot-71s",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "lora-vs-zero-shot-71s",
+      "rel": "caused_by",
+      "dst": "first-real-clone"
+    },
+    {
+      "src": "adapters-travel-in-the-signed-body",
+      "rel": "measured_by",
+      "dst": "lora-vs-zero-shot-71s"
+    },
+    {
+      "src": "fine-tuned-synthesis-commits-to-model-and-adapter",
+      "rel": "measured_by",
+      "dst": "lora-vs-zero-shot-71s"
+    },
+    {
+      "src": "adapter-init-stole-the-sampling-seed",
+      "rel": "caused_by",
+      "dst": "lora-vs-zero-shot-71s"
+    },
+    {
+      "src": "adapter-init-stole-the-sampling-seed",
+      "rel": "part_of",
+      "dst": "plausible-return-hides-a-dead-pipeline"
+    },
+    {
+      "src": "finetune-30min-corpus-unmeasured",
+      "rel": "blocks",
+      "dst": "lora-vs-zero-shot-71s"
+    },
+    {
+      "src": "lora-vs-zero-shot-71s",
+      "rel": "constrains",
+      "dst": "fidelity-needs-its-ceiling-printed"
+    },
+    {
+      "src": "voice-finetune",
+      "rel": "part_of",
+      "dst": "voice-lane-live"
+    },
+    {
+      "src": "reference-window-beats-the-finetune",
+      "rel": "part_of",
+      "dst": "voice-lane-live"
+    },
+    {
+      "src": "reference-window-beats-the-finetune",
+      "rel": "caused_by",
+      "dst": "lora-vs-zero-shot-71s"
+    },
+    {
+      "src": "reference-window-selection-rule-unknown",
+      "rel": "blocks",
+      "dst": "reference-window-beats-the-finetune"
+    },
+    {
+      "src": "reference-window-beats-the-finetune",
+      "rel": "constrains",
+      "dst": "finetune-30min-corpus-unmeasured"
     }
   ]
 }

@@ -10,7 +10,19 @@ const MODEL_COMMITMENT = sha256Hex("chatterbox-multilingual-v3:5de7a54aa4e5e2baa
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LANGUAGES = new Set(["ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh"]);
 const MAX_REFERENCE_BYTES = 20 * 1024 * 1024;
+// Matches services/open-voice-runtime/app.py: an r=16 LoRA over the 120 T3
+// attention projections is 3.93 M fp32 parameters = 15.8 MB.
+const MAX_ADAPTER_BYTES = 20 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 24 * 1024 * 1024;
+const ADAPTER_ID = /^[a-z0-9][a-z0-9_-]{2,63}$/;
+
+// What actually produced the audio. Mirrors `lora.synthesis_commitment` in
+// services/open-voice-runtime/lora.py; the two are checked against each other
+// on every adapted response, so a drift between them fails the call rather
+// than silently issuing a receipt for a network that did not run.
+function synthesisCommitment(adapterSha256) {
+  return adapterSha256 ? sha256Hex(`${MODEL_COMMITMENT}:lora:${adapterSha256}`) : MODEL_COMMITMENT;
+}
 
 function fail(code, status = 503) {
   throw Object.assign(new Error(code), { code, status });
@@ -66,11 +78,25 @@ function inputValue(raw) {
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 2_147_483_647) fail("open_voice_seed_invalid", 400);
   const renderedText = renderTextWithDisclosure(raw?.text);
   if (renderedText.length > 700) fail("open_voice_preview_text_too_large", 413);
+  // The per-speaker adapter is optional and every check on it is the same
+  // shape as the reference's: bounded, content-addressed, and rejected here
+  // rather than at the GPU. Omitting it takes the pre-adapter code path.
+  let adapter = null;
+  if (raw?.adapter) {
+    const bytes = Buffer.from(raw.adapter.bytes || []);
+    if (!bytes.length || bytes.length > MAX_ADAPTER_BYTES) fail("open_voice_adapter_size_invalid", 413);
+    const adapterSha256 = createHash("sha256").update(bytes).digest("hex");
+    if (raw.adapter.sha256 && raw.adapter.sha256 !== adapterSha256) fail("open_voice_adapter_hash_mismatch", 409);
+    const id = String(raw.adapter.id || "").toLowerCase();
+    if (!ADAPTER_ID.test(id)) fail("open_voice_adapter_id_invalid", 400);
+    adapter = Object.freeze({ id, bytes, sha256: adapterSha256 });
+  }
   return Object.freeze({
     requestId: UUID.test(String(raw?.requestId || "")) ? String(raw.requestId).toLowerCase() : randomUUID(),
     reference,
     referenceSha256,
     referenceDurationMs: probe.durationMs,
+    adapter,
     language,
     seed,
     renderedText,
@@ -100,6 +126,11 @@ async function remote(config, value, fetchImpl, signal) {
     exaggeration: value.exaggeration,
     cfg_weight: value.cfgWeight,
     temperature: value.temperature,
+    ...(value.adapter ? {
+      adapter_id: value.adapter.id,
+      adapter_sha256: value.adapter.sha256,
+      adapter_base64: value.adapter.bytes.toString("base64"),
+    } : {}),
   };
   const body = Buffer.from(canonicalJson(payload));
   const bodyHash = sha256Hex(body);
@@ -143,6 +174,17 @@ function verifiedResult(result, value) {
       !Number.isFinite(Number(result?.perth_score)) || Number(result.perth_score) < 0.5) {
     fail("open_voice_response_binding_invalid");
   }
+  // The adapter binding is checked with exactly the strictness of the model
+  // binding above: the service must report back the same adapter it was sent,
+  // and the commitment must be the one both sides derive independently. A
+  // response that quietly dropped the adapter would otherwise be indistinguish-
+  // able from a fine-tuned one — which is precisely the measurement error a
+  // fine-tune-vs-zero-shot delta cannot survive.
+  if ((result?.adapter_sha256 ?? null) !== (value.adapter?.sha256 ?? null) ||
+      (result?.adapter_id ?? null) !== (value.adapter?.id ?? null) ||
+      result?.synthesis_commitment !== synthesisCommitment(value.adapter?.sha256 || null)) {
+    fail("open_voice_adapter_binding_invalid");
+  }
   const pcm = Buffer.from(String(result.audio_base64 || ""), "base64");
   if (!pcm.length || pcm.length % 2 || pcm.length > MAX_RESPONSE_BYTES || sha256Hex(pcm) !== result.output_sha256)
     fail("open_voice_audio_binding_invalid");
@@ -158,6 +200,9 @@ function verifiedResult(result, value) {
       requestId: value.requestId,
       model: PROVIDER_NAME,
       modelCommitment: MODEL_COMMITMENT,
+      adapterId: value.adapter?.id || null,
+      adapterSha256: value.adapter?.sha256 || null,
+      synthesisCommitment: synthesisCommitment(value.adapter?.sha256 || null),
       referenceSha256: value.referenceSha256,
       outputSha256: result.output_sha256,
       durationMs: Number(result.duration_ms),
