@@ -2037,3 +2037,50 @@ create table if not exists vy_teacher_sheet (
 create index if not exists vy_teacher_sheet_agent_status_ix on vy_teacher_sheet (agent_id, status, published_at desc);
 create unique index if not exists vy_teacher_sheet_one_published_ix on vy_teacher_sheet (agent_id) where status = 'published';
 create index if not exists vy_teacher_sheet_agent_recent_ix on vy_teacher_sheet (agent_id, created_at desc);
+
+-- Migration 053 - the stays-current loop (SPEC-GURUKUL.md §8 item 3). No FKs
+-- (009's convention, restated by 051). `oauth_grant_ref` is a uuid because an
+-- OAuth token cannot be cast into one - the column type is the guarantee that
+-- a credential never lands in a table that gets selected, logged and joined.
+create table if not exists vy_channel_watch (
+  watch_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  channel_url text not null,
+  provider text not null default 'youtube' check (provider in ('youtube')),
+  oauth_grant_ref uuid,
+  last_seen_video_id text not null default '',
+  last_checked_at timestamptz,
+  status text not null default 'active' check (status in ('active','paused','revoked')),
+  created_at timestamptz not null default now()
+);
+create unique index if not exists vy_channel_watch_one_active_ix on vy_channel_watch (replica_id) where status = 'active';
+create index if not exists vy_channel_watch_sweep_ix on vy_channel_watch (status, last_checked_at asc);
+create index if not exists vy_channel_watch_owner_ix on vy_channel_watch (owner_user_id, replica_id);
+
+-- One row per video, forever. The unique index below IS the idempotence law
+-- ("the same video is never double-ingested"), not a performance hint. The
+-- approval gate CHECK is SPEC §8's "never silent self-update of a live
+-- persona" written as a predicate: 'applied' is unreachable without a named
+-- approver and a decision time.
+create table if not exists vy_ingest_run (
+  run_id uuid primary key,
+  replica_id uuid not null,
+  owner_user_id uuid not null,
+  watch_id uuid,
+  video_ref text not null,
+  transcript_source text not null check (transcript_source in ('asr','captions','upload')),
+  stats jsonb not null default '{}'::jsonb,
+  proposed_delta jsonb not null default '{}'::jsonb,
+  proposed_delta_count integer not null default 0 check (proposed_delta_count >= 0),
+  status text not null default 'fetched' check (status in ('fetched','transcribed','proposed','applied','rejected','failed')),
+  failure_code text not null default '',
+  approved_by_user_id uuid,
+  decided_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint vy_ingest_run_approval_gate check (status <> 'applied' or (approved_by_user_id is not null and decided_at is not null))
+);
+create unique index if not exists vy_ingest_run_video_ix on vy_ingest_run (replica_id, video_ref);
+create index if not exists vy_ingest_run_owner_recent_ix on vy_ingest_run (owner_user_id, replica_id, created_at desc);
+create index if not exists vy_ingest_run_review_ix on vy_ingest_run (replica_id, status, created_at desc);
