@@ -2108,6 +2108,42 @@
       "kind": "measurement",
       "at": "2026-08-26",
       "title": "3 unexecutable statements before / 0 after by EXPLAIN; manifest coverage 61 -> 89 tables seen, 4 gaps -> 0"
+    },
+    {
+      "id": "youtube-extraction-in-house",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "extract a teacher's own YouTube audio in-house, gated on an attested consent artifact; copyright permission obtained from the rights holder, residual ToS exposure named"
+    },
+    {
+      "id": "media-extract-service",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "services/media-extract - CPU-only Container App wrapping a pinned yt-dlp; audio only, 16 kHz mono WAV, streamed to a pre-signed upload target"
+    },
+    {
+      "id": "channel-ownership-attestation",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "vy_channel_attestation (migration 057) + api/_channel-watch.js - the consent artifact and the four-layer extraction gate"
+    },
+    {
+      "id": "tos-permission-is-not-copyright-permission",
+      "kind": "constraint",
+      "at": "2026-08-26",
+      "title": "only copyright permission is ours to obtain; a teacher cannot grant YouTube's, so a residual contractual exposure remains and must be stated wherever the lane is described"
+    },
+    {
+      "id": "extraction-success-from-datacenter-egress-unmeasured",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "no extraction has run against real YouTube from the Azure deployment; datacenter IP ranges are documented as returning LOGIN_REQUIRED before any stream URL"
+    },
+    {
+      "id": "pinned-extractor-has-an-expiry",
+      "kind": "constraint",
+      "at": "2026-08-26",
+      "title": "yt-dlp==2026.8.19 must be bumped on any signature/PO-token/bot-check failure and monthly at minimum, and never unpinned - extractor_version is what makes two corpora comparable"
     }
   ],
   "edges": [
@@ -3920,6 +3956,36 @@
       "src": "owner-lane-erasure-is-not-the-person-manifest",
       "rel": "measured_by",
       "dst": "ws-r-statement-shape-and-coverage"
+    },
+    {
+      "src": "media-extract-service",
+      "rel": "part_of",
+      "dst": "channel-ownership-attestation"
+    },
+    {
+      "src": "media-extract-service",
+      "rel": "caused_by",
+      "dst": "youtube-extraction-in-house"
+    },
+    {
+      "src": "channel-ownership-attestation",
+      "rel": "caused_by",
+      "dst": "youtube-extraction-in-house"
+    },
+    {
+      "src": "youtube-extraction-in-house",
+      "rel": "constrains",
+      "dst": "tos-permission-is-not-copyright-permission"
+    },
+    {
+      "src": "youtube-extraction-in-house",
+      "rel": "blocks",
+      "dst": "extraction-success-from-datacenter-egress-unmeasured"
+    },
+    {
+      "src": "media-extract-service",
+      "rel": "constrains",
+      "dst": "pinned-extractor-has-an-expiry"
     }
   ]
 }

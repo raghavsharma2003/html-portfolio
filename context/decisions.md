@@ -3579,3 +3579,92 @@ in `PERSON_TABLES`. And if a replica-lane table is ever added that holds only
 Postgres-local content with no outside pointer, the stranding argument does not
 apply to it and it may join the manifest — the argument is about pointers, not
 about the prefix.
+
+## `youtube-extraction-in-house` — we extract a teacher's own audio, gated on an attested consent artifact (2026-08-26)
+
+WS-S. `api/_channel/providers/youtube-oauth.js`'s `fetchAudio` was an honest
+refusal — the YouTube Data API genuinely has no download endpoint, and
+`captions.download` returns only MANUALLY-uploaded caption tracks, never the
+auto-generated ones. That was correct about the facts and wrong about the
+conclusion: it treated a **ToS** question as if it were the whole legal
+question. The owner directed (2026-08-26, verbatim substance: *"get that
+YouTube thing working correctly. We will obviously take the consent of the user
+that it's their channel only"*) that we solve it in-house, and independently
+arrived at the same consent posture the brief specified.
+
+**The distinction the whole decision rests on.** Copyright permission and ToS
+permission are different things. Copyright permission comes from the **rights
+holder** — for a teacher's own lectures, the teacher — and covers making and
+using a copy; it is the permission with statutory damages attached. ToS
+permission comes from **YouTube** and nobody else can grant it. **Only the
+first is ours to obtain, and it is the large one.** So: we extract on copyright
+permission obtained from the rights holder, and we accept a residual
+**contractual** exposure to YouTube that no permission we can collect
+eliminates. The remedies for that residual are account action or a civil
+breach-of-contract claim, not copyright damages. Sources and dates in
+`docs/gurukul/youtube-extraction-posture.md` §5; **not reviewed by a lawyer**,
+and that page says so in those words.
+
+**Why the gate is four layers and not a checkbox.** The property being
+protected is "this is not a general-purpose downloader", and
+`gate0-structural` is the governing measurement (prompt instructions leaked
+57-98%; the SQL predicate leaked 0 of 31,122). So:
+
+1. `createChannelWatch` INSERTs its row by SELECTing from a live attestation —
+   a watch cannot exist for an unattested channel;
+2. `attestationForWatch` joins on `attestation_id` AND `channel_url` AND
+   `owner_user_id` with `revoked_at is null and expires_at > now()` — a
+   pre-057 row with a NULL `attestation_id` matches nothing, so old rows fail
+   closed rather than being grandfathered;
+3. the provider refuses without an envelope and re-checks channel identity;
+4. the SERVICE takes an 11-character video id (a URL cannot be expressed),
+   resolves the video's uploader from YouTube's own metadata *before
+   downloading a byte*, and refuses on `channel_binding_mismatch`. It will also
+   PUT to exactly one configured host and refuses to start without one.
+
+**Migration 057 chose a new table over a new `vy_replica_consent` scope**, and
+the reason is a key, not a preference: that table is keyed by SCOPE — a verb —
+and this permission needs the OBJECT of the verb (`channel_url`) to be a column
+a WHERE clause can name. A channel URL in `metadata jsonb` cannot be uniquely
+indexed per-channel and cannot be joined against `vy_channel_watch.channel_url`.
+The receipt CONSTRUCTION is reused verbatim in shape (canonical JSON → sha256,
+named `statement_set`, granted/expires/revoked, revoked rows kept).
+
+**The safest lane still runs first, with no flag.** `transcriptFor` tries owner
+OAuth captions before extraction on every video, so on any video where the
+sanctioned path works, extraction never happens. Direct upload remains the
+zero-exposure lane. Extraction exists because captions cover a small minority
+of an hour-long Hinglish lecture corpus and because a caption file has no
+audio — words without the person.
+
+**It also closed WS-M's gap:** nothing in `api/` ever INSERTed into
+`vy_channel_watch`, so the stays-current loop had a worker, a cron, a schema and
+a review UI and no way to be started. `api/channel-watch.js` starts it, behind
+the same gate. And a second cursor (`backfill_after_video_id`, oldest-first,
+resumable, subordinate to the forward lane) reaches the back catalogue, which
+is the corpus the owner is actually after.
+
+**NOT established: that this works against real YouTube.** No extraction has
+been run from the deployment. The sources say datacenter IP ranges
+(Azure included) get `LOGIN_REQUIRED` at the player API before any stream URL
+is returned, so the honest expectation is a material chance the first live
+attempt returns `channel_extract_extractor_bot_check`. Every such failure is a
+typed `vy_ingest_run.failure_code`, and the levers (`MEDIA_EXTRACT_COOKIES_FILE`,
+`MEDIA_EXTRACT_PROXY`, `MEDIA_EXTRACT_PLAYER_CLIENTS`) are wired and off.
+
+**Reverses if:** (a) a lawyer reviewing §1-2 of the posture doc says the
+residual ToS exposure is not acceptable at multi-teacher scale — in which case
+the lane is disabled by removing two env vars, with no code change, and the
+product falls back to captions + direct upload; (b) measured extraction success
+from the deployed egress stays below roughly half after cookies, a proxy and a
+player-client change have all been tried, at which point the cost of the lane
+exceeds what it returns and teacher-side export becomes the honest ask; or
+(c) YouTube ships a sanctioned owner-download API, which would make this whole
+service obsolete and should retire it rather than sit beside it.
+
+**A pinned extractor is a pin with an expiry.** `yt-dlp==2026.8.19`, and
+`services/media-extract/README.md` §"Update policy" is the procedure: bump on
+any `extractor_signature_failed` / `extractor_po_token_required` /
+`extractor_bot_check`, monthly at minimum, never unpin —
+`vy_ingest_run.stats.extractor_version` records the version precisely so two
+corpora stay comparable.

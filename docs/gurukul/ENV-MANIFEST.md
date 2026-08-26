@@ -204,6 +204,38 @@ by the standalone worker's own copy of this same file (§20).
 | `VOICE_EVIDENCE_MAX_AUDIO_BYTES` | `api/_replica-processing/providers/azure-voice-evidence.js:30` | optional | defaults to `33_554_432` | none |
 | `VOICE_EVIDENCE_TIMEOUT_MS` | `api/_replica-processing/providers/azure-voice-evidence.js:31` | optional | defaults to `600_000` (10 min) | none |
 
+## 10b. In-house YouTube audio extraction — client side (`vercel-app`)
+
+`api/_channel/media-extract-client.js` — the app's client of the standalone
+`media-extract` service (§17b), constructed by `api/_channel/registry.js` and
+reached only through `api/_channel/providers/youtube-extract.js`.
+
+**Selection is by PRESENCE, not by a flag.** There is no `USE_EXTRACTION`
+variable and there deliberately is not one: with `AZURE_MEDIA_EXTRACT_ORIGIN`
+and `MEDIA_EXTRACT_HMAC_SECRET` both set, the registry returns the composing
+provider (OAuth listing + captions + extraction); with either missing it
+returns the plain OAuth provider, whose `fetchAudio` is an honest typed
+refusal. A missing extraction service degrades to *cannot*, never to *silently
+allowed*.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `AZURE_MEDIA_EXTRACT_ORIGIN` | `api/_channel/media-extract-client.js:50` | required *for the extraction lane* | absent → registry returns the OAuth-only provider (lane disabled, not broken); present-but-invalid → throws `media_extract_origin_invalid` | back-catalogue import and audio-lane ingestion; captions ingestion is unaffected |
+| `MEDIA_EXTRACT_HMAC_SECRET` | `api/_channel/media-extract-client.js:70` (via `secretBytes`) | required *for the extraction lane* | absent → lane disabled; too short → throws `media_extract_hmac_secret_required` (min 32 bytes decoded) | same |
+| `MEDIA_EXTRACT_TIMEOUT_MS` | `api/_channel/media-extract-client.js:56` | optional | defaults `1_800_000` (30 min); clamped 60 s–60 min | none |
+| `MEDIA_EXTRACT_MAX_DURATION_MS` | `api/_channel/media-extract-client.js:64` | optional | defaults `14_400_000` (4 h); clamped 1 min–6 h | none — this is the app-side ceiling; the service enforces its own |
+
+`MEDIA_EXTRACT_HMAC_SECRET` appears **twice** in this manifest, here and in
+§17b, and per this file's opening rule those are **two independent settings in
+two independent deployments that happen to share a name**. They must hold the
+same value for the transport to verify, and setting one does not set the other.
+
+The extraction lane also needs the §12 storage stack: the service is handed a
+pre-signed upload URL minted by `api/_replica-storage.js`'s
+`createSignedReplicaUpload`, so `SUPABASE_URL` /
+`SUPABASE_SERVICE_ROLE_KEY` / `REPLICA_STORAGE_BUCKET` are prerequisites. The
+service never holds a storage credential of its own.
+
 ## 11. Voice evidence spend fencing — fast transcription (`vercel-app` + `processing-worker`)
 
 `api/_provider-budget.js`'s `reserveAzureFastTranscriptionSpend` (function
@@ -516,6 +548,34 @@ The application plane's `AZURE_OPEN_VOICE_ORIGIN` (§9) must point at the
 point it at the private `OPEN_VOICE_RUNTIME_ORIGIN` (that's the broker→GPU
 hop, not the app→broker hop).
 
+## 19b. media-extract — standalone CPU service (`media-extract`)
+
+`services/media-extract/app.py`. The only service in this manifest that needs
+**no GPU** — it shells out to a pinned `yt-dlp` and `ffmpeg`, so it runs on the
+plain Consumption profile at `minReplicas: 0` and costs close to nothing idle.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `MEDIA_EXTRACT_HMAC_SECRET` | `app.py` (`_startup` via `_secret()`) | required | `RuntimeError` at startup if unset or under 32 bytes | service fails to start |
+| `MEDIA_EXTRACT_UPLOAD_HOST` | `app.py` (`_startup`) | required | `RuntimeError` `media_extract_upload_host_required` | service fails to start. This is the ONLY host the service may PUT extracted audio to; a request naming any other host is refused `upload_host_forbidden`, so a signed request from the app plane still cannot redirect a teacher's lecture anywhere else |
+| `MEDIA_EXTRACT_MAX_DURATION_SECONDS` | `app.py` (module scope) | optional | defaults `14400` (4 h), clamped 60 s–6 h | none |
+| `MEDIA_EXTRACT_MAX_AUDIO_BYTES` | `app.py` (module scope) | optional | defaults `268435456` (256 MB), clamped 1 MB–512 MB | none |
+| `MEDIA_EXTRACT_TIMEOUT_SECONDS` | `app.py` (module scope) | optional | defaults `1800`, clamped 60–3600 | none |
+| `MEDIA_EXTRACT_WORK_DIR` | `app.py` (`_startup`) | optional | defaults `/scratch` | media is written per-request to a temp dir under this root and removed in a `finally`; a non-writable path fails at startup |
+| `MEDIA_EXTRACT_COOKIES_FILE` | `app.py` (`_common_args`) | optional | unset → no `--cookies` flag; set but missing on disk → also ignored, deliberately, so a rotated-out cookie file degrades rather than crashes | the lever for `extractor_bot_check` from a datacenter IP |
+| `MEDIA_EXTRACT_PROXY` | `app.py` (`_common_args`) | optional | unset → direct egress | the lever for the datacenter-IP block (§3 of `youtube-extraction-posture.md`) |
+| `MEDIA_EXTRACT_PLAYER_CLIENTS` | `app.py` (`_common_args`) | optional | unset → yt-dlp defaults | passed as `youtube:player_client=…`; the lever for PO-token enforcement |
+
+`MEDIA_EXTRACT_HMAC_SECRET` is this service's **own copy** of the value the app
+plane holds under the same name (§10b). Same name, two independent settings,
+and they must match for the transport to verify.
+
+The service receives **no** account, replica, person, owner or transcript id —
+only a video id, an attestation envelope (receipt hash + channel key + expiry),
+a duration ceiling and a pre-signed upload URL. It is told what was permitted,
+never who permitted it, which is `services/voice-evidence`'s rule and the
+reason it can be a service rather than a privileged part of the app.
+
 ## 20. processing-worker — standalone Container Apps Job (`processing-worker`)
 
 `services/replica-processing-worker/run-once.js` (entry point, via
@@ -660,6 +720,37 @@ No `*_LIMITED_ACCESS_APPROVED`, no `*_ENABLED` flags gated on Microsoft
 anywhere in this subset — everything here is `AZURE_` in *hostname* only
 (the compute happens to sit on Azure Container Apps), not in *approval
 status*.
+
+### (b2) + in-house YouTube ingestion — no Microsoft approvals, no GPU
+
+Adds the stays-current loop's ability to reach a teacher's own back catalogue.
+Requires deploying one more standalone service (`media-extract`), which is
+**CPU-only** and therefore the cheapest thing in the deployment: plain
+Consumption profile, `minReplicas: 0`, no GPU quota involved at all.
+
+Vercel app additions:
+```
+AZURE_MEDIA_EXTRACT_ORIGIN
+MEDIA_EXTRACT_HMAC_SECRET
+MEDIA_EXTRACT_TIMEOUT_MS           (optional)
+MEDIA_EXTRACT_MAX_DURATION_MS      (optional)
+YOUTUBE_OAUTH_CLIENT_ID            (pre-existing; the lane composes over it)
+YOUTUBE_OAUTH_CLIENT_SECRET        (pre-existing)
+CRON_SECRET                        (pre-existing; the sweep 401s silently without it)
+```
+
+`media-extract` service env: `MEDIA_EXTRACT_HMAC_SECRET` (its own copy),
+`MEDIA_EXTRACT_UPLOAD_HOST` (**required** — the single host the service may PUT
+to; it refuses to start without it), `MEDIA_EXTRACT_MAX_DURATION_SECONDS`
+(optional), `MEDIA_EXTRACT_MAX_AUDIO_BYTES` (optional),
+`MEDIA_EXTRACT_TIMEOUT_SECONDS` (optional), `MEDIA_EXTRACT_WORK_DIR`
+(optional), `MEDIA_EXTRACT_COOKIES_FILE` (optional),
+`MEDIA_EXTRACT_PROXY` (optional), `MEDIA_EXTRACT_PLAYER_CLIENTS` (optional).
+
+The three optional ones at the end are the levers for the datacenter-IP,
+PO-token and bot-check problems documented in
+`docs/gurukul/youtube-extraction-posture.md` §3. All are off by default and
+none of them is needed for the service to start.
 
 ### (c) + Azure Personal Voice + identity/liveness — the full, approval-gated stack
 
