@@ -1189,7 +1189,12 @@
   .evidence-panel {
     position: relative;
     display: grid;
-    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    /* The 58px rail is for a `.panel-index` child. WS-AE removed those index
+       numbers (DESIGN-LAW bans numbering eyebrows) and this grid kept
+       reserving their column, so every panel squeezed its content into 58px
+       and wrapped one word per line. Reserve the rail only when the child is
+       really there. */
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: rgba(255, 254, 249, 0.68);
@@ -1550,7 +1555,12 @@
   .liveness-section {
     position: relative;
     display: grid;
-    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    /* The 58px rail is for a `.panel-index` child. WS-AE removed those index
+       numbers (DESIGN-LAW bans numbering eyebrows) and this grid kept
+       reserving their column, so every panel squeezed its content into 58px
+       and wrapped one word per line. Reserve the rail only when the child is
+       really there. */
     margin-top: 12px;
     border: 1px solid rgba(23, 73, 59, 0.18);
     border-radius: var(--radius);
@@ -1666,7 +1676,12 @@
 
   .official-face-gate {
     display: grid;
-    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    /* The 58px rail is for a `.panel-index` child. WS-AE removed those index
+       numbers (DESIGN-LAW bans numbering eyebrows) and this grid kept
+       reserving their column, so every panel squeezed its content into 58px
+       and wrapped one word per line. Reserve the rail only when the child is
+       really there. */
     align-items: start;
     gap: 17px;
     margin-top: 16px;
@@ -2609,7 +2624,12 @@
 
 .identity-section {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+    /* The 58px rail is for a `.panel-index` child. WS-AE removed those index
+       numbers (DESIGN-LAW bans numbering eyebrows) and this grid kept
+       reserving their column, so every panel squeezed its content into 58px
+       and wrapped one word per line. Reserve the rail only when the child is
+       really there. */
   margin-top: 28px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -3367,4 +3387,18 @@
     .new-replica:active,
     .wizard-step:active { transform: none; }
   }
+}
+
+/* ── the index rail exists only when its element does ────────────────────────
+   Paired with the single-column defaults above. A panel that still renders a
+   `.panel-index` gets its rail back; a panel that does not keeps its full
+   width. Written with :has so the CSS follows the DOM rather than a memory of
+   what the DOM used to contain. */
+.consent-panel:has(> .panel-index),
+.evidence-panel:has(> .panel-index),
+.liveness-section:has(> .panel-index),
+.official-face-gate:has(> .panel-index),
+.identity-section:has(> .panel-index),
+.processing-review:has(> .panel-index) {
+  grid-template-columns: 58px minmax(0, 1fr);
 }
