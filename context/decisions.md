@@ -3859,3 +3859,26 @@ produced a unanimous measured "switch" and a correct human "no".
 sounds. No human has listened through this bench. The instrument is verified
 mechanically — including a simulated perfect discriminator and a simulated coin
 flip being reported differently — and mechanically only.
+
+## `owner-intent-is-the-spec` — the owner states intent; the platform fills every gap at a no-compromise bar (2026-08-26, owner directive)
+
+**The directive, in substance.** The owner will state intent, not requirements
+("i'm obviously not mentioning everything"). Everything around an intent —
+product shape, tech choices, design, UX, flows, states, copy — is this
+project's to figure out and to figure out WELL. Three explicit quality poles:
+(1) voice + human-ness cracked "like no one in the industry"; (2) UI/UX/product
+flow "amazing and very well thought out"; (3) no compromises, restated. This
+extends the founding "speed and quality are never traded away" from execution
+quality to PRODUCT quality: an unpolished-but-working flow is now a defect,
+not a milestone.
+
+**What it changes in practice.** Every workstream brief must cover the
+product/UX half of its feature, not just the mechanism: honest states, copy,
+flow position, and how it composes with the rest of the journey. A feature
+that lands mechanically complete but experientially rough is HALF-DONE and
+stays on the open list. The studio's journey (land → sign in → create →
+upload → consent → sheet → preview → mirror call → deploy) is a single
+product surface and needs a coherence owner, not per-feature patches.
+
+**What would reverse this.** Only the owner narrowing it. A cost or deadline
+pressure does not — the owner has pre-answered that trade twice.

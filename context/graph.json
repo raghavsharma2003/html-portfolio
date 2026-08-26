@@ -2246,6 +2246,12 @@
       "kind": "decision",
       "title": "legacy forget lane widened from device to person; verified live with negative controls",
       "at": "2026-08-26"
+    },
+    {
+      "id": "owner-intent-is-the-spec",
+      "kind": "decision",
+      "title": "owner states intent; platform fills every gap \u2014 product/UX quality is a hard bar, not polish",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4198,6 +4204,11 @@
       "src": "explain-is-the-only-parser-we-have",
       "rel": "constrains",
       "dst": "forget-follows-the-person"
+    },
+    {
+      "src": "owner-intent-is-the-spec",
+      "rel": "constrains",
+      "dst": "gurukul-founding"
     }
   ]
 }
