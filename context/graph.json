@@ -2306,6 +2306,24 @@
       "kind": "decision",
       "title": "platform is for everyone: any context in, exact human clone out; edtech stays the first vertical",
       "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-approval-is-the-tap",
+      "kind": "decision",
+      "title": "the Call tab renders a delta chip as applied only on a server accept ack - no optimistic accept, and the end-of-call sweep defers rather than applies",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-ui",
+      "kind": "component",
+      "title": "the Mirror Call studio surface: MirrorCallStudio + mirrorCallMachine + mirrorCallApi + callCapture, gated by evals/mirrorcall.mjs",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "mirror-call-contract-unverified",
+      "kind": "open",
+      "title": "the client contract in mirrorCallApi.ts has never spoken to a running api/mirror-call.js - WS-X's branch was not on origin when the UI landed",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4348,6 +4366,31 @@
       "src": "owner-intent-is-the-spec",
       "rel": "constrains",
       "dst": "horizontal-platform-reweight"
+    },
+    {
+      "src": "mirror-call-ui",
+      "rel": "caused_by",
+      "dst": "mirror-call-approval-is-the-tap"
+    },
+    {
+      "src": "clone-initiative-record-has-no-absence",
+      "rel": "constrains",
+      "dst": "mirror-call-ui"
+    },
+    {
+      "src": "fidelity-needs-its-ceiling-printed",
+      "rel": "constrains",
+      "dst": "mirror-call-ui"
+    },
+    {
+      "src": "earbench-is-the-listening-instrument",
+      "rel": "constrains",
+      "dst": "mirror-call-ui"
+    },
+    {
+      "src": "mirror-call-ui",
+      "rel": "blocks",
+      "dst": "mirror-call-contract-unverified"
     }
   ]
 }

@@ -118,6 +118,22 @@ service response, not a claim.
   connected until a secret store is configured (`CHANNEL_SECRET_BACKEND`
   defaults to `none` and refuses). No byte has left this process on any wire.
   Instagram DM is deliberately NOT built — `docs/gurukul/INSTAGRAM-DM-GAP.md`.
+- **Mirror Call** (WS-Y, the Call tab): the studio surface is code-complete and
+  gated offline (`evals/mirrorcall.mjs`, 63 checks, wired into `evals/run.mjs`)
+  — connect/end, ≤30s cascade windows, live captions, TWO labelled fidelity
+  meters (measurement vs the ~10s conditioning window, per WS-Z's Chatterbox
+  code read), a delta-chip rail capped at three chips a minute with each chip
+  carrying its evidence count, per-turn 👍/👎 with an "I'd say it like this"
+  re-record, and
+  honest states for GPU warming / dropped ASR windows / an absent backend. What
+  is NOT true of it: it has never spoken to a running `api/mirror-call.js` —
+  WS-X's branch was not on origin when it landed
+  (`mirror-call-contract-unverified`) — and the microphone, the multipart
+  ingest and the audio playback have never run in a browser here. The screen
+  renders its own "backend not deployed" state rather than a mock, so the
+  untested half fails visibly rather than convincingly. Contract to satisfy:
+  `src/studio/mirrorCallApi.ts`, which is the only file in the UI that knows a
+  route or a JSON key.
 - **Fidelity thresholds**: still provisional and nothing is benched against
   ElevenLabs — but they now have one real anchor. On the owner's own voice the
   self-vs-self ceiling is 0.8869, so the 0.85 `target` sits just under the best

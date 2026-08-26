@@ -4082,3 +4082,95 @@ exports) feeding the Person Model. That lane is now on the build list.
 **What would reverse this.** Only the owner narrowing it. Evidence that the
 horizontal surface dilutes the vertical's quality would trigger a sequencing
 conversation with the owner, not a silent narrowing.
+---
+
+## `mirror-call-approval-is-the-tap` — the Call tab renders a delta as applied only on a server ack (2026-08-26, WS-Y)
+
+**The decision.** The Mirror Call studio UI (`src/studio/MirrorCallStudio.tsx`,
+`mirrorCallMachine.ts`, `mirrorCallApi.ts`, `callCapture.ts`) treats a delta chip
+as APPLIED under exactly one condition: the server acknowledged an accept and
+said the delta landed. Tapping accept renders "Applying...", never "Applied". A
+failed accept returns the chip to actionable. At call end every un-actioned chip
+is swept to `deferred` and shown, on screen, in a "Review later" tab that states
+in its own copy that nothing in it was applied.
+
+**Why this and not the obvious implementation.** The friendly version is an
+optimistic accept — show it applied, reconcile with the server later — and it is
+wrong for this specific screen. `MIRROR-CALL-SPEC.md` §laws: "the owner being
+present and authenticated IS the approval channel, but presence alone is not
+approval — the tap is." An optimistic accept makes the UI claim a sheet change
+the server may have refused, which is SPEC-GURUKUL §8 item 3's silent
+self-update wearing a checkmark. The property is fuzz-gated in
+`evals/mirrorcall.mjs` (4000 pseudo-random event sequences, deterministic seed)
+with its own negative control: a reducer that trusts the tap is run against the
+same property and must fail it.
+
+*Reverses if* the accept round-trip ever becomes slow enough that the honest
+"Applying..." state reads as broken — and the fix then is a faster ack, not a
+truer-looking chip. It does not reverse for a nicer interaction.
+
+**The other five choices worth naming.**
+
+1. **One client-contract file.** `src/studio/mirrorCallApi.ts` is the only file
+   in the UI that knows a route, a JSON key or a wire shape. WS-X was building
+   `api/mirror-call.js` on a parallel branch that did not exist on origin when
+   this landed, so reconciliation had to be a single-file change rather than a
+   grep across a component tree. *Reverses if* the contract stabilises and the
+   indirection stops paying for itself — but the cost is one import, so this is
+   close to free.
+2. **No mock, ever.** A missing backend renders "not deployed on this
+   environment" with the failing op named, and no connect button. A demo mode
+   here would be indistinguishable from the product working, which is the
+   `offline-mocks-cannot-type-check-sql` law applied to a screen. A `contract`
+   handshake op exists precisely so "route absent" (404 on the handshake) is
+   distinguishable from "session expired" (401) and "session gone" (404 on a
+   real op). *Reverses if* never.
+3. **Cascade, enforced by the capture layer.** `callCapture.ts` emits one ≤30s
+   window at a time out of a microphone stream that stays open for the call. It
+   cannot do duplex, because duplex means barge-in and barge-in lives in
+   `liveCall.ts`, which the spec forbids this from touching. The 30s cap is
+   enforced three times — a timer, a sample-count clamp, and a refusal in the
+   API client — because a window silently cut in half is the
+   `silent-truncation` shape. *Reverses if* the research un-pins cascade, which
+   `ROADMAP-100X.md` §Voice does not.
+4. **TWO fidelity meters, not one, and neither can grade the voice.** WS-Z's
+   sweep (`docs/gurukul/research/mirror-learning.md` §1.1) read Chatterbox's own
+   `prepare_conditionals` and found it truncates the reference to 10 s (s3gen)
+   and 6 s (T3). Pooled call audio past that is mechanically inert for
+   synthesis, while `voice-evidence`'s ECAPA estimate consumes the whole pool —
+   so ONE climbing number beside a clone that cannot have changed would be a
+   display moving for a reason the owner will read as a different reason, the
+   `disclosure-announces-the-clone` defect class. The screen therefore shows
+   "how well we can measure you" (rises as audio pools; says nothing about the
+   clone) and "what the next reply is built from" (the selected ~10 s window;
+   moves only on re-selection), with a note between them saying why they
+   differ. The eval asserts the split as a property: the same pooling must move
+   the first and must not move the second. `readMeasurementFidelity` /
+   `readConditioningFidelity` / `fidelityStatusLine` own every word, and no
+   branch of them may contain "sounds", "quality", "natural" or their family.
+   With no printed self-vs-self ceiling both bars render EMPTY and say the
+   number has no top, rather than borrowing another speaker's ceiling — the
+   `fidelity-needs-its-ceiling-printed` rule as a UI state. *Reverses if* the
+   voice stack moves to an architecture whose scaling law rewards accumulation
+   (the sweep names retrieval VC, kNN-VC family, as that architecture) — then
+   the two numbers describe the same thing again and one meter is honest.
+5. **The rail is capped at three chips a minute, and every chip shows its n.**
+   Adoption deltas A4/A5: feature queries are the preferred kind of question
+   but "people do not enjoy a constant stream of questions", and a 30-minute
+   call yields ~1,800–2,300 owner words — below every stylometric floor in the
+   sweep (2,000–5,000 words; under 3,000 gives >60% false attribution). So the
+   surplus falls to the review queue flagged as never-shown, and an n=1 chip
+   renders visibly weaker than an n=9-across-three-calls chip. *Reverses if* an
+   acceptance-rate study on this UI says three is the wrong number — the cap is
+   a starting point nobody has measured, and the code says so.
+
+**What this does NOT claim.** Nothing here has been exercised against a running
+`api/mirror-call.js` — none existed on origin at the time of writing. Every
+check is offline: the state machine, the chip property, the drop copy, the
+two-meter arithmetic and its split property, the chip budget, the evidence
+strength bands, and the wire normalizer against a dishonest payload. The
+microphone path, the multipart ingest and the audio playback have never run in
+a browser here and are marked unverified in `STATE.md`. The three-chips-a-minute
+cap is a starting point, not a measurement: no acceptance-rate study has been
+run on this UI, and the 72%-preference figure the cap rests on is itself flagged
+`[UNVERIFIED]` in the sweep that produced it.

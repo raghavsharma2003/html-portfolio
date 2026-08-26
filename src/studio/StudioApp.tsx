@@ -44,6 +44,7 @@ import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
 import DisclosurePreview from "./DisclosurePreview";
+import MirrorCallStudio from "./MirrorCallStudio";
 import QuickStartPath from "./QuickStartPath";
 import { DEMO_TEACHER } from "../engine/agents/characters/demoTeacher";
 import {
@@ -709,6 +710,21 @@ function ReplicaWorkspace({
             key={`hear-voice-${replica.replica_id}`}
             token={accessToken}
             replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+          />
+
+          {/* WS-Y. The Mirror Call sits ABOVE the advanced disclosure and in
+              both modes, because it is not a verification step — it is the
+              thing the owner came to do, and the one surface where the clone
+              improves while they watch. It renders its own honest state when
+              `api/mirror-call.js` is not deployed, so placing it here does not
+              put a dead button on the default path. Below the one-line voice
+              preview: hear yourself first, then teach yourself. */}
+          <MirrorCallStudio
+            key={`mirror-call-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            stopped={stopped}
             onAuthError={onReviewAuthError}
           />
 
