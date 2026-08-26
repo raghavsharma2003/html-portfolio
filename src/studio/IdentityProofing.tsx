@@ -115,7 +115,11 @@ export default function IdentityProofing({
 
   return (
     <section id="identity-proofing" className="identity-section" aria-labelledby="identity-title">
-      <div className="identity-index">03</div>
+      {/* The "03" numbering eyebrow that used to sit here is gone: DESIGN-LAW
+          section 1 bans section-numbering eyebrows outright, and the sweep that
+          removed the other four missed this one and its sibling in
+          LivenessCapture. Its 39px rail is now `:has`-guarded in studio.css, so
+          removing the child collapses no column. */}
       <div className="identity-body">
         <div className="panel-title-row">
           <div><p className="eyebrow">Adult identity</p><h3 id="identity-title">Bind one real person to this replica</h3></div>

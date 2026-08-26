@@ -386,7 +386,9 @@ export default function LivenessCapture({
 
   return (
     <section id="liveness-capture" className="liveness-section" aria-labelledby="liveness-title">
-      <div className="liveness-index">04</div>
+      {/* The "04" numbering eyebrow is gone for the reason given in
+          IdentityProofing: DESIGN-LAW section 1 bans them. Its rail is
+          `:has`-guarded in studio.css. */}
       <div className="liveness-body">
         <div className="panel-title-row">
           <div>

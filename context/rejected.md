@@ -3986,3 +3986,75 @@ to accept bytes directly (matching the shape every DAG adapter already
 requires) rather than a signed pull URL, `registry.js`'s selection becomes
 safe to route the DAG through directly, and this bridge collapses to a
 one-line call.
+## `a-layout-gate-that-cannot-reach-the-signed-in-screen` (2026-08-26, WS-AM)
+
+**What was tried:** `scripts/check-layout.mjs` in its first form pointed a real
+browser at `/studio` at 390, 834 and 1355px and failed when a block of prose
+rendered narrower than 220px. The reasoning was sound and the mechanism was
+sound. It was pointed at a page that does not contain the thing it judges.
+
+**What specifically breaks:** signed out, `/studio` renders a sign-in card and
+nothing else. Every panel the bug lived in (`.consent-panel`,
+`.evidence-panel`, `.processing-review`, the wizard bands) requires a session
+and a replica. So the gate measured six or seven prose blocks of sign-in copy,
+found all of them wide enough, and reported OK. Re-introducing the exact 58px
+rail that had shipped the defect did not make it fail. A check whose negative
+control does not fire is not a check, and this one was worse than absent
+because its name and its output both claimed coverage it did not have.
+
+The author had seen this coming and added a coverage assertion, which is what
+turned a false pass into an honest failure. But then the gate could only fail:
+there was no way to make it pass except by lowering the assertion, which would
+have restored the false pass.
+
+**What was ALSO tried and rejected:** minting a real Supabase session inside the
+gate, the way the e2e journey does. It works, and it cannot ship: it needs the
+service-role key, so the gate could never run in CI, and a gate that only runs
+where the secrets are is a gate that does not run.
+
+**What replaced it:** `studio-layout-fixture.html` plus
+`src/studio/layoutFixture.tsx` — the real `StudioApp`, imported from source, with
+a replica seeded into state and every `/api/*` route answered from a fixture
+table by a stubbed `fetch`. No secret, no network, deterministic. The gate now
+judges 264 prose blocks across three widths times three steps, and both halves
+of its negative control fire. See `decisions.md#layout-fixture`.
+
+**Why it is worth writing down:** the generalisable rule is that a gate must
+assert its own COVERAGE, and that the assertion has to be paired with a way to
+satisfy it honestly. This repo already had the first half and it converted a
+false pass into a permanent failure, which is better and is still not a working
+gate. The question to ask of any new check is not only "would it fail on the
+bug" but "can it reach the screen the bug is on, without a secret".
+
+## `viewport-media-queries-cannot-see-a-narrow-container` (2026-08-26, WS-AM)
+
+**What was tried:** the studio's inner content grids (`.teacher-sheet-grid`,
+`.hear-voice-body`, `.build-readiness`, `.claim-extraction` and ten more) split
+into two or three columns and collapse to one via `@media (max-width: ...)`
+queries. Fourteen of them, all carefully written.
+
+**What specifically breaks:** the element they govern does not live at the
+viewport width. It lives inside the studio's content column, which is 276px
+narrower because the replica rail sits beside it, and narrower again by the
+panel padding. Measured at an 834px viewport: `main.studio-main` is 558px and
+`.wizard-band-body` is 475px. A `repeat(2, 1fr)` that reads as generous against
+834 hands each card 200px and each paragraph 159px, and the media query never
+fires because 834 is not less than 820. Two blocker notices measured 115px wide
+carrying 91 and 176 characters.
+
+No breakpoint value fixes this, because the query and the container disagree
+about how wide "here" is. Moving the breakpoint up to 1100px would fix tablet
+and break the same grids on a desktop with the rail hidden.
+
+**What replaced it:** `repeat(auto-fit, minmax(min(100%, Npx), 1fr))`, which
+asks the container directly and needs no query. `min(100%, N)` rather than bare
+`N` so a container narrower than the floor gets one full-width column instead of
+an overflow. N is 260 to 340px for grids carrying sentences and 150px for grids
+of labels and counts.
+
+**Why it is worth writing down:** every one of those fourteen media queries was
+written by someone being careful, and being careful is not what was missing. The
+rule is that a media query is the right tool only for a decision about the
+VIEWPORT (is this a phone, is the rail shown). Any decision about whether
+content fits belongs to the container, and grid has had a container-driven
+answer since `auto-fit` shipped.

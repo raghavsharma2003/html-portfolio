@@ -109,7 +109,13 @@ export default function IngestChannelStudio({
 
   const liveFor = useCallback(
     (url: string): ChannelAttestation | undefined =>
-      view?.attestations.find((a) => a.live && a.channel_url === url.trim().replace(/\/+$/, "")),
+      // `?? []` rather than `view?.attestations.find(...)`: the optional chain
+      // guards a missing VIEW but not a missing KEY, so a response that omits
+      // `attestations` threw here and took the whole Feed step to a blank page.
+      // The line above already reads `statements` this way; this one did not.
+      (view?.attestations ?? []).find(
+        (a) => a.live && a.channel_url === url.trim().replace(/\/+$/, ""),
+      ),
     [view],
   );
 

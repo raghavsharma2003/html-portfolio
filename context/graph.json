@@ -3032,6 +3032,54 @@
       "kind": "open",
       "at": "2026-08-26",
       "title": "SARVAM_API_KEY is set in the Vercel project vyakti-replica-lab per the owner but not on the Azure Container Apps Job vyakti-replica-processing; this session had no route to read the Vercel value back, see .sec/an-sarvam-key-handover.txt"
+    },
+    {
+      "id": "layout-fixture",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "The layout gate renders a fixture page mounting the real StudioApp with a stubbed /api, so it can see the signed-in panels without a secret"
+    },
+    {
+      "id": "cascade-layer-order-must-be-declared-where-a-minifier-cannot-drop-it",
+      "kind": "decision",
+      "at": "2026-08-26",
+      "title": "The studio's @layer ordering statement lives in an inline style in the head, because LightningCSS strips it from the CSS and the inverted order shipped every primary CTA at 1.73:1"
+    },
+    {
+      "id": "a-layout-gate-that-cannot-reach-the-signed-in-screen",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "check-layout.mjs pointed at signed-out /studio measured six blocks of sign-in copy and passed against the reintroduced 58px rail"
+    },
+    {
+      "id": "viewport-media-queries-cannot-see-a-narrow-container",
+      "kind": "rejection",
+      "at": "2026-08-26",
+      "title": "Fourteen viewport media queries collapsed the studio's inner grids at breakpoints the container never reaches; auto-fit with a min() floor replaced them"
+    },
+    {
+      "id": "studio-layout-repair",
+      "kind": "measurement",
+      "at": "2026-08-26",
+      "title": "Nine track-list bugs, 14px phone overflow, 8px body text, 216cpl lines, 1.73:1 CTAs; before and after at 390/834/1355px across Feed, Meet, Deploy"
+    },
+    {
+      "id": "track-lists-must-not-assume-a-child-exists",
+      "kind": "constraint",
+      "at": "2026-08-26",
+      "title": "A grid or flex track reserved for a child must be guarded by :has() or pinned explicitly, because removing the child collapses the column silently and no overflow check can see it"
+    },
+    {
+      "id": "layout-readability-gate",
+      "kind": "component",
+      "at": "2026-08-26",
+      "title": "scripts/check-layout.mjs: measures prose width in characters per line, font-size floor, track over-count, content-in-a-sliver and control contrast, on nine screens, wired into verify-release"
+    },
+    {
+      "id": "studio-tablet-column-is-276px-narrower-than-the-viewport",
+      "kind": "open",
+      "at": "2026-08-26",
+      "title": "Between about 721px and 1080px the replica rail still takes 276px, leaving a 475px content column; the inner grids now adapt to it but the rail itself has not been redesigned for that band"
     }
   ],
   "edges": [
@@ -5909,6 +5957,51 @@
       "src": "sarvam-api-key-not-on-processing-job",
       "rel": "part_of",
       "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "layout-fixture",
+      "rel": "caused_by",
+      "dst": "a-layout-gate-that-cannot-reach-the-signed-in-screen"
+    },
+    {
+      "src": "layout-fixture",
+      "rel": "part_of",
+      "dst": "layout-readability-gate"
+    },
+    {
+      "src": "layout-readability-gate",
+      "rel": "measured_by",
+      "dst": "studio-layout-repair"
+    },
+    {
+      "src": "layout-readability-gate",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "track-lists-must-not-assume-a-child-exists",
+      "rel": "constrains",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "studio-layout-repair",
+      "rel": "caused_by",
+      "dst": "track-lists-must-not-assume-a-child-exists"
+    },
+    {
+      "src": "cascade-layer-order-must-be-declared-where-a-minifier-cannot-drop-it",
+      "rel": "measured_by",
+      "dst": "studio-layout-repair"
+    },
+    {
+      "src": "viewport-media-queries-cannot-see-a-narrow-container",
+      "rel": "caused_by",
+      "dst": "studio-tablet-column-is-276px-narrower-than-the-viewport"
+    },
+    {
+      "src": "studio-tablet-column-is-276px-narrower-than-the-viewport",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
     }
   ]
 }

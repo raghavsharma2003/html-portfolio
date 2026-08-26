@@ -100,6 +100,21 @@ await gate("stuck-turn endpoint", "node", ["evals/echosim/stucksim.mjs"]);
 // a different woman and was reported as "multiple personalities".
 await gate("one voice", "node", ["scripts/verify-voice.mjs"]);
 await gate("web build", "npx", ["vite", "build"]);
+// CAN A PERSON READ THE STUDIO. It has to run after the build because it opens
+// the BUILT bundle in a real browser at 390, 834 and 1355px, on all three
+// wizard steps, and measures what is on screen.
+//
+// It is here because the end to end journey reported 12 of 15 passing while the
+// studio wrapped an 83 character paragraph one word per line: the journey asked
+// "is there horizontal overflow" and "is the primary action above the fold",
+// and a COLLAPSED COLUMN OVERFLOWS NOTHING. Nothing else in this file can see a
+// layout, because every other gate reads files or runs logic.
+//
+// It needs no secret. It renders `studio-layout-fixture.html`, which is the
+// real StudioApp with fixture props and a stubbed `/api`, precisely so this can
+// run in CI. Its negative control is written down in its header: reintroduce
+// the 58px rail and it fails naming the element; restore it and it passes.
+await gate("layout readability", "node", ["scripts/check-layout.mjs"]);
 // The eval suite: parser cases, the persona invariants (crisis helplines,
 // never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
 // integrity checks. run.mjs re-bundles from the REAL source on every run, so

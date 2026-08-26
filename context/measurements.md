@@ -4386,3 +4386,83 @@ ceiling. Conclusion acted on: no chunking is implemented in
 fetch, not a measured API round trip against a file near the ceiling; if a
 much longer recording (multi-hour) is ever ingested, re-verify against the
 live API rather than trusting the doc a second time.
+## studio-layout-repair
+
+**What, how, when.** Every number below is read from the rendered DOM in
+headless Chromium against the BUILT bundle, at three viewport widths (390, 834,
+1355px) on all three wizard steps (Feed, Meet, Deploy), n = 9 screens per row.
+The signed-in studio was reached two ways and both agree: a real Supabase
+session driven through the e2e bridge against production `/api`, and
+`studio-layout-fixture.html` with a stubbed `/api`. WS-AM, 2026-08-26.
+
+The fixture reproduced the live figures exactly where they overlap (`16px` /
+128 characters for the Meet band blurb; `54px 418.625px` for
+`.processing-review` at tablet), which is what qualifies it to stand in for the
+live screen in CI.
+
+### The track-list class: nine rules, all measured
+
+Every rule below reserves a track for a child that may not exist. Six were
+producing a visible defect on the base branch; three were latent.
+
+| rule | width it broke at | measured before | after |
+|---|---|---|---|
+| `.processing-review` base (54px rail) | tablet, desktop | content column 67px / 84px, 419px and 888px wasted | full width, 0 wasted |
+| `.consent-panel` mobile (39px rail) | phone | content column 39px, 626 chars | full width |
+| `.evidence-panel` mobile (39px rail) | phone | content column 39px, 161 chars | full width |
+| `.liveness-section` mobile (39px rail) | latent | rail keyed on `.panel-index`, child is `.liveness-index` | `:has`-guarded, child removed |
+| `.identity-section` mobile (39px rail) | latent | same mismatch | `:has`-guarded, child removed |
+| `.wizard-band-collapsible > summary` | all three | blurb 16px wide, 116 to 148 chars | full column width |
+| `.workspace-switch > summary` | phone | subtitle 16px wide | full column width |
+| `.wizard-blockers-rest > summary` | phone | subtitle 16px wide | full column width |
+| `.readiness-compact > summary` | latent | correct by auto-placement luck, not instruction | pinned explicitly |
+
+The last four are a SECOND mechanism, not the same one: there the track count
+and the child count agree, and a real text child auto-flows into the track
+reserved for the `::after` chevron. The over-count detector is blind to it.
+Both mechanisms now have a detector in `scripts/check-layout.mjs` and both fire
+under negative control.
+
+### Readability, before and after
+
+| measure | before | after |
+|---|---|---|
+| horizontal overflow, phone, all three steps | 14px | 0px |
+| narrowest prose block | 5px (`.consent-lede`, 161 chars) | none under 20 cpl |
+| smallest body text | 8px (`.identity-boundary`, `.liveness-boundary`) | 12px |
+| distinct blocks under the 11px readable floor | 11 | 0 |
+| longest line | 216 cpl (`.identity-boundary`, 866px at 8px) | none over 115 cpl |
+| in-flow sibling overlap | 120x7px (`.section-heading` vs `.voice-provider-state`) | none |
+| children spilling their own panel | up to 477px (`.build-readiness`) | none |
+| sticky chrome covering prose | at every scroll stop on all 9 screens, up to 343x186px, behind an OPAQUE card | translucent only, card removed |
+| page height, phone Feed | 4425px | 2855px |
+| page height, desktop Meet | 9878px | 9059px |
+
+The height drops are the readable measure of the fix: the same copy, no longer
+wrapping one word per line.
+
+### Contrast
+
+Measured on every visible control, nine screens, effective foreground over the
+nearest opaque backdrop, WCAG relative-luminance ratio.
+
+| control | before | after |
+|---|---|---|
+| every enabled `.primary-button` (10 distinct labels) | **1.73:1** | 8.2:1 and up, none under 4.5 |
+| `.mirror-tabs button` inactive | 4.11:1 | 6.1:1 |
+| disabled `.primary-button` (WCAG-exempt) | 3.64:1 at opacity 0.48 | 4.5:1 at opacity 0.6 |
+| disabled `.review-refresh` | 3.22:1 at opacity 0.5 | 4.33:1 at opacity 0.6 |
+
+The 1.73:1 row is a cascade-layer defect, not a colour choice, and it was
+present on the untouched base branch. See
+`decisions.md#cascade-layer-order-must-be-declared-where-a-minifier-cannot-drop-it`.
+
+### The gate itself
+
+| | old gate | new gate |
+|---|---|---|
+| prose blocks it could see | 6 to 7, all sign-in copy | **264** |
+| screens judged | 3 | 9 |
+| negative control: 58px rail on `.processing-review` | **passed** (did not fire) | FAIL, exit 1, names the element and 415px / 884px wasted |
+| negative control: chevron column pin removed | not detectable | FAIL, exit 1, 9 findings across narrow, sliver and overflow |
+| restored | n/a | ok, exit 0, 264 blocks |
