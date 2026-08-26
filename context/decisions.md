@@ -3455,3 +3455,35 @@ device is unchanged, [SS-5] the fail-safe degrade, [SS-6]/[SS-7] the consent
 pair. Plus the router itself gained device scope — it used to serve fixture rows
 to any caller, which made this whole class of defect invisible while every
 assertion stayed green.
+
+## `ws-o-live-verified` — migration 056 applied and the recall path smoke-tested (2026-08-26)
+
+WS-O shipped bi-temporal validity, the cross-surface recall leg and the
+example-format harness, and correctly refused to claim any of the DB work
+verified (it had no live database). Verified here, in the main loop:
+
+- **Migration 056 applied** to the live Neon project. `valid_from`/`valid_to`
+  present on BOTH `vy_fact` and `meera_nodes` (the renderer carrying
+  `stale-note-keys-on-row-age` reads the legacy store, so the tidy
+  `vy_fact`-only migration would have fixed nothing), with the order checks
+  and read indexes.
+- **The real recall path returns 200** against the live database with the new
+  leg and validity columns in place (`api/memory.js` `op:recall` and
+  `op:remember`, both 200). This is the smoke test WS-O named as owed.
+- Incidentally confirmed WS-M's improved error surface working: a deliberate
+  type mismatch now reports `neon 400: 42883 operator does not exist:
+  uuid = text` instead of a bare `neon 400`.
+
+The headline measurement stands and is the most important number of the
+session: **89.2% of recall was lost when a person moved between surfaces**
+(44 questions, identical rows, `device_id` the only variable, negative
+control by making the new statements throw); the leg closes it to a named
+13.5% residual. `api/_surface.js` had stated the law — "memory is never
+keyed by surface" — while retrieval violated it.
+
+Still open and deliberately not done: `legacy-forget-is-device-scoped` (a
+whole wipe on one surface leaves another surface's legacy rows standing).
+Widening a DELETE's blast radius is exactly what
+`offline-mocks-cannot-type-check-sql` forbids without a live verification,
+and a half-done forget is the worst possible half — it is the first thing
+the next keyed session should do.

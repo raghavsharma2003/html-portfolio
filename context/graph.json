@@ -2066,6 +2066,12 @@
       "kind": "rejection",
       "title": "a mock branch keyed on a table name swallowed the query under test; every assertion stayed green",
       "at": "2026-08-26"
+    },
+    {
+      "id": "ws-o-live-verified",
+      "kind": "measurement",
+      "title": "migration 056 live; recall path 200 against real DB; 89.2% cross-surface loss closed to 13.5%",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -3838,6 +3844,11 @@
       "src": "router-matched-a-table-instead-of-a-statement",
       "rel": "constrains",
       "dst": "recall-bench-v1"
+    },
+    {
+      "src": "ws-o-live-verified",
+      "rel": "part_of",
+      "dst": "gurukul-founding"
     }
   ]
 }
