@@ -126,11 +126,11 @@ export default function CalibrationStudio({ token, replicaId, onAuthError }: { t
     <section id="calibration-studio" className="calibration-studio" aria-labelledby="calibration-title">
       <div className="calibration-head">
         <div>
-          <p className="eyebrow">06 · Behavior calibration</p>
+          <p className="eyebrow">Behavior calibration</p>
           <h2 id="calibration-title">Teach the differences a prompt cannot hold.</h2>
           <p>Choose between safe behavioral contrasts. Every correction becomes versioned preference evidence, never another sentence glued onto a persona prompt.</p>
         </div>
-        <div className="calibration-version"><strong>{approved ? `v${approved.version}` : "—"}</strong><span>approved policy</span></div>
+        <div className="calibration-version"><strong>{approved ? `v${approved.version}` : "none yet"}</strong><span>approved policy</span></div>
       </div>
 
       {loading ? <div className="runtime-loading" role="status">Preparing calibration contrasts…</div> : error ? (

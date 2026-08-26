@@ -2516,6 +2516,30 @@
       "kind": "rejection",
       "title": "vy_ingest_run kept the YouTube id and dropped the title, so the row answering the owners question was unreadable by them",
       "at": "2026-08-26"
+    },
+    {
+      "id": "copy-law-is-a-gate-not-a-guideline",
+      "kind": "decision",
+      "title": "check-copy.mjs enforces DESIGN-LAW §1 mechanically: dash broadly on comment-stripped lines, word bans only on proven-visible strings",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "landing-hero-is-four-elements",
+      "kind": "decision",
+      "title": "site/vyakti.html hero rebuilt to four elements; the build-status strip moved to the unproven-claims section rather than being deleted",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "ink-faint-fails-aa",
+      "kind": "measurement",
+      "title": "--ink-faint #7a7e74 is 3.67:1 on paper and 4.11:1 on panel, under WCAG AA, and is used for 11-13px text",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "copy-law-violations-before-after",
+      "kind": "measurement",
+      "title": "120 copy-law violations found by the widened gate, 117 fixed, 3 waived in a peer-owned file",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -4823,6 +4847,31 @@
       "src": "a-video-id-is-not-a-name",
       "rel": "constrains",
       "dst": "activity-surface"
+    },
+    {
+      "src": "copy-law-is-a-gate-not-a-guideline",
+      "rel": "constrains",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "copy-law-is-a-gate-not-a-guideline",
+      "rel": "measured_by",
+      "dst": "copy-law-violations-before-after"
+    },
+    {
+      "src": "landing-hero-is-four-elements",
+      "rel": "constrains",
+      "dst": "owner-intent-is-the-spec"
+    },
+    {
+      "src": "landing-hero-is-four-elements",
+      "rel": "caused_by",
+      "dst": "three-step-wizard-ia"
+    },
+    {
+      "src": "landing-hero-is-four-elements",
+      "rel": "measured_by",
+      "dst": "ink-faint-fails-aa"
     }
   ]
 }

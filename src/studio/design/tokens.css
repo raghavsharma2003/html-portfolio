@@ -72,7 +72,29 @@
     --weight-medium: 600;
     --weight-strong: 800;
 
-    --tracking-caps: 0.06em; /* the ONE tracking value; eyebrows use it */
+    /* TRACKING IS SIZE-SPECIFIC (WS-AG, DESIGN-LAW §2).
+     *
+     * This block used to be one line: `--tracking-caps`, described as "the ONE
+     * tracking value". That was right about the studio's problem (six ad-hoc
+     * letter-spacings) and wrong about the fix. DESIGN-LAW §2 is explicit that
+     * one letter-spacing across all sizes is always wrong somewhere: display
+     * type needs the negative because large glyphs already read too loose, body
+     * needs zero, and uppercase micro-type needs the positive because small
+     * caps read too tight. `--tracking-caps` stays exactly as it was, so
+     * nothing on screen moves; the other three give the scale the thing it was
+     * missing rather than another value someone has to invent per component.
+     *
+     * Pair each with its leading, never alone: hierarchy is weight and size and
+     * leading together, and `--leading-display` is added here for the same
+     * reason (1.05 is the law's number for h1; --leading-tight 1.25 is right
+     * for h2/h3 and too loose for a 60px headline).
+     */
+    --tracking-display: -0.021em; /* h1, --text-display */
+    --tracking-heading: -0.012em; /* h2/h3, --text-heading and --text-title */
+    --tracking-body: 0;           /* everything set in sentences */
+    --tracking-caps: 0.06em;      /* uppercase eyebrows and micro-labels only */
+
+    --leading-display: 1.06; /* h1 only; --leading-tight is too loose at 60px */
 
     /* ── SPACE ───────────────────────────────────────────────────────────
      * A 4px base, six steps, plus two page-level rhythms. Named for use so

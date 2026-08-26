@@ -54,8 +54,8 @@ import type {
 
 const REASON_COPY: Record<string, string> = {
   // refusals — files
-  pdf_no_text_layer: "This PDF is a scan — there is no text in it to read, only pictures of text. We have no OCR, so we would rather say so than store it empty.",
-  pdf_text_layer_unreadable: "We found text in this PDF but it does not read as language — the fonts use an encoding we cannot map. Export it as text or DOCX instead.",
+  pdf_no_text_layer: "This PDF is a scan. There is no text in it to read, only pictures of text. We have no OCR, so we would rather say so than store it empty.",
+  pdf_text_layer_unreadable: "We found text in this PDF but it does not read as language. The fonts use an encoding we cannot map. Export it as text or DOCX instead.",
   pdf_encrypted: "This PDF is password-protected. Remove the password and try again.",
   pdf_unsupported_filter: "This PDF compresses its text in a way we do not read.",
   pdf_malformed: "This file is not a readable PDF.",
@@ -68,18 +68,18 @@ const REASON_COPY: Record<string, string> = {
   pages_unsupported: "Pages files are not read. Export as .docx or a PDF with real text in it.",
   epub_unsupported: "EPUB is not read.",
   archive_unsupported: "We do not unpack archives. Upload the files inside it.",
-  csv_unsupported: "A spreadsheet is not prose — mining it would put column headers in your phrasing.",
+  csv_unsupported: "A spreadsheet is not prose. Mining it would put column headers in your phrasing.",
   spreadsheet_unsupported: "A spreadsheet is not prose.",
   slides_unsupported: "Slides are titles and fragments, not how you talk. Export the speaker notes if that is what you meant.",
   structured_data_unsupported: "Structured data is not prose.",
-  html_upload_unsupported: "Paste the page's link instead — an uploaded HTML file has no source to cite.",
+  html_upload_unsupported: "Paste the page's link instead. An uploaded HTML file has no source to cite.",
   text_not_utf8: "This file is not UTF-8 text. Re-save it as UTF-8.",
   text_unreadable: "This file does not read as language.",
   format_unsupported: "We do not read this file type.",
-  extracted_text_too_large: "This document is longer than one item may be. Split it and upload the parts — we do not trim anything silently.",
+  extracted_text_too_large: "This document is longer than one item may be. Split it and upload the parts. We do not trim anything silently.",
   file_too_large: "This file is larger than one upload may be.",
-  chat_export_third_party_consent_required: "This is a chat export, so it contains someone else's private messages. Tick the box above and add it again — we only ever mine your own messages, and theirs are read only to tell them apart.",
-  chat_export_too_many_speakers: "This is a large group chat — mostly other people's words. Export a one-to-one chat instead.",
+  chat_export_third_party_consent_required: "This is a chat export, so it contains someone else's private messages. Tick the box above and add it again. We only ever mine your own messages, and theirs are read only to tell them apart.",
+  chat_export_too_many_speakers: "This is a large group chat, mostly other people's words. Export a one-to-one chat instead.",
   whatsapp_export_unparseable: "This looks like a chat export but no line in it matched a message. Export the chat again 'Without media' and upload the .txt unchanged.",
   // refusals — links
   link_unparseable: "That is not a link.",
@@ -90,15 +90,15 @@ const REASON_COPY: Record<string, string> = {
   article_no_text: "That page had no readable text.",
   article_unreadable: "That page did not read as language.",
   // routing
-  channel_lane: "This is YouTube — it belongs to the Channel step, which asks you to confirm the channel is yours before reading a single video.",
-  voice_evidence_lane: "This is audio — it belongs to the Voice step, which carries the consent your voice needs.",
+  channel_lane: "This is YouTube. It belongs to the Channel step, which asks you to confirm the channel is yours before reading a single video.",
+  voice_evidence_lane: "This is audio. It belongs to the Voice step, which carries the consent your voice needs.",
   // mined-nothing reasons
-  not_owner_authored_no_style_evidence: "Read, but not used for how you talk — it is not your own writing. Mark it as yours if it is.",
+  not_owner_authored_no_style_evidence: "Read, but not used for how you talk. It is not your own writing. Mark it as yours if it is.",
   speaker_unattributed_no_style_evidence: "Read. Tell us which of these people is you and we will mine only your messages.",
   declared_speaker_not_in_export: "Nobody by that name sends messages in this export.",
   no_candidates_cleared_held_out: "Read, but nothing in it repeated often enough to be worth proposing. That is normal for a short document.",
   citation_integrity_failed: "Read, but the proposals could not be traced back to the text they came from, so none were kept.",
-  proposal_already_exists: "Already proposed — see Review.",
+  proposal_already_exists: "Already proposed. See Review.",
   // quotas
   context_item_quota_exhausted: "Your locker is full. Remove something to add more.",
   context_byte_quota_exhausted: "Your locker is out of space. Remove something to add more.",
@@ -272,7 +272,7 @@ export default function ContextLockerPanel({
           <h2 id="context-locker-title">Bring your context</h2>
           <p className="field-note">
             Everything you have already written about yourself, or that is already about you. Drop the
-            files in, paste the links. Each one tells you what it became — and anything we cannot
+            files in, paste the links. Each one tells you what it became, and anything we cannot
             honestly read, we say so instead of quietly keeping it.
           </p>
         </div>
@@ -292,7 +292,7 @@ export default function ContextLockerPanel({
         <p className="field-note">
           Text, Markdown, Word documents, PDFs with real text in them, and WhatsApp chat exports.
           Up to {view ? humanBytes(view.limits.max_item_bytes) : "a few MB"} each.
-          Audio goes to the Voice step; YouTube goes to the Channel step — paste those and we will
+          Audio goes to the Voice step; YouTube goes to the Channel step. Paste those and we will
           point you there rather than doing it twice.
         </p>
         <button
@@ -328,7 +328,7 @@ export default function ContextLockerPanel({
       </label>
 
       <label className="field">
-        <span>Or paste links — one per line</span>
+        <span>Or paste links, one per line</span>
         <textarea
           rows={3}
           value={links}
@@ -449,7 +449,7 @@ function stateDetail(row: Row): string {
   if (!row.item) return copyFor(row.error || "request_failed");
   if (row.item.status === "refused") return copyFor(row.item.refusal_reason);
   if (row.item.status === "routed") return copyFor(row.item.routed_to);
-  if (row.item.status === "mined") return "Waiting for you in Review — nothing is applied to your clone until you approve it.";
+  if (row.item.status === "mined") return "Waiting for you in Review. Nothing is applied to your clone until you approve it.";
   if (row.item.status === "extracted") return copyFor(row.item.mine_skip_reason || "no_candidates_cleared_held_out");
   return "";
 }

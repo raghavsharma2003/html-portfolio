@@ -27,7 +27,7 @@ export function friendlyError(cause: unknown, context: string): FriendlyError {
   if (cause instanceof ReplicaApiError) {
     if (cause.status === 429) {
       return {
-        headline: `${context} — too many requests`,
+        headline: `${context}: too many requests`,
         detail: "This is rate-limited to keep the service stable. Wait about a minute and try again.",
         canRetry: true,
       };
@@ -35,23 +35,23 @@ export function friendlyError(cause: unknown, context: string): FriendlyError {
     if (cause.status >= 500) {
       const detail = quoted(cause.message);
       return {
-        headline: `${context} — something failed on our end`,
+        headline: `${context}: something failed on our end`,
         detail: detail
-          ? `${detail} This is our error, not something you did. Try again — if it keeps happening, contact support and include this message.`
-          : "This is our error, not something you did. Try again — if it keeps happening, contact support.",
+          ? `${detail} This is our error, not something you did. Try again. If it keeps happening, contact support and include this message.`
+          : "This is our error, not something you did. Try again. If it keeps happening, contact support.",
         canRetry: true,
       };
     }
     if (cause.status === 404) {
       return {
-        headline: `${context} — not found`,
+        headline: `${context}: not found`,
         detail: "This may have been removed, or hasn't been created yet. Refresh and try again.",
         canRetry: true,
       };
     }
     if (cause.status === 403) {
       return {
-        headline: `${context} — not permitted`,
+        headline: `${context}: not permitted`,
         detail: "The server declined this action for this account. If you believe this is wrong, contact support.",
         canRetry: false,
       };
@@ -60,21 +60,21 @@ export function friendlyError(cause: unknown, context: string): FriendlyError {
     return {
       headline: context,
       detail: detail
-        ? `${detail} Try again — if it keeps happening, contact support and include this message.`
-        : "The server did not explain why. Try again — if it keeps happening, contact support.",
+        ? `${detail} Try again. If it keeps happening, contact support and include this message.`
+        : "The server did not explain why. Try again. If it keeps happening, contact support.",
       canRetry: true,
     };
   }
   if (cause instanceof DOMException && cause.name === "AbortError") {
     return {
-      headline: `${context} — timed out`,
+      headline: `${context}: timed out`,
       detail: "The request took too long, likely a slow connection. Check your connection and try again.",
       canRetry: true,
     };
   }
   if (cause instanceof TypeError) {
     return {
-      headline: `${context} — could not reach the server`,
+      headline: `${context}: could not reach the server`,
       detail: "This usually means a network problem on your end. Check your connection and try again.",
       canRetry: true,
     };
@@ -83,8 +83,8 @@ export function friendlyError(cause: unknown, context: string): FriendlyError {
   return {
     headline: context,
     detail: detail
-      ? `${detail} Try again — if it keeps happening, contact support and include this message.`
-      : "No further detail was reported. Try again — if it keeps happening, contact support.",
+      ? `${detail} Try again. If it keeps happening, contact support and include this message.`
+      : "No further detail was reported. Try again. If it keeps happening, contact support.",
     canRetry: true,
   };
 }

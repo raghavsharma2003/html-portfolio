@@ -34,8 +34,8 @@ const BLOCKER_META: Record<string, { label: string; owner: Owner; note: string; 
   person_profile_not_approved: { label: "Approved person model", owner: "you", note: "Review and confirm your claims below.", anchor: "#person-model-studio" },
   calibration_not_approved: { label: "Approved behavior calibration", owner: "you", note: "Complete calibration comparisons below.", anchor: "#calibration-studio" },
   voice_genome_not_approved: { label: "Approved voice model", owner: "platform", note: "Waiting on processing review and approval.", anchor: "#processing-review" },
-  voice_not_ready: { label: "Production voice mapping", owner: "platform", note: "Voice synthesis infrastructure is still being connected — not something you can unblock yet.", anchor: "#voice-enrollment-lab" },
-  production_voice_required: { label: "Non-test voice provider", owner: "platform", note: "Voice synthesis infrastructure is still being connected — not something you can unblock yet.", anchor: "#voice-enrollment-lab" },
+  voice_not_ready: { label: "Production voice mapping", owner: "platform", note: "Voice synthesis infrastructure is still being connected. Not something you can unblock yet.", anchor: "#voice-enrollment-lab" },
+  production_voice_required: { label: "Non-test voice provider", owner: "platform", note: "Voice synthesis infrastructure is still being connected. Not something you can unblock yet.", anchor: "#voice-enrollment-lab" },
   qualification_incomplete: { label: "Automated qualification suite", owner: "platform", note: "Runs automatically once every other gate above is closed.", anchor: "#runtime-gate" },
   replica_not_ready: { label: "Approved voice and behavior models", owner: "platform", note: "Depends on the gates above being closed first.", anchor: "#runtime-gate" },
 };
@@ -102,11 +102,11 @@ export default function QuickStartPath({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Your first clone, the short way</p>
-          <h2 id="quickstart-title">Get to a reviewable draft first — the rest stays exactly as strict</h2>
+          <h2 id="quickstart-title">Get to a reviewable draft first. The rest stays exactly as strict</h2>
           <p className="quickstart-sub">
             Nothing below is skipped or weakened. This just orders it: what you can do right now with a name, a
-            subject, and one upload; what a reviewable draft looks like from that; and — honestly, not optimistically
-            — everything still locked, and who it's waiting on.
+            subject, and one upload; what a reviewable draft looks like from that; and, honestly rather than optimistically,
+            everything still locked, and who it's waiting on.
           </p>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default function QuickStartPath({
           <span className="quickstart-step-mark" aria-hidden="true">✓</span>
           <div>
             <strong>Name your clone</strong>
-            <p>{replica.display_name} — created {new Date(replica.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.</p>
+            <p>{replica.display_name}, created {new Date(replica.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.</p>
           </div>
         </li>
         <li className={`quickstart-step ${hasOneSource ? "done" : "next"}`}>
@@ -127,7 +127,7 @@ export default function QuickStartPath({
               {hasOneSource
                 ? `${sources.length} source${sources.length === 1 ? "" : "s"} added.`
                 : hasSourceConsent
-                  ? "Add anything — a lecture recording, a PDF of notes, one YouTube download. One is enough to start."
+                  ? "Add anything: a lecture recording, a PDF of notes, one YouTube download. One is enough to start."
                   : "Grant source permissions first, then add one file."}
             </p>
             {!hasOneSource && (
@@ -141,7 +141,7 @@ export default function QuickStartPath({
           <span className="quickstart-step-mark" aria-hidden="true">3</span>
           <div>
             <strong>Confirm subject and teaching style</strong>
-            <p>Subject, syllabus coverage, strictness and warmth, and the doubt-handling ladder — editable any time, saved separately from everything else.</p>
+            <p>Subject, syllabus coverage, strictness and warmth, and the doubt-handling ladder, editable any time, saved separately from everything else.</p>
             <button type="button" className="text-button" onClick={() => jumpTo("#teacher-sheet-studio")}>
               Open the sheet review
             </button>
@@ -153,7 +153,7 @@ export default function QuickStartPath({
         <div className="quickstart-draft-banner" role="status">
           <strong>Your draft is reviewable.</strong>
           <p>
-            See exactly what a student would see and hear if this clone were published — the disclosure card and
+            See exactly what a student would see and hear if this clone were published: the disclosure card and
             spoken opening are fixed and cannot be turned off.
           </p>
           <button type="button" className="button secondary-button" onClick={() => jumpTo("#disclosure-preview")}>
@@ -163,7 +163,7 @@ export default function QuickStartPath({
       )}
 
       <div className="quickstart-locked" aria-labelledby="quickstart-locked-title">
-        <h3 id="quickstart-locked-title">Locked until — honestly, not a wall</h3>
+        <h3 id="quickstart-locked-title">Still locked, and honestly not a wall</h3>
         {loading && !runtime ? (
           <p className="muted-copy">Checking what's actually still locked…</p>
         ) : errorState ? (
@@ -172,13 +172,13 @@ export default function QuickStartPath({
             <button type="button" onClick={() => void load()}>Retry</button>
           </div>
         ) : runtime?.active ? (
-          <p className="quickstart-active-note">This replica's runtime is active — every gate below is already closed.</p>
+          <p className="quickstart-active-note">This replica's runtime is active. Every gate below is already closed.</p>
         ) : blockers.length === 0 && !loading ? (
           <p className="quickstart-active-note">No launch gates are currently reported as closed for this replica.</p>
         ) : (
           <div className="quickstart-locked-columns">
             <div>
-              <p className="quickstart-locked-owner">Waiting on you — {youBlockers.length}</p>
+              <p className="quickstart-locked-owner">Waiting on you: {youBlockers.length}</p>
               {youBlockers.length === 0 ? <p className="muted-copy">Nothing is waiting on you right now.</p> : (
                 <ul className="quickstart-locked-list">
                   {youBlockers.map((code) => (
@@ -192,7 +192,7 @@ export default function QuickStartPath({
               )}
             </div>
             <div>
-              <p className="quickstart-locked-owner">Waiting on the platform — {platformBlockers.length}</p>
+              <p className="quickstart-locked-owner">Waiting on the platform: {platformBlockers.length}</p>
               {platformBlockers.length === 0 ? <p className="muted-copy">Nothing is waiting on us right now.</p> : (
                 <ul className="quickstart-locked-list">
                   {platformBlockers.map((code) => (

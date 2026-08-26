@@ -86,10 +86,10 @@ const KINDS: ReadonlyArray<KindSpec> = [
 ];
 
 const STATUS_COPY: Record<CloneChannel["status"], string> = {
-  draft: "Not live — finish the details below",
+  draft: "Not live. Finish the details below",
   connected: "Live",
-  paused: "Paused — nothing is answered here",
-  revoked: "Revoked — this address is retired for good",
+  paused: "Paused. Nothing is answered here",
+  revoked: "Revoked. This address is retired for good",
 };
 
 export default function ChannelsStudio({
@@ -171,7 +171,7 @@ export default function ChannelsStudio({
         setNotice(
           channel.status === "connected"
             ? `${spec.title} is live.`
-            : `${spec.title} saved as a draft — it needs the remaining detail before it can answer.`,
+            : `${spec.title} saved as a draft. It needs the remaining detail before it can answer.`,
         );
       } catch (e) {
         fail(e);
@@ -208,8 +208,8 @@ export default function ChannelsStudio({
           <p className="eyebrow">Teacher clone · Channels</p>
           <h2 id="channels-title">Where your clone can be reached</h2>
           <p>
-            Publishing makes the clone exist. This is where it meets people. Every channel below is one you own —
-            your site, your bot, your business number — and you can pause or retire any of them at any time
+            Publishing makes the clone exist. This is where it meets people. Every channel below is one you own:
+            your site, your bot, your business number. You can pause or retire any of them at any time
             without asking us.
           </p>
         </div>
@@ -219,7 +219,7 @@ export default function ChannelsStudio({
         <h3>Get embed code</h3>
         <p className="field-note">
           Paste this into any page you control. It works on a plain HTML site, a WordPress theme, a Squarespace
-          code block — anywhere a script tag is allowed. It sets no cookie and asks nothing of your visitors.
+          code block, anywhere a script tag is allowed. It sets no cookie and asks nothing of your visitors.
         </p>
         <pre className="embed-snippet" aria-label="Embed snippet"><code>{snippet}</code></pre>
         <button
@@ -236,7 +236,7 @@ export default function ChannelsStudio({
         </button>
         <p className="field-note">
           Every visitor sees the same disclosure card you approved, before their first message. It is sent by us
-          with the reply, not rendered by the page — a site that removed it could not hold a conversation at all.
+          with the reply, not rendered by the page. A site that removed it could not hold a conversation at all.
         </p>
       </article>
 
@@ -278,12 +278,12 @@ export default function ChannelsStudio({
                           type="password"
                           autoComplete="off"
                           spellCheck={false}
-                          placeholder={channel?.credential === "present" ? "On file — paste a new one to replace it" : spec.secretPlaceholder}
+                          placeholder={channel?.credential === "present" ? "On file. Paste a new one to replace it" : spec.secretPlaceholder}
                           value={secrets[spec.kind] ?? ""}
                           onChange={(event) => setSecrets((c) => ({ ...c, [spec.kind]: event.target.value }))}
                         />
                         <p className="field-note">
-                          Stored in our secret vault, never in the database and never shown again — not even to
+                          Stored in our secret vault, never in the database and never shown again, not even to
                           you. Replace it here if it is ever rotated.
                         </p>
                       </>
@@ -334,7 +334,7 @@ export default function ChannelsStudio({
 
                 {retired && (
                   <p className="field-note">
-                    Retired for good. That address will never be reattached to this clone — set up a new one
+                    Retired for good. That address will never be reattached to this clone. Set up a new one
                     instead if you need this channel back.
                   </p>
                 )}
