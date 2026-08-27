@@ -4851,3 +4851,31 @@ n=1 comparison set (3 references x 1 text/seed, 1 repeat), method as above,
 dated 2026-08-27. Clips saved to the scratchpad
 (`q1-direct-A.wav`, `q1-direct-B.wav`, `q1-direct-AFTER.wav`) and NOT to the
 repo.
+
+## owner-ab-reference-quality-audible
+
+**Date** 2026-08-27. **n = 1 listener (the owner, the subject of the clone),
+2 clips, same text, same seed, same replica, only the enrollment reference
+differs.** Method: informal A/B, clips delivered directly, owner asked which is
+closer to their own voice.
+
+**Result.** The owner reports `q1-direct-AFTER.wav` (full-bandwidth reference,
+0.0224% energy at or above 8 kHz) is BETTER than `my-clone.wav` (the broken
+8 kHz reference, 0.000458%), and that both are still far from acceptable:
+"we obviously need to do way better".
+
+**Why this is recorded despite n=1 and no instrument.** It is the only likeness
+judgement that exists for this clone, and it comes from the one listener who
+cannot be wrong about whether a voice is theirs. It CONFIRMS the direction of
+`reference-bandwidth-was-the-fault` by ear, independently of the FFT. It does
+NOT establish how much better, and must not be quoted as a fidelity figure.
+
+**What would supersede it.** A real speaker-embedding cosine similarity for
+both arms against the 0.8869 ceiling. That number still does not exist; see
+STATE.md's START HERE block for why.
+
+**What it does NOT explain.** The owner's separate complaint that the base
+voice is "very western and not indian" survives this fix. Reference quality
+cannot account for a model's own accent prior, so that is a distinct cause and
+probably a MODEL SELECTION question rather than a pipeline one.
+
