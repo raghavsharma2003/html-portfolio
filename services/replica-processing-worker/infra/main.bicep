@@ -43,6 +43,13 @@ param evidenceHmacSecret string = ''
 @description('Sarvam API key. Empty means transcribe stops at asr_unconfigured (WS-AN, 2026-08-26: this subscription has zero Cognitive Services accounts, so Azure Speech was replaced by the Sarvam adapters instead of standing one up).')
 @secure()
 param sarvamApiKey string = ''
+
+@description('DANGEROUS: owner-only internal test bypass. Defaults false. When true, replicaSelfTestOwnerUserId is mandatory and only that authenticated owner can be auto-granted enrollment ceremony gates.')
+param replicaSelfTestMode bool = false
+
+@description('Supabase auth UUID allowlisted for owner-only internal testing. Must remain empty unless replicaSelfTestMode is true.')
+param replicaSelfTestOwnerUserId string = ''
+
 @secure()
 param acrPassword string
 param acrServer string = 'vyaktivoiceacr.azurecr.io'
@@ -62,6 +69,9 @@ var expectedAzureLocator = checkedAzureStorage ? 'azureblob:${azureReplicaStorag
 var checkedWriteBucket = replicaStorageWriteBucket == expectedAzureLocator
   ? replicaStorageWriteBucket
   : fail('replicaStorageWriteBucket must match the configured storage backend')
+var checkedSelfTestOwner = !replicaSelfTestMode
+  ? (empty(replicaSelfTestOwnerUserId) ? '' : fail('replicaSelfTestOwnerUserId must be empty while replicaSelfTestMode is false'))
+  : (length(replicaSelfTestOwnerUserId) == 36 ? replicaSelfTestOwnerUserId : fail('replicaSelfTestOwnerUserId must be a UUID when replicaSelfTestMode is true'))
 
 var evidenceEnv = empty(privateEvidenceOrigin) ? [] : [
   { name: 'AZURE_VOICE_EVIDENCE_ORIGIN', value: privateEvidenceOrigin }
@@ -72,6 +82,11 @@ var sarvamEnv = empty(sarvamApiKey) ? [] : concat([
 ], empty(sarvamAsrModel) ? [] : [
   { name: 'SARVAM_ASR_MODEL', value: sarvamAsrModel }
 ])
+var selfTestEnv = replicaSelfTestMode ? [
+  { name: 'REPLICA_SELF_TEST_MODE', value: 'true' }
+  { name: 'REPLICA_SELF_TEST_ENVIRONMENT', value: 'internal-owner-testing' }
+  { name: 'REPLICA_SELF_TEST_OWNER_USER_ID', value: checkedSelfTestOwner }
+] : []
 
 resource worker 'Microsoft.App/jobs@2024-03-01' = {
   name: jobName
@@ -98,7 +113,7 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
         { name: 'acr-password', value: acrPassword }
       ], checkedAzureStorage ? [
         { name: 'azure-replica-storage-key', value: azureReplicaStorageAccountKey }
-      ], empty(privateEvidenceOrigin) ? [] : [
+      ] : [], empty(privateEvidenceOrigin) ? [] : [
         { name: 'evidence-hmac', value: evidenceHmacSecret }
       ], empty(sarvamApiKey) ? [] : [
         { name: 'sarvam-key', value: sarvamApiKey }
@@ -130,7 +145,7 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
             { name: 'AZURE_REPLICA_STORAGE_ACCOUNT', value: azureReplicaStorageAccount }
             { name: 'AZURE_REPLICA_STORAGE_ACCOUNT_KEY', secretRef: 'azure-replica-storage-key' }
             { name: 'AZURE_REPLICA_STORAGE_CONTAINER', value: azureReplicaStorageContainer }
-          ] : [], evidenceEnv, sarvamEnv)
+          ] : [], evidenceEnv, sarvamEnv, selfTestEnv)
           resources: { cpu: json('1.0'), memory: '2Gi' }
         }
       ]

@@ -6146,3 +6146,32 @@ multipart capability, exact tenant scoping, immutable-write behavior and
 cross-branch biometric erasure all pass the same live suite. A redundant
 provider column should be added only if `storage_bucket` can no longer encode a
 single unambiguous backend locator.
+
+## `replica-self-test-requires-owner-bound-three-part-guard` (2026-08-27)
+
+**Decision.** The internal replica ceremony bypass is no longer enabled by a
+single global boolean. It requires the exact three-part contract
+`REPLICA_SELF_TEST_MODE=true`,
+`REPLICA_SELF_TEST_ENVIRONMENT=internal-owner-testing`, and a valid
+`REPLICA_SELF_TEST_OWNER_USER_ID` matching the authenticated source caller or
+leased processing-job owner. Before source creation, that exact owner gets the
+six private ingestion/model scopes (`capture`, `transcription`, `storage`,
+`biometric`, `training`, `inference`) plus the existing test identity fields.
+After real processing, the same guard permits the existing evidence acceptance,
+artifact selection and draft queue path. Every SQL statement still requires
+the same owner tuple and `subject_mode='self'`; authentication, storage,
+quarantine, malware, evidence and model-build gates are unchanged.
+
+**Why.** The old flag ran only after `voice_quality`, so it could not clear the
+`capture` and `storage` predicates that must pass before the first upload. It
+was also global to the worker: once set, any authenticated account's self-mode
+replica could eventually receive the same grant. A UUID allowlist makes the
+owner's temporary no-click test loop possible without turning one copied
+boolean into a cross-account capability.
+
+**What would reverse it.** Remove the source bootstrap and all three settings,
+then run `scripts/revoke-self-test-grants.mjs`, before any non-owner uses the
+shared environment. A future isolated test deployment may replace the UUID
+allowlist only if it has a separate database and auth tenant and proves the
+same fail-closed negative controls. Production user flows never inherit this
+contract.

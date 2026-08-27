@@ -3023,6 +3023,71 @@
 .context-locker-error { color: var(--danger) !important; }
 .context-list-title { margin: 30px 0 12px; color: var(--ink); font: 500 15px/1.3 var(--serif); }
 
+/* Internal test builds remove policy ceremony from the working path. The
+   class exists only when VITE_REPLICA_SELF_TEST_MODE is exactly true, so the
+   production surface keeps its full visual and interaction contract. */
+.test-environment-notice {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 var(--space-block);
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 var(--space-row);
+  color: var(--ink-soft);
+  font-size: var(--text-small);
+}
+.test-environment-notice strong { color: var(--forest-deep); font-size: var(--text-body); }
+.test-source-guide { margin: 0 0 var(--space-block); }
+.test-source-guide > p { margin: 0 0 var(--space-tight); color: var(--ink-soft); font-size: var(--text-small); }
+.test-source-guide > div { display: flex; flex-wrap: wrap; gap: var(--space-tight); }
+.test-source-guide button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  color: var(--ink-soft);
+  background: var(--panel-solid);
+  font: inherit;
+  font-size: var(--text-small);
+}
+.test-source-guide button:hover { border-color: var(--line-strong); color: var(--ink); }
+.test-source-guide button:active { transform: translateY(1px); }
+.studio-shell-self-test .evidence-panel { margin-top: 0; }
+.studio-shell-self-test .context-ack { display: none; }
+.studio-shell-self-test :is(.context-locker, .stage-section) > .field {
+  width: min(100%, 680px);
+  height: auto;
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.studio-shell-self-test :is(.context-locker, .stage-section) > .field :is(input, textarea),
+.studio-shell-self-test .studio-panel input[type="url"] {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  color: var(--ink);
+  background: var(--panel-solid);
+  font: inherit;
+  line-height: 1.45;
+}
+.studio-shell-self-test :is(.context-locker, .stage-section) > .field textarea { min-height: 96px; resize: vertical; }
+.studio-shell-self-test .studio-panel input[type="url"] { max-width: 680px; margin-bottom: 12px; }
+.studio-shell-self-test :is(.context-locker, .stage-section) > .field :is(input, textarea):focus,
+.studio-shell-self-test .studio-panel input[type="url"]:focus {
+  border-color: var(--forest);
+  outline: 0;
+  box-shadow: 0 0 0 var(--focus-width) var(--focus-ring);
+}
+
+@media (max-width: 590px) {
+  .test-environment-notice { align-items: flex-start; flex-direction: column; gap: 3px; }
+}
+
 .context-results { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
 .context-result { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 12px; background: var(--paper); }
 .context-result-name { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }

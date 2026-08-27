@@ -9,21 +9,51 @@ This document is the one place that describes the flag end to end: what it
 sets, on what it never runs, how to turn it off, and the one query that
 undoes everything it has ever done.
 
-## The exact env var and value
+## The exact three-part guard
 
 ```
 REPLICA_SELF_TEST_MODE=true
+REPLICA_SELF_TEST_ENVIRONMENT=internal-owner-testing
+REPLICA_SELF_TEST_OWNER_USER_ID=<the owner's Supabase auth UUID>
 ```
 
-Set on the environment that runs the processing worker (`vyakti-replica-
-processing`, Azure Container Apps Job) and, if the studio ever reads it
-directly, on `vyakti-replica-lab` (Vercel). Absent, unset, empty, or any
-value other than the exact string `true` (case-insensitive) is OFF and is
-today's behaviour, bit for bit — checked with a negative control, see below.
+Set all three on both environments that can enter the flow: `vyakti-replica-
+lab` (Vercel) bootstraps the six scopes before source creation, and
+`vyakti-replica-processing` (Azure Container Apps Job) accepts evidence and
+queues the draft after processing. The flag by itself is inert: all three
+values must be exact, and the UUID must match the authenticated or leased job
+owner. Absent, unset, malformed, mismatched, or legacy
+`REPLICA_SELF_TEST_MODE=true` by itself is OFF and keeps the fail-closed
+production behaviour.
+
+This is an owner allowlist, not a global test switch. Even if the two string
+values are copied into the wrong deployment, no other account can receive an
+automatic grant.
+
+The Vite-built studio also needs this public presentation pair:
+
+```
+VITE_REPLICA_SELF_TEST_MODE=true
+VITE_REPLICA_SELF_TEST_ENVIRONMENT=internal-owner-testing
+```
+
+Set both only on the internal owner test deployment, alongside the three server
+guards above. They reduce the studio to Add sources and Test your clone, open
+file intake without a click, hide account-consent, verification, review,
+readiness, activation, and publishing panels, and show direct paths for the
+five source types: audio/video files, screenshots/documents/text files, text
+or web links, one YouTube video, and a YouTube channel. These are choices, not
+a five-item gate, and Test your clone is always reachable. The Vite flags grant
+no server authority: the API still enforces the three-part owner allowlist.
+Both values must match the strings above exactly. If either is absent or
+different, the production studio renders unchanged.
 
 ## What happens on upload, with it on
 
-For a replica with `subject_mode='self'`, the moment a source it owns
+For an allowlisted replica with `subject_mode='self'`, the source endpoint
+first grants `capture`, `transcription`, `storage`, `biometric`, `training`
+and `inference`, so upload does not need a consent-screen round trip. The
+moment a source it owns
 reaches `vy_replica_source.state='ready'` (today: the instant the
 `voice_quality` processing step commits), four things happen automatically,
 through the real code paths, not by hand:
@@ -31,9 +61,8 @@ through the real code paths, not by hand:
 1. `age_verified_at`, `identity_verified_at`, `liveness_verified_at` and
    `identity_expires_at` are filled on `vy_replica` — only if they were
    `NULL`, so a real verification a person already did is never shortened.
-2. `biometric`, `training` and `inference` consent (method
-   `account_attestation`) are granted, again only for scopes not already
-   active.
+2. All six private ingestion/model scopes remain present with method
+   `account_attestation`, again only where an active row did not already exist.
 3. Every reviewable evidence row without an existing decision is `accepted`
    (`api/_replica-review.js`'s `acceptAllOwnedEvidenceForSelfTest`).
 4. One eligible `enhance`/wav artifact is `selected`
@@ -63,8 +92,9 @@ never have to wonder later whether a clone was verified.
 
 ## Finding and revoking everything the flag ever created
 
-Every row it writes carries `metadata.self_test_mode = true` and
-`metadata.granted_by = 'REPLICA_SELF_TEST_MODE'` (migration 063 added the
+Every row it writes carries `metadata.self_test_mode = true`,
+`metadata.granted_by = 'REPLICA_SELF_TEST_MODE'`, and
+`metadata.guard_contract = 'owner-only-internal-testing/v1'` (migration 063 added the
 `metadata` column to `vy_replica`, `vy_replica_processing_evidence_decision`
 and `vy_replica_processing_artifact_decision` — `vy_replica_consent` already
 had one).

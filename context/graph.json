@@ -3376,6 +3376,25 @@
       "kind": "rejection",
       "title": "Neon bytea and the us-east-2 beta object store do not meet production long-media and biometric-erasure requirements",
       "at": "2026-08-27"
+    },
+    {
+      "id": "replica-self-test-requires-owner-bound-three-part-guard",
+      "kind": "decision",
+      "title": "Internal ceremony bypass requires an exact environment marker and owner UUID allowlist in addition to the flag, and bootstraps six scopes before source creation",
+      "at": "2026-08-27",
+      "status": "local contract complete; deployment settings outstanding"
+    },
+    {
+      "id": "replica-self-test-owner-guard-focused-2026-08-27",
+      "kind": "measurement",
+      "title": "15 of 15 owner-guard checks and 35 of 35 replica-review checks passed offline; no live database or deployment run",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "single-self-test-boolean-is-a-global-footgun",
+      "kind": "rejection",
+      "title": "A worker-global true flag fires too late for first-upload capture/storage and does not restrict which authenticated owner can receive auto-grants",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6573,6 +6592,26 @@
       "src": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "replica-self-test-requires-owner-bound-three-part-guard",
+      "rel": "measured_by",
+      "dst": "replica-self-test-owner-guard-focused-2026-08-27"
+    },
+    {
+      "src": "replica-self-test-requires-owner-bound-three-part-guard",
+      "rel": "caused_by",
+      "dst": "single-self-test-boolean-is-a-global-footgun"
+    },
+    {
+      "src": "replica-self-test-requires-owner-bound-three-part-guard",
+      "rel": "supersedes",
+      "dst": "replica-self-test-mode"
+    },
+    {
+      "src": "replica-self-test-requires-owner-bound-three-part-guard",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
     }
   ]
 }

@@ -237,6 +237,9 @@ function SourceState({ state }: { state: ReplicaSource["state"] }) {
 
 interface Props {
   replicaId: string;
+  /** Build-time-only internal test surface. The backend still records the
+   * source grant before accepting a byte. */
+  testEnvironment?: boolean;
   consents: ConsentReceipt[];
   sources: ReplicaSource[];
   loading: boolean;
@@ -257,6 +260,7 @@ interface Props {
 
 export default function EnrollmentWorkspace({
   replicaId,
+  testEnvironment = false,
   consents,
   sources,
   loading,
@@ -280,7 +284,7 @@ export default function EnrollmentWorkspace({
   const [sourceLanguages, setSourceLanguages] = useState<EnrollmentLanguageLabels>(() => storedLanguageLabels(replicaId));
   const [calibrationLanguage, setCalibrationLanguage] = useState<Exclude<EnrollmentLanguage, "english"> | null>(null);
   const [activeFileIndex, setActiveFileIndex] = useState(-1);
-  const [containsThirdParties, setContainsThirdParties] = useState<boolean | null>(null);
+  const [containsThirdParties, setContainsThirdParties] = useState<boolean | null>(testEnvironment ? false : null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadPhase, setUploadPhase] = useState("");
@@ -299,6 +303,7 @@ export default function EnrollmentWorkspace({
   const uploadedObjects = useRef(new Set<string>());
 
   const consentActive = hasEnrollmentConsent(consents);
+  const intakeOpen = testEnvironment || consentActive;
   const latestExpiry = useMemo(() => {
     const active = consents.filter((receipt) => !receipt.revoked_at && receipt.expires_at);
     return active.sort((a, b) => String(b.expires_at).localeCompare(String(a.expires_at)))[0]?.expires_at ?? null;
@@ -557,9 +562,9 @@ export default function EnrollmentWorkspace({
 
   if (loading) {
     return (
-      <section className="enrollment-loading" aria-label="Loading consent and private sources">
+      <section className="enrollment-loading" aria-label={testEnvironment ? "Opening source intake" : "Loading consent and private sources"}>
         <div className="skeleton skeleton-enrollment" />
-        <div className="skeleton skeleton-enrollment" />
+        {!testEnvironment && <div className="skeleton skeleton-enrollment" />}
       </section>
     );
   }
@@ -568,13 +573,15 @@ export default function EnrollmentWorkspace({
     <section id="enrollment-workspace" className="enrollment-section" aria-labelledby="enrollment-title">
       <div className="section-heading enrollment-heading">
         <div>
-          <p className="eyebrow">Controlled enrollment</p>
-          <h2 id="enrollment-title">Permission first, then anything you upload</h2>
+          {!testEnvironment && <p className="eyebrow">Controlled enrollment</p>}
+          <h2 id="enrollment-title">{testEnvironment ? "Add audio, video, screenshots, or documents" : "Permission first, then anything you upload"}</h2>
         </div>
-        <p>Account consent opens private source intake. Biometric modeling, training, inference, and sharing stay locked.</p>
+        {!testEnvironment && (
+          <p>Account consent opens private source intake. Biometric modeling, training, inference, and sharing stay locked.</p>
+        )}
       </div>
 
-      <article className={`consent-panel ${consentActive ? "consent-active" : ""}`}>
+      {!testEnvironment && <article className={`consent-panel ${consentActive ? "consent-active" : ""}`}>
         <div className="consent-content">
           <div className="panel-title-row">
             <div>
@@ -640,28 +647,28 @@ export default function EnrollmentWorkspace({
           )}
           {consentError && <p className="inline-error" role="alert">{consentError}</p>}
         </div>
-      </article>
+      </article>}
 
-      <article className={`evidence-panel ${consentActive ? "evidence-open" : "evidence-locked"}`}>
+      <article className={`evidence-panel ${intakeOpen ? "evidence-open" : "evidence-locked"}`}>
         <div className="evidence-content">
           <div className="panel-title-row">
             <div>
               <p className="eyebrow">Private evidence</p>
               <h3>Add source material</h3>
             </div>
-            <span className={`permission-badge ${consentActive ? "permission-on" : ""}`}>
-              <i />{consentActive ? "Private intake open" : "Consent required"}
-            </span>
+            {!testEnvironment && <span className={`permission-badge ${intakeOpen ? "permission-on" : ""}`}>
+              <i />{intakeOpen ? "Private intake open" : "Consent required"}
+            </span>}
           </div>
 
-          {!consentActive ? (
+          {!intakeOpen ? (
             <div className="evidence-gate">
               <span className="large-lock" aria-hidden="true" />
               <div><strong>No file can be selected yet</strong><p>Complete the four attestations above to create a policy-bound source receipt first.</p></div>
             </div>
           ) : (
             <>
-              <section className="language-readiness" aria-labelledby="language-readiness-title">
+              {!testEnvironment && <section className="language-readiness" aria-labelledby="language-readiness-title">
                 <div className="language-readiness-head">
                   <div>
                     <h4 id="language-readiness-title">Voice reference coverage</h4>
@@ -729,7 +736,7 @@ export default function EnrollmentWorkspace({
                     </button>
                   </div>
                 )}
-              </section>
+              </section>}
 
               <div className="upload-grid">
                 <label>
@@ -743,11 +750,11 @@ export default function EnrollmentWorkspace({
                       setUploadMode(next);
                       resetSelectedFiles();
                       if (next !== "audio") setCalibrationLanguage(null);
-                      setContainsThirdParties(next === "identity_document" ? false : null);
+                      setContainsThirdParties(testEnvironment || next === "identity_document" ? false : null);
                       setUploadError("");
                     }}
                   >
-                    <option value="identity_document">{IDENTITY_DOCUMENT_POLICY.label}</option>
+                    {!testEnvironment && <option value="identity_document">{IDENTITY_DOCUMENT_POLICY.label}</option>}
                     {Object.entries(SOURCE_POLICY).map(([value, policy]) => <option key={value} value={value}>{policy.label}</option>)}
                   </select>
                 </label>
@@ -823,7 +830,7 @@ export default function EnrollmentWorkspace({
                 </section>
               )}
 
-              {uploadMode !== "identity_document" && <fieldset className="people-declaration">
+              {!testEnvironment && uploadMode !== "identity_document" && <fieldset className="people-declaration">
                 <legend>Whose voice, face, or private information appears?</legend>
                 <label>
                   <input type="radio" name="people" checked={containsThirdParties === false} onChange={() => setContainsThirdParties(false)} />

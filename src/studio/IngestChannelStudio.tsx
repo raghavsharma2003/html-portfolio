@@ -59,10 +59,12 @@ const STATUS_COPY: Record<string, string> = {
 export default function IngestChannelStudio({
   token,
   replicaId,
+  testEnvironment = false,
   onAuthError,
 }: {
   token: string;
   replicaId: string;
+  testEnvironment?: boolean;
   onAuthError?: (error: ReplicaApiError) => void;
 }) {
   const [view, setView] = useState<ChannelWatchView | null>(null);
@@ -104,7 +106,7 @@ export default function IngestChannelStudio({
     void load();
   }, [load]);
 
-  const statements = view?.statements ?? [];
+  const statements = useMemo(() => view?.statements ?? [], [view?.statements]);
   const allTicked = statements.length > 0 && statements.every((key) => ticked[key]);
 
   const liveFor = useCallback(
@@ -140,6 +142,9 @@ export default function IngestChannelStudio({
     setError("");
     setNotice("");
     try {
+      if (testEnvironment && !liveFor(channelUrl)) {
+        await attestChannel(token, replicaId, channelUrl.trim(), statements);
+      }
       await startChannelWatch(token, replicaId, channelUrl.trim());
       setNotice("Watching. New uploads will be picked up automatically.");
       await load();
@@ -148,7 +153,7 @@ export default function IngestChannelStudio({
     } finally {
       setBusy(false);
     }
-  }, [token, replicaId, channelUrl, load, fail]);
+  }, [token, replicaId, channelUrl, statements, testEnvironment, liveFor, load, fail]);
 
   const act = useCallback(
     async (run: () => Promise<ChannelWatch | ChannelAttestation>, message: string) => {
@@ -197,7 +202,7 @@ export default function IngestChannelStudio({
             />
           </label>
 
-          {!attested && (
+          {!testEnvironment && !attested && (
             <fieldset className="model-consent-statements">
               <legend>Confirm this channel is yours</legend>
               <p className="field-note">
@@ -227,7 +232,7 @@ export default function IngestChannelStudio({
             </fieldset>
           )}
 
-          {attested && (
+          {!testEnvironment && attested && (
             <div className="field-note" role="status">
               <p>
                 Recorded {new Date(attested.granted_at).toLocaleDateString()}, valid until{" "}
@@ -252,7 +257,7 @@ export default function IngestChannelStudio({
           <button
             type="button"
             className="button primary-button"
-            disabled={busy || !attested || !channelUrl.trim()}
+            disabled={busy || (!testEnvironment && !attested) || !channelUrl.trim()}
             onClick={() => void start()}
           >
             Start watching this channel

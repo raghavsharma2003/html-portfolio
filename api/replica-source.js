@@ -16,6 +16,7 @@ import {
   createSignedReplicaUpload,
   replicaObjectInfo,
 } from "./_replica-storage.js";
+import { bootstrapSelfTestReplica } from "./_replica-processing/self-test.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -53,6 +54,16 @@ export default async function handler(req, res) {
     const body = req.body || {};
 
     if (body.op === "create_upload") {
+      // Internal owner testing skips only the ceremony: the environment is
+      // triple-gated, the authenticated owner must match its UUID allowlist,
+      // and the SQL independently requires an owned self-mode replica. The
+      // upload, quarantine, scanner, evidence and model-build gates below are
+      // unchanged.
+      await bootstrapSelfTestReplica(q, {
+        ownerUserId: user.id,
+        replicaId: body.replica_id,
+        env: process.env,
+      });
       await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
       const source = await createPendingSource(q, user.id, body.replica_id, body);
       if (!source) return res.status(409).json({ error: "capture_and_storage_consent_required" });

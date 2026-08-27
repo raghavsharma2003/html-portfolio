@@ -4548,3 +4548,30 @@ serve database compute. A dedicated private Azure Blob account stores large
 bytes under explicit locators, using the available Azure grant. Neon Object
 Storage may be benchmarked later behind the same registry only after region,
 limits, presigned multipart behavior and cross-branch erasure are proven.
+
+## `single-self-test-boolean-is-a-global-footgun` (2026-08-27)
+
+**What was tried.** Use only `REPLICA_SELF_TEST_MODE=true` on the processing
+worker, then auto-grant identity, biometric/training/inference consent and
+review decisions after `voice_quality` reaches ready.
+
+**What specifically broke.** It was too late to enable the first upload:
+`createPendingSource` requires active `capture` and `storage` rows before it
+creates a source, while the worker hook cannot run until that source has passed
+all eight processing stages. The flag was also global to the job environment;
+its SQL constrained rows to their real owner and self mode, but did not
+constrain which owner could receive the bypass. Any authenticated account with
+a self replica could therefore become eligible while the flag stayed on.
+
+**What replaced it.** The source route now bootstraps all six private
+ingestion/model scopes before its unchanged consent predicate, but only when an
+exact internal-testing marker and an exact owner UUID allowlist accompany the
+boolean and match the authenticated caller. The worker repeats the same owner
+guard before review/queue. The legacy boolean by itself is inert. This is not
+live until both Vercel and the Azure processing job receive all three settings.
+
+The first worker-template compile also rejected an incomplete conditional
+array passed to `concat`: the Azure-storage secret branch had no explicit
+false value. Source review and string-based tests had missed it. The template
+now uses `checkedAzureStorage ? [...] : []`, and a real Bicep compile is part of
+this release evidence rather than an inferred pass.

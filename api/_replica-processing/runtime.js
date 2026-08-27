@@ -93,7 +93,7 @@ async function settle(db, leased, output, env) {
     // by the time this runs, so a self-test error here is logged and
     // swallowed rather than turning a successful `voice_quality` commit into
     // a failed job.
-    if (leased.job.step === "voice_quality" && selfTestModeEnabled(env)) {
+    if (leased.job.step === "voice_quality" && selfTestModeEnabled(env, leased.job.owner_user_id)) {
       try {
         await applySelfTestAutoGrant(db, { ownerUserId: leased.job.owner_user_id, replicaId: leased.job.replica_id, env });
       } catch (error) {

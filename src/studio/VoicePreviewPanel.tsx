@@ -120,7 +120,7 @@ function clearPersistedWarmup(replicaId: string) {
   }
 }
 
-export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAuthError }: {
+export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAuthError, testEnvironment = false }: {
   token: string;
   replicaId: string;
   /** So the "no draft yet" reason can be DERIVED from the same wizard state
@@ -131,6 +131,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
    *  unreviewed evidence set sitting in Processing Review. */
   wizardInput: WizardInput;
   onAuthError: (cause: unknown) => void;
+  testEnvironment?: boolean;
 }) {
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -319,13 +320,13 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     <section className="hear-voice" aria-labelledby="hear-voice-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Your voice</p>
+          {!testEnvironment && <p className="eyebrow">Your voice</p>}
           <h2 id="hear-voice-title">Preview my voice</h2>
         </div>
         <p>
-          A private draft, generated from your own consented recording. Every clip opens with the
-          spoken AI disclosure and carries an inaudible watermark. Previewing does not activate
-          anything and does not let anyone else hear it.
+          {testEnvironment
+            ? "Type a line and hear the current draft in Hindi, Hinglish, or English."
+            : "A private draft, generated from your own consented recording. Every clip opens with the spoken AI disclosure and carries an inaudible watermark. Previewing does not activate anything and does not let anyone else hear it."}
         </p>
       </div>
 
@@ -349,7 +350,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               onChange={(event) => setText(event.target.value)}
             />
             <small className={overLimit ? "hear-voice-over" : ""}>
-              {Array.from(text).length}/{MAX_TEXT} characters. The spoken AI disclosure is added for you.
+              {Array.from(text).length}/{MAX_TEXT} characters{testEnvironment ? "." : ". The spoken AI disclosure is added for you."}
             </small>
           </label>
 
@@ -384,10 +385,10 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
             <>
               <p className="hear-voice-state ready">Ready</p>
               <audio controls preload="metadata" src={phase.url}>Your browser cannot play this protected WAV.</audio>
-              <dl className="hear-voice-proof">
+              {!testEnvironment && <dl className="hear-voice-proof">
                 <div><dt>Disclosure</dt><dd>Spoken, on every clip</dd></div>
                 <div><dt>Watermark</dt><dd>PerTh, verified before release</dd></div>
-              </dl>
+              </dl>}
               <small>Receipt {phase.generationId.slice(0, 8)} · model {phase.modelCommitment.slice(0, 10)}</small>
             </>
           ) : phase.kind === "warming" ? (
@@ -406,7 +407,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           ) : phase.kind === "synthesizing" ? (
             <>
               <p className="hear-voice-state working">Generating</p>
-              <p className="hear-voice-message">Rendering your words, adding the disclosure and the watermark.</p>
+              <p className="hear-voice-message">{testEnvironment ? "Rendering your words in the current draft voice." : "Rendering your words, adding the disclosure and the watermark."}</p>
             </>
           ) : phase.kind === "error" ? (
             <>

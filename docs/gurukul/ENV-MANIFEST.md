@@ -271,6 +271,22 @@ subsystem reads/writes source and derived artifacts through.
 | `SUPABASE_URL` | `api/_replica-storage.js:25` (shared Meera var, also read directly by `api/_voice/providers/azure-personal-voice.js:71`) | required | falls back to `config.SUPABASE_URL` (the gitignored `api/_config.js`), then empty | storage calls fail — enrollment, evidence, and voice preview all depend on this |
 | `SUPABASE_SERVICE_ROLE_KEY` | `api/_replica-storage.js:30` | required | falls back to `config.SUPABASE_SERVICE_ROLE_KEY`, then empty | same — **deliberately distinct from `SUPABASE_KEY`**: `api/_config.example.js`'s own comment says biometric storage never guesses that the general app key is privileged |
 
+## 12b. Owner-only internal replica testing (`vercel-app` + `processing-worker`)
+
+`api/_replica-processing/self-test.js` removes enrollment ceremony clicks for
+one explicitly allowlisted owner while leaving authentication, ownership,
+private storage, quarantine, malware scanning, media evidence and model-build
+gates intact. The Vercel copy bootstraps the six scopes before source creation;
+the processing-worker copy auto-reviews real evidence and queues a draft after
+`voice_quality`. All three settings are mandatory together. The old single
+`REPLICA_SELF_TEST_MODE=true` setting is inert.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `REPLICA_SELF_TEST_MODE` | `api/replica-source.js`, `api/_replica-processing/runtime.js` | optional, owner testing only | anything except exact `true` is off | no bypass |
+| `REPLICA_SELF_TEST_ENVIRONMENT` | same | required only with self-test | must equal exact `internal-owner-testing` | no bypass |
+| `REPLICA_SELF_TEST_OWNER_USER_ID` | same | required only with self-test | no fallback; must match the authenticated/leased owner's UUID | no bypass, including for every other account |
+
 ## 13. Encryption-at-rest — three independent KEKs (`vercel-app`)
 
 Each pair is a 32-byte key-encryption-key wrapping a different sensitive
@@ -625,6 +641,9 @@ and §12 applies here too, read from this job's own env, not the Vercel app's.
 | `AZURE_VOICE_EVIDENCE_ORIGIN`, `AZURE_VOICE_EVIDENCE_HMAC_SECRET`, `VOICE_EVIDENCE_MAX_AUDIO_BYTES`, `VOICE_EVIDENCE_TIMEOUT_MS` | via `createAzureVoiceEvidenceAdapters({env,...})`, `run-once.js:23` → §10 | see §10 | see §10 | evidence steps (diarize/separate/enhance/voice_quality) fail without the required two |
 | `REPLICA_STORAGE_BUCKET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | via `createReplicaProcessingStorage`, `run-once.js:5` → §12 | see §12 | see §12 | the job cannot resolve or write any object |
 | `AZURE_REPLICA_BUDGET_ID`, `AZURE_REPLICA_APP_BUDGET_USD` | via `budgetEnv: process.env`, `run-once.js:61` → §11 | see §11 | see §11 | fences the OTHER Azure-billed steps (voice evidence); `transcribe` is unmetered now — see the Sarvam row above and its adapter's header for why |
+| `REPLICA_SELF_TEST_MODE` | `api/_replica-processing/self-test.js` | optional, internal owner testing only | anything except exact `true` disables the auto-grant | setting this alone does nothing; the two guards below are also mandatory |
+| `REPLICA_SELF_TEST_ENVIRONMENT` | `api/_replica-processing/self-test.js` | required only with self-test mode | must equal exact `internal-owner-testing` | missing or different keeps every identity, consent and review gate fail-closed |
+| `REPLICA_SELF_TEST_OWNER_USER_ID` | `api/_replica-processing/self-test.js` | required only with self-test mode | no fallback; must be a UUID matching the leased job owner | malformed or mismatched keeps the bypass off, so another account cannot inherit the owner's test grant |
 
 The Dockerfile's ClamAV signature refresh (`entrypoint.sh`) is a hard startup
 dependency with no env var — a failed `freshclam` update blocks the job

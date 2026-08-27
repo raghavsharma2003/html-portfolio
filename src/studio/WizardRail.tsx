@@ -106,14 +106,16 @@ export function WizardRail({
   steps,
   current,
   onGo,
+  label = "Your clone, in three steps",
 }: {
   steps: StepView[];
   current: StepId;
   onGo: (step: StepId) => void;
+  label?: string;
 }) {
   return (
     <nav className="wizard-rail" aria-label="Studio steps">
-      <p className="rail-label">Your clone, in three steps</p>
+      <p className="rail-label">{label}</p>
       <ol className="wizard-steps">
         {steps.map((step) => {
           const active = step.id === current;

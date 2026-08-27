@@ -94,9 +94,10 @@ function clock(ms: number | null | undefined): string {
 interface Props {
   token: string;
   replicaId: string;
+  testEnvironment?: boolean;
 }
 
-export default function VideoEnrollPanel({ token, replicaId }: Props) {
+export default function VideoEnrollPanel({ token, replicaId, testEnvironment = false }: Props) {
   const [view, setView] = useState<VideoEnrollView | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [channelUrl, setChannelUrl] = useState("");
@@ -123,8 +124,8 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
   // All five, or the server refuses — so the button says so rather than
   // letting the owner discover it as an error after a round trip.
   const allTicked = useMemo(
-    () => VIDEO_ATTESTATIONS.every((key) => ticked[key] === true),
-    [ticked],
+    () => testEnvironment || VIDEO_ATTESTATIONS.every((key) => ticked[key] === true),
+    [testEnvironment, ticked],
   );
 
   const submit = useCallback(async () => {
@@ -190,12 +191,12 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
         value={channelUrl}
         onChange={(event) => setChannelUrl(event.target.value)}
       />
-      <p className="studio-note">
+      {!testEnvironment && <p className="studio-note">
         We check the video really was uploaded by this channel before we
         download anything. If it was not, we stop.
-      </p>
+      </p>}
 
-      <fieldset>
+      {!testEnvironment && <fieldset>
         <legend>Before we take the audio</legend>
         {VIDEO_ATTESTATIONS.map((key) => (
           <label key={key} className="studio-check">
@@ -207,12 +208,12 @@ export default function VideoEnrollPanel({ token, replicaId }: Props) {
             <span>{ATTESTATION_COPY[key]}</span>
           </label>
         ))}
-      </fieldset>
+      </fieldset>}
 
       <button type="button" disabled={busy || !allTicked || !videoUrl || !channelUrl} onClick={() => void submit()}>
         {busy ? "Working. This takes a few minutes." : "Make the clone from this video"}
       </button>
-      {!allTicked && (
+      {!testEnvironment && !allTicked && (
         <p className="studio-note">All five need to be true before we can start.</p>
       )}
 

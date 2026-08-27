@@ -5098,3 +5098,27 @@ process a person's voice, or run the eight-stage worker DAG, so it is not yet a
 claim that a one- or two-hour source reached `ready`. The account key remains a
 temporary service-SAS bridge because the available Contributor principal cannot
 grant managed-identity Blob roles.
+
+## `replica-self-test-owner-guard-focused-2026-08-27`
+
+**Measured 2026-08-27, offline and deterministic.** The new
+`replicaselftestmode` suite passed 15/15 assertions through the central eval
+runner. Its negative controls cover absent env, the legacy single `true` flag,
+truthy/case aliases, a wrong environment marker, malformed UUID, cross-owner
+UUID, invalid replica ids before SQL, zero database calls on a rejected owner, and a correctly configured but
+unowned/non-self replica. Positive contract checks cover the exact allowlisted
+owner, all six source/model scopes in the SQL, revocable metadata, the leased
+owner at the processing caller, and bootstrap ordering before
+`createPendingSource`. The existing replica-review suite passed 35/35, Node
+syntax checks passed for all three changed API modules, and oxlint reported no
+findings on the changed JavaScript/eval files.
+
+n=15 new guard assertions plus n=35 existing review assertions, one local run
+on 2026-08-27. `git diff --check` and `node scripts/context.mjs --check` also
+passed before these context entries were appended. A portable Bicep 0.46.1
+compiler was then run against the worker template. Its first compile caught a
+missing `: []` false branch in the Azure-storage secrets `concat`; after that
+syntax defect was corrected, the same template compiled successfully. The full
+release runner then passed all 16 checks, including the live relational gates,
+in one run. No live source upload, model build or generated voice was used as
+evidence by these checks.

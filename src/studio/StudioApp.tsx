@@ -71,6 +71,7 @@ import {
   type WizardInput,
 } from "./wizardModel";
 import { seedSheetFor, type SheetProvenance } from "./sheetSeed";
+import { selfTestWizard, studioSelfTestUiEnabled } from "./studioTestMode";
 import { readRuntimeStatus } from "./runtimeApi";
 import { listChannels } from "./channelsApi";
 import { readTeacherSheetDraft } from "./teacherSheetApi";
@@ -98,6 +99,11 @@ import {
 
 type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
+
+const STUDIO_SELF_TEST_UI = studioSelfTestUiEnabled(
+  import.meta.env.VITE_REPLICA_SELF_TEST_MODE,
+  import.meta.env.VITE_REPLICA_SELF_TEST_ENVIRONMENT,
+);
 
 // The teacher mode seam. Read ONCE, at mount, from `?mode=teacher` — see
 // `readStudioMode()` below. Generic mode ("replica") is the untouched
@@ -166,6 +172,21 @@ const TEACHER_COPY: StudioCopy = {
   namePlaceholder: "Your name, as students will see it",
   fieldNote: "You may create a teaching clone only of yourself. Verification comes next.",
   createdNotice: "Your teaching clone has a workspace. Add one lecture or link on this step, and you can hear a private draft voice before any verification.",
+};
+
+const TEST_COPY: StudioCopy = {
+  brandTag: "INTERNAL TEST STUDIO",
+  introEyebrow: "",
+  introTitle: "Add your sources. Then test your clone.",
+  introBody: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it.",
+  workspaceNoun: "Test clone",
+  firstEyebrow: "",
+  firstTitle: "Create a test workspace.",
+  firstBody: "Name the clone, add any useful sources, then hear it and talk to it.",
+  nameLabel: "Clone name",
+  namePlaceholder: "Your name",
+  fieldNote: "You can change the clone as you test it.",
+  createdNotice: "Test workspace ready. Add useful sources, or start talking to the clone now.",
 };
 
 const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
@@ -237,6 +258,29 @@ function Spinner({ label }: { label: string }) {
   return <span className="spinner" role="status" aria-label={label} />;
 }
 
+const TEST_SOURCE_TYPES = [
+  { label: "Audio or video file", anchor: "#enrollment-workspace" },
+  { label: "Screenshot, document, or text file", anchor: "#enrollment-workspace" },
+  { label: "Text or web link", anchor: "#context-locker" },
+  { label: "YouTube video", anchor: "#video-enroll-heading" },
+  { label: "YouTube channel", anchor: "#ingest-channel-title" },
+] as const;
+
+function TestSourceGuide() {
+  return (
+    <nav className="test-source-guide" aria-label="Five source types">
+      <p>Add any source type. None is required to open the clone.</p>
+      <div>
+        {TEST_SOURCE_TYPES.map((source) => (
+          <button key={source.label} type="button" onClick={() => jumpTo(source.anchor, source.label)}>
+            {source.label}
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 // The old `AdvancedSurface` lived here: a single `<details>` in teacher mode
 // holding identity, liveness, provider consent, voice training AND launch.
 //
@@ -256,7 +300,7 @@ function Spinner({ label }: { label: string }) {
 // section-numbering eyebrows outright, and deleting the numbers killed the
 // collision more permanently than renumbering it would have.
 
-function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy }) {
+function AuthGate({ onAuthed, copy, testEnvironment }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy; testEnvironment: boolean }) {
   const [step, setStep] = useState<AuthStep>("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -309,14 +353,14 @@ function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => vo
       </header>
 
       <section className="auth-intro" aria-labelledby="studio-title">
-        <p className="eyebrow">{copy.introEyebrow}</p>
+        {copy.introEyebrow && <p className="eyebrow">{copy.introEyebrow}</p>}
         <h1 id="studio-title">{copy.introTitle}</h1>
         <p>{copy.introBody}</p>
-        <div className="trust-strip" aria-label="Studio safeguards">
+        {!testEnvironment && <div className="trust-strip" aria-label="Studio safeguards">
           <span><i />Self-replication only</span>
           <span><i />No public voice library</span>
           <span><i />Auditable deletion</span>
-        </div>
+        </div>}
       </section>
 
       <section className="auth-card" aria-labelledby="signin-title">
@@ -410,9 +454,9 @@ function AuthGate({ onAuthed, copy }: { onAuthed: (session: StudioSession) => vo
           </>
         )}
         {error && <p className="inline-error" role="alert">{error}</p>}
-        <p className="legal-copy">
+        {!testEnvironment && <p className="legal-copy">
           Access does not grant cloning permission. Separate, recorded consent is required before any biometric processing.
-        </p>
+        </p>}
       </section>
     </main>
   );
@@ -427,7 +471,7 @@ function CreateReplicaCard({ onCreate, busy, copy }: { onCreate: (name: string) 
         <div className="portrait-core">YOU</div>
       </div>
       <div>
-        <p className="eyebrow">{copy.firstEyebrow}</p>
+        {copy.firstEyebrow && <p className="eyebrow">{copy.firstEyebrow}</p>}
         <h2 id="empty-title">{copy.firstTitle}</h2>
         <p>{copy.firstBody}</p>
         <form
@@ -606,6 +650,7 @@ function ReadinessStrip({
 
 function ReplicaWorkspace({
   replica,
+  testEnvironment,
   mode,
   copy,
   step,
@@ -646,6 +691,7 @@ function ReplicaWorkspace({
   onActivityAct,
 }: {
   replica: Replica;
+  testEnvironment: boolean;
   mode: StudioMode;
   copy: StudioCopy;
   step: StepId;
@@ -713,6 +759,9 @@ function ReplicaWorkspace({
   const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
   const view = wizard.steps.find((row) => row.id === step) ?? wizard.steps[0];
   const stepNumber = view.number;
+  const previewWizardInput = testEnvironment
+    ? { ...wizardInput, sourceConsent: true, identityVerified: true, livenessVerified: true, mode: "generic" as const, runtime: null }
+    : wizardInput;
 
   useEffect(() => {
     if (stopped) setConfirming(false);
@@ -739,6 +788,13 @@ function ReplicaWorkspace({
           studio.css already; what is new is that the name stops being a
           display heading, because there is only room for one display heading
           on a phone and the STEP TITLE has to be it. */}
+      {testEnvironment && (
+        <aside className="test-environment-notice" role="status">
+          <strong>Internal test environment</strong>
+          <span>Add any useful sources, then hear and talk to the clone.</span>
+        </aside>
+      )}
+
       {compact ? (
         <section className="workspace-heading workspace-heading-compact">
           <span className={`state-dot state-${replica.lifecycle}`} />
@@ -819,18 +875,18 @@ function ReplicaWorkspace({
               is one task is the fold spent on furniture. The summary keeps the
               one number that changes ("2 of 3 identity checks"), so nothing a
               person is tracking disappears. */}
-          <ReadinessStrip
+          {!testEnvironment && <ReadinessStrip
             compact={compact}
             verificationCount={verificationCount}
             sourceCount={sources.length}
             runtimeStatus={runtimeStatus}
-          />
+          />}
 
           {/* The blocking line, now carrying its class. This is the surface the
               owner's screenshot caught saying "9 things ... are still waiting
               on you" while the real blocker was a processing queue nothing
               drained. It names one thing, and it says whose it is. */}
-          <BlockerNotice reason={stepBlockReason(step, wizardInput)} className="step-block" />
+          {!testEnvironment && <BlockerNotice reason={stepBlockReason(step, wizardInput)} className="step-block" />}
 
           {/* THE OWNER'S REPORT, VERBATIM: "I have to scroll down the whole
               page to know that the audio is processing." One line, on every
@@ -849,15 +905,17 @@ function ReplicaWorkspace({
 
           {step === "feed" && (
             <>
+              {testEnvironment && <TestSourceGuide />}
               <Band
                 collapsible={compact}
                 defaultOpen
-                title="Permission, then your material"
-                blurb="Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."
+                title={testEnvironment ? "Add source files" : "Permission, then your material"}
+                blurb={testEnvironment ? "Upload audio, video, documents, or screenshots. Multiple files can be added in one pass." : "Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."}
               >
                 <EnrollmentWorkspace
                   key={`enrollment-${replica.replica_id}`}
                   replicaId={replica.replica_id}
+                  testEnvironment={testEnvironment}
                   consents={consents}
                   sources={sources}
                   loading={enrollmentLoading}
@@ -873,13 +931,14 @@ function ReplicaWorkspace({
               <Band
                 collapsible={compact}
                 defaultOpen={false}
-                title="Files, links, videos, channels"
-                blurb="Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your clone."
+                title={testEnvironment ? "Add files and links" : "Files, links, videos, channels"}
+                blurb={testEnvironment ? "Drop text files or paste useful links. Add only what will help the clone understand you." : "Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your clone."}
               >
                 <ContextLockerPanel
                   key={`context-${replica.replica_id}`}
                   token={accessToken}
                   replicaId={replica.replica_id}
+                  testEnvironment={testEnvironment}
                   onAuthError={onReviewAuthError}
                   onItemCount={onContextCount}
                 />
@@ -887,6 +946,7 @@ function ReplicaWorkspace({
                   key={`video-enroll-${replica.replica_id}`}
                   token={accessToken}
                   replicaId={replica.replica_id}
+                  testEnvironment={testEnvironment}
                 />
                 {/* WS-S. The channel lane is horizontal by the same argument
                     the Context Locker is: a teacher's uploads are one kind of
@@ -896,6 +956,7 @@ function ReplicaWorkspace({
                   key={`ingest-${replica.replica_id}`}
                   token={accessToken}
                   replicaId={replica.replica_id}
+                  testEnvironment={testEnvironment}
                   onAuthError={onReviewAuthError}
                 />
               </Band>
@@ -944,10 +1005,11 @@ function ReplicaWorkspace({
                   key={`hear-voice-${replica.replica_id}`}
                   token={accessToken}
                   replicaId={replica.replica_id}
-                  wizardInput={wizardInput}
+                  wizardInput={previewWizardInput}
+                  testEnvironment={testEnvironment}
                   onAuthError={onReviewAuthError}
                 />
-                <VoiceUnlockNotice replica={replica} />
+                {!testEnvironment && <VoiceUnlockNotice replica={replica} />}
                 <MirrorCallStudio
                   key={`mirror-call-${replica.replica_id}`}
                   token={accessToken}
@@ -960,10 +1022,10 @@ function ReplicaWorkspace({
               <Band
                 collapsible={compact}
                 defaultOpen={false}
-                title="Check it and correct it"
-                blurb="What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."
+                title={testEnvironment ? "Processing status" : "Check it and correct it"}
+                blurb={testEnvironment ? "See what the clone is learning from the sources you added." : "What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."}
               >
-                {mode === "teacher" && (
+                {!testEnvironment && mode === "teacher" && (
                   <TeacherSheetStudio
                     key={`sheet-${replica.replica_id}-${sheetProvenance}`}
                     token={accessToken}
@@ -973,17 +1035,17 @@ function ReplicaWorkspace({
                     onAuthError={onReviewAuthError}
                   />
                 )}
-                <PersonModelStudio
+                {!testEnvironment && <PersonModelStudio
                   token={accessToken}
                   replicaId={replica.replica_id}
                   onAuthError={onReviewAuthError}
-                />
-                <ProcessingReview
+                />}
+                {!testEnvironment && <ProcessingReview
                   token={accessToken}
                   replicaId={replica.replica_id}
                   sourceCount={sources.length}
                   onAuthError={onReviewAuthError}
-                />
+                />}
                 {/* WS-AF's second mood: "why does it not know that yet". Same
                     data, unfinished work FIRST, because here the unfinished
                     work is the answer rather than the reassurance. */}
@@ -1002,7 +1064,7 @@ function ReplicaWorkspace({
                   `RuntimeGate` refuses activation without, and they live on the
                   step whose voice they unlock rather than in a drawer called
                   "Advanced". */}
-              <Band
+              {!testEnvironment && <Band
                 collapsible={compact}
                 defaultOpen={false}
                 title="Prove it is you"
@@ -1041,9 +1103,9 @@ function ReplicaWorkspace({
                   consents={consents}
                   onAuthError={onReviewAuthError}
                 />
-              </Band>
+              </Band>}
 
-              <AdvancedArea
+              {!testEnvironment && <AdvancedArea
                 id="advanced-meet"
                 title="Advanced tuning, all optional"
                 blurb="Four labs for people who want to go further. Nothing in here is required to activate a clone, and skipping all of it costs you nothing."
@@ -1074,7 +1136,7 @@ function ReplicaWorkspace({
                   stopped={stopped}
                   onAuthError={onReviewAuthError}
                 />
-              </AdvancedArea>
+              </AdvancedArea>}
             </>
           )}
 
@@ -1186,7 +1248,7 @@ function ReplicaWorkspace({
             </>
           )}
 
-          <StepBlockers step={view} compact={compact} />
+          {!testEnvironment && <StepBlockers step={view} compact={compact} />}
         </>
       )}
 
@@ -1235,7 +1297,7 @@ export default function StudioApp() {
   // Read once, at mount — see readStudioMode()'s own comment. Not re-read on
   // navigation, so this never flips mid-session.
   const [mode] = useState<StudioMode>(readStudioMode);
-  const copy = mode === "teacher" ? TEACHER_COPY : GENERIC_COPY;
+  const copy = STUDIO_SELF_TEST_UI ? TEST_COPY : mode === "teacher" ? TEACHER_COPY : GENERIC_COPY;
   const [session, setSession] = useState<StudioSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [replicas, setReplicas] = useState<Replica[]>([]);
@@ -1896,7 +1958,11 @@ export default function StudioApp() {
     platformWork,
   }), [connectedChannels, consents, contextItemCount, mode, platformWork, runtimeStatus, selected, sheetDraft, sources.length]);
 
-  const wizard = useMemo(() => computeWizard(wizardInput), [wizardInput]);
+  const wizard = useMemo(() => {
+    const base = computeWizard(wizardInput);
+    return STUDIO_SELF_TEST_UI ? selfTestWizard(base) : base;
+  }, [wizardInput]);
+  const activeStep: StepId = STUDIO_SELF_TEST_UI && step === "deploy" ? "feed" : step;
 
   // The sheet the consent surfaces render. A saved draft when there is one, a
   // seed carrying THIS owner's name when there is not, and never the demo
@@ -1917,18 +1983,18 @@ export default function StudioApp() {
     );
   }
 
-  if (!session) return <AuthGate copy={copy} onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
+  if (!session) return <AuthGate copy={copy} testEnvironment={STUDIO_SELF_TEST_UI} onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
 
   return (
-    <div className="studio-shell">
+    <div className={`studio-shell${STUDIO_SELF_TEST_UI ? " studio-shell-self-test" : ""}`}>
       <header className="studio-header">
         <a className="studio-logo" href="/" aria-label="Vyakti home">
           <Mark />
           <span><strong>VYAKTI</strong><small>{mode === "teacher" ? "GURUKUL STUDIO" : "REPLICA STUDIO"}</small></span>
         </a>
-        <div className="header-trust"><span className="secure-dot" />{mode === "teacher" ? "Private teaching-clone workspace" : "Private self-replica workspace"}</div>
+        <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? "Internal test workspace" : mode === "teacher" ? "Private teaching-clone workspace" : "Private self-replica workspace"}</div>
         <div className="account-menu">
-          <span className="account-copy"><strong>{identity}</strong><small>Verified account session</small></span>
+          <span className="account-copy"><strong>{identity}</strong><small>{STUDIO_SELF_TEST_UI ? "Test workspace session" : "Verified account session"}</small></span>
           <button className="signout-button" type="button" onClick={signOut}>Sign out</button>
         </div>
       </header>
@@ -1951,12 +2017,12 @@ export default function StudioApp() {
             rail it never shows. */}
         {compact ? (
           selected && !showCreate ? (
-            <CompactRail steps={wizard.steps} current={step} onGo={goStep} />
+            <CompactRail steps={wizard.steps} current={activeStep} onGo={goStep} />
           ) : null
         ) : (
         <div className="studio-rail">
           {selected && !showCreate && (
-            <WizardRail steps={wizard.steps} current={step} onGo={goStep} />
+            <WizardRail steps={wizard.steps} current={activeStep} onGo={goStep} label={STUDIO_SELF_TEST_UI ? "Your test flow" : undefined} />
           )}
           <ReplicaList
             replicas={replicas}
@@ -1995,9 +2061,10 @@ export default function StudioApp() {
           ) : selected && sheet ? (
             <ReplicaWorkspace
               replica={selected}
+              testEnvironment={STUDIO_SELF_TEST_UI}
               mode={mode}
               copy={copy}
-              step={step}
+              step={activeStep}
               wizard={wizard}
               wizardInput={wizardInput}
               onGoStep={goStep}

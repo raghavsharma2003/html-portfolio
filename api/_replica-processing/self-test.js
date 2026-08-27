@@ -3,10 +3,11 @@
 // with the whole review flow granted once. "I uploaded a video, my clone
 // should start being made."
 //
-// DEFAULT OFF. Absent or unset is today's behaviour, bit for bit — every
-// export here is a no-op unless `selfTestModeEnabled(env)` is true AND the
-// replica in front of it is `subject_mode='self'`. Both are re-checked at the
-// SQL level inside the functions this module calls
+// DEFAULT OFF. Absent or unset is today's behaviour, bit for bit. The mode is
+// enabled only when three independent guards agree: the explicit flag, the
+// internal-testing environment marker, and the exact owner UUID allowlist.
+// The replica must also be `subject_mode='self'`. Ownership and subject mode
+// are re-checked at the SQL level inside the functions this module calls
 // (`api/_replica-review.js`), not only here, so a caller mistake cannot widen
 // the blast radius.
 //
@@ -17,31 +18,45 @@
 // match a prior build — which is the real gate a hand-written row bypassed
 // the night this flag was written (see context/rejected.md).
 //
-// WHAT EVERY WRITE CARRIES: `metadata.self_test_mode = true` and
-// `metadata.granted_by = 'REPLICA_SELF_TEST_MODE'`, so
+// WHAT EVERY WRITE CARRIES: `metadata.self_test_mode = true`,
+// `metadata.granted_by = 'REPLICA_SELF_TEST_MODE'`, and the versioned
+// `owner-only-internal-testing/v1` guard contract, so
 // `docs/gurukul/REPLICA-SELF-TEST-MODE.md`'s one revocation query can find
 // and undo everything this module has ever written, for every replica, in
 // one statement. See context/decisions.md#replica-self-test-mode for the
 // reversal condition.
 
 import { acceptAllOwnedEvidenceForSelfTest, queueOwnedVoiceGenome, selectOwnedVoiceArtifact } from "../_replica-review.js";
+import { replicaId as parseReplicaId } from "../_replica.js";
 
 export const SELF_TEST_GRANT_METADATA = Object.freeze({
   self_test_mode: true,
   granted_by: "REPLICA_SELF_TEST_MODE",
+  guard_contract: "owner-only-internal-testing/v1",
 });
 
-/** Reads exactly one env var. "true" (case-insensitive) is on; anything else,
- * including absent, is off. No other truthy-string heuristics — a flag this
- * consequential does not get to misfire on "1" typed by habit from a
- * different variable. */
-export function selfTestModeEnabled(env = process.env) {
-  return String(env.REPLICA_SELF_TEST_MODE || "").trim().toLowerCase() === "true";
+export const SELF_TEST_ENVIRONMENT = "internal-owner-testing";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * This consequential bypass deliberately has no truthy-string heuristics and
+ * no environment-only form. All three values must be present and exact, and
+ * the caller must supply the owner UUID for the row it is about to touch.
+ * `REPLICA_SELF_TEST_MODE=true` on its own is therefore inert.
+ */
+export function selfTestModeEnabled(env = process.env, ownerUserId) {
+  if (env.REPLICA_SELF_TEST_MODE !== "true") return false;
+  if (env.REPLICA_SELF_TEST_ENVIRONMENT !== SELF_TEST_ENVIRONMENT) return false;
+  const configuredOwner = String(env.REPLICA_SELF_TEST_OWNER_USER_ID || "");
+  const requestedOwner = String(ownerUserId || "");
+  return UUID.test(configuredOwner) && UUID.test(requestedOwner)
+    && configuredOwner.toLowerCase() === requestedOwner.toLowerCase();
 }
 
-// Step 1 of 3 — identity + the three consent scopes the real enrollment
-// ceremonies never granted (biometric/training/inference). Every column and
-// every consent row is filled with `coalesce`/`not exists`, so a real
+// Step 1 of 3 — identity + all six scopes needed for private ingestion and
+// model testing (capture/transcription/storage/biometric/training/inference).
+// Every column and every consent row is filled with `coalesce`/`not exists`, so a real
 // verification a person already did is never shortened, overwritten, or
 // re-dated.
 async function grantSelfTestIdentityAndConsent(db, ownerUserId, replicaId, metadataJson) {
@@ -62,7 +77,7 @@ async function grantSelfTestIdentityAndConsent(db, ownerUserId, replicaId, metad
         from target t where r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
        returning r.replica_id
      ), wanted as (
-       select scope from unnest(array['biometric','training','inference']::text[]) scope
+       select scope from unnest(array['capture','transcription','storage','biometric','training','inference']::text[]) scope
      ), missing as (
        select t.replica_id, t.owner_user_id, t.policy_version, w.scope
          from target t cross join wanted w
@@ -116,6 +131,24 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
 }
 
 /**
+ * Satisfies only the enrollment ceremony gates needed before source creation.
+ * The authenticated API caller supplies ownerUserId; the environment allowlist
+ * must match it, and the SQL independently requires that owner plus a self-mode
+ * replica. Technical upload, scanning, evidence and model-build gates remain.
+ */
+export async function bootstrapSelfTestReplica(db, { ownerUserId, replicaId, env = process.env } = {}) {
+  if (!selfTestModeEnabled(env, ownerUserId)) return { applied: false, reason: "flag_off" };
+  const rid = parseReplicaId(replicaId);
+  const metadataJson = JSON.stringify(SELF_TEST_GRANT_METADATA);
+  const identity = await grantSelfTestIdentityAndConsent(db, ownerUserId, rid, metadataJson);
+  if (!identity) return { applied: false, reason: "not_a_self_replica" };
+  return {
+    applied: true,
+    granted_scopes: Array.isArray(identity.granted_scopes) ? identity.granted_scopes : [],
+  };
+}
+
+/**
  * The whole loop, run once a source under a self-mode replica reaches
  * `state='ready'` (today: the moment `voice_quality` commits). No-op unless
  * the flag is on. Returns a plain summary safe to log (counts and ids only,
@@ -124,11 +157,8 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
  * reported, not raised, because the next source to reach 'ready' tries again.
  */
 export async function applySelfTestAutoGrant(db, { ownerUserId, replicaId, env = process.env } = {}) {
-  if (!selfTestModeEnabled(env)) return { applied: false, reason: "flag_off" };
-  const metadataJson = JSON.stringify(SELF_TEST_GRANT_METADATA);
-
-  const identity = await grantSelfTestIdentityAndConsent(db, ownerUserId, replicaId, metadataJson);
-  if (!identity) return { applied: false, reason: "not_a_self_replica" };
+  const bootstrap = await bootstrapSelfTestReplica(db, { ownerUserId, replicaId, env });
+  if (!bootstrap.applied) return bootstrap;
 
   const acceptedEvidenceCount = await acceptAllOwnedEvidenceForSelfTest(
     db, ownerUserId, replicaId, SELF_TEST_GRANT_METADATA,

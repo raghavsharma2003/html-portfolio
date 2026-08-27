@@ -481,6 +481,11 @@ const suites = {
   // automatic detection, and a selected or processing calibration never reads
   // as a ready Hindi/Hinglish reference. Offline, deterministic, no media call.
   studioenrollmentquality: "studio-enrollment-quality/run.mjs",
+  // Explicit owner-only test builds remove verification and publishing
+  // ceremony from the mounted UI while production remains the default. The
+  // suite carries the naive "hide Deploy only" negative control so old
+  // identity/liveness blockers cannot leak back into the simplified rail.
+  studioselftestui: "studio-self-test-ui/run.mjs",
   // Noisy-evidence processing: immutable derivatives, composite ownership,
   // retry-safe leases, provenance-carrying ASR/diarization/analysis evidence
   // and draft-only VoiceGenome builds. Fake adapters prove contracts only;
@@ -528,6 +533,10 @@ const suites = {
   // decisions, privacy-safe summaries, real-evidence readiness and an
   // idempotent draft-only VoiceGenome queue.
   replicareview: "replica-review/run.mjs",
+  // Internal owner testing can auto-grant enrollment ceremony gates only when
+  // an exact three-part environment guard and the authenticated/leased owner
+  // UUID all match. The legacy one-flag form stays fail-closed.
+  replicaselftestmode: "replica-self-test-mode/run.mjs",
   // Crash-recoverable, consent-fenced VoiceGenome materialization: one exact
   // owner-accepted evidence set becomes a draft only, never an active voice.
   modelbuild: "model-build/run.mjs",

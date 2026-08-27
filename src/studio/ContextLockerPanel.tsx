@@ -133,12 +133,14 @@ const rowFrom = (result: ContextAddResult, fallbackLabel: string): Row => ({
 export default function ContextLockerPanel({
   token,
   replicaId,
+  testEnvironment = false,
   onAuthError,
   onProposals,
   onItemCount,
 }: {
   token: string;
   replicaId: string;
+  testEnvironment?: boolean;
   onAuthError?: (error: ReplicaApiError) => void;
   /** Called with the number of new proposals so the host can nudge the owner
    *  toward the existing sheet-review surface. The panel deliberately does not
@@ -157,7 +159,7 @@ export default function ContextLockerPanel({
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [links, setLinks] = useState("");
-  const [acknowledged, setAcknowledged] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(testEnvironment);
   const [recent, setRecent] = useState<Row[]>([]);
   const fileInput = useRef<HTMLInputElement | null>(null);
 
@@ -326,7 +328,7 @@ export default function ContextLockerPanel({
         />
       </div>
 
-      <label className="model-consent-check context-ack">
+      {!testEnvironment && <label className="model-consent-check context-ack">
         <input
           type="checkbox"
           checked={acknowledged}
@@ -336,7 +338,7 @@ export default function ContextLockerPanel({
           If I upload a chat export, I understand it contains another person's private messages, that
           only MY messages are ever used, and that theirs are read only to tell the two apart.
         </span>
-      </label>
+      </label>}
 
       <label className="field">
         <span>Or paste links, one per line</span>
