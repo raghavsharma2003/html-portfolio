@@ -29,11 +29,14 @@ email, or provider identifiers. Access logs are disabled, audio is handled in
 memory plus one automatically deleted temporary reference file, and output is
 raw 24 kHz mono PCM.
 
-Every input utterance must already begin with the exact audible disclosure
-`This is an AI-generated voice replica.` Chatterbox's PerTh watermark is
-verified before output is returned. The application plane must still add
-Vyakti's independent AudioSeal watermark, signed segment chain, and C2PA
-receipt before any preview reaches a browser.
+Every modern request must begin with the exact allowlisted audible disclosure
+for its declared text-plan language. English uses
+`This is an AI-generated voice replica.` and Hindi uses the fixed Hindi
+equivalent from the signed text frontend. A legacy request remains English-only
+during the bounded rolling transition. Chatterbox's PerTh watermark is verified
+before output is returned. The application plane must still add Vyakti's
+independent AudioSeal watermark, signed segment chain, and C2PA receipt before
+any preview reaches a browser.
 
 Required configuration:
 
@@ -78,11 +81,14 @@ initial delays are bounded to the API's 60-second maximum. Startup tolerance is
 expressed with repeated startup probes, not an out-of-range delay.
 
 Language conditioning negotiates
-`vyakti-voice-language-conditioning/v1` inside the signed v1 transport. General
-arm rollout is safe in either order: the new app plane accepts a signed legacy
-runtime response and labels enforcement unverified, while the new runtime
-accepts the legacy request, preserves its CFG, and labels that path unverified.
-Keep this compatibility until both revisions have been observed live.
+`vyakti-voice-language-conditioning/v1` inside the signed v1 transport. The
+current rollout order is strict: deploy and verify the GPU runtime first, then
+the admission broker, then Vercel. The new runtime accepts a legacy request,
+preserves its CFG, and labels that path unverified, so the old web plane remains
+available while Azure rolls. The new web plane intentionally refuses a runtime
+response without the signed text-plan and localized disclosure receipt. Keep
+runtime-side legacy request compatibility until both Azure and Vercel revisions
+have been observed live.
 
 The broker additionally receives the internal runtime origin from the Bicep
 deployment. Both images must be published and supplied to the deployment by

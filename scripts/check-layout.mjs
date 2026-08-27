@@ -43,9 +43,29 @@
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { extname, join, resolve } from "node:path";
+import { extname, join, win32 } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(new URL("..", import.meta.url).pathname);
+function rootFromModuleUrl(moduleUrl, options) {
+  return fileURLToPath(new URL("..", moduleUrl), options);
+}
+
+// Keep the exact Windows failure as a negative control. URL.pathname yields
+// `/C:/...`; feeding that string to path.resolve on Windows produces
+// `C:\\C:\\...`, so a successful build is mistaken for an absent dist/. This
+// runs on every host by asking Node for Windows file-URL semantics explicitly.
+function assertPortableRootResolution() {
+  const fixture = "file:///C:/repo/scripts/check-layout.mjs";
+  const expected = "C:\\repo\\";
+  const actual = rootFromModuleUrl(fixture, { windows: true });
+  const legacy = win32.resolve("C:\\gate-worktree", new URL("..", fixture).pathname);
+  if (actual !== expected || legacy === expected) {
+    throw new Error(`layout root portability regression: actual=${actual}, legacy=${legacy}`);
+  }
+}
+
+assertPortableRootResolution();
+const ROOT = rootFromModuleUrl(import.meta.url);
 const DIST = join(ROOT, "dist");
 const PORT = 8931;
 const FIXTURE = "studio-layout-fixture.html";

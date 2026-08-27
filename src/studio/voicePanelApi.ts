@@ -14,6 +14,9 @@ export interface VoicePanelReady {
   audio: Blob;
   generationId: string;
   modelCommitment: string;
+  textPlanSha256: string;
+  transformationCount: number;
+  spokenText: string;
 }
 
 export interface VoicePanelWarming {
@@ -83,13 +86,20 @@ export async function requestVoicePanelPreview(token: string, input: {
   const generationId = response.headers.get("x-vyakti-generation") || "";
   const disclosure = response.headers.get("x-vyakti-disclosure") || "";
   const modelCommitment = response.headers.get("x-vyakti-model-commitment") || "";
+  const textPlanSha256 = response.headers.get("x-vyakti-text-plan") || "";
+  const transformationCount = Number(response.headers.get("x-vyakti-text-transformations") || "0");
+  let spokenText = "";
+  try { spokenText = decodeURIComponent(response.headers.get("x-vyakti-spoken-text") || ""); }
+  catch { throw new Error("Protected preview text plan was invalid"); }
   // The disclosure header is checked rather than displayed-and-trusted: a clip
   // that arrived without the audible-prefix scheme is not a clip this panel
   // will play, whatever the server said about it.
-  if (!generationId || disclosure !== "audible-prefix-v1" || !/^[0-9a-f]{64}$/.test(modelCommitment)) {
+  if (!generationId || disclosure !== "audible-prefix-v1" || !/^[0-9a-f]{64}$/.test(modelCommitment) ||
+      !/^[0-9a-f]{64}$/.test(textPlanSha256) || !Number.isInteger(transformationCount) ||
+      transformationCount < 0 || !spokenText) {
     throw new Error("Protected preview receipt was incomplete");
   }
-  return { kind: "ready", audio, generationId, modelCommitment };
+  return { kind: "ready", audio, generationId, modelCommitment, textPlanSha256, transformationCount, spokenText };
 }
 
 export async function getVoicePanelStatus(token: string): Promise<VoicePanelStatus> {

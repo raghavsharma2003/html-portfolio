@@ -2,9 +2,9 @@ import { createHmac } from "node:crypto";
 import {
   C2PA_STANDARD,
   DISCLOSURE_SCHEME,
-  SYNTHETIC_AUDIO_DISCLOSURE,
   sha256Hex,
 } from "../contracts.js";
+import { isSyntheticAudioDisclosure } from "../../_voice/contracts.js";
 
 const TEST_SECRET = "offline-provenance-test-secret-not-for-production";
 
@@ -27,7 +27,7 @@ export function createFakeProtectionAdapters() {
       version: "1",
       testOnly: true,
       async prepend({ stream, text }) {
-        if (text !== SYNTHETIC_AUDIO_DISCLOSURE) throw new Error("wrong_disclosure_text");
+        if (!isSyntheticAudioDisclosure(text)) throw new Error("wrong_disclosure_text");
         const proof = {
           scheme: DISCLOSURE_SCHEME,
           text,

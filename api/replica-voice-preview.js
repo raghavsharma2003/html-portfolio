@@ -6,6 +6,7 @@ import { readPrivateReplicaObject } from "./_replica-storage.js";
 import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { assertSynthesisResult } from "./_voice/contracts.js";
+import { buildVoiceTextPlan, voiceTextPlanAudit } from "./_voice/hindi-text-frontend.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
 import {
   beginOwnedVoicePreview,
@@ -23,7 +24,7 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-  res.setHeader("Access-Control-Expose-Headers", "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, X-Vyakti-Voice-Model-Arm, X-Vyakti-Voice-Quality-State, X-Vyakti-Voice-Quality-Warnings, X-Vyakti-Voice-Effective-Cfg");
+  res.setHeader("Access-Control-Expose-Headers", "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, X-Vyakti-Voice-Model-Arm, X-Vyakti-Voice-Quality-State, X-Vyakti-Voice-Quality-Warnings, X-Vyakti-Voice-Effective-Cfg, X-Vyakti-Text-Plan, X-Vyakti-Text-Transformations, X-Vyakti-Spoken-Text");
   res.setHeader("Cache-Control", "no-store");
 }
 
@@ -57,6 +58,8 @@ export default async function handler(req, res) {
     const text = cleanVoicePreviewText(body.text);
     const textHash = voicePreviewTextHash(text);
     const textLanguageMode = voicePreviewTextMode(text);
+    const textPlan = buildVoiceTextPlan({ text, languageId });
+    const textFrontend = voiceTextPlanAudit(textPlan);
     const trial = body.trial_id ? await resolveOwnedVoiceTrialSide(q, user.id, {
       replica_id: body.replica_id,
       genome_version: body.genome_version,
@@ -65,6 +68,7 @@ export default async function handler(req, res) {
       language_id: languageId,
       text_hash: textHash,
       text_language_mode: textLanguageMode,
+      text_frontend: textFrontend,
     }) : null;
     started = await beginOwnedVoicePreview(q, user.id, {
       replica_id: body.replica_id,
@@ -73,6 +77,7 @@ export default async function handler(req, res) {
       language_id: languageId,
       text_hash: textHash,
       text_language_mode: textLanguageMode,
+      text_frontend: textFrontend,
       style_key: trial?.styleKey || body.style_key,
       preview_seed: trial?.previewSeed,
       trial_id: trial?.trialId,
@@ -106,6 +111,9 @@ export default async function handler(req, res) {
       },
       signal: aborter.signal,
     }));
+    if (synthesized.receipt?.textFrontend?.planSha256 !== textFrontend.planSha256) {
+      throw Object.assign(new Error("voice_preview_text_plan_binding_failed"), { status: 409 });
+    }
     const protection = createProductionProtectionAdapters({ db: q });
     const protectedAudio = await protectReplicaStream({
       authorization: started.authorizationInput,
@@ -116,6 +124,7 @@ export default async function handler(req, res) {
         renderedText: synthesized.renderedText,
         renderer: `${provider.name}@${provider.modelCommitment}`,
       },
+      disclosureText: synthesized.disclosureText,
       signal: aborter.signal,
     });
     const chunks = [];
@@ -129,6 +138,9 @@ export default async function handler(req, res) {
     res.setHeader("X-Vyakti-Generation", started.generation.generation_id);
     res.setHeader("X-Vyakti-Disclosure", "audible-prefix-v1");
     res.setHeader("X-Vyakti-Model-Commitment", provider.modelCommitment);
+    res.setHeader("X-Vyakti-Text-Plan", textFrontend.planSha256);
+    res.setHeader("X-Vyakti-Text-Transformations", String(textFrontend.transformationCount));
+    res.setHeader("X-Vyakti-Spoken-Text", encodeURIComponent(textPlan.targetText));
     res.setHeader("X-Vyakti-Voice-Model-Arm", synthesized.receipt.modelArm || provider.modelArm || "general");
     res.setHeader("X-Vyakti-Voice-Quality-State", synthesized.receipt.qualityState);
     res.setHeader("X-Vyakti-Voice-Quality-Warnings", synthesized.receipt.qualityWarnings.join(","));

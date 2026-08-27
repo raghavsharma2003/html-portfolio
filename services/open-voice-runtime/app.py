@@ -39,6 +39,7 @@ from hindi_pack import load_hindi_pack
 
 PROTOCOL = "vyakti-open-voice/v1"
 CONDITIONING_CONTRACT = "vyakti-voice-language-conditioning/v1"
+TEXT_FRONTEND_CONTRACT = "vyakti-hindi-text-frontend/v1"
 MODEL_SOURCE_COMMIT = "5de7a54aa4e5e2baadb0182dde554908b48b85c2"
 MODEL_CHECKPOINT_COMMIT = "5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18"
 BASE_PACK_NAME = "chatterbox-multilingual-v3"
@@ -55,6 +56,10 @@ MODEL_ARMS = {
     "hindi_v3": (HINDI_PACK_NAME, HINDI_PACK_COMMITMENT),
 }
 DISCLOSURE_PREFIX = "This is an AI-generated voice replica. "
+DISCLOSURES = {
+    "en": "This is an AI-generated voice replica.",
+    "hi": "यह एआई से बनाई गई आवाज़ की प्रतिकृति है।",
+}
 SUPPORTED_LANGUAGES = frozenset({
     "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it",
     "ja", "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh",
@@ -233,7 +238,7 @@ def _script_mode(value: str) -> str:
     return "latin_only" if latin else "unknown"
 
 
-def _language_conditioning(language: str, reference_mode: str, reference_scope: str, text_mode: str, requested_cfg: float) -> dict[str, Any]:
+def _language_conditioning(language: str, reference_mode: str, reference_scope: str, text_mode: str, requested_cfg: float, disclosure_language: str = "en") -> dict[str, Any]:
     if reference_mode not in LANGUAGE_MODES or text_mode not in LANGUAGE_MODES:
         raise ServiceError("language_conditioning_invalid", 422)
     if reference_scope not in {"source_transcript", "exact_reference", "unverified"}:
@@ -263,7 +268,8 @@ def _language_conditioning(language: str, reference_mode: str, reference_scope: 
             warnings.append("hindi_text_latin_only_unverified")
         elif text_mode == "mixed":
             warnings.append("hindi_text_mixed_script")
-        warnings.append("english_disclosure_under_hindi_language")
+        if disclosure_language != "hi":
+            warnings.append("english_disclosure_under_hindi_language")
     return {
         "requested_cfg_weight": requested_cfg,
         "effective_cfg_weight": effective_cfg,
@@ -280,7 +286,10 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
     if not UUID_RE.fullmatch(request_id):
         raise ServiceError("request_id_invalid", 422)
     text = str(payload.get("text", "")).strip()
-    if not text.startswith(DISCLOSURE_PREFIX) or len(text) <= len(DISCLOSURE_PREFIX) or len(text) > 700:
+    frontend_contract = payload.get("text_frontend_contract")
+    if frontend_contract not in (None, TEXT_FRONTEND_CONTRACT):
+        raise ServiceError("text_frontend_contract_invalid", 409)
+    if len(text) == 0 or len(text) > 700:
         raise ServiceError("disclosed_text_invalid", 422)
     language = str(payload.get("language_id", "")).lower()
     if language not in SUPPORTED_LANGUAGES:
@@ -289,6 +298,32 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
         raise ServiceError("model_arm_binding_invalid", 409)
     if app.state.model_arm == "hindi_v3" and language != "hi":
         raise ServiceError("hindi_model_arm_language_invalid", 422)
+    if frontend_contract == TEXT_FRONTEND_CONTRACT:
+        plan_sha256 = str(payload.get("text_plan_sha256", ""))
+        segment_index = payload.get("text_segment_index")
+        segment_count = payload.get("text_segment_count")
+        semantic_indexes = payload.get("text_segment_semantic_indexes")
+        disclosure_text = str(payload.get("disclosure_text", ""))
+        disclosure_language = str(payload.get("disclosure_language_id", "")).lower()
+        if not SHA_RE.fullmatch(plan_sha256):
+            raise ServiceError("text_plan_hash_invalid", 422)
+        if not isinstance(segment_index, int) or isinstance(segment_index, bool) or segment_index < 0:
+            raise ServiceError("text_segment_index_invalid", 422)
+        if not isinstance(segment_count, int) or isinstance(segment_count, bool) or not 1 <= segment_count <= 16 or segment_index >= segment_count:
+            raise ServiceError("text_segment_count_invalid", 422)
+        if not isinstance(semantic_indexes, list) or not semantic_indexes or any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0 for value in semantic_indexes
+        ):
+            raise ServiceError("text_segment_semantic_indexes_invalid", 422)
+        if disclosure_language not in DISCLOSURES or disclosure_text != DISCLOSURES[disclosure_language]:
+            raise ServiceError("disclosure_language_binding_invalid", 409)
+        if segment_index == 0:
+            if text != disclosure_text and not text.startswith(disclosure_text + " "):
+                raise ServiceError("disclosed_text_invalid", 422)
+        elif any(text == value or text.startswith(value + " ") for value in DISCLOSURES.values()):
+            raise ServiceError("duplicate_disclosure_segment_invalid", 422)
+    elif not text.startswith(DISCLOSURE_PREFIX) or len(text) <= len(DISCLOSURE_PREFIX):
+        raise ServiceError("disclosed_text_invalid", 422)
     seed = payload.get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0 or seed > 2**31 - 1:
         raise ServiceError("seed_invalid", 422)
@@ -304,12 +339,15 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
         raise ServiceError("language_conditioning_contract_invalid", 409)
     reference_mode = str(payload.get("reference_language_mode", "unknown")).lower()
     reference_scope = str(payload.get("reference_language_evidence_scope", "unverified")).lower()
-    observed_text_mode = _script_mode(text[len(DISCLOSURE_PREFIX):])
+    observed_text_mode = _script_mode(text if frontend_contract else text[len(DISCLOSURE_PREFIX):])
     text_mode = str(payload.get("text_language_mode", observed_text_mode)).lower()
     if modern_conditioning and text_mode != observed_text_mode:
         raise ServiceError("text_language_mode_binding_invalid", 409)
     requested_cfg = _finite(payload.get("requested_cfg_weight", payload.get("cfg_weight", 0.5)), 0.0, 1.0, "cfg_weight_invalid")
-    conditioning = _language_conditioning(language, reference_mode, reference_scope, text_mode, requested_cfg)
+    conditioning = _language_conditioning(
+        language, reference_mode, reference_scope, text_mode, requested_cfg,
+        disclosure_language if frontend_contract else "en",
+    )
     supplied_cfg = _finite(payload.get("cfg_weight", conditioning["effective_cfg_weight"]), 0.0, 1.0, "cfg_weight_invalid")
     if modern_conditioning and not math.isclose(supplied_cfg, conditioning["effective_cfg_weight"], abs_tol=1e-9):
         raise ServiceError("language_conditioning_binding_invalid", 409)
@@ -337,6 +375,15 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
         "conditioning_contract": CONDITIONING_CONTRACT if modern_conditioning else None,
         "cfg_weight": supplied_cfg,
         "temperature": _finite(payload.get("temperature", 0.8), 0.2, 1.5, "temperature_invalid"),
+        "text_frontend_contract": frontend_contract,
+        **({
+            "text_plan_sha256": plan_sha256,
+            "text_segment_index": segment_index,
+            "text_segment_count": segment_count,
+            "text_segment_semantic_indexes": semantic_indexes,
+            "disclosure_text": disclosure_text,
+            "disclosure_language_id": disclosure_language,
+        } if frontend_contract else {}),
     }
 
 
@@ -438,6 +485,15 @@ def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
         "effective_cfg_weight": value["effective_cfg_weight"],
         "quality_state": value["quality_state"],
         "quality_warnings": value["quality_warnings"],
+        **({
+            "text_frontend_contract": value["text_frontend_contract"],
+            "text_plan_sha256": value["text_plan_sha256"],
+            "text_segment_index": value["text_segment_index"],
+            "text_segment_count": value["text_segment_count"],
+            "text_segment_semantic_indexes": value["text_segment_semantic_indexes"],
+            "disclosure_text": value["disclosure_text"],
+            "disclosure_language_id": value["disclosure_language_id"],
+        } if value["text_frontend_contract"] else {}),
         **({"conditioning_contract": CONDITIONING_CONTRACT} if value["conditioning_contract"] else {}),
         "perth_watermark_verified": True,
         "perth_score": round(detected, 8),

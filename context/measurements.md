@@ -5302,3 +5302,952 @@ PCM 16-bit, mono, 24 kHz, 8.12 seconds, peak -0.67 dBFS, RMS -19.32 dBFS and
 zero clipped samples. This proves upload-to-protected-playback control flow and
 signal validity only. No likeness, Hindi accent or human-naturalness claim is
 made until the owner listens blindly.
+
+## `voice-bakeoff-plan-local-2026-08-28`
+
+**Measured 2026-08-28, local planner plus one official retail-price query.**
+`node evals/voice-bakeoff/plan.mjs` passed over 24 exact prompts, six
+meaning-matched Hindi/Hinglish script groups, three fixed seeds and nine model
+arms. It validates unique ids, matched Devanagari/Latin/mixed treatments,
+same-reference fail-closed policy and its own price arithmetic. No synthesis,
+provider call, model load, deployment or purchase ran.
+
+The Azure Retail Prices API returned Central India Container Apps list meters
+of USD 0.000102 per T4-second, USD 0.000024 per active vCPU-second and USD
+0.000003 per active GiB-second. At the deployed 8-vCPU, 56-GiB allocation the
+derived fully active retail rate is USD 1.6632 per hour before contract
+discounts or monthly CPU/memory grants. The pre-registered nine-arm bake-off
+estimate is USD 25.98 plus INR 22.56 with a USD 35 stop. The adapter phase has a
+USD 100 stop; measured-time linear projections are USD 1.88 for one 30-minute
+corpus run and USD 3.76 for one 60-minute run. The 116-T4-hour Hindi adaptation
+plan estimates USD 192.93 and has a USD 250 stop. These are cost-plan outputs,
+not bills or quality results.
+
+## `hindi-text-frontend-local-2026-08-28`
+
+**Measured 2026-08-28, local deterministic and mocked-boundary execution.**
+`node evals/run.mjs hinditextfrontend` passed 14 checks. Its exact fixture is
+the current Studio default, 90 input characters: `Namaste! Main aapka apna AI
+version hoon. Aaj kya padhna hai, physics, chemistry ya maths?`. The output is
+one Hindi synthesis segment with a fixed Hindi disclosure and reviewed
+Devanagari renderings for every Roman-Hindi or classroom-borrowing token. A
+mixed unknown-English fixture produces the ordered language sequence
+`hi,en,hi`; an English `he` negative control remains distinct from Hindi
+`hai`; all transformations point to exact UTF-16 input slices; an alternating
+17-plus-segment fixture refuses; and a Hindi-only model refuses unresolved
+English.
+
+The signed-provider suite passed 59 checks and executes the actual provider
+segment loop against HMAC-signed mock runtime responses. It verifies localized
+disclosure binding, per-segment language and text hashes, sequential PCM joined
+with a declared 60 ms zero gap, model/reference/adapter commitments and PerTh evidence. The
+voice-panel suite passed 95 checks, production-protection passed 44, the full
+web build passed, and `node scripts/verify-release.mjs` passed all 16 release
+checks including the 253,858 ms full eval suite and both relational database
+gates. Python runtime sources compiled. No GPU synthesis, deployment, human
+listen, pronunciation score, identity score or quality win was measured by
+this workstream.
+
+## `chatterbox-matched-blind-pack-live-2026-08-28`
+
+**Measured 2026-08-28, five new Azure syntheses plus one existing rejected
+control.** Six protected, opaque 24 kHz mono WAVs were prepared from the same
+selected reference and seed. The five new calls passed response HMAC,
+model/reference/CFG bindings and PerTh verification at 1.0. General Devanagari
+CFG 0.5 measured 7.68 seconds and RTF 2.481; general CFG 0 measured 10.80 seconds
+and RTF 0.781; Hindi-pack CFG 0.5 measured 8.88 seconds and RTF 2.287;
+Hindi-pack CFG 0 measured 9.88 seconds and RTF 0.824; general English measured
+6.80 seconds and RTF 0.833. The Hindi pack refused the English request without
+a provider call.
+
+Log-measured active windows were 876.23 GPU-seconds for general, 574.99 for
+Hindi and 1,514.07 broker-seconds. At the recorded Azure retail meters the
+conservative list-price estimate is USD 0.6818. Cost Management had not ingested
+the run, so this is not a billing read. All four applications returned to zero
+replicas. Arm identities remain sealed pending owner ratings; no sound-quality
+winner is claimed.
+
+## `indicf5-candidate-local-2026-08-28`
+
+**Measured 2026-08-28, local contract, credentialed access preflight and two
+failed remote-build controls.** The isolated IndicF5 suite passed 16 of 16
+checks over immutable source/model/vocoder pins, offline loading, BuildKit token
+handling, a dependency-resolver compatibility assertion, signed Hindi-only
+requests, content-addressed reference audio and transcript, consent receipt
+binding, post-synthesis PerTh verification, private scale-to-zero
+infrastructure, expiry and a USD 40 parameter ceiling. Python sources compiled
+and diff checks passed. Credentialed access to pinned revision
+`ba85abedf18dc479a447eaa0eccbd76ab78a47d5` succeeded; a secret-pattern scan of
+the worktree found no persisted Hugging Face token.
+
+Remote ACR run `cu1j` failed after about two seconds because the task declared
+a top-level secret without a Key Vault source. Run `cu1k` failed after about
+157 seconds because `huggingface-hub==0.29.3` conflicted with
+`cached-path==1.6.7`, which requires a version below 0.28. Both shapes now have
+executable negative controls; the corrected run `cu1n` was still building when
+this measurement was written. No IndicF5 image was deployed and no GPU ran.
+
+## `first-clone-failure-path-local-2026-08-28`
+
+**Measured 2026-08-28, one deterministic missing-reference control.** The
+first-clone process exited 1, printed the failed probe, retained `FIDELITY not
+measured in this run`, and emitted no ReferenceError. The complete earbench
+mechanical suite passed 108 checks after adding this negative control. This is
+diagnostic reliability only and is not clone-quality evidence.
+
+## `voice-frontier-plan-local-2026-08-28`
+
+**Measured 2026-08-28, primary-source plan validation only.** The centrally
+wired `voicefrontier` suite passed 88 checks over five immutable model pins,
+five exact parameter/repository-size records, three compute profiles, four
+commercial anchors, five budget stages, 24 frozen prompts and three seeds per
+prompt. The ranked build order is VoxCPM2, MOSS-TTS Local v1.5 and ZONOS2.
+Official checkpoint metadata and repositories were read at their named pins;
+upstream peak VRAM is published only for VoxCPM2 at approximately 8 GB. The
+24 GB MOSS and ZONOS allocations are qualification ceilings, not measured fit
+claims. Azure retail planning inputs were USD 1.6632/hour for the recorded
+Container Apps T4 allocation, USD 4.48/hour for Central India A10 and USD
+20.569/hour for Central India A100. Expected staged compute is USD 640 and all
+hard stops sum to the owner-approved USD 1,000. No model ran, no listener rated
+audio, no deployment changed and no money was spent.
+
+## `openvoice-converter-candidate-local-2026-08-28`
+
+**Measured 2026-08-28, local deterministic contract execution plus one public
+access preflight.** `node evals/run.mjs openvoiceconverter` passed 18 of 18
+checks over immutable OpenVoice source and official V2 model pins, startup file
+rehashing, runtime-offline loading, signed transport, owner and consent
+predicates, spoken disclosure, content-addressed base and reference audio,
+conversion and PerTh receipt binding, cold-start re-signing, remote-build-only
+definitions, private scale-to-zero GPU infrastructure, expiry and a USD 40
+parameter ceiling. Four Python sources compiled. The official pinned checkpoint
+answered the zero-byte HEAD preflight and the 838-byte config matched its fixed
+SHA-256.
+
+No image was built, no model was loaded, no GPU or vendor synthesis ran, no
+Azure resource was deployed and Azure spend was USD 0. Bicep compilation was
+not run because neither Azure CLI nor a standalone Bicep compiler is installed
+in this workspace. No pronunciation, naturalness, speaker similarity, latency,
+PerTh robustness after delivery protection or human preference was measured.
+
+## `voice-eval-security-anchor-live-2026-08-28`
+
+**Measured 2026-08-28, two ARM deployments plus live control-plane readback.**
+The first deployment failed before creating a usable vault because Azure
+rejects an explicit `enablePurgeProtection: false`. The corrected deployment
+`voice-eval-security-20260828-r2` reached `Succeeded`. Live readback found one
+dedicated identity, one matching vault access policy, secret permissions exactly
+`get`, and zero key, certificate or storage permissions. The versioned
+`transport-hmac` secret URI was present as a deployment output; the secret value
+was neither output nor readable by the deployment service principal. The vault
+and identity expire on 2026-09-01 and are tagged evaluation-only.
+
+The standalone security suite passed 8 of 8 checks and both Bicep templates
+compiled with Azure Bicep 0.46.1. This proves resource shape and deployment, not
+that any candidate runtime has successfully fetched the secret; every candidate
+must still pass its own identity/secretRef/startup readback.
+
+## `moss-v1-5-candidate-local-2026-08-28`
+
+**Measured 2026-08-28, local contract execution plus public access and size
+preflight.** `node evals/run.mjs moss_tts` passed 22 of 22 checks over exact
+model, codec, source and CUDA-base pins; four large-weight byte and SHA-256
+commitments; offline runtime loading; signed Hindi, mixed Hinglish and English
+requests; verified owner versus non-releasable third-party scopes; upstream
+language tags and decoding controls; 48 kHz stereo downmix to matched 24 kHz
+mono; post-synthesis PerTh verification; private A10 infrastructure; secret-file
+transport; expiry; and USD 25 plus four-hour rails. Three Python sources
+compiled. Bicep 0.46.1 compiled the remote-only template successfully.
+
+One network preflight read the exact Hugging Face and GitHub metadata and the
+pinned Docker Registry manifest. The public ungated model repository measured
+9,116,898,371 bytes; its public codec measured 8,498,219,165 bytes; the pinned
+CUDA base measured 4,448,715,237 compressed bytes. With a 4 GiB dependency
+reserve, the conservative compressed-image ceiling is 26,358,800,069 bytes,
+below the pre-registered 30 GiB stop. All four large-file linked hashes and the
+verified source commit matched.
+
+No ACR build, VM, GPU, model load, synthesis or deployment ran. Azure spend was
+USD 0 and there is no run id. The runtime deliberately rejects a GPU below 22
+GiB, so the existing 16 GiB T4 was not used. No VRAM-fit, latency, pronunciation,
+naturalness, speaker similarity, watermark robustness after browser delivery or
+human preference result exists.
+
+## `voxcpm2-candidate-remote-2026-08-28`
+
+**Measured 2026-08-28, one local contract suite, one exact ARM validation, four
+remote build attempts, one isolated deployment and three owner-bound
+syntheses.** The centrally wired VoxCPM2 suite passed 22 of 22 checks over immutable public
+source and weight pins, Apache-2.0 provenance, runtime-offline loading,
+Devanagari Hindi and localized disclosure, owner-self versus non-releasable
+third-party stress scopes, content-addressed source/window/transcript fields,
+post-synthesis PerTh detection, explicit 48 to 24 kHz delivery conversion,
+signed response provenance, private scale-to-zero GPU infrastructure, a USD 75
+ceiling, non-root runtime and avoidance of a duplicate recursive ownership
+layer. Three Python sources compiled and Bicep compiled. ARM deployment
+validation passed with the exact shared user-assigned identity and exact
+versioned Key Vault URI; no real registry password or HMAC value was used by
+that validation.
+
+The verified owner source is 70.997 s, 24 kHz mono PCM16, SHA-256
+`c242261b9caa779eb6ddeeda24623c11c2aec01f8f7acafe47970bc17a1cb9b6`.
+Its measured-best existing 25 through 35 s window is exactly 10.000 s, has RMS
+0.038094 and peak 0.269470, and the canonical 480,044-byte window WAV hashes to
+`264597691155e7f3bcaca85cc497246a340ab3f48acd2eb263d4d3d7b8da067c`.
+The stored ASR has only coarse spans and no word times, so no exact transcript
+was claimed or fabricated.
+
+ACR run `cu1p` failed after 193.558 s before image creation because setuptools
+75.8 rejected the upstream PEP 639 SPDX license string. The corrected pin is
+80.9.0. Run `cu1q` succeeded in 830.032 s at digest
+`sha256:7e138843369e98343203d32976c5a937107dbed34e6db3320225a9870c732e09`,
+but recursive `chown` made its compressed image 11,592,564,532 bytes.
+Optimized run `cu1r` retained UID 10009 without that layer and succeeded in
+500.669 s at digest
+`sha256:40df335c38bf98b2eee6bf496c2f7ac9285c6bd572014abc7d7662134436f697`,
+7,660,847,810 bytes. Including canceled `cu1m`, the four lane runs consumed
+3,299.526 vCPU-seconds. The Central India retail meter is USD 0 through the
+registry's daily 6,000-vCPU-second tier and USD 0.0001 per later vCPU-second;
+because other workstreams share the registry, the conservative all-overage
+upper bound for this lane is USD 0.329953 rather than a claimed bill.
+
+The first ARM create correctly provisioned the private runtime but failed the
+public gate because a stale supplied broker digest did not exist. Registry and
+live production readback agreed on the replacement immutable broker digest
+`sha256:3229c6479f83a0864faa0a2f81d43402b115341bbac318209d5b97c8463ceeb1`.
+The corrected idempotent deployment succeeded. Readback found both isolated
+apps on the shared user-assigned identity and exact versioned Key Vault secret,
+with production routing disabled and min 0, max 1; the runtime is private and
+the HMAC broker is public. No existing production image or route changed.
+
+Three signed owner-self requests produced opaque Hindi, Hinglish and English
+clips of 7,360, 6,720 and 7,520 ms. Model elapsed times were 29,034, 14,557 and
+15,930 ms, real-time factors 3.944837, 2.166220 and 2.118351. Every receipt
+bound the exact model, source, 25 through 35 s reference window, consent, text,
+localized disclosure and 48 to 24 kHz conversion; response HMAC and PerTh
+verified, with PerTh score 1.0 on all three.
+
+The independent ECAPA-TDNN identity gate measured mean 0.766255 and p10/worst
+0.756532 over n=3 candidate clips against n=4 owner windows, dimension 192.
+The provisional policy returned `warn` for `below_warn_band`; target is 0.85.
+This is below the prior Chatterbox selected-window mean 0.805756, but the text,
+languages and model differ, and ECAPA does not measure accent, pronunciation or
+humanness. The VoxCPM2 T4 replica was active from 20:03:45Z until KEDA
+deactivation at 20:16:15.680Z, 750.680 s. At the recorded USD 1.6632/hour T4
+meter, its conservative list-price estimate is USD 0.346814. Both VoxCPM2 apps
+were observed back at zero replicas. Human listening is not started; no quality
+winner, production readiness or deployment recommendation is claimed.
+
+The shared voice-evidence T4 replica used for the identity check was active
+from 20:13:36Z until 20:22:30.192Z, 534.192 s, then KEDA returned it to zero.
+At the same recorded T4 meter that is USD 0.246797. Treating every ACR second
+as overage gives a deliberately conservative lane upper estimate of USD
+0.923564 for ACR plus both GPU windows, before sub-cent CPU broker activity.
+The lower retail-tier estimate is USD 0.593611 because the first 6,000 shared
+ACR vCPU-seconds are USD 0. Cost Management had not ingested the run, so neither
+is represented as the eventual invoice amount. At final readback the VoxCPM2
+runtime and gate were empty and the evidence replica was `NotRunning`.
+
+## `qwen3-tts-english-candidate-live-2026-08-28`
+
+**Measured 2026-08-28, one remote build, one isolated deployment and six
+owner-bound English synthesis requests.** The focused suite passed 21 of 21
+checks over exact official source and model pins, offline loading, English-only
+refusal, active self-owner consent, signed replay-resistant transport, spoken
+disclosure request enforcement, final PerTh detection, complete returned
+provenance, Key Vault secret references, private scale-to-zero GPU shape,
+evaluation expiry and the USD 60 lane ceiling. All Python sources compiled,
+Bicep compiled with Azure CLI 2.89.1, and the context graph passed after this
+entry was added.
+
+Remote ACR run `cu1h` succeeded from 2026-08-27 19:28:47Z through 19:43:24Z,
+14 minutes 37 seconds, and produced immutable image
+`vyaktivoiceacr.azurecr.io/vyakti/qwen3-tts-en-eval@sha256:e6ee1143498b495c76d99e5748452a8bc3cf942a8ae1f9268559a919ad26a988`.
+The event stream measured a pulled image size of 11,002,707,968 bytes. Live
+readback found `vyakti-qwen3-tts-en-eval` private and
+`vyakti-qwen3-tts-en-gate` public, both min 0, max 1, on the exact shared
+user-assigned identity and exact versioned Key Vault secret reference. The
+broker health endpoint returned HTTP 200. No local Docker command or Docker
+Desktop was used.
+
+The verified owner source hash was
+`c242261b9caa779eb6ddeeda24623c11c2aec01f8f7acafe47970bc17a1cb9b6`.
+The deterministic max-RMS selector chose offset 0 for 12,000 ms at 24 kHz; the
+window hash was
+`8f3b4182178bb84e673266ceffbba83567a8bc34c4eac459365c375fadc69d46`.
+Azure Speech supplied only an unreviewed ASR hypothesis, committed by hash and
+never described as exact. Six of six signed requests succeeded and produced
+50,960 ms of blinded audio. Reported model elapsed time totaled 110,992 ms;
+mean real-time factor was 2.2082, range 1.9429 through 3.5231. All six returned
+`perth_watermark_verified: true` with score 1.0 and passed output hash binding.
+The disclosure text was enforced on every request, but whether it is audibly
+spoken remains pending listener verification. Human listening is `not_started`;
+no pronunciation, naturalness, speaker-similarity or quality win is claimed,
+and production routing was not changed.
+
+The GPU replica began at 2026-08-27 19:55:11Z and KEDA deactivated it at
+20:08:30Z; the measured allocation wall was 799 seconds. At the pre-registered
+Central India allocation rate of USD 1.6632/hour, that is a USD 0.3691 GPU
+estimate. The CPU gate deactivated at 20:08:18Z, and live replica readback then
+showed both replicas `NotRunning`. Azure Cost Management returned HTTP 429 and
+had not supplied ingested GPU, CPU-gate or ACR-task line items, so USD 0.3691 is
+explicitly an estimate rather than an exact bill. The 14-minute 37-second ACR
+build and small broker charge remain pending provider reconciliation. The lane
+is at zero compute and remains below its USD 60 hard ceiling.
+
+## `indicf5-first-live-startup-and-offline-vocoder-fix-2026-08-28`
+
+**Measured 2026-08-28, one isolated Azure revision and one focused local
+regression suite.** The first live IndicF5 revision scheduled after T4 quota
+became available, pulled the 6,603,931,648-byte image in 72.74 seconds, then
+failed before health readiness. Its console trace showed the gated model
+calling the upstream Vocos loader with `is_local=False`; that loader attempted
+to resolve `charactr/vocos-mel-24khz/config.yaml` while `HF_HUB_OFFLINE=1` and
+raised `LocalEntryNotFoundError`. No synthesis completed and no perceptual
+quality result exists. The exact revision was deactivated; replica readback
+then reported `NotRunning`.
+
+The corrected local contract suite passed 26 of 26 checks. Its executable
+negative control calls the wrapper with a remote path and cache, then proves
+the upstream loader receives only `is_local=True`, the resolved baked path and
+no Hub cache; an unexpected vocoder name fails closed. Python compilation and
+the focused diff check passed. No corrected ACR build, model load, GPU
+synthesis or human listening had run when this measurement was recorded.
+
+## `owner-meet-preview-responsive-local-2026-08-28`
+
+**Measured 2026-08-28, n=2 viewport classes and n=3 reachable UI states.** The
+real signed-in Studio layout fixture was run with the exact two-variable owner
+self-test guard and the real `VoicePreviewPanel`. At 1440 by 1000 and 390 by
+844 CSS pixels, the idle composer, 202 warm-up and protected-result states were
+inspected in the in-app browser. At the 390-pixel viewport the document
+measured 375 client pixels and 375 scroll pixels, so horizontal overflow was
+zero. Hindi, Hinglish and English controls each measured about 87.66 by 44 CSS
+pixels. The result correction action moved focus to textarea
+`hear-voice-text`; the browser console reported zero errors or warnings on the
+final mobile pass.
+
+The focused `voicepreviewui` suite passed 9 of 9 checks, including eight
+executable negative controls for language loss, a wrong runtime binding,
+pointer-only activation, fake progress, a missing correction path, weakened
+receipt verification, returned self-test ceremony and missing mobile layout.
+TypeScript, focused lint and the production build passed. The build retained
+the existing Vite large-chunk warning. The Impeccable detector reported seven
+pre-existing global stylesheet warnings outside this panel and no finding in
+the new Meet rules. No model quality, speaker similarity, pronunciation win or
+production deployment was measured.
+
+## `layout-root-portability-windows-2026-08-28`
+
+**Measured 2026-08-28, n=2 real gate executions plus one executable path
+negative control on Windows.** Before the fix, the workspace had both `dist/`
+and `dist/studio-layout-fixture.html`, but `node scripts/check-layout.mjs`
+printed `dist/ absent` and exited zero. The raw file URL pathname was
+`/C:/Users/raghav.s/Desktop/build/Vyakti-platform/`; resolving it produced
+`C:\C:\Users\raghav.s\Desktop\build\Vyakti-platform`.
+
+After replacing raw pathname resolution with `fileURLToPath`, the same command
+advanced through both dist checks and stopped only at the independently honest
+`no chromium binary available` capability skip. `node --check` passed. The
+always-run synthetic Windows fixture measured the rejected shape as
+`C:\C:\repo` and the supported conversion as `C:\repo\`, so this failure can
+be caught on Linux CI as well as Windows. No browser layout dimensions or
+readability verdict were measured in this focused run.
+
+One full `node scripts/verify-release.mjs` run then passed the layout gate and
+14 other gates but finished 15 of 16 overall. The eval suite reported that
+`api/_engine.gen.js` became stale even though the earlier engine-freshness gate
+had passed in the same run; concurrent work was still changing the shared tree.
+No engine source or generated bundle was changed by this portability fix, and
+the unrelated eval failure is not represented as a clean release result.
+
+## `indicf5-second-offline-startup-and-local-asset-fix-2026-08-28`
+
+**Measured 2026-08-28, one corrected immutable image, one isolated Azure
+startup and one focused local suite.** ACR run `cu1s` completed in 183.17
+seconds and produced digest
+`sha256:1d5f15d6d3a6b2fe6624a3a1d9f8348ceb8d6d7d8dacb4fc9ae477478ed0aa55`.
+The image was 6,654,263,296 bytes at Azure pull. It cleared the prior Vocos
+lookup, then exited before readiness when the gated model called
+`hf_hub_download('/models/indicf5', filename='checkpoints/vocab.txt')` and Hub
+validation rejected the local path as a repository id. No synthesis completed
+and no quality result exists. The request was stopped and all IndicF5 runtime
+revisions were deactivated; replica readback was empty.
+
+The expanded local suite passed 30 of 30 checks. Executable controls prove the
+exact local vocabulary path is returned for the two allowed model identifiers
+and that an alternate repository or filename raises
+`indicf5_runtime_hub_access_denied`. Vocos remains local-only, the repair uses
+no token or network fetch, all Python files compile, and the qualification
+script parses. A second no-token remote repair build `cu1t` was running when
+this measurement was written.
+
+## `zonos2-candidate-preflight-local-2026-08-28`
+
+**Measured 2026-08-28, n=2 public model repositories, n=1 official source
+commit, n=1 DAC release and one focused executable suite.** The exact ZONOS2
+repository contained 15,351,094,251 bytes; `model.pth` was 15,336,390,655 bytes
+with LFS SHA-256
+`5f6aa0fff9036ee44ccbc625d40aa6bdd8ea223480a5447e9f6aad70c38b6ecd`.
+The exact public speaker repository contained 24,043,365 bytes; its 24,010,000
+byte weight SHA-256 was
+`df60a638e7f4a29331c0af2bd2984ee5b992fee9d5923c776f7e4bdc3dedea48`.
+The 306,717,287 byte official DAC 0.0.1 asset was downloaded once for hashing
+and measured SHA-256
+`a88eed82a7024ccc1facdb1e605c4c2f99281c8118c22c9895ffa846d8fb61aa`.
+Hugging Face metadata reported Apache-2.0 for both model repositories; the
+official source and DAC are MIT. The exact source commit exists but is unsigned,
+which is recorded rather than promoted to verified-signature evidence.
+
+The pinned PyTorch base compressed layers measured 4,448,715,237 bytes through
+the Docker Registry manifest. Source inspection then proved the official
+runtime JIT-compiles CUDA and NCCL kernels. NVIDIA package
+`cuda-nvcc-12-8=12.8.93-1` measured 36,043,452 compressed bytes. Its official
+4,332 byte repository keyring measured SHA-256
+`d93190d50b98ad4699ff40f4f7af50f16a76dac3bb8da1eaaf366d47898ff8df`.
+Model,
+speaker, DAC, base, compiler and a 7 GiB dependency reserve produced a
+conservative compressed ceiling of 27,682,810,692 bytes,
+below the pre-registered 30 GiB build stop. The focused suite passed 27 of 27
+checks before the compiler discovery, 28 of 28 after the fail-closed
+compiler/linker gate and 29 of 29 after the bounded executable JIT cache and
+non-root secret-mount controls, including executable Hindi, Hinglish, English, owner/third-party and
+bad-HMAC controls. All three Python sources compiled, Bicep compiled with the
+portable Azure CLI and the access/license/size preflight passed. No Docker or
+Docker Desktop command ran locally.
+
+ACR run `cu1w` used the compiler-less runtime base and was cancelled before
+dependency installation or any image push. Run `cu1y` then proved that base
+does not configure NVIDIA's apt repository and failed before installing CUDA.
+Run `cu20` completed all 16 Dockerfile steps, then its separate push step hit
+ACR's implicit 600-second timeout while the single 15.3 GB checkpoint layer was
+still uploading. Smaller layers reached the registry, but no manifest or
+deployable image digest was created.
+No A10 allocation, model load, synthesis, GPU peak,
+latency, pronunciation, naturalness, speaker similarity or human listening was
+measured in this phase. GPU spend for this phase was USD 0; ACR task cost was
+not available from the run API at measurement time.
+
+The repository-wide release runner passed 15 of 16 gates. Its only failure was
+the shared eval suite reporting `api/_engine.gen.js` stale while concurrent
+engine work was active; typecheck, prompt/workflow/motion, board/layout/copy,
+sample-rate/bandwidth, engine freshness at the earlier static check, stuck-turn,
+one-voice, web build, zero-orphan and citation gates passed. This is not
+reported as a clean release and the shared generated bundle was not overwritten
+from the isolated ZONOS2 lane.
+
+## `zonos2-cu24-manifest-layer-audit-2026-08-28`
+
+**Measured 2026-08-28, n=1 immutable ACR image manifest with 14 compressed
+layers.** Remote ACR run `cu24` completed both build and push. The resulting
+digest was
+`sha256:e4bd14a4e2171d99778fadb36ef1855ef9626b62b501ce877afe7abcd6f0cfcc`
+and ACR reported an image size of 42,449,801,367 bytes, or 39.53 GiB. This
+exceeded the pre-registered 30 GiB stop by 10,237,546,647 bytes, or 9.53 GiB,
+so no VM or A10 was created.
+
+Manifest inspection attributed 18,805,403,267 compressed bytes to the final
+recursive ownership-change layer. The preceding model-asset layer measured
+12,478,139,651 bytes, the Python dependency layer 6,336,213,829 bytes and the
+pinned base layers 4,448,715,237 bytes. Removing only the recursive `chown -R`
+layer projects 23,644,398,100 bytes, or 22.02 GiB, without changing the pinned
+model, source, speaker encoder, DAC, compiler, Python lock or non-root runtime.
+This projection authorizes one bounded remote rebuild, not a GPU allocation or
+a size claim about the rebuilt image.
+
+## `consolidated-voice-listening-pack-local-2026-08-28`
+
+**Measured 2026-08-28, n=15 protected candidate clips from n=3 existing packs.**
+The reproducible builder bound six Chatterbox, six Qwen English and three
+VoxCPM2 source WAVs to their existing manifests, sealed keys or signed receipts.
+It produced 17 opaque rating screens, including two byte-identical hidden
+repeats, plus two tone attention checks and one real-owner reference. All 20
+served WAVs were canonical 24 kHz mono PCM16, exactly 518,444 bytes and 10,800
+ms, after one common RMS, fade and silence-pad treatment. No disclosure was
+trimmed because disclosure audibility is a required human rating.
+
+Exact language and target-text SHA-256 grouping measured one matched cell with
+four Hindi variants, 11 unmatched lanes and zero cross-provider matched cells.
+The scorer therefore leaves `crossProviderWinner` empty by construction. The
+source-bound `verify` command passed 18 of 18 checks. The centrally wired
+`voicelistening` suite passed 36 of 36 checks, including source-map leakage,
+equal wire geometry, key traversal, hidden-repeat binding, attention exclusion,
+explicit-unseal refusal, repeat exclusion from model evidence and the
+unmatched-lane negative control.
+
+The local page was rendered in installed Chrome at 390 by 844 and 1440 by 1000
+CSS pixels. Both intro renders measured zero horizontal overflow and zero
+console warnings or errors. The first 390-pixel rating screen also measured
+zero horizontal overflow and zero console warnings or errors. This was a visual
+and mechanical inspection only. No person rated a voice, no model mapping was
+unsealed, and no pronunciation, accent, naturalness, likeness or winner result
+exists. IndicF5 was not in the available pack at measurement time.
+
+## `indicf5-cross-script-duration-diagnosis-2026-08-28`
+
+**Measured 2026-08-28, six frozen requests, one 12-second owner reference and
+one focused local suite.** The exact reference hypothesis has 134 Latin
+characters/bytes. Under the pinned upstream F5 byte-length formula, the six
+Hindi/Hinglish requests plan 23.1 through 31.7 seconds of generated audio and
+two reach the 4096-frame maximum. Unicode-aligned planning yields approximately
+11.1 through 13.9 seconds instead. The clean offline image reached ready state;
+no logged synthesis exception or completed WAV existed before the requests
+were manually stopped, so a lazy CUDA or `torch.compile` failure was not
+claimed.
+
+The implemented duration, canary and same-process generation-binding suite
+passed 35 of 35 checks. Its executable controls cover Devanagari density,
+Latin stability, a 30-second refusal, exact local Vocos and vocabulary assets,
+content-bound cached generations and an unscored canary before six blind
+items. All Python sources compiled and the qualification script parsed. No
+post-fix remote image, synthesis, perceptual result or winner existed when this
+measurement was written.
+
+## `indicf5-cold-start-transport-expiry-2026-08-28`
+
+**Measured 2026-08-28, one signed canary after one scale-to-zero deployment.**
+The immutable duration-fixed IndicF5 image started, loaded local Vocos and
+vocabulary, and reached application readiness. The canary then returned signed
+HTTP 401 `transport_binding_invalid` before model inference. The broker had
+validated the request at public ingress and forwarded the same timestamp after
+the private cold start exceeded the runtime's 60-second skew bound. No WAV or
+quality result was produced, and the runtime was returned to zero replicas.
+
+The corrected broker source passed all 59 open-voice checks and all 35 IndicF5
+checks, plus Python compilation. Static and executable contracts require a
+fresh internal nonce and timestamp, runtime readiness before forwarding,
+verification of the private response against the internal nonce, and a
+caller-facing signature against the original nonce. Remote broker build `cu22`
+was running when this entry was written.
+
+## `owner-exact-text-matched-pack-local-2026-08-28`
+
+**Measured 2026-08-28, n=5 base planned requests, n=8 with both optional arms,
+n=2 comparison cells and n=32 executable local checks.** The base grid contains
+three English clips from three providers and two Hindi clips from two
+providers. Adding IndicF5 and ZONOS2 yields four providers in each language.
+Every item in a language shared one body hash, disclosure hash and full-text
+hash; every item in the pack shared seed 31001, the same 12,000 ms 24 kHz mono
+owner-window commitment, transcript commitment and consent commitment.
+
+Synthetic signed-result fixtures for all five adapters were normalized through
+one receipt contract. Negative controls rejected a missing response HMAC,
+wrong model commitment, reference, seed or consent, missing PerTh verification,
+48 kHz output and wrong PCM hash. Two independently sealed fixture packs used
+different random secrets, produced different opaque sequences, retained two
+exact-text cross-provider cells, exposed no model or consent mapping and served
+one common WAV geometry. Unseal refused with no accepted listener. Ten USD 0.50
+attempt reservations reached exactly USD 5; the eleventh and a caller-supplied
+USD 5.01 limit were refused.
+
+`node evals/run.mjs voicematched` passed 32 of 32 checks. Node syntax checks and
+the focused diff check passed. The suite and guarded command negative control
+made zero network, database, cloud or model calls. No candidate WAV was created
+by this work, no listener score exists, and no accent, naturalness, likeness,
+pronunciation or provider winner is claimed.
+
+## `indicf5-owner-qualification-remote-2026-08-28`
+
+**Measured 2026-08-28, one unscored canary and six sealed owner-bound
+Hindi/Hinglish clips.** ACR run `cu23` built the bounded runtime-only repair in
+189.18 seconds and produced immutable digest
+`sha256:3b88af8804d64d4be224c38fdfc4b68739cdf384b2ce1e7c1d271404c4a1a28f`.
+The isolated runtime reached the canary after seven cold-start checks. The
+canary and all six scored requests passed request/response HMAC, exact model,
+owner-reference, ASR-hypothesis and consent commitments, codepoint-duration
+receipts and post-hoc PerTh detection.
+
+The six WAVs are 24 kHz mono and total 71.069 seconds. Model elapsed time totals
+204.197 seconds; mean RTF is 2.8705 with range 2.125527 through 4.159047. All
+warm requests completed on attempt one. PerTh score minimum is 0.99807614 and
+the other five scores are 1.0. The served manifest and private sealed key are
+under `scratchpad/indicf5-20260828-r7`; human listening remains `not_started`.
+Against the exact same four owner-reference windows used for VoxCPM2, the six
+opaque candidates produced 192-dimensional ECAPA mean 0.824822, p10/worst
+0.815361 and combined candidate confidence 0.959. The provisional
+`voice-fidelity/v1` policy returned pass. The signed evidence report is
+`scratchpad/indicf5-20260828-r7/fidelity.json`, SHA-256
+`a1b8197e057f9ee03ea2cbc425d003a95518fd5d04194239f8780d129954a342`.
+No raw embedding was persisted.
+
+These numbers establish transport, execution, duration, provenance and one
+speaker-embedding identity signal only. They do not establish Hindi
+naturalness, accent, intelligibility, perceived likeness or a model winner.
+
+## `consolidated-voice-listening-pack-indicf5-r7-local-2026-08-28`
+
+**Measured 2026-08-28, n=21 protected candidate clips from n=4 existing packs,
+including n=6 real IndicF5 r7 clips.** The fresh builder matched the IndicF5
+public manifest and private key on contract, creation time, listening state,
+evaluation and disclosure flags, canary, owner-reference SHA-256, reference
+transcript SHA-256, and all six item ids. All six blind WAV byte hashes,
+manifest durations, 24 kHz sample rates and PerTh flags matched. The private
+evidence also bound every item to one pinned model revision, one model
+commitment, one owner reference, one transcript commitment and one
+consent-receipt SHA-256; minimum stored PerTh score was 0.99807614. The pack
+does not carry the original consent receipt body, so this audit proves the
+six-item receipt commitment is consistent but cannot independently recompute
+that commitment from its source body.
+
+The consolidated output contains 23 rating screens, including two
+byte-identical hidden repeats, plus two attention checks and one real-owner
+reference. All 26 served WAVs are canonical 24 kHz mono PCM16, 13,280 ms and
+637,484 bytes after the common treatment. Exact language and target-text
+grouping measured one matched cell, 17 unmatched lanes and zero cross-provider
+matched cells. The source-bound audit passed 18 of 18 checks and the focused
+suite passed 36 of 36 checks.
+
+Installed Chrome rendered and exercised the intro and first rating screen at
+390 by 844 and 1440 by 1000 CSS pixels. Both widths had zero horizontal
+overflow, zero console warnings or errors, and a disabled Next control until
+the required ratings were complete. No answer was submitted, no person rated
+a voice, no mapping was unsealed, and no accent, pronunciation, naturalness,
+owner-likeness or winner result exists.
+
+## `hindi-text-frontend-confusable-control-local-2026-08-28`
+
+**Measured 2026-08-28, one focused confusable fixture and two offline suites.**
+The input `the formula hai` now produces ordered language segments `hi`, `en`,
+`hi`: the English article remains exactly `the`, while the reviewed classroom
+borrowing and Hindi verb become `फ़ॉर्मूला है`. The existing `he hai` control
+also continues to preserve English `he` rather than rewrite it as Hindi `hai`.
+
+The Hindi text-frontend suite passed 15 of 15 checks and the open-voice suite
+passed 59 of 59 checks. No GPU, cloud synthesis or listener was used, so this
+measurement proves deterministic text planning only, not pronunciation or
+perceptual quality.
+
+## `indicf5-objective-intelligibility-azure-speech-2026-08-28`
+
+**Measured 2026-08-28, n=6 sealed clips totaling 71.069 seconds, one Azure
+Speech short-audio pass with no retries.** The existing eastus2 Azure AI
+Services resource accepted all six 16 kHz mono PCM WAVs after deterministic
+windowed-sinc conversion from the immutable 24 kHz pack. Recognition used one
+`hi-IN` conversation hint and the default base model. The scored target was the
+mandatory spoken disclosure plus each frozen prompt. The private report is
+`scratchpad/indicf5-20260828-r7/private/objective-intelligibility.json`, 34,370
+bytes, SHA-256
+`c642533ec2693c167c4e641a311e6c6b4b6d7e55dc6fa87045940600aa63c61f`.
+It contains no credential, raw embedding or candidate model identity, and the
+served `blind/` directory was not changed.
+
+Micro-averaged raw Unicode WER/CER was **0.327586 / 0.277350** over 174 words
+and 649 non-space characters. The separately labeled bounded cross-script
+WER/CER was **0.327586 / 0.270191**. For the three Devanagari prompts, raw was
+**0.204545 / 0.100324** and curated was **0.204545 / 0.099379**. For the three
+mixed-script Hinglish prompts, raw was **0.453488 / 0.438235** and curated was
+**0.453488 / 0.423398**. The unchanged WER shows that this v1 alias table did
+not erase any word error in this pack.
+
+The equation prompts contained eight chemical-symbol target units and eleven
+spoken-numeral target units. Extracted sequence error was **6/8** for chemical
+symbols and **4/11** for numerals. Devanagari contributed **2/4** symbol and
+**1/6** numeral errors; mixed script contributed **4/4** and **3/5**. The six
+selected prompts contained zero proper-name, place-name or acronym target
+units, so named-entity error is unmeasured rather than zero.
+
+One rejected Sarvam request plus the six Azure calls reserved 105 seconds at an
+intentionally conservative USD 1 per minute and 15-second rounding, a USD 1.75
+ceiling under the USD 2 stop. Actual provider billing is unavailable and is not
+reported as USD 1.75. These are ASR disagreements, not human intelligibility:
+one provider, one language hint, repeated disclosure in every denominator and
+no word timing mean provider bias and prompt-only WER are unmeasured. No audio
+was played, and no naturalness, accent, prosody, likeness or winner claim exists.
+
+## `matched-pack-real-contract-and-cloud-preflight-2026-08-28`
+
+**Measured 2026-08-28, n=8 real provider request-contract validations, n=34
+offline matched-pack checks, n=4 deployed candidate stacks and n=1 absent
+candidate stack.** One-use local validation fed the frozen real owner plan into
+the checked-in Qwen English, VoxCPM2 English and Hindi, IndicF5 Hindi and ZONOS2
+English and Hindi Python validators; both Chatterbox language payloads were
+bound to the deployed source contract. All eight passed after forcing UTF-8 on
+the Windows Python subprocess. `node evals/run.mjs voicematched` then passed 34
+of 34 checks, including new wrong-request-id and wrong-model-revision negative
+controls. These checks made zero model or synthesis calls.
+
+Read-only Azure control-plane queries found immutable, scale-to-zero stacks for
+Chatterbox, Qwen, VoxCPM2 and IndicF5. Chatterbox, Qwen and VoxCPM2 revisions
+were active with zero replicas. IndicF5 runtime revision
+`vyakti-indicf5-eval--0000005`, image
+`sha256:3b88af8804d64d4be224c38fdfc4b68739cdf384b2ce1e7c1d271404c4a1a28f`,
+and gate revision `vyakti-indicf5-eval-gate--0000002`, image
+`sha256:f07baa8fc0ccc4eab72151b51ad84c57f0504a08bc981bdd7fb0b9c236fdca2a`,
+were healthy but inactive with zero replicas. No ZONOS2 Container App,
+deployment or ACR manifest existed. No resource was activated or changed.
+
+The shared Qwen, VoxCPM2 and IndicF5 secret references all resolved to exact
+Key Vault version URI
+`https://vyakti-vceval-kv1729.vault.azure.net/secrets/transport-hmac/43fcfef0be9342dab7ca228d444a56a3`;
+the value was not read or printed. Its live metadata was enabled but had no
+expiry, contrary to the intended temporary lifecycle. Chatterbox remained on
+its legacy Container App secret reference. Exact expected model commitments
+were available for Chatterbox
+`b66dbbe202313119f616f8afe7d9a938d483ae3f8136d8d52e6f4c7560469b36`
+and VoxCPM2
+`1db180e1170e617297f9d005a3ad1c8555e23eada0e7d6cb47ca773e65b9fa9c`.
+Qwen and IndicF5 commitments were not present in Azure resource metadata and
+were not taken from their sealed listening keys. The real six-request local
+plan therefore remains `planned_no_cloud_calls`, with USD 3 of successful-call
+reservations under the USD 5 hard stop and no accepted output.
+
+## `matched-pack-acr-model-commitment-derivation-2026-08-28`
+
+**Measured 2026-08-28, n=2 immutable deployed model manifests and n=35 local
+matched-pack checks.** A read-only ACR Registry API session streamed the exact
+content-addressed layer from each deployed image and extracted only
+`.vyakti-model-manifest.json`. No Docker daemon, ACR task, model process,
+Container App activation, synthesis endpoint, sealed mapping or key file was
+used. The short-lived repository-pull token remained in process memory and was
+neither printed nor persisted.
+
+Qwen image
+`sha256:e6ee1143498b495c76d99e5748452a8bc3cf942a8ae1f9268559a919ad26a988`,
+layer
+`sha256:b700a9d00d69684cae6343984304ceff2cd298245b24dbea04af65683ae362b5`,
+contained 40 committed files. Removing the claimed field and hashing the exact
+recursively sorted compact JSON produced
+`4b14752ab88a5d74ed160d7766e1802ab5890540802a1d829ab946214b75e8c5`,
+byte-equal to the manifest claim. IndicF5 r7 image
+`sha256:3b88af8804d64d4be224c38fdfc4b68739cdf384b2ce1e7c1d271404c4a1a28f`,
+repair layer
+`sha256:5b1d03f81ce7188e231671e0aeaac21646478c414fb44859120b1f0675f63e70`,
+contained 229 model files and two repaired Vocos files. The same independent
+algorithm produced
+`58394168701f51bd8b509470fe62f5db08cc5ded42b193ce4c08154db42795fa`,
+again byte-equal to the manifest claim.
+
+The Qwen, VoxCPM2 and IndicF5 commitments are now static matched-pack contract
+values beside Chatterbox. `node evals/run.mjs voicematched` passed 35 of 35
+checks, including a new assertion that every deployed four-arm candidate is
+prebound while undeployed ZONOS2 remains unresolved. A fresh local plan at
+`scratchpad/voice-matched-pack-20260828-r2/private/plan.json` binds all four
+model commitments across six requests and remains
+`planned_no_cloud_calls`. No output WAV or quality result exists.
+
+## `indicf5-pronunciation-normalizer-local-2026-08-28`
+
+**Measured 2026-08-28, n=2 frozen equation fixtures, n=5 retained-input
+confusable fixtures, n=6 named-refusal controls and one 10-check offline
+suite.** The isolated deterministic normalizer transformed exactly four
+chemical-symbol units and three subscript-numeral units in the frozen
+mixed-script equation text. The already-Devanagari sister text remained
+byte-identical. Formula coefficients and reaction operators, explicit caret
+and superscript charge, oxidation state, ISO date, decimal, standalone numeral,
+idempotence, exact source-span reconstruction and every content hash passed.
+
+Pure English; element-like English words; `IP`, `AI` and `IIT`; a single
+`vitamin B two` phrase; slash dates; semantic versions; IP addresses;
+non-chemical arrows; and ambiguous `Fe3+` stayed outside the chemical rewrite.
+Input, output, transformation-count and expansion hard stops returned named
+refusals. `node evals/indicf5-pronunciation/run.mjs` passed 10 of 10 checks;
+both Python files compiled and the focused diff check passed.
+
+Against the already-recorded aggregate errors, the exact conditional
+pre-registration is chemical symbols 6/8 to 2/8 and numerals 4/11 to 1/11 if
+every covered unit resolves and no other unit regresses. No synthesis, GPU,
+cloud, ASR, listening or model call ran. Therefore those figures are expected
+text coverage only, not measured pronunciation, intelligibility, naturalness,
+accent, likeness or audio gain. The normalizer is not imported by the runtime
+or contract and no production route changed.
+
+One direct readback of the private objective report measured 27,358 bytes and
+SHA-256 `aacea25fd17a63cc2b9a68bc70572f920ccd91c3de29f381b14939c19c4e41af`.
+Its contract, six-item aggregate, script breakdown and unit counts match the
+inputs above. The earlier objective-report entry records 34,370 bytes and a
+different hash for this path; the reason for that byte-level discrepancy is
+unmeasured. This pre-registration binds the current readback hash and does not
+represent the older hash as current file identity.
+
+## `indicf5-pronunciation-runtime-integration-local-2026-08-28`
+
+**Measured 2026-08-28, n=3 focused offline suites, n=1 central-runner
+registration execution, n=3 JavaScript syntax checks and n=3 Python compile
+checks.** `node evals/indicf5-pronunciation/run.mjs` passed 10 of 10,
+`node evals/indicf5-runtime/run.mjs` passed 41 of 41, and
+`node evals/voice-matched-pack/run.mjs` passed 40 of 40. The registered
+`node evals/run.mjs indicf5pronunciation` path independently invoked the
+focused suite and passed 10 of 10. Node parsed the runtime qualifier and both
+matched-pack modules; Python compiled the normalizer, request contract and
+runtime app. The focused diff check was clean.
+
+The executable controls require an exact source-text hash and explicit
+normalization request, prove that only audited synthesis text reaches duration
+planning and inference, validate the real Python request contract from the
+matched provider payload, reconstruct every changed source span and canonical
+audit, preserve the historical r7 unnormalized baseline as a distinct variant,
+and fail closed for a missing request contract or tampered audit. No cloud,
+model, GPU, Docker, deployment, ASR, audio generation or human listening call
+ran. There is therefore no measured pronunciation, intelligibility,
+naturalness, accent, likeness or audio gain. The exact remaining blocker is an
+immutable isolated image build and deployment followed by sealed matched
+before/after resynthesis, the same objective diagnostic and human listening.
+
+## `matched-pack-older-chatter-runtime-disclosure-drift-2026-08-28`
+
+**Measured 2026-08-28, n=2 bounded Chatterbox cloud attempts, n=1 immutable
+deployed-image source inspection and n=41 focused offline controls.** Attempt
+one reached the 240-second client timeout during the isolated Chatterbox cold
+path. After read-only control-plane health showed one ready runtime and one
+ready admission replica, attempt two returned a signed result but the exact-text
+verifier rejected it as `matched_pack_result_disclosure_drift`. The run stopped
+immediately at two of ten allowed attempts and USD 1.00 of the USD 5.00
+reservation ceiling. No output WAV or receipt entered the pack, no other model
+arm ran and no audio was listened to.
+
+The attempted English request bound the exact disclosure
+`This is an AI-generated voice replica.`: 38 Unicode code points, 38 UTF-8
+bytes and SHA-256
+`be278bc82cf3201a5006d5d2a0ef0db9cef8bdfe5f5faeb2637266b74561cf05`.
+The returned result omitted `disclosure_text` entirely, so a returned
+disclosure length or hash does not exist. The returned legacy shape contained
+request, model, reference, audio, conditioning and PerTh fields; it contained
+neither `text_frontend_contract`, `disclosure_text`,
+`disclosure_language_id` nor `spoken_disclosure`.
+
+Read-only ACR Registry API inspection bound the deployed Chatterbox image
+`sha256:d63717334b5a3c638dc19d4e2d18eb6f1c4fa46535e469347220d1e2b2391178`
+and its `app.py` layer
+`sha256:1162026953ebd519ae66ae9985eb093a33637d5f0b5e11fcd4d1be8a53ea84e7`.
+That source contains no text-frontend contract and returns none of the missing
+fields. The checked runtime source does. `node evals/run.mjs voicematched`
+passed 41 of 41 offline checks including the deterministic negative control
+that an otherwise valid Chatterbox response without text-plan disclosure fields
+fails closed. This measures a deployment/source contract drift, not voice
+quality, disclosure audibility or model failure.
+
+## `indicf5-pronunciation-acr-qualified-image-2026-08-28`
+
+**Measured 2026-08-28, n=1 successful remote ACR build, n=4 bounded source
+files, n=23 registry layers and n=3 focused offline suites.** ACR quick run
+`cu27` used one 2-vCPU agent from 22:24:46Z through 22:27:47Z and produced tag
+`vyakti/indicf5-eval:pronorm-20260828-r1` at immutable digest
+`sha256:367927911d20b52e55e7e908602b0c4105895b3e1f6def3f4714eca234036729`.
+Its compressed layers total 6,654,615,008 bytes. The lane authorized at most
+USD 20 of build activity; one three-minute quick build ran. Cost Management
+has not ingested an exact charge, so no invoice amount is claimed.
+
+The source context contained only `Dockerfile.patch`, `contract.py`,
+`pronunciation_normalizer.py` and `app.py`, totaling 43,287 bytes. Their
+canonical path, length and SHA-256 manifest is
+`cc468f31e0bfa6ce3ec266e9f4dc8a59932fae4cbe4f1b4cc1845a2f5c4454b7`;
+the independent 14,009-byte evidence ZIP is SHA-256
+`c00bad162affcbf2eb584c66361c8fcedb367ce677c46e07fcec35a627472df0`.
+The CLI uploaded a 12.848 KiB tar from that frozen directory. Registry
+extraction proved the three runtime file hashes exactly matched the source
+snapshot after the build.
+
+The first 19 of 23 layers exactly match repaired offline parent
+`sha256:22c4477cb70fdb3d3c43feab7b70e36a6948ed8c1933da63b13a829b4289e71c`.
+The four new source and ownership layers total 26,502 compressed bytes. The
+inherited 50,356,649-byte layer
+`sha256:5b1d03f81ce7188e231671e0aeaac21646478c414fb44859120b1f0675f63e70`
+passed a direct blob hash. Its 36,380-byte, 229-file IndicF5 model manifest is
+SHA-256 `29ede8a77f4fc45b891bd8804f62407a3566691bdc1acdee37725f1de83655cd`;
+the claimed and independently re-derived commitment both equal
+`58394168701f51bd8b509470fe62f5db08cc5ded42b193ce4c08154db42795fa`.
+
+Post-build suites passed 10 of 10 pronunciation checks, 41 of 41 runtime
+checks and 41 of 41 matched-pack checks; the frozen source still matched the
+workspace 4 of 4 and the focused diff check was clean. The runtime and gate
+remained inactive with zero replicas and still pointed to r7 digest
+`sha256:3b88af8804d64d4be224c38fdfc4b68739cdf384b2ce1e7c1d271404c4a1a28f`
+and gate digest
+`sha256:f07baa8fc0ccc4eab72151b51ad84c57f0504a08bc981bdd7fb0b9c236fdca2a`.
+No local Docker, deployment, revision activation, GPU, synthesis, ASR or
+listening ran, and no audio-quality gain is claimed.
+
+## `openvoice-text-plan-runtime-acr-build-2026-08-28`
+
+**Measured 2026-08-28, n=1 remote ACR build, n=6 frozen build inputs, n=5
+registry-extracted copied source files and n=3 focused offline suites.** Before
+the build, `node evals/run.mjs openvoice` passed 59 of 59 checks,
+`node evals/run.mjs hinditextfrontend` passed 15 of 15 and
+`node evals/run.mjs voicematched` passed 41 of 41 with zero cloud or model
+calls. After the build and concurrent gate additions, the same frozen runtime
+source still matched six of six manifest entries and the focused suites passed
+61 of 61, 15 of 15 and 41 of 41 respectively. The canonical source manifest
+commits the Dockerfile, requirements,
+model-fetch source, LoRA source, Hindi-pack source and runtime source as
+`45c9e0cf59f068c97a55d623dff564d4e812dcbdeb95e7dfd158d3875f9141d4`.
+
+Remote ACR run `cu28` started at `2026-08-27T22:28:24.844882Z`, succeeded at
+`2026-08-27T22:39:47.201166Z` after 682.356 seconds and produced tag
+`open-voice-runtime:matched-disclosure-45c9e0cf59f068c9`, immutable digest
+`sha256:f331a4b327a7eb89b2fdb3877a5875fdb18fb4a6ddc24e3b7506941db2e0e369`
+and config digest
+`sha256:ee9a64377d765a3f47104dfa68183f981c82467bc47486ce1dfaa35d2be8536e`.
+Read-only Registry API extraction independently matched the byte length and
+SHA-256 of all five files copied into `/srv/open-voice`, including the
+28,152-byte `app.py` hash
+`dc3a7034f5ab16e0ab743ddc2b296bf0cf3e6c10d2bc2b9e16c2095bef9006dd`.
+The exact Chatterbox commit and `general` model arm were also present in image
+history or environment.
+
+No local Docker daemon, model inference, synthesis, listener or deployment was
+used. The live Container App remained on the older digest
+`sha256:d63717334b5a3c638dc19d4e2d18eb6f1c4fa46535e469347220d1e2b2391178`;
+the runtime and admission apps both returned to zero replicas. Only one ACR run
+was submitted and no retry was used. Azure billing was not read, so an exact
+dollar cost is unavailable; this does not claim an audio, accent, likeness or
+pronunciation improvement.
+
+## `voice-text-plan-release-audit-local-2026-08-28`
+
+**Measured 2026-08-28, n=2 owner preview callers, n=1 reproduced caller
+omission, n=1 corrected caller and n=4 focused offline suites.** Read-only
+inspection found that `api/replica-voice-preview.js` constructed a valid
+text-frontend audit but passed it only to the optional trial resolver, while
+`beginOwnedVoicePreview` required it for every authorization. A direct local
+call with an otherwise valid authorization shape returned the named
+`voice_preview_text_frontend_invalid` refusal before its database callback.
+The Meet-step panel and Mirror Call already used the shared panel path and
+carried the audit. After the advanced caller forwarded the same audit and its
+source mutation control was corrected, `node evals/run.mjs openvoice` passed 61
+of 61 checks.
+
+The independent focused runs passed `productionprotection` 44 of 44,
+`voicepanel` 95 of 95 and `hinditextfrontend` 15 of 15. `git diff --check`
+passed, `node scripts/build-engine-bundle.mjs --check` reported a fresh
+321,750-byte bundle, and the pre-entry context graph passed at 689 nodes and
+803 edges. A bounded scan of every changed or untracked file found no real HF,
+Supabase, JWT, Azure connection-string or literal credential pattern; the only
+secret-shaped match was the explicit offline fake-provider test secret.
+
+This audit made no cloud, model, GPU, Docker, deployment, database or audio
+call and spent nothing. It proves local caller coverage, fail-closed protection
+contracts and the asymmetric rollout requirement only. It does not prove the
+full release runner, a live Azure revision, a sealed Hindi disclosure canary,
+voice quality, accent, likeness or intelligibility.
+
+## `openvoice-admission-broker-acr-build-2026-08-28`
+
+**Measured 2026-08-28, n=1 remote ACR broker build, n=3 frozen build inputs,
+n=2 registry-extracted copied source files and n=1 focused suite.** The
+canonical broker source manifest binds `Dockerfile.broker`,
+`broker-requirements.txt` and `broker.py` as
+`60d44032e71fc9f306aec9c6038f05d5c19022a8920c2cc4379728c300a618e6`.
+Python compilation passed and `node evals/run.mjs openvoice` passed 61 of 61
+checks both before and after the build.
+
+Remote ACR run `cu29` started at `2026-08-27T22:44:14.247279Z`, succeeded at
+`2026-08-27T22:44:59.787073Z` after 45.540 seconds and produced tag
+`open-voice-admission:matched-disclosure-60d44032e71fc9f3`, immutable digest
+`sha256:214a6baa15eeb4c87e06fc098c19206aad40e8e898005e6b8a948c88fc379f80`
+with compressed registry size 60,723,927 bytes, and config digest
+`sha256:88e5767e94cc2261c27c6dfc5e6c0b1dbd2823dcaf2f88398190917da73c556f`.
+Read-only registry extraction matched the exact 7,785-byte `broker.py` hash
+`fa338ec87ef45c1a2201e76a3310a2299ff41189753229c34bc56c3205f75520`
+and 60-byte requirements hash
+`b95a133a4da8ba54ebd8fbb034ddd1a461d8f3bef522c60713b1c383b07c02ba`.
+The frozen 885-byte Dockerfile hash
+`669cd934884e0bf1f9552d213833f292feb2341025fe3b44bf7bed7b4b5f84cf`
+still matched the workspace and its user, install and ownership instructions
+matched the immutable image history.
+
+No local Docker, model, synthesis, GPU, deployment or listener ran. The live
+admission app remained on its previous digest
+`sha256:3229c6479f83a0864faa0a2f81d43402b115341bbac318209d5b97c8463ceeb1`,
+and both admission and runtime apps had zero replicas. Only one broker ACR run
+was submitted and no retry was used. Azure billing was not read, so exact
+dollar cost is unavailable; no voice-quality improvement is claimed.

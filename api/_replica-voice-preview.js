@@ -203,6 +203,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   const languageId = String(input?.language_id || "").toLowerCase();
   const textHash = String(input?.text_hash || "").toLowerCase();
   const textLanguageMode = String(input?.text_language_mode || "unknown").toLowerCase();
+  const textFrontend = input?.text_frontend;
   const previewStyle = voicePreviewStyle(input?.style_key);
   const trialId = input?.trial_id ? replicaId(input.trial_id) : null;
   const trialSide = input?.trial_side == null ? null : String(input.trial_side);
@@ -212,6 +213,16 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   if (!SHA256.test(textHash)) fail("voice_preview_text_hash_invalid", 400);
   if (!new Set(["devanagari", "mixed", "latin_only", "unknown"]).has(textLanguageMode))
     fail("voice_preview_text_language_mode_invalid", 400);
+  if (textFrontend?.contract !== "vyakti-hindi-text-frontend/v1" ||
+      !SHA256.test(String(textFrontend?.planSha256 || "")) ||
+      !SHA256.test(String(textFrontend?.inputSha256 || "")) ||
+      textFrontend.inputSha256 !== textHash ||
+      !SHA256.test(String(textFrontend?.targetSha256 || "")) ||
+      !Number.isInteger(textFrontend?.synthesisSegmentCount) || textFrontend.synthesisSegmentCount < 1 ||
+      textFrontend.synthesisSegmentCount > 16 || !Number.isInteger(textFrontend?.transformationCount) ||
+      textFrontend.transformationCount < 0 || textFrontend.transformationCount > 256) {
+    fail("voice_preview_text_frontend_invalid", 400);
+  }
   if ((trialId === null) !== (trialSide === null) || (trialSide !== null && !["left", "right"].includes(trialSide)))
     fail("voice_preview_trial_binding_invalid", 400);
   const previewSeed = input?.preview_seed == null
@@ -302,6 +313,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
               $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,
               $11::jsonb || jsonb_build_object(
                 'text_language_mode',$15::text,
+                'text_frontend',$16::jsonb,
                 'reference_language_mode',reference_language_mode,
                 'reference_language_evidence_scope',case when transcript_span_count>0 then 'source_transcript' else 'unverified' end,
                 'conditioning_contract','vyakti-voice-language-conditioning/v1',
@@ -322,7 +334,8 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
          from inserted i join eligible e on e.replica_id=i.replica_id`,
     [rid, ownerUserId, genomeVersion, PROVENANCE_POLICY, traceId,
       "open_chatterbox_multilingual_v3", REPLICA_POLICY_VERSION, OPEN_CHATTERBOX_MODEL_COMMITMENT,
-      languageId, textHash, JSON.stringify(previewStyle), previewSeed, trialId, trialSide, textLanguageMode],
+      languageId, textHash, JSON.stringify(previewStyle), previewSeed, trialId, trialSide, textLanguageMode,
+      JSON.stringify(textFrontend)],
   );
   const row = rows[0];
   if (!row) {
@@ -382,6 +395,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
     referenceLanguageEvidenceScope,
     textLanguageMode,
     requestedCfgWeight: previewStyle.cfg_weight,
+    disclosureLanguageId: textFrontend.disclosureLanguage,
   });
   return Object.freeze({
     generation: row,

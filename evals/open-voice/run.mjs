@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  OPEN_CHATTERBOX_DISCLOSURE,
+  OPEN_CHATTERBOX_DISCLOSURES,
   OPEN_CHATTERBOX_BASE_PACK_COMMITMENT,
   OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT,
   OPEN_CHATTERBOX_MODEL_COMMITMENT,
@@ -71,8 +71,9 @@ function signedResponse(url, init, mutate = (value) => value) {
     referenceLanguageEvidenceScope: request.reference_language_evidence_scope,
     textLanguageMode: request.text_language_mode,
     requestedCfgWeight: request.requested_cfg_weight,
+    disclosureLanguageId: request.disclosure_language_id,
   });
-  const pcm = Buffer.alloc(48_000, 7);
+  const pcm = Buffer.alloc(48_000, 7 + Number(request.text_segment_index || 0));
   const result = mutate({
     request_id: request.request_id,
     audio_base64: pcm.toString("base64"),
@@ -98,6 +99,13 @@ function signedResponse(url, init, mutate = (value) => value) {
     quality_state: conditioning.qualityState,
     quality_warnings: conditioning.qualityWarnings,
     conditioning_contract: request.conditioning_contract,
+    text_frontend_contract: request.text_frontend_contract,
+    text_plan_sha256: request.text_plan_sha256,
+    text_segment_index: request.text_segment_index,
+    text_segment_count: request.text_segment_count,
+    text_segment_semantic_indexes: request.text_segment_semantic_indexes,
+    disclosure_text: request.disclosure_text,
+    disclosure_language_id: request.disclosure_language_id,
     perth_watermark_verified: true,
     perth_score: 0.99,
     // Mirrors services/open-voice-runtime/app.py: adapter fields are echoed
@@ -125,6 +133,7 @@ ok("configuration requires HTTPS and a 256-bit transport secret", true);
 
 const reference = wav();
 let observed;
+const observedSegments = [];
 const provider = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
   fetchImpl: async (url, init) => {
@@ -135,8 +144,9 @@ const provider = createOpenChatterboxPreviewProvider({
     ]);
     assert.equal(init.headers["X-Vyakti-Content-SHA256"], bodyHash);
     assert.equal(init.headers["X-Vyakti-Signature"], expected);
-    observed = signedResponse(url, init);
-    return observed.response;
+    const segment = signedResponse(url, init);
+    observedSegments.push(segment);
+    return segment.response;
   },
 });
 const result = await provider.synthesizePreview({
@@ -146,11 +156,18 @@ const result = await provider.synthesizePreview({
   reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000, languageMode: "latin_only", languageEvidenceScope: "exact_reference" },
   style: { exaggeration: 0.6, cfgWeight: 0.4, temperature: 0.75 },
 });
+observed = observedSegments[0];
 ok("every service request is exact-body HMAC authenticated", Boolean(observed));
 ok("the private service receives no tenant or replica identifier", !Object.keys(observed.request).some((key) => /(owner|replica|email|provider_ref)/i.test(key)));
-ok("the exact audible synthetic disclosure is rendered before inference", observed.request.text.startsWith(`${OPEN_CHATTERBOX_DISCLOSURE} `));
+ok("the exact Hindi synthetic disclosure is rendered in Hindi before inference",
+  observed.request.text.startsWith(`${OPEN_CHATTERBOX_DISCLOSURES.hi} `) &&
+  observed.request.disclosure_language_id === "hi");
 ok("reference bytes are content-addressed and bounded", observed.request.reference_sha256 === digest(reference));
 ok("Hindi and deterministic evaluation controls cross the contract", observed.request.language_id === "hi" && observed.request.seed === 42);
+ok("mixed Roman Hindi and unresolved English cross the provider as explicit ordered languages",
+  observedSegments.map((segment) => segment.request.language_id).join(",") === "hi,en,hi" &&
+  observedSegments.every((segment, index) => segment.request.text_segment_index === index &&
+    segment.request.text_segment_count === observedSegments.length));
 ok("Latin-only Hindi references force the official accent-transfer mitigation and emit an honest warning",
   observed.request.requested_cfg_weight === 0.4 && observed.request.cfg_weight === 0 &&
   result.receipt.qualityWarnings.includes("hindi_reference_latin_only_cfg_disabled"));
@@ -160,8 +177,19 @@ ok("script observations stay narrow and never label Latin text as detected Engli
   voiceScriptMode("123").mode === "unknown");
 const chunks = [];
 for await (const chunk of result.stream) chunks.push(Buffer.from(chunk));
-ok("verified output is normalized to 24 kHz mono PCM", Buffer.concat(chunks).length === 48_000 && result.format.sampleRate === 24_000);
-ok("model, reference, output, latency and PerTh evidence remain bound", result.receipt.modelCommitment === OPEN_CHATTERBOX_MODEL_COMMITMENT && result.receipt.perthWatermarkVerified && result.receipt.realTimeFactor === 0.5);
+const combinedPcm = Buffer.concat(chunks);
+ok("verified language segments are concatenated in order as 24 kHz mono PCM",
+  combinedPcm.length === 48_000 * observedSegments.length + 2_880 * (observedSegments.length - 1) &&
+  result.format.sampleRate === 24_000 && result.receipt.synthesisSegments.length === observedSegments.length &&
+  result.receipt.segmentJoin.contract === "vyakti-pcm-segment-join/v1" &&
+  result.receipt.segmentJoin.gapMs === 60 &&
+  observedSegments.every((_, index) => combinedPcm[index * (48_000 + 2_880)] === 7 + index) &&
+  observedSegments.slice(1).every((_, index) => combinedPcm.subarray(48_000 + index * (48_000 + 2_880),
+    48_000 + index * (48_000 + 2_880) + 2_880).every((byte) => byte === 0)));
+ok("model, reference, output, latency and PerTh evidence remain bound",
+  result.receipt.modelCommitment === OPEN_CHATTERBOX_MODEL_COMMITMENT && result.receipt.perthWatermarkVerified &&
+  result.receipt.elapsedMs === 500 * observedSegments.length &&
+  result.receipt.realTimeFactor === result.receipt.elapsedMs / result.receipt.durationMs);
 
 let hindiArmObserved;
 const hindiArmProvider = createOpenChatterboxPreviewProvider({
@@ -198,19 +226,18 @@ const legacyRuntimeProvider = createOpenChatterboxPreviewProvider({
       "conditioning_contract", "model_arm", "model_pack", "model_pack_commitment",
       "reference_language_mode", "reference_language_evidence_scope", "text_language_mode",
       "requested_cfg_weight", "effective_cfg_weight", "quality_state", "quality_warnings",
+      "text_frontend_contract", "text_plan_sha256", "text_segment_index", "text_segment_count",
+      "text_segment_semantic_indexes", "disclosure_text", "disclosure_language_id",
     ]) delete value[key];
     return value;
   }).response,
 });
-const legacyRuntimeResult = await legacyRuntimeProvider.synthesizePreview({
+await assert.rejects(legacyRuntimeProvider.synthesizePreview({
   text: "नमस्ते, यह रोलिंग डिप्लॉय परीक्षण है।", languageId: "hi", seed: 44,
   reference: { bytes: reference, languageMode: "latin_only", languageEvidenceScope: "source_transcript" },
   style: { cfgWeight: 0.65 },
-});
-ok("the new app plane accepts a signed legacy general-runtime response during a rolling deploy",
-  legacyRuntimeResult.receipt.conditioningContract === "legacy_runtime" &&
-  legacyRuntimeResult.receipt.effectiveCfgWeight === 0 &&
-  legacyRuntimeResult.receipt.qualityWarnings.includes("legacy_runtime_language_contract_unverified"));
+}), /open_voice_response_binding_invalid/);
+ok("the new web plane refuses a runtime that omits the bound text-plan receipt", true);
 
 const badSignature = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
@@ -233,11 +260,13 @@ ok("a request without an adapter sends no adapter field and commits to the base 
 const adapterBytes = Buffer.alloc(4_096, 9);
 const adapterSha = digest(adapterBytes);
 let adapted;
+const adaptedSegments = [];
 const adapterProvider = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
   fetchImpl: async (url, init) => {
-    adapted = signedResponse(url, init);
-    return adapted.response;
+    const segment = signedResponse(url, init);
+    adaptedSegments.push(segment);
+    return segment.response;
   },
 });
 const adaptedResult = await adapterProvider.synthesizePreview({
@@ -246,11 +275,12 @@ const adaptedResult = await adapterProvider.synthesizePreview({
   reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000 },
   adapter: { id: "owner-hinglish-71s", bytes: adapterBytes },
 });
+adapted = adaptedSegments[0];
 ok("an adapter crosses the contract content-addressed, inside the signed body",
   adapted.request.adapter_sha256 === adapterSha &&
   Buffer.from(adapted.request.adapter_base64, "base64").equals(adapterBytes));
 ok("an adapted request still carries the exact audible disclosure and no identifiers",
-  adapted.request.text.startsWith(`${OPEN_CHATTERBOX_DISCLOSURE} `) &&
+  adapted.request.text.startsWith(`${OPEN_CHATTERBOX_DISCLOSURES.hi} `) &&
   !Object.keys(adapted.request).some((key) => /(owner|replica|email|provider_ref)/i.test(key)));
 ok("an adapted receipt commits to model AND adapter, not the base model alone",
   adaptedResult.receipt.adapterSha256 === adapterSha &&
@@ -299,6 +329,19 @@ const wrongEvidence = createOpenChatterboxPreviewProvider({
 await assert.rejects(wrongEvidence.synthesizePreview({ text: "Private preview.", languageId: "en", seed: 1, reference: { bytes: reference } }), /open_voice_response_binding_invalid/);
 ok("misbound reference duration or weak watermark evidence fails closed", true);
 
+const wrongSegmentReceipt = createOpenChatterboxPreviewProvider({
+  env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
+  fetchImpl: async (url, init) => signedResponse(url, init, (value) => ({
+    ...value,
+    text_segment_index: value.text_segment_index + 1,
+  })).response,
+});
+await assert.rejects(wrongSegmentReceipt.synthesizePreview({
+  text: "Namaste main private preview hoon.", languageId: "hi", seed: 1,
+  reference: { bytes: reference, languageMode: "mixed", languageEvidenceScope: "exact_reference" },
+}), /open_voice_response_binding_invalid/);
+ok("a runtime response that relabels one text segment fails closed before concatenation", true);
+
 const previewAuthorization = {
   request: { generationId: IDS.generation, replicaId: IDS.replica, ownerUserId: IDS.owner, channel: "studio_preview", purpose: "voice_preview", policyVersion: "vyakti-replica-output-v1", traceId: "preview_12345678" },
   replica: { replica_id: IDS.replica, owner_user_id: IDS.owner, subject_mode: "self", lifecycle: "calibrating", policy_version: "replica-self-v1", age_verified_at: "2026-08-01T00:00:00.000Z", identity_verified_at: "2026-08-01T00:00:00.000Z", liveness_verified_at: "2026-08-01T00:00:00.000Z", identity_expires_at: "2030-01-01T00:00:00.000Z" },
@@ -323,6 +366,17 @@ ok("matched trials derive one positive seed from identity, genome, language and 
 ok("changing the committed prompt changes the deterministic trial seed", matchedSeed !== voicePreviewMatchedSeed({ ...matchedSeedInput, textHash: "8".repeat(64) }));
 
 let beginSql = "";
+const textFrontendFixture = (inputSha256) => ({
+  contract: "vyakti-hindi-text-frontend/v1",
+  planSha256: "a".repeat(64),
+  inputSha256,
+  targetSha256: "b".repeat(64),
+  disclosureLanguage: "hi",
+  synthesisLanguages: ["hi"],
+  synthesisSegmentCount: 1,
+  transformationCount: 1,
+  warnings: [],
+});
 const begun = await beginOwnedVoicePreview(async (sql) => {
   beginSql = sql;
   return [{
@@ -342,6 +396,7 @@ const begun = await beginOwnedVoicePreview(async (sql) => {
   language_id: "hi",
   text_hash: "9".repeat(64),
   text_language_mode: "latin_only",
+  text_frontend: textFrontendFixture("9".repeat(64)),
   style_key: "balanced",
 });
 ok("authorization is atomically inserted from the exact current draft and selected artifact", begun.reference.artifactId === IDS.artifact && /vg\.status='draft'/.test(beginSql) && /selected\.decision='selected'/.test(beginSql));
@@ -364,6 +419,7 @@ const noTranscriptBegun = await beginOwnedVoicePreview(async () => [{
 }], IDS.owner, {
   replica_id: IDS.replica, genome_version: 4, trace_id: "preview_no_transcript",
   language_id: "hi", text_hash: "7".repeat(64), text_language_mode: "devanagari", style_key: "balanced",
+  text_frontend: textFrontendFixture("7".repeat(64)),
 });
 ok("a production-shaped selected source with no transcript spans is unverified and CFG-disabled",
   noTranscriptBegun.reference.languageEvidenceScope === "unverified" &&
@@ -393,6 +449,8 @@ const migration = readFileSync(join(ROOT, "db/migrations/045_replica_voice_previ
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
 const handler = readFileSync(join(ROOT, "api/replica-voice-preview.js"), "utf8");
 const studio = readFileSync(join(ROOT, "src/studio/VoicePreviewLab.tsx"), "utf8");
+const advancedPreviewBindsTextFrontend = (source) =>
+  /beginOwnedVoicePreview\(q, user\.id, \{[\s\S]{0,650}text_frontend:\s*textFrontend/.test(source);
 ok("runtime source and checkpoint revisions are immutable", app.includes("5de7a54aa4e5e2baadb0182dde554908b48b85c2") && fetchModels.includes("5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18") && /FROM .*@sha256:[0-9a-f]{64}/.test(docker) && /FROM .*@sha256:[0-9a-f]{64}/.test(brokerDocker));
 ok("runtime has no model-network dependency", docker.includes("HF_HUB_OFFLINE=1") && docker.includes("TRANSFORMERS_OFFLINE=1") && fetchModels.includes("revision=MODEL_REVISION"));
 ok("the Hindi pack is revision-pinned and built as a single explicit arm",
@@ -404,9 +462,10 @@ ok("the Hindi loader mirrors the official pack's multilingual T3 and non-strict 
   /strict=False/.test(hindiPack) && /t3_hi\.safetensors/.test(hindiPack) &&
   /OPEN_VOICE_HINDI_ALLOWED_MISSING_KEYS/.test(hindiPack) && /unapproved_unexpected/.test(hindiPack));
 ok("the service requires CUDA and verifies PerTh before returning audio", /open_voice_cuda_required/.test(app) && /perth_watermark_verification_failed/.test(app));
-ok("the conditioning contract is rolling-deploy compatible in both directions",
+ok("the runtime accepts the old app contract but the new app requires text-plan evidence",
   /if not modern_conditioning:/.test(app) && /legacy_app_language_contract_unverified/.test(app) &&
-  /legacy_runtime_language_contract_unverified/.test(readFileSync(join(ROOT, "api/_voice/providers/open-chatterbox-preview.js"), "utf8")));
+  /result\?\.text_frontend_contract !== "vyakti-hindi-text-frontend\/v1"/.test(
+    readFileSync(join(ROOT, "api/_voice/providers/open-chatterbox-preview.js"), "utf8")));
 ok("request logging is disabled and audio uses an auto-deleted temporary file", docker.includes("--no-access-log") && app.includes("NamedTemporaryFile"));
 ok("Azure GPU deployment is private, digest-pinned, scale-to-zero and single-concurrency", /external:\s*false/.test(infra) && /contains\(image, '@sha256:'\)/.test(infra) && /minReplicas:\s*0/.test(infra) && /maxReplicas:\s*1/.test(infra) && /concurrentRequests:\s*'1'/.test(infra));
 ok("Azure GPU resources use the workload profile and API-valid probe delays",
@@ -424,13 +483,21 @@ ok("the Hindi evaluation arm cannot reuse either production app name",
 ok("the startup probe leaves bounded headroom above the measured cold load",
   /type:\s*'Startup'[\s\S]{0,250}initialDelaySeconds:\s*10[\s\S]{0,120}periodSeconds:\s*60[\s\S]{0,120}failureThreshold:\s*10/.test(infra));
 ok("a scale-to-zero CPU admission broker protects the private GPU from internet-triggered spend", /resource broker/.test(infra) && /external:\s*true/.test(infra) && /workloadProfileName:\s*'Consumption'/.test(infra) && /OPEN_VOICE_RUNTIME_ORIGIN/.test(infra) && broker.indexOf("body = await _admit(request)") < broker.indexOf("client.post"));
-ok("admission and GPU responses remain end-to-end HMAC bound", /runtime_response_signature_invalid/.test(broker) && /FORWARDED_HEADERS/.test(broker) && brokerDocker.includes("--no-access-log"));
+ok("admission and GPU responses remain end-to-end HMAC bound across cold starts",
+  /runtime_response_signature_invalid/.test(broker) && /internal_nonce/.test(broker) &&
+  /_internal_headers/.test(broker) && /open_voice_runtime_warming/.test(broker) &&
+  /return _signed_response\(request, response_body, upstream\.status_code\)/.test(broker) &&
+  brokerDocker.includes("--no-access-log"));
 ok("preview rows are structurally distinct from qualified runtime generations", /purpose='voice_preview'/.test(migration) && /voice_profile_id is null/.test(migration) && /preview_model_commitment~/.test(migration));
 ok("canonical schema carries the exact preview migration", schema.includes("vy_replica_generation_preview_shape") && schema.includes("vy_replica_generation_preview_artifact_fk"));
 ok("the owner endpoint verifies private reference bytes before synthesis", /readPrivateReplicaObject/.test(handler) && /voice_preview_reference_binding_failed/.test(handler));
 ok("both owner preview handlers pass observed text mode into atomic authorization before synthesis",
   /beginOwnedVoicePreview\(q, user\.id, \{[\s\S]{0,500}text_language_mode: textLanguageMode/.test(handler) &&
   /text_language_mode: textLanguageMode/.test(readFileSync(join(ROOT, "api/_voice/preview-panel.js"), "utf8")));
+ok("the advanced preview route passes its audited text frontend into the atomic authorization",
+  advancedPreviewBindsTextFrontend(handler));
+ok("NEGATIVE CONTROL: omitting the advanced route text frontend is caught before release",
+  !advancedPreviewBindsTextFrontend(handler.replaceAll(/\n\s*text_frontend:\s*textFrontend,/g, "")));
 ok("no browser byte is returned before PerTh, AudioSeal, C2PA and ledger completion", /assertSynthesisResult/.test(handler) && /protectReplicaStream/.test(handler) && /await protectedAudio\.completion/.test(handler));
 ok("Studio presents real loading, empty, error and protected-audio states", /generating/.test(studio) && /No draft can speak yet/.test(studio) && /role="alert"/.test(studio) && /<audio controls/.test(studio));
 ok("new Studio copy contains no em dash or en dash", !/[—–]/.test(studio));

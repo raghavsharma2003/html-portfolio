@@ -107,7 +107,10 @@ const ROUTES: Record<string, unknown> = {
   "/api/replica-voice-preview": { preview: null },
   "/api/replica-provider-consent": { consents: [] },
   "/api/voice-preview": { preview: null },
-  "/api/video-enroll": { enrollments: [] },
+  "/api/video-enroll": {
+    enrollments: [], extraction_configured: false,
+    limits: { perOwnerPerDay: 4, maxDurationMs: 7_200_000, maxAudioBytes: 536_870_912, globalPerDay: 20 },
+  },
   "/api/mirror-call": { contract: null, call: null },
 };
 
@@ -131,10 +134,33 @@ const LANE_LABELS: Record<(typeof ACTIVITY_LANES)[number], string> = {
   erasure: "Erasure",
 };
 
+const VOICE_DRAFT_REVIEW = {
+  review: {
+    replica_id: FIXTURE_REPLICA.replica_id,
+    self_test_mode: true,
+    sources: [], jobs: [], attempts: [], artifacts: [], evidence: [], builds: [],
+    voice_genomes: [{
+      version: 2, status: "draft", source_set_hash: "1".repeat(64), manifest_hash: "2".repeat(64),
+      builder_version: "layout-fixture", embedding_families: 1, target_segments: 1,
+      enrollment_artifacts: 1, created_at: "2026-08-28T08:00:00.000Z",
+    }],
+    voice_genome_readiness: {
+      ready: true, blockers: [], reviewed_real_evidence: 1, embedding_families: 1,
+      voice_measurements: 1, quality_measurements: 1, speaker_segments: 1,
+    },
+  },
+};
+
 const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
   // Nothing uploaded yet. The base table already is this scenario; listed
   // for symmetry so `?scenario=empty` and no param at all are the same page.
   empty: {},
+
+  // The two states a static empty fixture cannot reach. Both mount the real
+  // owner panel with a real draft shape; installStubFetch supplies either the
+  // protected audio receipt or the server's honest 202 warming contract.
+  "voice-ready": { "/api/replica-review": VOICE_DRAFT_REVIEW },
+  "voice-warming": { "/api/replica-review": VOICE_DRAFT_REVIEW },
 
   // An audio upload is mid-pipeline. Proves the status banner is visible
   // without a scroll on Feed, and that the pager on Feed does not push
@@ -225,11 +251,43 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
 
 function installStubFetch() {
   const params = new URLSearchParams(window.location.search);
-  const scenario = SCENARIOS[params.get("scenario") || "empty"] ?? {};
+  const scenarioName = params.get("scenario") || "empty";
+  const scenario = SCENARIOS[scenarioName] ?? {};
   const routes: Record<string, unknown> = { ...ROUTES, ...scenario };
   window.fetch = async (input: RequestInfo | URL): Promise<Response> => {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const path = new URL(raw, window.location.origin).pathname;
+    if (path === "/api/voice-preview" && scenarioName === "voice-warming") {
+      return new Response(JSON.stringify({
+        state: "warming", stage: "runtime_cold",
+        message: "Your voice runtime is starting up. This takes about 2 to 5 minutes from cold.",
+        eta_seconds_low: 120, eta_seconds_high: 300, retry_after_ms: 30_000,
+      }), { status: 202, headers: { "content-type": "application/json" } });
+    }
+    if (path === "/api/voice-preview" && scenarioName === "voice-ready") {
+      // Header plus 64 bytes of silent PCM. Playback is not the fixture's job;
+      // the valid audio shape lets the real client reach its protected result.
+      const wav = new Uint8Array(108);
+      const view = new DataView(wav.buffer);
+      for (const [offset, text] of [[0, "RIFF"], [8, "WAVE"], [12, "fmt "], [36, "data"]] as const) {
+        for (let index = 0; index < text.length; index += 1) wav[offset + index] = text.charCodeAt(index);
+      }
+      view.setUint32(4, 100, true); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+      view.setUint16(22, 1, true); view.setUint32(24, 24_000, true); view.setUint32(28, 48_000, true);
+      view.setUint16(32, 2, true); view.setUint16(34, 16, true); view.setUint32(40, 64, true);
+      return new Response(wav, {
+        status: 200,
+        headers: {
+          "content-type": "audio/wav",
+          "x-vyakti-generation": "fixture-generation-0001",
+          "x-vyakti-disclosure": "audible-prefix-v1",
+          "x-vyakti-model-commitment": "3".repeat(64),
+          "x-vyakti-text-plan": "4".repeat(64),
+          "x-vyakti-text-transformations": "2",
+          "x-vyakti-spoken-text": encodeURIComponent("नमस्ते, यह एक सुरक्षित परीक्षण है।"),
+        },
+      });
+    }
     const body = Object.prototype.hasOwnProperty.call(routes, path) ? routes[path] : {};
     return new Response(JSON.stringify(body), {
       status: 200,

@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT } from "../_voice/contracts.js";
+import {
+  SYNTHETIC_AUDIO_DISCLOSURE,
+  VOICE_PCM_FORMAT,
+  isSyntheticAudioDisclosure,
+} from "../_voice/contracts.js";
 import { REPLICA_POLICY_VERSION } from "../_replica.js";
 
 export const PROVENANCE_POLICY = "vyakti-replica-output-v1";
@@ -227,10 +231,12 @@ export function assertPcmFormat(format) {
   return format;
 }
 
-export function assertDisclosureProof(proof) {
+export function assertDisclosureProof(proof, expectedText = null) {
   if (proof?.scheme !== DISCLOSURE_SCHEME) fail("audible_disclosure_missing");
-  if (proof?.text !== SYNTHETIC_AUDIO_DISCLOSURE) fail("audible_disclosure_text_mismatch");
-  if (proof?.textHash !== sha256Hex(SYNTHETIC_AUDIO_DISCLOSURE)) fail("audible_disclosure_hash_mismatch");
+  if (!isSyntheticAudioDisclosure(proof?.text) || (expectedText !== null && proof?.text !== expectedText)) {
+    fail("audible_disclosure_text_mismatch");
+  }
+  if (proof?.textHash !== sha256Hex(proof.text)) fail("audible_disclosure_hash_mismatch");
   if (!proof?.renderer || proof?.embedded !== true) fail("audible_disclosure_unproven");
   return proof;
 }

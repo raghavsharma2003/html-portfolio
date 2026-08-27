@@ -68,6 +68,7 @@ export async function protectReplicaStream({
   format,
   adapters,
   disclosureEvidence,
+  disclosureText = SYNTHETIC_AUDIO_DISCLOSURE,
   signal,
   now = new Date(),
   allowTestAdapters = false,
@@ -111,12 +112,12 @@ export async function protectReplicaStream({
     disclosureResult = await adapters.disclosure.prepend({
       stream: sourceStream,
       format,
-      text: SYNTHETIC_AUDIO_DISCLOSURE,
+      text: disclosureText,
       evidence: disclosureEvidence,
       signal,
     });
     assertByteStream(disclosureResult?.stream);
-    assertDisclosureProof(disclosureResult?.proof);
+    assertDisclosureProof(disclosureResult?.proof, disclosureText);
     watermarkResult = await adapters.watermark.embed({
       stream: disclosureResult.stream,
       format,
@@ -191,7 +192,7 @@ export async function protectReplicaStream({
         disclosureResult.completion ? disclosureResult.completion : disclosureResult.proof,
         watermarkResult.completion ? watermarkResult.completion : watermarkResult.proof,
       ]);
-      assertDisclosureProof(disclosureProof);
+      assertDisclosureProof(disclosureProof, disclosureText);
       assertWatermarkProof(watermarkProof, issued.tokenHash);
 
       const audioHash = audioHasher.digest("hex");

@@ -4730,3 +4730,779 @@ so the seventh can cross the server window and dispatch a second synthesis, that
 synthesis can settle, and a later poll can make the fresh protected request.
 The displayed cold-start range is 2 to 5 minutes rather than the disproved
 3-minute ceiling.
+
+## `fish-s2-self-host-is-not-a-current-commercial-t4-arm` (2026-08-28)
+
+**What was tried.** Qualify Fish S2 or S2.1 as another self-hosted in-house arm
+on the existing Central India serverless T4, alongside Chatterbox and IndicF5.
+
+**What specifically broke.** Fish's official S2 documentation recommends at
+least 24 GB of VRAM while the current T4 has 16 GB. More importantly, the
+published Fish Audio Research License grants research and non-commercial use;
+commercial use requires a separate written agreement. S2.1 is available as a
+vendor API, not as a permissive replacement for the in-house stack. Treating an
+API promotion or research checkpoint as commercially owned infrastructure
+would misstate both hardware feasibility and license rights.
+
+**What replaced it.** Benchmark Fish S2.1 Pro through the official API as a
+vendor quality anchor, cost it at the paid S2 Pro fallback rate, and keep
+self-hosted S2 out of production eligibility. A written commercial license plus
+a measured 24-GB-or-lower deployment path would reverse this rejection.
+
+## `romanized-hindi-plus-english-disclosure-is-not-one-hindi-request` (2026-08-28)
+
+**What was tried.** Prepend the fixed English AI disclosure to arbitrary user
+text, label the whole string `hi`, and send it through one Chatterbox forward
+pass. Romanized Hindi, Devanagari Hindi and embedded English technical words
+all shared that single tag.
+
+**What specifically broke.** The exact Studio default reached the model as
+Latin script, so the model could read Hindi words through an English grapheme
+prior. The English disclosure was simultaneously forced through Hindi. A
+mixed sentence carried no token-level language boundary at all. This is a
+request-contract defect independent of voice-reference bandwidth, and the
+owner's foreign-accented robotic Hindi is the live negative control.
+
+**What replaced it.** A deterministic bounded frontend converts only reviewed
+Roman-Hindi and classroom borrowings, keeps unknown English unchanged in an
+explicit English segment, and uses a fixed Hindi disclosure for Hindi. Every
+segment, language, source transformation, request and response is hash-bound.
+Too many switches or an English segment on the Hindi-only model fails by name;
+there is no silent single-language fallback.
+
+## `gated-indicf5-weights-cannot-be-fetched-anonymously` (2026-08-28)
+
+**What was tried.** Preflight the exact official IndicF5 weight revision without
+a credential before scheduling a paid Azure image build.
+
+**What specifically broke.** Hugging Face returned HTTP 401 because the model
+uses gated automatic approval and the owner account has not accepted its terms.
+No local environment file contains an HF token. A remote build cannot obtain
+the pinned weights, and retrying it on paid infrastructure would not change
+that authorization state.
+
+**What replaced it.** A zero-cost access check fails by name. The owner accepts
+the official model conditions and provides one read-only token; only then may
+an ACR task receive it through a BuildKit secret mount.
+
+**Follow-up 2026-08-28.** The owner accepted the model conditions and a
+credentialed exact-revision preflight succeeded. Anonymous access remains a
+valid negative control. The credential was used through a masked build-secret
+path and was not written to the repository or runtime configuration.
+
+## `indicf5-acr-secret-schema-and-incompatible-hub-pin-do-not-bake` (2026-08-28)
+
+**What was tried.** First, declare a top-level ACR task secret id without a Key
+Vault source and supply its value only when queuing the run. Second, pin
+`huggingface-hub==0.29.3` alongside `cached-path==1.6.7`.
+
+**What specifically broke.** ACR rejected the first task before its image build
+because that secret declaration is invalid without a source. Pip rejected the
+second build because cached-path requires huggingface-hub below 0.28. Neither
+failure loaded a model or consumed GPU time.
+
+**What replaced it.** The task references only a BuildKit secret mount and the
+run supplies the secret value out of band. The hub client is pinned to 0.27.1,
+which satisfies both cached-path and transformers. The isolated IndicF5 suite
+executes the compatibility constraint so a future dependency edit cannot
+silently restore this resolver conflict.
+
+## `first-clone-reference-error-cannot-shadow-probe-failure` (2026-08-28)
+
+**What was tried.** Summarize a first-clone run immediately after the reference
+file read failed while report variables were declared later in the module.
+
+**What specifically broke.** JavaScript's temporal dead zone raised a secondary
+ReferenceError from the summary, masking the real missing-reference failure and
+preventing an honest partial report.
+
+**What replaced it.** Report variables are initialized before the probe. An
+executable missing-file regression requires exit 1, the original failed probe,
+an explicit unmeasured fidelity line and no ReferenceError.
+
+## `noncommercial-weights-and-converter-first-architecture-are-not-production-bases` (2026-08-28)
+
+**What was tried.** Treat broad language coverage or a permissive source-code
+license as enough to enter a production bakeoff, and treat OpenVoice tone-color
+conversion as the main repair for the rejected western Hindi output.
+
+**What specifically broke.** OmniVoice's official card licenses its pretrained
+weights CC-BY-NC even though its code is Apache-2.0; X-Voice makes the same
+code/weight distinction with MIT and CC-BY-NC. OpenVoice receives speech that a
+base TTS has already pronounced and performed, so conversion cannot be assumed
+to repair accent, articulation, rhythm or breath. DhVaani's checkpoint is
+Apache-2.0 but explicitly points users to upstream corpus terms, so it is not
+production-cleared until that audit closes.
+
+**What replaced it.** Production qualification starts with exact pinned,
+permissively licensed direct cloners: VoxCPM2, MOSS-TTS Local v1.5 and ZONOS2.
+Noncommercial releases remain research references, OpenVoice remains a measured
+diagnostic, and DhVaani remains a Hindi control. A later commercially released
+weight set, completed corpus audit or matched human win would reverse the
+corresponding exclusion.
+
+## `openvoice-enable-watermark-keyword-is-not-a-valid-disable-switch` (2026-08-28)
+
+**What was tried.** Construct the pinned official `ToneColorConverter` with
+`enable_watermark=False`, then apply Vyakti's PerTh watermark after conversion.
+
+**What specifically broke.** The pinned subclass reads that keyword only after
+forwarding every keyword to `OpenVoiceBaseClass.__init__`, whose signature does
+not accept it. The runtime would fail with `TypeError` before loading the
+converter. Leaving the default in place would instead load and apply WavMark
+before PerTh, adding an unmeasured second acoustic transform and still not
+satisfying the product's required final PerTh proof.
+
+**What replaced it.** A narrow subclass invokes the pinned base initializer,
+sets the inherited watermark model to `None`, and uses the official extraction
+and conversion methods unchanged. PerTh is applied and detected only after
+conversion, and the receipt records the native watermark as disabled before
+PerTh. A future OpenVoice release with a tested constructor switch could replace
+the subclass after output equivalence and watermark-order tests.
+
+## `keyvault-purge-protection-cannot-be-explicitly-disabled` (2026-08-28)
+
+**What was tried.** Declare `enablePurgeProtection: false` on a new
+evaluation-only Key Vault so its deletion behavior was explicit in source.
+
+**What specifically broke.** Azure rejected the deployment with `BadRequest`:
+the property cannot be set to false because enabling purge protection is an
+irreversible one-way setting. The failure happened before the evaluation trust
+anchor was usable. The initially generated HMAC value was discarded and no
+candidate app referenced it.
+
+**What replaced it.** Omit the property, keep soft delete at the platform
+minimum seven days, and enforce by regression that purge protection is never
+set true. A second deployment generated a new cryptographically random HMAC and
+succeeded; only its versioned URI is consumed by candidate apps.
+
+## `moss-v1-5-does-not-fit-the-existing-t4-by-repository-size` (2026-08-28)
+
+**What was tried.** Preflight MOSS-TTS Local v1.5 as the next candidate on the
+existing 16 GiB T4 before paying for an image build or GPU start.
+
+**What specifically broke.** The exact public model and required MOSS Audio
+Tokenizer v2 contain 17,615,117,536 bytes of files before CUDA libraries,
+activations and KV cache. Upstream publishes no peak-VRAM result for this
+checkpoint. Repository bytes are not a peak-memory measurement, but they are
+already larger than the T4 capacity and therefore disprove an unqualified T4
+fit claim. The staged plan also forbids MOSS A10 spend before VoxCPM2's first
+blind screen. No paid retry can answer either condition honestly today.
+
+**What replaced it.** The runtime refuses GPUs below 22 GiB. A remote-only,
+private A10 Spot definition carries a USD 25 cap, four-hour self-deallocation,
+daily shutdown and no production route, but remains undeployed until the VoxCPM2
+gate closes. A measured, quality-preserving quantized route could reverse the
+T4 rejection; a hopeful build cannot.
+
+## `old-setuptools-cannot-parse-voxcpm2-pep639-license` (2026-08-28)
+
+**What was tried.** Build the exact pinned VoxCPM source with the setuptools
+75.8.0 version inherited from the pinned PyTorch CUDA base.
+
+**What specifically broke.** ACR run `cu1p` reached upstream package metadata
+generation and failed after 192 seconds. The pinned `pyproject.toml` uses the
+PEP 639 SPDX string `license = "Apache-2.0"`; setuptools 75.8 validates only
+the older table-or-file schema and rejected that valid upstream metadata. No
+image was created, no model loaded and no GPU ran. Retrying the same resolver
+cannot change the schema mismatch.
+
+**What replaced it.** The remote build pins setuptools 80.9.0 and wheel 0.45.1
+before building the exact source with build isolation disabled. Corrected run
+`cu1q` built the source wheel successfully. The isolated suite requires a
+setuptools release that accepts the SPDX form. A future base image whose
+verified build backend supports PEP 639 could remove the explicit pin.
+
+## `asr-output-is-not-an-exact-reference-transcript` (2026-08-28)
+
+**What was tried.** Name the provider transcript used for Qwen in-context
+cloning an exact reference transcript, and obtain it from the existing Sarvam
+speech-to-text secret.
+
+**What specifically broke.** Provider ASR is an unreviewed hypothesis even when
+its text looks plausible; no human compared it with the selected 12-second
+owner window. The live Sarvam request also returned HTTP 402 before synthesis,
+so that path could not produce even the hypothesis. Calling either result
+exact would turn model input into stronger evidence than was measured.
+
+**What replaced it.** The run used the existing Azure Speech resource and seals
+the text only as `evidence_scope: asr_unreviewed`, with provider, transcript
+hash, reference hash, offset and duration. The private hypothesis is reusable
+for matched candidates without another provider call. A human-reviewed,
+time-aligned correction can replace it and must receive a different evidence
+scope; no ASR provider may silently promote its own output to exact.
+
+## `indicf5-cannot-resolve-an-unpinned-vocoder-at-offline-runtime` (2026-08-28)
+
+**What was tried.** Bake the exact Vocos snapshot into the Hugging Face cache,
+leave the upstream IndicF5 model loader unchanged, and start the immutable
+image with Hub and Transformers offline modes enabled.
+
+**What specifically broke.** The gated remote model calls the upstream
+`load_vocoder` with `is_local=False` and no revision. The exact commit snapshot
+did not provide the unpinned default-branch resolution that `hf_hub_download`
+requested, so the first isolated GPU revision raised
+`LocalEntryNotFoundError`, restarted twice and never became healthy. Retrying
+the same image or enabling runtime internet would not satisfy immutable
+provenance.
+
+**What replaced it.** The build now writes the exact config and weights to a
+dedicated local Vocos directory and commits their file hashes. Before the
+gated model module imports the loader, a narrow wrapper forces that path,
+rejects other vocoders and removes Hub-cache input. The failed revision was
+deactivated to stop GPU churn. A corrected remote image still requires an
+offline cold-start and synthesis proof before the candidate can be listened to
+or compared.
+
+## `one-hindi-and-hinglish-toggle-hides-script-truth` (2026-08-28)
+
+**What was tried.** The owner preview used one control labelled "Hindi and
+Hinglish" beside English, with one Roman-Hindi default for both Indian
+registers.
+
+**What specifically broke.** The label hid the choice an owner had to make:
+Devanagari Hindi and Roman Hinglish enter the same `hi` runtime contract but
+take different auditable text-front-end paths. The screen could not tell a
+person which script to type or verify that a language switch changed the
+default and input semantics. In a product whose rejected failure is Hindi and
+Hinglish pronunciation, that ambiguity made the first test input itself
+uncontrolled. The focused suite's negative control restores the two-register
+type and must report `three-language-ui`.
+
+**What replaced it.** Three compact choices expose Hindi, Hinglish and English
+while preserving the two real API language ids. Each opens with a
+script-matched default and a short truthful instruction; no candidate model or
+quality winner is named. A future distinct Hinglish runtime may change the
+binding only after its backend contract exists and passes the same protected
+receipt and listening gates.
+
+## `recursive-chown-duplicates-the-baked-voxcpm2-model-layer` (2026-08-28)
+
+**What was tried.** Bake the exact public VoxCPM2 snapshot as root, then run a
+recursive ownership change over `/models` before switching to the non-root
+runtime user.
+
+**What specifically broke.** Successful ACR run `cu1q` produced an
+11,592,564,532-byte compressed image. The ownership-only layer copied the
+multi-gigabyte model contents into a second filesystem layer, widening registry
+storage and every cold pull without changing weights or permissions needed by
+inference. Shipping that digest would have made the measured cold start worse
+for no model benefit.
+
+**What replaced it.** Model and application files remain root-owned and
+world-readable while the process still runs as UID and GID 10009. The optimized
+image is 7,660,847,810 bytes, 3,931,716,722 bytes smaller, and a focused check
+rejects recursive `chown` over `/models`. A future build may use build-time
+`COPY --chown` only if a measured runtime write requirement appears.
+
+## `stale-broker-digest-cannot-provision-an-evaluation-gate` (2026-08-28)
+
+**What was tried.** Deploy the isolated VoxCPM2 gate with broker digest
+`sha256:3229c647084c066ac8ecf349da7bc688ab4318abcdbb2a29c89fc17279a30210`
+from an older handoff.
+
+**What specifically broke.** ARM rejected the gate with
+`MANIFEST_UNKNOWN`; that digest did not exist in the named ACR repository. The
+private scale-to-zero runtime provisioned successfully, so no GPU replica woke,
+but the evaluation front door could not become live. A syntactically immutable
+digest is not proof that the registry still contains it.
+
+**What replaced it.** ACR manifest readback and the existing live production
+gate independently named
+`sha256:3229c6479f83a0864faa0a2f81d43402b115341bbac318209d5b97c8463ceeb1`.
+The idempotent redeployment used that digest and succeeded. Future handoffs must
+pair an immutable reference with registry existence readback immediately before
+ARM create.
+
+## `url-pathname-is-not-a-windows-filesystem-path` (2026-08-28)
+
+**What was tried.** Derive the layout gate's repository root with
+`resolve(new URL("..", import.meta.url).pathname)`.
+
+**What specifically broke.** On the real Windows workspace the URL pathname was
+`/C:/Users/.../Vyakti-platform/`, and `path.resolve` turned it into
+`C:\C:\Users\...\Vyakti-platform`. The real `dist/` and
+`dist/studio-layout-fixture.html` both existed, but the gate exited zero with
+`dist/ absent`. This silently disabled the signed-in layout check on Windows.
+
+**What replaced it.** Convert the file URL with `fileURLToPath` before joining
+`dist`. The always-run negative control simulates the former Windows operation:
+it produces `C:\C:\repo`, while the supported conversion produces `C:\repo\`.
+On the real workspace the corrected gate advanced past both dist checks to the
+browser capability check. Layout rendering itself was not measured in that
+focused run because no Playwright Chromium binary was installed.
+
+## `a-local-model-path-is-not-a-hugging-face-repository-id` (2026-08-28)
+
+**What was tried.** Load the gated model from `/models/indicf5` with
+Transformers `local_files_only=True` after separately forcing Vocos local.
+
+**What specifically broke.** The model's dynamic module then called
+`hf_hub_download(config.name_or_path, filename='checkpoints/vocab.txt')`.
+Transformers had set `config.name_or_path` to `/models/indicf5`; Hugging Face
+correctly rejected that filesystem path as an invalid repository id. The
+isolated revision never became healthy and produced no audio.
+
+**What replaced it.** Before dynamic module import, a fail-closed wrapper maps
+only that exact vocabulary request to the baked
+`/models/indicf5/checkpoints/vocab.txt`. Different repositories and filenames
+are refused. The clean build verifies the file exists, and the no-token repair
+verifies the same invariant before producing another immutable image.
+
+## `the-first-container-app-environment-is-not-a-safe-gpu-selector` (2026-08-28)
+
+**What was tried.** Select the first Container Apps environment returned in
+the resource group while redeploying the repaired IndicF5 evaluation image.
+
+**What specifically broke.** The first environment was `vyakti-ctrl-env`,
+which has no `Consumption-GPU-NC8as-T4` workload profile. ARM preflight rejected
+the deployment with `WorkloadProfileNotFound` before changing resources.
+
+**What replaced it.** Read the managed-environment resource id from the live
+named IndicF5 app and reuse that exact id. The corrected deployment succeeded
+in `vyakti-voice-env`. Resource-list ordering is no longer treated as identity.
+
+## `zonos2-offline-api-does-not-freeze-speaker-and-dac-assets` (2026-08-28)
+
+**What was tried.** Treat the official ZONOS2 Python API's documented offline
+path and a locally downloaded main checkpoint as a complete immutable runtime.
+
+**What specifically broke.** Source inspection at the pinned commit found two
+independent runtime downloads outside the main 15.351 GB repository. Voice
+cloning instantiates `AutoModel.from_pretrained` on the mutable
+`marksverdhei/Qwen3-Voice-Embedding-12Hz-1.7B` name with remote code, and first
+audio decode calls `dac.utils.download(model_type="44khz")`. An image containing
+only ZONOS2 would therefore fail in offline mode at the feature that matters,
+or silently change dependencies if runtime internet were enabled. The word
+"offline" described the API shape, not a frozen dependency closure.
+
+**What replaced it.** The build downloads the exact public speaker revision
+and exact official DAC 0.0.1 asset, checks their byte counts and SHA-256 values,
+adds them to the model commitment, replaces both runtime download paths with
+local-only assets and leaves Hub/Transformers offline. The focused gate rejects
+removal of either binding. A new dependency may enter only with an exact pin,
+license record, build-time hash and the same offline cold-start proof.
+
+## `zonos2-runtime-base-without-nvcc-cannot-run-official-kernels` (2026-08-28)
+
+**What was tried.** Use the digest-pinned PyTorch CUDA runtime image as the
+smallest base for ZONOS2, because its CUDA runtime and the upstream lock contain
+the libraries used by inference.
+
+**What specifically broke.** Pinned source inspection found that this release
+does not ship every inference kernel precompiled. Vocabulary indexing and KV
+cache storage call `tvm_ffi.cpp.load_inline` on CUDA sources, while even the
+single-GPU engine initializes an NCCL extension through `tvm_ffi.cpp.load`.
+Upstream explicitly requires a matching CUDA toolkit. The runtime image has no
+NVCC, so it could build and pull successfully yet fail only after paid A10
+startup. ACR run `cu1w` was cancelled before dependency installation and
+produced no candidate image.
+
+**What replaced it.** Keep the smaller digest-pinned runtime base but install
+NVIDIA's exact `cuda-nvcc-12-8=12.8.93-1` package, link the NCCL library already
+pinned by the upstream Python lock, and fail the remote build unless NVCC 12.8,
+`g++` and that linker target exist. The compiler package's measured 36,043,452
+compressed bytes is now explicit in the size preflight. ACR run `cu1y` further
+proved that the PyTorch runtime base does not configure NVIDIA's apt source;
+the corrected build hash-checks the official 4,332 byte CUDA keyring before
+installing the exact compiler package. Successful build-time
+presence checks are not a runtime-kernel result: exact kernel compilation,
+model fit and synthesis remain paid A10 gates.
+
+## `zonos2-managed-identity-acr-pull-needs-role-assignment-authority` (2026-08-28)
+
+**What was tried.** Give the existing eval managed identity `AcrPull` on the
+shared registry so the private VM could pull without any registry credential.
+
+**What specifically broke.** Azure rejected the scoped role-assignment write
+with `AuthorizationFailed`: the deployment service principal has resource
+write authority but not `Microsoft.Authorization/roleAssignments/write`.
+Embedding an ACR admin password or asking the owner to change IAM would expand
+the experiment's authority and blast radius.
+
+**What replaced it.** Create an ACR token scoped only to content/read on
+`vyakti/zonos2-eval`, generate a credential with one-day expiry, store it in
+the dedicated eval Key Vault, pull the immutable digest, immediately log
+Docker out, and revoke the token after deallocation. Managed identity remains
+the only path to the vault and transport HMAC. Revisit identity-native pull if
+the deployment principal later receives role-assignment authority.
+
+## `acr-token-create-may-print-an-initial-credential` (2026-08-28)
+
+**What was tried.** Create the repository-read-only ZONOS2 pull token with an
+output projection that returns only its name, state and scope-map id.
+
+**What specifically broke.** Azure CLI printed a separate warning containing
+the automatically generated initial credential even though the structured
+output query omitted it. Treating output projection as secret suppression was
+wrong. The emitted credential was immediately replaced, the replacement was
+not displayed, and the token was disabled while the image build continued.
+
+**What replaced it.** Token creation and credential generation are separate
+operations. Future evals create the disabled token first, then generate or
+replace `password1` inside the same no-echo deployment process, pass it only as
+a secure ARM parameter, enable the token immediately before pull and disable
+or delete it at teardown. CLI warnings are treated as output, not metadata.
+
+## `acr-push-default-timeout-is-too-short-for-zonos2` (2026-08-28)
+
+**What was tried.** Give the ACR build step a two-hour timeout and leave the
+separate push step at ACR Tasks' default, assuming the run timeout covered both.
+
+**What specifically broke.** Run `cu20` completed all 16 Dockerfile steps and
+tagged the image locally, then ACR terminated the push after its independent
+600-second step timeout. Several small layers were committed; the single 15.3
+GB checkpoint layer was still uploading, so no manifest or deployable digest
+existed. Retrying the push inside that terminated step could not exceed its
+wall clock.
+
+**What replaced it.** Set both build and push step timeouts explicitly to 7,200
+seconds and set the quick-run timeout to their 14,400-second sum. Image size is
+still bounded separately at 30 GiB. A longer network-transfer allowance does
+not authorize a larger artifact, a GPU allocation or production routing.
+
+## `recursive-chown-duplicates-zonos2-offline-assets` (2026-08-28)
+
+**What was tried.** Fetch the immutable model, speaker encoder and DAC as root,
+install the upstream locked environment as root, then recursively change
+ownership of `/models`, `/opt/zonos2-src`, `/srv/zonos2` and `/home/zonos2` in
+a final Docker layer before switching to UID 10013.
+
+**What specifically broke.** ACR manifest `cu24` measured the final ownership
+layer at 18,805,403,267 compressed bytes. The complete immutable image was
+42,449,801,367 bytes, or 39.53 GiB, and crossed the 30 GiB hard stop. OCI copy
+on write preserved the earlier model and environment bytes while the recursive
+metadata change emitted them again. No VM or GPU was started.
+
+**What replaced it.** Keep the immutable model, source and environment
+root-owned and world-readable, run the service as UID 10013, and provide only
+the two required writable locations as bounded UID-owned tmpfs mounts. A
+focused negative gate now rejects reintroduction of the recursive ownership
+copy. The exact layer subtraction projects 22.02 GiB and authorizes one remote
+image retry; the rebuilt manifest must still independently measure at or below
+30 GiB before any A10 allocation.
+
+## `language-match-is-not-a-matched-text-comparison` (2026-08-28)
+
+**What was tried.** Consolidate the existing Chatterbox, Qwen English and
+VoxCPM2 clips into Hindi, Hinglish and English pools, then rank providers from
+their language-level average ratings.
+
+**What specifically broke.** The 15 source clips share a topic and owner but
+not a cross-provider target sentence. Exact hashing found one comparable cell,
+and it contains four Chatterbox Hindi variants only. Qwen's six English
+sentences are all different from VoxCPM2's English sentence and Chatterbox's
+English sentence; the Hindi and Hinglish prompts also differ. A language-level
+average would therefore attribute prompt length, wording, code switching and
+expressive demand to the model. More listeners would narrow the confidence
+interval around the same confound rather than remove it.
+
+**What replaced it.** The builder groups only exact language plus exact target
+text hash. The one real matched cell is reported as matched; every other clip
+is an independent lane. The unsealed report has no cross-provider winner field
+value until a future bake-off synthesizes the same frozen prompts across the
+candidate set. Independent owner-likeness, naturalness, accent, pronunciation
+and disclosure ratings remain useful, but they are not promoted into an unfair
+head-to-head result.
+
+## `utf8-byte-duration-inflates-devanagari-in-indicf5` (2026-08-28)
+
+**What was tried.** Send the frozen Devanagari and mixed-script prompts through
+the pinned IndicF5 model with its default speed after a clean offline cold
+start.
+
+**What specifically broke.** Upstream calculates requested frames from UTF-8
+byte lengths. Against an English reference, Devanagari appears roughly three
+times longer than the same number of linguistic units. The six requests plan
+23.1 through 31.7 seconds, two clamp at 4096 frames, and a first request can
+occupy the T4 beyond the broker's 220-second bound. No exception was logged;
+calling this a CUDA or compile crash would have exceeded the evidence.
+
+**What replaced it.** Normalize speed by generated-versus-reference
+bytes-per-codepoint density, bind that value and predicted duration into the
+receipt, refuse a plan above 30 seconds, and warm with a short unscored canary.
+Same-process repeated generation ids reuse their content-bound result. A later
+durable ledger is still required for cross-replica exactly-once production.
+
+## `a-cold-broker-cannot-forward-the-original-expiring-signature` (2026-08-28)
+
+**What was tried.** Have the admission broker validate the caller HMAC and
+forward the exact timestamp, nonce and signature to a private scale-to-zero GPU
+runtime.
+
+**What specifically broke.** The caller timestamp was valid at admission, but
+GPU cold start exceeded 60 seconds. When the runtime finally received the
+request, its independent skew check correctly returned
+`transport_binding_invalid`. Extending the skew window would increase replay
+exposure and still misrepresent when the broker forwarded the body.
+
+**What replaced it.** Probe readiness first, return a signed warming response
+while the GPU starts, and after readiness sign the admitted body with a fresh
+internal timestamp and nonce. Verify the runtime response internally, then
+sign the same response body for the original caller nonce.
+
+## `a-symmetric-two-language-grid-would-fabricate-provider-capability` (2026-08-28)
+
+**What was tried.** Design one visually symmetric English and Hindi grid in
+which Chatterbox, Qwen3-TTS, VoxCPM2, IndicF5 and ZONOS2 all receive both
+frozen sentences.
+
+**What specifically broke.** The pinned Qwen contract rejects every language
+other than English with `qwen3_english_only`, while the pinned IndicF5 contract
+rejects every language other than Hindi with `indicf5_hindi_only`. Filling the
+missing cells with transliteration, a different base model or a semantic
+substitute would make the table look complete by changing the model or target
+text. It would no longer be the exact-text provider comparison it claimed to
+be.
+
+**What replaced it.** Build capability-shaped cells. English contains
+Chatterbox, Qwen, VoxCPM2 and optional ZONOS2. Hindi contains Chatterbox,
+VoxCPM2 and optional IndicF5 and ZONOS2. The local gate asserts those exclusions
+and still requires at least two distinct providers in each cell.
+
+## `strict-perth-length-equality-rejects-unframed-indicf5-output` (2026-08-28)
+
+**What was tried.** Apply PerTh directly to the arbitrary-length IndicF5
+waveform and require the returned array to have exactly the same sample count.
+
+**What specifically broke.** The first real owner canary synthesized but
+returned signed HTTP 503 `perth_watermark_application_failed`, so no clip was
+accepted. Remote, content-free diagnostics against the exact pinned PerTh
+library showed that aligned signals retain their length while arbitrary input
+is truncated to the preceding 240-sample frame boundary, losing 1 through 239
+tail samples. This was a wrapper geometry mismatch, not evidence that IndicF5
+failed to synthesize or that PerTh could be skipped.
+
+**What replaced it.** Pad only the incomplete terminal frame with zeros, demand
+an exact finite protected padded length, crop to the original sample count and
+run PerTh detection on the cropped output. The repaired remote canary and six
+owner-bound Hindi/Hinglish clips all passed, with minimum detector score
+0.99807614.
+
+## `the-is-not-a-safe-unconditional-roman-hindi-alias` (2026-08-28)
+
+**What was tried.** Treat every Latin `the` in a Hindi/Hinglish request as the
+Roman spelling of Hindi `थे`.
+
+**What specifically broke.** `the` is also the highest-frequency English
+article. The unconditional table silently mistransliterated normal mixed input
+such as `the formula hai`, turning an English token into a different Hindi
+word before synthesis.
+
+**What replaced it.** Remove the ambiguous alias. The exact source token now
+stays in an explicit English segment while reviewed unambiguous Hindi tokens
+continue through the Hindi pronunciation path. A negative control freezes this
+boundary.
+
+## `sarvam-402-cannot-produce-an-intelligibility-transcript` (2026-08-28)
+
+**What was tried.** Send each sub-30-second sealed qualification WAV through
+the already-integrated Sarvam synchronous Hindi ASR path, with six calls and no
+retries under a USD 2 hard stop.
+
+**What specifically broke.** The first request returned HTTP 402 before any
+transcript existed. No item could be scored, and treating that as an empty
+transcript would have fabricated a 100 percent error result. Actual provider
+billing for the rejected request is unknown rather than assumed to be zero.
+
+**What replaced it.** Reserve one conservative 15-second quantum for the
+failed request, then use the subscription's existing isolated Azure AI
+Services short-audio Speech route for one pass over all six clips. The private
+report names the provider switch and keeps the single-provider limitation.
+
+## `windows-default-stdin-decoding-can-fabricate-a-hindi-contract-failure` (2026-08-28)
+
+**What was tried.** Validate the Node-built exact-text payloads by piping JSON
+into the checked-in Python provider contracts with the Windows Python default
+text mode.
+
+**What specifically broke.** Qwen English and VoxCPM2 English passed, but the
+byte-identical VoxCPM2 Hindi payload reported `localized_disclosure_required`.
+Codepoint inspection proved the plan and all four Hindi runtime disclosures
+were identical. Python had decoded the piped UTF-8 JSON through the Windows
+legacy stdin encoding, corrupting Devanagari before contract comparison. That
+was a harness failure, not evidence of a runtime disclosure mismatch.
+
+**What replaced it.** Run the validator subprocess with Python UTF-8 mode. The
+same frozen payloads then passed all eight actual request-contract paths. Exact
+codepoint equality remains asserted so a real normalization or disclosure-byte
+drift still fails.
+
+## `an-image-digest-is-not-a-runtime-model-manifest-commitment` (2026-08-28)
+
+**What was tried.** Resolve every expected model commitment from read-only
+Azure Container App, revision and ACR metadata without opening an existing
+sealed listener key or waking a model.
+
+**What specifically broke.** The control plane exposes immutable container
+image digests and application revisions, but Qwen and IndicF5 compute a second
+commitment over the exact baked model-file manifest at runtime. Neither value
+is present in the Container App tags, revision template or ACR manifest
+metadata. Treating the image digest as the model commitment would collapse two
+different provenance layers and make the receipt lie.
+
+**What replaced it.** The guarded runner stops those arms until the expected
+runtime commitment is supplied independently. For the current exact images,
+the immutable ACR layer containing `.vyakti-model-manifest.json` was streamed
+read-only and its claim was independently recomputed from its file manifest.
+Future qualification must emit a small signed deployment attestation outside
+the sealed model-to-stimulus key, binding image digest, model revision and model
+commitment without exposing the listening randomization.
+
+## `source-pins-alone-do-not-reproduce-a-build-specific-model-manifest` (2026-08-28)
+
+**What was tried.** Derive Qwen and IndicF5 commitments from the checked-in
+repository revisions, source commits and manifest algorithm alone.
+
+**What specifically broke.** The commitment covers the complete concrete file
+array written during the remote snapshot build, including exact byte lengths
+and SHA-256 values for every materialized path. Pins identify which repositories
+were requested but do not contain that built array, and IndicF5 r7 further
+replaced its Vocos file list in a repair layer. Hashing only pins or public LFS
+metadata would create a different contract and would not prove what the
+deployed runtime reads.
+
+**What replaced it.** Extract the already-built manifest from the exact
+content-addressed deployed layer and independently verify its internal hash.
+The outer image digest, layer digest, model revision and derived manifest
+commitment are all preserved as separate evidence.
+
+## `uppercase-element-sequences-are-not-sufficient-chemistry-evidence` (2026-08-28)
+
+**What was tried.** Treat any uppercase token that can be segmented into valid
+periodic-table symbols as an unambiguous chemical formula in a Hindi-context
+request.
+
+**What specifically broke.** `IP` segmented as iodine plus phosphorus and was
+rewritten inside an ordinary sentence containing an IP address. The same shape
+would misclassify many acronyms and labels even though every individual symbol
+is chemically valid. A domain label alone does not make an acronym a formula.
+
+**What replaced it.** A raw formula requires a coefficient, charge, subscript,
+or conventional mixed-case multi-letter element notation. Repeated spoken
+formula fragments may establish equation context for a terminal bare symbol;
+one phrase cannot. `IP`, `AI`, `IIT`, the English-like symbols `He`, `In`, `As`,
+`At`, `I`, `No`, `Am`, and the phrase `vitamin B two` are executable negative
+controls. Ambiguous `Fe3+` also remains unchanged unless the charge magnitude
+uses a caret or superscript.
+
+## `silent-text-rewrite-cannot-enter-a-matched-voice-cell` (2026-08-28)
+
+**What was tried.** Treat pronunciation normalization as an internal runtime
+detail: accept ordinary text, rewrite it before the model, and return only the
+audio and original request metadata.
+
+**What specifically broke.** The provider receipt would still claim the
+caller-owned exact text while the model had received different bytes. A
+matched pack could not reconstruct the intervention, distinguish the current
+deployed r7 baseline from a normalized candidate, or attribute a later unit
+change to an exact rule. Even a plausible audio improvement would be invalid
+evidence because the source, synthesis and comparison cells had collapsed into
+one misleading identity.
+
+**What replaced it.** Require the source SHA-256 and versioned pronunciation
+request at the contract boundary. Preserve source text, separately hash the
+synthesis text, return exact ordered codepoint transformations and a canonical
+audit, and make qualification reconstruct the synthesis hash before accepting
+the response. Normalized and historical unnormalized IndicF5 are distinct
+matched-pack variants; an exact-text cell rejects an unexpected transform.
+
+## `older-chatterbox-result-shape-cannot-enter-the-exact-text-pack` (2026-08-28)
+
+**What was tried.** Start the frozen four-arm exact-text cloud pack against the
+currently deployed isolated Chatterbox admission and runtime revisions, keeping
+the ten-attempt and USD 5 hard stops.
+
+**What specifically broke.** One cold request timed out. The warm retry returned
+a signed, PerTh-verified legacy result that omitted the text-plan contract,
+localized disclosure text and disclosure language. The planned English
+disclosure was 38 UTF-8 bytes with SHA-256
+`be278bc82cf3201a5006d5d2a0ef0db9cef8bdfe5f5faeb2637266b74561cf05`;
+because the result carried no disclosure field, there is no returned hash to
+compare. The strict verifier correctly stopped on
+`matched_pack_result_disclosure_drift`. Treating request-side text as if it were
+a post-synthesis runtime receipt would not prove which localized disclosure the
+runtime accepted or spoke.
+
+**What replaced it.** Stop before saving audio or running another arm, preserve
+the sealed mapping, and remotely rebuild the current checked Chatterbox runtime
+with its exact source manifest. Deployment and resynthesis remain separate and
+blocked on the full release gate and commit. The verifier and its missing-field
+negative control are unchanged.
+
+## `acr-build-file-resolution-does-not-follow-an-absolute-context` (2026-08-28)
+
+**What was tried.** Invoke `az acr build` from the repository root with an
+absolute bounded source-directory argument and relative `--file
+Dockerfile.patch`, assuming the CLI would resolve the Dockerfile inside the
+supplied context.
+
+**What specifically broke.** The CLI looked for `Dockerfile.patch` relative to
+the process working directory and returned `Unable to find Dockerfile.patch`
+before uploading or scheduling a run. No ACR run id or spend was created, but
+retrying blindly from the broad repository would have risked uploading the
+wrong source boundary.
+
+**What replaced it.** Freeze a new four-file temporary directory, verify every
+file hash against the tested workspace, make that directory the process
+working directory and submit `.` as the context. ACR run `cu27` then reported
+12.848 KiB uploaded, and post-build registry-layer extraction matched all three
+runtime source hashes exactly.
+
+## `windows-acr-log-rendering-is-not-remote-build-state` (2026-08-28)
+
+**What was tried.** Follow ACR run `cu28` through the portable Azure CLI's
+ordinary Windows log streamer while pip installed the pinned OpenVoice runtime
+dependencies.
+
+**What specifically broke.** The local CLI process decoded the remote stream
+but attempted to write Unicode through CP1252 and exited with
+`UnicodeEncodeError: 'charmap' codec can't encode characters`. The remote ACR
+run continued. Treating the local process exit as a failed build and submitting
+a retry would have duplicated spend and obscured the identity of the real
+candidate.
+
+**What replaced it.** Make no retry. Poll the ACR run record by exact run id
+until it reaches a terminal state, resolve its output digest from both run
+metadata and manifest metadata, then verify the immutable registry layers
+against the pre-build source manifest. Run `cu28` subsequently succeeded and
+all copied source bytes matched.
+
+## `advanced-preview-caller-cannot-omit-required-text-plan-audit` (2026-08-28)
+
+**What was tried.** Make `beginOwnedVoicePreview` require the new text-frontend
+audit for every generation while constructing that audit in the advanced owner
+preview route and forwarding it to the optional trial resolver.
+
+**What specifically broke.** The route did not forward `text_frontend` into
+the subsequent `beginOwnedVoicePreview` call. Therefore every ordinary and
+trial advanced preview was refused as `voice_preview_text_frontend_invalid`
+before the database or GPU, even though the correct audit already existed a few
+lines above. The first mutation test for the repair also removed only the
+earlier same-named trial-resolver field, leaving the authorization field in
+place, so that negative control correctly failed rather than creating false
+confidence.
+
+**What replaced it.** Pass the same content-addressed audit into the atomic
+authorization call, assert that exact call shape in the focused OpenVoice
+suite, and mutate all matching caller fields for the negative control. The
+corrected suite passed 61 of 61. Runtime, broker and web deployment remain
+separate later gates; a local caller fix does not authorize a live rollout.
+
+## `one-runtime-image-is-not-a-complete-two-container-release` (2026-08-28)
+
+**What was tried.** Treat the qualified OpenVoice runtime digest as the complete
+Azure release candidate for the disclosure-receipt repair.
+
+**What specifically broke.** The public admission boundary is a separate
+Container App built from a different Dockerfile and `broker.py`. The runtime
+image contains neither broker source nor its cold-start transport behavior, so
+its source manifest cannot prove the external request is re-signed with a fresh
+internal timestamp and nonce after readiness. Deploying or reporting only the
+runtime would leave one half of the two-container contract unqualified.
+
+**What replaced it.** Freeze and build the admission source as its own bounded
+ACR candidate, verify its copied registry layers and Dockerfile history, and
+stop before deployment. The runtime and broker digests now form two separate
+release inputs; the full gate and ordered runtime-then-broker rollout still
+decide whether either live revision changes.

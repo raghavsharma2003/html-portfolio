@@ -19,6 +19,7 @@
 // is the only place the real ones are wired.
 import { createHash } from "node:crypto";
 import { assertSynthesisResult } from "./contracts.js";
+import { buildVoiceTextPlan, voiceTextPlanAudit } from "./hindi-text-frontend.js";
 import { voiceScriptMode } from "./language-conditioning.js";
 import {
   WARMUP,
@@ -92,6 +93,10 @@ export async function handleVoicePreviewPanel(body, deps) {
   catch (error) { return jsonResult(error.status || 400, { state: "error", error: error.code }); }
   const textHash = createHash("sha256").update(text, "utf8").digest("hex");
   const textLanguageMode = voiceScriptMode(text).mode;
+  let textPlan;
+  try { textPlan = buildVoiceTextPlan({ text, languageId }); }
+  catch (error) { return jsonResult(error.status || 400, { state: "error", error: error.code }); }
+  const textFrontend = voiceTextPlanAudit(textPlan);
 
   // OWNERSHIP FIRST, before a byte of storage or a second of GPU is spent. A
   // caller who does not own this replica must pay nothing and learn nothing.
@@ -104,6 +109,7 @@ export async function handleVoicePreviewPanel(body, deps) {
       language_id: languageId,
       text_hash: textHash,
       text_language_mode: textLanguageMode,
+      text_frontend: textFrontend,
       style_key: PANEL_STYLE_KEY,
     });
   } catch (error) {
@@ -198,6 +204,11 @@ export async function handleVoicePreviewPanel(body, deps) {
     // again rather than assumed, and there is deliberately no branch that
     // skips either — a preview is a generated clip like any other.
     const synthesized = assertSynthesisResult(raw);
+    if (synthesized.receipt?.textFrontend?.planSha256 !== textFrontend.planSha256) {
+      throw Object.assign(new Error("voice_preview_text_plan_binding_failed"), {
+        code: "voice_preview_text_plan_binding_failed", status: 409,
+      });
+    }
     const protectedAudio = await deps.protect({
       authorization: started.authorizationInput,
       sourceStream: synthesized.stream,
@@ -206,6 +217,7 @@ export async function handleVoicePreviewPanel(body, deps) {
         renderedText: synthesized.renderedText,
         renderer: `${deps.provider.name}@${deps.provider.modelCommitment}`,
       },
+      disclosureText: synthesized.disclosureText,
       signal: deps.signal,
     });
     const chunks = [];
@@ -224,6 +236,9 @@ export async function handleVoicePreviewPanel(body, deps) {
       body: Buffer.concat([wavHeader(pcm.length, synthesized.format), pcm]),
       headers: Object.freeze({
         "Content-Type": "audio/wav",
+        "X-Vyakti-Text-Plan": textFrontend.planSha256,
+        "X-Vyakti-Text-Transformations": String(textFrontend.transformationCount),
+        "X-Vyakti-Spoken-Text": encodeURIComponent(textPlan.targetText),
         "X-Content-Type-Options": "nosniff",
         "X-Vyakti-Generation": started.generation.generation_id,
         "X-Vyakti-Disclosure": "audible-prefix-v1",

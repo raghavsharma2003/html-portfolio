@@ -41,7 +41,8 @@ import {
 } from "../api/_voice/warmup.js";
 import { handleVoicePreviewPanel } from "../api/_voice/preview-panel.js";
 import { beginOwnedVoicePreview } from "../api/_replica-voice-preview.js";
-import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT } from "../api/_voice/contracts.js";
+import { VOICE_PCM_FORMAT } from "../api/_voice/contracts.js";
+import { buildVoiceTextPlan, voiceTextPlanAudit } from "../api/_voice/hindi-text-frontend.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ORIGIN = "https://broker.example.invalid";
@@ -154,10 +155,13 @@ function fakeProvider(options = {}) {
       if (options.gate) await options.gate;
       if (options.hangMs) await new Promise((resolve) => setTimeout(resolve, options.hangMs));
       const pcm = Buffer.alloc(4_800, 1);
+      const plan = buildVoiceTextPlan({ text: input.text, languageId: input.languageId });
       return {
-        renderedText: options.skipDisclosure ? input.text : `${SYNTHETIC_AUDIO_DISCLOSURE} ${input.text}`,
+        renderedText: options.skipDisclosure ? input.text : plan.targetText,
+        disclosureText: plan.disclosureText,
         format: VOICE_PCM_FORMAT,
         stream: (async function* () { yield new Uint8Array(pcm); })(),
+        receipt: { textFrontend: voiceTextPlanAudit(plan) },
       };
     },
   };
@@ -589,7 +593,7 @@ section("client warmup budget");
     /two to five minutes/.test(client) && /2 to 5 minutes/.test(clientApi) &&
       (clientApi.match(/etaSecondsHigh:\s*Number\([^\n]+\) \|\| 300/g) || []).length === 2);
   check("the warm-runtime copy promises only a relative improvement, not seconds",
-    /after that it is usually much faster/.test(client) && !/after that it is seconds/.test(client));
+    /after that it is usually much faster/i.test(client) && !/after that it is seconds/i.test(client));
   check("NEGATIVE CONTROL: no voice-panel path retains the disproved three-minute ceiling",
     !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${client}\n${clientApi}`));
 }

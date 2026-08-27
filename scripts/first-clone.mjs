@@ -161,6 +161,11 @@ async function drain(stream) {
 var score = null;
 var verdict = null;
 var ceiling = null;
+var referenceSha = null;
+var replicaId = null;
+var sourceId = null;
+var latency = {};
+var receipts = [];
 
 function die(stage, error) {
   record(stage, "fail", `${error?.code || ""} ${error?.message || error}`.trim());
@@ -188,14 +193,12 @@ try {
   summarize();
   process.exit(1);
 }
-const referenceSha = sha(reference);
+referenceSha = sha(reference);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. studio — the REAL HTTP endpoints: replica create, account consent,
 //    signed private upload, finalize. Needs a signed-in owner session.
 // ═══════════════════════════════════════════════════════════════════════════
-let replicaId = null;
-let sourceId = null;
 if (requireEnv("studio", "VYAKTI_STUDIO_ORIGIN", "VYAKTI_ACCESS_TOKEN")) {
   const origin = String(process.env.VYAKTI_STUDIO_ORIGIN).replace(/\/+$/, "");
   const token = String(process.env.VYAKTI_ACCESS_TOKEN);
@@ -249,7 +252,7 @@ if (requireEnv("studio", "VYAKTI_STUDIO_ORIGIN", "VYAKTI_ACCESS_TOKEN")) {
 // ═══════════════════════════════════════════════════════════════════════════
 let evidence = null;
 let referenceEvidence = null;
-const latency = {};
+latency = {};
 
 // A COLD START INVALIDATES THE SIGNATURE, and this is not a corner case.
 // `services/voice-evidence/app.py` allows 60 s of clock skew on
@@ -308,7 +311,7 @@ if (requireEnv("reference-embeddings", "AZURE_VOICE_EVIDENCE_ORIGIN", "AZURE_VOI
 //    NO per-speaker fine-tune runs here. What comes out is a FLOOR.
 // ═══════════════════════════════════════════════════════════════════════════
 const candidateWindows = [];
-const receipts = [];
+receipts = [];
 if (requireEnv("clone-synthesis", "AZURE_OPEN_VOICE_ORIGIN", "OPEN_VOICE_HMAC_SECRET")) {
   let referenceEvidence;
   try {

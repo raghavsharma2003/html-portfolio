@@ -292,9 +292,11 @@ ok("the service refuses to return audio whose watermark it cannot itself detect 
   /confidence_value < app\.state\.detector_threshold or decoded_bits != bits/.test(service) &&
   /raise ServiceError\("audioseal_self_verification_failed", 503\)/.test(service));
 ok("the disclosure is the provider's rendered speech, and unproven disclosure blocks every byte",
-  /renderedText\.startsWith\(`\$\{SYNTHETIC_AUDIO_DISCLOSURE\} `\)/.test(
+  /isSyntheticAudioDisclosure\(text\)/.test(
     readFileSync(join(ROOT, "api/_provenance/providers/azure-protection.js"), "utf8")) &&
-  /assertDisclosureProof\(disclosureResult\?\.proof\)/.test(
+  /renderedText\.startsWith\(`\$\{text\} `\)/.test(
+    readFileSync(join(ROOT, "api/_provenance/providers/azure-protection.js"), "utf8")) &&
+  /assertDisclosureProof\(disclosureResult\?\.proof, disclosureText\)/.test(
     readFileSync(join(ROOT, "api/_provenance/delivery.js"), "utf8")));
 
 console.log(`\n${checks} production protection checks passed`);

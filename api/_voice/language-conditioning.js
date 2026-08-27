@@ -30,7 +30,7 @@ export function normalizeReferenceLanguageMode(value) {
 // function makes that behavior deterministic and visible. `latin_only` is not
 // called English: the transcript may be romanized Hindi, which our current ASR
 // lane does not distinguish. `unknown` likewise stays unknown.
-export function voiceLanguageConditioning({ languageId, referenceLanguageMode, referenceLanguageEvidenceScope = "unverified", textLanguageMode, requestedCfgWeight }) {
+export function voiceLanguageConditioning({ languageId, referenceLanguageMode, referenceLanguageEvidenceScope = "unverified", textLanguageMode, requestedCfgWeight, disclosureLanguageId = "en" }) {
   const language = String(languageId || "").toLowerCase();
   const referenceMode = normalizeReferenceLanguageMode(referenceLanguageMode);
   const textMode = normalizeReferenceLanguageMode(textLanguageMode);
@@ -68,10 +68,9 @@ export function voiceLanguageConditioning({ languageId, referenceLanguageMode, r
     }
     if (textMode === "latin_only") warnings.push("hindi_text_latin_only_unverified");
     else if (textMode === "mixed") warnings.push("hindi_text_mixed_script");
-    // The safety disclosure is currently English but the model accepts one
-    // language id for the whole generation. Report this unresolved confound;
-    // do not claim that a model-pack switch measured it away.
-    warnings.push("english_disclosure_under_hindi_language");
+    if (String(disclosureLanguageId || "en").toLowerCase() !== "hi") {
+      warnings.push("english_disclosure_under_hindi_language");
+    }
   }
   return Object.freeze({
     referenceLanguageMode: referenceMode,

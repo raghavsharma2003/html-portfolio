@@ -1,0 +1,234 @@
+{
+  "schemaVersion": "vyakti-voice-bakeoff/v1",
+  "asOf": "2026-08-28",
+  "seeds": [31001, 31002, 31003],
+  "corpus": {
+    "id": "chemistry-lecture-hinglish-long",
+    "description": "Domain-matched prompts for the uploaded Class 10 chemical reactions Hindi and Hinglish lecture.",
+    "audioUse": "The long lecture may supply in-house diagnostic windows and source-timed real speech controls. Do not upload its audio to a vendor unless the speaker's permission is recorded. Cross-provider identity tests use the same consented owner reference for every provider.",
+    "promptProvenance": "Authored benchmark prompts matched to the source domain. They are not quoted from the lecture."
+  },
+  "referencePolicy": {
+    "crossProvider": "consented-owner-reference",
+    "requiredDurationSeconds": {
+      "minimum": 10,
+      "preferred": 60,
+      "professionalFineTuneMinimum": 1800
+    },
+    "sameBytesAcrossArms": true,
+    "sameReferenceTranscriptAcrossArms": true,
+    "substitutionOnProviderRefusal": "blocked"
+  },
+  "promptSets": [
+    {
+      "id": "reaction-definition",
+      "domain": "chemistry",
+      "variants": [
+        {
+          "id": "reaction-definition-devanagari",
+          "locale": "hi-IN",
+          "script": "devanagari",
+          "text": "रासायनिक अभिक्रिया में पुराने बंध टूटते हैं और नए बंध बनते हैं। इसे केवल रंग बदलने से मत पहचानो।",
+          "dimensions": ["hindi", "teaching", "technical"]
+        },
+        {
+          "id": "reaction-definition-romanized",
+          "locale": "hi-IN",
+          "script": "latin",
+          "text": "Rasayanik abhikriya mein purane bandh toot-te hain aur naye bandh bante hain. Ise keval rang badalne se mat pehchano.",
+          "dimensions": ["hindi", "romanized", "teaching", "technical"]
+        },
+        {
+          "id": "reaction-definition-code-switch",
+          "locale": "hi-IN",
+          "script": "mixed",
+          "text": "Chemical reaction में पुराने bonds टूटते हैं और नए bonds बनते हैं। सिर्फ colour change देखकर conclusion मत निकालो।",
+          "dimensions": ["hinglish", "code_switch", "teaching", "technical"]
+        }
+      ]
+    },
+    {
+      "id": "equation-reading",
+      "domain": "chemistry",
+      "variants": [
+        {
+          "id": "equation-reading-devanagari",
+          "locale": "hi-IN",
+          "script": "devanagari",
+          "text": "दो एच टू और ओ टू मिलकर दो एच टू ओ बनाते हैं। अब दोनों तरफ परमाणुओं की संख्या जाँचो।",
+          "dimensions": ["hindi", "equation", "alphanumeric"]
+        },
+        {
+          "id": "equation-reading-romanized",
+          "locale": "hi-IN",
+          "script": "latin",
+          "text": "Do H two aur O two milkar do H two O banate hain. Ab dono taraf atoms ki sankhya check karo.",
+          "dimensions": ["hinglish", "romanized", "equation", "alphanumeric"]
+        },
+        {
+          "id": "equation-reading-code-switch",
+          "locale": "hi-IN",
+          "script": "mixed",
+          "text": "दो H two और O two मिलकर दो H two O बनाते हैं। अब reactant और product side के atoms check करो।",
+          "dimensions": ["hinglish", "code_switch", "equation", "alphanumeric"]
+        }
+      ]
+    },
+    {
+      "id": "redox-explanation",
+      "domain": "chemistry",
+      "variants": [
+        {
+          "id": "redox-explanation-devanagari",
+          "locale": "hi-IN",
+          "script": "devanagari",
+          "text": "ऑक्सीकरण और अपचयन हमेशा साथ होते हैं। एक पदार्थ इलेक्ट्रॉन देता है, तो दूसरा उन्हें स्वीकार करता है।",
+          "dimensions": ["hindi", "technical", "multisyllabic"]
+        },
+        {
+          "id": "redox-explanation-romanized",
+          "locale": "hi-IN",
+          "script": "latin",
+          "text": "Oxidation aur reduction hamesha saath hote hain. Ek padarth electron deta hai, to doosra unhe accept karta hai.",
+          "dimensions": ["hinglish", "romanized", "technical", "multisyllabic"]
+        },
+        {
+          "id": "redox-explanation-code-switch",
+          "locale": "hi-IN",
+          "script": "mixed",
+          "text": "Oxidation और reduction हमेशा साथ होते हैं। एक substance electron देता है, तो दूसरा उसे accept करता है।",
+          "dimensions": ["hinglish", "code_switch", "technical", "multisyllabic"]
+        }
+      ]
+    },
+    {
+      "id": "student-correction",
+      "domain": "teaching",
+      "variants": [
+        {
+          "id": "student-correction-devanagari",
+          "locale": "hi-IN",
+          "script": "devanagari",
+          "text": "रुको, यहाँ तुमने गुणांक को नीचे लिखे अंक समझ लिया। दोनों का काम अलग है, इसलिए एक बार फिर ध्यान से देखो।",
+          "dimensions": ["hindi", "conversational", "correction", "emotion"]
+        },
+        {
+          "id": "student-correction-romanized",
+          "locale": "hi-IN",
+          "script": "latin",
+          "text": "Ruko, yahan tumne coefficient ko neeche likhe number samajh liya. Dono ka kaam alag hai, isliye ek baar phir dhyan se dekho.",
+          "dimensions": ["hinglish", "romanized", "conversational", "correction", "emotion"]
+        },
+        {
+          "id": "student-correction-code-switch",
+          "locale": "hi-IN",
+          "script": "mixed",
+          "text": "रुको, यहाँ तुमने coefficient को subscript समझ लिया। दोनों का role अलग है, इसलिए answer दोबारा check करो।",
+          "dimensions": ["hinglish", "code_switch", "conversational", "correction", "emotion"]
+        }
+      ]
+    },
+    {
+      "id": "exam-encouragement",
+      "domain": "teaching",
+      "variants": [
+        {
+          "id": "exam-encouragement-devanagari",
+          "locale": "hi-IN",
+          "script": "devanagari",
+          "text": "घबराओ मत। सवाल लंबा दिख रहा है, लेकिन पहला कदम सही हो तो पूरा हल आसान हो जाएगा।",
+          "dimensions": ["hindi", "encouragement", "emotion", "naturalness"]
+        },
+        {
+          "id": "exam-encouragement-romanized",
+          "locale": "hi-IN",
+          "script": "latin",
+          "text": "Ghabrao mat. Sawaal lamba dikh raha hai, lekin pehla step sahi ho to poora solution aasaan ho jayega.",
+          "dimensions": ["hinglish", "romanized", "encouragement", "emotion", "naturalness"]
+        },
+        {
+          "id": "exam-encouragement-code-switch",
+          "locale": "hi-IN",
+          "script": "mixed",
+          "text": "घबराओ मत। Question लंबा दिख रहा है, लेकिन first step सही हो तो पूरा solution आसान हो जाएगा।",
+          "dimensions": ["hinglish", "code_switch", "encouragement", "emotion", "naturalness"]
+        }
+      ]
+    },
+    {
+      "id": "indian-names-places",
+      "domain": "pronunciation",
+      "variants": [
+        {
+          "id": "indian-names-places-devanagari",
+          "locale": "hi-IN",
+          "script": "devanagari",
+          "text": "श्रेया, ऋतिक और प्रियांशु गुरुग्राम से प्रयागराज जा रहे हैं। उन्हें आई आई टी जे ई ई की परीक्षा देनी है।",
+          "dimensions": ["hindi", "names", "places", "acronyms"]
+        },
+        {
+          "id": "indian-names-places-romanized",
+          "locale": "hi-IN",
+          "script": "latin",
+          "text": "Shreya, Hrithik aur Priyanshu Gurugram se Prayagraj ja rahe hain. Unhe IIT JEE ki pariksha deni hai.",
+          "dimensions": ["hinglish", "romanized", "names", "places", "acronyms"]
+        },
+        {
+          "id": "indian-names-places-code-switch",
+          "locale": "hi-IN",
+          "script": "mixed",
+          "text": "श्रेया, Hrithik और Priyanshu गुरुग्राम से Prayagraj जा रहे हैं। उनका IIT JEE exam सोमवार को है।",
+          "dimensions": ["hinglish", "code_switch", "names", "places", "acronyms"]
+        }
+      ]
+    },
+    {
+      "id": "english-neutral",
+      "domain": "english",
+      "variants": [
+        {
+          "id": "english-neutral-indian-classroom",
+          "locale": "en-IN",
+          "script": "latin",
+          "text": "Today we will learn why balancing a chemical equation changes the coefficients but never the subscripts.",
+          "dimensions": ["english", "teaching", "technical"]
+        },
+        {
+          "id": "english-conversational-correction",
+          "locale": "en-IN",
+          "script": "latin",
+          "text": "Wait a second. Your method is almost right, but you counted oxygen twice. Try the last step again.",
+          "dimensions": ["english", "conversational", "correction", "emotion"]
+        },
+        {
+          "id": "english-indian-names-places",
+          "locale": "en-IN",
+          "script": "latin",
+          "text": "Shreya and Priyanshu are travelling from Gurugram to Prayagraj before their IIT JEE examination.",
+          "dimensions": ["english", "names", "places", "acronyms"]
+        },
+        {
+          "id": "english-expressive-encouragement",
+          "locale": "en-IN",
+          "script": "latin",
+          "text": "Excellent! That was the difficult part. Take a breath, check the signs once more, and finish the answer calmly.",
+          "dimensions": ["english", "encouragement", "emotion", "naturalness"]
+        },
+        {
+          "id": "english-numbers-and-symbols",
+          "locale": "en-IN",
+          "script": "latin",
+          "text": "At twenty five degrees Celsius, record two observations and compare them with sample number four hundred and thirty two.",
+          "dimensions": ["english", "numbers", "technical"]
+        },
+        {
+          "id": "english-long-form",
+          "locale": "en-IN",
+          "script": "latin",
+          "text": "A good explanation does more than state the final answer. It shows each assumption, checks every unit, and tells the student exactly where a tempting shortcut would fail.",
+          "dimensions": ["english", "long_form", "teaching", "naturalness"]
+        }
+      ]
+    }
+  ]
+}

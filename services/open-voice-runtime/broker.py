@@ -15,8 +15,10 @@ import hmac
 import json
 import os
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 import httpx
@@ -29,12 +31,6 @@ PATH = "/v1/synthesize"
 MAX_CLOCK_SKEW_SECONDS = 60
 MAX_REQUEST_BYTES = 32 * 1024 * 1024
 MAX_RESPONSE_BYTES = 24 * 1024 * 1024
-FORWARDED_HEADERS = (
-    "x-vyakti-protocol", "x-vyakti-timestamp", "x-vyakti-nonce",
-    "x-vyakti-content-sha256", "x-vyakti-signature",
-)
-
-
 class BrokerError(Exception):
     def __init__(self, code: str, status: int = 400):
         super().__init__(code)
@@ -69,8 +65,7 @@ def _signature(secret: bytes, values: tuple[str, ...]) -> str:
     return base64.urlsafe_b64encode(hmac.new(secret, "\n".join(values).encode(), hashlib.sha256).digest()).rstrip(b"=").decode()
 
 
-def _signed_error(request: Request, code: str, status: int) -> Response:
-    body = json.dumps({"error": code}, sort_keys=True, separators=(",", ":")).encode()
+def _signed_response(request: Request, body: bytes, status: int) -> Response:
     nonce = request.headers.get("x-vyakti-nonce", "")
     response = Response(status_code=status, content=body, media_type="application/json")
     response.headers["X-Vyakti-Response-Signature"] = _signature(
@@ -81,7 +76,12 @@ def _signed_error(request: Request, code: str, status: int) -> Response:
     return response
 
 
-async def _admit(request: Request) -> bytes:
+def _signed_error(request: Request, code: str, status: int) -> Response:
+    body = json.dumps({"error": code}, sort_keys=True, separators=(",", ":")).encode()
+    return _signed_response(request, body, status)
+
+
+async def _admit(request: Request) -> tuple[bytes, str]:
     declared = request.headers.get("content-length")
     if declared and (not declared.isdigit() or int(declared) > MAX_REQUEST_BYTES):
         raise BrokerError("request_size_invalid", 413)
@@ -108,7 +108,30 @@ async def _admit(request: Request) -> bytes:
     if nonce in app.state.seen_nonces:
         raise BrokerError("transport_replay_denied", 409)
     app.state.seen_nonces[nonce] = time.time()
-    return body
+    return body, body_hash
+
+
+async def _runtime_is_ready() -> bool:
+    try:
+        response = await app.state.wake_client.get(f"{app.state.runtime_origin}/healthz")
+        return response.status_code == 200 and bool(response.json().get("ready"))
+    except Exception:
+        return False
+
+
+def _internal_headers(body_hash: str) -> tuple[dict[str, str], str]:
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    nonce = secrets.token_urlsafe(24)
+    return {
+        "content-type": "application/json",
+        "x-vyakti-protocol": PROTOCOL,
+        "x-vyakti-timestamp": timestamp,
+        "x-vyakti-nonce": nonce,
+        "x-vyakti-content-sha256": body_hash,
+        "x-vyakti-signature": _signature(
+            app.state.secret, (PROTOCOL, "POST", PATH, timestamp, nonce, body_hash)
+        ),
+    }, nonce
 
 
 @asynccontextmanager
@@ -116,11 +139,17 @@ async def lifespan(application: FastAPI):
     application.state.secret = _secret()
     application.state.runtime_origin = _runtime_origin()
     application.state.seen_nonces = {}
-    application.state.client = httpx.AsyncClient(follow_redirects=False, timeout=httpx.Timeout(220.0, connect=10.0))
+    application.state.wake_client = httpx.AsyncClient(
+        follow_redirects=False, timeout=httpx.Timeout(8.0, connect=5.0)
+    )
+    application.state.runtime_client = httpx.AsyncClient(
+        follow_redirects=False, timeout=httpx.Timeout(240.0, connect=10.0)
+    )
     application.state.ready = True
     yield
     application.state.ready = False
-    await application.state.client.aclose()
+    await application.state.wake_client.aclose()
+    await application.state.runtime_client.aclose()
 
 
 app = FastAPI(title="Vyakti Open Voice Admission", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -134,22 +163,20 @@ async def health() -> JSONResponse:
 @app.post(PATH)
 async def synthesize(request: Request) -> Response:
     try:
-        body = await _admit(request)
-        headers = {name: request.headers[name] for name in FORWARDED_HEADERS}
-        headers["content-type"] = "application/json"
-        upstream = await app.state.client.post(f"{app.state.runtime_origin}{PATH}", content=body, headers=headers)
+        body, body_hash = await _admit(request)
+        if not await _runtime_is_ready():
+            raise BrokerError("open_voice_runtime_warming", 503)
+        headers, internal_nonce = _internal_headers(body_hash)
+        upstream = await app.state.runtime_client.post(
+            f"{app.state.runtime_origin}{PATH}", content=body, headers=headers
+        )
         response_body = upstream.content
         if not response_body or len(response_body) > MAX_RESPONSE_BYTES:
             raise BrokerError("runtime_response_size_invalid", 503)
-        nonce = request.headers["x-vyakti-nonce"]
-        expected = _signature(app.state.secret, (PROTOCOL, "response", PATH, nonce, str(upstream.status_code), _sha(response_body)))
+        expected = _signature(app.state.secret, (PROTOCOL, "response", PATH, internal_nonce, str(upstream.status_code), _sha(response_body)))
         if not hmac.compare_digest(expected, upstream.headers.get("x-vyakti-response-signature", "")):
             raise BrokerError("runtime_response_signature_invalid", 503)
-        response = Response(status_code=upstream.status_code, content=response_body, media_type="application/json")
-        response.headers["X-Vyakti-Response-Signature"] = expected
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        return response
+        return _signed_response(request, response_body, upstream.status_code)
     except BrokerError as error:
         return _signed_error(request, error.code, error.status)
     except Exception:

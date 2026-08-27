@@ -18,7 +18,7 @@
 // listening pass itself is deliberately unwired from CI: a gate that needs
 // somebody to put headphones on would wedge every build until they did.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
 import { mkdtempSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -273,6 +273,31 @@ ok("the blind CLI exposes the matched-seed CFG comparison explicitly",
   earbenchSource.includes('flags.has("cfg-ab")') && earbenchSource.includes("matched-seed binding failed"));
 ok("first-clone writes a separate conditioning manifest",
   firstCloneSource.includes("voice-conditioning-manifest.json") && firstCloneSource.includes("effectiveCfgWeight"));
+
+{
+  const failureOut = mkdtempSync(join(tmpdir(), "vyakti-first-clone-failure-"));
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [join(ROOT, "scripts/first-clone.mjs"), join(failureOut, "missing.wav"), "Failure-path probe"],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+        env: { ...process.env, FIRST_CLONE_OUT: failureOut },
+      },
+    );
+    const combined = `${result.stdout || ""}\n${result.stderr || ""}`;
+    ok("first-clone missing reference exits with a diagnostic failure", result.status === 1);
+    ok("first-clone missing reference retains an honest fidelity summary",
+      combined.includes("FIDELITY  not measured in this run"));
+    ok("first-clone missing reference records the failed probe",
+      combined.includes("FAILED    probe"));
+    ok("first-clone missing reference never masks the probe with a ReferenceError",
+      !combined.includes("ReferenceError"));
+  } finally {
+    rmSync(failureOut, { recursive: true, force: true });
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // 3. audio treatment — the disclosure trim and the size/loudness equalisation

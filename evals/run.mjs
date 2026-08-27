@@ -129,6 +129,14 @@ const suites = {
   // a bounded reviewed alias layer compares Roman Hindi with Devanagari ASR.
   // Unknown words and English confusables remain errors; coverage is explicit.
   hinglishscore: "speech/hinglish-script-score.test.mjs",
+  hinditextfrontend: "speech/hindi-text-frontend.test.mjs",
+  voicefrontier: "voice-bakeoff/frontier-plan.mjs",
+  indicf5: "indicf5-runtime/run.mjs",
+  indicf5pronunciation: "indicf5-pronunciation/run.mjs",
+  openvoiceconverter: "openvoice-converter/run.mjs",
+  voxcpm2: "voxcpm2-runtime/run.mjs",
+  moss_tts: "moss-tts-runtime/run.mjs",
+  zonos2: "zonos2-runtime/run.mjs",
   // WS-Y (Gurukul Mirror Call). The Call tab's state machine and the one
   // property the whole ambient-approval design rests on: an un-accepted delta
   // chip is never rendered as applied.
@@ -580,6 +588,17 @@ const suites = {
   // is deliberately NOT reachable from here — a gate that waits for a human to
   // put headphones on would wedge CI until they did.
   earbench: "earbench/run.mjs",
+  // The cross-candidate owner listening pack. This is the mechanical half only:
+  // exact source and transformed-audio binding, opaque ids, one WAV geometry,
+  // a private whitelist server, attention checks, hidden repeats, the explicit
+  // unseal latch, and the rule that only equal language plus equal text hash
+  // cells may be compared. Human listening remains outside CI by construction.
+  voicelistening: "voice-listening-benchmark/run.mjs",
+  // The fair successor to the consolidated listening pack: every provider in
+  // a language receives the same owner window, exact text, disclosure, seed
+  // and consent binding. The suite is synthetic and offline; cloud execution
+  // stays behind a separate explicit confirmation and a USD 5 ledger stop.
+  voicematched: "voice-matched-pack/run.mjs",
   // Evidence-backed personality: append-only owner claim decisions,
   // contradiction-preserving typed Person Models, deterministic source-set
   // builds and explicit exact-version approval.
@@ -1033,6 +1052,10 @@ const suites = {
   // Offline, deterministic, $0, no DB and no network: the real fence, the real
   // warm-up module and the real handler on a virtual clock.
   voicepanel: "voicepanel.mjs",
+  // Owner-facing Meet UI: three visible language choices bound to the two
+  // real synthesis language ids, honest warm-up timing, correction, mobile
+  // layout and self-test ceremony removal. Protected receipts stay required.
+  voicepreviewui: "voice-preview-ui.mjs",
 
   // WS-X. The Mirror Call — the calibration call where a clone learns from its
   // own human.
@@ -1180,6 +1203,7 @@ const suites = {
 };
 const pick = process.argv[2];
 let failed = 0;
+const failedSuites = [];
 for (const [name, file] of Object.entries(suites)) {
   if (pick && pick !== name) continue;
   console.log(`\n── ${name} ──`);
@@ -1187,6 +1211,8 @@ for (const [name, file] of Object.entries(suites)) {
     execSync(`node ${join(HERE, file)}`, { stdio: "inherit", cwd: ROOT });
   } catch {
     failed++;
+    failedSuites.push(name);
   }
 }
+if (failedSuites.length) console.error(`\nfailed suites: ${failedSuites.join(", ")}`);
 process.exit(failed ? 1 : 0);

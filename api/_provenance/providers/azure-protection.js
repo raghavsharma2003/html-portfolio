@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { SYNTHETIC_AUDIO_DISCLOSURE } from "../../_voice/contracts.js";
+import { isSyntheticAudioDisclosure } from "../../_voice/contracts.js";
 import { C2PA_STANDARD, DISCLOSURE_SCHEME, canonicalJson, sha256Hex } from "../contracts.js";
 
 const PROTOCOL = "vyakti-audio-protection/v1";
@@ -116,8 +116,8 @@ function disclosureAdapter() {
     name: "provider-bound-audible-disclosure",
     version: "1",
     async prepend({ stream, text, evidence }) {
-      if (text !== SYNTHETIC_AUDIO_DISCLOSURE || typeof evidence?.renderedText !== "string" ||
-          !evidence.renderedText.startsWith(`${SYNTHETIC_AUDIO_DISCLOSURE} `)) {
+      if (!isSyntheticAudioDisclosure(text) || typeof evidence?.renderedText !== "string" ||
+          !evidence.renderedText.startsWith(`${text} `)) {
         fail("provider_disclosure_evidence_missing", 500);
       }
       const proof = Object.freeze({

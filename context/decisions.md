@@ -6360,3 +6360,736 @@ response before the synthesis could settle.
 asynchronous synthesis job may replace the in-process hint. It must preserve
 one wake, never expose discarded audio and bind the eventual protected result
 to a fresh authorized generation.
+
+## `voice-bakeoff-factorizes-native-speech-and-owner-timbre` (2026-08-28)
+
+**Decision.** Hindi, Hinglish and English voice candidates compete on one
+pre-registered prompt and listening contract, but each language may promote a
+different winner. In addition to end-to-end clone models, one Hindi research
+arm composes India-native linguistic TTS with OpenVoice V2 tone-color
+conversion. The final disclosure, PerTh watermark and receipt are applied after
+conversion and bind both model stages.
+
+**Why.** The incumbent has failed Hindi phonology, accent, naturalness and
+identity together, so asking another cross-lingual prompt model to solve all
+four does not isolate the failure. OpenVoice's maintainers explicitly scope its
+converter to tone color rather than accent or intonation. That makes the
+factorization testable: IndicF5 or Sarvam owns Hindi pronunciation and prosody;
+OpenVoice owns timbre; human listening decides whether the composition helps or
+adds conversion artifacts.
+
+**What would reverse it.** Remove the composed arm if an end-to-end permissive
+model beats it and every vendor on the pre-registered Hindi gates, or if the
+converter regresses a critical human axis by more than 0.2, raw ASR error by
+more than 5 percent relative, latency beyond the route SLO, or final provenance
+binding. A stronger commercially auditable converter may replace OpenVoice
+after the same comparison.
+
+## `hindi-preview-uses-an-auditable-language-bound-text-plan` (2026-08-28)
+
+**Decision.** A Hindi or Hinglish preview no longer sends raw Roman text and
+the English disclosure through one `language_id=hi` generation. A versioned
+text frontend preserves and hashes the original input, applies only a bounded
+reviewed Roman-Hindi and classroom-borrowing table, records every changed
+UTF-16 source slice, and binds each synthesis segment to Hindi or English.
+Unknown Latin words remain byte-identical in an explicit English segment. The
+fixed spoken disclosure is Hindi for a Hindi plan and English for an English
+plan. A Hindi-only model refuses unresolved English before inference. The
+provider executes segments sequentially, verifies every signed model response
+and PerTh result, then joins unmodified exact 24 kHz mono segments with a
+declared 60 ms zero gap before the final AudioSeal, disclosure and provenance
+corridor.
+
+**Why.** The Studio default was Romanized Hindi but the runtime saw only a
+Hindi language tag, while the English disclosure was also pronounced under
+that tag. Chatterbox accepts one language id per forward pass. Treating that
+request shape as Hinglish therefore hid three distinct claims: script
+conversion, token language identification and acoustic code-switching. A
+bounded content-addressed plan makes each claim inspectable and refuses the
+unknown case instead of silently choosing one wrong language.
+
+**What would reverse it.** A versioned transliterator and token-level language
+identifier may replace the reviewed table after a held-out owned
+Hindi/Hinglish corpus measures false conversions, misses and English
+confusables, and a blinded listen beats the bounded plan without join
+artifacts. Raw-input hashing, explicit language bindings, localized fixed
+disclosure, per-segment receipts and a named refusal for unsupported segments
+remain required.
+
+## `indicf5-qualification-is-access-gated-and-isolated` (2026-08-28)
+
+**Decision.** IndicF5 is evaluated only in separately named, scale-to-zero Azure
+resources after the exact gated weight revision is accessible. The image build
+uses a BuildKit secret mount for a read-only Hugging Face token, the runtime is
+offline, and no production route or existing Chatterbox application is changed.
+GPU work is not queued merely to discover that model access is missing.
+
+**Why.** The official model is MIT licensed and India-specific, but the pinned
+weight revision requires accepted Hugging Face access. Anonymous access returns
+401. A paid remote build before this preflight would waste budget, while a
+normal Docker ARG or plaintext runtime secret would widen credential exposure.
+
+**What would reverse it.** A public, revision-pinned IndicF5 snapshot with
+equivalent official provenance could remove the access-token build step. A
+different Hindi model may replace IndicF5 only after it beats the same blinded
+Hindi gates and has equally clear commercial and checkpoint rights.
+
+## `first-clone-failures-retain-partial-diagnostics` (2026-08-28)
+
+**Decision.** The first-clone diagnostic initializes report state before the
+reference probe, so a missing or invalid reference still produces the staged
+failure summary and explicitly says fidelity was not measured.
+
+**Why.** The error path called the summary before later lexical declarations
+were initialized. That secondary ReferenceError hid the real probe failure and
+discarded the most useful diagnostic precisely when the pipeline was broken.
+
+**What would reverse it.** A typed result accumulator may replace the current
+function-scoped initialization if an executable missing-reference control still
+proves that the original stage error and unmeasured fidelity state survive.
+
+## `direct-multilingual-cloners-precede-tone-color-conversion` (2026-08-28)
+
+**Decision.** Qualify direct multilingual cloning models in the order VoxCPM2,
+MOSS-TTS Local v1.5 and ZONOS2. DhVaani and IndicF5 are India-specialist
+controls. OpenVoice remains an isolated diagnostic arm and cannot become the
+primary Hindi route merely because its converter runs.
+
+**Why.** The owner's rejected sample fails pronunciation, accent, prosody and
+identity. A converter that applies target tone color after base synthesis
+cannot reliably repair linguistic and performance choices already made by a
+western-sounding base. The three ranked checkpoints directly support Hindi and
+voice cloning under permissive weight licenses; the first also publishes an
+official LoRA path and an approximately 8 GB inference result.
+
+**What would reverse it.** Re-rank only on matched seeded outputs judged by
+fluent Hindi/Hinglish listeners with latency, failure rate and cost included.
+OpenVoice may return to the primary route only if a matched test shows that it
+improves accent, articulation, rhythm and owner identity rather than timbre
+alone. No quality result exists yet.
+
+## `openvoice-conversion-is-owner-only-and-content-addressed` (2026-08-28)
+
+**Decision.** The OpenVoice V2 tone-color arm is a separately named evaluation
+service, never a silent production fallback. It accepts only an HMAC-signed
+India-native base clip with a spoken AI disclosure and a 3 through 15 second
+reference whose owner and subject UUIDs are equal. Its response receipt binds
+the base provider, model, generation receipt, text and PCM; the consent receipt
+and owner reference; the exact OpenVoice source, model files and tau; the
+pre-protection conversion; and the final PerTh-verified PCM. Synthetic fixtures
+are disabled in Azure.
+
+**Why.** Factorizing Hindi pronunciation from owner timbre creates a second
+model boundary where identity audio, generated speech or provenance could be
+silently substituted. A plausible converted WAV would hide that break. Binding
+both sides makes the composition auditable without claiming that a valid
+receipt proves likeness. Owner equality also keeps the public lecture out of
+the identity path.
+
+**What would reverse it.** A different converter may replace OpenVoice after a
+blinded owner ABX and objective intelligibility, speaker-similarity, watermark,
+latency and license audit. The exact base, reference, converter and final-output
+bindings, owner-only identity predicate, spoken disclosure and named evaluation
+isolation remain required regardless of model.
+
+## `voice-evaluation-runtimes-share-a-dedicated-keyvault-identity` (2026-08-28)
+
+**Decision.** Isolated voice candidates share one evaluation-only
+user-assigned identity and one dedicated Key Vault transport secret. Candidate
+Container Apps receive only the identity resource id and versioned secret URI;
+they do not receive plaintext HMAC values or access to the production
+protection vault. The identity has only secret `get`, and every resource carries
+an explicit evaluation expiry.
+
+**Why.** The deployment service principal is Contributor but cannot grant Azure
+RBAC roles. Reusing the production identity would widen its access across
+unrelated protection secrets, while falling back to plaintext Container App
+secrets would make a temporary permission limitation a permanent security
+regression. A dedicated Key Vault access policy is deployable with the existing
+authority and bounds the blast radius to one evaluation secret.
+
+**What would reverse it.** Production promotion requires a separately
+administered identity with narrowly scoped Key Vault RBAC and a rotated
+production transport secret. The shared evaluation anchor may be deleted after
+its expiry once no candidate app references it. No future deployment may
+replace a secret reference with plaintext merely because RBAC is unavailable.
+
+## `moss-v1-5-qualification-is-private-a10-only` (2026-08-28)
+
+**Decision.** MOSS-TTS Local v1.5 remains a separately named evaluation lane
+with no production caller. It may be built only by remote ACR after VoxCPM2's
+first blind screen, and may run only on one private A10 Spot VM with a USD 25
+ceiling, four-hour self-deallocation, daily shutdown and no public ingress.
+Requests require HMAC, replay protection, a localized spoken disclosure, exact
+model and codec commitments, content-addressed reference audio and either a
+verified self-owner receipt or an explicitly non-releasable third-party stress
+scope. The public MOSS repositories require no Hugging Face token.
+
+**Why.** The exact model and audio-tokenizer repositories contain
+17,615,117,536 bytes before the CUDA base, dependencies, activations and KV
+cache. The existing T4 has 16 GiB, while upstream publishes no v1.5 peak-VRAM
+result. Pretending the T4 fits would turn a paid remote build into a memory
+probe. The A10 definition keeps that unknown bounded and cannot silently route
+an evaluation result into production.
+
+**What would reverse it.** A pinned quantized or offloaded route may move the
+first screen to T4 only after measured peak memory, output equivalence and a
+blind Hindi/Hinglish non-inferiority result. MOSS leaves the shortlist if 24
+GiB cannot run it within the cap or fluent listeners reject its accent,
+naturalness or owner identity. Signed inputs and responses, identity scope,
+spoken disclosure, output watermark verification and isolated routing remain
+required regardless of compute profile.
+
+## `voxcpm2-owner-bound-isolated-and-listening-gated` (2026-08-28)
+
+**Decision.** VoxCPM2 is qualified only as a separately named, scale-to-zero
+Azure evaluation lane at exact source commit
+`f5a1c6a6b901bc732e20f0d59a369f6829ad717a` and exact public weight revision
+`32279effe8c19989596f05d353d1447f51d9e915`, both Apache-2.0. The GPU remains
+private behind an HMAC-verifying CPU broker; both receive the transport key
+through the shared versioned Key Vault reference and user-assigned identity.
+Identity synthesis is restricted to a verified owner-self receipt. The public
+lecture may be used only in an explicitly non-releasable language-stress scope
+that cannot assert identity or training permission. No production route or
+quality claim exists until the owner listens to blinded Hindi, Hinglish and
+English outputs carrying localized spoken disclosure, verified PerTh and a
+signed content-addressed receipt.
+
+**Why.** VoxCPM2 is the highest-ranked permissive direct multilingual cloner in
+the pinned frontier sweep and directly supports Hindi plus reference-only
+cross-lingual cloning. That makes it a better first test of the owner's western
+Hindi failure than another timbre converter, but published capability is not a
+result on this owner. Isolation, exact identity scope and a listening gate keep
+the test from becoming an unearned production claim.
+
+**What would reverse it.** VoxCPM2 leaves the lead position if the pinned model
+cannot load or synthesize inside the USD 75 lane cap, or if fluent blinded
+listeners reject Hindi accent, naturalness or owner identity against the
+matched alternatives. A later revision may replace the pins only after the
+same license, provenance, safety and blind-listening gates pass. Signed
+transport, owner binding, spoken disclosure, output watermark verification and
+no third-party identity release remain invariant.
+
+## `qwen3-tts-is-an-english-only-owner-listening-candidate` (2026-08-28)
+
+**Decision.** Qwen3-TTS 12 Hz 1.7B Base is a separately named English-only
+owner-listening candidate, pinned to official source commit
+`022e286b98fbec7e1e916cb940cdf532cd9f488e` and public weight revision
+`fd4b254389122332181a7c3db7f27e918eec64e3`. It is not a Hindi repair and has
+no production caller. Its private T4 runtime sits behind a signed CPU broker;
+both scale to zero, use the shared versioned evaluation Key Vault secret, and
+accept only a verified self-owner reference and active inference receipt. Every
+clip includes the spoken English AI disclosure, verified final PerTh and sealed
+model, reference, consent, parameter and output provenance.
+
+**Why.** The official model supports English but does not list Hindi. That
+makes it useful as a matched English control for owner likeness, not evidence
+about the product's rejected Hindi accent. A working remote synthesis path
+proves neither resemblance nor humanness, so its arm identity remains sealed
+and its listening status remains `not_started` until the owner judges it beside
+the matched alternatives.
+
+**What would reverse it.** Qwen may enter an English production shortlist only
+after blinded owner listening and objective intelligibility, speaker-similarity,
+latency, watermark and license gates beat or match the incumbent. Official
+Hindi support plus a fresh Hindi and Hinglish blind win would be required before
+the English-only boundary could change. Signed transport, self-owner consent,
+spoken disclosure, final PerTh, exact pins and no silent routing remain
+invariant.
+
+## `indicf5-vocoder-stays-immutable-and-runtime-offline` (2026-08-28)
+
+**Decision.** IndicF5 startup must resolve Vocos only from the exact baked
+`charactr/vocos-mel-24khz` revision. The build stores the required config and
+weights in a dedicated local directory, includes their hashes in the model
+commitment, and replaces the gated model module's default Hub-backed loader
+before model construction. Runtime internet remains disabled. The failed
+evaluation revision was deactivated before rebuilding and no production route
+was changed.
+
+**Why.** The first immutable IndicF5 image contained the pinned Vocos snapshot,
+but the upstream gated model invoked `load_vocoder(..., is_local=False)` with
+no pinned revision. In offline mode that unresolved default branch crashed
+startup after a paid GPU allocation. Enabling internet would weaken exact
+revision provenance and turn a deterministic image into a mutable runtime
+dependency.
+
+**What would reverse it.** A pinned upstream IndicF5 revision may remove the
+local loader only if it natively accepts an exact local Vocos path or exact
+revision, a clean offline cold start and synthesis pass, and its returned
+model commitment still covers the vocoder bytes. Runtime Hub access, an
+unpinned default branch and silent fallback remain disallowed.
+
+## `owner-meet-preview-separates-visible-registers-over-two-runtime-ids` (2026-08-28)
+
+**Decision.** The owner-facing Meet composer exposes Hindi, Hinglish and
+English as three separate, script-matched choices. Hindi and Hinglish remain
+bound to the existing `hi` synthesis contract and English to `en`; the screen
+does not invent a third runtime language id or a candidate endpoint. Hindi
+opens in Devanagari, Hinglish in Roman Hindi, and the selected input carries a
+matching language tag. The result keeps one correction loop: edit the same
+line or switch language, then generate another protected take. Internal
+self-test hides compliance ceremony, while the client still refuses audio
+without the spoken-disclosure and text-plan receipt.
+
+**Why.** The incumbent two-button label combined Hindi and Hinglish while the
+text frontend treats script conversion and mixed-language segmentation as
+different auditable operations. One combined label could not tell an owner
+which writing system to use, and the rejected product failure is specifically
+Hindi and Hinglish quality. Three visible registers make the input truth clear
+without claiming any model is good, best or promoted.
+
+**What would reverse it.** A third runtime language id may replace the shared
+`hi` binding only after the backend actually exposes and tests that contract.
+The three-way UI may collapse only if measured owner comprehension shows no
+loss of script or language truth. Owner binding, audible disclosure, final
+watermark verification, text-plan provenance and no unmeasured quality claim
+remain invariant.
+
+## `layout-gate-root-uses-file-url-conversion` (2026-08-28)
+
+**Decision.** `scripts/check-layout.mjs` derives its repository root with
+Node's `fileURLToPath(new URL("..", import.meta.url))`. A file URL pathname is
+never passed directly to `path.resolve`. The gate runs an executable Windows
+fixture on every host: the supported conversion must produce `C:\repo\`, while
+the former pathname-plus-resolve shape must not.
+
+**Why.** On Windows, `URL.pathname` preserves the URL spelling `/C:/...`.
+`path.resolve` interprets that as a filesystem path and produced
+`C:\C:\Users\...`, so the gate looked for a non-existent nested drive path and
+reported `dist/ absent` immediately after a successful build. `fileURLToPath`
+is the platform-aware conversion already used by the release runner.
+
+**What would reverse it.** If the script stops loading from a local `file:` URL,
+root discovery must move to a new measured source appropriate to that runtime.
+A future Node API may replace `fileURLToPath` only after the Windows fixture and
+the real Windows dist lookup both pass. Raw URL pathname resolution remains
+rejected.
+
+## `indicf5-upstream-hub-lookups-are-local-asset-bindings` (2026-08-28)
+
+**Decision.** Every Hub-style lookup executed by the gated IndicF5 model at
+runtime must be intercepted before its dynamic module loads and resolved to an
+exact file already committed inside the immutable image. Vocos is bound to the
+pinned local Vocos directory; `checkpoints/vocab.txt` is bound to the pinned
+IndicF5 snapshot; any other runtime Hub request fails closed. Runtime internet
+and token injection remain disabled.
+
+**Why.** Fixing the first Vocos lookup exposed a second upstream assumption:
+the model passes `config.name_or_path` to `hf_hub_download`, but local
+Transformers loading sets that value to `/models/indicf5`, which is a path and
+not a valid Hub repository id. Solving one URL at a time with internet access
+would be mutable and would hide the next missing dependency. A bounded asset
+registry makes the allowed runtime dependency set explicit.
+
+**What would reverse it.** The interception may be removed only when a pinned
+upstream model accepts exact local paths for every dependency and passes a
+clean offline cold start plus synthesis with the same committed bytes. Adding
+a new local asset requires its exact revision, build-time presence check,
+manifest coverage and executable refusal of all unlisted lookups.
+
+## `zonos2-qualification-is-private-a10-and-raw-hindi-only` (2026-08-28)
+
+**Decision.** ZONOS2 may run only as a separately named, private A10 Spot
+evaluation at model revision
+`65f1e80f94b599d474bb6af9094a803dc52f60bd`, official source commit
+`194c0a3ab67b90383a67646289f28d4ecb1c1f64`, speaker encoder revision
+`7577f61c42737fc8064bba773e2a18602df92803` and the hash-bound Descript DAC.
+The VM has no public IP or inbound route, binds the runtime to loopback, uses a
+four-hour platform deallocation backstop and cannot route to production. Hindi
+and Hinglish use raw UTF-8 because the pinned release lists Hindi only as Tier
+3 and exposes no Hindi text normalizer; only English uses `en_us`. Identity
+requests require verified owner-self scope, localized spoken disclosure,
+signed transport and final PerTh verification.
+
+**Why.** The 15.351 GB official repository plus runtime state cannot honestly
+claim a fit on the existing 16 GiB T4. A 24 GiB A10 is a bounded qualification
+allocation, not a fit result. The upstream Python API calls itself offline but
+still names a mutable Hub speaker encoder and a DAC release downloader. Baking
+and committing both dependencies is required before any paid load. Raw Hindi
+bytes preserve the model's documented path without pretending its English-only
+normalization list includes Hindi.
+
+**What would reverse it.** A T4 or smaller profile replaces the A10 only after
+measured peak allocation, stable synthesis and blind non-inferiority. Hindi
+normalization may be enabled only when a pinned upstream route supports it and
+matched native listeners show no regression. ZONOS2 leaves the shortlist if 24
+GiB cannot load within the USD 75 cap or fluent blind listening rejects Hindi
+accent, naturalness or owner identity. Isolation, owner binding, disclosure,
+final watermark proof and immutable dependency commitments remain invariant.
+
+## `cross-provider-listening-compares-only-exact-text-cells` (2026-08-28)
+
+**Decision.** The consolidated owner-listening pack may compare candidates only
+inside a cell with the same target language and exact target-text SHA-256.
+Everything else remains an unmatched lane. Every clip is still rated for owner
+likeness, naturalness, Indian accent fit, pronunciation and disclosure
+audibility, but unmatched ratings cannot produce a cross-provider winner. The
+model mapping stays outside the served tree and `unseal` requires an explicit
+locked-ratings confirmation plus at least one complete listener who passes both
+attention checks.
+
+**Why.** The available 15 protected clips contain one exact matched-text cell:
+four Chatterbox Hindi variants. Qwen's six English prompts and VoxCPM2's Hindi,
+Hinglish and English prompts do not share an exact target text with another
+provider. Pooling them by language would make prompt difficulty, length and
+register part of the apparent model result. A polished listener cannot repair
+an unmatched experimental design after the ratings exist.
+
+**What would reverse it.** A future candidate may enter a cross-provider cell
+after it synthesizes the frozen text, language, owner-reference bytes and
+protection treatment used by the other candidates. A pre-registered analysis
+may add a different matched design, but semantic similarity or a shared topic
+alone never makes two clips comparable. Opaque ids, sealed provenance, separate
+accent and likeness axes, listener attention checks and no quality claim before
+human ratings remain invariant.
+
+## `indicf5-duration-is-codepoint-normalized-before-hindi-inference` (2026-08-28)
+
+**Decision.** IndicF5 requests normalize the pinned upstream UTF-8-byte
+duration heuristic by the relative bytes-per-codepoint density of generated
+and reference text. The bounded speed is part of the signed response receipt,
+predicted generation above 30 seconds fails before GPU inference, and model
+configuration is restored after each serialized request. Qualification first
+runs one short unscored canary; same-process retries of a generation id reuse a
+content-bound result instead of invoking the GPU twice.
+
+**Why.** With a 12-second English reference transcript, the six frozen
+Hindi/Hinglish requests ask the upstream code for 23.1 through 31.7 seconds of
+generated audio because Devanagari codepoints occupy three UTF-8 bytes. Two
+requests reach the 4096-frame cap. Codepoint-aligned planning reduces that
+mechanical inflation without changing text or model weights and separates cold
+start from the scored pack.
+
+**What would reverse it.** Replace this normalization only when a pinned
+upstream model uses tokenizer or Unicode units natively and matched synthesis
+proves equivalent pacing, pronunciation and identity without the receipt.
+Listener preference remains authoritative; faster execution alone cannot
+promote this arm. Cross-process exactly-once requires a durable generation
+ledger before this evaluation lane can become a production caller.
+
+## `admission-broker-resigns-fresh-internal-transport-after-wake` (2026-08-28)
+
+**Decision.** The public voice admission broker authenticates and replay-checks
+the client request, probes private runtime readiness, then signs the identical
+body again with a fresh internal timestamp and nonce. It verifies the private
+runtime response against that internal nonce and re-signs the unchanged body
+for the caller's original nonce. An unready GPU returns a signed warming state
+instead of holding an expiring request through scale-up.
+
+**Why.** A cold IndicF5 canary was valid when admitted, but the private runtime
+started after the 60-second skew window and correctly rejected the forwarded
+original timestamp with `transport_binding_invalid`. The broker is a trust
+boundary, so it must attest the already-admitted body at forwarding time rather
+than pretend no time elapsed during GPU scale-up.
+
+**What would reverse it.** A transport version with explicit broker delegation
+may replace double signing only after both caller-to-broker and
+broker-to-runtime replay, body, timestamp and response bindings remain
+executable. Increasing the runtime skew window or forwarding stale client
+credentials remains rejected.
+
+## `owner-voice-head-to-head-freezes-two-exact-text-cells` (2026-08-28)
+
+**Decision.** The next owner-voice head-to-head has exactly two comparison
+cells: one frozen Indian English sentence and one frozen Devanagari Hindi
+sentence. Every capable arm in a cell receives byte-identical text and
+localized disclosure, the same 0 through 12 second owner window and transcript
+hypothesis, the same active consent receipt and seed 31001. The base grid is
+Chatterbox English and Hindi, Qwen English, and VoxCPM2 English and Hindi;
+IndicF5 adds Hindi and ZONOS2 adds both without changing either cell. Accepted
+outputs are HMAC, model, reference, transcript, consent, text, seed, PCM and
+PerTh bound before one common 24 kHz listening treatment. Each cloud attempt
+reserves USD 0.50 and the orchestration ledger refuses to cross USD 5.
+
+**Why.** The consolidated 15-clip pack measured zero exact-text cells crossing
+providers, so its language-level ratings cannot rank models. A capability-
+shaped grid keeps Qwen's documented English-only lane and IndicF5's Hindi-only
+lane honest while producing two real head-to-head cells. Freezing the owner
+window, disclosure and post-treatment removes the remaining avoidable cues and
+confounds. A request ledger is necessary because Azure budget alerts do not
+stop already-running compute.
+
+**What would reverse it.** A human-reviewed exact transcript for the identical
+owner window may replace the current explicitly unreviewed ASR hypothesis only
+in a new pack version regenerated across every arm. A candidate that cannot
+accept the frozen reference or text is excluded from that cell rather than
+given a private substitute. The USD 0.50 reservation may change after measured
+allocation and billing data, but the USD 5 ceiling, exact-text comparison,
+owner consent, spoken disclosure, final PerTh verification and no quality claim
+before blinded listening remain invariant.
+
+## `indicf5-perth-pads-only-the-incomplete-terminal-frame` (2026-08-28)
+
+**Decision.** Before post-hoc PerTh protection, an arbitrary-length IndicF5
+waveform is zero-padded only to the next 240-sample boundary. PerTh must return
+one finite sample for every padded sample; the protected result is then cropped
+back to the exact original sample count and independently detected before it
+can leave the private runtime.
+
+**Why.** `resemble-perth==1.0.1` reconstructs 24 kHz audio on 240-sample,
+10-millisecond frames. IndicF5 returns arbitrary sample counts, so strict
+pre/post length equality rejected an otherwise valid synthesized canary when
+PerTh discarded only its incomplete tail frame. Synthetic remote diagnostics
+measured zero loss for aligned input and 1 through 239 samples for unaligned
+input. Frame-padding preserves the entire model waveform and keeps the
+watermark fail-closed.
+
+**What would reverse it.** Remove the adapter when a pinned PerTh release
+proves exact-length reconstruction for arbitrary input and the executable
+negative control fails against the old behavior. A model-native watermark may
+replace post-hoc PerTh only after the same transformation-survival and signed
+receipt gates pass; bypassing or lowering detection cannot reverse this.
+
+## `roman-hindi-transforms-exclude-high-frequency-english-confusables` (2026-08-28)
+
+**Decision.** The bounded Roman-Hindi pronunciation table excludes a token
+when the same spelling is a high-frequency English word. Such tokens remain
+byte-identical and become an explicit English synthesis segment; the frontend
+never guesses from the surrounding sentence.
+
+**Why.** The initial reviewed table mapped Latin `the` to Hindi `थे`. In the
+Hinglish path this silently changed the most common English article, including
+ordinary input such as `the formula hai`. An English segment is an honest,
+auditable fallback; a confident but wrong Hindi rewrite is not.
+
+**What would reverse it.** A context-aware classifier may disambiguate the
+token only after reviewed Hindi and English fixtures, false-transformation
+limits and owner listening pass. Adding the ambiguous spelling back to the
+unconditional table remains rejected.
+
+## `indicf5-objective-intelligibility-is-a-private-asr-diagnostic` (2026-08-28)
+
+**Decision.** The sealed IndicF5 qualification pack gets one private,
+single-pass short-audio ASR diagnostic before listening. The run binds each
+opaque WAV to its frozen text through the private key, includes the mandatory
+spoken disclosure in the target, preserves raw Unicode WER/CER, and reports the
+existing bounded cross-script score separately. Only the private report may
+carry prompt bindings or transcripts; `blind/` remains unchanged. A USD 2 hard
+stop and zero retries bound the run.
+
+**Why.** Automated transcription can localize a large pronunciation or
+code-switch failure without exposing the listening arm, but it is still a
+provider-shaped proxy. Keeping the raw and curated arms together prevents a
+small reviewed alias table from erasing unknown pronunciation errors. Keeping
+the report private preserves the sealed listener, and one pass avoids spending
+past the stated cap to manufacture false ASR consensus.
+
+**What would reverse it.** A human-corrected transcript with word boundaries,
+or a second independently benchmarked Hindi/Hinglish ASR lane inside a newly
+pre-registered budget, may supersede this one-provider diagnostic. Neither may
+replace blinded listening for naturalness, accent or likeness, and neither may
+put the sealed arm mapping into a served artifact.
+
+## `matched-pack-cloud-run-requires-prebound-deployment-evidence` (2026-08-28)
+
+**Decision.** The exact-text cloud run cannot start an arm until its public
+isolated origin, exact runtime and gate revisions, immutable image digest,
+expected runtime model commitment and transport-key source are all known before
+the request. Every accepted response must echo the exact request id and, for
+Qwen, VoxCPM2, IndicF5 and ZONOS2, the exact model revision. The Chatterbox
+receipt uses its deterministic source-plus-checkpoint commitment because that
+older runtime does not expose a separate revision field. Missing evidence stops
+the arm; it is never filled from the response being evaluated.
+
+**Why.** A valid HMAC proves which key signed a response, not that the caller
+reached the intended immutable deployment. Azure control-plane readback gives
+revision and image identity, while the runtime model manifest gives the weight
+closure. Keeping both prevents a mutable tag, wrong gate, wrong request or
+correctly signed but different checkpoint from entering the blinded pack. Under
+the no-unseal rule, Qwen and IndicF5 model commitments are still unavailable,
+so their real matched requests remain blocked rather than weakening the check.
+
+**What would reverse it.** A signed non-listener deployment attestation may
+replace the separate readbacks if it binds the same origin, revisions, images,
+model manifests and Key Vault version and is available without opening a sealed
+listening key. Chatterbox may adopt the ordinary model-revision echo after its
+isolated runtime contract exposes one. No response may bootstrap its own
+expected commitment.
+
+## `immutable-acr-layer-manifests-prebind-runtime-model-commitments` (2026-08-28)
+
+**Decision.** A matched-pack expected model commitment may be recovered from
+the exact deployed ACR image without starting the runtime: authenticate for
+repository pull only, stream the content-addressed layer that created or last
+repaired `.vyakti-model-manifest.json`, remove its claimed `commitment`, and
+recompute SHA-256 over the same recursively key-sorted compact JSON bytes. The
+value enters the frozen plan only when claimed and derived hashes match and the
+outer image and layer digests are exact.
+
+**Why.** Qwen and IndicF5 already carry the complete model-file manifest needed
+for prebinding, but Azure Container App metadata exposes only the outer image
+digest. Direct immutable-layer extraction obtains the exact build artifact
+without opening a listening key, loading model weights, starting GPU compute or
+trusting the future synthesis response to declare its own expected value. It
+therefore closes the last four-arm execution blocker without weakening the two
+provenance layers.
+
+**What would reverse it.** Qualification should emit a small signed,
+non-listener deployment attestation containing the same image, layer, revision
+and model-manifest commitment so a multi-gigabyte layer never needs inspection.
+If registry garbage collection removes the bound layer or a future image
+encrypts it, a signed readiness attestation may replace extraction only when it
+is obtained before synthesis and tied to the immutable deployment. Model
+response self-report alone remains insufficient.
+
+## `indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis` (2026-08-28)
+
+**Decision.** IndicF5 chemistry and numeral pronunciation normalization is a
+bounded, deterministic pre-synthesis plan. It preserves the exact source text
+and hash, separately commits the synthesis text, and emits an ordered,
+content-addressed audit for every changed source span. It remains isolated from
+the runtime and every production route until a sealed before/after resynthesis
+passes the same objective diagnostic and human listening.
+
+**Why.** The private objective report localized six of eight chemical-symbol
+and four of eleven numeral disagreements. The mixed-script breakdown contains
+four symbol and three numeral disagreements, and the frozen public equation
+text has exactly four Latin formula-symbol units and three English subscript
+number words that can be changed without rewriting the lesson. A parser and
+reviewed pronunciation tables make that intervention inspectable. A broad
+Hinglish rewrite or LLM paraphrase would change unknown words and make the
+cause of any gain or regression unknowable.
+
+**What would reverse it.** Runtime integration becomes eligible only after a
+new sealed arm proves provenance and watermark integrity, reduces the
+pre-registered unit disagreements, and does not reduce human-rated
+pronunciation, naturalness, Indian accent or owner likeness. A rule must be
+narrowed or removed when its paired confusable control fails or resynthesis
+creates a new disagreement. A learned frontend may replace the tables only
+after an exact-source audit, false-transformation ceiling and the same sealed
+listening gates exist.
+
+## `indicf5-pronunciation-source-and-synthesis-are-separately-receipted` (2026-08-28)
+
+**Decision.** The bounded chemistry normalizer is integrated into only the
+isolated IndicF5 evaluation runtime behind the exact
+`vyakti-indicf5-pronunciation-normalizer/v1` request contract. Every caller
+must commit the untouched source text by SHA-256 and request the fixed
+`chemistry`, `hi-IN`, required mode. The runtime preserves that source, sends
+only the separately hashed normalized synthesis text to duration planning and
+the model, and returns ordered source-codepoint transformations plus a
+canonical audit hash that the qualification and matched-pack callers
+reconstruct independently. The historical deployed r7 arm remains explicitly
+`unnormalized_baseline`; no production route changed.
+
+**Why.** A sealed before/after resynthesis cannot be produced while the
+candidate text frontend remains disconnected, but silently changing a matched
+cell would destroy exact-text provenance and make any apparent gain
+unattributable. Separately addressing source and synthesis text makes the
+intervention executable without pretending they are byte-identical. An
+explicit variant prevents the old deployed image from being mislabeled as the
+new candidate, and fail-closed receipts keep changed text out of an exact-text
+cell unless the caller requested and verified it.
+
+**What would reverse it.** Narrow or remove the integrated rule when sealed
+matched resynthesis creates a new unit disagreement, fails provenance or
+watermark checks, or lowers human-rated pronunciation, naturalness, Indian
+accent or owner likeness. A new domain, locale, learned frontend or broader
+rewrite requires a new versioned request contract, frozen positive and
+confusable controls, an exact-source audit and the same sealed evaluation. No
+result may bypass the request field or receipt, and deployment remains blocked
+until that resynthesis and listening evidence exists.
+
+## `text-plan-disclosure-receipt-is-a-chatterbox-release-gate` (2026-08-28)
+
+**Decision.** A Chatterbox result cannot enter an exact-text listening pack
+unless the signed runtime result echoes the accepted
+`vyakti-hindi-text-frontend/v1` contract, exact text-plan commitment, segment
+binding, localized disclosure text and disclosure language. An older runtime
+that can synthesize and watermark audio but omits those fields is release
+incompatible. The verifier remains strict; the runtime image must be rebuilt
+from the checked source and pass the full release gate before deployment or a
+matched-pack retry.
+
+**Why.** The first bounded cloud execution reached the older deployed
+Chatterbox runtime after one cold timeout. Its signed result carried the legacy
+request, model, reference, audio, conditioning and PerTh shape, but no
+text-plan or disclosure fields. The exact-text verifier rejected it as
+`matched_pack_result_disclosure_drift` before saving audio. Read-only extraction
+of the deployed image confirmed that its `app.py` predates the checked source
+that validates and returns the localized disclosure receipt. Weakening the
+verifier would turn a measured release mismatch into unauditable evidence.
+
+**What would reverse it.** A versioned, signed post-synthesis attestation may
+replace the direct runtime echo only if it independently binds the same full
+text, text-plan hash, segment, localized spoken disclosure and protected audio
+bytes before delivery, and executable negative controls reject an omitted or
+changed disclosure. A response HMAC, PerTh score or broker-side request echo
+alone cannot reverse this decision.
+
+## `indicf5-pronunciation-image-stops-at-a-qualified-digest` (2026-08-28)
+
+**Decision.** The integrated IndicF5 pronunciation candidate is built only as
+an immutable ACR digest and stops there while the deployed r7 unnormalized
+baseline pack is in progress. The build uses the runtime-only patch over the
+same repaired offline parent as r7, and qualification requires exact source
+layer readback, inherited model-manifest continuity and the focused gates. No
+Container App template, revision or activation changes in this phase.
+
+**Why.** Replacing the deployed image before the frozen baseline finishes
+would change the comparison arm mid-run. A successful tag alone also does not
+prove which source bytes or inherited model closure it contains. Stopping at a
+content-addressed digest preserves the baseline while making the normalized
+candidate ready for a later, explicit matched deployment.
+
+**What would reverse it.** Deployment becomes eligible only after the
+unnormalized matched pack is sealed, the owner or coordinating lane explicitly
+starts the normalized arm, the digest still exists, and the same deployment
+and receipt predicates remain intact. Any source-layer mismatch, model
+commitment drift or focused-gate failure invalidates this digest rather than
+weakening the checks.
+
+## `openvoice-release-candidates-bind-source-before-registry-build` (2026-08-28)
+
+**Decision.** Every OpenVoice runtime release candidate freezes the raw bytes
+of its Dockerfile and every copied build input before an ACR run. The canonical
+manifest hash enters a unique candidate tag, while the successful build output
+is addressed only by its registry digest. Registry-layer readback must reproduce
+every copied source hash before the candidate is reported. Building does not
+authorize deployment: Container Apps may move to the digest only after the
+complete release gate and the source commit are independently accepted.
+
+**Why.** The disclosure-receipt repair exists in the working runtime source but
+not in the older deployed image. A mutable tag or successful build status alone
+would not prove that Azure baked those exact bytes. Prebinding the six build
+inputs, then verifying all five copied files inside the immutable image,
+separates source identity, build success and deployment into auditable gates.
+
+**What would reverse it.** A signed build provenance attestation may replace the
+local canonical manifest and layer extraction only if it binds the same raw
+source hashes, Dockerfile, build arguments, base digest, output digest and ACR
+run identity. It cannot merge build authorization with deployment authorization,
+and a tag alone remains insufficient.
+
+## `voice-text-plan-rollout-is-runtime-then-broker-then-vercel` (2026-08-28)
+
+**Decision.** A release that makes the web plane require the signed
+`vyakti-hindi-text-frontend/v1` receipt deploys the private OpenVoice runtime
+first, its admission broker second, and Vercel last. The runtime digest must be
+read back as private, scale-to-zero and on the `general` arm; the broker digest
+must be read back with the same versioned HMAC reference and exact private
+runtime origin. Only then may the strict web verifier ship. Every owner preview
+caller must also pass the same text-frontend audit into
+`beginOwnedVoicePreview` before storage or GPU work. Rollback is the reverse:
+Vercel first, broker second, runtime last.
+
+**Why.** The new runtime accepts a legacy app request, but the new web provider
+intentionally rejects a legacy runtime response that omits the text-plan and
+localized-disclosure receipt. Therefore the old web can safely observe the new
+Azure pair during rollout, while the new web cannot safely observe the old
+runtime. The broker is a separate compatibility boundary because it replaces a
+stale external HMAC with a fresh internal nonce only after the private runtime
+is ready. Separately, the advanced preview route constructed the correct audit
+but initially omitted it from the atomic authorization call, so the shared
+validator refused every request before the database or GPU. "Azure first" is
+only complete when both immutable runtime and broker revisions have passed
+readback and the old web canary.
+
+**What would reverse it.** A version-negotiated response shim may permit a
+different rollout order only after an end-to-end negative control proves the
+new web can authenticate and bind an older runtime result without weakening
+text, segment, disclosure, model, watermark or provenance evidence. The caller
+field may disappear only if `beginOwnedVoicePreview` derives and verifies the
+same audit from a separately bound source text. Until then, a successful image
+build, tag, health response or one-plane deploy cannot reverse this order.

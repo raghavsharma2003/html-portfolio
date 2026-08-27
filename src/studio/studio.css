@@ -2792,32 +2792,66 @@
    "warming up" without dressing it as progress. No keyframes anywhere in this
    block — the honest answer to a two-minute wait is a number that counts down,
    not a shimmer that implies work is visible. */
-.hear-voice { margin-bottom: 55px; }
-.hear-voice-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); gap: 0; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: var(--paper); }
-.hear-voice-compose { min-width: 0; padding: clamp(20px, 2.6vw, 30px); }
-.hear-voice-stage { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; padding: clamp(20px, 2.6vw, 30px); border-left: 1px solid var(--line); background: var(--forest-soft); }
+.hear-voice { margin-bottom: 26px; }
+.hear-voice > .section-heading { align-items: end; gap: 24px; margin-bottom: 16px; }
+.hear-voice > .section-heading h2 { font-size: clamp(25px, 3vw, 34px); }
+.hear-voice > .section-heading > p { max-width: 52ch; font-size: 12px; line-height: 1.6; }
+.hear-voice-body { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(290px, 0.88fr); gap: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--paper); }
+.hear-voice-compose { min-width: 0; padding: clamp(20px, 2.6vw, 32px); }
+.hear-voice-stage { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; min-height: 332px; padding: clamp(22px, 3vw, 34px); border-left: 1px solid var(--line); background: var(--forest-soft); }
+.hear-voice-stage-ready { color: rgba(255, 255, 255, 0.91); background: var(--forest-deep); }
+.hear-voice-stage h3 { margin: 0; color: var(--forest-deep); font: 500 clamp(22px, 2.7vw, 30px)/1.12 var(--serif); letter-spacing: -0.018em; }
+.hear-voice-stage-ready h3 { color: #fffef9; }
 .hear-voice-go { width: 100%; }
 .hear-voice-note { margin: 14px 0 0; color: var(--ink-faint); font-size: 12px; line-height: 1.6; }
 .hear-voice-over { color: var(--danger); font-weight: 700; }
+.hear-voice .voice-preview-language { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 8px; }
+.hear-voice .voice-preview-language button { min-height: 42px; padding: 8px 10px; font-size: 12px; font-weight: 700; }
+.voice-preview-language-help { min-height: 38px; margin: 0 0 18px; color: var(--ink-soft); font-size: 11px; line-height: 1.55; }
+.hear-voice .voice-preview-script { margin-bottom: 18px; }
+.hear-voice .voice-preview-script textarea { min-height: 118px; border-color: var(--line-strong); background: var(--panel-solid); }
 .hear-voice-state { margin: 0; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .hear-voice-state.ready { color: var(--forest-deep); }
 .hear-voice-state.warming, .hear-voice-state.working { color: var(--ink-soft); }
 .hear-voice-state.failed { color: var(--danger); }
 .hear-voice-state.idle { color: var(--ink-faint); }
+.hear-voice-stage-ready .hear-voice-state.ready { color: rgba(255, 255, 255, 0.65); }
 .hear-voice-message { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
 .hear-voice-stage small { color: var(--ink-faint); font-size: 11px; line-height: 1.55; }
 .hear-voice-stage audio { width: 100%; margin: 4px 0; }
 .hear-voice-stage .review-refresh { align-self: flex-start; margin-top: 6px; }
-.hear-voice-countdown { display: flex; align-items: baseline; gap: 9px; margin: 2px 0 0; }
-.hear-voice-countdown strong { color: var(--forest-deep); font: 500 26px/1 var(--serif); font-variant-numeric: tabular-nums; }
-.hear-voice-countdown span { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.hear-voice-first-wait, .hear-voice-attempt { margin: 2px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.55; }
+.hear-voice-wait-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 5px 0 1px; }
+.hear-voice-wait-metrics > div { display: grid; gap: 5px; border-top: 1px solid var(--line-strong); padding-top: 10px; }
+.hear-voice-wait-metrics span { color: var(--ink-faint); font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.hear-voice-wait-metrics strong { color: var(--forest-deep); font: 500 21px/1.1 var(--serif); font-variant-numeric: tabular-nums; }
 .hear-voice-proof { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 0; }
 .hear-voice-proof dt { color: var(--ink-faint); font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
 .hear-voice-proof dd { margin: 3px 0 0; color: var(--forest-deep); font-size: 12px; }
+.hear-voice-stage-ready .hear-voice-proof dt { color: rgba(255, 255, 255, 0.52); }
+.hear-voice-stage-ready .hear-voice-proof dd { color: #fffef9; }
+.hear-voice-stage-ready > small { color: rgba(255, 255, 255, 0.5); overflow-wrap: anywhere; }
+.hear-voice-pronunciation-plan { border-top: 1px solid rgba(255, 255, 255, 0.16); border-bottom: 1px solid rgba(255, 255, 255, 0.16); padding: 10px 0; }
+.hear-voice-pronunciation-plan summary { color: rgba(255, 255, 255, 0.86); font-size: 11px; line-height: 1.5; cursor: pointer; }
+.hear-voice-pronunciation-plan p { margin: 9px 0 4px; color: rgba(255, 255, 255, 0.82); font-size: 12px; line-height: 1.6; }
+.hear-voice-pronunciation-plan small { color: rgba(255, 255, 255, 0.55); }
+.hear-voice-correction { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; margin-top: 3px; border-top: 1px solid rgba(255, 255, 255, 0.16); padding-top: 13px; }
+.hear-voice-correction strong { color: #fffef9; font-size: 12px; }
+.hear-voice-correction span { grid-column: 1; color: rgba(255, 255, 255, 0.62); font-size: 11px; line-height: 1.5; }
+.hear-voice-correction .review-refresh { grid-column: 2; grid-row: 1 / span 2; align-self: center; margin: 0; border-color: rgba(255, 255, 255, 0.34); color: #fffef9; }
 
 @media (max-width: 780px) {
   .hear-voice-body { grid-template-columns: 1fr; }
-  .hear-voice-stage { border-left: 0; border-top: 1px solid var(--line); }
+  .hear-voice-stage { min-height: 250px; border-left: 0; border-top: 1px solid var(--line); }
+}
+
+@media (max-width: 480px) {
+  .hear-voice > .section-heading { display: grid; gap: 8px; }
+  .hear-voice > .section-heading > p { margin-top: 0; }
+  .hear-voice .voice-preview-language { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hear-voice .voice-preview-language button { min-height: 44px; padding-inline: 6px; font-size: 11px; }
+  .hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }
+  .hear-voice-correction .review-refresh { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 5px; }
 }
 
 /* ── Mirror Call: the Call tab ──────────────────────────────────────────── */

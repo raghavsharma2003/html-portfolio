@@ -1,6 +1,10 @@
 // Provider-neutral server contract. Provider ids never cross the API boundary;
 // adapters normalize audio to the existing cascade player's PCM format.
-export const SYNTHETIC_AUDIO_DISCLOSURE = "This is an AI-generated voice replica.";
+export const SYNTHETIC_AUDIO_DISCLOSURES = Object.freeze({
+  en: "This is an AI-generated voice replica.",
+  hi: "यह एआई से बनाई गई आवाज़ की प्रतिकृति है।",
+});
+export const SYNTHETIC_AUDIO_DISCLOSURE = SYNTHETIC_AUDIO_DISCLOSURES.en;
 export const VOICE_PCM_FORMAT = Object.freeze({
   contentType: "audio/l16",
   encoding: "pcm_s16le",
@@ -33,10 +37,19 @@ export function assertCreateVoiceInput(input) {
   return input;
 }
 
-export function renderTextWithDisclosure(text) {
+export function syntheticAudioDisclosure(languageId = "en") {
+  const language = String(languageId || "en").toLowerCase();
+  return SYNTHETIC_AUDIO_DISCLOSURES[language] || SYNTHETIC_AUDIO_DISCLOSURE;
+}
+
+export function isSyntheticAudioDisclosure(value) {
+  return Object.values(SYNTHETIC_AUDIO_DISCLOSURES).includes(String(value || ""));
+}
+
+export function renderTextWithDisclosure(text, languageId = "en") {
   const clean = typeof text === "string" ? text.trim() : "";
   if (!clean || clean.length > 4_000) throw new Error("synthesis text must be 1-4000 characters");
-  return `${SYNTHETIC_AUDIO_DISCLOSURE} ${clean}`;
+  return `${syntheticAudioDisclosure(languageId)} ${clean}`;
 }
 
 export function assertSynthesisResult(result) {
@@ -48,12 +61,18 @@ export function assertSynthesisResult(result) {
   }
   if (!result.stream || typeof result.stream[Symbol.asyncIterator] !== "function")
     throw new Error("provider must return an async byte stream");
-  if (typeof result.renderedText !== "string" ||
-      !result.renderedText.startsWith(`${SYNTHETIC_AUDIO_DISCLOSURE} `) ||
-      result.renderedText.length <= SYNTHETIC_AUDIO_DISCLOSURE.length + 1) {
+  const disclosureText = result.disclosureText == null
+    ? SYNTHETIC_AUDIO_DISCLOSURE
+    : String(result.disclosureText);
+  if (!isSyntheticAudioDisclosure(disclosureText) ||
+      typeof result.renderedText !== "string" ||
+      !result.renderedText.startsWith(`${disclosureText} `) ||
+      result.renderedText.length <= disclosureText.length + 1) {
     throw new Error("provider must render the exact synthetic-audio disclosure");
   }
-  return result;
+  return result.disclosureText == null
+    ? Object.freeze({ ...result, disclosureText })
+    : result;
 }
 
 export function clientVoiceProfile(profile) {

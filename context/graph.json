@@ -3579,6 +3579,666 @@
       "kind": "rejection",
       "title": "Crossing the wake window is insufficient if the client stops on the response that dispatches the second synthesis",
       "at": "2026-08-27"
+    },
+    {
+      "id": "voice-bakeoff-factorizes-native-speech-and-owner-timbre",
+      "kind": "decision",
+      "title": "The voice bake-off tests India-native linguistic speech and owner timbre both end to end and as a provenance-bound composition",
+      "at": "2026-08-28",
+      "status": "plan and local validation complete; no model run"
+    },
+    {
+      "id": "voice-bakeoff-plan-local-2026-08-28",
+      "kind": "measurement",
+      "title": "A 24-prompt, three-seed, nine-arm plan validates at USD 25.98 plus INR 22.56 before any model run",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "fish-s2-self-host-is-not-a-current-commercial-t4-arm",
+      "kind": "rejection",
+      "title": "Fish S2 needs more VRAM than the current T4 and a separate commercial license",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "hindi-preview-uses-an-auditable-language-bound-text-plan",
+      "kind": "decision",
+      "title": "Hindi previews use a bounded auditable script and language plan",
+      "at": "2026-08-28",
+      "status": "implemented and locally release-verified; not deployed or listened"
+    },
+    {
+      "id": "hindi-text-frontend-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The Hindi text frontend passes 14 focused checks and all 16 release gates",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "romanized-hindi-plus-english-disclosure-is-not-one-hindi-request",
+      "kind": "rejection",
+      "title": "Romanized Hindi and an English disclosure cannot share one unsegmented Hindi request",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "chatterbox-matched-blind-pack-live-2026-08-28",
+      "kind": "measurement",
+      "title": "Six matched protected Chatterbox clips cost an estimated USD 0.6818 and remain sealed for owner listening",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-qualification-is-access-gated-and-isolated",
+      "kind": "decision",
+      "title": "IndicF5 qualification is access-preflighted and isolated from production",
+      "at": "2026-08-28",
+      "status": "implemented locally; gated model access verified; corrected remote build running"
+    },
+    {
+      "id": "indicf5-candidate-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The isolated IndicF5 candidate passes 16 checks and exact gated access is verified",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "gated-indicf5-weights-cannot-be-fetched-anonymously",
+      "kind": "rejection",
+      "title": "The exact gated IndicF5 weights cannot be fetched before the owner accepts access",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-acr-secret-schema-and-incompatible-hub-pin-do-not-bake",
+      "kind": "rejection",
+      "title": "Invalid ACR secret declarations and incompatible hub pins cannot bake IndicF5",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "first-clone-failures-retain-partial-diagnostics",
+      "kind": "decision",
+      "title": "First-clone probe failures retain an honest partial diagnostic report",
+      "at": "2026-08-28",
+      "status": "implemented and regression tested"
+    },
+    {
+      "id": "first-clone-failure-path-local-2026-08-28",
+      "kind": "measurement",
+      "title": "A missing first-clone reference exits with the probe failure and no secondary ReferenceError",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "first-clone-reference-error-cannot-shadow-probe-failure",
+      "kind": "rejection",
+      "title": "A summary ReferenceError cannot replace the original first-clone probe failure",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-conversion-is-owner-only-and-content-addressed",
+      "kind": "decision",
+      "title": "OpenVoice conversion is isolated, owner-only and content-addressed across both model stages",
+      "at": "2026-08-28",
+      "status": "implemented and locally contract-tested; not built, deployed or listened"
+    },
+    {
+      "id": "openvoice-converter-candidate-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The isolated OpenVoice converter passes 18 checks and its public pinned weights are reachable",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-enable-watermark-keyword-is-not-a-valid-disable-switch",
+      "kind": "rejection",
+      "title": "The pinned OpenVoice constructor cannot disable WavMark through a keyword argument",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "kind": "decision",
+      "title": "Voice evaluation runtimes share a dedicated Key Vault identity and one versioned secret",
+      "at": "2026-08-28",
+      "status": "deployed and live; candidate runtime consumption still must be verified"
+    },
+    {
+      "id": "voice-eval-security-anchor-live-2026-08-28",
+      "kind": "measurement",
+      "title": "The evaluation Key Vault anchor is live with one get-only identity policy",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "keyvault-purge-protection-cannot-be-explicitly-disabled",
+      "kind": "rejection",
+      "title": "Azure Key Vault purge protection cannot be explicitly set false",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "kind": "decision",
+      "title": "Direct multilingual cloners precede tone-color conversion for Hindi identity qualification",
+      "at": "2026-08-28",
+      "status": "planned and locally contract-tested; no candidate model run"
+    },
+    {
+      "id": "voice-frontier-plan-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The pinned voice-frontier plan passes 88 checks with a USD 1000 hard cap",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "noncommercial-weights-and-converter-first-architecture-are-not-production-bases",
+      "kind": "rejection",
+      "title": "Noncommercial pretrained weights and converter-first speech are not production bases",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "moss-v1-5-qualification-is-private-a10-only",
+      "kind": "decision",
+      "title": "MOSS-TTS v1.5 qualification is isolated on bounded private A10 capacity",
+      "at": "2026-08-28",
+      "status": "implemented and locally contract-tested; build and deployment gated on VoxCPM2 blind screen"
+    },
+    {
+      "id": "moss-v1-5-candidate-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The pinned MOSS-TTS v1.5 lane passes 22 checks and public access and size preflight",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "moss-v1-5-does-not-fit-the-existing-t4-by-repository-size",
+      "kind": "rejection",
+      "title": "MOSS-TTS v1.5 cannot claim a fit on the existing 16 GiB T4",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "voxcpm2-owner-bound-isolated-and-listening-gated",
+      "kind": "decision",
+      "title": "VoxCPM2 qualification is owner-bound, isolated and listening-gated",
+      "at": "2026-08-28",
+      "status": "three protected clips sealed; owner listening not started; no production route"
+    },
+    {
+      "id": "voxcpm2-candidate-remote-2026-08-28",
+      "kind": "measurement",
+      "title": "Pinned VoxCPM2 produced three protected owner-bound multilingual clips in isolation",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "old-setuptools-cannot-parse-voxcpm2-pep639-license",
+      "kind": "rejection",
+      "title": "Setuptools 75.8 cannot parse the pinned VoxCPM PEP 639 license string",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "recursive-chown-duplicates-the-baked-voxcpm2-model-layer",
+      "kind": "rejection",
+      "title": "Recursive model ownership changes duplicate the baked VoxCPM2 image layer",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "stale-broker-digest-cannot-provision-an-evaluation-gate",
+      "kind": "rejection",
+      "title": "A stale immutable broker digest cannot provision an evaluation gate",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "qwen3-tts-is-an-english-only-owner-listening-candidate",
+      "kind": "decision",
+      "title": "Qwen3-TTS is an isolated English-only owner-listening candidate",
+      "at": "2026-08-28",
+      "status": "six clips sealed; owner listening not started; no production route"
+    },
+    {
+      "id": "qwen3-tts-english-candidate-live-2026-08-28",
+      "kind": "measurement",
+      "title": "Pinned Qwen3-TTS produced six signed owner-bound English clips in isolation",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "asr-output-is-not-an-exact-reference-transcript",
+      "kind": "rejection",
+      "title": "Provider ASR output is not an exact owner-reference transcript",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-vocoder-stays-immutable-and-runtime-offline",
+      "kind": "decision",
+      "title": "IndicF5 forces its exact baked Vocos revision at offline runtime",
+      "at": "2026-08-28",
+      "status": "local fix passes 26 checks; corrected remote build not yet run"
+    },
+    {
+      "id": "indicf5-first-live-startup-and-offline-vocoder-fix-2026-08-28",
+      "kind": "measurement",
+      "title": "The first IndicF5 revision exposed an offline Vocos failure and the fix passes 26 checks",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-cannot-resolve-an-unpinned-vocoder-at-offline-runtime",
+      "kind": "rejection",
+      "title": "IndicF5 cannot resolve an unpinned default Vocos branch at offline runtime",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "owner-meet-preview-separates-visible-registers-over-two-runtime-ids",
+      "kind": "decision",
+      "title": "Owner Meet exposes Hindi, Hinglish and English over the two real runtime ids",
+      "at": "2026-08-28",
+      "status": "local responsive refinement verified; no deployment or model-quality claim"
+    },
+    {
+      "id": "owner-meet-preview-responsive-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The owner Meet preview passes responsive idle, warm-up and result checks",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "one-hindi-and-hinglish-toggle-hides-script-truth",
+      "kind": "rejection",
+      "title": "One Hindi and Hinglish toggle hides the script choice the owner must make",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "layout-gate-root-uses-file-url-conversion",
+      "kind": "decision",
+      "title": "The layout gate converts its module file URL before resolving dist",
+      "at": "2026-08-28",
+      "status": "Windows dist lookup repaired; Chromium rendering unavailable locally"
+    },
+    {
+      "id": "layout-root-portability-windows-2026-08-28",
+      "kind": "measurement",
+      "title": "Windows layout-gate root resolution advances past the real built dist",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "url-pathname-is-not-a-windows-filesystem-path",
+      "kind": "rejection",
+      "title": "A file URL pathname is not a Windows filesystem path",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-upstream-hub-lookups-are-local-asset-bindings",
+      "kind": "decision",
+      "title": "IndicF5 binds every allowed runtime Hub lookup to a committed local asset",
+      "at": "2026-08-28",
+      "status": "30 local checks pass; second no-token repair build running"
+    },
+    {
+      "id": "indicf5-second-offline-startup-and-local-asset-fix-2026-08-28",
+      "kind": "measurement",
+      "title": "The second IndicF5 startup exposed the local vocabulary lookup and the fix passes 30 checks",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "a-local-model-path-is-not-a-hugging-face-repository-id",
+      "kind": "rejection",
+      "title": "A local model path cannot be passed to Hugging Face as a repository id",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "the-first-container-app-environment-is-not-a-safe-gpu-selector",
+      "kind": "rejection",
+      "title": "Resource-list order cannot select the Container Apps GPU environment",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "kind": "decision",
+      "title": "ZONOS2 qualification is private A10 with raw-byte Tier-3 Hindi",
+      "at": "2026-08-28",
+      "status": "30 focused checks pass; cu24 rejected at 39.53 GiB; one ownership-layer retry authorized; no GPU"
+    },
+    {
+      "id": "zonos2-candidate-preflight-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Pinned ZONOS2 dependency closure and private A10 contract pass preflight",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-offline-api-does-not-freeze-speaker-and-dac-assets",
+      "kind": "rejection",
+      "title": "ZONOS2 offline API does not freeze its speaker encoder and DAC assets",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-runtime-base-without-nvcc-cannot-run-official-kernels",
+      "kind": "rejection",
+      "title": "A CUDA runtime base cannot compile ZONOS2's official inference kernels",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-managed-identity-acr-pull-needs-role-assignment-authority",
+      "kind": "rejection",
+      "title": "Managed-identity ACR pull requires role-assignment write authority",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "acr-token-create-may-print-an-initial-credential",
+      "kind": "rejection",
+      "title": "ACR token creation may print its initial credential outside projected output",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "acr-push-default-timeout-is-too-short-for-zonos2",
+      "kind": "rejection",
+      "title": "ACR's default push timeout cannot carry ZONOS2's 15.3 GB model layer",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-cu24-manifest-layer-audit-2026-08-28",
+      "kind": "measurement",
+      "title": "ZONOS2 cu24 is 39.53 GiB because recursive ownership duplicated 18.81 GB",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "recursive-chown-duplicates-zonos2-offline-assets",
+      "kind": "rejection",
+      "title": "Recursive ownership changes duplicate ZONOS2's offline assets in OCI layers",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "cross-provider-listening-compares-only-exact-text-cells",
+      "kind": "decision",
+      "title": "Cross-provider listening compares only exact language and target-text cells",
+      "at": "2026-08-28",
+      "status": "implemented; human listening not started"
+    },
+    {
+      "id": "consolidated-voice-listening-pack-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The sealed 15-clip listening pack passes 36 mechanical and 18 source-bound checks",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "language-match-is-not-a-matched-text-comparison",
+      "kind": "rejection",
+      "title": "A shared language does not make different target texts a fair model comparison",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-duration-is-codepoint-normalized-before-hindi-inference",
+      "kind": "decision",
+      "title": "IndicF5 normalizes UTF-8 duration inflation before Hindi inference",
+      "at": "2026-08-28",
+      "status": "six owner-bound remote clips passed; human listening not started"
+    },
+    {
+      "id": "indicf5-cross-script-duration-diagnosis-2026-08-28",
+      "kind": "measurement",
+      "title": "IndicF5 byte planning inflated six Hindi requests to 23.1 through 31.7 seconds",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "utf8-byte-duration-inflates-devanagari-in-indicf5",
+      "kind": "rejection",
+      "title": "UTF-8 byte duration inflates Devanagari generation in IndicF5",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "admission-broker-resigns-fresh-internal-transport-after-wake",
+      "kind": "decision",
+      "title": "Voice admission re-signs admitted bodies with fresh internal transport",
+      "at": "2026-08-28",
+      "status": "remote canary and six owner-bound clips passed"
+    },
+    {
+      "id": "indicf5-cold-start-transport-expiry-2026-08-28",
+      "kind": "measurement",
+      "title": "A valid IndicF5 canary expired between public admission and private cold start",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "a-cold-broker-cannot-forward-the-original-expiring-signature",
+      "kind": "rejection",
+      "title": "A cold broker cannot forward the original expiring client signature",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "kind": "decision",
+      "title": "Owner voice head-to-head freezes two exact-text comparison cells",
+      "at": "2026-08-28",
+      "status": "34 local checks and eight real provider request contracts pass; cloud synthesis and human listening not started"
+    },
+    {
+      "id": "owner-exact-text-matched-pack-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The owner exact-text matched-pack contract passes 34 local checks with zero synthesis calls",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "a-symmetric-two-language-grid-would-fabricate-provider-capability",
+      "kind": "rejection",
+      "title": "A symmetric two-language grid would fabricate provider capability",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-perth-pads-only-the-incomplete-terminal-frame",
+      "kind": "decision",
+      "title": "IndicF5 pads only the incomplete terminal frame before PerTh",
+      "at": "2026-08-28",
+      "status": "remote canary and six owner-bound clips passed; listening not started"
+    },
+    {
+      "id": "indicf5-owner-qualification-remote-2026-08-28",
+      "kind": "measurement",
+      "title": "IndicF5 sealed six owner-bound clips with ECAPA mean 0.824822 and minimum PerTh 0.99807614",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "consolidated-voice-listening-pack-indicf5-r7-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The fresh four-pack listener binds six real IndicF5 r7 clips and passes source and browser checks",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "strict-perth-length-equality-rejects-unframed-indicf5-output",
+      "kind": "rejection",
+      "title": "Strict PerTh length equality rejects unframed IndicF5 output",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "roman-hindi-transforms-exclude-high-frequency-english-confusables",
+      "kind": "decision",
+      "title": "Roman Hindi transforms exclude high-frequency English confusables",
+      "at": "2026-08-28",
+      "status": "15 text-frontend and 59 open-voice checks pass"
+    },
+    {
+      "id": "hindi-text-frontend-confusable-control-local-2026-08-28",
+      "kind": "measurement",
+      "title": "The Hindi frontend preserves English the and he in mixed input",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "the-is-not-a-safe-unconditional-roman-hindi-alias",
+      "kind": "rejection",
+      "title": "The is not a safe unconditional Roman Hindi alias",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic",
+      "kind": "decision",
+      "title": "IndicF5 objective intelligibility remains a private one-provider ASR diagnostic",
+      "at": "2026-08-28",
+      "status": "six of six Azure Speech clips scored; human listening not started"
+    },
+    {
+      "id": "indicf5-objective-intelligibility-azure-speech-2026-08-28",
+      "kind": "measurement",
+      "title": "IndicF5 Azure Speech diagnostic measured raw WER 0.327586 across six sealed clips",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "sarvam-402-cannot-produce-an-intelligibility-transcript",
+      "kind": "rejection",
+      "title": "Sarvam HTTP 402 cannot produce an intelligibility transcript",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "matched-pack-cloud-run-requires-prebound-deployment-evidence",
+      "kind": "decision",
+      "title": "The matched-pack cloud run requires prebound deployment and model evidence",
+      "at": "2026-08-28",
+      "status": "all four deployed arms are prebound from immutable image evidence; cloud synthesis not started at this measurement"
+    },
+    {
+      "id": "matched-pack-real-contract-and-cloud-preflight-2026-08-28",
+      "kind": "measurement",
+      "title": "Eight real request contracts pass and four isolated Azure stacks are resolved without synthesis",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "windows-default-stdin-decoding-can-fabricate-a-hindi-contract-failure",
+      "kind": "rejection",
+      "title": "Windows default stdin decoding can fabricate a Hindi contract failure",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "an-image-digest-is-not-a-runtime-model-manifest-commitment",
+      "kind": "rejection",
+      "title": "An image digest is not a runtime model-manifest commitment",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "immutable-acr-layer-manifests-prebind-runtime-model-commitments",
+      "kind": "decision",
+      "title": "Immutable ACR layer manifests prebind runtime model commitments",
+      "at": "2026-08-28",
+      "status": "Qwen and IndicF5 commitments independently derived; 35 local checks pass"
+    },
+    {
+      "id": "matched-pack-acr-model-commitment-derivation-2026-08-28",
+      "kind": "measurement",
+      "title": "Two deployed ACR model manifests independently reproduce their claimed commitments",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "source-pins-alone-do-not-reproduce-a-build-specific-model-manifest",
+      "kind": "rejection",
+      "title": "Source pins alone do not reproduce a build-specific model manifest",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis",
+      "kind": "decision",
+      "title": "IndicF5 chemistry normalization stays audited and isolated until sealed resynthesis",
+      "at": "2026-08-28",
+      "status": "10 of 10 offline checks pass; no synthesis or runtime integration"
+    },
+    {
+      "id": "indicf5-pronunciation-normalizer-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Bounded normalizer covers four symbol and three numeral error units before resynthesis",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "uppercase-element-sequences-are-not-sufficient-chemistry-evidence",
+      "kind": "rejection",
+      "title": "Uppercase element sequences are not sufficient chemistry evidence",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "kind": "decision",
+      "title": "IndicF5 source and normalized synthesis text are separately receipted",
+      "at": "2026-08-28",
+      "status": "isolated runtime integration passes 10/10, 41/41 and 40/40 offline checks; not deployed or resynthesized"
+    },
+    {
+      "id": "indicf5-pronunciation-runtime-integration-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Explicit IndicF5 normalization contract and reconstructable receipt pass three focused suites",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "silent-text-rewrite-cannot-enter-a-matched-voice-cell",
+      "kind": "rejection",
+      "title": "A silent text rewrite cannot enter a matched voice cell",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "kind": "decision",
+      "title": "Text-plan disclosure receipt is a Chatterbox release gate",
+      "at": "2026-08-28",
+      "status": "older deployed runtime rejected after 2 bounded attempts; rebuild only, not deployed"
+    },
+    {
+      "id": "matched-pack-older-chatter-runtime-disclosure-drift-2026-08-28",
+      "kind": "measurement",
+      "title": "Older Chatterbox runtime omits the localized disclosure receipt",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "older-chatterbox-result-shape-cannot-enter-the-exact-text-pack",
+      "kind": "rejection",
+      "title": "Older Chatterbox result shape cannot enter the exact-text pack",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-pronunciation-image-stops-at-a-qualified-digest",
+      "kind": "decision",
+      "title": "IndicF5 pronunciation image stops at a qualified digest",
+      "at": "2026-08-28",
+      "status": "ACR cu27 qualified; digest not deployed and r7 remains inactive at zero replicas"
+    },
+    {
+      "id": "indicf5-pronunciation-acr-qualified-image-2026-08-28",
+      "kind": "measurement",
+      "title": "One bounded ACR build preserves exact source and IndicF5 model-manifest continuity",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "acr-build-file-resolution-does-not-follow-an-absolute-context",
+      "kind": "rejection",
+      "title": "ACR build file resolution does not follow an absolute context",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-release-candidates-bind-source-before-registry-build",
+      "kind": "decision",
+      "title": "OpenVoice release candidates bind source before registry build",
+      "at": "2026-08-28",
+      "status": "ACR cu28 source-qualified at immutable digest; not deployed"
+    },
+    {
+      "id": "openvoice-text-plan-runtime-acr-build-2026-08-28",
+      "kind": "measurement",
+      "title": "One OpenVoice ACR build reproduces the frozen text-plan runtime source",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "windows-acr-log-rendering-is-not-remote-build-state",
+      "kind": "rejection",
+      "title": "Windows ACR log rendering is not remote build state",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel",
+      "kind": "decision",
+      "title": "Voice text-plan rollout is runtime, then broker, then Vercel",
+      "at": "2026-08-28",
+      "status": "caller fixed and focused gates green; full release and live rollout pending"
+    },
+    {
+      "id": "voice-text-plan-release-audit-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Local release audit catches and closes the advanced preview text-plan omission",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "advanced-preview-caller-cannot-omit-required-text-plan-audit",
+      "kind": "rejection",
+      "title": "Advanced preview caller cannot omit the required text-plan audit",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-admission-broker-acr-build-2026-08-28",
+      "kind": "measurement",
+      "title": "One admission-broker ACR build reproduces its frozen source contract",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "one-runtime-image-is-not-a-complete-two-container-release",
+      "kind": "rejection",
+      "title": "One runtime image is not a complete two-container release",
+      "at": "2026-08-28"
     }
   ],
   "edges": [
@@ -6946,6 +7606,726 @@
       "src": "late-preview-wake-success-updates-runtime-warmth",
       "rel": "part_of",
       "dst": "voice-model"
+    },
+    {
+      "src": "voice-bakeoff-factorizes-native-speech-and-owner-timbre",
+      "rel": "measured_by",
+      "dst": "voice-bakeoff-plan-local-2026-08-28"
+    },
+    {
+      "src": "voice-bakeoff-factorizes-native-speech-and-owner-timbre",
+      "rel": "caused_by",
+      "dst": "rejected-hindi-samples-are-negative-controls-not-a-benchmark"
+    },
+    {
+      "src": "voice-bakeoff-factorizes-native-speech-and-owner-timbre",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "fish-s2-self-host-is-not-a-current-commercial-t4-arm",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "hindi-preview-uses-an-auditable-language-bound-text-plan",
+      "rel": "measured_by",
+      "dst": "hindi-text-frontend-local-2026-08-28"
+    },
+    {
+      "src": "hindi-preview-uses-an-auditable-language-bound-text-plan",
+      "rel": "caused_by",
+      "dst": "romanized-hindi-plus-english-disclosure-is-not-one-hindi-request"
+    },
+    {
+      "src": "hindi-preview-uses-an-auditable-language-bound-text-plan",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-bakeoff-factorizes-native-speech-and-owner-timbre",
+      "rel": "measured_by",
+      "dst": "chatterbox-matched-blind-pack-live-2026-08-28"
+    },
+    {
+      "src": "indicf5-qualification-is-access-gated-and-isolated",
+      "rel": "measured_by",
+      "dst": "indicf5-candidate-local-2026-08-28"
+    },
+    {
+      "src": "indicf5-qualification-is-access-gated-and-isolated",
+      "rel": "caused_by",
+      "dst": "gated-indicf5-weights-cannot-be-fetched-anonymously"
+    },
+    {
+      "src": "indicf5-qualification-is-access-gated-and-isolated",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "first-clone-failures-retain-partial-diagnostics",
+      "rel": "measured_by",
+      "dst": "first-clone-failure-path-local-2026-08-28"
+    },
+    {
+      "src": "first-clone-failures-retain-partial-diagnostics",
+      "rel": "caused_by",
+      "dst": "first-clone-reference-error-cannot-shadow-probe-failure"
+    },
+    {
+      "src": "first-clone-failures-retain-partial-diagnostics",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openvoice-conversion-is-owner-only-and-content-addressed",
+      "rel": "measured_by",
+      "dst": "openvoice-converter-candidate-local-2026-08-28"
+    },
+    {
+      "src": "openvoice-conversion-is-owner-only-and-content-addressed",
+      "rel": "caused_by",
+      "dst": "openvoice-enable-watermark-keyword-is-not-a-valid-disable-switch"
+    },
+    {
+      "src": "openvoice-conversion-is-owner-only-and-content-addressed",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "rel": "measured_by",
+      "dst": "voice-frontier-plan-local-2026-08-28"
+    },
+    {
+      "src": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "rel": "caused_by",
+      "dst": "noncommercial-weights-and-converter-first-architecture-are-not-production-bases"
+    },
+    {
+      "src": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-qualification-is-access-gated-and-isolated",
+      "rel": "caused_by",
+      "dst": "indicf5-acr-secret-schema-and-incompatible-hub-pin-do-not-bake"
+    },
+    {
+      "src": "moss-v1-5-qualification-is-private-a10-only",
+      "rel": "measured_by",
+      "dst": "moss-v1-5-candidate-local-2026-08-28"
+    },
+    {
+      "src": "moss-v1-5-qualification-is-private-a10-only",
+      "rel": "caused_by",
+      "dst": "moss-v1-5-does-not-fit-the-existing-t4-by-repository-size"
+    },
+    {
+      "src": "moss-v1-5-qualification-is-private-a10-only",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "rel": "constrains",
+      "dst": "moss-v1-5-qualification-is-private-a10-only"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "measured_by",
+      "dst": "voice-eval-security-anchor-live-2026-08-28"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "caused_by",
+      "dst": "keyvault-purge-protection-cannot-be-explicitly-disabled"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voxcpm2-owner-bound-isolated-and-listening-gated",
+      "rel": "measured_by",
+      "dst": "voxcpm2-candidate-remote-2026-08-28"
+    },
+    {
+      "src": "voxcpm2-owner-bound-isolated-and-listening-gated",
+      "rel": "caused_by",
+      "dst": "old-setuptools-cannot-parse-voxcpm2-pep639-license"
+    },
+    {
+      "src": "voxcpm2-owner-bound-isolated-and-listening-gated",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "rel": "constrains",
+      "dst": "voxcpm2-owner-bound-isolated-and-listening-gated"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "constrains",
+      "dst": "voxcpm2-owner-bound-isolated-and-listening-gated"
+    },
+    {
+      "src": "qwen3-tts-is-an-english-only-owner-listening-candidate",
+      "rel": "measured_by",
+      "dst": "qwen3-tts-english-candidate-live-2026-08-28"
+    },
+    {
+      "src": "qwen3-tts-is-an-english-only-owner-listening-candidate",
+      "rel": "caused_by",
+      "dst": "asr-output-is-not-an-exact-reference-transcript"
+    },
+    {
+      "src": "qwen3-tts-is-an-english-only-owner-listening-candidate",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "constrains",
+      "dst": "qwen3-tts-is-an-english-only-owner-listening-candidate"
+    },
+    {
+      "src": "indicf5-vocoder-stays-immutable-and-runtime-offline",
+      "rel": "measured_by",
+      "dst": "indicf5-first-live-startup-and-offline-vocoder-fix-2026-08-28"
+    },
+    {
+      "src": "indicf5-vocoder-stays-immutable-and-runtime-offline",
+      "rel": "caused_by",
+      "dst": "indicf5-cannot-resolve-an-unpinned-vocoder-at-offline-runtime"
+    },
+    {
+      "src": "indicf5-vocoder-stays-immutable-and-runtime-offline",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-qualification-is-access-gated-and-isolated",
+      "rel": "constrains",
+      "dst": "indicf5-vocoder-stays-immutable-and-runtime-offline"
+    },
+    {
+      "src": "owner-meet-preview-separates-visible-registers-over-two-runtime-ids",
+      "rel": "measured_by",
+      "dst": "owner-meet-preview-responsive-local-2026-08-28"
+    },
+    {
+      "src": "owner-meet-preview-separates-visible-registers-over-two-runtime-ids",
+      "rel": "caused_by",
+      "dst": "one-hindi-and-hinglish-toggle-hides-script-truth"
+    },
+    {
+      "src": "owner-meet-preview-separates-visible-registers-over-two-runtime-ids",
+      "rel": "part_of",
+      "dst": "voice-preview-panel"
+    },
+    {
+      "src": "voxcpm2-owner-bound-isolated-and-listening-gated",
+      "rel": "caused_by",
+      "dst": "recursive-chown-duplicates-the-baked-voxcpm2-model-layer"
+    },
+    {
+      "src": "voxcpm2-owner-bound-isolated-and-listening-gated",
+      "rel": "caused_by",
+      "dst": "stale-broker-digest-cannot-provision-an-evaluation-gate"
+    },
+    {
+      "src": "layout-gate-root-uses-file-url-conversion",
+      "rel": "measured_by",
+      "dst": "layout-root-portability-windows-2026-08-28"
+    },
+    {
+      "src": "layout-gate-root-uses-file-url-conversion",
+      "rel": "caused_by",
+      "dst": "url-pathname-is-not-a-windows-filesystem-path"
+    },
+    {
+      "src": "layout-gate-root-uses-file-url-conversion",
+      "rel": "part_of",
+      "dst": "layout-readability-gate"
+    },
+    {
+      "src": "indicf5-upstream-hub-lookups-are-local-asset-bindings",
+      "rel": "measured_by",
+      "dst": "indicf5-second-offline-startup-and-local-asset-fix-2026-08-28"
+    },
+    {
+      "src": "indicf5-upstream-hub-lookups-are-local-asset-bindings",
+      "rel": "caused_by",
+      "dst": "a-local-model-path-is-not-a-hugging-face-repository-id"
+    },
+    {
+      "src": "indicf5-upstream-hub-lookups-are-local-asset-bindings",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-qualification-is-access-gated-and-isolated",
+      "rel": "constrains",
+      "dst": "indicf5-upstream-hub-lookups-are-local-asset-bindings"
+    },
+    {
+      "src": "indicf5-second-offline-startup-and-local-asset-fix-2026-08-28",
+      "rel": "caused_by",
+      "dst": "the-first-container-app-environment-is-not-a-safe-gpu-selector"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "measured_by",
+      "dst": "zonos2-candidate-preflight-local-2026-08-28"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "zonos2-offline-api-does-not-freeze-speaker-and-dac-assets"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "zonos2-runtime-base-without-nvcc-cannot-run-official-kernels"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "zonos2-managed-identity-acr-pull-needs-role-assignment-authority"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "acr-token-create-may-print-an-initial-credential"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "acr-push-default-timeout-is-too-short-for-zonos2"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "measured_by",
+      "dst": "zonos2-cu24-manifest-layer-audit-2026-08-28"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "recursive-chown-duplicates-zonos2-offline-assets"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "direct-multilingual-cloners-precede-tone-color-conversion",
+      "rel": "constrains",
+      "dst": "zonos2-qualification-is-private-a10-and-raw-hindi-only"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "constrains",
+      "dst": "zonos2-qualification-is-private-a10-and-raw-hindi-only"
+    },
+    {
+      "src": "cross-provider-listening-compares-only-exact-text-cells",
+      "rel": "measured_by",
+      "dst": "consolidated-voice-listening-pack-local-2026-08-28"
+    },
+    {
+      "src": "cross-provider-listening-compares-only-exact-text-cells",
+      "rel": "caused_by",
+      "dst": "language-match-is-not-a-matched-text-comparison"
+    },
+    {
+      "src": "cross-provider-listening-compares-only-exact-text-cells",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "consolidated-voice-listening-pack-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "cross-provider-listening-compares-only-exact-text-cells",
+      "rel": "measured_by",
+      "dst": "consolidated-voice-listening-pack-indicf5-r7-local-2026-08-28"
+    },
+    {
+      "src": "consolidated-voice-listening-pack-indicf5-r7-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "indicf5-duration-is-codepoint-normalized-before-hindi-inference",
+      "rel": "measured_by",
+      "dst": "indicf5-cross-script-duration-diagnosis-2026-08-28"
+    },
+    {
+      "src": "indicf5-duration-is-codepoint-normalized-before-hindi-inference",
+      "rel": "caused_by",
+      "dst": "utf8-byte-duration-inflates-devanagari-in-indicf5"
+    },
+    {
+      "src": "indicf5-duration-is-codepoint-normalized-before-hindi-inference",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-upstream-hub-lookups-are-local-asset-bindings",
+      "rel": "constrains",
+      "dst": "indicf5-duration-is-codepoint-normalized-before-hindi-inference"
+    },
+    {
+      "src": "admission-broker-resigns-fresh-internal-transport-after-wake",
+      "rel": "measured_by",
+      "dst": "indicf5-cold-start-transport-expiry-2026-08-28"
+    },
+    {
+      "src": "admission-broker-resigns-fresh-internal-transport-after-wake",
+      "rel": "caused_by",
+      "dst": "a-cold-broker-cannot-forward-the-original-expiring-signature"
+    },
+    {
+      "src": "admission-broker-resigns-fresh-internal-transport-after-wake",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "constrains",
+      "dst": "admission-broker-resigns-fresh-internal-transport-after-wake"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "measured_by",
+      "dst": "owner-exact-text-matched-pack-local-2026-08-28"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "caused_by",
+      "dst": "a-symmetric-two-language-grid-would-fabricate-provider-capability"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "owner-exact-text-matched-pack-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "cross-provider-listening-compares-only-exact-text-cells",
+      "rel": "constrains",
+      "dst": "owner-voice-head-to-head-freezes-two-exact-text-cells"
+    },
+    {
+      "src": "indicf5-perth-pads-only-the-incomplete-terminal-frame",
+      "rel": "measured_by",
+      "dst": "indicf5-owner-qualification-remote-2026-08-28"
+    },
+    {
+      "src": "indicf5-perth-pads-only-the-incomplete-terminal-frame",
+      "rel": "caused_by",
+      "dst": "strict-perth-length-equality-rejects-unframed-indicf5-output"
+    },
+    {
+      "src": "indicf5-perth-pads-only-the-incomplete-terminal-frame",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-duration-is-codepoint-normalized-before-hindi-inference",
+      "rel": "constrains",
+      "dst": "indicf5-perth-pads-only-the-incomplete-terminal-frame"
+    },
+    {
+      "src": "roman-hindi-transforms-exclude-high-frequency-english-confusables",
+      "rel": "measured_by",
+      "dst": "hindi-text-frontend-confusable-control-local-2026-08-28"
+    },
+    {
+      "src": "roman-hindi-transforms-exclude-high-frequency-english-confusables",
+      "rel": "caused_by",
+      "dst": "the-is-not-a-safe-unconditional-roman-hindi-alias"
+    },
+    {
+      "src": "roman-hindi-transforms-exclude-high-frequency-english-confusables",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic",
+      "rel": "measured_by",
+      "dst": "indicf5-objective-intelligibility-azure-speech-2026-08-28"
+    },
+    {
+      "src": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic",
+      "rel": "caused_by",
+      "dst": "sarvam-402-cannot-produce-an-intelligibility-transcript"
+    },
+    {
+      "src": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "indicf5-objective-intelligibility-azure-speech-2026-08-28",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "hinglish-benchmark-keeps-raw-and-adjusted-separate",
+      "rel": "constrains",
+      "dst": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic"
+    },
+    {
+      "src": "matched-pack-cloud-run-requires-prebound-deployment-evidence",
+      "rel": "measured_by",
+      "dst": "matched-pack-real-contract-and-cloud-preflight-2026-08-28"
+    },
+    {
+      "src": "matched-pack-cloud-run-requires-prebound-deployment-evidence",
+      "rel": "caused_by",
+      "dst": "windows-default-stdin-decoding-can-fabricate-a-hindi-contract-failure"
+    },
+    {
+      "src": "matched-pack-cloud-run-requires-prebound-deployment-evidence",
+      "rel": "caused_by",
+      "dst": "an-image-digest-is-not-a-runtime-model-manifest-commitment"
+    },
+    {
+      "src": "matched-pack-cloud-run-requires-prebound-deployment-evidence",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "matched-pack-real-contract-and-cloud-preflight-2026-08-28",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "constrains",
+      "dst": "matched-pack-cloud-run-requires-prebound-deployment-evidence"
+    },
+    {
+      "src": "voice-evaluation-runtimes-share-a-dedicated-keyvault-identity",
+      "rel": "constrains",
+      "dst": "matched-pack-cloud-run-requires-prebound-deployment-evidence"
+    },
+    {
+      "src": "immutable-acr-layer-manifests-prebind-runtime-model-commitments",
+      "rel": "measured_by",
+      "dst": "matched-pack-acr-model-commitment-derivation-2026-08-28"
+    },
+    {
+      "src": "immutable-acr-layer-manifests-prebind-runtime-model-commitments",
+      "rel": "caused_by",
+      "dst": "source-pins-alone-do-not-reproduce-a-build-specific-model-manifest"
+    },
+    {
+      "src": "immutable-acr-layer-manifests-prebind-runtime-model-commitments",
+      "rel": "caused_by",
+      "dst": "an-image-digest-is-not-a-runtime-model-manifest-commitment"
+    },
+    {
+      "src": "immutable-acr-layer-manifests-prebind-runtime-model-commitments",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "matched-pack-acr-model-commitment-derivation-2026-08-28",
+      "rel": "part_of",
+      "dst": "earbench"
+    },
+    {
+      "src": "matched-pack-cloud-run-requires-prebound-deployment-evidence",
+      "rel": "constrains",
+      "dst": "immutable-acr-layer-manifests-prebind-runtime-model-commitments"
+    },
+    {
+      "src": "indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis",
+      "rel": "measured_by",
+      "dst": "indicf5-pronunciation-normalizer-local-2026-08-28"
+    },
+    {
+      "src": "indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis",
+      "rel": "caused_by",
+      "dst": "uppercase-element-sequences-are-not-sufficient-chemistry-evidence"
+    },
+    {
+      "src": "indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic",
+      "rel": "constrains",
+      "dst": "indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis"
+    },
+    {
+      "src": "indicf5-pronunciation-normalizer-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "supersedes",
+      "dst": "indicf5-chemistry-normalization-stays-audited-and-out-of-runtime-until-resynthesis"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "measured_by",
+      "dst": "indicf5-pronunciation-runtime-integration-local-2026-08-28"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "caused_by",
+      "dst": "silent-text-rewrite-cannot-enter-a-matched-voice-cell"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-runtime-integration-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "constrains",
+      "dst": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted"
+    },
+    {
+      "src": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "rel": "measured_by",
+      "dst": "matched-pack-older-chatter-runtime-disclosure-drift-2026-08-28"
+    },
+    {
+      "src": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "rel": "caused_by",
+      "dst": "older-chatterbox-result-shape-cannot-enter-the-exact-text-pack"
+    },
+    {
+      "src": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "constrains",
+      "dst": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate"
+    },
+    {
+      "src": "indicf5-pronunciation-image-stops-at-a-qualified-digest",
+      "rel": "measured_by",
+      "dst": "indicf5-pronunciation-acr-qualified-image-2026-08-28"
+    },
+    {
+      "src": "indicf5-pronunciation-image-stops-at-a-qualified-digest",
+      "rel": "caused_by",
+      "dst": "acr-build-file-resolution-does-not-follow-an-absolute-context"
+    },
+    {
+      "src": "indicf5-pronunciation-image-stops-at-a-qualified-digest",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-acr-qualified-image-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "constrains",
+      "dst": "indicf5-pronunciation-image-stops-at-a-qualified-digest"
+    },
+    {
+      "src": "owner-voice-head-to-head-freezes-two-exact-text-cells",
+      "rel": "constrains",
+      "dst": "indicf5-pronunciation-image-stops-at-a-qualified-digest"
+    },
+    {
+      "src": "openvoice-release-candidates-bind-source-before-registry-build",
+      "rel": "measured_by",
+      "dst": "openvoice-text-plan-runtime-acr-build-2026-08-28"
+    },
+    {
+      "src": "openvoice-release-candidates-bind-source-before-registry-build",
+      "rel": "caused_by",
+      "dst": "windows-acr-log-rendering-is-not-remote-build-state"
+    },
+    {
+      "src": "openvoice-release-candidates-bind-source-before-registry-build",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "rel": "constrains",
+      "dst": "openvoice-release-candidates-bind-source-before-registry-build"
+    },
+    {
+      "src": "openvoice-text-plan-runtime-acr-build-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel",
+      "rel": "measured_by",
+      "dst": "voice-text-plan-release-audit-local-2026-08-28"
+    },
+    {
+      "src": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel",
+      "rel": "caused_by",
+      "dst": "advanced-preview-caller-cannot-omit-required-text-plan-audit"
+    },
+    {
+      "src": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "rel": "constrains",
+      "dst": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel"
+    },
+    {
+      "src": "voice-text-plan-release-audit-local-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel",
+      "rel": "measured_by",
+      "dst": "openvoice-admission-broker-acr-build-2026-08-28"
+    },
+    {
+      "src": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel",
+      "rel": "caused_by",
+      "dst": "one-runtime-image-is-not-a-complete-two-container-release"
+    },
+    {
+      "src": "openvoice-admission-broker-acr-build-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openvoice-release-candidates-bind-source-before-registry-build",
+      "rel": "constrains",
+      "dst": "openvoice-admission-broker-acr-build-2026-08-28"
     }
   ]
 }

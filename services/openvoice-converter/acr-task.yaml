@@ -1,0 +1,16 @@
+version: v1.1.0
+steps:
+  - build: >-
+      -t $Registry/vyakti/openvoice-converter-eval:$ID
+      -f services/openvoice-converter/Dockerfile
+      .
+    timeout: 3600
+  - push:
+      - $Registry/vyakti/openvoice-converter-eval:$ID
+  - build: >-
+      -t $Registry/vyakti/openvoice-converter-gate:$ID
+      -f services/openvoice-converter/Dockerfile.broker
+      .
+    timeout: 1200
+  - push:
+      - $Registry/vyakti/openvoice-converter-gate:$ID

@@ -1,7 +1,8 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { probeEnrollmentWav } from "../../_audio/wav.js";
 import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
-import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT, renderTextWithDisclosure } from "../contracts.js";
+import { SYNTHETIC_AUDIO_DISCLOSURE, SYNTHETIC_AUDIO_DISCLOSURES, VOICE_PCM_FORMAT } from "../contracts.js";
+import { buildVoiceTextPlan, voiceTextPlanAudit } from "../hindi-text-frontend.js";
 import { voiceLanguageConditioning, voiceScriptMode } from "../language-conditioning.js";
 
 const PROTOCOL = "vyakti-open-voice/v1";
@@ -23,6 +24,8 @@ const MAX_REFERENCE_BYTES = 20 * 1024 * 1024;
 // attention projections is 3.93 M fp32 parameters = 15.8 MB.
 const MAX_ADAPTER_BYTES = 20 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 24 * 1024 * 1024;
+const SEGMENT_GAP_MS = 60;
+const SEGMENT_GAP = Buffer.alloc(VOICE_PCM_FORMAT.sampleRate * VOICE_PCM_FORMAT.channels * 2 * SEGMENT_GAP_MS / 1000);
 const ADAPTER_ID = /^[a-z0-9][a-z0-9_-]{2,63}$/;
 
 // What actually produced the audio. Mirrors `lora.synthesis_commitment` in
@@ -79,7 +82,7 @@ function number(value, low, high, code) {
   return result;
 }
 
-function inputValue(raw, config) {
+function inputValues(raw, config) {
   const reference = Buffer.from(raw?.reference?.bytes || []);
   if (!reference.length || reference.length > MAX_REFERENCE_BYTES) fail("open_voice_reference_size_invalid", 413);
   const referenceSha256 = createHash("sha256").update(reference).digest("hex");
@@ -91,22 +94,7 @@ function inputValue(raw, config) {
   if (config.modelArm === "hindi_v3" && language !== "hi") fail("open_voice_hindi_arm_language_invalid", 400);
   const seed = Number(raw?.seed);
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 2_147_483_647) fail("open_voice_seed_invalid", 400);
-  const renderedText = renderTextWithDisclosure(raw?.text);
-  if (renderedText.length > 700) fail("open_voice_preview_text_too_large", 413);
-  const textLanguageMode = voiceScriptMode(raw?.text).mode;
   const requestedCfgWeight = number(raw?.style?.cfgWeight ?? 0.5, 0, 1, "open_voice_cfg_weight_invalid");
-  let conditioning;
-  try {
-    conditioning = voiceLanguageConditioning({
-      languageId: language,
-      referenceLanguageMode: raw?.reference?.languageMode,
-      referenceLanguageEvidenceScope: raw?.reference?.languageEvidenceScope,
-      textLanguageMode,
-      requestedCfgWeight,
-    });
-  } catch (error) {
-    fail(String(error?.code || "open_voice_language_conditioning_invalid"), error?.status || 400);
-  }
   // The per-speaker adapter is optional and every check on it is the same
   // shape as the reference's: bounded, content-addressed, and rejected here
   // rather than at the GPU. Omitting it takes the pre-adapter code path.
@@ -121,20 +109,61 @@ function inputValue(raw, config) {
     if (config.modelArm === "hindi_v3") fail("open_voice_hindi_adapter_unqualified", 409);
     adapter = Object.freeze({ id, bytes, sha256: adapterSha256 });
   }
-  return Object.freeze({
-    requestId: UUID.test(String(raw?.requestId || "")) ? String(raw.requestId).toLowerCase() : randomUUID(),
-    reference,
-    referenceSha256,
-    referenceDurationMs: probe.durationMs,
-    adapter,
-    language,
-    seed,
-    renderedText,
-    conditioning,
-    exaggeration: number(raw?.style?.exaggeration ?? 0.5, 0, 1.5, "open_voice_exaggeration_invalid"),
-    cfgWeight: conditioning.effectiveCfgWeight,
-    temperature: number(raw?.style?.temperature ?? 0.8, 0.2, 1.5, "open_voice_temperature_invalid"),
+  let textPlan;
+  try {
+    textPlan = buildVoiceTextPlan({
+      text: raw?.text,
+      languageId: language,
+      supportedLanguages: config.modelArm === "hindi_v3" ? ["hi"] : ["en", "hi"],
+    });
+  } catch (error) {
+    fail(String(error?.code || "open_voice_text_frontend_invalid"), error?.status || 400);
+  }
+  if (textPlan.targetText.length > 700 || textPlan.synthesisSegments.some((segment) => segment.text.length > 700)) {
+    fail("open_voice_preview_text_too_large", 413);
+  }
+  const requestId = UUID.test(String(raw?.requestId || "")) ? String(raw.requestId).toLowerCase() : randomUUID();
+  const exaggeration = number(raw?.style?.exaggeration ?? 0.5, 0, 1.5, "open_voice_exaggeration_invalid");
+  const temperature = number(raw?.style?.temperature ?? 0.8, 0.2, 1.5, "open_voice_temperature_invalid");
+  const values = textPlan.synthesisSegments.map((segment, index) => {
+    let conditioning;
+    try {
+      conditioning = voiceLanguageConditioning({
+        languageId: segment.languageId,
+        referenceLanguageMode: raw?.reference?.languageMode,
+        referenceLanguageEvidenceScope: raw?.reference?.languageEvidenceScope,
+        textLanguageMode: voiceScriptMode(segment.text).mode,
+        requestedCfgWeight,
+        disclosureLanguageId: textPlan.languageId,
+      });
+    } catch (error) {
+      fail(String(error?.code || "open_voice_language_conditioning_invalid"), error?.status || 400);
+    }
+    return Object.freeze({
+      requestId: index === 0 ? requestId : randomUUID(),
+      rootRequestId: requestId,
+      reference,
+      referenceSha256,
+      referenceDurationMs: probe.durationMs,
+      adapter,
+      language: segment.languageId,
+      seed: index === 0 ? seed : (createHash("sha256")
+        .update(`${seed}:${textPlan.planSha256}:${index}`)
+        .digest().readUInt32BE(0) & 0x7fffffff),
+      renderedText: segment.text,
+      conditioning,
+      exaggeration,
+      cfgWeight: conditioning.effectiveCfgWeight,
+      temperature,
+      segmentIndex: index,
+      segmentCount: textPlan.synthesisSegments.length,
+      segmentSemanticIndexes: segment.semanticIndexes,
+      textPlanSha256: textPlan.planSha256,
+      disclosureText: textPlan.disclosureText,
+      disclosureLanguageId: textPlan.languageId,
+    });
   });
+  return Object.freeze({ requestId, language, textPlan, values });
 }
 
 function byteStream(bytes, size = 11_520) {
@@ -160,6 +189,13 @@ async function remote(config, value, fetchImpl, signal) {
     reference_language_mode: value.conditioning.referenceLanguageMode,
     reference_language_evidence_scope: value.conditioning.referenceLanguageEvidenceScope,
     text_language_mode: value.conditioning.textLanguageMode,
+    text_frontend_contract: value.textPlanSha256 ? "vyakti-hindi-text-frontend/v1" : undefined,
+    text_plan_sha256: value.textPlanSha256,
+    text_segment_index: value.segmentIndex,
+    text_segment_count: value.segmentCount,
+    text_segment_semantic_indexes: value.segmentSemanticIndexes,
+    disclosure_text: value.disclosureText,
+    disclosure_language_id: value.disclosureLanguageId,
     model_arm: config.modelArm,
     conditioning_contract: CONDITIONING_CONTRACT,
     temperature: value.temperature,
@@ -208,6 +244,13 @@ function verifiedResult(result, value, config) {
       result?.reference_sha256 !== value.referenceSha256 ||
       Number(result?.reference_duration_ms) !== value.referenceDurationMs ||
       result?.model !== config.modelName || result?.model_commitment !== config.modelCommitment ||
+      result?.text_frontend_contract !== "vyakti-hindi-text-frontend/v1" ||
+      result?.text_plan_sha256 !== value.textPlanSha256 ||
+      Number(result?.text_segment_index) !== value.segmentIndex ||
+      Number(result?.text_segment_count) !== value.segmentCount ||
+      canonicalJson(result?.text_segment_semantic_indexes) !== canonicalJson(value.segmentSemanticIndexes) ||
+      result?.disclosure_text !== value.disclosureText ||
+      result?.disclosure_language_id !== value.disclosureLanguageId ||
       (modernConditioning && (result?.model_arm !== config.modelArm ||
         result?.model_pack !== config.modelName || result?.model_pack_commitment !== config.modelCommitment ||
         result?.reference_language_mode !== value.conditioning.referenceLanguageMode ||
@@ -247,6 +290,7 @@ function verifiedResult(result, value, config) {
     renderedText: value.renderedText,
     format: VOICE_PCM_FORMAT,
     stream: byteStream(pcm),
+    pcm,
     receipt: Object.freeze({
       requestId: value.requestId,
       model: PROVIDER_NAME,
@@ -276,6 +320,57 @@ function verifiedResult(result, value, config) {
   });
 }
 
+function combinedResult(input, segments) {
+  const joined = [];
+  for (const [index, segment] of segments.entries()) {
+    if (index > 0) joined.push(SEGMENT_GAP);
+    joined.push(segment.pcm);
+  }
+  const pcm = Buffer.concat(joined);
+  if (!pcm.length || pcm.length > MAX_RESPONSE_BYTES) fail("open_voice_composite_audio_size_invalid", 413);
+  const durationMs = pcm.length / 2 / VOICE_PCM_FORMAT.sampleRate * 1000;
+  const elapsedMs = segments.reduce((sum, segment) => sum + segment.receipt.elapsedMs, 0);
+  const primary = segments.find((segment) => segment.receipt.textLanguageMode !== "latin_only") || segments[0];
+  const qualityWarnings = [...new Set([
+    ...input.textPlan.warnings,
+    ...segments.flatMap((segment) => segment.receipt.qualityWarnings),
+  ])];
+  const receipt = Object.freeze({
+    ...primary.receipt,
+    requestId: input.requestId,
+    outputSha256: sha256Hex(pcm),
+    durationMs,
+    elapsedMs,
+    realTimeFactor: elapsedMs / durationMs,
+    perthScore: Math.min(...segments.map((segment) => segment.receipt.perthScore)),
+    qualityWarnings: Object.freeze(qualityWarnings),
+    textFrontend: voiceTextPlanAudit(input.textPlan),
+    segmentJoin: Object.freeze({
+      contract: "vyakti-pcm-segment-join/v1",
+      strategy: "unaltered_segments_with_zero_gap",
+      gapMs: SEGMENT_GAP_MS,
+      gapBytes: SEGMENT_GAP.length,
+      segmentCount: segments.length,
+    }),
+    synthesisSegments: Object.freeze(segments.map((segment, index) => Object.freeze({
+      index,
+      requestId: segment.receipt.requestId,
+      languageId: input.textPlan.synthesisSegments[index].languageId,
+      textSha256: sha256Hex(input.textPlan.synthesisSegments[index].text),
+      outputSha256: segment.receipt.outputSha256,
+      durationMs: segment.receipt.durationMs,
+      effectiveCfgWeight: segment.receipt.effectiveCfgWeight,
+    }))),
+  });
+  return Object.freeze({
+    renderedText: input.textPlan.targetText,
+    disclosureText: input.textPlan.disclosureText,
+    format: VOICE_PCM_FORMAT,
+    stream: byteStream(pcm),
+    receipt,
+  });
+}
+
 export function createOpenChatterboxPreviewProvider(options = {}) {
   const config = openChatterboxConfig(options.env || process.env);
   const fetchImpl = options.fetchImpl || fetch;
@@ -284,8 +379,15 @@ export function createOpenChatterboxPreviewProvider(options = {}) {
     modelCommitment: config.modelCommitment,
     modelArm: config.modelArm,
     async synthesizePreview(raw) {
-      const value = inputValue(raw, config);
-      return verifiedResult(await remote(config, value, fetchImpl, raw?.signal), value, config);
+      const input = inputValues(raw, config);
+      const segments = [];
+      // Sequential by design. Concurrent forwards duplicate the reference
+      // conditioning tensors on one T4 and turn a short code-switch into an
+      // avoidable out-of-memory race. Segment order is also the audio order.
+      for (const value of input.values) {
+        segments.push(verifiedResult(await remote(config, value, fetchImpl, raw?.signal), value, config));
+      }
+      return combinedResult(input, segments);
     },
   });
 }
@@ -294,3 +396,4 @@ export const OPEN_CHATTERBOX_MODEL_COMMITMENT = MODEL_ARMS[String(process.env.OP
 export const OPEN_CHATTERBOX_BASE_PACK_COMMITMENT = BASE_PACK_COMMITMENT;
 export const OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT = HINDI_PACK_COMMITMENT;
 export const OPEN_CHATTERBOX_DISCLOSURE = SYNTHETIC_AUDIO_DISCLOSURE;
+export const OPEN_CHATTERBOX_DISCLOSURES = SYNTHETIC_AUDIO_DISCLOSURES;

@@ -23,18 +23,53 @@ import { voicePreviewBlockReason, type WizardInput } from "./wizardModel";
 
 const MAX_TEXT = 280;
 
-// Shapes, not a phrase bank: two short greetings an owner will immediately
+// Shapes, not a phrase bank: three short greetings an owner will immediately
 // rewrite. Kept under the cap so the counter never opens on a violation.
-const WELCOME = {
-  hi: "Namaste! Main aapka apna AI version hoon. Aaj kya padhna hai, physics, chemistry ya maths?",
+type PreviewLanguage = "hi" | "hi-latn" | "en";
+
+const LANGUAGE_OPTIONS: ReadonlyArray<{
+  id: PreviewLanguage;
+  label: string;
+  help: string;
+  inputLanguage: string;
+}> = [
+  {
+    id: "hi",
+    label: "Hindi",
+    help: "Write Hindi in Devanagari. Familiar English terms can stay in English.",
+    inputLanguage: "hi",
+  },
+  {
+    id: "hi-latn",
+    label: "Hinglish",
+    help: "Write natural Roman Hindi and English. Each segment is planned before synthesis.",
+    inputLanguage: "hi-Latn",
+  },
+  {
+    id: "en",
+    label: "English",
+    help: "Write the exact English line you want the draft to say.",
+    inputLanguage: "en",
+  },
+];
+
+const WELCOME: Record<PreviewLanguage, string> = {
+  hi: "नमस्ते! मैं आपका अपना एआई वर्ज़न हूँ। आज क्या पढ़ना है, फिज़िक्स, केमिस्ट्री या मैथ्स?",
+  "hi-latn": "Namaste! Main aapka apna AI version hoon. Aaj kya padhna hai, physics, chemistry ya maths?",
   en: "Hello, this is my AI version. Tell me what you are stuck on today and we will work through it together.",
-} as const;
+};
+
+function normalizePersistedLanguage(value: unknown, text: unknown): PreviewLanguage | null {
+  if (value === "en" || value === "hi-latn") return value;
+  if (value !== "hi") return null;
+  return typeof text === "string" && /[\u0900-\u097f]/u.test(text) ? "hi" : "hi-latn";
+}
 
 type Phase =
   | { kind: "idle" }
   | { kind: "synthesizing" }
   | { kind: "warming"; warming: VoicePanelWarming; retryAt: number; attempt: number }
-  | { kind: "ready"; url: string; generationId: string; modelCommitment: string }
+  | { kind: "ready"; url: string; generationId: string; modelCommitment: string; textPlanSha256: string; transformationCount: number; spokenText: string }
   | { kind: "error"; headline: string; detail: string; canRetry: boolean };
 
 // A cold start can require two syntheses: the first wakes the GPU, then the
@@ -77,7 +112,7 @@ const RESUMABLE_MS = 8 * 60_000;
 
 interface PersistedWarmup {
   text: string;
-  language: "hi" | "en";
+  language: PreviewLanguage;
   genomeVersion: number;
   attempt: number;
   retryAt: number;
@@ -93,12 +128,14 @@ function readPersistedWarmup(replicaId: string): PersistedWarmup | null {
     const raw = window.sessionStorage.getItem(warmupKey(replicaId));
     if (!raw) return null;
     const value = JSON.parse(raw);
-    if (!value || typeof value !== "object" || typeof value.retryAt !== "number") return null;
+    if (!value || typeof value !== "object" || typeof value.retryAt !== "number" || typeof value.text !== "string") return null;
     // Stale rather than resumable: a wait this old has almost certainly
     // already resolved (or failed) without anyone watching, and resuming it
     // would be a countdown with nothing real behind it.
     if (value.retryAt < Date.now() - RESUMABLE_MS) return null;
-    return value as PersistedWarmup;
+    const language = normalizePersistedLanguage(value.language, value.text);
+    if (!language) return null;
+    return { ...value, language } as PersistedWarmup;
   } catch {
     // Private browsing can throw on read as well as write. A wait that
     // cannot be persisted still works; it just cannot survive a reload,
@@ -138,11 +175,12 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
 }) {
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [language, setLanguage] = useState<"hi" | "en">("hi");
-  const [text, setText] = useState<string>(WELCOME.hi);
+  const [language, setLanguage] = useState<PreviewLanguage>("hi-latn");
+  const [text, setText] = useState<string>(WELCOME["hi-latn"]);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [remaining, setRemaining] = useState(0);
   const urlRef = useRef<string>("");
+  const textRef = useRef<HTMLTextAreaElement>(null);
   // Runs the restore check exactly once per mount, after the review fetch
   // below has had a chance to answer. Not a dependency-array guard: `draft`
   // is a fresh object every render once `review` is set, so gating on
@@ -178,7 +216,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         replicaId,
         genomeVersion: draft.version,
         text,
-        languageId: language,
+        languageId: language === "en" ? "en" : "hi",
       });
       if (outcome.kind === "warming") {
         if (attempt >= MAX_AUTO_RETRIES) {
@@ -200,6 +238,9 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         url: urlRef.current,
         generationId: outcome.generationId,
         modelCommitment: outcome.modelCommitment,
+        textPlanSha256: outcome.textPlanSha256,
+        transformationCount: outcome.transformationCount,
+        spokenText: outcome.spokenText,
       });
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
@@ -263,9 +304,16 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
     return () => clearInterval(timer);
   }, [phase, run]);
 
-  function changeLanguage(next: "hi" | "en") {
+  function changeLanguage(next: PreviewLanguage) {
     setLanguage(next);
-    if (text.trim() === WELCOME.hi || text.trim() === WELCOME.en) setText(WELCOME[next]);
+    if (Object.values(WELCOME).includes(text.trim())) setText(WELCOME[next]);
+  }
+
+  const selectedLanguage = LANGUAGE_OPTIONS.find((option) => option.id === language) ?? LANGUAGE_OPTIONS[0];
+
+  function focusComposer() {
+    textRef.current?.focus();
+    textRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   const busy = phase.kind === "synthesizing" || phase.kind === "warming";
@@ -336,24 +384,35 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
       <div className="hear-voice-body">
         <div className="hear-voice-compose">
           <fieldset className="voice-preview-language">
-            <legend>Language</legend>
-            <button type="button" className={language === "hi" ? "active" : ""} aria-pressed={language === "hi"}
-              onClick={() => changeLanguage("hi")}>Hindi and Hinglish</button>
-            <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"}
-              onClick={() => changeLanguage("en")}>English</button>
+            <legend>Preview language</legend>
+            {LANGUAGE_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={language === option.id ? "active" : ""}
+                aria-pressed={language === option.id}
+                onClick={() => changeLanguage(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
           </fieldset>
+          <p className="voice-preview-language-help" id="hear-voice-language-help">{selectedLanguage.help}</p>
 
           <label className="voice-preview-script" htmlFor="hear-voice-text">
-            <span>What should it say?</span>
+            <span>Your line</span>
             <textarea
+              ref={textRef}
               id="hear-voice-text"
               value={text}
+              lang={selectedLanguage.inputLanguage}
               rows={4}
               maxLength={MAX_TEXT}
+              aria-describedby="hear-voice-language-help hear-voice-counter"
               onChange={(event) => setText(event.target.value)}
             />
-            <small className={overLimit ? "hear-voice-over" : ""}>
-              {Array.from(text).length}/{MAX_TEXT} characters{testEnvironment ? "." : ". The spoken AI disclosure is added for you."}
+            <small id="hear-voice-counter" className={overLimit ? "hear-voice-over" : ""}>
+              {MAX_TEXT - Array.from(text).length} characters left{testEnvironment ? "." : ". The spoken AI disclosure is added for you."}
             </small>
           </label>
 
@@ -365,56 +424,69 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               className="button primary-button hear-voice-go"
               type="button"
               disabled={Boolean(reason)}
-              // Press feedback fires on pointerdown, and so does the work: a
-              // cold voice runtime takes two to five minutes, and spending
-              // the click duration on top of that for nothing is the exact
-              // latency DESIGN-LAW §2 calls the enemy. The keyboard path is
-              // separate because pointerdown never fires for it.
-              onPointerDown={() => { if (!reason) void run(0); }}
-              onKeyDown={(event) => {
-                if ((event.key === "Enter" || event.key === " ") && !reason) {
-                  event.preventDefault();
-                  void run(0);
-                }
-              }}
+              // One semantic click covers pointer, keyboard, assistive tech
+              // and programmatic activation without parallel event paths.
+              onClick={() => { if (!reason) void run(0); }}
             >
-              {phase.kind === "synthesizing" ? "Generating" : phase.kind === "warming" ? "Waking the voice lab" : "Preview my voice"}
+              {phase.kind === "synthesizing"
+                ? "Generating"
+                : phase.kind === "warming"
+                  ? "Waking the voice lab"
+                  : phase.kind === "ready"
+                    ? "Generate another take"
+                    : "Preview my voice"}
             </button>
           </DisabledAction>
         </div>
 
-        <div className="hear-voice-stage" aria-live="polite">
+        <div className={`hear-voice-stage hear-voice-stage-${phase.kind}`} aria-live="polite" aria-busy={busy}>
           {phase.kind === "ready" ? (
             <>
               <p className="hear-voice-state ready">Ready</p>
+              <h3>Listen to this take</h3>
               <audio controls preload="metadata" src={phase.url}>Your browser cannot play this protected WAV.</audio>
+              {phase.transformationCount > 0 && (
+                <details className="hear-voice-pronunciation-plan">
+                  <summary>{phase.transformationCount} reviewed Hindi pronunciation changes applied</summary>
+                  <p>Spoken as: <span lang="hi">{phase.spokenText}</span></p>
+                  <small>Your original text stays unchanged. Plan {phase.textPlanSha256.slice(0, 10)} is saved with this preview.</small>
+                </details>
+              )}
               {!testEnvironment && <dl className="hear-voice-proof">
                 <div><dt>Disclosure</dt><dd>Spoken, on every clip</dd></div>
                 <div><dt>Watermark</dt><dd>PerTh, verified before release</dd></div>
               </dl>}
+              <div className="hear-voice-correction">
+                <strong>Not right yet?</strong>
+                <span>Edit the line or switch language, then generate another take.</span>
+                <button className="review-refresh" type="button" onClick={focusComposer}>Edit the line</button>
+              </div>
               <small>Receipt {phase.generationId.slice(0, 8)} · model {phase.modelCommitment.slice(0, 10)}</small>
             </>
           ) : phase.kind === "warming" ? (
             <>
               <p className="hear-voice-state warming">Warming up</p>
+              <h3>Your voice runtime is starting</h3>
               <p className="hear-voice-message">{phase.warming.message}</p>
-              <p className="hear-voice-countdown">
-                <strong>{remaining}s</strong>
-                <span>until the next attempt. You can leave this open, it retries itself.</span>
-              </p>
+              <div className="hear-voice-wait-metrics" aria-label="Voice runtime wait">
+                <div><span>Next check</span><strong>{remaining}s</strong></div>
+                <div><span>Cold start estimate</span><strong>{Math.ceil(phase.warming.etaSecondsLow / 60)} to {Math.ceil(phase.warming.etaSecondsHigh / 60)} min</strong></div>
+              </div>
+              <p className="hear-voice-attempt">Check {phase.attempt + 1} complete. This page retries by itself.</p>
               <small>
-                The voice runtime sleeps when nobody is using it, which is why the first preview of the
-                day is slow and the ones after it take a few seconds.
+                You can keep working on this step while it starts. Your line and wait are kept if this tab reloads.
               </small>
             </>
           ) : phase.kind === "synthesizing" ? (
             <>
               <p className="hear-voice-state working">Generating</p>
+              <h3>Making your take</h3>
               <p className="hear-voice-message">{testEnvironment ? "Rendering your words in the current draft voice." : "Rendering your words, adding the disclosure and the watermark."}</p>
             </>
           ) : phase.kind === "error" ? (
             <>
               <p className="hear-voice-state failed">Did not work</p>
+              <h3>Preview stopped</h3>
               <p className="hear-voice-message">{phase.headline}</p>
               <small>{phase.detail}</small>
               {phase.canRetry && (
@@ -424,10 +496,9 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           ) : (
             <>
               <p className="hear-voice-state idle">Nothing generated yet</p>
-              <p className="hear-voice-message">
-                Write a line and press the button. The first preview after a quiet period takes two to
-                five minutes while the runtime starts; after that it is usually much faster.
-              </p>
+              <h3>Your take appears here</h3>
+              <p className="hear-voice-message">Choose the language, write one natural line, and generate the current draft.</p>
+              <p className="hear-voice-first-wait">The first run after a quiet period can take 2 to 5 minutes while the runtime starts. After that it is usually much faster while the runtime stays warm.</p>
             </>
           )}
         </div>
