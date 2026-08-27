@@ -19,6 +19,7 @@
 // somebody to put headphones on would wedge every build until they did.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash, createHmac } from "node:crypto";
 import { mkdtempSync, readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -33,6 +34,15 @@ import {
   transcriptCarriesDisclosure,
 } from "./audio.mjs";
 import { serveBench } from "./server.mjs";
+import {
+  CFG_BENCHMARK_VERSION,
+  CONDITIONING_CONTRACT,
+  assertMatchedCfgPlan,
+  bindCfgBenchmarkReceipt,
+  buildHindiCfgBenchmarkPlan,
+  createHindiCfgBenchmarkClient,
+  explicitReferenceLanguageEvidence,
+} from "./cfg-conditioning.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 let checks = 0;
@@ -121,6 +131,148 @@ ok("the listener view names no arm", !arms.some((arm) => viewText.includes(arm))
 ok("the listener view carries no correct answer", !viewText.includes("\"correct\""));
 ok("the listener view carries no item id", !viewText.includes("\"i1\""));
 ok("the listener view carries no catch flag", !viewText.includes("isCatch"));
+
+// The Hindi CFG comparison is a benchmark arm, not product routing. It must
+// preserve the historical requested CFG as an explicit control, compare it
+// with explicit cfg=0 at the same seed/text/reference/model, and record the
+// compatibility-contract difference that makes the control possible.
+assert.throws(() => explicitReferenceLanguageEvidence({}), /cfg_benchmark_reference_language_evidence_required/);
+ok("Hindi CFG evaluation refuses omitted reference-language evidence", true);
+const cfgPlan = buildHindiCfgBenchmarkPlan({
+  incumbentCfgWeight: 0.5,
+  referenceLanguageMode: "latin_only",
+  referenceLanguageEvidenceScope: "exact_reference",
+  modelArm: "general",
+  modelPack: "chatterbox-multilingual-v3",
+  modelCommitment: "c".repeat(64),
+});
+ok("the CFG plan has a requested 0.5 control and an explicit cfg=0 arm",
+  cfgPlan[0].requestedCfgWeight === 0.5 && cfgPlan[0].effectiveCfgWeight === 0.5 &&
+  cfgPlan[1].requestedCfgWeight === 0 && cfgPlan[1].effectiveCfgWeight === 0);
+ok("both CFG arms bind the same reference evidence and model commitment",
+  cfgPlan.every((arm) => arm.referenceLanguageMode === "latin_only" &&
+    arm.referenceLanguageEvidenceScope === "exact_reference" && arm.modelCommitment === "c".repeat(64)));
+ok("the control's compatibility contract and the current contract are both recorded",
+  cfgPlan[0].conditioningContract === "legacy_runtime" && cfgPlan[1].conditioningContract === CONDITIONING_CONTRACT);
+ok("the plan does not designate an arm as better", !/improved|better|winner|best/i.test(JSON.stringify(cfgPlan)));
+assert.throws(() => assertMatchedCfgPlan([
+  cfgPlan[0],
+  { ...cfgPlan[1], modelCommitment: "d".repeat(64) },
+]), /cfg_benchmark_pair_modelCommitment_mismatch/);
+ok("a model mismatch makes the pair invalid", true);
+const cfgReceipt = {
+  modelArm: "general",
+  modelPack: "chatterbox-multilingual-v3",
+  modelCommitment: "c".repeat(64),
+  modelPackCommitment: "c".repeat(64),
+  synthesisCommitment: "c".repeat(64),
+  referenceSha256: "r".repeat(64),
+  outputSha256: "o".repeat(64),
+  referenceLanguageMode: "latin_only",
+  referenceLanguageEvidenceScope: "exact_reference",
+  textLanguageMode: "latin_only",
+  requestedCfgWeight: 0,
+  effectiveCfgWeight: 0,
+  conditioningContract: CONDITIONING_CONTRACT,
+  qualityState: "accent_transfer_mitigation_applied",
+  qualityWarnings: [],
+};
+const boundCfg = bindCfgBenchmarkReceipt({
+  arm: cfgPlan[1], receipt: cfgReceipt, itemId: "f1", seed: 41_000,
+  referenceSha256: "r".repeat(64), textSha256: "t".repeat(64),
+});
+ok("a sealed conditioning receipt records all requested benchmark bindings",
+  boundCfg.benchmarkVersion === CFG_BENCHMARK_VERSION && boundCfg.seed === 41_000 &&
+  boundCfg.requestedCfgWeight === 0 && boundCfg.effectiveCfgWeight === 0 &&
+  boundCfg.referenceLanguageMode === "latin_only" && boundCfg.referenceLanguageEvidenceScope === "exact_reference" &&
+  boundCfg.conditioningContract === CONDITIONING_CONTRACT && boundCfg.modelArm === "general" &&
+  boundCfg.modelCommitment === "c".repeat(64));
+assert.throws(() => bindCfgBenchmarkReceipt({
+  arm: cfgPlan[1], receipt: { ...cfgReceipt, effectiveCfgWeight: 0.5 }, itemId: "f1", seed: 41_000,
+  referenceSha256: "r".repeat(64), textSha256: "t".repeat(64),
+}), /cfg_benchmark_effective_cfg_binding_invalid/);
+ok("a silently changed effective CFG fails the receipt binding", true);
+
+const transportSecret = "ab".repeat(32);
+let legacyCfgRequest = null;
+const legacyClient = createHindiCfgBenchmarkClient({
+  env: {
+    AZURE_OPEN_VOICE_ORIGIN: "https://cfg-bench.internal.example",
+    OPEN_VOICE_HMAC_SECRET: transportSecret,
+    OPEN_VOICE_MODEL_ARM: "general",
+  },
+  incumbentCfgWeight: 0.5,
+  referenceLanguageMode: "latin_only",
+  referenceLanguageEvidenceScope: "exact_reference",
+  fetchImpl: async (_url, init) => {
+    legacyCfgRequest = JSON.parse(Buffer.from(init.body).toString("utf8"));
+    const arm = legacyClient.plan[0];
+    const pcm = Buffer.alloc(48_000, 7);
+    const outputHash = createHash("sha256").update(pcm).digest("hex");
+    const result = {
+      request_id: legacyCfgRequest.request_id,
+      audio_base64: pcm.toString("base64"),
+      output_sha256: outputHash,
+      sample_rate: 24_000,
+      channels: 1,
+      encoding: "pcm_s16le",
+      duration_ms: 1_000,
+      elapsed_ms: 500,
+      real_time_factor: 0.5,
+      reference_sha256: legacyCfgRequest.reference_sha256,
+      reference_duration_ms: 5_000,
+      model: arm.modelPack,
+      model_commitment: arm.modelCommitment,
+      model_arm: arm.modelArm,
+      model_pack: arm.modelPack,
+      model_pack_commitment: arm.modelCommitment,
+      reference_language_mode: arm.referenceLanguageMode,
+      reference_language_evidence_scope: arm.referenceLanguageEvidenceScope,
+      text_language_mode: legacyCfgRequest.text_language_mode,
+      requested_cfg_weight: 0.5,
+      effective_cfg_weight: 0.5,
+      quality_state: "legacy_app_conditioning_unverified",
+      quality_warnings: ["legacy_app_language_contract_unverified"],
+      perth_watermark_verified: true,
+      perth_score: 0.99,
+      synthesis_commitment: arm.modelCommitment,
+    };
+    const responseBody = Buffer.from(JSON.stringify(result));
+    const responseHash = createHash("sha256").update(responseBody).digest("hex");
+    const responseSignature = createHmac("sha256", Buffer.from(transportSecret, "hex"))
+      .update(["vyakti-open-voice/v1", "response", "/v1/synthesize", init.headers["X-Vyakti-Nonce"], "200", responseHash].join("\n"))
+      .digest("base64url");
+    return new Response(responseBody, { status: 200, headers: { "X-Vyakti-Response-Signature": responseSignature } });
+  },
+});
+const cfgReferencePcm = Buffer.alloc(24_000 * 5 * 2);
+for (let i = 0; i < cfgReferencePcm.length / 2; i += 1) {
+  cfgReferencePcm.writeInt16LE(i % 2 ? 2_000 : -2_000, i * 2);
+}
+const legacyResult = await legacyClient.synthesize(legacyClient.plan[0], {
+  text: "Chaliye is Hindi CFG control ko sunte hain.",
+  seed: 41_000,
+  reference: { bytes: wrapWav(cfgReferencePcm) },
+  style: { exaggeration: 0.45, temperature: 0.8 },
+});
+ok("the incumbent benchmark request preserves cfg 0.5 without falsifying reference evidence",
+  legacyCfgRequest.cfg_weight === 0.5 && legacyCfgRequest.requested_cfg_weight === 0.5 &&
+  legacyCfgRequest.reference_language_mode === "latin_only" &&
+  legacyCfgRequest.reference_language_evidence_scope === "exact_reference");
+ok("the incumbent control is explicitly outside the current conditioning contract",
+  !("conditioning_contract" in legacyCfgRequest) && legacyResult.receipt.conditioningContract === "legacy_runtime");
+ok("the legacy control still binds model commitment, watermark and effective CFG",
+  legacyResult.receipt.modelCommitment === legacyClient.plan[0].modelCommitment &&
+  legacyResult.receipt.perthWatermarkVerified && legacyResult.receipt.effectiveCfgWeight === 0.5);
+
+const earbenchSource = readFileSync(join(ROOT, "scripts/earbench.mjs"), "utf8");
+const firstCloneSource = readFileSync(join(ROOT, "scripts/first-clone.mjs"), "utf8");
+ok("both live scripts pass explicit reference evidence into synthesis",
+  [earbenchSource, firstCloneSource].every((source) => source.includes("languageMode:") && source.includes("languageEvidenceScope:")));
+ok("the blind CLI exposes the matched-seed CFG comparison explicitly",
+  earbenchSource.includes('flags.has("cfg-ab")') && earbenchSource.includes("matched-seed binding failed"));
+ok("first-clone writes a separate conditioning manifest",
+  firstCloneSource.includes("voice-conditioning-manifest.json") && firstCloneSource.includes("effectiveCfgWeight"));
 
 // ══════════════════════════════════════════════════════════════════════════
 // 3. audio treatment — the disclosure trim and the size/loudness equalisation

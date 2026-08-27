@@ -358,9 +358,15 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
           value: { text: segment.text, language: segment.language, words: segment.words || [] },
         }));
         evidence.push(spannedEvidence({
-          job, source, adapter, type: "language_span", segment, artifactId: input.artifact_id,
+          job, source, adapter, type: "language_span",
+          segment: { ...segment, confidence: segment.language_probability ?? null }, artifactId: input.artifact_id,
           inputSha256: input.sha256,
-          value: { language: segment.language, code_switch: Boolean(segment.code_switch) },
+          value: {
+            language: segment.language,
+            language_source: segment.language_source || "unavailable",
+            language_probability: segment.language_probability ?? null,
+            code_switch: typeof segment.code_switch === "boolean" ? segment.code_switch : null,
+          },
         }));
       }
       return { artifacts: [], evidence, verifiedSha256: source.sha256, providerUsage: result.usage };

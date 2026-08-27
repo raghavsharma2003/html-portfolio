@@ -47,6 +47,17 @@ async function publicStorageKey() {
   return publicKey;
 }
 
+function privilegedStorageHeaders(key) {
+  const apikey = String(key || "").trim();
+  // Supabase's current secret keys are opaque API-gateway credentials, not
+  // JWTs. Sending one as a Bearer token makes the downstream service try to
+  // parse it as a JWT and reject it. Legacy service_role keys are JWTs and
+  // still need both headers until every deployment has migrated.
+  return apikey.startsWith("sb_secret_")
+    ? { apikey }
+    : { apikey, Authorization: `Bearer ${apikey}` };
+}
+
 async function storageRequest(path, { method = "GET", body, headers = {}, fetchImpl = fetch, allow = [] } = {}) {
   const { baseUrl, key } = await storageCredentials();
   let response;
@@ -54,8 +65,7 @@ async function storageRequest(path, { method = "GET", body, headers = {}, fetchI
     response = await fetchImpl(`${baseUrl}/storage/v1${path}`, {
       method,
       headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
+        ...privilegedStorageHeaders(key),
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
         ...headers,
       },
@@ -114,8 +124,7 @@ async function rawStorageFetch(path, options = {}) {
     response = await (options.fetchImpl || fetch)(`${baseUrl}/storage/v1${path}`, {
       method: options.method || "GET",
       headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
+        ...privilegedStorageHeaders(key),
         ...options.headers,
       },
       ...(options.body !== undefined ? { body: options.body } : {}),

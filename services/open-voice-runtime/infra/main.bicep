@@ -18,6 +18,13 @@ param image string
 @description('Immutable CPU admission broker image. Tags are rejected.')
 param brokerImage string
 
+@allowed([
+  'general'
+  'hindi_v3'
+])
+@description('Explicit checkpoint arm baked into the runtime image. Hindi is an evaluation arm until it passes owner ABX.')
+param modelArm string = 'general'
+
 @description('User-assigned identity with get permission for only the transport secret.')
 param userAssignedIdentityResourceId string
 
@@ -72,6 +79,7 @@ resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'OPEN_VOICE_HMAC_SECRET', secretRef: 'open-voice-hmac' }
             { name: 'OPEN_VOICE_REQUIRE_CUDA', value: 'true' }
             { name: 'OPEN_VOICE_PERTH_MIN_SCORE', value: '0.5' }
+            { name: 'OPEN_VOICE_MODEL_ARM', value: modelArm }
           ]
           resources: { cpu: json('8.0'), memory: '56Gi', gpu: 1 }
           probes: [

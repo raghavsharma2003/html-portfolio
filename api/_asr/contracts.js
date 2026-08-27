@@ -1,6 +1,7 @@
 // The ASR seam's contract (Gurukul WS-I).
 //
-//   transcribe(audioRef, langHint) -> { turns:[{speaker,text,t0,t1}], provider, model }
+//   transcribe(audioRef, langHint) -> { turns:[...], provider, model,
+//                                      languageCode, languageProbability, languageSource }
 //
 // One operation, because one operation is what the re-ingestion worker needs
 // and a seam wider than its caller is a seam whose extra half is never
@@ -129,7 +130,28 @@ export function asrResult(value, provider) {
   const name = clean(value?.provider ?? provider?.name, 64);
   const model = clean(value?.model ?? provider?.model, 64);
   if (!name || !model) fail("asr_result_provenance_missing");
-  return Object.freeze({ turns: Object.freeze(out), provider: name, model });
+  const rawLanguageCode = value?.languageCode ?? value?.language_code ?? null;
+  const languageCode = rawLanguageCode == null || rawLanguageCode === ""
+    ? null
+    : clean(rawLanguageCode, 16);
+  if (languageCode != null && !/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(languageCode)) {
+    fail("asr_language_code_invalid");
+  }
+  const rawProbability = value?.languageProbability ?? value?.language_probability ?? null;
+  const languageProbability = rawProbability == null ? null : Number(rawProbability);
+  if (languageProbability != null && (!Number.isFinite(languageProbability) || languageProbability < 0 || languageProbability > 1)) {
+    fail("asr_language_probability_invalid");
+  }
+  const languageSource = clean(value?.languageSource ?? value?.language_source ?? "unavailable", 32);
+  if (!new Set(["provider_detected", "requested_hint", "unavailable"]).has(languageSource)) {
+    fail("asr_language_source_invalid");
+  }
+  if (languageSource === "provider_detected" && languageCode == null) fail("asr_detected_language_missing");
+  if (languageSource !== "provider_detected" && languageProbability != null) fail("asr_language_probability_unbound");
+  return Object.freeze({
+    turns: Object.freeze(out), provider: name, model,
+    languageCode, languageProbability, languageSource,
+  });
 }
 
 export function assertAsrProvider(provider) {

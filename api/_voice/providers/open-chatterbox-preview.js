@@ -2,11 +2,20 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import { probeEnrollmentWav } from "../../_audio/wav.js";
 import { canonicalJson, sha256Hex } from "../../_provenance/contracts.js";
 import { SYNTHETIC_AUDIO_DISCLOSURE, VOICE_PCM_FORMAT, renderTextWithDisclosure } from "../contracts.js";
+import { voiceLanguageConditioning, voiceScriptMode } from "../language-conditioning.js";
 
 const PROTOCOL = "vyakti-open-voice/v1";
+const CONDITIONING_CONTRACT = "vyakti-voice-language-conditioning/v1";
 const PROVIDER_NAME = "open_chatterbox_multilingual_v3";
-const SERVICE_MODEL_NAME = "chatterbox-multilingual-v3";
-const MODEL_COMMITMENT = sha256Hex("chatterbox-multilingual-v3:5de7a54aa4e5e2baadb0182dde554908b48b85c2:5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18");
+const SOURCE_COMMIT = "5de7a54aa4e5e2baadb0182dde554908b48b85c2";
+const BASE_PACK_NAME = "chatterbox-multilingual-v3";
+const BASE_PACK_COMMITMENT = sha256Hex(`${BASE_PACK_NAME}:${SOURCE_COMMIT}:5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18`);
+const HINDI_PACK_NAME = "chatterbox-multilingual-hi-v3";
+const HINDI_PACK_COMMITMENT = sha256Hex(`${HINDI_PACK_NAME}:${SOURCE_COMMIT}:82ca71273cc2a9ab19efdf8315f865c1a5af0ee7`);
+const MODEL_ARMS = Object.freeze({
+  general: Object.freeze({ name: BASE_PACK_NAME, commitment: BASE_PACK_COMMITMENT }),
+  hindi_v3: Object.freeze({ name: HINDI_PACK_NAME, commitment: HINDI_PACK_COMMITMENT }),
+});
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LANGUAGES = new Set(["ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv", "sw", "tr", "zh"]);
 const MAX_REFERENCE_BYTES = 20 * 1024 * 1024;
@@ -20,8 +29,8 @@ const ADAPTER_ID = /^[a-z0-9][a-z0-9_-]{2,63}$/;
 // services/open-voice-runtime/lora.py; the two are checked against each other
 // on every adapted response, so a drift between them fails the call rather
 // than silently issuing a receipt for a network that did not run.
-function synthesisCommitment(adapterSha256) {
-  return adapterSha256 ? sha256Hex(`${MODEL_COMMITMENT}:lora:${adapterSha256}`) : MODEL_COMMITMENT;
+function synthesisCommitment(modelCommitment, adapterSha256) {
+  return adapterSha256 ? sha256Hex(`${modelCommitment}:lora:${adapterSha256}`) : modelCommitment;
 }
 
 function fail(code, status = 503) {
@@ -43,9 +52,14 @@ export function openChatterboxConfig(env = process.env) {
   catch { fail("open_voice_origin_required"); }
   if (origin.protocol !== "https:" || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash)
     fail("open_voice_origin_invalid");
+  const modelArm = String(env.OPEN_VOICE_MODEL_ARM || "general").toLowerCase();
+  if (!MODEL_ARMS[modelArm]) fail("open_voice_model_arm_invalid");
   return Object.freeze({
     origin: origin.origin,
     transportSecret: secret(env.OPEN_VOICE_HMAC_SECRET),
+    modelArm,
+    modelName: MODEL_ARMS[modelArm].name,
+    modelCommitment: MODEL_ARMS[modelArm].commitment,
   });
 }
 
@@ -65,7 +79,7 @@ function number(value, low, high, code) {
   return result;
 }
 
-function inputValue(raw) {
+function inputValue(raw, config) {
   const reference = Buffer.from(raw?.reference?.bytes || []);
   if (!reference.length || reference.length > MAX_REFERENCE_BYTES) fail("open_voice_reference_size_invalid", 413);
   const referenceSha256 = createHash("sha256").update(reference).digest("hex");
@@ -74,10 +88,25 @@ function inputValue(raw) {
   if (probe.durationMs < 5_000 || probe.durationMs > 90_000) fail("open_voice_reference_duration_invalid", 409);
   const language = String(raw?.languageId || "en").toLowerCase();
   if (!LANGUAGES.has(language)) fail("open_voice_language_not_supported", 400);
+  if (config.modelArm === "hindi_v3" && language !== "hi") fail("open_voice_hindi_arm_language_invalid", 400);
   const seed = Number(raw?.seed);
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 2_147_483_647) fail("open_voice_seed_invalid", 400);
   const renderedText = renderTextWithDisclosure(raw?.text);
   if (renderedText.length > 700) fail("open_voice_preview_text_too_large", 413);
+  const textLanguageMode = voiceScriptMode(raw?.text).mode;
+  const requestedCfgWeight = number(raw?.style?.cfgWeight ?? 0.5, 0, 1, "open_voice_cfg_weight_invalid");
+  let conditioning;
+  try {
+    conditioning = voiceLanguageConditioning({
+      languageId: language,
+      referenceLanguageMode: raw?.reference?.languageMode,
+      referenceLanguageEvidenceScope: raw?.reference?.languageEvidenceScope,
+      textLanguageMode,
+      requestedCfgWeight,
+    });
+  } catch (error) {
+    fail(String(error?.code || "open_voice_language_conditioning_invalid"), error?.status || 400);
+  }
   // The per-speaker adapter is optional and every check on it is the same
   // shape as the reference's: bounded, content-addressed, and rejected here
   // rather than at the GPU. Omitting it takes the pre-adapter code path.
@@ -89,6 +118,7 @@ function inputValue(raw) {
     if (raw.adapter.sha256 && raw.adapter.sha256 !== adapterSha256) fail("open_voice_adapter_hash_mismatch", 409);
     const id = String(raw.adapter.id || "").toLowerCase();
     if (!ADAPTER_ID.test(id)) fail("open_voice_adapter_id_invalid", 400);
+    if (config.modelArm === "hindi_v3") fail("open_voice_hindi_adapter_unqualified", 409);
     adapter = Object.freeze({ id, bytes, sha256: adapterSha256 });
   }
   return Object.freeze({
@@ -100,8 +130,9 @@ function inputValue(raw) {
     language,
     seed,
     renderedText,
+    conditioning,
     exaggeration: number(raw?.style?.exaggeration ?? 0.5, 0, 1.5, "open_voice_exaggeration_invalid"),
-    cfgWeight: number(raw?.style?.cfgWeight ?? 0.5, 0, 1, "open_voice_cfg_weight_invalid"),
+    cfgWeight: conditioning.effectiveCfgWeight,
     temperature: number(raw?.style?.temperature ?? 0.8, 0.2, 1.5, "open_voice_temperature_invalid"),
   });
 }
@@ -125,6 +156,12 @@ async function remote(config, value, fetchImpl, signal) {
     reference_sha256: value.referenceSha256,
     exaggeration: value.exaggeration,
     cfg_weight: value.cfgWeight,
+    requested_cfg_weight: value.conditioning.requestedCfgWeight,
+    reference_language_mode: value.conditioning.referenceLanguageMode,
+    reference_language_evidence_scope: value.conditioning.referenceLanguageEvidenceScope,
+    text_language_mode: value.conditioning.textLanguageMode,
+    model_arm: config.modelArm,
+    conditioning_contract: CONDITIONING_CONTRACT,
     temperature: value.temperature,
     ...(value.adapter ? {
       adapter_id: value.adapter.id,
@@ -164,11 +201,22 @@ async function remote(config, value, fetchImpl, signal) {
   return result;
 }
 
-function verifiedResult(result, value) {
+function verifiedResult(result, value, config) {
+  const modernConditioning = result?.conditioning_contract === CONDITIONING_CONTRACT;
+  if (!modernConditioning && config.modelArm !== "general") fail("open_voice_conditioning_contract_required");
   if (String(result?.request_id || "").toLowerCase() !== value.requestId ||
       result?.reference_sha256 !== value.referenceSha256 ||
       Number(result?.reference_duration_ms) !== value.referenceDurationMs ||
-      result?.model !== SERVICE_MODEL_NAME || result?.model_commitment !== MODEL_COMMITMENT ||
+      result?.model !== config.modelName || result?.model_commitment !== config.modelCommitment ||
+      (modernConditioning && (result?.model_arm !== config.modelArm ||
+        result?.model_pack !== config.modelName || result?.model_pack_commitment !== config.modelCommitment ||
+        result?.reference_language_mode !== value.conditioning.referenceLanguageMode ||
+        result?.reference_language_evidence_scope !== value.conditioning.referenceLanguageEvidenceScope ||
+        result?.text_language_mode !== value.conditioning.textLanguageMode ||
+        Number(result?.requested_cfg_weight) !== value.conditioning.requestedCfgWeight ||
+        Number(result?.effective_cfg_weight) !== value.conditioning.effectiveCfgWeight ||
+        result?.quality_state !== value.conditioning.qualityState ||
+        canonicalJson(result?.quality_warnings) !== canonicalJson(value.conditioning.qualityWarnings))) ||
       result?.sample_rate !== VOICE_PCM_FORMAT.sampleRate || result?.channels !== VOICE_PCM_FORMAT.channels ||
       result?.encoding !== VOICE_PCM_FORMAT.encoding || result?.perth_watermark_verified !== true ||
       !Number.isFinite(Number(result?.perth_score)) || Number(result.perth_score) < 0.5) {
@@ -182,7 +230,7 @@ function verifiedResult(result, value) {
   // fine-tune-vs-zero-shot delta cannot survive.
   if ((result?.adapter_sha256 ?? null) !== (value.adapter?.sha256 ?? null) ||
       (result?.adapter_id ?? null) !== (value.adapter?.id ?? null) ||
-      result?.synthesis_commitment !== synthesisCommitment(value.adapter?.sha256 || null)) {
+      result?.synthesis_commitment !== synthesisCommitment(config.modelCommitment, value.adapter?.sha256 || null)) {
     fail("open_voice_adapter_binding_invalid");
   }
   const pcm = Buffer.from(String(result.audio_base64 || ""), "base64");
@@ -192,6 +240,9 @@ function verifiedResult(result, value) {
   if (Math.abs(Number(result.duration_ms) - expectedDuration) > 2 ||
       !Number.isFinite(Number(result.real_time_factor)) || Number(result.real_time_factor) <= 0)
     fail("open_voice_metrics_invalid");
+  const qualityWarnings = modernConditioning
+    ? value.conditioning.qualityWarnings
+    : Object.freeze([...value.conditioning.qualityWarnings, "legacy_runtime_language_contract_unverified"]);
   return Object.freeze({
     renderedText: value.renderedText,
     format: VOICE_PCM_FORMAT,
@@ -199,10 +250,13 @@ function verifiedResult(result, value) {
     receipt: Object.freeze({
       requestId: value.requestId,
       model: PROVIDER_NAME,
-      modelCommitment: MODEL_COMMITMENT,
+      modelCommitment: config.modelCommitment,
+      modelArm: config.modelArm,
+      modelPack: config.modelName,
+      modelPackCommitment: config.modelCommitment,
       adapterId: value.adapter?.id || null,
       adapterSha256: value.adapter?.sha256 || null,
-      synthesisCommitment: synthesisCommitment(value.adapter?.sha256 || null),
+      synthesisCommitment: synthesisCommitment(config.modelCommitment, value.adapter?.sha256 || null),
       referenceSha256: value.referenceSha256,
       outputSha256: result.output_sha256,
       durationMs: Number(result.duration_ms),
@@ -210,6 +264,14 @@ function verifiedResult(result, value) {
       realTimeFactor: Number(result.real_time_factor),
       perthScore: Number(result.perth_score),
       perthWatermarkVerified: true,
+      referenceLanguageMode: value.conditioning.referenceLanguageMode,
+      referenceLanguageEvidenceScope: value.conditioning.referenceLanguageEvidenceScope,
+      textLanguageMode: value.conditioning.textLanguageMode,
+      requestedCfgWeight: value.conditioning.requestedCfgWeight,
+      effectiveCfgWeight: value.conditioning.effectiveCfgWeight,
+      qualityState: value.conditioning.qualityState,
+      qualityWarnings,
+      conditioningContract: modernConditioning ? CONDITIONING_CONTRACT : "legacy_runtime",
     }),
   });
 }
@@ -219,13 +281,16 @@ export function createOpenChatterboxPreviewProvider(options = {}) {
   const fetchImpl = options.fetchImpl || fetch;
   return Object.freeze({
     name: PROVIDER_NAME,
-    modelCommitment: MODEL_COMMITMENT,
+    modelCommitment: config.modelCommitment,
+    modelArm: config.modelArm,
     async synthesizePreview(raw) {
-      const value = inputValue(raw);
-      return verifiedResult(await remote(config, value, fetchImpl, raw?.signal), value);
+      const value = inputValue(raw, config);
+      return verifiedResult(await remote(config, value, fetchImpl, raw?.signal), value, config);
     },
   });
 }
 
-export const OPEN_CHATTERBOX_MODEL_COMMITMENT = MODEL_COMMITMENT;
+export const OPEN_CHATTERBOX_MODEL_COMMITMENT = MODEL_ARMS[String(process.env.OPEN_VOICE_MODEL_ARM || "general").toLowerCase()]?.commitment || BASE_PACK_COMMITMENT;
+export const OPEN_CHATTERBOX_BASE_PACK_COMMITMENT = BASE_PACK_COMMITMENT;
+export const OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT = HINDI_PACK_COMMITMENT;
 export const OPEN_CHATTERBOX_DISCLOSURE = SYNTHETIC_AUDIO_DISCLOSURE;

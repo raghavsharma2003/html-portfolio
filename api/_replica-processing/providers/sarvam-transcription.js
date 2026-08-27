@@ -57,11 +57,12 @@ import { createReadStream } from "node:fs";
 // it in the studio, or Sarvam ships a real score and this becomes a
 // one-line change.
 //
-// ── why `language` is the requested hint, not a "detected" value ─────────
-// The turn shape above carries no returned language back through the
-// ingestion seam, so there is nothing measured to put here. `segment.
-// language` records the hint this adapter ASKED for, not a detection nobody
-// performed.
+// ── language evidence is detected or explicitly labelled unavailable ────
+// The default is Sarvam's documented auto-detection value (`unknown` on the
+// wire). The batch result's predominant `language_code` and nullable
+// `language_probability` cross the ASR seam with `language_source` naming
+// whether they were detected, requested, or unavailable. A code-mix boolean
+// is not returned by this API and stays null rather than being fabricated.
 //
 // ── why there is no chunking ──────────────────────────────────────────────
 // Sarvam's batch API accepts files up to 2 hours long (and up to 20 files
@@ -92,7 +93,10 @@ export function createSarvamTranscriptionAdapter(options = {}) {
     throw adapterError("sarvam_asr_input_resolver_missing");
   }
   const model = String(options.model || "saaras:v3");
-  const langHint = String(options.langHint || "hi-IN");
+  // Sources can be English, Hindi, or code-mixed. Sarvam documents `unknown`
+  // as the auto-detection input and returns predominant `language_code` plus
+  // `language_probability`; forcing hi-IN skips that detection entirely.
+  const langHint = String(options.langHint || "auto");
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const origin = options.origin;
 
@@ -160,10 +164,12 @@ export function createSarvamTranscriptionAdapter(options = {}) {
             end_ms: endMs,
             confidence: 0,
             text: turn.text,
-            language: langHint,
+            language: result.languageCode || "unknown",
+            language_probability: result.languageProbability,
+            language_source: result.languageSource,
             words: [],
             speaker_key: turn.speaker ? `sarvam-${turn.speaker}` : null,
-            code_switch: false,
+            code_switch: null,
           });
         }
       }

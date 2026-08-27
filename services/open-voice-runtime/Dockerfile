@@ -1,6 +1,7 @@
 FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime@sha256:77f17f843507062875ce8be2a6f76aa6aa3df7f9ef1e31d9d7432f4b0f563dee
 
 ARG CHATTERBOX_COMMIT=5de7a54aa4e5e2baadb0182dde554908b48b85c2
+ARG OPEN_VOICE_MODEL_ARM=general
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,6 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/models/huggingface \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
+    OPEN_VOICE_MODEL_ARM=${OPEN_VOICE_MODEL_ARM} \
     OPEN_VOICE_MODEL_ROOT=/models/chatterbox-multilingual-v3
 
 RUN apt-get update \
@@ -24,6 +26,7 @@ RUN python -m pip install --requirement requirements.txt \
 COPY fetch_models.py ./fetch_models.py
 RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python fetch_models.py
 COPY lora.py ./lora.py
+COPY hindi_pack.py ./hindi_pack.py
 COPY app.py ./app.py
 RUN chown -R voice:openvoice /srv/open-voice /models
 

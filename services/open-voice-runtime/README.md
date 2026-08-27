@@ -18,6 +18,8 @@ The image pins:
 - the admission broker's Python base by its immutable linux/amd64 manifest digest;
 - Chatterbox source commit `5de7a54aa4e5e2baadb0182dde554908b48b85c2`;
 - `ResembleAI/chatterbox` checkpoint commit `5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18`;
+- optional official `ResembleAI/Chatterbox-Multilingual-hi` checkpoint commit
+  `82ca71273cc2a9ab19efdf8315f865c1a5af0ee7` (MIT model-card license);
 - every direct Python dependency in `requirements.txt`.
 
 Models are downloaded while the image is built. Runtime network model access
@@ -38,6 +40,36 @@ Required configuration:
 - `OPEN_VOICE_HMAC_SECRET`: at least 32 random bytes, hex or base64url;
 - `OPEN_VOICE_REQUIRE_CUDA=true` in every deployed environment;
 - `OPEN_VOICE_PERTH_MIN_SCORE=0.5` or a higher measured threshold.
+
+### Explicit model arms
+
+`OPEN_VOICE_MODEL_ARM=general` is the default and preserves the pinned general
+Multilingual V3 checkpoint. `OPEN_VOICE_MODEL_ARM=hindi_v3` selects Resemble
+AI's official Hindi single-language pack and refuses non-Hindi requests. The
+same value must be used as the Docker build argument, the Container App Bicep
+parameter, and the application-plane environment variable; every request and
+signed response binds it.
+
+Only one checkpoint is downloaded into an image and only one model is loaded
+onto the GPU. The Hindi pack is an evaluation arm, not an automatic route from
+a `hi` language tag: it has not yet passed Vyakti's owner ABX or measured cold
+start. Existing LoRA adapters target the general checkpoint and are refused by
+the Hindi arm until compatibility is qualified.
+
+The Hindi Space vendors inference code that differs from the pinned upstream
+source used by the general arm. The local loader mirrors its multilingual T3
+and non-strict v3 S3Gen load, but refuses every missing or unexpected weight
+key unless it is explicitly whitelisted. The arm remains unqualified until a
+remote image build, health check, protected synthesis, cold-start/VRAM measure,
+and blind owner ABX all pass. It must use a separate evaluation origin; never
+replace the global origin, because the Hindi arm intentionally refuses English.
+
+Language conditioning negotiates
+`vyakti-voice-language-conditioning/v1` inside the signed v1 transport. General
+arm rollout is safe in either order: the new app plane accepts a signed legacy
+runtime response and labels enforcement unverified, while the new runtime
+accepts the legacy request, preserves its CFG, and labels that path unverified.
+Keep this compatibility until both revisions have been observed live.
 
 The broker additionally receives the internal runtime origin from the Bicep
 deployment. Both images must be published and supplied to the deployment by

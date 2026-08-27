@@ -6,10 +6,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   OPEN_CHATTERBOX_DISCLOSURE,
+  OPEN_CHATTERBOX_BASE_PACK_COMMITMENT,
+  OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT,
   OPEN_CHATTERBOX_MODEL_COMMITMENT,
   createOpenChatterboxPreviewProvider,
   openChatterboxConfig,
 } from "../../api/_voice/providers/open-chatterbox-preview.js";
+import { voiceLanguageConditioning, voiceScriptMode } from "../../api/_voice/language-conditioning.js";
 import { assertVoicePreviewAuthorization } from "../../api/_provenance/contracts.js";
 import {
   beginOwnedVoicePreview,
@@ -56,6 +59,19 @@ const sign = (secret, values) => createHmac("sha256", secret).update(values.join
 
 function signedResponse(url, init, mutate = (value) => value) {
   const request = JSON.parse(Buffer.from(init.body).toString("utf8"));
+  const modelCommitment = request.model_arm === "hindi_v3"
+    ? OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT
+    : OPEN_CHATTERBOX_BASE_PACK_COMMITMENT;
+  const modelName = request.model_arm === "hindi_v3"
+    ? "chatterbox-multilingual-hi-v3"
+    : "chatterbox-multilingual-v3";
+  const conditioning = voiceLanguageConditioning({
+    languageId: request.language_id,
+    referenceLanguageMode: request.reference_language_mode,
+    referenceLanguageEvidenceScope: request.reference_language_evidence_scope,
+    textLanguageMode: request.text_language_mode,
+    requestedCfgWeight: request.requested_cfg_weight,
+  });
   const pcm = Buffer.alloc(48_000, 7);
   const result = mutate({
     request_id: request.request_id,
@@ -69,8 +85,19 @@ function signedResponse(url, init, mutate = (value) => value) {
     real_time_factor: 0.5,
     reference_sha256: request.reference_sha256,
     reference_duration_ms: 5_000,
-    model: "chatterbox-multilingual-v3",
-    model_commitment: OPEN_CHATTERBOX_MODEL_COMMITMENT,
+    model: modelName,
+    model_commitment: modelCommitment,
+    model_arm: request.model_arm,
+    model_pack: modelName,
+    model_pack_commitment: modelCommitment,
+    reference_language_mode: conditioning.referenceLanguageMode,
+    reference_language_evidence_scope: conditioning.referenceLanguageEvidenceScope,
+    text_language_mode: conditioning.textLanguageMode,
+    requested_cfg_weight: conditioning.requestedCfgWeight,
+    effective_cfg_weight: conditioning.effectiveCfgWeight,
+    quality_state: conditioning.qualityState,
+    quality_warnings: conditioning.qualityWarnings,
+    conditioning_contract: request.conditioning_contract,
     perth_watermark_verified: true,
     perth_score: 0.99,
     // Mirrors services/open-voice-runtime/app.py: adapter fields are echoed
@@ -81,8 +108,8 @@ function signedResponse(url, init, mutate = (value) => value) {
       adapter_sha256: request.adapter_sha256,
     } : {}),
     synthesis_commitment: request.adapter_sha256
-      ? digest(Buffer.from(`${OPEN_CHATTERBOX_MODEL_COMMITMENT}:lora:${request.adapter_sha256}`))
-      : OPEN_CHATTERBOX_MODEL_COMMITMENT,
+      ? digest(Buffer.from(`${modelCommitment}:lora:${request.adapter_sha256}`))
+      : modelCommitment,
   });
   const body = Buffer.from(JSON.stringify(result));
   const path = new URL(url).pathname;
@@ -116,7 +143,7 @@ const result = await provider.synthesizePreview({
   text: "Namaste, main tumhari private calibration preview hoon.",
   languageId: "hi",
   seed: 42,
-  reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000 },
+  reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000, languageMode: "latin_only", languageEvidenceScope: "exact_reference" },
   style: { exaggeration: 0.6, cfgWeight: 0.4, temperature: 0.75 },
 });
 ok("every service request is exact-body HMAC authenticated", Boolean(observed));
@@ -124,10 +151,66 @@ ok("the private service receives no tenant or replica identifier", !Object.keys(
 ok("the exact audible synthetic disclosure is rendered before inference", observed.request.text.startsWith(`${OPEN_CHATTERBOX_DISCLOSURE} `));
 ok("reference bytes are content-addressed and bounded", observed.request.reference_sha256 === digest(reference));
 ok("Hindi and deterministic evaluation controls cross the contract", observed.request.language_id === "hi" && observed.request.seed === 42);
+ok("Latin-only Hindi references force the official accent-transfer mitigation and emit an honest warning",
+  observed.request.requested_cfg_weight === 0.4 && observed.request.cfg_weight === 0 &&
+  result.receipt.qualityWarnings.includes("hindi_reference_latin_only_cfg_disabled"));
+ok("script observations stay narrow and never label Latin text as detected English",
+  voiceScriptMode("नमस्ते Raghav").mode === "mixed" &&
+  voiceScriptMode("Namaste Raghav").mode === "latin_only" &&
+  voiceScriptMode("123").mode === "unknown");
 const chunks = [];
 for await (const chunk of result.stream) chunks.push(Buffer.from(chunk));
 ok("verified output is normalized to 24 kHz mono PCM", Buffer.concat(chunks).length === 48_000 && result.format.sampleRate === 24_000);
 ok("model, reference, output, latency and PerTh evidence remain bound", result.receipt.modelCommitment === OPEN_CHATTERBOX_MODEL_COMMITMENT && result.receipt.perthWatermarkVerified && result.receipt.realTimeFactor === 0.5);
+
+let hindiArmObserved;
+const hindiArmProvider = createOpenChatterboxPreviewProvider({
+  env: {
+    AZURE_OPEN_VOICE_ORIGIN: ORIGIN,
+    OPEN_VOICE_HMAC_SECRET: SECRET,
+    OPEN_VOICE_MODEL_ARM: "hindi_v3",
+  },
+  fetchImpl: async (url, init) => {
+    hindiArmObserved = signedResponse(url, init);
+    return hindiArmObserved.response;
+  },
+});
+const hindiArmResult = await hindiArmProvider.synthesizePreview({
+  text: "नमस्ते, यह निजी परीक्षण है।",
+  languageId: "hi",
+  seed: 43,
+  reference: { bytes: reference, sha256: digest(reference), durationMs: 5_000, languageMode: "devanagari", languageEvidenceScope: "exact_reference" },
+});
+ok("the official Hindi pack is an explicit arm, not automatic routing from a Hindi tag",
+  observed.request.model_arm === "general" && hindiArmObserved.request.model_arm === "hindi_v3" &&
+  hindiArmResult.receipt.modelPack === "chatterbox-multilingual-hi-v3" &&
+  hindiArmResult.receipt.modelCommitment === OPEN_CHATTERBOX_HINDI_PACK_COMMITMENT);
+await assert.rejects(hindiArmProvider.synthesizePreview({
+  text: "Private preview.", languageId: "en", seed: 1,
+  reference: { bytes: reference, languageMode: "latin_only" },
+}), /open_voice_hindi_arm_language_invalid/);
+ok("the Hindi-specific arm refuses a non-Hindi request before waking the GPU", true);
+
+const legacyRuntimeProvider = createOpenChatterboxPreviewProvider({
+  env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
+  fetchImpl: async (url, init) => signedResponse(url, init, (value) => {
+    for (const key of [
+      "conditioning_contract", "model_arm", "model_pack", "model_pack_commitment",
+      "reference_language_mode", "reference_language_evidence_scope", "text_language_mode",
+      "requested_cfg_weight", "effective_cfg_weight", "quality_state", "quality_warnings",
+    ]) delete value[key];
+    return value;
+  }).response,
+});
+const legacyRuntimeResult = await legacyRuntimeProvider.synthesizePreview({
+  text: "नमस्ते, यह रोलिंग डिप्लॉय परीक्षण है।", languageId: "hi", seed: 44,
+  reference: { bytes: reference, languageMode: "latin_only", languageEvidenceScope: "source_transcript" },
+  style: { cfgWeight: 0.65 },
+});
+ok("the new app plane accepts a signed legacy general-runtime response during a rolling deploy",
+  legacyRuntimeResult.receipt.conditioningContract === "legacy_runtime" &&
+  legacyRuntimeResult.receipt.effectiveCfgWeight === 0 &&
+  legacyRuntimeResult.receipt.qualityWarnings.includes("legacy_runtime_language_contract_unverified"));
 
 const badSignature = createOpenChatterboxPreviewProvider({
   env: { AZURE_OPEN_VOICE_ORIGIN: ORIGIN, OPEN_VOICE_HMAC_SECRET: SECRET },
@@ -249,6 +332,7 @@ const begun = await beginOwnedVoicePreview(async (sql) => {
     subject_mode: "self", lifecycle: "calibrating", replica_policy_version: "replica-self-v1",
     age_verified_at: "2026-08-01T00:00:00.000Z", identity_verified_at: "2026-08-01T00:00:00.000Z", liveness_verified_at: "2026-08-01T00:00:00.000Z", identity_expires_at: "2030-01-01T00:00:00.000Z",
     artifact_id: IDS.artifact, source_id: IDS.source, object_path: `${IDS.owner}/${IDS.replica}/${IDS.source}/derived/enhance.wav`, mime: "audio/wav", byte_size: reference.length, duration_ms: 5_000, sha256: digest(reference), stage: "enhance", selection_decision: "selected", source_state: "ready", contains_third_parties: false, genome_status: "draft",
+    reference_language_mode: "mixed", transcript_span_count: 3, devanagari_chars: 42, latin_chars: 11,
     consent_id: IDS.consent, consent_scope: "inference", consent_policy_version: "replica-self-v1", consent_granted_at: "2026-08-01T00:00:00.000Z", consent_expires_at: "2030-01-01T00:00:00.000Z", consent_revoked_at: null,
   }];
 }, IDS.owner, {
@@ -257,9 +341,35 @@ const begun = await beginOwnedVoicePreview(async (sql) => {
   trace_id: "preview_12345678",
   language_id: "hi",
   text_hash: "9".repeat(64),
+  text_language_mode: "latin_only",
   style_key: "balanced",
 });
 ok("authorization is atomically inserted from the exact current draft and selected artifact", begun.reference.artifactId === IDS.artifact && /vg\.status='draft'/.test(beginSql) && /selected\.decision='selected'/.test(beginSql));
+ok("reference selection uses owner-bound source transcript script evidence and prefers Hindi or mixed candidates",
+  /e\.source_id=a\.source_id/.test(beginSql) && !/e\.artifact_id=a\.artifact_id/.test(beginSql) &&
+  /e\.evidence_type='transcript_span'/.test(beginSql) && /reference_language_mode when 'mixed' then 0/.test(beginSql) &&
+  begun.reference.languageMode === "mixed" && begun.reference.languageEvidenceScope === "source_transcript");
+ok("the generation audit shape records observed reference/text script modes and effective CFG",
+  /'text_language_mode',\$15::text/.test(beginSql) && /'reference_language_mode',reference_language_mode/.test(beginSql) &&
+  /'reference_language_evidence_scope'/.test(beginSql) && /'conditioning_contract'/.test(beginSql) &&
+  /'effective_cfg_weight'/.test(beginSql) && begun.voiceConditioning.qualityWarnings.includes("hindi_reference_mixed_script") &&
+  begun.voiceConditioning.qualityWarnings.includes("reference_script_observed_at_source_scope"));
+const noTranscriptBegun = await beginOwnedVoicePreview(async () => [{
+  ...begun.generation,
+  generation_id: "77777777-7777-4777-8777-777777777777",
+  reference_language_mode: "unknown",
+  transcript_span_count: 0,
+  devanagari_chars: 0,
+  latin_chars: 0,
+}], IDS.owner, {
+  replica_id: IDS.replica, genome_version: 4, trace_id: "preview_no_transcript",
+  language_id: "hi", text_hash: "7".repeat(64), text_language_mode: "devanagari", style_key: "balanced",
+});
+ok("a production-shaped selected source with no transcript spans is unverified and CFG-disabled",
+  noTranscriptBegun.reference.languageEvidenceScope === "unverified" &&
+  noTranscriptBegun.reference.languageMode === "unknown" &&
+  noTranscriptBegun.voiceConditioning.effectiveCfgWeight === 0 &&
+  noTranscriptBegun.voiceConditioning.qualityState === "reference_language_unverified");
 ok("the generation records the matched-trial seed used by synthesis", begun.previewSeed === matchedSeed && /preview_seed/.test(beginSql));
 ok("preview issuance rechecks current inference, biometric and training grants", /scope='inference'/.test(beginSql) && /scope='biometric'/.test(beginSql) && /scope='training'/.test(beginSql));
 ok("every preview consent must match the current replica policy", (beginSql.match(/policy_version=r\.policy_version/g) || []).length >= 2 && /c\.policy_version=\$7/.test(beginSql));
@@ -277,6 +387,7 @@ const docker = readFileSync(join(ROOT, "services/open-voice-runtime/Dockerfile")
 const brokerDocker = readFileSync(join(ROOT, "services/open-voice-runtime/Dockerfile.broker"), "utf8");
 const broker = readFileSync(join(ROOT, "services/open-voice-runtime/broker.py"), "utf8");
 const fetchModels = readFileSync(join(ROOT, "services/open-voice-runtime/fetch_models.py"), "utf8");
+const hindiPack = readFileSync(join(ROOT, "services/open-voice-runtime/hindi_pack.py"), "utf8");
 const infra = readFileSync(join(ROOT, "services/open-voice-runtime/infra/main.bicep"), "utf8");
 const migration = readFileSync(join(ROOT, "db/migrations/045_replica_voice_preview.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
@@ -284,7 +395,18 @@ const handler = readFileSync(join(ROOT, "api/replica-voice-preview.js"), "utf8")
 const studio = readFileSync(join(ROOT, "src/studio/VoicePreviewLab.tsx"), "utf8");
 ok("runtime source and checkpoint revisions are immutable", app.includes("5de7a54aa4e5e2baadb0182dde554908b48b85c2") && fetchModels.includes("5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18") && /FROM .*@sha256:[0-9a-f]{64}/.test(docker) && /FROM .*@sha256:[0-9a-f]{64}/.test(brokerDocker));
 ok("runtime has no model-network dependency", docker.includes("HF_HUB_OFFLINE=1") && docker.includes("TRANSFORMERS_OFFLINE=1") && fetchModels.includes("revision=MODEL_REVISION"));
+ok("the Hindi pack is revision-pinned and built as a single explicit arm",
+  fetchModels.includes("82ca71273cc2a9ab19efdf8315f865c1a5af0ee7") &&
+  fetchModels.includes('MODEL_ARM == "hindi_v3"') && docker.includes("ARG OPEN_VOICE_MODEL_ARM=general") &&
+  !/application\.state\.models\s*=/.test(app));
+ok("the Hindi loader mirrors the official pack's multilingual T3 and non-strict v3 S3Gen load",
+  /T3\(T3Config\.multilingual\(\)\)/.test(hindiPack) && /s3gen_v3\.pt/.test(hindiPack) &&
+  /strict=False/.test(hindiPack) && /t3_hi\.safetensors/.test(hindiPack) &&
+  /OPEN_VOICE_HINDI_ALLOWED_MISSING_KEYS/.test(hindiPack) && /unapproved_unexpected/.test(hindiPack));
 ok("the service requires CUDA and verifies PerTh before returning audio", /open_voice_cuda_required/.test(app) && /perth_watermark_verification_failed/.test(app));
+ok("the conditioning contract is rolling-deploy compatible in both directions",
+  /if not modern_conditioning:/.test(app) && /legacy_app_language_contract_unverified/.test(app) &&
+  /legacy_runtime_language_contract_unverified/.test(readFileSync(join(ROOT, "api/_voice/providers/open-chatterbox-preview.js"), "utf8")));
 ok("request logging is disabled and audio uses an auto-deleted temporary file", docker.includes("--no-access-log") && app.includes("NamedTemporaryFile"));
 ok("Azure GPU deployment is private, digest-pinned, scale-to-zero and single-concurrency", /external:\s*false/.test(infra) && /contains\(image, '@sha256:'\)/.test(infra) && /minReplicas:\s*0/.test(infra) && /maxReplicas:\s*1/.test(infra) && /concurrentRequests:\s*'1'/.test(infra));
 ok("a scale-to-zero CPU admission broker protects the private GPU from internet-triggered spend", /resource broker/.test(infra) && /external:\s*true/.test(infra) && /workloadProfileName:\s*'Consumption'/.test(infra) && /OPEN_VOICE_RUNTIME_ORIGIN/.test(infra) && broker.indexOf("body = await _admit(request)") < broker.indexOf("client.post"));
@@ -292,11 +414,14 @@ ok("admission and GPU responses remain end-to-end HMAC bound", /runtime_response
 ok("preview rows are structurally distinct from qualified runtime generations", /purpose='voice_preview'/.test(migration) && /voice_profile_id is null/.test(migration) && /preview_model_commitment~/.test(migration));
 ok("canonical schema carries the exact preview migration", schema.includes("vy_replica_generation_preview_shape") && schema.includes("vy_replica_generation_preview_artifact_fk"));
 ok("the owner endpoint verifies private reference bytes before synthesis", /readPrivateReplicaObject/.test(handler) && /voice_preview_reference_binding_failed/.test(handler));
+ok("both owner preview handlers pass observed text mode into atomic authorization before synthesis",
+  /beginOwnedVoicePreview\(q, user\.id, \{[\s\S]{0,500}text_language_mode: textLanguageMode/.test(handler) &&
+  /text_language_mode: textLanguageMode/.test(readFileSync(join(ROOT, "api/_voice/preview-panel.js"), "utf8")));
 ok("no browser byte is returned before PerTh, AudioSeal, C2PA and ledger completion", /assertSynthesisResult/.test(handler) && /protectReplicaStream/.test(handler) && /await protectedAudio\.completion/.test(handler));
 ok("Studio presents real loading, empty, error and protected-audio states", /generating/.test(studio) && /No draft can speak yet/.test(studio) && /role="alert"/.test(studio) && /<audio controls/.test(studio));
 ok("new Studio copy contains no em dash or en dash", !/[—–]/.test(studio));
 
-execFileSync("python", ["-m", "py_compile", "services/open-voice-runtime/app.py", "services/open-voice-runtime/broker.py", "services/open-voice-runtime/fetch_models.py"], { cwd: ROOT, stdio: "pipe" });
+execFileSync("python", ["-m", "py_compile", "services/open-voice-runtime/app.py", "services/open-voice-runtime/broker.py", "services/open-voice-runtime/fetch_models.py", "services/open-voice-runtime/hindi_pack.py"], { cwd: ROOT, stdio: "pipe" });
 ok("Python service sources compile", true);
 
 console.log(`\nOpen voice runtime: ${passed} checks passed.`);

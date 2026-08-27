@@ -131,6 +131,21 @@ function turnsFrom(payload) {
   return [{ speaker: "SPEAKER_00", text: transcript, t0: 0, t1: 0 }];
 }
 
+function languageEvidence(payload, requestedLanguage) {
+  if (requestedLanguage !== "auto") {
+    return { languageCode: requestedLanguage, languageProbability: null, languageSource: "requested_hint" };
+  }
+  const rawCode = payload?.language_code;
+  const code = typeof rawCode === "string" && rawCode.trim() ? rawCode.trim() : null;
+  const rawProbability = payload?.language_probability;
+  const probability = rawProbability == null ? null : Number(rawProbability);
+  return {
+    languageCode: code,
+    languageProbability: Number.isFinite(probability) ? probability : null,
+    languageSource: code ? "provider_detected" : "unavailable",
+  };
+}
+
 export function createSarvamSaarasProvider(options = {}) {
   const apiKey = String(options.apiKey || "");
   if (!apiKey) fail("asr_provider_unavailable", 503);
@@ -154,7 +169,7 @@ export function createSarvamSaarasProvider(options = {}) {
     name: NAME,
     model,
 
-    async transcribe(rawRef, hint = "hi-IN") {
+    async transcribe(rawRef, hint = "auto") {
       const ref = asrInput(rawRef);
       const language = langHint(hint);
 
@@ -230,7 +245,10 @@ export function createSarvamSaarasProvider(options = {}) {
       const first = outputs.find((name) => name.toLowerCase().endsWith(".json"));
       if (!first) fail("asr_sarvam_output_missing", 502, { jobId });
       const payload = await json(fetchImpl, inDirectory(outputPath, first), { headers: { Accept: "application/json" } }, "asr_sarvam_output");
-      return asrResult({ turns: turnsFrom(payload), provider: NAME, model }, { name: NAME, model });
+      return asrResult({
+        turns: turnsFrom(payload), provider: NAME, model,
+        ...languageEvidence(payload, language),
+      }, { name: NAME, model });
     },
   });
 }

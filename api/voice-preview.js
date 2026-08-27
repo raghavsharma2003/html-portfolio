@@ -29,7 +29,7 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Access-Control-Expose-Headers",
-    "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, Retry-After");
+    "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, X-Vyakti-Voice-Model-Arm, X-Vyakti-Voice-Quality-State, X-Vyakti-Voice-Quality-Warnings, X-Vyakti-Voice-Effective-Cfg, Retry-After");
   res.setHeader("Cache-Control", "no-store");
 }
 

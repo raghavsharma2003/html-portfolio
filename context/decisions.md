@@ -6034,3 +6034,64 @@ signed resumable path can replace the Supabase ceiling. Otherwise this decision
 closes when the project global limit is raised, the private bucket is set to at
 least 1 GiB, unsigned reads still fail, and one >50 MiB production upload reaches
 `ready` through the deployed worker.
+
+## `hindi-cfg-benchmark-binds-requested-and-effective-conditioning` (2026-08-27)
+
+**Decision.** The supported Hindi CFG experiment is a blind matched-seed pair,
+not an unlabelled style change. `scripts/earbench.mjs stimuli --cfg-ab` binds
+the same text, seed, reference bytes, reference-language evidence, model arm
+and model commitment across two synthetic arms. The incumbent control preserves
+its historical requested CFG through the runtime's explicitly labelled legacy
+compatibility path; the second arm explicitly requests `cfg=0` through
+`vyakti-voice-language-conditioning/v1`. The sealed key records requested and
+effective CFG, reference language mode and evidence scope, conditioning
+contract, model pack/arm/commitment, text/reference hashes and output receipt.
+Neither arm is designated as better. `first-clone.mjs` remains a single-arm
+pipeline probe, but now requires the same explicit reference evidence and
+writes the observed requested/effective conditioning to its own manifest.
+
+**Why.** The product provider correctly turns Hindi with a Latin-only or
+unknown reference into effective `cfg=0`. A benchmark script that omits
+reference evidence can therefore print a requested CFG of 0.5 while silently
+running 0, making an apparent A/B two copies of the same condition. Preserving
+the incumbent through the benchmark-only compatibility contract avoids
+falsifying the reference label and leaves production routing unchanged. The
+contract difference is stored as a known wire difference, not hidden as if CFG
+were the only byte-level request difference.
+
+**What would reverse it.** Remove the legacy control only after the production
+conditioning contract gains a benchmark-scoped, receipt-bound way to request
+the historical effective CFG without mislabelling reference evidence, or after
+a recorded owner decision retires that incumbent from comparison. The blind,
+matched bindings and requested/effective receipt fields remain required for any
+replacement experiment.
+
+## `hindi-voice-release-separates-mitigation-from-model-promotion` (2026-08-27)
+
+**Decision.** Production stays on the general Chatterbox Multilingual V3 arm.
+For Hindi synthesis, source-transcript evidence is used only to prefer a
+Devanagari or mixed reference; a Latin-only or unavailable observation applies
+Chatterbox's documented `cfg=0` accent-transfer mitigation and records the
+requested/effective CFG, evidence scope and warnings. It is called a mitigation
+setting, not an observed quality improvement. Sarvam batch transcription uses
+automatic language detection instead of forcing `hi-IN`, and absent provider
+evidence remains unknown. The dedicated Hindi V3 pack is built and evaluated
+on a separate origin and cannot replace the English-capable production origin
+until it passes protected synthesis, cold-start and owner listening gates.
+
+**Why.** The owner rejected every current Hindi sample as foreign-accented,
+robotic and non-human. Chatterbox itself warns that prompt-language mismatch can
+transfer accent and names CFG zero as a mitigation, while the old processing
+path forced a Hindi locale and then retained that request hint as if detected.
+Those facts justify a bounded mitigation and honest evidence, but they do not
+prove that CFG zero or the Hindi pack sounds more like this owner. A global
+Hindi-pack switch would also intentionally refuse English and break a core
+product language.
+
+**What would reverse it.** A replacement arm may become production default only
+after an immutable remote image loads the pinned weights without unreviewed key
+drift, passes protected synthesis and three cold-start measurements on the
+deployed GPU class, and wins a blinded owner/known-listener Hindi and Hinglish
+comparison without an intelligibility regression. Exact-window language may
+replace source-level evidence only when selected-window offsets and transcript
+lineage are persisted end to end.

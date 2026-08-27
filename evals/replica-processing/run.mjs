@@ -14,6 +14,7 @@ const Worker = await import(pathToFileURL(join(ROOT, "api/_replica-processing/wo
 const Builders = await import(pathToFileURL(join(ROOT, "api/_replica-processing/builders.js")));
 const Fake = await import(pathToFileURL(join(ROOT, "api/_replica-processing/providers/fake.js")));
 const AzureFast = await import(pathToFileURL(join(ROOT, "api/_replica-processing/providers/azure-fast-transcription.js")));
+const SarvamBatch = await import(pathToFileURL(join(ROOT, "api/_replica-processing/providers/sarvam-transcription.js")));
 const Repository = await import(pathToFileURL(join(ROOT, "api/_replica-processing/repository.js")));
 const { splitSql } = await import(pathToFileURL(join(ROOT, "db/migrations/apply.mjs")));
 const Windows = await import(pathToFileURL(join(ROOT, "api/_video-enroll/windows.js")));
@@ -168,6 +169,41 @@ const withFixtureMaterializedAudio = async (input, fn) => {
   },
   });
 };
+
+function sarvamLanguageFixture() {
+  const observed = { start: null };
+  const apiOrigin = "https://sarvam.fixture.invalid";
+  const inputDirectory = "https://blob.fixture.invalid/container/input-dir?sig=input";
+  const outputDirectory = "https://blob.fixture.invalid/container/output-dir?sig=output";
+  const fetchImpl = async (url, init = {}) => {
+    const value = new URL(String(url));
+    if (value.origin === apiOrigin && value.pathname.endsWith("/job/init")) {
+      return new Response(JSON.stringify({ job_id: "job-1", input_storage_path: inputDirectory, output_storage_path: outputDirectory }));
+    }
+    if (value.hostname === "blob.fixture.invalid" && init.method === "PUT") return new Response("", { status: 201 });
+    if (value.origin === apiOrigin && value.pathname === "/speech-to-text/job" && init.method === "POST") {
+      observed.start = JSON.parse(String(init.body));
+      return new Response(JSON.stringify({ accepted: true }));
+    }
+    if (value.origin === apiOrigin && value.pathname.endsWith("/job/job-1/status")) {
+      return new Response(JSON.stringify({ job_state: "Completed" }));
+    }
+    if (value.hostname === "blob.fixture.invalid" && value.searchParams.get("comp") === "list") {
+      return new Response("<Blobs><Blob><Name>output-dir/0.json</Name></Blob></Blobs>");
+    }
+    if (value.hostname === "blob.fixture.invalid" && value.pathname.endsWith("/output-dir/0.json")) {
+      return new Response(JSON.stringify({
+        language_code: "en-IN",
+        language_probability: 0.97,
+        diarized_transcript: { entries: [
+          { speaker_id: "0", transcript: "This is an English source.", start_time_seconds: 0, end_time_seconds: 2.4 },
+        ] },
+      }));
+    }
+    throw new Error(`unexpected fixture request ${init.method || "GET"} ${value.pathname}`);
+  };
+  return { observed, apiOrigin, fetchImpl };
+}
 
 const separated = await Worker.executeProcessingJob({
   job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate,
@@ -369,6 +405,27 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
   ok("Azure key stays in the auth header rather than URL or multipart body",
     requests[0].init.headers["Ocp-Apim-Subscription-Key"] === "fixture-key-never-sent-to-azure" &&
     !requests[0].url.includes("fixture-key") && !requests[0].uploaded.includes("fixture-key"));
+
+  const sarvamFixture = sarvamLanguageFixture();
+  const sarvam = SarvamBatch.createSarvamTranscriptionAdapter({
+    apiKey: "fixture-key-never-sent-to-sarvam",
+    origin: sarvamFixture.apiOrigin,
+    fetchImpl: sarvamFixture.fetchImpl,
+    resolveInput: async () => ({ body: Buffer.from("fixture-audio"), byteSize: 13, mime: "audio/wav" }),
+  });
+  const sarvamOutput = await Worker.executeProcessingJob({
+    job: job("transcribe"), source, adapters: { ...adapters, transcribe: sarvam },
+    artifactStore: store, completedSteps: dependencies.transcribe,
+  });
+  const sarvamTranscript = sarvamOutput.evidence.find((entry) => entry.evidence_type === "transcript_span");
+  const sarvamLanguage = sarvamOutput.evidence.find((entry) => entry.evidence_type === "language_span");
+  ok("Sarvam batch defaults to documented auto-detection rather than forcing every source to hi-IN",
+    sarvamFixture.observed.start?.job_parameters?.language_code === "unknown" &&
+    sarvamTranscript?.value.language === "en-IN" && sarvamTranscript?.artifact_id === null);
+  ok("detected predominant language and probability survive as source-bound evidence without invented code-switch",
+    sarvamLanguage?.value.language === "en-IN" && sarvamLanguage?.value.language_source === "provider_detected" &&
+    sarvamLanguage?.value.language_probability === 0.97 && sarvamLanguage?.confidence === 0.97 &&
+    sarvamLanguage?.value.code_switch === null && sarvamLanguage?.artifact_id === null);
 
   const baseAzure = (overrides = {}) => AzureFast.createAzureFastTranscriptionAdapter({
     endpoint: "https://centralindia.api.cognitive.microsoft.com/",

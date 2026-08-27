@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { PROVENANCE_POLICY, assertVoicePreviewAuthorization, canonicalJson } from "./_provenance/contracts.js";
 import { OPEN_CHATTERBOX_MODEL_COMMITMENT } from "./_voice/providers/open-chatterbox-preview.js";
+import { voiceLanguageConditioning, voiceScriptMode } from "./_voice/language-conditioning.js";
 
 const TRACE = /^[A-Za-z0-9_-]{8,96}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -177,6 +178,10 @@ export function voicePreviewTextHash(text) {
   return createHash("sha256").update(cleanVoicePreviewText(text), "utf8").digest("hex");
 }
 
+export function voicePreviewTextMode(text) {
+  return voiceScriptMode(cleanVoicePreviewText(text)).mode;
+}
+
 export function voicePreviewMatchedSeed({ replicaId: rid, genomeVersion, languageId, textHash }) {
   const replica = replicaId(rid);
   const version = Number(genomeVersion);
@@ -197,6 +202,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   const traceId = String(input?.trace_id || "");
   const languageId = String(input?.language_id || "").toLowerCase();
   const textHash = String(input?.text_hash || "").toLowerCase();
+  const textLanguageMode = String(input?.text_language_mode || "unknown").toLowerCase();
   const previewStyle = voicePreviewStyle(input?.style_key);
   const trialId = input?.trial_id ? replicaId(input.trial_id) : null;
   const trialSide = input?.trial_side == null ? null : String(input.trial_side);
@@ -204,6 +210,8 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
   if (!TRACE.test(traceId)) fail("voice_preview_trace_id_invalid", 400);
   if (!LANGUAGES.has(languageId)) fail("voice_preview_language_invalid", 400);
   if (!SHA256.test(textHash)) fail("voice_preview_text_hash_invalid", 400);
+  if (!new Set(["devanagari", "mixed", "latin_only", "unknown"]).has(textLanguageMode))
+    fail("voice_preview_text_language_mode_invalid", 400);
   if ((trialId === null) !== (trialSide === null) || (trialSide !== null && !["left", "right"].includes(trialSide)))
     fail("voice_preview_trial_binding_invalid", 400);
   const previewSeed = input?.preview_seed == null
@@ -223,10 +231,16 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
          from vy_replica_processing_artifact_decision d
         where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid
         order by d.artifact_id,d.created_at desc,d.decision_id desc
-     ), eligible as materialized (
+     ), eligible_pool as materialized (
        select r.*,vg.version genome_version,vg.status genome_status,
               a.artifact_id,a.source_id,a.object_path,a.mime,a.byte_size,a.duration_ms,a.sha256,
-              a.stage,'selected'::text selection_decision,s.state source_state,s.contains_third_parties,
+              a.stage,'selected'::text selection_decision,
+              selected.created_at selection_created_at,selected.decision_id selection_decision_id,
+              s.state source_state,s.contains_third_parties,
+              case when script.devanagari_chars>0 and script.latin_chars>0 then 'mixed'
+                   when script.devanagari_chars>0 then 'devanagari'
+                   when script.latin_chars>0 then 'latin_only' else 'unknown' end reference_language_mode,
+              script.transcript_span_count,script.devanagari_chars,script.latin_chars,
               c.consent_id,c.scope consent_scope,c.policy_version consent_policy_version,
               c.granted_at consent_granted_at,c.expires_at consent_expires_at,c.revoked_at consent_revoked_at
          from vy_replica r
@@ -235,6 +249,15 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
          join latest_selection selected on selected.artifact_id=a.artifact_id and selected.decision='selected'
          join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id
           and s.owner_user_id=a.owner_user_id
+         left join lateral (
+           select count(*)::int transcript_span_count,
+                  coalesce(sum(length(regexp_replace(coalesce(e.value->>'text',''), '[^ऀ-ॿ]', '', 'g'))),0)::int devanagari_chars,
+                  coalesce(sum(length(regexp_replace(coalesce(e.value->>'text',''), '[^A-Za-z]', '', 'g'))),0)::int latin_chars
+             from vy_replica_processing_evidence e
+            where e.replica_id=a.replica_id and e.owner_user_id=a.owner_user_id
+              and e.source_id=a.source_id
+              and e.evidence_type='transcript_span'
+         ) script on true
          cross join inference_consent c
         where r.replica_id=$1::uuid and r.owner_user_id=$2::uuid and r.subject_mode='self'
           and r.lifecycle in ('enrolling','calibrating','ready','active','paused')
@@ -259,7 +282,16 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
               and (($14='left' and t.left_style_key=($11::jsonb->>'key'))
                 or ($14='right' and t.right_style_key=($11::jsonb->>'key')))
           ))
-        order by selected.created_at desc,selected.decision_id desc limit 1
+     ), eligible as materialized (
+       select * from eligible_pool
+        order by case when $9='hi' then
+                   case when $15 in ('mixed','latin_only') then
+                     case reference_language_mode when 'mixed' then 0 when 'devanagari' then 1 when 'latin_only' then 2 else 3 end
+                   else
+                     case reference_language_mode when 'devanagari' then 0 when 'mixed' then 1 when 'latin_only' then 2 else 3 end
+                   end
+                 else 0 end,
+                 selection_created_at desc,selection_decision_id desc limit 1
      ), inserted as (
        insert into vy_replica_generation
          (replica_id,owner_user_id,voice_profile_id,genome_version,profile_version,calibration_version,
@@ -267,7 +299,15 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
           watermark_algorithm,provenance_standard,preview_artifact_id,preview_model,preview_model_commitment,
           preview_language_id,preview_text_hash,preview_style,preview_seed,preview_trial_id,preview_trial_side)
        select replica_id,owner_user_id,null,genome_version,null,null,null,'studio_preview','voice_preview',
-              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,$11::jsonb,$12::int4,$13::uuid,$14
+              $4,$5,'authorized','audible-prefix-v1','pending','c2pa-2.4',artifact_id,$6,$8,$9,$10,
+              $11::jsonb || jsonb_build_object(
+                'text_language_mode',$15::text,
+                'reference_language_mode',reference_language_mode,
+                'reference_language_evidence_scope',case when transcript_span_count>0 then 'source_transcript' else 'unverified' end,
+                'conditioning_contract','vyakti-voice-language-conditioning/v1',
+                'effective_cfg_weight',case when $9='hi' and reference_language_mode in ('latin_only','unknown')
+                                            then 0 else ($11::jsonb->>'cfg_weight')::double precision end),
+              $12::int4,$13::uuid,$14
          from eligible
        on conflict (preview_trial_id,preview_trial_side)
          where preview_trial_id is not null and state in ('authorized','streaming','sealed') do nothing
@@ -275,13 +315,14 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
      ) select i.*,e.subject_mode,e.lifecycle,e.policy_version replica_policy_version,
               e.age_verified_at,e.identity_verified_at,e.liveness_verified_at,e.identity_expires_at,
               e.artifact_id,e.source_id,e.object_path,e.mime,e.byte_size,e.duration_ms,e.sha256,e.stage,
+              e.reference_language_mode,e.transcript_span_count,e.devanagari_chars,e.latin_chars,
               e.selection_decision,e.source_state,e.contains_third_parties,e.genome_status,
               e.consent_id,e.consent_scope,e.consent_policy_version,e.consent_granted_at,
               e.consent_expires_at,e.consent_revoked_at
          from inserted i join eligible e on e.replica_id=i.replica_id`,
     [rid, ownerUserId, genomeVersion, PROVENANCE_POLICY, traceId,
       "open_chatterbox_multilingual_v3", REPLICA_POLICY_VERSION, OPEN_CHATTERBOX_MODEL_COMMITMENT,
-      languageId, textHash, JSON.stringify(previewStyle), previewSeed, trialId, trialSide],
+      languageId, textHash, JSON.stringify(previewStyle), previewSeed, trialId, trialSide, textLanguageMode],
   );
   const row = rows[0];
   if (!row) {
@@ -333,12 +374,22 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
     },
   };
   const authorization = assertVoicePreviewAuthorization(authorizationInput);
+  const transcriptSpanCount = Number(row.transcript_span_count || 0);
+  const referenceLanguageEvidenceScope = transcriptSpanCount > 0 ? "source_transcript" : "unverified";
+  const voiceConditioning = voiceLanguageConditioning({
+    languageId,
+    referenceLanguageMode: row.reference_language_mode || "unknown",
+    referenceLanguageEvidenceScope,
+    textLanguageMode,
+    requestedCfgWeight: previewStyle.cfg_weight,
+  });
   return Object.freeze({
     generation: row,
     authorizationInput,
     authorization,
     previewStyle,
     previewSeed,
+    voiceConditioning,
     reference: Object.freeze({
       artifactId: row.artifact_id,
       sourceId: row.source_id,
@@ -347,6 +398,11 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
       byteSize: Number(row.byte_size),
       durationMs: Number(row.duration_ms),
       sha256: row.sha256,
+      languageMode: voiceConditioning.referenceLanguageMode,
+      languageEvidenceScope: referenceLanguageEvidenceScope,
+      transcriptSpanCount,
+      devanagariChars: Number(row.devanagari_chars || 0),
+      latinChars: Number(row.latin_chars || 0),
     }),
   });
 }

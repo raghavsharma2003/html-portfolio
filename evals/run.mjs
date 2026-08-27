@@ -473,6 +473,10 @@ const suites = {
   // uploaded only through a short-lived capability into a verified private
   // bucket. Offline, deterministic, no DB or storage call.
   replicaenrollment: "replica-enrollment/run.mjs",
+  // Studio enrollment truth: owner-labeled language coverage never becomes
+  // automatic detection, and a selected or processing calibration never reads
+  // as a ready Hindi/Hinglish reference. Offline, deterministic, no media call.
+  studioenrollmentquality: "studio-enrollment-quality/run.mjs",
   // Noisy-evidence processing: immutable derivatives, composite ownership,
   // retry-safe leases, provenance-carrying ASR/diarization/analysis evidence
   // and draft-only VoiceGenome builds. Fake adapters prove contracts only;

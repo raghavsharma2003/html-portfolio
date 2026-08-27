@@ -3300,6 +3300,44 @@
       "kind": "measurement",
       "title": "Production worker digest read-back and 29 s execution succeeded; Vercel ready; migration 064 live; Postgres 34/34, 62/62 and 101/101; v2 preview 24 kHz and PerTh verified",
       "at": "2026-08-27"
+    },
+    {
+      "id": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning",
+      "kind": "decision",
+      "title": "Blind Hindi CFG evaluation binds matched seed, text, reference and model while recording requested/effective CFG, evidence scope and both conditioning contracts",
+      "at": "2026-08-27",
+      "status": "implemented locally; no human listening result"
+    },
+    {
+      "id": "hindi-cfg-benchmark-contract-local-2026-08-27",
+      "kind": "measurement",
+      "title": "Earbench passed 104/104 offline assertions and the cfg-ab CLI self-test passed with 18 synthetic stimuli; no voice-quality result",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "requested-cfg-without-reference-evidence-is-not-an-ab-arm",
+      "kind": "rejection",
+      "title": "A requested CFG label without explicit reference evidence can silently collapse a nominal Hindi 0.5 arm to effective cfg=0",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "hindi-voice-release-separates-mitigation-from-model-promotion",
+      "kind": "decision",
+      "title": "Production keeps the general model and applies an honestly labelled CFG-zero mitigation while the Hindi pack remains an isolated listening-gated arm",
+      "at": "2026-08-27",
+      "status": "release candidate; no listening success claimed"
+    },
+    {
+      "id": "hindi-conditioning-release-candidate-local-2026-08-27",
+      "kind": "measurement",
+      "title": "Local voice, storage, processing, Studio and production-build gates passed and live Neon EXPLAIN succeeded; no GPU or human quality result",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "rejected-hindi-samples-are-negative-controls-not-a-benchmark",
+      "kind": "rejection",
+      "title": "Owner rejected q1-direct-after and vyakti-v2-post-deploy as robotic foreign-accented Hindi, so protected transport success is not a quality benchmark",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6417,6 +6455,46 @@
       "src": "room-agent-scope-reaches-the-wire",
       "rel": "measured_by",
       "dst": "production-long-media-and-agent-isolation-release-2026-08-27"
+    },
+    {
+      "src": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning",
+      "rel": "measured_by",
+      "dst": "hindi-cfg-benchmark-contract-local-2026-08-27"
+    },
+    {
+      "src": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning",
+      "rel": "caused_by",
+      "dst": "requested-cfg-without-reference-evidence-is-not-an-ab-arm"
+    },
+    {
+      "src": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning",
+      "rel": "part_of",
+      "dst": "earbench-is-the-listening-instrument"
+    },
+    {
+      "src": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning",
+      "rel": "part_of",
+      "dst": "first-clone-is-the-entry-point"
+    },
+    {
+      "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
+      "rel": "measured_by",
+      "dst": "hindi-conditioning-release-candidate-local-2026-08-27"
+    },
+    {
+      "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
+      "rel": "caused_by",
+      "dst": "rejected-hindi-samples-are-negative-controls-not-a-benchmark"
+    },
+    {
+      "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
+      "rel": "part_of",
+      "dst": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning"
     }
   ]
 }

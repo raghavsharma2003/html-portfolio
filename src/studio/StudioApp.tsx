@@ -856,6 +856,8 @@ function ReplicaWorkspace({
                 blurb="Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."
               >
                 <EnrollmentWorkspace
+                  key={`enrollment-${replica.replica_id}`}
+                  replicaId={replica.replica_id}
                   consents={consents}
                   sources={sources}
                   loading={enrollmentLoading}

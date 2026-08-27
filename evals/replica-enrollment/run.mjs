@@ -300,7 +300,9 @@ const SHA = "d".repeat(64);
   await Storage.ensurePrivateReplicaBucket(fakeFetch);
   const upload = await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, fakeFetch);
   ok("bucket access is checked before signed upload", calls[0].url.includes("/storage/v1/bucket/"));
-  ok("storage admin calls use a server-only authorization header", calls.every((call) => call.init.headers.Authorization === "Bearer unit-test-service-role-secret"));
+  ok("legacy service_role storage calls use apikey plus Bearer authorization", calls.every((call) =>
+    call.init.headers.apikey === "unit-test-service-role-secret"
+    && call.init.headers.Authorization === "Bearer unit-test-service-role-secret"));
   ok("signed upload uses PUT and keeps the storage/v1 base", upload.method === "PUT" && upload.url.includes("/storage/v1/object/upload/sign/"));
   ok("signed upload is a time-limited capability, never a public URL", upload.url.includes("token=signed-token") && !upload.url.includes("/public/"));
   ok("large uploads receive direct signed TUS without exposing the service role",
@@ -309,6 +311,57 @@ const SHA = "d".repeat(64);
     && upload.resumable.chunk_size === 6 * 1024 * 1024
     && upload.resumable.headers.apikey === "unit-test-public-anon-key"
     && !Object.values(upload.resumable.headers).includes("unit-test-service-role-secret"));
+
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "sb_secret_unit-test-storage-admin";
+  const secretCalls = [];
+  const secretFetch = async (url, init = {}) => {
+    secretCalls.push({ url, init });
+    if (url.endsWith(`/bucket/${Storage.REPLICA_STORAGE_BUCKET}`)) {
+      return new Response(JSON.stringify({ id: Storage.REPLICA_STORAGE_BUCKET, public: false, file_size_limit: 1_073_741_824 }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.includes("/object/upload/sign/")) {
+      return new Response(JSON.stringify({ url: "/object/upload/sign/private/path?token=signed-token" }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`unexpected storage URL ${url}`);
+  };
+  await Storage.ensurePrivateReplicaBucket(secretFetch);
+  await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, secretFetch);
+  ok("sb_secret storage calls use apikey without Bearer authorization", secretCalls.every((call) =>
+    call.init.headers.apikey === "sb_secret_unit-test-storage-admin"
+    && !("Authorization" in call.init.headers)));
+
+  const rawCalls = [];
+  const rawBytes = Buffer.from("verified immutable artifact", "utf8");
+  const rawFetch = async (url, init = {}) => {
+    rawCalls.push({ url, init });
+    if (init.method === "POST") return new Response(null, { status: 200 });
+    if (url.includes("/object/authenticated/")) {
+      return new Response(rawBytes, {
+        status: 200,
+        headers: { "content-type": "application/octet-stream", "content-length": String(rawBytes.length) },
+      });
+    }
+    throw new Error(`unexpected raw storage URL ${url}`);
+  };
+  const written = await Storage.writeImmutableReplicaArtifact({
+    bucket: Storage.REPLICA_STORAGE_BUCKET,
+    objectPath: `${OWNER}/${REPLICA}/${SOURCE}/derived/test/artifact.bin`,
+    mime: "application/octet-stream",
+    body: rawBytes,
+    ifNoneMatch: "*",
+  }, { fetchImpl: rawFetch });
+  ok("sb_secret raw object GET and POST use apikey without Bearer authorization",
+    written.byteSize === rawBytes.length
+    && rawCalls.some((call) => call.init.method === "POST" && call.url.includes("/storage/v1/object/"))
+    && rawCalls.some((call) => (call.init.method || "GET") === "GET" && call.url.includes("/object/authenticated/"))
+    && rawCalls.every((call) => call.init.headers.apikey === "sb_secret_unit-test-storage-admin"
+      && !("Authorization" in call.init.headers)));
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "unit-test-service-role-secret";
+
   process.env.SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   let refusedServiceRole = false;
   try { await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, fakeFetch); }

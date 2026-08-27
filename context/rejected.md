@@ -4467,3 +4467,45 @@ still fixes dropped connections, whole-file browser buffering and the worker's
 old 64 MiB heap wall for files the account accepts. The 1 GiB claim remains
 blocked on an explicit account-level limit change and a real >50 MiB smoke. No
 subscription purchase or billing change was made by this release.
+
+## `requested-cfg-without-reference-evidence-is-not-an-ab-arm` (2026-08-27)
+
+**What was tried and rejected.** Let `earbench.mjs` and `first-clone.mjs` keep
+sending Hindi synthesis with `cfgWeight: 0.5` while omitting reference language
+mode and evidence scope, then infer the experiment arm from the requested style
+value.
+
+**What specifically breaks.** The language-conditioning contract treats an
+omitted reference mode as `unknown` and, for Hindi, changes effective CFG to 0.
+A nominal 0.5 arm can therefore become byte-for-byte the same conditioning as
+the mitigation arm while its script still looks like a 0.5 experiment. A
+requested value alone cannot identify what the model ran, and labelling an
+English/Latin reference as Devanagari merely to prevent the switch would make
+the evidence false.
+
+**What replaced it.** Both live scripts require an explicit reference-language
+mode and evidence scope for Hindi and record the returned effective CFG.
+Earbench's `--cfg-ab` uses a sealed, receipt-bound legacy compatibility control
+for historical effective CFG and a current-contract explicit `cfg=0` arm, with
+the contract difference recorded. Neither arm carries a preference claim.
+
+## `rejected-hindi-samples-are-negative-controls-not-a-benchmark` (2026-08-27)
+
+**What was tried and rejected.** Treat `q1-direct-after.wav` or
+`vyakti-v2-post-deploy.wav` as the quality level to preserve because the files
+were 24 kHz, completed the protected synthesis path, or sounded less broken
+than an earlier `my-clone.wav` attempt.
+
+**What specifically broke.** The owner judged both Hindi outputs extremely bad:
+robotic, non-human, and like an American or British speaker talking in Hindi.
+The later file is therefore not a benchmark and “better than the previous
+failure” is not a release threshold. The predominantly English source is a
+credible accent-transfer confound under Chatterbox's own guidance, but it has
+not been isolated as the sole cause. Watermark, transport, RTF, sample rate and
+embedding checks cannot overrule this human failure.
+
+**What replaced it.** Both files remain negative controls. New releases require
+language-matched Hindi and Hinglish calibration references, explicit conditioning
+evidence, a blinded matched-seed incumbent-versus-CFG-zero comparison, and then
+an isolated Hindi-pack arm. No arm is promoted until the owner or listeners who
+know the voice provide a recorded preference and intelligibility does not regress.

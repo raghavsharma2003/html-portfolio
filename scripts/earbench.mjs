@@ -6,6 +6,7 @@
 //   node scripts/earbench.mjs score          # score the answers against the key
 //   node scripts/earbench.mjs verify-trim    # hear ONLY the removed prefixes
 //   node scripts/earbench.mjs selftest       # prove the mechanism, no network
+//   node scripts/earbench.mjs stimuli --cfg-ab --reference-language-mode latin_only --reference-language-evidence-scope exact_reference
 //
 // ── what this is ──────────────────────────────────────────────────────────
 // `context/decisions.md` makes the ECAPA cosine number a REGRESSION MONITOR and
@@ -37,6 +38,15 @@ import {
   transcriptCarriesDisclosure,
 } from "../evals/earbench/audio.mjs";
 import { serveBench } from "../evals/earbench/server.mjs";
+import {
+  CFG_BENCHMARK_VERSION,
+  bindCfgBenchmarkReceipt,
+  buildHindiCfgBenchmarkPlan,
+  createHindiCfgBenchmarkClient,
+  explicitReferenceLanguageEvidence,
+} from "../evals/earbench/cfg-conditioning.mjs";
+import { openChatterboxConfig } from "../api/_voice/providers/open-chatterbox-preview.js";
+import { voiceLanguageConditioning } from "../api/_voice/language-conditioning.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -188,6 +198,13 @@ function fallbackItems(probe, wanted) {
 // conditioning reference, which is the cheapest real question the lane can
 // answer — how much reference audio does fidelity actually need.
 function armPlan() {
+  if (flags.has("cfg-ab")) {
+    if (flags.has("arms")) {
+      console.error("--cfg-ab owns its two clone arms and cannot be combined with --arms");
+      process.exit(2);
+    }
+    return ["real", "clone-cfg-incumbent", "clone-cfg-zero"];
+  }
   const raw = String(flag("arms", "real,clone-full,clone-short")).split(",").map((s) => s.trim()).filter(Boolean);
   for (const arm of raw) {
     if (!["real", "clone-full", "clone-short"].includes(arm)) {
@@ -200,6 +217,20 @@ function armPlan() {
     process.exit(2);
   }
   return raw;
+}
+
+function referenceLanguageEvidence({ selfTest, languageId }) {
+  if (selfTest) return Object.freeze({ mode: "unknown", scope: "unverified" });
+  const mode = flag("reference-language-mode");
+  const scope = flag("reference-language-evidence-scope");
+  if (languageId === "hi" && (!mode || mode === true || !scope || scope === true)) {
+    console.error("Hindi synthesis requires explicit reference evidence:");
+    console.error("  --reference-language-mode <devanagari|mixed|latin_only|unknown>");
+    console.error("  --reference-language-evidence-scope <exact_reference|source_transcript|unverified>");
+    console.error("Nothing was written. An omitted label can silently change effective CFG.");
+    process.exit(2);
+  }
+  return explicitReferenceLanguageEvidence({ mode: mode || "unknown", scope: scope || "unverified" });
 }
 
 async function drain(stream) {
@@ -266,6 +297,13 @@ async function buildStimuli({ selfTest = false } = {}) {
   const runId = String(flag("run", `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomBytes(3).toString("hex")}`));
   const paths = runPaths(runId);
   const arms = armPlan();
+  const cfgAb = flags.has("cfg-ab");
+  const languageId = String(flag("language", "hi"));
+  if (cfgAb && languageId !== "hi") {
+    console.error("--cfg-ab is a Hindi conditioning benchmark and requires --language hi");
+    process.exit(2);
+  }
+  const referenceEvidence = referenceLanguageEvidence({ selfTest, languageId });
   const wanted = Math.max(4, Math.min(20, num("items", 6)));
   const runSecret = randomBytes(32).toString("hex");
   const started = Date.now();
@@ -313,6 +351,9 @@ async function buildStimuli({ selfTest = false } = {}) {
   // does nothing reports a pass on a tree it never read).
   const needsRuntime = !selfTest && arms.some((arm) => arm !== "real");
   let chatterbox = null;
+  let cfgClient = null;
+  let cfgPlan = null;
+  let runtimeConfig = null;
   if (needsRuntime) {
     const missing = ["AZURE_OPEN_VOICE_ORIGIN", "OPEN_VOICE_HMAC_SECRET"].filter((name) => !String(process.env[name] || "").trim());
     if (missing.length) {
@@ -320,9 +361,53 @@ async function buildStimuli({ selfTest = false } = {}) {
       console.error("Nothing was written. The clone arms come from the deployed runtime or they do not exist.");
       process.exit(2);
     }
-    chatterbox = await import("../api/_voice/providers/open-chatterbox-preview.js")
-      .then((mod) => mod.createOpenChatterboxPreviewProvider());
+    runtimeConfig = openChatterboxConfig(process.env);
+    if (cfgAb) {
+      cfgClient = createHindiCfgBenchmarkClient({
+        incumbentCfgWeight: num("incumbent-cfg", 0.5),
+        referenceLanguageMode: referenceEvidence.mode,
+        referenceLanguageEvidenceScope: referenceEvidence.scope,
+      });
+      cfgPlan = cfgClient.plan;
+    } else {
+      chatterbox = await import("../api/_voice/providers/open-chatterbox-preview.js")
+        .then((mod) => mod.createOpenChatterboxPreviewProvider());
+    }
+  } else if (selfTest && cfgAb) {
+    cfgPlan = buildHindiCfgBenchmarkPlan({
+      incumbentCfgWeight: num("incumbent-cfg", 0.5),
+      referenceLanguageMode: referenceEvidence.mode,
+      referenceLanguageEvidenceScope: referenceEvidence.scope,
+      modelArm: "selftest-tone",
+      modelPack: "selftest-tone",
+      modelCommitment: sha256(Buffer.from("earbench-selftest-tone-model")),
+    });
   }
+  const cfgById = new Map((cfgPlan || []).map((arm) => [arm.id, arm]));
+  const standardConditioning = voiceLanguageConditioning({
+    languageId,
+    referenceLanguageMode: referenceEvidence.mode,
+    referenceLanguageEvidenceScope: referenceEvidence.scope,
+    textLanguageMode: "latin_only",
+    requestedCfgWeight: 0.5,
+  });
+  const armDefinitions = arms.map((arm) => {
+    if (arm === "real") return Object.freeze({ id: arm, role: "recorded_reference", requestedCfgWeight: null, effectiveCfgWeight: null });
+    if (cfgById.has(arm)) return cfgById.get(arm);
+    return Object.freeze({
+      id: arm,
+      role: arm === "clone-short" ? "short_reference_control" : "full_reference_control",
+      languageId,
+      referenceLanguageMode: referenceEvidence.mode,
+      referenceLanguageEvidenceScope: referenceEvidence.scope,
+      requestedCfgWeight: standardConditioning.requestedCfgWeight,
+      effectiveCfgWeight: standardConditioning.effectiveCfgWeight,
+      conditioningContract: "vyakti-voice-language-conditioning/v1",
+      modelArm: runtimeConfig?.modelArm || "selftest-tone",
+      modelPack: runtimeConfig?.modelName || "selftest-tone",
+      modelCommitment: runtimeConfig?.modelCommitment || sha256(Buffer.from("earbench-selftest-tone-model")),
+    });
+  });
   const fullPrompt = wrapWav(referencePcm.subarray(0, Math.floor((MAX_PROMPT_MS / 1000) * SAMPLE_RATE) * 2));
   const shortPrompt = wrapWav(referencePcm.subarray(0, Math.floor((SHORT_PROMPT_MS / 1000) * SAMPLE_RATE) * 2));
 
@@ -341,19 +426,28 @@ async function buildStimuli({ selfTest = false } = {}) {
         pcm = Buffer.from(cutPcm(referencePcm, item.realFrom.t0, item.realFrom.t1));
       } else {
         const prompt = arm === "clone-short" ? shortPrompt : fullPrompt;
+        const seed = 41_000 + index;
         // Same seed and same style across the two clone arms: the ONLY thing
-        // that differs between them is how much reference audio conditioned
-        // them, which is the question the second arm exists to ask.
+        // that differs in the CFG benchmark is effective CFG. Its incumbent
+        // control also uses the legacy wire compatibility path, and that
+        // protocol difference is recorded in the sealed key rather than hidden.
         let result;
         try {
-          result = await synthesizeWithRetry(chatterbox, {
+          const request = {
             requestId: randomUUID(),
             text: item.text,
-            languageId: String(flag("language", "hi")),
-            seed: 41_000 + index,
-            reference: { bytes: prompt },
+            languageId,
+            seed,
+            reference: {
+              bytes: prompt,
+              languageMode: referenceEvidence.mode,
+              languageEvidenceScope: referenceEvidence.scope,
+            },
             style: { exaggeration: 0.45, cfgWeight: 0.5, temperature: 0.8 },
-          });
+          };
+          result = cfgAb
+            ? await synthesizeWithRetry({ synthesizePreview: (value) => cfgClient.synthesize(cfgById.get(arm), value) }, request)
+            : await synthesizeWithRetry(chatterbox, request);
         } catch (error) {
           console.error(`\nsynthesis failed on ${arm}/${item.id}: ${`${error?.code || ""} ${error?.message || error}`.trim()}`);
           console.error("Nothing was written. A partial stimulus set is worse than none: it would be");
@@ -361,7 +455,38 @@ async function buildStimuli({ selfTest = false } = {}) {
           process.exit(1);
         }
         pcm = await drain(result.stream);
-        receipt = { arm, item: item.id, ...result.receipt };
+        const armDefinition = armDefinitions.find((entry) => entry.id === arm);
+        const conditioning = cfgAb
+          ? bindCfgBenchmarkReceipt({
+            arm: armDefinition,
+            receipt: result.receipt,
+            itemId: item.id,
+            seed,
+            referenceSha256: sha256(prompt),
+            textSha256: sha256(Buffer.from(item.text)),
+          })
+          : Object.freeze({
+            benchmarkVersion: "vyakti-voice-conditioning-observation/v1",
+            arm,
+            itemId: item.id,
+            seed,
+            textSha256: sha256(Buffer.from(item.text)),
+            referenceSha256: result.receipt.referenceSha256,
+            requestedCfgWeight: result.receipt.requestedCfgWeight,
+            effectiveCfgWeight: result.receipt.effectiveCfgWeight,
+            referenceLanguageMode: result.receipt.referenceLanguageMode,
+            referenceLanguageEvidenceScope: result.receipt.referenceLanguageEvidenceScope,
+            textLanguageMode: result.receipt.textLanguageMode,
+            conditioningContract: result.receipt.conditioningContract,
+            modelArm: result.receipt.modelArm,
+            modelPack: result.receipt.modelPack,
+            modelCommitment: result.receipt.modelCommitment,
+            synthesisCommitment: result.receipt.synthesisCommitment,
+            outputSha256: result.receipt.outputSha256,
+            qualityState: result.receipt.qualityState,
+            qualityWarnings: result.receipt.qualityWarnings,
+          });
+        receipt = { arm, item: item.id, seed, conditioning, ...result.receipt };
         receipts.push(receipt);
         process.stdout.write(`\rsynthesis   ${receipts.length} clip(s), rtf ${receipt.realTimeFactor.toFixed(2)}   `);
       }
@@ -369,6 +494,20 @@ async function buildStimuli({ selfTest = false } = {}) {
     }
   }
   if (receipts.length) console.log("");
+  if (cfgAb && !selfTest) {
+    for (const item of items) {
+      const pair = receipts.filter((receipt) => receipt.item === item.id);
+      if (pair.length !== 2 || pair[0].seed !== pair[1].seed ||
+          pair[0].conditioning.textSha256 !== pair[1].conditioning.textSha256 ||
+          pair[0].conditioning.referenceSha256 !== pair[1].conditioning.referenceSha256 ||
+          pair[0].conditioning.modelCommitment !== pair[1].conditioning.modelCommitment) {
+        console.error(`matched-seed binding failed for ${item.id}; refusing to write a CFG bench`);
+        process.exit(1);
+      }
+    }
+    console.log(`conditioning ${CFG_BENCHMARK_VERSION}, matched seed/text/reference/model on ${items.length} pair(s)`);
+    console.log("            neither arm is designated as better; listening decides whether they differ");
+  }
 
   // treatment — identical path for every arm, disclosure trim on the clone arms
   const window = { minMs: num("disclosure-min-ms", 1_100), maxMs: num("disclosure-max-ms", 6_000) };
@@ -476,6 +615,15 @@ async function buildStimuli({ selfTest = false } = {}) {
     runSecret,
     policy: DEFAULT_POLICY,
     arms,
+    benchmark: cfgAb ? Object.freeze({
+      version: CFG_BENCHMARK_VERSION,
+      question: "blind_matched_seed_cfg_comparison",
+      claim: "no_arm_preferred",
+      matchedFields: ["seed", "textSha256", "referenceSha256", "modelArm", "modelCommitment"],
+      knownWireDifference: "conditioning_contract",
+    }) : null,
+    armDefinitions,
+    referenceLanguageEvidence: referenceEvidence,
     items,
     stimuli,
     trials: abx,

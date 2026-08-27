@@ -4966,3 +4966,53 @@ that bound artifact first timed out during the scale-to-zero cold start, then
 the warm retry returned in 29,547 ms: 263,084-byte 24 kHz mono WAV, PerTh
 verified with score 1, RTF 3.216058. n=1 preview; no likeness score and no
 human preference claim are inferred from transport success.
+
+## `hindi-cfg-benchmark-contract-local-2026-08-27`
+
+**Measured 2026-08-27, offline.** `node evals/run.mjs earbench` passed 104/104
+deterministic assertions. Fourteen focused assertions cover the new conditioning
+surface: omitted reference evidence refuses; the pair binds model/reference
+fields; requested/effective CFG and both contracts are recorded; preference
+language is absent; model or effective-CFG drift refuses; both scripts pass
+explicit evidence; and `first-clone.mjs` writes its conditioning manifest. One
+of those assertions drives the benchmark-only legacy control through a signed
+mock transport and verifies request CFG 0.5, truthful `latin_only` /
+`exact_reference` evidence, legacy-contract labelling, model commitment, PerTh
+receipt and effective CFG 0.5.
+
+An additional CLI self-test, `node scripts/earbench.mjs selftest --cfg-ab
+--items 6`, passed over 18 synthetic stimuli plus one anchor, 18 ABX trials and
+3 catch trials. It verified equal on-disk stimulus size, opaque ids, served-tree
+separation and disclosure trimming for 12 synthetic-arm clips. `node --check`
+also passed for `scripts/earbench.mjs`, `scripts/first-clone.mjs` and
+`evals/earbench/cfg-conditioning.mjs`; `git diff --check` reported no whitespace
+errors.
+
+Scope: no Azure/Supabase call, GPU, TTS model, database or human listening ran.
+The mock and synthetic tones measure benchmark mechanics only. They provide no
+voice-quality, accent, similarity or arm-preference result.
+
+## `hindi-conditioning-release-candidate-local-2026-08-27`
+
+**Measured 2026-08-27, local and read-only against live SQL planning.** Open
+voice passed 53/53 checks; replica enrollment/storage passed 70/70; replica
+processing passed all registered checks; Studio enrollment quality passed 9/9;
+voice panel passed 85/85; channel ingestion passed 54/54; voice curriculum,
+delivery holdout and preference passed 25/25, 22/22 and 24/24. `npm run build`
+completed TypeScript and the production Vite build. A parameterized production
+Neon `EXPLAIN (FORMAT JSON)` of the changed atomic preview statement succeeded
+without executing its write; an initial PostgreSQL 42703 alias error was found
+and corrected by separating candidate and selected CTEs.
+
+The fixtures cover the real processing lineage where transcript evidence has
+`artifact_id=NULL`, a source with zero transcript spans remaining `unverified`,
+Sarvam's documented automatic-language request, nullable probability and no
+invented code-switch claim. The storage suite covers both legacy service-role
+JWT headers and new `sb_secret_` API-key-only headers, including raw immutable
+object write/read. The production web build was exercised, but no release in
+this measurement was deployed.
+
+Scope: no Hindi checkpoint was remotely built or loaded, no GPU synthesis or
+cold start ran, and no person listened to a generated clip. These are contract,
+SQL-shape and UI/runtime regression measurements, not evidence that accent,
+naturalness or owner likeness improved.

@@ -19,6 +19,7 @@ const consents: ConsentReceipt[] = (["capture", "transcription", "storage"] as c
 createRoot(document.getElementById("root")!).render(
   <div className="studio-shell"><main className="studio-main">
     <EnrollmentWorkspace
+      replicaId={RID}
       consents={consents}
       sources={[]}
       loading={false}

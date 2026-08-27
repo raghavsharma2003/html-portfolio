@@ -19,6 +19,7 @@
 // is the only place the real ones are wired.
 import { createHash } from "node:crypto";
 import { assertSynthesisResult } from "./contracts.js";
+import { voiceScriptMode } from "./language-conditioning.js";
 import {
   WARMUP,
   capPanelText,
@@ -90,6 +91,7 @@ export async function handleVoicePreviewPanel(body, deps) {
   try { text = capPanelText(body?.text); }
   catch (error) { return jsonResult(error.status || 400, { state: "error", error: error.code }); }
   const textHash = createHash("sha256").update(text, "utf8").digest("hex");
+  const textLanguageMode = voiceScriptMode(text).mode;
 
   // OWNERSHIP FIRST, before a byte of storage or a second of GPU is spent. A
   // caller who does not own this replica must pay nothing and learn nothing.
@@ -101,6 +103,7 @@ export async function handleVoicePreviewPanel(body, deps) {
       trace_id: deps.traceId,
       language_id: languageId,
       text_hash: textHash,
+      text_language_mode: textLanguageMode,
       style_key: PANEL_STYLE_KEY,
     });
   } catch (error) {
@@ -154,6 +157,8 @@ export async function handleVoicePreviewPanel(body, deps) {
         bytes: stored.body,
         sha256: started.reference.sha256,
         durationMs: started.reference.durationMs,
+        languageMode: started.reference.languageMode,
+        languageEvidenceScope: started.reference.languageEvidenceScope,
       },
       style: {
         exaggeration: started.previewStyle.exaggeration,
@@ -215,6 +220,10 @@ export async function handleVoicePreviewPanel(body, deps) {
         "X-Vyakti-Generation": started.generation.generation_id,
         "X-Vyakti-Disclosure": "audible-prefix-v1",
         "X-Vyakti-Model-Commitment": deps.provider.modelCommitment,
+        "X-Vyakti-Voice-Model-Arm": synthesized.receipt?.modelArm || deps.provider.modelArm || "general",
+        "X-Vyakti-Voice-Quality-State": synthesized.receipt?.qualityState || started.voiceConditioning.qualityState,
+        "X-Vyakti-Voice-Quality-Warnings": (synthesized.receipt?.qualityWarnings || started.voiceConditioning.qualityWarnings).join(","),
+        "X-Vyakti-Voice-Effective-Cfg": String(synthesized.receipt?.effectiveCfgWeight ?? started.voiceConditioning.effectiveCfgWeight),
       }),
     });
   } catch (error) {

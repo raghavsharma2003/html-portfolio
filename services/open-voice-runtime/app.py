@@ -34,15 +34,26 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 import lora
+from hindi_pack import load_hindi_pack
 
 
 PROTOCOL = "vyakti-open-voice/v1"
-MODEL_NAME = "chatterbox-multilingual-v3"
+CONDITIONING_CONTRACT = "vyakti-voice-language-conditioning/v1"
 MODEL_SOURCE_COMMIT = "5de7a54aa4e5e2baadb0182dde554908b48b85c2"
 MODEL_CHECKPOINT_COMMIT = "5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18"
-MODEL_COMMITMENT = hashlib.sha256(
-    f"{MODEL_NAME}:{MODEL_SOURCE_COMMIT}:{MODEL_CHECKPOINT_COMMIT}".encode()
+BASE_PACK_NAME = "chatterbox-multilingual-v3"
+BASE_PACK_COMMITMENT = hashlib.sha256(
+    f"{BASE_PACK_NAME}:{MODEL_SOURCE_COMMIT}:{MODEL_CHECKPOINT_COMMIT}".encode()
 ).hexdigest()
+HINDI_PACK_NAME = "chatterbox-multilingual-hi-v3"
+HINDI_PACK_CHECKPOINT_COMMIT = "82ca71273cc2a9ab19efdf8315f865c1a5af0ee7"
+HINDI_PACK_COMMITMENT = hashlib.sha256(
+    f"{HINDI_PACK_NAME}:{MODEL_SOURCE_COMMIT}:{HINDI_PACK_CHECKPOINT_COMMIT}".encode()
+).hexdigest()
+MODEL_ARMS = {
+    "general": (BASE_PACK_NAME, BASE_PACK_COMMITMENT),
+    "hindi_v3": (HINDI_PACK_NAME, HINDI_PACK_COMMITMENT),
+}
 DISCLOSURE_PREFIX = "This is an AI-generated voice replica. "
 SUPPORTED_LANGUAGES = frozenset({
     "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi", "it",
@@ -62,6 +73,7 @@ MAX_ADAPTER_BYTES = 20 * 1024 * 1024
 MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 ADAPTER_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,63}$")
 TARGET_SAMPLE_RATE = 24_000
+LANGUAGE_MODES = frozenset({"devanagari", "mixed", "latin_only", "unknown"})
 
 
 class ServiceError(Exception):
@@ -213,6 +225,56 @@ def _adapter(payload: dict[str, Any]) -> tuple[bytes | None, str | None, str | N
     return blob, digest, adapter_id
 
 
+def _script_mode(value: str) -> str:
+    devanagari = sum(1 for character in value if 0x0900 <= ord(character) <= 0x097F)
+    latin = sum(1 for character in value if "A" <= character <= "Z" or "a" <= character <= "z")
+    if devanagari:
+        return "mixed" if latin else "devanagari"
+    return "latin_only" if latin else "unknown"
+
+
+def _language_conditioning(language: str, reference_mode: str, reference_scope: str, text_mode: str, requested_cfg: float) -> dict[str, Any]:
+    if reference_mode not in LANGUAGE_MODES or text_mode not in LANGUAGE_MODES:
+        raise ServiceError("language_conditioning_invalid", 422)
+    if reference_scope not in {"source_transcript", "exact_reference", "unverified"}:
+        raise ServiceError("language_conditioning_invalid", 422)
+    warnings: list[str] = []
+    effective_cfg = requested_cfg
+    quality_state = "language_match_not_assessed"
+    if language == "hi":
+        if reference_scope == "source_transcript":
+            warnings.append("reference_script_observed_at_source_scope")
+        elif reference_scope == "unverified":
+            warnings.append("reference_script_evidence_scope_unverified")
+        if reference_mode == "latin_only":
+            effective_cfg = 0.0
+            quality_state = "accent_transfer_mitigation_applied"
+            warnings.append("hindi_reference_latin_only_cfg_disabled")
+        elif reference_mode == "unknown":
+            effective_cfg = 0.0
+            quality_state = "reference_language_unverified"
+            warnings.append("hindi_reference_language_unverified_cfg_disabled")
+        elif reference_mode == "mixed":
+            quality_state = "mixed_reference_observed"
+            warnings.append("hindi_reference_mixed_script")
+        else:
+            quality_state = "script_match_observed"
+        if text_mode == "latin_only":
+            warnings.append("hindi_text_latin_only_unverified")
+        elif text_mode == "mixed":
+            warnings.append("hindi_text_mixed_script")
+        warnings.append("english_disclosure_under_hindi_language")
+    return {
+        "requested_cfg_weight": requested_cfg,
+        "effective_cfg_weight": effective_cfg,
+        "reference_language_mode": reference_mode,
+        "reference_language_evidence_scope": reference_scope,
+        "text_language_mode": text_mode,
+        "quality_state": quality_state,
+        "quality_warnings": warnings,
+    }
+
+
 def _request(payload: dict[str, Any]) -> dict[str, Any]:
     request_id = str(payload.get("request_id", ""))
     if not UUID_RE.fullmatch(request_id):
@@ -223,11 +285,42 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
     language = str(payload.get("language_id", "")).lower()
     if language not in SUPPORTED_LANGUAGES:
         raise ServiceError("language_not_supported", 422)
+    if str(payload.get("model_arm", "general")) != app.state.model_arm:
+        raise ServiceError("model_arm_binding_invalid", 409)
+    if app.state.model_arm == "hindi_v3" and language != "hi":
+        raise ServiceError("hindi_model_arm_language_invalid", 422)
     seed = payload.get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0 or seed > 2**31 - 1:
         raise ServiceError("seed_invalid", 422)
     audio, reference_sha256, reference_duration_ms = _reference(payload)
     adapter_blob, adapter_sha256, adapter_id = _adapter(payload)
+    if app.state.model_arm == "hindi_v3" and adapter_blob is not None:
+        # Existing speaker adapters were trained against the general T3
+        # checkpoint. Applying one to the Hindi pack without a measured
+        # compatibility qualification would make the receipt lie.
+        raise ServiceError("adapter_hindi_pack_unqualified", 409)
+    modern_conditioning = payload.get("conditioning_contract") == CONDITIONING_CONTRACT
+    if payload.get("conditioning_contract") not in (None, CONDITIONING_CONTRACT):
+        raise ServiceError("language_conditioning_contract_invalid", 409)
+    reference_mode = str(payload.get("reference_language_mode", "unknown")).lower()
+    reference_scope = str(payload.get("reference_language_evidence_scope", "unverified")).lower()
+    observed_text_mode = _script_mode(text[len(DISCLOSURE_PREFIX):])
+    text_mode = str(payload.get("text_language_mode", observed_text_mode)).lower()
+    if modern_conditioning and text_mode != observed_text_mode:
+        raise ServiceError("text_language_mode_binding_invalid", 409)
+    requested_cfg = _finite(payload.get("requested_cfg_weight", payload.get("cfg_weight", 0.5)), 0.0, 1.0, "cfg_weight_invalid")
+    conditioning = _language_conditioning(language, reference_mode, reference_scope, text_mode, requested_cfg)
+    supplied_cfg = _finite(payload.get("cfg_weight", conditioning["effective_cfg_weight"]), 0.0, 1.0, "cfg_weight_invalid")
+    if modern_conditioning and not math.isclose(supplied_cfg, conditioning["effective_cfg_weight"], abs_tol=1e-9):
+        raise ServiceError("language_conditioning_binding_invalid", 409)
+    if not modern_conditioning:
+        # Rolling-deploy compatibility: the previous app plane sends none of
+        # the language fields. Preserve the exact CFG it asked for and label
+        # the missing cross-plane enforcement instead of breaking every call
+        # while Container Apps moves to this revision.
+        conditioning["effective_cfg_weight"] = supplied_cfg
+        conditioning["quality_state"] = "legacy_app_conditioning_unverified"
+        conditioning["quality_warnings"].append("legacy_app_language_contract_unverified")
     return {
         "request_id": str(uuid.UUID(request_id)),
         "adapter_blob": adapter_blob,
@@ -240,7 +333,9 @@ def _request(payload: dict[str, Any]) -> dict[str, Any]:
         "reference_sha256": reference_sha256,
         "reference_duration_ms": reference_duration_ms,
         "exaggeration": _finite(payload.get("exaggeration", 0.5), 0.0, 1.5, "exaggeration_invalid"),
-        "cfg_weight": _finite(payload.get("cfg_weight", 0.5), 0.0, 1.0, "cfg_weight_invalid"),
+        **conditioning,
+        "conditioning_contract": CONDITIONING_CONTRACT if modern_conditioning else None,
+        "cfg_weight": supplied_cfg,
         "temperature": _finite(payload.get("temperature", 0.8), 0.2, 1.5, "temperature_invalid"),
     }
 
@@ -263,6 +358,9 @@ def _pcm(samples: torch.Tensor, source_rate: int) -> tuple[bytes, int]:
 
 def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
     started = time.perf_counter()
+    model = app.state.model
+    pack_name = app.state.model_name
+    pack_commitment = app.state.model_commitment
     torch.manual_seed(value["seed"])
     np.random.seed(value["seed"])
     if torch.cuda.is_available():
@@ -275,14 +373,14 @@ def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
     try:
         if value["adapter_blob"] is not None:
             try:
-                handle = lora.load(app.state.model.t3, value["adapter_blob"])
+                handle = lora.load(model.t3, value["adapter_blob"])
             except lora.AdapterError as exc:
                 raise ServiceError(exc.code, 422) from exc
         with tempfile.NamedTemporaryFile(suffix=".wav") as reference:
             reference.write(value["reference_audio"])
             reference.flush()
             with torch.inference_mode():
-                waveform = app.state.model.generate(
+                waveform = model.generate(
                     value["text"],
                     language_id=value["language_id"],
                     audio_prompt_path=reference.name,
@@ -298,9 +396,9 @@ def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
             # fact follow the removal — but that is a property of a third-party
             # class we pin by commit, not a promise it makes. Dropping the cache
             # costs one cheap re-wrap and removes the question entirely.
-            app.state.model.t3.compiled = False
-            app.state.model.t3.patched_model = None
-    pcm, duration_ms = _pcm(waveform, int(app.state.model.sr))
+            model.t3.compiled = False
+            model.t3.patched_model = None
+    pcm, duration_ms = _pcm(waveform, int(model.sr))
     samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
     detected = float(app.state.perth.get_watermark(samples, sample_rate=TARGET_SAMPLE_RATE))
     if not math.isfinite(detected) or detected < app.state.perth_threshold:
@@ -316,7 +414,7 @@ def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
     }
     return {
         **adapter_fields,
-        "synthesis_commitment": lora.synthesis_commitment(MODEL_COMMITMENT, value["adapter_sha256"]),
+        "synthesis_commitment": lora.synthesis_commitment(app.state.model_commitment, value["adapter_sha256"]),
         "request_id": value["request_id"],
         "audio_base64": base64.b64encode(pcm).decode(),
         "output_sha256": _sha(pcm),
@@ -328,8 +426,19 @@ def _synthesize_sync(value: dict[str, Any]) -> dict[str, Any]:
         "real_time_factor": round(elapsed_ms / duration_ms, 6),
         "reference_sha256": value["reference_sha256"],
         "reference_duration_ms": value["reference_duration_ms"],
-        "model": MODEL_NAME,
-        "model_commitment": MODEL_COMMITMENT,
+        "model": app.state.model_name,
+        "model_commitment": app.state.model_commitment,
+        "model_arm": app.state.model_arm,
+        "model_pack": pack_name,
+        "model_pack_commitment": pack_commitment,
+        "reference_language_mode": value["reference_language_mode"],
+        "reference_language_evidence_scope": value["reference_language_evidence_scope"],
+        "text_language_mode": value["text_language_mode"],
+        "requested_cfg_weight": value["requested_cfg_weight"],
+        "effective_cfg_weight": value["effective_cfg_weight"],
+        "quality_state": value["quality_state"],
+        "quality_warnings": value["quality_warnings"],
+        **({"conditioning_contract": CONDITIONING_CONTRACT} if value["conditioning_contract"] else {}),
         "perth_watermark_verified": True,
         "perth_score": round(detected, 8),
     }
@@ -342,7 +451,16 @@ async def lifespan(application: FastAPI):
     if os.getenv("OPEN_VOICE_REQUIRE_CUDA", "true").lower() != "false" and application.state.device.type != "cuda":
         raise RuntimeError("open_voice_cuda_required")
     model_root = os.getenv("OPEN_VOICE_MODEL_ROOT", "/models/chatterbox-multilingual-v3")
-    application.state.model = ChatterboxMultilingualTTS.from_local(model_root, application.state.device, t3_model="v3")
+    hindi_model_root = os.getenv("OPEN_VOICE_HINDI_MODEL_ROOT", "/models/chatterbox-multilingual-hi-v3")
+    application.state.model_arm = os.getenv("OPEN_VOICE_MODEL_ARM", "general").lower()
+    if application.state.model_arm not in MODEL_ARMS:
+        raise RuntimeError("open_voice_model_arm_invalid")
+    application.state.model_name, application.state.model_commitment = MODEL_ARMS[application.state.model_arm]
+    application.state.model = (
+        load_hindi_pack(model_root, hindi_model_root, application.state.device)
+        if application.state.model_arm == "hindi_v3"
+        else ChatterboxMultilingualTTS.from_local(model_root, application.state.device, t3_model="v3")
+    )
     if int(application.state.model.sr) != TARGET_SAMPLE_RATE:
         raise RuntimeError("open_voice_model_sample_rate_unsupported")
     application.state.perth = perth.PerthImplicitWatermarker()
@@ -363,8 +481,9 @@ app = FastAPI(title="Vyakti Open Voice Runtime", docs_url=None, redoc_url=None, 
 async def health() -> JSONResponse:
     return JSONResponse(status_code=200 if getattr(app.state, "ready", False) else 503, content={
         "ready": bool(getattr(app.state, "ready", False)),
-        "model": MODEL_NAME,
-        "model_commitment": MODEL_COMMITMENT,
+        "model": getattr(app.state, "model_name", BASE_PACK_NAME),
+        "model_commitment": getattr(app.state, "model_commitment", BASE_PACK_COMMITMENT),
+        "model_arm": getattr(app.state, "model_arm", "general"),
     })
 
 

@@ -40,6 +40,36 @@ node scripts/earbench.mjs listen
 node scripts/earbench.mjs score
 ```
 
+Hindi runs must state what is actually known about the conditioning reference.
+The command refuses to synthesise if either field is omitted:
+
+```bash
+node scripts/earbench.mjs stimuli \
+  --reference-language-mode latin_only \
+  --reference-language-evidence-scope exact_reference
+```
+
+`latin_only` is script evidence, not a claim that the speaker is English. Use
+`exact_reference` only when the selected prompt itself was inspected or
+transcribed. Use `source_transcript` for a source-wide observation and
+`unverified` when no narrower evidence exists.
+
+For the blind matched-seed Hindi CFG comparison:
+
+```bash
+node scripts/earbench.mjs stimuli --cfg-ab \
+  --reference-language-mode latin_only \
+  --reference-language-evidence-scope exact_reference
+```
+
+This creates two synthetic arms with the same text, seed, reference bytes,
+model arm and model commitment. One preserves the incumbent requested CFG
+(default `0.5`) through the runtime's legacy compatibility contract. The other
+requests the documented `cfg=0` accent-transfer mitigation through the current
+conditioning contract. The contract difference is recorded as a known wire
+difference in the sealed key. Neither arm is labelled as better. Only the blind
+listening result can say whether listeners distinguish them or rate one higher.
+
 Environment for step 1 (`docs/gurukul/ENV-MANIFEST.md`,
 `docs/gurukul/AZURE-DEPLOY-STATE.md`):
 
@@ -57,6 +87,10 @@ Useful flags:
                          (default: reference/owner-voice-20260826.wav)
 --items <n>              how many sentences per arm (default 6, 4-20)
 --arms real,clone-full,clone-short
+--cfg-ab                 blind incumbent-requested-CFG vs explicit-cfg-zero run
+--incumbent-cfg <0..1>   incumbent control value (default 0.5; must be >0)
+--reference-language-mode <devanagari|mixed|latin_only|unknown>
+--reference-language-evidence-scope <exact_reference|source_transcript|unverified>
 --run <id>               name the run; `listen`/`score` default to the newest
 --port <n>               listening page port (default 8787)
 --unmatched              skip the transcript step and use the scripted corpus
@@ -96,6 +130,12 @@ tested on every item.
 up to 90 s of reference), `clone-short` (the same runtime on 12 s). The second
 synthetic arm is nearly free and answers the cheapest real question the lane
 has: how much reference audio fidelity actually needs.
+
+With `--cfg-ab`, the synthetic arms are `clone-cfg-incumbent` and
+`clone-cfg-zero`. Their requested and effective CFG, reference language mode,
+evidence scope, conditioning contract, model arm, model pack, model commitment,
+seed, text hash and reference hash are stored in the sealed key. None of those
+fields are served to the listening page.
 
 ---
 

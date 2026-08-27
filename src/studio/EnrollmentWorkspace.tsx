@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
+import {
+  deriveEnrollmentLanguageReadiness,
+  ENROLLMENT_LANGUAGE_LABELS,
+  missingHindiFamily,
+  parseEnrollmentLanguageLabels,
+  voiceEnrollmentSources,
+  type EnrollmentLanguage,
+  type EnrollmentLanguageChoice,
+  type EnrollmentLanguageLabels,
+} from "./enrollmentLanguage";
 import type {
   ConsentReceipt,
   ReplicaSource,
@@ -56,6 +66,17 @@ const IDENTITY_DOCUMENT_POLICY = {
 } as const;
 type UploadMode = SourceKind | "identity_document";
 
+const CALIBRATION_COPY: Record<Exclude<EnrollmentLanguage, "english">, { title: string; prompt: string }> = {
+  hindi: {
+    title: "Hindi calibration",
+    prompt: "नमस्ते, मैं अपनी सामान्य आवाज़ और रफ़्तार में बोल रहा हूँ। जब मैं कोई कठिन बात समझाता हूँ, तो पहले उसका सरल अर्थ बताता हूँ, फिर एक छोटा उदाहरण देता हूँ। मुझे साफ़ और स्वाभाविक ढंग से बात करना पसंद है, ताकि सुनने वाला बिना जल्दबाज़ी के समझ सके।",
+  },
+  hinglish: {
+    title: "Hinglish calibration",
+    prompt: "Namaste, main apni normal voice aur pace mein bol raha hoon. Jab main koi difficult idea explain karta hoon, pehle uska simple meaning batata hoon, phir ek chhota example deta hoon. Mere liye clear rehna important hai, isliye main naturally Hindi aur English ke beech switch karta hoon.",
+  },
+};
+
 const MIME_BY_EXTENSION: Record<string, string> = {
   wav: "audio/wav",
   mp3: "audio/mpeg",
@@ -104,6 +125,45 @@ function dateLabel(value: string) {
   return Number.isNaN(date.getTime())
     ? "Recently"
     : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
+
+function fileKey(file: File) {
+  return [file.name, file.size, file.lastModified, file.type].join(":");
+}
+
+function durationLabel(seconds: number) {
+  const rounded = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const remainder = rounded % 60;
+  if (hours) return `${hours}h ${minutes}m`;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
+function mediaDuration(file: File) {
+  return new Promise<number | null>((resolve) => {
+    const media = document.createElement(file.type.startsWith("video/") ? "video" : "audio");
+    const url = URL.createObjectURL(file);
+    const finish = (value: number | null) => {
+      media.removeAttribute("src");
+      media.load();
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    media.preload = "metadata";
+    media.onloadedmetadata = () => finish(Number.isFinite(media.duration) ? media.duration : null);
+    media.onerror = () => finish(null);
+    media.src = url;
+  });
+}
+
+function storedLanguageLabels(replicaId: string) {
+  if (typeof window === "undefined") return {};
+  try {
+    return parseEnrollmentLanguageLabels(window.localStorage.getItem(`vyakti:enrollment-languages:${replicaId}`));
+  } catch {
+    return {};
+  }
 }
 
 function normalizedMime(file: File, kind: SourceKind) {
@@ -155,6 +215,7 @@ function SourceState({ state }: { state: ReplicaSource["state"] }) {
 }
 
 interface Props {
+  replicaId: string;
   consents: ConsentReceipt[];
   sources: ReplicaSource[];
   loading: boolean;
@@ -174,6 +235,7 @@ interface Props {
 }
 
 export default function EnrollmentWorkspace({
+  replicaId,
   consents,
   sources,
   loading,
@@ -192,6 +254,11 @@ export default function EnrollmentWorkspace({
   const [uploadMode, setUploadMode] = useState<UploadMode>("audio");
   const [files, setFiles] = useState<File[]>([]);
   const file = files[0] || null;
+  const [fileLanguages, setFileLanguages] = useState<Record<string, EnrollmentLanguageChoice>>({});
+  const [fileDurations, setFileDurations] = useState<Record<string, number | null>>({});
+  const [sourceLanguages, setSourceLanguages] = useState<EnrollmentLanguageLabels>(() => storedLanguageLabels(replicaId));
+  const [calibrationLanguage, setCalibrationLanguage] = useState<Exclude<EnrollmentLanguage, "english"> | null>(null);
+  const [activeFileIndex, setActiveFileIndex] = useState(-1);
   const [containsThirdParties, setContainsThirdParties] = useState<boolean | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -202,6 +269,7 @@ export default function EnrollmentWorkspace({
   const [deleteText, setDeleteText] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const durationProbe = useRef(0);
   const retryFiles = useRef(new Map<string, File>());
   // A successful PUT and a successful manifest finalization are two distinct
   // durability boundaries. Keep the exact file plus this marker until both
@@ -214,6 +282,26 @@ export default function EnrollmentWorkspace({
     const active = consents.filter((receipt) => !receipt.revoked_at && receipt.expires_at);
     return active.sort((a, b) => String(b.expires_at).localeCompare(String(a.expires_at)))[0]?.expires_at ?? null;
   }, [consents]);
+  const selectedLanguageChoices = useMemo(
+    () => files.map((selectedFile) => fileLanguages[fileKey(selectedFile)] || "unknown"),
+    [fileLanguages, files],
+  );
+  const languageReadiness = useMemo(
+    () => deriveEnrollmentLanguageReadiness(sources, sourceLanguages, selectedLanguageChoices),
+    [selectedLanguageChoices, sourceLanguages, sources],
+  );
+  const missingHindiReferences = useMemo(() => missingHindiFamily(languageReadiness), [languageReadiness]);
+  const voiceSources = useMemo(() => voiceEnrollmentSources(sources), [sources]);
+  const labeledVoiceSourceCount = voiceSources.filter((source) => sourceLanguages[source.source_id] && sourceLanguages[source.source_id] !== "unknown").length;
+  const isVoiceUpload = uploadMode === "audio" || uploadMode === "video";
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(`vyakti:enrollment-languages:${replicaId}`, JSON.stringify(sourceLanguages));
+    } catch {
+      // Browser storage is a convenience for owner labels, never a readiness authority.
+    }
+  }, [replicaId, sourceLanguages]);
 
   useEffect(() => {
     if (!uploadBusy) return;
@@ -235,6 +323,40 @@ export default function EnrollmentWorkspace({
 
   function toggleAttestation(index: number) {
     setAttestations((current) => current.map((checked, item) => item === index ? !checked : checked));
+  }
+
+  function selectFiles(nextFiles: File[]) {
+    const probe = ++durationProbe.current;
+    const defaultLanguage: EnrollmentLanguageChoice = calibrationLanguage || "unknown";
+    setFiles(nextFiles);
+    setFileLanguages(Object.fromEntries(nextFiles.map((selectedFile) => [fileKey(selectedFile), defaultLanguage])));
+    setFileDurations({});
+    setUploadError("");
+    if (!isVoiceUpload || !nextFiles.length) return;
+    void Promise.all(nextFiles.map(async (selectedFile) => [fileKey(selectedFile), await mediaDuration(selectedFile)] as const))
+      .then((entries) => {
+        if (durationProbe.current === probe) setFileDurations(Object.fromEntries(entries));
+      });
+  }
+
+  function resetSelectedFiles() {
+    durationProbe.current += 1;
+    setFiles([]);
+    setFileLanguages({});
+    setFileDurations({});
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  function markSourceLanguage(sourceId: string, language: EnrollmentLanguageChoice) {
+    setSourceLanguages((current) => ({ ...current, [sourceId]: language }));
+  }
+
+  function openCalibration(language: Exclude<EnrollmentLanguage, "english">) {
+    setUploadMode("audio");
+    resetSelectedFiles();
+    setContainsThirdParties(null);
+    setUploadError("");
+    setCalibrationLanguage(language);
   }
 
   async function grant() {
@@ -281,6 +403,7 @@ export default function EnrollmentWorkspace({
     setUploadProgress(0);
     try {
       for (const [index, current] of files.entries()) {
+        setActiveFileIndex(index);
         const identityInput = uploadMode === "identity_document" ? identityDocumentInput(current) : null;
         const kind = identityInput?.kind || uploadMode as SourceKind;
         const mime = identityInput?.mime || normalizedMime(current, kind);
@@ -297,6 +420,9 @@ export default function EnrollmentWorkspace({
           sha256,
           containsThirdParties,
         });
+        if (kind === "audio" || kind === "video") {
+          markSourceLanguage(result.source.source_id, fileLanguages[fileKey(current)] || "unknown");
+        }
         retryFiles.current.set(result.source.source_id, current);
         setPendingRetryId(result.source.source_id);
         setUploadPhase(`${prefix}Uploading directly to private storage`);
@@ -310,15 +436,16 @@ export default function EnrollmentWorkspace({
       }
       setUploadPhase("Upload complete. Processing queued.");
       setUploadProgress(100);
-      setFiles([]);
+      resetSelectedFiles();
       setContainsThirdParties(null);
-      if (fileRef.current) fileRef.current.value = "";
+      setCalibrationLanguage(null);
       setTimeout(() => setUploadPhase(""), 2200);
     } catch (cause) {
       setUploadError(cause instanceof Error ? cause.message : "Upload could not be completed");
       setUploadPhase("");
     } finally {
       setUploadBusy(false);
+      setActiveFileIndex(-1);
     }
   }
 
@@ -346,9 +473,9 @@ export default function EnrollmentWorkspace({
       setPendingRetryId(null);
       setUploadPhase("Upload complete. Processing queued.");
       setUploadProgress(100);
-      setFiles([]);
+      resetSelectedFiles();
       setContainsThirdParties(null);
-      if (fileRef.current) fileRef.current.value = "";
+      setCalibrationLanguage(null);
       setTimeout(() => setUploadPhase(""), 2200);
     } catch (cause) {
       setUploadError(cause instanceof Error ? cause.message : "Upload retry could not be completed");
@@ -390,10 +517,14 @@ export default function EnrollmentWorkspace({
       retryFiles.current.delete(deleteTarget.source_id);
       if (pendingRetryId === deleteTarget.source_id) {
         setPendingRetryId(null);
-        setFiles([]);
+        resetSelectedFiles();
         setContainsThirdParties(null);
-        if (fileRef.current) fileRef.current.value = "";
       }
+      setSourceLanguages((current) => {
+        const next = { ...current };
+        delete next[deleteTarget.source_id];
+        return next;
+      });
       setDeleteTarget(null);
       setDeleteText("");
     } catch (cause) {
@@ -509,6 +640,76 @@ export default function EnrollmentWorkspace({
             </div>
           ) : (
             <>
+              <section className="language-readiness" aria-labelledby="language-readiness-title">
+                <div className="language-readiness-head">
+                  <div>
+                    <h4 id="language-readiness-title">Voice reference coverage</h4>
+                    <p>See which languages have a labeled voice source that finished private processing.</p>
+                  </div>
+                  <span>{labeledVoiceSourceCount} of {voiceSources.length} voice sources labeled</span>
+                </div>
+                <ul className="language-readiness-list">
+                  {languageReadiness.map((item) => (
+                    <li key={item.language}>
+                      <strong>{ENROLLMENT_LANGUAGE_LABELS[item.language]}</strong>
+                      <span>{item.sourceCount
+                        ? `${item.sourceCount} labeled source${item.sourceCount === 1 ? "" : "s"}`
+                        : item.selectedCount
+                          ? `${item.selectedCount} file${item.selectedCount === 1 ? "" : "s"} waiting to upload`
+                          : "No source is labeled for this language"}</span>
+                      <span className={`language-state language-state-${item.state}`}>{item.label}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="language-readiness-boundary">
+                  Coverage uses labels you add in this browser and the source processing state. It is not automatic language identification or a promise of synthesis quality.
+                </p>
+
+                {missingHindiReferences.length > 0 && (
+                  <div className="language-gap" role="status">
+                    <div>
+                      <strong>{missingHindiReferences.length === 2
+                        ? "Hindi and Hinglish are not confirmed yet"
+                        : `${ENROLLMENT_LANGUAGE_LABELS[missingHindiReferences[0]]} is not confirmed yet`}</strong>
+                      <p>
+                        {voiceSources.length && labeledVoiceSourceCount < voiceSources.length
+                          ? "One or more existing voice sources have no language label. Label them in the source ledger, or add a short calibration."
+                          : "Add a short, clean sample in the missing language before you judge that language in the clone."}
+                      </p>
+                    </div>
+                    <div className="language-gap-actions">
+                      {missingHindiReferences.includes("hindi") && (
+                        <button className="button secondary-button" type="button" onClick={() => openCalibration("hindi")}>Add Hindi calibration</button>
+                      )}
+                      {missingHindiReferences.includes("hinglish") && (
+                        <button className="button secondary-button" type="button" onClick={() => openCalibration("hinglish")}>Add Hinglish calibration</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {calibrationLanguage && (
+                  <div className="calibration-guide">
+                    <div className="calibration-guide-head">
+                      <div>
+                        <strong>{CALIBRATION_COPY[calibrationLanguage].title}</strong>
+                        <p>Start with 30 to 60 seconds in your normal pace, accent, and speaking style.</p>
+                      </div>
+                      <button className="quiet-action" type="button" onClick={() => setCalibrationLanguage(null)}>Close guide</button>
+                    </div>
+                    <blockquote lang={calibrationLanguage === "hindi" ? "hi" : "en-IN"}>{CALIBRATION_COPY[calibrationLanguage].prompt}</blockquote>
+                    <p className="calibration-honesty">More hours do not automatically improve similarity. A clean, representative sample is more useful for this language check.</p>
+                    <button
+                      className="button secondary-button"
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      Choose calibration recording
+                    </button>
+                  </div>
+                )}
+              </section>
+
               <div className="upload-grid">
                 <label>
                   <span className="field-label">Source type</span>
@@ -519,10 +720,10 @@ export default function EnrollmentWorkspace({
                     onChange={(event) => {
                       const next = event.target.value as UploadMode;
                       setUploadMode(next);
-                      setFiles([]);
+                      resetSelectedFiles();
+                      if (next !== "audio") setCalibrationLanguage(null);
                       setContainsThirdParties(next === "identity_document" ? false : null);
                       setUploadError("");
-                      if (fileRef.current) fileRef.current.value = "";
                     }}
                   >
                     <option value="identity_document">{IDENTITY_DOCUMENT_POLICY.label}</option>
@@ -536,10 +737,7 @@ export default function EnrollmentWorkspace({
                     multiple={uploadMode !== "identity_document"}
                     accept={uploadMode === "identity_document" ? IDENTITY_DOCUMENT_POLICY.accept : SOURCE_POLICY[uploadMode].accept}
                     disabled={uploadBusy || Boolean(pendingRetryId)}
-                    onChange={(event) => {
-                      setFiles(Array.from(event.target.files || []));
-                      setUploadError("");
-                    }}
+                    onChange={(event) => selectFiles(Array.from(event.target.files || []))}
                   />
                   <span className="file-icon" aria-hidden="true">↑</span>
                   <span className="file-picker-copy">
@@ -549,6 +747,60 @@ export default function EnrollmentWorkspace({
                   <span className="file-action">Browse</span>
                 </label>
               </div>
+
+              {files.length > 0 && (
+                <section className="intake-queue" aria-labelledby="intake-queue-title" aria-live="polite">
+                  <div className="intake-queue-head">
+                    <div>
+                      <h4 id="intake-queue-title">Selected file queue</h4>
+                      <p>This tab uploads one file at a time. Each completed file then moves to private processing.</p>
+                    </div>
+                    <span>{isVoiceUpload && files.every((selectedFile) => typeof fileDurations[fileKey(selectedFile)] === "number")
+                      ? `${durationLabel(files.reduce((total, selectedFile) => total + (fileDurations[fileKey(selectedFile)] || 0), 0))} total`
+                      : `${bytesLabel(files.reduce((total, selectedFile) => total + selectedFile.size, 0))} total`}</span>
+                  </div>
+                  <ol>
+                    {files.map((selectedFile, index) => {
+                      const key = fileKey(selectedFile);
+                      const queueState = uploadBusy
+                        ? index < activeFileIndex
+                          ? "Private processing queued"
+                          : index === activeFileIndex
+                            ? "Uploading in this tab"
+                            : "Waiting in this tab"
+                        : "Ready to upload";
+                      return (
+                        <li key={key}>
+                          <span className="queue-position">{index + 1}</span>
+                          <div className="queue-file-copy">
+                            <strong>{selectedFile.name}</strong>
+                            <span>{fileDurations[key] !== undefined && fileDurations[key] !== null ? durationLabel(fileDurations[key] as number) : bytesLabel(selectedFile.size)}</span>
+                          </div>
+                          {isVoiceUpload && (
+                            <label className="queue-language">
+                              <span>Spoken language</span>
+                              <select
+                                value={fileLanguages[key] || "unknown"}
+                                disabled={uploadBusy}
+                                onChange={(event) => setFileLanguages((current) => ({ ...current, [key]: event.target.value as EnrollmentLanguageChoice }))}
+                              >
+                                <option value="unknown">Not sure</option>
+                                <option value="english">English</option>
+                                <option value="hindi">Hindi</option>
+                                <option value="hinglish">Hinglish</option>
+                              </select>
+                            </label>
+                          )}
+                          <span className={`queue-state ${uploadBusy && index === activeFileIndex ? "queue-state-running" : ""}`}>{queueState}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                  {isVoiceUpload && (
+                    <p className="queue-honesty">An hour across several files is supported. Duration alone is not a quality signal. Prefer clear clips that represent how you actually speak.</p>
+                  )}
+                </section>
+              )}
 
               {uploadMode !== "identity_document" && <fieldset className="people-declaration">
                 <legend>Whose voice, face, or private information appears?</legend>
@@ -616,6 +868,20 @@ export default function EnrollmentWorkspace({
                         <div className="source-copy">
                           <strong>{source.capture_mode === "identity_document" ? "Government ID (identity only)" : SOURCE_POLICY[source.kind].label}</strong>
                           <span>{bytesLabel(source.byte_size)} · added {dateLabel(source.created_at)}{source.contains_third_parties ? " · includes others" : ""}</span>
+                          {(source.kind === "audio" || source.kind === "video") && (
+                            <label className="source-language-label">
+                              <span>Reference language</span>
+                              <select
+                                value={sourceLanguages[source.source_id] || "unknown"}
+                                onChange={(event) => markSourceLanguage(source.source_id, event.target.value as EnrollmentLanguageChoice)}
+                              >
+                                <option value="unknown">Not labeled</option>
+                                <option value="english">English</option>
+                                <option value="hindi">Hindi</option>
+                                <option value="hinglish">Hinglish</option>
+                              </select>
+                            </label>
+                          )}
                           {source.rejection_code && <small>{source.rejection_code.replaceAll("_", " ")}</small>}
                         </div>
                         <SourceState state={source.state} />

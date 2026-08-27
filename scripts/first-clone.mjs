@@ -44,6 +44,7 @@ import { createSarvamSaarasProvider } from "../api/_asr/providers/sarvam-saaras.
 import { fidelityScore, fidelityVerdict, embeddingVectors, DEFAULT_FIDELITY_POLICY } from "../api/_fidelity.js";
 import { transcriptStats, draftFromSignals } from "../api/_engine.gen.js";
 import { measureScriptAwareHindiMarkerProxy } from "../evals/speech/hinglish-script-score.mjs";
+import { explicitReferenceLanguageEvidence } from "../evals/earbench/cfg-conditioning.mjs";
 
 const SAMPLE_RATE = 24_000;
 const REFERENCE_WINDOWS = 4;
@@ -61,11 +62,20 @@ const CLONE_LINES = [
   "Toh doston, aaj ke liye itna hi, next session mein hum numericals solve karenge, tab tak apna homework poora kar lijiye.",
 ];
 
-const [, , audioPathRaw, displayNameRaw] = process.argv;
+const [, , audioPathRaw, displayNameRaw, ...optionArgs] = process.argv;
 if (!audioPathRaw) {
-  console.error('usage: node scripts/first-clone.mjs <audio.wav> "<display name>"');
+  console.error('usage: node scripts/first-clone.mjs <audio.wav> "<display name>" --reference-language-mode <mode> --reference-language-evidence-scope <scope>');
   process.exit(2);
 }
+const flags = new Map();
+for (let i = 0; i < optionArgs.length; i += 1) {
+  if (!optionArgs[i].startsWith("--")) continue;
+  const key = optionArgs[i].slice(2);
+  const next = optionArgs[i + 1];
+  if (next === undefined || next.startsWith("--")) flags.set(key, true);
+  else { flags.set(key, next); i += 1; }
+}
+const flag = (name, fallback = null) => flags.has(name) ? flags.get(name) : fallback;
 const audioPath = resolve(audioPathRaw);
 const displayName = String(displayNameRaw || "").trim();
 const outDir = process.env.FIRST_CLONE_OUT || resolve(process.cwd(), "first-clone-out");
@@ -74,6 +84,22 @@ mkdirSync(outDir, { recursive: true });
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const stages = [];
 const started = Date.now();
+const requestedCfgWeight = Number(flag("cfg-weight", process.env.FIRST_CLONE_CFG_WEIGHT || 0.5));
+const referenceLanguageMode = flag("reference-language-mode", process.env.FIRST_CLONE_REFERENCE_LANGUAGE_MODE);
+const referenceLanguageEvidenceScope = flag(
+  "reference-language-evidence-scope",
+  process.env.FIRST_CLONE_REFERENCE_LANGUAGE_EVIDENCE_SCOPE,
+);
+let voiceConditioning = {
+  version: "vyakti-first-clone-conditioning/v1",
+  languageId: "hi",
+  requestedCfgWeight,
+  referenceLanguageMode: referenceLanguageMode || null,
+  referenceLanguageEvidenceScope: referenceLanguageEvidenceScope || null,
+  state: "not_run",
+  clips: [],
+  claim: "not_listened",
+};
 
 function record(name, status, detail) {
   stages.push({ name, status, detail });
@@ -284,6 +310,20 @@ if (requireEnv("reference-embeddings", "AZURE_VOICE_EVIDENCE_ORIGIN", "AZURE_VOI
 const candidateWindows = [];
 const receipts = [];
 if (requireEnv("clone-synthesis", "AZURE_OPEN_VOICE_ORIGIN", "OPEN_VOICE_HMAC_SECRET")) {
+  let referenceEvidence;
+  try {
+    if (!Number.isFinite(requestedCfgWeight) || requestedCfgWeight < 0 || requestedCfgWeight > 1) {
+      throw Object.assign(new Error("first_clone_cfg_weight_invalid"), { code: "first_clone_cfg_weight_invalid" });
+    }
+    referenceEvidence = explicitReferenceLanguageEvidence({
+      mode: referenceLanguageMode,
+      scope: referenceLanguageEvidenceScope,
+    });
+  } catch (error) {
+    die("clone-synthesis", Object.assign(error, {
+      message: `${error?.message || error}; pass --reference-language-mode and --reference-language-evidence-scope so effective CFG cannot change silently`,
+    }));
+  }
   let prompt = wrapWav(pcm);
   let trimNote = "";
   if (probe.durationMs > MAX_PROMPT_MS) {
@@ -298,8 +338,12 @@ if (requireEnv("clone-synthesis", "AZURE_OPEN_VOICE_ORIGIN", "OPEN_VOICE_HMAC_SE
         try {
           result = await chatterbox.synthesizePreview({
             requestId: randomUUID(), text: CLONE_LINES[i], languageId: "hi", seed: 31_000 + i,
-            reference: { bytes: prompt },
-            style: { exaggeration: 0.45, cfgWeight: 0.5, temperature: 0.8 },
+            reference: {
+              bytes: prompt,
+              languageMode: referenceEvidence.mode,
+              languageEvidenceScope: referenceEvidence.scope,
+            },
+            style: { exaggeration: 0.45, cfgWeight: requestedCfgWeight, temperature: 0.8 },
           });
           break;
         } catch (error) {
@@ -317,9 +361,37 @@ if (requireEnv("clone-synthesis", "AZURE_OPEN_VOICE_ORIGIN", "OPEN_VOICE_HMAC_SE
       candidateWindows.push(wav);
       receipts.push(result.receipt);
     }
+    voiceConditioning = {
+      ...voiceConditioning,
+      referenceLanguageMode: referenceEvidence.mode,
+      referenceLanguageEvidenceScope: referenceEvidence.scope,
+      state: "observed",
+      clips: receipts.map((receipt, index) => ({
+        item: `clone-${index + 1}`,
+        seed: 31_000 + index,
+        requestedCfgWeight: receipt.requestedCfgWeight,
+        effectiveCfgWeight: receipt.effectiveCfgWeight,
+        referenceLanguageMode: receipt.referenceLanguageMode,
+        referenceLanguageEvidenceScope: receipt.referenceLanguageEvidenceScope,
+        textLanguageMode: receipt.textLanguageMode,
+        conditioningContract: receipt.conditioningContract,
+        modelArm: receipt.modelArm,
+        modelPack: receipt.modelPack,
+        modelCommitment: receipt.modelCommitment,
+        synthesisCommitment: receipt.synthesisCommitment,
+        referenceSha256: receipt.referenceSha256,
+        outputSha256: receipt.outputSha256,
+        qualityState: receipt.qualityState,
+        qualityWarnings: receipt.qualityWarnings,
+      })),
+    };
+    const effectiveCfg = [...new Set(receipts.map((receipt) => receipt.effectiveCfgWeight))].join(",");
+    const contracts = [...new Set(receipts.map((receipt) => receipt.conditioningContract))].join(",");
     const rtf = receipts.map((r) => r.realTimeFactor);
     record("clone-synthesis", "ok",
       `${receipts.length} clips, ${(receipts.reduce((a, b) => a + b.durationMs, 0) / 1000).toFixed(1)} s audio, rtf ${Math.min(...rtf).toFixed(2)}–${Math.max(...rtf).toFixed(2)}, watermark verified on all${trimNote}`);
+    record("voice-conditioning", "ok",
+      `requested cfg ${requestedCfgWeight}, effective cfg ${effectiveCfg}, reference ${referenceEvidence.mode}/${referenceEvidence.scope}, contract ${contracts}; no listening verdict`);
   } catch (error) {
     die("clone-synthesis", error);
   }
@@ -481,10 +553,11 @@ function summarize() {
   if (skipped.length) console.log(`SKIPPED   ${skipped.map((s) => s.name).join(", ")}`);
   if (failed.length) console.log(`FAILED    ${failed.map((s) => `${s.name} (${s.detail})`).join("; ")}`);
   console.log(`ARTIFACTS ${outDir}`);
+  writeFileSync(`${outDir}/voice-conditioning-manifest.json`, JSON.stringify(voiceConditioning, null, 2));
   writeFileSync(`${outDir}/first-clone-run.json`, JSON.stringify({
     audio: audioPath, sha256: referenceSha, displayName, probe, stages,
     replica_id: replicaId, source_id: sourceId, evidenceLatencyMs: latency,
-    receipts, score, verdict, ceiling, wallSeconds: Number(wall),
+    receipts, voiceConditioning, score, verdict, ceiling, wallSeconds: Number(wall),
   }, null, 2));
 }
 

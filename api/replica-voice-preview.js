@@ -13,6 +13,7 @@ import {
   createNeonVoicePreviewLedger,
   markVoicePreviewFailed,
   voicePreviewTextHash,
+  voicePreviewTextMode,
 } from "./_replica-voice-preview.js";
 import { resolveOwnedVoiceTrialSide } from "./_replica-voice-curriculum.js";
 
@@ -22,7 +23,7 @@ function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-  res.setHeader("Access-Control-Expose-Headers", "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment");
+  res.setHeader("Access-Control-Expose-Headers", "X-Vyakti-Generation, X-Vyakti-Disclosure, X-Vyakti-Model-Commitment, X-Vyakti-Voice-Model-Arm, X-Vyakti-Voice-Quality-State, X-Vyakti-Voice-Quality-Warnings, X-Vyakti-Voice-Effective-Cfg");
   res.setHeader("Cache-Control", "no-store");
 }
 
@@ -55,6 +56,7 @@ export default async function handler(req, res) {
     if (!LANGUAGES.has(languageId)) return res.status(400).json({ error: "voice_preview_language_not_supported" });
     const text = cleanVoicePreviewText(body.text);
     const textHash = voicePreviewTextHash(text);
+    const textLanguageMode = voicePreviewTextMode(text);
     const trial = body.trial_id ? await resolveOwnedVoiceTrialSide(q, user.id, {
       replica_id: body.replica_id,
       genome_version: body.genome_version,
@@ -62,6 +64,7 @@ export default async function handler(req, res) {
       trial_side: body.trial_side,
       language_id: languageId,
       text_hash: textHash,
+      text_language_mode: textLanguageMode,
     }) : null;
     started = await beginOwnedVoicePreview(q, user.id, {
       replica_id: body.replica_id,
@@ -69,6 +72,7 @@ export default async function handler(req, res) {
       trace_id: `preview_${randomUUID().replaceAll("-", "")}`,
       language_id: languageId,
       text_hash: textHash,
+      text_language_mode: textLanguageMode,
       style_key: trial?.styleKey || body.style_key,
       preview_seed: trial?.previewSeed,
       trial_id: trial?.trialId,
@@ -92,6 +96,8 @@ export default async function handler(req, res) {
         bytes: stored.body,
         sha256: started.reference.sha256,
         durationMs: started.reference.durationMs,
+        languageMode: started.reference.languageMode,
+        languageEvidenceScope: started.reference.languageEvidenceScope,
       },
       style: {
         exaggeration: started.previewStyle.exaggeration,
@@ -123,6 +129,10 @@ export default async function handler(req, res) {
     res.setHeader("X-Vyakti-Generation", started.generation.generation_id);
     res.setHeader("X-Vyakti-Disclosure", "audible-prefix-v1");
     res.setHeader("X-Vyakti-Model-Commitment", provider.modelCommitment);
+    res.setHeader("X-Vyakti-Voice-Model-Arm", synthesized.receipt.modelArm || provider.modelArm || "general");
+    res.setHeader("X-Vyakti-Voice-Quality-State", synthesized.receipt.qualityState);
+    res.setHeader("X-Vyakti-Voice-Quality-Warnings", synthesized.receipt.qualityWarnings.join(","));
+    res.setHeader("X-Vyakti-Voice-Effective-Cfg", String(synthesized.receipt.effectiveCfgWeight));
     if (receipt.generation_id !== started.generation.generation_id) throw new Error("voice_preview_receipt_binding_failed");
     return res.status(200).send(Buffer.concat([wavHeader(pcm.length), pcm]));
   } catch (error) {
