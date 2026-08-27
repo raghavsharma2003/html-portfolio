@@ -105,13 +105,12 @@ export function createChunkedDiarizationAdapter(options = {}) {
   }
   return Object.freeze({
     ...delegate,
-    version: `${delegate.version}+overlap-chunks-v1`,
+    version: `${delegate.version}+normalized-overlap-chunks-v2`,
     async diarize(request) {
       if (!Array.isArray(request.inputs) || request.inputs.length !== 1) fail("chunked_diarization_input_invalid");
       const input = request.inputs[0];
       const durationMs = Number(input.duration_ms ?? request.source?.duration_ms);
       if (!Number.isInteger(durationMs) || durationMs < 1) fail("chunked_diarization_duration_required");
-      if (durationMs <= chunkMs) return delegate.diarize(request);
       const chunks = [];
       await withMaterializedAudio({ source: request.source, input, signal: request.signal }, async ({ extractWindow }) => {
         let startMs = 0;
@@ -133,6 +132,11 @@ export function createChunkedDiarizationAdapter(options = {}) {
           startMs = endMs - overlap;
         }
       }, { signal: request.signal });
+      // Even a short M4A/AAC/AIFF/OPUS/AMR/WMA input is decoded by ffmpeg into
+      // a bounded 16 kHz WAV before it reaches the evidence service. That
+      // service deliberately uses libsndfile and must not be asked to decode
+      // every browser/container variant itself.
+      if (chunks.length === 1) return Object.freeze({ segments: Object.freeze(chunks[0].segments) });
       return Object.freeze({ segments: reconcileDiarizationChunks(chunks) });
     },
   });

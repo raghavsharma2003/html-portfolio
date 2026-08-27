@@ -113,6 +113,12 @@ const chunkedResult = await chunked.diarize({
 ok("long diarization fans out deterministically into bounded overlapping chunks",
   chunkCalls.join() === "60000,60000,30000" && chunkedResult.segments.at(-1).end_ms === 130_000
   && DIARIZATION_CHUNK_MS === 14 * 60 * 1000 && DIARIZATION_OVERLAP_MS === 60 * 1000);
+const shortResult = await chunked.diarize({
+  source: { ...source, duration_ms: 30_000 },
+  inputs: [{ object_path: source.object_path, sha256: source.sha256, mime: "audio/x-ms-wma", duration_ms: 30_000 }],
+});
+ok("short container formats are normalized to bounded WAV before diarization",
+  chunkCalls.at(-1) === 30_000 && shortResult.segments.length === 1 && shortResult.segments[0].end_ms === 30_000);
 
 const leasedJob = {
   job_id: JOB, replica_id: REPLICA, owner_user_id: OWNER, source_id: SOURCE,

@@ -22,9 +22,19 @@ const REQUIRED_SCOPES = ["capture", "transcription", "storage"] as const;
 const SOURCE_POLICY: Record<SourceKind, { label: string; accept: string; maxBytes: number; mimes: string[] }> = {
   audio: {
     label: "Audio recording",
-    accept: ".wav,.mp3,.m4a,.webm,.ogg,.flac,audio/*",
+    // Windows' file dialog relies much more heavily on extensions than MIME
+    // wildcards. Keep the wildcard for unusual browser registrations, but
+    // name every format our ingestion lane can actually process so recordings
+    // do not disappear from the picker.
+    accept: ".wav,.wave,.mp3,.mpga,.mpeg,.m4a,.aac,.aif,.aiff,.ogg,.oga,.opus,.flac,.webm,.weba,.amr,.wma,audio/*",
     maxBytes: 1_073_741_824,
-    mimes: ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg", "audio/flac", "audio/x-flac"],
+    mimes: [
+      "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave",
+      "audio/mpeg", "audio/mp3", "audio/mpeg3", "audio/x-mpeg-3", "audio/x-mp3",
+      "audio/mp4", "audio/x-m4a", "audio/aac", "audio/x-aac",
+      "audio/aiff", "audio/x-aiff", "audio/ogg", "audio/opus",
+      "audio/flac", "audio/x-flac", "audio/webm", "audio/amr", "audio/x-ms-wma",
+    ],
   },
   video: {
     label: "Video recording",
@@ -79,11 +89,22 @@ const CALIBRATION_COPY: Record<Exclude<EnrollmentLanguage, "english">, { title: 
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   wav: "audio/wav",
+  wave: "audio/wav",
   mp3: "audio/mpeg",
+  mpga: "audio/mpeg",
+  mpeg: "audio/mpeg",
   m4a: "audio/mp4",
+  aac: "audio/aac",
+  aif: "audio/aiff",
+  aiff: "audio/aiff",
   webm: "audio/webm",
+  weba: "audio/webm",
   ogg: "audio/ogg",
+  oga: "audio/ogg",
+  opus: "audio/opus",
   flac: "audio/flac",
+  amr: "audio/amr",
+  wma: "audio/x-ms-wma",
   mp4: "video/mp4",
   mov: "video/quicktime",
   mkv: "video/x-matroska",

@@ -244,6 +244,17 @@ const SHA = "d".repeat(64);
       kind: "audio", mime: "audio/flac", byte_size: 1_073_741_825,
       sha256: SHA, contains_third_parties: false,
     })));
+  const commonAudioMimes = [
+    "audio/aac", "audio/x-aiff", "audio/opus", "audio/amr", "audio/x-ms-wma", "audio/x-m4a",
+  ];
+  ok("common Windows and phone audio MIME variants pass the same one-GiB source boundary",
+    commonAudioMimes.every((mime) => Source.sourceUploadInput({
+      kind: "audio", mime, byte_size: 4096, sha256: SHA, contains_third_parties: false,
+    }).mime === mime));
+  const enrollmentWorkspace = readFileSync(join(ROOT, "src/studio/EnrollmentWorkspace.tsx"), "utf8");
+  ok("the Windows audio picker exposes every common supported recording extension",
+    [".wav", ".mp3", ".m4a", ".aac", ".aiff", ".ogg", ".opus", ".flac", ".webm", ".amr", ".wma"]
+      .every((extension) => enrollmentWorkspace.includes(extension)));
   ok("empty evidence is rejected", throws(() => Source.sourceUploadInput({
     kind: "audio", mime: "audio/wav", byte_size: 0, sha256: SHA, contains_third_parties: false,
   })));

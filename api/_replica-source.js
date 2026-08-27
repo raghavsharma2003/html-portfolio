@@ -8,7 +8,13 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const SOURCE_POLICY = Object.freeze({
   audio: {
     maxBytes: 1_073_741_824,
-    mimes: new Set(["audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg", "audio/flac", "audio/x-flac"]),
+    mimes: new Set([
+      "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave",
+      "audio/mpeg", "audio/mp3", "audio/mpeg3", "audio/x-mpeg-3", "audio/x-mp3",
+      "audio/mp4", "audio/x-m4a", "audio/aac", "audio/x-aac",
+      "audio/aiff", "audio/x-aiff", "audio/ogg", "audio/opus",
+      "audio/flac", "audio/x-flac", "audio/webm", "audio/amr", "audio/x-ms-wma",
+    ]),
   },
   video: {
     maxBytes: 536_870_912,
