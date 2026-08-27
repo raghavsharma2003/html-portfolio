@@ -40,12 +40,38 @@ MAX_REQUEST_BYTES = 72 * 1024 * 1024
 MAX_AUDIO_BYTES = min(48 * 1024 * 1024, max(1024 * 1024, int(os.getenv("VOICE_EVIDENCE_MAX_AUDIO_BYTES", 32 * 1024 * 1024))))
 MAX_DURATION_SECONDS = min(20 * 60, max(10, int(os.getenv("VOICE_EVIDENCE_MAX_DURATION_SECONDS", 10 * 60))))
 MAX_CLOCK_SKEW_SECONDS = 60
+# The one rate every enrollment-grade WAV this service emits must land at.
+# `api/_audio/wav.js`'s `probeEnrollmentWav` (the hard gate every enrollment
+# reference passes through before synthesis) requires exactly this rate, mono,
+# PCM16 -- and so does `services/open-voice-runtime/app.py`'s
+# TARGET_SAMPLE_RATE and `api/_voice/contracts.js`'s VOICE_PCM_FORMAT. Those
+# three cannot import each other (two languages, three deploy boundaries), so
+# `scripts/check-enrollment-sample-rate.mjs` mirrors this exact line's value
+# and asserts it against the other two on every `verify-release.mjs` run --
+# the same "mirror it, then assert the mirrors agree" pattern
+# `scripts/verify-voice.mjs` already uses for her voice name. If you change
+# this number, that gate fails until you change the other two as well.
+ENROLLMENT_SAMPLE_RATE = 24_000
 MODEL_REVISIONS = {
     "silero-vad": "6.2.1",
     "speechbrain-ecapa": "0f99f2d0ebe89ac095bcc5903c4dd8f72b367286",
     "speechbrain-xvector": "56895a2df401be4150a159f3a1c653f00051d477",
     "speechbrain-sepformer-whamr16k": "21a5b500c6f52fddc387c5d9e5fb13ffd6f039c5",
-    "deepfilternet": "deepfilternet3-49c52edc8947ae1f9bf50d81530beaf3a2c3245aeaf34b6f31ff535cd22284d2",
+    # Changed (not just suffixed) on 2026-08-26: the model weights are
+    # unchanged, but `_enhance`'s OUTPUT format changed (48 kHz -> resampled to
+    # ENROLLMENT_SAMPLE_RATE), and `vy_replica_artifact_variant_unique`
+    # (source_id, stage, transform_version, variant_key, input_sha256) keys an
+    # artifact's identity on this string, not on its bytes. Leaving it
+    # unchanged after an output-format fix means a re-run over the same input
+    # collides on that constraint (SQLSTATE 23505) instead of writing the
+    # corrected bytes -- caught while proving this exact fix in production.
+    # transform_version must change whenever a transform's OUTPUT changes for
+    # the same input, not only when the underlying model does. Kept short and
+    # under the JS-side candidate validator's 80-char SAFE cap rather than
+    # appending to the old hash-suffixed string, which is 89 chars and was
+    # rejected with voice_evidence_candidate_contract_invalid -- also caught
+    # live, on the very next attempt.
+    "deepfilternet": "deepfilternet3-enroll24k-v1",
 }
 
 
@@ -264,18 +290,42 @@ def _enhance(payload: dict[str, Any]) -> dict[str, Any]:
         raise ServiceError("enhancement_input_invalid", 422)
     candidates = []
     for input_index, entry in enumerate(inputs):
+        # DeepFilterNet3 is trained at 48 kHz and only ever runs at 48 kHz --
+        # that is not a choice this function makes, it is the model's own
+        # native rate, so decoding and enhancing both stay at 48_000.
         waveform, _ = _decode_audio(entry, target_rate=48_000)
         source = waveform.unsqueeze(0)
         for variant, attenuation in (("identity-preserving", 12.0), ("noise-suppressing", None)):
             with torch.inference_mode():
                 enhanced = df_enhance(app.state.df_model, app.state.df_state, source, atten_lim_db=attenuation)
-            audio = _wav_bytes(enhanced.squeeze(0), 48_000)
+            # The WAV this function EMITS is a different question from the rate
+            # DeepFilterNet runs at, and the two used to be silently conflated:
+            # every enhance artifact shipped at the model's native 48 kHz, while
+            # every consumer that turns an enrollment reference into synthesised
+            # audio -- `probeEnrollmentWav` (called from the Chatterbox preview
+            # provider, the Personal Voice provider and Mirror Call's own
+            # conditioning probe) -- has always hard-required 24 kHz mono PCM16
+            # and rejected anything else with `wav_format_unsupported`. Nothing
+            # in this file ever produced that rate, so every "Preview my voice"
+            # call was destined to fail the moment a real enhance artifact
+            # reached it. Resampling here, once, with a proper anti-aliasing
+            # filter (`torchaudio.functional.resample`, the same function this
+            # module already uses in `_decode_audio` for every other rate
+            # conversion) is the fix: it happens exactly once, server-side,
+            # right after the highest-fidelity signal DeepFilterNet produces,
+            # rather than as a second, hand-rolled decimation bolted onto the
+            # Vercel API layer with no anti-aliasing filter, which would
+            # degrade the voice silently on every single preview.
+            resampled = torchaudio.functional.resample(enhanced.squeeze(0), 48_000, ENROLLMENT_SAMPLE_RATE)
+            audio = _wav_bytes(resampled, ENROLLMENT_SAMPLE_RATE)
             candidates.append({
                 "variant_key": f"input-{input_index + 1}-{variant}", "audio_base64": base64.b64encode(audio).decode(),
-                "sha256": _sha(audio), "mime": "audio/wav", "duration_ms": round(enhanced.shape[-1] * 1000 / 48_000),
+                "sha256": _sha(audio), "mime": "audio/wav",
+                "duration_ms": round(resampled.numel() * 1000 / ENROLLMENT_SAMPLE_RATE),
                 "input_sha256": entry["sha256"], "transform_name": "deepfilternet3",
                 "transform_version": MODEL_REVISIONS["deepfilternet"],
-                "parameters": {"attenuation_limit_db": attenuation, "sample_rate": 48_000},
+                "parameters": {"attenuation_limit_db": attenuation, "sample_rate": ENROLLMENT_SAMPLE_RATE,
+                                "enhancement_sample_rate": 48_000},
                 "quality": {"identity_preservation_candidate": attenuation is not None},
             })
     return {"candidates": candidates, "model_revisions": MODEL_REVISIONS}

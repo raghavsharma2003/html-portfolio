@@ -4203,3 +4203,81 @@ this exact defect the moment someone reaches for a "the obvious answer here is
 X" shortcut. The fix is never "make the shortcut smarter" — it is "route
 through the one function", because a second decision point is a second place
 for the two to disagree, and they will, on exactly the input nobody tested.
+## `revision-bump-cannot-be-partial-across-the-dag` (2026-08-26, WS-AR)
+
+**What was tried.** To regenerate ONLY the `enhance` artifact for the owner's
+real replica (proving the 24 kHz fix in production without redoing the whole
+DAG), a single new job row was inserted: `step='enhance', revision=2, queued`,
+leaving `separate` at its existing `revision=1`.
+
+**What broke.** `assertDependencies` (`api/_replica-processing/pipeline.js`)
+checks a job's prerequisites against `completedSteps`, and
+`loadLeasedProcessingContext`'s query for that set is filtered by
+`revision=$4` -- the NEW job's own revision. With no `separate` job complete
+at `revision=2`, the dependency check correctly failed with
+`processing_dependency_missing: separate`, even though a perfectly good
+`separate` artifact existed one revision back. `revision` in this schema means
+"a full DAG re-run from `integrity` forward," not "redo one step in place" --
+partial reruns are not a supported shape.
+
+**The fix used instead.** For the four steps upstream of `enhance` whose
+output the sample-rate bug does not touch (`integrity`, `malware_scan`,
+`media_probe`, `diarize`), their EXISTING `revision=1` complete rows were
+copied forward as already-`complete` at `revision=2` (same `result`, no
+re-execution) -- purely to satisfy the per-revision dependency check. Only
+`separate` (copied the same way, since its own output is also unaffected: same
+transform_version, same input, so re-running it would have hit the SAME
+`vy_replica_artifact_variant_unique` collision this session's other rejection
+names) and `enhance` (the one step that actually needed to re-execute) were
+touched for real. This is a testing-harness technique specific to a
+same-source, same-diarization re-verification and should not be read as "how
+reprocessing normally works" -- the product has no user-facing "redo one DAG
+step" affordance, and building one was out of scope here.
+
+**What would reverse it.** A first-class "reprocess from step X" DAG primitive
+that copies forward unaffected upstream state as part of its own contract,
+rather than by hand per verification session. Worth building if this pattern
+recurs; not built here because one session's verification need does not
+justify a new DAG primitive on its own.
+
+## `voice-quality-cannot-see-a-partial-artifact-generation` (2026-08-26, WS-AR)
+
+**What was tried.** After regenerating `enhance` at a new revision (see the
+adjacent rejection), letting `voice_quality` auto-run against it, expecting it
+to measure only the four fresh 24 kHz candidates.
+
+**What broke.** `loadLeasedProcessingContext`'s `INPUT_STAGE` artifact query
+(`voice_quality: "enhance"`) selects every artifact at `stage='enhance'` for
+the source, with NO revision filter -- by design, the same way `enhance`
+itself reads `separate`'s artifacts across any revision. That means it
+returned all EIGHT enhance artifacts, four stale 48 kHz ones from before this
+session's fix and four fresh 24 kHz ones, and `services/voice-evidence/
+app.py::_measure` accepts 1 to 4 inputs. The JS-side adapter refused with
+`voice_evidence_input_count_invalid` before a single byte reached the GPU.
+
+**Why this is not simply "wait, delete the old ones."** The four stale
+artifacts were NOT abandoned data -- one of them (the previously `selected`
+one) was still referenced by `vy_replica_generation.preview_artifact_id` on
+twenty-three real, dated rows: the owner's actual failed preview attempts,
+`wav_format_unsupported` and `voice_preview_wake_in_flight`, from BEFORE this
+session's fix landed. Deleting the artifact would have cascaded (`ON DELETE
+CASCADE`) through that foreign key and erased the very audit trail that proves
+the bug happened in production. The other three stale artifacts had no such
+reference and were deleted; the referenced one was left in place and
+`voice_quality` was left failing for this session rather than deleting real
+incident history to make a gate pass.
+
+**What this means for the next person who re-runs a step at a new revision:**
+any INPUT_STAGE query that is deliberately revision-agnostic (there are two:
+`enhance` reading `separate`, `voice_quality` reading `enhance`) will collect
+EVERY historical artifact at that stage, not just the latest revision's. That
+is correct for a step that should see all evidence ever produced, and it is a
+trap for a step with a fixed input-count ceiling. `voice_quality` was left
+failed on this replica for this reason; it was not required for the preview
+path this session needed to prove (`beginOwnedVoicePreview` never reads
+`voice_quality`'s output), and is flagged here rather than silently ignored.
+
+**What would reverse it.** Either the artifact-cleanup problem being solved
+generally (a "supersede" lifecycle that voice_quality's own query respects), or
+`_measure`'s input cap being raised past what a single source's revision
+history can accumulate -- neither is a fix this session's scope covered.

@@ -4703,3 +4703,76 @@ status to `'approved'` — grepped for `status='approved'` and `'approved'`
 writes against that table and found none. Approving a genome outright (as
 opposed to reviewing evidence and queuing a build, which is real and wired)
 is a capability that does not exist yet in this codebase, not a hidden UI.
+## `wav-format-unsupported-fixed-and-proven-end-to-end` (2026-08-26/27, WS-AR)
+
+**Method.** The reported bug ("Preview my voice" -> `wav format unsupported`
+after a ten minute wait) was confirmed structurally before any fix: grepped
+every caller of `probeEnrollmentWav` (`api/_audio/wav.js`, hard gate: PCM
+s16le mono 24 000 Hz) and every producer of a `stage='enhance'` artifact
+(`services/voice-evidence/app.py::_enhance`, which called `_wav_bytes(...,
+48_000)`), and independently confirmed against live production database rows:
+`vy_replica_generation` on the owner's real replica (`6aff3202-abbd-4ca6-
+976b-4009ed5af028`) carries 23 real failed preview attempts dated
+2026-08-26T22:54-23:08Z, most `wav_format_unsupported`, referencing an enhance
+artifact whose `byte_size` (960044) is exactly 10.00 s at 48 kHz mono s16le.
+
+**The fix.** `services/voice-evidence/app.py::_enhance` now resamples its
+DeepFilterNet3 output (still computed at the model's native 48 kHz) down to
+`ENROLLMENT_SAMPLE_RATE = 24_000` with `torchaudio.functional.resample` before
+writing the WAV. Built via three ACR Quick Task builds (image
+`vyaktivoiceacr.azurecr.io/voice-evidence`, run ids `cuv`/`cuw`/`cux`/`cuy`,
+each ~4-13 min, server-side, no local Docker) and deployed to the live Azure
+Container App `vyakti-voice-evidence` via four sequential `PATCH`es to the
+Container Apps management REST API (no `az` CLI), each preceded by a GET
+confirming no concurrent workstream had moved the resource. **Final deployed
+digest: `vyaktivoiceacr.azurecr.io/voice-evidence@sha256:
+b2e2b74349ee8d1e2f3d346ea5bf070a5dcf4808ca8b4cd39845ae20dbd83914`**,
+revision `vyakti-voice-evidence--0000006`.
+
+**Proven end to end, on the owner's real replica, through the real deployed
+services -- not a mock, not a synthetic file:**
+
+1. Requeued the real 8-step DAG's `enhance` step (see
+   `rejected.md#revision-bump-cannot-be-partial-across-the-dag` for exactly how)
+   against the newly deployed service, driven by the real Azure Container Apps
+   Job `vyakti-replica-processing` (executions `8afitjg` through `e1oh9ea`,
+   REST-triggered `/start`, polled to `Succeeded`). Measured artifact:
+   **4 candidates, each exactly 480,044 bytes = 10.00 s at 24 000 Hz mono
+   PCM16** (`24000 Hz * 2 bytes * 10 s + 44-byte header`), `transform_version:
+   deepfilternet3-enroll24k-v1`, sha256 distinct from every prior candidate.
+2. Selected the new artifact (`3455faac-4483-521d-ae20-a0304e00c550`) through
+   the REAL `selectOwnedVoiceArtifact` function
+   (`api/_replica-review.js`, the same one `/api/replica-review` calls), and
+   pointed genome version 1's `definition.references.enrollment_artifact_ids`
+   at it via a direct, explained database correction (see the session log --
+   `queueOwnedVoiceGenome`'s normal readiness gate could not be exercised
+   without also fixing a `voice_quality` input-count fallout unrelated to this
+   bug; documented as its own rejection rather than silently worked around).
+3. Called `handleVoicePreviewPanel` -- the exact function
+   `api/voice-preview.js` wires to the studio's "Preview my voice" button, with
+   every collaborator (`beginOwnedVoicePreview`, `readPrivateReplicaObject`,
+   `createOpenChatterboxPreviewProvider`, `protectReplicaStream` via
+   `createProductionProtectionAdapters`, `createNeonVoicePreviewLedger`) wired
+   to the REAL production database, storage bucket, GPU broker and watermark
+   service, no mocks. First call returned `202 warming` (cold GPU start,
+   `wake_dispatched: true`); after waiting out the cold start (~3.5 min total,
+   consistent with the documented 161 s ready time), the second call returned:
+
+```
+kind: audio, status: 200
+X-Vyakti-Disclosure: audible-prefix-v1
+X-Vyakti-Model-Commitment: b66dbbe202313119f616f8afe7d9a938d483ae3f8136d8d52e6f4c7560469b36
+AUDIO BYTES: 266924
+```
+
+   Saved and probed with Python's `wave` module: **mono, 16-bit PCM, 24 000 Hz,
+   133 440 frames = 5 560 ms.** `vy_replica_generation` row
+   `fc6bd382-77ab-411f-a686-2387cbfcd48a` settled to `state='sealed'`
+   (watermarked and disclosure-bound, per `protectReplicaStream`'s contract --
+   the spoken AI disclosure and PerTh watermark were never stubbed or bypassed
+   to get this byte count), `preview_artifact_id` correctly pointing at the new
+   24 kHz artifact.
+
+**n=1** (one replica, one real preview call that reached `sealed`), method as
+above, dated 2026-08-27 (session crossed midnight UTC). This is the first time
+this exact call path has ever returned real audio bytes in production.
