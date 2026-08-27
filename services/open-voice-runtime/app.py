@@ -35,6 +35,7 @@ from fastapi.responses import JSONResponse, Response
 
 import lora
 from hindi_pack import load_hindi_pack
+from offline_assets import install_offline_tokenizer_assets
 
 
 PROTOCOL = "vyakti-open-voice/v1"
@@ -508,6 +509,7 @@ async def lifespan(application: FastAPI):
         raise RuntimeError("open_voice_cuda_required")
     model_root = os.getenv("OPEN_VOICE_MODEL_ROOT", "/models/chatterbox-multilingual-v3")
     hindi_model_root = os.getenv("OPEN_VOICE_HINDI_MODEL_ROOT", "/models/chatterbox-multilingual-hi-v3")
+    application.state.runtime_asset_manifest_sha256 = install_offline_tokenizer_assets(model_root)
     application.state.model_arm = os.getenv("OPEN_VOICE_MODEL_ARM", "general").lower()
     if application.state.model_arm not in MODEL_ARMS:
         raise RuntimeError("open_voice_model_arm_invalid")
@@ -540,6 +542,7 @@ async def health() -> JSONResponse:
         "model": getattr(app.state, "model_name", BASE_PACK_NAME),
         "model_commitment": getattr(app.state, "model_commitment", BASE_PACK_COMMITMENT),
         "model_arm": getattr(app.state, "model_arm", "general"),
+        "runtime_asset_manifest_sha256": getattr(app.state, "runtime_asset_manifest_sha256", None),
     })
 
 

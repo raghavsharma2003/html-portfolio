@@ -9,6 +9,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/models/huggingface \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
+    PKUSEG_HOME=/models/pkuseg \
+    OPEN_VOICE_RUNTIME_ASSET_MANIFEST=/models/runtime-assets/manifest.json \
     OPEN_VOICE_MODEL_ARM=${OPEN_VOICE_MODEL_ARM} \
     OPEN_VOICE_MODEL_ROOT=/models/chatterbox-multilingual-v3
 
@@ -25,6 +27,11 @@ RUN python -m pip install --requirement requirements.txt \
 
 COPY fetch_models.py ./fetch_models.py
 RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python fetch_models.py
+COPY bake_runtime_assets.py ./bake_runtime_assets.py
+COPY offline_assets.py ./offline_assets.py
+COPY offline_startup_probe.py ./offline_startup_probe.py
+RUN HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 python bake_runtime_assets.py \
+    && HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python offline_startup_probe.py
 COPY lora.py ./lora.py
 COPY hindi_pack.py ./hindi_pack.py
 COPY app.py ./app.py

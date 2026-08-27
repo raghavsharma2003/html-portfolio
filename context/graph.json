@@ -3881,7 +3881,7 @@
       "kind": "decision",
       "title": "ZONOS2 qualification is private A10 with raw-byte Tier-3 Hindi",
       "at": "2026-08-28",
-      "status": "30 focused checks pass; cu24 rejected at 39.53 GiB; one ownership-layer retry authorized; no GPU"
+      "status": "cu26 image and 30 focused gates pass; A10 blocked by 3-core Spot quota; GPU zero"
     },
     {
       "id": "zonos2-candidate-preflight-local-2026-08-28",
@@ -3929,6 +3929,12 @@
       "id": "recursive-chown-duplicates-zonos2-offline-assets",
       "kind": "rejection",
       "title": "Recursive ownership changes duplicate ZONOS2's offline assets in OCI layers",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-a10-is-blocked-by-regional-spot-quota",
+      "kind": "rejection",
+      "title": "Regional Spot quota blocks the private ZONOS2 A10 lane before resource creation",
       "at": "2026-08-28"
     },
     {
@@ -4238,6 +4244,25 @@
       "id": "one-runtime-image-is-not-a-complete-two-container-release",
       "kind": "rejection",
       "title": "One runtime image is not a complete two-container release",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-tokenizer-assets-are-a-content-addressed-build-closure",
+      "kind": "decision",
+      "title": "OpenVoice tokenizer assets are a content-addressed build closure",
+      "at": "2026-08-28",
+      "status": "ACR cu2a source and asset qualified at immutable digest; not deployed"
+    },
+    {
+      "id": "openvoice-offline-tokenizer-image-2026-08-28",
+      "kind": "measurement",
+      "title": "One remote OpenVoice build proves the baked tokenizer initializes with zero download attempts",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "huggingface-offline-flags-do-not-cover-pkuseg",
+      "kind": "rejection",
+      "title": "Hugging Face offline flags do not cover pkuseg",
       "at": "2026-08-28"
     }
   ],
@@ -7919,6 +7944,11 @@
     },
     {
       "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
+      "rel": "caused_by",
+      "dst": "zonos2-a10-is-blocked-by-regional-spot-quota"
+    },
+    {
+      "src": "zonos2-qualification-is-private-a10-and-raw-hindi-only",
       "rel": "part_of",
       "dst": "voice-model"
     },
@@ -8326,6 +8356,31 @@
       "src": "openvoice-release-candidates-bind-source-before-registry-build",
       "rel": "constrains",
       "dst": "openvoice-admission-broker-acr-build-2026-08-28"
+    },
+    {
+      "src": "openvoice-tokenizer-assets-are-a-content-addressed-build-closure",
+      "rel": "measured_by",
+      "dst": "openvoice-offline-tokenizer-image-2026-08-28"
+    },
+    {
+      "src": "openvoice-tokenizer-assets-are-a-content-addressed-build-closure",
+      "rel": "caused_by",
+      "dst": "huggingface-offline-flags-do-not-cover-pkuseg"
+    },
+    {
+      "src": "openvoice-tokenizer-assets-are-a-content-addressed-build-closure",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openvoice-offline-tokenizer-image-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openvoice-release-candidates-bind-source-before-registry-build",
+      "rel": "constrains",
+      "dst": "openvoice-tokenizer-assets-are-a-content-addressed-build-closure"
     }
   ]
 }

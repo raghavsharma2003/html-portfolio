@@ -23,7 +23,17 @@ The image pins:
 - every direct Python dependency in `requirements.txt`.
 
 Models are downloaded while the image is built. Runtime network model access
-is disabled. The service starts only with CUDA by default and only exposes an
+is disabled. Tokenizer assets are part of the same offline closure:
+`spacy-pkuseg` 1.0.1 otherwise downloads its default `spacy_ontonotes` model
+while Chatterbox builds the multilingual tokenizer. The image bakes
+Explosion's v0.0.26 archive at its published full SHA-256 under
+`/models/pkuseg`, verifies the archive and both extracted files, and binds the
+Cangjie lookup to the already-pinned local model file. The remote build runs an
+offline startup probe with the upstream downloader replaced by a hard refusal,
+so a missing cache fails the build instead of becoming cold-start traffic. The
+canonical asset manifest is verified again before model loading.
+
+The service starts only with CUDA by default and only exposes an
 HMAC-authenticated synthesis operation. Requests contain no owner, replica,
 email, or provider identifiers. Access logs are disabled, audio is handled in
 memory plus one automatically deleted temporary reference file, and output is

@@ -5180,7 +5180,31 @@ the two required writable locations as bounded UID-owned tmpfs mounts. A
 focused negative gate now rejects reintroduction of the recursive ownership
 copy. The exact layer subtraction projects 22.02 GiB and authorizes one remote
 image retry; the rebuilt manifest must still independently measure at or below
-30 GiB before any A10 allocation.
+30 GiB before any A10 allocation. Run `cu26` measured 22.0206 GiB and passed
+that independent image gate; it did not authorize production routing or make a
+voice-quality claim.
+
+## `zonos2-a10-is-blocked-by-regional-spot-quota` (2026-08-28)
+
+**What was tried.** Deploy the immutable 22.0206 GiB ZONOS2 image to the
+pre-registered private `Standard_NV36ads_A10_v5` Spot lane after all focused and
+shared gates were green.
+
+**What specifically broke.** ARM preflight measured Southeast Asia regional
+low-priority quota at 3 vCPUs with 0 used; the full A10 needs 36. It rejected
+the deployment before creating any resource. One official Quota API request
+for 40 low-priority cores was then received as
+`Microsoft.Quota/quotas/write` and failed with HTTP 429 `RequestThrottled`,
+correlation `ce6a18f6-c22c-4eff-987e-34f9fa2f24d8`, and `retry after 3600
+seconds`. No quota request id exists because Azure rejected it before request
+creation.
+
+**What replaced it.** Stop the CLI automatic retry loop, keep the repository
+read-only token disabled and preserve zero VM/GPU state. Do not submit another
+name or request before 2026-08-28 05:30:41 IST. After that time, first prove the
+quota request-status collection is still empty, then submit the same canonical
+`lowPriorityCores`, `lowPriority`, limit 40 request exactly once. The A10 lane
+remains forbidden until quota is approved, not merely requested.
 
 ## `language-match-is-not-a-matched-text-comparison` (2026-08-28)
 
@@ -5506,3 +5530,28 @@ ACR candidate, verify its copied registry layers and Dockerfile history, and
 stop before deployment. The runtime and broker digests now form two separate
 release inputs; the full gate and ordered runtime-then-broker rollout still
 decide whether either live revision changes.
+
+## `huggingface-offline-flags-do-not-cover-pkuseg` (2026-08-28)
+
+**What was tried.** Download the pinned Chatterbox model snapshot while the
+image is built, set `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` in the
+runtime, and treat that as a complete no-network cold-start guarantee.
+
+**What specifically broke.** Chatterbox constructs its Chinese converter even
+for a general multilingual model load. `spacy-pkuseg==1.0.1` then constructs
+its default `spacy_ontonotes` segmenter. That package uses its own
+requests/urllib downloader and defaults `PKUSEG_HOME` to `~/.pkuseg`, which is
+`/tmp/.pkuseg` for the deployed non-root runtime. Revision
+`vyakti-open-voice--r2405fbe` logged the exact fetch from Explosion's v0.0.26
+GitHub release during application startup. The same startup also warned that
+Chatterbox's direct Cangjie Hub lookup could not locate the already-downloaded
+local file. The service eventually became healthy, so a health-only canary hid
+both dependency gaps.
+
+**What replaced it.** Bake Explosion's official archive under the exact path
+the package checks, verify its published full SHA-256 plus both extracted-file
+hashes, and bind the Cangjie resolver to the pinned local checkpoint file. A
+remote build negative control first proves an empty cache invokes the blocked
+upstream downloader, then initializes the real baked path with that downloader
+still a hard error and records `network_attempts=0`. Runtime startup repeats
+the manifest and file verification rather than trusting build success.

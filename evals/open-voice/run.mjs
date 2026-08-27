@@ -443,6 +443,9 @@ const docker = readFileSync(join(ROOT, "services/open-voice-runtime/Dockerfile")
 const brokerDocker = readFileSync(join(ROOT, "services/open-voice-runtime/Dockerfile.broker"), "utf8");
 const broker = readFileSync(join(ROOT, "services/open-voice-runtime/broker.py"), "utf8");
 const fetchModels = readFileSync(join(ROOT, "services/open-voice-runtime/fetch_models.py"), "utf8");
+const bakeRuntimeAssets = readFileSync(join(ROOT, "services/open-voice-runtime/bake_runtime_assets.py"), "utf8");
+const offlineAssets = readFileSync(join(ROOT, "services/open-voice-runtime/offline_assets.py"), "utf8");
+const offlineStartupProbe = readFileSync(join(ROOT, "services/open-voice-runtime/offline_startup_probe.py"), "utf8");
 const hindiPack = readFileSync(join(ROOT, "services/open-voice-runtime/hindi_pack.py"), "utf8");
 const infra = readFileSync(join(ROOT, "services/open-voice-runtime/infra/main.bicep"), "utf8");
 const migration = readFileSync(join(ROOT, "db/migrations/045_replica_voice_preview.sql"), "utf8");
@@ -453,6 +456,23 @@ const advancedPreviewBindsTextFrontend = (source) =>
   /beginOwnedVoicePreview\(q, user\.id, \{[\s\S]{0,650}text_frontend:\s*textFrontend/.test(source);
 ok("runtime source and checkpoint revisions are immutable", app.includes("5de7a54aa4e5e2baadb0182dde554908b48b85c2") && fetchModels.includes("5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18") && /FROM .*@sha256:[0-9a-f]{64}/.test(docker) && /FROM .*@sha256:[0-9a-f]{64}/.test(brokerDocker));
 ok("runtime has no model-network dependency", docker.includes("HF_HUB_OFFLINE=1") && docker.includes("TRANSFORMERS_OFFLINE=1") && fetchModels.includes("revision=MODEL_REVISION"));
+ok("the exact official pkuseg archive is release-pinned, fully hash-bound and baked outside cold start",
+  bakeRuntimeAssets.includes('PKUSEG_RELEASE = "v0.0.26"') &&
+  bakeRuntimeAssets.includes('spacy_ontonotes.zip') &&
+  bakeRuntimeAssets.includes("b216e7f92de7ae285aeab8feba2faa8ea8216e5995ff6fb3d391cc8356db1bfe") &&
+  bakeRuntimeAssets.includes("34_567_143") &&
+  /PKUSEG_HOME=\/models\/pkuseg/.test(docker) &&
+  /python bake_runtime_assets\.py/.test(docker));
+ok("runtime startup verifies every baked tokenizer byte and binds Cangjie to the pinned local file",
+  /verify_runtime_assets\(model_root\)/.test(offlineAssets) &&
+  /tokenizer_module\.hf_hub_download = local_hf_hub_download/.test(offlineAssets) &&
+  /open_voice_runtime_network_asset_forbidden/.test(offlineAssets) &&
+  /install_offline_tokenizer_assets\(model_root\)/.test(app));
+ok("an executable negative control proves the upstream downloader is blocked during offline initialization",
+  /pkuseg_download\._download_url_to_file = deny_download/.test(offlineStartupProbe) &&
+  /pkuseg_missing_asset_negative_control_failed/.test(offlineStartupProbe) &&
+  /network_attempts=0/.test(offlineStartupProbe) &&
+  /HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python offline_startup_probe\.py/.test(docker));
 ok("the Hindi pack is revision-pinned and built as a single explicit arm",
   fetchModels.includes("82ca71273cc2a9ab19efdf8315f865c1a5af0ee7") &&
   fetchModels.includes('MODEL_ARM == "hindi_v3"') && docker.includes("ARG OPEN_VOICE_MODEL_ARM=general") &&
@@ -502,7 +522,7 @@ ok("no browser byte is returned before PerTh, AudioSeal, C2PA and ledger complet
 ok("Studio presents real loading, empty, error and protected-audio states", /generating/.test(studio) && /No draft can speak yet/.test(studio) && /role="alert"/.test(studio) && /<audio controls/.test(studio));
 ok("new Studio copy contains no em dash or en dash", !/[—–]/.test(studio));
 
-execFileSync("python", ["-m", "py_compile", "services/open-voice-runtime/app.py", "services/open-voice-runtime/broker.py", "services/open-voice-runtime/fetch_models.py", "services/open-voice-runtime/hindi_pack.py"], { cwd: ROOT, stdio: "pipe" });
+execFileSync("python", ["-m", "py_compile", "services/open-voice-runtime/app.py", "services/open-voice-runtime/broker.py", "services/open-voice-runtime/fetch_models.py", "services/open-voice-runtime/hindi_pack.py", "services/open-voice-runtime/bake_runtime_assets.py", "services/open-voice-runtime/offline_assets.py", "services/open-voice-runtime/offline_startup_probe.py"], { cwd: ROOT, stdio: "pipe" });
 ok("Python service sources compile", true);
 
 console.log(`\nOpen voice runtime: ${passed} checks passed.`);

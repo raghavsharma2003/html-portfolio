@@ -5755,6 +5755,27 @@ model, source, speaker encoder, DAC, compiler, Python lock or non-root runtime.
 This projection authorizes one bounded remote rebuild, not a GPU allocation or
 a size claim about the rebuilt image.
 
+The bounded optimized run `cu26` then completed with immutable digest
+`sha256:7d1f97efffe35e23a356a12494e0333cdfb586c5a1dfcd8f06165a27abdb301b`.
+ACR reported 23,644,395,155 bytes, or 22.0206 GiB, which is 7.9794 GiB below
+the 30 GiB stop and 2,945 bytes below the layer-subtraction projection. The
+image-size gate therefore passed. This still did not establish A10 fit, model
+load, synthesis, latency, pronunciation, naturalness, speaker likeness or
+human preference. No VM or GPU had been created when this measurement was
+updated.
+
+The post-image focused suite passed 30 of 30 checks; source syntax, Bicep and
+the context graph also passed. ARM deployment validation then measured the
+Southeast Asia `LowPriorityCores` limit at 3, current use at 0 and the full A10
+requirement at 36. Validation failed before resource creation. A single Quota
+API request asked for 40 low-priority cores and failed before request creation
+with HTTP 429 `RequestThrottled`, correlation
+`ce6a18f6-c22c-4eff-987e-34f9fa2f24d8`, and a 3,600-second retry-after from
+2026-08-27T23:00:41Z. The quota request-status collection remained empty and
+the CLI automatic retry loop was stopped. The scoped ACR token was disabled,
+the tagged resource list was empty and the evaluation VM was absent. A10
+allocated time and GPU spend remained zero.
+
 ## `consolidated-voice-listening-pack-local-2026-08-28`
 
 **Measured 2026-08-28, n=15 protected candidate clips from n=3 existing packs.**
@@ -6251,3 +6272,50 @@ admission app remained on its previous digest
 and both admission and runtime apps had zero replicas. Only one broker ACR run
 was submitted and no retry was used. Azure billing was not read, so exact
 dollar cost is unavailable; no voice-quality improvement is claimed.
+
+## `openvoice-offline-tokenizer-image-2026-08-28`
+
+**Measured 2026-08-28, n=1 observed deployed cold start, n=1 remote ACR build,
+n=9 frozen build inputs, n=12 registry-extracted image files and n=64 focused
+offline checks.** Console logs from real runtime revision
+`vyakti-open-voice--r2405fbe` recorded, in order, a failed local Cangjie lookup
+and `Downloading: "https://github.com/explosion/spacy-pkuseg/releases/download/v0.0.26/spacy_ontonotes.zip" to /tmp/.pkuseg/spacy_ontonotes.zip`.
+The official package config publishes archive SHA-256
+`b216e7f92de7ae285aeab8feba2faa8ea8216e5995ff6fb3d391cc8356db1bfe`;
+an independent download measured 34,567,143 bytes and the same digest. Its
+exact two entries measured 22,685,181-byte `features.msgpack` at SHA-256
+`fd4322482a7018b9bce9216173ae9d2848efe6d310b468bbb4383fb55c874a18`
+and 37,508,754-byte `weights.npz` at SHA-256
+`5ada075eb25a854f71d6e6fa4e7d55e7be0ae049255b1f8f19d05c13b1b68c9e`.
+
+The nine copied build inputs are frozen by canonical source-manifest SHA-256
+`c6fcc275bd669ed293215cc1f76486ac7c310913ad9d16b3e12aff0783816f51`.
+`node evals/run.mjs openvoice` passed 64 of 64 checks before the build. ACR
+quick run `cu2a` used one 2-vCPU agent from `2026-08-27T23:00:22.305789Z` to
+`2026-08-27T23:09:38.645944Z`, 556.340 seconds, and produced tag
+`open-voice-runtime:offline-pkuseg-c6fcc275bd669ed2` at immutable digest
+`sha256:625edc223f7063e744d6463dd7443daeaa7097552997a7a4e47c99888cfa86d8`.
+Its config digest is
+`sha256:6ab326b0c56853bf96f78c7f338d8363eab98deaecc35630557c98a6f1c3398f`;
+compressed registry layers total 9,843,509,364 bytes, or 9.167482 GiB.
+
+The build log bound runtime-asset manifest SHA-256
+`b6fd6bf1d3e592043b69b03bfbb6afe8b49c7a51ba6b5f28038f6128f7d40ca6`,
+then recorded `OPEN_VOICE_OFFLINE_STARTUP_PROBE_OK` with that same digest and
+`network_attempts=0`. That probe first ran a missing-cache negative control
+which succeeded only by reaching the hard-blocked upstream downloader, then
+initialized the real baked `spacy_ontonotes` model with the blocker still
+installed. Read-only Registry API extraction independently verified all eight
+files copied into `/srv/open-voice`, the archive, both extracted files and the
+canonical runtime-asset manifest: 12 of 12 exact image files. The immutable
+config carried both offline flags, `/models/pkuseg`, the manifest path,
+non-root UID and the probe command in history.
+
+No Container App revision referenced the new digest at readback; the runtime
+and admission apps remained on their preceding immutable images with zero
+replicas. No deployment, synthesis, model inference, GPU, listener or local
+Docker operation ran. Azure billing had not ingested an exact charge; one
+9.27-minute 2-vCPU build is reported instead of an invented dollar figure.
+This proves the exact tokenizer portion of cold startup no longer needs its
+observed download. It does not measure full GPU cold-start latency, voice
+quality, accent, likeness, pronunciation or human preference.

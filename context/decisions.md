@@ -7093,3 +7093,31 @@ text, segment, disclosure, model, watermark or provenance evidence. The caller
 field may disappear only if `beginOwnedVoicePreview` derives and verifies the
 same audit from a separately bound source text. Until then, a successful image
 build, tag, health response or one-plane deploy cannot reverse this order.
+
+## `openvoice-tokenizer-assets-are-a-content-addressed-build-closure` (2026-08-28)
+
+**Decision.** Every OpenVoice runtime image bakes the exact tokenizer assets
+that its pinned Chatterbox source constructs at startup. The official
+`spacy-pkuseg` OntoNotes archive, both extracted model files and the pinned
+Cangjie mapping are byte-size and SHA-256 bound in one canonical in-image
+manifest. Runtime startup verifies that closure before model loading, points
+`PKUSEG_HOME` at the baked directory, and resolves the Chatterbox mapping only
+from the pinned local file. A missing or changed asset is a named startup
+failure; network fallback is not an availability mechanism.
+
+**Why.** Hugging Face and Transformers offline flags cover their own clients,
+not `spacy-pkuseg`'s independent requests/urllib downloader. The first real
+cold start of runtime revision `vyakti-open-voice--r2405fbe` therefore fetched
+34,567,143 bytes from GitHub into ephemeral `/tmp/.pkuseg`, despite the model
+snapshot being local and both offline flags being set. That adds unpinned
+network availability, latency and mutability to every fresh replica. A build
+probe now replaces the exact upstream downloader with a hard refusal, proves
+the missing-cache control trips, and then initializes the baked cache with
+zero download attempts.
+
+**What would reverse it.** An upstream package may replace the local closure
+only if its immutable distribution embeds the same licensed assets, publishes
+full commitments, and an executable no-egress cold-start test proves the
+complete tokenizer initializes without writing or downloading a cache. A CDN
+SLA, retry loop, warm replica or Hugging Face offline flag alone cannot reverse
+the decision.
