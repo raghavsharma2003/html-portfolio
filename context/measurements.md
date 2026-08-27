@@ -5138,3 +5138,23 @@ five-minute schedule. Scheduled execution `vyakti-replica-processing-29797260`
 then pulled the new digest and succeeded. This is deployment and image-pull
 evidence, not a claim that the owner's 1 h 44 m source has been uploaded or
 finished; that live end-to-end result still requires the owner to retry it.
+
+## `azure-mp3-mime-mismatch-live-2026-08-27`
+
+**Measured 2026-08-27, production plus focused local regression.** One live
+source row declared `audio/mpeg`, 32,908,934 bytes and ended `rejected` with
+`mime_mismatch`. An authenticated HEAD of its exact Azure Blob locator returned
+the same 32,908,934 bytes and `BlockBlob`, but `Content-Type: video/mpeg`.
+Therefore byte transport succeeded and the MIME property alone caused the
+rejection. The source owner differed from the then-configured internal-test
+allowlist, which is separately relevant to ceremony bypass but not to this
+storage verdict.
+
+After replacing raw `File.type` with signed-capability `contentType`, the
+focused Azure suite passed 25 checks, including an explicit negative control
+that rejects `file.type` as commit authority. Replica enrollment, TypeScript,
+targeted lint, whitespace and the Impeccable detector also passed locally.
+Production Neon accepted `EXPLAIN (FORMAT JSON)` for the exact new
+owner/replica/source lookup shape with all returned source columns.
+This entry does not claim the requested 262,879,879-byte lecture has completed
+upload or processing; that end-to-end run follows deployment.

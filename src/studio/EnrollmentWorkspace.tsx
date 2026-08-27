@@ -377,6 +377,14 @@ export default function EnrollmentWorkspace({
     setSourceLanguages((current) => ({ ...current, [sourceId]: language }));
   }
 
+  function releaseTerminalRetry(cause: unknown) {
+    const failed = (cause as { data?: { source?: ReplicaSource } } | null)?.data?.source;
+    if (!failed || failed.state === "pending_upload") return;
+    uploadedObjects.current.delete(failed.source_id);
+    retryFiles.current.delete(failed.source_id);
+    setPendingRetryId((current) => current === failed.source_id ? null : current);
+  }
+
   function openCalibration(language: Exclude<EnrollmentLanguage, "english">) {
     setUploadMode("audio");
     resetSelectedFiles();
@@ -467,6 +475,7 @@ export default function EnrollmentWorkspace({
       setCalibrationLanguage(null);
       setTimeout(() => setUploadPhase(""), 2200);
     } catch (cause) {
+      releaseTerminalRetry(cause);
       setUploadError(cause instanceof Error ? cause.message : "Upload could not be completed");
       setUploadPhase("");
     } finally {
@@ -504,6 +513,7 @@ export default function EnrollmentWorkspace({
       setCalibrationLanguage(null);
       setTimeout(() => setUploadPhase(""), 2200);
     } catch (cause) {
+      releaseTerminalRetry(cause);
       setUploadError(cause instanceof Error ? cause.message : "Upload retry could not be completed");
       setUploadPhase("");
     } finally {
@@ -524,6 +534,7 @@ export default function EnrollmentWorkspace({
       setUploadProgress(100);
       setTimeout(() => setUploadPhase(""), 2200);
     } catch (cause) {
+      releaseTerminalRetry(cause);
       setUploadError(cause instanceof Error
         ? cause.message
         : "No complete stored upload could be verified. Retry with the original file or erase this record.");

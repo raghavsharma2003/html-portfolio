@@ -530,12 +530,20 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
     /putAzureBlockUpload/.test(browserUpload) && /azureBlockId\(index\)/.test(browserUpload)
     && /file\.slice\(start, end\)/.test(browserUpload) && /"If-None-Match":\s*"\*"/.test(browserUpload)
     && /"x-ms-content-crc64":\s*crc64/.test(browserUpload)
+    && /"x-ms-blob-content-type":\s*authorizedContentType/.test(browserUpload)
+    && /capability\.metadata\.contentType/.test(browserUpload)
+    && !/"x-ms-blob-content-type":\s*file\.type/.test(browserUpload)
     && !/azureRequest\("(?:GET|HEAD)"/.test(browserUpload)
     && !/file\.arrayBuffer\(/.test(browserUpload));
   ok("source picker queues multiple files and distinguishes upload from processing",
     /multiple=\{uploadMode !== "identity_document"\}/.test(workspace)
     && /for \(const \[index, current\] of files\.entries\(\)\)/.test(workspace)
     && /Upload complete\. Processing queued\./.test(workspace));
+  ok("a terminal finalize rejection releases the stale browser retry instead of trapping the next upload",
+    /function releaseTerminalRetry\(cause: unknown\)/.test(workspace)
+    && /failed\.state === "pending_upload"/.test(workspace)
+    && /retryFiles\.current\.delete\(failed\.source_id\)/.test(workspace)
+    && /setPendingRetryId\(\(current\) => current === failed\.source_id \? null : current\)/.test(workspace));
 }
 
 {
@@ -557,6 +565,10 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
   ok("generic finalization cannot bypass the live-challenge transition",
     /pending\.capture_mode === "live_challenge"/.test(sourceEndpoint)
     && /use_liveness_finalize/.test(sourceEndpoint));
+  ok("generic finalization preserves an owner-scoped terminal rejection on retry",
+    /getOwnedSource\(q, user\.id, body\.replica_id, body\.source_id\)/.test(sourceEndpoint)
+    && /existing\.rejection_code \|\| `source_/.test(sourceEndpoint)
+    && !/if \(!pending\) return res\.status\(404\)\.json\(\{ error: "pending_source_not_found" \}\);/.test(sourceEndpoint));
 }
 
 console.log(failed ? `\n${failed} FAILURES` : "\nALL PASS");

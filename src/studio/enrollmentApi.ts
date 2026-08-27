@@ -366,6 +366,15 @@ async function putAzureBlockUpload(
     throw new Error("Private Azure upload endpoint is invalid");
   }
   const common = { ...capability.headers };
+  // The browser's File.type is supplied by the operating-system MIME table.
+  // Windows can label an .mp3 as video/mpeg even though intake correctly
+  // canonicalized it to audio/mpeg. Persist the server-authorized MIME from
+  // the signed capability, otherwise finalize rejects a byte-perfect upload.
+  const authorizedContentType = String(capability.metadata.contentType || "")
+    .split(";", 1)[0].trim().toLowerCase();
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(authorizedContentType)) {
+    throw new Error("Private Azure upload content type is invalid");
+  }
   const totalBlocks = Math.ceil(file.size / capability.chunk_size);
   if (totalBlocks < 1 || totalBlocks > 50_000) throw new Error("Private Azure upload block count is invalid");
 
@@ -411,7 +420,7 @@ async function putAzureBlockUpload(
     ...common,
     "Content-Type": "application/xml",
     "If-None-Match": "*",
-    "x-ms-blob-content-type": file.type || "application/octet-stream",
+    "x-ms-blob-content-type": authorizedContentType,
   }, body);
   if (committed.status === 409 || committed.status === 412) {
     throw new Error("Private Azure upload path already exists");

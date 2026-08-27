@@ -3,6 +3,7 @@ import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import {
   createPendingSource,
+  getOwnedSource,
   getPendingSource,
   listOwnedSources,
   finalizeOwnedSource,
@@ -79,7 +80,23 @@ export default async function handler(req, res) {
     }
     if (body.op === "finalize") {
       const pending = await getPendingSource(q, user.id, body.replica_id, body.source_id);
-      if (!pending) return res.status(404).json({ error: "pending_source_not_found" });
+      if (!pending) {
+        // Finalize is commonly retried after a connection timeout. Return the
+        // exact owner-scoped terminal/current source instead of claiming that
+        // a real source does not exist. In particular, a MIME rejection must
+        // stay a MIME rejection rather than cascading into the misleading
+        // `pending_source_not_found` seen by the owner.
+        const existing = await getOwnedSource(q, user.id, body.replica_id, body.source_id);
+        if (!existing) return res.status(404).json({ error: "source_not_found" });
+        const source = clientSource(existing);
+        if (["quarantined", "processing", "ready"].includes(existing.state)) {
+          return res.status(200).json({ source });
+        }
+        return res.status(409).json({
+          error: existing.rejection_code || `source_${existing.state || "not_pending"}`,
+          source,
+        });
+      }
       // Live evidence has a stricter atomic transition that binds the file to
       // its unexpired randomized phrase. It must never enter quarantine via
       // the generic evidence route.
@@ -92,7 +109,10 @@ export default async function handler(req, res) {
       const info = await replicaObjectInfo({ storageBucket: pending.storage_bucket, objectPath: pending.object_path });
       const source = await finalizeOwnedSource(q, user.id, body.replica_id, body.source_id, info);
       return source
-        ? res.status(source.state === "quarantined" ? 200 : 409).json({ source: clientSource(source) })
+        ? res.status(source.state === "quarantined" ? 200 : 409).json({
+            ...(source.rejection_code ? { error: source.rejection_code } : {}),
+            source: clientSource(source),
+          })
         : res.status(409).json({ error: "source_state_changed" });
     }
     if (body.op === "list") {

@@ -4575,3 +4575,20 @@ array passed to `concat`: the Azure-storage secret branch had no explicit
 false value. Source review and string-based tests had missed it. The template
 now uses `checkedAzureStorage ? [...] : []`, and a real Bicep compile is part of
 this release evidence rather than an inferred pass.
+
+## `raw-browser-file-type-is-not-storage-mime-authority` (2026-08-27)
+
+**What was tried.** Infer an accepted source MIME for the database, but set the
+Azure Blob property from the operating system's raw browser `File.type`; then
+retry finalize by looking up only a `pending_upload` source.
+
+**What specifically broke.** Windows labeled an MP3 as `video/mpeg` while the
+extension-aware intake contract correctly stored `audio/mpeg`. Azure preserved
+the wrong raw label, so exact finalization rejected a byte-perfect object with
+`mime_mismatch`. That transition made the row `rejected`; the next finalize
+lookup could no longer see it and falsely reported `pending_source_not_found`.
+
+**What replaced it.** The signed capability carries the already-validated
+server MIME and the block-list commit uses only that value. Finalize retries
+read the exact owner-scoped source and preserve terminal state and rejection
+code. OS MIME tables remain a hint for initial intake, never storage authority.

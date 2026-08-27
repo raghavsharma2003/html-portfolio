@@ -233,6 +233,10 @@ ok("every staged block carries CRC64 and final commit remains create-only",
   && /"x-ms-content-crc64": crc64/.test(browserUpload)
   && /comp: "blocklist"[\s\S]*"If-None-Match": "\*"/.test(browserUpload)
   && /<Latest>\$\{azureBlockId\(index\)\}<\/Latest>/.test(browserUpload));
+ok("Azure commit persists the server-authorized MIME instead of the unreliable OS File.type",
+  /const authorizedContentType = String\(capability\.metadata\.contentType/.test(browserUpload)
+  && /"x-ms-blob-content-type": authorizedContentType/.test(browserUpload)
+  && !/"x-ms-blob-content-type": file\.type/.test(browserUpload));
 ok("frontend and server agree on the Azure block protocol name",
   /upload\.resumable\.protocol === "azure-block-v1"/.test(browserUpload));
 

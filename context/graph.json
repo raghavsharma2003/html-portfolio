@@ -3395,6 +3395,25 @@
       "kind": "rejection",
       "title": "A worker-global true flag fires too late for first-upload capture/storage and does not restrict which authenticated owner can receive auto-grants",
       "at": "2026-08-27"
+    },
+    {
+      "id": "azure-upload-mime-is-bound-by-the-authorized-source-contract",
+      "kind": "decision",
+      "title": "Azure commit uses the server-authorized source MIME and finalize retries preserve exact owner-scoped terminal state",
+      "at": "2026-08-27",
+      "status": "local regression passed; production end-to-end pending"
+    },
+    {
+      "id": "azure-mp3-mime-mismatch-live-2026-08-27",
+      "kind": "measurement",
+      "title": "One live MP3 had exact bytes but source audio/mpeg versus Azure video/mpeg; 25 focused Azure checks pass after the contract fix",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "raw-browser-file-type-is-not-storage-mime-authority",
+      "kind": "rejection",
+      "title": "Windows File.type mislabeled an MP3 and terminal retry then collapsed into pending source not found",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6612,6 +6631,21 @@
       "src": "replica-self-test-requires-owner-bound-three-part-guard",
       "rel": "part_of",
       "dst": "replica-control-plane"
+    },
+    {
+      "src": "azure-upload-mime-is-bound-by-the-authorized-source-contract",
+      "rel": "measured_by",
+      "dst": "azure-mp3-mime-mismatch-live-2026-08-27"
+    },
+    {
+      "src": "azure-upload-mime-is-bound-by-the-authorized-source-contract",
+      "rel": "caused_by",
+      "dst": "raw-browser-file-type-is-not-storage-mime-authority"
+    },
+    {
+      "src": "azure-upload-mime-is-bound-by-the-authorized-source-contract",
+      "rel": "part_of",
+      "dst": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators"
     }
   ]
 }

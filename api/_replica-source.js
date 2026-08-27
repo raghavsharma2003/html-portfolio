@@ -188,6 +188,16 @@ export async function getPendingSource(db, ownerUserId, id, source) {
   return rows[0] || null;
 }
 
+export async function getOwnedSource(db, ownerUserId, id, source) {
+  const rows = await db(
+    `select ${SOURCE_RETURNING} from vy_replica_source
+      where replica_id = $1::uuid and owner_user_id = $2::uuid and source_id = $3::uuid
+      limit 1`,
+    [replicaId(id), ownerUserId, replicaId(source)],
+  );
+  return rows[0] || null;
+}
+
 export async function listOwnedSources(db, ownerUserId, id) {
   const rows = await db(
     `select ${SOURCE_RETURNING} from vy_replica_source

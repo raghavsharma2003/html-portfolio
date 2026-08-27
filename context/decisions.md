@@ -6175,3 +6175,26 @@ shared environment. A future isolated test deployment may replace the UUID
 allowlist only if it has a separate database and auth tenant and proves the
 same fail-closed negative controls. Production user flows never inherit this
 contract.
+
+## `azure-upload-mime-is-bound-by-the-authorized-source-contract` (2026-08-27)
+
+**Decision.** Azure block-list commit persists the server-authorized source
+MIME carried in the signed upload capability. It never persists the browser's
+raw `File.type`. Finalize retries are owner-scoped and idempotently return an
+existing quarantined, processing or ready source; a rejected source continues
+to return its exact rejection code instead of collapsing to a missing-pending
+record.
+
+**Why.** Windows reported a real MP3 as `video/mpeg`. Intake correctly inferred
+and stored `audio/mpeg` from the `.mp3` extension, but the browser then wrote
+the unrelated OS label into Azure Blob properties. The byte count was exact,
+yet finalize correctly rejected the MIME mismatch. A retry queried only
+`pending_upload`, so the already-rejected row became the misleading
+`pending_source_not_found` error.
+
+**What would reverse it.** The server-authorized MIME may stop being the blob
+property authority only if a content-sniffing service runs before commit and
+returns an authenticated type that is stored in both the source record and
+blob metadata. Finalize may stop returning terminal state only if clients gain
+a separate, equally owner-scoped status endpoint and all retry callers migrate
+to it first.
