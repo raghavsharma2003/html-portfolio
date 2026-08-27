@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vyakti | Privacy and Terms</title>
+  <meta name="description" content="How Vyakti handles source material, biometric voice data, generated clones, student conversations, and deletion." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://vyakti-replica-lab.vercel.app/privacy" />
+  <meta name="theme-color" content="#f4f1e9" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root { color-scheme: light; --paper:#f4f1e9; --panel:#fffef9; --ink:#171915; --soft:#52564e; --faint:#676b62; --line:rgba(28,32,26,.15); --forest:#17493b; --forest-soft:#e1eee7; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.65; }
+    a { color:var(--forest); }
+    .nav { position:sticky; top:0; z-index:2; border-bottom:1px solid var(--line); background:rgba(244,241,233,.93); backdrop-filter:blur(16px); }
+    .bar,.page,.foot { width:min(920px,calc(100% - 40px)); margin:auto; }
+    .bar { min-height:72px; display:flex; align-items:center; gap:18px; }
+    .brand { color:var(--ink); text-decoration:none; font-size:13px; font-weight:800; letter-spacing:.08em; }
+    .bar span { flex:1; }
+    .bar a:last-child { font-size:14px; }
+    .page { padding:72px 0 88px; }
+    .intro { padding-bottom:40px; border-bottom:1px solid var(--line); }
+    .eyebrow { margin:0 0 10px; color:var(--forest); font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    h1,h2 { font-family:Georgia,"Times New Roman",serif; letter-spacing:-.018em; }
+    h1 { max-width:16ch; margin:0; font-size:clamp(38px,7vw,64px); line-height:1.04; }
+    .lede { max-width:64ch; margin:22px 0 0; color:var(--soft); font-size:18px; }
+    .updated { margin:14px 0 0; color:var(--faint); font-size:13px; }
+    article { max-width:700px; padding-top:24px; }
+    section { padding:30px 0; border-bottom:1px solid var(--line); }
+    h2 { margin:0 0 14px; font-size:27px; line-height:1.18; }
+    p,ul { margin:0; }
+    ul { padding-left:21px; }
+    li + li { margin-top:9px; }
+    .notice { margin-top:30px; padding:20px 22px; border:1px solid rgba(23,73,59,.22); border-radius:18px; background:var(--forest-soft); color:#0e352a; }
+    .foot { display:flex; flex-wrap:wrap; gap:18px; padding:30px 0 50px; border-top:1px solid var(--line); color:var(--faint); font-size:13px; }
+    .foot span { flex:1; }
+    @media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="Primary"><div class="bar"><a class="brand" href="/">VYAKTI</a><span></span><a href="/studio?mode=teacher">Open studio</a></div></nav>
+  <main class="page">
+    <header class="intro">
+      <p class="eyebrow">Privacy and terms</p>
+      <h1>Your likeness remains yours.</h1>
+      <p class="lede">Vyakti is a private self-cloning platform. This notice explains the data needed to build and operate a clone, which processing requires separate permission, and how to stop use and request erasure.</p>
+      <p class="updated">Last updated: 27 August 2026</p>
+    </header>
+    <article>
+      <section>
+        <h2>Who may be cloned</h2>
+        <p>You may create a clone only of yourself. Access to the studio is not cloning permission. Source processing, biometric processing, training, inference, and channel publishing use separate recorded permissions. Identity and liveness checks may be required before restricted capabilities can activate.</p>
+      </section>
+      <section>
+        <h2>What we process</h2>
+        <ul>
+          <li>Account details used for sign-in and ownership.</li>
+          <li>Files and links you submit, including audio, video, documents, images, transcripts, checksums, and processing status.</li>
+          <li>Voice and identity evidence, including speaker characteristics and liveness results, when you separately allow biometric processing.</li>
+          <li>Clone configuration, approved teaching or persona material, evaluation results, generated audio, provenance records, and safety decisions.</li>
+          <li>Conversations and bounded memory records for an activated experience when that channel explicitly supports memory.</li>
+          <li>Security and reliability records such as timestamps, request outcomes, rate-limit events, and failure codes.</li>
+        </ul>
+      </section>
+      <section>
+        <h2>How it is used</h2>
+        <p>We use this data to verify ownership and consent, inspect uploads for safety, extract useful material, create private previews, evaluate likeness and intelligibility, operate approved clone experiences, prevent impersonation, attach synthetic-media provenance, and complete deletion. Your material is not placed in a public voice library or sold to advertisers.</p>
+      </section>
+      <section>
+        <h2>Services that process data</h2>
+        <p>The current build uses infrastructure and model services operated by providers including Vercel, Neon, Supabase, Microsoft Azure, Sarvam, and configured model providers. Only the data needed for a requested function is sent to that function. Provider availability and the exact active lane can change as the private build is qualified.</p>
+      </section>
+      <section>
+        <h2>Biometric data and generated voice</h2>
+        <p>A voice model or voice embedding can be biometric data because it can relate to identity. Vyakti requires explicit permission before that processing. A private preview is not permission to publish or deploy a clone. Generated voice is disclosed as AI-generated and passes through provenance and protection checks before delivery. These safeguards reduce misuse risk but cannot make synthetic media risk-free.</p>
+      </section>
+      <section>
+        <h2>Students and other people</h2>
+        <p>Do not upload private recordings of another person without a lawful basis and their permission. A published clone must identify itself as AI before interaction. Student memory is isolated by clone and person where the deployed channel supports it. The public widget does not currently promise cross-session memory.</p>
+      </section>
+      <section>
+        <h2>Retention and deletion</h2>
+        <p>You can delete individual sources or revoke a clone from the studio. Revocation blocks future generation first, then queues private sources, derived models, memories, and provider copies for verified erasure. Some encrypted backups and security records may remain for a limited period where required for recovery, abuse prevention, or law. The studio shows the status it can verify.</p>
+      </section>
+      <section>
+        <h2>Your controls</h2>
+        <p>You may review permissions, withdraw eligible permissions, delete a source, revoke a clone, and request account assistance. See <a href="/delete-account">Delete your account and clone data</a> for the current paths. We may preserve a minimal deletion receipt that proves erasure without retaining the deleted content.</p>
+      </section>
+      <section>
+        <h2>Private build terms</h2>
+        <ul>
+          <li>Do not use Vyakti to clone another person, mislead people, harass, defraud, or evade disclosure and provenance controls.</li>
+          <li>Do not submit material you lack permission to process.</li>
+          <li>Voice activation and deployment remain gated. A submitted source does not guarantee a usable or deployable clone.</li>
+          <li>The service may change while it is being tested. Material changes to data use require a new permission where applicable.</li>
+        </ul>
+      </section>
+      <p class="notice"><strong>Questions or requests:</strong> email <a href="mailto:compliance@carbonsettle.com?subject=Vyakti%20privacy%20request">compliance@carbonsettle.com</a>. Do not send identity documents or raw recordings by email.</p>
+    </article>
+  </main>
+  <footer class="foot"><span>Vyakti. Consented source material, measured fidelity, disclosed AI.</span><a href="/">Home</a><a href="/delete-account">Deletion</a></footer>
+</body>
+</html>

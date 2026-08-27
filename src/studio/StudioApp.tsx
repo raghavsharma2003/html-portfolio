@@ -46,7 +46,7 @@ import IngestChannelStudio from "./IngestChannelStudio";
 import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
 import MirrorCallStudio from "./MirrorCallStudio";
-import VideoLinkMount from "./VideoLinkMount";
+import VideoEnrollPanel from "./VideoEnrollPanel";
 import ActivityPanel from "./ActivityPanel";
 import {
   AdvancedArea,
@@ -881,9 +881,11 @@ function ReplicaWorkspace({
                   onAuthError={onReviewAuthError}
                   onItemCount={onContextCount}
                 />
-                {/* WS-AD's single-video lane has not landed. A labelled hole,
-                    never a field that swallows a URL. See VideoLinkMount.tsx. */}
-                <VideoLinkMount />
+                <VideoEnrollPanel
+                  key={`video-enroll-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                />
                 {/* WS-S. The channel lane is horizontal by the same argument
                     the Context Locker is: a teacher's uploads are one kind of
                     channel and everyone else's are the rest, so it is no longer

@@ -2736,6 +2736,15 @@ measuring, add Devanagari spellings to the lexicon, or pick an ASR model that
 returns romanised Hinglish. `scripts/first-clone.mjs` prints the warning
 whenever it sees ratio 0 on a non-trivial transcript, so this cannot go quiet.
 
+**2026-08-27 benchmark-only resolution.** Naively using raw Unicode WER as the
+replacement was rejected because it charges a reviewed Roman/Devanagari pair
+as different words. Unbounded phonetic transliteration was also rejected: it
+could make unknown words or real confusables such as `hai`/`he` look equal and
+manufacture a quality gain. The evaluation layer now emits raw metrics beside
+a bounded, coverage-reporting alias metric. The product-derived
+`stats.codeSwitch` and its consumers remain unchanged; this does not resolve
+production language identification.
+
 ## `plausible-return-hides-a-dead-pipeline` — four defects that each returned something believable (2026-08-26)
 
 The first real end-to-end run (WS-T, the owner's own voice) found four
@@ -4401,3 +4410,60 @@ then compare ECAPA cosine per variant against the same genuine-owner-audio
 reference. No offline mock can substitute -- this is exactly the class of
 number `first-real-clone` and `reference-window-beats-the-finetune` warn
 against inventing.
+
+---
+
+## `surface-chat-is-not-a-room-tenant-key` — global binding uniqueness defeats the second clone (2026-08-27)
+
+The first clone-channel implementation correctly put `ctx.agentId` beside the
+persona, but room lookup still selected only `(surface, surface_chat_id)`, the
+unique index enforced that pair globally, DM logs/history omitted `agent_id`,
+and the room episode/action writers still named Meera's constant. Two clones
+receiving the same opaque chat id could therefore share the first room, fail
+to create the second, or persist/retrieve under the wrong relationship while
+the compiled persona looked correct.
+
+The rejected shortcut is to rely on bot credentials making chat ids globally
+unique, or to trust a globally unique `group_id` after an unscoped lookup.
+Neither is a storage boundary. Different credentials routinely reuse opaque
+user/chat ids, and a deep-link room id is caller-controlled input. The fix is
+an explicit SQL predicate or write value at every shared runtime operation,
+plus agent-aware uniqueness in migration 064.
+
+**What would make the old key safe:** a proven platform-wide invariant that
+all surface chat ids are globally namespaced across every clone credential.
+No supported surface provides that invariant, so the old key remains rejected.
+## `raising-the-upload-cap-alone-still-fails-long-media` (2026-08-27)
+
+**What was tried conceptually and rejected.** Change audio's 256 MiB validator
+to 1 GiB and keep the existing signed PUT plus processing adapters unchanged.
+
+**What specifically breaks.** The browser still retries the entire file after
+one dropped connection. `readPrivateReplicaObject` still concatenates the
+whole original in the Node heap behind a 64 MiB processing limit. ClamAV's
+`--stream` remains coupled to `StreamMaxLength` (70 MiB in the shipped config),
+and voice evidence still refuses recordings beyond its 20 minute hard ceiling.
+The upload can therefore say complete while processing is guaranteed to stop,
+which is a larger dishonest state rather than support for large media.
+
+**What replaced it.** Signed client-side TUS; private storage-to-disk streaming
+with hash verification; ClamAV local file-descriptor scanning; deterministic
+overlapping diarization chunks with conservative label reconciliation; streamed
+Sarvam upload; and an explicit "Upload complete. Processing queued." state.
+
+## `per-bucket-limit-cannot-bypass-the-project-global-limit` (2026-08-27)
+
+**What was tried.** Before deploying the web uploader, update the private
+`vyakti-replica-private` bucket to `file_size_limit=1073741824` through the
+authenticated Storage API and read the setting back.
+
+**What broke.** Supabase refused the update with HTTP 413 `EntityTooLarge`.
+The bucket remained private and retained no explicit per-bucket limit. Supabase
+documents that a bucket limit may not exceed the project global Storage limit;
+there is no safe service-role or application-code bypass for that account law.
+
+**What replaced it.** The resumable and streaming runtime shipped, because it
+still fixes dropped connections, whole-file browser buffering and the worker's
+old 64 MiB heap wall for files the account accepts. The 1 GiB claim remains
+blocked on an explicit account-level limit change and a real >50 MiB smoke. No
+subscription purchase or billing change was made by this release.

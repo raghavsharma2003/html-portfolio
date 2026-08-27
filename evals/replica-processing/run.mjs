@@ -152,7 +152,9 @@ const resolveFixtureInput = async ({ input }) => {
 // rate and the right sample count for the span, because `selectOwnerReference
 // Window` cross-checks the second extraction's own duration against the
 // first's before trusting it.
-const withFixtureMaterializedAudio = async (bytes, fn) => fn({
+const withFixtureMaterializedAudio = async (input, fn) => {
+  const bytes = Buffer.isBuffer(input) ? input : fixtureAudio;
+  return fn({
   async extractWindow(startMs, endMs, { rate = 16_000 } = {}) {
     if (rate === 16_000) {
       const parsed = Windows.readPcm16Wav(bytes);
@@ -164,7 +166,8 @@ const withFixtureMaterializedAudio = async (bytes, fn) => fn({
     const samples = Buffer.alloc(sampleCount * 2, 0).map((_, index) => (index % 2 === 0 ? 120 : 0));
     return RefWindow.wavBytesForSamples(samples, rate);
   },
-});
+  });
+};
 
 const separated = await Worker.executeProcessingJob({
   job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate,

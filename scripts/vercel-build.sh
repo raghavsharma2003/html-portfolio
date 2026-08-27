@@ -58,11 +58,13 @@ if [ "${STUDIO_ROOT:-}" = "1" ] || [ "${VERCEL_GIT_COMMIT_REF:-}" = "claude/guru
   # needs no second cp line and no coupling to Meera's site/styles.css, which
   # scripts/check-contrast.mjs reads by name. See docs/gurukul/DESIGN-SYSTEM.md.
   cp site/vyakti.html dist/index.html
+  cp site/vyakti-privacy.html dist/privacy.html
+  cp site/vyakti-delete-account.html dist/delete-account.html
 else
   cp site/index.html dist/index.html
+  cp site/privacy.html dist/privacy.html
+  cp site/delete-account.html dist/delete-account.html
 fi
 cp site/styles.css dist/styles.css
-cp site/privacy.html dist/privacy.html
-cp site/delete-account.html dist/delete-account.html
 mkdir -p dist/assets
 cp -R site/assets/. dist/assets/

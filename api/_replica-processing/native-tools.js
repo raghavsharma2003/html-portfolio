@@ -169,6 +169,19 @@ export function readClamAvVerdict(result) {
     const match = result.stdout.match(/:\s+([^:\r\n]+)\s+FOUND\s*$/m);
     return Object.freeze({ safe: false, signatures: Object.freeze(match ? [match[1].trim().slice(0, 120)] : ["detected"]) });
   }
+  const diagnostic = `${result.stdout || ""}\n${result.stderr || ""}`.toLowerCase();
+  // Content-free failure classes survive into the processing attempt without
+  // retaining scanner output, temp paths, or provider text. This is the
+  // diagnostic boundary the former one-code implementation was missing.
+  if (/instream.*(?:size|length).*limit|size limit exceeded/.test(diagnostic)) {
+    throw toolError("clamav_scan_size_limit");
+  }
+  if (/could not connect|can't connect|connection (?:refused|reset)|clamd.*not running/.test(diagnostic)) {
+    throw toolError("clamav_daemon_unavailable", true);
+  }
+  if (/access denied|permission denied|fdpass.*(?:fail|error)/.test(diagnostic)) {
+    throw toolError("clamav_scan_access_failed", true);
+  }
   // Any other exit code is a scanner that did not answer the question. It is
   // NOT an answer of "clean", and the retryable flag says a transient scanner
   // fault is worth another attempt rather than a silent pass.
@@ -206,6 +219,20 @@ export function createNativeToolRunners(options = {}) {
   const env = options.env || process.env;
   const clamdConfigPath = options.clamdConfigPath ? String(options.clamdConfigPath) : "";
   return Object.freeze({
+    async scanFile(file, callOptions = {}) {
+      const command = resolveNativeTool("malware_scan", env);
+      if (!command) throw toolError(NATIVE_TOOLS.malware_scan.absentCode);
+      // `--stream` sends the entire body through clamd's INSTREAM protocol and
+      // is capped by StreamMaxLength. A local worker already owns a private
+      // 0600 temp file, so pass its descriptor over the Unix socket instead.
+      // This keeps the daemon from needing path permissions and removes both
+      // the stdin buffer and INSTREAM ceiling from large source scans.
+      const args = ["--no-summary", "--fdpass", file];
+      if (clamdConfigPath) args.unshift(`--config-file=${clamdConfigPath}`);
+      return readClamAvVerdict(await runTool(command, args, "", {
+        signal: callOptions.signal, timeoutMs: 600_000, code: "clamav", maxOutput: 64 * 1024,
+      }));
+    },
     async scanBytes(bytes, callOptions = {}) {
       const command = resolveNativeTool("malware_scan", env);
       if (!command) throw toolError(NATIVE_TOOLS.malware_scan.absentCode);
@@ -214,6 +241,14 @@ export function createNativeToolRunners(options = {}) {
       return readClamAvVerdict(await runTool(command, args, bytes, {
         signal: callOptions.signal, timeoutMs: 180_000, code: "clamav", maxOutput: 64 * 1024,
       }));
+    },
+    async probeFile(file, callOptions = {}) {
+      const command = resolveNativeTool("media_probe", env);
+      if (!command) throw toolError(NATIVE_TOOLS.media_probe.absentCode);
+      return readFfprobeFacts(await runTool(command, [
+        "-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,sample_rate,channels",
+        "-of", "json", file,
+      ], "", { signal: callOptions.signal, timeoutMs: 180_000, code: "ffprobe", maxOutput: 256 * 1024 }));
     },
     // ffprobe is given a FILE, not a pipe, and that is load-bearing.
     //
@@ -306,6 +341,42 @@ export function createNativeToolRunners(options = {}) {
                 "-vn", "-ac", "1", "-ar", String(sampleRate), "-sample_fmt", "s16",
                 "-f", "wav", outFile,
               ], "", { signal: callOptions.signal, timeoutMs: 60_000, code: "reference_window", maxOutput: 4 * 1024 });
+              if (result.exitCode !== 0) throw toolError("reference_window_extract_failed");
+              const { readFile } = await import("node:fs/promises");
+              const wav = await readFile(outFile);
+              if (wav.length < 44) throw toolError("reference_window_extract_failed");
+              return wav;
+            } finally {
+              await rm(outFile, { force: true }).catch(() => {});
+            }
+          },
+        });
+      } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
+    },
+    async withAudioFile(file, fn, callOptions = {}) {
+      const command = resolveNativeTool("reference_window", env);
+      if (!command) throw toolError(NATIVE_TOOLS.reference_window.absentCode);
+      const dir = await mkdtemp(join(options.tmpDir || tmpdir(), "refwin-out-"));
+      try {
+        return await fn({
+          async extractWindow(startMs, endMs, { rate = 16000 } = {}) {
+            const startSec = Math.max(0, Number(startMs) / 1000);
+            const durSec = (Number(endMs) - Number(startMs)) / 1000;
+            if (!(durSec > 0) || durSec > 900) throw toolError("reference_window_span_invalid");
+            const sampleRate = Number(rate);
+            if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 48000) {
+              throw toolError("reference_window_rate_invalid");
+            }
+            const outFile = join(dir, `${randomBytes(8).toString("hex")}.wav`);
+            try {
+              const result = await runTool(command, [
+                "-nostdin", "-y", "-v", "error",
+                "-ss", startSec.toFixed(3), "-i", file, "-t", durSec.toFixed(3),
+                "-vn", "-ac", "1", "-ar", String(sampleRate), "-sample_fmt", "s16",
+                "-f", "wav", outFile,
+              ], "", { signal: callOptions.signal, timeoutMs: 120_000, code: "reference_window", maxOutput: 4 * 1024 });
               if (result.exitCode !== 0) throw toolError("reference_window_extract_failed");
               const { readFile } = await import("node:fs/promises");
               const wav = await readFile(outFile);

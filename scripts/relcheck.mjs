@@ -180,6 +180,23 @@ mpCheck(
   `select count(*)::int n from vy_disclosure_grant where group_id is null`,
 );
 
+// Agent ownership must agree with the room row on every shared child. A
+// globally unique group_id is not a substitute for this assertion: a writer
+// can pair agent B with agent A's group and every single-column FK still
+// resolves. Migration 064 fixes address uniqueness; these checks hold the
+// persisted child rows to the same boundary.
+const roomAgentMismatch = (table, alias = "r") =>
+  `select count(*)::int n from ${table} ${alias}
+    join vy_group g on g.id = ${alias}.group_id
+   where ${alias}.group_id is not null and ${alias}.agent_id <> g.agent_id`;
+mpCheck("vy_group_member agent matches room", roomAgentMismatch("vy_group_member", "m"));
+mpCheck("vy_group_turn agent matches room", roomAgentMismatch("vy_group_turn", "t"));
+mpCheck("room vy_episode agent matches room", roomAgentMismatch("vy_episode", "e"));
+mpCheck("room meera_log agent matches room", roomAgentMismatch("meera_log", "l"));
+mpCheck("room vy_fact agent matches room", roomAgentMismatch("vy_fact", "f"));
+mpCheck("room vy_phrase agent matches room", roomAgentMismatch("vy_phrase", "p"));
+mpCheck("room disclosure grant agent matches room", roomAgentMismatch("vy_disclosure_grant", "d"));
+
 // Room isolation (§2.4 clause 4) reads group_id as a hint on derived rows;
 // a hint pointing at a room that no longer exists would make the clause
 // compare against nothing. No FK on hint columns (house law), so sweep it.

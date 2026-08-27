@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <title>Vyakti</title>
-  <meta name="description" content="A teacher builds an AI version of themselves from their own recordings. It remembers every student separately, discloses what it is before every session, and carries a published number for how close it sounds." />
+  <meta name="description" content="Build a private AI clone from your own consented recordings, inspect the evidence behind it, and hear a protected preview before anything can be deployed." />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Vyakti" />
   <meta property="og:description" content="Consent first, provenance on every second of audio, and a fidelity score we publish instead of a promise we cannot keep." />
@@ -339,9 +339,9 @@
       <div class="wrap">
         <h1>Your teaching, in a voice that is <em>measurably</em> yours.</h1>
         <p class="lede">
-          A teacher builds an AI version of themselves. We publish the number for how close it is.
+          Build a private AI version of yourself, with every source, permission, measurement, and limit visible.
         </p>
-        <a class="btn" href="/studio?mode=teacher">Start with one recording</a>
+        <a class="btn" href="/studio?mode=teacher">Start with your recordings</a>
         <p class="fine">You can only clone yourself. Identity and a live challenge come first.</p>
       </div>
     </header>
@@ -349,30 +349,30 @@
     <!-- ══ 2. the numbers, each printed with what it does not mean ══════ -->
     <section aria-labelledby="numbers-title">
       <div class="wrap">
-        <h2 id="numbers-title" class="numbers-title">Two numbers, and the thing each one is not.</h2>
+        <h2 id="numbers-title" class="numbers-title">What the latest voice build proves, and what it does not.</h2>
         <div class="numbers">
           <div>
-            <p class="label">Fidelity, measured</p>
-            <p class="value lead">0.7753</p>
+            <p class="label">Selected reference bandwidth</p>
+            <p class="value lead">24 kHz</p>
             <p class="say">
-              Speaker-embedding similarity (ECAPA) between a clone and its owner's own reference, zero-shot, with no
-              fine-tuning. Recomputed on every voice update and shown to you in the studio.
+              The corrected pipeline now selects a full-bandwidth owner window from the original recording instead of
+              forcing every reference through a band-limited separator. This is reference quality, not voice likeness.
             </p>
             <div class="ceiling">
-              <p class="label">The ceiling of that same scale</p>
-              <p class="value">0.8869</p>
+              <p class="label">Conditioning window</p>
+              <p class="value">10 s</p>
               <p class="say">
-                The same person measured against themselves, on different windows of one recording. This is as high as
-                the metric goes for that speaker, so you can read 0.7753 as what it is rather than as what it sounds like.
+                Long recordings give the selector more speech to inspect, but the current zero-shot preview still uses
+                one strong window. More uploaded hours do not yet mean hours of model training.
               </p>
             </div>
           </div>
           <div>
-            <p class="label">Cross-teacher leakage</p>
-            <p class="value">0</p>
+            <p class="label">Owner listening comparisons</p>
+            <p class="value">1</p>
             <p class="say">
-              In 31,122 row-by-scenario checks. Isolation between two teachers' students is a database predicate, not an
-              instruction given to a model. The same test caught 162 violations with the predicate removed.
+              The owner judged the corrected sample better than the earlier clone and still not good. That is useful
+              directional evidence, not a benchmark, a similarity score, or proof that the voice is ready.
             </p>
           </div>
         </div>
@@ -383,23 +383,23 @@
     <section aria-labelledby="what">
       <div class="wrap">
         <div class="head">
-          <h2 id="what">Not a voice clone. A person your students already know.</h2>
+          <h2 id="what">A voice is the opening. A durable person model is the work.</h2>
           <p>
-            Voice is the part everyone demos. It is also the part that wears off in about a week if there is nothing
-            behind it. What makes a student come back is being remembered.
+            The platform separates source evidence, approved identity, relationship memory, and delivery permissions.
+            Each layer has to earn its way into a deployed experience.
           </p>
         </div>
 
         <div class="claims">
           <p>
-            <b>It remembers each student separately.</b> Not a chat history. A per-student record: what they keep getting
-            wrong, what they were dreading before the last mock, what finally clicked. Rushing integration by parts is
-            stored as a pattern with the two sessions that evidenced it, and your clone can cite them.
+            <b>Relational memory is evidence-bound.</b> The private runtime can keep facts, episodes, and interaction
+            patterns separate by clone and person. The public web widget is currently stateless, so this page does not
+            promise cross-session memory there.
           </p>
           <p>
-            <b>It stays current from your own channel.</b> Link your channel and a new video becomes a set of proposed
-            updates to how your clone teaches. Proposed, always. Nothing changes what your clone says to a student until
-            you have read the change and tapped accept.
+            <b>New material stays reviewable.</b> Uploaded material becomes cited proposals. A channel watcher and video
+            enrollment lane exist, but automated third-party video extraction is still gated. Nothing should change an
+            approved person model until its owner accepts the proposal.
           </p>
           <p>
             <b>It teaches the way you teach.</b> Strictness and warmth are separate settings, because they are separate
@@ -412,9 +412,9 @@
             before you publish. It cannot be shortened or switched off, including by us.
           </p>
           <p>
-            <b>Every second of audio is signed.</b> Watermarked twice and signed with <code>C2PA</code> provenance. If a
-            clip of your cloned voice turns up somewhere it should not be, it is identifiable as synthetic and traceable
-            to the generation that made it.
+            <b>Delivered audio is protected.</b> The deployed preview lane adds spoken disclosure, independent audio
+            protection, and a provenance ledger before it returns a clip. Full C2PA delivery remains a release gate,
+            not a claim made about every draft artifact.
           </p>
           <p>
             <b>Withdrawal actually deletes.</b> Revoking stops future use in the same transaction that invalidates the
@@ -518,9 +518,8 @@
               speak yet, and the studio will tell you which gate is holding it.
             </li>
             <li>
-              <strong>No one has run a blind listening test.</strong> 0.7753 is embedding similarity, which is a real
-              measurement of a real thing and is not the same thing as sounding like you. The test rig exists. Until a
-              person has sat through it, we will not tell you how it sounds.
+              <strong>No blind listening benchmark has passed.</strong> The owner preferred the corrected reference path
+              to the broken one and still rated the result as poor. We will not turn that into a quality claim.
             </li>
             <li>
               <strong>We have not benchmarked ourselves against ElevenLabs</strong> or anyone else. When we do, the
@@ -534,6 +533,10 @@
               <strong>Deployment channels are built and not yet turned on.</strong> The web link and the embed come
               first, messaging platforms after.
             </li>
+            <li>
+              <strong>The public widget is stateless today.</strong> Per-person relationship continuity is not available
+              there until the deployed channel passes a two-clone isolation and recall test.
+            </li>
           </ul>
         </div>
       </div>
@@ -542,12 +545,12 @@
     <!-- ══ 7. close ════════════════════════════════════════════════════ -->
     <section class="close" aria-labelledby="close-title">
       <div class="wrap">
-        <h2 id="close-title">Start with one recording.</h2>
+        <h2 id="close-title">Start with your own recordings.</h2>
         <p>
-          You will have something to listen to before you have decided anything. Nothing you upload is used for
-          training, sharing or anything else until you separately say so.
+          Add one or more recordings and inspect each processing step. A protected preview is created only when the
+          source and consent gates are ready. Training and deployment require separate permission.
         </p>
-        <a class="btn" href="/studio?mode=teacher">Start with one recording</a>
+        <a class="btn" href="/studio?mode=teacher">Open the private studio</a>
         <p class="fine">Self-cloning only. No public voice library. Auditable deletion.</p>
       </div>
     </section>

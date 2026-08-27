@@ -39,7 +39,7 @@
 // Offline, deterministic, no model call, no database, no money, ~3s.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -52,7 +52,7 @@ execSync(
     `--outfile=${BUNDLE} --log-level=error --alias:@capacitor/core=${join(ROOT, "evals/stubs/capacitor.mjs")}`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(BUNDLE);
+const E = await import(pathToFileURL(BUNDLE).href);
 
 let fail = 0;
 let checks = 0;
@@ -489,7 +489,8 @@ const walk = (dir, out = []) => {
   }
   return out;
 };
-const srcFiles = walk(join(ROOT, "src")).filter((p) => !p.endsWith("engine/timeline.ts"));
+const timelinePath = join(ROOT, "src", "engine", "timeline.ts");
+const srcFiles = walk(join(ROOT, "src")).filter((p) => p !== timelinePath);
 for (const sym of RETIRED) {
   const users = srcFiles.filter((p) => {
     const t = decomment(readFileSync(p, "utf8"));

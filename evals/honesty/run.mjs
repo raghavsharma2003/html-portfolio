@@ -61,7 +61,7 @@
 
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { activityBreaks } from "./detect.mjs";
@@ -128,7 +128,7 @@ const {
   TAIL_MANIFEST,
   lintLine,
   inspect,
-} = await import(BUNDLE);
+} = await import(pathToFileURL(BUNDLE).href);
 
 let pass = 0;
 let fail = 0;

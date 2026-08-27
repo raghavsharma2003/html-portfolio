@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -188,6 +188,17 @@ const storageSource = {
 };
 const loaded = await processingStorage.resolveInput({ source: storageSource, input: { object_path: originalPath, sha256: RAW_SHA, mime: "audio/wav" } });
 ok("production resolver rehashes authenticated private bytes", loaded.byteSize === RAW.length && sha256Hex(loaded.body) === RAW_SHA);
+let materializedPath = "";
+const materialized = await processingStorage.withResolvedInputFile({
+  source: { ...storageSource, byte_size: RAW.length },
+  input: { object_path: originalPath, sha256: RAW_SHA, mime: "audio/wav", byte_size: RAW.length },
+}, async (file) => {
+  materializedPath = file.path;
+  const privateMode = process.platform === "win32" || (statSync(file.path).mode & 0o077) === 0;
+  return readFileSync(file.path).equals(RAW) && privateMode;
+});
+ok("large-source resolver hashes into a private file without changing bytes", materialized === true);
+ok("materialized source is deleted immediately after the native callback", !existsSync(materializedPath));
 const derivedPath = `${storageSource.owner_user_id}/${storageSource.replica_id}/${storageSource.source_id}/derived/pinned/enhance-${ARTIFACT}`;
 const derived = Buffer.from("derived immutable audio");
 const firstWrite = await processingStorage.artifactStore.writeImmutable({

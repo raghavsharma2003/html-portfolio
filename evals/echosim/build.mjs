@@ -1,10 +1,11 @@
 // Transpile the REAL liveCall.ts (and its two imports) to ESM that node can
 // run, so the simulation drives production code rather than a paraphrase.
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 // Derived from this file's own location, never hardcoded. It used to name
 // "/home/user/html-portfolio" as the fallback, which was true of exactly one
 // container and silently wrong everywhere else — including the day the project
@@ -14,11 +15,12 @@ const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO = process.env.SRCROOT ? path.dirname(process.env.SRCROOT) : path.resolve(HERE, "..", "..");
 const SRCDIR = process.env.SRCROOT ?? "src";
 fs.rmSync(path.join(HERE, "build"), { recursive: true, force: true });
-execSync(
-  `npx tsc --ignoreConfig ${SRCDIR}/voice/liveCall.ts --target es2022 --module esnext ` +
-    `--moduleResolution bundler --skipLibCheck --outDir ${HERE}/build --rootDir ${SRCDIR}`,
-  { cwd: REPO, stdio: "inherit" },
-);
+execFileSync(process.execPath, [
+  path.join(REPO, "node_modules", "typescript", "bin", "tsc"),
+  "--ignoreConfig", path.join(SRCDIR, "voice", "liveCall.ts"),
+  "--target", "es2022", "--module", "esnext", "--moduleResolution", "bundler",
+  "--skipLibCheck", "--outDir", path.join(HERE, "build"), "--rootDir", SRCDIR,
+], { cwd: REPO, stdio: "inherit" });
 // node ESM wants extensions
 for (const f of ["voice/liveCall.js", "voice/level.js", "engine/diag.js"]) {
   const p = path.join(HERE, "build", f);

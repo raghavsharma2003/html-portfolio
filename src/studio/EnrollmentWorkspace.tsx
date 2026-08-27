@@ -13,7 +13,7 @@ const SOURCE_POLICY: Record<SourceKind, { label: string; accept: string; maxByte
   audio: {
     label: "Audio recording",
     accept: ".wav,.mp3,.m4a,.webm,.ogg,.flac,audio/*",
-    maxBytes: 268_435_456,
+    maxBytes: 1_073_741_824,
     mimes: ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg", "audio/flac", "audio/x-flac"],
   },
   video: {
@@ -145,7 +145,7 @@ function SourceState({ state }: { state: ReplicaSource["state"] }) {
   const labels: Record<ReplicaSource["state"], string> = {
     pending_upload: "Upload pending",
     uploaded: "Uploaded",
-    quarantined: "Private quarantine",
+    quarantined: "Processing queued",
     processing: "Processing",
     ready: "Ready",
     rejected: "Rejected",
@@ -190,7 +190,8 @@ export default function EnrollmentWorkspace({
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawText, setWithdrawText] = useState("");
   const [uploadMode, setUploadMode] = useState<UploadMode>("audio");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const file = files[0] || null;
   const [containsThirdParties, setContainsThirdParties] = useState<boolean | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -263,44 +264,53 @@ export default function EnrollmentWorkspace({
   }
 
   async function upload() {
-    if (!file || containsThirdParties === null) return;
-    const identityInput = uploadMode === "identity_document" ? identityDocumentInput(file) : null;
-    const kind = identityInput?.kind || uploadMode as SourceKind;
-    const mime = identityInput?.mime || normalizedMime(file, kind);
-    const problem = identityInput?.problem || sourceError(file, kind, mime);
-    if (problem) {
-      setUploadError(problem);
-      return;
+    if (!files.length || containsThirdParties === null) return;
+    if (uploadMode === "identity_document" && files.length !== 1) return;
+    for (const candidate of files) {
+      const identityInput = uploadMode === "identity_document" ? identityDocumentInput(candidate) : null;
+      const kind = identityInput?.kind || uploadMode as SourceKind;
+      const mime = identityInput?.mime || normalizedMime(candidate, kind);
+      const problem = identityInput?.problem || sourceError(candidate, kind, mime);
+      if (problem) {
+        setUploadError(`${candidate.name}: ${problem}`);
+        return;
+      }
     }
     setUploadError("");
     setUploadBusy(true);
     setUploadProgress(0);
     try {
-      setUploadPhase("Computing integrity fingerprint");
-      const sha256 = await sha256File(file, setUploadProgress);
-      setUploadPhase("Authorizing private upload");
-      setUploadProgress(0);
-      const result = await onCreateUpload({
-        kind,
-        purpose: uploadMode === "identity_document" ? "identity_document" : "memory",
-        mime,
-        byteSize: file.size,
-        sha256,
-        containsThirdParties,
-      });
-      retryFiles.current.set(result.source.source_id, file);
-      setPendingRetryId(result.source.source_id);
-      setUploadPhase("Uploading directly to private storage");
-      await putSignedUpload(file, result.upload, setUploadProgress);
-      uploadedObjects.current.add(result.source.source_id);
-      setUploadPhase("Verifying stored file");
-      await onFinalizeUpload(result.source.source_id);
-      uploadedObjects.current.delete(result.source.source_id);
-      retryFiles.current.delete(result.source.source_id);
-      setPendingRetryId(null);
-      setUploadPhase("Private source received");
+      for (const [index, current] of files.entries()) {
+        const identityInput = uploadMode === "identity_document" ? identityDocumentInput(current) : null;
+        const kind = identityInput?.kind || uploadMode as SourceKind;
+        const mime = identityInput?.mime || normalizedMime(current, kind);
+        const prefix = files.length > 1 ? `${index + 1} of ${files.length}: ` : "";
+        setUploadPhase(`${prefix}Computing integrity fingerprint`);
+        const sha256 = await sha256File(current, setUploadProgress);
+        setUploadPhase(`${prefix}Authorizing private upload`);
+        setUploadProgress(0);
+        const result = await onCreateUpload({
+          kind,
+          purpose: uploadMode === "identity_document" ? "identity_document" : "memory",
+          mime,
+          byteSize: current.size,
+          sha256,
+          containsThirdParties,
+        });
+        retryFiles.current.set(result.source.source_id, current);
+        setPendingRetryId(result.source.source_id);
+        setUploadPhase(`${prefix}Uploading directly to private storage`);
+        await putSignedUpload(current, result.upload, setUploadProgress);
+        uploadedObjects.current.add(result.source.source_id);
+        setUploadPhase(`${prefix}Verifying stored file`);
+        await onFinalizeUpload(result.source.source_id);
+        uploadedObjects.current.delete(result.source.source_id);
+        retryFiles.current.delete(result.source.source_id);
+        setPendingRetryId(null);
+      }
+      setUploadPhase("Upload complete. Processing queued.");
       setUploadProgress(100);
-      setFile(null);
+      setFiles([]);
       setContainsThirdParties(null);
       if (fileRef.current) fileRef.current.value = "";
       setTimeout(() => setUploadPhase(""), 2200);
@@ -334,9 +344,9 @@ export default function EnrollmentWorkspace({
       uploadedObjects.current.delete(sourceId);
       retryFiles.current.delete(sourceId);
       setPendingRetryId(null);
-      setUploadPhase("Private source received");
+      setUploadPhase("Upload complete. Processing queued.");
       setUploadProgress(100);
-      setFile(null);
+      setFiles([]);
       setContainsThirdParties(null);
       if (fileRef.current) fileRef.current.value = "";
       setTimeout(() => setUploadPhase(""), 2200);
@@ -357,7 +367,7 @@ export default function EnrollmentWorkspace({
       uploadedObjects.current.delete(sourceId);
       retryFiles.current.delete(sourceId);
       if (pendingRetryId === sourceId) setPendingRetryId(null);
-      setUploadPhase("Private source received");
+      setUploadPhase("Upload complete. Processing queued.");
       setUploadProgress(100);
       setTimeout(() => setUploadPhase(""), 2200);
     } catch (cause) {
@@ -380,7 +390,7 @@ export default function EnrollmentWorkspace({
       retryFiles.current.delete(deleteTarget.source_id);
       if (pendingRetryId === deleteTarget.source_id) {
         setPendingRetryId(null);
-        setFile(null);
+        setFiles([]);
         setContainsThirdParties(null);
         if (fileRef.current) fileRef.current.value = "";
       }
@@ -509,7 +519,7 @@ export default function EnrollmentWorkspace({
                     onChange={(event) => {
                       const next = event.target.value as UploadMode;
                       setUploadMode(next);
-                      setFile(null);
+                      setFiles([]);
                       setContainsThirdParties(next === "identity_document" ? false : null);
                       setUploadError("");
                       if (fileRef.current) fileRef.current.value = "";
@@ -523,17 +533,18 @@ export default function EnrollmentWorkspace({
                   <input
                     ref={fileRef}
                     type="file"
+                    multiple={uploadMode !== "identity_document"}
                     accept={uploadMode === "identity_document" ? IDENTITY_DOCUMENT_POLICY.accept : SOURCE_POLICY[uploadMode].accept}
                     disabled={uploadBusy || Boolean(pendingRetryId)}
                     onChange={(event) => {
-                      setFile(event.target.files?.[0] ?? null);
+                      setFiles(Array.from(event.target.files || []));
                       setUploadError("");
                     }}
                   />
                   <span className="file-icon" aria-hidden="true">↑</span>
                   <span className="file-picker-copy">
-                    <strong>{file ? file.name : "Choose one file"}</strong>
-                    <small>{file ? bytesLabel(file.size) : `Up to ${bytesLabel(uploadMode === "identity_document" ? IDENTITY_DOCUMENT_POLICY.maxBytes : SOURCE_POLICY[uploadMode].maxBytes)}`}</small>
+                    <strong>{files.length > 1 ? `${files.length} files selected` : file ? file.name : uploadMode === "identity_document" ? "Choose one file" : "Choose files"}</strong>
+                    <small>{files.length > 1 ? `${bytesLabel(files.reduce((total, item) => total + item.size, 0))} total` : file ? bytesLabel(file.size) : `Up to ${bytesLabel(uploadMode === "identity_document" ? IDENTITY_DOCUMENT_POLICY.maxBytes : SOURCE_POLICY[uploadMode].maxBytes)} each`}</small>
                   </span>
                   <span className="file-action">Browse</span>
                 </label>

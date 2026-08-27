@@ -27,10 +27,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const chat = readFileSync(join(ROOT, "src/components/Chat.tsx"), "utf8");
-const brain = readFileSync(join(ROOT, "src/engine/brain.ts"), "utf8");
-const burst = readFileSync(join(ROOT, "src/engine/burst.ts"), "utf8");
-const greeting = readFileSync(join(ROOT, "src/engine/greeting.ts"), "utf8");
+const src = (path) => readFileSync(join(ROOT, path), "utf8").replaceAll("\r\n", "\n");
+const chat = src("src/components/Chat.tsx");
+const brain = src("src/engine/brain.ts");
+const burst = src("src/engine/burst.ts");
+const greeting = src("src/engine/greeting.ts");
 
 let fail = 0;
 let n = 0;

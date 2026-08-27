@@ -29,6 +29,12 @@ const uploadResponse = (source, upload) => ({
     method: upload.method,
     url: upload.url,
     headers: { ...upload.headers, "content-type": source.mime },
+    ...(upload.resumable ? {
+      resumable: {
+        ...upload.resumable,
+        metadata: { ...upload.resumable.metadata, contentType: source.mime },
+      },
+    } : {}),
     expires_at: upload.expires_at,
   },
 });

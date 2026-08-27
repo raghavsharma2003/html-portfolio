@@ -4879,3 +4879,90 @@ voice is "very western and not indian" survives this fix. Reference quality
 cannot account for a model's own accent prior, so that is a distinct cause and
 probably a MODEL SELECTION question rather than a pipeline one.
 
+## `two-agent-room-dm-dispatch-local` — two agents persist and recall without crossing (2026-08-27)
+
+**n = 22 deterministic assertions, 4 real dispatches, 8 persisted raw turns.**
+Method: `node evals/run.mjs agentroom` redirects only `api/_db.js` at the
+module boundary to an in-memory SQL-shaped store, then drives the shipping
+`dispatch()` path twice in DM and twice in a room. Both agents share the same
+person and the same `(surface, chatKey)`. The fixture seeds two agent-specific
+DM facts, two agent-specific room facts and two independent room ids.
+
+Result: 22/22 passed. Each DM compile received only its agent's two facts;
+each room compile received only its own room fact; raw DM persistence split
+2/2 by agent; room turn/reply persistence split into the two correct
+`(agent_id, group_id)` pairs; episode and action writers carried the same
+agent; the same surface/chat address resolved to different room ids. Migration
+064 parsed as four independently rerunnable statements and both unique indexes
+include `agent_id`.
+
+Scope: offline, deterministic, no model, network, filesystem write or live
+database. It proves dispatch control flow and query shape, not PostgreSQL types
+or migration applicability. The updated `evals/mp/binding.mjs` is the real
+Postgres fixture for that second half and was not run in this workstream
+because live database writes were explicitly out of scope.
+
+## `large-media-local-evals-2026-08-27`
+
+**Measured 2026-08-27, offline, n = 4 deterministic boundary fixtures.** The
+processing-worker suite ran: one two-chunk label-swap fixture preserved the
+owner cluster; one no-overlap guest fixture remained a distinct cluster; one
+130 second source fanned out as 60 s, 60 s and 30 s chunks with 10 s overlap in
+the small test configuration and ended at the exact original 130,000 ms; one
+private-storage fixture materialized byte-identical content under mode 0600 and
+proved the path absent immediately after the callback. These are contract
+measurements, not audio-quality or production-latency measurements.
+
+The enrollment boundary suite additionally executed signed-capability checks:
+the TUS descriptor used the direct Storage hostname, a 6 MiB chunk size, the
+public anon key, and no value equal to the service-role key; an intentionally
+identical public/service key was refused. The targeted processing-worker,
+replica-enrollment, replica-processing, and voice-evidence suites passed. No
+container was built or deployed and no live database or bucket was mutated.
+
+## `hinglish-script-score-local-2026-08-27`
+
+**Measured 2026-08-27, offline, n = 14 deterministic assertions.** Method:
+`node evals/speech/hinglish-script-score.test.mjs` and the registered runner
+form `node evals/run.mjs hinglishscore` both executed the same evaluation-only
+module. Result: 14/14 passed in both invocations. The fixture proves raw WER
+retains a 5/6 Latin-vs-Devanagari mismatch while the reviewed alias arm scores
+the equivalent mixed-script sentence at 0 WER; unknown `नमस्ते` stays an error;
+`he` is not accepted as `hai`; repeated-token order is charged; Devanagari
+combining marks survive; Roman and Devanagari reviewed markers count equally;
+ambiguous English `the` is not a Hindi marker; and >8,000-character input fails
+by a named bound rather than truncating.
+
+Scope: no TTS, ASR, model, network, database or human listening ran. This
+measures evaluator mechanics only, not voice quality, ASR quality,
+transliteration accuracy or a production code-switch ratio. `node --check`
+passed for the scorer, paid speech probe and first-clone runner; focused
+`oxlint` and `git diff --check` also passed.
+
+## `production-long-media-and-agent-isolation-release-2026-08-27`
+
+**Measured 2026-08-27 against production.** ACR build `cu13` produced immutable
+worker digest `sha256:192e7372d74617f22b0c77c29bd434d4112f62a7762dacaa951b02e2551a91a1`.
+Azure read-back showed that exact digest, `replicaTimeout=3600`,
+`PROCESSING_RUN_BUDGET_MS=3300000`, five-minute schedule, and both Sarvam and
+voice-evidence secret references still present. Manual execution
+`vyakti-replica-processing-963k8dw` ran from 06:32:46Z to 06:33:15Z and
+succeeded: n=1 deployed-worker smoke, 29 seconds, no synthetic result.
+
+Vercel production deployment `dpl_H7HER7j3odQ8mDH4m4SYA7YBCkfQ` reached
+`READY` and was aliased to `vyakti-replica-lab.vercel.app`. Root, privacy,
+delete-account and Studio returned HTTP 200; the unauthenticated replica-source
+route returned its expected HTTP 405 to GET. Migration 064 applied four live
+statements after the runtime deployment. Real Postgres gates then passed:
+relcheck 34/34, room binding 62/62, Telegram handler 101/101, with fixture
+teardown reporting zero residue.
+
+The owner's live state read-back was one `ready` source, eight `complete`
+processing jobs and VoiceGenome v2 `draft` (created 04:40:35Z). Its selected
+reference is one 10,000 ms, 480,044-byte `audio/wav` artifact from
+`deepfilternet3-enroll24k-v1` (`input-1-noise-suppressing`), which is exactly
+24 kHz mono PCM16 by WAV byte geometry. A direct same-text Hindi synthesis from
+that bound artifact first timed out during the scale-to-zero cold start, then
+the warm retry returned in 29,547 ms: 263,084-byte 24 kHz mono WAV, PerTh
+verified with score 1, RTF 3.216058. n=1 preview; no likeness score and no
+human preference claim are inferred from transport success.

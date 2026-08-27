@@ -1,6 +1,7 @@
 import { CAPABILITY_ABSENCE_CODES } from "./capability-codes.js";
 import { ProcessingAdapterError } from "./contracts.js";
 import { createNativeToolRunners, nativeToolStatus } from "./native-tools.js";
+import { createChunkedDiarizationAdapter } from "./chunked-diarization.js";
 import { createAzureVoiceEvidenceAdapters } from "./providers/azure-voice-evidence.js";
 import { createNativeMediaAdapters } from "./providers/native-media.js";
 import { createSarvamTranscriptionAdapter } from "./providers/sarvam-transcription.js";
@@ -106,8 +107,13 @@ export function composeProcessingAdapters(options = {}) {
   const config = options.config || {};
   const storage = options.storage || createReplicaProcessingStorage({
     fetchImpl: options.fetchImpl,
-    maxBytes: boundedInteger(env.REPLICA_PROCESSING_MAX_BYTES, 67_108_864, 1_048_576, 67_108_864),
-    timeoutMs: boundedInteger(env.REPLICA_PROCESSING_READ_TIMEOUT_MS, 120_000, 10_000, 300_000),
+    sourceMaxBytes: boundedInteger(env.REPLICA_PROCESSING_MAX_BYTES, 1_073_741_824, 1_048_576, 1_073_741_824),
+    // Provider adapters still have their own strict byte ceilings. Only the
+    // native safety lane gets the 1 GiB stream; a remote adapter must chunk or
+    // refuse by name rather than pulling a gigabyte into the Node heap.
+    bufferedMaxBytes: boundedInteger(env.REPLICA_PROCESSING_BUFFER_MAX_BYTES, 67_108_864, 1_048_576, 67_108_864),
+    artifactMaxBytes: 67_108_864,
+    timeoutMs: boundedInteger(env.REPLICA_PROCESSING_READ_TIMEOUT_MS, 300_000, 10_000, 900_000),
   });
 
   const adapters = {};
@@ -133,8 +139,15 @@ export function composeProcessingAdapters(options = {}) {
   // only where their binaries are, which on a serverless runtime is nowhere.
   const tools = options.nativeToolStatus || nativeToolStatus(env);
   const runners = options.nativeToolRunners || createNativeToolRunners({ env, clamdConfigPath: options.clamdConfigPath });
+  const materializeAudio = typeof storage.withResolvedInputFile === "function" && typeof runners.withAudioFile === "function"
+    ? (input, fn, callOptions = {}) => storage.withResolvedInputFile(input, (file) =>
+        runners.withAudioFile(file.path, fn, callOptions))
+    : runners.withMaterializedAudio;
   const native = createNativeMediaAdapters({
     resolveInput: storage.resolveInput,
+    withInputFile: storage.withResolvedInputFile,
+    scanFile: runners.scanFile,
+    probeFile: runners.probeFile,
     scanBytes: runners.scanBytes,
     probeBytes: runners.probeBytes,
     clamavVersion: String(env.CLAMAV_ADAPTER_VERSION || "clamav-runtime"),
@@ -158,15 +171,28 @@ export function composeProcessingAdapters(options = {}) {
   // stub carries THAT code rather than a generic one wherever we got one. When
   // the origin is simply unset we normalise to `voice_evidence_unconfigured`,
   // which is the code the Activity surface and the requeue both key on.
+  // Chunk bodies exist only inside this process and are held in a WeakMap so
+  // neither an object path nor a caller-controlled field can select them.
+  const inlineEvidence = new WeakMap();
+  const evidenceResolver = (request) => inlineEvidence.get(request.input) || storage.resolveInput(request);
   const evidence = tryBuild(() => createAzureVoiceEvidenceAdapters({
-    env, resolveInput: storage.resolveInput, fetchImpl: options.fetchImpl,
+    env, resolveInput: evidenceResolver, fetchImpl: options.fetchImpl,
   }));
   const evidenceCode = evidence.value
     ? ""
     : (evidence.code === "voice_evidence_origin_required" || !evidence.code ? "voice_evidence_unconfigured" : evidence.code);
   for (const step of ["diarize", "separate", "enhance", "voice_quality"]) {
     if (evidence.value) {
-      adapters[step] = evidence.value[step];
+      adapters[step] = step === "diarize" && typeof materializeAudio === "function"
+        ? createChunkedDiarizationAdapter({
+            delegate: evidence.value.diarize,
+            withMaterializedAudio: materializeAudio,
+            analyzeChunk: async ({ request, input, body }) => {
+              inlineEvidence.set(input, Object.freeze({ body, byteSize: body.length, mime: input.mime }));
+              return evidence.value.diarize({ ...request, inputs: [input] });
+            },
+          })
+        : evidence.value[step];
       declare(step, "");
     } else {
       declare(step, evidenceCode);
@@ -184,6 +210,7 @@ export function composeProcessingAdapters(options = {}) {
     model: env.SARVAM_ASR_MODEL,
     langHint: env.ASR_INGEST_LANG_HINT,
     resolveInput: storage.resolveInput,
+    withInputFile: storage.withResolvedInputFile,
     fetchImpl: options.fetchImpl,
   }));
   //
@@ -211,7 +238,7 @@ export function composeProcessingAdapters(options = {}) {
     // Vercel's serverless runtime is absent for the same reason `media_probe`
     // is. Exposed here rather than re-derived by every caller.
     resolveInput: storage.resolveInput,
-    withMaterializedAudio: runners.withMaterializedAudio,
+    withMaterializedAudio: materializeAudio,
   });
 }
 

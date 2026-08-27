@@ -195,20 +195,23 @@ async function writeCandidates({ job, source, adapter, candidates, artifactStore
 // produces. Giving the studio a way to show which window was picked is a real
 // follow-up; the object path and score are on the retryable failure/complete
 // path below either way, so nothing about that follow-up needs re-deriving.
-async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, resolveInput, withMaterializedAudio, artifactStore }) {
-  if (typeof resolveInput !== "function" || typeof withMaterializedAudio !== "function") {
+async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, withMaterializedAudio, artifactStore, signal }) {
+  if (typeof withMaterializedAudio !== "function") {
     throw Object.assign(new ProcessingContractError("reference window selection requires storage and ffmpeg"), {
       code: "reference_window_capability_missing",
     });
   }
-  const original = await resolveInput({
-    source,
-    input: { object_path: source.object_path, sha256: source.sha256, mime: source.mime },
-  });
   const selected = await selectOwnerReferenceWindow({
     segments: diarizeSegments,
     withMaterializedAudio,
-    sourceBytes: original.body,
+    sourceInput: {
+      source,
+      input: {
+        object_path: source.object_path, sha256: source.sha256, mime: source.mime,
+        byte_size: source.byte_size,
+      },
+      signal,
+    },
   });
   if (!selected) {
     // The owner's own cluster never holds ten contiguous seconds. Genuinely
@@ -267,7 +270,7 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
   let selectedReferenceWindow = null;
   const references = job.step === "separate"
     ? await (async () => {
-        const built = await buildOwnerReferenceWindowInput({ job, source, diarizeSegments, resolveInput, withMaterializedAudio, artifactStore });
+        const built = await buildOwnerReferenceWindowInput({ job, source, diarizeSegments, withMaterializedAudio, artifactStore, signal });
         selectedReferenceWindow = built.selected;
         return built.references;
       })()

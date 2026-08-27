@@ -50,7 +50,7 @@ const DEFAULT_ORIGIN = "https://api.sarvam.ai";
 const POLL_INTERVAL_MS = 5_000;
 const MAX_POLLS = 120;         // 10 minutes; a two-hour lecture transcribes well inside it
 const REQUEST_TIMEOUT_MS = 60_000;
-const MAX_AUDIO_BYTES = 268_435_456;
+const MAX_AUDIO_BYTES = 1_073_741_824;
 
 function fail(code, status = 502, details) {
   throw Object.assign(new Error(code), { code, status, details });
@@ -174,13 +174,19 @@ export function createSarvamSaarasProvider(options = {}) {
       //    indexed by position (see step 5).
       const object = await readAudio(ref);
       const body = object?.body;
-      if (!body || !body.length) fail("asr_audio_unreadable", 502);
+      const byteSize = Number(object?.byteSize ?? ref.byteSize ?? body?.length);
+      const streamBody = body && !Buffer.isBuffer(body) && !ArrayBuffer.isView(body)
+        && (typeof body.pipe === "function" || typeof body[Symbol.asyncIterator] === "function");
+      if (!body || (!streamBody && !body.length) || !Number.isSafeInteger(byteSize) || byteSize < 1 || byteSize > MAX_AUDIO_BYTES) {
+        fail("asr_audio_unreadable", 502);
+      }
       let upload;
       try {
         upload = await fetchImpl(inDirectory(inputPath, "input-0.wav"), {
           method: "PUT",
           headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": ref.mime || "audio/wav" },
           body,
+          ...(streamBody ? { duplex: "half" } : {}),
           signal: AbortSignal.timeout(300_000),
         });
       } catch { fail("asr_sarvam_upload_unreachable", 503); }

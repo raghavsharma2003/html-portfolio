@@ -2689,3 +2689,17 @@ create index if not exists vy_replica_evidence_decision_self_test_ix
 create index if not exists vy_replica_artifact_decision_self_test_ix
   on vy_replica_processing_artifact_decision ((metadata ->> 'self_test_mode'))
   where metadata ->> 'self_test_mode' = 'true';
+
+-- Migration 064 - room addresses are unique per agent. Migration 055 routes
+-- each credential to one clone, so two different clones may see the same
+-- opaque chat id without sharing a room or blocking one another's insert.
+-- Create the replacements before dropping the global constraints so an
+-- interrupted statement-by-statement migration never removes uniqueness.
+create unique index if not exists vy_group_agent_surface_chat_ix
+  on vy_group (agent_id, surface, surface_chat_id)
+  where surface is not null and surface_chat_id is not null;
+create unique index if not exists vy_group_agent_tg_chat_ix
+  on vy_group (agent_id, tg_chat_id)
+  where tg_chat_id is not null;
+drop index if exists vy_group_surface_chat_ix;
+drop index if exists vy_group_tg_chat_ix;

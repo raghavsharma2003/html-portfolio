@@ -37,15 +37,16 @@
 import { execFileSync, execSync } from "child_process";
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 let failed = false;
 let warned = false;
 
 // ── 0. byte-identity battery (WS-COMPILER's extraction proof) ──────────────
 console.log("── byte-identity (compile() vs frozen oldOracle) ──");
 try {
-  execFileSync("node", [join(ROOT, "src/engine/__fixtures__/byte-identity.mjs")], {
+  execFileSync(process.execPath, [join(ROOT, "src/engine/__fixtures__/byte-identity.mjs")], {
     cwd: ROOT,
     stdio: "inherit",
   });
@@ -83,7 +84,7 @@ const {
   WATCH_MODE_NOTE,
   BUDGET_FIXTURES,
   AGE_TIER_SAFETY_OVERRIDE,
-} = await import(bundle);
+} = await import(pathToFileURL(bundle).href);
 
 // ── 1. manifest arithmetic — hard fail ──────────────────────────────────────
 console.log("\n── manifest arithmetic (SPEC §0.2 flaw #2, §3.3) ──");

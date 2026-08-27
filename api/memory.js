@@ -3044,13 +3044,16 @@ export async function personDeviceSet(device) {
 // same shape as `silent-truncation`.
 //
 // `t` is a table-name resolver, defaulting to identity. Production never passes
-// it. evals/mp/withdraw.mjs passes the fixture-namespace prefixer, so THIS
+// it. `agentId` is optional by design: a room's `/bhool` supplies the current
+// clone and withdraws only from that relationship; the full-person wipe omits
+// it and still withdraws the person from every agent before erasing identity.
+// evals/mp/withdraw.mjs passes the fixture-namespace prefixer, so THIS
 // function — not a re-implementation of it — is what the withdraw suite proves
 // against the real Postgres. The same reason api/_disclosure.js takes a bind
 // map: a cascade tested through a copy is a copy that was tested.
 export async function withdrawSharedRows(
   person,
-  { dropAuthoredRoomTurns = true, t = (name) => name } = {},
+  { dropAuthoredRoomTurns = true, t = (name) => name, agentId = null } = {},
 ) {
   const out = {
     participant_rows: 0, room_turns: 0, grants: 0, memberships: 0,
@@ -3066,11 +3069,20 @@ export async function withdrawSharedRows(
 
   // 1. leave the ACL. P can no longer be disclosed TO, and can no longer be
   //    attributed as someone who witnessed it, from the next retrieval on.
-  const left = await q(
-    `delete from ${t("vy_episode_participant")} where person_id = $1 returning episode_id`,
-    [person],
-    30_000,
-  );
+  const left = agentId
+    ? await q(
+        `delete from ${t("vy_episode_participant")} p
+          using ${t("vy_episode")} e
+          where p.person_id = $1 and p.episode_id = e.id and e.agent_id = $2::uuid
+          returning p.episode_id`,
+        [person, agentId],
+        30_000,
+      )
+    : await q(
+        `delete from ${t("vy_episode_participant")} where person_id = $1 returning episode_id`,
+        [person],
+        30_000,
+      );
   out.participant_rows = left.length;
 
   // 2. P's OWN authored room turns — never her replies to the room, never
@@ -3079,8 +3091,9 @@ export async function withdrawSharedRows(
   //    implementable at row level.
   if (dropAuthoredRoomTurns) {
     const turns = await q(
-      `delete from ${t("meera_log")} where speaker_person_id = $1 and group_id is not null returning id`,
-      [person],
+      `delete from ${t("meera_log")} where speaker_person_id = $1 and group_id is not null
+        ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+      agentId ? [person, agentId] : [person],
       30_000,
     );
     out.room_turns = turns.length;
@@ -3094,30 +3107,34 @@ export async function withdrawSharedRows(
     const orphan = await q(
       `select e.id from ${t("vy_episode")} e
         where e.id = any($1::bigint[]) and e.group_id is not null
+          ${agentId ? "and e.agent_id = $2::uuid" : ""}
           and not exists (select 1 from ${t("vy_episode_participant")} p where p.episode_id = e.id)`,
-      [epIds],
+      agentId ? [epIds, agentId] : [epIds],
       30_000,
     );
     const dead = orphan.map((r) => r.id);
     if (dead.length) {
       // derived closure FIRST (no dangling-citation window), episodes last
       const facts = await q(
-        `delete from ${t("vy_fact")} where citations && $1::bigint[] returning id`,
-        [dead],
+        `delete from ${t("vy_fact")} where citations && $1::bigint[]
+          ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+        agentId ? [dead, agentId] : [dead],
         30_000,
       );
       out.facts_closed = facts.length;
       const phrases = await q(
-        `delete from ${t("vy_phrase")} where origin_episode = any($1::bigint[]) returning id`,
-        [dead],
+        `delete from ${t("vy_phrase")} where origin_episode = any($1::bigint[])
+          ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+        agentId ? [dead, agentId] : [dead],
         30_000,
       );
       out.phrases_closed = phrases.length;
       const embs = await q(
         `delete from ${t("vy_embedding")}
-          where (owner_kind = 'episode' and owner_id = any($1::bigint[]))
-             or (owner_kind = 'fact'    and owner_id = any($2::bigint[])) returning 1 as x`,
-        [dead, facts.map((r) => r.id)],
+          where ((owner_kind = 'episode' and owner_id = any($1::bigint[]))
+             or (owner_kind = 'fact'    and owner_id = any($2::bigint[])))
+             ${agentId ? "and agent_id = $3::uuid" : ""} returning 1 as x`,
+        agentId ? [dead, facts.map((r) => r.id), agentId] : [dead, facts.map((r) => r.id)],
         30_000,
       );
       out.embeddings_closed = embs.length;
@@ -3126,8 +3143,9 @@ export async function withdrawSharedRows(
       // the turn-level action log survives the episode it described — silence
       // and speech are the room's own behavioural record, not the episode's.
       const eps = await q(
-        `delete from ${t("vy_episode")} where id = any($1::bigint[]) returning id`,
-        [dead],
+        `delete from ${t("vy_episode")} where id = any($1::bigint[])
+          ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+        agentId ? [dead, agentId] : [dead],
         30_000,
       );
       out.episodes_closed = eps.length;
@@ -3138,8 +3156,10 @@ export async function withdrawSharedRows(
   //    the grantee stops being a recipient, and granted_to is scalar, so both
   //    roles are the same delete (see the manifest's `by_role` note).
   const grants = await q(
-    `delete from ${t("vy_disclosure_grant")} where granted_by = $1 or granted_to = $1 returning id`,
-    [person],
+    `delete from ${t("vy_disclosure_grant")}
+      where (granted_by = $1 or granted_to = $1)
+      ${agentId ? "and agent_id = $2::uuid" : ""} returning id`,
+    agentId ? [person, agentId] : [person],
     30_000,
   );
   out.grants = grants.length;
@@ -3150,8 +3170,9 @@ export async function withdrawSharedRows(
   //    deliberately not inline here.
   const mem = await q(
     `update ${t("vy_group_member")} set left_at = now()
-      where person_id = $1 and left_at is null returning group_id`,
-    [person],
+      where person_id = $1 and left_at is null
+      ${agentId ? "and agent_id = $2::uuid" : ""} returning group_id`,
+    agentId ? [person, agentId] : [person],
     30_000,
   );
   out.memberships = mem.length;

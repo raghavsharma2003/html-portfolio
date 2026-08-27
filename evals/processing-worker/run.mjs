@@ -3,6 +3,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createNativeMediaAdapters } from "../../api/_replica-processing/providers/native-media.js";
+import {
+  createChunkedDiarizationAdapter,
+  DIARIZATION_CHUNK_MS,
+  DIARIZATION_OVERLAP_MS,
+  reconcileDiarizationChunks,
+} from "../../api/_replica-processing/chunked-diarization.js";
+import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js";
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
 import { sha256Hex, stableUuid } from "../../api/_replica-processing/contracts.js";
@@ -56,6 +63,57 @@ const tampered = createNativeMediaAdapters({
 await assert.rejects(tampered.integrity.verify(request), /native_media_input_integrity_mismatch/);
 ok("native stages cannot bless bytes that differ from the upload declaration", true);
 
+for (const [output, code] of [
+  ["INSTREAM size limit exceeded", "clamav_scan_size_limit"],
+  ["Can't connect to clamd through /tmp/clamd.sock", "clamav_daemon_unavailable"],
+  ["fdpass failed: Permission denied", "clamav_scan_access_failed"],
+]) {
+  await assert.rejects(async () => readClamAvVerdict({ exitCode: 2, stdout: "", stderr: output }),
+    (error) => error.code === code);
+}
+ok("ClamAV failures retain a content-free operational class", true);
+
+const reconciled = reconcileDiarizationChunks([
+  { startMs: 0, endMs: 60_000, segments: [
+    { start_ms: 0, end_ms: 20_000, speaker_key: "local-owner", confidence: 0.9, target_likelihood: 0.5, overlap: false },
+    { start_ms: 50_000, end_ms: 60_000, speaker_key: "local-owner", confidence: 0.9, target_likelihood: 0.5, overlap: false },
+  ] },
+  { startMs: 50_000, endMs: 110_000, segments: [
+    { start_ms: 0, end_ms: 10_000, speaker_key: "labels-swapped", confidence: 0.9, target_likelihood: 0.5, overlap: false },
+    { start_ms: 10_000, end_ms: 30_000, speaker_key: "labels-swapped", confidence: 0.9, target_likelihood: 0.5, overlap: false },
+    { start_ms: 35_000, end_ms: 45_000, speaker_key: "new-guest", confidence: 0.8, target_likelihood: 0.5, overlap: false },
+  ] },
+]);
+ok("overlap reconciliation preserves one owner label when local cluster names change",
+  reconciled.filter((segment) => segment.start_ms < 80_000).every((segment) => segment.speaker_key === "cluster-1"));
+ok("a speaker with no overlap evidence is never guessed to be the owner",
+  reconciled.find((segment) => segment.start_ms === 85_000)?.speaker_key === "cluster-2");
+
+const chunkCalls = [];
+const chunked = createChunkedDiarizationAdapter({
+  delegate: { family: "diarization", name: "fixture", version: "v1", diarize: async () => { throw new Error("whole input must not run"); } },
+  chunkMs: 60_000,
+  overlapMs: 10_000,
+  withMaterializedAudio: async (input, fn) => {
+    assert.equal(input.source.source_id, SOURCE);
+    return fn({ extractWindow: async (startMs, endMs) => Buffer.from(`${startMs}:${endMs}`) });
+  },
+  analyzeChunk: async ({ input }) => {
+    chunkCalls.push(input.duration_ms);
+    return { segments: [{
+      start_ms: 0, end_ms: input.duration_ms, speaker_key: "owner",
+      confidence: 0.9, target_likelihood: 0.5, overlap: false,
+    }] };
+  },
+});
+const chunkedResult = await chunked.diarize({
+  source: { ...source, duration_ms: 130_000 },
+  inputs: [{ object_path: source.object_path, sha256: source.sha256, mime: source.mime, duration_ms: 130_000 }],
+});
+ok("long diarization fans out deterministically into bounded overlapping chunks",
+  chunkCalls.join() === "60000,60000,30000" && chunkedResult.segments.at(-1).end_ms === 130_000
+  && DIARIZATION_CHUNK_MS === 14 * 60 * 1000 && DIARIZATION_OVERLAP_MS === 60 * 1000);
+
 const leasedJob = {
   job_id: JOB, replica_id: REPLICA, owner_user_id: OWNER, source_id: SOURCE,
   step: "integrity", revision: 1, state: "leased", attempt: 1,
@@ -90,6 +148,7 @@ const runOnce = readFileSync(join(ROOT, "services/replica-processing-worker/run-
 // container now uses that seam through `composeProcessingAdapters`.
 const nativeSource = readFileSync(join(ROOT, "api/_replica-processing/native-tools.js"), "utf8");
 const clamav = readFileSync(join(ROOT, "services/replica-processing-worker/clamav.js"), "utf8");
+const clamdConfig = readFileSync(join(ROOT, "services/replica-processing-worker/clamd.conf"), "utf8");
 const composition = readFileSync(join(ROOT, "api/_replica-processing/composition.js"), "utf8");
 const docker = readFileSync(join(ROOT, "services/replica-processing-worker/Dockerfile"), "utf8");
 const workerInfra = readFileSync(join(ROOT, "services/replica-processing-worker/infra/main.bicep"), "utf8");
@@ -113,6 +172,9 @@ ok("worker is a scale-to-zero run-once process, not a public HTTP server", !/cre
 // awaited before the daemon starts, and a refresh that did not happen throws
 // rather than being rounded up to one.
 ok("current malware signatures are a fail-closed startup dependency", /freshclam/.test(clamav) && /throw toolError\("clamav_signature_refresh_failed"/.test(clamav) && /await refreshSignatures\(\)/.test(runOnce) && /clamdscan/.test(nativeSource));
+ok("ClamAV and the worker lease are bounded for one GiB and long audio",
+  /MaxFileSize 1024M/.test(clamdConfig) && /MaxScanSize 1024M/.test(clamdConfig)
+  && /leaseMs: 3_600_000/.test(runOnce) && /replicaTimeout: 3600/.test(workerInfra));
 // This used to read "streamed to tools and never written to a temporary file",
 // asserting `pipe:0` and banning `mkdtemp` outright. That is not achievable for
 // media_probe and the ban was hiding it: a pipe is not seekable, an MP3's
@@ -121,14 +183,12 @@ ok("current malware signatures are a fail-closed startup dependency", /freshclam
 // on a file. The step was failing `media_probe_output_invalid` on a recording
 // that plays fine.
 //
-// The REAL property behind the old assertion is that source bytes must not be
-// left lying on disk, and that is what is asserted now: the scan still streams,
-// and any materialised file must be in a private temporary directory that is
-// removed in a `finally`. A materialisation with no removal fails this.
-// Scoped to the scanBytes body, because the module's header comment names both
-// seams and a whole-file regex matches prose rather than code.
-const scanBody = nativeSource.slice(nativeSource.indexOf("async scanBytes"), nativeSource.indexOf("async probeBytes"));
-ok("malware scanning streams bytes and never materialises them", scanBody.length > 100 && /"--stream"/.test(scanBody) && !/mkdtemp|writeFile/.test(scanBody));
+// Originals are materialized by the storage seam while hashing, under mode
+// 0600, then passed over clamd's local socket by descriptor. This avoids both
+// Node heap buffering and ClamAV's INSTREAM ceiling.
+const scanBody = nativeSource.slice(nativeSource.indexOf("async scanFile"), nativeSource.indexOf("async scanBytes"));
+ok("malware scanning uses local fd passing rather than ClamAV INSTREAM",
+  scanBody.length > 100 && /"--fdpass"/.test(scanBody) && !/"--stream"/.test(scanBody));
 ok("any materialised media bytes live in a private temp dir and are always removed", !/mkdtemp/.test(nativeSource) || (/mkdtemp\(join\(options\.tmpDir \|\| tmpdir\(\)/.test(nativeSource) && /finally \{[\s\S]{0,300}rm\(dir, \{ recursive: true, force: true \}\)/.test(nativeSource)));
 ok("worker container is non-root", /USER 10003:10003/.test(docker));
 ok("worker log deliberately excludes tenant, path, transcript and vector fields", /Content-free operational signal only/.test(runOnce) && !/console\.log/.test(runOnce));

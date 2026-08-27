@@ -86,6 +86,13 @@ export interface SignedUpload {
   method: "PUT";
   url: string;
   headers: Record<string, string>;
+  resumable?: {
+    protocol: "tus-1.0";
+    endpoint: string;
+    headers: Record<string, string>;
+    metadata: Record<string, string>;
+    chunk_size: number;
+  };
   expires_at: string;
 }
 

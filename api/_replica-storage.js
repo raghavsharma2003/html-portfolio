@@ -1,5 +1,10 @@
 export const REPLICA_STORAGE_BUCKET = process.env.REPLICA_STORAGE_BUCKET || "vyakti-replica-private";
-const MAX_BUCKET_BYTES = 536_870_912;
+// One to two hour source recordings routinely cross 256 MiB when they arrive
+// as lossless WAV. Originals are uploaded directly to Storage and processed
+// from a bounded disk stream, so the bucket ceiling must not reintroduce the
+// old in-memory limit at the storage boundary. Derived artifacts stay on their
+// much smaller, separate ceiling below.
+const MAX_BUCKET_BYTES = 1_073_741_824;
 const MAX_DERIVED_OBJECT_BYTES = 67_108_864;
 let configPromise;
 
@@ -30,6 +35,16 @@ async function storageCredentials() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || config.SUPABASE_SERVICE_ROLE_KEY;
   if (!baseUrl || !key) throw new ReplicaStorageError("private_storage_not_configured");
   return { baseUrl, key };
+}
+
+async function publicStorageKey() {
+  configPromise ||= import("./_config.js").catch(() => ({}));
+  const config = await configPromise;
+  const publicKey = String(process.env.SUPABASE_KEY || config.SUPABASE_KEY || "").trim();
+  const { key: serviceKey } = await storageCredentials();
+  if (!publicKey) throw new ReplicaStorageError("public_storage_key_not_configured");
+  if (publicKey === String(serviceKey)) throw new ReplicaStorageError("public_storage_key_must_not_be_service_role");
+  return publicKey;
 }
 
 async function storageRequest(path, { method = "GET", body, headers = {}, fetchImpl = fetch, allow = [] } = {}) {
@@ -104,7 +119,9 @@ async function rawStorageFetch(path, options = {}) {
         ...options.headers,
       },
       ...(options.body !== undefined ? { body: options.body } : {}),
-      signal: AbortSignal.timeout(options.timeoutMs || 120_000),
+      signal: options.signal
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs || 120_000)])
+        : AbortSignal.timeout(options.timeoutMs || 120_000),
     });
   } catch (error) {
     throw new ReplicaStorageError("private_storage_unreachable", 503, error?.message);
@@ -112,7 +129,7 @@ async function rawStorageFetch(path, options = {}) {
   return response;
 }
 
-export async function readPrivateReplicaObject(objectPath, options = {}) {
+export async function streamPrivateReplicaObject(objectPath, options = {}) {
   const path = exactObjectPath(objectPath);
   const maxBytes = Number(options.maxBytes || MAX_DERIVED_OBJECT_BYTES);
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BUCKET_BYTES) {
@@ -120,7 +137,7 @@ export async function readPrivateReplicaObject(objectPath, options = {}) {
   }
   const response = await rawStorageFetch(
     `/object/authenticated/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(path)}`,
-    { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs },
+    { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs, signal: options.signal },
   );
   if (!response.ok) {
     try { await response.body?.cancel(); } catch { /* do not retain or log provider content */ }
@@ -131,10 +148,24 @@ export async function readPrivateReplicaObject(objectPath, options = {}) {
     try { await response.body?.cancel(); } catch { /* bounded cancellation */ }
     throw new ReplicaStorageError("replica_object_size_invalid", 413);
   }
-  const bytes = await collectStorageBody(response.body || Buffer.from(await response.arrayBuffer()), maxBytes, "replica_object_size_invalid");
   const mime = String(response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
   if (!mime || !mime.includes("/")) throw new ReplicaStorageError("replica_object_mime_invalid", 409);
-  return Object.freeze({ body: bytes, byteSize: bytes.length, mime });
+  const body = response.body || Buffer.from(await response.arrayBuffer());
+  return Object.freeze({
+    body,
+    byteSize: Number.isSafeInteger(declared) && declared >= 0 ? declared : null,
+    mime,
+  });
+}
+
+export async function readPrivateReplicaObject(objectPath, options = {}) {
+  const maxBytes = Number(options.maxBytes || MAX_DERIVED_OBJECT_BYTES);
+  const object = await streamPrivateReplicaObject(objectPath, options);
+  const bytes = await collectStorageBody(object.body, maxBytes, "replica_object_size_invalid");
+  if (object.byteSize != null && object.byteSize !== bytes.length) {
+    throw new ReplicaStorageError("replica_object_size_invalid", 409);
+  }
+  return Object.freeze({ body: bytes, byteSize: bytes.length, mime: object.mime });
 }
 
 export async function writeImmutableReplicaArtifact(input, options = {}) {
@@ -211,6 +242,7 @@ export async function ensurePrivateReplicaBucket(fetchImpl = fetch) {
 
 export async function createSignedReplicaUpload(objectPath, fetchImpl = fetch) {
   const { baseUrl } = await storageCredentials();
+  const publicKey = await publicStorageKey();
   const { data } = await storageRequest(
     `/object/upload/sign/${encodeURIComponent(REPLICA_STORAGE_BUCKET)}/${segments(objectPath)}`,
     { method: "POST", body: {}, headers: { "x-upsert": "false" }, fetchImpl },
@@ -221,10 +253,30 @@ export async function createSignedReplicaUpload(objectPath, fetchImpl = fetch) {
   const uploadUrl = /^https?:\/\//i.test(data.url)
     ? data.url
     : `${baseUrl}/storage/v1${data.url.startsWith("/") ? "" : "/"}${data.url}`;
+  const signed = new URL(uploadUrl);
+  const token = signed.searchParams.get("token");
+  if (!token) throw new ReplicaStorageError("signed_upload_not_issued");
+  const base = new URL(baseUrl);
+  // Supabase explicitly recommends the direct Storage hostname for TUS. Keep
+  // custom/self-hosted origins on their configured host instead of guessing.
+  const resumableOrigin = base.hostname.endsWith(".supabase.co")
+    ? `${base.protocol}//${base.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co")}`
+    : base.origin;
   return {
     method: "PUT",
     url: uploadUrl,
     headers: { "cache-control": "max-age=3600", "x-upsert": "false" },
+    resumable: {
+      protocol: "tus-1.0",
+      endpoint: `${resumableOrigin}/storage/v1/upload/resumable`,
+      headers: { apikey: publicKey, "x-signature": token, "x-upsert": "false" },
+      metadata: {
+        bucketName: REPLICA_STORAGE_BUCKET,
+        objectName: exactObjectPath(objectPath),
+        cacheControl: "3600",
+      },
+      chunk_size: 6 * 1024 * 1024,
+    },
     expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
   };
 }

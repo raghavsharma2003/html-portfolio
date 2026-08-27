@@ -5936,3 +5936,101 @@ fix" named in `windowing-belongs-before-the-embedder-not-before-diarize`),
 this module becomes the fallback for services that stay single-shot, per
 `windowing-belongs-at-separate-now-that-diarize-is-done`'s own reversal
 condition, which this decision does not alter.
+
+## `room-agent-scope-reaches-the-wire` — a room address, history and disclosure are keyed by agent (2026-08-27)
+
+A clone binding is not complete when it changes only the persona passed to
+`compile()`. The same `ctx.agentId` now reaches room lookup and creation,
+membership, entitlement, episode creation, raw turn writes, action writes,
+history, roster, fact/phrase disclosure and the room-scoped withdraw command.
+DM raw writes, history and disclosure use the same key. Identity and
+`vy_person_device` remain agent-independent: the person is shared; the
+relationship is not.
+
+Migration 064 widens both room-address uniqueness laws from a global surface
+address to `(agent_id, surface, surface_chat_id)` and, during the legacy
+Telegram compatibility window, `(agent_id, tg_chat_id)`. It is present in the
+tree and is NOT applied live by this workstream.
+
+**Reverses if:** one inbound event may intentionally carry more than one agent.
+At that point `ctx.agentId` is the wrong unit and the agent key must move onto
+each event. A prompt instruction, a persona swap without storage predicates,
+or a globally unique chat key cannot reverse the isolation requirement.
+## `large-replica-media-is-direct-disk-bounded-and-chunked` (2026-08-27)
+
+**Decision.** Original replica audio up to 1 GiB uploads from the browser to
+Supabase Storage through a signed TUS capability in 6 MiB chunks. The API never
+proxies the body and the service-role key never reaches the browser: TUS gets a
+separate public `SUPABASE_KEY` plus the short-lived `x-signature`, and issuance
+fails if the two configured keys are identical. The worker streams an original
+from private storage into a mode-0600 temporary file while hashing it, gives
+ClamAV that file by `--fdpass`, and removes it in `finally`.
+
+Recordings longer than one voice-evidence request are diarized as deterministic
+14 minute WAV chunks with 60 seconds of overlap. Local speaker labels are joined
+only where their absolute-time speech overlaps; a silent or ambiguous boundary
+creates a new global cluster rather than guessing that a guest is the owner.
+Spans are trimmed and stored on the original absolute timeline, so the existing
+evidence schema and owner-window selector do not change. Sarvam reads the same
+verified temporary file as a stream, and the job/lease bound is one hour so a
+legitimate two-hour batch is not leased twice at the old 15 minute boundary.
+
+**Why.** A larger numeric upload cap alone leaves three independent ceilings:
+one monolithic browser PUT, the worker's 64 MiB heap collection, and the voice
+service's 20 minute request ceiling. The chosen shape bounds each transfer and
+keeps the consent-critical whole-recording speaker evidence. It also removes
+ClamAV INSTREAM's configured-size dependency rather than merely moving that
+number again.
+
+**What would reverse it.** A private evidence service that accepts a storage
+stream and performs global online speaker clustering can replace worker-side
+chunks, after a comparison proves identical-or-better speaker separation across
+silent boundaries. A storage provider without signed TUS would require signed
+multipart upload, not an API proxy. The 1 GiB product ceiling should move only
+with measured worker disk headroom and a matching private-bucket limit.
+
+## `hinglish-benchmark-keeps-raw-and-adjusted-separate` (2026-08-27)
+
+**Decision.** Speech and first-clone evaluations retain the legacy raw outputs
+and add a separately named `curated_cross_script_wer_cer/v1` diagnostic. The
+adjusted arm canonicalizes only a bounded reviewed Roman/Devanagari alias
+table, reports mapping coverage, leaves unknown Devanagari as errors, and does
+not accept English confusables such as `he` for `hai`. The first-clone sheet
+artifact likewise retains `stats.codeSwitch` unchanged and adds
+`curated_script_aware_hindi_marker_proxy/v1` under `benchmarkMetrics`. Neither
+adjusted metric is language ID or a Hindi-token percentage, and neither feeds
+the sheet draft or production ingestion behavior.
+
+**Why.** A raw Unicode edit compares `main abhi deploy kar rha hai` with
+`मैं अभी deploy कर रहा है` as five word errors out of six even though the
+reviewed Hindi words are equivalent. Replacing raw WER would hide how much of
+an apparent improvement came from aliases. Arbitrary transliteration would
+create the opposite failure by guessing unknown words or forgiving real
+pronunciation confusables. Two arms plus explicit coverage preserve both facts.
+
+**What would reverse it.** A versioned transliterator or token-level language
+identifier may replace the alias table only after a held-out owned
+Hindi/Hinglish corpus measures its false-equivalence and miss rates, including
+English confusables, unknown words, mixed script and code-switch boundaries.
+Raw Unicode WER/CER remains an audit arm even then.
+
+## `large-media-release-needs-both-runtime-and-account-cap` (2026-08-27)
+
+**Decision.** Signed TUS, streaming processing and the one-hour worker lease may
+ship independently of the storage account upgrade, but the product must not
+claim a live 1 GiB ceiling until the Supabase project global Storage limit is
+raised and a real file above 50 MiB completes TUS upload and processing. The
+code remains bounded at 1 GiB so the account change does not require another
+runtime rewrite. No paid plan change is made silently.
+
+**Why.** Production accepted the new worker and web runtime, but Supabase
+returned HTTP 413 when the private bucket was assigned a 1,073,741,824-byte
+limit. The bucket has no explicit limit, so the project-wide ceiling still
+wins. Hiding that behind a client validator would turn an account refusal into
+a late upload failure.
+
+**What would reverse it.** A different private object store with a measured
+signed resumable path can replace the Supabase ceiling. Otherwise this decision
+closes when the project global limit is raised, the private bucket is set to at
+least 1 GiB, unsigned reads still fail, and one >50 MiB production upload reaches
+`ready` through the deployed worker.

@@ -43,6 +43,7 @@ import { createAzureVoiceEvidenceAdapters } from "../api/_replica-processing/pro
 import { createSarvamSaarasProvider } from "../api/_asr/providers/sarvam-saaras.js";
 import { fidelityScore, fidelityVerdict, embeddingVectors, DEFAULT_FIDELITY_POLICY } from "../api/_fidelity.js";
 import { transcriptStats, draftFromSignals } from "../api/_engine.gen.js";
+import { measureScriptAwareHindiMarkerProxy } from "../evals/speech/hinglish-script-score.mjs";
 
 const SAMPLE_RATE = 24_000;
 const REFERENCE_WINDOWS = 4;
@@ -421,13 +422,42 @@ if (requireEnv("asr", "SARVAM_API_KEY")) {
     }
     const asrMs = Date.now() - at;
     const stats = transcriptStats(turns);
+    // Keep the product-derived Roman-only statistic untouched. The additional
+    // benchmark metric recognizes only reviewed Roman/Devanagari aliases and
+    // labels itself a proxy, not language ID or Hindi percentage.
+    const scriptAwareMarkerProxy = measureScriptAwareHindiMarkerProxy(turns, {
+      speaker: stats.speaker.label,
+    });
     const draft = draftFromSignals(stats, displayName ? { displayName } : {}, {});
-    writeFileSync(`${outDir}/sheet-draft.json`, JSON.stringify({ via, turns, stats, draft: draft.draft, gaps: draft.gaps, candidates: draft.candidates }, null, 2));
+    writeFileSync(`${outDir}/sheet-draft.json`, JSON.stringify({
+      via,
+      turns,
+      stats,
+      benchmarkMetrics: {
+        rawRomanMarkerProxy: stats.codeSwitch,
+        scriptAwareMarkerProxy,
+      },
+      draft: draft.draft,
+      gaps: draft.gaps,
+      candidates: draft.candidates,
+    }, null, 2));
     record("asr", "ok", `${via} in ${asrMs} ms, ${turns.length} turn(s), ${stats.tokens} tokens`);
     record("sheet-draft", "ok",
-      `${Object.keys(draft.draft).length} drafted field(s), ${draft.gaps.length} gap(s), code-switch token ratio ${stats.codeSwitch.tokenRatio}, ${draft.candidates.length} phrase candidate(s)`);
-    if (stats.codeSwitch.tokenRatio === 0 && stats.tokens > 20) {
-      console.log("       .. code-switch ratio is 0 on a non-trivial transcript: HINDI_MARKER_WORDS is a ROMANISED lexicon and Sarvam returns Devanagari. The measurement is real and it is measuring the wrong script.");
+      `${Object.keys(draft.draft).length} drafted field(s), ${draft.gaps.length} gap(s), ` +
+      `raw Roman-marker proxy ${stats.codeSwitch.tokenRatio}, curated script-aware Hindi-marker proxy ` +
+      `${scriptAwareMarkerProxy.tokenRatio.toFixed(3)}, ${draft.candidates.length} phrase candidate(s)`);
+    if (stats.codeSwitch.tokenRatio === 0 && scriptAwareMarkerProxy.tokenRatio > 0) {
+      console.log(
+        "       .. raw Roman-marker proxy stayed 0; the separately labeled curated script-aware proxy recognized reviewed Devanagari aliases. Raw output is preserved in sheet-draft.json.",
+      );
+    } else if (
+      stats.codeSwitch.tokenRatio === 0 &&
+      scriptAwareMarkerProxy.devanagariScriptTokenRatio > 0 &&
+      scriptAwareMarkerProxy.tokenRatio === 0
+    ) {
+      console.log(
+        "       .. Devanagari was observed, but the curated alias table covered none of it. The benchmark leaves the proxy at 0 instead of guessing.",
+      );
     }
   } catch (error) {
     record("asr", "fail", `${error?.code || ""} ${error?.message || error}`.trim());

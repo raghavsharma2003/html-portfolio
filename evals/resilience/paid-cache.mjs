@@ -24,7 +24,7 @@
 // anything dials.
 
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
@@ -46,12 +46,12 @@ process.env.AZURE_VISION_DEPLOYMENT = "battery-vision";
 process.env.SUPABASE_URL = "https://resilience-battery-sb.invalid";
 process.env.SUPABASE_KEY = "battery-supabase-not-a-real-key";
 
-const chat = await import(join(ROOT, "api", "chat.js"));
+const chat = await import(pathToFileURL(join(ROOT, "api", "chat.js")).href);
 const handler = chat.default;
 const { resetCacheStore, cacheStoreSize, coreHash, CACHE_TTL_S, CACHE_TTL_MAX_MS, isCacheMissStatus } =
-  await import(join(ROOT, "api", "_gcache.js"));
+  await import(pathToFileURL(join(ROOT, "api", "_gcache.js")).href);
 const { toNativeContents, buildNativeBody, nativeUsageToOpenAI, nativeJsonToOpenAI } = await import(
-  join(ROOT, "api", "_gnative.js")
+  pathToFileURL(join(ROOT, "api", "_gnative.js")).href
 );
 
 let pass = 0;

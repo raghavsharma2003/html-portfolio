@@ -171,6 +171,9 @@ export function putSignedUpload(
   upload: SignedUpload,
   onProgress: (percent: number) => void,
 ) {
+  if (upload.resumable && file.size >= upload.resumable.chunk_size) {
+    return putTusUpload(file, upload.resumable, onProgress);
+  }
   return new Promise<void>((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open(upload.method, upload.url, true);
@@ -190,4 +193,98 @@ export function putSignedUpload(
     };
     request.send(file);
   });
+}
+
+function tusRequest(
+  method: "POST" | "HEAD" | "PATCH",
+  url: string,
+  headers: Record<string, string>,
+  body?: Blob,
+  onChunkProgress: (loaded: number) => void = () => {},
+) {
+  return new Promise<{ status: number; location: string; offset: number }>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open(method, url, true);
+    for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
+    request.upload.onprogress = (event) => onChunkProgress(event.loaded);
+    request.onerror = () => reject(new Error("Private resumable upload connection failed"));
+    request.onabort = () => reject(new Error("Private resumable upload was cancelled"));
+    request.onload = () => {
+      const offset = Number(request.getResponseHeader("upload-offset"));
+      resolve({
+        status: request.status,
+        location: request.getResponseHeader("location") || "",
+        offset: Number.isSafeInteger(offset) && offset >= 0 ? offset : -1,
+      });
+    };
+    request.send(body);
+  });
+}
+
+function uploadMetadata(metadata: Record<string, string>) {
+  return Object.entries(metadata)
+    .map(([name, value]) => {
+      if (!/^[A-Za-z0-9_-]+$/.test(name)) throw new Error("Private upload metadata is invalid");
+      const bytes = new TextEncoder().encode(value);
+      let binary = "";
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      return `${name} ${btoa(binary)}`;
+    })
+    .join(",");
+}
+
+async function putTusUpload(
+  file: File,
+  capability: NonNullable<SignedUpload["resumable"]>,
+  onProgress: (percent: number) => void,
+) {
+  const endpoint = new URL(capability.endpoint);
+  if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) {
+    throw new Error("Private resumable upload endpoint is invalid");
+  }
+  const common = { ...capability.headers, "Tus-Resumable": "1.0.0" };
+  const created = await tusRequest("POST", endpoint.toString(), {
+    ...common,
+    "Upload-Length": String(file.size),
+    "Upload-Metadata": uploadMetadata(capability.metadata),
+  });
+  if (created.status < 200 || created.status >= 300 || !created.location) {
+    throw new Error(`Private storage rejected the resumable upload (${created.status})`);
+  }
+  const uploadUrl = new URL(created.location, endpoint);
+  if (uploadUrl.protocol !== "https:" || uploadUrl.origin !== endpoint.origin || uploadUrl.username || uploadUrl.password) {
+    throw new Error("Private storage returned an invalid resumable upload URL");
+  }
+
+  let offset = 0;
+  const retryDelays = [0, 1_000, 3_000, 5_000];
+  while (offset < file.size) {
+    const end = Math.min(file.size, offset + capability.chunk_size);
+    let advanced = false;
+    for (let attempt = 0; attempt < retryDelays.length && !advanced; attempt++) {
+      if (retryDelays[attempt]) await new Promise((resolve) => setTimeout(resolve, retryDelays[attempt]));
+      try {
+        const patched = await tusRequest("PATCH", uploadUrl.toString(), {
+          ...common,
+          "Content-Type": "application/offset+octet-stream",
+          "Upload-Offset": String(offset),
+        }, file.slice(offset, end), (loaded) => {
+          onProgress(Math.min(99, Math.round(((offset + loaded) / file.size) * 100)));
+        });
+        if (patched.status < 200 || patched.status >= 300 || patched.offset <= offset || patched.offset > file.size) {
+          throw new Error(`Private storage rejected an upload chunk (${patched.status})`);
+        }
+        offset = patched.offset;
+        advanced = true;
+      } catch (error) {
+        if (attempt === retryDelays.length - 1) throw error;
+        const head = await tusRequest("HEAD", uploadUrl.toString(), common);
+        if (head.status >= 200 && head.status < 300 && head.offset >= offset && head.offset <= file.size) {
+          offset = head.offset;
+          if (offset >= end) advanced = true;
+        }
+      }
+    }
+  }
+  onProgress(100);
 }

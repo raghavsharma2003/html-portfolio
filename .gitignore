@@ -73,3 +73,4 @@ api/google-keys.env
 earbench-out/
 vyakti-local.env
 api/_config.env
+.env*

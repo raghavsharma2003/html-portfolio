@@ -21,7 +21,7 @@
 // No network, no DB, no model, $0, ~1s.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -42,18 +42,21 @@ const ok = (name, cond, extra = "") => {
 const tmp = mkdtempSync(join(tmpdir(), "teardown-"));
 const ENTRY = join(tmp, "entry.ts");
 const BUNDLE = join(tmp, "bundle.mjs");
+const esbuildImport = (path) => JSON.stringify(path.replaceAll("\\", "/"));
 writeFileSync(
   ENTRY,
-  `export { isGameSession } from "${join(ROOT, "src/state/game")}";
-export { safeUser, mergeStates } from "${join(ROOT, "src/state/merge")}";
-export { newGame, play } from "${join(ROOT, "src/engine/chess")}";
+  `export { isGameSession } from ${esbuildImport(join(ROOT, "src/state/game"))};
+export { safeUser, mergeStates } from ${esbuildImport(join(ROOT, "src/state/merge"))};
+export { newGame, play } from ${esbuildImport(join(ROOT, "src/engine/chess"))};
 `,
 );
 execSync(
   `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
   { stdio: "inherit", cwd: ROOT },
 );
-const { isGameSession, safeUser, mergeStates, newGame, play } = await import(BUNDLE);
+const { isGameSession, safeUser, mergeStates, newGame, play } = await import(
+  pathToFileURL(BUNDLE).href
+);
 
 // ══ #2 — a malformed session costs the GAME, never the app ════════════════
 //

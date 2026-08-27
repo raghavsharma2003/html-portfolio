@@ -81,7 +81,7 @@ export async function pendingWork(db, capabilities, options = {}) {
 
 async function main() {
   const maxJobs = boundedInteger(process.env.PROCESSING_JOBS_PER_RUN, 4, 1, 20, "processing_jobs_per_run_invalid");
-  const maxRuntimeMs = boundedInteger(process.env.PROCESSING_RUN_BUDGET_MS, 780_000, 60_000, 850_000, "processing_run_budget_invalid");
+  const maxRuntimeMs = boundedInteger(process.env.PROCESSING_RUN_BUDGET_MS, 3_300_000, 60_000, 3_500_000, "processing_run_budget_invalid");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("processing-run-budget")), maxRuntimeMs);
   const db = createNeonDb();
@@ -133,7 +133,7 @@ async function main() {
         resolveInput: composed.resolveInput,
         withMaterializedAudio: composed.withMaterializedAudio,
         budgetEnv: process.env,
-        leaseMs: 900_000,
+        leaseMs: 3_600_000,
         maxAttempts: 5,
         signal: controller.signal,
       });

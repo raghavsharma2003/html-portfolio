@@ -24,7 +24,10 @@ function publicJob(row) {
 
 export async function leaseNextProcessingJob(db, options = {}) {
   const token = options.token || randomBytes(32).toString("base64url");
-  const leaseMs = Math.max(10_000, Math.min(900_000, Number(options.leaseMs || 120_000)));
+  // A two-hour Sarvam batch and a multi-chunk diarization pass can legitimately
+  // outlive the old 15 minute ceiling. The scheduled worker requests the long
+  // lease; serverless callers keep their shorter explicit value.
+  const leaseMs = Math.max(10_000, Math.min(3_600_000, Number(options.leaseMs || 120_000)));
   const rows = await db(
     `with candidate as (
        select j.job_id, j.state as previous_state, j.attempt as previous_attempt

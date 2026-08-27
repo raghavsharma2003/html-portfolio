@@ -23,13 +23,13 @@
 // she simply knows less than she should — or, in the last case, more.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const src = (p) => readFileSync(join(ROOT, p), "utf8");
 
-const M = await import(join(ROOT, "api/memory.js"));
+const M = await import(pathToFileURL(join(ROOT, "api/memory.js")).href);
 const MEMORY_SRC = src("api/memory.js");
 const ACCOUNT_SRC = src("api/account.js");
 const RELCHECK_SRC = src("scripts/relcheck.mjs");

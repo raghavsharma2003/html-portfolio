@@ -10,6 +10,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 process.env.SUPABASE_URL = "https://unit-test.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "unit-test-service-role-secret";
+process.env.SUPABASE_KEY = "unit-test-public-anon-key";
 
 const Consent = await import(pathToFileURL(join(ROOT, "api/_replica-consent.js")));
 const Source = await import(pathToFileURL(join(ROOT, "api/_replica-source.js")));
@@ -234,6 +235,15 @@ const SHA = "d".repeat(64);
     sha256: SHA.toUpperCase(), contains_third_parties: false,
   });
   ok("source MIME and SHA-256 are canonicalized", audio.mime === "audio/wav" && audio.sha256 === SHA);
+  ok("audio sources above the former 256 MiB ceiling are accepted up to one GiB",
+    Source.sourceUploadInput({
+      kind: "audio", mime: "audio/flac", byte_size: 300 * 1024 * 1024,
+      sha256: SHA, contains_third_parties: false,
+    }).byteSize === 300 * 1024 * 1024
+    && throws(() => Source.sourceUploadInput({
+      kind: "audio", mime: "audio/flac", byte_size: 1_073_741_825,
+      sha256: SHA, contains_third_parties: false,
+    })));
   ok("empty evidence is rejected", throws(() => Source.sourceUploadInput({
     kind: "audio", mime: "audio/wav", byte_size: 0, sha256: SHA, contains_third_parties: false,
   })));
@@ -276,7 +286,7 @@ const SHA = "d".repeat(64);
   const fakeFetch = async (url, init = {}) => {
     calls.push({ url, init });
     if (url.endsWith(`/bucket/${Storage.REPLICA_STORAGE_BUCKET}`)) {
-      return new Response(JSON.stringify({ id: Storage.REPLICA_STORAGE_BUCKET, public: false, file_size_limit: 536_870_912 }), {
+      return new Response(JSON.stringify({ id: Storage.REPLICA_STORAGE_BUCKET, public: false, file_size_limit: 1_073_741_824 }), {
         status: 200, headers: { "content-type": "application/json" },
       });
     }
@@ -293,8 +303,20 @@ const SHA = "d".repeat(64);
   ok("storage admin calls use a server-only authorization header", calls.every((call) => call.init.headers.Authorization === "Bearer unit-test-service-role-secret"));
   ok("signed upload uses PUT and keeps the storage/v1 base", upload.method === "PUT" && upload.url.includes("/storage/v1/object/upload/sign/"));
   ok("signed upload is a time-limited capability, never a public URL", upload.url.includes("token=signed-token") && !upload.url.includes("/public/"));
+  ok("large uploads receive direct signed TUS without exposing the service role",
+    upload.resumable?.protocol === "tus-1.0"
+    && upload.resumable.endpoint === "https://unit-test.storage.supabase.co/storage/v1/upload/resumable"
+    && upload.resumable.chunk_size === 6 * 1024 * 1024
+    && upload.resumable.headers.apikey === "unit-test-public-anon-key"
+    && !Object.values(upload.resumable.headers).includes("unit-test-service-role-secret"));
+  process.env.SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let refusedServiceRole = false;
+  try { await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, fakeFetch); }
+  catch (error) { refusedServiceRole = error.code === "public_storage_key_must_not_be_service_role"; }
+  process.env.SUPABASE_KEY = "unit-test-public-anon-key";
+  ok("resumable upload refuses to expose a service-role key as apikey", refusedServiceRole);
 
-  const publicFetch = async () => new Response(JSON.stringify({ public: true, file_size_limit: 536_870_912 }), {
+  const publicFetch = async () => new Response(JSON.stringify({ public: true, file_size_limit: 1_073_741_824 }), {
     status: 200, headers: { "content-type": "application/json" },
   });
   let refusedPublic = false;
@@ -305,8 +327,8 @@ const SHA = "d".repeat(64);
 
   const storageCode = readFileSync(join(ROOT, "api/_replica-storage.js"), "utf8");
   ok("biometric storage requires the dedicated service-role secret",
-    /process\.env\.SUPABASE_SERVICE_ROLE_KEY/.test(storageCode)
-    && !/process\.env\.SUPABASE_KEY\s*\|\|\s*config\.SUPABASE_KEY/.test(storageCode));
+    /const key = process\.env\.SUPABASE_SERVICE_ROLE_KEY \|\| config\.SUPABASE_SERVICE_ROLE_KEY/.test(storageCode)
+    && !/const key = [^;]*SUPABASE_KEY/.test(storageCode));
 }
 
 {
@@ -338,6 +360,20 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
   const code = readFileSync(join(ROOT, endpoint), "utf8");
   ok(`${endpoint} derives authority from requireUser`, /requireUser\(req\)/.test(code));
   ok(`${endpoint} never trusts a body owner id`, !/body\.(?:owner|ownerUserId|owner_user_id|user|user_id|device)\b/.test(code));
+}
+
+{
+  const browserUpload = readFileSync(join(ROOT, "src/studio/enrollmentApi.ts"), "utf8");
+  const workspace = readFileSync(join(ROOT, "src/studio/EnrollmentWorkspace.tsx"), "utf8");
+  ok("browser large uploads use signed TUS chunks with offset recovery and no whole-file buffering",
+    /"PATCH"/.test(browserUpload) && /"HEAD"/.test(browserUpload)
+    && /file\.slice\(offset, end\)/.test(browserUpload)
+    && /upload-offset/.test(browserUpload)
+    && !/file\.arrayBuffer\(/.test(browserUpload));
+  ok("source picker queues multiple files and distinguishes upload from processing",
+    /multiple=\{uploadMode !== "identity_document"\}/.test(workspace)
+    && /for \(const \[index, current\] of files\.entries\(\)\)/.test(workspace)
+    && /Upload complete\. Processing queued\./.test(workspace));
 }
 
 {

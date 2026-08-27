@@ -125,6 +125,10 @@ const suites = {
   // is what makes that possible), so this suite stays offline, deterministic,
   // $0 and DB-free like everything else here.
   ingest: "ingest.mjs",
+  // Evaluation-only Hinglish scoring. Raw Unicode WER/CER stays visible while
+  // a bounded reviewed alias layer compares Roman Hindi with Devanagari ASR.
+  // Unknown words and English confusables remain errors; coverage is explicit.
+  hinglishscore: "speech/hinglish-script-score.test.mjs",
   // WS-Y (Gurukul Mirror Call). The Call tab's state machine and the one
   // property the whole ambient-approval design rests on: an un-accepted delta
   // chip is never rendered as applied.
@@ -632,6 +636,7 @@ const suites = {
   // relational/natural-key arbiter is composite, and compatibility defaults
   // have explicit strict migrations with a working negative control.
   agentstrict: "agent/strict-readiness.mjs",
+  agentroom: "agentroom.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),

@@ -66,12 +66,12 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
     workloadProfileName: 'Consumption'
     configuration: {
       triggerType: 'Schedule'
-      replicaTimeout: 900
+      replicaTimeout: 3600
       replicaRetryLimit: 0
       scheduleTriggerConfig: {
         // Every five minutes, matching the Vercel sweeps. The earlier `*/2`
         // can start an execution while the previous one is still inside its
-        // 900 s replica timeout, which stacks executions competing for the
+        // replica timeout, which stacks executions competing for the
         // same leases to no benefit.
         cronExpression: '*/5 * * * *'
         parallelism: 1
@@ -107,7 +107,7 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
             { name: 'FFPROBE_ADAPTER_VERSION', value: 'ffprobe-debian12' }
             { name: 'AZURE_REPLICA_APP_BUDGET_USD', value: string(azureApplicationBudgetUsd) }
             { name: 'PROCESSING_JOBS_PER_RUN', value: '4' }
-            { name: 'PROCESSING_RUN_BUDGET_MS', value: '780000' }
+            { name: 'PROCESSING_RUN_BUDGET_MS', value: '3300000' }
           ], evidenceEnv, sarvamEnv)
           resources: { cpu: json('1.0'), memory: '2Gi' }
         }

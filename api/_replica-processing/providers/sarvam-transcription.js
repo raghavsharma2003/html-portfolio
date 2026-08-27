@@ -1,5 +1,6 @@
 import { ProcessingAdapterError } from "../contracts.js";
 import { createSarvamSaarasProvider } from "../../_asr/providers/sarvam-saaras.js";
+import { createReadStream } from "node:fs";
 
 // Bridges the Sarvam Saaras batch ASR provider into the eight-step audio
 // DAG's `transcribe` adapter contract. WS-AN, 2026-08-26 (owner directive):
@@ -87,7 +88,9 @@ function retryableFrom(error) {
 export function createSarvamTranscriptionAdapter(options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   if (!apiKey) throw adapterError("sarvam_asr_config_missing");
-  if (typeof options.resolveInput !== "function") throw adapterError("sarvam_asr_input_resolver_missing");
+  if (typeof options.resolveInput !== "function" && typeof options.withInputFile !== "function") {
+    throw adapterError("sarvam_asr_input_resolver_missing");
+  }
   const model = String(options.model || "saaras:v3");
   const langHint = String(options.langHint || "hi-IN");
   const fetchImpl = options.fetchImpl || globalThis.fetch;
@@ -114,21 +117,27 @@ export function createSarvamTranscriptionAdapter(options = {}) {
         // is given those bytes directly (via `readAudio`) rather than being
         // asked to fetch its own copy, so this stays a single storage read
         // and a single sha256 check, not two.
-        const resolved = await options.resolveInput({ source, input, signal });
-        const provider = createSarvamSaarasProvider({
-          apiKey, model, fetchImpl, origin,
-          readAudio: async () => ({ body: resolved.body, mime: resolved.mime }),
-        });
-        const ref = {
-          storagePath: String(input.object_path || "").replace(/^\/+/, ""),
-          sha256: input.sha256,
-          mime: resolved.mime,
-          byteSize: resolved.byteSize ?? resolved.body?.length ?? 0,
-          durationMs: Number.isInteger(input.duration_ms) ? input.duration_ms : 0,
+        const runResolved = async (resolved) => {
+          const provider = createSarvamSaarasProvider({
+            apiKey, model, fetchImpl, origin,
+            readAudio: async () => ({ body: resolved.body, mime: resolved.mime, byteSize: resolved.byteSize }),
+          });
+          const ref = {
+            storagePath: String(input.object_path || "").replace(/^\/+/, ""),
+            sha256: input.sha256,
+            mime: resolved.mime,
+            byteSize: resolved.byteSize ?? resolved.body?.length ?? 0,
+            durationMs: Number.isInteger(input.duration_ms) ? input.duration_ms : 0,
+          };
+          return provider.transcribe(ref, langHint);
         };
         let result;
         try {
-          result = await provider.transcribe(ref, langHint);
+          result = typeof options.withInputFile === "function"
+            ? await options.withInputFile({ source, input, signal }, (file) => runResolved({
+                body: createReadStream(file.path), mime: file.mime, byteSize: file.byteSize,
+              }))
+            : await runResolved(await options.resolveInput({ source, input, signal }));
         } catch (error) {
           if (error?.code) throw adapterError(String(error.code).slice(0, 96), retryableFrom(error));
           throw adapterError("sarvam_asr_unexpected_error", true);

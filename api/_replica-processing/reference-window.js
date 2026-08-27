@@ -193,7 +193,7 @@ export function wavBytesForSamples(samples, sampleRate = SAMPLE_RATE) {
  *   withMaterializedAudio  from `createNativeToolRunners`.
  * @param {Buffer} sourceBytes  the ORIGINAL recording, already resolved.
  */
-export async function selectOwnerReferenceWindow({ segments, withMaterializedAudio, sourceBytes }) {
+export async function selectOwnerReferenceWindow({ segments, withMaterializedAudio, sourceBytes, sourceInput }) {
   if (!Array.isArray(segments) || !segments.length) fail("reference_window_no_diarization");
   const owner = ownerClusterSegments(segments);
   if (!owner.segments.length) fail("reference_window_no_owner_cluster");
@@ -215,7 +215,7 @@ export async function selectOwnerReferenceWindow({ segments, withMaterializedAud
     budget -= duration;
   }
 
-  return withMaterializedAudio(sourceBytes, async ({ extractWindow }) => {
+  return withMaterializedAudio(sourceInput || sourceBytes, async ({ extractWindow }) => {
     let best = null;
     for (const run of bounded) {
       const wav = await extractWindow(run.start_ms, run.end_ms);

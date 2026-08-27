@@ -3230,6 +3230,76 @@
       "kind": "rejection",
       "title": "whether enhance helps or hurts a genuinely full-bandwidth reference was not measured -- voice-evidence has no external ingress from this session (confirmed 404, ingress.external=false) and no ECAPA embedding could be computed without a container rebuild this session did not do",
       "at": "2026-08-27"
+    },
+    {
+      "id": "room-agent-scope-reaches-the-wire",
+      "kind": "decision",
+      "title": "ctx.agentId scopes room and DM lookup, writes, history, disclosure and room withdrawal; migration 064 makes room address uniqueness agent-aware",
+      "at": "2026-08-27",
+      "status": "deployed; migration 064 applied live and verified"
+    },
+    {
+      "id": "two-agent-room-dm-dispatch-local",
+      "kind": "measurement",
+      "title": "22/22 local assertions: two agents sharing one person and one surface/chat dispatch, persist and recall only their own DM and room rows",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "surface-chat-is-not-a-room-tenant-key",
+      "kind": "rejection",
+      "title": "global (surface, chat) uniqueness and group-id-only reads cannot isolate clones; credentials reuse opaque ids and deep-link room ids are caller-controlled",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "large-replica-media-is-direct-disk-bounded-and-chunked",
+      "kind": "decision",
+      "title": "Up to 1 GiB replica audio uses signed 6 MiB TUS chunks, storage-to-0600-disk processing, ClamAV fdpass, 14 minute diarization chunks with 60 second overlap, and streamed Sarvam ASR",
+      "at": "2026-08-27",
+      "status": "runtime deployed; 1 GiB live claim blocked by project global Storage limit"
+    },
+    {
+      "id": "large-media-local-evals-2026-08-27",
+      "kind": "measurement",
+      "title": "Four deterministic boundary fixtures cover swapped diarizer labels, a no-overlap guest, exact chunk fanout/timeline, and byte-identical mode-0600 temp cleanup; targeted suites pass offline",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "raising-the-upload-cap-alone-still-fails-long-media",
+      "kind": "rejection",
+      "title": "A 1 GiB validator alone leaves monolithic PUT retry, 64 MiB Node collection, 70 MiB ClamAV INSTREAM, and the 20 minute evidence ceiling",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "hinglish-benchmark-keeps-raw-and-adjusted-separate",
+      "kind": "decision",
+      "title": "Voice benchmarks preserve raw WER/CER and separately label a bounded, coverage-reporting Roman/Devanagari alias diagnostic",
+      "at": "2026-08-27",
+      "status": "implemented locally in evaluation paths only"
+    },
+    {
+      "id": "hinglish-script-score-local-2026-08-27",
+      "kind": "measurement",
+      "title": "14/14 deterministic scorer assertions pass directly and through evals/run; no model, network or production language-ID evidence",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "large-media-release-needs-both-runtime-and-account-cap",
+      "kind": "decision",
+      "title": "Ship resumable and streaming runtime, but do not claim 1 GiB until the project global limit is raised and a real >50 MiB upload reaches ready",
+      "at": "2026-08-27",
+      "status": "runtime deployed; account limit outstanding"
+    },
+    {
+      "id": "per-bucket-limit-cannot-bypass-the-project-global-limit",
+      "kind": "rejection",
+      "title": "Supabase refused the 1 GiB private-bucket limit with HTTP 413 because a bucket cannot exceed the project global Storage limit",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "production-long-media-and-agent-isolation-release-2026-08-27",
+      "kind": "measurement",
+      "title": "Production worker digest read-back and 29 s execution succeeded; Vercel ready; migration 064 live; Postgres 34/34, 62/62 and 101/101; v2 preview 24 kHz and PerTh verified",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6282,6 +6352,71 @@
       "src": "deepfilternet3-on-vs-off-not-measured-this-session",
       "rel": "blocks",
       "dst": "enrollment-reference-bandwidth-before-after"
+    },
+    {
+      "src": "room-agent-scope-reaches-the-wire",
+      "rel": "measured_by",
+      "dst": "two-agent-room-dm-dispatch-local"
+    },
+    {
+      "src": "room-agent-scope-reaches-the-wire",
+      "rel": "caused_by",
+      "dst": "surface-chat-is-not-a-room-tenant-key"
+    },
+    {
+      "src": "room-agent-scope-reaches-the-wire",
+      "rel": "part_of",
+      "dst": "clone-channel-binding"
+    },
+    {
+      "src": "large-replica-media-is-direct-disk-bounded-and-chunked",
+      "rel": "measured_by",
+      "dst": "large-media-local-evals-2026-08-27"
+    },
+    {
+      "src": "large-replica-media-is-direct-disk-bounded-and-chunked",
+      "rel": "caused_by",
+      "dst": "raising-the-upload-cap-alone-still-fails-long-media"
+    },
+    {
+      "src": "large-replica-media-is-direct-disk-bounded-and-chunked",
+      "rel": "part_of",
+      "dst": "replica-processing-worker-deployed"
+    },
+    {
+      "src": "hinglish-benchmark-keeps-raw-and-adjusted-separate",
+      "rel": "measured_by",
+      "dst": "hinglish-script-score-local-2026-08-27"
+    },
+    {
+      "src": "hinglish-benchmark-keeps-raw-and-adjusted-separate",
+      "rel": "caused_by",
+      "dst": "romanised-lexicon-meets-devanagari-asr"
+    },
+    {
+      "src": "hinglish-benchmark-keeps-raw-and-adjusted-separate",
+      "rel": "part_of",
+      "dst": "first-clone-is-the-entry-point"
+    },
+    {
+      "src": "large-media-release-needs-both-runtime-and-account-cap",
+      "rel": "caused_by",
+      "dst": "per-bucket-limit-cannot-bypass-the-project-global-limit"
+    },
+    {
+      "src": "large-media-release-needs-both-runtime-and-account-cap",
+      "rel": "measured_by",
+      "dst": "production-long-media-and-agent-isolation-release-2026-08-27"
+    },
+    {
+      "src": "large-media-release-needs-both-runtime-and-account-cap",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "room-agent-scope-reaches-the-wire",
+      "rel": "measured_by",
+      "dst": "production-long-media-and-agent-isolation-release-2026-08-27"
     }
   ]
 }

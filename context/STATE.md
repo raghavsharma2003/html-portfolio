@@ -5,7 +5,7 @@ the project stands. Deep history lives in `decisions.md` / `rejected.md` /
 `measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
 **If this file and any other disagree, the other files win — fix this one.**
 
-Last updated: 2026-08-26, and this line is the ONLY one of its kind in this
+Last updated: 2026-08-27, and this line is the ONLY one of its kind in this
 file. **Do not add a "Last updated" line here.** Put what your session did in
 the SESSION LOG at the bottom of this page instead.
 
@@ -59,7 +59,7 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
-| Enrollment processing queue | **LIVE, and the owner's upload has completed ALL EIGHT DAG steps** (2026-08-27). `vyakti-replica-processing`, an Azure Container Apps **Job** (Consumption, `*/5`, no ingress, scale-to-zero). `SARVAM_API_KEY` and `REPLICA_SELF_TEST_MODE=true` are both on its env, verified by GET. A voice genome EXISTS (v1, draft). **CAUTION: the deployed image predates WS-AS's reference-quality fix**, so the live pipeline still produces a band-limited 8 kHz enrollment reference until the Job is rebuilt. See the START HERE block. The earlier claim in this row that a genome was 'NOT yet buildable' is superseded. |
+| Enrollment processing queue | **LIVE on the corrected long-media worker** (2026-08-27 06:33Z). `vyakti-replica-processing` runs immutable image digest `sha256:192e7372...91a1`, every five minutes, with a 3,600 s replica timeout and 3,300,000 ms work budget. The owner's current source is `ready`, all eight jobs are `complete`, and VoiceGenome v2 is a `draft` over one 10 s / 24 kHz DeepFilterNet3 reference. A manual execution of the deployed digest succeeded in 29 s. Signed TUS, disk-streamed verification/ClamAV/Sarvam and overlapping long diarization are live in the worker and web runtime. The remaining large-file ceiling is the Supabase project's global Storage setting: the API refused a 1 GiB bucket limit while the bucket remains private with no per-bucket override. |
 
 ## START HERE: WHERE THIS ACTUALLY STANDS (2026-08-27 03:45Z)
 
@@ -84,17 +84,24 @@ What is settled about it, measured rather than argued:
   DELIVERED reference bytes, so skipping separation alone would not have helped.
 - Both are fixed in `api/` and merged. After the fix, 0.0224% (about 49x).
 
-**What is NOT done, and is the next agent's job:**
-1. **The fix is not live.** The Container Apps Job `vyakti-replica-processing`
-   has not been rebuilt since WS-AS, so the DEPLOYED pipeline still produces the
-   broken reference. WS-AT was dispatched for this; check whether it landed.
-2. **There is still no speaker-similarity number for the owner's clone.**
+**What is now done, and what remains:**
+1. **The 24 kHz reference fix is live.** The Container Apps Job was rebuilt,
+   pinned by digest and read back from Azure. The owner's real pipeline is at
+   one ready source, eight complete jobs and VoiceGenome v2 draft. A fresh
+   same-text Hindi preview from v2 returned 263,084 bytes of 24 kHz mono WAV,
+   with PerTh verified. This proves the deployed v2 path runs; it does not
+   prove acceptable likeness.
+2. **There is still no authoritative speaker-similarity verdict for v2.**
    Nobody has measured likeness, only bandwidth, and bandwidth is not likeness.
    `vyakti-voice-evidence` has `ingress.external=false` so a session cannot
    reach it. The repo's known ceiling is 0.8869. **Do not report a proxy metric
    as fidelity.** An invented number here is the worst possible outcome.
 3. DeepFilterNet3 on versus off is unmeasured. The owner's audio has real
    background noise, so it is a genuine trade, not an obvious call.
+4. Browser upload is resumable and multi-file, but the account-level Supabase
+   global Storage limit still refuses a 1 GiB bucket setting. Do not advertise
+   1 GiB as live until that account setting is raised and a real >50 MiB TUS
+   upload is completed.
 
 **Two live operational facts a new agent will otherwise rediscover painfully:**
 - `vyakti-open-voice` (the GPU) has `minReplicas=0`. A warm GPU answers in about
@@ -621,4 +628,5 @@ header stacks up. See the header for the full reason.
 - **WS-AQ** — `REPLICA_SELF_TEST_MODE` (default off): a self-mode replica's identity/liveness/consent and evidence/artifact review are auto-granted through the real `acceptAllOwnedEvidenceForSelfTest`/`selectOwnedVoiceArtifact`/`queueOwnedVoiceGenome` code paths as its sources reach `ready`, tagged in `metadata` for one-query revocation (`scripts/revoke-self-test-grants.mjs`), proven live both ways (flag on clears all 4 gates and queues a draft build; flag off/absent leaves all 8 blockers and a 409, unchanged) — `docs/gurukul/REPLICA-SELF-TEST-MODE.md`
 - **WS-AS** — confirmed the owner's exact diagnosis: `separate` (`sepformer-whamr16k`, 16 kHz Nyquist) ran on EVERY recording and destroyed 4-10 kHz before `enhance` ever saw a sample; measured 0.000458% energy at/above 8 kHz on the real broken reference. Fixed by skipping `separate`'s GPU model when diarize shows one dominant speaker (>=90% share) and cutting the reference window fresh from the ORIGINAL recording at 24 kHz instead — measured 0.0224% after (~49x), real FFT, real owner source (`measurements.md#enrollment-reference-bandwidth-before-after`, `decisions.md#separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker`). Also answered the coordinator's escalated Q1 ("is any cloning happening at all") directly against the real deployed Chatterbox broker: same text/seed/style, three different references, three different outputs (byte length AND hash all differ) — the reference DOES condition synthesis. Added `scripts/check-enrollment-bandwidth.mjs` (real radix-2 FFT, no dependency) as a new `verify-release.mjs` gate with a negative control, recalibrated once against real measurements after a clean-speech-intuition guess (1.5%) failed the real fix (`rejected.md#bandwidth-threshold-first-guess-was-miscalibrated`). Did NOT get a real ECAPA fidelity number — `voice-evidence` has no external ingress from this session (confirmed 404) and no image rebuild was done, so this session cannot claim a cosine similarity, only the bandwidth measurement above. Found but explicitly did NOT fix, flagged for whoever owns it: the production preview ledger (`neon-ledger.js`) structurally cannot open for ANY preview generation on a replica without an active runtime capability, because a preview's `voice_profile_id` is always NULL while the capability table's matching column is NOT NULL — unrelated to reference quality (`rejected.md#preview-ledger-requires-activation-this-replica-does-not-have`). DeepFilterNet3 on-vs-off was NOT measured (`rejected.md#deepfilternet3-on-vs-off-not-measured-this-session`) — the fix lives entirely in `api/_replica-processing/*`, so the deployed `vyakti-replica-processing` job has NOT picked it up (no ACR rebuild done this session); a real end-to-end pipeline run through the deployed container is still needed before this is proven beyond the locally-run code path. Generated clip at `scratchpad/q1-direct-AFTER.wav`.
 - **main-session 03:45Z** — merged WS-AM/AN/AO/AP/AQ/AR/AS; journey 15/15; 16 gates; REPLICA_SELF_TEST_MODE turned ON live on the Azure job; the owner heard their clone and rejected it as not sounding like them, which opened the reference-quality investigation now recorded at the top of this file. WS-AT dispatched to deploy the fix and get a real similarity number.
+- **main-session 06:35Z** — shipped signed TUS/multi-file enrollment, 1-2 h disk/chunk processing, the corrected 24 kHz reference worker (`sha256:192e7372...91a1`), Vyakti legal/landing fixes and agent-scoped DM/room memory. Vercel production is `READY`; migration 064 is live; real Postgres relcheck 34/34, binding 62/62 and Telegram handler 101/101 passed; the deployed worker smoke succeeded in 29 s. The owner's real source remains ready with 8/8 jobs complete and VoiceGenome v2 draft. A fresh v2 same-text Hindi preview is 263,084 bytes, 24 kHz mono and PerTh-verified. Supabase refused the 1 GiB per-bucket setting because it exceeds the project global limit; no plan purchase was made.
 

@@ -87,7 +87,10 @@ did exactly that, and step 2 above is what caught it.
 - Outbound access to Neon, Supabase Storage, the private evidence service and
   ClamAV's signature CDN. No inbound access.
 - Credentials are Container Apps secrets. Never in job arguments or logs.
-- 15-minute replica timeout, `parallelism: 1`, and a hard Azure budget alert.
+- 60-minute replica timeout with a 55-minute work budget and matching lease,
+  `parallelism: 1`, and a hard Azure budget alert. The longer bound is needed
+  for two-hour batch ASR and deterministic chunked diarization; it is still a
+  run-to-completion job, not a resident service.
 - `transcribe` runs through Sarvam (`SARVAM_API_KEY`), not Azure Speech, as of
   WS-AN (2026-08-26): this subscription has zero Cognitive Services accounts,
   and the owner's directive was to use the Sarvam adapters that already exist

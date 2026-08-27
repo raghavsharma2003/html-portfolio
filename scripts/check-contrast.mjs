@@ -15,9 +15,12 @@
 // specific token pairs that failed, plus the byte-identical-dark-blocks
 // invariant both files state in prose, plus the keyframe's explicit `to`.
 import { readFileSync } from "fs";
+import { join } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
-const read = (p) => readFileSync(ROOT + p, "utf8");
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const read = (p) => readFileSync(join(ROOT, String(p).replace(/^[/\\]+/, "")), "utf8")
+  .replace(/\r\n/g, "\n");
 
 let failed = 0;
 const check = (name, ok, detail) => {
@@ -199,7 +202,7 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
 // passes forever while the source rots.
 {
   console.log("");
-  const { execFileSync } = await import("child_process");
+  const { execFileSync, execSync } = await import("child_process");
   const { mkdtempSync, rmSync } = await import("fs");
   const { tmpdir } = await import("os");
   const { join } = await import("path");
@@ -208,17 +211,19 @@ check("ttt: two dark blocks, byte-identical", ttDark.length === 2 && ttDark[0] =
   const out = join(dir, "sky.mjs");
   let SKY_TOKENS, SKY_STATES, SKY_MOD;
   try {
-    execFileSync(
-      "npx",
-      ["esbuild", "src/engine/sky.ts", "--bundle", "--format=esm", "--platform=node",
-        `--outfile=${out}`, "--log-level=error"],
-      { cwd: ROOT, stdio: "pipe" },
-    );
+    const esbuildArgs = ["esbuild", "src/engine/sky.ts", "--bundle", "--format=esm", "--platform=node",
+      `--outfile=${out}`, "--log-level=error"];
+    if (process.platform === "win32") {
+      execSync(`npx esbuild src/engine/sky.ts --bundle --format=esm --platform=node --outfile=${out} --log-level=error`,
+        { cwd: ROOT, stdio: "pipe" });
+    } else {
+      execFileSync("npx", esbuildArgs, { cwd: ROOT, stdio: "pipe" });
+    }
     // the whole module, not two names: the painted half below needs
     // `imgPath`, `scrimEmphasisAt` and the band fractions, and every one of
     // them is a fact about the shipped stylesheet or the shipped table that
     // this file must not keep its own copy of
-    SKY_MOD = await import(out);
+    SKY_MOD = await import(pathToFileURL(out).href);
     ({ SKY_TOKENS, SKY_STATES } = SKY_MOD);
   } finally {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* temp dir */ }

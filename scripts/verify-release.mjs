@@ -14,10 +14,16 @@
 // The live probes cost real money (they call her actual brain), so they are
 // opt-in rather than default.
 import { execFile } from "child_process";
+import { fileURLToPath } from "url";
 import { promisify } from "util";
 
 const run = promisify(execFile);
-const ROOT = new URL("..", import.meta.url).pathname;
+// URL.pathname produces `/C:/...` on Windows, which is not a valid cwd there.
+// fileURLToPath is the one cross-platform conversion for a file URL.
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const NODE = process.execPath;
+const TSC = new URL("../node_modules/typescript/bin/tsc", import.meta.url);
+const VITE = new URL("../node_modules/vite/bin/vite.js", import.meta.url);
 
 const args = process.argv.slice(2);
 const liveAt = args.includes("--live") ? args[args.indexOf("--live") + 1] : null;
@@ -42,15 +48,15 @@ const gate = async (name, cmd, cmdArgs) => {
 };
 
 console.log("── static gates ──");
-await gate("typecheck", "npx", ["tsc", "-b"]);
-await gate("prompt budget", "node", ["scripts/check-prompt-budget.mjs"]);
+await gate("typecheck", NODE, [fileURLToPath(TSC), "-b"]);
+await gate("prompt budget", NODE, ["scripts/check-prompt-budget.mjs"]);
 // The gates below all run the code. This one lints a file the code never reads,
 // which is exactly why nothing caught it: `deploy-web.yml` gated a job on the
 // `secrets` context, which GitHub does not evaluate there, so the file was
 // INVALID and every run died at startup with zero jobs. Nine days, fifteen red
 // runs, no auto-deploy, and the job whose purpose was to announce that the
 // deploy was unconfigured never ran either.
-await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
+await gate("workflow lint", NODE, ["scripts/check-workflows.mjs"]);
 // The animation rejection checklist, mechanised. Same reasoning as the workflow
 // lint above: it checks a property of files the code never reads, so no test
 // that RUNS the code can see it. A design standard nobody enforces is a
@@ -61,16 +67,16 @@ await gate("workflow lint", "node", ["scripts/check-workflows.mjs"]);
 // layout, `transition: all`, scale(0), ease-in on UI, over-budget UI
 // transitions, keyframes with no reduced-motion answer) and leaves judgment to
 // eyes. Exceptions are written next to the code with a reason.
-await gate("motion lint", "node", ["scripts/check-motion.mjs"]);
+await gate("motion lint", NODE, ["scripts/check-motion.mjs"]);
 // Board legibility floors + the ttt keyframe's explicit end state. Same
 // species as the motion lint: properties of files the code never reads,
 // invisible to every test that runs the code. Each numbered floor in it is
 // a measured failure that shipped (1.27:1 black pieces, 1.18:1 ttt cells,
 // marks that animated 1 -> 1 into permanent invisibility).
-await gate("board legibility", "node", ["scripts/check-contrast.mjs"]);
+await gate("board legibility", NODE, ["scripts/check-contrast.mjs"]);
 // The em-dash ban, on the half of the app it never bound: product chrome.
 // She has stripTextingDashes on every bubble; the humans had nothing.
-await gate("chrome copy", "node", ["scripts/check-copy.mjs"]);
+await gate("chrome copy", NODE, ["scripts/check-copy.mjs"]);
 // The rate `services/voice-evidence/app.py`'s enhance stage EMITS and the rate
 // `api/_audio/wav.js`'s probeEnrollmentWav DEMANDS are two numbers with no
 // shared import (Node/Python, three deploy boundaries) that already drifted
@@ -79,7 +85,7 @@ await gate("chrome copy", "node", ["scripts/check-copy.mjs"]);
 // minute GPU wait with `wav format unsupported`. Mirrored across all four
 // sites and asserted equal here, with its own negative control, so they
 // cannot drift apart again without this gate naming exactly which site moved.
-await gate("enrollment sample rate", "node", ["scripts/check-enrollment-sample-rate.mjs"]);
+await gate("enrollment sample rate", NODE, ["scripts/check-enrollment-sample-rate.mjs"]);
 // The rate agreeing everywhere (above) does NOT prove the bytes at that rate
 // carry real content above 8 kHz -- a 16 kHz-Nyquist signal upsampled to
 // 24 kHz still reports 24 kHz truthfully. Measured on the owner's real
@@ -89,7 +95,7 @@ await gate("enrollment sample rate", "node", ["scripts/check-enrollment-sample-r
 // asserts a band-limited-but-full-rate-labelled clip is caught, with its own
 // negative control (a synthetic clip with the identical defect shape) run on
 // every invocation.
-await gate("enrollment bandwidth", "node", ["scripts/check-enrollment-bandwidth.mjs"]);
+await gate("enrollment bandwidth", NODE, ["scripts/check-enrollment-bandwidth.mjs"]);
 // The room path (api/tg.js and every future surface) does not import src/ — it
 // reads the committed bundle api/_engine.gen.js. So a change to the engine that
 // is not regenerated ships a DIFFERENT Meera to Telegram than the one every
@@ -101,7 +107,7 @@ await gate("enrollment bandwidth", "node", ["scripts/check-enrollment-bandwidth.
 // the more dangerous half, because a dead writer produces no data and a dead
 // guard produces false confidence. Wired here so the family of "exists and is
 // connected to nothing" loses another member.
-await gate("engine bundle fresh", "node", ["scripts/build-engine-bundle.mjs", "--check"]);
+await gate("engine bundle fresh", NODE, ["scripts/build-engine-bundle.mjs", "--check"]);
 // The stuck-turn watchdog (liveCall.ts STUCK_OPEN_MS). It is wired HERE rather
 // than left beside the other echosim experiments because those are a manual
 // before/after diff of an acoustic table, while this is a pass/fail behavioural
@@ -112,13 +118,13 @@ await gate("engine bundle fresh", "node", ["scripts/build-engine-bundle.mjs", "-
 // seconds, so it costs ~20s. That is the price of the one defect that ends a
 // call outright: with the watchdog disabled the uplink carries ZERO ms of
 // silence across the whole call and she never answers again.
-await gate("stuck-turn endpoint", "node", ["evals/echosim/stucksim.mjs"]);
+await gate("stuck-turn endpoint", NODE, ["evals/echosim/stucksim.mjs"]);
 // Her voice must be the same voice on every lane that names it. The live lanes
 // cannot be configured, so every lane that CAN choose has to match them — and
 // when they disagreed once, a call that fell back mid-sentence swapped her for
 // a different woman and was reported as "multiple personalities".
-await gate("one voice", "node", ["scripts/verify-voice.mjs"]);
-await gate("web build", "npx", ["vite", "build"]);
+await gate("one voice", NODE, ["scripts/verify-voice.mjs"]);
+await gate("web build", NODE, [fileURLToPath(VITE), "build"]);
 // CAN A PERSON READ THE STUDIO. It has to run after the build because it opens
 // the BUILT bundle in a real browser at 390, 834 and 1355px, on all three
 // wizard steps, and measures what is on screen.
@@ -133,13 +139,13 @@ await gate("web build", "npx", ["vite", "build"]);
 // real StudioApp with fixture props and a stubbed `/api`, precisely so this can
 // run in CI. Its negative control is written down in its header: reintroduce
 // the 58px rail and it fails naming the element; restore it and it passes.
-await gate("layout readability", "node", ["scripts/check-layout.mjs"]);
+await gate("layout readability", NODE, ["scripts/check-layout.mjs"]);
 // The eval suite: parser cases, the persona invariants (crisis helplines,
 // never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
 // integrity checks. run.mjs re-bundles from the REAL source on every run, so
 // this is a gate on the tree being shipped, not on a frozen copy — the same
 // reason tsc runs even though vite exits 0 with type errors.
-await gate("eval suite", "node", ["evals/run.mjs"]);
+await gate("eval suite", NODE, ["evals/run.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the
@@ -162,8 +168,8 @@ const hasDb =
   (await import("../api/_config.js").then((c) => Boolean(c.NEON_URL), () => false));
 if (hasDb) {
   console.log("\n── relational db gates ──");
-  await gate("zero-orphan sweep", "node", ["scripts/relcheck.mjs"]);
-  await gate("citation discipline", "node", ["scripts/check-citations.mjs"]);
+  await gate("zero-orphan sweep", NODE, ["scripts/relcheck.mjs"]);
+  await gate("citation discipline", NODE, ["scripts/check-citations.mjs"]);
   // Multiparty v1's two gates (G2 Gate 0, G3 withdraw) are OPT-IN because they
   // are the only gates in this file that WRITE: each builds migration 008 into
   // a wsmpb_test_* fixture namespace, asserts against it, drops it, and proves
@@ -173,8 +179,8 @@ if (hasDb) {
   // before the pilot — Gate 0 is ship-blocking for that, not for every build.
   if (mp) {
     console.log("\n── multiparty gates (--mp; these build and drop a fixture namespace) ──");
-    await gate("gate 0 (disclosure ACL)", "node", ["evals/mp/gate0.mjs"]);
-    await gate("multi-owner forget", "node", ["evals/mp/withdraw.mjs"]);
+    await gate("gate 0 (disclosure ACL)", NODE, ["evals/mp/gate0.mjs"]);
+    await gate("multi-owner forget", NODE, ["evals/mp/withdraw.mjs"]);
   } else {
     console.log("\n── multiparty gates: not run (pass --mp; see evals/mp/) ──");
   }

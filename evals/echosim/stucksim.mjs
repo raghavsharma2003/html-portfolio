@@ -16,7 +16,10 @@
 // Both arms drive the REAL src/voice/liveCall.ts through run.mjs. Every
 // assertion is read off `uplinkTrace`, i.e. the bytes that reached the socket,
 // never off a variable inside the module.
-import { runCall } from "./run.mjs";
+// Build the real TypeScript source first. A clean checkout has no generated
+// evals/echosim/build tree, and static imports run before top-level code.
+await import("./build.mjs");
+const { runCall } = await import("./run.mjs");
 
 const FORCE_MS = 700; // FORCE_SILENCE_MS in liveCall.ts
 const STUCK_MS = 20_000; // STUCK_OPEN_MS in liveCall.ts

@@ -618,7 +618,7 @@ export async function linkIdentity(ctx, ev, { personId = null } = {}) {
 /** The columns every lane below reads off a room. Named once so the two reads
  *  cannot drift into disagreeing about what a room is. */
 const ROOM_COLS =
-  "id, name, kind, surface, surface_chat_id, tg_chat_id, room_device_id, " +
+  "id, agent_id, name, kind, surface, surface_chat_id, tg_chat_id, room_device_id, " +
   "read_consent_at, quiet_level, member_cap, created_at";
 
 /**
@@ -648,12 +648,13 @@ export const legacyUserId = (surface, surfaceUserId) =>
  * the read. A database that refuses it must still answer "which room is this",
  * because the alternative is she goes silent in a room she can plainly see.
  */
-export async function roomForChat(surface, chatKey, t = ident) {
+export async function roomForChat(surface, chatKey, t = ident, agentId = MEERA_AGENT_ID) {
   const key = String(chatKey ?? "");
   if (!surface || !key) return null;
   const [row] = await q(
-    `select ${ROOM_COLS} from ${t("vy_group")} where surface = $1 and surface_chat_id = $2`,
-    [surface, key],
+    `select ${ROOM_COLS} from ${t("vy_group")}
+      where surface = $1 and surface_chat_id = $2 and agent_id = $3::uuid`,
+    [surface, key, agentId],
   ).catch(() => []);
   if (row) return row;
 
@@ -661,16 +662,17 @@ export async function roomForChat(surface, chatKey, t = ident) {
   const legacy = legacyChatId(surface, key);
   if (legacy === null) return null;
   const [old] = await q(
-    `select ${ROOM_COLS} from ${t("vy_group")} where tg_chat_id = $1`,
-    [legacy],
+    `select ${ROOM_COLS} from ${t("vy_group")}
+      where tg_chat_id = $1 and agent_id = $2::uuid`,
+    [legacy, agentId],
   ).catch(() => []);
   if (!old) return null;
   // Adopt it. `and surface is null` makes this idempotent and makes it
   // impossible to re-address a room the new writer already owns.
   await q(
     `update ${t("vy_group")} set surface = $2, surface_chat_id = $3
-      where id = $1 and surface is null`,
-    [old.id, surface, key],
+      where id = $1 and agent_id = $4::uuid and surface is null`,
+    [old.id, surface, key, agentId],
   ).catch(() => {});
   return { ...old, surface, surface_chat_id: key };
 }
@@ -690,7 +692,7 @@ export async function ensureRoomForSurfaceChat(
   { name = "", kind = "friend_group", agentId = MEERA_AGENT_ID } = {},
   t = ident,
 ) {
-  const have = await roomForChat(surface, chatKey, t);
+  const have = await roomForChat(surface, chatKey, t, agentId);
   if (have) return have;
   const key = String(chatKey ?? "");
   if (!surface || !key) return null;
@@ -712,7 +714,7 @@ export async function ensureRoomForSurfaceChat(
       legacyChatId(surface, key),
     ],
   );
-  return await roomForChat(surface, chatKey, t);
+  return await roomForChat(surface, chatKey, t, agentId);
 }
 
 /**
@@ -736,7 +738,8 @@ export async function upsertRoomMember(
   await q(
     `insert into ${m}
        (agent_id, group_id, person_id, surface, surface_user_id, tg_user_id, joined_at)
-     values ($1,$2,$3,$4,$5,$6, now())
+     select $1::uuid, g.id, $3::uuid, $4, $5, $6, now()
+       from ${t("vy_group")} g where g.id = $2 and g.agent_id = $1::uuid
      on conflict (group_id, person_id) do update set
        left_at = null,
        surface = coalesce(excluded.surface, ${m}.surface),
@@ -803,11 +806,11 @@ export async function onBotMembership(ev, ctx) {
   if (status === "left" || status === "kicked") {
     // Demotion/removal is instant, total, user-controlled revocation with no
     // code path of ours involved — we only record that it happened.
-    await setReadConsent(room.id, false, ctx.t);
+    await setReadConsent(room.id, false, ctx.t, ctx.agentId);
     return { ok: true, room: room.id, consent: false, event: status };
   }
   const isAdmin = status === "admin";
-  await setReadConsent(room.id, isAdmin, ctx.t);
+  await setReadConsent(room.id, isAdmin, ctx.t, ctx.agentId);
   if (isAdmin && !room.read_consent_at) {
     // The room card, posted at the moment consent becomes real and before the
     // first episode can be recorded.
@@ -830,17 +833,17 @@ export async function onBotMembership(ev, ctx) {
  *  stale row, never a disclosure. */
 export async function onMemberChange(ev, ctx) {
   if (!ev.isGroup) return { ok: true, skipped: "not a room" };
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   const bits = ev.adminBits || {};
   if (!bits.subjectUserId || bits.subjectIsBot) return { ok: true, skipped: "bot or no user" };
   const bound = await personForSurfaceUser(ev.surface, bits.subjectUserId, ctx.t);
   if (!bound) return { ok: true, skipped: "unlinked member" };
   if (bits.subjectStatus === "left" || bits.subjectStatus === "kicked") {
-    await markMemberLeft(room.id, bound.person_id, ctx.t);
+    await markMemberLeft(room.id, bound.person_id, ctx.t, ctx.agentId);
     return { ok: true, room: room.id, left: true };
   }
-  if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t)))
+  if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t, ctx.agentId)))
     return { ok: true, room: room.id, joined: false, full: true };
   await upsertRoomMember(
     room.id,
@@ -851,7 +854,7 @@ export async function onMemberChange(ev, ctx) {
 }
 
 export async function onJoin(ev, ctx) {
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   let added = 0;
   for (const u of ev.adminBits?.joined || []) {
@@ -863,7 +866,7 @@ export async function onJoin(ev, ctx) {
     if (!bound) continue;
     // the §7 cap applies on every path a member can arrive by, not just the
     // deep link — see roomHasSpaceFor
-    if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t))) continue;
+    if (!(await roomHasSpaceFor(room.id, bound.person_id, ctx.t, ctx.agentId))) continue;
     await upsertRoomMember(
       room.id,
       { personId: bound.person_id, surface: ev.surface, surfaceUserId: u.surfaceUserId, agentId: ctx.agentId },
@@ -875,13 +878,13 @@ export async function onJoin(ev, ctx) {
 }
 
 export async function onLeave(ev, ctx) {
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   const u = ev.adminBits?.left || null;
   if (!u || u.isBot) return { ok: true, skipped: "bot or no user" };
   const bound = await personForSurfaceUser(ev.surface, u.surfaceUserId, ctx.t);
   if (!bound) return { ok: true, skipped: "unlinked" };
-  await markMemberLeft(room.id, bound.person_id, ctx.t);
+  await markMemberLeft(room.id, bound.person_id, ctx.t, ctx.agentId);
   return { ok: true, room: room.id, left: true };
 }
 
@@ -909,12 +912,12 @@ export async function onDirectMessage(ev, ctx) {
   const person = bound.person_id;
   const device = await bindSurfaceDmDevice(ev.surface, ev.surfaceUserId, person, ctx.t);
   const text = ev.text || ev.caption || "";
-  await logDmTurn({ device, person, role: "me", content: text }, ctx.t);
+  await logDmTurn({ device, person, role: "me", content: text, agentId: ctx.agentId }, ctx.t);
 
   // M2 — the disclosure predicate, one recipient, no room. She still has what
   // the rooms she was in hold, because she was there with them; she does not
   // have anyone else's DMs, because she was not.
-  const facts = await dmRecall(person, {}, ctx.t);
+  const facts = await dmRecall(person, { agentId: ctx.agentId }, ctx.t);
   const compiled = ctx.engine.compile({
     agent: ctx.agent ?? undefined,
     user: { name: ev.handle, vibe: [], facts: {} },
@@ -931,7 +934,7 @@ export async function onDirectMessage(ev, ctx) {
     cultureNoteText: "",
     latestUserText: text,
   });
-  const history = await dmHistory(device, ctx.t);
+  const history = await dmHistory(device, ctx.t, 30, ctx.agentId);
   // The shared record family 4 may retell FROM: the facts this turn retrieved
   // through the disclosure predicate, and nothing else. A moment she was
   // handed is a moment she may claim; one she was not is a fabrication.
@@ -944,7 +947,7 @@ export async function onDirectMessage(ev, ctx) {
   const said = gatedOut.text;
   if (said) {
     await deliver(ctx, ev.chatKey, { kind: "text", text: said, replyTo: null, buttons: [] });
-    await logDmTurn({ device, person, role: "her", content: said }, ctx.t);
+    await logDmTurn({ device, person, role: "her", content: said, agentId: ctx.agentId }, ctx.t);
   }
   return {
     ok: true,
@@ -974,13 +977,13 @@ async function onLinkTap(ev, intent, ctx) {
     // §7's ≤6 cap, enforced where a member is ADDED rather than where the
     // address strip is rendered — see roomHasSpaceFor. A refused member still
     // gets their own 1:1 channel; only the room membership is denied.
-    if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t)) {
+    if (await roomHasSpaceFor(roomRef, linked.personId, ctx.t, ctx.agentId)) {
       await upsertRoomMember(
         roomRef,
         { personId: linked.personId, surface: ev.surface, surfaceUserId: ev.surfaceUserId, agentId: ctx.agentId },
         ctx.t,
       );
-      await linkMember(roomRef, linked.personId, ctx.t);
+      await linkMember(roomRef, linked.personId, ctx.t, ctx.agentId);
       room = roomRef;
     } else {
       full = true;
@@ -1033,11 +1036,14 @@ async function onLinkTap(ev, intent, ctx) {
 /** A DM turn carries BOTH keys: the device (today's legacy forget scopes) and
  *  the speaker person (008a). Writing both costs nothing and means no
  *  transport is ever the one row shape the forget cascade cannot find. */
-export async function logDmTurn({ device, person, role, content }, t = ident) {
+export async function logDmTurn(
+  { device, person, role, content, agentId = MEERA_AGENT_ID },
+  t = ident,
+) {
   await q(
-    `insert into ${t("meera_log")} (device_id, role, channel, kind, content, at, speaker_person_id)
-     values ($1,$2,'chat','text',$3, now(), $4)`,
-    [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person],
+    `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id)
+     values ($5,$1,$2,'chat','text',$3, now(), $4)`,
+    [device, role === "her" ? "her" : "me", String(content || "").slice(0, 4000), person, agentId],
   ).catch(() => {});
 }
 
@@ -1055,11 +1061,12 @@ export async function logDmTurn({ device, person, role, content }, t = ident) {
  * surface layer's own copy of the same discipline, and it moves with this
  * function wherever the function moves.
  */
-export async function dmHistory(device, t = ident, limit = 30) {
+export async function dmHistory(device, t = ident, limit = 30, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select role, content from ${t("meera_log")} where device_id = $1 and group_id is null
+    `select role, content from ${t("meera_log")}
+      where device_id = $1 and agent_id = $2::uuid and group_id is null
       order by id desc limit ${limit | 0}`,
-    [device],
+    [device, agentId],
   ).catch(() => []);
   return rows
     .reverse()
@@ -1077,14 +1084,14 @@ export async function dmHistory(device, t = ident, limit = 30) {
  */
 export async function onGroupMessage(ev, ctx) {
   if (ev.fromBot) return { ok: true, skipped: "bot message" };
-  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t);
+  const room = await roomForChat(ev.surface, ev.chatKey, ctx.t, ctx.agentId);
   if (!room) return { ok: true, skipped: "unknown room" };
   // No engine, no room behaviour AT ALL — not even the participation decision,
   // which lives in the same bundle. She stays silent and the failure is loud.
   // A degraded fallback here would be a second Meera nobody tested.
   if (!ctx.engine) {
     await recordTurnAction(
-      { groupId: room.id, action: "lurk", addressed: false, reason: "engine bundle missing" },
+      { groupId: room.id, action: "lurk", addressed: false, reason: "engine bundle missing", agentId: ctx.agentId },
       ctx.t,
     );
     return { ok: false, room: room.id, action: "lurk", reason: "engine bundle missing" };
@@ -1101,8 +1108,9 @@ export async function onGroupMessage(ev, ctx) {
   const memberRow = speaker
     ? (
         await q(
-          `select quiet_level, linked_at from ${ctx.t("vy_group")}_member where group_id = $1 and person_id = $2`,
-          [room.id, speaker],
+          `select quiet_level, linked_at from ${ctx.t("vy_group")}_member
+            where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+          [room.id, speaker, ctx.agentId],
         ).catch(() => [])
       )[0]
     : null;
@@ -1111,8 +1119,8 @@ export async function onGroupMessage(ev, ctx) {
   const cmd = commandOf(ev.text);
   if (cmd) return await onCommand(cmd, { ev, room, speaker, ctx });
 
-  const recipients = await recipientSet(room.id, ctx.t);
-  const ent = await roomEntitled(room, ctx.t);
+  const recipients = await recipientSet(room.id, ctx.t, ctx.agentId);
+  const ent = await roomEntitled(room, ctx.t, ctx.agentId);
   const gates = {
     readConsent: room.read_consent_at != null,
     quorum: recipients.length >= QUORUM,
@@ -1120,12 +1128,14 @@ export async function onGroupMessage(ev, ctx) {
     entitled: ent.entitled,
   };
 
-  const words = gates.readConsent && gates.quorum ? await roomWords(room.id, recipients, ctx.t) : [];
+  const words = gates.readConsent && gates.quorum
+    ? await roomWords(room.id, recipients, ctx.t, ctx.agentId)
+    : [];
   const decision = ctx.engine.decideParticipation({
     text: ev.text || ev.caption || "",
     botUsername: ctx.botHandle,
     replyToHer: Boolean(ev.replyToSelf),
-    sinceHerLastMs: await sinceHerLast(room, ctx.t),
+    sinceHerLastMs: await sinceHerLast(room, ctx.t, ctx.agentId),
     roomQuiet: room.quiet_level || "normal",
     memberQuiet: memberRow?.quiet_level || "normal",
     roomWords: words,
@@ -1140,16 +1150,21 @@ export async function onGroupMessage(ev, ctx) {
   let logId = null;
   const roomDevice = room.room_device_id || surfaceRoomDeviceId(ev.surface, ev.chatKey);
   if (gates.readConsent && gates.quorum && gates.speakerLinked && gates.entitled) {
-    const ep = await openOrExtendGroupEpisode(room.id, { roomDevice }, ctx.t);
+    const ep = await openOrExtendGroupEpisode(
+      room.id,
+      { roomDevice, agentId: ctx.agentId },
+      ctx.t,
+    );
     episodeId = ep?.id ?? null;
     if (episodeId) {
       // The participant set is the ACL. Every currently-linked, active member
       // is a participant of what is said in front of them — that is the
       // primitive, and it is why the room->room and room->DM directions need
       // no consent and no model judgement.
-      for (const pid of recipients) await addEpisodeParticipant(episodeId, pid, "participant", ctx.t);
+      for (const pid of recipients)
+        await addEpisodeParticipant(episodeId, pid, "participant", ctx.t, ctx.agentId);
       if (!recipients.includes(speaker))
-        await addEpisodeParticipant(episodeId, speaker, "participant", ctx.t);
+        await addEpisodeParticipant(episodeId, speaker, "participant", ctx.t, ctx.agentId);
     }
     logId = await logRoomTurn(
       {
@@ -1158,6 +1173,7 @@ export async function onGroupMessage(ev, ctx) {
         speakerPersonId: speaker,
         role: "me",
         content: ev.text || ev.caption || "",
+        agentId: ctx.agentId,
       },
       ctx.t,
     );
@@ -1171,6 +1187,7 @@ export async function onGroupMessage(ev, ctx) {
       action: decision.action,
       addressed: decision.addressed,
       reason: decision.reason,
+      agentId: ctx.agentId,
     },
     ctx.t,
   );
@@ -1190,9 +1207,9 @@ export async function onGroupMessage(ev, ctx) {
 
   // ── RETRIEVE. Everything below this line came through the predicate.
   const [facts, bridge, members] = await Promise.all([
-    roomRecall(room.id, recipients, {}, ctx.t),
-    roomBridge(room.id, recipients, ctx.t),
-    roster(room.id, ctx.t),
+    roomRecall(room.id, recipients, { agentId: ctx.agentId }, ctx.t),
+    roomBridge(room.id, recipients, ctx.t, ctx.agentId),
+    roster(room.id, ctx.t, ctx.agentId),
   ]);
 
   // ── RENDER through the REAL compiler, with the mp slots live.
@@ -1217,7 +1234,7 @@ export async function onGroupMessage(ev, ctx) {
     roomBundle: { members, bridge },
   });
 
-  const history = await roomHistory(room.id, ctx.t);
+  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);
   // In a room the shared record is what came through the predicate for THIS
   // room's recipient set, plus the bridge rows — every one of them already
   // disclosure-checked above. She may retell what she was handed here and
@@ -1240,7 +1257,7 @@ export async function onGroupMessage(ev, ctx) {
       buttons: [],
     });
     await logRoomTurn(
-      { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text },
+      { groupId: room.id, roomDevice, speakerPersonId: null, role: "her", content: text, agentId: ctx.agentId },
       ctx.t,
     );
   }
@@ -1260,11 +1277,11 @@ export async function onGroupMessage(ev, ctx) {
 /** Her own last word in THIS ROOM. `group_id = $1` pins it, so a DM row
  *  (group_id null) can never match and the cooldown can never be reset by
  *  something she said somewhere else. */
-export async function sinceHerLast(room, t = ident) {
+export async function sinceHerLast(room, t = ident, agentId = MEERA_AGENT_ID) {
   const r = await q(
     `select extract(epoch from (now() - max(at))) * 1000 as ms from ${t("meera_log")}
-      where group_id = $1 and role = 'her'`,
-    [room.id],
+      where group_id = $1 and agent_id = $2::uuid and role = 'her'`,
+    [room.id, agentId],
   ).catch(() => []);
   const ms = Number(r[0]?.ms);
   return Number.isFinite(ms) ? ms : Number.MAX_SAFE_INTEGER;
@@ -1273,10 +1290,11 @@ export async function sinceHerLast(room, t = ident) {
 /** The room's live turn window, pinned to the room by `group_id = $1`. A DM
  *  turn (group_id null) can never enter a room's history — the other half of
  *  the channel guard above, in the other direction. */
-export async function roomHistory(groupId, t = ident, limit = 20) {
+export async function roomHistory(groupId, t = ident, limit = 20, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select role, content from ${t("meera_log")} where group_id = $1 order by id desc limit ${limit | 0}`,
-    [groupId],
+    `select role, content from ${t("meera_log")}
+      where group_id = $1 and agent_id = $2::uuid order by id desc limit ${limit | 0}`,
+    [groupId, agentId],
   ).catch(() => []);
   return rows
     .reverse()
@@ -1302,8 +1320,9 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
   if (cmd.name === "chup") {
     if (cmd.arg === "me" && speaker) {
       await q(
-        `update ${t("vy_group")}_member set quiet_level = 'quiet' where group_id = $1 and person_id = $2`,
-        [room.id, speaker],
+        `update ${t("vy_group")}_member set quiet_level = 'quiet'
+          where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+        [room.id, speaker, ctx.agentId],
       );
       await deliver(ctx, ev.chatKey, {
         kind: "text",
@@ -1313,7 +1332,7 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
       });
       return { ok: true, room: room.id, quiet: "member" };
     }
-    await setQuiet(room.id, "quiet", t);
+    await setQuiet(room.id, "quiet", t, ctx.agentId);
     await deliver(ctx, ev.chatKey, {
       kind: "text",
       text: "theek hai — ab sirf tab bolungi jab koi naam lekar bulaye. wapas: /bolo",
@@ -1325,11 +1344,12 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
   if (cmd.name === "bolo") {
     if (cmd.arg === "me" && speaker) {
       await q(
-        `update ${t("vy_group")}_member set quiet_level = 'normal' where group_id = $1 and person_id = $2`,
-        [room.id, speaker],
+        `update ${t("vy_group")}_member set quiet_level = 'normal'
+          where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+        [room.id, speaker, ctx.agentId],
       );
     } else {
-      await setQuiet(room.id, "normal", t);
+      await setQuiet(room.id, "normal", t, ctx.agentId);
     }
     await deliver(ctx, ev.chatKey, { kind: "text", text: "theek hai.", replyTo: null, buttons: [] });
     return { ok: true, room: room.id, quiet: "normal" };
@@ -1341,7 +1361,7 @@ export async function onCommand(cmd, { ev, room, speaker, ctx }) {
     // evals/mp/withdraw.mjs.
     if (!speaker) return { ok: true, skipped: "unlinked" };
     const { withdrawSharedRows } = await import("./memory.js");
-    const res = await withdrawSharedRows(speaker, { t });
+    const res = await withdrawSharedRows(speaker, { t, agentId: ctx.agentId });
     const n = (res.participant_rows || 0) + (res.room_turns || 0);
     await deliver(ctx, ev.chatKey, {
       kind: "text",
