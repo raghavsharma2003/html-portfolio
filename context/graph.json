@@ -3382,12 +3382,12 @@
       "kind": "decision",
       "title": "Internal ceremony bypass requires an exact environment marker and owner UUID allowlist in addition to the flag, and bootstraps six scopes before source creation",
       "at": "2026-08-27",
-      "status": "local contract complete; deployment settings outstanding"
+      "status": "live for the allowlisted owner on Vercel and the Azure worker"
     },
     {
       "id": "replica-self-test-owner-guard-focused-2026-08-27",
       "kind": "measurement",
-      "title": "15 of 15 owner-guard checks and 35 of 35 replica-review checks passed offline; no live database or deployment run",
+      "title": "All 16 release checks passed; Vercel is READY and the scheduled Azure worker pulled the owner-guarded immutable image successfully",
       "at": "2026-08-27"
     },
     {

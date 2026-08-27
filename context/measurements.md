@@ -5122,3 +5122,19 @@ syntax defect was corrected, the same template compiled successfully. The full
 release runner then passed all 16 checks, including the live relational gates,
 in one run. No live source upload, model build or generated voice was used as
 evidence by these checks.
+
+The release was then applied to both live planes. Vercel production deployment
+`dpl_5j6gAQ8mxs8FsJHLhZq2QGnBoSWy` reached `READY` and the production alias
+returned HTTP 200; its served JavaScript contained both exact test-mode copy
+and the five source-type guide. A no-credential source request still returned
+401 with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Azure ACR
+run `cu18` remotely built commit `930c98f` without local Docker and produced
+immutable worker digest
+`sha256:51663ce8782d5a998d4ccb66cb92d2a12ec123e5a9e6a06698483e337d9200a8`.
+The Container Apps Job read back `Succeeded` with that exact digest, all three
+owner guards exact, every required processing/storage/provider env name still
+present, a 3,600 s replica timeout, a 3,300,000 ms run budget and its existing
+five-minute schedule. Scheduled execution `vyakti-replica-processing-29797260`
+then pulled the new digest and succeeded. This is deployment and image-pull
+evidence, not a claim that the owner's 1 h 44 m source has been uploaded or
+finished; that live end-to-end result still requires the owner to retry it.
