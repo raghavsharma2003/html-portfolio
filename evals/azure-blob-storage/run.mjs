@@ -98,6 +98,19 @@ ok("large Azure uploads use deterministic 8 MiB create-only blocks",
   && upload.resumable.endpoint === upload.url
   && upload.headers["if-none-match"] === "*");
 
+let containerReadinessCall;
+const checkedBucket = await Storage.ensurePrivateReplicaBucket(AZURE_BUCKET, async (rawUrl, init = {}) => {
+  containerReadinessCall = { url: new URL(rawUrl), init };
+  return new Response(null, { status: 200 });
+});
+ok("container readiness is server-only Shared Key and never a service SAS",
+  checkedBucket.provider === "azure_blob"
+  && containerReadinessCall.init.method === "HEAD"
+  && containerReadinessCall.url.searchParams.get("restype") === "container"
+  && !containerReadinessCall.url.searchParams.has("sig")
+  && containerReadinessCall.init.headers.Authorization.startsWith(`SharedKey ${ACCOUNT}:`)
+  && containerReadinessCall.init.headers["x-ms-version"] === "2026-04-06");
+
 const bytes = Buffer.from("provider-routed-private-bytes", "utf8");
 const sha256 = createHash("sha256").update(bytes).digest("hex");
 const readCalls = [];

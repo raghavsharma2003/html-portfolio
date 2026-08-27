@@ -164,6 +164,39 @@ async function azureStorageFetch(objectPath, options = {}) {
   return response;
 }
 
+// Get Container Properties does not accept a service SAS, even when that SAS
+// is container-scoped with read permission; Azure documents it as an account
+// SAS / Shared Key operation. The browser must never receive account-level
+// authority, so this one server-only readiness check uses Shared Key directly.
+// Object upload/read/delete capabilities continue to use exact-resource SAS.
+async function azureContainerProperties(credentials, options = {}) {
+  const url = new URL(`${credentials.origin}/${encodeURIComponent(credentials.container)}`);
+  url.searchParams.set("restype", "container");
+  const date = new Date(options.now || Date.now()).toUTCString();
+  const canonicalHeaders = `x-ms-date:${date}\nx-ms-version:${AZURE_BLOB_VERSION}\n`;
+  const canonicalResource = `/${credentials.account}/${credentials.container}\nrestype:container`;
+  const stringToSign = [
+    "HEAD", "", "", "", "", "", "", "", "", "", "", "",
+    canonicalHeaders + canonicalResource,
+  ].join("\n");
+  const signature = createHmac("sha256", Buffer.from(credentials.key, "base64"))
+    .update(stringToSign, "utf8")
+    .digest("base64");
+  try {
+    return await (options.fetchImpl || fetch)(url, {
+      method: "HEAD",
+      headers: {
+        Authorization: `SharedKey ${credentials.account}:${signature}`,
+        "x-ms-date": date,
+        "x-ms-version": AZURE_BLOB_VERSION,
+      },
+      signal: AbortSignal.timeout(options.timeoutMs || 30_000),
+    });
+  } catch (error) {
+    throw new ReplicaStorageError("azure_replica_storage_unreachable", 503, error?.message);
+  }
+}
+
 function azureInfoFromResponse(response) {
   const byteSize = Number(response.headers.get("content-length"));
   const mime = String(response.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
@@ -397,17 +430,16 @@ export async function ensurePrivateReplicaBucket(storageBucket, fetchImpl = fetc
   const descriptor = replicaStorageBucketDescriptor(storageBucket);
   if (descriptor.provider === "azure_blob") {
     const azure = await azureStorageCredentials(descriptor);
-    const response = await azureStorageFetch("", {
-      credentials: azure,
-      resource: "c",
-      permissions: "r",
-      method: "HEAD",
-      query: { restype: "container" },
-      fetchImpl,
-      timeoutMs: 30_000,
-    });
+    const response = await azureContainerProperties(azure, { fetchImpl, timeoutMs: 30_000 });
     if (response.status === 404) throw new ReplicaStorageError("azure_replica_container_missing");
-    if (!response.ok) throw new ReplicaStorageError("azure_replica_container_unreachable");
+    if (!response.ok) {
+      const providerCode = String(response.headers.get("x-ms-error-code") || "unknown").slice(0, 80);
+      throw new ReplicaStorageError(
+        "azure_replica_container_unreachable",
+        response.status >= 500 ? 503 : 409,
+        `${response.status}:${providerCode}`,
+      );
+    }
     if (response.headers.get("x-ms-blob-public-access")) {
       throw new ReplicaStorageError("replica_bucket_must_be_private");
     }

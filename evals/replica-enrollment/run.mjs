@@ -442,6 +442,11 @@ const SHA = "d".repeat(64);
     objectPath: `${OWNER}/${REPLICA}/${SOURCE}/original`,
   };
   const checked = await Storage.ensurePrivateReplicaBucket(azureBucket, azureFetch);
+  const containerCheck = calls.find(({ url, init }) => init.method === "HEAD" && url.searchParams.get("restype") === "container");
+  ok("Azure container readiness uses server-only Shared Key instead of an invalid service SAS",
+    containerCheck?.init.headers?.Authorization?.startsWith("SharedKey vyaktireplicatest:")
+    && containerCheck.init.headers["x-ms-date"] && containerCheck.init.headers["x-ms-version"] === "2026-04-06"
+    && !containerCheck.url.searchParams.has("sig") && !containerCheck.url.searchParams.has("sp"));
   const upload = await Storage.createSignedReplicaUpload(locator, azureFetch);
   const uploadUrl = new URL(upload.url);
   ok("Azure persists a durable provider locator without changing opaque object paths",
