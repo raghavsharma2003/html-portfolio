@@ -324,7 +324,10 @@ export async function azureBlockCrc64(blob: Blob) {
   }
   crc ^= CRC64_MASK;
   const encoded = new Uint8Array(8);
-  for (let index = 7; index >= 0; index--) {
+  // Azure serializes CRC64 integers little-endian on the wire. Encoding the
+  // numeric check value big-endian still matches common published hex vectors,
+  // but the Blob service rejects the transactional header with HTTP 400.
+  for (let index = 0; index < encoded.length; index++) {
     encoded[index] = Number(crc & 0xffn);
     crc >>= 8n;
   }

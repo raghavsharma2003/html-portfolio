@@ -207,7 +207,7 @@ const crcModuleSource = ts.transpileModule(browserUpload.slice(crcStart, crcEnd)
 }).outputText;
 const Crc = await import(`data:text/javascript;base64,${Buffer.from(crcModuleSource).toString("base64")}`);
 ok("browser CRC64-NVME matches the published 123456789 check vector",
-  await Crc.azureBlockCrc64(new Blob(["123456789"])) === "rosUhgp5mIg="
+  await Crc.azureBlockCrc64(new Blob(["123456789"])) === "iJh5CoYUi64="
   && await Crc.azureBlockCrc64(new Blob([])) === "AAAAAAAAAAA=");
 const azureUploader = browserUpload.slice(browserUpload.indexOf("async function putAzureBlockUpload"));
 ok("browser retries restage the same deterministic block without read permission",

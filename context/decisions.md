@@ -6135,7 +6135,10 @@ state, not multi-hour media payloads. Explicit locators preserve every legacy
 object without a risky bulk copy and prevent identical object paths from being
 read or erased on the wrong backend. Azure block uploads keep the browser and
 worker memory bounded while the worker's streamed SHA-256 remains content
-authority.
+authority. Transactional CRC64-NVME headers serialize the 64-bit checksum
+little-endian, matching Azure's wire format; a live block request rejected the
+otherwise numerically-correct big-endian representation with HTTP 400 and
+accepted the little-endian representation with HTTP 201.
 
 **What would reverse it.** A different object plane may replace Azure only
 after production-region availability, published limits and pricing, direct

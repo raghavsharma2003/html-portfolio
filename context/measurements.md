@@ -5069,9 +5069,30 @@ frontend/server protocol agreement. Replica enrollment, source erasure,
 voice enrollment and TypeScript checks also passed locally; source erasure
 contains 28 checks including a 24-hour, 25-row bounded abandoned-upload sweep.
 
-Scope: no deployed Vyakti API or worker used this account in this measurement,
-and no real object larger than 50 MiB was uploaded or processed. The account
-key remains a temporary service-SAS bridge because the available Contributor
-principal cannot grant managed-identity Blob roles. This measurement proves
-platform posture and offline contracts, not that the production bottleneck is
-closed.
+The production rollout then remotely built worker ACR run `cu17` from commit
+`d137607`; it produced immutable digest
+`sha256:a40a2c099115fe90c4657c020c45d279c97f3b755d64fe3c97ad6e5bfa9f3f0c`.
+The Container Apps Job read back `Succeeded` with that exact digest, a 3,600 s
+replica timeout, a 3,300,000 ms run budget and all four Azure locator/key env
+bindings. Vercel deployment `dpl_F4CVELLPWusvT83bXXKbKsvev7s6` reached READY
+and was aliased to `vyakti-replica-lab.vercel.app`.
+
+The first live staged block exposed a test-vector blind spot: the browser
+encoded the CRC64 integer big-endian, and Azure returned HTTP 400. The same
+one-byte request without a checksum returned 201; the documented little-endian
+checksum returned 201. After correcting that wire encoding, a live 54,526,075
+byte upload completed in seven deterministic blocks, committed once under an
+exact `sp=c`, `sr=b`, `sv=2026-04-06` capability, and read back with the exact
+byte count, MIME and ETag. An unsigned read returned 409, commit replay returned
+403, a same-SAS path mutation returned 403, and authenticated deletion was
+observed as a subsequent 404. The synthetic object was erased in the same run.
+The corrected browser encoding then passed the complete 16-check release gate,
+and follow-up deployment `dpl_8mGdZm7rWA8U2LcpaFnFXtZPuDJu` reached READY
+and replaced the production alias.
+
+Scope: this proves the deployed Azure account, capability shape, >50 MiB block
+transport, metadata read and physical erasure. It did not create a consent row,
+process a person's voice, or run the eight-stage worker DAG, so it is not yet a
+claim that a one- or two-hour source reached `ready`. The account key remains a
+temporary service-SAS bridge because the available Contributor principal cannot
+grant managed-identity Blob roles.
