@@ -5555,3 +5555,23 @@ remote build negative control first proves an empty cache invokes the blocked
 upstream downloader, then initializes the real baked path with that downloader
 still a hard error and records `network_attempts=0`. Runtime startup repeats
 the manifest and file verification rather than trusting build success.
+
+## `preview-style-512-byte-ceiling-predates-the-text-plan-receipt` (2026-08-28)
+
+**What was tried.** Keep migration 046's 512-byte `preview_style` constraint
+after extending the same generation field with the multilingual text-plan and
+language-conditioning receipt.
+
+**What specifically broke.** The full current authorization object is 751
+bytes in live PostgreSQL, while the old check permits at most 512. The same
+authorization query therefore fails SQLSTATE 23514 on
+`vy_replica_generation_preview_style_check` before a preview generation can
+open. Removing the receipt would make the database write succeed by dropping
+the exact plan, language and conditioning evidence that the release verifier
+is designed to bind.
+
+**What replaced it.** Migration 065 atomically replaces the named check with a
+2,048-byte object limit and mirrors that final law in `db/schema.sql`. The
+focused suite proves the old bound rejects a real builder-produced receipt,
+the new bound accepts it, and an oversized object remains rejected. The
+migration is deliberately not applied by this code-only workstream.

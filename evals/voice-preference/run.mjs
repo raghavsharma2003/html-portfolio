@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { splitSql } from "../../db/migrations/apply.mjs";
 import { recordOwnedVoicePreference, voicePreferencePairHash } from "../../api/_replica-voice-preference.js";
 import { voicePreviewStyle } from "../../api/_replica-voice-preview.js";
+import { buildVoiceTextPlan, voiceTextPlanAudit } from "../../api/_voice/hindi-text-frontend.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const IDS = {
@@ -61,10 +63,52 @@ await assert.rejects(recordOwnedVoicePreference(async () => [], IDS.owner, { rep
 ok("choices and reason codes are bounded before SQL", true);
 
 const migration = readFileSync(join(ROOT, "db/migrations/046_replica_voice_preference.sql"), "utf8");
+const receiptMigration = readFileSync(join(ROOT, "db/migrations/065_replica_preview_style_receipt.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
 ok("the ledger is composite-owner bound to both exact generations", /voice_preference_left_fk/.test(migration) && /voice_preference_right_fk/.test(migration) && /generation_id,replica_id,owner_user_id/.test(migration));
 ok("the preference ledger stores no prompt transcript", !/\b(text|prompt|transcript)\s+(text|jsonb)/i.test(migration) && /preview_text_hash/.test(migration));
 ok("canonical schema carries migration 046", schema.includes("vy_replica_voice_preference_pair") && schema.includes("vy_replica_generation_preview_style_check") && schema.includes("vy_replica_generation_preview_seed_check"));
+
+// PostgreSQL jsonb::text adds one space after each comma and colon. Object-key
+// order does not affect byte size, but sorting keeps this fixture deterministic.
+function postgresJsonbText(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(postgresJsonbText).join(", ")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}: ${postgresJsonbText(value[key])}`).join(", ")}}`;
+}
+
+function previewStyleBytes(value) {
+  return Buffer.byteLength(postgresJsonbText(value), "utf8");
+}
+
+const receiptPlan = buildVoiceTextPlan({
+  text: "Aaj chemistry ka concept bilkul simple hai. Reaction ko step by step samjho.",
+  languageId: "hi",
+});
+const receiptBoundStyle = {
+  ...voicePreviewStyle("balanced"),
+  text_language_mode: "latin_only",
+  text_frontend: voiceTextPlanAudit(receiptPlan),
+  reference_language_mode: "mixed",
+  reference_language_evidence_scope: "source_transcript",
+  conditioning_contract: "vyakti-voice-language-conditioning/v1",
+  effective_cfg_weight: 0.5,
+};
+const receiptBytes = previewStyleBytes(receiptBoundStyle);
+const receiptStatements = splitSql(receiptMigration);
+ok("migration 065 atomically and idempotently replaces the preview-style check",
+  receiptStatements.length === 1 &&
+  /drop constraint if exists vy_replica_generation_preview_style_check,/i.test(receiptStatements[0]) &&
+  /add constraint vy_replica_generation_preview_style_check/i.test(receiptStatements[0]) &&
+  !/\bdo\s+\$/i.test(receiptStatements[0]));
+ok("the old 512-byte ceiling rejects the current receipt-bearing preview style",
+  receiptBytes > 512);
+ok("the 2,048-byte ceiling accepts the current receipt while remaining bounded",
+  receiptBytes <= 2048 && /octet_length\(preview_style::text\)<=2048/.test(receiptMigration));
+ok("the replacement check still rejects an oversized preview-style object",
+  previewStyleBytes({ ...receiptBoundStyle, oversized_padding: "x".repeat(2048) }) > 2048);
+ok("the canonical schema mirrors migration 065's final bounded constraint",
+  /Migration 065[\s\S]*drop constraint if exists vy_replica_generation_preview_style_check,[\s\S]*octet_length\(preview_style::text\)<=2048/.test(schema));
 
 const handler = readFileSync(join(ROOT, "api/replica-voice-preference.js"), "utf8");
 const previewHandler = readFileSync(join(ROOT, "api/replica-voice-preview.js"), "utf8");

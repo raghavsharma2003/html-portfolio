@@ -4264,6 +4264,25 @@
       "kind": "rejection",
       "title": "Hugging Face offline flags do not cover pkuseg",
       "at": "2026-08-28"
+    },
+    {
+      "id": "preview-style-receipt-limit-is-2048-bytes",
+      "kind": "decision",
+      "title": "Preview-style receipts keep a hard 2,048-byte limit",
+      "at": "2026-08-28",
+      "status": "migration 065 and focused controls ready; not applied live"
+    },
+    {
+      "id": "preview-style-receipt-limit-local-2026-08-28",
+      "kind": "measurement",
+      "title": "Current receipt crosses 512 bytes and remains below the bounded replacement",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "preview-style-512-byte-ceiling-predates-the-text-plan-receipt",
+      "kind": "rejection",
+      "title": "The 512-byte preview-style ceiling predates the text-plan receipt",
+      "at": "2026-08-28"
     }
   ],
   "edges": [
@@ -8381,6 +8400,26 @@
       "src": "openvoice-release-candidates-bind-source-before-registry-build",
       "rel": "constrains",
       "dst": "openvoice-tokenizer-assets-are-a-content-addressed-build-closure"
+    },
+    {
+      "src": "preview-style-receipt-limit-is-2048-bytes",
+      "rel": "measured_by",
+      "dst": "preview-style-receipt-limit-local-2026-08-28"
+    },
+    {
+      "src": "preview-style-receipt-limit-is-2048-bytes",
+      "rel": "caused_by",
+      "dst": "preview-style-512-byte-ceiling-predates-the-text-plan-receipt"
+    },
+    {
+      "src": "preview-style-receipt-limit-is-2048-bytes",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "preview-style-receipt-limit-is-2048-bytes",
+      "rel": "constrains",
+      "dst": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel"
     }
   ]
 }

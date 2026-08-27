@@ -7121,3 +7121,29 @@ full commitments, and an executable no-egress cold-start test proves the
 complete tokenizer initializes without writing or downloading a cache. A CDN
 SLA, retry loop, warm replica or Hugging Face offline flag alone cannot reverse
 the decision.
+
+## `preview-style-receipt-limit-is-2048-bytes` (2026-08-28)
+
+**Decision.** The `vy_replica_generation.preview_style` object keeps its
+object-shape check and a hard UTF-8 `jsonb::text` ceiling, raised atomically
+from 512 to 2,048 bytes in migration 065. The replacement is one idempotent
+`ALTER TABLE` statement that drops and adds the same named constraint, and the
+canonical schema mirrors it. The text-plan receipt remains stored with the
+generation authorization; it is not discarded or truncated to fit the old
+limit.
+
+**Why.** The multilingual authorization now binds three SHA-256 commitments,
+the synthesis-language plan, warnings and language-conditioning evidence in
+addition to the server-owned acoustic preset. The live 512-byte constraint
+predates that receipt and rejects a valid 751-byte authorization with SQLSTATE
+23514. A production-shaped maximal-mix local fixture is 862 bytes in
+PostgreSQL-style JSONB text, so 2,048 admits the current bounded contract with
+more than 2x headroom while still making unbounded metadata impossible.
+
+**What would reverse it.** If a reviewed versioned receipt contract approaches
+2,048 bytes, move the expanding audit to a dedicated typed receipt column or
+table and retain a small content commitment in `preview_style`; do not silently
+raise the ceiling again. Evidence that PostgreSQL serializes the accepted
+contract above the locally reproduced bound also reopens the exact value, but
+never the requirement for an explicit finite limit and an oversized negative
+control.

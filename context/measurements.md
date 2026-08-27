@@ -6319,3 +6319,30 @@ Docker operation ran. Azure billing had not ingested an exact charge; one
 This proves the exact tokenizer portion of cold startup no longer needs its
 observed download. It does not measure full GPU cold-start latency, voice
 quality, accent, likeness, pronunciation or human preference.
+
+## `preview-style-receipt-limit-local-2026-08-28`
+
+**Measured 2026-08-28, n=1 live authorization reproduction, n=1
+production-shaped local receipt, n=1 oversized negative control and n=29
+focused offline checks.** Readback of the live named constraint found
+`octet_length(preview_style::text)<=512`. The coordinating lane reproduced the
+same owner authorization with an exact 751-byte receipt-bearing style; the
+insert failed SQLSTATE 23514 on
+`vy_replica_generation_preview_style_check`. Existing stored generations had
+a measured maximum of 347 bytes, so the failure is caused by the newly bound
+receipt rather than historical oversized data.
+
+The focused fixture uses the real Hindi text frontend, text-plan audit builder
+and server-owned `balanced` preset, then adds the exact language-conditioning
+fields written by `beginOwnedVoicePreview`. Its PostgreSQL-style `jsonb::text`
+serialization is 862 UTF-8 bytes: greater than 512 and no greater than 2,048.
+Adding a 2,048-character padding field makes the same object exceed the new
+ceiling and the executable control rejects it. Migration 065 splits into one
+statement, contains `drop constraint if exists` and the replacement named
+check in that same statement, and contains no DO block.
+
+`node evals/run.mjs voicepreference` passed 29 of 29 checks, `node --check
+evals/voice-preference/run.mjs`, `git diff --check` and the pre-entry context
+graph check passed. No migration, database write, deployment, Docker, cloud,
+model, audio or GPU call ran in this lane. This proves the local migration and
+boundary contract only; it does not claim migration 065 is live.

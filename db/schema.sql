@@ -2703,3 +2703,11 @@ create unique index if not exists vy_group_agent_tg_chat_ix
   where tg_chat_id is not null;
 drop index if exists vy_group_surface_chat_ix;
 drop index if exists vy_group_tg_chat_ix;
+
+-- Migration 065 - the multilingual preview receipt adds the bounded text-plan
+-- and language-conditioning audit to preview_style. Preserve the object-shape
+-- rule while replacing migration 046's now-obsolete 512-byte ceiling.
+alter table vy_replica_generation
+  drop constraint if exists vy_replica_generation_preview_style_check,
+  add constraint vy_replica_generation_preview_style_check
+    check (jsonb_typeof(preview_style)='object' and octet_length(preview_style::text)<=2048);
