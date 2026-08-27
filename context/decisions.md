@@ -6252,3 +6252,22 @@ Azure could bill the empty container until the 3,600-second replica timeout.
 sidecar or an unreferenced child only after three scanner-bearing executions
 end promptly, propagate daemon startup failure correctly and leave no orphan
 process. The scale-to-zero cost property remains mandatory.
+
+## `unexpected-processing-errors-get-content-free-operator-diagnostics` (2026-08-27)
+
+**Decision.** A programming error without an existing adapter or contract code
+logs only its bounded exception type, a message that passes a strict safe-text
+alphabet, and the first repository-local processing frame. URLs, paths, tokens
+and arbitrary messages are replaced with `redacted`; the durable job code stays
+`processing_worker_error`.
+
+**Why.** The exact long lecture deterministically reached diarization twice,
+but the worker collapsed both exceptions to one generic code and discarded the
+only information that could distinguish chunk extraction, transport and
+reconciliation. That made a production-only defect unactionable while adding
+unbounded exception text would risk source locators or credentials in logs.
+
+**What would reverse it.** The diagnostic may disappear only when every
+processing boundary converts all expected runtime failures into stable,
+content-free codes and a fault-injection gate proves no unexpected exception
+can reach the worker catch.

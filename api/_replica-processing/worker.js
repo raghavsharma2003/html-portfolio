@@ -22,6 +22,25 @@ import {
   settleAzureSpeechSpend,
 } from "../_provider-budget.js";
 
+const SAFE_DIAGNOSTIC_MESSAGE = /^[a-z0-9 ()'",._-]{1,192}$/i;
+
+/**
+ * Keep unexpected worker failures actionable without putting tenant paths,
+ * URLs, tokens, or source content into logs. Named adapter/contract failures
+ * already have stable codes; this is only for programming errors that would
+ * otherwise collapse to the opaque `processing_worker_error`.
+ */
+export function processingUnexpectedErrorDiagnostic(error) {
+  const type = String(error?.name || error?.constructor?.name || "Error")
+    .replace(/[^a-z0-9_-]/gi, "")
+    .slice(0, 48) || "Error";
+  const rawMessage = String(error?.message || "");
+  const message = SAFE_DIAGNOSTIC_MESSAGE.test(rawMessage) ? rawMessage : "redacted";
+  const stack = String(error?.stack || "").replaceAll("\\", "/");
+  const frameMatch = stack.match(/api\/_replica-processing\/[a-z0-9._-]+\.js:\d+:\d+/i);
+  return Object.freeze({ type, message, frame: frameMatch?.[0] || "unavailable" });
+}
+
 function sameIdentity(job, source) {
   return job.source_id === source.source_id && job.replica_id === source.replica_id && job.owner_user_id === source.owner_user_id;
 }
@@ -502,6 +521,7 @@ export async function executeProcessingJob(input) {
       await releaseProviderSpendBeforeCall(input.spendDb, reservation, error).catch(() => null);
     }
     if (!(error instanceof ProcessingContractError) && !(error instanceof ProcessingAdapterError) && !error?.code) {
+      console.error("processing_worker_unexpected_error", processingUnexpectedErrorDiagnostic(error));
       error.code = "processing_worker_error";
     }
     return Object.freeze({

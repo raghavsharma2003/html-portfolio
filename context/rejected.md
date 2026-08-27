@@ -4639,3 +4639,18 @@ no useful lease.
 **What replaced it.** The run owns the child handle and stops it from `finally`
 on success, retry, failure or budget cancellation. Empty executions still never
 start ClamAV.
+
+## `generic-processing-worker-error-is-not-an-operational-diagnosis` (2026-08-27)
+
+**What was tried.** Convert every unexpected exception at the worker boundary
+to `processing_worker_error` and persist only that code.
+
+**What specifically broke.** The long lecture reproduced the code after the
+known adapter defect was fixed, but neither the job row nor the single console
+report could identify whether extraction, private transport or reconciliation
+threw. Retrying the same opaque failure supplied no new evidence.
+
+**What replaced it.** Unexpected errors retain the stable public code while a
+server-only, content-free diagnostic records a bounded type, strictly safe
+message and repository-local frame. Unsafe message shapes are redacted by
+construction and covered by a negative test.

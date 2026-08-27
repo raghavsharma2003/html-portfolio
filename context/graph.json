@@ -3471,6 +3471,25 @@
       "kind": "rejection",
       "title": "Returning without stopping foreground clamd kept Node and the billed Azure execution alive",
       "at": "2026-08-27"
+    },
+    {
+      "id": "unexpected-processing-errors-get-content-free-operator-diagnostics",
+      "kind": "decision",
+      "title": "Unexpected processing exceptions log only a safe type, safe-text message and repository-local frame while retaining the stable public code",
+      "at": "2026-08-27",
+      "status": "focused regression passed; diagnostic image pending"
+    },
+    {
+      "id": "long-lecture-generic-diarize-failure-live-2026-08-27",
+      "kind": "measurement",
+      "title": "The corrected adapter reached diarization but deterministically failed with an opaque worker error before any speaker evidence persisted",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "generic-processing-worker-error-is-not-an-operational-diagnosis",
+      "kind": "rejection",
+      "title": "Collapsing programming exceptions to one code discarded the evidence needed to isolate a production-only long-audio failure",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6746,6 +6765,21 @@
     },
     {
       "src": "run-once-owns-and-stops-the-clam-daemon-lifetime",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "unexpected-processing-errors-get-content-free-operator-diagnostics",
+      "rel": "measured_by",
+      "dst": "long-lecture-generic-diarize-failure-live-2026-08-27"
+    },
+    {
+      "src": "unexpected-processing-errors-get-content-free-operator-diagnostics",
+      "rel": "caused_by",
+      "dst": "generic-processing-worker-error-is-not-an-operational-diagnosis"
+    },
+    {
+      "src": "unexpected-processing-errors-get-content-free-operator-diagnostics",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }

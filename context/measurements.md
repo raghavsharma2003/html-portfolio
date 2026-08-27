@@ -5206,3 +5206,18 @@ adapter-contract and child-lifecycle regressions; syntax, targeted lint and
 whitespace checks passed. The old running execution still needs an operator
 stop and the revised immutable image still needs deployment and a measured
 prompt exit.
+
+## `long-lecture-generic-diarize-failure-live-2026-08-27`
+
+**Measured 2026-08-27, production exact-source retry.** The immutable worker
+digest containing the safe adapter suffix retried the requested 262,879,879
+byte, 1:49:31 MP3. It loaded the queued diarization job and failed in about
+eight seconds of container runtime with `processing_worker_error`; no GPU
+service console record was emitted. This proves the former adapter identifier
+defect was removed, but exposes a second deterministic error before a durable
+speaker segment exists.
+
+The focused worker suite now has 32 passing checks after adding a bounded
+diagnostic seam. A safe TypeError retains its type, message and repository
+frame; a URL-bearing negative control is redacted. This measurement is not an
+eight-stage pass and does not make a voice-quality claim.

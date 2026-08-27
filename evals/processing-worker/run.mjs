@@ -9,6 +9,7 @@ import {
   DIARIZATION_OVERLAP_MS,
   reconcileDiarizationChunks,
 } from "../../api/_replica-processing/chunked-diarization.js";
+import { processingUnexpectedErrorDiagnostic } from "../../api/_replica-processing/worker.js";
 import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js";
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
@@ -90,6 +91,17 @@ ok("a speaker with no overlap evidence is never guessed to be the owner",
   reconciled.find((segment) => segment.start_ms === 85_000)?.speaker_key === "cluster-2");
 
 const chunkCalls = [];
+
+const safeDiagnostic = processingUnexpectedErrorDiagnostic(Object.assign(
+  new TypeError("Cannot read properties of undefined"),
+  { stack: "TypeError: Cannot read properties of undefined\n    at x (file:///app/api/_replica-processing/chunked-diarization.js:133:28)" },
+));
+ok("unexpected worker diagnostics retain only a safe type, message, and repository frame",
+  safeDiagnostic.type === "TypeError" &&
+  safeDiagnostic.message === "Cannot read properties of undefined" &&
+  safeDiagnostic.frame === "api/_replica-processing/chunked-diarization.js:133:28");
+const redactedDiagnostic = processingUnexpectedErrorDiagnostic(new Error("failed for https://secret.example/path?token=value"));
+ok("unexpected worker diagnostics redact URL-bearing messages", redactedDiagnostic.message === "redacted");
 const chunked = createChunkedDiarizationAdapter({
   delegate: { family: "diarization", name: "fixture", version: "v1", diarize: async () => { throw new Error("whole input must not run"); } },
   chunkMs: 60_000,
