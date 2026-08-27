@@ -5016,3 +5016,37 @@ Scope: no Hindi checkpoint was remotely built or loaded, no GPU synthesis or
 cold start ran, and no person listened to a generated clip. These are contract,
 SQL-shape and UI/runtime regression measurements, not evidence that accent,
 naturalness or owner likeness improved.
+
+## `hindi-voice-production-release-2026-08-27`
+
+**Measured 2026-08-27 against production and an isolated Azure evaluation
+origin.** Commit `6f7bff219df1a5b79a47993c5493dd7bcee32d0e` was remotely built in
+Azure Container Registry without local Docker. Worker build `cu14` produced
+digest `sha256:31dd84744551abb2a6038bdd5005f30ff87411ea3ba76ac147fe1244ae802086`;
+manual executions before and after rotating the worker to the new Supabase
+secret-key header contract succeeded in 29 s and 27 s. General runtime build
+`cu15` produced digest
+`sha256:d63717334b5a3c638dc19d4e2d18eb6f1c4fa46535e469347220d1e2b2391178`
+and is deployed with `OPEN_VOICE_MODEL_ARM=general`.
+
+Vercel deployment `dpl_BVLNhau69HTj29EbGSQ9UpSE44Uw` reached ready and is
+aliased to `vyakti-replica-lab.vercel.app`. The production Supabase service
+credential is stored as a hidden Vercel secret. A direct API-key-only read with
+the new secret authenticated to the private, non-public replica bucket; no
+credential value was logged or committed.
+
+Hindi build `cu16` produced isolated digest
+`sha256:0004ec8b90c0ac0c43bd4493762f50c813775d9ebe20856110672de2343228dc`.
+The first load failed closed on exactly `tokenizer._mel_filters` and
+`tokenizer.window`; the pinned official source declares those two buffers as
+reconstructed missing state. Allowing only those exact keys yielded a healthy
+separate scale-to-zero app. Its signed cold synthesis returned 24 kHz mono,
+11,040 ms output, RTF 2.050181, verified PerTh, output hash and response HMAC in
+293.478 s. Both isolated Hindi apps later read back at zero replicas.
+
+A signed cold smoke against the deployed production general arm returned a
+24 kHz, 13,800 ms output with RTF 1.642101, verified PerTh, expected immutable
+model commitment, output hash and response HMAC in 542.696 s. This is n=1 per
+arm and proves transport, model load and synthesis only. It provides no human
+listening, owner likeness, accent, Hindi naturalness or comparative quality
+result; both cold latencies are unacceptable for an interactive path.

@@ -6095,3 +6095,25 @@ deployed GPU class, and wins a blinded owner/known-listener Hindi and Hinglish
 comparison without an intelligibility regression. Exact-window language may
 replace source-level evidence only when selected-window offsets and transcript
 lineage are persisted end to end.
+
+## `hindi-runtime-remains-isolated-after-load-smoke` (2026-08-27)
+
+**Decision.** Keep the general multilingual arm on the production origin and
+the Hindi V3 pack on separate `-hi` runtime and gate names with scale-to-zero.
+The infrastructure template forces Hindi onto non-production names regardless
+of the production-name parameters. Only the two tokenizer buffers explicitly
+reconstructed by the pinned official source may be absent during Hindi S3Gen
+loading. Model load and signed synthesis qualify compatibility, not perceptual
+quality or promotion.
+
+**Why.** The Hindi pack intentionally refuses English, the owner has rejected
+all current Hindi output, and the first remote smoke measured about 293 s cold
+end to end. Replacing the global origin would break English while promoting an
+arm with no owner ABX win. Azure also selects the T4 through the workload
+profile; its API rejects a `gpu` resource member and probe delays over 60 s.
+
+**What would reverse it.** The Hindi arm may share production routing only
+after a language-aware router exists, three cold-start measurements meet a
+declared SLO, and a blinded owner/known-listener Hindi and Hinglish evaluation
+wins without an English or intelligibility regression. Separate immutable
+model commitments and rollback paths remain required.

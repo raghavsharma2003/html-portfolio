@@ -4509,3 +4509,22 @@ language-matched Hindi and Hinglish calibration references, explicit conditionin
 evidence, a blinded matched-seed incumbent-versus-CFG-zero comparison, and then
 an isolated Hindi-pack arm. No arm is promoted until the owner or listeners who
 know the voice provide a recorded preference and intelligibility does not regress.
+
+## `aca-gpu-member-and-long-probe-delay-are-invalid` (2026-08-27)
+
+**What was tried and rejected.** Express the T4 as `gpu: 1` in the Container
+App container resources and give the model a 240-second initial readiness delay.
+
+**What specifically breaks.** The live Microsoft.App API rejects the `gpu`
+member because GPU selection belongs to `workloadProfileName`, and its probe
+schema bounds `initialDelaySeconds` to 1 through 60. The earlier source-only
+eval did not compile or submit the Bicep and therefore missed both deployment
+failures. A Hindi arm using the default app names could also have replaced the
+single-revision production English runtime.
+
+**What replaced it.** Container resources now declare only CPU and memory, the
+T4 workload profile selects the GPU, and startup tolerance uses repeated
+bounded probes with roughly 555 s of budget. Bicep name resolution forces
+non-production runtime and broker names for `hindi_v3`; focused evals reject
+zero or over-60-second initial delays, a `gpu` resource member, insufficient
+startup budget, and reuse of either production name.

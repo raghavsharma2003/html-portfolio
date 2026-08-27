@@ -37,19 +37,23 @@ param expiryAt string
 @description('Immutable experiment identifier for cost attribution.')
 param experimentId string
 
-assert immutableImage = contains(image, '@sha256:')
-assert immutableBrokerImage = contains(brokerImage, '@sha256:')
-assert boundedExperiment = length(experimentId) >= 8 && length(experimentId) <= 64
-assert explicitExpiry = contains(expiryAt, 'T') && endsWith(expiryAt, 'Z')
+var immutableImage = contains(image, '@sha256:') ? image : fail('image must use an immutable sha256 digest')
+var immutableBrokerImage = contains(brokerImage, '@sha256:') ? brokerImage : fail('brokerImage must use an immutable sha256 digest')
+var boundedExperiment = length(experimentId) >= 8 && length(experimentId) <= 64 ? experimentId : fail('experimentId must contain 8 through 64 characters')
+var explicitExpiry = contains(expiryAt, 'T') && endsWith(expiryAt, 'Z') ? expiryAt : fail('expiryAt must be an explicit UTC timestamp')
+// The Hindi arm is forced onto separate names. Callers cannot accidentally
+// replace either single-revision production app by changing only modelArm.
+var runtimeName = modelArm == 'hindi_v3' ? 'vyakti-open-voice-hi' : containerAppName
+var admissionName = modelArm == 'hindi_v3' ? 'vyakti-open-voice-hi-gate' : brokerAppName
 
 resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
-  name: containerAppName
+  name: runtimeName
   location: location
   tags: {
     program: 'replica'
     component: 'open-voice-runtime'
-    experiment_id: experimentId
-    expiry_at: expiryAt
+    experiment_id: boundedExperiment
+    expiry_at: explicitExpiry
   }
   identity: {
     type: 'UserAssigned'
@@ -74,22 +78,44 @@ resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'open-voice'
-          image: image
+          image: immutableImage
           env: [
             { name: 'OPEN_VOICE_HMAC_SECRET', secretRef: 'open-voice-hmac' }
             { name: 'OPEN_VOICE_REQUIRE_CUDA', value: 'true' }
             { name: 'OPEN_VOICE_PERTH_MIN_SCORE', value: '0.5' }
             { name: 'OPEN_VOICE_MODEL_ARM', value: modelArm }
+            {
+              name: 'OPEN_VOICE_HINDI_ALLOWED_MISSING_KEYS'
+              value: modelArm == 'hindi_v3' ? 'tokenizer._mel_filters,tokenizer.window' : ''
+            }
           ]
-          resources: { cpu: json('8.0'), memory: '56Gi', gpu: 1 }
+          // The GPU is selected by workloadProfileName. Microsoft.App rejects
+          // a `gpu` member in Container App container resources.
+          resources: { cpu: json('8.0'), memory: '56Gi' }
           probes: [
+            {
+              type: 'Liveness'
+              httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }
+              initialDelaySeconds: 1
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 10
+            }
             {
               type: 'Readiness'
               httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }
-              initialDelaySeconds: 240
-              periodSeconds: 15
+              initialDelaySeconds: 60
+              periodSeconds: 36
               timeoutSeconds: 5
-              failureThreshold: 12
+              failureThreshold: 10
+            }
+            {
+              type: 'Startup'
+              httpGet: { path: '/healthz', port: 8080, scheme: 'HTTP' }
+              initialDelaySeconds: 10
+              periodSeconds: 60
+              timeoutSeconds: 5
+              failureThreshold: 10
             }
           ]
         }
@@ -106,13 +132,13 @@ resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
 }
 
 resource broker 'Microsoft.App/containerApps@2024-03-01' = {
-  name: brokerAppName
+  name: admissionName
   location: location
   tags: {
     program: 'replica'
     component: 'open-voice-admission'
-    experiment_id: experimentId
-    expiry_at: expiryAt
+    experiment_id: boundedExperiment
+    expiry_at: explicitExpiry
   }
   identity: {
     type: 'UserAssigned'
@@ -137,7 +163,7 @@ resource broker 'Microsoft.App/containerApps@2024-03-01' = {
       containers: [
         {
           name: 'admission'
-          image: brokerImage
+          image: immutableBrokerImage
           env: [
             { name: 'OPEN_VOICE_HMAC_SECRET', secretRef: 'open-voice-hmac' }
             { name: 'OPEN_VOICE_RUNTIME_ORIGIN', value: 'https://${runtime.properties.configuration.ingress.fqdn}' }

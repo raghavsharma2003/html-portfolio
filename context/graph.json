@@ -3338,6 +3338,25 @@
       "kind": "rejection",
       "title": "Owner rejected q1-direct-after and vyakti-v2-post-deploy as robotic foreign-accented Hindi, so protected transport success is not a quality benchmark",
       "at": "2026-08-27"
+    },
+    {
+      "id": "hindi-runtime-remains-isolated-after-load-smoke",
+      "kind": "decision",
+      "title": "A successful Hindi load smoke qualifies only an isolated arm; production remains on the general multilingual runtime until listening and latency gates pass",
+      "at": "2026-08-27",
+      "status": "general and isolated Hindi arms deployed; perceptual gate outstanding"
+    },
+    {
+      "id": "hindi-voice-production-release-2026-08-27",
+      "kind": "measurement",
+      "title": "Remote worker, general voice and isolated Hindi images deployed; protected smokes passed but cold end-to-end latency was 542.696 s general and 293.478 s Hindi",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "aca-gpu-member-and-long-probe-delay-are-invalid",
+      "kind": "rejection",
+      "title": "Microsoft.App rejects a gpu resource member and probe initial delays above 60 seconds; Hindi must also use non-production app names",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6495,6 +6514,26 @@
       "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
       "rel": "part_of",
       "dst": "hindi-cfg-benchmark-binds-requested-and-effective-conditioning"
+    },
+    {
+      "src": "hindi-runtime-remains-isolated-after-load-smoke",
+      "rel": "measured_by",
+      "dst": "hindi-voice-production-release-2026-08-27"
+    },
+    {
+      "src": "hindi-runtime-remains-isolated-after-load-smoke",
+      "rel": "caused_by",
+      "dst": "aca-gpu-member-and-long-probe-delay-are-invalid"
+    },
+    {
+      "src": "hindi-runtime-remains-isolated-after-load-smoke",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
+      "rel": "measured_by",
+      "dst": "hindi-voice-production-release-2026-08-27"
     }
   ]
 }

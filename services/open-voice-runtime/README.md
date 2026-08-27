@@ -52,17 +52,30 @@ signed response binds it.
 
 Only one checkpoint is downloaded into an image and only one model is loaded
 onto the GPU. The Hindi pack is an evaluation arm, not an automatic route from
-a `hi` language tag: it has not yet passed Vyakti's owner ABX or measured cold
-start. Existing LoRA adapters target the general checkpoint and are refused by
+a `hi` language tag: its cold start is measured but unacceptable for an
+interactive path, and it has not yet passed Vyakti's owner ABX. Existing LoRA
+adapters target the general checkpoint and are refused by
 the Hindi arm until compatibility is qualified.
 
 The Hindi Space vendors inference code that differs from the pinned upstream
 source used by the general arm. The local loader mirrors its multilingual T3
 and non-strict v3 S3Gen load, but refuses every missing or unexpected weight
-key unless it is explicitly whitelisted. The arm remains unqualified until a
-remote image build, health check, protected synthesis, cold-start/VRAM measure,
-and blind owner ABX all pass. It must use a separate evaluation origin; never
-replace the global origin, because the Hindi arm intentionally refuses English.
+key unless it is explicitly whitelisted. The official pinned Chatterbox source
+declares `tokenizer._mel_filters` and `tokenizer.window` as reconstructed
+buffers; those are the only missing keys allowed by the deployment template.
+A remote image build, model load, health check, signed synthesis, 24 kHz output,
+PerTh verification, and response-integrity smoke passed on 2026-08-27. That
+qualifies loader compatibility only: cold end-to-end latency was about 293 s,
+and no owner ABX or perceptual Hindi-quality test has passed. The arm must use a
+separate evaluation origin; never replace the global origin, because it
+intentionally refuses English. The Bicep template forces `hindi_v3` onto the
+separate `vyakti-open-voice-hi` and `vyakti-open-voice-hi-gate` resource names,
+regardless of the production-name parameters.
+
+Container Apps selects the T4 through `workloadProfileName`; do not add a `gpu`
+field to container resources because the Microsoft.App API rejects it. Probe
+initial delays are bounded to the API's 60-second maximum. Startup tolerance is
+expressed with repeated startup probes, not an out-of-range delay.
 
 Language conditioning negotiates
 `vyakti-voice-language-conditioning/v1` inside the signed v1 transport. General

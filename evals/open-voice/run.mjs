@@ -409,6 +409,20 @@ ok("the conditioning contract is rolling-deploy compatible in both directions",
   /legacy_runtime_language_contract_unverified/.test(readFileSync(join(ROOT, "api/_voice/providers/open-chatterbox-preview.js"), "utf8")));
 ok("request logging is disabled and audio uses an auto-deleted temporary file", docker.includes("--no-access-log") && app.includes("NamedTemporaryFile"));
 ok("Azure GPU deployment is private, digest-pinned, scale-to-zero and single-concurrency", /external:\s*false/.test(infra) && /contains\(image, '@sha256:'\)/.test(infra) && /minReplicas:\s*0/.test(infra) && /maxReplicas:\s*1/.test(infra) && /concurrentRequests:\s*'1'/.test(infra));
+ok("Azure GPU resources use the workload profile and API-valid probe delays",
+  /workloadProfileName:\s*'Consumption-GPU-NC8as-T4'/.test(infra) &&
+  !/resources:\s*\{[^}]*\bgpu\s*:/.test(infra) &&
+  !/initialDelaySeconds:\s*0\b/.test(infra) &&
+  !/initialDelaySeconds:\s*(?:6[1-9]|[7-9]\d|\d{3,})\b/.test(infra));
+ok("the isolated Hindi deployment allows only the two official reconstructed tokenizer buffers",
+  /OPEN_VOICE_HINDI_ALLOWED_MISSING_KEYS/.test(infra) &&
+  /modelArm == 'hindi_v3' \? 'tokenizer\._mel_filters,tokenizer\.window' : ''/.test(infra));
+ok("the Hindi evaluation arm cannot reuse either production app name",
+  /runtimeName = modelArm == 'hindi_v3' \? 'vyakti-open-voice-hi' : containerAppName/.test(infra) &&
+  /admissionName = modelArm == 'hindi_v3' \? 'vyakti-open-voice-hi-gate' : brokerAppName/.test(infra) &&
+  /name:\s*runtimeName/.test(infra) && /name:\s*admissionName/.test(infra));
+ok("the startup probe leaves bounded headroom above the measured cold load",
+  /type:\s*'Startup'[\s\S]{0,250}initialDelaySeconds:\s*10[\s\S]{0,120}periodSeconds:\s*60[\s\S]{0,120}failureThreshold:\s*10/.test(infra));
 ok("a scale-to-zero CPU admission broker protects the private GPU from internet-triggered spend", /resource broker/.test(infra) && /external:\s*true/.test(infra) && /workloadProfileName:\s*'Consumption'/.test(infra) && /OPEN_VOICE_RUNTIME_ORIGIN/.test(infra) && broker.indexOf("body = await _admit(request)") < broker.indexOf("client.post"));
 ok("admission and GPU responses remain end-to-end HMAC bound", /runtime_response_signature_invalid/.test(broker) && /FORWARDED_HEADERS/.test(broker) && brokerDocker.includes("--no-access-log"));
 ok("preview rows are structurally distinct from qualified runtime generations", /purpose='voice_preview'/.test(migration) && /voice_profile_id is null/.test(migration) && /preview_model_commitment~/.test(migration));
