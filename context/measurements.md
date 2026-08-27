@@ -5158,3 +5158,20 @@ Production Neon accepted `EXPLAIN (FORMAT JSON)` for the exact new
 owner/replica/source lookup shape with all returned source columns.
 This entry does not claim the requested 262,879,879-byte lecture has completed
 upload or processing; that end-to-end run follows deployment.
+
+## `long-lecture-integrity-to-clamav-live-2026-08-27`
+
+**Measured 2026-08-27, production source plus focused local regression.** The
+requested 262,879,879-byte, 1:49:31 MP3 uploaded through the production browser
+in about 47 seconds from source creation to verified quarantine. Source and
+Azure both read `audio/mpeg` and 262,879,879 bytes, with no rejection. The first
+worker execution completed `integrity` on attempt 1, then placed
+`malware_scan` in retry on attempt 1 with `clamav_daemon_unavailable` about four
+seconds later.
+
+Inspection proved the run's initial pending-work test started ClamAV only when
+`malware_scan` already existed, while its four-job loop could create and lease
+that step after completing `integrity`. After making both steps scanner-start
+triggers, the processing-worker suite passed 28/28 checks, syntax, targeted
+lint and whitespace checks. This is not yet the completed eight-stage result;
+the immutable worker rebuild and live retry remain required.

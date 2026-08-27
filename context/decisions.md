@@ -6198,3 +6198,23 @@ returns an authenticated type that is stored in both the source record and
 blob metadata. Finalize may stop returning terminal state only if clients gain
 a separate, equally owner-scoped status endpoint and all retry callers migrate
 to it first.
+
+## `integrity-root-starts-the-malware-daemon-for-the-same-run` (2026-08-27)
+
+**Decision.** A processing execution whose initial queue contains either
+`integrity` or `malware_scan` must refresh signatures and start ClamAV before
+leasing work. Integrity is a scanner-start trigger because its deterministic
+child is `malware_scan` and the same bounded execution can lease that child
+immediately.
+
+**Why.** The first live 250.7 MiB lecture run saw only `integrity` during its
+initial pending-work check, skipped ClamAV, completed integrity, then leased the
+new scan child and recorded `clamav_daemon_unavailable`. The scanner image and
+client were present; startup timing, not file content or capacity, caused the
+retry.
+
+**What would reverse it.** Integrity may stop pre-starting ClamAV only if the
+run loop is changed to detect and start scanner dependencies before each lease,
+or if it deliberately ends after integrity so a later execution starts with a
+visible scan job. Either replacement must pass a real integrity-to-scan run in
+one container execution without weakening fail-closed signature refresh.

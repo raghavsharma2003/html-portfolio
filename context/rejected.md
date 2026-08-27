@@ -4592,3 +4592,19 @@ lookup could no longer see it and falsely reported `pending_source_not_found`.
 server MIME and the block-list commit uses only that value. Finalize retries
 read the exact owner-scoped source and preserve terminal state and rejection
 code. OS MIME tables remain a hint for initial intake, never storage authority.
+
+## `initial-queue-only-clamav-startup-misses-a-new-scan-child` (2026-08-27)
+
+**What was tried.** Start ClamAV only when the queue snapshot taken before the
+worker loop already contains `malware_scan`.
+
+**What specifically broke.** A root `integrity` job did not trigger startup.
+The same execution completed it, created `malware_scan`, immediately leased the
+child under the existing four-job budget, and failed because no daemon socket
+existed. The live failure code was `clamav_daemon_unavailable`; retrying the
+file or changing its size could not fix worker ordering.
+
+**What replaced it.** Both `integrity` and `malware_scan` trigger signature
+refresh and daemon readiness before the run loop. Empty schedules still avoid
+the fixed ClamAV cost, while a run that can create a scan child cannot reach it
+without the daemon already answering.

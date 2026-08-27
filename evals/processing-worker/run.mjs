@@ -178,6 +178,9 @@ ok("worker is a scale-to-zero run-once process, not a public HTTP server", !/cre
 // awaited before the daemon starts, and a refresh that did not happen throws
 // rather than being rounded up to one.
 ok("current malware signatures are a fail-closed startup dependency", /freshclam/.test(clamav) && /throw toolError\("clamav_signature_refresh_failed"/.test(clamav) && /await refreshSignatures\(\)/.test(runOnce) && /clamdscan/.test(nativeSource));
+ok("an integrity root starts ClamAV before the same run can lease its scan child",
+  /SCANNER_START_STEPS = Object\.freeze\(\["integrity", "malware_scan"\]\)/.test(runOnce)
+  && /needsScanner: steps\.some\(\(step\) => SCANNER_START_STEPS\.includes\(step\)\)/.test(runOnce));
 ok("ClamAV and the worker lease are bounded for one GiB and long audio",
   /MaxFileSize 1024M/.test(clamdConfig) && /MaxScanSize 1024M/.test(clamdConfig)
   && /leaseMs: 3_600_000/.test(runOnce) && /replicaTimeout: 3600/.test(workerInfra));

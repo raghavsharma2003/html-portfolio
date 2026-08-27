@@ -34,9 +34,12 @@ import { createNeonDb } from "./db.js";
  *  like the serverless runtime it was deployed to replace. */
 const REQUIRED_STEPS = Object.freeze(["integrity", "malware_scan", "media_probe"]);
 
-/** Steps that need `clamdscan`. Bringing the daemon up is expensive, so it is
- *  only done when the queue actually holds one of these. */
-const SCANNER_STEPS = Object.freeze(["malware_scan"]);
+/** Steps that require clamd during this execution. `integrity` is included
+ *  because completing it deterministically enqueues `malware_scan`, and the
+ *  same bounded run immediately leases that child job. Looking only at the
+ *  initial queue made the worker skip daemon startup, complete integrity, and
+ *  then fail its newly-created scan with `clamav_daemon_unavailable`. */
+const SCANNER_START_STEPS = Object.freeze(["integrity", "malware_scan"]);
 
 function boundedInteger(value, fallback, min, max, code) {
   const number = value == null || value === "" ? fallback : Number(value);
@@ -75,7 +78,7 @@ export async function pendingWork(db, capabilities, options = {}) {
   return Object.freeze({
     total: steps.length,
     steps: Object.freeze(steps),
-    needsScanner: steps.some((step) => SCANNER_STEPS.includes(step)),
+    needsScanner: steps.some((step) => SCANNER_START_STEPS.includes(step)),
   });
 }
 

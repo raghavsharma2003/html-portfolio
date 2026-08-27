@@ -3414,6 +3414,25 @@
       "kind": "rejection",
       "title": "Windows File.type mislabeled an MP3 and terminal retry then collapsed into pending source not found",
       "at": "2026-08-27"
+    },
+    {
+      "id": "integrity-root-starts-the-malware-daemon-for-the-same-run",
+      "kind": "decision",
+      "title": "Integrity starts ClamAV because the same bounded worker run can immediately lease its malware-scan child",
+      "at": "2026-08-27",
+      "status": "focused regression passed; immutable worker rebuild pending"
+    },
+    {
+      "id": "long-lecture-integrity-to-clamav-live-2026-08-27",
+      "kind": "measurement",
+      "title": "The exact 250.7 MiB lecture uploaded with matching MIME and bytes; integrity passed before the first scan retried on a missing daemon",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "initial-queue-only-clamav-startup-misses-a-new-scan-child",
+      "kind": "rejection",
+      "title": "Checking only the initial queue skipped ClamAV before integrity created and immediately leased malware_scan",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6646,6 +6665,21 @@
       "src": "azure-upload-mime-is-bound-by-the-authorized-source-contract",
       "rel": "part_of",
       "dst": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators"
+    },
+    {
+      "src": "integrity-root-starts-the-malware-daemon-for-the-same-run",
+      "rel": "measured_by",
+      "dst": "long-lecture-integrity-to-clamav-live-2026-08-27"
+    },
+    {
+      "src": "integrity-root-starts-the-malware-daemon-for-the-same-run",
+      "rel": "caused_by",
+      "dst": "initial-queue-only-clamav-startup-misses-a-new-scan-child"
+    },
+    {
+      "src": "integrity-root-starts-the-malware-daemon-for-the-same-run",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }
   ]
 }
