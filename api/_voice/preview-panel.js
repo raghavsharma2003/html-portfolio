@@ -174,9 +174,17 @@ export async function handleVoicePreviewPanel(body, deps) {
     } else {
       // Cold. This request is the wake. Dispatch it, let it run, and stop
       // waiting after the flush window rather than holding the owner's
-      // connection open until Container Apps kills it at ~240 s.
+      // connection open until Container Apps kills it at ~240 s. A provider
+      // success after that flush still proves the runtime is ready. Record
+      // only that runtime fact: the abandoned generation stays failed and its
+      // discarded stream never enters the protection/sealing path below.
       deps.warmth.note(deps.origin, "waking", now());
-      const outcome = await dispatchWake(synthesize, { flushMs: deps.flushMs, sleep: deps.sleep });
+      const outcome = await dispatchWake(async () => {
+        const value = await synthesize();
+        assertSynthesisResult(value);
+        deps.warmth.note(deps.origin, "ready", now());
+        return value;
+      }, { flushMs: deps.flushMs, sleep: deps.sleep });
       if (outcome.kind === "flushed") {
         await deps.markFailed(started.generation.generation_id, { code: "voice_preview_wake_dispatched" });
         return warmingResult("runtime_cold", { wake_dispatched: true });

@@ -5268,3 +5268,19 @@ draft with 1,683 target segments and one enrollment artifact. The focused
 self-test, review, model-build, open-voice, voice-panel and SQL-cast gates pass.
 The private preview reached the real GPU wake corridor; no perceptual result is
 claimed until protected audio exists and a human listens.
+
+## `long-lecture-preview-warmup-window-live-2026-08-27`
+
+**Measured 2026-08-27, one live draft and focused deterministic regression.**
+The private preview authorized the exact selected reference and dispatched a
+GPU wake. Six automatic retries produced one `voice_preview_wake_dispatched`
+followed by five `voice_preview_wake_in_flight` rows, then the browser stopped
+at roughly 180 seconds with no sealed generation while Azure reported the
+active revision healthy with one replica.
+
+The corrected focused suite passes 91/91 checks. Its asynchronous control proves
+a provider result arriving after the flush changes the runtime hint from
+warming to warm, while protection calls remain zero and the discarded
+generation stays failed. A second check binds the seven-poll, 210-second client
+budget above the 200-second server window. This is a latency/control result,
+not a voice-quality result.

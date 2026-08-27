@@ -151,6 +151,7 @@ function fakeProvider(options = {}) {
     async synthesizePreview(input) {
       seen.push(input);
       if (options.throws) throw options.throws;
+      if (options.gate) await options.gate;
       if (options.hangMs) await new Promise((resolve) => setTimeout(resolve, options.hangMs));
       const pcm = Buffer.alloc(4_800, 1);
       return {
@@ -179,7 +180,7 @@ function harness(options = {}) {
   const provider = options.provider || fakeProvider();
   const db = options.db || fakeDb();
   const generationIdRef = { value: null };
-  const state = { reads: 0, healthFetches: [], failures: [], slept: 0 };
+  const state = { reads: 0, healthFetches: [], failures: [], protections: 0, slept: 0 };
   const deps = {
     origin: ORIGIN,
     warmth,
@@ -206,7 +207,10 @@ function harness(options = {}) {
       state.reads += 1;
       return { body: REFERENCE, byteSize: REFERENCE.length, mime: "audio/wav" };
     },
-    protect: options.protect || fakeProtect(generationIdRef),
+    protect: options.protect || (async (input) => {
+      state.protections += 1;
+      return fakeProtect(generationIdRef)(input);
+    }),
   };
   return { clock, deps, state, provider, db, warmth };
 }
@@ -416,6 +420,25 @@ section("cold start");
   check("a second click does NOT start a second synthesis", cold.provider.calls.length === 1);
   check("a second click does not re-read the reference", cold.state.reads === 1);
 
+  // The first HTTP response is already gone when a cold provider resolves.
+  // That late success must still clear the per-process warming belief, while
+  // the discarded generation remains failed and never reaches protection.
+  let releaseLateWake;
+  const lateWakeGate = new Promise((resolve) => { releaseLateWake = resolve; });
+  const late = harness({ provider: fakeProvider({ gate: lateWakeGate }), flushMs: 40 });
+  const dispatched = await handleVoicePreviewPanel({ ...PREVIEW }, late.deps);
+  check("a late wake first answers with the non-blocking warming response",
+    dispatched.status === 202 && dispatched.body.wake_dispatched === true, JSON.stringify(dispatched.body));
+  check("the late wake is still warming before the provider answers",
+    late.warmth.read(ORIGIN, late.clock.t).state === "warming");
+  releaseLateWake();
+  await new Promise((resolve) => setImmediate(resolve));
+  check("a provider success after the flush marks the runtime ready",
+    late.warmth.read(ORIGIN, late.clock.t).state === "warm");
+  check("the discarded generation stays failed and is never protected or sealed",
+    late.state.failures.some((f) => f.code === "voice_preview_wake_dispatched") && late.state.protections === 0,
+    JSON.stringify({ failures: late.state.failures, protections: late.state.protections }));
+
   // Once warm, the same request returns audio.
   cold.warmth.note(ORIGIN, "ready", cold.clock.t);
   const warmProvider = fakeProvider();
@@ -535,6 +558,19 @@ section("route identity boundary");
 }
 
 // ── report ──────────────────────────────────────────────────────────────────
+
+section("client warmup budget");
+{
+  const client = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
+  const retries = Number(client.match(/const MAX_AUTO_RETRIES\s*=\s*(\d+)/)?.[1]);
+  check("the client's automatic retry budget outlives the server wake-in-flight window",
+    Number.isFinite(retries) && retries * WARMUP.retryAfterMs > WARMUP.wakeInFlightMs,
+    JSON.stringify({ retries, retryAfterMs: WARMUP.retryAfterMs, wakeInFlightMs: WARMUP.wakeInFlightMs }));
+  // Negative control: the former six polls stop at 180 s while the server still
+  // promises the wake is in flight for 200 s.
+  check("NEGATIVE CONTROL: the former six-poll budget is caught",
+    6 * WARMUP.retryAfterMs <= WARMUP.wakeInFlightMs);
+}
 
 console.log(`\n  ${passed} checks passed, ${failures.length} failed`);
 for (const failure of failures) console.log(`  FAIL  ${failure}`);

@@ -37,10 +37,11 @@ type Phase =
   | { kind: "ready"; url: string; generationId: string; modelCommitment: string }
   | { kind: "error"; headline: string; detail: string; canRetry: boolean };
 
-// A cold start is one wake, not a loop. Six polls at ~30 s covers the measured
-// 161 s boot with margin; past that something is wrong and saying so beats
-// retrying forever against a GPU meter.
-const MAX_AUTO_RETRIES = 6;
+// A cold start is one wake, not a loop. Seven polls at ~30 s keep the client
+// attached for 210 s, beyond the server's 200 s wake-in-flight window. Stopping
+// at six used to give up at ~180 s while the server still truthfully said the
+// original wake was in flight.
+const MAX_AUTO_RETRIES = 7;
 
 // ── THE WAIT SURVIVES A TAB SWITCH (WS-AP, from the owner's own report) ────
 //

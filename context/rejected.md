@@ -4710,3 +4710,17 @@ unused. Insertion order is not voice-likeness evidence.
 **What replaced it.** The automatic no-review fallback ranks explicit identity
 preservation first, then legacy identity variant names, then unknown variants,
 and noise suppression last. This is conservative selection, not a quality win.
+
+## `preview-client-cannot-stop-before-the-server-wake-window` (2026-08-27)
+
+**What was tried.** Stop Studio after six 30-second polls while retaining a
+200-second server belief that the first GPU request is still in flight, and
+discard a late provider result without updating runtime warmth.
+
+**What specifically broke.** The page exhausted its 180-second budget before
+any request was allowed to re-enter synthesis. Even after Azure showed a healthy
+replica, the current click could end only in a misleading wake timeout.
+
+**What replaced it.** A validated late provider success marks runtime warmth
+without sealing the abandoned generation, and the seventh client poll crosses
+the server window so one click can reach a fresh protected synthesis.

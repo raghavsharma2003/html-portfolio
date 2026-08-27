@@ -6337,3 +6337,22 @@ the internal two-step flow diverge from its stated contract.
 **What would reverse it.** Automatic ranking may be replaced by an owner ABX
 choice or measured per-speaker selection. Lifecycle advancement remains bounded
 to the exact internal-owner guard unless the production ceremony changes.
+
+## `late-preview-wake-success-updates-runtime-warmth` (2026-08-27)
+
+**Decision.** A cold preview request that finishes after the HTTP response has
+returned validates the provider result and marks only the runtime warmth hint
+as ready. Its already-failed generation remains failed, and its discarded audio
+never enters protection, sealing or the browser. Studio retries for 210 seconds,
+which exceeds the server's 200-second wake-in-flight window.
+
+**Why.** The live GPU revision became healthy, but six 30-second client polls
+ended at about 180 seconds while the server continued refusing duplicate work
+as an in-flight wake for 200 seconds. A late successful provider promise was
+previously swallowed without updating the warmth registry, so the UI could
+never observe the warm runtime during one click.
+
+**What would reverse it.** A durable cross-instance admission state or a true
+asynchronous synthesis job may replace the in-process hint. It must preserve
+one wake, never expose discarded audio and bind the eventual protected result
+to a fresh authorized generation.

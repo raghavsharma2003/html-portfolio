@@ -3560,6 +3560,25 @@
       "kind": "rejection",
       "title": "Insertion order selected aggressive noise suppression instead of the explicitly identity-preserving reference",
       "at": "2026-08-27"
+    },
+    {
+      "id": "late-preview-wake-success-updates-runtime-warmth",
+      "kind": "decision",
+      "title": "A validated late cold-preview result updates only runtime warmth while a fresh generation owns protected audio",
+      "at": "2026-08-27",
+      "status": "focused regression passed; production deployment pending"
+    },
+    {
+      "id": "long-lecture-preview-warmup-window-live-2026-08-27",
+      "kind": "measurement",
+      "title": "The live preview stopped at 180 seconds inside a 200-second server wake window; the corrected focused suite passes 91 checks",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "preview-client-cannot-stop-before-the-server-wake-window",
+      "kind": "rejection",
+      "title": "Six client polls expired before the server permitted a second synthesis after the cold wake",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6912,6 +6931,21 @@
       "src": "self-test-preview-advances-lifecycle-and-prefers-identity-preservation",
       "rel": "part_of",
       "dst": "replica-self-test-mode"
+    },
+    {
+      "src": "late-preview-wake-success-updates-runtime-warmth",
+      "rel": "measured_by",
+      "dst": "long-lecture-preview-warmup-window-live-2026-08-27"
+    },
+    {
+      "src": "late-preview-wake-success-updates-runtime-warmth",
+      "rel": "caused_by",
+      "dst": "preview-client-cannot-stop-before-the-server-wake-window"
+    },
+    {
+      "src": "late-preview-wake-success-updates-runtime-warmth",
+      "rel": "part_of",
+      "dst": "voice-model"
     }
   ]
 }
