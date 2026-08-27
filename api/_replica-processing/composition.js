@@ -95,6 +95,23 @@ function tryBuild(build) {
   }
 }
 
+export function createComposedDiarizationAdapter(delegate, materializeAudio, inlineEvidence) {
+  if (!delegate || typeof delegate.diarize !== "function" ||
+      typeof materializeAudio !== "function" || !(inlineEvidence instanceof WeakMap)) {
+    throw new ProcessingAdapterError("chunked_diarization_dependencies_required", {
+      code: "chunked_diarization_dependencies_required", retryable: false,
+    });
+  }
+  return createChunkedDiarizationAdapter({
+    delegate,
+    withMaterializedAudio: materializeAudio,
+    analyzeChunk: async ({ request, input, body }) => {
+      inlineEvidence.set(input, Object.freeze({ body, byteSize: body.length, mime: input.mime }));
+      return delegate.diarize({ ...request, inputs: [input] });
+    },
+  });
+}
+
 /**
  * Build the adapter set for THIS runtime, plus a per-step capability report.
  *
@@ -184,14 +201,7 @@ export function composeProcessingAdapters(options = {}) {
   for (const step of ["diarize", "separate", "enhance", "voice_quality"]) {
     if (evidence.value) {
       adapters[step] = step === "diarize" && typeof materializeAudio === "function"
-        ? createChunkedDiarizationAdapter({
-            delegate: evidence.value.diarize,
-            withMaterializedAudio: materializeAudio,
-            analyzeChunk: async ({ request, input, body }) => {
-              inlineEvidence.set(input, Object.freeze({ body, byteSize: body.length, mime: input.mime }));
-              return evidence.value.diarize({ ...request, inputs: [input] });
-            },
-          })
+        ? createComposedDiarizationAdapter(evidence.value.diarize, materializeAudio, inlineEvidence)
         : evidence.value[step];
       declare(step, "");
     } else {

@@ -6271,3 +6271,19 @@ unbounded exception text would risk source locators or credentials in logs.
 processing boundary converts all expected runtime failures into stable,
 content-free codes and a fault-injection gate proves no unexpected exception
 can reach the worker catch.
+
+## `composed-diarization-invokes-the-adapter-method` (2026-08-27)
+
+**Decision.** Production chunk composition accepts one diarization adapter
+object and invokes its validated `diarize` method for every normalized window.
+The exact composition helper is executable in the focused suite so the test
+crosses the same object/method boundary as the deployed worker.
+
+**Why.** The helper correctly passed the adapter object to the chunk wrapper,
+but its callback later attempted to call that object itself. The live safe
+diagnostic proved the TypeError at `composition.js:192`; no request could reach
+the private GPU service regardless of recording quality, length or retries.
+
+**What would reverse it.** Only a versioned adapter contract that makes the
+family itself callable could replace method dispatch. That migration would
+need to change `assertAdapter` and all step mappings together.

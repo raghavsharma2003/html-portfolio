@@ -10,6 +10,7 @@ import {
   reconcileDiarizationChunks,
 } from "../../api/_replica-processing/chunked-diarization.js";
 import { processingUnexpectedErrorDiagnostic } from "../../api/_replica-processing/worker.js";
+import { createComposedDiarizationAdapter } from "../../api/_replica-processing/composition.js";
 import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js";
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
@@ -135,6 +136,27 @@ const shortResult = await chunked.diarize({
 });
 ok("short container formats are normalized to bounded WAV before diarization",
   chunkCalls.at(-1) === 30_000 && shortResult.segments.length === 1 && shortResult.segments[0].end_ms === 30_000);
+
+let composedDelegateCalls = 0;
+const composed = createComposedDiarizationAdapter({
+  family: "diarization", name: "fixture-composed", version: "v1",
+  async diarize(input) {
+    composedDelegateCalls += 1;
+    assert.equal(input.inputs[0].mime, "audio/wav");
+    return { segments: [{
+      start_ms: 0, end_ms: input.inputs[0].duration_ms, speaker_key: "owner",
+      confidence: 0.9, target_likelihood: 0.5, overlap: false,
+    }] };
+  },
+}, async (_input, fn) => fn({
+  extractWindow: async () => Buffer.from("normalized chunk"),
+}), new WeakMap());
+const composedResult = await composed.diarize({
+  source: { ...source, duration_ms: 30_000 },
+  inputs: [{ object_path: source.object_path, sha256: source.sha256, mime: source.mime, duration_ms: 30_000 }],
+});
+ok("production composition invokes the diarization adapter method for each normalized chunk",
+  composedDelegateCalls === 1 && composedResult.segments.length === 1);
 
 const leasedJob = {
   job_id: JOB, replica_id: REPLICA, owner_user_id: OWNER, source_id: SOURCE,

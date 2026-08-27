@@ -4654,3 +4654,19 @@ threw. Retrying the same opaque failure supplied no new evidence.
 server-only, content-free diagnostic records a bounded type, strictly safe
 message and repository-local frame. Unsafe message shapes are redacted by
 construction and covered by a negative test.
+
+## `diarization-adapter-object-is-not-the-diarize-function` (2026-08-27)
+
+**What was tried.** Store the real adapter under `evidence.value.diarize`, pass
+that object as the chunk delegate, then call `evidence.value.diarize(...)` from
+the per-chunk callback.
+
+**What specifically broke.** The value is an object with metadata and a
+`diarize` method, not a callable function. Every real long-audio job threw a
+TypeError before its first private evidence request; the earlier chunk fixture
+used a separate callback and never exercised this production composition seam.
+
+**What replaced it.** A single composed-diarization helper calls
+`delegate.diarize(...)`. Its focused regression executes that exact helper
+with the real adapter-object shape and proves method dispatch for a normalized
+chunk.

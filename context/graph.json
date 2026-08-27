@@ -3490,6 +3490,25 @@
       "kind": "rejection",
       "title": "Collapsing programming exceptions to one code discarded the evidence needed to isolate a production-only long-audio failure",
       "at": "2026-08-27"
+    },
+    {
+      "id": "composed-diarization-invokes-the-adapter-method",
+      "kind": "decision",
+      "title": "Production chunk composition invokes the validated diarization adapter method rather than calling its metadata-bearing object",
+      "at": "2026-08-27",
+      "status": "focused regressions passed; corrected image pending"
+    },
+    {
+      "id": "long-lecture-composed-diarize-root-cause-live-2026-08-27",
+      "kind": "measurement",
+      "title": "A safe live diagnostic located the long-audio TypeError at composition method dispatch; 33 focused worker checks pass after correction",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "diarization-adapter-object-is-not-the-diarize-function",
+      "kind": "rejection",
+      "title": "Calling the adapter object instead of its diarize method prevented every normalized chunk from reaching the private GPU service",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6780,6 +6799,21 @@
     },
     {
       "src": "unexpected-processing-errors-get-content-free-operator-diagnostics",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "composed-diarization-invokes-the-adapter-method",
+      "rel": "measured_by",
+      "dst": "long-lecture-composed-diarize-root-cause-live-2026-08-27"
+    },
+    {
+      "src": "composed-diarization-invokes-the-adapter-method",
+      "rel": "caused_by",
+      "dst": "diarization-adapter-object-is-not-the-diarize-function"
+    },
+    {
+      "src": "composed-diarization-invokes-the-adapter-method",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }

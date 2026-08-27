@@ -5221,3 +5221,19 @@ The focused worker suite now has 32 passing checks after adding a bounded
 diagnostic seam. A safe TypeError retains its type, message and repository
 frame; a URL-bearing negative control is redacted. This measurement is not an
 eight-stage pass and does not make a voice-quality claim.
+
+## `long-lecture-composed-diarize-root-cause-live-2026-08-27`
+
+**Measured 2026-08-27, production diagnostic retry plus focused regression.**
+The diagnostic image reproduced the exact source failure and emitted only:
+TypeError, safe message `evidence.value.diarize is not a function`, and the
+repository frame `api/_replica-processing/composition.js:192:37`. The source
+never reached the GPU service because composition called the adapter object
+instead of its `diarize` method.
+
+After extracting the production composition helper and dispatching through the
+method, the processing-worker suite passed 33 checks. The new executable check
+creates the same adapter-object shape, normalizes one chunk, and proves exactly
+one method invocation and one returned speaker segment. The complete
+replica-processing suite also passed. Live eight-stage proof remains pending
+the corrected immutable image.
