@@ -4684,3 +4684,29 @@ part of the request was truthful.
 **What replaced it.** The request declares the exact byte count already proven
 by the private storage seam and selects a small allowlisted extension from the
 declared MIME. A Readable-stream regression covers the production branch.
+
+## `latest-300-review-rows-cannot-decide-long-source-readiness` (2026-08-27)
+
+**What was tried.** Reuse the review UI's newest 300 evidence rows when deciding
+whether a VoiceGenome build may be queued.
+
+**What specifically broke.** A completed 1:49:31 source had 1,683 accepted
+speaker segments, but later transcript and language evidence displaced every
+speaker row from that window. Readiness reported zero speaker segments while
+the immutable build query could see them.
+
+**What replaced it.** Queue readiness uses the accepted, selected-artifact-
+bound build window with the same 2,000-row fail-closed limit as draft creation.
+
+## `newest-enhance-artifact-is-not-the-best-identity-reference` (2026-08-27)
+
+**What was tried.** In owner-only self-test mode, select the newest unselected
+enhance artifact without considering its quality manifest.
+
+**What specifically broke.** The later full noise-suppression variant was
+selected while the sibling explicitly marked as identity preserving remained
+unused. Insertion order is not voice-likeness evidence.
+
+**What replaced it.** The automatic no-review fallback ranks explicit identity
+preservation first, then legacy identity variant names, then unknown variants,
+and noise suppression last. This is conservative selection, not a quality win.

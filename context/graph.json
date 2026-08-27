@@ -3528,6 +3528,38 @@
       "kind": "rejection",
       "title": "Streaming a known-size MP3 without Content-Length while naming it WAV produced an invalid Sarvam storage upload",
       "at": "2026-08-27"
+    },
+    {
+      "id": "voice-genome-readiness-uses-the-build-evidence-window",
+      "kind": "decision",
+      "title": "VoiceGenome readiness uses the bounded accepted build input rather than the latest-300 review UI window",
+      "at": "2026-08-27",
+      "status": "live draft built; deployment pending"
+    },
+    {
+      "id": "self-test-preview-advances-lifecycle-and-prefers-identity-preservation",
+      "kind": "decision",
+      "title": "Owner self-test advances into enrollment and conservatively prefers identity-preserving reference artifacts",
+      "at": "2026-08-27",
+      "status": "live replica corrected; deployment pending"
+    },
+    {
+      "id": "long-lecture-eight-stage-draft-live-2026-08-27",
+      "kind": "measurement",
+      "title": "The exact 250.7 MiB, 1:49:31 Hinglish MP3 completed all eight stages and produced a draft VoiceGenome from the identity-preserving 24 kHz reference",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "latest-300-review-rows-cannot-decide-long-source-readiness",
+      "kind": "rejection",
+      "title": "The review UI evidence window excluded every earlier speaker segment from a completed long source",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "newest-enhance-artifact-is-not-the-best-identity-reference",
+      "kind": "rejection",
+      "title": "Insertion order selected aggressive noise suppression instead of the explicitly identity-preserving reference",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6850,6 +6882,36 @@
       "src": "sarvam-stream-upload-binds-length-and-truthful-media-extension",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "voice-genome-readiness-uses-the-build-evidence-window",
+      "rel": "measured_by",
+      "dst": "long-lecture-eight-stage-draft-live-2026-08-27"
+    },
+    {
+      "src": "voice-genome-readiness-uses-the-build-evidence-window",
+      "rel": "caused_by",
+      "dst": "latest-300-review-rows-cannot-decide-long-source-readiness"
+    },
+    {
+      "src": "voice-genome-readiness-uses-the-build-evidence-window",
+      "rel": "part_of",
+      "dst": "replica-self-test-mode"
+    },
+    {
+      "src": "self-test-preview-advances-lifecycle-and-prefers-identity-preservation",
+      "rel": "measured_by",
+      "dst": "long-lecture-eight-stage-draft-live-2026-08-27"
+    },
+    {
+      "src": "self-test-preview-advances-lifecycle-and-prefers-identity-preservation",
+      "rel": "caused_by",
+      "dst": "newest-enhance-artifact-is-not-the-best-identity-reference"
+    },
+    {
+      "src": "self-test-preview-advances-lifecycle-and-prefers-identity-preservation",
+      "rel": "part_of",
+      "dst": "replica-self-test-mode"
     }
   ]
 }

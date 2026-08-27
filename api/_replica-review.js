@@ -410,7 +410,13 @@ export async function queueOwnedVoiceGenome(db, ownerUserId, value) {
   const rid = replicaId(value);
   const replicas = await db(OWNED, [rid, ownerUserId]);
   if (!replicas[0]) return null;
-  const evidence = await db(EVIDENCE_SQL, [rid, ownerUserId]);
+  // Readiness must use the same bounded, accepted evidence set that the build
+  // will consume. The owner review surface intentionally shows only the latest
+  // 300 rows, but a long recording can contain thousands of speaker segments;
+  // using that UI window here starved early speaker evidence and made an
+  // otherwise complete source impossible to build.
+  const evidence = await db(BUILD_EVIDENCE_SQL, [rid, ownerUserId, [...VOICE_REVIEW_TYPES]]);
+  if (evidence.length > 2_000) throw Object.assign(new Error("voice_genome_evidence_limit_exceeded"), { status: 409 });
   const selectedArtifacts = await db(
     `with latest as (select distinct on (d.artifact_id) d.artifact_id,d.decision from vy_replica_processing_artifact_decision d where d.replica_id=$1::uuid and d.owner_user_id=$2::uuid order by d.artifact_id,d.created_at desc,d.decision_id desc)
      select a.artifact_id,a.stage,l.decision selection_decision from vy_replica_processing_artifact a

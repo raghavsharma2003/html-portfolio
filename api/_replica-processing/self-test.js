@@ -72,6 +72,7 @@ async function grantSelfTestIdentityAndConsent(db, ownerUserId, replicaId, metad
          liveness_verified_at=coalesce(r.liveness_verified_at, now()),
          identity_expires_at=case when r.identity_expires_at is null or r.identity_expires_at<=now()
            then now() + interval '365 days' else r.identity_expires_at end,
+         lifecycle=case when r.lifecycle in ('draft','consent_pending') then 'enrolling' else r.lifecycle end,
          metadata=r.metadata || $3::jsonb,
          updated_at=now()
         from target t where r.replica_id=t.replica_id and r.owner_user_id=t.owner_user_id
@@ -124,7 +125,17 @@ async function pickUnselectedEnhanceCandidate(db, ownerUserId, replicaId) {
              order by d.artifact_id, d.created_at desc, d.decision_id desc
           ) latest where latest.artifact_id=a.artifact_id and latest.decision='selected'
         )
-      order by a.created_at desc limit 1`,
+      -- This is a conservative no-review default, not a measured likeness
+      -- verdict. DeepFilterNet labels its capped 12 dB arm as the identity
+      -- preservation candidate; full noise suppression must never win merely
+      -- because it was inserted later. The variant-key branch preserves that
+      -- preference for artifacts written before quality metadata was durable.
+      order by case
+        when a.manifest#>>'{quality,identity_preservation_candidate}'='true' then 0
+        when lower(a.variant_key) like '%-identity-preserving' then 1
+        when lower(a.variant_key) like '%-noise-suppressing' then 3
+        else 2
+      end, a.created_at desc, a.artifact_id desc limit 1`,
     [replicaId, ownerUserId],
   );
   return rows[0]?.artifact_id || null;

@@ -160,6 +160,11 @@ ok("accepted embeddings cannot qualify an unselected audio candidate", true);
 const queueHarness = dbFixture();
 const build = await queueOwnedVoiceGenome(queueHarness.db, OWNER, RID);
 ok("qualified evidence queues only a draft build", build.state === "queued" && !JSON.stringify(build).includes("approved"));
+const readinessEvidenceCall = queueHarness.calls.find((call) => /select e\.evidence_id,e\.source_id/i.test(call.sql));
+ok("long-source readiness uses the accepted build window instead of the latest-300 UI window",
+  /limit 2001/i.test(readinessEvidenceCall.sql)
+  && /e\.evidence_type=any\(\$3::text\[\]\)/i.test(readinessEvidenceCall.sql)
+  && Array.isArray(readinessEvidenceCall.params[2]));
 const queueCall = queueHarness.calls.find((call) => /insert into vy_replica_model_build/i.test(call.sql));
 ok("queue serialization uses a per-replica advisory transaction lock", /pg_advisory_xact_lock/i.test(queueCall.sql));
 ok("identical source sets are idempotent", /on conflict \(replica_id,build_kind,source_set_hash\)/i.test(queueCall.sql));

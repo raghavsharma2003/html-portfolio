@@ -6304,3 +6304,36 @@ the next provider boundary ambiguous even if storage accepted the body.
 replace single Put Blob if its directory capability documents that contract.
 It must still bind the verified total length, MIME and final media name, and
 prove retry/idempotency against the live SAS shape.
+
+## `voice-genome-readiness-uses-the-build-evidence-window` (2026-08-27)
+
+**Decision.** VoiceGenome queue readiness uses the bounded accepted-evidence
+query used by the immutable build input, not the latest 300 rows shown in the
+owner review UI. More than 2,000 accepted voice evidence rows fail closed.
+
+**Why.** A 1:49:31 recording produced 1,683 speaker segments plus later
+language, transcript and voice measurements. The latest-300 UI window excluded
+every speaker segment, so the completed source incorrectly failed with
+`reviewed_speaker_segment_required` even though the build input contained the
+evidence. UI pagination must not define model readiness.
+
+**What would reverse it.** A summarized readiness table may replace the bounded
+query only after its transactionally maintained counts are proven identical to
+the accepted immutable build set for long, multi-source recordings.
+
+## `self-test-preview-advances-lifecycle-and-prefers-identity-preservation` (2026-08-27)
+
+**Decision.** The triple-guarded owner self-test bootstrap advances only
+`draft` or `consent_pending` replicas to `enrolling`, preserves all later or
+terminal states, and selects enhance artifacts by explicit identity-preserving
+metadata before insertion time or aggressive noise suppression.
+
+**Why.** All six private scopes and a draft genome existed, but the replica
+remained `consent_pending`, outside the preview authorization corridor. The
+same automatic path selected the later noise-suppressing reference despite a
+durable `identity_preservation_candidate=true` alternative. Both defects made
+the internal two-step flow diverge from its stated contract.
+
+**What would reverse it.** Automatic ranking may be replaced by an owner ABX
+choice or measured per-speaker selection. Lifecycle advancement remains bounded
+to the exact internal-owner guard unless the production ceremony changes.

@@ -5251,3 +5251,20 @@ binding its verified byte count as `Content-Length` and choosing `.mp3` from
 `audio/mpeg`, the full replica-processing suite passes, including an executable
 Readable-stream fixture that asserts length, MIME, extension and `duplex: half`.
 The 33-check worker suite also passes. Live retry remains required.
+
+## `long-lecture-eight-stage-draft-live-2026-08-27`
+
+**Measured 2026-08-27, one exact production source.** The 262,879,879-byte
+(250.7 MiB), 1:49:31 MP3 uploaded in about 47 seconds with matching
+`audio/mpeg` metadata and completed all eight processing stages. The durable
+result contains 1 media probe, 1,683 speaker segments, 288 transcript spans,
+288 language spans, 4 voice embeddings, 1 voice measurement and 1 quality
+measurement. The transcript evidence contains 72,921 Devanagari characters
+and 555 Latin characters.
+
+After selecting the 10-second, 24 kHz identity-preserving WAV, the bounded
+build completed on attempt 1 in 21 seconds and produced VoiceGenome v1 as a
+draft with 1,683 target segments and one enrollment artifact. The focused
+self-test, review, model-build, open-voice, voice-panel and SQL-cast gates pass.
+The private preview reached the real GPU wake corridor; no perceptual result is
+claimed until protected audio exists and a human listens.
