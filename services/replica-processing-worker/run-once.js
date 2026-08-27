@@ -105,6 +105,7 @@ async function main() {
   }
 
   const report = { capabilities, processed: 0, requeued: 0, clamd_ready_ms: null, outcomes: [] };
+  let clamdChild = null;
   try {
     const pending = await pendingWork(db, composed.capabilities);
     if (!pending.total) {
@@ -114,6 +115,7 @@ async function main() {
     if (pending.needsScanner) {
       await refreshSignatures();
       const clamd = await startClamd();
+      clamdChild = clamd.child;
       report.clamd_ready_ms = clamd.readyMs;
     }
 
@@ -151,6 +153,11 @@ async function main() {
     return report;
   } finally {
     clearTimeout(timer);
+    // clamd runs in the foreground as a child of this run-once process. If it
+    // remains referenced after the bounded queue drains, Node never exits and
+    // Azure bills the otherwise-finished execution until replicaTimeout. The
+    // container is the daemon's entire lifetime, so stop it on every exit.
+    if (clamdChild && clamdChild.exitCode === null) clamdChild.kill("SIGTERM");
   }
 }
 

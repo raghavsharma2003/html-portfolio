@@ -4625,3 +4625,17 @@ while missing the boundary that actually ships it.
 `-normalized-overlap-chunks-v2`, and the focused suite asserts the composed
 adapter against the production contract before exercising long and short
 audio behavior.
+
+## `foreground-clamd-cannot-outlive-a-run-once-queue` (2026-08-27)
+
+**What was tried.** Spawn foreground `clamd`, wait until it answers, process a
+bounded queue and return the report without retaining or stopping the child.
+
+**What specifically broke.** The referenced child kept Node's event loop alive
+after all useful work settled. Azure continued to show and bill the execution
+as `Running`, and later five-minute schedules overlapped it even though it held
+no useful lease.
+
+**What replaced it.** The run owns the child handle and stops it from `finally`
+on success, retry, failure or budget cancellation. Empty executions still never
+start ClamAV.

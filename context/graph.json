@@ -3452,6 +3452,25 @@
       "kind": "rejection",
       "title": "A plus-decorated chunked-diarization version passed functional tests but violated the persisted adapter contract",
       "at": "2026-08-27"
+    },
+    {
+      "id": "run-once-owns-and-stops-the-clam-daemon-lifetime",
+      "kind": "decision",
+      "title": "Each bounded processing execution stops its foreground ClamAV child on every exit",
+      "at": "2026-08-27",
+      "status": "focused regression passed; immutable worker rebuild pending"
+    },
+    {
+      "id": "clamav-child-kept-finished-job-running-live-2026-08-27",
+      "kind": "measurement",
+      "title": "A settled scanner execution stayed Running while three later schedules succeeded; 30 focused checks pass after lifecycle ownership",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "foreground-clamd-cannot-outlive-a-run-once-queue",
+      "kind": "rejection",
+      "title": "Returning without stopping foreground clamd kept Node and the billed Azure execution alive",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6712,6 +6731,21 @@
     },
     {
       "src": "composed-processing-adapter-facts-stay-in-the-persisted-safe-alphabet",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "run-once-owns-and-stops-the-clam-daemon-lifetime",
+      "rel": "measured_by",
+      "dst": "clamav-child-kept-finished-job-running-live-2026-08-27"
+    },
+    {
+      "src": "run-once-owns-and-stops-the-clam-daemon-lifetime",
+      "rel": "caused_by",
+      "dst": "foreground-clamd-cannot-outlive-a-run-once-queue"
+    },
+    {
+      "src": "run-once-owns-and-stops-the-clam-daemon-lifetime",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }

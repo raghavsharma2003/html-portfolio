@@ -6236,3 +6236,19 @@ worker performs at its boundary.
 a schema and contract migration that proves old manifests, receipt hashing and
 path derivation remain stable. Until then, every composed adapter must pass the
 same assertion used by the production worker before it can be called live.
+
+## `run-once-owns-and-stops-the-clam-daemon-lifetime` (2026-08-27)
+
+**Decision.** The replica processing container owns the foreground ClamAV
+child for exactly one bounded run. Every exit clears the run timer and sends
+`SIGTERM` to a still-live daemon before the Node process may finish.
+
+**Why.** A live execution finished its useful database work but remained
+`Running` while later scheduled executions completed. `startClamd` returned a
+referenced child and `run-once` never stopped it, so Node could not exit and
+Azure could bill the empty container until the 3,600-second replica timeout.
+
+**What would reverse it.** Explicit shutdown may be replaced by a supervised
+sidecar or an unreferenced child only after three scanner-bearing executions
+end promptly, propagate daemon startup failure correctly and leave no orphan
+process. The scale-to-zero cost property remains mandatory.

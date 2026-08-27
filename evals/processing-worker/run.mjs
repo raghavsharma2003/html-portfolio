@@ -185,6 +185,10 @@ ok("current malware signatures are a fail-closed startup dependency", /freshclam
 ok("an integrity root starts ClamAV before the same run can lease its scan child",
   /SCANNER_START_STEPS = Object\.freeze\(\["integrity", "malware_scan"\]\)/.test(runOnce)
   && /needsScanner: steps\.some\(\(step\) => SCANNER_START_STEPS\.includes\(step\)\)/.test(runOnce));
+ok("run-once stops its Clam child after the bounded queue drains",
+  /let clamdChild = null/.test(runOnce)
+  && /clamdChild = clamd\.child/.test(runOnce)
+  && /finally \{[\s\S]*clamdChild\.kill\("SIGTERM"\)/.test(runOnce));
 ok("ClamAV and the worker lease are bounded for one GiB and long audio",
   /MaxFileSize 1024M/.test(clamdConfig) && /MaxScanSize 1024M/.test(clamdConfig)
   && /leaseMs: 3_600_000/.test(runOnce) && /replicaTimeout: 3600/.test(workerInfra));

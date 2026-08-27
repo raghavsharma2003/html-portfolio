@@ -5191,3 +5191,18 @@ the complete replica-processing suite passed. Targeted lint and whitespace
 checks passed. A cached remote build without this second fix completed as
 `cu19` but was not deployed. A new immutable build and one scoped retry of the
 failed diarize row remain required before this is an end-to-end result.
+
+## `clamav-child-kept-finished-job-running-live-2026-08-27`
+
+**Measured 2026-08-27, live Azure execution plus focused local regression.**
+Execution `vyakti-replica-processing-29797310` started at 13:50 UTC and still
+reported `Running` after the source's scan, probe and failed diarize work had
+settled, while the 13:55, 14:00 and 14:05 scheduled executions each reached
+`Succeeded`. Source inspection showed no outstanding lease from that run.
+
+The worker now retains the Clam child and terminates it in `finally`. The
+processing-worker suite passed 30/30 checks, including the startup precursor,
+adapter-contract and child-lifecycle regressions; syntax, targeted lint and
+whitespace checks passed. The old running execution still needs an operator
+stop and the revised immutable image still needs deployment and a measured
+prompt exit.
