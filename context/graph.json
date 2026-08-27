@@ -3509,6 +3509,25 @@
       "kind": "rejection",
       "title": "Calling the adapter object instead of its diarize method prevented every normalized chunk from reaching the private GPU service",
       "at": "2026-08-27"
+    },
+    {
+      "id": "sarvam-stream-upload-binds-length-and-truthful-media-extension",
+      "kind": "decision",
+      "title": "Sarvam directory-SAS uploads bind the verified byte count and choose a bounded extension from the declared media MIME",
+      "at": "2026-08-27",
+      "status": "focused regressions passed; corrected image pending"
+    },
+    {
+      "id": "long-lecture-sarvam-stream-upload-400-live-2026-08-27",
+      "kind": "measurement",
+      "title": "The exact lecture completed six stages before its known-size MP3 stream was rejected by Sarvam storage with HTTP 400",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "chunked-transfer-and-wav-name-do-not-describe-a-known-size-mp3",
+      "kind": "rejection",
+      "title": "Streaming a known-size MP3 without Content-Length while naming it WAV produced an invalid Sarvam storage upload",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6814,6 +6833,21 @@
     },
     {
       "src": "composed-diarization-invokes-the-adapter-method",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "sarvam-stream-upload-binds-length-and-truthful-media-extension",
+      "rel": "measured_by",
+      "dst": "long-lecture-sarvam-stream-upload-400-live-2026-08-27"
+    },
+    {
+      "src": "sarvam-stream-upload-binds-length-and-truthful-media-extension",
+      "rel": "caused_by",
+      "dst": "chunked-transfer-and-wav-name-do-not-describe-a-known-size-mp3"
+    },
+    {
+      "src": "sarvam-stream-upload-binds-length-and-truthful-media-extension",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }

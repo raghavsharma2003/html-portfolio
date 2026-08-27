@@ -3,6 +3,7 @@
 // retry behavior, never speech quality or human similarity.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -171,7 +172,7 @@ const withFixtureMaterializedAudio = async (input, fn) => {
 };
 
 function sarvamLanguageFixture() {
-  const observed = { start: null };
+  const observed = { start: null, uploads: [] };
   const apiOrigin = "https://sarvam.fixture.invalid";
   const inputDirectory = "https://blob.fixture.invalid/container/input-dir?sig=input";
   const outputDirectory = "https://blob.fixture.invalid/container/output-dir?sig=output";
@@ -180,7 +181,10 @@ function sarvamLanguageFixture() {
     if (value.origin === apiOrigin && value.pathname.endsWith("/job/init")) {
       return new Response(JSON.stringify({ job_id: "job-1", input_storage_path: inputDirectory, output_storage_path: outputDirectory }));
     }
-    if (value.hostname === "blob.fixture.invalid" && init.method === "PUT") return new Response("", { status: 201 });
+    if (value.hostname === "blob.fixture.invalid" && init.method === "PUT") {
+      observed.uploads.push({ url: value.toString(), headers: Object.fromEntries(new Headers(init.headers)), duplex: init.duplex });
+      return new Response("", { status: 201 });
+    }
     if (value.origin === apiOrigin && value.pathname === "/speech-to-text/job" && init.method === "POST") {
       observed.start = JSON.parse(String(init.body));
       return new Response(JSON.stringify({ accepted: true }));
@@ -426,6 +430,26 @@ ok("ASR keeps transcript and language spans cited to candidate artifacts",
     sarvamLanguage?.value.language === "en-IN" && sarvamLanguage?.value.language_source === "provider_detected" &&
     sarvamLanguage?.value.language_probability === 0.97 && sarvamLanguage?.confidence === 0.97 &&
     sarvamLanguage?.value.code_switch === null && sarvamLanguage?.artifact_id === null);
+
+  const sarvamStreamFixture = sarvamLanguageFixture();
+  const sarvamStream = SarvamBatch.createSarvamTranscriptionAdapter({
+    apiKey: "fixture-key-never-sent-to-sarvam",
+    origin: sarvamStreamFixture.apiOrigin,
+    fetchImpl: sarvamStreamFixture.fetchImpl,
+    resolveInput: async () => ({ body: Readable.from(Buffer.from("fixture-audio")), byteSize: 13, mime: "audio/mpeg" }),
+  });
+  await sarvamStream.transcribe({
+    source: { ...source, mime: "audio/mpeg" },
+    inputs: [{
+      artifact_id: null, storage_bucket: source.storage_bucket, object_path: source.object_path,
+      sha256: source.sha256, mime: "audio/mpeg", duration_ms: source.duration_ms,
+    }],
+  });
+  const streamedUpload = sarvamStreamFixture.observed.uploads[0];
+  ok("Sarvam streamed MP3 upload declares its exact length and truthful extension",
+    new URL(streamedUpload.url).pathname.endsWith("/input-dir/input-0.mp3") &&
+    streamedUpload.headers["content-length"] === "13" &&
+    streamedUpload.headers["content-type"] === "audio/mpeg" && streamedUpload.duplex === "half");
 
   const baseAzure = (overrides = {}) => AzureFast.createAzureFastTranscriptionAdapter({
     endpoint: "https://centralindia.api.cognitive.microsoft.com/",

@@ -6287,3 +6287,20 @@ the private GPU service regardless of recording quality, length or retries.
 **What would reverse it.** Only a versioned adapter contract that makes the
 family itself callable could replace method dispatch. That migration would
 need to change `assertAdapter` and all step mappings together.
+
+## `sarvam-stream-upload-binds-length-and-truthful-media-extension` (2026-08-27)
+
+**Decision.** Every Sarvam directory-SAS Put Blob request carries the exact
+integrity-verified `Content-Length`, even when the body is a Node stream, and
+its bounded filename extension is derived from the declared MIME type.
+
+**Why.** The requested 250.7 MiB MP3 passed six processing stages, then Azure
+Storage rejected Sarvam's upload with HTTP 400. The disk-streaming path supplied
+`duplex: half` but no length, so Node selected chunked transfer for a Put Blob
+request that has a known size. It also called MP3 bytes `input-0.wav`, making
+the next provider boundary ambiguous even if storage accepted the body.
+
+**What would reverse it.** A multipart/block-list Sarvam upload protocol could
+replace single Put Blob if its directory capability documents that contract.
+It must still bind the verified total length, MIME and final media name, and
+prove retry/idempotency against the live SAS shape.

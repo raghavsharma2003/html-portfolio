@@ -5237,3 +5237,17 @@ creates the same adapter-object shape, normalizes one chunk, and proves exactly
 one method invocation and one returned speaker segment. The complete
 replica-processing suite also passed. Live eight-stage proof remains pending
 the corrected immutable image.
+
+## `long-lecture-sarvam-stream-upload-400-live-2026-08-27`
+
+**Measured 2026-08-27, production exact source.** The corrected worker completed
+diarization at 14:33:58Z, selected and persisted the reference-window/separation
+result at 14:34:07Z, and completed enhancement at 14:34:10Z. Sarvam transcription
+then entered retry with `asr_sarvam_upload_http_400` at 14:34:14Z, before a batch
+job could start. Six of eight stages are durable; the source remains processing.
+
+The production path uses a Node file stream for the 262,879,879-byte MP3. After
+binding its verified byte count as `Content-Length` and choosing `.mp3` from
+`audio/mpeg`, the full replica-processing suite passes, including an executable
+Readable-stream fixture that asserts length, MIME, extension and `duplex: half`.
+The 33-check worker suite also passes. Live retry remains required.

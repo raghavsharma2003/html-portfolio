@@ -81,6 +81,15 @@ function inDirectory(directoryUrl, name) {
   return url.toString();
 }
 
+function uploadNameForMime(mime) {
+  const extension = ({
+    "audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3",
+    "audio/flac": "flac", "audio/mp4": "m4a", "video/mp4": "mp4",
+    "video/webm": "webm",
+  })[String(mime || "").split(";", 1)[0].trim().toLowerCase()] || "bin";
+  return `input-0.${extension}`;
+}
+
 /** Names of the blobs under a directory SAS, via the Blob container listing
  *  (`restype=container&comp=list&prefix=`), which the `sp=...l` list permission
  *  on that SAS covers. Returned relative to the directory. */
@@ -200,9 +209,17 @@ export function createSarvamSaarasProvider(options = {}) {
       }
       let upload;
       try {
-        upload = await fetchImpl(inDirectory(inputPath, "input-0.wav"), {
+        upload = await fetchImpl(inDirectory(inputPath, uploadNameForMime(ref.mime)), {
           method: "PUT",
-          headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": ref.mime || "audio/wav" },
+          // Node's fetch uses chunked transfer encoding for a Readable unless
+          // the known byte count is explicit. Azure Blob's Put Blob endpoint
+          // rejects that request before Sarvam sees the file. The storage seam
+          // has already streamed and verified this exact byte count.
+          headers: {
+            "x-ms-blob-type": "BlockBlob",
+            "Content-Type": ref.mime || "audio/wav",
+            "Content-Length": String(byteSize),
+          },
           body,
           ...(streamBody ? { duplex: "half" } : {}),
           signal: AbortSignal.timeout(300_000),

@@ -4670,3 +4670,17 @@ used a separate callback and never exercised this production composition seam.
 `delegate.diarize(...)`. Its focused regression executes that exact helper
 with the real adapter-object shape and proves method dispatch for a normalized
 chunk.
+
+## `chunked-transfer-and-wav-name-do-not-describe-a-known-size-mp3` (2026-08-27)
+
+**What was tried.** Stream a known-size MP3 into Sarvam's Azure directory SAS
+without `Content-Length` and always name the blob `input-0.wav`.
+
+**What specifically broke.** Node used streaming transfer semantics for the
+body and Azure rejected the Put Blob request with HTTP 400. The hard-coded WAV
+name also contradicted `Content-Type: audio/mpeg`, leaving Sarvam to infer which
+part of the request was truthful.
+
+**What replaced it.** The request declares the exact byte count already proven
+by the private storage seam and selects a small allowlisted extension from the
+declared MIME. A Readable-stream regression covers the production branch.
