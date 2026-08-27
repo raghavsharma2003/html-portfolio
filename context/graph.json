@@ -3433,6 +3433,25 @@
       "kind": "rejection",
       "title": "Checking only the initial queue skipped ClamAV before integrity created and immediately leased malware_scan",
       "at": "2026-08-27"
+    },
+    {
+      "id": "composed-processing-adapter-facts-stay-in-the-persisted-safe-alphabet",
+      "kind": "decision",
+      "title": "Composed adapter versions use the persisted safe alphabet and pass the production assertion before execution",
+      "at": "2026-08-27",
+      "status": "focused regression passed; immutable worker rebuild pending"
+    },
+    {
+      "id": "long-lecture-diarize-adapter-contract-live-2026-08-27",
+      "kind": "measurement",
+      "title": "The live lecture passed malware and media probe before diarize rejected a plus-suffixed adapter version",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "plus-suffixed-adapter-version-is-not-a-valid-processing-fact",
+      "kind": "rejection",
+      "title": "A plus-decorated chunked-diarization version passed functional tests but violated the persisted adapter contract",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6678,6 +6697,21 @@
     },
     {
       "src": "integrity-root-starts-the-malware-daemon-for-the-same-run",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
+    },
+    {
+      "src": "composed-processing-adapter-facts-stay-in-the-persisted-safe-alphabet",
+      "rel": "measured_by",
+      "dst": "long-lecture-diarize-adapter-contract-live-2026-08-27"
+    },
+    {
+      "src": "composed-processing-adapter-facts-stay-in-the-persisted-safe-alphabet",
+      "rel": "caused_by",
+      "dst": "plus-suffixed-adapter-version-is-not-a-valid-processing-fact"
+    },
+    {
+      "src": "composed-processing-adapter-facts-stay-in-the-persisted-safe-alphabet",
       "rel": "part_of",
       "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }

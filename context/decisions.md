@@ -6218,3 +6218,21 @@ run loop is changed to detect and start scanner dependencies before each lease,
 or if it deliberately ends after integrity so a later execution starts with a
 visible scan job. Either replacement must pass a real integrity-to-scan run in
 one container execution without weakening fail-closed signature refresh.
+
+## `composed-processing-adapter-facts-stay-in-the-persisted-safe-alphabet` (2026-08-27)
+
+**Decision.** Every adapter wrapper must preserve `family`, `name` and
+`version` inside the processing contract's persisted `SAFE_PART` alphabet.
+The chunked diarization wrapper uses a hyphenated version suffix and its focused
+test runs the real `assertAdapter` contract, not only its diarization method.
+
+**Why.** The live long-audio run passed malware and media probing, then failed
+before diarization with `invalid_processing_adapter`. The wrapper had appended
+`+normalized-overlap-chunks-v2`; `+` is intentionally excluded from persisted
+adapter identifiers. Functional chunk tests missed the same validation the
+worker performs at its boundary.
+
+**What would reverse it.** A richer version alphabet may be adopted only with
+a schema and contract migration that proves old manifests, receipt hashing and
+path derivation remain stable. Until then, every composed adapter must pass the
+same assertion used by the production worker before it can be called live.

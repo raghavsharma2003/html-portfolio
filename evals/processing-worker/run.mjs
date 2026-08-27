@@ -12,7 +12,7 @@ import {
 import { readClamAvVerdict } from "../../api/_replica-processing/native-tools.js";
 import { createFakeImmutableArtifactStore, createFakeProcessingAdapters } from "../../api/_replica-processing/providers/fake.js";
 import { runNextProcessingJob } from "../../api/_replica-processing/runtime.js";
-import { sha256Hex, stableUuid } from "../../api/_replica-processing/contracts.js";
+import { assertAdapter, sha256Hex, stableUuid } from "../../api/_replica-processing/contracts.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -106,6 +106,10 @@ const chunked = createChunkedDiarizationAdapter({
     }] };
   },
 });
+ok("chunked diarization keeps its composed adapter facts valid for the production contract",
+  assertAdapter(chunked, "diarize") === chunked
+  && chunked.version.endsWith("-normalized-overlap-chunks-v2")
+  && !chunked.version.includes("+"));
 const chunkedResult = await chunked.diarize({
   source: { ...source, duration_ms: 130_000 },
   inputs: [{ object_path: source.object_path, sha256: source.sha256, mime: source.mime, duration_ms: 130_000 }],

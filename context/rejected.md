@@ -4608,3 +4608,20 @@ file or changing its size could not fix worker ordering.
 refresh and daemon readiness before the run loop. Empty schedules still avoid
 the fixed ClamAV cost, while a run that can create a scan child cannot reach it
 without the daemon already answering.
+
+## `plus-suffixed-adapter-version-is-not-a-valid-processing-fact` (2026-08-27)
+
+**What was tried.** Decorate the evidence adapter's version with
+`+normalized-overlap-chunks-v2`, then test only that chunk execution and overlap
+reconciliation worked.
+
+**What specifically broke.** The production contract persists adapter facts
+under `^[a-z0-9][a-z0-9._-]{0,79}$`; `+` is forbidden. The live worker rejected
+the adapter before calling it and terminally failed diarization. The earlier
+functional fixture never invoked `assertAdapter`, so it proved the algorithm
+while missing the boundary that actually ships it.
+
+**What replaced it.** The wrapper uses
+`-normalized-overlap-chunks-v2`, and the focused suite asserts the composed
+adapter against the production contract before exercising long and short
+audio behavior.

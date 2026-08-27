@@ -5175,3 +5175,19 @@ that step after completing `integrity`. After making both steps scanner-start
 triggers, the processing-worker suite passed 28/28 checks, syntax, targeted
 lint and whitespace checks. This is not yet the completed eight-stage result;
 the immutable worker rebuild and live retry remain required.
+
+## `long-lecture-diarize-adapter-contract-live-2026-08-27`
+
+**Measured 2026-08-27, production source plus focused local regression.** The
+same lecture's second scan attempt completed, media probing completed on attempt
+1, and diarization then failed on attempt 1 with
+`invalid_processing_adapter`. Source inspection isolated the invalid value to
+the chunk wrapper version's `+` character; all other adapter facts and the
+method were present.
+
+After changing the suffix to the contract-safe hyphen form, the processing
+worker suite passed 29/29 checks, including a direct `assertAdapter` call, and
+the complete replica-processing suite passed. Targeted lint and whitespace
+checks passed. A cached remote build without this second fix completed as
+`cu19` but was not deployed. A new immutable build and one scoped retry of the
+failed diarize row remain required before this is an end-to-end result.

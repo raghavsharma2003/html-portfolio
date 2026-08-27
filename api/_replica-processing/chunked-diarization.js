@@ -105,7 +105,11 @@ export function createChunkedDiarizationAdapter(options = {}) {
   }
   return Object.freeze({
     ...delegate,
-    version: `${delegate.version}+normalized-overlap-chunks-v2`,
+    // Adapter facts are persisted as bounded SAFE_PART identifiers. `+` is
+    // deliberately outside that alphabet, so composing a perfectly usable
+    // delegate with a semver-looking suffix made the live worker reject the
+    // adapter before diarization began.
+    version: `${delegate.version}-normalized-overlap-chunks-v2`,
     async diarize(request) {
       if (!Array.isArray(request.inputs) || request.inputs.length !== 1) fail("chunked_diarization_input_invalid");
       const input = request.inputs[0];
