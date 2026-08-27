@@ -42,10 +42,12 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
   `docs/gurukul/ROADMAP-100X.md` is the build order;
   `docs/gurukul/research/` holds the competitor / memory-science / voice-stack
   sweeps behind those decisions.
-- Gates: `node scripts/verify-release.mjs` (11 checks, all green; **13 with
-  `NEON_URL` in the environment** — the relational db gates used to be skipped
-  even when the env var was set, because the switch read `api/_config.js`
-  alone. `relcheck` is a hard gate wherever a URL is reachable).
+- Gates: `node scripts/verify-release.mjs` is **16 checks** as of 2026-08-27
+  (14 without `NEON_URL`, which skips the two relational db gates). The count
+  has grown as gates were added: WS-AM's layout readability, WS-AR's enrollment
+  sample-rate mirror, WS-AS's enrollment bandwidth. `relcheck` is a hard gate
+  wherever a URL is reachable. `npx vite build` alone is NOT a gate: it exits 0
+  with type errors.
 
 ## What is LIVE (verified, not assumed)
 
@@ -57,9 +59,69 @@ gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
 | Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
 | Meera production | untouched; its deploy trigger no longer matches this branch |
 | In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
-| Enrollment processing queue | **LIVE and draining.** `vyakti-replica-processing`, an Azure Container Apps **Job** (Consumption, `*/5`, no ingress, scale-to-zero by construction), image `replica-processing-worker@sha256:18a6199b…` (WS-AN + WS-AO merged, 2026-08-26 — see the collision note above). It owns all eight DAG steps; the Vercel sweep's cron entry is removed and that endpoint is now the manual fallback. The owner's real 32.9 MB upload has `integrity`, `malware_scan`, `media_probe`, `diarize`, **`separate` and `enhance` COMPLETE** (278 speaker segments, mean confidence 0.877; `separate` now windows to the owner's own best-scoring ~10 s instead of sending the whole 822.7 s recording to the GPU, `windowing-belongs-at-separate-now-that-diarize-is-done`) and stops at `transcribe`, which WS-AN rewired onto the Sarvam Saaras batch adapter (owner directive — this subscription has zero Cognitive Services accounts) but which still reports `asr_unconfigured`: `SARVAM_API_KEY` is not yet on the job's env, it lives in Vercel's `vyakti-replica-lab` per the owner, and no session yet has a route to read Vercel env values back. Auto-recovers the moment the key lands. **A voice genome is NOT yet buildable:** it needs sources at `state='ready'`, only `voice_quality` sets that, and `transcribe` sits between them. **`commitProcessingOutput` had never once written an artifact or a piece of evidence** — its guard validated by re-reading the tables it was writing, which a data-modifying CTE cannot see — so no upload could ever have passed `media_probe`. Fixed and proven on production. |
+| Enrollment processing queue | **LIVE, and the owner's upload has completed ALL EIGHT DAG steps** (2026-08-27). `vyakti-replica-processing`, an Azure Container Apps **Job** (Consumption, `*/5`, no ingress, scale-to-zero). `SARVAM_API_KEY` and `REPLICA_SELF_TEST_MODE=true` are both on its env, verified by GET. A voice genome EXISTS (v1, draft). **CAUTION: the deployed image predates WS-AS's reference-quality fix**, so the live pipeline still produces a band-limited 8 kHz enrollment reference until the Job is rebuilt. See the START HERE block. The earlier claim in this row that a genome was 'NOT yet buildable' is superseded. |
+
+## START HERE: WHERE THIS ACTUALLY STANDS (2026-08-27 03:45Z)
+
+Everything below this block is older and some of it is superseded. Read this
+first; where it disagrees with anything further down, this wins.
+
+**THE ONE OPEN PROBLEM: the clone does not sound like the owner.** Their
+verdict, verbatim: "not even 0.05% similar", and the base voice is "very
+western and not indian". Everything else in this product now works; this does
+not, and it IS the product.
+
+What is settled about it, measured rather than argued:
+- **Cloning IS happening.** Three different enrollment references, same replica,
+  text and seed, produced three different outputs (`b4ff277d88`, `65219c4f38`,
+  `c7ba0591f8`). A model ignoring its reference is byte identical across arms.
+  So do not go looking for a disconnected wire; the fault was reference QUALITY.
+- **The reference was 8 kHz audio wearing a 24 kHz label.** Measured by FFT:
+  0.000458% of energy at or above 8 kHz. Two causes, and the second one is the
+  one three sessions walked past: `separate` runs `sepformer-whamr16k` at 16 kHz
+  UNCONDITIONALLY, including on a recording with one speaker and nothing to
+  separate; and the 16 kHz bytes cut for window SCORING were being reused as the
+  DELIVERED reference bytes, so skipping separation alone would not have helped.
+- Both are fixed in `api/` and merged. After the fix, 0.0224% (about 49x).
+
+**What is NOT done, and is the next agent's job:**
+1. **The fix is not live.** The Container Apps Job `vyakti-replica-processing`
+   has not been rebuilt since WS-AS, so the DEPLOYED pipeline still produces the
+   broken reference. WS-AT was dispatched for this; check whether it landed.
+2. **There is still no speaker-similarity number for the owner's clone.**
+   Nobody has measured likeness, only bandwidth, and bandwidth is not likeness.
+   `vyakti-voice-evidence` has `ingress.external=false` so a session cannot
+   reach it. The repo's known ceiling is 0.8869. **Do not report a proxy metric
+   as fidelity.** An invented number here is the worst possible outcome.
+3. DeepFilterNet3 on versus off is unmeasured. The owner's audio has real
+   background noise, so it is a genuine trade, not an obvious call.
+
+**Two live operational facts a new agent will otherwise rediscover painfully:**
+- `vyakti-open-voice` (the GPU) has `minReplicas=0`. A warm GPU answers in about
+  54 s; from cold it has exceeded 200 s and returned `wake_in_flight` ten polls
+  running. The studio panel gives up at 180 s, which EQUALS the top of its own
+  advertised "2 to 3 minutes". Same defect shape as the 60 s signature meeting a
+  100-160 s cold start. Keeping a GPU warm bills continuously and is the owner's
+  money: do not set `minReplicas` without being asked.
+- The preview ledger (`neon-ledger.js`) structurally cannot open for ANY preview
+  generation without an active runtime capability, because a preview's
+  `voice_profile_id` is always NULL while the capability table's matching column
+  is NOT NULL. Unrelated to reference quality. See
+  `rejected.md#preview-ledger-requires-activation-this-replica-does-not-have`.
+
+**What DOES work now, verified, so you do not re-audit it:** journey 15/15;
+16/16 gates; CI green on PR #5; all eight DAG steps complete on the owner's real
+822.7 s upload; voice genome v1 draft exists; `REPLICA_SELF_TEST_MODE=true` is
+live on the job so enrollment gates no longer block; `SARVAM_API_KEY` is on the
+job; the five audio-protection vars are in Vercel; a real preview returns real
+watermarked audio with the spoken disclosure.
+
+---
 
 ## WHERE THE PRODUCT ACTUALLY STANDS (2026-08-26 19:15Z, measured)
+
+**Superseded in part by the block above.** Kept because the technique and the
+failure analysis below are still the best record of how this was established.
 
 The single most useful section for a new agent: this was established by driving
 the REAL deployed frontend in a real mobile browser against the REAL backend,
@@ -68,6 +130,8 @@ technique is reusable and worth rebuilding if it is gone:
 **the container's egress policy resets the browser's HTTPS, so a loopback
 bridge serves production bytes fetched with node and relays `/api/*` back to
 production.** Real rendering, real API, real signed-in user.
+
+**Journey score at the time: 12 of 15. It is now 15/15** (2026-08-27 00:05Z); the two remaining failures were the product CORRECTLY refusing a brand new replica with no identity, which the journey was scoring as a bug. The assertion now accepts a NAMED refusal from the known set and still fails on an unnamed one, an unrecognised code, or any 5xx. Original note follows.
 
 **Journey score: 12 of 15 steps pass.** Passing: landing, no horizontal
 overflow at 390pt, real signed-in session, studio renders, primary action above
@@ -556,3 +620,5 @@ header stacks up. See the header for the full reason.
 
 - **WS-AQ** — `REPLICA_SELF_TEST_MODE` (default off): a self-mode replica's identity/liveness/consent and evidence/artifact review are auto-granted through the real `acceptAllOwnedEvidenceForSelfTest`/`selectOwnedVoiceArtifact`/`queueOwnedVoiceGenome` code paths as its sources reach `ready`, tagged in `metadata` for one-query revocation (`scripts/revoke-self-test-grants.mjs`), proven live both ways (flag on clears all 4 gates and queues a draft build; flag off/absent leaves all 8 blockers and a 409, unchanged) — `docs/gurukul/REPLICA-SELF-TEST-MODE.md`
 - **WS-AS** — confirmed the owner's exact diagnosis: `separate` (`sepformer-whamr16k`, 16 kHz Nyquist) ran on EVERY recording and destroyed 4-10 kHz before `enhance` ever saw a sample; measured 0.000458% energy at/above 8 kHz on the real broken reference. Fixed by skipping `separate`'s GPU model when diarize shows one dominant speaker (>=90% share) and cutting the reference window fresh from the ORIGINAL recording at 24 kHz instead — measured 0.0224% after (~49x), real FFT, real owner source (`measurements.md#enrollment-reference-bandwidth-before-after`, `decisions.md#separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker`). Also answered the coordinator's escalated Q1 ("is any cloning happening at all") directly against the real deployed Chatterbox broker: same text/seed/style, three different references, three different outputs (byte length AND hash all differ) — the reference DOES condition synthesis. Added `scripts/check-enrollment-bandwidth.mjs` (real radix-2 FFT, no dependency) as a new `verify-release.mjs` gate with a negative control, recalibrated once against real measurements after a clean-speech-intuition guess (1.5%) failed the real fix (`rejected.md#bandwidth-threshold-first-guess-was-miscalibrated`). Did NOT get a real ECAPA fidelity number — `voice-evidence` has no external ingress from this session (confirmed 404) and no image rebuild was done, so this session cannot claim a cosine similarity, only the bandwidth measurement above. Found but explicitly did NOT fix, flagged for whoever owns it: the production preview ledger (`neon-ledger.js`) structurally cannot open for ANY preview generation on a replica without an active runtime capability, because a preview's `voice_profile_id` is always NULL while the capability table's matching column is NOT NULL — unrelated to reference quality (`rejected.md#preview-ledger-requires-activation-this-replica-does-not-have`). DeepFilterNet3 on-vs-off was NOT measured (`rejected.md#deepfilternet3-on-vs-off-not-measured-this-session`) — the fix lives entirely in `api/_replica-processing/*`, so the deployed `vyakti-replica-processing` job has NOT picked it up (no ACR rebuild done this session); a real end-to-end pipeline run through the deployed container is still needed before this is proven beyond the locally-run code path. Generated clip at `scratchpad/q1-direct-AFTER.wav`.
+- **main-session 03:45Z** — merged WS-AM/AN/AO/AP/AQ/AR/AS; journey 15/15; 16 gates; REPLICA_SELF_TEST_MODE turned ON live on the Azure job; the owner heard their clone and rejected it as not sounding like them, which opened the reference-quality investigation now recorded at the top of this file. WS-AT dispatched to deploy the fix and get a real similarity number.
+

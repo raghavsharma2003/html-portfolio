@@ -8,9 +8,9 @@ under `context/` win.
 ## Read in this order, and do not skip step 1
 
 1. **`context/STATE.md`** — one page: what the product is, what is verifiably
-   LIVE versus not, where the owner's real upload is stuck right now, and the
-   laws not to relearn. It carries a measured "WHERE THE PRODUCT ACTUALLY
-   STANDS" section that will save you hours.
+   LIVE versus not, and the laws not to relearn. **Read its "START HERE" block
+   first**; it is dated and it wins over anything below it in that file, which
+   is older and partly superseded. It will save you hours.
 2. **`context/rejected.md`** — read BEFORE proposing anything. Several
    obviously-good ideas here are obviously good and also measurably wrong, and
    the reasons are not guessable. This is the highest-value file in the repo.
@@ -41,9 +41,16 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 11 checks; 13 when NEON_URL is set
+node scripts/verify-release.mjs      # 16 checks; 14 without NEON_URL
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
+
+The count grows as gates are added, so trust the runner rather than this
+number. Recent additions worth knowing because they encode expensive lessons:
+layout readability (renders the real signed-in studio, not a signed-out shell),
+the enrollment sample-rate mirror (four files name that rate and must agree),
+and enrollment bandwidth (a band-limited reference can never again reach the
+voice model silently).
 
 `npx vite build` alone is NOT a gate: it exits 0 with type errors.
 
@@ -92,8 +99,8 @@ Notes that will otherwise cost you an hour:
 Idempotent, one statement per request (Neon SQL-over-HTTP allows only one),
 no DO blocks, explicit `::uuid` casts on every comparison, mirrored into
 `db/schema.sql`, and wired into the erasure cascade AND `scripts/relcheck.mjs`'s
-owner-lane reach walk. **058 through 062 are applied live; 063 is the next free
-number.** Five legacy tables key `device_id` as TEXT, so never assume a cast.
+owner-lane reach walk. **058 through 063 are applied live; 064 is the next free
+number.** (063 is `replica_self_test_mode`, verified live 2026-08-27.) Five legacy tables key `device_id` as TEXT, so never assume a cast.
 
 ## Logging your work is not optional
 
@@ -105,13 +112,43 @@ Before your next phase starts, append to `context/`:
 Then run `node scripts/context.mjs --check`. If it is not logged, it did not
 happen, and the next agent pays for it again.
 
+## The one open problem, as of 2026-08-27
+
+**The clone does not sound like the owner.** Their words: "not even 0.05%
+similar", and the base voice is "very western and not indian". Everything else
+in this product now works. This does not, and it IS the product.
+
+Read `context/STATE.md`'s "START HERE" block before touching any of it. The
+short version, all measured rather than argued:
+
+- **Cloning IS happening.** Three references, three different outputs. Do not go
+  hunting for a disconnected wire; the fault was reference QUALITY.
+- **The enrollment reference was 8 kHz audio wearing a 24 kHz label**, 0.000458%
+  of energy above 8 kHz. Two causes: a 16 kHz speaker-SEPARATION model run
+  unconditionally on recordings with nobody to separate, and the 16 kHz
+  window-SCORING bytes being reused as the DELIVERED reference. Fixed in `api/`,
+  merged, measured at 0.0224% after.
+- **The fix is not live**: the processing Job has not been rebuilt.
+- **No speaker-similarity number exists for the owner's clone.** Only bandwidth
+  has been measured, and bandwidth is not likeness. The ceiling is 0.8869.
+  Do NOT dress a proxy metric up as fidelity; report the wall instead.
+
 ## Owner decisions currently outstanding
 
 These are the owner's to make; do not make them unilaterally and do not spend
 their money without being asked.
 1. **YouTube route.** Audio extraction from a datacenter IP is blocked and every
    free lever is measured out. A residential proxy (about $0.077 per 15-minute
-   lecture) is recommended and unpurchased. One env var switches it on.
-2. **Two Vercel env vars** for the audio-protection service, without which no
-   replica audio can be delivered to anyone.
-3. Key rotation for everything ever pasted into a chat transcript.
+   lecture) is recommended and unpurchased. One env var switches it on. The
+   owner has said to skip YouTube for now.
+2. **Keeping the GPU warm.** `vyakti-open-voice` has `minReplicas=0`. Warm it
+   answers in about 54 s; cold it has exceeded 200 s, and the studio panel gives
+   up at 180 s, which equals the top of its own advertised estimate. Raising
+   `minReplicas` bills continuously for a GPU. Do not do it unasked.
+3. **Key rotation** for everything ever pasted into a chat transcript, now also
+   including an ACR pull password fragment and the `REPLICA_SELF_TEST_MODE`
+   consent rows written on 2026-08-26. Those rows are tagged in `metadata` and
+   `scripts/revoke-self-test-grants.mjs` reverses all of them; they MUST be
+   revoked before any non-owner uses this product.
+
+The two Vercel audio-protection vars that used to be listed here are DONE.
