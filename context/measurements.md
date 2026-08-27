@@ -5074,7 +5074,9 @@ The production rollout then remotely built worker ACR run `cu17` from commit
 `sha256:a40a2c099115fe90c4657c020c45d279c97f3b755d64fe3c97ad6e5bfa9f3f0c`.
 The Container Apps Job read back `Succeeded` with that exact digest, a 3,600 s
 replica timeout, a 3,300,000 ms run budget and all four Azure locator/key env
-bindings. Vercel deployment `dpl_F4CVELLPWusvT83bXXKbKsvev7s6` reached READY
+bindings. Manual execution `vyakti-replica-processing-g1bppkq` then pulled the
+new image and completed successfully in 30 s with no queued source. Vercel
+deployment `dpl_F4CVELLPWusvT83bXXKbKsvev7s6` reached READY
 and was aliased to `vyakti-replica-lab.vercel.app`.
 
 The first live staged block exposed a test-vector blind spot: the browser
