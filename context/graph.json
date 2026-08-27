@@ -3104,6 +3104,36 @@
       "kind": "rejection",
       "title": "ffmpeg -f wav pipe:1 writes a 0xFFFFFFFF placeholder data size and an INFO LIST chunk before data, so a fixed-44-byte-header slice both throws window_audio_truncated and would misalign if it did not; fixed by writing output to a temp file, same reason probeBytes already does for input",
       "at": "2026-08-26"
+    },
+    {
+      "id": "enrollment-artifact-resamples-to-24k-inside-enhance",
+      "kind": "decision",
+      "title": "the enhance stage resamples DeepFilterNet3's 48kHz output down to 24kHz with torchaudio.functional.resample before writing the enrollment WAV, fixing wav_format_unsupported at the producer rather than with a hand-rolled decimator in the API layer",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "transform-version-must-move-with-output-format",
+      "kind": "decision",
+      "title": "deepfilternet's transform_version bumped to deepfilternet3-enroll24k-v1 when _enhance's output format changed, since vy_replica_artifact_variant_unique keys artifact identity on transform_version, not bytes",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "wav-format-unsupported-fixed-and-proven-end-to-end",
+      "kind": "measurement",
+      "title": "n=1: the real preview path returned real audio (266,924 bytes, 24kHz mono PCM16, 5560ms, sealed with disclosure+watermark) for the owner's real replica after the enrollment-sample-rate fix, through the real deployed voice-evidence service and the real handleVoicePreviewPanel",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "revision-bump-cannot-be-partial-across-the-dag",
+      "kind": "rejection",
+      "title": "inserting a lone enhance job at a new revision failed processing_dependency_missing:separate, because completedSteps is filtered by the SAME revision -- a DAG revision means a full re-run, not a partial one",
+      "at": "2026-08-26"
+    },
+    {
+      "id": "voice-quality-cannot-see-a-partial-artifact-generation",
+      "kind": "rejection",
+      "title": "voice_quality's revision-agnostic enhance-stage query collected all 8 candidates (4 stale + 4 fresh) against a 4-input cap and failed voice_evidence_input_count_invalid; the referenced stale artifact was kept, not deleted, because 23 real failed-preview rows cite it as evidence the bug happened",
+      "at": "2026-08-26"
     }
   ],
   "edges": [
@@ -6051,6 +6081,26 @@
       "src": "owner-reference-window-selected",
       "rel": "caused_by",
       "dst": "ffmpeg-pipe-output-cannot-carry-a-sized-wav-chunk"
+    },
+    {
+      "src": "transform-version-must-move-with-output-format",
+      "rel": "caused_by",
+      "dst": "enrollment-artifact-resamples-to-24k-inside-enhance"
+    },
+    {
+      "src": "enrollment-artifact-resamples-to-24k-inside-enhance",
+      "rel": "measured_by",
+      "dst": "wav-format-unsupported-fixed-and-proven-end-to-end"
+    },
+    {
+      "src": "revision-bump-cannot-be-partial-across-the-dag",
+      "rel": "caused_by",
+      "dst": "wav-format-unsupported-fixed-and-proven-end-to-end"
+    },
+    {
+      "src": "voice-quality-cannot-see-a-partial-artifact-generation",
+      "rel": "caused_by",
+      "dst": "wav-format-unsupported-fixed-and-proven-end-to-end"
     }
   ]
 }

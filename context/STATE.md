@@ -142,34 +142,45 @@ One fact a new agent must not re-derive:
   closed this trap. Confirm before re-fixing a trap that is gone; this file
   used to say it was still open and that was stale.
 
-### "Preview my voice" was broken in FOUR stacked layers
+### "Preview my voice" was broken in FIVE stacked layers
 
-Each hid the next; all four are worth knowing because the pattern recurs.
+Each hid the next; all five are worth knowing because the pattern recurs.
 1. The panel sends no `style`; the validator refused an ABSENT style with the
    same 400 as a typo, so every preview from the default path failed.
 2. The route flattened that named 400 into an opaque 500 **and logged nothing**,
    which is why nobody could see layer 1.
 3. The route only mapped errors carrying a `code`; sixteen validators in `api/`
    throw a bare `{status:400}`. Fixed as a class, not an instance.
-4. **Root: the audio-protection service was never deployed.** Every clip must
+4. **The audio-protection service was never deployed.** Every clip must
    carry the spoken disclosure and the PerTh watermark before delivery, so NO
    replica audio can leave for anyone.
    **Never stub or bypass this to get a green screen.**
+5. **Root, found by WS-AR after 1-4 and the env pastes were all done and the
+   owner still got `wav format unsupported` after a ten minute wait:** the
+   enrollment reference the enhance stage PRODUCES and the rate
+   `probeEnrollmentWav` DEMANDS before synthesis disagreed — 48 kHz emitted,
+   24 kHz required, no test ever exercised both sides of that boundary
+   together. 23 real dated `vy_replica_generation` rows on the owner's own
+   replica prove this failed in production, repeatedly, before the fix.
 
-Layers 1 to 3 are fixed in code. Layer 4 is fixed in infrastructure: WS-AL
-deployed `vyakti-audio-protection` to the `vyakti-voice` resource group and it
-is serving, with the build now proving the watermark model actually runs rather
-than only that the image builds. What remains is **not code**: five environment
-variables have to be pasted into the Vercel project `vyakti-replica-lab` before
-any replica audio can reach a person. This session has no tool that can write a
-Vercel environment variable, so it is an owner action, and Preview stays
-correctly refused until it is done. The values and where each one comes from
-are in the credentials handover file the owner already holds.
+Layers 1 to 3 are fixed in code. Layer 4 is fixed in infrastructure (WS-AL
+deployed `vyakti-audio-protection`) and the five Vercel env vars are pasted
+(session log, 22:20Z). Layer 5 is fixed in `services/voice-evidence/app.py`
+(`enrollment-artifact-resamples-to-24k-inside-enhance`) and **this is the
+layer that made the owner's most recent report** — the first four were
+already closed by the time they hit it. **All five layers are now proven
+closed together, on the owner's own replica, with real audio bytes coming
+back** (`measurements.md#wav-format-unsupported-fixed-and-proven-end-to-end`).
+A cross-boundary gate (`scripts/check-enrollment-sample-rate.mjs`) now asserts
+the rate that produced layer 5 can never silently drift from the rate that
+gates it again.
 
 The lesson, now encoded: a refusal that chose its own 4xx keeps it, a
-configuration absence answers 503 BY SHAPE rather than by a list of names, and
-the code is always logged. One line of logging turned an unfindable crash into
-a one-line answer from production.
+configuration absence answers 503 BY SHAPE rather than by a list of names, the
+code is always logged, and a value emitted by one service and demanded by
+another needs an assertion that they agree — because "the format gate exists"
+and "the two sides of it agree" are different claims, and only testing the
+whole path together catches when they do not.
 
 ### YouTube: measured to the end, and it needs a credential
 
@@ -244,15 +255,22 @@ service response, not a claim.
   romanised while Sarvam returns Devanagari
   (`romanised-lexicon-meets-devanagari-asr` — deliberately unpatched, it is a
   choice between three options and needs a bench, not a guess).
-- **"Preview my voice"** (WS-W): the studio panel, its route
-  (`/api/voice-preview`) and its cold-start state machine are code-complete and
-  gated offline (`evals/voicepanel.mjs`, 85 checks with negative controls).
-  **Nothing has been synthesised through it.** The only live thing measured is
-  the unauthenticated admission probe (`measurements.md#voice-panel-admission-probe`);
-  the signed half needs `AZURE_OPEN_VOICE_ORIGIN` + `OPEN_VOICE_HMAC_SECRET`,
-  which this environment does not have. Its central assumption — that a 12 s
-  flush window is long enough for the platform to begin scheduling the GPU
-  replica — is **untested** (`voice-panel-has-never-synthesised`).
+- ~~**"Preview my voice"** (WS-W): ... **Nothing has been synthesised through
+  it.**~~ **STALE as of WS-AR, 2026-08-27 — real audio now synthesised through
+  the real deployed path.** `AZURE_OPEN_VOICE_ORIGIN` + `OPEN_VOICE_HMAC_SECRET`
+  are set (session log, 22:20Z), and the fifth stacked blocker (the enrollment
+  sample-rate mismatch, see above) is fixed and proven end to end on the
+  owner's real replica: `handleVoicePreviewPanel` returned real audio, 24 kHz
+  mono PCM16, `state='sealed'` (`measurements.md#wav-format-unsupported-fixed-
+  and-proven-end-to-end`). The 12 s flush window / cold-start assumption is
+  now measured too: the cold start this session hit was ~3.5 min end to end
+  (dispatch to audio), consistent with the ~161 s GPU-ready figure elsewhere in
+  this file. What is NOT yet proven: the actual browser panel UI driving this
+  same call — this session called `handleVoicePreviewPanel` directly with real
+  collaborators, not through a browser hitting `/api/voice-preview`, so the
+  request/response wiring at the HTTP layer (auth via `requireUser`, body
+  parsing, CORS) remains `evals/voicepanel.mjs`-gated-offline rather than
+  browser-verified.
 - **The audio protection service** (WS-AL): `services/audio-protection` is
   **DEPLOYED AND SERVING** on Azure, which it had never been despite appearing
   in `ENV-MANIFEST.md`. That absence was the root cause of the owner's "Preview
@@ -533,4 +551,5 @@ header stacks up. See the header for the full reason.
 - **WS-AM** the studio made readable: nine track-list rules that reserved a column for a child that no longer exists, and a layout gate that can finally see the signed-in screen
 - **WS-AO** — `separate` windows to the owner's own diarized speech instead of the whole recording — proven on the owner's real 822.7 s upload, which now clears `separate` and `enhance` and stops at `transcribe`, still `asr_unconfigured` pending `SARVAM_API_KEY`; also caught and corrected a same-resource deploy collision with WS-AN's concurrent image push
 - **main-session 22:20Z** — the Sarvam key is ON the Azure job (verified by GET: `SARVAM_API_KEY` -> `secretRef=sarvam-key`, five secrets intact, ten sibling env vars untouched, provisioningState Succeeded). Every owner paste is now done. The pipeline has no known configuration blocker left, and steps 5 to 8 have still never run against a real file.
+- **WS-AR** — the "Preview my voice" `wav format unsupported` bug, confirmed and fixed at its real source: `services/voice-evidence/app.py`'s `_enhance` always emitted 48 kHz while `probeEnrollmentWav` always required 24 kHz, and 23 real dated `vy_replica_generation` rows on the owner's replica prove this failed for real, repeatedly, before this session. Fixed by resampling with `torchaudio.functional.resample` inside the service (never a hand-rolled decimator in the API layer), deployed to production (`voice-evidence@sha256:b2e2b74349ee8d1e2f3d346ea5bf070a5dcf4808ca8b4cd39845ae20dbd83914`), and **proven end to end**: a real 24 kHz enrollment artifact regenerated through the real Container Apps Job, and a real call through the real `handleVoicePreviewPanel` returned **200, 266,924 bytes, 24 kHz mono PCM16, 5,560 ms, `state='sealed'`** (disclosure + watermark intact) — the first real audio this call path has ever returned. Added `scripts/check-enrollment-sample-rate.mjs`, a new `verify-release.mjs` gate that mirrors the enrollment rate across all four sites that name it and fails if they disagree, with a negative control (`measurements.md#wav-format-unsupported-fixed-and-proven-end-to-end`, `decisions.md#enrollment-artifact-resamples-to-24k-inside-enhance`, `rejected.md#revision-bump-cannot-be-partial-across-the-dag`). `voice_quality` on this one replica is left `failed` (`voice_evidence_input_count_invalid`, a side effect of this session's verification method, not a product defect — see `rejected.md#voice-quality-cannot-see-a-partial-artifact-generation`); it does not block preview, which never reads `voice_quality`'s output. **Adjacent finding, NOT fixed here, flagged for a separate workstream**: `api/_replica-voice-profile.js`'s `selectAzureEnrollmentArtifacts` requires ≥30 s of enrollment audio (a real Azure Personal Voice vendor minimum, also enforced independently in `api/_voice/providers/azure-personal-voice.js`), but WS-AO's best-window fix now produces exactly one ~10 s window per source. This is real but unreached today: the whole Azure Personal Voice lane sits behind identity/liveness verification, which is still DARK pending Microsoft approval, and it is a DIFFERENT code path from the one this session fixed (`beginOwnedVoicePreview` never calls `selectAzureEnrollmentArtifacts`). The selector also structurally caps at ONE artifact per source_id, so even multiple ranked windows from the SAME recording would not combine to reach 30 s without a second change to that dedup logic — not a one-line fix.
 

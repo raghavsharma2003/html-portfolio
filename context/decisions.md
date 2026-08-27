@@ -5637,3 +5637,85 @@ opaque code rather than narrowing it.
 **Generalises.** Any `eligible`-style CTE in this codebase has the same defect
 shape. An empty join result is not an authorization verdict.
 
+
+## `enrollment-artifact-resamples-to-24k-inside-enhance` (2026-08-26, WS-AR)
+
+**Decided.** `services/voice-evidence/app.py`'s `_enhance` now resamples its
+DeepFilterNet3 output from 48 kHz down to `ENROLLMENT_SAMPLE_RATE` (24_000)
+with `torchaudio.functional.resample` before writing the WAV it stores as an
+enhance-stage artifact. DeepFilterNet3 still RUNS at 48 kHz internally -- that
+is the model's own native rate, not a choice this fix makes -- only the
+EMITTED WAV changed.
+
+**Why this and not a second decimator in the Vercel API layer.** The owner
+directive was explicit and the reasoning generalises: fidelity is this
+product's core measured metric, and a hand-rolled 2:1 decimation with no
+anti-aliasing filter would degrade the voice silently -- it would look fixed
+(the format gate would pass) and sound worse, which is the one failure mode
+worse than the bug being fixed. `torchaudio.functional.resample` is already
+the properly anti-aliased function this same file uses for every other rate
+conversion (`_decode_audio`), so reusing it keeps the resampling logic in one
+place with one quality bar, and it happens exactly once, server-side, on the
+highest-fidelity signal DeepFilterNet produces -- not twice, and not on a
+copy that has already been shipped over the wire.
+
+**Why 48 kHz was kept nowhere.** Grepped every reader of a `stage='enhance'`
+artifact before deciding (`api/_replica-voice-preview.js`,
+`api/_replica-review.js`, `api/_replica-voice-curriculum.js`,
+`api/_replica-voice-delivery-policy.js`, `api/_replica-voice-profile.js`,
+`api/_replica-model-build.js`). None of them read or care about the artifact's
+STORED sample rate -- `voice_quality`'s own measurement function
+(`services/voice-evidence/app.py::_measure`) calls `_decode_audio(entry)` with
+its default `target_rate=16_000` regardless of what rate the input WAV is
+already at, so it would have resampled a 48 kHz OR a 24 kHz artifact down to
+16 kHz for embedding either way. Keeping a second 48 kHz artifact around would
+have bought nothing measurable and doubled storage and DAG-artifact count for
+every enrollment; there was no "prefer keeping 48 kHz" case to satisfy.
+
+**What would reverse it.** A future consumer that reads enhance-stage bytes
+directly for a quality measurement THAT ACTUALLY DEPENDS ON the stored sample
+rate (not one that resamples on read, the way every current reader does).
+Should that appear, the right shape is an ADDITIONAL enrollment-grade variant
+alongside the archival one, per the original design-decision fork this
+decision was chosen over -- not reverting the enrollment WAV back to 48 kHz,
+since `probeEnrollmentWav` and the whole synthesis chain downstream of it will
+never accept anything else.
+
+## `transform-version-must-move-with-output-format` (2026-08-26, WS-AR)
+
+**Decided.** `services/voice-evidence/app.py`'s `MODEL_REVISIONS["deepfilternet"]`
+changed from a bare model-hash string to `"deepfilternet3-enroll24k-v1"` when
+`_enhance`'s output format changed, even though the DeepFilterNet3 WEIGHTS did
+not change.
+
+**Why.** `vy_replica_artifact_variant_unique` keys an artifact's identity on
+`(source_id, stage, transform_version, variant_key, input_sha256)` -- not on
+its output bytes. Re-running `enhance` over an unchanged `separate` artifact
+with an unchanged `transform_version` therefore produces the same key with
+DIFFERENT content, which the constraint correctly refuses (SQLSTATE 23505,
+unhandled at the call site -- `neon_query_failed_23505` with no further
+detail, by `services/replica-processing-worker/db.js`'s deliberate policy of
+carrying only the SQLSTATE). Caught live, in production, while proving the
+sample-rate fix on the owner's real replica: the first re-run attempt hit
+exactly this collision.
+
+**The generalisable rule this names:** `transform_version` must change
+whenever a transform's OUTPUT changes for the same input, not only when the
+model backing it does. The DeepFilterNet3 checkpoint identity and the wire
+format this service promises downstream are two different facts, and only one
+of them was being tracked.
+
+**Two more things this decision caught, worth naming because they will recur
+for the next transform_version bump:** the JS-side candidate validator's
+`SAFE` regex (`api/_replica-processing/providers/azure-voice-evidence.js`) is
+`[a-z0-9][a-z0-9._-]{0,79}` -- lowercase only, no `+`, max 80 chars. A first
+attempt (`...+enroll24k` appended to the existing hash) was rejected for the
+`+`; a second attempt (`...-enroll24k`, same base) was rejected for landing at
+89 characters. The value that shipped, `deepfilternet3-enroll24k-v1`, is short
+and SAFE-clean by construction rather than derived from the old string.
+
+**What would reverse it.** Nothing reverses the rule; it is a correctness
+constraint on how `transform_version` is used, not a preference. A future
+change to `vy_replica_artifact_variant_unique` that keys on content hash
+instead of transform_version would make version bumps unnecessary for a
+format-only change, but no such change is planned.
