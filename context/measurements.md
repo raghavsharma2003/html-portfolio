@@ -5292,6 +5292,13 @@ warming to warm, while protection calls remain zero and the discarded
 generation stays failed. Its client timeline now permits ten polls over 300
 seconds: poll seven can dispatch the second synthesis, a 60-second conservative
 settle window can elapse, and poll ten can start a fresh protected request. The
-server and client copy now report 2 to 5 minutes. This is a deterministic
-latency/control result pending deployment, not a successful live preview or a
-voice-quality result.
+server and client copy now report 2 to 5 minutes.
+
+Production deployment `dpl_A4DWpWNZLmbBS5jdWmSN1ovQYN5R` reached `READY` and
+the same-click browser trace then completed in about 4 minutes 50 seconds. The
+Studio panel showed a playable `0:00 / 0:08` protected result with receipt
+prefix `50e1882e`. The downloaded object is a valid 389,804-byte RIFF/WAVE:
+PCM 16-bit, mono, 24 kHz, 8.12 seconds, peak -0.67 dBFS, RMS -19.32 dBFS and
+zero clipped samples. This proves upload-to-protected-playback control flow and
+signal validity only. No likeness, Hindi accent or human-naturalness claim is
+made until the owner listens blindly.

@@ -3566,12 +3566,12 @@
       "kind": "decision",
       "title": "Late cold-preview success updates only runtime warmth; the client waits 300 seconds for a later protected request",
       "at": "2026-08-27",
-      "status": "focused regression passed; production deployment pending"
+      "status": "production deployed; same-click protected preview completed"
     },
     {
       "id": "long-lecture-preview-warmup-window-live-2026-08-27",
       "kind": "measurement",
-      "title": "Seven polls crossed the live wake window but stopped on the second dispatch; ten polls now cover 300 seconds in regression",
+      "title": "Ten polls completed a same-click protected production preview in about 4 minutes 50 seconds",
       "at": "2026-08-27"
     },
     {
