@@ -1,9 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { REPLICA_POLICY_VERSION } from "./_replica.js";
 import { sha256Hex } from "./_replica-processing/contracts.js";
-import { REPLICA_STORAGE_BUCKET, deleteReplicaObjects } from "./_replica-storage.js";
+import { deleteReplicaObjects, replicaStorageBucketDescriptor } from "./_replica-storage.js";
 
 const MAX_RETRY_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_PENDING_UPLOAD_STALE_MS = 24 * 60 * 60 * 1000;
+const MIN_PENDING_UPLOAD_STALE_MS = 60 * 60 * 1000;
+const MAX_PENDING_UPLOAD_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_PENDING_UPLOAD_CLEANUP_BATCH = 25;
 
 export function sourceErasureLeaseTokenHash(token) {
   if (typeof token !== "string" || token.length < 32) throw new Error("strong source erasure lease token required");
@@ -13,16 +17,47 @@ export function sourceErasureLeaseTokenHash(token) {
 function objectPaths(row) {
   const prefix = `${row.owner_user_id}/${row.replica_id}/${row.source_id}/`;
   const objects = [{ bucket: row.storage_bucket, path: row.object_path }, ...(Array.isArray(row.artifacts) ? row.artifacts : [])];
-  const paths = [];
+  const locators = [];
   for (const object of objects) {
     const path = String(object?.path || "");
-    if (object?.bucket !== REPLICA_STORAGE_BUCKET || !path.startsWith(prefix) || path.includes("://") ||
+    try { replicaStorageBucketDescriptor(object?.bucket); }
+    catch { throw Object.assign(new Error("source erasure storage lineage invalid"), { code: "storage_lineage_invalid" }); }
+    if (!path.startsWith(prefix) || path.includes("://") ||
         (path !== `${prefix}original` && !path.startsWith(`${prefix}derived/`))) {
       throw Object.assign(new Error("source erasure storage lineage invalid"), { code: "storage_lineage_invalid" });
     }
-    paths.push(path);
+    locators.push(Object.freeze({ storageBucket: object.bucket, objectPath: path }));
   }
-  return Object.freeze([...new Set(paths)].sort());
+  const unique = new Map(locators.map((locator) => [`${locator.storageBucket}\n${locator.objectPath}`, locator]));
+  return Object.freeze([...unique.values()].sort((left, right) =>
+    left.storageBucket.localeCompare(right.storageBucket) || left.objectPath.localeCompare(right.objectPath)));
+}
+
+export async function markAbandonedPendingSourceUploads(db, options = {}) {
+  const staleAfterMs = Math.max(MIN_PENDING_UPLOAD_STALE_MS, Math.min(MAX_PENDING_UPLOAD_STALE_MS,
+    Number(options.staleAfterMs || DEFAULT_PENDING_UPLOAD_STALE_MS)));
+  const batchSize = Math.max(1, Math.min(100, Number(options.batchSize || DEFAULT_PENDING_UPLOAD_CLEANUP_BATCH)));
+  const rows = await db(
+    `with stale as (
+       select s.source_id
+         from vy_replica_source s
+        where s.state='pending_upload'
+          and s.updated_at<=now()-($1::bigint*interval '1 millisecond')
+        order by s.updated_at,s.source_id
+        for update skip locked limit $2::integer
+     ), marked as (
+       update vy_replica_source s
+          set state='deleting',erasure_next_attempt_at=now(),updated_at=now()
+         from stale where s.source_id=stale.source_id and s.state='pending_upload'
+       returning s.source_id,s.storage_bucket,s.object_path
+     ) select * from marked`,
+    [staleAfterMs, batchSize],
+  );
+  return Object.freeze(rows.map((row) => Object.freeze({
+    sourceId: row.source_id,
+    storageBucket: row.storage_bucket,
+    objectPath: row.object_path,
+  })));
 }
 
 export async function leaseNextSourceErasure(db, options = {}) {
@@ -284,6 +319,7 @@ export function sourceErasureRetryDelayMs(attempt) {
 export async function runSourceErasureSweep(options) {
   const db = options?.db;
   if (typeof db !== "function") throw new Error("source erasure database required");
+  const cleanup = options.cleanup || markAbandonedPendingSourceUploads;
   const lease = options.lease || leaseNextSourceErasure;
   const removeObjects = options.removeObjects || deleteReplicaObjects;
   const complete = options.complete || completeSourceErasure;
@@ -291,7 +327,11 @@ export async function runSourceErasureSweep(options) {
   const maxJobs = Math.max(1, Math.min(4, Number(options.maxJobs || 2)));
   const timeBudgetMs = Math.max(10_000, Math.min(240_000, Number(options.timeBudgetMs || 120_000)));
   const started = Date.now();
-  const summary = { leased: 0, completed: 0, retried: 0 };
+  const abandoned = await cleanup(db, {
+    staleAfterMs: options.staleUploadAfterMs,
+    batchSize: options.cleanupBatchSize,
+  });
+  const summary = { abandoned: abandoned.length, leased: 0, completed: 0, retried: 0 };
   while (summary.leased < maxJobs && Date.now() - started < timeBudgetMs) {
     const claimed = await lease(db, { leaseMs: 240_000 });
     if (!claimed) break;

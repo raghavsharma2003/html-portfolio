@@ -291,14 +291,18 @@ const SHA = "d".repeat(64);
       });
     }
     if (url.includes("/object/upload/sign/")) {
-      return new Response(JSON.stringify({ url: "/object/upload/sign/private/path?token=signed-token" }), {
+      const signedPath = new URL(url).pathname.replace(/^\/storage\/v1/, "");
+      return new Response(JSON.stringify({ url: `${signedPath}?token=signed-token` }), {
         status: 200, headers: { "content-type": "application/json" },
       });
     }
     throw new Error(`unexpected storage URL ${url}`);
   };
-  await Storage.ensurePrivateReplicaBucket(fakeFetch);
-  const upload = await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, fakeFetch);
+  await Storage.ensurePrivateReplicaBucket(Storage.REPLICA_STORAGE_BUCKET, fakeFetch);
+  const upload = await Storage.createSignedReplicaUpload({
+    storageBucket: Storage.REPLICA_STORAGE_BUCKET,
+    objectPath: `${OWNER}/${REPLICA}/${SOURCE}/original`,
+  }, fakeFetch);
   ok("bucket access is checked before signed upload", calls[0].url.includes("/storage/v1/bucket/"));
   ok("legacy service_role storage calls use apikey plus Bearer authorization", calls.every((call) =>
     call.init.headers.apikey === "unit-test-service-role-secret"
@@ -322,14 +326,18 @@ const SHA = "d".repeat(64);
       });
     }
     if (url.includes("/object/upload/sign/")) {
-      return new Response(JSON.stringify({ url: "/object/upload/sign/private/path?token=signed-token" }), {
+      const signedPath = new URL(url).pathname.replace(/^\/storage\/v1/, "");
+      return new Response(JSON.stringify({ url: `${signedPath}?token=signed-token` }), {
         status: 200, headers: { "content-type": "application/json" },
       });
     }
     throw new Error(`unexpected storage URL ${url}`);
   };
-  await Storage.ensurePrivateReplicaBucket(secretFetch);
-  await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, secretFetch);
+  await Storage.ensurePrivateReplicaBucket(Storage.REPLICA_STORAGE_BUCKET, secretFetch);
+  await Storage.createSignedReplicaUpload({
+    storageBucket: Storage.REPLICA_STORAGE_BUCKET,
+    objectPath: `${OWNER}/${REPLICA}/${SOURCE}/original`,
+  }, secretFetch);
   ok("sb_secret storage calls use apikey without Bearer authorization", secretCalls.every((call) =>
     call.init.headers.apikey === "sb_secret_unit-test-storage-admin"
     && !("Authorization" in call.init.headers)));
@@ -364,7 +372,12 @@ const SHA = "d".repeat(64);
 
   process.env.SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
   let refusedServiceRole = false;
-  try { await Storage.createSignedReplicaUpload(`${OWNER}/${REPLICA}/${SOURCE}/original`, fakeFetch); }
+  try {
+    await Storage.createSignedReplicaUpload({
+      storageBucket: Storage.REPLICA_STORAGE_BUCKET,
+      objectPath: `${OWNER}/${REPLICA}/${SOURCE}/original`,
+    }, fakeFetch);
+  }
   catch (error) { refusedServiceRole = error.code === "public_storage_key_must_not_be_service_role"; }
   process.env.SUPABASE_KEY = "unit-test-public-anon-key";
   ok("resumable upload refuses to expose a service-role key as apikey", refusedServiceRole);
@@ -373,7 +386,7 @@ const SHA = "d".repeat(64);
     status: 200, headers: { "content-type": "application/json" },
   });
   let refusedPublic = false;
-  try { await Storage.ensurePrivateReplicaBucket(publicFetch); } catch (error) {
+  try { await Storage.ensurePrivateReplicaBucket(Storage.REPLICA_STORAGE_BUCKET, publicFetch); } catch (error) {
     refusedPublic = error.code === "replica_bucket_must_be_private";
   }
   ok("a public biometric bucket is a hard failure", refusedPublic);
@@ -382,6 +395,78 @@ const SHA = "d".repeat(64);
   ok("biometric storage requires the dedicated service-role secret",
     /const key = process\.env\.SUPABASE_SERVICE_ROLE_KEY \|\| config\.SUPABASE_SERVICE_ROLE_KEY/.test(storageCode)
     && !/const key = [^;]*SUPABASE_KEY/.test(storageCode));
+}
+
+{
+  process.env.AZURE_REPLICA_STORAGE_ACCOUNT = "vyaktireplicatest";
+  process.env.AZURE_REPLICA_STORAGE_ACCOUNT_KEY = Buffer.alloc(64, 7).toString("base64");
+  process.env.AZURE_REPLICA_STORAGE_CONTAINER = "replica-private";
+  const azureBucket = "azureblob:vyaktireplicatest:replica-private";
+  const calls = [];
+  const artifact = Buffer.from("azure immutable artifact", "utf8");
+  const azureFetch = async (rawUrl, init = {}) => {
+    const url = new URL(rawUrl);
+    calls.push({ url, init });
+    if (url.hostname === "vyaktireplicatest.blob.core.windows.net") {
+      if (init.method === "HEAD" && url.searchParams.get("restype") === "container") {
+        return new Response(null, { status: 200 });
+      }
+      if (init.method === "HEAD") {
+        return new Response(null, { status: 200, headers: {
+          "content-length": url.pathname.includes("/derived/") ? String(artifact.length) : "4096",
+          "content-type": url.pathname.includes("/derived/") ? "application/octet-stream" : "audio/wav",
+          etag: '"azure-etag"',
+        } });
+      }
+      if (init.method === "PUT") return new Response(null, { status: 201 });
+      if (init.method === "DELETE") return new Response(null, { status: 202 });
+      if (!init.method || init.method === "GET") return new Response(artifact, { status: 200, headers: {
+        "content-length": String(artifact.length), "content-type": "application/octet-stream",
+      } });
+    }
+    throw new Error(`unexpected Azure storage URL ${url}`);
+  };
+  const locator = {
+    storageBucket: azureBucket,
+    objectPath: `${OWNER}/${REPLICA}/${SOURCE}/original`,
+  };
+  const checked = await Storage.ensurePrivateReplicaBucket(azureBucket, azureFetch);
+  const upload = await Storage.createSignedReplicaUpload(locator, azureFetch);
+  const uploadUrl = new URL(upload.url);
+  ok("Azure persists a durable provider locator without changing opaque object paths",
+    checked.provider === "azure_blob" && checked.bucket === azureBucket
+    && uploadUrl.pathname === `/replica-private/${OWNER}/${REPLICA}/${SOURCE}/original`);
+  ok("Azure browser capability is one-blob, HTTPS, create-only and never contains the account key",
+    uploadUrl.protocol === "https:" && uploadUrl.hostname === "vyaktireplicatest.blob.core.windows.net"
+    && uploadUrl.searchParams.get("sr") === "b" && uploadUrl.searchParams.get("sp") === "c"
+    && uploadUrl.searchParams.get("sv") === "2026-04-06"
+    && !/[rwdl]/.test(uploadUrl.searchParams.get("sp") || "")
+    && uploadUrl.searchParams.has("sig") && !upload.url.includes(process.env.AZURE_REPLICA_STORAGE_ACCOUNT_KEY));
+  ok("Azure large uploads use resumable blocks with create-only final commit headers",
+    upload.resumable?.protocol === "azure-block-v1" && upload.resumable.chunk_size === 8 * 1024 * 1024
+    && upload.headers["if-none-match"] === "*" && upload.headers["x-ms-blob-type"] === "BlockBlob");
+  const info = await Storage.replicaObjectInfo(locator, azureFetch);
+  ok("Azure finalize reads exact private blob size and MIME", info.byteSize === 4096 && info.mime === "audio/wav");
+  const signedRead = await Storage.createSignedReplicaRead(locator, { fetchImpl: azureFetch });
+  ok("Azure audition/read capability is read-only and bound to one blob",
+    new URL(signedRead.url).searchParams.get("sp") === "r" && new URL(signedRead.url).searchParams.get("sr") === "b");
+  const written = await Storage.writeImmutableReplicaArtifact({
+    bucket: azureBucket,
+    objectPath: `${OWNER}/${REPLICA}/${SOURCE}/derived/test/azure.bin`,
+    mime: "application/octet-stream",
+    body: artifact,
+    ifNoneMatch: "*",
+  }, { fetchImpl: azureFetch });
+  ok("Azure derived artifacts are create-only and byte-verified after write",
+    written.byteSize === artifact.length && calls.some((call) => call.init.method === "PUT"
+      && call.init.headers["If-None-Match"] === "*" && call.init.headers["x-ms-blob-type"] === "BlockBlob"));
+  await Storage.deleteReplicaObjects([locator], azureFetch);
+  ok("erasure dispatches only to the provider persisted with the object",
+    calls.some((call) => call.url.hostname.endsWith(".blob.core.windows.net") && call.init.method === "DELETE")
+    && !calls.some((call) => call.url.hostname === "unit-test.supabase.co" && call.init.method === "DELETE"));
+  delete process.env.AZURE_REPLICA_STORAGE_ACCOUNT;
+  delete process.env.AZURE_REPLICA_STORAGE_ACCOUNT_KEY;
+  delete process.env.AZURE_REPLICA_STORAGE_CONTAINER;
 }
 
 {
@@ -400,6 +485,8 @@ const SHA = "d".repeat(64);
   }, { sourceId: SOURCE });
   ok("database source row is owner-scoped", calls[0].params[1] === OWNER && /owner_user_id = \$2/.test(calls[0].sql));
   ok("source insert requires both capture and storage consent in SQL", /scope = 'capture'/.test(calls[0].sql) && /scope = 'storage'/.test(calls[0].sql));
+  ok("source insert serializes and caps abandoned pending uploads per owner",
+    /pg_advisory_xact_lock/.test(calls[0].sql) && /s\.state='pending_upload'\)<8/.test(calls[0].sql));
   ok("the client never chooses the stored path", source.object_path === `${OWNER}/${REPLICA}/${SOURCE}/original`);
   const identitySource = await Source.createPendingSource(db, OWNER, REPLICA, {
     purpose: "identity_document", kind: "document", mime: "application/pdf", byte_size: 4096,
@@ -422,6 +509,12 @@ for (const endpoint of ["api/replica-consent.js", "api/replica-source.js"]) {
     /"PATCH"/.test(browserUpload) && /"HEAD"/.test(browserUpload)
     && /file\.slice\(offset, end\)/.test(browserUpload)
     && /upload-offset/.test(browserUpload)
+    && !/file\.arrayBuffer\(/.test(browserUpload));
+  ok("browser Azure uploads restage deterministic blocks and commit create-only without read or whole-file buffering",
+    /putAzureBlockUpload/.test(browserUpload) && /azureBlockId\(index\)/.test(browserUpload)
+    && /file\.slice\(start, end\)/.test(browserUpload) && /"If-None-Match":\s*"\*"/.test(browserUpload)
+    && /"x-ms-content-crc64":\s*crc64/.test(browserUpload)
+    && !/azureRequest\("(?:GET|HEAD)"/.test(browserUpload)
     && !/file\.arrayBuffer\(/.test(browserUpload));
   ok("source picker queues multiple files and distinguishes upload from processing",
     /multiple=\{uploadMode !== "identity_document"\}/.test(workspace)

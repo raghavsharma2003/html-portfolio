@@ -215,7 +215,14 @@ console.log("\n── 3. provenance records the route that served the bytes ─�
   // The contract carries it. An unrecognized route on an audio ref is refused,
   // because a row stamped with a word this build does not know is a row nobody
   // can interpret later, which is the same as no provenance at all.
-  const base = { storagePath: "o/r/w/v/original", sha256: "a".repeat(64), mime: "audio/wav", byteSize: 1024, durationMs: 1000 };
+  const base = {
+    storageBucket: "vyakti-replica-private",
+    storagePath: "o/r/w/v/original",
+    sha256: "a".repeat(64),
+    mime: "audio/wav",
+    byteSize: 1024,
+    durationMs: 1000,
+  };
   eq(audioRef({ ...base, extractionRoute: "proxy" }).extractionRoute, "proxy",
     "audioRef carries a known route onto the ref");
   eq(audioRef(base).extractionRoute, "",

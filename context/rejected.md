@@ -4528,3 +4528,23 @@ bounded probes with roughly 555 s of budget. Bicep name resolution forces
 non-production runtime and broker names for `hindi_v3`; focused evals reject
 zero or over-60-second initial delays, a `gpu` resource member, insufficient
 startup budget, and reuse of either production name.
+
+## `neon-object-storage-beta-is-not-the-production-media-plane` (2026-08-27)
+
+**What was considered and rejected.** Spend the available Neon credits on
+hour-long source audio, either as Postgres `bytea` values or through Neon's new
+S3-compatible Object Storage beta, to remove the Supabase object ceiling.
+
+**What specifically breaks.** Database rows would amplify WAL, backups,
+branching and query-path pressure for data that is never relationally queried.
+Neon says its object product is beta, currently limited to AWS `us-east-2`,
+free under unpublished guardrails, and not yet feature-complete for production;
+the current Vyakti database is in a different region. Its copy-on-write branch
+inheritance is also unsafe as an assumed biometric-erasure contract until every
+descendant branch is discovered and purged.
+
+**What replaced it.** Neon keeps the high-value relational state and credits
+serve database compute. A dedicated private Azure Blob account stores large
+bytes under explicit locators, using the available Azure grant. Neon Object
+Storage may be benchmarked later behind the same registry only after region,
+limits, presigned multipart behavior and cross-branch erasure are proven.

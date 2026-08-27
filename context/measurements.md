@@ -5050,3 +5050,28 @@ model commitment, output hash and response HMAC in 542.696 s. This is n=1 per
 arm and proves transport, model load and synthesis only. It provides no human
 listening, owner likeness, accent, Hindi naturalness or comparative quality
 result; both cold latencies are unacceptable for an interactive path.
+
+## `azure-blob-platform-and-contract-local-2026-08-27`
+
+**Measured 2026-08-27 against one new Azure resource and deterministic local
+contracts.** One dedicated `StorageV2 Standard_LRS` account in Central India
+reached `Succeeded`; readback showed HTTPS-only true, TLS 1.2, public blob
+access false, one private container, soft deletion false, container soft
+deletion false and versioning false. One production-origin CORS preflight
+returned 200 with PUT allowed; one hostile-origin preflight returned 403 with
+no access-control grant.
+
+The focused Azure storage suite passed 23 deterministic checks after adding
+infrastructure coverage. It executes the CRC64-NVME `123456789` check vector,
+verifies exact `sr=b`, `sp=c`, `spr=https`, `sv=2026-04-06` capability shape,
+provider-specific routing with no fallback, mixed-provider erasure, and
+frontend/server protocol agreement. Replica enrollment, source erasure,
+voice enrollment and TypeScript checks also passed locally; source erasure
+contains 28 checks including a 24-hour, 25-row bounded abandoned-upload sweep.
+
+Scope: no deployed Vyakti API or worker used this account in this measurement,
+and no real object larger than 50 MiB was uploaded or processed. The account
+key remains a temporary service-SAS bridge because the available Contributor
+principal cannot grant managed-identity Blob roles. This measurement proves
+platform posture and offline contracts, not that the production bottleneck is
+closed.

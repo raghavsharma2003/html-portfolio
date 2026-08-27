@@ -510,7 +510,10 @@ async function opIngestWindow(db, ownerUserId, req) {
       // earn. The transcriber does its own read; a second read for every window
       // would buy latency inside a live call for nothing.
       if (pending.reference_admitted) {
-        const object = await readPrivateReplicaObject(ref.storagePath, { maxBytes: 33_554_432 });
+        const object = await readPrivateReplicaObject({
+          storageBucket: ref.storageBucket,
+          objectPath: ref.storagePath,
+        }, { maxBytes: 33_554_432 });
         bytes = object?.body ?? null;
       }
       const provider = configuredLiveAsrProvider();
@@ -890,7 +893,7 @@ function voicePanelDeps(db, ownerUserId, signal) {
     provider,
     authorize: (input) => beginOwnedVoicePreview(db, ownerUserId, input),
     markFailed: (generationId, error) => markVoicePreviewFailed(db, ownerUserId, generationId, error),
-    readObject: (objectPath) => readPrivateReplicaObject(objectPath, {
+    readObject: (locator) => readPrivateReplicaObject(locator, {
       maxBytes: 20 * 1024 * 1024,
       timeoutMs: 30_000,
     }),

@@ -155,7 +155,10 @@ export function createSarvamSaarasProvider(options = {}) {
   // Injected so the transport and the storage read are independently
   // replaceable — and so this file never becomes the second place that knows
   // how replica storage is addressed.
-  const readAudio = options.readAudio || ((ref) => readPrivateReplicaObject(ref.storagePath, {
+  const readAudio = options.readAudio || ((ref) => readPrivateReplicaObject({
+    storageBucket: ref.storageBucket,
+    objectPath: ref.storagePath,
+  }, {
     fetchImpl, maxBytes: MAX_AUDIO_BYTES, timeoutMs: 120_000,
   }));
   const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));

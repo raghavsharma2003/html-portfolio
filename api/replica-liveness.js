@@ -14,6 +14,7 @@ import { configuredFaceSessionBroker, configuredFaceSessionErasureBroker } from 
 import { deleteOwnedFaceSessionNow, pollOwnedFaceSession, startOwnedFaceSession } from "./_replica-face-session.js";
 import {
   ReplicaStorageError,
+  REPLICA_STORAGE_WRITE_BUCKET,
   ensurePrivateReplicaBucket,
   createSignedReplicaUpload,
   replicaObjectInfo,
@@ -26,6 +27,7 @@ const cors = (res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
 };
 
 const uploadResponse = (source, challenge, upload) => ({
@@ -35,6 +37,12 @@ const uploadResponse = (source, challenge, upload) => ({
     method: upload.method,
     url: upload.url,
     headers: { ...upload.headers, "content-type": source.mime },
+    ...(upload.resumable ? {
+      resumable: {
+        ...upload.resumable,
+        metadata: { ...upload.resumable.metadata, contentType: source.mime },
+      },
+    } : {}),
     expires_at: upload.expires_at,
   },
 });
@@ -101,11 +109,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ challenge });
     }
     if (body.op === "create_upload") {
-      await ensurePrivateReplicaBucket();
+      await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
       const source = await createChallengeSource(q, user.id, body.replica_id, body.challenge_id, body);
       if (!source) return res.status(409).json({ error: "challenge_expired_or_unavailable" });
       const challenge = await latestOwnedChallenge(q, user.id, body.replica_id);
-      const upload = await createSignedReplicaUpload(source.object_path);
+      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
       return res.status(201).json(uploadResponse(source, challenge, upload));
     }
     if (body.op === "finalize") {
@@ -113,7 +121,7 @@ export default async function handler(req, res) {
       if (!pending || pending.capture_mode !== "live_challenge") {
         return res.status(404).json({ error: "pending_challenge_source_not_found" });
       }
-      const info = await replicaObjectInfo(pending.object_path);
+      const info = await replicaObjectInfo({ storageBucket: pending.storage_bucket, objectPath: pending.object_path });
       const finalized = await finalizeChallengeSource(
         q,
         user.id,

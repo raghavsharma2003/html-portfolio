@@ -77,7 +77,7 @@ async function boundedResponseText(response) {
 export function createAzureCompositeLivenessVerifier(options = {}) {
   const config = azureCompositeLivenessConfig(options.env || process.env);
   const fetchImpl = options.fetchImpl || fetch;
-  const signRead = options.signRead || ((path) => createSignedReplicaRead(path, { expiresIn: 120 }));
+  const signRead = options.signRead || ((locator) => createSignedReplicaRead(locator, { expiresIn: 120 }));
   const descriptor = Object.freeze({
     name: "azure_face_speech_composite",
     version: config.version,
@@ -87,8 +87,8 @@ export function createAzureCompositeLivenessVerifier(options = {}) {
     ...descriptor,
     async verify(claim) {
       const [signed, identitySigned] = await Promise.all([
-        signRead(claim.source.objectPath),
-        signRead(claim.identityReference.objectPath),
+        signRead(claim.source),
+        signRead(claim.identityReference),
       ]);
       const payload = canonicalJson({
         protocol: PROTOCOL,

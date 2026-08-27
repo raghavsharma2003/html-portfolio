@@ -7,8 +7,8 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { assertSha256, sha256Hex } from "./contracts.js";
 import {
-  REPLICA_STORAGE_BUCKET,
   readPrivateReplicaObject,
+  replicaStorageBucketDescriptor,
   streamPrivateReplicaObject,
   writeImmutableReplicaArtifact,
 } from "../_replica-storage.js";
@@ -18,14 +18,16 @@ function fail(code) {
 }
 
 function scopedPath(source, input) {
-  if (source.storage_bucket !== REPLICA_STORAGE_BUCKET) fail("processing_storage_bucket_mismatch");
+  const storageBucket = String(input.storage_bucket || source.storage_bucket || "");
+  replicaStorageBucketDescriptor(storageBucket);
+  if (storageBucket !== source.storage_bucket) fail("processing_storage_bucket_mismatch");
   const objectPath = String(input.object_path || "");
   const root = `${source.owner_user_id}/${source.replica_id}/${source.source_id}/`;
   if (!objectPath.startsWith(root) || objectPath.includes("://") ||
       (!objectPath.endsWith("/original") && !objectPath.includes("/derived/"))) {
     fail("processing_storage_path_out_of_scope");
   }
-  return objectPath;
+  return Object.freeze({ storageBucket, objectPath });
 }
 
 export function createReplicaProcessingStorage(options = {}) {
@@ -34,12 +36,13 @@ export function createReplicaProcessingStorage(options = {}) {
   const bufferedMaxBytes = options.bufferedMaxBytes || options.maxBytes || 67_108_864;
 
   async function resolveStream({ source, input, signal }) {
-    const objectPath = scopedPath(source, input);
-    const object = await streamPrivateReplicaObject(objectPath, {
+    const locator = scopedPath(source, input);
+    const object = await streamPrivateReplicaObject(locator, {
       fetchImpl,
       maxBytes: sourceMaxBytes,
       timeoutMs: options.timeoutMs || 300_000,
       signal,
+      expectedObjectId: input.object_id || undefined,
     });
     const declaredMime = String(input.mime || "").split(";", 1)[0].trim().toLowerCase();
     if (object.mime !== declaredMime) fail("processing_storage_mime_mismatch");
@@ -48,11 +51,12 @@ export function createReplicaProcessingStorage(options = {}) {
 
   return Object.freeze({
     async resolveInput({ source, input }) {
-      const objectPath = scopedPath(source, input);
-      const object = await readPrivateReplicaObject(objectPath, {
+      const locator = scopedPath(source, input);
+      const object = await readPrivateReplicaObject(locator, {
         fetchImpl,
         maxBytes: bufferedMaxBytes,
         timeoutMs: options.timeoutMs || 120_000,
+        expectedObjectId: input.object_id || undefined,
       });
       const expected = assertSha256(input.sha256, "processing input sha256");
       if (sha256Hex(object.body) !== expected) fail("processing_storage_integrity_mismatch");

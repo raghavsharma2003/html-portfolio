@@ -88,11 +88,14 @@ export function langHint(value) {
  *  because the two seams are independent and a contract that trusted its
  *  neighbour's validation would be one refactor away from trusting nothing. */
 export function asrInput(value) {
+  const storageBucket = clean(value?.storageBucket ?? value?.storage_bucket, 192);
+  replicaStorageBucketDescriptor(storageBucket);
   const storagePath = clean(value?.storagePath ?? value?.storage_path, 512);
   if (!storagePath || storagePath.includes("://") || storagePath.startsWith("/")) fail("asr_audio_path_invalid", 400);
   const sha256 = String(value?.sha256 || "").toLowerCase();
   if (!SHA256.test(sha256)) fail("asr_audio_sha256_invalid", 400);
   return Object.freeze({
+    storageBucket,
     storagePath,
     sha256,
     mime: clean(value?.mime, 64),
@@ -160,3 +163,4 @@ export function assertAsrProvider(provider) {
   }
   return provider;
 }
+import { replicaStorageBucketDescriptor } from "../_replica-storage.js";

@@ -87,7 +87,7 @@ export interface SignedUpload {
   url: string;
   headers: Record<string, string>;
   resumable?: {
-    protocol: "tus-1.0";
+    protocol: "tus-1.0" | "azure-block-v1";
     endpoint: string;
     headers: Record<string, string>;
     metadata: Record<string, string>;

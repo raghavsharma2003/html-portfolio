@@ -78,7 +78,7 @@ export default async function handler(req, res) {
       trial_id: trial?.trialId,
       trial_side: trial?.side,
     });
-    const stored = await readPrivateReplicaObject(started.reference.objectPath, {
+    const stored = await readPrivateReplicaObject(started.reference, {
       maxBytes: 20 * 1024 * 1024,
       timeoutMs: 30_000,
     });

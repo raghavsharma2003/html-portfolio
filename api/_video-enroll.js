@@ -318,7 +318,8 @@ export async function enrollFromVideo(db, ownerUserId, input, deps = {}) {
   const diarizeStarted = Date.now();
   if (typeof deps.diarize === "function") {
     try {
-      const result = await deps.diarize({ objectPath: audio.storagePath, ownerUserId, replicaId: rid });
+      const result = await deps.diarize({ storageBucket: audio.storageBucket,
+        objectPath: audio.storagePath, ownerUserId, replicaId: rid });
       segments = Array.isArray(result?.segments) ? result.segments : null;
       receipts.push(stageReceipt("diarize", diarizeStarted, "ok", { segments: segments?.length || 0 }));
     } catch (error) {
@@ -335,7 +336,8 @@ export async function enrollFromVideo(db, ownerUserId, input, deps = {}) {
   let ranking;
   const scoreStarted = Date.now();
   try {
-    const bytes = await deps.fetchAudioBytes({ objectPath: audio.storagePath, ownerUserId, replicaId: rid });
+    const bytes = await deps.fetchAudioBytes({ storageBucket: audio.storageBucket,
+      objectPath: audio.storagePath, ownerUserId, replicaId: rid });
     ranking = rankReferenceWindows(bytes, { segments, limit: 12 });
   } catch (error) {
     const code = error instanceof WindowScoringError
@@ -421,7 +423,8 @@ export async function enrollFromVideo(db, ownerUserId, input, deps = {}) {
   const asrStarted = Date.now();
   if (typeof deps.transcribe === "function") {
     try {
-      transcript = await deps.transcribe({ objectPath: audio.storagePath, ownerUserId, replicaId: rid, durationMs: audio.durationMs });
+      transcript = await deps.transcribe({ storageBucket: audio.storageBucket, objectPath: audio.storagePath,
+        sha256: audio.sha256, ownerUserId, replicaId: rid, durationMs: audio.durationMs });
       receipts.push(stageReceipt("transcribe", asrStarted, "ok", {
         turns: transcript?.turns?.length || 0, chars: String(transcript?.text || "").length,
       }));

@@ -210,6 +210,10 @@ export function videoListing(values, sinceVideoId = "") {
  *  contract that returned a Buffer would put an hour of a real teacher's
  *  audio in a worker's heap and, on the next careless edit, in a log line. */
 export function audioRef(value) {
+  const storageBucket = clean(value?.storageBucket ?? value?.storage_bucket, 192);
+  const plainBucket = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(storageBucket);
+  const azureBucket = /^azureblob:[a-z0-9]{3,24}:[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(storageBucket);
+  if (!plainBucket && !azureBucket) fail("channel_audio_bucket_invalid");
   const storagePath = clean(value?.storagePath ?? value?.storage_path, 512);
   if (!storagePath || storagePath.includes("://") || storagePath.startsWith("/")) fail("channel_audio_path_invalid");
   const sha256 = String(value?.sha256 || "").toLowerCase();
@@ -228,7 +232,7 @@ export function audioRef(value) {
   const extractionRoute = clean(value?.extractionRoute ?? value?.extraction_route, 32);
   if (extractionRoute && !EXTRACTION_ROUTES.has(extractionRoute)) fail("channel_audio_route_invalid");
   return Object.freeze({
-    storagePath, sha256, mime, byteSize,
+    storageBucket, storagePath, sha256, mime, byteSize,
     durationMs: Math.round(durationMs),
     extractionRoute,
   });

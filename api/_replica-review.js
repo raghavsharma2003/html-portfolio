@@ -264,7 +264,7 @@ export async function getOwnedArtifactAudition(db, ownerUserId, value) {
   const artifactId = replicaId(value.artifact_id);
   const rows = await db(
     `with target as (
-       select a.artifact_id,a.object_path,a.mime,a.duration_ms
+       select a.artifact_id,a.storage_bucket,a.object_path,a.mime,a.duration_ms
          from vy_replica_processing_artifact a
          join vy_replica r on r.replica_id=a.replica_id and r.owner_user_id=a.owner_user_id
          join vy_replica_source s on s.source_id=a.source_id and s.replica_id=a.replica_id

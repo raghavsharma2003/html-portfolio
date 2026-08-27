@@ -31,7 +31,10 @@ export default async function handler(req, res) {
     if (body.op === "audition_artifact") {
       const artifact = await getOwnedArtifactAudition(q, user.id, body);
       if (!artifact) return res.status(404).json({ error: "artifact_not_found" });
-      const signed = await createSignedReplicaRead(artifact.object_path, { expiresIn: 60 });
+      const signed = await createSignedReplicaRead({
+        storageBucket: artifact.storage_bucket,
+        objectPath: artifact.object_path,
+      }, { expiresIn: 60 });
       return res.status(200).json({ audition: {
         artifact_id: artifact.artifact_id,
         mime: artifact.mime,

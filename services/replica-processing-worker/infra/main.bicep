@@ -11,6 +11,14 @@ param image string
 
 param supabaseUrl string
 
+@description('Dedicated Azure Blob account for new replica media. Leave all three Azure storage parameters empty to retain legacy Supabase writes.')
+param azureReplicaStorageAccount string = ''
+@secure()
+param azureReplicaStorageAccountKey string = ''
+param azureReplicaStorageContainer string = ''
+@description('Durable locator written into new source/artifact rows. Must name the configured Azure account and container when Azure storage is enabled.')
+param replicaStorageWriteBucket string = 'vyakti-replica-private'
+
 @description('Private evidence origin. Empty means the four voice-evidence steps stop at voice_evidence_unconfigured, which is a state rather than a failure.')
 param privateEvidenceOrigin string = ''
 
@@ -45,8 +53,15 @@ param acrUsername string = 'vyaktivoiceacr'
 @maxValue(2000)
 param azureApplicationBudgetUsd int = 1500
 
-assert immutableImage = contains(image, '@sha256:')
-assert supabaseHttps = startsWith(supabaseUrl, 'https://')
+var checkedImage = contains(image, '@sha256:') ? image : fail('image must be immutable by sha256 digest')
+var checkedSupabaseUrl = startsWith(supabaseUrl, 'https://') ? supabaseUrl : fail('supabaseUrl must use HTTPS')
+var azureStorageEnabled = !empty(azureReplicaStorageAccount) && !empty(azureReplicaStorageAccountKey) && !empty(azureReplicaStorageContainer)
+var azureStorageDisabled = empty(azureReplicaStorageAccount) && empty(azureReplicaStorageAccountKey) && empty(azureReplicaStorageContainer)
+var checkedAzureStorage = azureStorageEnabled ? true : azureStorageDisabled ? false : fail('Azure replica storage parameters must be configured together')
+var expectedAzureLocator = checkedAzureStorage ? 'azureblob:${azureReplicaStorageAccount}:${azureReplicaStorageContainer}' : 'vyakti-replica-private'
+var checkedWriteBucket = replicaStorageWriteBucket == expectedAzureLocator
+  ? replicaStorageWriteBucket
+  : fail('replicaStorageWriteBucket must match the configured storage backend')
 
 var evidenceEnv = empty(privateEvidenceOrigin) ? [] : [
   { name: 'AZURE_VOICE_EVIDENCE_ORIGIN', value: privateEvidenceOrigin }
@@ -81,6 +96,8 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
         { name: 'neon-url', value: neonUrl }
         { name: 'supabase-role', value: supabaseServiceRoleKey }
         { name: 'acr-password', value: acrPassword }
+      ], checkedAzureStorage ? [
+        { name: 'azure-replica-storage-key', value: azureReplicaStorageAccountKey }
       ], empty(privateEvidenceOrigin) ? [] : [
         { name: 'evidence-hmac', value: evidenceHmacSecret }
       ], empty(sarvamApiKey) ? [] : [
@@ -98,17 +115,22 @@ resource worker 'Microsoft.App/jobs@2024-03-01' = {
       containers: [
         {
           name: 'processor'
-          image: image
+          image: checkedImage
           env: concat([
             { name: 'NEON_URL', secretRef: 'neon-url' }
-            { name: 'SUPABASE_URL', value: supabaseUrl }
+            { name: 'SUPABASE_URL', value: checkedSupabaseUrl }
             { name: 'SUPABASE_SERVICE_ROLE_KEY', secretRef: 'supabase-role' }
+            { name: 'REPLICA_STORAGE_WRITE_BUCKET', value: checkedWriteBucket }
             { name: 'CLAMAV_ADAPTER_VERSION', value: 'clamav-1.4.3-debian12' }
             { name: 'FFPROBE_ADAPTER_VERSION', value: 'ffprobe-debian12' }
             { name: 'AZURE_REPLICA_APP_BUDGET_USD', value: string(azureApplicationBudgetUsd) }
             { name: 'PROCESSING_JOBS_PER_RUN', value: '4' }
             { name: 'PROCESSING_RUN_BUDGET_MS', value: '3300000' }
-          ], evidenceEnv, sarvamEnv)
+          ], checkedAzureStorage ? [
+            { name: 'AZURE_REPLICA_STORAGE_ACCOUNT', value: azureReplicaStorageAccount }
+            { name: 'AZURE_REPLICA_STORAGE_ACCOUNT_KEY', secretRef: 'azure-replica-storage-key' }
+            { name: 'AZURE_REPLICA_STORAGE_CONTAINER', value: azureReplicaStorageContainer }
+          ] : [], evidenceEnv, sarvamEnv)
           resources: { cpu: json('1.0'), memory: '2Gi' }
         }
       ]

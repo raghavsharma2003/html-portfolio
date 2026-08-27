@@ -473,6 +473,10 @@ const suites = {
   // uploaded only through a short-lived capability into a verified private
   // bucket. Offline, deterministic, no DB or storage call.
   replicaenrollment: "replica-enrollment/run.mjs",
+  // Azure Blob large-media seam: create-only browser SAS, durable provider
+  // locators, deterministic checksummed blocks, mixed-provider processing and
+  // exact erasure. Every provider response is an offline fixture.
+  azureblob: "azure-blob-storage/run.mjs",
   // Studio enrollment truth: owner-labeled language coverage never becomes
   // automatic detection, and a selected or processing calibration never reads
   // as a ready Hindi/Hinglish reference. Offline, deterministic, no media call.

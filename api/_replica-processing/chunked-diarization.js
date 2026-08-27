@@ -121,6 +121,7 @@ export function createChunkedDiarizationAdapter(options = {}) {
           const body = await extractWindow(startMs, endMs, { rate: 16_000 });
           const chunkInput = Object.freeze({
             artifact_id: null,
+            storage_bucket: input.storage_bucket || request.source?.storage_bucket,
             object_path: input.object_path,
             sha256: sha256Hex(body),
             mime: "audio/wav",

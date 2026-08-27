@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
 import { clientSource, privateObjectPath, sourceUploadInput, verifyStoredObject } from "./_replica-source.js";
-import { REPLICA_STORAGE_BUCKET } from "./_replica-storage.js";
+import { REPLICA_STORAGE_WRITE_BUCKET } from "./_replica-storage.js";
 import { azurePersonalVoiceConfig } from "./_voice/providers/azure-personal-voice.js";
 import {
   decryptProviderConsentName,
@@ -257,7 +257,7 @@ export async function createProviderConsentSource(db, ownerUserId, id, consent, 
               jsonb_build_object('provider','azure_personal_voice','byte_size',byte_size)
          from inserted
      ) select * from inserted`,
-    [rid, ownerUserId, pcid, sourceId, REPLICA_STORAGE_BUCKET, path, input.mime,
+    [rid, ownerUserId, pcid, sourceId, REPLICA_STORAGE_WRITE_BUCKET, path, input.mime,
       input.byteSize, input.durationMs, input.sha256, provenance],
   );
   return rows[0] || null;
@@ -298,6 +298,7 @@ export async function finalizeProviderConsentSource(
   const consentState = verdict.ok ? "uploaded" : "failed";
   const facts = JSON.stringify({
     storage_metadata_verified: verdict.ok,
+    storage_object_id: verdict.ok ? String(objectInfo.objectId || "").slice(0, 256) : "",
     sha256_status: "pending_server_verification",
     duration_status: "client_declared_pending_server_probe",
   });

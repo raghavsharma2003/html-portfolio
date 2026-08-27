@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { replicaId } from "./_replica.js";
-import { REPLICA_STORAGE_BUCKET } from "./_replica-storage.js";
+import { REPLICA_STORAGE_WRITE_BUCKET } from "./_replica-storage.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -126,6 +126,12 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
         where c.owner_user_id = $2::uuid and c.scope = 'storage'
           and c.policy_version = o.policy_version and c.revoked_at is null
           and (c.expires_at is null or c.expires_at > now()) limit 1
+     ), pending_lock as materialized (
+       select pg_advisory_xact_lock(hashtextextended($2::text||':replica_pending_upload',0)) acquired
+     ), pending_budget as (
+       select 1 from owned cross join pending_lock
+        where (select count(*) from vy_replica_source s
+                where s.owner_user_id=$2::uuid and s.state='pending_upload')<8
      ), inserted as (
        insert into vy_replica_source
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
@@ -133,7 +139,7 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
           contains_third_parties, provenance)
        select $3::uuid, owned.replica_id, $2::uuid, capture.consent_id, $4, $12,
               $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb
-         from owned cross join capture cross join storage_ok
+         from owned cross join capture cross join storage_ok cross join pending_budget
        returning ${SOURCE_RETURNING}
      ), audit as (
        insert into vy_replica_audit
@@ -146,7 +152,7 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
          from inserted
      )
      select * from inserted`,
-    [rid, ownerUserId, sourceId, input.kind, REPLICA_STORAGE_BUCKET, path, input.mime,
+    [rid, ownerUserId, sourceId, input.kind, REPLICA_STORAGE_WRITE_BUCKET, path, input.mime,
       input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode],
   );
   return rows[0] || null;
@@ -202,6 +208,7 @@ export async function finalizeOwnedSource(db, ownerUserId, id, source, objectInf
   const state = verdict.ok ? "quarantined" : "rejected";
   const facts = JSON.stringify({
     storage_metadata_verified: verdict.ok,
+    storage_object_id: verdict.ok ? String(objectInfo.objectId || "").slice(0, 256) : "",
     sha256_status: "pending_server_verification",
   });
   const rows = await db(

@@ -57,7 +57,10 @@ export function createSarvamSyncProvider(options = {}) {
   const timeoutMs = Number(options.timeoutMs || 60_000);
   // Injected, so this file never becomes a second place that knows how the
   // private replica bucket is addressed.
-  const readAudio = options.readAudio || ((ref) => readPrivateReplicaObject(ref.storagePath, {
+  const readAudio = options.readAudio || ((ref) => readPrivateReplicaObject({
+    storageBucket: ref.storageBucket,
+    objectPath: ref.storagePath,
+  }, {
     fetchImpl, maxBytes: MAX_AUDIO_BYTES, timeoutMs,
   }));
   const auth = { "api-subscription-key": apiKey };

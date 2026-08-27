@@ -3357,6 +3357,25 @@
       "kind": "rejection",
       "title": "Microsoft.App rejects a gpu resource member and probe initial delays above 60 seconds; Hindi must also use non-production app names",
       "at": "2026-08-27"
+    },
+    {
+      "id": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators",
+      "kind": "decision",
+      "title": "Neon owns relational state while explicit durable locators route large private media to legacy Supabase or dedicated Azure Blob",
+      "at": "2026-08-27",
+      "status": "Azure platform provisioned; production application rollout pending"
+    },
+    {
+      "id": "azure-blob-platform-and-contract-local-2026-08-27",
+      "kind": "measurement",
+      "title": "Dedicated private Azure Blob posture and 23 storage contract checks passed; no production media smoke yet",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "neon-object-storage-beta-is-not-the-production-media-plane",
+      "kind": "rejection",
+      "title": "Neon bytea and the us-east-2 beta object store do not meet production long-media and biometric-erasure requirements",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6534,6 +6553,26 @@
       "src": "hindi-voice-release-separates-mitigation-from-model-promotion",
       "rel": "measured_by",
       "dst": "hindi-voice-production-release-2026-08-27"
+    },
+    {
+      "src": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators",
+      "rel": "measured_by",
+      "dst": "azure-blob-platform-and-contract-local-2026-08-27"
+    },
+    {
+      "src": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators",
+      "rel": "caused_by",
+      "dst": "per-bucket-limit-cannot-bypass-the-project-global-limit"
+    },
+    {
+      "src": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators",
+      "rel": "caused_by",
+      "dst": "neon-object-storage-beta-is-not-the-production-media-plane"
+    },
+    {
+      "src": "replica-media-uses-neon-metadata-and-durable-azure-blob-locators",
+      "rel": "part_of",
+      "dst": "large-replica-media-is-direct-disk-bounded-and-chunked"
     }
   ]
 }

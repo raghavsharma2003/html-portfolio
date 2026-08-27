@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       provider,
       authorize: (input) => beginOwnedVoicePreview(q, user.id, input),
       markFailed: (generationId, error) => markVoicePreviewFailed(q, user.id, generationId, error),
-      readObject: (objectPath) => readPrivateReplicaObject(objectPath, {
+      readObject: (locator) => readPrivateReplicaObject(locator, {
         maxBytes: 20 * 1024 * 1024,
         timeoutMs: 30_000,
       }),

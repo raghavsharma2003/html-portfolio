@@ -87,13 +87,15 @@ function productionDeps(env = process.env) {
         },
       );
     },
-    fetchAudioBytes: async ({ objectPath }) => {
+    fetchAudioBytes: async ({ storageBucket, objectPath }) => {
       const { readPrivateReplicaObject } = await import("./_replica-storage.js");
-      return readPrivateReplicaObject(objectPath);
+      return readPrivateReplicaObject({ storageBucket, objectPath });
     },
-    transcribe: async ({ objectPath, durationMs }) => {
+    transcribe: async ({ storageBucket, objectPath, sha256, durationMs }) => {
       if (!asr) throw Object.assign(new Error("asr_unavailable"), { code: "asr_unavailable", status: 503 });
-      const result = await asr.transcribe({ storagePath: objectPath, mime: "audio/wav", durationMs }, "hi");
+      const result = await asr.transcribe({
+        storageBucket, storagePath: objectPath, sha256, mime: "audio/wav", durationMs,
+      }, "hi");
       return { turns: result.turns, text: result.turns.map((turn) => turn.text).join(" ") };
     },
   };

@@ -67,10 +67,28 @@ export function azurePersonalVoiceConfig(env = process.env) {
   if (!companyName || Array.from(companyName).length > 80) fail("azure_personal_voice_company_required");
   const model = identifier(env.AZURE_PERSONAL_VOICE_BASE_MODEL, "azure_personal_voice_model_required");
   if (/latest/i.test(model)) fail("azure_personal_voice_model_must_be_version_pinned");
-  let privateOrigin;
-  try { privateOrigin = new URL(String(env.SUPABASE_URL || "")).origin; } catch { fail("private_storage_origin_required"); }
-  if (!privateOrigin.startsWith("https://")) fail("private_storage_origin_required");
-  return Object.freeze({ endpoint, ttsEndpoint, key, projectId, companyName, model, privateOrigin });
+  const privateStorageTargets = [];
+  try {
+    const supabase = new URL(String(env.SUPABASE_URL || ""));
+    if (supabase.protocol === "https:") privateStorageTargets.push(Object.freeze({
+      provider: "supabase",
+      origin: supabase.origin,
+      pathPrefix: `/storage/v1/object/sign/${encodeURIComponent(env.REPLICA_STORAGE_BUCKET || "vyakti-replica-private")}/`,
+    }));
+  } catch { /* Azure-only deployments do not require a Supabase media origin. */ }
+  const storageAccount = String(env.AZURE_REPLICA_STORAGE_ACCOUNT || "").trim();
+  const storageContainer = String(env.AZURE_REPLICA_STORAGE_CONTAINER || "").trim();
+  if (/^[a-z0-9]{3,24}$/.test(storageAccount) &&
+      /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/.test(storageContainer)) {
+    privateStorageTargets.push(Object.freeze({
+      provider: "azure_blob",
+      origin: `https://${storageAccount}.blob.core.windows.net`,
+      pathPrefix: `/${encodeURIComponent(storageContainer)}/`,
+    }));
+  }
+  if (!privateStorageTargets.length) fail("private_storage_origin_required");
+  return Object.freeze({ endpoint, ttsEndpoint, key, projectId, companyName, model,
+    privateStorageTargets: Object.freeze(privateStorageTargets) });
 }
 
 // Erasure deliberately has a smaller configuration surface than creation or
@@ -232,7 +250,12 @@ export function createAzurePersonalVoiceProvider(options = {}) {
   async function privateAudio(reference, signal) {
     let url;
     try { url = new URL(reference.signedReadUrl); } catch { fail("azure_personal_voice_signed_url_invalid", 400); }
-    if (url.protocol !== "https:" || url.origin !== config.privateOrigin || url.username || url.password)
+    const target = config.privateStorageTargets.find((entry) =>
+      url.origin === entry.origin && url.pathname.startsWith(entry.pathPrefix));
+    const capabilityValid = target?.provider === "azure_blob"
+      ? url.searchParams.get("sr") === "b" && url.searchParams.get("sp") === "r" && url.searchParams.has("sig")
+      : url.searchParams.has("token");
+    if (url.protocol !== "https:" || url.username || url.password || !target || !capabilityValid)
       fail("azure_personal_voice_signed_url_invalid", 400);
     let response;
     try {

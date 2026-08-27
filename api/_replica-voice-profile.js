@@ -1,5 +1,5 @@
 import { replicaId, REPLICA_POLICY_VERSION } from "./_replica.js";
-import { REPLICA_STORAGE_BUCKET } from "./_replica-storage.js";
+import { replicaStorageBucketDescriptor } from "./_replica-storage.js";
 import { decryptProviderConsentName } from "./_replica-provider-consent-crypto.js";
 import {
   PROVIDER_CONSENT_LOCALE,
@@ -40,7 +40,8 @@ function consentCryptoBinding(row) {
 function privatePath(row, derived = false) {
   const prefix = `${row.owner_user_id}/${row.replica_id}/${row.source_id}/`;
   const path = String(row.object_path || "");
-  if (row.storage_bucket !== REPLICA_STORAGE_BUCKET || !path.startsWith(prefix) || path.includes("://") ||
+  replicaStorageBucketDescriptor(row.storage_bucket);
+  if (!path.startsWith(prefix) || path.includes("://") ||
       (derived ? !path.includes("/derived/") : !path.endsWith("/original"))) {
     fail("voice_enrollment_private_lineage_invalid");
   }
@@ -95,7 +96,8 @@ const ENROLLMENT_SQL = `select r.replica_id,r.owner_user_id,r.policy_version,
     'owner_user_id',a.owner_user_id,'stage',a.stage,'storage_bucket',a.storage_bucket,
     'object_path',a.object_path,'mime',a.mime,'byte_size',a.byte_size,'duration_ms',a.duration_ms,
     'sha256',a.sha256,'adapter_name',a.adapter_name,'adapter_version',a.adapter_version,
-    'source_state',s.state,'contains_third_parties',s.contains_third_parties
+    'source_state',s.state,'source_storage_bucket',s.storage_bucket,
+    'contains_third_parties',s.contains_third_parties
   ) order by a.source_id,a.artifact_id)
   from jsonb_array_elements_text(coalesce(vg.definition#>'{references,enrollment_artifact_ids}','[]'::jsonb)) wanted(id)
   join vy_replica_processing_artifact a on a.artifact_id=wanted.id::uuid
@@ -143,9 +145,14 @@ export async function latestOwnedApprovedVoiceGenome(db, ownerUserId, id) {
 }
 
 function normalizedSignedRead(value) {
-  const url = String(value?.url || "");
-  if (!/^https:\/\//.test(url) || !url.includes("token=")) fail("voice_enrollment_signed_read_invalid", 503);
-  return url;
+  let url;
+  try { url = new URL(String(value?.url || "")); } catch { fail("voice_enrollment_signed_read_invalid", 503); }
+  const azure = url.hostname.endsWith(".blob.core.windows.net") &&
+    url.searchParams.get("sr") === "b" && url.searchParams.get("sp") === "r" && url.searchParams.has("sig");
+  if (url.protocol !== "https:" || url.username || url.password || (!azure && !url.searchParams.has("token"))) {
+    fail("voice_enrollment_signed_read_invalid", 503);
+  }
+  return url.toString();
 }
 
 export async function materializeAzureVoiceEnrollment(enrollment, signRead, env = process.env) {
@@ -172,6 +179,9 @@ export async function materializeAzureVoiceEnrollment(enrollment, signRead, env 
   if (!Number.isInteger(consentDuration) || consentDuration < 5_000 || consentDuration > 90_000)
     fail("voice_enrollment_consent_duration_invalid");
   const artifacts = selectAzureEnrollmentArtifacts(enrollment.artifacts);
+  if (artifacts.some((row) => row.storage_bucket !== row.source_storage_bucket)) {
+    fail("voice_enrollment_private_lineage_invalid");
+  }
   const commitment = sha256Hex(canonicalJson({
     protocol: "vyakti-azure-voice-enrollment/v1",
     replica_id: enrollment.replica_id,
@@ -187,8 +197,8 @@ export async function materializeAzureVoiceEnrollment(enrollment, signRead, env 
     model: config.model,
   }));
   const [consentRead, ...artifactReads] = await Promise.all([
-    signRead(enrollment.consent_object_path),
-    ...artifacts.map((row) => signRead(row.object_path)),
+    signRead({ storageBucket: enrollment.consent_storage_bucket, objectPath: enrollment.consent_object_path }),
+    ...artifacts.map((row) => signRead({ storageBucket: row.storage_bucket, objectPath: row.object_path })),
   ]);
   return Object.freeze({
     enrollmentCommitment: commitment,

@@ -6,7 +6,7 @@ import {
   clientSource,
   verifyStoredObject,
 } from "./_replica-source.js";
-import { REPLICA_STORAGE_BUCKET } from "./_replica-storage.js";
+import { REPLICA_STORAGE_WRITE_BUCKET } from "./_replica-storage.js";
 import { canonicalJson } from "./_provenance/contracts.js";
 
 const COLORS = ["neela", "kesari", "hara", "jamuni", "silver", "cobalt"];
@@ -325,7 +325,7 @@ export async function createChallengeSource(db, ownerUserId, id, challenge, valu
               jsonb_build_object('kind', kind, 'byte_size', byte_size) from inserted
      )
      select * from inserted`,
-    [rid, ownerUserId, cid, sourceId, input.kind, REPLICA_STORAGE_BUCKET, path,
+    [rid, ownerUserId, cid, sourceId, input.kind, REPLICA_STORAGE_WRITE_BUCKET, path,
       input.mime, input.byteSize, input.sha256, provenance],
   );
   return rows[0] || null;
@@ -372,6 +372,7 @@ export async function finalizeChallengeSource(
   const challengeState = verdict.ok ? "uploaded" : "failed";
   const facts = JSON.stringify({
     storage_metadata_verified: verdict.ok,
+    storage_object_id: verdict.ok ? String(objectInfo.objectId || "").slice(0, 256) : "",
     sha256_status: "pending_server_verification",
   });
   const rows = await db(

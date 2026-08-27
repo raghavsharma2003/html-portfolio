@@ -78,8 +78,10 @@ export function createProductionChannelProvider(env = process.env, options = {})
  *  a channel provider exists. The eval never reaches this function; it injects
  *  its own `signUpload`. */
 async function defaultSignUpload(objectPath) {
-  const { createSignedReplicaUpload } = await import("../_replica-storage.js");
-  return createSignedReplicaUpload(objectPath);
+  const { createSignedReplicaUpload, ensurePrivateReplicaBucket, REPLICA_STORAGE_WRITE_BUCKET } =
+    await import("../_replica-storage.js");
+  await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
+  return createSignedReplicaUpload({ storageBucket: REPLICA_STORAGE_WRITE_BUCKET, objectPath });
 }
 
 /** The sweep endpoint's spelling: absent config DISABLES the lane rather than

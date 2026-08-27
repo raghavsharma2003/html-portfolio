@@ -95,7 +95,7 @@ function equal(left, right) {
 export function createSelfHostedAsrProvider(options = {}) {
   const config = selfHostedAsrConfig(options.env || process.env);
   const fetchImpl = options.fetchImpl || fetch;
-  const signRead = options.signRead || ((path) => createSignedReplicaRead(path, { fetchImpl }));
+  const signRead = options.signRead || ((locator) => createSignedReplicaRead(locator, { fetchImpl }));
 
   return Object.freeze({
     name: NAME,
@@ -106,7 +106,7 @@ export function createSelfHostedAsrProvider(options = {}) {
       const ref = asrInput(rawRef);
       const language = langHint(hint);
       const requestId = randomUUID();
-      const signed = await signRead(ref.storagePath);
+      const signed = await signRead({ storageBucket: ref.storageBucket, objectPath: ref.storagePath });
       const readUrl = String(signed?.url || signed || "");
       if (!readUrl.startsWith("https://")) fail("asr_signed_read_unavailable");
 

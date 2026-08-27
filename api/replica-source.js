@@ -11,6 +11,7 @@ import {
 } from "./_replica-source.js";
 import {
   ReplicaStorageError,
+  REPLICA_STORAGE_WRITE_BUCKET,
   ensurePrivateReplicaBucket,
   createSignedReplicaUpload,
   replicaObjectInfo,
@@ -21,6 +22,7 @@ const cors = (res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
 };
 
 const uploadResponse = (source, upload) => ({
@@ -51,17 +53,17 @@ export default async function handler(req, res) {
     const body = req.body || {};
 
     if (body.op === "create_upload") {
-      await ensurePrivateReplicaBucket();
+      await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
       const source = await createPendingSource(q, user.id, body.replica_id, body);
       if (!source) return res.status(409).json({ error: "capture_and_storage_consent_required" });
-      const upload = await createSignedReplicaUpload(source.object_path);
+      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
       return res.status(201).json(uploadResponse(source, upload));
     }
     if (body.op === "retry_upload") {
-      await ensurePrivateReplicaBucket();
       const source = await getPendingSource(q, user.id, body.replica_id, body.source_id);
       if (!source) return res.status(404).json({ error: "pending_source_not_found" });
-      const upload = await createSignedReplicaUpload(source.object_path);
+      await ensurePrivateReplicaBucket(source.storage_bucket);
+      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
       return res.status(200).json(uploadResponse(source, upload));
     }
     if (body.op === "finalize") {
@@ -76,7 +78,7 @@ export default async function handler(req, res) {
       if (pending.capture_mode === "provider_consent") {
         return res.status(409).json({ error: "use_provider_consent_finalize" });
       }
-      const info = await replicaObjectInfo(pending.object_path);
+      const info = await replicaObjectInfo({ storageBucket: pending.storage_bucket, objectPath: pending.object_path });
       const source = await finalizeOwnedSource(q, user.id, body.replica_id, body.source_id, info);
       return source
         ? res.status(source.state === "quarantined" ? 200 : 409).json({ source: clientSource(source) })

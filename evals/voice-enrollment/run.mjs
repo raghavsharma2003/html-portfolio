@@ -58,7 +58,11 @@ function ok(name, condition) {
 }
 
 const storageCalls = [];
-const signed = await createSignedReplicaRead(`${OWNER}/${RID}/${CONSENT_SOURCE}/original`, {
+const consentLocator = {
+  storageBucket: "vyakti-replica-private",
+  objectPath: `${OWNER}/${RID}/${CONSENT_SOURCE}/original`,
+};
+const signed = await createSignedReplicaRead(consentLocator, {
   expiresIn: 300,
   fetchImpl: async (url, init) => {
     storageCalls.push({ url, init });
@@ -71,7 +75,7 @@ ok("private read capability is short-lived and bound to the Supabase storage ori
   signed.url.startsWith("https://private.example/storage/v1/object/sign/vyakti-replica-private/") && signed.url.includes("token=opaque"));
 ok("signed read is issued server-side with a bounded five-minute expiry",
   storageCalls[0].init.method === "POST" && JSON.parse(storageCalls[0].init.body).expiresIn === 300);
-await assert.rejects(createSignedReplicaRead(`${OWNER}/${RID}/${CONSENT_SOURCE}/original`, {
+await assert.rejects(createSignedReplicaRead(consentLocator, {
   fetchImpl: async () => new Response(JSON.stringify({ signedURL: "https://attacker.invalid/object/sign/x?token=stolen" }), {
     status: 200, headers: { "Content-Type": "application/json" },
   }),
@@ -84,6 +88,7 @@ function artifact(overrides = {}) {
   return {
     artifact_id: artifactId, source_id: sourceId, replica_id: RID, owner_user_id: OWNER,
     stage: "enhance", storage_bucket: "vyakti-replica-private",
+    source_storage_bucket: "vyakti-replica-private",
     object_path: `${OWNER}/${RID}/${sourceId}/derived/enhancement-v1/enhance/${artifactId}`,
     mime: "audio/wav", byte_size: 620_000, duration_ms: 31_000,
     sha256: overrides.sha256 || SHA_A, adapter_name: "identity-preserving-enhancer",
@@ -130,18 +135,19 @@ const enrollment = {
     duration_ms: 32_000, object_path: `${OWNER}/${RID}/${SOURCE_B}/derived/enhancement-v1/enhance/${ARTIFACT_B}` })],
 };
 const signPaths = [];
-const prepared = await materializeAzureVoiceEnrollment(enrollment, async (path) => {
-  signPaths.push(path);
-  return { url: `https://private.example/storage/v1/object/sign/vyakti-replica-private/${path}?token=opaque` };
+const prepared = await materializeAzureVoiceEnrollment(enrollment, async (locator) => {
+  signPaths.push(locator);
+  return { url: `https://private.example/storage/v1/object/sign/vyakti-replica-private/${locator.objectPath}?token=opaque` };
 }, env);
 ok("materialization binds exact consent name locale source hashes genome and pinned model",
   prepared.input.consent.voiceTalentName === fullName && prepared.input.consent.locale === "en-US" &&
   prepared.input.genomeVersion === 3 && prepared.input.references.length === 2 && /^[0-9a-f]{64}$/.test(prepared.enrollmentCommitment));
 ok("only short-lived reads for the exact consent and approved artifacts are materialized",
-  signPaths.length === 3 && signPaths[0] === enrollment.consent_object_path &&
-  signPaths.slice(1).every((path) => path.includes("/derived/")));
-const rePrepared = await materializeAzureVoiceEnrollment(enrollment, async (path) => ({
-  url: `https://private.example/storage/v1/object/sign/vyakti-replica-private/${path}?token=different`,
+  signPaths.length === 3 && signPaths[0].objectPath === enrollment.consent_object_path &&
+  signPaths.every((locator) => locator.storageBucket === "vyakti-replica-private") &&
+  signPaths.slice(1).every((locator) => locator.objectPath.includes("/derived/")));
+const rePrepared = await materializeAzureVoiceEnrollment(enrollment, async (locator) => ({
+  url: `https://private.example/storage/v1/object/sign/vyakti-replica-private/${locator.objectPath}?token=different`,
 }), env);
 ok("signed token rotation cannot change enrollment or profile identity",
   prepared.enrollmentCommitment === rePrepared.enrollmentCommitment && prepared.voiceProfileId === rePrepared.voiceProfileId &&

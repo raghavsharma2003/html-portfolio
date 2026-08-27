@@ -87,6 +87,7 @@ export function createFakeChannelProvider(options = {}) {
       const path = `fixture-owner/fixture-replica/${video.videoId}/original`;
       store.put(path, found.turns);
       return audioRef({
+        storageBucket: "fixture-private",
         storagePath: path,
         sha256: hashOf(video.videoId),
         mime: "audio/wav",

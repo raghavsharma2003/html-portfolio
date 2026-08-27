@@ -127,6 +127,7 @@ export function createSarvamTranscriptionAdapter(options = {}) {
             readAudio: async () => ({ body: resolved.body, mime: resolved.mime, byteSize: resolved.byteSize }),
           });
           const ref = {
+            storageBucket: input.storage_bucket || source.storage_bucket,
             storagePath: String(input.object_path || "").replace(/^\/+/, ""),
             sha256: input.sha256,
             mime: resolved.mime,

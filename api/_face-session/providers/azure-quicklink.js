@@ -110,7 +110,7 @@ function exactIso(value, code) {
 export function createAzureFaceSessionBroker(options = {}) {
   const config = azureFaceSessionConfig(options.env || process.env, options);
   const fetchImpl = options.fetchImpl || fetch;
-  const signRead = options.signRead || ((path) => createSignedReplicaRead(path, { expiresIn: 120 }));
+  const signRead = options.signRead || ((locator) => createSignedReplicaRead(locator, { expiresIn: 120 }));
   async function call(path, payload, request = {}) {
     let lastError;
     const attempts = Math.max(1, Math.min(2, Number(request.attempts || 2)));
@@ -178,7 +178,7 @@ export function createAzureFaceSessionBroker(options = {}) {
     version: config.version,
     modelVersion: config.modelVersion,
     async create(claim) {
-      const signed = await signRead(claim.identityReference.objectPath);
+      const signed = await signRead(claim.identityReference);
       const result = await call("/v1/liveness/session", {
         ...base(claim),
         device_correlation_id: faceDeviceCorrelationId(claim.ownerUserId, claim.clientDeviceId, config.deviceKey),

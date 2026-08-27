@@ -77,12 +77,12 @@ async function boundedText(response) {
 export function createAzureCompositeIdentityVerifier(options = {}) {
   const config = azureCompositeIdentityConfig(options.env || process.env);
   const fetchImpl = options.fetchImpl || fetch;
-  const signRead = options.signRead || ((path) => createSignedReplicaRead(path, { expiresIn: 120 }));
+  const signRead = options.signRead || ((locator) => createSignedReplicaRead(locator, { expiresIn: 120 }));
   const descriptor = Object.freeze({ name: "azure_identity_composite", version: config.version });
   return Object.freeze({
     ...descriptor,
     async verify(claim) {
-      const signed = await signRead(claim.source.objectPath);
+      const signed = await signRead(claim.source);
       const body = canonicalJson({
         protocol: PROTOCOL,
         request_id: `${claim.identityCaseId}:${claim.attempt}`,

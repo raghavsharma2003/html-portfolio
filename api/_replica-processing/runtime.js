@@ -19,7 +19,7 @@ const INPUT_STAGE = Object.freeze({ enhance: "separate", voice_quality: "enhance
 export async function loadLeasedProcessingContext(db, job) {
   const sources = await db(
     `select s.source_id,s.replica_id,s.owner_user_id,s.kind,s.state,s.storage_bucket,s.object_path,
-            s.mime,s.byte_size,s.duration_ms,s.sha256,s.contains_third_parties
+            s.mime,s.byte_size,s.duration_ms,s.sha256,s.contains_third_parties,s.provenance
        from vy_replica_processing_job j
        join vy_replica_source s on s.source_id=j.source_id and s.replica_id=j.replica_id
         and s.owner_user_id=j.owner_user_id

@@ -233,7 +233,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
         order by d.artifact_id,d.created_at desc,d.decision_id desc
      ), eligible_pool as materialized (
        select r.*,vg.version genome_version,vg.status genome_status,
-              a.artifact_id,a.source_id,a.object_path,a.mime,a.byte_size,a.duration_ms,a.sha256,
+              a.artifact_id,a.source_id,a.storage_bucket,a.object_path,a.mime,a.byte_size,a.duration_ms,a.sha256,
               a.stage,'selected'::text selection_decision,
               selected.created_at selection_created_at,selected.decision_id selection_decision_id,
               s.state source_state,s.contains_third_parties,
@@ -314,7 +314,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
        returning *
      ) select i.*,e.subject_mode,e.lifecycle,e.policy_version replica_policy_version,
               e.age_verified_at,e.identity_verified_at,e.liveness_verified_at,e.identity_expires_at,
-              e.artifact_id,e.source_id,e.object_path,e.mime,e.byte_size,e.duration_ms,e.sha256,e.stage,
+              e.artifact_id,e.source_id,e.storage_bucket,e.object_path,e.mime,e.byte_size,e.duration_ms,e.sha256,e.stage,
               e.reference_language_mode,e.transcript_span_count,e.devanagari_chars,e.latin_chars,
               e.selection_decision,e.source_state,e.contains_third_parties,e.genome_status,
               e.consent_id,e.consent_scope,e.consent_policy_version,e.consent_granted_at,
@@ -393,6 +393,7 @@ export async function beginOwnedVoicePreview(db, ownerUserId, input) {
     reference: Object.freeze({
       artifactId: row.artifact_id,
       sourceId: row.source_id,
+      storageBucket: row.storage_bucket,
       objectPath: row.object_path,
       mime: row.mime,
       byteSize: Number(row.byte_size),

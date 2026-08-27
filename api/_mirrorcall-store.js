@@ -624,7 +624,7 @@ export async function getProposedMirrorDelta(db, ownerUserId, replicaIdValue, se
  */
 export async function mirrorWindowAudioRef(db, ownerUserId, replicaIdValue, sourceIdValue) {
   const rows = await db(
-    `select s.object_path, s.sha256, s.mime, s.byte_size from vy_replica_source s
+    `select s.storage_bucket, s.object_path, s.sha256, s.mime, s.byte_size from vy_replica_source s
       where s.source_id = $1::uuid and s.replica_id = $2::uuid and s.owner_user_id = $3::uuid
         and s.kind = 'audio' and s.state = 'quarantined' limit 1`,
     [
@@ -636,6 +636,7 @@ export async function mirrorWindowAudioRef(db, ownerUserId, replicaIdValue, sour
   const row = rows[0];
   if (!row) return null;
   return {
+    storageBucket: row.storage_bucket,
     storagePath: row.object_path,
     sha256: row.sha256,
     mime: row.mime,

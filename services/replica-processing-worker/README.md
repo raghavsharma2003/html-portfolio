@@ -12,8 +12,11 @@ one an HTTP surface would mean inventing a listener, a readiness probe and an
 ingress that nothing would ever call.
 
 It also needs no inbound door at all. This is a queue *consumer*: it pulls work
-from Neon and talks outward to Supabase Storage and, when configured, to the
-private evidence service. The HMAC admission broker pattern in
+from Neon and talks outward to the dedicated Azure Blob account, legacy
+Supabase Storage, and, when configured, the private evidence service. New
+source and artifact rows carry an `azureblob:<account>:<container>` locator;
+legacy rows retain `vyakti-replica-private`, so reads and erasure never guess a
+provider from current deployment settings. The HMAC admission broker pattern in
 `docs/gurukul/AZURE-DEPLOY-STATE.md` exists to protect services that must accept
 inbound requests. Adding ingress here purely to have something to authenticate
 would create an attack surface rather than reuse a posture.
@@ -85,8 +88,16 @@ did exactly that, and step 2 above is what caught it.
 
 - Build the Dockerfile with the repository root as context.
 - Outbound access to Neon, Supabase Storage, the private evidence service and
-  ClamAV's signature CDN. No inbound access.
+  ClamAV's signature CDN. When `REPLICA_STORAGE_WRITE_BUCKET` is an Azure
+  locator, outbound access to that exact Blob account is also required. No
+  inbound access.
 - Credentials are Container Apps secrets. Never in job arguments or logs.
+- `AZURE_REPLICA_STORAGE_ACCOUNT`, `AZURE_REPLICA_STORAGE_CONTAINER`, and
+  `AZURE_REPLICA_STORAGE_ACCOUNT_KEY` must be supplied together. The account
+  key is a temporary release bridge: the browser receives only an exact-blob,
+  HTTPS-only, create-only service SAS. Replace it with managed-identity user
+  delegation after an Azure Owner grants the data-plane roles, then disable
+  Shared Key on the account.
 - 60-minute replica timeout with a 55-minute work budget and matching lease,
   `parallelism: 1`, and a hard Azure budget alert. The longer bound is needed
   for two-hour batch ASR and deterministic chunked diarization; it is still a

@@ -6117,3 +6117,29 @@ after a language-aware router exists, three cold-start measurements meet a
 declared SLO, and a blinded owner/known-listener Hindi and Hinglish evaluation
 wins without an English or intelligibility regression. Separate immutable
 model commitments and rollback paths remain required.
+
+## `replica-media-uses-neon-metadata-and-durable-azure-blob-locators` (2026-08-27)
+
+**Decision.** Neon remains the relational control plane for ownership,
+consent, jobs, hashes, provenance, memory and erasure state. Large private
+replica bytes move to a dedicated Azure Blob account through exact-blob,
+HTTPS-only, create-only block-upload capabilities. The existing
+`storage_bucket` column is the durable provider locator: plain legacy values
+route only to Supabase, while new rows use
+`azureblob:<account>:<container>`. Reads, retries, processing and erasure route
+from that persisted value and never fall back to another provider on a miss.
+
+**Why.** Supabase Free enforces a project-wide 50 MB object ceiling that code
+and per-bucket settings cannot bypass. Neon Postgres is built for relational
+state, not multi-hour media payloads. Explicit locators preserve every legacy
+object without a risky bulk copy and prevent identical object paths from being
+read or erased on the wrong backend. Azure block uploads keep the browser and
+worker memory bounded while the worker's streamed SHA-256 remains content
+authority.
+
+**What would reverse it.** A different object plane may replace Azure only
+after production-region availability, published limits and pricing, direct
+multipart capability, exact tenant scoping, immutable-write behavior and
+cross-branch biometric erasure all pass the same live suite. A redundant
+provider column should be added only if `storage_bucket` can no longer encode a
+single unambiguous backend locator.

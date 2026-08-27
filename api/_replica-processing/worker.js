@@ -75,11 +75,12 @@ function assertSegments(segments, label) {
 function inputReferences(source, inputArtifacts) {
   const references = (inputArtifacts || []).map((artifact) => {
     if (artifact.source_id !== source.source_id || artifact.replica_id !== source.replica_id ||
-        artifact.owner_user_id !== source.owner_user_id) {
+        artifact.owner_user_id !== source.owner_user_id || artifact.storage_bucket !== source.storage_bucket) {
       throw new ProcessingContractError("cross-replica input artifact rejected", { code: "cross_replica_artifact" });
     }
     return {
       artifact_id: artifact.artifact_id,
+      storage_bucket: artifact.storage_bucket,
       sha256: assertSha256(artifact.sha256, "input artifact sha256"),
       mime: artifact.mime,
       duration_ms: artifact.duration_ms,
@@ -88,6 +89,8 @@ function inputReferences(source, inputArtifacts) {
   });
   return references.length ? references : [{
     artifact_id: null,
+    storage_bucket: source.storage_bucket,
+    object_id: source.provenance?.storage_object_id || "",
     sha256: source.sha256,
     mime: source.mime,
     duration_ms: source.duration_ms ?? null,
@@ -207,7 +210,8 @@ async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, wi
     sourceInput: {
       source,
       input: {
-        object_path: source.object_path, sha256: source.sha256, mime: source.mime,
+        storage_bucket: source.storage_bucket, object_path: source.object_path,
+        object_id: source.provenance?.storage_object_id || "", sha256: source.sha256, mime: source.mime,
         byte_size: source.byte_size,
       },
       signal,
@@ -232,7 +236,8 @@ async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, wi
     bucket: source.storage_bucket, objectPath, body: selected.wavBytes, mime: "audio/wav",
     expectedSha256: sha256Hex(selected.wavBytes), ifNoneMatch: "*",
   });
-  const references = [{ artifact_id: null, sha256: stored.sha256, mime: "audio/wav", duration_ms: selected.durationMs, object_path: objectPath }];
+  const references = [{ artifact_id: null, storage_bucket: source.storage_bucket,
+    sha256: stored.sha256, mime: "audio/wav", duration_ms: selected.durationMs, object_path: objectPath }];
   return { references, selected };
 }
 
@@ -266,7 +271,7 @@ function passthroughSeparationCandidate({ selected, references }) {
   };
 }
 
-async function runStage({ job, source, adapter, artifactStore, inputArtifacts, diarizeSegments, resolveInput, withMaterializedAudio, signal, billing }) {
+async function runStage({ job, source, adapter, artifactStore, inputArtifacts, diarizeSegments, withMaterializedAudio, signal, billing }) {
   let selectedReferenceWindow = null;
   const references = job.step === "separate"
     ? await (async () => {
@@ -452,7 +457,7 @@ export async function executeProcessingJob(input) {
     const output = await runStage({
       job, source, adapter, artifactStore: input.artifactStore,
       inputArtifacts: input.inputArtifacts || [], diarizeSegments: input.diarizeSegments || [],
-      resolveInput: input.resolveInput, withMaterializedAudio: input.withMaterializedAudio,
+      withMaterializedAudio: input.withMaterializedAudio,
       signal: input.signal, billing,
     });
     let billingState = "not_metered";

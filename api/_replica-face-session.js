@@ -117,6 +117,7 @@ function claimFromRow(row, leaseToken, clientDeviceId) {
       mime: row.identity_mime,
       byteSize: Number(row.identity_byte_size),
       sha256: row.identity_sha256,
+      storageBucket: row.identity_storage_bucket,
       objectPath: row.identity_object_path,
     }),
   });
@@ -133,7 +134,7 @@ export async function leaseOwnedFaceSessionStart(db, ownerUserId, id, challenge,
     `with eligible as (
        select ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.face_session_attempt,ch.face_session_state,
               ids.source_id identity_source_id,ids.mime identity_mime,ids.byte_size identity_byte_size,
-              ids.sha256 identity_sha256,ids.object_path identity_object_path
+              ids.sha256 identity_sha256,ids.storage_bucket identity_storage_bucket,ids.object_path identity_object_path
          from vy_replica_liveness_challenge ch
          join vy_replica r on r.replica_id=ch.replica_id and r.owner_user_id=ch.owner_user_id
          join vy_replica_identity_case ic on ic.identity_case_id=ch.identity_case_id
@@ -159,7 +160,8 @@ export async function leaseOwnedFaceSessionStart(db, ownerUserId, id, challenge,
               updated_at=now()
          from eligible e where ch.challenge_id=e.challenge_id
        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.face_session_attempt,ch.face_session_state
-     ) select l.*,e.identity_source_id,e.identity_mime,e.identity_byte_size,e.identity_sha256,e.identity_object_path
+     ) select l.*,e.identity_source_id,e.identity_mime,e.identity_byte_size,e.identity_sha256,
+              e.identity_storage_bucket,e.identity_object_path
          from leased l join eligible e on e.challenge_id=l.challenge_id`,
     [cid, rid, ownerUserId, leaseHash(leaseToken), leaseMs],
   );
@@ -170,7 +172,8 @@ async function recoverableOwnedFaceSession(db, ownerUserId, id, challenge, clien
   const device = exactDevice(clientDeviceId);
   const rows = await db(
     `select ch.*,ids.source_id identity_source_id,ids.mime identity_mime,
-            ids.byte_size identity_byte_size,ids.sha256 identity_sha256,ids.object_path identity_object_path
+            ids.byte_size identity_byte_size,ids.sha256 identity_sha256,
+            ids.storage_bucket identity_storage_bucket,ids.object_path identity_object_path
        from vy_replica_liveness_challenge ch
        join vy_replica r on r.replica_id=ch.replica_id and r.owner_user_id=ch.owner_user_id
        join vy_replica_identity_case ic on ic.identity_case_id=ch.identity_case_id
@@ -352,7 +355,8 @@ export async function leaseOwnedFaceSessionPoll(db, ownerUserId, id, challenge, 
               case when ch.face_session_state in ('ready','polling') and ch.face_session_expires_at<=now()
                 then 'expired_deleting' else ch.face_session_state end desired_state,
               ch.face_session_handle,ids.source_id identity_source_id,ids.mime identity_mime,
-              ids.byte_size identity_byte_size,ids.sha256 identity_sha256,ids.object_path identity_object_path
+              ids.byte_size identity_byte_size,ids.sha256 identity_sha256,
+              ids.storage_bucket identity_storage_bucket,ids.object_path identity_object_path
          from vy_replica_liveness_challenge ch
          join vy_replica_identity_case ic on ic.identity_case_id=ch.identity_case_id
           and ic.replica_id=ch.replica_id and ic.owner_user_id=ch.owner_user_id
@@ -371,7 +375,8 @@ export async function leaseOwnedFaceSessionPoll(db, ownerUserId, id, challenge, 
          from eligible e where ch.challenge_id=e.challenge_id
        returning ch.challenge_id,ch.replica_id,ch.owner_user_id,ch.face_session_attempt,ch.face_session_state,
                  ch.face_session_handle
-     ) select l.*,e.identity_source_id,e.identity_mime,e.identity_byte_size,e.identity_sha256,e.identity_object_path
+     ) select l.*,e.identity_source_id,e.identity_mime,e.identity_byte_size,e.identity_sha256,
+              e.identity_storage_bucket,e.identity_object_path
          from leased l join eligible e on e.challenge_id=l.challenge_id`,
     [replicaId(challenge), replicaId(id), ownerUserId, leaseHash(leaseToken), leaseMs],
   );

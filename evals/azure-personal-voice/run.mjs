@@ -95,7 +95,7 @@ const input = {
   idempotencyKey: "voice-build-idempotency-0001",
   consent: {
     sourceId: CONSENT_SOURCE,
-    signedReadUrl: "https://private.example/storage/v1/object/sign/consent.wav?token=opaque",
+    signedReadUrl: "https://private.example/storage/v1/object/sign/vyakti-replica-private/consent.wav?token=opaque",
     sha256: digest(consentBytes),
     mime: "audio/wav",
     durationMs: 7_000,
@@ -104,7 +104,7 @@ const input = {
   },
   references: [{
     sourceId: VOICE_SOURCE,
-    signedReadUrl: "https://private.example/storage/v1/object/sign/voice.wav?token=opaque",
+    signedReadUrl: "https://private.example/storage/v1/object/sign/vyakti-replica-private/voice.wav?token=opaque",
     sha256: digest(voiceBytes),
     mime: "audio/wav",
     durationMs: 60_000,

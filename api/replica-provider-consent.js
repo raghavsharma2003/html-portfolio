@@ -12,6 +12,7 @@ import {
 import {
   createSignedReplicaUpload,
   ensurePrivateReplicaBucket,
+  REPLICA_STORAGE_WRITE_BUCKET,
   replicaObjectInfo,
   ReplicaStorageError,
 } from "./_replica-storage.js";
@@ -21,6 +22,7 @@ const cors = (res) => {
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
 };
 
 const uploadResponse = (source, providerConsent, upload) => ({
@@ -30,6 +32,12 @@ const uploadResponse = (source, providerConsent, upload) => ({
     method: upload.method,
     url: upload.url,
     headers: { ...upload.headers, "content-type": source.mime },
+    ...(upload.resumable ? {
+      resumable: {
+        ...upload.resumable,
+        metadata: { ...upload.resumable.metadata, contentType: source.mime },
+      },
+    } : {}),
     expires_at: upload.expires_at,
   },
 });
@@ -59,7 +67,7 @@ export default async function handler(req, res) {
         : res.status(409).json({ error: "provider_consent_not_authorized_or_daily_limit" });
     }
     if (body.op === "create_upload") {
-      await ensurePrivateReplicaBucket();
+      await ensurePrivateReplicaBucket(REPLICA_STORAGE_WRITE_BUCKET);
       const source = await createProviderConsentSource(
         q,
         user.id,
@@ -69,11 +77,10 @@ export default async function handler(req, res) {
       );
       if (!source) return res.status(409).json({ error: "provider_consent_expired_or_unavailable" });
       const providerConsent = await latestOwnedProviderConsent(q, user.id, body.replica_id);
-      const upload = await createSignedReplicaUpload(source.object_path);
+      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
       return res.status(201).json(uploadResponse(source, providerConsent, upload));
     }
     if (body.op === "retry_upload") {
-      await ensurePrivateReplicaBucket();
       const source = await getPendingProviderConsentSource(
         q,
         user.id,
@@ -82,8 +89,9 @@ export default async function handler(req, res) {
         body.source_id,
       );
       if (!source) return res.status(404).json({ error: "pending_provider_consent_source_not_found" });
+      await ensurePrivateReplicaBucket(source.storage_bucket);
       const providerConsent = await latestOwnedProviderConsent(q, user.id, body.replica_id);
-      const upload = await createSignedReplicaUpload(source.object_path);
+      const upload = await createSignedReplicaUpload({ storageBucket: source.storage_bucket, objectPath: source.object_path });
       return res.status(200).json(uploadResponse(source, providerConsent, upload));
     }
     if (body.op === "finalize") {
@@ -95,7 +103,7 @@ export default async function handler(req, res) {
         body.source_id,
       );
       if (!pending) return res.status(404).json({ error: "pending_provider_consent_source_not_found" });
-      const info = await replicaObjectInfo(pending.object_path);
+      const info = await replicaObjectInfo({ storageBucket: pending.storage_bucket, objectPath: pending.object_path });
       const finalized = await finalizeProviderConsentSource(
         q,
         user.id,

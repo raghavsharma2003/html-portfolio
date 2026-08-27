@@ -153,6 +153,7 @@ export function createYouTubeExtractChannelProvider(options = {}) {
       // through — including the fake — so a real extraction and a fixture are
       // the same shape by construction and the eval's coverage is real.
       return audioRef({
+        storageBucket: upload.storage_bucket,
         storagePath: objectPath,
         sha256: result.sha256,
         mime: result.mime,

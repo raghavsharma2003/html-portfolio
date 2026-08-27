@@ -243,7 +243,11 @@ function harness(options = {}) {
       uploads.push(objectPath);
       // Standing in for the bytes the service will PUT at this exact path.
       audioStore.put(objectPath, LECTURE_TURNS);
-      return { url: "https://project.supabase.co/storage/v1/object/upload/sign/x?token=t", headers: {} };
+      return {
+        url: "https://project.supabase.co/storage/v1/object/upload/sign/x?token=t",
+        headers: {},
+        storage_bucket: "vyakti-replica-private",
+      };
     },
   });
   const state = {

@@ -143,8 +143,9 @@ async function loadReference() {
   }
   const objectPath = String(flag("object", DEFAULT_REFERENCE_OBJECT));
   const { readPrivateReplicaObject, REPLICA_STORAGE_BUCKET } = await import("../api/_replica-storage.js");
-  const object = await readPrivateReplicaObject(objectPath, { maxBytes: 64 * 1024 * 1024 });
-  return { bytes: Buffer.from(object.body), origin: `supabase:${REPLICA_STORAGE_BUCKET}/${objectPath}` };
+  const storageBucket = String(flag("storage-bucket", REPLICA_STORAGE_BUCKET));
+  const object = await readPrivateReplicaObject({ storageBucket, objectPath }, { maxBytes: 64 * 1024 * 1024 });
+  return { bytes: Buffer.from(object.body), origin: `private:${storageBucket}/${objectPath}` };
 }
 
 // ── items ─────────────────────────────────────────────────────────────────

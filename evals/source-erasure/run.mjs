@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   completeSourceErasure,
   leaseNextSourceErasure,
+  markAbandonedPendingSourceUploads,
   normalizeSourceErasureFailure,
   retrySourceErasure,
   runSourceErasureSweep,
@@ -19,6 +20,7 @@ const RID = "20000000-0000-4000-8000-000000000002";
 const OWNER = "30000000-0000-4000-8000-000000000003";
 const TOKEN = "source-lease-token-with-at-least-thirty-two-bytes";
 const PREFIX = `${OWNER}/${RID}/${SOURCE}/`;
+const AZURE_BUCKET = "azureblob:vyaktireplicatest:replica-private";
 let checks = 0;
 
 function ok(name, condition) {
@@ -29,6 +31,28 @@ function ok(name, condition) {
 const hash = sourceErasureLeaseTokenHash(TOKEN);
 ok("source erasure leases persist only a domain-separated hash", /^[0-9a-f]{64}$/.test(hash));
 
+let cleanupSql = "";
+const abandoned = await markAbandonedPendingSourceUploads(async (sql, params) => {
+  cleanupSql = sql;
+  assert.deepEqual(params, [24 * 60 * 60 * 1000, 25]);
+  return [{
+    source_id: SOURCE,
+    storage_bucket: AZURE_BUCKET,
+    object_path: `${PREFIX}original`,
+  }];
+});
+ok("abandoned pending uploads are selected after 24 hours in a bounded lock-safe batch",
+  /state='pending_upload'/.test(cleanupSql) && /updated_at<=now\(\)-\(\$1::bigint\*interval '1 millisecond'\)/.test(cleanupSql) &&
+  /for update skip locked limit \$2::integer/.test(cleanupSql));
+ok("cleanup marks only still-pending rows for erasure so recent and active sources are unaffected",
+  /set state='deleting',erasure_next_attempt_at=now\(\),updated_at=now\(\)/.test(cleanupSql) &&
+  (cleanupSql.match(/state='pending_upload'/g) || []).length === 2 &&
+  !/state\s+in\s*\(/.test(cleanupSql));
+ok("abandoned upload cleanup retains the exact durable source locator for deletion",
+  abandoned.length === 1 && abandoned[0].storageBucket === AZURE_BUCKET &&
+  abandoned[0].objectPath === `${PREFIX}original` &&
+  !/set[\s\S]*storage_bucket\s*=/.test(cleanupSql) && !/set[\s\S]*object_path\s*=/.test(cleanupSql));
+
 let leaseSql = "";
 const claimed = await leaseNextSourceErasure(async (sql, params) => {
   leaseSql = sql;
@@ -38,7 +62,7 @@ const claimed = await leaseNextSourceErasure(async (sql, params) => {
     storage_bucket: "vyakti-replica-private", object_path: `${PREFIX}original`,
     erasure_attempts: 1, erasure_lease_expires_at: new Date(Date.now() + 200_000).toISOString(),
     artifacts: [
-      { bucket: "vyakti-replica-private", path: `${PREFIX}derived/enhance/a.wav` },
+      { bucket: AZURE_BUCKET, path: `${PREFIX}derived/enhance/a.wav` },
       { bucket: "vyakti-replica-private", path: `${PREFIX}derived/diarize/a.json` },
     ],
   }];
@@ -48,7 +72,11 @@ ok("one atomic lease snapshots the original plus every exact derived artifact be
 ok("source bytes cannot disappear while an official Face session may still reference their identity case",
   /vy_replica_liveness_challenge/.test(leaseSql) && /face_session_state in/.test(leaseSql));
 ok("deletion paths remain inside the exact owner replica source namespace",
-  claimed.source.paths.every((path) => path.startsWith(PREFIX)) && claimed.source.paths.includes(`${PREFIX}original`));
+  claimed.source.paths.every((locator) => locator.objectPath.startsWith(PREFIX))
+  && claimed.source.paths.some((locator) => locator.objectPath === `${PREFIX}original`));
+ok("erasure snapshots retain the provider for mixed legacy and Azure lineage",
+  new Set(claimed.source.paths.map((locator) => locator.storageBucket)).size === 2
+  && claimed.source.paths.some((locator) => locator.storageBucket === AZURE_BUCKET));
 
 let unsafeRetry = "";
 const unsafe = await leaseNextSourceErasure(async (sql) => {
@@ -66,7 +94,10 @@ ok("a corrupt cross-namespace artifact is not deleted and is durably quarantined
 process.env.SUPABASE_URL = "https://private.example";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-private-service-role";
 const storageCalls = [];
-await deleteReplicaObjects(Array.from({ length: 205 }, (_, index) => `${PREFIX}derived/test/${index}`), async (url, init) => {
+await deleteReplicaObjects(Array.from({ length: 205 }, (_, index) => ({
+  storageBucket: "vyakti-replica-private",
+  objectPath: `${PREFIX}derived/test/${index}`,
+})), async (url, init) => {
   storageCalls.push({ url, init, body: JSON.parse(init.body) });
   return Response.json({ message: "ok" });
 });
@@ -123,9 +154,17 @@ const work = [claimed, { ...claimed, source: { ...claimed.source, sourceId: "400
 const removed = [];
 const completed = [];
 const retried = [];
+const sweepOrder = [];
 const summary = await runSourceErasureSweep({
   db: async () => [], maxJobs: 4,
-  lease: async () => work.shift() || null,
+  cleanup: async () => {
+    sweepOrder.push("cleanup");
+    return abandoned;
+  },
+  lease: async () => {
+    sweepOrder.push("lease");
+    return work.shift() || null;
+  },
   removeObjects: async (paths) => {
     removed.push(paths);
     if (removed.length === 2) throw Object.assign(new Error("private detail"), { code: "private_storage_unreachable" });
@@ -135,6 +174,8 @@ const summary = await runSourceErasureSweep({
 });
 ok("one failed source cannot undo or misreport a separately completed erasure",
   summary.completed === 1 && summary.retried === 1 && completed.length === 1 && retried[0].code === "private_storage_unreachable");
+ok("each sweep marks stale pending uploads before it leases erasure work",
+  summary.abandoned === 1 && sweepOrder[0] === "cleanup" && sweepOrder[1] === "lease");
 
 const migration = readFileSync(join(ROOT, "db/migrations/036_replica_source_erasure.sql"), "utf8");
 const schema = readFileSync(join(ROOT, "db/schema.sql"), "utf8");

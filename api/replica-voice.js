@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       if (existing?.status === "deleting") return res.status(409).json({ error: "voice_profile_deletion_in_progress" });
       const enrollment = await loadOwnedAzureVoiceEnrollment(q, user.id, body.replica_id, version);
       if (!enrollment) return res.status(409).json({ error: "voice_enrollment_not_ready" });
-      const prepared = await materializeAzureVoiceEnrollment(enrollment, (path) => createSignedReplicaRead(path));
+      const prepared = await materializeAzureVoiceEnrollment(enrollment, (locator) => createSignedReplicaRead(locator));
       const provider = createVoiceProvider("azure_personal_voice", { db: q });
       const result = await provider.createVoice(prepared.input);
       const profile = await persistCreatedVoiceProfile(

@@ -140,7 +140,7 @@ export async function handleVoicePreviewPanel(body, deps) {
       return warmingResult("wake_in_flight", { wake_age_ms: warmth.ageMs });
     }
 
-    const stored = await deps.readObject(started.reference.objectPath);
+    const stored = await deps.readObject(started.reference);
     if (stored.mime !== started.reference.mime || stored.byteSize !== started.reference.byteSize ||
         createHash("sha256").update(stored.body).digest("hex") !== started.reference.sha256) {
       throw Object.assign(new Error("voice_preview_reference_binding_failed"), {
