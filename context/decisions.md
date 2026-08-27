@@ -5876,3 +5876,63 @@ constraint on how `transform_version` is used, not a preference. A future
 change to `vy_replica_artifact_variant_unique` that keys on content hash
 instead of transform_version would make version bumps unnecessary for a
 format-only change, but no such change is planned.
+
+## `separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker` (2026-08-27, WS-AS)
+
+**Decided.** `separate`'s GPU model (`sepformer-whamr16k`, which runs at
+16 kHz and therefore imposes an 8 kHz Nyquist ceiling on everything it
+touches) is now skipped entirely when the dominant diarized cluster holds
+>= 90% of all diarized speech for the source. When skipped, the reference
+window `api/_replica-processing/reference-window.js` already extracts is cut
+fresh from the ORIGINAL recording at `ENROLLMENT_SAMPLE_RATE` (24 kHz) and
+becomes `separate`'s output directly, labelled `reference-window-passthrough`
+rather than a fabricated separation result.
+
+**Why.** The owner's verdict ("this ... is not even 0.05% similar ... it's
+all fucked") traced to a real, structural cause, not a vague quality
+complaint: `separate` ran its 16 kHz-Nyquist model on EVERY recording,
+including single-speaker lectures that have no overlapping-speaker problem
+for it to solve. Measured on the owner's real reference:
+`enrollment-reference-bandwidth-before-after` (this session) -- 0.000458%
+energy at/above 8 kHz before, 0.0224% after (roughly 49x), on the SAME
+recording, at a real diarized position. Speaker-identity cues live
+substantially in 4-10 kHz, so a reference built this way was structurally
+pushing Chatterbox toward its own base timbre.
+
+**Why 90%, specifically.** Diarize's own cluster threshold
+(`VOICE_EVIDENCE_CLUSTER_COSINE_THRESHOLD=0.68`) already decides when two
+voiced spans are different speakers; this decision does not re-litigate that.
+It asks a coarser question on top: even granting a second cluster exists, is
+it large enough that removing it from the reference is worth losing 4-10 kHz
+of the dominant speaker's own voice? Below 90% dominant share, non-dominant
+clusters sum to more than a tenth of all diarized speech (two co-teachers, a
+Q&A segment) and separation is doing real, defensible work. At or above it,
+what remains is stray cross-talk or diarize's own clustering noise, and
+running a bandwidth-destroying model to remove single-digit seconds of that is
+not a defensible trade against the dominant speaker's own identity. Measured
+on the owner's real upload: `dominantShare=0.9528` (4 clusters found; the
+non-dominant three sum to well under 10%), clearing the threshold with
+headroom, not sitting on the boundary.
+
+**What this does NOT change.** `enhance` (DeepFilterNet3) still runs
+unconditionally after `separate`, on whatever `separate` produced (real
+separation or the pass-through). This session did NOT measure enhance on/off
+as a separate variable -- see `rejected.md#deepfilternet3-on-vs-off-not-
+measured-this-session` -- so no claim is made about whether denoising helps
+or hurts identity preservation once the reference is already full-bandwidth.
+The 24 kHz output rate `enhance` resamples to (WS-AR,
+`enrollment-artifact-resamples-to-24k-inside-enhance`) is unchanged and is
+exactly why the AFTER reference above still shows a genuine 24 kHz ceiling
+(12 kHz Nyquist) rather than 48 kHz: that ceiling is the platform's own
+delivery contract, not a defect.
+
+**What would reverse it.** A measured case where a recording just above 90%
+dominant share still shows audible cross-talk bleed-through in its selected
+window -- no session has found one; the only real recording measured (the
+owner's, at 95.28%) is clear of the boundary either way. Separately: if
+`voice-evidence` ever gains a chunk-and-aggregate mode that scores the WHOLE
+recording server-side rather than a single ~10 s window (the deferred "real
+fix" named in `windowing-belongs-before-the-embedder-not-before-diarize`),
+this module becomes the fallback for services that stay single-shot, per
+`windowing-belongs-at-separate-now-that-diarize-is-done`'s own reversal
+condition, which this decision does not alter.

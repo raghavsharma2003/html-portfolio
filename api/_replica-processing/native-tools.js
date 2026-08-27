@@ -280,16 +280,30 @@ export function createNativeToolRunners(options = {}) {
           // this call would ever produce. A file gets ffmpeg's real,
           // seeked-back size, same as `probeBytes` above needs a file for the
           // matching reason on the READ side.
-          async extractWindow(startMs, endMs) {
+          // `rate` defaults to 16000 -- the shape `windows.js`'s scorer reads
+          // and refuses anything else, so every SCORING pass stays exactly as
+          // it was. WS-AS (2026-08-27) adds the ability to ask for a
+          // DIFFERENT rate for the one call that matters: once the best
+          // window is already chosen, the bytes that actually leave this
+          // container as the voice reference must be cut from the ORIGINAL
+          // file at its own bandwidth, not sliced out of the 16 kHz buffer
+          // that was only ever built to be scored. See reference-window.js's
+          // header for the measured reason (the owner's enrollment reference
+          // carried 0.46% of its energy above 8 kHz).
+          async extractWindow(startMs, endMs, { rate = 16000 } = {}) {
             const startSec = Math.max(0, Number(startMs) / 1000);
             const durSec = (Number(endMs) - Number(startMs)) / 1000;
             if (!(durSec > 0) || durSec > 600) throw toolError("reference_window_span_invalid");
+            const sampleRate = Number(rate);
+            if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 48000) {
+              throw toolError("reference_window_rate_invalid");
+            }
             const outFile = join(dir, `${randomBytes(8).toString("hex")}.wav`);
             try {
               const result = await runTool(command, [
                 "-nostdin", "-y", "-v", "error",
                 "-ss", startSec.toFixed(3), "-i", file, "-t", durSec.toFixed(3),
-                "-vn", "-ac", "1", "-ar", "16000", "-sample_fmt", "s16",
+                "-vn", "-ac", "1", "-ar", String(sampleRate), "-sample_fmt", "s16",
                 "-f", "wav", outFile,
               ], "", { signal: callOptions.signal, timeoutMs: 60_000, code: "reference_window", maxOutput: 4 * 1024 });
               if (result.exitCode !== 0) throw toolError("reference_window_extract_failed");

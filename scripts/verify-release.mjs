@@ -80,6 +80,16 @@ await gate("chrome copy", "node", ["scripts/check-copy.mjs"]);
 // sites and asserted equal here, with its own negative control, so they
 // cannot drift apart again without this gate naming exactly which site moved.
 await gate("enrollment sample rate", "node", ["scripts/check-enrollment-sample-rate.mjs"]);
+// The rate agreeing everywhere (above) does NOT prove the bytes at that rate
+// carry real content above 8 kHz -- a 16 kHz-Nyquist signal upsampled to
+// 24 kHz still reports 24 kHz truthfully. Measured on the owner's real
+// enrollment reference (3455faac...): 0.46% of energy at/above 8 kHz, from
+// `separate`'s sepformer-whamr16k running at 16 kHz on the whole reference
+// before the WS-AS fix. This gate computes the spectrum with a real FFT and
+// asserts a band-limited-but-full-rate-labelled clip is caught, with its own
+// negative control (a synthetic clip with the identical defect shape) run on
+// every invocation.
+await gate("enrollment bandwidth", "node", ["scripts/check-enrollment-bandwidth.mjs"]);
 // The room path (api/tg.js and every future surface) does not import src/ — it
 // reads the committed bundle api/_engine.gen.js. So a change to the engine that
 // is not regenerated ships a DIFFERENT Meera to Telegram than the one every

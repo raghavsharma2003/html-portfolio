@@ -143,12 +143,26 @@ const resolveFixtureInput = async ({ input }) => {
   if (input.object_path !== source.object_path) throw new Error(`unexpected object_path ${input.object_path}`);
   return { mime: "audio/wav", byteSize: fixtureAudio.length, body: fixtureAudio };
 };
+// WS-AS: `extractWindow` is called TWICE now for a real window -- once at the
+// fixed 16 kHz `windows.js` scores at, and once more at whatever rate the
+// caller asks for (`ENROLLMENT_SAMPLE_RATE`, 24 kHz in production) to build
+// the FULL-BANDWIDTH bytes that actually leave the container. This fixture
+// does not resample for real (no ffmpeg here, by design -- see the file's
+// header), but it must produce a WAV that honestly DECLARES the requested
+// rate and the right sample count for the span, because `selectOwnerReference
+// Window` cross-checks the second extraction's own duration against the
+// first's before trusting it.
 const withFixtureMaterializedAudio = async (bytes, fn) => fn({
-  async extractWindow(startMs, endMs) {
-    const parsed = Windows.readPcm16Wav(bytes);
-    const startSample = Math.round((startMs / 1000) * 16_000);
-    const endSample = Math.round((endMs / 1000) * 16_000);
-    return RefWindow.wavBytesForSamples(parsed.samples.subarray(startSample * 2, endSample * 2));
+  async extractWindow(startMs, endMs, { rate = 16_000 } = {}) {
+    if (rate === 16_000) {
+      const parsed = Windows.readPcm16Wav(bytes);
+      const startSample = Math.round((startMs / 1000) * 16_000);
+      const endSample = Math.round((endMs / 1000) * 16_000);
+      return RefWindow.wavBytesForSamples(parsed.samples.subarray(startSample * 2, endSample * 2));
+    }
+    const sampleCount = Math.round(((endMs - startMs) / 1000) * rate);
+    const samples = Buffer.alloc(sampleCount * 2, 0).map((_, index) => (index % 2 === 0 ? 120 : 0));
+    return RefWindow.wavBytesForSamples(samples, rate);
   },
 });
 
@@ -158,6 +172,40 @@ const separated = await Worker.executeProcessingJob({
 });
 ok("separation creates an immutable foreground candidate before enhancement",
   separated.outcome === "complete" && separated.artifacts.length === 1 && separated.artifacts[0].stage === "separate");
+// WS-AS: this fixture's diarize (contains_third_parties: false) reports ONE
+// cluster, so dominantShare is 1.0 -- well above the 0.90 skip threshold. The
+// GPU `separate` adapter must NEVER be called for it: the output should be
+// the honest pass-through, named as such, and it must carry the full-
+// bandwidth sample rate rather than the 16 kHz scoring one.
+ok("a single-cluster recording skips GPU separation and says so on the artifact",
+  separated.artifacts[0].transform.name === "reference-window-passthrough" &&
+  separated.artifacts[0].quality.bandwidth_preserved === true &&
+  separated.artifacts[0].quality.subject_selection_required === false);
+
+// A recording where a second speaker holds a MEANINGFUL share of the diarized
+// speech (here 300s/700s = 42.9%, far below the 0.90 threshold) must still go
+// through the real GPU separator -- the fake adapter's own "fixture-
+// enhancement" transform name is the tell, since the pass-through path would
+// never produce that name.
+const multiSpeakerSegments = [
+  { start_ms: 0, end_ms: 400_000, speaker_key: "owner", confidence: 0.9 },
+  { start_ms: 400_000, end_ms: 700_000, speaker_key: "other-speaker", confidence: 0.85 },
+];
+const multiSpeakerSeparated = await Worker.executeProcessingJob({
+  job: job("separate"), source: { ...source, duration_ms: 700_000 }, adapters, artifactStore: Fake.createFakeImmutableArtifactStore(),
+  completedSteps: dependencies.separate, diarizeSegments: multiSpeakerSegments,
+  resolveInput: resolveFixtureInput, withMaterializedAudio: withFixtureMaterializedAudio,
+});
+ok("a genuinely multi-speaker recording still runs the real GPU separator",
+  multiSpeakerSeparated.outcome === "complete" &&
+  multiSpeakerSeparated.artifacts[0].transform.name === "fixture-enhancement");
+
+// Exercises `ownerClusterSegments`/`shouldSkipSeparation` directly at the
+// threshold boundary named in reference-window.js's own header.
+ok("shouldSkipSeparation reads dominant share against the documented 0.90 threshold",
+  RefWindow.shouldSkipSeparation({ dominantShare: 0.9624 }) === true &&
+  RefWindow.shouldSkipSeparation({ dominantShare: 0.899 }) === false &&
+  RefWindow.SEPARATION_DOMINANT_SHARE_THRESHOLD === 0.90);
 
 const missingWindowCapability = await Worker.executeProcessingJob({
   job: job("separate"), source, adapters, artifactStore: store, completedSteps: dependencies.separate, diarizeSegments,

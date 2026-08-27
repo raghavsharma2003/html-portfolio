@@ -4281,3 +4281,123 @@ path this session needed to prove (`beginOwnedVoicePreview` never reads
 generally (a "supersede" lifecycle that voice_quality's own query respects), or
 `_measure`'s input cap being raised past what a single source's revision
 history can accumulate -- neither is a fix this session's scope covered.
+
+## `bandwidth-threshold-first-guess-was-miscalibrated` (2026-08-27, WS-AS)
+
+**Tried.** A first cut of `scripts/check-enrollment-bandwidth.mjs` set
+`MIN_ENERGY_ABOVE_8KHZ_FRACTION = 0.015` (1.5%), reasoned from "clean speech
+puts sibilants and fricatives well above a null band" -- an intuition, not a
+measurement, against the file header's own admission that it had no
+speech-bandwidth corpus to derive from.
+
+**What broke.** Run against the REAL fixed reference this session produced
+(cut fresh from the owner's original 48 kHz/320 kbps lecture MP3, no
+bandwidth-destroying model in the path), the gate FAILED it: 0.022% measured,
+far under the 1.5% guess. Cross-checked directly with plain `ffmpeg` (bypassing
+this session's code entirely) at native 48 kHz decode: the SAME ~0.02-0.05%
+range at two unrelated positions in the file. Real lecture speech puts the
+overwhelming majority of its raw energy in voiced, low-frequency content;
+sibilants and fricatives are perceptually and identity-critical but are a
+small SHARE of total signal power even when genuinely present. A threshold
+written from clean-studio-speech intuition would have failed the very fix it
+was built to confirm.
+
+**The fix.** Recalibrated against two REAL measurements on the same
+recording: the broken reference's 0.000458% (a genuine hard null, floating-
+point-noise-floor small) versus the fixed reference's 0.0224% (present,
+$\approx$49x higher, still small in absolute terms because that is what real
+speech looks like). `MIN_ENERGY_ABOVE_8KHZ_FRACTION` is now 0.00003 (0.003%)
+-- roughly 6.5x above the broken floor and roughly 7x below the fixed
+reading, discriminating the actual defect (a hard null band from a
+16 kHz-Nyquist model) rather than "not very much energy up there", which
+turns out to describe every real recording measured in this session.
+
+**The generalisable lesson.** A guessed threshold for a spectral gate is not
+safer than no gate at all if it fails the very fix it exists to confirm --
+"prefer an error to a believable value" cuts both ways: a value invented
+without a real recording to check it against is exactly the kind of
+plausible-but-untested number this project's laws exist to catch. Every
+threshold in `check-enrollment-bandwidth.mjs` traces to a real FFT run on
+real bytes now, not intuition.
+
+## `preview-ledger-requires-activation-this-replica-does-not-have` (2026-08-27, WS-AS, found not fixed)
+
+**Found while answering the coordinator's Q1** ("is the enrollment reference
+conditioning the model at all"). `handleVoicePreviewPanel`'s real production
+path (`beginOwnedVoicePreview` -> `provider.synthesizePreview` ->
+`protectReplicaStream` via `createProductionProtectionAdapters`) fails at the
+LAST step, `api/_provenance/providers/neon-ledger.js`'s `open()`, with
+`generation_open_denied`, on every attempt made in this session -- for every
+reference tried, not specific to any one artifact. Traced to: `open()`'s SQL
+requires `r.lifecycle='active'` and a matching row in
+`vy_replica_runtime_capability` (`state='active'`, and
+`c.voice_profile_id=g.voice_profile_id` etc. by plain SQL equality). This
+replica's `lifecycle` is `'enrolling'`, `agent_id` is `null`,
+`activated_at` is `null`, and `vy_replica_runtime_capability` holds ZERO rows
+for it at any state. A `vy_replica_generation` row from
+`beginOwnedVoicePreview` (the STUDIO PREVIEW path, deliberately zero-shot,
+pre-activation) always inserts `voice_profile_id`/`profile_version`/
+`calibration_version` as literal `NULL` (migration 045's own
+`drop not null`, `channel='studio_preview'`) -- and
+`vy_replica_runtime_capability`'s matching columns are NOT NULL (migration
+023), so `c.voice_profile_id=g.voice_profile_id` can structurally never be
+TRUE when `g.voice_profile_id` is NULL, regardless of what capability exists.
+Six REAL sealed generations with real watermark segments DO exist in the
+database from earlier in this session's timeframe (02:43-02:51Z), all for the
+same original (unfixed) reference artifact, proving this path CAN succeed --
+so a capability row briefly existed and was since removed (the runtime
+capability table is empty at every state, not merely revoked, so this was a
+hard delete, not this session's doing since `activateOwnedRuntime` called
+here threw before any write, confirmed by checking `vy_replica.agent_id`
+stayed `null` throughout).
+
+**What broke, precisely, if read as a bug rather than a state problem.** If
+`voice_profile_id` is meant to be genuinely optional for a preview generation
+(which migration 045 says it is), `neon-ledger.js`'s `open()` comparing it
+with plain `=` against a NOT-NULL capability column can never match a NULL on
+one side -- this is either an intentional design where NO preview can ever
+open in the production ledger without a fully activated runtime (which would
+mean "Preview my voice" cannot work for anyone before activation, a serious
+product-level contradiction with what the panel is FOR), or a genuine
+NULL-unsafe comparison bug. This session did not determine which, and did NOT
+patch it -- it is a provenance/safety-adjacent component, outside this
+workstream's brief, and the coordinator's own thread was independently
+investigating the same code at the same time. **What this session did
+instead**, to answer Q1 without touching the ledger: called
+`provider.synthesizePreview` directly (the real GPU broker, real HMAC, real
+disclosure text, real watermark verification inside the provider) and
+skipped only the ledger's DB bookkeeping, which has no bearing on whether the
+reference conditions the model. Flagged here by name so the next session
+does not re-discover the same wall.
+
+## `deepfilternet3-on-vs-off-not-measured-this-session` (2026-08-27, WS-AS, not attempted)
+
+**Not tried, stated plainly rather than guessed at.** The brief asked whether
+DeepFilterNet3 (`enhance`) helps or hurts identity preservation once the
+reference is genuinely full-bandwidth, since the owner's real background
+noise makes this a real trade rather than an obvious "denoise is good" call.
+This session did not measure it: doing so honestly needs a real ECAPA
+speaker-embedding comparison (enhance-on vs enhance-off, same window, same
+text/seed) and `services/voice-evidence` -- the only service that computes
+that embedding -- has NO external ingress from this session (confirmed:
+`https://vyakti-voice-evidence.internal...azurecontainerapps.io/healthz`
+returns HTTP 404 through the session's proxy, and its Container App
+`ingress.external=false` in its live ARM definition). The `voice_quality` DAG
+step reaches it from inside the Azure environment and writes real embeddings
+to `vy_replica_processing_evidence`, but running that step for a synthesized
+clip requires either an ACR image rebuild deploying this session's fix (not
+done -- the fix lives entirely in `api/`, which the running container has not
+picked up) or fabricating a job invocation this session did not build.
+**What would answer it:** rebuild+redeploy `vyakti-replica-processing` with
+this branch, requeue `separate`->`enhance`->`voice_quality` on the owner's
+source at a new revision with enhance forced on and off as two variants
+(the adapter already emits both `identity-preserving` and
+`noise-suppressing` candidates per input -- `attenuation_limit_db=12.0` vs
+`None` -- so the DATA for an A/B may already exist in `vy_replica_processing_
+evidence` for whichever revision's `voice_quality` step last completed
+successfully; revision 2's is `failed` for an unrelated, already-diagnosed
+reason, `rejected.md#voice-quality-cannot-see-a-partial-artifact-generation`),
+then compare ECAPA cosine per variant against the same genuine-owner-audio
+reference. No offline mock can substitute -- this is exactly the class of
+number `first-real-clone` and `reference-window-beats-the-finetune` warn
+against inventing.

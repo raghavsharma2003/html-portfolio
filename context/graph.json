@@ -3200,6 +3200,36 @@
       "kind": "rejection",
       "title": "voice_quality's revision-agnostic enhance-stage query collected all 8 candidates (4 stale + 4 fresh) against a 4-input cap and failed voice_evidence_input_count_invalid; the referenced stale artifact was kept, not deleted, because 23 real failed-preview rows cite it as evidence the bug happened",
       "at": "2026-08-26"
+    },
+    {
+      "id": "separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker",
+      "kind": "decision",
+      "title": "separate's sepformer-whamr16k (16kHz Nyquist) is skipped when the dominant diarized cluster holds >=90% of all speech; the already-extracted window becomes separate's output directly at full bandwidth, labelled reference-window-passthrough",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "enrollment-reference-bandwidth-before-after",
+      "kind": "measurement",
+      "title": "FFT energy >=8kHz on the owner's real replica: 0.000458% before (band-limited artifact 3455faac) vs 0.0224% after (fixed, full-bandwidth window cut from the original 48kHz source), ~49x; same-seed/same-text/different-reference synthesis produced different output bytes for every arm, confirming the reference conditions the model",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "bandwidth-threshold-first-guess-was-miscalibrated",
+      "kind": "rejection",
+      "title": "check-enrollment-bandwidth.mjs's first threshold (1.5%, a clean-speech intuition) failed the real fixed reference (0.022%); recalibrated to 0.003% against two real FFT measurements on the owner's own recording",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "preview-ledger-requires-activation-this-replica-does-not-have",
+      "kind": "rejection",
+      "title": "neon-ledger.js's open() requires lifecycle=active and a matching vy_replica_runtime_capability row; a preview generation's voice_profile_id/profile_version/calibration_version are always NULL by design (migration 045) while the capability table's matching columns are NOT NULL, so the join can never match -- found while answering Q1, not fixed, out of this workstream's scope",
+      "at": "2026-08-27"
+    },
+    {
+      "id": "deepfilternet3-on-vs-off-not-measured-this-session",
+      "kind": "rejection",
+      "title": "whether enhance helps or hurts a genuinely full-bandwidth reference was not measured -- voice-evidence has no external ingress from this session (confirmed 404, ingress.external=false) and no ECAPA embedding could be computed without a container rebuild this session did not do",
+      "at": "2026-08-27"
     }
   ],
   "edges": [
@@ -6232,6 +6262,26 @@
       "src": "voice-quality-cannot-see-a-partial-artifact-generation",
       "rel": "caused_by",
       "dst": "wav-format-unsupported-fixed-and-proven-end-to-end"
+    },
+    {
+      "src": "separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker",
+      "rel": "measured_by",
+      "dst": "enrollment-reference-bandwidth-before-after"
+    },
+    {
+      "src": "separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker",
+      "rel": "supersedes",
+      "dst": "windowing-belongs-at-separate-now-that-diarize-is-done"
+    },
+    {
+      "src": "enrollment-reference-bandwidth-before-after",
+      "rel": "caused_by",
+      "dst": "bandwidth-threshold-first-guess-was-miscalibrated"
+    },
+    {
+      "src": "deepfilternet3-on-vs-off-not-measured-this-session",
+      "rel": "blocks",
+      "dst": "enrollment-reference-bandwidth-before-after"
     }
   ]
 }

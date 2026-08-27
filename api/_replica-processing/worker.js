@@ -229,12 +229,48 @@ async function buildOwnerReferenceWindowInput({ job, source, diarizeSegments, re
     bucket: source.storage_bucket, objectPath, body: selected.wavBytes, mime: "audio/wav",
     expectedSha256: sha256Hex(selected.wavBytes), ifNoneMatch: "*",
   });
-  return [{ artifact_id: null, sha256: stored.sha256, mime: "audio/wav", duration_ms: selected.durationMs, object_path: objectPath }];
+  const references = [{ artifact_id: null, sha256: stored.sha256, mime: "audio/wav", duration_ms: selected.durationMs, object_path: objectPath }];
+  return { references, selected };
+}
+
+// WS-AS, 2026-08-27. Diarize already reports how much of the recording each
+// cluster holds; `shouldSkipSeparation` reads that (see reference-window.js's
+// header for the threshold and its reasoning) rather than running
+// `sepformer-whamr16k` unconditionally. When it says skip, the window
+// `buildOwnerReferenceWindowInput` already extracted at full bandwidth IS
+// `separate`'s output -- an honest identity pass-through, not a fabricated
+// "separation succeeded" result. This never invokes the GPU adapter, so the
+// 16 kHz Nyquist that model imposes never enters the chain for a recording
+// that never had an overlapping-speaker problem for it to solve.
+function passthroughSeparationCandidate({ selected, references }) {
+  const input = references[0];
+  return {
+    variant_key: "owner-reference-passthrough",
+    body: selected.wavBytes,
+    sha256: sha256Hex(selected.wavBytes),
+    mime: "audio/wav",
+    duration_ms: selected.durationMs,
+    input_sha256: input.sha256,
+    transform_name: "reference-window-passthrough",
+    transform_version: "reference-window-passthrough-v1",
+    parameters: {
+      separation_skipped: true,
+      dominant_share: selected.dominantShare,
+      cluster_count: selected.clusterCount,
+      sample_rate: selected.sampleRate,
+    },
+    quality: { subject_selection_required: false, bandwidth_preserved: true },
+  };
 }
 
 async function runStage({ job, source, adapter, artifactStore, inputArtifacts, diarizeSegments, resolveInput, withMaterializedAudio, signal, billing }) {
+  let selectedReferenceWindow = null;
   const references = job.step === "separate"
-    ? await buildOwnerReferenceWindowInput({ job, source, diarizeSegments, resolveInput, withMaterializedAudio, artifactStore })
+    ? await (async () => {
+        const built = await buildOwnerReferenceWindowInput({ job, source, diarizeSegments, resolveInput, withMaterializedAudio, artifactStore });
+        selectedReferenceWindow = built.selected;
+        return built.references;
+      })()
     : inputReferences(source, inputArtifacts);
   const common = { source, inputs: references, signal, billing };
   switch (job.step) {
@@ -290,7 +326,15 @@ async function runStage({ job, source, adapter, artifactStore, inputArtifacts, d
       if (job.step === "enhance" && !references.some((entry) => entry.artifact_id)) {
         throw new ProcessingContractError("enhancement requires a separated parent artifact", { code: "separation_artifact_missing" });
       }
-      const result = await adapter[method](common);
+      const result = job.step === "separate" && selectedReferenceWindow?.separationSkipped
+        // Diarize already showed this is a single-speaker recording (or near
+        // enough -- see reference-window.js#shouldSkipSeparation). The GPU
+        // `sepformer-whamr16k` call never runs, so its 16 kHz Nyquist never
+        // touches this reference: the full-bandwidth window becomes
+        // `separate`'s output directly, honestly labelled as a pass-through
+        // rather than a fabricated separation result.
+        ? { candidates: [passthroughSeparationCandidate({ selected: selectedReferenceWindow, references })] }
+        : await adapter[method](common);
       const artifacts = await writeCandidates({
         job, source, adapter, candidates: result?.candidates, artifactStore, inputReferences: references,
       });

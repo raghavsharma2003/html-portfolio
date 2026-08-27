@@ -4776,3 +4776,78 @@ AUDIO BYTES: 266924
 **n=1** (one replica, one real preview call that reached `sealed`), method as
 above, dated 2026-08-27 (session crossed midnight UTC). This is the first time
 this exact call path has ever returned real audio bytes in production.
+
+## `enrollment-reference-bandwidth-before-after` (2026-08-27, WS-AS)
+
+**Scope line first.** Two things are measured here: an FFT-based spectral
+fraction (real, computed) and a same-seed/same-text output comparison across
+different references (real, computed). No ECAPA speaker-embedding cosine was
+computed in this session -- see the rejection below for why, stated plainly
+rather than invented.
+
+**Subject.** The owner's real replica `6aff3202-abbd-4ca6-976b-4009ed5af028`,
+source `77adc936-4ca1-43d7-8cd8-92c6a724780c` (822.72 s, 48 kHz/320 kbps MP3,
+32 908 934 bytes, confirmed by `ffprobe` against the real fetched bytes).
+
+**Method.** A real FFT (radix-2, Hann-windowed, `scripts/check-enrollment-
+bandwidth.mjs`) over the first ~2.7 s of a Hann-windowed prefix, reporting the
+fraction of spectral energy at/above 8 000 Hz.
+
+| clip | source | sample rate | fraction >= 8 kHz |
+|---|---|---|---|
+| **BEFORE** -- artifact `3455faac-4483-521d-ae20-a0304e00c550`, the enrollment reference `separate` (sepformer-whamr16k @ 16 kHz) + `enhance` actually produced and shipped to Chatterbox | deployed pipeline, unfixed | 24 000 Hz (label) | **0.000458%** (4.58e-6) |
+| **AFTER** -- same diarized window position re-cut fresh from the ORIGINAL 48 kHz source at 24 kHz, `separate` bypassed (`selectionSkipped=true`, `dominantShare=0.9528`) | this session's fix, run locally against real ffmpeg + the real original bytes + real diarize evidence from Postgres | 24 000 Hz (real) | **0.0224%** (2.24e-4) |
+
+**~49x increase**, n=1 window pair, same recording, same diarized position
+family, dated 2026-08-27. Cross-checked at native 48 kHz decode directly from
+the original MP3 (bypassing this session's code entirely, plain `ffmpeg` +
+the same FFT): 0.022% at the fixed window's position, 0.022% at a second,
+unrelated position near the start of the file -- confirming the BEFORE
+reading is not merely "quiet lecture audio" but a genuine null band: the
+owner's own WhatsApp voice note (`first-real-clone`'s subject, band-limited
+independently by its own capture path) reads the SAME near-zero fraction
+under this metric, so absolute magnitude alone does not distinguish a real
+recording from a destroyed one -- see `rejected.md#bandwidth-threshold-first-
+guess-was-miscalibrated` for the calibration correction this forced.
+
+**`selectOwnerReferenceWindow`'s own reported score for the AFTER window:
+0.8067**, `windowsConsidered: 27`, at `originalStartMs=475488`,
+`originalEndMs=485488` -- inside the range WS-U's `reference-window-beats-
+the-finetune` measured (0.7433-0.8058) for this same source, marginally above
+its prior top end (a different code path, so not claimed as a new ceiling,
+just consistent with the measured spread).
+
+### Same-seed, same-text, different-reference output comparison (Q1)
+
+Directly against the real deployed Chatterbox broker
+(`AZURE_OPEN_VOICE_ORIGIN`, wake-then-synthesize, no mock), bypassing only
+the production provenance ledger's DB bookkeeping (which requires an ACTIVE
+runtime capability this replica does not currently have -- unrelated to
+reference quality, see `rejected.md#preview-ledger-requires-activation-this-
+replica-does-not-have`). Text `"Namaste! Main aapka apna AI version hoon."`,
+`languageId="hi"`, style `{exaggeration:0.5, cfgWeight:0.5, temperature:0.8}`
+(the panel's own `PANEL_STYLE_KEY="balanced"` values), seed derived by the
+real `voicePreviewMatchedSeed` (`replica, genome_version=1, language, text
+hash`) -- **identical across every arm: 228992562**.
+
+| arm | reference artifact | reference sha256 (prefix) | output bytes | output sha256 (prefix) |
+|---|---|---|---|---|
+| A | `3455faac` (BEFORE, band-limited) | `71b2a322b0` | 288 000 | `b4ff277d88` |
+| B | `602f569c` (BEFORE, other separated-speaker estimate, same window) | `02ef368b05` | 284 160 | `65219c4f38` |
+| AFTER | this session's fixed full-bandwidth window | `bbefc8ed75` | 245 760 | `c7ba0591f8` (repeat run: `55d3eb5779`, same 245 760 length) |
+
+**Every arm produced a different output, in both length and content, with an
+identical seed and identical text.** A generator that ignored its reference
+would produce byte-identical output regardless of which arm ran; it did not.
+This is the direct answer to the coordinator's Q1: **the enrollment
+reference DOES condition the model.** The AFTER run was repeated once more
+(same reference, same seed) and reproduced the same 245 760-byte length with
+a different exact hash (`55d3eb5779` vs `c7ba0591f8`) -- Chatterbox is not
+perfectly bit-deterministic run-to-run even at a fixed seed on this GPU
+runtime, a real finding worth flagging on its own but orthogonal to Q1 (the
+length and gross content still tracked the reference, not the run).
+
+n=1 comparison set (3 references x 1 text/seed, 1 repeat), method as above,
+dated 2026-08-27. Clips saved to the scratchpad
+(`q1-direct-A.wav`, `q1-direct-B.wav`, `q1-direct-AFTER.wav`) and NOT to the
+repo.
