@@ -4717,10 +4717,16 @@ and noise suppression last. This is conservative selection, not a quality win.
 200-second server belief that the first GPU request is still in flight, and
 discard a late provider result without updating runtime warmth.
 
-**What specifically broke.** The page exhausted its 180-second budget before
-any request was allowed to re-enter synthesis. Even after Azure showed a healthy
-replica, the current click could end only in a misleading wake timeout.
+**What specifically broke.** The page first exhausted its 180-second budget
+before any request was allowed to re-enter synthesis. Extending it to seven
+polls crossed the 200-second window live, but poll seven dispatched the required
+second synthesis and then stopped on that same warming response. Crossing the
+window was necessary and not sufficient; the second request also needed time to
+finish before a later protected request.
 
 **What replaced it.** A validated late provider success marks runtime warmth
-without sealing the abandoned generation, and the seventh client poll crosses
-the server window so one click can reach a fresh protected synthesis.
+without sealing the abandoned generation. Ten client polls cover 300 seconds,
+so the seventh can cross the server window and dispatch a second synthesis, that
+synthesis can settle, and a later poll can make the fresh protected request.
+The displayed cold-start range is 2 to 5 minutes rather than the disproved
+3-minute ceiling.

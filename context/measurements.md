@@ -5278,9 +5278,20 @@ followed by five `voice_preview_wake_in_flight` rows, then the browser stopped
 at roughly 180 seconds with no sealed generation while Azure reported the
 active revision healthy with one replica.
 
-The corrected focused suite passes 91/91 checks. Its asynchronous control proves
+The first correction to seven polls was disproved by one live production run.
+The first synthesis dispatched after the cold broker at 15:25:36; requests
+continued to receive `voice_preview_wake_in_flight` through 15:29:14. Poll seven
+at 15:29:46 crossed the 200-second window and dispatched the necessary second
+synthesis against the now-warm runtime, but the client stopped on that same
+warming response because `attempt >= 7`. No protected generation reached the
+browser in that run.
+
+The corrected focused suite passes 95/95 checks. Its asynchronous control proves
 a provider result arriving after the flush changes the runtime hint from
 warming to warm, while protection calls remain zero and the discarded
-generation stays failed. A second check binds the seven-poll, 210-second client
-budget above the 200-second server window. This is a latency/control result,
-not a voice-quality result.
+generation stays failed. Its client timeline now permits ten polls over 300
+seconds: poll seven can dispatch the second synthesis, a 60-second conservative
+settle window can elapse, and poll ten can start a fresh protected request. The
+server and client copy now report 2 to 5 minutes. This is a deterministic
+latency/control result pending deployment, not a successful live preview or a
+voice-quality result.

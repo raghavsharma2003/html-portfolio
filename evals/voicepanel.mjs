@@ -404,8 +404,9 @@ section("cold start");
   check("a cold runtime answers 202 warming, not a hung request",
     first.kind === "json" && first.status === 202 && first.body.state === "warming", JSON.stringify(first.body));
   check("the warming answer names the runtime as the reason", first.body.stage === "runtime_cold");
-  check("the warming answer carries an honest 2-3 minute eta",
-    first.body.eta_seconds_low === 120 && first.body.eta_seconds_high === 180, JSON.stringify(first.body));
+  check("the warming answer carries the live-corrected 2-5 minute eta",
+    first.body.eta_seconds_low === 120 && first.body.eta_seconds_high === 300 &&
+      /2 to 5 minutes/.test(first.body.message), JSON.stringify(first.body));
   check("the warming answer carries a retry hint", first.body.retry_after_ms > 0);
   check("it sets Retry-After", Number(first.headers["Retry-After"]) > 0);
   check("the wake was actually DISPATCHED, not skipped", cold.provider.calls.length === 1);
@@ -562,14 +563,35 @@ section("route identity boundary");
 section("client warmup budget");
 {
   const client = readFileSync(join(ROOT, "src/studio/VoicePreviewPanel.tsx"), "utf8");
+  const clientApi = readFileSync(join(ROOT, "src/studio/voicePanelApi.ts"), "utf8");
   const retries = Number(client.match(/const MAX_AUTO_RETRIES\s*=\s*(\d+)/)?.[1]);
-  check("the client's automatic retry budget outlives the server wake-in-flight window",
-    Number.isFinite(retries) && retries * WARMUP.retryAfterMs > WARMUP.wakeInFlightMs,
-    JSON.stringify({ retries, retryAfterMs: WARMUP.retryAfterMs, wakeInFlightMs: WARMUP.wakeInFlightMs }));
-  // Negative control: the former six polls stop at 180 s while the server still
-  // promises the wake is in flight for 200 s.
+  // Once the 200 s wake belief expires, the next 30 s poll dispatches the
+  // necessary second synthesis. Allow one minute for that warm synthesis and
+  // one more polling interval for the fresh protected request to begin.
+  const secondSynthesisMs = 60_000;
+  const requiredBudgetMs = WARMUP.wakeInFlightMs + secondSynthesisMs + WARMUP.retryAfterMs;
+  const pollTimes = Array.from({ length: retries }, (_, index) => (index + 1) * WARMUP.retryAfterMs);
+  const secondDispatchAt = pollTimes.find((at) => at > WARMUP.wakeInFlightMs);
+  const secondReadyAt = secondDispatchAt + secondSynthesisMs;
+  const protectedRequestAt = pollTimes.find((at) => at > secondReadyAt);
+  check("the client's automatic retry budget covers wake, second synthesis, and a later protected request",
+    Number.isFinite(retries) && retries === 10 && retries * WARMUP.retryAfterMs >= requiredBudgetMs &&
+      secondDispatchAt === 210_000 && protectedRequestAt === 300_000,
+    JSON.stringify({ retries, retryAfterMs: WARMUP.retryAfterMs, wakeInFlightMs: WARMUP.wakeInFlightMs,
+      requiredBudgetMs, secondDispatchAt, secondReadyAt, protectedRequestAt }));
+  // Negative controls: six polls stop inside the original wake window; seven
+  // cross it but stop on the response that dispatches the second synthesis.
   check("NEGATIVE CONTROL: the former six-poll budget is caught",
     6 * WARMUP.retryAfterMs <= WARMUP.wakeInFlightMs);
+  check("NEGATIVE CONTROL: the former seven-poll budget cannot finish the second synthesis",
+    7 * WARMUP.retryAfterMs < requiredBudgetMs);
+  check("the panel and its API fallback both tell the owner the five-minute ceiling",
+    /two to five minutes/.test(client) && /2 to 5 minutes/.test(clientApi) &&
+      (clientApi.match(/etaSecondsHigh:\s*Number\([^\n]+\) \|\| 300/g) || []).length === 2);
+  check("the warm-runtime copy promises only a relative improvement, not seconds",
+    /after that it is usually much faster/.test(client) && !/after that it is seconds/.test(client));
+  check("NEGATIVE CONTROL: no voice-panel path retains the disproved three-minute ceiling",
+    !/(?:two|2) to (?:three|3) minutes|2-3 minutes|etaSecondsHigh:[^\n]+\|\| 180/.test(`${client}\n${clientApi}`));
 }
 
 console.log(`\n  ${passed} checks passed, ${failures.length} failed`);

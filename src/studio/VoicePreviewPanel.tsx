@@ -5,7 +5,7 @@
 // gate. This is not that. This is one box, one button, and one honest answer.
 //
 // The honesty is the design. The GPU runtime scales to zero, so the first
-// click of the day genuinely cannot produce audio for about two to three
+// click of the day genuinely cannot produce audio for about two to five
 // minutes — and every dishonest way of showing that was available and
 // rejected: a spinner that runs until the platform kills the request at 240 s,
 // a fake progress bar, or an error for a service that is merely asleep. The
@@ -37,11 +37,13 @@ type Phase =
   | { kind: "ready"; url: string; generationId: string; modelCommitment: string }
   | { kind: "error"; headline: string; detail: string; canRetry: boolean };
 
-// A cold start is one wake, not a loop. Seven polls at ~30 s keep the client
-// attached for 210 s, beyond the server's 200 s wake-in-flight window. Stopping
-// at six used to give up at ~180 s while the server still truthfully said the
-// original wake was in flight.
-const MAX_AUTO_RETRIES = 7;
+// A cold start can require two syntheses: the first wakes the GPU, then the
+// first poll after the server's 200 s wake window dispatches a fresh synthesis
+// against that warm runtime. Ten polls keep the client attached for 300 s, so
+// that second request can finish and a later poll can protect and return audio.
+// Seven polls crossed the wake window but stopped on the same response that
+// dispatched the necessary second synthesis.
+const MAX_AUTO_RETRIES = 10;
 
 // ── THE WAIT SURVIVES A TAB SWITCH (WS-AP, from the owner's own report) ────
 //
@@ -66,7 +68,7 @@ const MAX_AUTO_RETRIES = 7;
 // synthesised, so the retry that fires next is the next tick of the same
 // wait rather than a new one.
 const WARMUP_KEY_PREFIX = "vy.voicePreview.warmup.";
-// Generous on purpose. The real cold start is 2-3 minutes; this is the ceiling
+// Generous on purpose. The real cold start can take 2-5 minutes; this is the ceiling
 // past which a persisted wait is treated as abandoned rather than resumable,
 // covering a slow admission queue plus however long a person's tab genuinely
 // stayed backgrounded. Past it, starting fresh is more honest than pretending
@@ -299,7 +301,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
         ? disabledReason(
           "us",
           phase.kind === "warming"
-            ? "The voice runtime is starting up, which takes two to three minutes after a quiet period."
+            ? "The voice runtime is starting up, which takes two to five minutes after a quiet period."
             : "Your line is being generated right now.",
           "It retries by itself. You can leave this open or go and do something else on this step.",
         )
@@ -364,7 +366,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               type="button"
               disabled={Boolean(reason)}
               // Press feedback fires on pointerdown, and so does the work: a
-              // cold voice runtime takes two to three minutes, and spending
+              // cold voice runtime takes two to five minutes, and spending
               // the click duration on top of that for nothing is the exact
               // latency DESIGN-LAW §2 calls the enemy. The keyboard path is
               // separate because pointerdown never fires for it.
@@ -424,7 +426,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
               <p className="hear-voice-state idle">Nothing generated yet</p>
               <p className="hear-voice-message">
                 Write a line and press the button. The first preview after a quiet period takes two to
-                three minutes while the runtime starts; after that it is seconds.
+                five minutes while the runtime starts; after that it is usually much faster.
               </p>
             </>
           )}

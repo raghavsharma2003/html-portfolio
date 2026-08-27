@@ -6343,14 +6343,18 @@ to the exact internal-owner guard unless the production ceremony changes.
 **Decision.** A cold preview request that finishes after the HTTP response has
 returned validates the provider result and marks only the runtime warmth hint
 as ready. Its already-failed generation remains failed, and its discarded audio
-never enters protection, sealing or the browser. Studio retries for 210 seconds,
-which exceeds the server's 200-second wake-in-flight window.
+never enters protection, sealing or the browser. Studio retries for 300 seconds,
+long enough to cross the server's 200-second wake-in-flight window, dispatch a
+second synthesis against the warm runtime and make a later protected request.
 
 **Why.** The live GPU revision became healthy, but six 30-second client polls
 ended at about 180 seconds while the server continued refusing duplicate work
 as an in-flight wake for 200 seconds. A late successful provider promise was
 previously swallowed without updating the warmth registry, so the UI could
-never observe the warm runtime during one click.
+never observe the warm runtime during one click. A first correction to seven
+polls was also insufficient live: poll seven crossed the window and dispatched
+the necessary second synthesis, then the client stopped on that same warming
+response before the synthesis could settle.
 
 **What would reverse it.** A durable cross-instance admission state or a true
 asynchronous synthesis job may replace the in-process hint. It must preserve

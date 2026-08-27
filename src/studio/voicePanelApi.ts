@@ -3,7 +3,7 @@
 // Separate from voicePreviewApi.ts on purpose: that one talks to the
 // calibration lab, whose contract is "audio or an error". This endpoint has a
 // third answer — WARMING — because the GPU runtime behind it scales to zero
-// and takes about 2-3 minutes to come back (docs/gurukul/AZURE-DEPLOY-STATE.md
+// and can take about 2-5 minutes to come back (docs/gurukul/AZURE-DEPLOY-STATE.md
 // §8). A client that models only two outcomes has to render the third as one
 // of them, and both choices are lies: a spinner that never ends, or an error
 // for something that is not broken.
@@ -40,9 +40,9 @@ function warmingFrom(data: any): VoicePanelWarming {
     stage: typeof data?.stage === "string" ? data.stage : "runtime_cold",
     message: typeof data?.message === "string" && data.message
       ? data.message
-      : "Your voice runtime is starting up. This takes about 2 to 3 minutes from cold.",
+      : "Your voice runtime is starting up. This takes about 2 to 5 minutes from cold.",
     etaSecondsLow: Number(data?.eta_seconds_low) || 120,
-    etaSecondsHigh: Number(data?.eta_seconds_high) || 180,
+    etaSecondsHigh: Number(data?.eta_seconds_high) || 300,
     retryAfterMs: Number(data?.retry_after_ms) || 30_000,
   };
 }
@@ -109,6 +109,6 @@ export async function getVoicePanelStatus(token: string): Promise<VoicePanelStat
     state,
     retryAfterMs: Number(data?.retry_after_ms) || 0,
     etaSecondsLow: Number(data?.eta_seconds_low) || 120,
-    etaSecondsHigh: Number(data?.eta_seconds_high) || 180,
+    etaSecondsHigh: Number(data?.eta_seconds_high) || 300,
   };
 }

@@ -24,7 +24,7 @@
 // route that wakes the GPU app without synthesising, so the only thing that
 // wakes the runtime is a real `POST /v1/synthesize`. What CAN be fixed is the
 // SHAPE OF THE WAIT — dispatch that request, stop waiting on it after a short
-// flush window, and tell the owner the truth ("warming up, about 2-3 minutes")
+// flush window, and tell the owner the truth ("warming up, about 2-5 minutes")
 // instead of holding a connection open until the platform kills it.
 //
 // The warmth record below is per-process, exactly like `api/_ratelimit.js`,
@@ -45,10 +45,11 @@ export const WARMUP = Object.freeze({
   // How long one successful synthesis lets us believe the GPU replica is still
   // up. Container Apps scales to zero on idle; this is a hint, not a contract.
   warmTtlMs: 240_000,
-  // Measured: ready at 161 s. Reported to the owner as a 2-3 minute range
-  // rather than a false-precision countdown.
+  // The first wake crossed 200 s live and still needed a fresh warm-runtime
+  // synthesis. Report a 2-5 minute range rather than the disproved 3 minute
+  // ceiling or a false-precision countdown.
   coldStartEtaLowMs: 120_000,
-  coldStartEtaHighMs: 180_000,
+  coldStartEtaHighMs: 300_000,
   // How long a dispatched wake is believed to still be in flight.
   wakeInFlightMs: 200_000,
   // How long we stay on a cold synthesis before abandoning the WAIT (never the
@@ -177,7 +178,7 @@ export function warmingBody(stage, extra = {}) {
     stage,
     message: stage === "admission_cold"
       ? "The voice lab's front door is still waking up. This takes about a minute from cold."
-      : "Your voice runtime is starting on a GPU. From a cold start this takes about 2 to 3 minutes.",
+      : "Your voice runtime is starting on a GPU. From a cold start this takes about 2 to 5 minutes.",
     eta_seconds_low: Math.round(WARMUP.coldStartEtaLowMs / 1000),
     eta_seconds_high: Math.round(WARMUP.coldStartEtaHighMs / 1000),
     retry_after_ms: WARMUP.retryAfterMs,
