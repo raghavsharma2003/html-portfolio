@@ -3,6 +3,7 @@ steps:
   - build: >-
       -t $Registry/vyakti/openvoice-converter-eval:$ID
       -f services/openvoice-converter/Dockerfile
+      --build-arg VYAKTI_RUNTIME_SOURCE_SHA256=$SOURCE_MANIFEST_SHA256
       .
     timeout: 3600
   - push:

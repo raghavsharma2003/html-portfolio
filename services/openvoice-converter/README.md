@@ -42,11 +42,39 @@ Runtime Hugging Face access is offline. This public snapshot needs no owner
 credential, so the Hugging Face password shared in chat is not used or stored.
 
 `acr-task.yaml` is for an Azure remote build. It does not require or invoke the
-laptop's Docker daemon. The Bicep resources have names distinct from production,
-private GPU ingress, public signed admission, `minReplicas: 0`, `maxReplicas: 1`,
-an explicit expiry and a USD 40 parameter ceiling. A stale external signature
-is never forwarded after a cold start: the broker wakes the private health
-endpoint first, then signs a fresh internal request only after it is ready.
+laptop's Docker daemon. Always invoke it through the checked-in wrapper. The
+wrapper derives a canonical manifest from the exact four runtime files copied
+by the Dockerfile and passes its SHA-256 explicitly to the fail-closed build:
+
+```text
+node services/openvoice-converter/remote-build.mjs plan --registry <acr-name>
+node services/openvoice-converter/remote-build.mjs run --registry <acr-name>
+```
+
+The plan command is offline and shows the exact file set, hashes and Azure CLI
+arguments without starting a build. The run command calls `az acr run`; it
+never calls local Docker. Omitting the registry or the source-manifest value is
+rejected before Azure is contacted, and the Dockerfile independently rejects
+an empty or malformed build argument.
+
+On Windows the run command resolves an explicit `--az <absolute-az.cmd>`, then
+`VYAKTI_AZURE_CLI`, then `az.cmd` or `az.exe` on `PATH`. This is useful when
+Azure CLI is installed outside the company-managed `PATH`:
+
+```text
+node services/openvoice-converter/remote-build.mjs run --registry <acr-name> --az "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
+```
+
+Command shims run through `ComSpec` with every argument separately validated
+and quoted, delayed expansion off, and Node `shell: false`. Non-Windows hosts
+execute `az` directly. `VYAKTI_AZURE_CLI` contains a local executable path, not
+a credential, and should not be committed.
+
+The Bicep resources have names distinct from production, private GPU ingress,
+public signed admission, `minReplicas: 0`, `maxReplicas: 1`, an explicit expiry
+and a USD 40 parameter ceiling. A stale external signature is never forwarded
+after a cold start: the broker wakes the private health endpoint first, then
+signs a fresh internal request only after it is ready.
 
 ## Qualification gate
 

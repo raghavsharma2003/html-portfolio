@@ -2840,6 +2840,94 @@
 .hear-voice-correction span { grid-column: 1; color: rgba(255, 255, 255, 0.62); font-size: 11px; line-height: 1.5; }
 .hear-voice-correction .review-refresh { grid-column: 2; grid-row: 1 / span 2; align-self: center; margin: 0; border-color: rgba(255, 255, 255, 0.34); color: #fffef9; }
 
+.voice-experiment { --experiment-muted: #52635c; margin: 18px 0 26px; border-block: 1px solid var(--line); background: rgba(255, 255, 255, 0.34); }
+.voice-experiment > summary { display: flex; justify-content: space-between; gap: 20px; align-items: center; min-height: 72px; padding: 14px 2px; color: var(--forest-deep); cursor: pointer; list-style: none; }
+.voice-experiment > summary::-webkit-details-marker { display: none; }
+.voice-experiment > summary > span:first-child { min-width: 0; }
+.voice-experiment > summary strong, .voice-experiment > summary small { display: block; }
+.voice-experiment > summary strong { font-size: 14px; }
+.voice-experiment > summary small { margin-top: 3px; color: var(--experiment-muted); font-size: 11px; font-weight: 500; line-height: 1.45; }
+.voice-experiment > summary > span:last-child { flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--experiment-muted); background: var(--panel-solid); font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.voice-experiment > summary > span.active { border-color: rgba(40, 99, 79, .28); color: var(--forest); background: var(--forest-soft); }
+.voice-experiment > summary > span.unlocked { border-color: var(--forest); color: #fff; background: var(--forest); }
+.voice-experiment button:focus-visible, .voice-experiment summary:focus-visible, .voice-experiment label:focus-within { outline: 3px solid rgba(40, 99, 79, .3); outline-offset: 3px; }
+.voice-experiment-body { padding: 4px 2px 24px; }
+.voice-experiment-error { display: flex; justify-content: space-between; gap: 18px; align-items: center; margin-bottom: 15px; padding: 12px 14px; border: 1px solid rgba(148, 73, 62, .24); border-radius: 11px; color: #7d3d34; background: #fbefec; font-size: 11px; line-height: 1.5; }
+.voice-experiment-error button { border: 0; color: inherit; background: transparent; font: inherit; font-weight: 800; cursor: pointer; }
+.voice-experiment-import, .voice-experiment-start { display: flex; justify-content: space-between; gap: 28px; align-items: center; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.voice-experiment h3 { margin: 0; color: var(--forest-deep); font: 500 22px/1.15 var(--serif); letter-spacing: -.018em; }
+.voice-experiment-import p, .voice-experiment-start p, .voice-experiment-locked p, .voice-experiment-results header p { max-width: 66ch; margin: 7px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.6; }
+.voice-experiment label.button { position: relative; flex: 0 0 auto; overflow: hidden; cursor: pointer; }
+.voice-experiment label.button.disabled { opacity: .48; cursor: wait; }
+.voice-experiment label.button input, .voice-experiment-portability input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.voice-experiment-seal { display: inline-block; margin-bottom: 8px; color: var(--forest); font-size: 10px; font-weight: 850; letter-spacing: .12em; }
+.voice-experiment-start-actions { display: flex; flex: 0 0 auto; gap: 8px; }
+.voice-experiment-progress { height: 4px; margin-bottom: 17px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.voice-experiment-progress span { display: block; height: 100%; border-radius: inherit; background: var(--forest); }
+.voice-experiment-rating { padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.voice-experiment-rating > header { display: flex; justify-content: space-between; gap: 16px; color: var(--experiment-muted); font-size: 10px; font-weight: 800; }
+.voice-experiment-rating > header > span { color: var(--forest); }
+.voice-experiment-prompt { max-width: 67ch; margin: 16px 0 18px; color: var(--ink); font: 500 17px/1.55 var(--serif); overflow-wrap: anywhere; }
+.voice-experiment-play { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.voice-experiment-play > span { margin-inline-start: auto; color: var(--experiment-muted); font-size: 10px; }
+.voice-experiment-axes { display: grid; gap: 7px; margin-top: 18px; }
+.voice-experiment-axes fieldset { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(250px, .8fr); gap: 18px; align-items: center; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; }
+.voice-experiment-axes legend { display: contents; }
+.voice-experiment-axes legend strong, .voice-experiment-axes legend span { display: block; }
+.voice-experiment-axes legend strong { color: var(--ink); font-size: 11px; }
+.voice-experiment-axes legend span { margin-top: 3px; color: var(--experiment-muted); font-size: 10px; line-height: 1.4; }
+.voice-experiment-axes fieldset > div { display: grid; grid-template-columns: repeat(5, minmax(38px, 1fr)); gap: 5px; }
+.voice-experiment-axes button, .voice-experiment-disclosure button, .voice-experiment-attention > div button { min-height: 38px; padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--ink-soft); background: var(--panel-solid); font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; }
+.voice-experiment-axes button[aria-pressed="true"], .voice-experiment-disclosure button[aria-pressed="true"], .voice-experiment-attention button[aria-pressed="true"] { border-color: var(--forest); color: #fff; background: var(--forest); }
+.voice-experiment-disclosure { margin: 17px 0 0; padding: 0; border: 0; }
+.voice-experiment-disclosure legend { margin-bottom: 8px; color: var(--ink); font-size: 11px; font-weight: 800; }
+.voice-experiment-disclosure > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.voice-experiment-note { display: grid; gap: 7px; margin-top: 16px; color: var(--ink); font-size: 11px; font-weight: 800; }
+.voice-experiment-note textarea { width: 100%; min-height: 70px; resize: vertical; padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--ink); background: var(--panel-solid); font: 16px/1.5 var(--sans); }
+.voice-experiment-note textarea:focus { border-color: var(--forest); outline: 3px solid rgba(40, 99, 79, .14); outline-offset: 0; }
+.voice-experiment-rating > footer { display: grid; grid-template-columns: 1fr auto 1fr; gap: 15px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.voice-experiment-rating > footer > span { color: var(--experiment-muted); font-size: 10px; text-align: center; }
+.voice-experiment-rating > footer > :last-child { justify-self: end; }
+.voice-experiment .text-button { border: 0; color: var(--forest); background: transparent; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
+.voice-experiment .text-button:disabled { color: var(--experiment-muted); opacity: .5; cursor: not-allowed; }
+.voice-experiment-portability { display: flex; justify-content: center; gap: 16px; margin-top: 12px; }
+.voice-experiment-portability button, .voice-experiment-portability label { position: relative; display: inline-flex; min-height: 44px; align-items: center; border: 0; color: var(--experiment-muted); background: transparent; font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.voice-experiment-attention { display: grid; justify-items: start; gap: 14px; padding-block: 24px 8px; }
+.voice-experiment-attention p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+.voice-experiment-attention > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.voice-experiment-attention button:disabled { opacity: .46; cursor: not-allowed; }
+.voice-experiment-locked { padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.voice-experiment-locked > header, .voice-experiment-results > header { display: flex; justify-content: space-between; gap: 22px; align-items: flex-start; }
+.voice-experiment-locked > header > span, .voice-experiment-results > header > span { flex: 0 0 auto; padding: 7px 9px; border-radius: 999px; color: var(--forest); background: var(--forest-soft); font-size: 10px; font-weight: 800; }
+.voice-experiment-lock-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 17px; }
+.voice-experiment-command { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.voice-experiment-command summary { display: flex; min-height: 44px; align-items: center; color: var(--experiment-muted); font-size: 11px; font-weight: 800; cursor: pointer; }
+.voice-experiment-command code, .voice-experiment-command small { display: block; margin-top: 8px; overflow-wrap: anywhere; }
+.voice-experiment-command code { padding: 9px 10px; border-radius: 8px; color: var(--ink-soft); background: var(--panel-solid); font: 10px/1.5 var(--mono); }
+.voice-experiment-command small { color: var(--experiment-muted); font-size: 10px; }
+.voice-experiment-results { padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.voice-experiment-results > section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.voice-experiment-results h4 { margin: 0 0 10px; color: var(--forest-deep); font-size: 12px; }
+.voice-experiment-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.voice-experiment-result-grid article { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-solid); }
+.voice-experiment-result-grid article > header { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.voice-experiment-result-grid article > header strong { color: var(--ink); font-size: 11px; overflow-wrap: anywhere; }
+.voice-experiment-result-grid article > header span { color: var(--forest); font: 500 20px/1 var(--serif); font-variant-numeric: tabular-nums; }
+.voice-experiment-result-grid article > small { display: block; margin-top: 4px; color: var(--experiment-muted); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.voice-experiment-result-grid dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 12px 0 0; }
+.voice-experiment-result-grid dl div { min-width: 0; padding-top: 7px; border-top: 1px solid var(--line); }
+.voice-experiment-result-grid dt { color: var(--experiment-muted); font-size: 10px; }
+.voice-experiment-result-grid dd { margin: 3px 0 0; color: var(--ink); font-size: 11px; font-variant-numeric: tabular-nums; }
+.voice-experiment-truth { margin: 17px 0 0; color: var(--ink-soft); font-size: 10px; line-height: 1.6; }
+.voice-experiment-lock-warning { margin: 10px 0 0; color: var(--experiment-muted); font-size: 10px; line-height: 1.5; text-align: right; }
+.voice-experiment-lifecycle { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-top: 14px; padding: 10px 2px 0; border-top: 1px solid var(--line); }
+.voice-experiment-lifecycle small { max-width: 64ch; color: var(--experiment-muted); font-size: 10px; line-height: 1.5; }
+.voice-experiment-lifecycle > div { display: flex; flex: 0 0 auto; gap: 8px; align-items: center; }
+.voice-experiment-lifecycle .text-button { position: relative; display: inline-flex; min-height: 44px; align-items: center; padding: 0 8px; white-space: nowrap; }
+.voice-experiment-lifecycle .text-button.danger { color: #7d3d34; }
+.voice-experiment-lifecycle .text-button.disabled { opacity: .5; cursor: wait; }
+.voice-experiment-lifecycle input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
 @media (max-width: 780px) {
   .hear-voice-body { grid-template-columns: 1fr; }
   .hear-voice-stage { min-height: 250px; border-left: 0; border-top: 1px solid var(--line); }
@@ -2852,6 +2940,29 @@
   .hear-voice .voice-preview-language button { min-height: 44px; padding-inline: 6px; font-size: 11px; }
   .hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }
   .hear-voice-correction .review-refresh { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 5px; }
+  .voice-experiment > summary { align-items: flex-start; padding-inline: 0; }
+  .voice-experiment > summary > span:last-child { max-width: 120px; text-align: center; }
+  .voice-experiment-body { padding-inline: 0; }
+  .voice-experiment-import, .voice-experiment-start, .voice-experiment-locked > header, .voice-experiment-results > header { align-items: stretch; flex-direction: column; }
+  .voice-experiment-import label.button { width: 100%; }
+  .voice-experiment-start-actions { display: grid; grid-template-columns: 1fr; }
+  .voice-experiment-rating, .voice-experiment-locked, .voice-experiment-results { padding: 18px 14px; }
+  .voice-experiment-play { display: grid; grid-template-columns: 1fr; }
+  .voice-experiment-play > span { margin: 0; }
+  .voice-experiment-axes fieldset { grid-template-columns: 1fr; gap: 9px; }
+  .voice-experiment-axes button, .voice-experiment-disclosure button, .voice-experiment-attention > div button { min-height: 44px; }
+  .voice-experiment .text-button, .voice-experiment-error button { min-width: 44px; min-height: 44px; }
+  .voice-experiment-disclosure > div, .voice-experiment-attention > div { display: grid; grid-template-columns: 1fr; }
+  .voice-experiment-rating > footer { grid-template-columns: 1fr 1fr; }
+  .voice-experiment-rating > footer > span { grid-column: 1 / -1; grid-row: 1; }
+  .voice-experiment-rating > footer > :first-child { grid-column: 1; grid-row: 2; justify-self: start; }
+  .voice-experiment-rating > footer > :last-child { grid-column: 2; grid-row: 2; }
+  .voice-experiment-lock-warning { text-align: left; }
+  .voice-experiment-lock-actions { display: grid; grid-template-columns: 1fr; }
+  .voice-experiment-result-grid { grid-template-columns: 1fr; }
+  .voice-experiment-lifecycle { align-items: stretch; flex-direction: column; gap: 4px; }
+  .voice-experiment-lifecycle > div { display: grid; grid-template-columns: 1fr; }
+  .voice-experiment-lifecycle .text-button { justify-content: flex-start; padding-inline: 0; }
 }
 
 /* ── Mirror Call: the Call tab ──────────────────────────────────────────── */

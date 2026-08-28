@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import io
 import json
+import math
 import re
 import time
 import uuid
@@ -50,9 +51,30 @@ def sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _canonical_value(value: Any) -> Any:
+    """Keep receipt numbers stable after a JSON round trip into JavaScript."""
+
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("canonical_json_number_invalid")
+        if value == 0 or value.is_integer():
+            return int(value)
+        return value
+    if isinstance(value, list):
+        return [_canonical_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_canonical_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _canonical_value(item) for key, item in value.items()}
+    return value
+
+
 def canonical(value: Any) -> bytes:
     return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        _canonical_value(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
     ).encode("utf-8")
 
 

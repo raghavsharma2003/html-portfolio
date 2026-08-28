@@ -40,6 +40,7 @@ import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
 import VoicePreviewLab from "./VoicePreviewLab";
 import VoicePreviewPanel from "./VoicePreviewPanel";
+import VoiceExperimentPanel from "./VoiceExperimentPanel";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
@@ -1008,6 +1009,10 @@ function ReplicaWorkspace({
                   wizardInput={previewWizardInput}
                   testEnvironment={testEnvironment}
                   onAuthError={onReviewAuthError}
+                />
+                <VoiceExperimentPanel
+                  key={`voice-experiment-${replica.replica_id}`}
+                  replicaId={replica.replica_id}
                 />
                 {!testEnvironment && <VoiceUnlockNotice replica={replica} />}
                 <MirrorCallStudio

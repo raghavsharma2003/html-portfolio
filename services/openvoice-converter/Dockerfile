@@ -2,6 +2,13 @@
 FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime@sha256:77f17f843507062875ce8be2a6f76aa6aa3df7f9ef1e31d9d7432f4b0f563dee
 
 ARG OPENVOICE_SOURCE_COMMIT=74a1d147b17a8c3092dd5430504bd83ef6c7eb23
+ARG VYAKTI_RUNTIME_SOURCE_SHA256
+
+RUN case "${VYAKTI_RUNTIME_SOURCE_SHA256}" in \
+      ''|*[!0-9a-f]*) echo "VYAKTI_RUNTIME_SOURCE_SHA256 must be a lowercase SHA-256" >&2; exit 1 ;; \
+      *) ;; \
+    esac \
+    && test "${#VYAKTI_RUNTIME_SOURCE_SHA256}" -eq 64
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -9,7 +16,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/models/huggingface \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
-    OPENVOICE_CONVERTER_MODEL_ROOT=/models/openvoice-v2
+    OPENVOICE_CONVERTER_MODEL_ROOT=/models/openvoice-v2 \
+    OPENVOICE_CONVERTER_RUNTIME_SOURCE_SHA256=${VYAKTI_RUNTIME_SOURCE_SHA256}
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends git ffmpeg libsndfile1 ca-certificates \

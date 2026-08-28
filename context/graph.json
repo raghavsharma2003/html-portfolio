@@ -4385,6 +4385,173 @@
       "kind": "rejection",
       "title": "A sealed-pack aggregate is not a winner or a language diagnosis",
       "at": "2026-08-28"
+    },
+    {
+      "id": "studio-blind-results-use-portable-sealed-bundles-before-new-api",
+      "kind": "decision",
+      "title": "Studio blind results use portable sealed bundles before a new API",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "owner-studio-blind-experiment-fixture-2026-08-28",
+      "kind": "measurement",
+      "title": "The real sealed owner pack passes the Studio blind workflow",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "base64-audio-is-not-searchable-model-metadata",
+      "kind": "rejection",
+      "title": "Base64 audio is not searchable model metadata",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "large-voice-experiments-prefer-consumption-a100-before-compute-quota",
+      "kind": "decision",
+      "title": "Large voice experiments prefer Consumption A100 before Compute quota",
+      "at": "2026-08-28",
+      "status": "read-only ranked capacity plan; no GPU or quota request created"
+    },
+    {
+      "id": "personal-subscription-large-gpu-capacity-inventory-2026-08-28",
+      "kind": "measurement",
+      "title": "The personal subscription has no currently provisionable tested large-GPU VM",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "compute-sku-visibility-is-not-large-gpu-provisionability",
+      "kind": "rejection",
+      "title": "Compute SKU visibility is not large-GPU provisionability",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "native-base-openvoice-conversion-stays-unqualified-after-receipt-drift",
+      "kind": "decision",
+      "title": "Native-base OpenVoice conversion stays unqualified after receipt drift",
+      "at": "2026-08-28",
+      "status": "sealed abort with zero served candidates; local fix unbuilt"
+    },
+    {
+      "id": "owner-native-base-openvoice-conversion-aborted-2026-08-28",
+      "kind": "measurement",
+      "title": "The owner native-base OpenVoice run aborted at the immutable receipt gate",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "sarvam-bulbul-existing-key-returned-payment-required",
+      "kind": "rejection",
+      "title": "The existing Sarvam key returned payment required before audio",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "perth-watermark-needs-explicit-frame-padding",
+      "kind": "rejection",
+      "title": "PerTh watermarking needs explicit frame padding",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "python-javascript-float-canonicalization-can-break-receipt-hashes",
+      "kind": "rejection",
+      "title": "Python and JavaScript float canonicalization can break receipt hashes",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-aca-a100-remains-unqualified-after-bounded-pull",
+      "kind": "decision",
+      "title": "ZONOS2 stays unqualified after the bounded A100 image pull",
+      "at": "2026-08-28",
+      "status": "A100 scheduled; image pull missed readiness bound; zero audio"
+    },
+    {
+      "id": "zonos2-aca-a100-scheduling-pull-bound-2026-08-28",
+      "kind": "measurement",
+      "title": "Container Apps A100 scheduled but ZONOS2 did not finish pulling inside the bound",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-cross-region-image-pull-misses-bounded-readiness",
+      "kind": "rejection",
+      "title": "The cross-region 22 GiB ZONOS2 pull misses bounded readiness",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "studio-reports-require-private-pack-asymmetric-attestation",
+      "kind": "decision",
+      "title": "Studio reports require a private-pack asymmetric attestation",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "studio-signed-report-and-lifecycle-fixture-2026-08-28",
+      "kind": "measurement",
+      "title": "Signed Studio reports and bounded lifecycle pass executable fixtures",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "public-seal-hashes-do-not-authenticate-studio-reports",
+      "kind": "rejection",
+      "title": "Public seal hashes do not authenticate Studio reports",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "native-base-openvoice-conversion-rejected-after-objective-regression",
+      "kind": "decision",
+      "title": "Native-base OpenVoice conversion is rejected after objective regression",
+      "at": "2026-08-28",
+      "status": "receipt-valid but ECAPA and script-aware ASR regressed; isolated and unqualified"
+    },
+    {
+      "id": "owner-openvoice-receiptcanon-objective-2026-08-28",
+      "kind": "measurement",
+      "title": "Receipt-valid OpenVoice conversions regress both registered objective guardrails",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-tone-conversion-regressed-owner-proxy-and-asr",
+      "kind": "rejection",
+      "title": "OpenVoice tone conversion regressed owner proxy and ASR",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "maximum-source-rms-is-not-a-peak-safe-listening-level",
+      "kind": "rejection",
+      "title": "Maximum source RMS is not a peak-safe listening level",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "remote-acr-builds-use-platform-aware-cli-launcher",
+      "kind": "decision",
+      "title": "Remote ACR builds use a platform-aware Azure CLI launcher",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "openvoice-windows-acr-wrapper-fixture-2026-08-28",
+      "kind": "measurement",
+      "title": "The Windows Azure CLI shim preserves exact spaced arguments without shell mode",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "windows-az-cmd-is-not-a-direct-node-executable",
+      "kind": "rejection",
+      "title": "Windows az.cmd is not a direct Node executable",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-regional-pull-solves-transfer-not-cuda-exposure",
+      "kind": "decision",
+      "title": "Regional pulling solves ZONOS2 transfer but not CUDA exposure",
+      "at": "2026-08-28",
+      "status": "regional pull measured; runtime CUDA device unavailable; zero audio"
+    },
+    {
+      "id": "zonos2-wus3-regional-acr-pull-and-cuda-stop-2026-08-28",
+      "kind": "measurement",
+      "title": "A regional ACR pull completed in 194 seconds before CUDA initialization stopped",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "zonos2-regional-a100-without-visible-cuda-device",
+      "kind": "rejection",
+      "title": "Regional Container Apps A100 did not expose CUDA to ZONOS2",
+      "at": "2026-08-28"
     }
   ],
   "edges": [
@@ -8665,6 +8832,206 @@
     },
     {
       "src": "owner-exact-text-matched-pack-objective-opaque-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "studio-blind-results-use-portable-sealed-bundles-before-new-api",
+      "rel": "measured_by",
+      "dst": "owner-studio-blind-experiment-fixture-2026-08-28"
+    },
+    {
+      "src": "studio-blind-results-use-portable-sealed-bundles-before-new-api",
+      "rel": "caused_by",
+      "dst": "base64-audio-is-not-searchable-model-metadata"
+    },
+    {
+      "src": "studio-blind-results-use-portable-sealed-bundles-before-new-api",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-studio-blind-experiment-fixture-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "large-voice-experiments-prefer-consumption-a100-before-compute-quota",
+      "rel": "measured_by",
+      "dst": "personal-subscription-large-gpu-capacity-inventory-2026-08-28"
+    },
+    {
+      "src": "large-voice-experiments-prefer-consumption-a100-before-compute-quota",
+      "rel": "caused_by",
+      "dst": "compute-sku-visibility-is-not-large-gpu-provisionability"
+    },
+    {
+      "src": "large-voice-experiments-prefer-consumption-a100-before-compute-quota",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "personal-subscription-large-gpu-capacity-inventory-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "native-base-openvoice-conversion-stays-unqualified-after-receipt-drift",
+      "rel": "measured_by",
+      "dst": "owner-native-base-openvoice-conversion-aborted-2026-08-28"
+    },
+    {
+      "src": "native-base-openvoice-conversion-stays-unqualified-after-receipt-drift",
+      "rel": "caused_by",
+      "dst": "sarvam-bulbul-existing-key-returned-payment-required"
+    },
+    {
+      "src": "native-base-openvoice-conversion-stays-unqualified-after-receipt-drift",
+      "rel": "caused_by",
+      "dst": "perth-watermark-needs-explicit-frame-padding"
+    },
+    {
+      "src": "native-base-openvoice-conversion-stays-unqualified-after-receipt-drift",
+      "rel": "caused_by",
+      "dst": "python-javascript-float-canonicalization-can-break-receipt-hashes"
+    },
+    {
+      "src": "native-base-openvoice-conversion-stays-unqualified-after-receipt-drift",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-native-base-openvoice-conversion-aborted-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "zonos2-aca-a100-remains-unqualified-after-bounded-pull",
+      "rel": "measured_by",
+      "dst": "zonos2-aca-a100-scheduling-pull-bound-2026-08-28"
+    },
+    {
+      "src": "zonos2-aca-a100-remains-unqualified-after-bounded-pull",
+      "rel": "caused_by",
+      "dst": "zonos2-cross-region-image-pull-misses-bounded-readiness"
+    },
+    {
+      "src": "zonos2-aca-a100-remains-unqualified-after-bounded-pull",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "zonos2-aca-a100-scheduling-pull-bound-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "studio-reports-require-private-pack-asymmetric-attestation",
+      "rel": "measured_by",
+      "dst": "studio-signed-report-and-lifecycle-fixture-2026-08-28"
+    },
+    {
+      "src": "studio-reports-require-private-pack-asymmetric-attestation",
+      "rel": "caused_by",
+      "dst": "public-seal-hashes-do-not-authenticate-studio-reports"
+    },
+    {
+      "src": "studio-reports-require-private-pack-asymmetric-attestation",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "studio-signed-report-and-lifecycle-fixture-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "public-seal-hashes-do-not-authenticate-studio-reports",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "native-base-openvoice-conversion-rejected-after-objective-regression",
+      "rel": "measured_by",
+      "dst": "owner-openvoice-receiptcanon-objective-2026-08-28"
+    },
+    {
+      "src": "native-base-openvoice-conversion-rejected-after-objective-regression",
+      "rel": "caused_by",
+      "dst": "openvoice-tone-conversion-regressed-owner-proxy-and-asr"
+    },
+    {
+      "src": "native-base-openvoice-conversion-rejected-after-objective-regression",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-openvoice-receiptcanon-objective-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openvoice-tone-conversion-regressed-owner-proxy-and-asr",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "maximum-source-rms-is-not-a-peak-safe-listening-level",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "remote-acr-builds-use-platform-aware-cli-launcher",
+      "rel": "measured_by",
+      "dst": "openvoice-windows-acr-wrapper-fixture-2026-08-28"
+    },
+    {
+      "src": "remote-acr-builds-use-platform-aware-cli-launcher",
+      "rel": "caused_by",
+      "dst": "windows-az-cmd-is-not-a-direct-node-executable"
+    },
+    {
+      "src": "remote-acr-builds-use-platform-aware-cli-launcher",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "openvoice-windows-acr-wrapper-fixture-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "windows-az-cmd-is-not-a-direct-node-executable",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "zonos2-regional-pull-solves-transfer-not-cuda-exposure",
+      "rel": "measured_by",
+      "dst": "zonos2-wus3-regional-acr-pull-and-cuda-stop-2026-08-28"
+    },
+    {
+      "src": "zonos2-regional-pull-solves-transfer-not-cuda-exposure",
+      "rel": "caused_by",
+      "dst": "zonos2-regional-a100-without-visible-cuda-device"
+    },
+    {
+      "src": "zonos2-regional-pull-solves-transfer-not-cuda-exposure",
+      "rel": "supersedes",
+      "dst": "zonos2-aca-a100-remains-unqualified-after-bounded-pull"
+    },
+    {
+      "src": "zonos2-regional-pull-solves-transfer-not-cuda-exposure",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "zonos2-wus3-regional-acr-pull-and-cuda-stop-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "zonos2-regional-a100-without-visible-cuda-device",
       "rel": "part_of",
       "dst": "voice-model"
     }

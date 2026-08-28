@@ -7289,3 +7289,229 @@ confidential-compute scorer may replace local opaque processing only if it
 proves the same manifest, stimulus, reference, disclosure and repeat bindings.
 Neither change allows ECAPA or one-provider ASR to replace blinded human
 likeness, accent, pronunciation and naturalness ratings.
+
+## `studio-blind-results-use-portable-sealed-bundles-before-new-api` (2026-08-28)
+
+**Decision.** Put the exact-text owner listening workflow inside the
+authenticated Meet surface through a one-file public sealed bundle, browser
+local persistence and answer/result import-export. Do not create a new
+production ratings API until one can bind a bearer-authenticated owner and
+replica to bounded durable storage. The Studio never receives the private
+answer key or model map. It reveals model identities only after the existing
+private CLI admits an attentive complete sheet and produces a report bound to
+the original sealed-key hash. It never promotes a model automatically.
+
+**Why.** The completed pack already has the hard parts: opaque clip ids, equal
+served geometry, hidden repeats, attention checks, a private mapping, accepted
+listener scoring and an explicit unseal latch. Duplicating those decisions in
+a new endpoint would add a second security boundary with no production need.
+IndexedDB holds the 8.45 MB public pack, localStorage checkpoints the small
+answer sheet after every change, and explicit exports make the workflow
+portable without placing a private key, provider label or consent receipt in
+the browser.
+
+**What would reverse it.** Replace the portable lane when a deployed API has
+bearer owner authentication, exact replica and run binding, strict byte and
+trial bounds, encrypted durable storage, append-only answer locking, private
+attention scoring, and a response that proves the sealed-key commitment while
+withholding every model label before acceptance. Convenience alone is not a
+reversal condition.
+
+## `large-voice-experiments-prefer-consumption-a100-before-compute-quota` (2026-08-28)
+
+**Decision.** If the owner separately authorizes a large-memory voice-model
+capacity experiment, try one isolated Azure Container Apps Consumption A100
+profile in West US 3 first, with private ingress, `minReplicas=0`,
+`maxReplicas=1`, no production route and a four-hour wall-clock stop. Do not
+request Compute quota yet. Canada Central Consumption A100 is the geographic
+fallback. A Compute A100 Spot VM in East US 2 is the backup only after a
+separately authorized quota request and an automatic deallocate-and-delete
+runbook.
+
+**Why.** Subscription-scoped supported-profile reads expose
+`Consumption-GPU-NC24-A100` in West US 3 and Canada Central, while exact ARM
+deployment validation found every tested A100 and H100 VM route blocked by
+zero family quota or the subscription-wide three-core Spot quota. The official
+Azure Retail Prices API puts a fully active 24-vCPU, 220-GiB Consumption A100
+profile at an estimated USD 6.354 per hour in West US 3 and USD 8.3916 per hour
+in Canada Central, so four hours remain below the USD 100 experiment cap. This
+read-only pass did not schedule a replica, create a resource or submit a quota
+request; actual serverless GPU capacity remains unproved until a separately
+authorized one-replica scheduling attempt.
+
+**What would reverse it.** Prefer a Compute VM if Azure grants the exact
+24-core A100 family or Spot quota and a bounded VM probe demonstrates lower
+end-to-end cost or materially better startup reliability. Reject the
+Consumption route if a one-replica scheduling probe fails, the sealed ZONOS2
+image cannot start within the experiment wall clock, or measured image plus
+model memory exceeds the profile. H100 becomes justified only after an A100
+probe produces measured OOM or an unsupported-kernel failure; SKU prestige is
+not a reversal condition.
+
+## `native-base-openvoice-conversion-stays-unqualified-after-receipt-drift` (2026-08-28)
+
+**Decision.** Keep the India-native base voice to OpenVoice V2 tone-color
+conversion path isolated and unqualified. Do not route production traffic to
+it, do not expose the discarded conversion, and do not use the two protected
+IndicF5 base clips as evidence that conversion improved owner likeness. The
+Sarvam arm is rejected for this frozen run, not silently replaced. The local
+receipt-canonicalization fix remains an unbuilt candidate.
+
+**Why.** The four-item frozen plan produced two signed, PerTh-protected
+IndicF5 normalized base clips, while both Sarvam Bulbul v3 items stopped at an
+HTTP 402 before audio. The first OpenVoice image rejected the output before it
+could leave because PerTh required 240-sample framing. A corrected immutable
+image passed startup, model hashes and PerTh, but its first stable signed 200
+response failed the frozen receipt verifier and was discarded before any WAV,
+wire response or conversion receipt was persisted. The next item was not
+attempted. No converted candidate therefore existed for ECAPA, ASR or human
+review, and the sealed abort manifest exposes zero stimuli. An offline
+cross-language fixture proves that Python canonical JSON writes an integral
+float as `1.0` while JavaScript reserializes it as `1`; that can invalidate the
+receipt self-hash. It is a deterministic defect and a plausible explanation,
+but the aggregate live verifier did not retain individual failed-field names,
+so it is not presented as a measured identification of the discarded live
+field.
+
+**What would reverse it.** Start a new preregistered run only after the remote
+image is rebuilt with a cross-language receipt fixture, the verifier records
+only failed field names while discarding drifted audio, and a canary proves an
+exact signed receipt with the pinned OpenVoice source, model, checkpoint,
+config, owner reference, consent, base receipt and PerTh hashes. Qualification
+then requires both matched Hindi and Hinglish conversions, sealed ECAPA and
+script-aware ASR with no regression, and accepted blinded owner ratings for
+likeness, naturalness and Indian accent. Sarvam requires restored billing
+access and a fresh bounded plan; retrying the sealed run cannot reverse this
+decision.
+
+## `zonos2-aca-a100-remains-unqualified-after-bounded-pull` (2026-08-28)
+
+**Decision.** Keep ZONOS2 outside the qualified set and production routing.
+The West US 3 Container Apps A100 route is now proven schedulable, but the
+22.0206 GiB immutable image did not finish its cross-region pull inside the
+pre-registered 30-attempt readiness bound. Do not extend a live A100 merely
+because the artifact is large. Tear down the isolated apps and dedicated
+environment when the bound expires, and retain zero audio as the honest result.
+
+**Why.** One signed owner-bound request scheduled the exact digest on a real
+`Consumption-GPU-NC24-A100` replica. Azure emitted the GPU-driver event and the
+exact `PullingImage` commitment, but the container never started, never became
+ready and never restarted. Thirty public-gate responses were validly signed
+`open_voice_runtime_warming`; no synthesis response or audio existed. The
+active interval through final evidence capture was 1,216.296 seconds, an
+estimated USD 2.1468 at the measured USD 6.354 hourly profile rate. Continuing
+would change the registered experiment after seeing its result.
+
+**What would reverse it.** A new frozen run may be authorized after the same
+immutable digest is pre-positioned close enough to West US 3, or a separately
+measured smaller immutable closure exists, and one min-zero cold start reaches
+signed readiness inside a newly declared bound. Qualification still requires
+the complete sealed Hindi, Hinglish and English pack, receipt integrity,
+objective ECAPA and script-aware ASR, accepted blind owner ratings and complete
+teardown. Capacity scheduling alone never qualifies voice quality.
+
+## `studio-reports-require-private-pack-asymmetric-attestation` (2026-08-28)
+
+**Decision.** A Studio result may reveal candidate identities only after the
+browser verifies an RSASSA-PKCS1-v1_5 SHA-256 signature over the canonical
+report body. The exporter creates or reuses one RSA-2048 private key under the
+pack's private tree; the Studio bundle carries only the SPKI public key and its
+SHA-256 key id. Replacing or removing a browser experiment must also purge the
+exact replica/run bundle, progress, result and pointer before another run is
+admitted.
+
+**Why.** The previous run-id and sealed-key-hash comparison was integrity-shaped
+but not authenticity: both values were present in the public bundle, so a
+fabricated report could copy them and reveal attacker-chosen model labels. A
+private-pack signature makes report authorization depend on material that
+never enters the bundle or browser. RSA PKCS#1 v1.5 was selected because Node
+and browser WebCrypto consume the same signature encoding directly, avoiding
+the DER-versus-raw edge in ECDSA. Bounded lifecycle deletion prevents a
+superseded private pack and ratings from silently accumulating on the owner's
+device.
+
+**What would reverse it.** Replace the local pack signer only if a durable
+owner-authenticated result service signs the same canonical contract with a
+managed non-exportable key and the browser verifies that service key. A future
+primitive may replace RSA only after Node/browser interoperability, wrong-key,
+bit-change and missing-signature negative controls pass. Convenience or a
+matching public hash is not reversal evidence.
+
+## `native-base-openvoice-conversion-rejected-after-objective-regression` (2026-08-28)
+
+**Decision.** Keep the IndicF5-to-OpenVoice V2 tone-color arm isolated and
+unqualified. The receipt-canonicalization and PerTh fixes qualify the transport
+contract, not the voice hypothesis. Do not route it in production, call it an
+owner-likeness improvement or infer Hindi naturalness from its valid receipts.
+Keep the four opaque base/converted stimuli sealed for a future blinded
+diagnostic only; they are not a promotion pack.
+
+**Why.** A fresh frozen run made exactly two matched conversions on immutable
+runtime digest `sha256:ba777d18345fe308fb02ec59190575d0d174ac3242a8dc75c30c650755a8eb64`.
+Both signed receipts bound the exact base, owner reference, consent, model,
+source and PerTh result. Objective n=2 comparison then moved mean ECAPA in the
+wrong direction, 0.726677 to 0.680976, and worsened script-aware WER from
+0.303571 to 0.375. Valid conversion therefore did not preserve even the two
+registered non-perceptual guardrails. No operator listened and no human-quality
+claim is available.
+
+**What would reverse it.** A new preregistered converter or adaptation method
+must improve or preserve both speaker-embedding similarity and script-aware
+intelligibility on a larger held-out Hindi, Hinglish and English set, with exact
+receipts and complete teardown, before it may reach blinded owner evaluation.
+Production promotion additionally requires accepted blinded ratings for owner
+likeness, Indian accent, pronunciation and naturalness. A valid receipt,
+different tau or isolated anecdotal clip cannot reverse this decision.
+
+## `remote-acr-builds-use-platform-aware-cli-launcher` (2026-08-28)
+
+**Decision.** The checked-in OpenVoice ACR wrapper resolves Azure CLI from an
+explicit `--az` path, `VYAKTI_AZURE_CLI`, or the platform path. Non-Windows and
+Windows `.exe` installations execute directly. A Windows `.cmd` shim executes
+only through explicit `ComSpec` with delayed expansion off, every command
+argument validated and quoted, and Node `shell: false`. Do not restore a bare
+`spawnSync("az")` call.
+
+**Why.** Azure CLI's Windows installation commonly exposes `az.cmd`, which
+Node cannot execute as a direct child with `shell: false`. Enabling a generic
+shell would fix discovery by widening the injection surface. Explicit shim
+resolution plus a fixed `cmd.exe` invocation preserves no-shell process launch
+while handling paths and arguments containing spaces. The ACR registry name,
+task path and computed source-manifest hash remain distinct arguments rather
+than interpolated user command text.
+
+**What would reverse it.** Replace the `ComSpec` branch only if Azure provides
+a stable directly executable binary or documented Python entry point on every
+supported Windows installation and the same fake-shim, spaced-argument,
+metacharacter rejection and non-Windows direct-execution controls pass. A
+working developer PATH or `shell: true` is not reversal evidence.
+
+## `zonos2-regional-pull-solves-transfer-not-cuda-exposure` (2026-08-28)
+
+**Decision.** Keep ZONOS2 isolated and unqualified. Regional artifact proximity
+is now the measured startup path for its existing 22.0206 GiB image, but it
+solves only transfer time. Do not rebuild or rerun the model until a tiny
+diagnostic canary proves that an A100 device, driver library and CUDA-enabled
+PyTorch process are all visible in the same Container Apps workload profile.
+
+**Why.** A West US 3 Basic ACR server-side import preserved the exact runtime
+manifest digest, config digest and all 13 layer digests. The same immutable
+image then pulled from West US 3 in 194.29 seconds, versus remaining incomplete
+after 1,216.296 seconds from Central India. The container started, but every
+start exited 3 at `/srv/zonos2/app.py:248` with
+`RuntimeError("zonos2_cuda_required")` because `torch.cuda.is_available()` was
+false. The frozen package closure is GPU-shaped: upstream pins PyTorch 2.9.1
+and CUDA 12.8 NVIDIA wheels, while Azure announced driver 580.159.04 with CUDA
+compatibility through 13.0. Those facts reject a CPU-only lock or obvious
+driver-version mismatch, but do not yet identify whether device injection,
+runtime library discovery or template semantics failed.
+
+**What would reverse it.** In one newly bounded, regional, min-zero A100 run,
+first execute a diagnostic-only image that records `/dev/nvidia*`,
+`NVIDIA_VISIBLE_DEVICES`, CUDA driver-library discovery, `nvidia-smi`,
+`torch.__version__`, `torch.version.cuda`, `torch.backends.cuda.is_built()` and
+`torch.cuda.is_available()`. Compare an official minimal GPU validator in the
+same environment, and test explicit `resources.gpu: 1` only if ARM validation
+accepts it. Rerun the unchanged ZONOS2 digest only after that canary passes.
+Voice qualification still requires the sealed Hindi, Hinglish and English
+pack, exact receipts, objective metrics and accepted blind owner ratings.

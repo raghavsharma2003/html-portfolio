@@ -9,6 +9,7 @@ import io
 import json
 import math
 import os
+import re
 import tempfile
 import time
 import wave
@@ -44,9 +45,11 @@ MODEL_REPO = "myshell-ai/OpenVoiceV2"
 MODEL_REVISION = "fd981100305a0e4291f93a9ad169c6d9f7bed54a"
 CHECKPOINT_SHA256 = "9652c27e92b6b2a91632590ac9962ef7ae2b712e5c5b7f4c34ec55ee2b37ab9e"
 CONFIG_SHA256 = "9dfff60350b8c63f2c664efd92a61b2516efb22671466960f0e5dfebd881fa47"
+RUNTIME_SOURCE_SHA256 = os.getenv("OPENVOICE_CONVERTER_RUNTIME_SOURCE_SHA256", "")
 MODEL_ROOT = Path(os.getenv("OPENVOICE_CONVERTER_MODEL_ROOT", "/models/openvoice-v2"))
 CONVERTER_RATE = 22_050
 OUTPUT_RATE = 24_000
+PERTH_FRAME_SAMPLES = 240
 MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 
 
@@ -175,6 +178,26 @@ def _pcm(samples: np.ndarray) -> bytes:
     ).round().astype("<i2").tobytes()
 
 
+def _apply_perth_watermark(samples: np.ndarray) -> np.ndarray:
+    """Protect arbitrary converter output without dropping its final samples."""
+
+    padding_samples = (-samples.size) % PERTH_FRAME_SAMPLES
+    framed = (
+        np.pad(samples, (0, padding_samples), mode="constant")
+        if padding_samples
+        else samples
+    )
+    protected = np.asarray(
+        app.state.perth.apply_watermark(
+            framed, watermark=None, sample_rate=OUTPUT_RATE
+        ),
+        dtype=np.float32,
+    ).reshape(-1)
+    if protected.size != framed.size or not np.isfinite(protected).all():
+        raise ServiceError("perth_watermark_application_failed", 503)
+    return protected[: samples.size]
+
+
 def _convert_sync(value: dict[str, Any]) -> dict[str, Any]:
     started = time.perf_counter()
     base_samples = _signal(
@@ -211,15 +234,8 @@ def _convert_sync(value: dict[str, Any]) -> dict[str, Any]:
         )
     converted = _signal(converted, OUTPUT_RATE, 400, 120_000)
     converted_pcm = _pcm(converted)
-    protected = np.asarray(
-        app.state.perth.apply_watermark(
-            converted, watermark=None, sample_rate=OUTPUT_RATE
-        ),
-        dtype=np.float32,
-    ).reshape(-1)
+    protected = _apply_perth_watermark(converted)
     protected = _signal(protected, OUTPUT_RATE, 400, 120_000)
-    if protected.size != converted.size:
-        raise ServiceError("perth_watermark_application_failed", 503)
     score = float(
         np.mean(
             app.state.perth.get_watermark(
@@ -267,6 +283,8 @@ async def lifespan(application: FastAPI):
         or not torch.cuda.is_available()
     ):
         raise RuntimeError("openvoice_converter_cuda_required")
+    if not re.fullmatch(r"[0-9a-f]{64}", RUNTIME_SOURCE_SHA256):
+        raise RuntimeError("openvoice_converter_runtime_source_commitment_required")
     manifest = _model_manifest()
     config_path = MODEL_ROOT / "converter" / "config.json"
     checkpoint_path = MODEL_ROOT / "converter" / "checkpoint.pth"
@@ -282,6 +300,7 @@ async def lifespan(application: FastAPI):
         "model_revision": MODEL_REVISION,
         "checkpoint_sha256": CHECKPOINT_SHA256,
         "config_sha256": CONFIG_SHA256,
+        "runtime_source_sha256": RUNTIME_SOURCE_SHA256,
         "commitment": manifest["commitment"],
         "native_sample_rate": CONVERTER_RATE,
         "output_sample_rate": OUTPUT_RATE,
@@ -322,6 +341,9 @@ async def health() -> JSONResponse:
             "converter_commitment": getattr(
                 app.state, "converter_receipt", {}
             ).get("commitment"),
+            "runtime_source_sha256": getattr(
+                app.state, "converter_receipt", {}
+            ).get("runtime_source_sha256"),
         },
     )
 

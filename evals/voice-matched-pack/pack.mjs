@@ -1,4 +1,11 @@
-import { randomBytes } from "node:crypto";
+import {
+  constants as cryptoConstants,
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  randomBytes,
+  sign as cryptoSign,
+} from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -20,6 +27,7 @@ import {
   seededRandom,
   shuffled,
   tonePcm,
+  validateSheet,
   wrapWav,
 } from "../voice-listening-benchmark/lib.mjs";
 import {
@@ -29,6 +37,18 @@ import {
   canonical,
   sha256,
 } from "./contract.mjs";
+
+export const STUDIO_BUNDLE_CONTRACT = "vyakti-owner-voice-studio-bundle/v1";
+export const STUDIO_REPORT_ATTESTATION_CONTRACT = "vyakti-studio-report-attestation/v1";
+export const STUDIO_REPORT_SIGNATURE_ALGORITHM = "RSASSA-PKCS1-v1_5";
+export const STUDIO_REPORT_SIGNATURE_HASH = "SHA-256";
+const MAX_STUDIO_BUNDLE_BYTES = 20 * 1024 * 1024;
+const MAX_STUDIO_ANSWER_BYTES = 1024 * 1024;
+const OPAQUE_AUDIO_ID = /^[0-9a-f]{24}$/;
+const STUDIO_FORBIDDEN = [
+  "chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "modelcommitment",
+  "consentreceipt", "runsecret", "sourceitemid", '"correct"',
+];
 
 export function pathsFor(home) {
   const root = resolve(home);
@@ -43,10 +63,61 @@ export function pathsFor(home) {
     outputs: join(root, "private", "outputs"),
     receipts: join(root, "private", "receipts"),
     key: join(root, "private", "sealed-key.json"),
+    studioReportSigningKey: join(root, "private", "studio-report-signing-key.pem"),
     served: join(root, "served"),
     stimuli: join(root, "served", "stimuli"),
     answers: join(root, "answers"),
     reports: join(root, "reports"),
+  });
+}
+
+function studioReportSigner(paths) {
+  if (!existsSync(paths.studioReportSigningKey)) {
+    const { privateKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicExponent: 0x10001,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    writeFileSync(paths.studioReportSigningKey, privateKey, { mode: 0o600, flag: "wx" });
+  }
+  const privatePem = readFileSync(paths.studioReportSigningKey);
+  if (!privatePem.length || privatePem.length > 16 * 1024) throw new Error("matched_pack_studio_signing_key_invalid");
+  let privateKey;
+  try { privateKey = createPrivateKey(privatePem); }
+  catch { throw new Error("matched_pack_studio_signing_key_invalid"); }
+  if (privateKey.asymmetricKeyType !== "rsa" || Number(privateKey.asymmetricKeyDetails?.modulusLength || 0) < 2048) {
+    throw new Error("matched_pack_studio_signing_key_invalid");
+  }
+  const publicSpki = createPublicKey(privateKey).export({ type: "spki", format: "der" });
+  const publicKeySha256 = sha256(publicSpki);
+  return Object.freeze({
+    privateKey,
+    publicManifest: Object.freeze({
+      contract: STUDIO_REPORT_ATTESTATION_CONTRACT,
+      algorithm: STUDIO_REPORT_SIGNATURE_ALGORITHM,
+      hash: STUDIO_REPORT_SIGNATURE_HASH,
+      keyId: publicKeySha256,
+      publicKeySha256,
+      publicKeySpkiBase64: publicSpki.toString("base64"),
+    }),
+  });
+}
+
+function signStudioReport(report, signer) {
+  const signature = cryptoSign("sha256", Buffer.from(canonical(report)), {
+    key: signer.privateKey,
+    padding: cryptoConstants.RSA_PKCS1_PADDING,
+  });
+  return Object.freeze({
+    ...report,
+    attestation: Object.freeze({
+      contract: STUDIO_REPORT_ATTESTATION_CONTRACT,
+      algorithm: STUDIO_REPORT_SIGNATURE_ALGORITHM,
+      hash: STUDIO_REPORT_SIGNATURE_HASH,
+      keyId: signer.publicManifest.keyId,
+      signatureBase64: signature.toString("base64"),
+    }),
   });
 }
 
@@ -386,6 +457,85 @@ export function verifySealedHome(home) {
   });
 }
 
+/**
+ * Build the one-file owner Studio import from the already-sealed public tree.
+ * No private receipt, answer key, arm or model label enters this file. The
+ * private key is read only by verifySealedHome, which proves the served tree
+ * still binds to it before export.
+ */
+export function exportStudioBundle(home, outputFile) {
+  const verified = verifySealedHome(home);
+  const paths = pathsFor(home);
+  const signer = studioReportSigner(paths);
+  const manifest = {
+    ...JSON.parse(readFileSync(join(paths.served, "manifest.json"), "utf8")),
+    reportAttestation: signer.publicManifest,
+  };
+  const trials = JSON.parse(readFileSync(join(paths.served, "trials.json"), "utf8"));
+  const ids = [...new Set([trials.referenceId, ...trials.sequence.map((trial) => trial.stimulusId)])];
+  if (ids.some((id) => !OPAQUE_AUDIO_ID.test(id))) throw new Error("matched_pack_studio_audio_id_invalid");
+  const stimuli = Object.fromEntries(ids.map((id) => {
+    const bytes = readFileSync(join(paths.stimuli, `${id}.wav`));
+    parseWav(bytes);
+    return [id, {
+      mime: "audio/wav",
+      bytes: bytes.length,
+      sha256: sha256(bytes),
+      base64: bytes.toString("base64"),
+    }];
+  }));
+  const bundle = {
+    contract: STUDIO_BUNDLE_CONTRACT,
+    runId: paths.runId,
+    manifest,
+    trials,
+    stimuli,
+  };
+  const bytes = Buffer.from(JSON.stringify(bundle));
+  if (bytes.length > MAX_STUDIO_BUNDLE_BYTES) throw new Error("matched_pack_studio_bundle_too_large");
+  // Scan only listener-facing JSON metadata. Base64 audio is opaque binary and
+  // inevitably contains short coincidental letter sequences such as "qwen".
+  const publicMetadata = JSON.stringify({ manifest, trials }).toLowerCase();
+  if (STUDIO_FORBIDDEN.some((value) => publicMetadata.includes(value))) throw new Error("matched_pack_studio_mapping_leak");
+  writeFileSync(resolve(outputFile), bytes);
+  return Object.freeze({
+    file: resolve(outputFile),
+    bytes: bytes.length,
+    sha256: sha256(bytes),
+    stimuli: ids.length,
+    ratingTrials: verified.ratingTrials,
+  });
+}
+
+/**
+ * Admit a Studio-exported answer sheet only after the existing private catch
+ * keys accept it. The browser never receives those keys. A conflicting file
+ * is refused so a later import cannot silently replace locked human evidence.
+ */
+export function importStudioAnswerSheet(home, inputFile) {
+  verifySealedHome(home);
+  const paths = pathsFor(home);
+  const bytes = readFileSync(resolve(inputFile));
+  if (!bytes.length || bytes.length > MAX_STUDIO_ANSWER_BYTES) throw new Error("matched_pack_studio_answers_size_invalid");
+  let sheet;
+  try { sheet = JSON.parse(bytes.toString("utf8")); }
+  catch { throw new Error("matched_pack_studio_answers_json_invalid"); }
+  const key = JSON.parse(readFileSync(paths.key, "utf8"));
+  const trials = JSON.parse(readFileSync(join(paths.served, "trials.json"), "utf8"));
+  if (sheet?.contract !== MATCHED_PACK_CONTRACT || !validateSheet(sheet, trials, paths.runId).valid) {
+    throw new Error("matched_pack_studio_answers_invalid");
+  }
+  const report = opaqueReport({ key, trials, sheets: [sheet] });
+  if (report.acceptedListeners !== 1) throw new Error("matched_pack_studio_answers_not_accepted");
+  const listener = String(sheet.listener || "owner-studio").replace(/[^a-z0-9_-]/gi, "").slice(0, 40) || "owner-studio";
+  const normalized = Buffer.from(JSON.stringify({ ...sheet, listener, runId: paths.runId, complete: true }, null, 2));
+  mkdirSync(paths.answers, { recursive: true });
+  const target = join(paths.answers, `${listener}.json`);
+  if (existsSync(target) && !readFileSync(target).equals(normalized)) throw new Error("matched_pack_studio_answers_conflict");
+  writeFileSync(target, normalized);
+  return Object.freeze({ listener, file: target, accepted: true });
+}
+
 function readSheets(paths) {
   return readdirSync(paths.answers).filter((file) => file.endsWith(".json")).map((file) => JSON.parse(readFileSync(join(paths.answers, file), "utf8")));
 }
@@ -406,7 +556,8 @@ export function scoreHome(home) {
 
 export function unsealHome(home) {
   const paths = pathsFor(home);
-  const key = JSON.parse(readFileSync(paths.key, "utf8"));
+  const keyBytes = readFileSync(paths.key);
+  const key = JSON.parse(keyBytes.toString("utf8"));
   const trials = JSON.parse(readFileSync(join(paths.served, "trials.json"), "utf8"));
   const opaque = opaqueReport({ key, trials, sheets: readSheets(paths) });
   if (!opaque.acceptedListeners) throw new Error("matched_pack_no_accepted_listener");
@@ -441,6 +592,7 @@ export function unsealHome(home) {
   const report = {
     contract: MATCHED_PACK_CONTRACT,
     runId: key.runId,
+    sealedKeySha256: sha256(keyBytes),
     status: "ratings_locked_mapping_unsealed",
     acceptedListeners: opaque.acceptedListeners,
     repeatConsistency: opaque.repeatConsistency,
@@ -448,7 +600,10 @@ export function unsealHome(home) {
     overallWinner: null,
     overallWinnerReason: "English and Hindi remain separate exact-text cells.",
   };
+  const signedReport = signStudioReport(report, studioReportSigner(paths));
+  const reportBytes = Buffer.from(JSON.stringify(signedReport, null, 2));
+  if (reportBytes.length > MAX_STUDIO_ANSWER_BYTES) throw new Error("matched_pack_studio_report_too_large");
   mkdirSync(paths.reports, { recursive: true });
-  writeFileSync(join(paths.reports, "unsealed-report.json"), JSON.stringify(report, null, 2));
-  return report;
+  writeFileSync(join(paths.reports, "unsealed-report.json"), reportBytes);
+  return signedReport;
 }

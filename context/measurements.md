@@ -6599,3 +6599,357 @@ naturalness, Indian accent, pronunciation, owner likeness or a winner.
 Final Azure readback found `vyakti-voice-evidence`, the Qwen eval and gate,
 the IndicF5 eval and gate, and the VoxCPM2 eval and gate at min zero with zero
 replicas. No ZONOS2 eval app existed in the resource-group inventory.
+
+## `owner-studio-blind-experiment-fixture-2026-08-28`
+
+**Measured 2026-08-28, n=1 completed sealed r2 pack, n=1 Studio bundle, n=11
+opaque served WAVs, n=2 browser viewports, n=0 listeners and n=0 model calls.**
+The existing pack integrity command passed 18 of 18 checks plus private-route
+isolation before export. Its one-file Studio bundle is 8,454,928 bytes with
+SHA-256 `2b37260ac99142489fabe4382d3e06b7cdb5715e0c6401708c75008ba5192d06`.
+It contains six base stimuli, two byte-identical repeat stimuli, two attention
+stimuli and one real-owner reference. Every WAV is 576,044 bytes, 288,000
+samples, 24 kHz mono PCM16. Listener-facing metadata contains no registered
+provider, model commitment, consent receipt, source item, answer key or private
+run secret.
+
+The synthetic exact-text suite passed 46 of 46 checks after adding bundle
+export, accepted-answer import, sealed-key result binding and no-promotion
+controls. The internal-owner Studio suite passed all 26 checks. TypeScript,
+copy and focused lint checks passed. A real r2 bundle was imported into the
+actual React component in headless Chrome. At 1,440 by 1,000 and 390 by 844
+CSS pixels the rating surface had no horizontal overflow or browser error;
+the 390-pixel controls had a 44-pixel minimum height. After one rating was
+saved, reload restored the same run and answer locally but required the clip
+to be played again before continuation. Screenshots are
+`.impeccable/review/voice-experiment-desktop.png` and
+`.impeccable/review/voice-experiment-mobile.png`.
+
+The complete release runner passed all 16 checks after one full rerun. The
+first run stopped on the progress meter's CSS width transition; removing that
+nonessential layout animation cleared motion lint. The successful run included
+typecheck, prompt budget, rendered board legibility, one-voice, web build,
+signed-in layout readability, the 423,440 ms offline eval suite, the live
+zero-orphan sweep and citation discipline. The post-fix desktop/mobile browser
+pass again produced zero console errors and zero horizontal overflow.
+
+No audio was listened to, no rating sheet was accepted, no model mapping was
+unsealed, and no quality result or winner was created. No network API, cloud
+model, GPU, database, production deployment or local Docker operation ran.
+
+## `personal-subscription-large-gpu-capacity-inventory-2026-08-28`
+
+**Measured 2026-08-28, n=28 Azure regions queried through ARM Compute SKU
+inventory, n=30 read-only ARM deployment validations, n=6 Container Apps
+supported-profile reads, n=4 quota-request-list reads and n=12
+decision-relevant official Retail Prices API meter rows.** The personal
+subscription was selected explicitly by id. No Microsoft browser, local
+Docker, VM, Container Apps environment, GPU replica, registry token, quota
+request or production route was created.
+
+`Standard_NC24ads_A100_v4` was SKU-unrestricted in 13 queried regions. Exact
+template validation still rejected Spot in 12 usable regions because
+`LowPriorityCores` had limit 3, usage 0 and needed 24 more cores; PAYG was
+rejected because `StandardNCADSA100v4Family Cores` had limit 0, usage 0 and
+needed 24. West Europe rejected both priorities because the region was not
+accepting new customers. Canada Central `Standard_NC40ads_H100_v5` and East US
+2 `Standard_NCC40ads_H100_v5` likewise needed 40 Spot cores from limit 3 or 40
+family cores from limit 0. Full `Standard_NV36ads_A10_v5` was marked
+`NotAvailableForSubscription` wherever it appeared. No SKU with `L40` in its
+name appeared in the 28-region inventory. The final resource inventory showed
+no virtual machine.
+
+Container Apps exposed `Consumption-GPU-NC24-A100`, one GPU with 24 vCPU and
+220 GiB host memory, in West US 3 and Canada Central. Central India and
+Southeast Asia exposed only the 16-GiB T4 Consumption GPU profile; East US 2
+exposed no GPU profile in the returned supported list. The subscription-level
+supported list is not scheduling proof: no replica was scheduled in this
+read-only lane.
+
+Official USD Consumption meters from `prices.azure.com` were, per second in
+West US 3, GPU 0.000529, vCPU 0.000024 and GiB-memory 0.000003; at a fully
+active 24-vCPU and 220-GiB profile that is USD 6.354 per hour and USD 25.416
+for four hours. Canada Central meters were 0.000635, 0.000034 and 0.000004,
+respectively, or USD 8.3916 per hour and USD 33.5664 for four hours. Linux East
+US 2 A100 VM list price was USD 0.67877 Spot and USD 3.673 PAYG per hour; H100
+was USD 1.289904 Spot and USD 6.98 PAYG per hour, but all four routes failed
+quota validation. Prices exclude storage, egress, requests and tax.
+
+The 2025-09-01 Quota API returned zero quota-request records in East US 2,
+West US 3, Canada Central and Southeast Asia. Its operation-status collection
+is not a list surface and returned caller-verification errors without an
+operation id. Together with the previously measured throttled request attempt,
+there was no correct unthrottled request path with an immediately verifiable
+request id, so this pass submitted none and spent USD 0.
+
+## `owner-native-base-openvoice-conversion-aborted-2026-08-28`
+
+**Measured 2026-08-28, n=1 four-item preregistered plan, n=1 Sarvam job
+execution, n=2 verified IndicF5 base clips, n=3 bounded OpenVoice requests on
+the first matched item, n=0 saved conversions, n=0 objective model calls and
+n=0 listeners.** The frozen plan SHA-256 was
+`cb33737cbd776bb316700ca1b11a9d70e3f1e0d40d51e68373487fa422219f41`.
+It bound the exact 12-second owner reference
+`8f3b4182178bb84e673266ceffbba83567a8bc34c4eac459365c375fadc69d46`,
+source, transcript and consent hashes, seed 31001, matched Hindi/Hinglish text,
+and OpenVoice tau 0.3. No third-party lecture audio was used as the identity
+reference.
+
+Official OpenVoice source commit
+`74a1d147b17a8c3092dd5430504bd83ef6c7eb23`, model revision
+`fd981100305a0e4291f93a9ad169c6d9f7bed54a`, checkpoint
+`9652c27e92b6b2a91632590ac9962ef7ae2b712e5c5b7f4c34ec55ee2b37ab9e`
+and config
+`9dfff60350b8c63f2c664efd92a61b2516efb22671466960f0e5dfebd881fa47`
+were verified before spend. Azure ACR remote build `cu2b` produced runtime
+digest `sha256:dadb03b32b0822d369729464940ad2aba6c96d34fce18bbb6fa9a156bf4b1a42`
+and gate digest
+`sha256:ee3c3a8b0192ebc4524c8cb38551f4346906206cf2b6acbdc735d0823c36b100`.
+After the measured PerTh framing failure, remote build `cu2c` produced corrected
+runtime digest
+`sha256:e0453eedbd5a740ce8137e836611c8b59c7f3f4799b40d217c26c2c56acdef03`.
+The corrected runtime loaded the exact checkpoint with missing and unexpected
+key lists both empty, loaded PerTh, and reached application readiness. No local
+Docker operation ran.
+
+The existing Sarvam secret was used only inside one overridden execution of
+the already deployed processing-job image. Its first Bulbul v3 request returned
+HTTP 402 before audio; no retry or output occurred. Both preregistered Sarvam
+items were rejected with `audioGenerated=false` and provider spend claim USD 0.
+The two IndicF5 normalized items both passed response HMAC, model revision and
+commitment, exact reference/transcript/consent/text/seed and PerTh protection.
+Their WAV durations were 11,744 ms and 13,280 ms, request wall times 37,500 ms
+and 29,404 ms, generation RTF 3.109673 and 2.104217, and PerTh scores both 1.
+
+OpenVoice request one returned signed HTTP 503
+`perth_watermark_application_failed` before audio could leave; the input length
+was not a multiple of PerTh's 240-sample frame. Request two used the corrected
+digest but returned signed HTTP 503 `openvoice_converter_warming` after the
+min-zero runtime scaled down between readiness inspection and admission. After
+one stable min-one window, request three returned signed HTTP 200 but failed
+the frozen aggregate receipt verifier. The runner discarded the response in
+memory before writing a WAV, wire response or conversion receipt and did not
+attempt the second Indic item. Because the old verifier reported one aggregate
+error and deliberately retained no drifted response, the exact failed live
+field is unavailable. Static comparison shows the service and verifier agree
+on every named base, reference, converter, output and protection binding. A
+separate n=1 cross-language fixture proves the remaining interoperability
+hazard: Python hashes `{"score":1.0}` while JavaScript parses and reserializes
+it as `{"score":1}`, producing a different SHA-256. The local deterministic
+normalization plus integral-score regression passes the focused 20 of 20
+converter checks, but that code was not remotely built or called.
+
+The conservative ledger reserved USD 20 of the USD 60 hard cap across 16 state
+entries; actual Azure invoice cost is unavailable. The abort manifest SHA-256
+is `d81a22c04946e9859f0b563d5c93d683622ccf030fbe34eba1eef3a8a576cf0e`.
+It exposes zero stimuli, records four rejections and commits sealed mapping
+SHA-256 `4a4f91050c65dfd1581ab6ffff849df1015f3c6750762e2ec0f7e1ec28f0e70f`;
+the AES-256-GCM key was destroyed after sealing. The not-run objective report
+SHA-256 is `9a1c196708e80fe5852ffcedd50c594ad348a7c198791a29193d21423e48cd08`,
+with zero ECAPA and zero Speech calls. Final Azure readback found the converter
+runtime and gate plus the IndicF5 runtime and gate at min zero, no active
+revisions and zero replicas. No production route changed, no audio was played,
+no mapping was unsealed and no quality or winner claim was made.
+
+## `zonos2-aca-a100-scheduling-pull-bound-2026-08-28`
+
+**Measured 2026-08-28, n=1 dedicated Container Apps environment, n=1 serverless
+A100 profile, n=1 private immutable runtime, n=1 signed public CPU gate, n=1
+scheduled A100 replica, n=30 signed readiness attempts and n=0 synthesis or
+audio results.** The personal subscription was selected explicitly by id.
+West US 3 returned `Consumption-GPU-NC24-A100` with one GPU, 24 vCPU and 220
+GiB. The lane created `vyakti-z2-a100-wus3-eval` with no log workspace and a
+four-hour expiry, then deployed private runtime `vyakti-z2-a100-eval` at exact
+digest `sha256:7d1f97efffe35e23a356a12494e0333cdfb586c5a1dfcd8f06165a27abdb301b`
+and public gate `vyakti-z2-a100-eval-gate` at broker digest
+`sha256:214a6baa15eeb4c87e06fc098c19206aad40e8e898005e6b8a948c88fc379f80`.
+Both templates were min zero, max one and tagged evaluation-only with
+production routing disabled.
+
+The first gate deployment failed closed because the repository-read-only ACR
+token covered ZONOS2 but not the broker repository. Adding only
+`repositories/open-voice-admission/content/read` and regenerating its one-day
+credential allowed the exact deployment. That action changed no image or
+production route. The scope was removed again and the token disabled during
+teardown.
+
+The signed owner-bound request scheduled replica
+`vyakti-z2-a100-eval--cv8jkv8-7794f6f7bd-g67b4` at 09:47:53Z. At
+09:47:55.7038998Z Azure reported the GPU environment active with driver
+580.159.04, CUDA compatibility through 13.0 and the exact immutable image in
+`PullingImage`. At the final 10:08:12Z capture, after 30 valid-HMAC
+`open_voice_runtime_warming` responses, the container remained unstarted and
+unready with zero restarts. No deterministic model, kernel, OOM or application
+failure was logged. No response audio, PerTh output, ECAPA, ASR, listener,
+unseal or winner result existed.
+
+The measured active interval through evidence capture was 1,216.296 seconds.
+At the official measured fully active profile estimate of USD 6.354 per hour,
+that is USD 2.1468 before storage, cross-region transfer, CPU admission,
+requests, tax or rounding; the Azure invoice value was unavailable. The run
+stopped inside the USD 75 and four-hour ceilings. Both exact apps were deleted
+and read back absent before environment deletion; the dedicated environment
+delete was accepted by Azure and was still in control-plane deletion while this
+entry was first written. No local Docker, Microsoft browser or production
+resource was used.
+
+## `studio-signed-report-and-lifecycle-fixture-2026-08-28`
+
+**Measured 2026-08-28, n=51 offline matched-pack checks, n=1 real r2 Studio
+bundle import journey, n=4 browser WebCrypto attestation cases, n=1 replacement
+and n=1 confirmed removal.** The offline pack suite passed 51 of 51 without a
+network, cloud or model call. It generated a reusable RSA-2048 private key only
+under the temporary private pack tree, re-exported the same public key id,
+signed the canonical unsealed report, accepted the unchanged body, and refused
+a changed listener count and a different pack key. Browser Chromium accepted
+one valid signed result and refused a bit-changed body, wrong public key and
+missing signature before returning model labels. The same browser journey
+replaced the 8,455,625-byte r2 bundle, found the superseded IndexedDB bundle,
+progress and injected result absent, then confirmed removal and found the
+replacement bundle, progress, result and pointer absent. A sentinel bundle and
+three sentinel localStorage records for another replica/run survived both
+operations. Desktop 1440 by 1000 and mobile 390 by 844 had zero console errors
+and zero horizontal overflow; every visible mobile experiment action measured
+at least 44 CSS pixels. No mapping was unsealed and no audio was judged.
+Two deterministic IndexedDB-delete failure injections, one during replacement
+and one during confirmed removal, kept the current panel and replica pointer
+unchanged and showed browser-storage failure copy; a valid replacement was not
+misreported as an invalid pack.
+
+## `owner-openvoice-receiptcanon-objective-2026-08-28`
+
+**Measured 2026-08-28, n=1 frozen two-item retry plan, n=1 remote ACR build,
+n=2 reused protected IndicF5 bases, n=2 signed OpenVoice conversions, n=4
+objective artifacts, n=5 signed ECAPA service calls, n=4 Azure Speech calls
+and n=0 listeners.** Plan SHA-256 was
+`66a9b1ddded23216846d5eb9b8428497dd93805cfb5c05a5aa494952f0599496`.
+It reused the same exact owner reference, transcript, consent, Hindi/Hinglish
+texts and seed 31001 as the failed predecessor. Runtime source manifest
+`9e4044ad65d09ba576fdc8b5b65f041504625f895d6e131ffac10ce2a83305c1`
+bound the integral-float receipt canonicalizer and PerTh pad, apply, trim,
+detect and hash order.
+
+Remote ACR run `cu2d` received that source hash explicitly and produced runtime
+digest
+`sha256:ba777d18345fe308fb02ec59190575d0d174ac3242a8dc75c30c650755a8eb64`,
+OCI config
+`sha256:0dc38ed74fef109a1baba4652a4cffa18c4a69ebd271c7401ffd1cf8293c784a`
+with 14 layers, and registry evidence SHA-256
+`87ab7bf7f0bb11bf97af708cd0fa7d48f19a9c7cc7392a6d9b9e16dd2f2a9891`.
+Live container rehashing matched all four Docker-copied runtime files and the
+baked source hash. Startup reverified OpenVoice source commit, model revision,
+checkpoint and config, and independently reproduced model commitment
+`bd3c6932685166b20face14b9ecd08d5e5f4ef3ff74ae78caf824a9c1553e8ca`.
+The runtime and gate were ready with zero restarts before calls.
+
+The canary and the one permitted second conversion both returned signed HTTP
+200. Their verifier matched output geometry and hash, receipt self-hash, base
+provider/model/commitment/generation receipt/audio/text, owner reference,
+consent, converter pins/source hash/tau/native-watermark state, and final PerTh
+verification. There were exactly two conversion calls and zero retries.
+Conversion elapsed times were 11,683 ms and 467 ms; mean was 6,075 ms. Both
+reused bases and both conversions reported PerTh verified.
+
+Against four 3-second owner-reference windows, protected base n=2 ECAPA mean
+was 0.726677 and converted n=2 mean was 0.680976, a decrease of 0.045701.
+Azure Speech `hi-IN` raw WER worsened from 17/56, 0.303571, to 21/56, 0.375.
+The curated cross-script WER was the same 0.303571 to 0.375 change; its CER
+worsened from 62/242, 0.256198, to 72/242, 0.297521. These are regression and
+intelligibility signals, not human likeness, accent or naturalness scores.
+
+Objective report SHA-256 is
+`b53a1845e4a69df547bc1662202b92866185e7edcbe41d2391351ffb010c4c0b`.
+Peak-safe offline sealing produced four opaque 13,280 ms stimuli at common RMS
+0.0973137; manifest SHA-256 is
+`650a90e1775d03c8a87dc9167e092619a3289808c74852dca59dadcfd699c5e1`,
+encrypted mapping receipt SHA-256 is
+`f03ccf3f971847644e77db0948aaaa819497afb7a8cd59537fb1d699a05e09a8`,
+and the AES-256-GCM key was overwritten and never written. Frozen verification
+reported base 2, converted 2, rejected 0. The retry reserved USD 22 of USD 30;
+combined with the predecessor it reserved USD 42, while actual invoice cost is
+unavailable. Final Azure readback found converter runtime, converter gate and
+voice-evidence apps min zero with no active revisions and zero replicas. No
+audio was opened, no mapping unsealed, no local Docker or production route was
+used, and no winner was claimed.
+
+## `openvoice-windows-acr-wrapper-fixture-2026-08-28`
+
+**Measured 2026-08-28, n=1 Windows `.cmd` shim in a path containing spaces,
+n=1 argument containing spaces, n=1 old direct-spawn negative, n=1 non-Windows
+injected direct-execution control and n=22 focused OpenVoice checks.** The old
+`spawnSync(<absolute-cmd>, args, { shell: false })` control failed on this
+Windows host. The platform-aware launcher resolved the same absolute shim,
+invoked it through the existing absolute `ComSpec` with `/d`, `/q`, `/v:off`,
+`/s`, `/c`, `windowsVerbatimArguments: true` and `shell: false`, then captured
+every original argument exactly, including `path with spaces/task.yaml` and the
+64-character source-manifest assignment. A metacharacter-bearing argument was
+rejected before spawn. An injected non-Windows run called executable `az`
+directly with the unchanged argument array and `shell: false`.
+
+The offline plan bound exactly the four Docker-copied runtime files and emitted
+canonical source-manifest SHA-256
+`717b20e3b11a65ead273664c0bbe5efe0b5a6a51ed0a96a5b434938a356d157e`
+as the distinct Azure argument
+`SOURCE_MANIFEST_SHA256=717b20e3b11a65ead273664c0bbe5efe0b5a6a51ed0a96a5b434938a356d157e`.
+It reported `localDockerInvoked=false`. The focused converter suite passed 22
+of 22. No Azure, registry, model, Docker or production call ran in this check.
+
+## `zonos2-wus3-regional-acr-pull-and-cuda-stop-2026-08-28`
+
+**Measured 2026-08-28, n=1 West US 3 Basic registry, n=1 server-side immutable
+runtime import, n=1 regional broker import, n=1 dedicated Container Apps A100
+environment, n=1 private runtime, n=1 signed public gate, n=1 scheduled replica,
+n=8 signed readiness responses and n=0 synthesis or audio results.** Azure's
+current control-plane price data listed Basic ACR at USD 0.1666 per registry-day
+and stored data at USD 0.10 per GB-month. Basic includes 10 GiB, permits 40 TiB
+and a 195 GiB layer, so it was the cheapest tier that fit this image. Registry
+`vyaktiz2w3a8281729` was created in West US 3 with admin credentials disabled.
+Server-side import took approximately 20 minutes and reproduced runtime digest
+`sha256:7d1f97efffe35e23a356a12494e0333cdfb586c5a1dfcd8f06165a27abdb301b`,
+config digest
+`sha256:0959dac55edf74ddb5c5a3c26584801a2dfaad11f470721594cd264597db8ec1`,
+13 identical source and target layer digests and 23,644,395,155 compressed layer
+bytes. The broker digest was
+`sha256:214a6baa15eeb4c87e06fc098c19206aad40e8e898005e6b8a948c88fc379f80`.
+
+The frozen signed request bound owner replica
+`6aff3202-abbd-4ca6-976b-4009ed5af028`, source SHA-256 beginning `c242261b`,
+reference SHA-256 beginning `26459769`, consent SHA-256 beginning `fe1d038e`,
+the exact 25,000 to 35,000 ms source window, and Hindi, Hinglish and English
+texts. Azure scheduled `vyakti-z2-reg-a100-eval`. At
+11:03:46.5448134Z its system event reported `PulledImage` for the exact runtime
+digest with image size 23,644,340,224 bytes. Elapsed pull time was 194.29
+seconds. The prior Central India pull remained incomplete after 1,216.296
+seconds, so regional proximity improved completed-pull latency by at least
+6.26 times relative to that prior lower bound; it is not an end-to-end startup
+ratio.
+
+At 11:05:05Z the container was created and started, then its exact application
+failure was `/srv/zonos2/app.py`, line 248,
+`RuntimeError("zonos2_cuda_required")`; the process exited code 3 because
+`torch.cuda.is_available()` was false. Azure restarted it and cached repulls
+took 17, 48 and 18 ms before the same deterministic failure. Eight frozen
+canary attempts returned valid-HMAC `open_voice_runtime_warming`; the run was
+stopped immediately instead of consuming the 18-attempt bound. No response
+audio, disclosure, PerTh result, ECAPA, ASR, listening, unseal or winner claim
+existed.
+
+The conservative billable interval from revision creation at 11:00:30Z through
+final app-absence readback at 11:10:18.0542017Z was 588.0542017 seconds. At USD
+6.354 per fully active GPU hour, GPU exposure was at most USD 1.037916. Adding
+one full Basic registry-day and one full day of storage above the included 10
+GiB gives a conservative lane estimate of USD 1.2446 before negligible CPU,
+requests, transfer, tax and rounding; the Azure invoice value is unavailable.
+Both apps were deleted and read back absent, the temporary registry and its
+token and scope map were deleted and read back absent, and the dedicated
+environment was `ScheduledForDelete` with no apps. The source ACR token remained
+disabled and repository-scoped. No local Docker, Microsoft browser or
+production route was used.
+
+Offline source inspection found official ZONOS2 based on
+`pytorch/pytorch:2.9.1-cuda12.8-cudnn9-runtime`; its exact upstream lock selects
+PyTorch 2.9.1 and the CUDA 12.8 runtime, cuDNN, cuBLAS, cuFFT, cuSOLVER,
+cuSPARSE, NCCL, NVTX and Triton packages on x86_64. Azure's A100 event announced
+driver 580.159.04 compatible through CUDA 13.0. This narrows the failure away
+from a CPU-only lock or an obvious CUDA-version mismatch, but it does not prove
+the missing device-exposure mechanism. No diagnostic image was built or run.

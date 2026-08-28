@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { constants as cryptoConstants, createPublicKey, verify as cryptoVerify } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -24,6 +25,8 @@ import {
   verifyProviderResult,
 } from "./contract.mjs";
 import {
+  exportStudioBundle,
+  importStudioAnswerSheet,
   pathsFor,
   prepareHome,
   saveResult,
@@ -358,6 +361,69 @@ try {
   rejects("unsealing without one accepted listener fails closed", () => unsealHome(homeA), "matched_pack_no_accepted_listener");
   ok("four independent score axes plus disclosure audibility are frozen", SCORE_AXES.map((axis) => axis.id).join(",")
     === "owner_likeness,naturalness,indian_accent,pronunciation");
+
+  const studioBundlePath = join(homeA, "reports", "studio-bundle.json");
+  const studioBundleResult = exportStudioBundle(homeA, studioBundlePath);
+  const studioBundle = JSON.parse(readFileSync(studioBundlePath, "utf8"));
+  const secondStudioBundlePath = join(homeA, "reports", "studio-bundle-second.json");
+  exportStudioBundle(homeA, secondStudioBundlePath);
+  const secondStudioBundle = JSON.parse(readFileSync(secondStudioBundlePath, "utf8"));
+  const studioText = JSON.stringify({ manifest: studioBundle.manifest, trials: studioBundle.trials }).toLowerCase();
+  ok("the Studio bundle carries every opaque clip and no private mapping",
+    studioBundleResult.stimuli === Object.keys(studioBundle.stimuli).length &&
+    Object.keys(studioBundle.stimuli).every((id) => /^[0-9a-f]{24}$/.test(id)) &&
+    !["chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "modelcommitment", "consentreceipt", '"correct"']
+      .some((value) => studioText.includes(value)));
+  ok("the Studio exporter keeps its reusable private report key only in the private pack tree",
+    existsSync(sealedA.paths.studioReportSigningKey) &&
+    readFileSync(sealedA.paths.studioReportSigningKey, "utf8").includes("PRIVATE KEY") &&
+    !readFileSync(studioBundlePath, "utf8").includes("PRIVATE KEY") &&
+    studioBundle.manifest.reportAttestation.keyId === secondStudioBundle.manifest.reportAttestation.keyId &&
+    studioBundle.manifest.reportAttestation.keyId === studioBundle.manifest.reportAttestation.publicKeySha256);
+
+  const privateKey = JSON.parse(readFileSync(sealedA.paths.key, "utf8"));
+  const publicTrials = JSON.parse(readFileSync(join(sealedA.paths.served, "trials.json"), "utf8"));
+  const privateTrials = new Map(privateKey.sequence.map((trial) => [trial.trialId, trial]));
+  const studioAnswers = Object.fromEntries(publicTrials.sequence.map((trial) => [trial.trialId, trial.kind === "rating"
+    ? { owner_likeness: 3, naturalness: 3, indian_accent: 3, pronunciation: 3, disclosure: "full", note: "" }
+    : { choice: privateTrials.get(trial.trialId).correct }]));
+  const studioSheetPath = join(homeA, "reports", "owner-studio-ratings.json");
+  writeFileSync(studioSheetPath, JSON.stringify({
+    contract: MATCHED_PACK_CONTRACT,
+    runId: sealedA.paths.runId,
+    listener: "owner-studio",
+    startedAt: "2026-08-28T00:00:00.000Z",
+    finishedAt: "2026-08-28T00:05:00.000Z",
+    complete: true,
+    answers: studioAnswers,
+  }));
+  const imported = importStudioAnswerSheet(homeA, studioSheetPath);
+  ok("an attentive complete Studio sheet imports into the private answer lane", imported.accepted && imported.listener === "owner-studio");
+  const studioUnsealed = unsealHome(homeA);
+  ok("the accepted sheet unlocks a report bound to the original seal without promoting a winner",
+    studioUnsealed.sealedKeySha256 === studioBundle.manifest.sealedKeySha256 &&
+    studioUnsealed.overallWinner === null && studioUnsealed.cells.every((cell) => cell.winnerClaim === null));
+  const { attestation, ...signedBody } = studioUnsealed;
+  const verificationKey = createPublicKey({
+    key: Buffer.from(studioBundle.manifest.reportAttestation.publicKeySpkiBase64, "base64"),
+    format: "der",
+    type: "spki",
+  });
+  const signature = Buffer.from(attestation.signatureBase64, "base64");
+  const verifies = (body, key = verificationKey, candidate = signature) => cryptoVerify("sha256", Buffer.from(canonical(body)), {
+    key,
+    padding: cryptoConstants.RSA_PKCS1_PADDING,
+  }, candidate);
+  ok("the unsealed Studio report carries a valid private-pack signature", verifies(signedBody)
+    && attestation.keyId === studioBundle.manifest.reportAttestation.keyId);
+  ok("a one-bit report change fails the asymmetric attestation", !verifies({ ...signedBody, acceptedListeners: signedBody.acceptedListeners + 1 }));
+  const studioBundleBPath = join(homeB, "reports", "studio-bundle.json");
+  exportStudioBundle(homeB, studioBundleBPath);
+  const studioBundleB = JSON.parse(readFileSync(studioBundleBPath, "utf8"));
+  const wrongKey = createPublicKey({ key: Buffer.from(studioBundleB.manifest.reportAttestation.publicKeySpkiBase64, "base64"), format: "der", type: "spki" });
+  ok("a different private pack public key cannot verify the report", !verifies(signedBody, wrongKey));
+  ok("the unsealed report never carries private signing material", !JSON.stringify(studioUnsealed).includes("PRIVATE KEY")
+    && typeof studioUnsealed.attestation?.signatureBase64 === "string");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

@@ -24,6 +24,8 @@ import {
 import {
   pathsFor,
   prepareHome,
+  exportStudioBundle,
+  importStudioAnswerSheet,
   saveResult,
   scoreHome,
   sealHome,
@@ -234,6 +236,23 @@ function score() {
   console.log("model mapping remains sealed");
 }
 
+function studioBundle() {
+  const output = resolve(String(flags.get("out") || join(home, "reports", `${home.split(/[\\/]/).at(-1)}-studio-bundle.json`)));
+  const result = exportStudioBundle(home, output);
+  console.log(`owner Studio bundle ready: ${result.file}`);
+  console.log(`${result.stimuli} opaque audio files; ${result.ratingTrials} rating screens; ${result.bytes} bytes`);
+  console.log(`bundle sha256: ${result.sha256}`);
+  console.log("model mapping remains sealed");
+}
+
+function importStudioAnswers() {
+  const input = flags.get("file");
+  if (!input || input === true) fail("matched_pack_studio_answers_file_required");
+  const result = importStudioAnswerSheet(home, resolve(String(input)));
+  console.log(`accepted locked owner ratings: ${result.listener}`);
+  console.log("model mapping remains sealed until the explicit unseal command");
+}
+
 function unseal() {
   if (flags.get("confirm-ratings-locked") !== true) fail("matched_pack_unseal_requires_locked_ratings");
   const report = unsealHome(home);
@@ -248,6 +267,8 @@ function usage() {
   console.log("  seal [--home path]");
   console.log("  verify [--home path]");
   console.log("  listen [--home path] [--port 8792]");
+  console.log("  studio-bundle --out path [--home path]");
+  console.log("  import-studio-answers --file path [--home path]");
   console.log("  score [--home path]");
   console.log("  unseal --confirm-ratings-locked [--home path]");
 }
@@ -258,6 +279,8 @@ try {
   else if (command === "seal") seal();
   else if (command === "verify") await verify();
   else if (command === "listen") await listen();
+  else if (command === "studio-bundle") studioBundle();
+  else if (command === "import-studio-answers") importStudioAnswers();
   else if (command === "score") score();
   else if (command === "unseal") unseal();
   else usage();

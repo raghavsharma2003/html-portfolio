@@ -5687,3 +5687,236 @@ language-specific raw and script-aware ASR. Use the result only as a negative
 regression/localization signal. Arm ranking, foreign-accent diagnosis,
 naturalness and owner likeness remain unanswered until accepted blinded human
 ratings are locked and the pack is explicitly unsealed.
+
+## `base64-audio-is-not-searchable-model-metadata` (2026-08-28)
+
+**What was tried.** Scan the complete one-file Studio bundle, including about
+8.4 MB of Base64 WAV data, for short provider-name substrings before allowing
+the export.
+
+**What specifically broke.** Opaque binary encoded as Base64 naturally
+contains coincidental short letter sequences. The real r2 bundle therefore
+matched a forbidden provider substring even though its manifest and trial
+metadata passed the existing sealed-tree audit and carried no mapping. The
+first actual export failed as `matched_pack_studio_mapping_leak` for a pattern
+that occurred only inside encoded audio bytes.
+
+**What replaced it.** Scan only structured listener-facing metadata for model,
+provider, receipt, answer-key and source identifiers. Validate audio
+independently by its opaque 24-character id, exact stimulus set, SHA-256,
+bounded byte count, RIFF shape and common 24 kHz mono PCM16 geometry. The real
+r2 export then succeeded without weakening either the metadata leak check or
+audio integrity.
+
+## `compute-sku-visibility-is-not-large-gpu-provisionability` (2026-08-28)
+
+**What was tried.** Treat an Azure Compute GPU SKU with no restriction in the
+subscription-scoped SKU listing as available capacity for ZONOS2 or MOSS, and
+continue the earlier Southeast Asia A10 quota plan because A10 was already
+familiar.
+
+**What specifically broke.** The listing was a false positive for usable
+capacity. Twenty-six exact A100 deployment validations and four exact H100
+validations all stopped at quota, despite the SKU rows being unrestricted.
+Every usable A100 region needed 24 low-priority cores from a subscription limit
+of 3 or 24 family cores from a limit of 0. H100 needed 40. West Europe failed a
+separate new-customer location gate. Full A10 was explicitly unavailable to
+the subscription wherever found, and its earlier 36-core request is larger
+than the A100 requirement. A quota request cannot be called successful when
+the service throttles it and exposes no request id.
+
+**What replaced it.** Use exact ARM deployment validation as the Compute
+capacity predicate, not SKU visibility. Rank the subscription-supported
+Container Apps Consumption A100 profile first because it can scale to zero and
+fits a bounded experiment on official list prices, while preserving the
+important limitation that only a separately authorized one-replica scheduling
+attempt can prove serverless quota and regional capacity. Keep Compute A100
+Spot as a backup after a verifiable quota grant; do not escalate to H100 without
+measured A100 failure.
+
+## `sarvam-bulbul-existing-key-returned-payment-required` (2026-08-28)
+
+**What was tried.** Use the existing Sarvam secret from the deployed processing
+job for the two preregistered Bulbul v3 Hindi/Hinglish base arms, through one
+isolated overridden job execution with the current documented singular-text
+contract.
+
+**What specifically broke.** The first provider request returned HTTP 402
+before audio. The service therefore supplied no audio, model receipt or timing
+evidence that could enter the pack. Retrying with the same account state would
+spend attempts without changing the access predicate, and substituting another
+provider would violate the frozen plan.
+
+**What replaced it.** Reject both Sarvam items explicitly with no-audio and
+no-retry receipts and provider spend claim USD 0. A future arm requires restored
+Sarvam billing/access and a new preregistered plan; managed alias metadata must
+remain labeled as a request-contract commitment rather than an immutable weight
+pin.
+
+## `perth-watermark-needs-explicit-frame-padding` (2026-08-28)
+
+**What was tried.** Send arbitrary OpenVoice V2 converted sample lengths
+directly into PerTh and treat successful tone conversion as sufficient before
+the protected response is constructed.
+
+**What specifically broke.** The first live conversion returned signed HTTP
+503 `perth_watermark_application_failed` before audio could leave. PerTh's
+implicit watermarker operates on 240-sample frames, while OpenVoice output is
+not guaranteed to end on that boundary. The candidate therefore failed even
+though the converter and exact checkpoint were healthy.
+
+**What replaced it.** Pad only for PerTh framing, apply the watermark, trim back
+to the exact original sample count, then run the detector and hash the preserved-
+length PCM. The focused gate covers non-aligned lengths. Remote ACR
+build `cu2c` carried that fix and reached readiness, but the arm remains
+unqualified because the subsequent signed response failed its receipt gate.
+
+## `python-javascript-float-canonicalization-can-break-receipt-hashes` (2026-08-28)
+
+**What was tried.** Recompute the Python service's receipt self-hash in the
+JavaScript pack verifier after parsing the signed JSON, using each language's
+ordinary sorted compact JSON representation.
+
+**What specifically broke.** The corrected runtime produced a signed HTTP 200,
+but the aggregate immutable-receipt check rejected it and discarded the audio.
+The old fail-closed verifier intentionally persisted no drifted response and
+reported no failed-field list, so the exact live mismatch cannot be recovered.
+Offline isolation found a deterministic interoperability defect: Python emits
+an integral float as `1.0`, JavaScript parses it as the number `1` and emits
+`1`, and the two canonical byte strings hash differently. PerTh receipts can
+legitimately carry score 1.0. This mechanism is proven by a fixture; attributing
+the discarded live response to that exact field would still be an inference,
+not a measurement.
+
+**What replaced it.** Normalize finite integral floats before Python receipt
+canonicalization, add a score-1 round-trip regression, and make future verifier
+failures persist only failed field names and response/request hashes while
+discarding audio and the response body. The focused offline suite passes 20 of
+20. Do not rebuild or retry this frozen run; a new canary must qualify the local
+fix before any matched conversion or production route.
+
+## `zonos2-cross-region-image-pull-misses-bounded-readiness` (2026-08-28)
+
+**What was tried.** Run the already-qualified 22.0206 GiB ZONOS2 image at exact
+digest `sha256:7d1f97efffe35e23a356a12494e0333cdfb586c5a1dfcd8f06165a27abdb301b`
+on a dedicated West US 3 Container Apps `Consumption-GPU-NC24-A100` profile,
+behind the existing signed CPU admission broker. The runtime was private,
+min zero and max one; the gate admitted only the frozen owner reference,
+consent, text and request signatures.
+
+**What specifically broke.** Azure scheduled the A100 and reported a compatible
+GPU driver, but the cross-region ACR pull remained at `PullingImage` for the
+entire 30-attempt readiness bound. At final capture the container had never
+started, readiness was false and restart count was zero. Every canary response
+was the correctly signed `open_voice_runtime_warming`; no model, CUDA-kernel,
+OOM, synthesis, audio or quality result existed.
+
+**What replaced it.** Stop at the registered boundary, delete the exact apps
+and dedicated environment, disable the scoped pull token and restore its scope
+to the ZONOS2 repository alone. A future experiment must solve artifact
+proximity or measured image closure before paid readiness begins. A longer
+post-result wait is not evidence and is not an acceptable replacement.
+
+## `public-seal-hashes-do-not-authenticate-studio-reports` (2026-08-28)
+
+**What was tried.** Treat an unsealed report as trusted when its run id and
+sealed-key SHA-256 matched the values already present in the public Studio
+bundle, then label the result as seal matched.
+
+**What specifically broke.** Those values bind a report to a pack but do not
+identify who produced the report. Any local JSON author could copy both public
+values, set an accepted-listener count and provide arbitrary model labels. The
+browser had no secret or asymmetric verification step that distinguished a
+private-gate result from that fabrication.
+
+**What replaced it.** The exporter now keeps a reusable RSA-2048 private key
+only under the pack's private directory and publishes only its SPKI key and
+hash in the Studio bundle. Unseal signs the canonical result, and the browser
+fails closed on a missing signature, changed body or wrong key before showing
+identities. The UI says signature verified only after that check succeeds.
+
+## `openvoice-tone-conversion-regressed-owner-proxy-and-asr` (2026-08-28)
+
+**What was tried.** Convert two exact protected IndicF5 Hindi/Hinglish owner-
+conditioned bases through the receipt-canonicalized OpenVoice V2 tone-color
+runtime, with the same 12-second owner reference, text, consent, seed and tau
+0.3. Both conversions had fully valid signed receipts and verified PerTh.
+
+**What specifically broke.** The conversion passed transport but regressed
+both registered objective guardrails. Across n=2 matched prompts, ECAPA mean
+fell from 0.726677 to 0.680976. Script-aware WER worsened from 17/56,
+0.303571, to 21/56, 0.375, and CER worsened from 62/242, 0.256198, to 72/242,
+0.297521. A tone-color stage that loses both identity-proxy similarity and
+intelligibility cannot be promoted as the path to exact Hindi/Hinglish cloning.
+
+**What replaced it.** Keep the arm isolated and retain its opaque sealed pack
+only for later blinded diagnosis. Move research toward methods that jointly
+model speaker, prosody and multilingual pronunciation, and require a larger
+held-out objective non-regression before spending human-listener attention.
+Receipts, PerTh and low latency remain required controls but are not voice
+quality evidence.
+
+## `maximum-source-rms-is-not-a-peak-safe-listening-level` (2026-08-28)
+
+**What was tried.** Normalize every sealed listening stimulus to the loudest
+source RMS, capped at 0.18, and rely on the normalizer's 0.92 peak assertion to
+catch unsafe gain.
+
+**What specifically broke.** One lower-RMS, higher-crest-factor artifact would
+have exceeded the 0.92 peak ceiling at that common RMS. The assertion stopped
+the first seal attempt before any stimulus, mapping ciphertext or manifest was
+written. Choosing a common target from RMS alone is not safe when crest factors
+differ.
+
+**What replaced it.** Compute each clip's peak-safe RMS ceiling, choose the
+minimum ceiling across the reference and candidates, then normalize and pad.
+The replacement sealed four opaque clips at common RMS 0.0973137 and a 0.92
+peak ceiling, recorded its implementation hash, destroyed the mapping key and
+passed the frozen pack verifier. This correction changes listening geometry
+only; objective ECAPA and ASR remained bound to the untouched source WAVs.
+
+## `windows-az-cmd-is-not-a-direct-node-executable` (2026-08-28)
+
+**What was tried.** Launch Azure CLI from the checked-in remote-build wrapper
+with `spawnSync("az", args, { shell: false })`, the same direct-executable
+pattern used for ordinary binaries.
+
+**What specifically broke.** On Windows the installed CLI entry is commonly a
+`.cmd` shim. Node does not resolve and execute that shim as a direct executable
+under `shell: false`; the executable fake-shim negative reproduced the failure.
+The earlier static gate only searched for the source pattern and therefore
+approved code it had never launched.
+
+**What replaced it.** Resolve an explicit `--az`, environment override or PATH
+shim first. Execute `.exe` directly; execute only `.cmd` through explicit
+`ComSpec` with delayed expansion disabled, separately quoted safe arguments,
+and `shell: false`. The gate now runs a fake shim from a path containing spaces,
+verifies a spaced argument exactly, retains the failing old control, rejects a
+metacharacter argument, and proves non-Windows stays direct.
+
+## `zonos2-regional-a100-without-visible-cuda-device` (2026-08-28)
+
+**What was tried.** Import the exact 22.0206 GiB ZONOS2 image server-side into
+the cheapest fitting West US 3 ACR tier, verify its immutable manifest and layer
+identity, then run it privately on a fresh West US 3 Container Apps
+`Consumption-GPU-NC24-A100` profile behind the existing signed owner-bound
+gate. The runtime and gate were min zero, max one and excluded from production.
+
+**What specifically broke.** Regional proximity worked: the exact image pulled
+in 194.29 seconds and the process started. Application initialization then found
+`torch.cuda.is_available()` false, raised `zonos2_cuda_required` at
+`/srv/zonos2/app.py:248` and exited code 3 on every restart. The image's frozen
+upstream lock contains GPU PyTorch and CUDA 12.8 packages, and Azure advertised
+a driver compatible through CUDA 13.0, so neither a CPU-only package lock nor
+an obvious driver-version mismatch explains the observation. Device files,
+environment injection and driver-library discovery were not logged, so naming
+one of them as the root cause would exceed the evidence.
+
+**What replaced it.** Stop before synthesis, delete the exact apps, temporary
+registry, token and scope, and let the empty dedicated environment finish its
+control-plane deletion. Before another model run, use a tiny regional
+diagnostic-only canary plus an official GPU validator to distinguish missing
+device injection from library discovery and PyTorch runtime failure. Record the
+device files, NVIDIA environment, driver library, `nvidia-smi` and PyTorch CUDA
+build/runtime state. The existing immutable ZONOS2 digest should be retried only
+after that smaller canary succeeds.

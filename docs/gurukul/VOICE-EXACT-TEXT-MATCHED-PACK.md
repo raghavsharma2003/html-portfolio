@@ -1,8 +1,8 @@
 # Exact-text owner voice pack
 
-Status on 2026-08-28: the local instrument and guarded orchestration are ready.
-No cloud synthesis for this pack has run. No listener has scored it, and no
-quality winner exists.
+Status on 2026-08-28: the r2 pack has six accepted protected clips and is
+sealed for listening. Its mapping remains private. No listener has scored it,
+no model identity has been unlocked, and no quality winner exists.
 
 ## Frozen comparison
 
@@ -101,3 +101,51 @@ node scripts/voice-matched-pack.mjs unseal --confirm-ratings-locked
 
 `unseal` refuses until at least one complete listener passes both attention
 checks. English and Hindi remain separate exact-text cells in the final report.
+
+## Owner Studio workflow
+
+The authenticated Meet surface can run the same instrument without serving a
+private key or model label to the browser. Export the already-sealed public
+tree as one bounded file:
+
+```powershell
+node scripts/voice-matched-pack.mjs studio-bundle `
+  --home scratchpad/voice-matched-pack-20260828-r2 `
+  --out scratchpad/voice-matched-pack-20260828-r2/reports/owner-studio-bundle.json
+```
+
+Import that file under **Blind voice experiment** in Meet. The browser stores
+the pack in IndexedDB and checkpoints the small answer sheet in localStorage.
+Progress can also be exported and imported explicitly. **Replace pack** first
+purges the current run's IndexedDB bundle, progress, imported result and
+replica pointer. **Remove private experiment** does the same after confirmation
+and leaves files already exported to the owner's computer untouched. Both
+operations are scoped to the exact replica and run.
+
+The Studio never has the private attention answers, so a completed sheet must
+pass the existing private gate:
+
+```powershell
+node scripts/voice-matched-pack.mjs import-studio-answers `
+  --file <owner-studio-ratings.json> `
+  --home scratchpad/voice-matched-pack-20260828-r2
+
+node scripts/voice-matched-pack.mjs unseal `
+  --confirm-ratings-locked `
+  --home scratchpad/voice-matched-pack-20260828-r2
+```
+
+Then import `reports/unsealed-report.json` into the same Studio panel. The UI
+requires an accepted-listener count and exact run binding, then verifies a
+private-pack signature before it displays identities. `studio-bundle` creates
+or reuses a 2048-bit RSA signing key only at
+`private/studio-report-signing-key.pem`, requesting mode `0600` on systems that
+enforce POSIX file modes. The bundle
+contains only the SPKI public key, its SHA-256 key id and the verification
+algorithm. `unseal` signs the canonical report body with
+RSASSA-PKCS1-v1_5 and SHA-256; the browser verifies that signature with
+WebCrypto and refuses a missing signature, changed report or different key.
+RSA PKCS#1 v1.5 was selected here because Node and WebCrypto use the same
+signature encoding directly, avoiding the DER-versus-raw interoperability
+edge of ECDSA. The 20 MiB pack and 1 MiB answer/report caps remain enforced.
+The UI reports descriptive means only and never auto-promotes a model.

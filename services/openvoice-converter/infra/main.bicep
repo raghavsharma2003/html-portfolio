@@ -10,6 +10,16 @@ param image string
 @description('Immutable converter admission image. Tags are rejected.')
 param brokerImage string
 
+@description('Private Azure Container Registry hostname without a URL scheme.')
+param registryServer string
+
+@description('Azure Container Registry pull username.')
+param registryUsername string
+
+@secure()
+@description('Azure Container Registry pull password. This is not the voice transport HMAC.')
+param registryPassword string
+
 @description('User-assigned identity with get permission for only the transport secret.')
 param userAssignedIdentityResourceId string
 
@@ -30,6 +40,7 @@ param approvedBudgetUsd int = 40
 
 var immutableImage = contains(image, '@sha256:') ? image : fail('image must use an immutable sha256 digest')
 var immutableBrokerImage = contains(brokerImage, '@sha256:') ? brokerImage : fail('brokerImage must use an immutable sha256 digest')
+var cleanRegistryServer = !contains(registryServer, '://') && contains(registryServer, '.') ? registryServer : fail('registryServer must be a hostname')
 var explicitExpiry = contains(expiryAt, 'T') && endsWith(expiryAt, 'Z') ? expiryAt : fail('expiryAt must be an explicit UTC timestamp')
 var runtimeName = 'vyakti-openvoice-converter-eval'
 var gateName = 'vyakti-openvoice-converter-gate'
@@ -60,7 +71,11 @@ resource runtime 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8080
         transport: 'http'
       }
+      registries: [
+        { server: cleanRegistryServer, username: registryUsername, passwordSecretRef: 'acr-password' }
+      ]
       secrets: [
+        { name: 'acr-password', value: registryPassword }
         { name: 'converter-hmac', keyVaultUrl: hmacSecretUri, identity: userAssignedIdentityResourceId }
       ]
     }
@@ -133,7 +148,11 @@ resource gate 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8080
         transport: 'http'
       }
+      registries: [
+        { server: cleanRegistryServer, username: registryUsername, passwordSecretRef: 'acr-password' }
+      ]
       secrets: [
+        { name: 'acr-password', value: registryPassword }
         { name: 'converter-hmac', keyVaultUrl: hmacSecretUri, identity: userAssignedIdentityResourceId }
       ]
     }

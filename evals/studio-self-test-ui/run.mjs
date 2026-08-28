@@ -58,6 +58,8 @@ const enrollment = readFileSync(join(ROOT, "src/studio/EnrollmentWorkspace.tsx")
 const contextLocker = readFileSync(join(ROOT, "src/studio/ContextLockerPanel.tsx"), "utf8");
 const videoEnroll = readFileSync(join(ROOT, "src/studio/VideoEnrollPanel.tsx"), "utf8");
 const channelWatch = readFileSync(join(ROOT, "src/studio/IngestChannelStudio.tsx"), "utf8");
+const voiceExperiment = readFileSync(join(ROOT, "src/studio/VoiceExperimentPanel.tsx"), "utf8");
+const voiceExperimentContract = readFileSync(join(ROOT, "src/studio/voiceExperiment.ts"), "utf8");
 ok("the self-test presentation is gated by exact Vite mode and environment flags",
   /VITE_REPLICA_SELF_TEST_MODE/.test(studio)
   && /VITE_REPLICA_SELF_TEST_ENVIRONMENT/.test(studio)
@@ -94,6 +96,49 @@ ok("testing records the channel predicate and starts the watch in one action",
   /testEnvironment && !liveFor\(channelUrl\)/.test(channelWatch)
   && /await attestChannel[\s\S]{0,300}await startChannelWatch/.test(channelWatch)
   && /!testEnvironment && !attested/.test(channelWatch));
+ok("Meet exposes one compact owner-only blind voice experiment without a new public API",
+  /<VoiceExperimentPanel[\s\S]{0,160}replicaId=\{replica\.replica_id\}/.test(studio)
+  && /<details className="voice-experiment"/.test(voiceExperiment)
+  && !/replicaRequest|fetch\(/.test(voiceExperiment));
+ok("the Studio experiment keeps identities sealed until a seal-bound accepted report is imported",
+  /parseVoiceExperimentResult/.test(voiceExperiment)
+  && /!file \|\| !bundle \|\| !lockedAt/.test(voiceExperiment)
+  && /result\.sealedKeySha256 !== bundle\.manifest\.sealedKeySha256/.test(voiceExperimentContract)
+  && /boundedInt\(result\.acceptedListeners, 1, 100/.test(voiceExperimentContract)
+  && /overallWinner !== null/.test(voiceExperimentContract));
+ok("the Studio experiment saves locally and keeps an explicit portable answer path",
+  /saveVoiceExperimentBundle/.test(voiceExperiment)
+  && /localStorage\.setItem\(progressKey/.test(voiceExperiment)
+  && /Export progress/.test(voiceExperiment)
+  && /Import progress/.test(voiceExperiment)
+  && /import-studio-answers/.test(voiceExperiment));
+ok("the Studio experiment counts only completed playback and makes its final lock irreversible",
+  /audio\.onended = \(\) => \{[\s\S]{0,180}setReferencePlayed\(true\)[\s\S]{0,180}setPlayedTrialId\(playedTrial\)/.test(voiceExperiment)
+  && /audioRef\.current\.onended = null/.test(voiceExperiment)
+  && !/await audio\.play\(\)[\s\S]{0,120}set(?:ReferencePlayed|PlayedTrialId)/.test(voiceExperiment)
+  && /setLockedAt\(new Date\(\)\.toISOString\(\)\)/.test(voiceExperiment)
+  && /Locking is irreversible in Studio/.test(voiceExperiment)
+  && !/Review ratings/.test(voiceExperiment));
+ok("the Studio experiment exposes progress and keyboard focus semantics",
+  /role="progressbar"/.test(voiceExperiment)
+  && /aria-valuemin=\{0\}/.test(voiceExperiment)
+  && /aria-valuemax=\{total\}/.test(voiceExperiment)
+  && /aria-valuenow=\{completed\}/.test(voiceExperiment)
+  && /aria-valuetext=\{`\$\{completed\} of \$\{total\} ratings complete`\}/.test(voiceExperiment));
+ok("the Studio experiment verifies an asymmetric private-pack signature before revealing identities",
+  /crypto\.subtle\.verify/.test(voiceExperimentContract)
+  && /RSASSA-PKCS1-v1_5/.test(voiceExperimentContract)
+  && /await verifyVoiceExperimentReportAttestation/.test(voiceExperimentContract)
+  && /await parseVoiceExperimentResult/.test(voiceExperiment)
+  && /Signature verified/.test(voiceExperiment)
+  && !/Seal matched/.test(voiceExperiment));
+ok("the Studio experiment can replace or remove one bounded replica run",
+  /deleteVoiceExperimentBundle\(replicaId, runId\)/.test(voiceExperiment)
+  && /clearStoredRun\(replicaId, runId\)/.test(voiceExperiment)
+  && /Replace pack/.test(voiceExperiment)
+  && /Remove private experiment/.test(voiceExperiment)
+  && /window\.confirm/.test(voiceExperiment)
+  && /objectStore\(STORE_NAME\)\.delete\(`\$\{replicaId\}:\$\{runId\}`\)/.test(voiceExperimentContract));
 
 console.log(failed ? `\n${failed} FAILURES` : "\nALL PASS");
 process.exit(failed ? 1 : 0);
