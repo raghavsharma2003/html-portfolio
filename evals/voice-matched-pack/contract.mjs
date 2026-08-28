@@ -443,7 +443,10 @@ export function verifyProviderResult({ plan, item, payload, result, responseSign
   exactOrFail(result.model, item.expectedModel, "matched_pack_result_model_drift");
   exactOrFail(result.model_commitment, expectedModelCommitment, "matched_pack_result_model_commitment_drift");
   let pronunciationNormalization = null;
-  if (item.armId === "indicf5" && item.evaluationVariant === INDICF5_VARIANTS.PRONUNCIATION_NORMALIZED) {
+  const evaluationVariant = item.armId === "indicf5"
+    ? (item.evaluationVariant || INDICF5_VARIANTS.UNNORMALIZED_BASELINE)
+    : (item.evaluationVariant || "default");
+  if (item.armId === "indicf5" && evaluationVariant === INDICF5_VARIANTS.PRONUNCIATION_NORMALIZED) {
     exactOrFail(payload.text_sha256, item.fullTextSha256, "matched_pack_indicf5_source_text_request_drift");
     if (!payload.pronunciation_normalization ||
         canonical(payload.pronunciation_normalization) !== canonical(INDICF5_PRONUNCIATION_NORMALIZATION)) {
@@ -456,7 +459,7 @@ export function verifyProviderResult({ plan, item, payload, result, responseSign
       receipt: result.pronunciation_normalization_receipt,
     });
   } else if (item.armId === "indicf5") {
-    if (item.evaluationVariant !== INDICF5_VARIANTS.UNNORMALIZED_BASELINE ||
+    if (evaluationVariant !== INDICF5_VARIANTS.UNNORMALIZED_BASELINE ||
         payload.text_sha256 !== undefined || payload.pronunciation_normalization !== undefined ||
         result.pronunciation_normalization_receipt !== undefined) {
       throw new Error("matched_pack_indicf5_baseline_variant_drift");
@@ -470,6 +473,13 @@ export function verifyProviderResult({ plan, item, payload, result, responseSign
     if (result.text_sha256 !== undefined) exactOrFail(result.text_sha256, item.fullTextSha256, "matched_pack_result_text_drift");
     if (result.generation_parameters?.seed !== undefined) exactOrFail(result.generation_parameters.seed, plan.seed, "matched_pack_result_seed_receipt_drift");
   } else {
+    exactOrFail(result.text_frontend_contract, payload.text_frontend_contract, "matched_pack_result_text_frontend_drift");
+    exactOrFail(result.text_plan_sha256, payload.text_plan_sha256, "matched_pack_result_text_plan_drift");
+    exactOrFail(result.text_segment_index, payload.text_segment_index, "matched_pack_result_text_segment_drift");
+    exactOrFail(result.text_segment_count, payload.text_segment_count, "matched_pack_result_text_segment_count_drift");
+    if (canonical(result.text_segment_semantic_indexes) !== canonical(payload.text_segment_semantic_indexes)) {
+      throw new Error("matched_pack_result_text_segment_semantics_drift");
+    }
     exactOrFail(result.disclosure_text, prompt.disclosure, "matched_pack_result_disclosure_drift");
     exactOrFail(result.disclosure_language_id, item.languageId, "matched_pack_result_disclosure_language_drift");
   }
@@ -486,7 +496,7 @@ export function verifyProviderResult({ plan, item, payload, result, responseSign
     contract: MATCHED_PACK_CONTRACT,
     itemId: item.id,
     armId: item.armId,
-    evaluationVariant: item.evaluationVariant || "default",
+    evaluationVariant,
     languageId: item.languageId,
     seed: plan.seed,
     requestId: payload.request_id,

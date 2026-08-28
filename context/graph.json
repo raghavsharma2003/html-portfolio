@@ -4302,6 +4302,51 @@
       "kind": "rejection",
       "title": "Cold runtime warming is not a failed clone",
       "at": "2026-08-28"
+    },
+    {
+      "id": "indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain",
+      "kind": "decision",
+      "title": "IndicF5 pronunciation normalization remains evaluation-only after a sealed objective gain",
+      "at": "2026-08-28",
+      "status": "sealed qualification complete; normalized revision inactive and r7 template restored"
+    },
+    {
+      "id": "indicf5-pronunciation-normalized-sealed-before-after-2026-08-28",
+      "kind": "measurement",
+      "title": "A sealed matched resynthesis measures the bounded IndicF5 pronunciation intervention",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "text-coverage-is-not-acoustic-symbol-correction",
+      "kind": "rejection",
+      "title": "Text coverage is not acoustic symbol correction",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "matched-pack-chatter-receipts-bind-the-complete-text-plan",
+      "kind": "decision",
+      "title": "Matched-pack Chatterbox receipts bind the complete text plan",
+      "at": "2026-08-28",
+      "status": "sealed six-clip pack passed the strengthened receipt verifier"
+    },
+    {
+      "id": "pre-variant-indicf5-matched-items-mean-unnormalized-r7",
+      "kind": "decision",
+      "title": "Pre-variant IndicF5 matched items mean the unnormalized r7 baseline",
+      "at": "2026-08-28",
+      "status": "frozen r2 pack sealed with r7 baseline"
+    },
+    {
+      "id": "owner-exact-text-matched-pack-sealed-cloud-2026-08-28",
+      "kind": "measurement",
+      "title": "The four-stack owner exact-text cloud pack is sealed and verified",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "chatter-disclosure-fields-alone-do-not-prove-the-text-plan",
+      "kind": "rejection",
+      "title": "Chatterbox disclosure fields alone do not prove the text plan",
+      "at": "2026-08-28"
     }
   ],
   "edges": [
@@ -8464,6 +8509,81 @@
       "src": "preview-style-migration-live-canary-2026-08-28",
       "rel": "part_of",
       "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain",
+      "rel": "measured_by",
+      "dst": "indicf5-pronunciation-normalized-sealed-before-after-2026-08-28"
+    },
+    {
+      "src": "indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain",
+      "rel": "caused_by",
+      "dst": "text-coverage-is-not-acoustic-symbol-correction"
+    },
+    {
+      "src": "indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-normalized-sealed-before-after-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "constrains",
+      "dst": "indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain"
+    },
+    {
+      "src": "indicf5-pronunciation-image-stops-at-a-qualified-digest",
+      "rel": "constrains",
+      "dst": "indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain"
+    },
+    {
+      "src": "indicf5-objective-intelligibility-is-a-private-asr-diagnostic",
+      "rel": "constrains",
+      "dst": "indicf5-pronunciation-normalized-sealed-before-after-2026-08-28"
+    },
+    {
+      "src": "matched-pack-chatter-receipts-bind-the-complete-text-plan",
+      "rel": "measured_by",
+      "dst": "owner-exact-text-matched-pack-sealed-cloud-2026-08-28"
+    },
+    {
+      "src": "matched-pack-chatter-receipts-bind-the-complete-text-plan",
+      "rel": "caused_by",
+      "dst": "chatter-disclosure-fields-alone-do-not-prove-the-text-plan"
+    },
+    {
+      "src": "matched-pack-chatter-receipts-bind-the-complete-text-plan",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "pre-variant-indicf5-matched-items-mean-unnormalized-r7",
+      "rel": "measured_by",
+      "dst": "owner-exact-text-matched-pack-sealed-cloud-2026-08-28"
+    },
+    {
+      "src": "pre-variant-indicf5-matched-items-mean-unnormalized-r7",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-exact-text-matched-pack-sealed-cloud-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "text-plan-disclosure-receipt-is-a-chatterbox-release-gate",
+      "rel": "constrains",
+      "dst": "matched-pack-chatter-receipts-bind-the-complete-text-plan"
+    },
+    {
+      "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
+      "rel": "constrains",
+      "dst": "pre-variant-indicf5-matched-items-mean-unnormalized-r7"
     }
   ]
 }

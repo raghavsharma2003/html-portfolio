@@ -171,6 +171,11 @@ function fakeResult(item, payload, index) {
     delete result.consent_receipt_sha256;
     delete result.language_id;
     delete result.text_sha256;
+    result.text_frontend_contract = payload.text_frontend_contract;
+    result.text_plan_sha256 = payload.text_plan_sha256;
+    result.text_segment_index = payload.text_segment_index;
+    result.text_segment_count = payload.text_segment_count;
+    result.text_segment_semantic_indexes = payload.text_segment_semantic_indexes;
     result.disclosure_text = basePlan.prompts[item.languageId].disclosure;
     result.disclosure_language_id = item.languageId;
   }
@@ -215,6 +220,24 @@ const baselineIndicPlan = buildPlan({
 });
 const baselineIndicItem = baselineIndicPlan.items.find((item) => item.armId === "indicf5");
 const baselineIndicRow = normalizedRow(baselineIndicPlan, baselineIndicItem, 21);
+const legacyBaselineIndicItem = { ...baselineIndicItem };
+delete legacyBaselineIndicItem.evaluationVariant;
+const legacyBaselinePayload = payloadForItem({
+  plan: baselineIndicPlan,
+  item: legacyBaselineIndicItem,
+  referenceWav,
+  referenceText,
+  ...ids(22),
+});
+const legacyBaselineResult = fakeResult(legacyBaselineIndicItem, legacyBaselinePayload, 22);
+const legacyBaselineNormalized = verifyProviderResult({
+  plan: baselineIndicPlan,
+  item: legacyBaselineIndicItem,
+  payload: legacyBaselinePayload,
+  result: legacyBaselineResult,
+  responseSignatureVerified: true,
+  expectedModelCommitment: legacyBaselineResult.model_commitment,
+});
 ok("reference-transcript models receive the same transcript bytes", [...normalized, indicf5Row, baselineIndicRow]
   .filter(({ item }) => ["qwen", "voxcpm2", "indicf5"].includes(item.armId))
   .every(({ payload, plan }) => payload.reference_text === referenceText && payload.reference_text_sha256 === plan.reference.textSha256));
@@ -230,6 +253,10 @@ ok("deployed IndicF5 r7 remains an explicitly unnormalized baseline",
   baselineIndicRow.payload.text_sha256 === undefined &&
   baselineIndicRow.payload.pronunciation_normalization === undefined &&
   baselineIndicRow.normalized.pronunciationNormalization === null);
+ok("a frozen pre-variant IndicF5 item remains the unnormalized baseline",
+  legacyBaselinePayload.pronunciation_normalization === undefined &&
+  legacyBaselineNormalized.evaluationVariant === INDICF5_VARIANTS.UNNORMALIZED_BASELINE &&
+  legacyBaselineNormalized.pronunciationNormalization === null);
 const indicContractPython = String.raw`
 import json, sys
 sys.path.insert(0, r"services/indicf5-runtime")
@@ -267,6 +294,11 @@ rejects("a Chatterbox response without text-plan disclosure fields fails closed"
   responseSignatureVerified: true,
   result: { ...first.result, disclosure_text: undefined, disclosure_language_id: undefined },
 }), "matched_pack_result_disclosure_drift");
+rejects("a Chatterbox response with a changed text-plan receipt fails closed", () => verifyProviderResult({
+  ...first,
+  responseSignatureVerified: true,
+  result: { ...first.result, text_plan_sha256: "0".repeat(64) },
+}), "matched_pack_result_text_plan_drift");
 rejects("a reference mismatch fails closed", () => verifyProviderResult({ ...first, responseSignatureVerified: true,
   result: { ...first.result, reference_sha256: "0".repeat(64) } }), "matched_pack_result_reference_drift");
 rejects("a seed mismatch fails before accepting a provider receipt", () => verifyProviderResult({ ...first, responseSignatureVerified: true,

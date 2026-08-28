@@ -5206,6 +5206,12 @@ quota request-status collection is still empty, then submit the same canonical
 `lowPriorityCores`, `lowPriority`, limit 40 request exactly once. The A10 lane
 remains forbidden until quota is approved, not merely requested.
 
+The one authorized post-boundary retry was sent as a single raw REST request at
+2026-08-28T05:34:49.5163449 IST so no client retry policy could duplicate it.
+Azure returned the same HTTP 429 and 3,600-second retry-after, with no request
+id or asynchronous operation URI. The lane stopped again; this evidence does
+not authorize another automatic retry.
+
 ## `language-match-is-not-a-matched-text-comparison` (2026-08-28)
 
 **What was tried.** Consolidate the existing Chatterbox, Qwen English and
@@ -5594,3 +5600,44 @@ checks progress through dispatched and in-flight states. Call the release
 successful only after a later owner request produces a protected browser audio
 element and a sealed ledger row. Keep the warming rows as honest failed
 attempts rather than mutating history.
+
+## `text-coverage-is-not-acoustic-symbol-correction` (2026-08-28)
+
+**What was tried.** Treat the pronunciation normalizer's deterministic coverage
+of all four mixed-equation chemical symbols and all three targeted numeral
+units as though every covered unit would be recognized correctly after
+synthesis. The conditional preregistration would have moved aggregate chemical
+symbol errors from 6/8 to 2/8 if that assumption held.
+
+**What specifically broke.** The sealed matched resynthesis changed exactly the
+intended equation clip, but private Azure Speech still found 2/4 chemical symbol
+errors in that mixed equation. Aggregate symbol errors moved only from 6/8 to
+4/8, not to 2/8. The numeral intervention did reach its conditional target,
+moving the changed item from 3/5 errors to 0/5 and aggregate numerals from 4/11
+to 1/11. Receipt coverage proved which text units were rewritten; it did not
+prove how the acoustic model pronounced each rewrite.
+
+**What replaced it.** Keep text coverage and acoustic outcome as separate
+measurements. A rule enters a candidate only with exact source spans and a
+reconstructable receipt, then earns an outcome claim only through sealed
+resynthesis and unit-aware ASR followed by blinded human pronunciation review.
+Retain unmet preregistered effects as negative evidence rather than rewriting
+the target after the run.
+
+## `chatter-disclosure-fields-alone-do-not-prove-the-text-plan` (2026-08-28)
+
+**What was tried.** Accept a signed Chatterbox matched-pack result after
+checking its localized disclosure text and language, while leaving the returned
+text-frontend contract, plan hash and segment fields unchecked.
+
+**What specifically broke.** The deployed runtime now emits all of those
+fields, but an otherwise valid result with a changed `text_plan_sha256`, segment
+index, count or semantic-index list would still have passed the pack verifier.
+The HMAC would prove which runtime signed the response, not that the runtime
+accepted the exact pre-registered text plan.
+
+**What replaced it.** Compare every returned frontend, plan, segment and
+disclosure field to the exact request before saving audio. A mutation control
+changes only the returned plan hash and now fails closed as
+`matched_pack_result_text_plan_drift`; the real six-clip cloud pack passed the
+strengthened verifier before sealing.

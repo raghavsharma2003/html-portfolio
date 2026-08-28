@@ -5776,6 +5776,15 @@ the CLI automatic retry loop was stopped. The scoped ACR token was disabled,
 the tagged resource list was empty and the evaluation VM was absent. A10
 allocated time and GPU spend remained zero.
 
+After the mandated boundary, the request-status collection was still empty,
+no quota-create process existed, the pull token was disabled and both the
+tagged resource and VM lists were empty. One raw Quota REST `PUT`, deliberately
+without an automatic retry client, was sent at 2026-08-28T05:34:49.5163449
+IST. Azure again returned HTTP 429 `RequestThrottled` with `Retry-After: 3600`
+and no `Location`, `Azure-AsyncOperation` or request id. Verification at
+05:35:24 IST measured zero request-status records, zero quota-create processes,
+zero tagged resources, zero VMs, zero GPU seconds and USD 0 GPU spend.
+
 ## `consolidated-voice-listening-pack-local-2026-08-28`
 
 **Measured 2026-08-28, n=15 protected candidate clips from n=3 existing packs.**
@@ -6378,3 +6387,109 @@ This proves upload-to-draft-to-protected-preview transport and provenance for
 one owner line. No person listened in this measurement, so it does not prove
 naturalness, accent, Hindi pronunciation, owner likeness or superiority over
 another model.
+
+## `indicf5-pronunciation-normalized-sealed-before-after-2026-08-28`
+
+**Measured 2026-08-28, n=1 unscored canary, n=6 normalized owner-bound clips,
+n=6 retained r7 controls, n=3 signed ECAPA evidence calls and n=6 Azure Speech
+short-audio calls with zero provider retries.** The isolated runtime revision
+`vyakti-indicf5-eval--pronormr1` ran immutable image
+`sha256:367927911d20b52e55e7e908602b0c4105895b3e1f6def3f4714eca234036729`.
+Every scored response carried exact model commitment
+`58394168701f51bd8b509470fe62f5db08cc5ded42b193ce4c08154db42795fa`,
+model revision `ba85abedf18dc479a447eaa0eccbd76ab78a47d5`, a valid response HMAC
+from the existing versioned Key Vault secret, the same consent receipt and the
+same 12-second owner reference and unreviewed transcript hashes as r7.
+
+The old and normalized packs had the same six prompt hashes and caller seed
+schedule. Five prompt WAVs were byte-identical across the two packs. Only
+`equation-reading-code-switch` changed: its receipt recorded four exact source
+transformations covering four chemical-symbol units and three numeral units.
+All six outputs were 24 kHz mono PCM16 and PerTh-verified; normalized minimum
+PerTh score was 0.99355. The normalized blind manifest is 3,278 bytes at
+SHA-256 `e8d0051f5b6c63c0688f142e540df34f25692fe31d3dc5939167e54f6c63d883`;
+its private key is 13,511 bytes at SHA-256
+`f960f99466ef77b2895c865700225a40ddc2904fd33b4af8939dbc5e08ceab88`.
+The served arm stayed sealed and human listening stayed `not_started`.
+
+Against the same four held-out owner windows, ECAPA mean moved from 0.824822
+to 0.827428, an absolute increase of 0.002606. P10 and worst both remained
+0.815361. The normalized fidelity report is 6,147 bytes at SHA-256
+`4ca01aa3d9c9eedfece07c42f2a6e610febfa5c001fc77d371e67f2c1b39f71b`.
+This is a speaker-embedding regression signal, not a perceptual identity score.
+
+One private Azure Speech `hi-IN` pass measured aggregate raw WER/CER changing
+from 0.327586/0.277350 to 0.321839/0.272727 and the separately labeled curated
+script-aware WER/CER from 0.327586/0.270191 to 0.321839/0.267254. The three
+Devanagari controls were unchanged. Across the three mixed prompts, raw WER/CER
+moved from 0.453488/0.438235 to 0.441860/0.429412 and curated WER/CER from
+0.453488/0.423398 to 0.441860/0.417827. On the changed equation alone, chemical
+symbol errors fell from 4/4 to 2/4 and numeral errors from 3/5 to 0/5; aggregate
+unit errors therefore moved from 6/8 to 4/8 and from 4/11 to 1/11. The private
+normalized objective report is 27,344 bytes at SHA-256
+`cc55d5ab514a2ae0e8224a1e0e41307289577d937095847f4ecb950fa712f16f`.
+
+The Azure Speech pass reserved a conservative USD 1.50 ceiling; actual
+provider billing and GPU invoice amounts were unavailable. The normalized GPU
+revision existed from 00:04:15Z through last activity at 00:14:54Z and recorded
+222,855 ms of model work across the canary and six scored calls. No local
+Docker, production route, listener or unsealing action was used. At final
+readback the eval app template was restored to r7 digest
+`sha256:3b88af8804d64d4be224c38fdfc4b68739cdf384b2ce1e7c1d271404c4a1a28f`;
+the normalized, restore and original r7 revisions and the gate were inactive
+with zero replicas, and the shared evidence service had scaled to zero.
+
+Before deployment, the pronunciation suite passed 10 of 10, the isolated
+runtime suite 41 of 41 and the matched-pack suite 41 of 41. These measurements
+show a narrow objective gain and complete receipt integrity. They do not prove
+human pronunciation, naturalness, accent, likeness or a winner.
+
+## `owner-exact-text-matched-pack-sealed-cloud-2026-08-28`
+
+**Measured 2026-08-28, n=4 immutable model stacks, n=8 bounded cloud attempts,
+n=6 accepted clips, n=2 named no-audio readiness attempts and n=0 listeners.**
+The frozen r2 plan SHA-256 is
+`a75b1c080ecf8a0ef06f33fce05d48b6d39788154b410da8ea08ec6589013397`.
+All six requested provider-language cells used seed 31001, owner-reference
+SHA-256 `8f3b4182...9d46`, transcript commitment `c02d014c...7a83`, consent
+commitment `fe1d038e...4992`, and one exact English or Hindi full-text hash.
+
+Every accepted result passed response HMAC, prebound model and immutable-image
+evidence, exact request and reference binding, 24 kHz mono PCM16 geometry,
+output hash and PerTh verification. Chatterbox additionally passed the exact
+frontend, plan, segment and localized-disclosure receipt. The accepted clips
+total 54,424 ms of audio and 137,345 ms of reported model work; all six PerTh
+scores were 1.0. No audio was opened or played.
+
+The Chatterbox calls used production runtime revision
+`vyakti-open-voice--r5b4f0c5` at digest `sha256:625edc22...86d8` and admission
+revision `vyakti-open-voice-admission--r2405fbe` at digest
+`sha256:214a6baa...9f80`, without changing their templates or traffic. Qwen,
+VoxCPM2 and IndicF5 used temporary min-one copies of only their isolated
+qualified digests `sha256:e6ee1143...a988`, `sha256:40df335c...f697` and r7
+`sha256:3b88af88...a28f`; their public gates remained on exact qualified broker
+digests. The shared isolated transport secret stayed at versioned Key Vault URI
+ending `43fcfef0be9342dab7ca228d444a56a3` and was read only in process memory.
+No production route and no local Docker resource changed.
+
+Two Chatterbox attempts stopped before audio with signed
+`open_voice_runtime_warming`; the first coincided with Azure `WorkLoad Profile
+Full` while another isolated qualification occupied capacity. They remain in
+the append-only ledger. Eight USD 0.50 reservations total USD 4.00 under the
+USD 5 stop: six successes and two no-audio attempts. This is a conservative
+software reservation, not an Azure invoice; exact provider billing was not
+available.
+
+The seal produced six base stimuli, eight rating screens and two exact-text
+cross-provider cells with one common served geometry: 576,044 bytes, 288,000
+samples, 24 kHz mono PCM16. `seal` and `verify` passed 18 of 18 core checks plus
+private-route isolation. Served manifest SHA-256 is
+`29bc85c8951f158d31bde49bcb2eaa6505c0eae059391a3a76054e937283d4a0`;
+trials SHA-256 is
+`820912d04813cf02d93a6373b3514abe938fc7a7e31e6c74939c883493d208ec`.
+The model mapping remains sealed and listening is `not_started`. The focused
+suite passed 43 of 43 after adding the text-plan drift and frozen-legacy
+controls. Final readback found Chatterbox, Qwen, VoxCPM2, IndicF5, their gates
+and voice evidence at zero replicas; all runtime templates were min zero.
+This proves a fair, protected instrument, not naturalness, accent, likeness,
+pronunciation or a winner.

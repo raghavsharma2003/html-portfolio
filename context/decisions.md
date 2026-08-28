@@ -7172,3 +7172,70 @@ artifact, runtime and broker path, AudioSeal/C2PA protection and durable Neon
 ledger, and verifies the returned WAV rather than a fixture. Unit tests, a
 health endpoint, an unsigned model call or a mocked database cannot reverse
 this requirement.
+
+## `indicf5-pronunciation-normalization-remains-evaluation-only-after-sealed-objective-gain` (2026-08-28)
+
+**Decision.** Keep the bounded IndicF5 chemistry pronunciation normalizer as an
+isolated evaluation candidate. Do not make it the production text path, and do
+not leave its runtime revision active after qualification. The sealed
+before/after result is sufficient to retain the candidate for human review,
+not to promote it.
+
+**Why.** The matched intervention changed exactly one of six owner-bound
+qualification clips; the other five WAVs remained byte-identical. On the one
+changed mixed equation, private Azure Speech diagnostics reduced chemical
+symbol sequence errors from 4/4 to 2/4 and numeral errors from 3/5 to 0/5.
+Aggregate raw WER moved from 0.327586 to 0.321839 and ECAPA mean from 0.824822
+to 0.827428, while ECAPA p10 and worst stayed 0.815361. Those are useful narrow
+signals, but half of the mixed equation's symbol units still failed and no
+person listened. Objective proxies cannot license a claim about pronunciation,
+naturalness, Indian accent or owner likeness.
+
+**What would reverse it.** Promote or widen the normalizer only after accepted
+blinded listeners rate the sealed normalized arm non-inferior on naturalness,
+Indian accent and owner likeness and better on the covered pronunciation case,
+with the false-transformation controls still passing. A broader rule requires
+new exact-source fixtures, a bounded false-positive ceiling, receipt continuity
+and the same sealed before/after evaluation. A larger ASR gain alone cannot
+replace human evidence.
+
+## `matched-pack-chatter-receipts-bind-the-complete-text-plan` (2026-08-28)
+
+**Decision.** An exact-text Chatterbox result is accepted only when its signed
+runtime receipt echoes the exact text-frontend contract, text-plan SHA-256,
+segment index, segment count, ordered semantic indexes, localized disclosure
+text and disclosure language from the request. The response HMAC and spoken
+disclosure fields are necessary but not sufficient.
+
+**Why.** The runtime now returns the complete plan receipt, but the matched-pack
+verifier checked only disclosure text and language. A correctly signed result
+with a changed plan hash or segment binding could therefore enter the sealed
+pack even though the release law says those fields are part of the evidence.
+The cloud run added the strict check before its first accepted result and all
+six final clips passed it.
+
+**What would reverse it.** A versioned signed post-synthesis attestation may
+replace direct field equality only if it commits the same frontend, plan,
+segment and disclosure values and has executable mutation controls. A response
+HMAC, audio hash, watermark score or request-side plan alone cannot reverse the
+requirement.
+
+## `pre-variant-indicf5-matched-items-mean-unnormalized-r7` (2026-08-28)
+
+**Decision.** A frozen IndicF5 matched-pack item created before the
+`evaluationVariant` field exists is interpreted only as the unnormalized r7
+baseline. Newly planned items remain explicit. Pronunciation-normalized
+synthesis always requires its versioned request and reconstructable receipt;
+missing metadata can never select it.
+
+**Why.** The r2 plan was frozen before the variant field was added, while the
+only qualified deployed IndicF5 candidate was r7. Mutating that plan after
+cloud execution began would destroy the exact pre-registered artifact, while
+calling the newer normalized image would silently change the intervention.
+The bounded compatibility rule preserves the original plan and labels the
+accepted r7 receipt as baseline.
+
+**What would reverse it.** A new pack planned before any synthesis call may
+require explicit variants for every item and reject the legacy omission. The
+already sealed r2 pack cannot be reinterpreted; a normalized comparison needs
+a new pre-registered plan, separate sealed arm and the same human gates.
