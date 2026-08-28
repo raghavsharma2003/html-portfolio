@@ -7239,3 +7239,53 @@ accepted r7 receipt as baseline.
 require explicit variants for every item and reject the legacy omission. The
 already sealed r2 pack cannot be reinterpreted; a normalized comparison needs
 a new pre-registered plan, separate sealed arm and the same human gates.
+
+## `training-consent-binds-the-speaker-not-the-uploader` (2026-08-28)
+
+**Decision.** Do not build or run a VoxCPM2 speaker adapter from the processed
+109-minute Alakh Pandey lecture. A source upload, an account-owner training
+grant and a dominant diarization cluster do not establish that the person in
+the recording is the account owner or that the speaker authorized biometric
+model training. The lecture remains third-party language-stress material only,
+with training and identity claims denied.
+
+**Why.** The live source bytes match the specifically named Alakh Pandey local
+file, while every active consent scope and every accepted processing decision
+on its replica was created by `REPLICA_SELF_TEST_MODE` for the uploader. Those
+receipts have no speaker evidence source. The isolated VoxCPM2 contract already
+names this exact case: `third_party_language_stress` requires
+`training_allowed=false` and `identity_claim_allowed=false`. The dominant
+cluster covers 98.3198% of diarized speech, but every segment has the neutral
+`target_likelihood=0.5`; cluster dominance is not an identity binding.
+
+**What would reverse it.** For an owner-speaker adapter, replace the lecture
+with 5-10 minutes of clean, transcript-aligned audio actually spoken by the
+owner, backed by a current training receipt bound to verified speaker evidence
+and a server-verified source hash. A separately verifiable authorization from
+the lecturer could permit a purpose-limited third-party experiment, but it
+would still not turn that speaker into the account owner's identity.
+
+## `sealed-objective-scoring-keeps-the-model-map-opaque` (2026-08-28)
+
+**Decision.** Score a sealed exact-text pack before listening only through its
+public opaque stimulus IDs and the content-bound owner reference. Exact-audio
+repeat trials inherit their canonical clip's objective result and are excluded
+from aggregates, so the listening instrument's repeat controls cannot
+double-weight a model. The private model map stays sealed; an objective result
+may be grouped by public language but never attributed to an arm before
+ratings lock.
+
+**Why.** The r2 pack contains six unique clips but eight rating IDs because two
+are deliberate exact-audio repeats. Reading the model map would contaminate the
+blind listener, while counting all eight IDs would overweight whichever two
+clips were repeated. SHA-256 deduplication exposed the repeat geometry without
+revealing model identity. Four exact owner-reference windows, six signed ECAPA
+calls and six language-matched ASR calls could then report regression and
+intelligibility signals per opaque ID without opening or playing audio.
+
+**What would reverse it.** After accepted human ratings are irrevocably locked,
+the existing unseal contract may reveal arm identity for analysis. A future
+confidential-compute scorer may replace local opaque processing only if it
+proves the same manifest, stimulus, reference, disclosure and repeat bindings.
+Neither change allows ECAPA or one-provider ASR to replace blinded human
+likeness, accent, pronunciation and naturalness ratings.

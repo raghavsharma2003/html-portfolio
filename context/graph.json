@@ -4347,6 +4347,44 @@
       "kind": "rejection",
       "title": "Chatterbox disclosure fields alone do not prove the text plan",
       "at": "2026-08-28"
+    },
+    {
+      "id": "training-consent-binds-the-speaker-not-the-uploader",
+      "kind": "decision",
+      "title": "Training consent binds the speaker, not the uploader",
+      "at": "2026-08-28",
+      "status": "Alakh lecture adapter stopped before spend; owner corpus required"
+    },
+    {
+      "id": "voxcpm2-alakh-adapter-preflight-stop-2026-08-28",
+      "kind": "measurement",
+      "title": "The Alakh lecture fails the owner-speaker adapter preflight before spend",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "self-test-account-attestation-is-not-third-party-speaker-consent",
+      "kind": "rejection",
+      "title": "Self-test account attestation is not third-party speaker consent",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "sealed-objective-scoring-keeps-the-model-map-opaque",
+      "kind": "decision",
+      "title": "Sealed objective scoring keeps the model map opaque",
+      "at": "2026-08-28",
+      "status": "six unique opaque clips scored without unsealing or listening"
+    },
+    {
+      "id": "owner-exact-text-matched-pack-objective-opaque-2026-08-28",
+      "kind": "measurement",
+      "title": "The sealed owner exact-text pack has opaque ECAPA and ASR diagnostics",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "sealed-pack-aggregate-is-not-a-winner-or-a-language-diagnosis",
+      "kind": "rejection",
+      "title": "A sealed-pack aggregate is not a winner or a language diagnosis",
+      "at": "2026-08-28"
     }
   ],
   "edges": [
@@ -8584,6 +8622,51 @@
       "src": "indicf5-pronunciation-source-and-synthesis-are-separately-receipted",
       "rel": "constrains",
       "dst": "pre-variant-indicf5-matched-items-mean-unnormalized-r7"
+    },
+    {
+      "src": "training-consent-binds-the-speaker-not-the-uploader",
+      "rel": "measured_by",
+      "dst": "voxcpm2-alakh-adapter-preflight-stop-2026-08-28"
+    },
+    {
+      "src": "training-consent-binds-the-speaker-not-the-uploader",
+      "rel": "caused_by",
+      "dst": "self-test-account-attestation-is-not-third-party-speaker-consent"
+    },
+    {
+      "src": "training-consent-binds-the-speaker-not-the-uploader",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "voxcpm2-alakh-adapter-preflight-stop-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "replica-self-test-mode",
+      "rel": "constrains",
+      "dst": "training-consent-binds-the-speaker-not-the-uploader"
+    },
+    {
+      "src": "sealed-objective-scoring-keeps-the-model-map-opaque",
+      "rel": "measured_by",
+      "dst": "owner-exact-text-matched-pack-objective-opaque-2026-08-28"
+    },
+    {
+      "src": "sealed-objective-scoring-keeps-the-model-map-opaque",
+      "rel": "caused_by",
+      "dst": "sealed-pack-aggregate-is-not-a-winner-or-a-language-diagnosis"
+    },
+    {
+      "src": "sealed-objective-scoring-keeps-the-model-map-opaque",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "owner-exact-text-matched-pack-objective-opaque-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
     }
   ]
 }

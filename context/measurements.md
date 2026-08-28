@@ -6493,3 +6493,109 @@ controls. Final readback found Chatterbox, Qwen, VoxCPM2, IndicF5, their gates
 and voice evidence at zero replicas; all runtime templates were min zero.
 This proves a fair, protected instrument, not naturalness, accent, likeness,
 pronunciation or a winner.
+
+## `voxcpm2-alakh-adapter-preflight-stop-2026-08-28`
+
+**Measured 2026-08-28, n=1 live source, n=6 active consent scopes, n=1,683
+speaker segments, n=288 transcript spans, n=1 pinned upstream source commit,
+n=1 pinned model revision and n=0 training or synthesis calls.** Read-only Neon
+queries bound source `1ecb89fc-b12d-4d84-a714-ffca2d5b021c` to replica
+`c5b868e4-156e-417d-b39b-5c5f72beb92c`: 6,571,992 ms, 262,879,879 bytes and
+SHA-256 `632c30c9099f219f5655f709ebb88f6f0d19d0497d6eb72c46aeb6dcaa89df9d`.
+PowerShell `Get-FileHash` over the named local Alakh Pandey MP3 returned that
+same digest and the same byte count. The database source provenance still says
+`sha256_status=pending_server_verification`.
+
+All six active scopes, including biometric and training, use
+`account_attestation`, have `evidence_source_id=null` and carry
+`granted_by=REPLICA_SELF_TEST_MODE`, `self_test_mode=true` and the
+`owner-only-internal-testing/v1` guard. The latest decisions accepted 1,683
+speaker segments plus the other evidence under the same self-test metadata.
+They therefore prove an internal account bypass, not consent from the person
+whose speech is in the recording.
+
+Diarization produced 17 cluster labels over 6,165.096 seconds of speech. The
+dominant `cluster-1` contributes 6,061.512 seconds, or 98.3198%, with no overlap,
+but every speaker segment reports the same neutral target likelihood of 0.5.
+The 288 transcript spans cover 6,505.600 seconds; their stored evidence-level
+confidence is 0.0 and all 288 language rows are labeled `hi-IN` at 0.997. This
+is enough to show extensive speech and transcript coverage, but not enough to
+identify the dominant voice as the owner or to select clean owner-only training
+examples.
+
+The official source was read at exact commit
+`f5a1c6a6b901bc732e20f0d59a369f6829ad717a`; the model remains pinned to
+revision `32279effe8c19989596f05d353d1447f51d9e915`, and both are Apache-2.0.
+The pinned official LoRA recipe requires 16 kHz manifests, batch size 2,
+gradient accumulation 8, 1,000 iterations, 8,192 maximum batch tokens and LoRA
+r=32/alpha=32 over both LM and DiT. Upstream recommends 5-10 minutes of audio
+and publishes about 8 GB for inference, not a measured training-VRAM bound.
+
+The consent/data gate failed before Azure build, VRAM allocation, manifest
+split, adapter training or comparison synthesis. New reserved and measured
+spend is USD 0.00 under the USD 100 cap. No production route, local Docker,
+audio playback, mapping unseal or quality claim occurred. At readback the
+isolated VoxCPM2 runtime and gate were min zero with zero replicas. The shared
+voice-evidence service was temporarily occupied by the separate sealed matched
+pack objective lane and was not touched by this preflight.
+
+## `owner-exact-text-matched-pack-objective-opaque-2026-08-28`
+
+**Measured 2026-08-28, n=1 sealed pack, n=6 unique opaque clips, n=8 public
+rating IDs, n=4 exact owner-reference windows, n=7 signed evidence calls, n=6
+Azure Speech calls, n=0 retries and n=0 listeners.** Before scoring,
+`voice-matched-pack verify` passed 18 of 18 core checks plus private-route
+isolation. Served manifest SHA-256 remained
+`29bc85c8951f158d31bde49bcb2eaa6505c0eae059391a3a76054e937283d4a0`,
+trials SHA-256 remained
+`820912d04813cf02d93a6373b3514abe938fc7a7e31e6c74939c883493d208ec`
+and the sealed-key bytes still matched the manifest commitment. The scorer did
+not read the model map, open an audio player or attribute any opaque ID to an
+arm. SHA-256 found two exact-audio repeat IDs, so the aggregate used the six
+unique clips once each.
+
+The signed evidence service embedded four contiguous 3,000 ms windows cut from
+the exact 12,000 ms owner reference and each opaque served clip with
+SpeechBrain ECAPA. Aggregate cosine similarity was mean 0.665601, nearest-rank
+p10 0.585457 and worst 0.585457 over six candidate windows and four references.
+Under the repository's explicitly provisional `voice-fidelity/v1` rails this
+is a fail: mean is below the 0.70 activation floor and p10 is below 0.62. The
+per-opaque unique values, in lexical opaque-ID order, were 0.585457, 0.713760,
+0.726461, 0.673798, 0.674378 and 0.619752. Reference evidence confidence was
+0.2132; each reference window is only three seconds while service confidence
+is normalized to ten seconds, so this value is reported rather than treated as
+a perceptual quality score.
+
+One zero-retry Azure Speech short-audio pass used the default base model with
+the public en-IN or hi-IN tag and scored the mandatory localized disclosure
+plus exact frozen prompt. Aggregate raw WER/CER was 24/153 = 0.156863 and
+35/678 = 0.051622. Curated script-aware WER/CER was 24/153 = 0.156863 and
+36/693 = 0.051948. The three en-IN clips measured raw and script-aware WER
+2/69 = 0.028986 and CER 4/357 = 0.011204. The three hi-IN clips measured raw
+WER 22/84 = 0.261905, raw CER 31/321 = 0.096573, script-aware WER 22/84 =
+0.261905 and script-aware CER 32/336 = 0.095238.
+
+Per unique opaque clip, ECAPA/raw WER/script-aware WER were:
+`1a26600429c277ffd0d01417` 0.585457/0.043478/0.043478;
+`5a201d1de3aeb9d71a383edb` 0.713760/0.285714/0.285714;
+`a11b318cebabc21c37fda095` 0.726461/0.214286/0.214286;
+`ac418889292a12d54889a9e1` 0.673798/0/0;
+`ac7bf0d8ed44612d5fa33346` 0.674378/0.285714/0.285714; and
+`c4e9b8ca1c90a69912471dc8` 0.619752/0.043478/0.043478. Public repeats
+`c0e74a2de7c1c7641f6b2a76` and `fffc4b65f0b431c1ec398ab5` were byte-exact
+copies of opaque canonical clips and inherited their results without another
+provider call.
+
+The private opaque report is SHA-256
+`ff6529053cb1d6b01a4d134e121cecd48dd0e988279fb1ed89f353df98f55b1e`;
+its bounded scratchpad scorer is SHA-256
+`09a01bd53160c64457718169ab21e18b1517d2e18718d50596aa6047d98b9f3e`.
+Six 15-second billing quanta reserve a deliberately conservative USD 1.50
+under the USD 2 stop; actual Azure Speech and evidence-runtime invoice amounts
+were unavailable. No local Docker, production routing, synthesis, model-map
+unseal or audio playback occurred. ECAPA is a speaker-embedding regression
+signal and one-provider ASR is an intelligibility proxy; neither proves
+naturalness, Indian accent, pronunciation, owner likeness or a winner.
+Final Azure readback found `vyakti-voice-evidence`, the Qwen eval and gate,
+the IndicF5 eval and gate, and the VoxCPM2 eval and gate at min zero with zero
+replicas. No ZONOS2 eval app existed in the resource-group inventory.
