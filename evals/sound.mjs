@@ -41,7 +41,7 @@
 // browser battery at evals/sound-browser.mjs is what proves the cues reach a
 // real one.
 import { execSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -315,10 +315,14 @@ ok("feel goes through play", /export function feel[\s\S]{0,120}?play\(cue\);/.te
 // the voice lane. The second half is the import law restated from the other
 // side: the call owns audio, and the way this layer stays out of the echo
 // coefficient is by having no edge to the code that carries it.
-const files = execSync("find src -name '*.ts' -o -name '*.tsx'", { cwd: ROOT, encoding: "utf8" })
-  .trim()
-  .split("\n")
-  .filter(Boolean);
+const sourceFiles = (dir, prefix = "src") =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const relative = `${prefix}/${entry.name}`;
+    const absolute = join(dir, entry.name);
+    if (entry.isDirectory()) return sourceFiles(absolute, relative);
+    return /\.tsx?$/.test(entry.name) ? [relative] : [];
+  });
+const files = sourceFiles(join(ROOT, "src"));
 const synthImporters = files.filter((f) => /from ["'][^"']*sound\/synth["']/.test(src(f)));
 ok("only src/sound imports the synth", synthImporters.every((f) => f.startsWith("src/sound/")), synthImporters.join(","));
 const soundFiles = files.filter((f) => f.startsWith("src/sound/"));
@@ -327,11 +331,26 @@ for (const f of soundFiles) {
 }
 
 // An AudioContext built anywhere else is a second sound layer with no gate on
-// it. The voice lane's three are named, because they predate this and are the
-// thing the gate exists to stay away from.
-const VOICE_CTX = new Set(["src/voice/speech.ts", "src/voice/liveCall.ts", "src/sound/index.ts"]);
+// it. The voice lane's contexts are named, along with Studio's capture-only
+// graph. Studio connects through an exactly-zero gain node only so the browser
+// delivers microphone frames; it is not a second audible output path.
+const studioCapture = code(src("src/studio/wavCapture.ts"));
+ok("Studio microphone capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(studioCapture));
+// WS-Y's Mirror Call capture is the same capture-only shape: its context may
+// exist ONLY under the same proof wavCapture carries — an exactly-zero gain
+// between the processor and the destination. Listing it without asserting the
+// silence would turn the enumeration into a bypass list.
+const callCapture = code(src("src/studio/callCapture.ts"));
+ok("Mirror Call capture keeps its processing graph silent", /silent\.gain\.value\s*=\s*0/.test(callCapture));
+const AUDIO_CONTEXT_OWNERS = new Set([
+  "src/voice/speech.ts",
+  "src/voice/liveCall.ts",
+  "src/sound/index.ts",
+  "src/studio/wavCapture.ts",
+  "src/studio/callCapture.ts",
+]);
 for (const f of files) {
-  if (VOICE_CTX.has(f)) continue;
+  if (AUDIO_CONTEXT_OWNERS.has(f)) continue;
   ok(`${f} constructs no AudioContext`, !/new\s+(window\.)?(AudioContext|AC)\b/.test(code(src(f))));
 }
 

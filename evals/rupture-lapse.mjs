@@ -20,7 +20,7 @@
 //      because no repair signal ever arrived.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -43,7 +43,7 @@ const {
   initialRelState,
   RUPTURE_STANCE_LAPSE_DAYS,
   RUPTURE_STANCE_LAPSE_WARM_EPISODES,
-} = await import(BUNDLE);
+} = await import(pathToFileURL(BUNDLE).href);
 
 let failed = 0;
 const ok = (name, cond, extra = "") => {

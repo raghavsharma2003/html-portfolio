@@ -1,0 +1,465 @@
+/* Gurukul practice screens (Practice Hub + Mastery Map). Reuses the app's own
+   tokens (--bg, --ink, --accent, --r-md, ...) from global.css rather than
+   redefining a palette, so both screens are theme-aware for free — see
+   global.css's :root / dark-mode split, which this file adds no overrides
+   for. Kept deliberately plain: two data screens, not a game board. */
+
+/* The Gurukul surface's own entry points into the two screens above —
+   App.tsx mounts this only when `isGurukulStudentSurface()` is true. */
+.gurukul-nav {
+  position: fixed;
+  right: max(12px, var(--safe-right, 0px));
+  bottom: max(12px, var(--safe-bottom, 0px));
+  z-index: 30;
+  display: flex;
+  gap: 8px;
+}
+
+.gurukul-nav button {
+  min-height: var(--hit);
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--chrome);
+  backdrop-filter: blur(10px);
+  color: var(--ink);
+  font-size: var(--t-sub);
+  padding: 0 16px;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+.pa-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pa-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(var(--safe-top, 0px) + 14px) 16px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--chrome);
+  backdrop-filter: blur(10px);
+  flex: 0 0 auto;
+}
+
+.pa-back {
+  border: none;
+  background: none;
+  color: var(--ink);
+  font-size: var(--t-ui);
+  padding: 6px 4px;
+  cursor: pointer;
+  min-height: var(--hit);
+}
+
+.pa-title {
+  font-size: var(--t-head);
+  font-weight: 650;
+}
+
+.pa-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 16px calc(var(--safe-bottom, 0px) + 24px);
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.pa-h2 {
+  font-size: var(--t-title);
+  font-weight: 650;
+  margin: 0 0 6px;
+}
+
+.pa-lede {
+  color: var(--ink-dim);
+  font-size: var(--t-sub);
+  margin: 0 0 20px;
+}
+
+.pa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 18px;
+  border: none;
+  padding: 0;
+}
+
+.pa-field legend {
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+  padding: 0;
+}
+
+.pa-field > span {
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+}
+
+.pa-field select {
+  min-height: var(--hit);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: var(--t-ui);
+}
+
+.pa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pa-chip {
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: var(--t-ui);
+  cursor: pointer;
+  min-height: var(--hit);
+}
+
+.pa-chip[data-active="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-solid);
+}
+
+.pa-avail {
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+  margin: 0 0 16px;
+}
+
+.pa-start,
+.pa-primary {
+  min-height: var(--hit);
+  border-radius: var(--r-sm);
+  border: none;
+  background: var(--accent-solid);
+  color: var(--on-solid);
+  font-size: var(--t-ui);
+  font-weight: 650;
+  padding: 0 20px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.pa-start:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pa-secondary {
+  min-height: var(--hit);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t-ui);
+  padding: 0 20px;
+  cursor: pointer;
+}
+
+.pa-run {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pa-progress {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+}
+
+.pa-band {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: var(--t-meta);
+}
+
+.pa-prompt {
+  font-size: var(--t-body);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.pa-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pa-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  min-height: var(--hit);
+  color: var(--ink);
+}
+
+.pa-opt[data-active="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pa-opt-id {
+  font-weight: 700;
+  color: var(--ink-dim);
+  min-width: 1.4em;
+}
+
+.pa-opt-text {
+  flex: 1;
+}
+
+.pa-opt-sm {
+  min-width: 40px;
+  min-height: 40px;
+  justify-content: center;
+  padding: 0;
+}
+
+.pa-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pa-value input {
+  flex: 1;
+  min-height: var(--hit);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: var(--t-ui);
+}
+
+.pa-unit {
+  color: var(--ink-dim);
+  font-size: var(--t-sub);
+}
+
+.pa-matrix-row {
+  margin: 0 0 12px;
+}
+
+.pa-matrix-label {
+  display: block;
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+  margin: 0 0 6px;
+}
+
+.pa-matrix-cols {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pa-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pa-actions .pa-primary {
+  flex: 1;
+}
+
+.pa-end-early {
+  align-self: center;
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--t-sub);
+  padding: 8px;
+  cursor: pointer;
+}
+
+.pa-verdict {
+  border-radius: var(--r-md);
+  border: 1px solid var(--hairline-strong);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+}
+
+.pa-verdict[data-kind="clean_solve"] {
+  border-color: var(--ok);
+}
+
+.pa-verdict[data-kind="conceptual_miss"],
+.pa-verdict[data-kind="slip"] {
+  border-color: var(--danger);
+}
+
+.pa-marks {
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+}
+
+.pa-fact,
+.pa-moment {
+  margin: 0;
+  font-size: var(--t-sub);
+  color: var(--ink-dim);
+}
+
+.pa-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pa-totals {
+  color: var(--ink-dim);
+  margin: 0;
+}
+
+.pa-topics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pa-topic-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--t-sub);
+  border-bottom: 1px solid var(--hairline);
+  padding: 8px 0;
+}
+
+.pa-moments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Mastery Map ─────────────────────────────────────────────────────── */
+
+.mm-xp {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  margin: 0 0 20px;
+  background: var(--surface);
+}
+
+.mm-xp b {
+  font-size: var(--t-head);
+}
+
+.mm-xp span {
+  color: var(--ink-dim);
+  font-size: var(--t-sub);
+}
+
+.mm-subject {
+  margin: 0 0 22px;
+}
+
+.mm-chapter {
+  margin: 0 0 14px;
+}
+
+.mm-chapter-name {
+  font-size: var(--t-ui);
+  font-weight: 600;
+  color: var(--ink-dim);
+  margin: 0 0 6px;
+}
+
+.mm-topics {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mm-topic {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--t-sub);
+}
+
+.mm-topic-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.mm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--ink-faint);
+}
+
+.mm-dot[data-level="building"] {
+  background: var(--danger);
+}
+
+.mm-dot[data-level="developing"] {
+  background: var(--accent-warm);
+}
+
+.mm-dot[data-level="solid"] {
+  background: var(--accent);
+}
+
+.mm-dot[data-level="mastered"] {
+  background: var(--ok);
+}
+
+.mm-moments {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

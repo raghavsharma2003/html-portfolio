@@ -28,12 +28,16 @@ import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as F from "./fixtures/index.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(HERE, "..", "..");
+const NPX_COMMAND = process.platform === "win32" ? process.execPath : "npx";
+const NPX_ARGS = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js")]
+  : [];
 
 // ── the pin ───────────────────────────────────────────────────────────────
 const RealDate = globalThis.Date;
@@ -66,9 +70,9 @@ export async function loadEngine({ root = ROOT, label = "current" } = {}) {
   if (!existsSync(entry)) copyFileSync(join(HERE, ".entry.ts"), entry);
   const out = join(mkdtempSync(join(tmpdir(), `feltmem-${label}-`)), "engine.bundle.mjs");
   execFileSync(
-    "npx",
+    NPX_COMMAND,
     [
-      "esbuild",
+      ...NPX_ARGS, "esbuild",
       entry,
       "--bundle",
       "--format=esm",
@@ -79,7 +83,7 @@ export async function loadEngine({ root = ROOT, label = "current" } = {}) {
     ],
     { stdio: "inherit", cwd: root },
   );
-  return { engine: await import(`file://${out}?t=${RealDate.now()}`), bundlePath: out };
+  return { engine: await import(`${pathToFileURL(out).href}?t=${RealDate.now()}`), bundlePath: out };
 }
 
 // ── the four lanes, each mirroring its real compile site ──────────────────

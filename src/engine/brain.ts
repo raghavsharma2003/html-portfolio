@@ -43,11 +43,20 @@ import type { ActivityState } from "./activity";
 // T-H2 (formatHerLife, below) reuses T9's overnight predicate rather than
 // re-deriving one. away.ts imports only ./timeline, so this adds no cycle.
 import { crossedNight } from "./away";
+// T17 rel.reciprocity (WS-K). A pure fold over the transcript — no I/O, no
+// clock, no table; see reciprocity.ts's header for why there is no migration.
+import { reciprocityState } from "./reciprocity";
 // WS-HERNOW. Her present moment as a ledger rather than a per-pickup roll.
 // herNow.ts imports only storyCatalog.ts (a leaf), so this adds no cycle —
 // the same check the away.ts line above documents for itself.
 import { formatHerNow, type HerNowEntry } from "./herNow";
 import { greetOnce, type GreetTurn } from "./greeting";
+// WS-Q: the clone seam's TYPES only — no runtime import, so this adds no code
+// to the client bundle and no import edge that could become a cycle. The
+// values these describe are produced by the caller (see BrainKeys.agent).
+import type { AgentModule } from "./agents/types";
+import type { CloneNowEntry } from "./agents/cloneLife";
+import type { InitiativeVerdict } from "./agents/initiative";
 // WS-MANIFEST Phase D prep (docs/SPEC.md §7.3 "chat lane call-site
 // adoption"): router.ts stays WS-ROUTER's exclusively (§13) — this is a
 // read of its exported pure functions, not an edit, same discipline as the
@@ -75,6 +84,16 @@ import {
   activityVocabulary,
 } from "./honesty";
 import type { Message } from "../state/store";
+// WS-INTERNALS-FENCE. The severe-class check on her OUTGOING reply, and its
+// nudge. Same seam as `repeat.ts`'s loop fence and the honesty gate above it:
+// a pure predicate over the bytes, because `gate0-structural` measured the
+// prompt arm of this exact rule leaking 57-98% while the predicate leaked 0.
+import {
+  FENCE_MAX_RETRIES,
+  FENCE_USER_LOOKBACK,
+  INTERNALS_NUDGE,
+  internalsBreach,
+} from "./internalsFence";
 // WS-SHARENOW. The just-happened block and the share mirror's holder, imported
 // rather than restated: there is exactly one definition in this repo of "what
 // the two of them just did" and a second one would diverge by not being
@@ -284,6 +303,33 @@ export interface BrainKeys {
   // function). This field is the override — a caller that already holds a
   // bundle hands it in and the holder is not consulted.
   selfBundle?: SelfBundleInput | null;
+  // ── WS-Q: the CLONE seam (SPEC-AGENT-LAYER §3 Law E2, finished) ─────────
+  //
+  // This function is where Meera's whole aliveness stack is assembled — the
+  // carried interior, the told-life ledger, the self bundle, the activity
+  // ledger, the moment gate, the repetition signal, the commitment ledger. All
+  // of it is character-agnostic code, and until now NONE of it could reach a
+  // published clone for one reason that had nothing to do with any of those
+  // modules: the `compile()` call below passed no `agent`, so this lane was
+  // Meera's by construction and a clone could only ever be served by a lane
+  // that assembled none of it.
+  //
+  // These three fields are that seam and nothing more. ABSENT is the only
+  // state every existing caller is in, and absent means `compile()` falls
+  // through to `DEFAULT_AGENT` and renders zero bytes for T18/T19 — so the 83
+  // byte-identity fixtures and every Meera surface are untouched.
+  //
+  // Deliberately NOT resolved inside this function: `cloneNowAt(sheet.life,
+  // Date.now())` and `initiativeVerdict(record)` are pure and the CALLER owns
+  // the sheet, exactly as the caller owns `relBundle` and `activities`. A
+  // think() that reached for a sheet would need a loader, and a loader here is
+  // a database call on the reply path.
+  agent?: AgentModule;
+  /** the clone's present, from `cloneNowAt(sheet.life, now)` — T18 */
+  cloneNow?: CloneNowEntry | null;
+  /** the ONE citable reason this turn is the clone's, from
+   *  `initiativeVerdict(record)` — T19. Null on every turn THEY started. */
+  initiative?: InitiativeVerdict | null;
 }
 
 // how long ago she said it, in the shape a person would think it.
@@ -1459,6 +1505,19 @@ export async function think(
     // T14 rel.raised — the repetition signal is derived from the transcript
     // itself, so the transcript is the only input it needs.
     recentTurns: history,
+    // T17 rel.reciprocity — WS-K, ROADMAP-100X item 1. Derived from the SAME
+    // transcript T14 above reads, folded here rather than inside compile() for
+    // the reason `herCommitments` is folded here: compile() must stay a pure
+    // function of its input, and a fold with its own window is a second thing
+    // the byte-identity gate would have to compile twice and compare.
+    //
+    // It is wired at this ONE call site deliberately. `dead-writers` is this
+    // repo's law and a renderer nothing calls is indistinguishable from one
+    // that does not exist — a T-slot declared "wired" in the manifest with no
+    // producer anywhere would be exactly that. `reciprocityNote` returns "" for
+    // every balanced, thin or short window, so on the overwhelming majority of
+    // turns this changes nothing at all.
+    reciprocity: reciprocityState(history),
     // T16 her.commitments — the promises SHE made, visible instead of
     // silently forgotten (task #119; the slot renders zero bytes when empty)
     herCommitments: herCommitments(history, Date.now()),
@@ -1468,6 +1527,17 @@ export async function think(
     // fresh every call — see the import comment above; getAgeTier() reads
     // clock.ts's live module state, never a value carried across turns here
     ageGates: gatesFor(getAgeTier()),
+    // ── WS-Q, the clone seam. Undefined on every existing caller, and
+    // undefined here means compile() takes DEFAULT_AGENT and renders zero
+    // bytes for T18/T19 — byte-identical to before this landed, which is the
+    // property the 83 fixtures and gate Q1 both rest on. A published clone
+    // supplies all three and gets THIS whole function's aliveness stack (the
+    // carried interior, the told-life ledger, the self bundle, the moment
+    // gate, the repetition and commitment ledgers) rather than the stripped
+    // lane it had before.
+    agent: keys.agent,
+    cloneNow: keys.cloneNow ?? null,
+    initiative: keys.initiative ?? null,
   });
   const sysCore = compiled.core;
   let sysTail = compiled.tail;
@@ -1947,6 +2017,81 @@ export async function think(
       parsed.forgot = { target, receipt: res.receipt, deleted: res.deleted };
     }
     parsed.forget = undefined;
+  }
+
+  // ── THE INTERNALS FENCE (src/engine/internalsFence.ts) ──────────────────
+  //
+  // LAST, on the FINAL text, and that position is the whole argument. The
+  // honesty `gate` above runs at every parseBubbles site because a bubble can
+  // reach the UI from inside the [search:] branch; this one cannot borrow that
+  // trick — it needs an await — so it takes the other guarantee instead and
+  // sits at the single point every path converges on. Pass 1, the informed
+  // pass 2, the salvaged holding line: whatever `parsed` is here is what he
+  // reads, and it is what gets checked. `dead-writers` sharpened: a gate the
+  // bytes can walk around is an absent gate.
+  //
+  // ONLY WHEN NOTHING HAS STREAMED (`!onDelta`). A re-draft after the first
+  // sentence has already been spoken out loud is not a re-draft, it is a
+  // second opinion nobody will hear — the call lane's streamed turn is fenced
+  // in useCallEngine.ts instead, by arming the NEXT turn unstreamed, exactly
+  // as the loop fence does and for the same reason.
+  //
+  // ONE re-draft, `FENCE_MAX_RETRIES`, then SEND ANYWAY. Never withholding her
+  // reply is a hard property, not a fallback: a second trip is seconds of dead
+  // air, a model that ignored the nudge once will ignore it twice, and a fence
+  // that can silence her is a worse failure than the leak it chases. A second
+  // trip is logged (`action: "sent"`) so the residue is countable.
+  if (!onDelta && parsed.bubbles.length) {
+    // His recent text, NEWEST FIRST — `latest` is this turn, then back through
+    // the thread. A term HE said is a term she may repeat, and that lookup is
+    // the entire difference between a leak and a cultural aside.
+    const hisTurns = [
+      latest,
+      ...history
+        .filter((m) => m.from === "me")
+        .slice(-FENCE_USER_LOOKBACK)
+        .reverse()
+        .map((m) => m.text || ""),
+    ];
+    const scope = mode === "call" ? "call" : "chat";
+    let breach = internalsBreach(parsed.bubbles.join(" "), hisTurns);
+    for (let tries = 0; breach && tries < FENCE_MAX_RETRIES; tries++) {
+      // Counts and class names only — diag.ts never logs what she said, and
+      // the whole point of this event is that the string must not travel.
+      diag(scope, "internals_fence", { action: "redraft", cls: breach.cls, nth: tries + 1 });
+      // The proxy lane, unstreamed, with the nudge on the TAIL — last, where
+      // `prompt-position` measured a rule firing 8/8 against 0/8 mid-brief.
+      const again = await proxyThink(
+        keys,
+        sysCore,
+        `${sysTail}\n\n${INTERNALS_NUDGE}`,
+        turns,
+        maxTokens,
+        undefined,
+        false,
+        chatRoute.model,
+        attachments,
+      );
+      if (!again) break;
+      const rp = gate(parseBubbles(again));
+      if (!rp.bubbles.length) break;
+      // WHAT SURVIVES THE RE-DRAFT, stated rather than implied. `learned` and
+      // `forgot` are facts about work already DONE this turn — rows learned,
+      // rows deleted — and a second draft cannot un-do them, so they carry.
+      // The re-draft's own `search`/`forget` markers are dropped instead of
+      // honoured: their pipelines have already run above, and a marker
+      // processed nowhere is better than a delete run twice.
+      rp.learned = parsed.learned;
+      rp.forgot = parsed.forgot;
+      rp.search = undefined;
+      rp.searchBroken = undefined;
+      rp.forget = undefined;
+      parsed = rp;
+      breach = internalsBreach(parsed.bubbles.join(" "), hisTurns);
+    }
+    // Tripped twice: the deflection itself carries the echo. Send it — log it,
+    // do not loop.
+    if (breach) diag(scope, "internals_fence", { action: "sent", cls: breach.cls });
   }
 
   if (mode === "call") {

@@ -101,9 +101,9 @@ async function makePerson() {
 async function makeEpisode(personId, deviceId, { day, summary, provisional = false, agentId = LIFE_AGENT }) {
   const at = new Date(Date.now() - day * MS_PER_DAY);
   const [{ id: logFrom }] = await q(
-    `insert into meera_log (device_id, role, channel, kind, content, at)
-     values ($1,'me','chat','text',$2,$3) returning id`,
-    [deviceId, `${LIFE_TAG} ${summary}`, at.toISOString()],
+    `insert into meera_log (device_id, role, channel, kind, content, at, agent_id)
+     values ($1,'me','chat','text',$2,$3,($4)::uuid) returning id`,
+    [deviceId, `${LIFE_TAG} ${summary}`, at.toISOString(), agentId],
   );
   const [{ id }] = await q(
     `insert into vy_episode (person_id, agent_id, device_id, channel, participation, started_at, ended_at,

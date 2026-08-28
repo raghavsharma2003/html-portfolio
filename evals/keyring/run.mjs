@@ -3,7 +3,7 @@
 // owner-label travels with each key, that a bare key still works, that dupes
 // collapse, and that a label can never reconstruct a key.
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 process.env.GOOGLE_KEYS = [
@@ -14,7 +14,7 @@ process.env.GOOGLE_KEYS = [
   "short~AQ.tooshort",
 ].join(",");
 
-const { poolSize, labelFor, poolRca } = await import(join(ROOT, "api", "_gkeys.js"));
+const { poolSize, labelFor, poolRca } = await import(pathToFileURL(join(ROOT, "api", "_gkeys.js")).href);
 
 let pass = 0, fail = 0;
 const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ok   ${n}${d ? " — " + d : ""}`); } else { fail++; console.log(`  FAIL ${n}${d ? " — " + d : ""}`); } };

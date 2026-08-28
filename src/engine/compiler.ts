@@ -63,6 +63,13 @@ import { renderIndiaDynamic, type RitualRow, type CurrencyRow, type KinRow } fro
 // landed. The 83 byte-identity fixtures set no selfBundle, which is why they
 // still pass unchanged.
 import { renderTexture, type TextureRow } from "./texture";
+// ── WS-K, ROADMAP-100X item 1: the disclosure-reciprocity ledger. Same seam
+// discipline as every optional bundle above — `input.reciprocity` absent means
+// `reciprocityNote` is never called, so the tail is byte-identical to before
+// this landed and the 83 byte-identity fixtures (which set no reciprocity) are
+// untouched. reciprocity.ts imports only shapelint, so this cannot become a
+// cycle and drags nothing new into the client bundle.
+import { reciprocityNote, type ReciprocityState } from "./reciprocity";
 import { renderSelfArc, type SelfArcRow } from "./selfarc";
 import { renderUntold, type UntoldRow } from "./life";
 // WS-TGBOT: the room layer (PROPOSAL-MULTIPARTY-V1 §5.2/§5.3, WS-MP's own
@@ -90,6 +97,14 @@ import { renderActivity, type ActivityState } from "./activity";
 // rests on) a pure function of its input. honesty.ts imports nothing at all,
 // so this cannot become a cycle.
 import type { HerCommitment } from "./honesty";
+// ── WS-Q, the clone aliveness seam. Same discipline as every optional bundle
+// above and it is the whole of gate Q1: `input.cloneNow` / `input.initiative`
+// absent means neither render function is ever called, so the tail is
+// byte-identical to before this landed and the 83 byte-identity fixtures
+// (which set neither) are untouched. Both modules import NOTHING, so this
+// cannot become a cycle and drags nothing new into the client bundle.
+import { renderCloneNow, type CloneNowEntry } from "./agents/cloneLife";
+import { renderInitiative, type InitiativeVerdict } from "./agents/initiative";
 
 export type Medium = "text" | "voice";
 export type Mode = "chat" | "call";
@@ -262,6 +277,16 @@ export interface CompileInput {
   // added after a fork land in one copy and are discoverable only by diffing
   // two things nobody thinks of as the same thing.
   activity?: ActivityState | null;
+  // ── T17 rel.reciprocity — how much of HERSELF is in this lately.
+  //
+  // The CALLER computes it (`reciprocityState(recentTurns)` in reciprocity.ts)
+  // and hands the folded state over, exactly as `herCommitments` and
+  // `recentTurns` hand over their derived rows: compile() stays a pure
+  // function of its input, and the fold stays out of a function the
+  // byte-identity gate compiles twice and compares. Absent/null is the
+  // default, so every existing caller and all 83 byte-identity fixtures
+  // render exactly zero bytes for it.
+  reciprocity?: ReciprocityState | null;
   // ── WS-INTEGRATE seam 2 (age-tier hard-refusal) — absent/undefined means
   // "unrestricted" (today's behavior, byte-identical); the caller (brain.ts)
   // is REQUIRED to compute this fresh via clock.ts's gatesFor(getAgeTier())
@@ -291,6 +316,30 @@ export interface CompileInput {
   // compiled bytes cannot move: compile() with no `agent` set calls the
   // exact same function references oldOracle.ts calls directly.
   agent?: AgentModule;
+  // ── WS-Q T18 `clone.now` — where a PUBLISHED CLONE is in its own day.
+  //
+  // The CALLER resolves it (`cloneNowAt(sheet.life, Date.now())`) and hands the
+  // entry over, exactly as `recentTurns` and `herCommitments` hand over their
+  // derived rows: compile() stays a pure function of its input, and the wall
+  // clock stays out of a function the byte-identity gate compiles twice and
+  // compares.
+  //
+  // Meera and Kabir have no life shape on their sheets, so this is absent for
+  // every incumbent and the incumbent bytes cannot move. Meera's OWN answer to
+  // this question is `herNow.ts`, which is a different derivation over
+  // `storyCatalog`'s pictures and rides `brain.ts`, not this slot — the two are
+  // deliberately never both present, because two answers to "what are you doing
+  // right now" is the exact defect herNow.ts exists to close.
+  cloneNow?: CloneNowEntry | null;
+  // ── WS-Q T19 `clone.initiative` — the ONE citable reason this turn is one
+  // the clone started. Absent on every turn THEY started, which is almost all
+  // of them, and absent for every incumbent agent.
+  //
+  // The verdict is computed by `initiativeVerdict()` over a record that has no
+  // field for absence, so "they went quiet" is not a state that can reach this
+  // slot. See initiative.ts's header for why that is a type property and not a
+  // check.
+  initiative?: InitiativeVerdict | null;
 }
 
 export interface CompiledPrompt {
@@ -577,6 +626,26 @@ export function compile(input: CompileInput): CompiledPrompt {
   }
   _track("T11");
 
+  // ── T17 rel.reciprocity — WS-K, ROADMAP-100X item 1.
+  //
+  // Sits immediately after T11 because the two answer adjacent questions about
+  // the same relationship and are read together: T11 is how it SOUNDS
+  // (teasing, humour, swearing), T17 is whether SHE IS IN IT. Gated on
+  // `input.reciprocity` alone, deliberately outside the relBundle branch and
+  // for the reason T11's own comment gives: a caller holding a transcript and
+  // no rel-state row still has everything this needs, and nesting it would
+  // have blacked the block out for exactly the early relationships where
+  // disclosure asymmetry is most consequential.
+  //
+  // `reciprocityNote` returns "" for every balance inside its threshold, which
+  // is the common case — so this block renders zero bytes on most turns even
+  // when a state IS supplied.
+  {
+    const t17 = reciprocityNote(input.reciprocity);
+    if (t17) tail += `\n\n${t17}`;
+  }
+  _track("T17");
+
   if (input.memories) {
     tail += `\n\nWHAT YOU REMEMBER ABOUT THEM — from your earlier conversations, each tagged with when it last came up. These are real: when they touch on one, you KNOW it and you say the specific detail rather than making them repeat themselves. Two things keep it honest:
 - Something being listed here is not a reason to say it. It comes out only where it actually fits, one at a time, woven into normal talk — never several at once, never as a list, never with any mention of remembering.
@@ -628,6 +697,17 @@ ${input.memories}`;
     tail += `\n\nWHAT YOU'VE ALREADY TOLD THEM ABOUT YOUR OWN LIFE — you said these, so they are now fixed between you two, not open to reinvention. Same job, same people, same flat, same plans, same things you did. Add new texture freely; never say anything that contradicts a line here, and never re-tell one as if it's news:\n${input.herLife}`;
   }
   _track("T7");
+  // ── T18 clone.now — WS-Q. Sits immediately after T7 because the two answer
+  // the same person's life at two resolutions: T7 is what they have ALREADY
+  // TOLD this student (fixed, never expires by the clock), T18 is the hour they
+  // are in (recomputed, never claimed to have been said). T7 outranks it, and
+  // CLONE_NOW_HEADER says so in its own last line rather than leaving the
+  // precedence to be inferred from position alone.
+  {
+    const t18 = renderCloneNow(input.cloneNow);
+    if (t18) tail += `\n\n${t18}`;
+  }
+  _track("T18");
   // ── T12 self.arc / T13 life.untold — both sit with T7 because all three
   // are HER, not the relationship: what she has already told them (T7), how
   // she has changed (T12), and what she has not told them yet (T13).
@@ -699,6 +779,18 @@ ${input.memories}`;
   }
   _track("T16");
 
+  // ── T19 clone.initiative — WS-Q. Sits last of the tail before T10, beside
+  // T16, because both are facts about an OBLIGATION rather than about either
+  // person: T16 is what was promised, T19 is why this turn is happening at all.
+  // The appended-last set is closed at two (`prompt-position`,
+  // shapelint.checkAppendedLastExactlyTwo), so this is the strongest position
+  // left — stated rather than resolved, as T16's own note does.
+  {
+    const t19 = renderInitiative(input.initiative);
+    if (t19) tail += `\n\n${t19}`;
+  }
+  _track("T19");
+
   if (input.mode === "chat" && !input.isDirective) tail += input.cultureNoteText;
   _track("culture"); // no manifest row yet — see CompiledPrompt.sections doc
   // dead last, chat only — see SEARCH_DECISION in persona.ts for why
@@ -724,7 +816,20 @@ ${input.memories}`;
 // duplicates (validated below) — never contiguous — so a new block takes a
 // fresh number rather than renumbering nine rows and desynchronising
 // check-prompt-budget's drop-order fixture for the second time.
-export type DropPriority = "never" | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+// 0 exists for T17 `rel.reciprocity` (WS-K). A new block normally takes a
+// FRESH HIGH number rather than renumbering (see the paragraph above), but a
+// fresh high number means MOST PROTECTED, and T17 is the cheapest thing in the
+// tail: it is a two-state descriptive band, it renders on a minority of turns,
+// and losing it under pressure costs nothing anyone can see. Renumbering the
+// self layer to open up 1 would desynchronise nine rows for a cosmetic block,
+// so the drop order is extended DOWNWARD instead. The validator's only
+// requirement is that the set has no duplicates, which 0 satisfies.
+// 13 and 14 exist for WS-Q's T18 `clone.now` and T19 `clone.initiative`. Fresh
+// high numbers, per the paragraph above, rather than a renumber — and BOTH are
+// droppable rather than "never", deliberately: they render zero bytes for every
+// incumbent agent, so making them undroppable would move the undroppable
+// arithmetic for a block Meera can never carry.
+export type DropPriority = "never" | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
 
 export type SourceStatus =
   // this file computes it directly from a real, already-wired input
@@ -767,7 +872,15 @@ export const SYSTEM_MAX = 64_000;
 // SPEC §0.3 "Persona factoring charm risk"). check-prompt-budget.mjs asserts
 // these two numbers match the literal constants in api/chat.js, so guard and
 // guarded cannot drift even though they aren't (yet) the SPEC's target caps.
-export const OPERATIONAL_CORE_CAP = 64_000;
+// Raised 64_000 -> 72_000 on 2026-08-25: a 2,304-row corpus scan through
+// the real engine measured heavy-dyad cores at max 62,026 B — 3.1% under the
+// old guard, inside the silent-truncation cliff that once cost the crisis
+// helplines. The guard is a payload bound, not a budget (the whole core is
+// prompt-cached, so headroom costs nothing until text exists), and the END of
+// the core is where the newest safety text sits — the first thing truncation
+// eats. Mirrored in api/chat.js SYSTEM_MAX; check-prompt-budget.mjs asserts
+// the two never drift.
+export const OPERATIONAL_CORE_CAP = 72_000;
 export const OPERATIONAL_TAIL_CAP = 24_000;
 
 export const CORE_MANIFEST: readonly CoreBlock[] = [
@@ -855,7 +968,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T2",
     label: "rel.snapshot",
     budget: 1_200,
-    dropPriority: 10, // was 7 — renumbered by three for the self layer (T11-T13)
+    dropPriority: 11, // was 7, then 10 (self layer), then 11 (WS-Q opened room at 4)
     // WS-INTEGRATE seam 1: wired via renderRelSnapshot, gated on
     // input.relBundle (api/memory.js opRecall delta). Empty when absent —
     // "empty-reserved" retired now that a real caller exists, per the M2
@@ -866,35 +979,35 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "T3",
     label: "india.dynamic",
     budget: 1_000,
-    dropPriority: 8, // was 5 — +3 for the self layer
+    dropPriority: 9, // was 5, +3 for the self layer, +1 for WS-Q
     sourceStatus: "wired", // WS-INTEGRATE: renderIndiaDynamic, gated on input.relBundle
   },
   {
     id: "T4",
     label: "dyadic.active",
     budget: 1_600,
-    dropPriority: 9, // was 6 — +3 for the self layer
+    dropPriority: 10, // was 6, +3 for the self layer, +1 for WS-Q
     sourceStatus: "wired", // WS-INTEGRATE: renderDyadicActive, moment-gated, on input.relBundle
   },
   {
     id: "T5",
     label: "recall.facts",
     budget: 6_000,
-    dropPriority: 6, // was 3 — +3 for the self layer
+    dropPriority: 7, // was 3, +3 for the self layer, +1 for WS-Q
     sourceStatus: "wired", // input.memories — today's api/memory.js graph recall block
   },
   {
     id: "T6",
     label: "we.callbacks",
     budget: 2_000,
-    dropPriority: 7, // was 4 — +3 for the self layer
+    dropPriority: 8, // was 4, +3 for the self layer, +1 for WS-Q
     sourceStatus: "wired", // WS-INTEGRATE: renderWeCallbacks, deixis-gated, on input.relBundle
   },
   {
     id: "T7",
     label: "herlife",
     budget: 1_000,
-    dropPriority: 5, // was 2 — +3 for the self layer
+    dropPriority: 6, // was 2, +3 for the self layer, +1 for WS-Q
     sourceStatus: "wired", // input.herLife — brain.ts's formatHerLife()
   },
   {
@@ -951,6 +1064,21 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     dropPriority: 3,
     sourceStatus: "wired", // renderUntold, G2 turn-gated, on input.selfBundle.untold
   },
+  // ── WS-K, ROADMAP-100X item 1 ─────────────────────────────────────────
+  {
+    id: "T17",
+    label: "rel.reciprocity",
+    // header (~230) + one telegraphic row. The row set is CLOSED at two
+    // possible strings (`reciprocityNote` has exactly two branches), so this
+    // block cannot grow with the transcript the way a ledger can.
+    budget: 260,
+    // 0 = FIRST DROPPED, ahead of even the self layer. See DropPriority's own
+    // note for why the number goes down rather than up: this is the cheapest
+    // block in the tail, and it is the one thing here whose absence changes
+    // nothing a reader could point at.
+    dropPriority: 0,
+    sourceStatus: "wired", // reciprocityNote(input.reciprocity) — gate: node evals/run.mjs reciprocity
+  },
   {
     id: "T15",
     label: "session.activity",
@@ -979,7 +1107,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     // checks the set is a permutation, not that it is contiguous), so this
     // takes a fresh one rather than renumbering nine rows and desynchronising
     // check-prompt-budget's drop-order fixture again.
-    dropPriority: 11,
+    dropPriority: 12,
     sourceStatus: "wired", // renderRaised(raisedRecently(input.recentTurns)) — gate: node evals/run.mjs repeat
   },
   {
@@ -997,8 +1125,56 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     // smaller than one recall fact. The number only has to be UNIQUE (the
     // validator checks the set is a permutation, never that it is
     // contiguous), so this takes a fresh one rather than renumbering.
-    dropPriority: 12,
+    dropPriority: 13,
     sourceStatus: "wired", // renderHerCommitments(input.herCommitments) — gate: node evals/honesty/run.mjs §10
+  },
+  // ── WS-Q, the clone aliveness seam ─────────────────────────────────────
+  {
+    id: "T18",
+    label: "clone.now",
+    // CLONE_NOW_BUDGET (560), which is the number renderCloneNow itself drops
+    // rows against — one constant, one behaviour, so the manifest cannot
+    // promise a size the renderer does not honour.
+    budget: 560,
+    // 4 — the LEAST protected block of the relational class, dropped as soon
+    // as anything relational has to go and before every other relational slot.
+    // That is the honest ordering: losing this makes a clone talk as though it
+    // has no Tuesday, which is a real loss; losing T5 `recall.facts` makes it
+    // amnesiac, which is a worse one, and losing T7 makes it contradict what it
+    // has already SAID, which is worse still.
+    //
+    // Taking 4 cost a RENUMBER of the relational and honesty bands (+1 each,
+    // 4→5 … 12→13) rather than the fresh-high-number this manifest normally
+    // prefers, and the trade is stated rather than hidden: a fresh high number
+    // means MOST PROTECTED, and `evals/drift.mjs` §4 hard-asserts that no slot
+    // of a lower class is more protected than one of a higher class. A number
+    // chosen to avoid a renumber would have made this block outrank the
+    // commitment ledger, which is a drop policy nobody would have written on
+    // purpose. The renumber is safe in a way the manifest header's warning
+    // anticipated: `check-prompt-budget.mjs`'s drop-order fixture is SYNTHETIC
+    // (hand-set priorities, not read from here) and `evals/self/wiring.mjs`
+    // pins only the cosmetic band 1/2/3, which does not move.
+    dropPriority: 4,
+    sourceStatus: "wired", // renderCloneNow(input.cloneNow) — gate: node evals/run.mjs clonelife
+  },
+  {
+    id: "T19",
+    label: "clone.initiative",
+    // INITIATIVE_BUDGET (520) — the same constant renderInitiative refuses
+    // against, so the manifest cannot promise a size the renderer does not
+    // honour. It was 420 for one commit and the block silently rendered
+    // nothing, which is why the eval asserts the two numbers are equal rather
+    // than trusting a comment.
+    budget: 520,
+    // 14 = last of the droppables, i.e. the most protected droppable block.
+    // Not symmetry with T18: this block renders ONLY on a turn the clone
+    // started, and on that turn it is the entire justification for the turn
+    // existing. Shedding it leaves the clone opening a conversation with no
+    // reason in front of it, which is the shape `persona.ts` deleted the idle
+    // nudge to make unreachable. `renderInitiative` also refuses to emit a
+    // header without its row for the same reason, one layer down.
+    dropPriority: 14,
+    sourceStatus: "wired", // renderInitiative(input.initiative) — gate: node evals/run.mjs clonelife
   },
   // ── multiparty v1 (PROPOSAL-MULTIPARTY-V1 §5.2) ────────────────────────
   // Declared at their real budgets and real drop priorities, rendering ZERO
@@ -1028,7 +1204,7 @@ export const TAIL_MANIFEST: readonly TailBlock[] = [
     id: "mp.bridge",
     label: "group.bridge",
     budget: 1_100,
-    dropPriority: 4, // was 1 — the self layer now takes 1-3 as first-dropped
+    dropPriority: 5, // was 1 (self layer took 1-3), then 4; +1 for WS-Q T18 at 4
     // ≤2 disclosure-filtered cross-person rows AS SHAPES, NEVER LINES; ≤2 room
     // phrase-ledger hits; ≤1 open room plan row. Every row has already passed
     // the §2.3 predicate in the WHERE clause (api/_disclosure.js) — THIS BLOCK
@@ -1075,11 +1251,18 @@ export const TAIL_ORDER: readonly string[] = [
   "T3",
   "T4",
   "T11",
+  // T17 sits with T11: how it sounds, then whether she is in it. Matches
+  // compile()'s actual assembly order — a manifest that ordered it anywhere
+  // else would be documenting a layout this file does not produce.
+  "T17",
   "T5",
   "T6",
   "mp.roster",
   "mp.bridge",
   "T7",
+  // T18 sits with T7: what the clone has already told them, then the hour it
+  // is in. Matches compile()'s actual assembly order.
+  "T18",
   "T12",
   "T13",
   "T8",
@@ -1091,6 +1274,8 @@ export const TAIL_ORDER: readonly string[] = [
   // T16 last before T10: the appended-last set is closed at two, so this is
   // the strongest position `prompt-position` leaves available.
   "T16",
+  // T19 beside T16 and last before T10, for the reason its manifest row gives.
+  "T19",
   "T10",
 ] as const;
 

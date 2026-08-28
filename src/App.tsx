@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAppState, rotateDeviceId } from "./state/store";
-import type { AuthInfo, AppState } from "./state/store";
+import { useAppState, rotateDeviceId, memoryWritesAllowed, MEMORY_CONSENT_VERSION } from "./state/store";
+import type { AuthInfo, AppState, MemoryConsent } from "./state/store";
 import Onboarding from "./components/Onboarding";
+import { MemoryConsentPrompt } from "./components/MemoryConsent";
 import Chat from "./components/Chat";
 import CallVoice from "./components/CallVoice";
 import IncomingCall from "./components/IncomingCall";
@@ -15,6 +16,8 @@ import ChessActivity from "./components/ChessActivity";
 import WouldYouRatherActivity from "./components/WouldYouRatherActivity";
 import TicTacToeActivity from "./components/TicTacToeActivity";
 import KnowsScreen from "./components/KnowsScreen";
+import PracticeActivity from "./components/PracticeActivity";
+import MasteryMap from "./components/MasteryMap";
 import { CloseIcon, ChevronIcon } from "./components/icons";
 import { applyTheme, watchSystemTheme, watchSky } from "./engine/theme";
 import { configureSky, parseSkySeed } from "./engine/sky";
@@ -24,11 +27,14 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { LABEL } from "./engine/activity";
 import {
   episodeDateLabel,
+  latestSkill,
   logFinishedActivity,
   publishActivityLedger,
+  setMemoryWritesAllowed,
   withActivityRecord,
   type ActivityRecord,
 } from "./engine/memory";
+import { nextSkill } from "./engine/chess";
 import { dyadRecord, momentRecord, recordCounts } from "./engine/milestones";
 import { useMoments } from "./components/useMoments";
 import Celebration from "./components/Celebration";
@@ -36,6 +42,7 @@ import UsScreen from "./components/UsScreen";
 import { unlockAudio } from "./voice/speech";
 import { diagStart } from "./engine/diag";
 import { startSessionClock } from "./engine/clock";
+import { applyStudentSurfaceDefault, isGurukulStudentSurface } from "./gurukul/surface";
 import { tel, telIdentify, telRoute } from "./engine/telemetry";
 import { prewarmLiveToken } from "./voice/liveCall";
 import { primeCulture } from "./engine/culture";
@@ -78,6 +85,7 @@ import {
   isAuthDead,
   AccountError,
   loadStateRemote,
+  recordConsent,
   saveStateRemote,
   track,
   type AuthSession,
@@ -167,6 +175,15 @@ export default function App() {
   // state that is not ours (the shape `activity-forgot-the-teardown` is filed
   // under). Everything else about it is the ordinary overlay contract below.
   const [knowsOpen, setKnowsOpen] = useState(false);
+  // Gurukul student surface only (SPEC-GURUKUL.md §5) — both are `false` and
+  // never opened on the Meera build, since the entry points below are gated
+  // on `isGurukulStudentSurface()` and nothing else sets them. Kept as plain
+  // overlay sentinels in the SAME depth-tracked stack as `usOpen`/`knowsOpen`
+  // (see `closeTop`/`overlayDepth` below) so the hardware back button and web
+  // back both close them exactly the way they close every other full-screen
+  // surface in this file.
+  const [practiceOpen, setPracticeOpen] = useState(false);
+  const [masteryOpen, setMasteryOpen] = useState(false);
   const [composePrefill, setComposePrefill] = useState<{ text: string; n: number }>({ text: "", n: 0 });
   useEffect(() => {
     const open = () => setKnowsOpen(true);
@@ -401,6 +418,20 @@ export default function App() {
         record: a.record,
         startedAt: g.startedAt,
         closedAt: g.closedAt,
+        // WS-GAMEFEEL: the per-user strength estimate, carried on the SAME
+        // record as the episode because it is derived from the same event —
+        // a second store of one fact is `warm-count-unscoped`. Chess only:
+        // `nextSkill` is a chess model and there is nothing dishonest about
+        // ttt not having one, since nothing reads it for ttt.
+        //
+        // `latestSkill` is the reader, so this is an EMA over the whole
+        // history rather than a fresh opinion per game: it seeds from the
+        // last stored value and moves a fraction of the way toward what this
+        // game showed. A game too short to teach anything returns the
+        // previous value unchanged (undefined included).
+        ...(g.kind === "chess"
+          ? { skill: nextSkill(latestSkill(state.activities, "chess"), g.game, g.herSide) }
+          : {}),
       },
       // one vocabulary for what an activity is CALLED — the same table the
       // tail block and the pickup line render from
@@ -411,7 +442,11 @@ export default function App() {
     // does not cover activities; this write is synchronous, works signed out,
     // and is what she actually reads from. Both halves carry the SAME string.
     if (rec) setState((s) => ({ ...s, activities: withActivityRecord(s.activities, rec) }));
-  }, [state.game, state.deviceId, setState]);
+    // `state.activities` joined the deps with WS-GAMEFEEL's skill estimate,
+    // which seeds from the last stored one: reading it without depending on it
+    // is a stale read waiting for the first close that follows a sync. The
+    // re-run this causes is a no-op — `emittedActivity` has the key by then.
+  }, [state.game, state.activities, state.deviceId, setState]);
 
   // The ledger, published for the lanes that cannot reach `AppState`. Same
   // holder idiom as `callSelfBundle` and for the same reason: the cascade call
@@ -803,6 +838,14 @@ export default function App() {
       setUsOpen(false);
       return "overlay";
     }
+    if (practiceOpen) {
+      setPracticeOpen(false);
+      return "overlay";
+    }
+    if (masteryOpen) {
+      setMasteryOpen(false);
+      return "overlay";
+    }
     if (authOpen) {
       setAuthOpen(false);
       return "overlay";
@@ -812,7 +855,7 @@ export default function App() {
       return "chat";
     }
     return "none";
-  }, [activity, gamesOpen, storyOpen, usOpen, knowsOpen, authOpen, surface]);
+  }, [activity, gamesOpen, storyOpen, usOpen, knowsOpen, practiceOpen, masteryOpen, authOpen, surface]);
 
   // THE OVERLAY SENTINELS. One history entry per open overlay, so the WEB
   // back has something to consume and the two backs stay symmetric — pressing
@@ -831,6 +874,8 @@ export default function App() {
     (storyOpen ? 1 : 0) +
     (usOpen ? 1 : 0) +
     (knowsOpen ? 1 : 0) +
+    (practiceOpen ? 1 : 0) +
+    (masteryOpen ? 1 : 0) +
     (authOpen ? 1 : 0);
   const held = useRef(0);
   useEffect(() => {
@@ -976,6 +1021,15 @@ export default function App() {
   useEffect(() => {
     if (state.onboarded) startSessionClock(state.deviceId);
   }, [state.onboarded, state.deviceId]);
+
+  // Gurukul student surface (SPEC-GURUKUL.md §3 item 2): every account on the
+  // student build is pinned to the minor-safe tier before anything else can
+  // run, via clock.ts's own restriction-only `setAgeTier`. A no-op on the
+  // Meera build — `isGurukulStudentSurface()` is false unless the app was
+  // built with the Gurukul surface flag, so this line changes nothing there.
+  useEffect(() => {
+    if (isGurukulStudentSurface()) applyStudentSurfaceDefault();
+  }, []);
 
   // ── silent auto-update ──
   // A long-lived tab keeps running old code after a deploy (that's how bug
@@ -1206,6 +1260,48 @@ export default function App() {
     state.tally?.wyrCards ?? 0,
   ].join("|");
 
+  // ── THE MEMORY CONSENT, PUBLISHED (task #148, DPDP) ────────────────────
+  //
+  // AppState.memoryConsent is where the answer is stored; src/engine/memory.ts
+  // is where it binds. This effect is the one wire between them, and it is a
+  // publish rather than a prop for the reason `publishActivityLedger` is: the
+  // writers that have to obey it are fire-and-forget calls deep inside modules
+  // that never see React state, and threading a boolean through every one of
+  // them is how the twenty-first writer ends up not obeying it.
+  //
+  // The dependency is the granted VALUE, not the object: the same answer
+  // re-stamped by a merge must not re-publish, and a change of answer always
+  // moves this boolean or the undefined it can be.
+  useEffect(() => {
+    setMemoryWritesAllowed(memoryWritesAllowed(state));
+  }, [state.memoryConsent?.granted]);
+
+  /**
+   * Answer the memory question, from anywhere that asks it.
+   *
+   * Two things happen and their order is the point. The LOCAL record is
+   * written first, because it is what actually binds the client — the gate
+   * above reads state and never the network, so from the next render on a
+   * refusal is in force whether or not anything reaches the server. The
+   * server row is filed second and is fire-and-forget, because it is
+   * EVIDENCE: losing it costs the proof of a decision, never the decision.
+   */
+  const answerMemoryConsent = useCallback(
+    (granted: boolean) => {
+      const consent: MemoryConsent = {
+        granted,
+        at: new Date().toISOString(),
+        version: MEMORY_CONSENT_VERSION,
+      };
+      setState((s) => ({ ...s, memoryConsent: consent }));
+      recordConsent(state.deviceId, granted, consent.at, consent.version, state.auth?.userId);
+      // analytics, not memory: an event name and a boolean, which is what
+      // tells us whether the refusal path is a path anybody actually takes.
+      track(state.deviceId, "memory_consent", { granted }, state.auth?.userId);
+    },
+    [state.deviceId, state.auth?.userId, setState],
+  );
+
   // bumped by the 409 branch below, so a merge-and-retry is a real trigger
   // rather than a hope that the merge moved something in the dep list
   const [pushRetry, setPushRetry] = useState(0);
@@ -1215,6 +1311,20 @@ export default function App() {
   // their copy in and let the next debounce push the union
   useEffect(() => {
     if (!state.auth?.accessToken) return;
+    // task #148 (DPDP): THE TOP-LEVEL SYNC PUSH IS GATED ON MEMORY CONSENT.
+    // `syncableState` is the single largest cross-session record this product
+    // holds — the last 400 messages, `user`, herLife, inner, the ledgers — so
+    // a memory refusal that left this effect running would be a refusal that
+    // changed nothing about the biggest write there is.
+    //
+    // The PULL below is deliberately not gated, and the distinction is the one
+    // src/engine/memory.ts's gate note draws: this stops new memory being
+    // WRITTEN, while the pull only returns rows an earlier consent already
+    // allowed (for a person who declined at onboarding there are none, because
+    // this push is the only thing that ever creates that row). Withdrawal in
+    // More rides the forget door, which DELETES the server copy rather than
+    // hiding it, and that is the stronger answer than a read gate would be.
+    if (!memoryWritesAllowed(state)) return;
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       try {
@@ -1253,7 +1363,12 @@ export default function App() {
     // header records killing half the merge once already. `gameSig` projects
     // the untriggering-but-synced fields so a whole chess game played without
     // a single message still pushes, without firing on every keystroke.
-  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig, pushRetry]);
+    // `state.memoryConsent?.granted` is in the list so a withdrawal CANCELS a
+    // push that is already scheduled: the cleanup above clears the 4s timer
+    // only when this effect re-runs, and without the dep a refusal made two
+    // seconds after a message would have been followed by that message going
+    // up anyway.
+  }, [state.messages.length, state.user, state.onboarded, state.auth?.accessToken, state.inner?.at, gameSig, pushRetry, state.memoryConsent?.granted]);
 
   // ── THE OTHER HALF OF SYNC: THE PULL ───────────────────────────────────
   //
@@ -1346,14 +1461,41 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", warm);
   }, [state.onboarded, inCall]);
 
+  // task #148 (DPDP): the one-time card for people who were already here.
+  // Onboarding since this shipped always leaves an answer behind, so this is
+  // true only for an install that predates the question — and it goes false
+  // forever the moment either button is pressed, because both write a record.
+  // It takes precedence over the notification card below when both are due:
+  // they are the same non-modal `.sheet` in the same corner, and one asks
+  // whether she may keep anything at all while the other asks how she may
+  // reach you, which is a question about a relationship this one has not
+  // established yet.
+  const askMemoryConsent = state.onboarded && !state.memoryConsent;
+
   return (
     <div className="app grain">
       <div className="ambient" />
       {!state.onboarded ? (
         <Onboarding
           deviceId={state.deviceId}
-          onDone={(user) => {
+          onDone={(user, consent) => {
             track(state.deviceId, "onboarded", { vibe: user.vibe });
+            // task #148 (DPDP): the answer to the memory question, filed the
+            // same second it is given. It is NOT routed through
+            // `answerMemoryConsent` above, deliberately: that helper writes
+            // state on its own, and a second setState racing the one below
+            // would decide the fate of `onboarded` by render order. The
+            // consent goes into the same single write that finishes
+            // onboarding; only the server row and the analytics event are
+            // fired separately, and both are fire-and-forget by design.
+            recordConsent(
+              state.deviceId,
+              consent.granted,
+              consent.at,
+              consent.version,
+              state.auth?.userId,
+            );
+            track(state.deviceId, "memory_consent", { granted: consent.granted, at_onboarding: true });
             // "SKY" IS THE DEFAULT FOR NEW INSTALLS, and it is stamped HERE
             // rather than by changing what `undefined` means. See the long
             // note in engine/theme.ts: `undefined` is what every existing
@@ -1362,12 +1504,41 @@ export default function App() {
             // at a time of day, on a build where they changed nothing. That
             // is indistinguishable from a bug. `?? "sky"` also means a person
             // who somehow already has a choice keeps it.
-            setState((s) => ({ ...s, onboarded: true, user, theme: s.theme ?? "sky" }));
+            setState((s) => ({
+              ...s,
+              onboarded: true,
+              user,
+              theme: s.theme ?? "sky",
+              memoryConsent: consent,
+            }));
           }}
         />
       ) : (
         <>
           <ClockCard />
+          {/* ── GURUKUL STUDENT SURFACE ENTRY ─────────────────────────────
+              The two new siblings' only door in. Absent entirely off the
+              student surface — `isGurukulStudentSurface()` is a build-time
+              constant, so this branch does not exist in the Meera bundle's
+              rendered output any differently than any other dead branch, and
+              costs the Meera build nothing more than the constant check
+              already costs it. Deliberately NOT threaded through HomeScreen
+              or Chat's own prop surfaces (`onGames`, `onUs`, ...): those are
+              Meera-shaped contracts another workstream owns, and adding a
+              student-only prop to either would be exactly the kind of leak
+              `SPEC-GURUKUL.md` §3 item 2 is written to prevent. A fixed shell
+              sibling is the narrowest seam that reaches both `surface`
+              states (home and chat) without editing either component. */}
+          {isGurukulStudentSurface() && (
+            <nav className="gurukul-nav" aria-label="Gurukul">
+              <button type="button" onClick={() => setPracticeOpen(true)} data-tel="gurukul.open.practice">
+                Practice
+              </button>
+              <button type="button" onClick={() => setMasteryOpen(true)} data-tel="gurukul.open.mastery">
+                Mastery
+              </button>
+            </nav>
+          )}
           {/* ── THE THREAD ────────────────────────────────────────────────
               ALWAYS MOUNTED, exactly like it is under a board or a call, and
               for the same reason: it holds an in-flight reply cycle, a burst
@@ -1428,7 +1599,16 @@ export default function App() {
             // opaque call surface — on the most battery-sensitive screen in
             // the product. Covered means off.
             data-on={
-              surface === "home" && !inCall && activity === null && !storyOpen && !usOpen && !knowsOpen && !gamesOpen && !authOpen
+              surface === "home" &&
+              !inCall &&
+              activity === null &&
+              !storyOpen &&
+              !usOpen &&
+              !knowsOpen &&
+              !gamesOpen &&
+              !authOpen &&
+              !practiceOpen &&
+              !masteryOpen
                 ? ""
                 : undefined
             }
@@ -1576,6 +1756,16 @@ export default function App() {
             )}
           </ErrorBoundary>
           {usOpen && <UsScreen state={state} onExit={() => setUsOpen(false)} />}
+          {/* ── GURUKUL STUDENT SURFACE ───────────────────────────────────
+              Two more full-screen siblings, in the exact shape `usOpen`/
+              `knowsOpen` already use above — mounted only while their own
+              sentinel is true, torn down on exit, no state read from Meera's
+              relationship record. Entirely absent from the tree (not merely
+              hidden) whenever `isGurukulStudentSurface()` is false: the entry
+              points below are the only thing that can ever set these
+              sentinels, and they render nothing on the Meera build. */}
+          {practiceOpen && <PracticeActivity onExit={() => setPracticeOpen(false)} />}
+          {masteryOpen && <MasteryMap onExit={() => setMasteryOpen(false)} />}
           {knowsOpen && (
             <KnowsScreen
               state={state}
@@ -1704,7 +1894,30 @@ export default function App() {
               `shouldExplain` is the whole rule and it is pure — it is false
               until a FELT moment has happened, and false forever after either
               answer. See src/notify/index.ts. */}
+          {/* ── task #148: THE MEMORY QUESTION, FOR PEOPLE ALREADY HERE ────
+              Same shell, same surface rules and the same non-modal reasoning
+              as the notification card below it (see that comment; it applies
+              here unchanged and is not restated). What is different is what
+              happens if it is ignored: nothing. Memory keeps working while the
+              question is unanswered, because these people were never asked and
+              the answer to never-asked is to ask, not to switch a running
+              relationship off underneath somebody. The card comes back next
+              time home is quiet, and it stops for good on either answer. */}
+          {askMemoryConsent &&
+            surface === "home" &&
+            !inCall &&
+            activity === null &&
+            !storyOpen &&
+            !usOpen &&
+            !gamesOpen &&
+            !authOpen && (
+              <MemoryConsentPrompt
+                onGrant={() => answerMemoryConsent(true)}
+                onDecline={() => answerMemoryConsent(false)}
+              />
+            )}
           {state.onboarded &&
+            !askMemoryConsent &&
             surface === "home" &&
             !inCall &&
             activity === null &&

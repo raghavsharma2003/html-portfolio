@@ -33,7 +33,7 @@
 //       a presence is worth nothing (evals/self/texture.mjs's own G9 rule).
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -74,7 +74,7 @@ execSync(
   `npx esbuild ${join(HERE, "_entry.ts")} --bundle --format=esm --platform=node --outfile=${out} --log-level=error`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(out);
+const E = await import(pathToFileURL(out).href);
 
 const SRC_CONSOLIDATE = readFileSync(join(ROOT, "api/consolidate.js"), "utf8");
 const SRC_SWEEP = readFileSync(join(ROOT, "api/consolidate-sweep.js"), "utf8");

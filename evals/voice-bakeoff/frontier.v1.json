@@ -1,0 +1,275 @@
+{
+  "schemaVersion": "vyakti-voice-frontier/v1",
+  "asOf": "2026-08-28",
+  "goal": "A language-specific Hindi, Hinglish, and English voice route that wins blinded identity and naturalness tests against vendor anchors.",
+  "azureBudget": {
+    "hardCapUsd": 1000,
+    "source": "https://prices.azure.com/api/retail/prices",
+    "profiles": [
+      {
+        "id": "container-apps-t4-current",
+        "gpuMemoryGiB": 16,
+        "retailUsdPerHour": 1.6632,
+        "basis": "Existing Central India Container Apps allocation: one T4, 8 active vCPU, 56 GiB active memory"
+      },
+      {
+        "id": "standard-nv36ads-a10-v5-centralindia",
+        "gpuMemoryGiB": 24,
+        "retailUsdPerHour": 4.48,
+        "basis": "Azure Retail Prices API consumption meter read on 2026-08-28"
+      },
+      {
+        "id": "standard-nc96ads-a100-v4-centralindia",
+        "gpuMemoryGiB": 80,
+        "retailUsdPerHour": 20.569,
+        "basis": "Azure Retail Prices API consumption meter read on 2026-08-28"
+      }
+    ],
+    "stages": [
+      {
+        "id": "zero-shot-screen",
+        "expectedUsd": 60,
+        "hardCapUsd": 100,
+        "stop": "All qualified open candidates have three-seed blinded packs or a named incompatibility."
+      },
+      {
+        "id": "top-two-owner-lora",
+        "expectedUsd": 260,
+        "hardCapUsd": 400,
+        "stop": "The 5, 15, 30, and 60 minute owner-data curve is measured for no more than two bases."
+      },
+      {
+        "id": "hindi-base-adaptation-if-required",
+        "expectedUsd": 220,
+        "hardCapUsd": 300,
+        "stop": "Run only if every permissive zero-shot and owner-LoRA arm fails the native-Hindi floor."
+      },
+      {
+        "id": "preference-and-release-evaluation",
+        "expectedUsd": 100,
+        "hardCapUsd": 120,
+        "stop": "Blinded human, content, identity, prosody, latency, and provenance reports are complete."
+      },
+      {
+        "id": "reserve",
+        "expectedUsd": 0,
+        "hardCapUsd": 80,
+        "stop": "Unallocated unless a pre-registered run fails for an infrastructure reason."
+      }
+    ]
+  },
+  "nextBuild": [
+    {
+      "rank": 1,
+      "id": "voxcpm2",
+      "languages": ["hi-IN", "en-IN"],
+      "model": "openbmb/VoxCPM2",
+      "modelRevision": "32279effe8c19989596f05d353d1447f51d9e915",
+      "source": "https://github.com/OpenBMB/VoxCPM",
+      "sourceRevision": "f5a1c6a6b901bc732e20f0d59a369f6829ad717a",
+      "license": "Apache-2.0",
+      "weightsCommercial": true,
+      "parameterCount": 2290004544,
+      "repositoryStorageBytes": 9538100293,
+      "qualificationVramGiB": 8,
+      "vramEvidence": "The pinned upstream README reports approximately 8 GB VRAM for VoxCPM2 on RTX 4090. Vyakti has not reproduced that number yet.",
+      "minimumProfile": "container-apps-t4-current",
+      "cloneMode": "isolated_reference_and_continuation",
+      "adaptation": "Official SFT and LoRA path; maintainers state 5 to 10 minutes can adapt a speaker, language, or domain.",
+      "why": "First build: permissive, Hindi-native in the released 30-language model, 48 kHz output, direct cloning, official LoRA, and it fits the existing T4 on reported memory.",
+      "reversal": "Drop below another arm if matched Hindi listening fails accent or naturalness, owner identity does not beat the incumbent, or the reported T4 memory path does not reproduce remotely."
+    },
+    {
+      "rank": 2,
+      "id": "moss-tts-local-v1.5",
+      "languages": ["hi-IN", "en-IN"],
+      "model": "OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5",
+      "modelRevision": "be7766a6735b98bd793f7c79fb720b4d0f5d13b8",
+      "source": "https://github.com/OpenMOSS/MOSS-TTS",
+      "sourceRevision": "58b20a0d5fcc6766658d50967a90a9d890009a46",
+      "license": "Apache-2.0",
+      "weightsCommercial": true,
+      "parameterCount": 4550403584,
+      "repositoryStorageBytes": 9112282764,
+      "qualificationVramGiB": 24,
+      "vramEvidence": "Upstream calls this a 4B-backbone Local model but does not publish a peak-VRAM number for this checkpoint. The 24 GB A10 is a conservative Vyakti qualification allocation, not a measured claim.",
+      "minimumProfile": "standard-nv36ads-a10-v5-centralindia",
+      "cloneMode": "zero_shot_prefix_audio",
+      "adaptation": "Official fine-tuning tutorials for the Local architecture; v1.5 adds Hindi, language tags, code-switching, IPA control, and more stable cloning.",
+      "why": "Second build: the strongest explicit Hindi and code-switch control surface in the permissive shortlist, with 48 kHz output and a documented training path.",
+      "reversal": "Promote above VoxCPM2 if it wins blinded Hindi and Hinglish while meeting latency and A10 cost; remove if remote-code or codec provenance cannot be pinned."
+    },
+    {
+      "rank": 3,
+      "id": "zonos2",
+      "languages": ["hi-IN", "en-IN"],
+      "model": "Zyphra/ZONOS2",
+      "modelRevision": "65f1e80f94b599d474bb6af9094a803dc52f60bd",
+      "source": "https://github.com/Zyphra/ZONOS2",
+      "sourceRevision": "194c0a3ab67b90383a67646289f28d4ecb1c1f64",
+      "license": "Apache-2.0 weights; MIT source repository",
+      "weightsCommercial": true,
+      "parameterCount": 8000000000,
+      "activeParameterCount": 900000000,
+      "repositoryStorageBytes": 15351085870,
+      "qualificationVramGiB": 24,
+      "vramEvidence": "The pinned official checkpoint occupies 15,351,085,870 bytes. Upstream does not publish a Python peak-VRAM number; 24 GB is the first qualification allocation, not a fit claim.",
+      "minimumProfile": "standard-nv36ads-a10-v5-centralindia",
+      "cloneMode": "speaker_embedding_zero_shot",
+      "adaptation": "No owner-LoRA path is pre-registered in this pass; qualify zero-shot accurate mode first.",
+      "why": "Third build: 6 million hours, 900 million active MoE parameters, explicit accurate cloning mode, and a modern in-the-wild evaluation stack. Hindi is only Tier 3, so it is not ranked first.",
+      "reversal": "Promote if Tier-3 Hindi wins blinded accent and identity; demote if the 15.4 GB checkpoint cannot run reliably within an A10 or audited quantized path."
+    },
+    {
+      "rank": 4,
+      "id": "dhvaani-0.5",
+      "languages": ["hi-IN", "en-IN"],
+      "model": "ARTPARK-IISc/DhVaani-0.5",
+      "modelRevision": "b079f01592e987042b86f4a01c3909cef569d247",
+      "source": "https://huggingface.co/ARTPARK-IISc/DhVaani-0.5",
+      "sourceRevision": "b079f01592e987042b86f4a01c3909cef569d247",
+      "license": "Apache-2.0 checkpoint; upstream-corpus audit required",
+      "weightsCommercial": true,
+      "productionRightsCleared": false,
+      "parameterCount": 122798800,
+      "repositoryStorageBytes": 492504864,
+      "qualificationVramGiB": 16,
+      "vramEvidence": "The official model card publishes 122,798,800 F32 parameters and a 491 MB weight file but no peak-VRAM result. T4 16 GB is a qualification allocation, not a measured requirement.",
+      "minimumProfile": "container-apps-t4-current",
+      "cloneMode": "reference_audio_plus_exact_transcript",
+      "adaptation": "Qualification control only until the licenses and allowed downstream uses of IndicTTS, Rasa, and IISc SYSPIN training corpora are audited.",
+      "why": "India-built, Hindi is in its well-represented tier, 27 Indian languages, and a tiny direct-cloning control. Its own card warns that mixed-language prosody can be rough and names upstream corpus obligations.",
+      "reversal": "Promote only if rights are cleared and it wins native-Hindi listening; remove if gated access, corpus terms, or its documented code-switch boundary weakness prevents a fair production path."
+    },
+    {
+      "rank": 5,
+      "id": "indicf5",
+      "languages": ["hi-IN"],
+      "model": "ai4bharat/IndicF5",
+      "modelRevision": "ba85abedf18dc479a447eaa0eccbd76ab78a47d5",
+      "source": "https://huggingface.co/ai4bharat/IndicF5",
+      "sourceRevision": "ba85abedf18dc479a447eaa0eccbd76ab78a47d5",
+      "license": "MIT",
+      "weightsCommercial": true,
+      "productionRightsCleared": true,
+      "parameterCount": 350681834,
+      "repositoryStorageBytes": 1405598255,
+      "qualificationVramGiB": 16,
+      "vramEvidence": "The pinned gated repository reports 350,681,834 parameters and 1,405,598,255 repository bytes but no peak-VRAM result. T4 16 GB is a qualification allocation, not a measured requirement.",
+      "minimumProfile": "container-apps-t4-current",
+      "cloneMode": "reference_audio_plus_exact_transcript",
+      "adaptation": "No spend until gated access is accepted and the exact revision can be fetched.",
+      "why": "India-specialist control and possible Hindi accent floor, but it must compete with newer direct clone models rather than receive the adaptation budget by default.",
+      "reversal": "Promote if it wins the same blind Hindi gates; remove if access, prompt transcript sensitivity, or identity fidelity blocks a fair run."
+    }
+  ],
+  "vendorAnchors": [
+    {
+      "id": "azure-personal-voice",
+      "languages": ["hi-IN", "en-IN"],
+      "inputSeconds": 60,
+      "access": "limited_access_intake",
+      "azureCreditEligible": true,
+      "consent": "recorded_verbal_statement_required",
+      "source": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service/personal-voice-overview",
+      "why": "The most budget-aligned commercial anchor: creation in under five seconds from one minute and synthesis in more than 90 languages, including Hindi."
+    },
+    {
+      "id": "cartesia-sonic-3.5",
+      "languages": ["hi-IN", "en-IN"],
+      "inputSeconds": 10,
+      "access": "instant_clone_api; professional_clone_subscription",
+      "azureCreditEligible": false,
+      "consent": "provider_policy_required",
+      "source": "https://docs.cartesia.ai/build-with-cartesia/tts-models/latest",
+      "why": "Stable 2026 snapshot with explicit Hindi support; professional cloning is a separate two-hour-quality anchor."
+    },
+    {
+      "id": "smallest-lightning-v3.1-pro",
+      "languages": ["hi-IN", "en-IN"],
+      "inputSeconds": 5,
+      "access": "api",
+      "azureCreditEligible": false,
+      "consent": "provider_policy_required",
+      "source": "https://docs.smallest.ai/models/documentation/text-to-speech-lightning/overview",
+      "why": "India-built anchor with explicit Hindi-English code-switching and Indian voices."
+    },
+    {
+      "id": "hume-octave-2",
+      "languages": ["hi-IN", "en-IN"],
+      "inputSeconds": 15,
+      "access": "preview_api",
+      "azureCreditEligible": false,
+      "consent": "provider_policy_required",
+      "source": "https://dev.hume.ai/docs/text-to-speech-tts/overview",
+      "why": "Expressive speech-language-model anchor with Hindi and short-reference cloning."
+    }
+  ],
+  "researchOnly": [
+    {
+      "id": "omnivoice",
+      "model": "k2-fsa/OmniVoice",
+      "modelRevision": "c5fdb5ccb189668d56333f77ba2629f4cd7535f4",
+      "sourceRevision": "08be0b4ccbac3e13e374e86fbfead4b4cac343e2",
+      "license": "Apache-2.0 code; CC-BY-NC pretrained weights",
+      "weightsCommercial": false,
+      "reason": "Useful 646-language research control, but the official model card makes pretrained weights noncommercial because of training-data constraints."
+    },
+    {
+      "id": "x-voice",
+      "model": "XRXRX/X-Voice",
+      "modelRevision": "research_snapshot_unpinned",
+      "sourceRevision": "research_snapshot_unpinned",
+      "license": "MIT code; CC-BY-NC pretrained weights",
+      "weightsCommercial": false,
+      "reason": "Its IPA, dual language-ID, and transcript-free conditioning recipe is useful research evidence, but the released weights are noncommercial."
+    }
+  ],
+  "data": [
+    {
+      "id": "owner-balanced-recording",
+      "license": "owner-consented",
+      "role": "The only speaker-identity adaptation set. Record Hindi, spontaneous Hinglish, and Indian English separately, with held-out prompts."
+    },
+    {
+      "id": "indicvoices-r",
+      "license": "CC-BY-4.0",
+      "hours": 1704,
+      "speakers": 10496,
+      "languages": 22,
+      "source": "https://github.com/AI4Bharat/IndicVoices-R",
+      "role": "Language and Indian-speaker diversity adaptation only, never a named person's identity adapter."
+    },
+    {
+      "id": "kathbath-indicsuperb",
+      "license": "CC0 packaging with upstream-text caveat",
+      "hours": 1684,
+      "speakers": 936,
+      "languages": 12,
+      "source": "https://github.com/AI4Bharat/indicSUPERB",
+      "role": "Held-out Indian speaker and content diagnostics after a rights audit; not the first production training corpus."
+    },
+    {
+      "id": "uploaded-third-party-lecture",
+      "license": "unverified_for_identity_training",
+      "role": "Hindi and long-audio stress test only. It cannot train a deployable named identity without the speaker's recorded permission."
+    }
+  ],
+  "evaluation": {
+    "fixedSeeds": [31001, 31002, 31003],
+    "minimumFluentListeners": 20,
+    "minimumJudgments": 800,
+    "catchAccuracyFloor": 0.9,
+    "humanAxes": ["speaker_likeness", "naturalness", "indian_accent", "pronunciation", "code_switch_smoothness", "teaching_delivery"],
+    "automated": ["raw_asr_error", "reviewed_script_aware_error", "redimnet_similarity", "ecapa_similarity", "real_real_ceiling", "impostor_margin", "msr_utmos", "ttsds2", "f0_rate_energy_pause_distributions", "ds_wed_diversity", "rtf", "failure_rate"],
+    "indistinguishableRule": "On held-out matched text, the clustered 95 percent interval for real-versus-clone discrimination must fit inside 45 to 55 percent, catch accuracy must pass, and no critical human axis may be inferior by more than 0.2 on a five-point scale.",
+    "winRule": "Against each vendor, the clustered 95 percent lower bound of paired preference must exceed 50 percent, with owner preference reported separately."
+  },
+  "architecture": {
+    "primary": "Direct multilingual clone model with explicit language tags, a language-matched reference bank, and one owner LoRA on a frozen qualified base.",
+    "referenceBank": "Keep 6 to 12 clean 6-to-12-second owner windows stratified by Hindi, Hinglish, English, neutral teaching, correction, encouragement, and high-energy delivery. Select by target language and style before synthesis.",
+    "adaptationCurveMinutes": [5, 15, 30, 60],
+    "openVoiceRole": "Diagnostic conversion arm only. Tone-color conversion does not preserve the full accent, articulation, rhythm, breath, or intonation needed for an exact human clone.",
+    "foundationTraining": "Rejected under this budget. USD 1,000 can qualify bases and run parameter-efficient adaptation; it cannot reproduce training runs based on hundreds of thousands or millions of hours."
+  }
+}

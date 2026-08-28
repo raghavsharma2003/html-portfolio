@@ -1,0 +1,639 @@
+# STATE — read this first, then the graph
+
+One page, kept current, so a new session spends zero tokens re-deriving where
+the project stands. Deep history lives in `decisions.md` / `rejected.md` /
+`measurements.md`; the index is `graph.json` (`node scripts/context.mjs`).
+**If this file and any other disagree, the other files win — fix this one.**
+
+Last updated: 2026-08-27, and this line is the ONLY one of its kind in this
+file. **Do not add a "Last updated" line here.** Put what your session did in
+the SESSION LOG at the bottom of this page instead.
+
+Why that rule exists, so it is not undone as fussiness: this header is not
+append-only, but the merge helper that resolves `context/` conflicts unions
+append-only files line by line. Every agent that added its own header line here
+therefore survived the union, and eight of them stacked up twice. The bottom of
+the file IS append-only, so a line placed there merges correctly by
+construction rather than by anyone remembering to tidy up.
+
+**Other agents:** `AGENTS.md` at the repo root is the tool-neutral entry point
+and points back here. `CLAUDE.md` carries the same rules for Claude Code.
+
+## What the product is
+
+Vyakti: a self-serve platform where ANYONE builds an exact AI version of
+themselves — mind, voice, relation, long-term continuity — from their own
+context (files, links, channels, calls), iterates on it frictionlessly, and
+deploys it anywhere. It **remembers each person it talks to** and carries a
+**measured guarantee it still sounds like them**. Edtech (JEE teachers →
+student app) is the first vertical and wedge, not the boundary
+(`horizontal-platform-reweight`, 2026-08-26). North star and binding consequences:
+`docs/gurukul/SPEC-GURUKUL.md` §8 (owner reweight, 2026-08-26).
+
+Standing owner directives: in-house replica stack (self-hosted open weights
+primary, vendors optional); Maya/Meera deprioritized as a product (its engine
+gates stay); Fable runs the main loop, Opus 5 / Sonnet 5 run subagents.
+
+## Where the code is
+
+- Branch `claude/gurukul-platform`, PR #5 (draft, CI green).
+- The union of the companion line (RelationalOS engine) and the voice-cloning
+  line (Replica Lab studio). `docs/gurukul/SPEC-GURUKUL.md` is the map;
+  `docs/gurukul/ROADMAP-100X.md` is the build order;
+  `docs/gurukul/research/` holds the competitor / memory-science / voice-stack
+  sweeps behind those decisions.
+- Gates: `node scripts/verify-release.mjs` is **16 checks** as of 2026-08-27
+  (14 without `NEON_URL`, which skips the two relational db gates). The count
+  has grown as gates were added: WS-AM's layout readability, WS-AR's enrollment
+  sample-rate mirror, WS-AS's enrollment bandwidth. `relcheck` is a hard gate
+  wherever a URL is reachable. `npx vite build` alone is NOT a gate: it exits 0
+  with type errors.
+
+## What is LIVE (verified, not assumed)
+
+| thing | state |
+|---|---|
+| Neon Postgres | migrations 015–062 applied and verified live (**125 tables**, checked 19:00Z). `verify-release` runs **13** checks when `NEON_URL` is set — the two relational DB gates that had never actually run — and 11 with a printed skip when it is absent |
+| Supabase (new project, separate from Meera's) | auth working; `vyakti-replica-private` bucket created |
+| Auth | Google OAuth live; email OTP live (6-digit); built-in mailer capped ~2/hr until SMTP |
+| Studio | `vyakti-replica-lab.vercel.app` → teacher studio at `/`; replica create/list verified against live DB |
+| Meera production | untouched; its deploy trigger no longer matches this branch |
+| In-house voice | Azure RG `vyakti-voice`: Chatterbox GPU runtime + admission broker + voice evidence, scale-to-zero, synthesising (RTF 0.79 warm). `docs/gurukul/AZURE-DEPLOY-STATE.md` |
+| Enrollment processing queue | **LIVE on the corrected long-media worker** (2026-08-27 06:33Z). `vyakti-replica-processing` runs immutable image digest `sha256:192e7372...91a1`, every five minutes, with a 3,600 s replica timeout and 3,300,000 ms work budget. The owner's current source is `ready`, all eight jobs are `complete`, and VoiceGenome v2 is a `draft` over one 10 s / 24 kHz DeepFilterNet3 reference. A manual execution of the deployed digest succeeded in 29 s. Signed TUS, disk-streamed verification/ClamAV/Sarvam and overlapping long diarization are live in the worker and web runtime. The remaining large-file ceiling is the Supabase project's global Storage setting: the API refused a 1 GiB bucket limit while the bucket remains private with no per-bucket override. |
+
+## START HERE: WHERE THIS ACTUALLY STANDS (2026-08-27 03:45Z)
+
+Everything below this block is older and some of it is superseded. Read this
+first; where it disagrees with anything further down, this wins.
+
+**THE ONE OPEN PROBLEM: the clone does not sound like the owner.** Their
+verdict, verbatim: "not even 0.05% similar", and the base voice is "very
+western and not indian". Everything else in this product now works; this does
+not, and it IS the product.
+
+What is settled about it, measured rather than argued:
+- **Cloning IS happening.** Three different enrollment references, same replica,
+  text and seed, produced three different outputs (`b4ff277d88`, `65219c4f38`,
+  `c7ba0591f8`). A model ignoring its reference is byte identical across arms.
+  So do not go looking for a disconnected wire; the fault was reference QUALITY.
+- **The reference was 8 kHz audio wearing a 24 kHz label.** Measured by FFT:
+  0.000458% of energy at or above 8 kHz. Two causes, and the second one is the
+  one three sessions walked past: `separate` runs `sepformer-whamr16k` at 16 kHz
+  UNCONDITIONALLY, including on a recording with one speaker and nothing to
+  separate; and the 16 kHz bytes cut for window SCORING were being reused as the
+  DELIVERED reference bytes, so skipping separation alone would not have helped.
+- Both are fixed in `api/` and merged. After the fix, 0.0224% (about 49x).
+
+**What is now done, and what remains:**
+1. **The 24 kHz reference fix is live.** The Container Apps Job was rebuilt,
+   pinned by digest and read back from Azure. The owner's real pipeline is at
+   one ready source, eight complete jobs and VoiceGenome v2 draft. A fresh
+   same-text Hindi preview from v2 returned 263,084 bytes of 24 kHz mono WAV,
+   with PerTh verified. This proves the deployed v2 path runs; it does not
+   prove acceptable likeness.
+2. **There is still no authoritative speaker-similarity verdict for v2.**
+   Nobody has measured likeness, only bandwidth, and bandwidth is not likeness.
+   `vyakti-voice-evidence` has `ingress.external=false` so a session cannot
+   reach it. The repo's known ceiling is 0.8869. **Do not report a proxy metric
+   as fidelity.** An invented number here is the worst possible outcome.
+3. DeepFilterNet3 on versus off is unmeasured. The owner's audio has real
+   background noise, so it is a genuine trade, not an obvious call.
+4. Browser upload is resumable and multi-file, but the account-level Supabase
+   global Storage limit still refuses a 1 GiB bucket setting. Do not advertise
+   1 GiB as live until that account setting is raised and a real >50 MiB TUS
+   upload is completed.
+
+**Two live operational facts a new agent will otherwise rediscover painfully:**
+- `vyakti-open-voice` (the GPU) has `minReplicas=0`. A warm GPU answers in about
+  54 s; from cold it has exceeded 200 s and returned `wake_in_flight` ten polls
+  running. The studio panel gives up at 180 s, which EQUALS the top of its own
+  advertised "2 to 3 minutes". Same defect shape as the 60 s signature meeting a
+  100-160 s cold start. Keeping a GPU warm bills continuously and is the owner's
+  money: do not set `minReplicas` without being asked.
+- The preview ledger (`neon-ledger.js`) structurally cannot open for ANY preview
+  generation without an active runtime capability, because a preview's
+  `voice_profile_id` is always NULL while the capability table's matching column
+  is NOT NULL. Unrelated to reference quality. See
+  `rejected.md#preview-ledger-requires-activation-this-replica-does-not-have`.
+
+**What DOES work now, verified, so you do not re-audit it:** journey 15/15;
+16/16 gates; CI green on PR #5; all eight DAG steps complete on the owner's real
+822.7 s upload; voice genome v1 draft exists; `REPLICA_SELF_TEST_MODE=true` is
+live on the job so enrollment gates no longer block; `SARVAM_API_KEY` is on the
+job; the five audio-protection vars are in Vercel; a real preview returns real
+watermarked audio with the spoken disclosure.
+
+---
+
+## WHERE THE PRODUCT ACTUALLY STANDS (2026-08-26 19:15Z, measured)
+
+**Superseded in part by the block above.** Kept because the technique and the
+failure analysis below are still the best record of how this was established.
+
+The single most useful section for a new agent: this was established by driving
+the REAL deployed frontend in a real mobile browser against the REAL backend,
+not by reading code. The harness lives in the session scratchpad, and the
+technique is reusable and worth rebuilding if it is gone:
+**the container's egress policy resets the browser's HTTPS, so a loopback
+bridge serves production bytes fetched with node and relays `/api/*` back to
+production.** Real rendering, real API, real signed-in user.
+
+**Journey score at the time: 12 of 15. It is now 15/15** (2026-08-27 00:05Z); the two remaining failures were the product CORRECTLY refusing a brand new replica with no identity, which the journey was scoring as a bug. The assertion now accepts a NAMED refusal from the known set and still fails on an unnamed one, an unrecognised code, or any 5xx. Original note follows.
+
+**Journey score: 12 of 15 steps pass.** Passing: landing, no horizontal
+overflow at 390pt, real signed-in session, studio renders, primary action above
+the fold (632px), create workspace, the three-step wizard visible, reaching the
+Meet step, no blame text, every disabled control carries a reason, the activity
+surface answers 200, the Mirror Call contract answers 200. Failing: three
+symptoms of ONE cause, the audio-protection service being undeployed.
+
+### The owner's real 32.9 MB upload, live pipeline position
+
+| step | state | note |
+|---|---|---|
+| integrity | complete | byte verification passed |
+| malware_scan | complete | the deployed scanner works |
+| media_probe | complete | measured 822 720 ms (13.7 min), mp3, 2ch, 48 kHz |
+| diarize | **complete** | 278 speaker segments, mean confidence 0.877. Cluster 1 is the owner (663.5 s over 231 segments); cluster 2 is 25.9 s of someone else. The first voice evidence this system has ever written. Unblocked by WS-AK: the service is scale-to-zero, its cold start is 100-160 s, and the request signature only lives 60 s, so every cold request was guaranteed to fail. Wake it, THEN sign |
+| separate | **complete** (WS-AO, 2026-08-26 21:38Z) | Windows to the owner's own best-scoring ~10 s (`api/_replica-processing/reference-window.js`), never the whole file. Real production artifacts: two 320,044-byte (10 s @ 16 kHz mono) Sepformer candidates, not the 822.7 s original. Succeeded on attempt 1 of the requeued job, on the SAME real upload that failed 5/5 before the fix. Was NOT a capability absence and had nothing to do with `transcribe`'s adapter family, which is why WS-AN (2026-08-26, concurrent) correctly left it uninvestigated |
+| enhance | **complete** (same run) | Four 960,044-byte (10 s @ 48 kHz mono) DeepFilterNet3 candidates over the windowed reference, chained automatically the moment `separate` committed |
+| transcribe | blocked, `sarvam_asr_config_missing` → reported as `asr_unconfigured` | WS-AN (2026-08-26, concurrent) rewired this step onto the Sarvam Saaras batch adapter, replacing the unreachable Azure Speech path, and proved the new code path runs. `SARVAM_API_KEY` is not yet on the job's env — it lives in Vercel's `vyakti-replica-lab` per the owner, and no session yet has a route to read Vercel env values back. Auto-recovers via `requeueRecoveredProcessingJobs` the moment the key lands; no manual requeue needed. Deliberately reads the FULL original source, not the windowed clip (`runtime.js`'s `INPUT_STAGE`) |
+| voice_quality | blocked behind `transcribe` | DAG dependency; nothing to do until the Sarvam key is set |
+
+**A second, DATA-layer collision, found but not caused by this session and NOT
+fully explained.** The table above is what production measured at 21:38Z, with
+real row-level evidence (job IDs, byte sizes) captured at that moment. By
+21:50Z, querying the SAME database found `vy_replica_processing_job`,
+`vy_replica_processing_evidence`, `vy_replica_processing_artifact` and
+`vy_replica_source` all cleared to near-empty (2 rows, 0, 0, 1 row respectively)
+-- the owner's real source and every job against it, including the ones this
+session had just fixed, gone; replaced by one small unrelated test source
+(`source_id efc3c9b5…`, first row at 21:50:19Z) that reads like WS-AN
+restarting their own Sarvam testing against a fresh fixture. Every query this
+session ran against Neon in that window was a plain `select`
+(`scripts/relcheck.mjs`/`check-citations.mjs`, confirmed read-only by source
+inspection, and this session's own `nq.sh` helper) -- **this session did not
+delete the data**, but it did not confirm who or what did either. Treat the
+DAG-position table above as "true as measured with real production evidence at
+21:38Z, on a job that itself no longer exists to re-query" rather than as
+"true right now" -- the fix is proven and the CODE remains deployed; the
+specific PROOF ROW is gone. Worth a person asking WS-AN's session about
+directly, since this session has no route to another session's actions.
+
+**A deployment collision, caught and corrected within this session.** WS-AO's
+first production deploy (image `@sha256:b1cfc1…`) was built from a worktree
+branched BEFORE WS-AN's Sarvam merge landed on `claude/gurukul-platform`, and
+overwrote WS-AN's already-deployed image (`@sha256:3e6c50…`) on the SAME
+Container Apps Job — the two sessions never touched the same file, but they did
+target the same live resource. Caught during the post-work rebase, before
+either session's context log claimed a final state. Fixed by rebuilding from
+the REBASED, merged tree (both changesets) and redeploying once more; see the
+session log for the final image digest actually left running. **The lesson for
+whoever reads this next:** two workstreams sharing a DAG can still collide on
+the SERVICE even when their diffs never touch the same line — check the live
+resource's current image/config before deploying, not just the git diff.
+
+**The real cause of `separate`'s failure was confirmed structurally, not from a traceback** -- `services/voice-evidence/app.py`'s `/v1/analyze` ends in a bare `except Exception` with NO logging, so nothing about the failure ever reached Log Analytics across all 5 production attempts. What WAS confirmed: every OTHER exception path in that file raises a NAMED error (so every named validation, including the duration cap, provably passed); the replica's `restartCount` stayed 0 across all 5 attempts (rules out a container-level OOM kill, consistent with an in-process, catchable `torch.cuda.OutOfMemoryError`); and the only GPU-bound call in `_separate()` is one unchunked forward pass over the whole 822.72 s / 13.16M-sample waveform. Full reasoning: `context/measurements.md#separate-underlying-error-confirmed-structurally`.
+
+A 30-minute lecture would still have failed here even with a raised cap: 1200 s
+was a hard ceiling compiled into `app.py`, and raising it only moved the wall
+from `diarize` to `separate`. `best-window-not-first-window` was the decided
+fix and it is now LIVE for `separate`: never send a whole recording to the
+embedder, send the best-scoring ~10 s window drawn from the owner's own
+diarized cluster (never a second speaker's). WS-U measured window choice
+moving fidelity more than fine-tuning does (0.7433-0.8058 spread versus a
+0.0206 fine-tune delta), so windowing is both correct and higher quality.
+
+One fact a new agent must not re-derive:
+- **`vy_replica_source.duration_ms` propagation was ALREADY FIXED** by the time
+  WS-AO checked (verified live: `duration_ms=822720`, not NULL, on the owner's
+  real row). `repository.js`'s `commitProcessingOutput` reads it straight out
+  of `desired_evidence` on the `media_probe` commit -- a previous session (the
+  `commitProcessingOutput` rewrite credited in this file's LIVE table) already
+  closed this trap. Confirm before re-fixing a trap that is gone; this file
+  used to say it was still open and that was stale.
+
+### "Preview my voice" was broken in FIVE stacked layers
+
+Each hid the next; all five are worth knowing because the pattern recurs.
+1. The panel sends no `style`; the validator refused an ABSENT style with the
+   same 400 as a typo, so every preview from the default path failed.
+2. The route flattened that named 400 into an opaque 500 **and logged nothing**,
+   which is why nobody could see layer 1.
+3. The route only mapped errors carrying a `code`; sixteen validators in `api/`
+   throw a bare `{status:400}`. Fixed as a class, not an instance.
+4. **The audio-protection service was never deployed.** Every clip must
+   carry the spoken disclosure and the PerTh watermark before delivery, so NO
+   replica audio can leave for anyone.
+   **Never stub or bypass this to get a green screen.**
+5. **Root, found by WS-AR after 1-4 and the env pastes were all done and the
+   owner still got `wav format unsupported` after a ten minute wait:** the
+   enrollment reference the enhance stage PRODUCES and the rate
+   `probeEnrollmentWav` DEMANDS before synthesis disagreed — 48 kHz emitted,
+   24 kHz required, no test ever exercised both sides of that boundary
+   together. 23 real dated `vy_replica_generation` rows on the owner's own
+   replica prove this failed in production, repeatedly, before the fix.
+
+Layers 1 to 3 are fixed in code. Layer 4 is fixed in infrastructure (WS-AL
+deployed `vyakti-audio-protection`) and the five Vercel env vars are pasted
+(session log, 22:20Z). Layer 5 is fixed in `services/voice-evidence/app.py`
+(`enrollment-artifact-resamples-to-24k-inside-enhance`) and **this is the
+layer that made the owner's most recent report** — the first four were
+already closed by the time they hit it. **All five layers are now proven
+closed together, on the owner's own replica, with real audio bytes coming
+back** (`measurements.md#wav-format-unsupported-fixed-and-proven-end-to-end`).
+A cross-boundary gate (`scripts/check-enrollment-sample-rate.mjs`) now asserts
+the rate that produced layer 5 can never silently drift from the rate that
+gates it again.
+
+The lesson, now encoded: a refusal that chose its own 4xx keeps it, a
+configuration absence answers 503 BY SHAPE rather than by a list of names, the
+code is always logged, and a value emitted by one service and demanded by
+another needs an assertion that they agree — because "the format gate exists"
+and "the two sides of it agree" are different claims, and only testing the
+whole path together catches when they do not.
+
+### YouTube: measured to the end, and it needs a credential
+
+- Audio extraction from a datacenter IP is **blocked** and every free lever is
+  exhausted (all ten yt-dlp player clients; the PO-token provider moved the
+  metadata check 5/6 versus 1/6 but yielded 0/12 audio bytes and the benefit
+  vanished after ~40 requests).
+- The transcript half does NOT rescue it. The sanctioned Data API answers a
+  datacenter IP normally, but `captions.download` returns only manually
+  uploaded tracks, which lecture channels do not have. Every auto-caption route
+  goes through the same blocked player surface. There is no free transcript
+  route hiding behind the audio problem.
+- Recommendation on the table for the owner, **not purchased**: IPRoyal
+  residential pay-as-you-go, about $0.077 per 15-minute lecture, $7 minimum,
+  traffic does not expire. Switching it on is one env var
+  (`MEDIA_EXTRACT_ROUTE=proxy` plus the URL); absent credentials refuse by name
+  rather than falling back silently.
+
+## The three ingestion/voice pipelines — status after the first real clone (2026-08-26)
+
+**A real human voice has now been through the pipeline end to end.** The owner
+supplied a 71 s consented Hinglish voice note; every stage below is a live
+service response, not a claim.
+
+| pipeline | status | evidence |
+|---|---|---|
+| **Voice cloning** | **WORKS, measured** | Zero-shot clone of the owner from their own 71 s reference. **ECAPA fidelity 0.7753** (p10 0.7479) against a **0.8869 self-vs-self ceiling**; verdict `warn`, so the activation gate correctly refuses (12 blockers). rtf 0.79–0.80 warm. n=2, spread 1e-6. **Zero-shot floor — NOT a claim about how it sounds** (that needs the blind ABX bench). |
+| **Reference-window choice** | **measured, and it is the bigger lever** | Chatterbox truncates a reference to its **first 10 s** (s3gen) / **6 s** (T3 prompt); only the speaker embedding sees the rest. Which 10 s you pass spans **0.7433–0.8058** on the owner's voice — **0.0625, three times the fine-tune delta, at zero training cost** — and the best window beats every fine-tuned arm. Zero-shot; interaction with the adapter unmeasured. `reference-window-beats-the-finetune`. |
+| **Per-speaker fine-tuning** | **BUILT and measured** | `services/voice-finetune` trains a LoRA adapter on a GPU job; the runtime loads it per request inside the same HMAC, disclosure and watermark path. On the owner's 71 s (62.1 s transcribed): **0.7753 → 0.7959, +0.0206, 18.4% of the gap to the ceiling, `warn` → `pass`**, n=2 spread 1e-5. Costs ~26% of synthesis speed (rtf 0.79 → 0.99). **A 71 s smoke test against a ≥30 min recommendation** — `lora-vs-zero-shot-71s`. |
+| **voice-evidence round trip** | **WORKS — first ever run** | 71 s → 4 windows → 8 embeddings in **4 977 ms** warm; **176 s** cold start from zero. |
+| **ASR (Sarvam)** | **WORKS** | sync `saarika:v2.5` 25 s → 200 in 4 134 ms (**hard 30 s cap**); batch `saaras:v3` 71 s → **5 diarized turns in 137 s**. `saarika:v2` is deprecated. |
+| **transcript → sheet draft** | **WORKS** | 5 turns, 127 tokens, **92 honest `gaps`**, 8 phrase candidates. |
+| **upload → finalize** | **finalize was BROKEN; fixed in tree, deployment behind it** | `replicaObjectInfo` parsed a HEAD-style route as JSON, so EVERY finalize failed closed and **nothing downstream of storage had ever executed for anyone**. One redeploy away. |
+| **YouTube extraction** | **RUN, and the answer is split** | `services/media-extract` is DEPLOYED (`vyakti-media-extract`, Azure Container Apps, CPU, scale-to-zero, yt-dlp 2026.08.19, `/healthz` 200 in 47.9 s cold). Against real YouTube from that egress: **`/v1/enumerate` WORKS** (200 in 13.9 s, real ids — first ever live run of the channel lane) and **`/v1/extract` is BLOCKED** — `extractor_bot_check` in 2–3 s at the metadata probe, on **all 10** player clients yt-dlp offers. Lever 1 is exhausted; levers 2 (cookies) and 3 (proxy) need credentials nobody has yet and were NOT guessed at. `youtube-extraction-blocked-from-azure`. |
+| **One link → one clone** (WS-AD) | code-complete, gated offline, **extraction step blocked upstream** | `/api/video-enroll`, `api/_video-enroll{.js,/windows.js,/quota.js}`, migration **060**, `src/studio/VideoEnrollPanel.tsx`. Paste one video URL → attest the channel (WS-S's table, reused) → extract → **score every ~10 s window and condition on the best one anywhere in the video** → ASR → sheet draft. `evals/videoenroll.mjs`, 80 checks, wired into `evals/run.mjs`. Migration 060 UNAPPLIED; `promoteReference` is a declared seam this deploy does not supply, so `reference_promoted` is false and says so. |
+
+**Known-open, deliberately not guessed at:**
+- Code-switch ratio reads 0.000 on visibly bilingual speech — `HINDI_MARKER_WORDS` is romanised, Sarvam returns Devanagari. Needs a decision (transliterate / extend lexicon / different model), not a patch.
+- Fidelity cannot be persisted or clear activation until a voice profile + biometric consent + human liveness challenge exist.
+- HMAC skew window (60 s) is shorter than `voice-evidence`'s 176 s cold start, so the waking request returns 401 — an auth error for a latency problem. Worked around by pinging `/healthz` first. **The open-voice lane fails differently and this line used to blur the two:** its broker verifies the signature the moment the request lands and only then forwards it, so a cold *GPU runtime* is a **timeout**, not a 401. Owned as of WS-W by `api/_voice/warmup.js` for the studio panel. **WS-AK has now measured the processing worker's copy of it on production and it is exactly this:** the deployed job's first `diarize` against a cold replica returned 401 `transport_signature_invalid`, the same code from a warm replica authenticated in 20 s, and the two HMAC secrets were confirmed identical by digest first so the obvious wrong fix (rotate the key) was not taken. Still unowned, now with numbers (`measurements.md#voice-evidence-round-trip-first-ever`, `rejected.md#signing-before-a-cold-start-cannot-authenticate`).
+
+**The command, once env is set:** `node scripts/first-clone.mjs /path/to/voice.wav "Name"`
+(input must be 24 kHz mono PCM16: `ffmpeg -i in.m4a -ac 1 -ar 24000 -c:a pcm_s16le out.wav`).
+
+## What is NOT live
+
+- **Voice QUALITY**: a consented reference HAS now been cloned and scored
+  (`first-real-clone`), but that is speaker-embedding similarity — **no ABX
+  bench has run**, and nothing may be claimed about how a clone sounds until
+  the bench in `docs/gurukul/research/voice-stack.md` does. The INSTRUMENT for
+  that bench now exists and is verified mechanically (WS-V,
+  `earbench-is-the-listening-instrument`, run instructions in
+  `docs/gurukul/EARBENCH.md`, one command: `node scripts/earbench.mjs stimuli`
+  → `listen` → `score`). **No human has listened through it**
+  (`no-human-has-listened`), and its two network reads — the Supabase reference
+  and the Azure synthesis — have never run for want of credentials. Note the
+  defect it surfaced: every synthesised clip SPEAKS the disclosure sentence and
+  so unblinds any listening test unless trimmed
+  (`disclosure-announces-the-clone`). Cold start (161 s
+  ready, 504 at 242 s for the runtime; 176 s for `voice-evidence`) still needs
+  a warm-up before any user-facing use — and the two lanes fail differently:
+  the GPU RUNTIME times out behind its broker, while `voice-evidence`, which
+  has no broker, is rejected **401** because the HMAC window is 60 s
+  (`hmac-skew-shorter-than-cold-start`,
+  `broker-healthz-is-a-front-door-not-a-readiness-check`). The studio panel now
+  owns the first of those (`preview-cold-start-is-a-state`); the processing
+  worker does not yet own the second.
+- **Ingestion**: the statistical half now runs on a real transcript and
+  produces a real sheet draft with 92 real gaps. Two things it does NOT do:
+  the LLM qualitative pass is still a seam, and the code-switch signal reads
+  **0.000** on visibly bilingual speech because `HINDI_MARKER_WORDS` is
+  romanised while Sarvam returns Devanagari
+  (`romanised-lexicon-meets-devanagari-asr` — deliberately unpatched, it is a
+  choice between three options and needs a bench, not a guess).
+- ~~**"Preview my voice"** (WS-W): ... **Nothing has been synthesised through
+  it.**~~ **STALE as of WS-AR, 2026-08-27 — real audio now synthesised through
+  the real deployed path.** `AZURE_OPEN_VOICE_ORIGIN` + `OPEN_VOICE_HMAC_SECRET`
+  are set (session log, 22:20Z), and the fifth stacked blocker (the enrollment
+  sample-rate mismatch, see above) is fixed and proven end to end on the
+  owner's real replica: `handleVoicePreviewPanel` returned real audio, 24 kHz
+  mono PCM16, `state='sealed'` (`measurements.md#wav-format-unsupported-fixed-
+  and-proven-end-to-end`). The 12 s flush window / cold-start assumption is
+  now measured too: the cold start this session hit was ~3.5 min end to end
+  (dispatch to audio), consistent with the ~161 s GPU-ready figure elsewhere in
+  this file. What is NOT yet proven: the actual browser panel UI driving this
+  same call — this session called `handleVoicePreviewPanel` directly with real
+  collaborators, not through a browser hitting `/api/voice-preview`, so the
+  request/response wiring at the HTTP layer (auth via `requireUser`, body
+  parsing, CORS) remains `evals/voicepanel.mjs`-gated-offline rather than
+  browser-verified.
+- **The audio protection service** (WS-AL): `services/audio-protection` is
+  **DEPLOYED AND SERVING** on Azure, which it had never been despite appearing
+  in `ENV-MANIFEST.md`. That absence was the root cause of the owner's "Preview
+  my voice" 500 (`audio_protection_origin_required`), under three code defects
+  that were fixed the same day. All three endpoints answer on the serving
+  revision `vyakti-audio-protection--0000002`, the watermark is
+  **independently** detectable at confidence 1.000000 against a 0.000000
+  negative control, and a cold start from true zero is **35.6 s with the
+  triggering request returning 200** — where the GPU voice lane's is 161 s with
+  the triggering request dying at 240 s. Numbers, method and n:
+  `measurements.md#audio-protection-cpu-serving`. Full deployment state:
+  `docs/gurukul/AZURE-DEPLOY-STATE.md` section 14.
+  **The one remaining step is an owner dashboard paste**: five environment
+  variables on `vyakti-replica-lab` and a redeploy
+  (`audio-protection-vercel-env-not-written`). This session has no Vercel
+  env-write tool and the preview route is behind `requireUser`, so the last
+  link could not be closed here and is not claimed to be. Two decisions carry
+  reversal conditions rather than being silent flag flips:
+  `decisions.md#audio-protection-cpu` and `decisions.md#audio-protection-ingress`.
+  The costly lesson is `rejected.md#a-green-build-and-a-green-healthz-can-both-lie-about-a-model`.
+- **The Context Locker** (WS-AB, the universal "bring your context" lane):
+  `/api/context-items`, `api/_context-locker.js`, `api/_context/*`, migration
+  058, `src/studio/ContextLockerPanel.tsx` (MOUNTED in StudioApp.tsx, both
+  modes, after EnrollmentWorkspace). Code-complete and gated offline
+  (`evals/contextlocker.mjs`, 77 checks with three negative controls: a
+  fabricated citation, an uncited addition, and a wrong-speaker chat export).
+  **Nothing is live.** Migration 058 is unapplied and no statement in it or in
+  the lane has ever been EXPLAINed — this environment has no `NEON_URL` and no
+  `api/_config.js`, so the relational gates were skipped
+  (`offline-mocks-cannot-type-check-sql` applies in full), so every request to
+  `/api/context-items` will 500 until 058 is applied. The matrix of what is
+  accepted, refused and routed is `docs/gurukul/context-locker.md`.
+- **The Activity surface** (WS-AF, the owner's "we should see all the other
+  processing going on, in a user view"): `/api/replica-activity`,
+  `api/_replica-activity.js`, migration **060**, `src/studio/ActivityPanel.tsx`
+  + `activity.css` + `activityApi.ts`. Code-complete and gated offline
+  (`evals/replicaactivity.mjs`, 221 checks, wired into `evals/run.mjs`, with a
+  negative control for the no-fake-progress rule and one for the deployment
+  alternation). It normalises all seven async lanes to one job shape and emits
+  `progress` for exactly ONE of them (the 8-step enrollment DAG); the other six
+  return null and words. **Nothing is live.** Migration 060 is UNAPPLIED and no
+  statement in it or in the read has ever been EXPLAINed — this environment has
+  no `NEON_URL` and no `api/_config.js`, so the relational gates were skipped
+  (`offline-mocks-cannot-type-check-sql` applies in full) and every request to
+  `/api/replica-activity` will 500 until 060 is applied. It is NOT mounted:
+  WS-AE owns `StudioApp.tsx` and left a named slot
+  (`ProcessingStatusMount.tsx`, `where="feed"|"meet"`); the five-line swap is in
+  `docs/gurukul/UX-QUEUE.md`. Two lanes that reported nothing at all now do:
+  `vy_channel_watch` records its sweep outcome and reason
+  (`a-fresh-timestamp-is-what-success-looks-like`) and `vy_ingest_run` keeps the
+  video TITLE (`a-video-id-is-not-a-name`).
+- **Student app**: built behind `VITE_PRODUCT_SURFACE=gurukul-student`, not
+  deployed as its own project.
+- **Channels** (WS-N, "deploy the clone anywhere"): the binding layer, the
+  embeddable widget (`/embed.js` + `/api/clone-chat`) and the studio Channels
+  step are code-complete and gated offline (`evals/clonechannel.mjs`, 64
+  checks). Nothing is LIVE: migration 055 is unapplied, the widget refuses
+  without `CLONE_WIDGET_SESSION_SECRET`, and no credentialed channel can be
+  connected until a secret store is configured (`CHANNEL_SECRET_BACKEND`
+  defaults to `none` and refuses). No byte has left this process on any wire.
+  Instagram DM is deliberately NOT built — `docs/gurukul/INSTAGRAM-DM-GAP.md`.
+- **Mirror Call** (WS-Y, the Call tab): the studio surface is code-complete and
+  gated offline (`evals/mirrorcall.mjs`, 63 checks, wired into `evals/run.mjs`)
+  — connect/end, ≤30s cascade windows, live captions, TWO labelled fidelity
+  meters (measurement vs the ~10s conditioning window, per WS-Z's Chatterbox
+  code read), a delta-chip rail capped at three chips a minute with each chip
+  carrying its evidence count, per-turn 👍/👎 with an "I'd say it like this"
+  re-record, and
+  honest states for GPU warming / dropped ASR windows / an absent backend. What
+  is NOT true of it: it has never spoken to a running `api/mirror-call.js` —
+  WS-X's branch was not on origin when it landed
+  (`mirror-call-contract-unverified`) — and the microphone, the multipart
+  ingest and the audio playback have never run in a browser here. The screen
+  renders its own "backend not deployed" state rather than a mock, so the
+  untested half fails visibly rather than convincingly. Contract to satisfy:
+  `src/studio/mirrorCallApi.ts`, which is the only file in the UI that knows a
+  route or a JSON key.
+- **A production-grade fine-tune**: the lane is built and works, but the only
+  number is from **62.1 s** of speech against a **≥30 min** community
+  recommendation, on **n=1 speaker**, with no held-out set and no ABX
+  (`finetune-30min-corpus-unmeasured`). Note also that p10 PEAKS at 15 epochs
+  and falls by 60 while the mean keeps rising — 60 epochs is not established as
+  the right stopping point.
+- **Fidelity thresholds**: still provisional and nothing is benched against
+  ElevenLabs — but they now have one real anchor. On the owner's own voice the
+  self-vs-self ceiling is 0.8869, so the 0.85 `target` sits just under the best
+  the scale reaches for that speaker (`fidelity-needs-its-ceiling-printed`).
+  The x-vector family cannot serve as a second opinion at all: raw cosine over
+  it returns 0.997 and is saturated.
+- **A persistable fidelity row**: `recordOwnedFidelity` needs a voice profile
+  ref, which needs `biometric` consent, which `consentScopes` grants only
+  through a live challenge. A score can be computed today; it cannot be stored
+  or clear the activation gate without a human doing liveness.
+- **The Mirror Call backend** (WS-X, `api/mirror-call.js` + `_mirrorcall*.js`,
+  migration 058, `mirror-call/v1`): code-complete and gated offline
+  (`evals/mirrorcall.mjs`, 452 checks, wired into `evals/run.mjs`). NOTHING is
+  live. Migration 058 is UNAPPLIED and no statement in this lane has ever
+  executed against a database — the offline cover is `evals/sqlcast`'s strict
+  surface (types, statement shapes) and a DDL walk for erasure reach;
+  `scripts/relcheck.mjs` has not run. Three lanes inside it are deliberately
+  dark and say so on every response:
+  - the **voice loop** withholds every window with
+    `consent_scope_missing:training` (the modelling scope needs the liveness
+    challenge nobody has passed) and then, even with consent, with
+    `own_voice_unverified` — admission requires a MEASURED ECAPA cosine to an
+    enrolled profile and no scorer produces one yet. So the candidate pool is
+    empty, no conditioning window is ever selected, and the fine-tune queue
+    stays empty. All four states are named on the wire.
+  - ~~the **clone's reply** is not built~~ — **BUILT by WS-AC** (see below).
+  - the **conditioning score** is a server-side WAV probe, not ECAPA, and
+    `score_source` says so on every row and every payload.
+- **The clone's reply inside a Mirror Call** (WS-AC, `api/_mirrorcall-reply.js`,
+  migration **060**, `vy_mirror_turn`): the owner speaks and the clone answers
+  back, in text and in the owner's own cloned voice. Code-complete and gated
+  offline (`evals/mirrorcallreply.mjs`, 110 checks with four negative controls:
+  a sheetless replica that a cooperative reply function cannot coax a turn out
+  of, a struck owner clause that DOES leak the sheet, a disclosure-stripped clip
+  that is refused, and a FORKED synthesis path whose watermark proof does not
+  bind and is refused). What it does:
+  - `ingest_window` assembles the reply from the owner's own TeacherSheet
+    through `gatedReply` — the one door — and returns it as the `turn` object
+    the studio captions. No fallback persona exists in the file; a replica with
+    no sheet gets `turn: null` and `clone_sheet_absent`
+    (`mirror-call-reply-is-the-one-door`).
+  - no PUBLISHED sheet means the DRAFT sheet replies, with `sheet_source` on
+    the row and on every payload
+    (`mirror-call-answers-from-the-draft-sheet-and-says-so`).
+  - `turn_voice` is **served** (it answered 501 in WS-X's tree) and synthesises
+    through WS-W's `handleVoicePreviewPanel` unforked — same HMAC, same audible
+    disclosure prefix, same watermark, same ledger, same 202-warming contract
+    passed through byte for byte (`mirror-call-synthesis-is-reused-not-forked`).
+    `MIRROR_CALL_UNSERVED_OPS` is now empty.
+  - `status` was already served by WS-X and remains so.
+  **NOTHING IS LIVE.** Migration 060 is UNAPPLIED, no statement in this lane has
+  ever executed against a database (`NEON_URL` and `api/_config.js` are absent
+  here, so the relational gates were skipped and `offline-mocks-cannot-type-
+  check-sql` applies in full), and **no clone has ever spoken a Mirror Call turn
+  aloud** — the synthesis half inherits every blocker on §"Preview my voice"
+  above, including `AZURE_OPEN_VOICE_ORIGIN` / `OPEN_VOICE_HMAC_SECRET`
+  (`mirror-call-reply-never-ran`). Without them `turn_voice` answers **503
+  `open_voice_origin_required`**, and `can_voice` is false on every turn with
+  `voice_absent_reason: "voice_route_unconfigured"` so the studio says why.
+
+## Open owner items
+
+1. **Push `claude/gurukul-platform` and redeploy the studio.** The upload
+   finalize fix is committed and the deployment is behind it, so today every
+   real upload still dies at 409 `storage_metadata_incomplete`.
+2. Google App Password → SMTP (removes the email rate cap).
+3. Rotate everything pasted into a chat transcript: Neon password, Supabase
+   keys + management token, Azure SP secret, Google OAuth secret, and the two
+   keys flagged in `session-2026-08-25b-close`.
+4. Azure GPU quota, if the deploy agent reports the subscription has none.
+5. Apply migrations 055, **058** (the context locker), **059** (the Mirror Call)
+   and **060** (the Mirror Call's clone turns — without it every
+   `ingest_window` returns `turn: null` with `clone_reply_failed` and
+   `turn_voice` 404s), and set
+5. Apply migrations 055, **058**, **059** (the Mirror Call) and **060** (the
+   Activity surface: `vy_replica_activity`, `vy_ingest_run.video_title`, the
+   three `vy_channel_watch` sweep columns), and set
+   `CLONE_WIDGET_SESSION_SECRET` (≥32 chars,
+   `openssl rand -base64 48`) — without it the embeddable widget is off.
+6. Decide the channel secret store: set `CHANNEL_SECRET_BACKEND=azure-keyvault`
+   plus `AZURE_KEY_VAULT_URL` / `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` /
+   `AZURE_CLIENT_SECRET`, or accept that Telegram and WhatsApp channels cannot
+   be connected. Web widget and embed need none of it.
+   (`docs/gurukul/ENV-MANIFEST.md` §15c.)
+7. **Set `AZURE_OPEN_VOICE_ORIGIN` and `OPEN_VOICE_HMAC_SECRET` on Vercel** —
+   both recoverable from the container app's `listSecrets` (see this file's
+   own §"Secret recovery"). Until they exist, `/api/voice-preview` answers
+   `503 open_voice_origin_required` and the studio panel can never produce
+   audio. This is the single blocker on the first owner ever hearing their own
+   clone in a browser.
+
+8. **Decide whether the broker gets a cheap readiness route.** Today nothing in
+   the app plane can wake or observe the private GPU runtime except a real
+   `POST /v1/synthesize`, so every cold start costs a wasted synthesis. A
+   `POST /v1/warm` on `services/open-voice-runtime/broker.py` would remove
+   that; it is a service change, not an app-plane one, and was deliberately not
+   guessed at (`rejected.md#broker-healthz-is-a-front-door-not-a-readiness-check`).
+
+9. **Decide the YouTube lever** — the one blocker on "paste a link and get a
+   clone" working for anybody. Extraction from Azure is refused at the bot
+   check and lever 1 is measured dead
+   (`measurements.md#youtube-extraction-blocked-from-azure`). The remaining
+   two both cost something and are the owner's call, not an engineer's:
+   **cookies** (a YouTube account's cookie jar — and the sources warn the
+   account itself tends to get banned when used from a datacenter IP), or a
+   **residential proxy** subscription. A third option nobody has costed: a
+   PO-token provider plugin. Until one lands, the honest product answer is the
+   one the studio already gives — download your own video from YouTube Studio
+   and upload the file — and the CHANNEL LISTING lane works today regardless.
+10. **Apply migration 060** (single-video enrollment) alongside 055 and 058.
+11. **Set `AZURE_MEDIA_EXTRACT_ORIGIN` and `MEDIA_EXTRACT_HMAC_SECRET` on
+    Vercel.** The service is live and the app plane cannot reach it without
+    them; both are recoverable from the container app's `listSecrets`, the same
+    way §"Secret recovery" describes for the voice pair.
+## The laws a new session must not relearn
+
+- `offline-mocks-cannot-type-check-sql` — a mocked DB proves control flow, not
+  types or referential integrity. Smoke-test every lane against the real
+  database before calling it done.
+- `aliveness-was-unreachable-not-meera-bound` — a seam can be complete at both
+  ends and still be dead because nothing passes the argument between them.
+  Before calling a capability "wired", grep for a CALLER, not a definition.
+  database before calling it done. A mock cannot even tell you the statement
+  PARSES: three shipped queries were 0A000 and had never executed once
+  (`statement-shapes-postgres-will-not-parse`). EXPLAIN it — one round trip,
+  no write (`explain-is-the-only-parser-we-have`).
+- `coverage-lists-that-enumerate-a-subset` — a coverage check is only as wide
+  as the thing it enumerates, and fixing ONE enumeration teaches you nothing
+  about the others in the same query. When you widen one, list every other
+  enumeration alongside it and widen or justify each.
+- `gurukul-no-production-glob` — a feature branch must never match another
+  product's deploy trigger.
+- `track-lists-must-not-assume-a-child-exists` — a grid or flex track reserved
+  for a child collapses the column the moment that child is deleted, and NO
+  overflow check can see it, because a collapsed column overflows nothing. Nine
+  such rules were found in `src/studio/`. Guard the rail with `:has()`, or pin
+  the children to their columns explicitly. `scripts/check-layout.mjs` holds it
+  and its negative control is written in its header.
+- `a-check-must-be-able-to-reach-the-screen-it-judges` — the layout gate pointed
+  at signed-out `/studio` measured six blocks of sign-in copy and reported OK
+  against the exact bug that shipped. Assert COVERAGE in every gate, and pair
+  the assertion with a way to satisfy it that needs no secret: the answer here
+  was `studio-layout-fixture.html`, the real components against fixture props.
+- `a-media-query-cannot-see-a-narrow-container` — the studio's content column is
+  276px narrower than the viewport because the rail is beside it. Breakpoints
+  written against the viewport fire in the wrong place. Use
+  `repeat(auto-fit, minmax(min(100%, N), 1fr))`, which asks the container.
+- `layer-order-must-survive-the-minifier` — LightningCSS strips a standalone
+  `@layer a, b, c;` statement. That inverted the studio's cascade and shipped
+  every primary CTA at 1.73:1 contrast. The order is declared in an inline
+  `<style>` in `studio.html`'s head; if you change the layer names, change it
+  there too.
+- `recited-prompt` / `prompt-position` — write shapes, never lines; position is
+  mechanism.
+- Isolation is a SQL predicate, never a prompt instruction.
+- Every claim is measured or it is marked unverified. No offline numbers in
+  `measurements.md`.
+- `aliveness-was-unreachable-not-meera-bound` — "is this module generic" is the
+  wrong question. Name the CALL SITE that reaches it with a non-default agent;
+  a grep with no hits means the feature does not exist for that agent.
+- `clone-initiative-record-has-no-absence` — a clone may speak first only on a
+  citable reason. Silence, gaps and streaks are not inputs the predicate HAS.
+  Do not re-add a silence-triggered ping in any form, on any surface.
+  `measurements.md` — with one narrow exception added 2026-08-26: a measurement
+  OF A PROMPT'S OWN TEXT (`exdialog-surface`) is exact rather than a proxy, and
+  is admitted with its scope line stated before the numbers. A number produced
+  against a MOCKED DATABASE is still not admissible as a product measurement,
+  and `surface-switch-recall` says so in its own entry.
+- **Memory is never keyed by surface** (`api/_surface.js` §4). Retrieval
+  violated this until 2026-08-26 and lost 89.2% of recall on a surface switch;
+  the legacy FORGET lane violated it until later the same day
+  (`forget-follows-the-person` closed `legacy-forget-is-device-scoped`; live
+  eval `evals/forget/crosssurface.mjs --live`, 39/39 with negative controls).
+- A mock branch keyed on a TABLE NAME will one day answer a different query
+  than it was written for, and a mock that OVER-RETURNS hides real defects while
+  every assertion stays green
+  (`router-matched-a-table-instead-of-a-statement`).
+
+## Session log
+
+Append-only. One line per workstream, newest at the bottom. This lives at the
+END of the file on purpose: the merge helper unions append-only regions, so a
+line added here by two agents at once merges cleanly, while a line added to the
+header stacks up. See the header for the full reason.
+
+- **WS-W** — "Preview my voice" — the owner-facing panel, and the cold start told honestly
+- **WS-AL** — the audio protection service deployed and serving; "Preview my voice" is one dashboard paste from real audio
+- **WS-U** — per-speaker fine-tuning built, and its delta measured
+- **WS-X** — the Mirror Call backend — approval as one SQL clause, and a voice loop that selects rather than accumulates
+- **WS-AC** — the clone answers back — the Mirror Call reply lane, and a synthesis path reused rather than forked
+- **WS-AD** — media-extract deployed to Azure and run against real YouTube — the bot check is REAL and measured; the one-link enrollment lane built around it
+- **WS-AF** — the Activity surface — every async lane in one honest shape, and the two lanes that were reporting nothing
+- **WS-AK** — the processing worker deployed as an Azure Container Apps Job — and the commit statement that had never once written a piece of evidence
+- **WS-AN** — `transcribe` rewired onto Sarvam (owner directive, no Azure Speech account) and shipped to production via a real ACR build + Container Apps Job patch; DAG position re-measured on the owner's real upload and it now stops at `separate` (terminal, pre-existing, unrelated to ASR), with `SARVAM_API_KEY` still needing a paste from Vercel to Azure
+- **WS-AM** the studio made readable: nine track-list rules that reserved a column for a child that no longer exists, and a layout gate that can finally see the signed-in screen
+- **WS-AO** — `separate` windows to the owner's own diarized speech instead of the whole recording — proven on the owner's real 822.7 s upload, which now clears `separate` and `enhance` and stops at `transcribe`, still `asr_unconfigured` pending `SARVAM_API_KEY`; also caught and corrected a same-resource deploy collision with WS-AN's concurrent image push
+- **main-session 22:20Z** — the Sarvam key is ON the Azure job (verified by GET: `SARVAM_API_KEY` -> `secretRef=sarvam-key`, five secrets intact, ten sibling env vars untouched, provisioningState Succeeded). Every owner paste is now done. The pipeline has no known configuration blocker left, and steps 5 to 8 have still never run against a real file.
+- **WS-AP** — one honest next action, and the sticky pager that was deleted rather than fixed a third time. `goStep` no longer changes step unconditionally; `WizardRail`/`CompactRail` (always visible, never pushing) are now the ONLY forward navigation in the studio, after the owner directive to delete `.wizard-pager`/`StepPager` outright rather than shrink or gate it — its two prior fixes (stop it covering content; gate its Next button on step readiness, `wizardModel.pagerAction`) were each correct against their own diagnosis and each drew the same complaint back, which is `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`. A `PlatformWorkBanner` now sits under every step's head so processing state is visible with no scroll at 390/834/1355px; `jumpTo` moves real DOM focus (`tabindex="-1"`, `.focus()`, an `aria-live` announcer) rather than only scrolling, for blocker "Go there" links and the top-level error banner. Reclassified `voice_genome_not_approved` from `platform` to `you` (`context/decisions.md#voice-genome-approval-is-the-owners-turn-not-the-platforms`) after a production run showed "Preview my voice" saying "waiting on us" while the true blocker was the owner's own unreviewed evidence; `VoicePreviewPanel` now reads `wizardModel.voicePreviewBlockReason` instead of hardcoding its class. Fixed three more measured production defects: the Voice-versions counter reading "0 / Not built yet" against a real draft genome (query was approved-only scoped; added an unscoped `vg_latest` join, EXPLAINed and executed live — and caught its own backtick-inside-template-literal syntax bug before any gate ran, `context/measurements.md#replica-runtime-genome-latest-query-explained-live`); the Activity panel's "Look at the build" tap doing nothing (`onAct` was never wired; now navigates to Processing Review); and the GPU cold-start wait resetting on a tab switch/reload (now persisted to `sessionStorage` and re-attached on remount instead of restarted). Also fixed: the duplicate "Where each upload is right now" heading (`ActivityPanel`'s own `<h2>` plus its host `Band`'s identical title; added a `showHeading` prop) and "Sent to the channel lane lane" (`routed_to` already carries `_lane`, `api/_replica-activity.js` appended the word again). `node scripts/verify-release.mjs` 14/14 with `NEON_URL` set; negative controls proven both ways (reintroducing the sticky pager markup produces 18 `pager-returned` findings in `scripts/check-layout.mjs`; the pre-fix unconditional-advance shape is still asserted failing in `evals/studiowizard.mjs`). No approve-a-genome endpoint exists anywhere in `api/` — noted, not built, out of scope for a UX workstream.
+- **WS-AR** — the "Preview my voice" `wav format unsupported` bug, confirmed and fixed at its real source: `services/voice-evidence/app.py`'s `_enhance` always emitted 48 kHz while `probeEnrollmentWav` always required 24 kHz, and 23 real dated `vy_replica_generation` rows on the owner's replica prove this failed for real, repeatedly, before this session. Fixed by resampling with `torchaudio.functional.resample` inside the service (never a hand-rolled decimator in the API layer), deployed to production (`voice-evidence@sha256:b2e2b74349ee8d1e2f3d346ea5bf070a5dcf4808ca8b4cd39845ae20dbd83914`), and **proven end to end**: a real 24 kHz enrollment artifact regenerated through the real Container Apps Job, and a real call through the real `handleVoicePreviewPanel` returned **200, 266,924 bytes, 24 kHz mono PCM16, 5,560 ms, `state='sealed'`** (disclosure + watermark intact) — the first real audio this call path has ever returned. Added `scripts/check-enrollment-sample-rate.mjs`, a new `verify-release.mjs` gate that mirrors the enrollment rate across all four sites that name it and fails if they disagree, with a negative control (`measurements.md#wav-format-unsupported-fixed-and-proven-end-to-end`, `decisions.md#enrollment-artifact-resamples-to-24k-inside-enhance`, `rejected.md#revision-bump-cannot-be-partial-across-the-dag`). `voice_quality` on this one replica is left `failed` (`voice_evidence_input_count_invalid`, a side effect of this session's verification method, not a product defect — see `rejected.md#voice-quality-cannot-see-a-partial-artifact-generation`); it does not block preview, which never reads `voice_quality`'s output. **Adjacent finding, NOT fixed here, flagged for a separate workstream**: `api/_replica-voice-profile.js`'s `selectAzureEnrollmentArtifacts` requires ≥30 s of enrollment audio (a real Azure Personal Voice vendor minimum, also enforced independently in `api/_voice/providers/azure-personal-voice.js`), but WS-AO's best-window fix now produces exactly one ~10 s window per source. This is real but unreached today: the whole Azure Personal Voice lane sits behind identity/liveness verification, which is still DARK pending Microsoft approval, and it is a DIFFERENT code path from the one this session fixed (`beginOwnedVoicePreview` never calls `selectAzureEnrollmentArtifacts`). The selector also structurally caps at ONE artifact per source_id, so even multiple ranked windows from the SAME recording would not combine to reach 30 s without a second change to that dedup logic — not a one-line fix.
+
+- **WS-AQ** — `REPLICA_SELF_TEST_MODE` (default off): a self-mode replica's identity/liveness/consent and evidence/artifact review are auto-granted through the real `acceptAllOwnedEvidenceForSelfTest`/`selectOwnedVoiceArtifact`/`queueOwnedVoiceGenome` code paths as its sources reach `ready`, tagged in `metadata` for one-query revocation (`scripts/revoke-self-test-grants.mjs`), proven live both ways (flag on clears all 4 gates and queues a draft build; flag off/absent leaves all 8 blockers and a 409, unchanged) — `docs/gurukul/REPLICA-SELF-TEST-MODE.md`
+- **WS-AS** — confirmed the owner's exact diagnosis: `separate` (`sepformer-whamr16k`, 16 kHz Nyquist) ran on EVERY recording and destroyed 4-10 kHz before `enhance` ever saw a sample; measured 0.000458% energy at/above 8 kHz on the real broken reference. Fixed by skipping `separate`'s GPU model when diarize shows one dominant speaker (>=90% share) and cutting the reference window fresh from the ORIGINAL recording at 24 kHz instead — measured 0.0224% after (~49x), real FFT, real owner source (`measurements.md#enrollment-reference-bandwidth-before-after`, `decisions.md#separate-skips-below-16khz-when-diarize-shows-one-dominant-speaker`). Also answered the coordinator's escalated Q1 ("is any cloning happening at all") directly against the real deployed Chatterbox broker: same text/seed/style, three different references, three different outputs (byte length AND hash all differ) — the reference DOES condition synthesis. Added `scripts/check-enrollment-bandwidth.mjs` (real radix-2 FFT, no dependency) as a new `verify-release.mjs` gate with a negative control, recalibrated once against real measurements after a clean-speech-intuition guess (1.5%) failed the real fix (`rejected.md#bandwidth-threshold-first-guess-was-miscalibrated`). Did NOT get a real ECAPA fidelity number — `voice-evidence` has no external ingress from this session (confirmed 404) and no image rebuild was done, so this session cannot claim a cosine similarity, only the bandwidth measurement above. Found but explicitly did NOT fix, flagged for whoever owns it: the production preview ledger (`neon-ledger.js`) structurally cannot open for ANY preview generation on a replica without an active runtime capability, because a preview's `voice_profile_id` is always NULL while the capability table's matching column is NOT NULL — unrelated to reference quality (`rejected.md#preview-ledger-requires-activation-this-replica-does-not-have`). DeepFilterNet3 on-vs-off was NOT measured (`rejected.md#deepfilternet3-on-vs-off-not-measured-this-session`) — the fix lives entirely in `api/_replica-processing/*`, so the deployed `vyakti-replica-processing` job has NOT picked it up (no ACR rebuild done this session); a real end-to-end pipeline run through the deployed container is still needed before this is proven beyond the locally-run code path. Generated clip at `scratchpad/q1-direct-AFTER.wav`.
+- **main-session 03:45Z** — merged WS-AM/AN/AO/AP/AQ/AR/AS; journey 15/15; 16 gates; REPLICA_SELF_TEST_MODE turned ON live on the Azure job; the owner heard their clone and rejected it as not sounding like them, which opened the reference-quality investigation now recorded at the top of this file. WS-AT dispatched to deploy the fix and get a real similarity number.
+- **main-session 06:35Z** — shipped signed TUS/multi-file enrollment, 1-2 h disk/chunk processing, the corrected 24 kHz reference worker (`sha256:192e7372...91a1`), Vyakti legal/landing fixes and agent-scoped DM/room memory. Vercel production is `READY`; migration 064 is live; real Postgres relcheck 34/34, binding 62/62 and Telegram handler 101/101 passed; the deployed worker smoke succeeded in 29 s. The owner's real source remains ready with 8/8 jobs complete and VoiceGenome v2 draft. A fresh v2 same-text Hindi preview is 263,084 bytes, 24 kHz mono and PerTh-verified. Supabase refused the 1 GiB per-bucket setting because it exceeds the project global limit; no plan purchase was made.
+- **self-test-guard workstream** — replaced the late global one-boolean ceremony bypass with an owner-bound three-part guard, added pre-upload bootstrap for all six private source/model scopes, preserved the real technical processing gates, wired the worker Bicep opt-in and added 15 fail-closed checks. **LIVE for the allowlisted owner**: Vercel deployment `dpl_5j6gAQ8mxs8FsJHLhZq2QGnBoSWy` is `READY`, Azure ACR run `cu18` produced worker digest `sha256:51663ce8...9200a8`, and the scheduled 13:00Z execution pulled that digest and succeeded. The Studio is the two-step Add sources / Test your clone surface; the five source types are choices, not gates. No voice-genome approval endpoint exists, so private draft preview is the end of the automatic path.
+- **owner Meet preview workstream** — refined the exact self-test voice path into three script-truthful Hindi, Hinglish and English choices over the two real runtime ids, one honest 202 warm-up surface and one protected result/correction loop. Verified the real signed-in fixture at 1440 by 1000 and 390 by 844 with zero mobile horizontal overflow; focused UI gate 9/9, typecheck, lint and build passed. Frontend and fixture only; no deploy, model-quality claim, backend, infrastructure, secret or Docker change.
+- **main-session 05:27 IST** — shipped the offline OpenVoice runtime, multilingual text-plan runtime/broker/web release and migration 065. All 16 release checks passed; the live named Neon constraint is validated at 2,048 bytes. The exact authenticated owner Hinglish journey crossed a real scale-to-zero start and sealed generation `cf3be95e...` with 33 protected segments, empty failure code and audio/watermark/manifest hashes; the production browser has one controlled audio element. This proves delivery and provenance, not acceptable likeness or Hindi quality. Local Docker remained untouched.
+- **IndicF5 normalized qualification workstream** — temporarily activated immutable eval digest `sha256:367927...6729` only on the isolated private min0/max1 lane, sealed one canary plus six owner-bound matched Hindi/Hinglish clips, and restored the eval template to r7 with every Indic revision and gate inactive at zero. Five controls were byte-identical; the changed equation improved private Azure Speech symbol errors 4/4 to 2/4 and numerals 3/5 to 0/5, aggregate raw WER 0.327586 to 0.321839, and ECAPA mean 0.824822 to 0.827428 with p10/worst unchanged. Exact model commitment, HMAC and PerTh passed; no listening, unsealing, production routing, local Docker or quality-win claim.
+- **Exact-text matched owner pack workstream** - sealed six protected owner clips across Chatterbox, Qwen, VoxCPM2 and IndicF5 r7 using one reference, consent, seed and per-language text. Eight bounded attempts reserved USD 4.00; six succeeded and two named warm-up attempts produced no audio. The strengthened receipt verifier, 18/18 seal checks and private-route isolation passed; all related apps returned to zero. Mapping remains sealed, no audio was played and no quality winner exists.
+- **VoxCPM2 owner-adapter preflight** - stopped before spend: the 109-minute source hash matches the named Alakh Pandey lecture, while all six live consent scopes and evidence approvals are self-test account auto-grants with no speaker evidence binding. The runtime contract already marks this lecture third-party stress data with training denied. USD 0 spent; no split, build, GPU, synthesis, route change, local Docker, listening or unsealing. Owner action is 5-10 clean transcript-aligned minutes of the owner's own speech with verified training consent and a server-verified hash.
+- **India-native base to OpenVoice conversion workstream** - the fresh receipt-canonicalization run remotely built exact runtime digest `sha256:ba777...eb64`, verified live source/model commitments, and completed exactly two signed IndicF5-to-OpenVoice conversions with PerTh 2/2. Objective n=2 comparison rejected the converter: mean ECAPA fell 0.726677 to 0.680976 and script-aware WER worsened 0.303571 to 0.375. Four opaque base/converted stimuli are sealed only for later blinded diagnosis; no listening, unseal, winner, production route or local Docker. This run reserved USD 22 of its USD 30 ceiling, combined USD 42 across both runs, and converter, gate and evidence apps are min zero, inactive and at zero replicas. The checked-in remote-build wrapper now derives the exact four-file source manifest and executable-tests Windows `.cmd` shim handling without `shell: true`; focused checks pass 22/22. The path remains unqualified.
+

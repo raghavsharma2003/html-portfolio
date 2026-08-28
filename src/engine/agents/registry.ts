@@ -4,6 +4,7 @@
 import type { AgentModule } from "./types";
 import { meeraAgent } from "./meera";
 import { kabirAgent } from "./kabir";
+import { demoTeacherAgent } from "./teacher";
 
 // Mirrors db/migrations/009_agents.sql's fixed constant — read directly out
 // of that file (its own header: "mirrored in db/schema.sql and (when it
@@ -23,6 +24,16 @@ const REGISTRY: Record<string, AgentModule> = {
   // every eval run. He has no vy_agent row yet — runtime use needs one;
   // compile-time gating does not.
   kabir: kabirAgent,
+  // Gurukul WS-A: the demo teacher (TeacherSheet on the same core). Registered
+  // for the SAME reason Kabir is — the per-module safety floor
+  // (evals/persona-invariants.mjs) asks the registry for what exists and runs
+  // safetyFloorChecks() against every entry, so registering is how a teacher
+  // module gets gated rather than trusted. He is FICTIONAL, has no vy_agent
+  // row and no consent artifact, and must not be reachable at runtime: WS-B's
+  // publish path is where a real teacher's consent row gates registration
+  // (docs/gurukul/safety-floor-teacher.md §2.2 — revocation deregisters the
+  // module rather than asking the clone to stop).
+  "teacher-demo-arjun": demoTeacherAgent,
 };
 
 // The default injected into compiler.ts's CompileInput.agent — keeps every

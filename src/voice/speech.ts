@@ -81,6 +81,14 @@ export interface VoiceOpts {
   elevenVoiceId?: string;
   sarvamKey?: string; // Sarvam AI — best-in-class for Hinglish (bulbul:v3)
   deviceVoice?: string; // voiceURI (web) or voice name (native) chosen in Settings
+  // Private replicas cross only the authenticated opaque boundary. Provider
+  // names, provider voice ids and credentials remain server-side.
+  replicaId?: string;
+  replicaToken?: string;
+  replicaChannel?: "studio_preview" | "private_chat" | "private_call";
+  // Private conversation speech is bound to server-generated dialogue text.
+  // Calibration previews may still send explicit held-out text.
+  replicaDialogueTurnId?: string;
 }
 
 // Default ElevenLabs voice: "Monika Sogam — Calm and Natural", the most
@@ -201,6 +209,45 @@ export const PROXY_VOICE_TAG = `gm-${MEERA_VOICE}`;
 const PROXY_SPEECH_URL = isNative
   ? "https://meera-silk.vercel.app/api/speech"
   : "/api/speech";
+const REPLICA_SPEECH_URL = isNative
+  ? "https://meera-silk.vercel.app/api/replica-speech"
+  : "/api/replica-speech";
+
+const replicaVoiceRequested = (opts: VoiceOpts) => Boolean(opts.replicaId || opts.replicaToken);
+const replicaVoiceConfigured = (opts: VoiceOpts) => Boolean(opts.replicaId && opts.replicaToken);
+
+interface ProxyVoiceRequest {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+}
+
+function proxyRequest(text: string, style: string | undefined, stream: boolean, opts: VoiceOpts): ProxyVoiceRequest | null {
+  if (replicaVoiceRequested(opts)) {
+    if (!replicaVoiceConfigured(opts)) return null;
+    const calibration = opts.replicaChannel === "studio_preview";
+    if (!calibration && !opts.replicaDialogueTurnId) return null;
+    return {
+      url: REPLICA_SPEECH_URL,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${opts.replicaToken}`,
+      },
+      body: {
+        stream,
+        replica_id: opts.replicaId,
+        channel: opts.replicaChannel ?? "private_call",
+        purpose: calibration ? "calibration" : "private_conversation",
+        ...(calibration ? { text, ...(style ? { style } : {}) } : { dialogue_turn_id: opts.replicaDialogueTurnId }),
+      },
+    };
+  }
+  return {
+    url: PROXY_SPEECH_URL,
+    headers: { "Content-Type": "application/json" },
+    body: { text, stream, ...(style ? { style } : {}) },
+  };
+}
 
 const hasAudioTags = (t: string) => /\[[a-z ]+\]/i.test(t);
 
@@ -762,8 +809,9 @@ const JITTER_MS = 150;
 // it from the phrase in hand — see `pickEngine`. Re-deriving here was the other
 // half of the per-phrase split: the first phrase could take the streaming proxy
 // path while a later, tag-carrying phrase went to ElevenLabs.
-function usesProxyVoice(engine: SpeakEngine): boolean {
-  return proxyStreams && engine === "proxy";
+function usesProxyVoice(engine: SpeakEngine, opts: VoiceOpts): boolean {
+  if (!proxyStreams || engine !== "proxy") return false;
+  return !replicaVoiceRequested(opts) || replicaVoiceConfigured(opts);
 }
 
 // Cleared the first time the proxy answers a streaming request with something
@@ -782,6 +830,7 @@ async function streamProxyClip(
   text: string,
   style: string | undefined,
   session: number,
+  opts: VoiceOpts,
   onFirstAudio?: () => void,
 ): Promise<boolean> {
   const ctx = audioCtx;
@@ -796,10 +845,12 @@ async function streamProxyClip(
   const mine: AudioBufferSourceNode[] = [];
   const t0 = Date.now();
   try {
-    const res = await fetch(PROXY_SPEECH_URL, {
+    const request = proxyRequest(spoken, style, true, opts);
+    if (!request) return false;
+    const res = await fetch(request.url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: spoken, stream: true, ...(style ? { style } : {}) }),
+      headers: request.headers,
+      body: JSON.stringify(request.body),
       signal: ctl.signal,
     });
     if (!res.ok || !res.body) return false;
@@ -908,14 +959,16 @@ async function streamProxyClip(
   }
 }
 
-async function meeraFetch(text: string, style?: string): Promise<Blob | null> {
+async function meeraFetch(text: string, style?: string, opts: VoiceOpts = {}): Promise<Blob | null> {
   const spoken = stripTagsForPlainVoice(text);
   if (!spoken) return null;
   try {
-    const res = await fetch(PROXY_SPEECH_URL, {
+    const request = proxyRequest(spoken, style, false, opts);
+    if (!request) return null;
+    const res = await fetch(request.url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: spoken, ...(style ? { style } : {}) }),
+      headers: request.headers,
+      body: JSON.stringify(request.body),
       signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) return null;
@@ -942,6 +995,7 @@ export async function speak(
   // and IS the voice for a fresh, keyless install.
   const cloudText = stripForCloud(text);
   if (cloudText) {
+    const isReplica = replicaVoiceRequested(opts);
     // ONE decision for the whole utterance, from the whole text — the same
     // `pickEngine` the call lane uses, so the chat lane and the call lane
     // cannot disagree about who she is. The tiers below it are FAILOVER, not
@@ -956,12 +1010,12 @@ export async function speak(
     // only when the engine above it returned no audio at all, which is a
     // different event from preferring a different vendor. Ordering the vendors
     // after her rather than before is the whole of the coordinator's decision.
-    const tries: Array<() => Promise<Blob | null>> = [
-      engine === "eleven" ? eleven : engine === "sarvam" ? sarvam : hers,
-    ];
-    if (engine !== "proxy") tries.push(hers);
-    if (engine !== "sarvam" && opts.sarvamKey) tries.push(sarvam);
-    if (engine !== "eleven" && opts.elevenKey) tries.push(eleven);
+    const tries: Array<() => Promise<Blob | null>> = isReplica
+      ? [() => meeraFetch(cloudText, undefined, opts)]
+      : [engine === "eleven" ? eleven : engine === "sarvam" ? sarvam : hers];
+    if (!isReplica && engine !== "proxy") tries.push(hers);
+    if (!isReplica && engine !== "sarvam" && opts.sarvamKey) tries.push(sarvam);
+    if (!isReplica && engine !== "eleven" && opts.elevenKey) tries.push(eleven);
     for (const attempt of tries) {
       const blob = await attempt();
       if (blob) {
@@ -970,7 +1024,9 @@ export async function speak(
         if (ok) return;
       }
     }
-    // all cloud attempts failed → device fallback below
+    // A replica may never fall through to a different human/device voice.
+    if (isReplica) return onEnd?.();
+    // all ordinary cloud attempts failed → device fallback below
   }
 
   // ── tier 2: device TTS, humanized ──
@@ -1082,6 +1138,7 @@ async function fetchClipFor(
   style: string | undefined,
   engine: SpeakEngine,
 ): Promise<Blob | null> {
+  if (replicaVoiceRequested(opts)) return meeraFetch(text, style, opts);
   if (engine === "eleven") return elevenFetch(text, opts);
   if (engine === "sarvam") return sarvamFetch(stripForDevice(text), opts);
   return meeraFetch(text, style);
@@ -1223,10 +1280,10 @@ export async function speakCall(
   // already hidden and they keep the simpler complete-file path (and the blob
   // cache that hangs off it). Streaming here buys the entire win.
   let from = 0;
-  if (!pre && usesProxyVoice(engine)) {
+  if (!pre && usesProxyVoice(engine, opts)) {
     // phrase 2 must not wait on phrase 1 finishing SOUNDING — start it now
     if (phrases.length > 1) fetches[1] = fetchClipFor(phrases[1], opts, style, engine);
-    const ok = await streamProxyClip(phrases[0], style, session, begin);
+    const ok = await streamProxyClip(phrases[0], style, session, opts, begin);
     if (session !== speakSession) return;
     if (ok) {
       from = 1;
@@ -1249,6 +1306,7 @@ export async function speakCall(
     if (i + 1 < phrases.length) await sleep(120 + Math.random() * 200);
   }
   if (!started) {
+    if (replicaVoiceRequested(opts)) return onEnd?.();
     // every clip failed → humanized device fallback via the normal path
     return speak(text, onStart, onEnd, opts);
   }
@@ -1307,7 +1365,7 @@ export function createStreamSpeaker(
     // is hedged otherwise (the engines that cannot stream keep the old cover).
     const awaitedInSilence = queue.length === 0 && !started;
     queue.push(
-      awaitedInSilence && usesProxyVoice(engine)
+      awaitedInSilence && usesProxyVoice(engine, opts)
         ? { streamText: clean }
         : awaitedInSilence
           ? hedgedClipFor(clean, opts, style, engine)
@@ -1333,7 +1391,7 @@ export function createStreamSpeaker(
         }
       };
       if ("streamText" in next) {
-        const ok = await streamProxyClip(next.streamText, style, session, begin);
+        const ok = await streamProxyClip(next.streamText, style, session, opts, begin);
         if (session !== speakSession) return;
         if (ok) {
           await sleep(100 + Math.random() * 160); // inter-phrase breath
@@ -1363,6 +1421,7 @@ export function createStreamSpeaker(
     pumping = false;
     if (session === speakSession && closed && !queue.length) {
       if (!started && allText) {
+        if (replicaVoiceRequested(opts)) return onEnd?.();
         // every clip fetch failed — she still speaks, via device TTS
         void speak(allText, onStart, onEnd, opts);
         return;

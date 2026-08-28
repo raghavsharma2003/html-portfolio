@@ -14,6 +14,7 @@
 // that forget's whole-wipe and api/export.js both iterate. A table someone
 // adds without listing it there would be invisible to forget AND export —
 // this check is where that omission fails loudly instead of silently.
+import { readFile } from "node:fs/promises";
 import { q } from "../api/_db.js";
 import { PERSON_TABLES } from "../api/memory.js";
 
@@ -179,6 +180,23 @@ mpCheck(
   `select count(*)::int n from vy_disclosure_grant where group_id is null`,
 );
 
+// Agent ownership must agree with the room row on every shared child. A
+// globally unique group_id is not a substitute for this assertion: a writer
+// can pair agent B with agent A's group and every single-column FK still
+// resolves. Migration 064 fixes address uniqueness; these checks hold the
+// persisted child rows to the same boundary.
+const roomAgentMismatch = (table, alias = "r") =>
+  `select count(*)::int n from ${table} ${alias}
+    join vy_group g on g.id = ${alias}.group_id
+   where ${alias}.group_id is not null and ${alias}.agent_id <> g.agent_id`;
+mpCheck("vy_group_member agent matches room", roomAgentMismatch("vy_group_member", "m"));
+mpCheck("vy_group_turn agent matches room", roomAgentMismatch("vy_group_turn", "t"));
+mpCheck("room vy_episode agent matches room", roomAgentMismatch("vy_episode", "e"));
+mpCheck("room meera_log agent matches room", roomAgentMismatch("meera_log", "l"));
+mpCheck("room vy_fact agent matches room", roomAgentMismatch("vy_fact", "f"));
+mpCheck("room vy_phrase agent matches room", roomAgentMismatch("vy_phrase", "p"));
+mpCheck("room disclosure grant agent matches room", roomAgentMismatch("vy_disclosure_grant", "d"));
+
 // Room isolation (§2.4 clause 4) reads group_id as a hint on derived rows;
 // a hint pointing at a room that no longer exists would make the clause
 // compare against nothing. No FK on hint columns (house law), so sweep it.
@@ -258,16 +276,63 @@ const EXEMPT = {
     "only next to the table it excuses is an argument nobody reviewing this " +
     "gate will ever read.",
 };
+//
+// WS-R: THE SAME LESSON, ONE LEVEL DOWN. The column list used to be
+// ('person_id','device_id','user_id'). That is a subset too, and enumerating a
+// subset is still how a gate reports full coverage of a part: it could not see
+// vy_replica_runtime_capability (keyed `subject_person_id`) or
+// vy_disclosure_grant (`granted_by`/`granted_to`), and it had never once
+// considered the 48 tables keyed on `owner_user_id`. The column list is now
+// every name that means "a natural person" in this schema, which is what makes
+// the OWNER_LANE verdict below a decision instead of a blind spot.
+const PERSON_COLUMNS = [
+  "person_id",
+  "device_id",
+  "user_id",
+  "auth_user_id",
+  "subject_person_id",
+  "speaker_person_id",
+  "granted_by",
+  "granted_to",
+  "owner_user_id",
+];
+
+// `owner_user_id` is the replica OWNER's Supabase auth id — a natural person,
+// and deliberately NOT in PERSON_TABLES. The argument is written out where the
+// manifest ends (api/memory.js, "WHAT IS DELIBERATELY NOT IN THE LIST ABOVE");
+// the short form is that the replica lane's rows are the only pointers to
+// objects outside Postgres, so a manifest loop deleting them would strand a
+// person's biometric audio in object storage while the receipt claimed it was
+// gone. The lane is erased by docs/REPLICA-ERASURE.md's chain instead.
+//
+// That verdict is worth nothing unsupported, so it is CHECKED rather than
+// asserted: every owner-keyed table must be reachable when the erasure job
+// deletes vy_replica — by ON DELETE CASCADE in the live FK graph, or by being
+// named outright in api/_replica-full-erasure.js. The walk below found three
+// tables that were reachable by neither (053/055 declare replica_id and
+// owner_user_id FK-shaped but not FK), which is the whole reason it exists.
+const OWNER_KEY = "owner_user_id";
+
 const keyed = await q(
   `select distinct table_name from information_schema.columns
     where table_schema = 'public'
       and (table_name like 'vy\\_%' or table_name like 'meera\\_%')
-      and column_name in ('person_id','device_id','user_id')`,
+      and column_name = any($1::text[])`,
+  [PERSON_COLUMNS],
+);
+const ownerOnly = new Set(
+  (
+    await q(
+      `select distinct table_name from information_schema.columns
+        where table_schema = 'public' and column_name = $1`,
+      [OWNER_KEY],
+    )
+  ).map((r) => r.table_name),
 );
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
 const missing = keyed
   .map((r) => r.table_name)
-  .filter((t) => !listed.has(t) && !EXEMPT[t]);
+  .filter((t) => !listed.has(t) && !EXEMPT[t] && !ownerOnly.has(t));
 if (missing.length) {
   failed++;
   console.log(
@@ -279,7 +344,54 @@ if (missing.length) {
   const ex = Object.keys(EXEMPT).length;
   console.log(
     `  ok  manifest coverage (${keyed.length} owned tables across vy_ and meera_, ` +
-      `${ex} exempted in writing, the rest all listed)`,
+      `${ex} exempted in writing, ${ownerOnly.size} on the owner lane, the rest all listed)`,
+  );
+}
+
+// ── the owner lane's own coverage: erasure reach, walked on the live FK graph ─
+const fks = await q(
+  `select tc.relname child, tp.relname parent, c.confdeltype del
+     from pg_constraint c
+     join pg_class tc on tc.oid = c.conrelid
+     join pg_class tp on tp.oid = c.confrelid
+     join pg_namespace n on n.oid = tc.relnamespace
+    where c.contype = 'f' and n.nspname = 'public'`,
+);
+const cascades = new Map();
+for (const f of fks) {
+  if (f.del !== "c") continue; // 'c' = ON DELETE CASCADE; anything else is not reach
+  if (!cascades.has(f.parent)) cascades.set(f.parent, []);
+  cascades.get(f.parent).push(f.child);
+}
+const reached = new Set(["vy_replica"]);
+for (const stack = ["vy_replica"]; stack.length; ) {
+  for (const child of cascades.get(stack.pop()) || []) {
+    if (reached.has(child)) continue;
+    reached.add(child);
+    stack.push(child);
+  }
+}
+const erasureSrc = await readFile(
+  new URL("../api/_replica-full-erasure.js", import.meta.url),
+  "utf8",
+);
+const unreachable = [...ownerOnly]
+  .filter((t) => !reached.has(t))
+  .filter((t) => !new RegExp(`delete from ${t}\\b`).test(erasureSrc));
+if (unreachable.length) {
+  failed++;
+  console.log(
+    `FAIL  owner-lane erasure reach: ${unreachable.join(", ")} carry ${OWNER_KEY} but are neither ` +
+      `reached by ON DELETE CASCADE from vy_replica nor deleted by name in ` +
+      `api/_replica-full-erasure.js. They survive the erasure job, so they are covered by NOTHING ` +
+      `— not the person manifest, which excludes the owner lane on purpose, and not the chain that ` +
+      `exclusion points at.`,
+  );
+} else {
+  const named = [...ownerOnly].filter((t) => !reached.has(t)).length;
+  console.log(
+    `  ok  owner-lane erasure reach (${ownerOnly.size} ${OWNER_KEY} tables: ` +
+      `${ownerOnly.size - named} by cascade from vy_replica, ${named} deleted by name)`,
   );
 }
 

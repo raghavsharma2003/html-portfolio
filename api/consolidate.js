@@ -52,10 +52,10 @@
 // without any query below changing. Exactly one agent exists today: this is a
 // deliberate behavioural NO-OP, which is what makes it safe to land.
 //
-// meera_log, vy_person_device and meera_forget are NOT scoped and must not be:
-// the raw log and the identity mapping are person-intrinsic (§2). A second
-// agent reading the same log with its own agent_id is exactly how §9 says the
-// legacy log anchor generalizes.
+// Migration 018 closes the raw half of the boundary too: meera_log and
+// meera_forget are relationship rows and every read/write below binds the
+// active agent before selection or rank. vy_person_device remains
+// person-intrinsic; it resolves the human and never chooses the relationship.
 import { q } from "./_db.js";
 import { embedBatch, toHalfvecLiteral } from "./_embed.js";
 import { AZURE_ENDPOINT, AZURE_KEY, OPENROUTER_KEY } from "./_config.js";
@@ -308,10 +308,12 @@ export function stripWatchRows(rows) {
   return (Array.isArray(rows) ? rows : []).filter((r) => r?.channel !== WATCH_CHANNEL);
 }
 
-async function suppressionRegexes(person) {
+async function suppressionRegexes(person, agentId = MEERA_AGENT_ID) {
   const rows = await q(
-    `select term from meera_forget where device_id = $1 order by at desc limit 200`,
-    [person],
+    `select term from meera_forget f where device_id = $1
+      ${agentScopePredicate("f", { agentId: "$2" })}
+      order by at desc limit 200`,
+    [person, agentId],
   ).catch(() => []);
   const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return rows.map((r) => new RegExp(`\\b${esc(r.term)}\\b`, "i")).filter(Boolean);
@@ -355,7 +357,7 @@ async function findEligiblePersons(limit, agentId = MEERA_AGENT_ID) {
  *  reaches `renderBatch` — and therefore nothing that reaches the extraction
  *  prompt, an episode span, a fact, a kin row or a citation — can have come
  *  from a watch turn. */
-export async function fetchLogBatch(person, { queryFn = q } = {}) {
+export async function fetchLogBatch(person, { queryFn = q, agentId = MEERA_AGENT_ID } = {}) {
   // meera_log is device-keyed; a person may (eventually) span devices —
   // vy_person_device is the mapping both ways.
   const devices = await queryFn(`select device_id from vy_person_device where person_id = $1`, [person]);
@@ -363,9 +365,10 @@ export async function fetchLogBatch(person, { queryFn = q } = {}) {
   const rows = await queryFn(
     `select l.id, l.device_id, l.role, l.channel, l.kind, l.content, l.at from meera_log l
       where l.device_id = any($1::uuid[]) and l.episode_id is null
+        ${agentScopePredicate("l", { agentId: "$3" })}
         ${WATCH_EXCLUDE_SQL}
       order by l.id asc limit $2`,
-    [deviceIds, LOG_BATCH_CAP],
+    [deviceIds, LOG_BATCH_CAP, agentId],
   );
   return stripWatchRows(rows);
 }
@@ -626,8 +629,8 @@ ${sourceLines.join("\n")}`;
 /** Finalize one person: the whole nightly pass, scoped to their stale
  *  provisional window. Returns a per-person report for the run summary. */
 async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID } = {}) {
-  const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0, kin: 0, kin_rejected: 0, rituals: 0, rituals_rejected: 0, kin_errors: [] };
-  const batch = await fetchLogBatch(person);
+  const rep = { person, log_rows: 0, episodes: 0, facts: 0, rejected_episodes: 0, rejected_facts: 0, audited: 0, refuted: 0, superseded_episodes: 0, superseded_facts: 0, dated_facts: 0, disjoint_facts: 0, kin: 0, kin_rejected: 0, rituals: 0, rituals_rejected: 0, kin_errors: [] };
+  const batch = await fetchLogBatch(person, { agentId });
   if (!batch.length) return rep;
   // Layer 2 of the watch contract, asserted rather than assumed at the ONE
   // place it would matter: everything below — the prompt, the spans, the
@@ -650,7 +653,7 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
   const parsed = parseJsonLoose(raw);
   if (!parsed) return rep;
 
-  const rxs = await suppressionRegexes(person);
+  const rxs = await suppressionRegexes(person, agentId);
   const proposedEpisodes = Array.isArray(parsed.episodes) ? parsed.episodes : [];
   const proposedFacts = Array.isArray(parsed.facts) ? parsed.facts : [];
 
@@ -740,8 +743,10 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       const finalId = episodeIdByIdx.get(idx);
       if (finalId == null) continue;
       await q(
-        `update meera_log set episode_id = $1 where device_id = $2 and id between $3 and $4 and episode_id is null`,
-        [finalId, batch[0].device_id, e.logFrom, e.logTo],
+        `update meera_log l set episode_id = $1 where device_id = $2
+          and id between $3 and $4 and episode_id is null
+          ${agentScopePredicate("l", { agentId: "$5" })}`,
+        [finalId, batch[0].device_id, e.logFrom, e.logTo, agentId],
       ).catch(() => {});
     }
   } else {
@@ -771,7 +776,24 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       rep.rejected_facts++;
       continue;
     }
-    factsToEmbed.push({ kind, name, body, feel: telegraphic(f.feel, 60), citations: citedEpIds, segIdxs });
+    // ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ────────────────────
+    // `saidAt` is the START of the episode this fact cites, never the
+    // consolidation clock. That is the whole mechanism and it is the reason
+    // the derivation happens HERE rather than in a later sweep: "kal" resolves
+    // against when they SAID it, and a nightly pass that anchored on its own
+    // run time would put every relative date one night late — and a pass that
+    // re-ran a week later would put it a week late, producing a different
+    // interval each time it touched the same row.
+    const saidAt = acceptedEpIdx.get(segIdxs[0])?.startedAt;
+    factsToEmbed.push({
+      kind,
+      name,
+      body,
+      feel: telegraphic(f.feel, 60),
+      citations: citedEpIds,
+      segIdxs,
+      saidAt: Number.isFinite(saidAt) ? Number(saidAt) : null,
+    });
   }
 
   if (!factsToEmbed.length) {
@@ -780,8 +802,31 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
     rep.facts = factsToEmbed.length;
   } else {
     const vecs = await embedBatch(factsToEmbed.map((f) => f.body)).catch(() => []);
+    // ── BI-TEMPORAL FACT EDGES (migration 056, WS-O) ──────────────────────
+    // The parser is src/engine/validity.ts over timeline.ts's `resolveWhen`,
+    // reached through the engine bundle. It is not re-implemented here for the
+    // reason this file already learned once at its own cost — its header names
+    // the "honorific port" as a mirrored-logic mistake, and a second date table
+    // is that mistake with dates instead of address terms.
+    //
+    // Loaded ONCE per run, lazily, and a missing bundle degrades to null
+    // validity on every row — which is exactly today's behaviour, because null
+    // validity is what every row written before 056 carries.
+    const vmod = await import("./_engine.gen.js").catch(() => null);
+    const derive = typeof vmod?.deriveFactValidity === "function" ? vmod.deriveFactValidity : null;
+    const overlaps =
+      typeof vmod?.validityOverlaps === "function" ? vmod.validityOverlaps : () => true;
+    const validityFor = (f) => {
+      if (!derive || !Number.isFinite(f.saidAt)) return null;
+      try {
+        return derive({ id: f.name, name: f.name, kind: f.kind, summary: f.body, saidAt: f.saidAt });
+      } catch {
+        return null;
+      }
+    };
     for (let i = 0; i < factsToEmbed.length; i++) {
       const f = factsToEmbed[i];
+      const v = validityFor(f);
       // contradiction handling (§4.1.3): a NEW row always; an existing
       // active final fact with the same name gets superseded, never
       // updated in place.
@@ -790,27 +835,69 @@ async function finalizePerson(person, { dryRun = false, agentId = MEERA_AGENT_ID
       // supersede this one, which is the cross-agent leak inverted — not a row
       // escaping into the wrong context, but the wrong context editing a row.
       const prior = await q(
-        `select v.id, v.body from vy_fact v where v.person_id = $1 and lower(v.name) = $2
+        `select v.id, v.body, v.valid_from, v.valid_to from vy_fact v
+          where v.person_id = $1 and lower(v.name) = $2
            and v.provisional = false and v.t_invalid is null and v.retracted_at is null
            ${agentScopePredicate("v", { agentId: "$3" })}
          order by v.created_at desc limit 1`,
         [person, f.name, agentId],
       ).catch(() => []);
       const ins = await q(
-        `insert into vy_fact (agent_id, person_id, kind, name, body, feel, provenance, confidence, citations, provisional)
-         values (${agentValue("$7")},$1,$2,$3,$4,$5,'extracted',0.85,$6::bigint[],false)
+        `insert into vy_fact (agent_id, person_id, kind, name, body, feel, provenance, confidence, citations, provisional, valid_from, valid_to)
+         values (${agentValue("$7")},$1,$2,$3,$4,$5,'extracted',0.85,$6::bigint[],false,$8,$9)
          returning id`,
-        [person, f.kind, f.name, f.body, f.feel, f.citations, agentId],
+        [
+          person,
+          f.kind,
+          f.name,
+          f.body,
+          f.feel,
+          f.citations,
+          agentId,
+          v ? new Date(v.validFrom).toISOString() : null,
+          v && v.validTo != null ? new Date(v.validTo).toISOString() : null,
+        ],
       ).catch(() => []);
       if (!ins[0]) continue;
       rep.facts++;
+      if (v) rep.dated_facts++;
       const newId = ins[0].id;
-      if (prior[0] && prior[0].body !== f.body) {
+      // ── CONTRADICTION IS NOW A QUERY OVER VALIDITY (ROADMAP-100X item 4) ──
+      //
+      // WHAT WAS WRONG. "Same lowercased name + different body ⇒ supersede the
+      // older row" is right for a belief that CHANGED ("lives in lucknow" →
+      // "lives in delhi") and wrong for a SEQUENCE of same-named,
+      // differently-dated things. Two rows named `exam`, one for a November
+      // sitting and one for the May one after it, are not a contradiction —
+      // they are two exams, and superseding the first sets `t_invalid`, which
+      // every recall query in this repo reads as a hard exclusion. The November
+      // exam would vanish from her memory the moment the May one was mentioned.
+      //
+      // The predicate: supersede only when the two facts' EVENT-time intervals
+      // overlap. A row with no validity overlaps everything — so for every row
+      // written before 056, and for every fact whose text carries no resolvable
+      // date, this is byte-for-byte the rule that shipped before, and the
+      // change is opt-in per row rather than a new global behaviour.
+      //
+      // NO LLM CALL, which is the sentence the roadmap item is written in: two
+      // timestamp comparisons where a model call was the alternative design.
+      const priorOverlaps =
+        prior[0] &&
+        overlaps(
+          {
+            validFrom: prior[0].valid_from ? new Date(prior[0].valid_from).getTime() : null,
+            validTo: prior[0].valid_to ? new Date(prior[0].valid_to).getTime() : null,
+          },
+          v ? { validFrom: v.validFrom, validTo: v.validTo } : null,
+        );
+      if (prior[0] && prior[0].body !== f.body && priorOverlaps) {
         await q(
           `update vy_fact v set t_invalid = now(), superseded_by = $1 where v.id = $2
             ${agentScopePredicate("v", { agentId: "$3" })}`,
           [newId, prior[0].id, agentId],
         ).catch(() => {});
+      } else if (prior[0] && prior[0].body !== f.body) {
+        rep.disjoint_facts = (rep.disjoint_facts || 0) + 1;
       }
       // supersede the provisional fact(s) this promotes, matched by name
       // under the episodes just finalized (§0.2.1: provisional is
@@ -1205,15 +1292,16 @@ async function refreshDerivedDims(person, agentId = MEERA_AGENT_ID) {
       // much Hindi she answers in. An English-heavy work screen would quietly
       // switch her out of Hinglish.
       `with recent as (
-         select l.content from meera_log l
-         join vy_person_device d on d.device_id = l.device_id
-         where d.person_id = $1 and l.role = 'me'
+       select l.content from meera_log l
+       join vy_person_device d on d.device_id = l.device_id
+       where d.person_id = $1 and l.role = 'me'
+           ${agentScopePredicate("l", { agentId: "$3" })}
            ${WATCH_EXCLUDE_SQL}
          order by l.at desc limit 200
        )
        select count(*)::int as total, count(*) filter (where content ~* $2)::int as hindi_hits
          from recent`,
-      [person, pattern],
+      [person, pattern, agentId],
     ).catch(() => []),
     q(
       `select count(*) filter (where r.last_at > now() - interval '30 days')::real
@@ -1360,8 +1448,9 @@ async function deriveRelEventsForPerson(person, { dryRun = false, agentId = MEER
         where l.device_id in (select device_id from vy_person_device where person_id = $1
                              union select $1::uuid)
           and l.role = 'me' and l.id between $2 and $3
+          ${agentScopePredicate("l", { agentId: "$4" })}
           ${WATCH_EXCLUDE_SQL}`,
-      [person, ep.log_from, ep.log_to],
+      [person, ep.log_from, ep.log_to, agentId],
     ).catch(() => []);
     for (const r of stripWatchRows(rows)) {
       const term = detectAddressTerm(r.content);
@@ -2341,9 +2430,10 @@ async function capturePhrasesForPerson(person, { dryRun = false, agentId = MEERA
       `select l.content, l.at, l.episode_id, l.channel from meera_log l
       where l.device_id = any($1::uuid[]) and l.role = 'me' and l.group_id is null
         and l.episode_id is not null
+        ${agentScopePredicate("l", { agentId: "$3" })}
         ${WATCH_EXCLUDE_SQL}
       order by l.at desc limit $2`,
-      [deviceIds, PHRASE_SCAN_LIMIT],
+      [deviceIds, PHRASE_SCAN_LIMIT, agentId],
     ).catch(() => []),
   );
   rep.rows_scanned = rows.length;
@@ -2622,8 +2712,9 @@ async function deriveLifeToldForPerson(person, { dryRun = false, agentId = MEERA
           where l.device_id in (select device_id from vy_person_device where person_id = $1
                                 union select $1::uuid)
             and l.role = 'her' and l.id between $2 and $3
+            ${agentScopePredicate("l", { agentId: "$4" })}
             ${WATCH_EXCLUDE_SQL}`,
-        [person, ep.log_from, ep.log_to],
+        [person, ep.log_from, ep.log_to, agentId],
       ).catch(() => []),
     );
     if (!herRows.length) continue;

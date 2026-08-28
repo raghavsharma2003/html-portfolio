@@ -90,6 +90,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { allow, ipOf } from "./_ratelimit.js";
 import { TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_BOT_USERNAME } from "./_config.js";
 import { dispatch, loadEngine, makeCtx, splitForLimit, ROOM_CARD, withdrawReceipt } from "./_surface.js";
+import { q } from "./_db.js";
+import { resolveInboundClone } from "./_clonechannel.js";
+import { getChannelSecret } from "./_channel-secrets.js";
 
 // Re-exported because they are the product's promises, not this wire's, and
 // evals/mp/tgbot.mjs asserts the card this surface actually posts.
@@ -157,6 +160,13 @@ const statusOf = (s) =>
 const base = (over = {}) => ({
   surface: "telegram",
   kind: "ignore",
+  // The BINDING address (Gurukul WS-N): the bot this update was delivered
+  // for. Telegram does not put it in the update body — every update is
+  // already scoped to the bot whose token registered the webhook — so it
+  // rides on the webhook URL (`?ch=<bot id>`) and is threaded in by
+  // `handleUpdate`. It is NOT the chatKey: the chatKey addresses a human,
+  // this addresses the bot, and `vy_clone_channel` routes on the second.
+  channelRef: "",
   chatKey: "",
   chatName: "",
   isGroup: false,
@@ -263,9 +273,9 @@ export function parse(payload) {
 /** Every outbound call goes through here so the token appears in exactly one
  *  expression in this repo, and never in a log line, an error, or a return
  *  value. */
-async function tgCall(method, body) {
-  if (!BOT_TOKEN) return { ok: false, error: "no bot token" };
-  const r = await fetch(`${API}/bot${BOT_TOKEN}/${method}`, {
+async function tgCall(method, body, token = BOT_TOKEN) {
+  if (!token) return { ok: false, error: "no bot token" };
+  const r = await fetch(`${API}/bot${token}/${method}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -290,15 +300,22 @@ function tgExtra(msg) {
 
 /** The legacy client shape the offline suite injects — kept as the seam so
  *  evals/mp/tgbot.mjs drives the REAL pipeline with no network. */
-const defaultClient = {
-  message: (chatId, text, extra = {}) => tgCall("sendMessage", { chat_id: chatId, text, ...extra }),
+const clientFor = (token) => ({
+  message: (chatId, text, extra = {}) =>
+    tgCall("sendMessage", { chat_id: chatId, text, ...extra }, token),
   react: (chatId, messageId, emoji) =>
-    tgCall("setMessageReaction", {
-      chat_id: chatId,
-      message_id: messageId,
-      reaction: [{ type: "emoji", emoji }],
-    }),
-};
+    tgCall(
+      "setMessageReaction",
+      { chat_id: chatId, message_id: messageId, reaction: [{ type: "emoji", emoji }] },
+      token,
+    ),
+});
+
+/** Meera's own bot, and the shape the offline suite injects. A per-clone lane
+ *  builds its own with `clientFor(<that clone's token>)` — never by mutating a
+ *  module-level token, because two clones' updates interleave inside one warm
+ *  lambda and a mutable would hand one teacher's reply to another's students. */
+const defaultClient = clientFor(BOT_TOKEN);
 
 const sendVia = (client) => (chatKey, msg) =>
   msg.kind === "reaction"
@@ -347,11 +364,30 @@ export function startLink(roomId, bot = BOT_USERNAME) {
  */
 export async function handleUpdate(update, deps = {}) {
   const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
+  const [ev0] = parse(update);
+  const ev = deps.channelRef ? { ...ev0, channelRef: String(deps.channelRef) } : ev0;
+
+  // The clone binding seam. OPTIONAL by design: absent, this is byte-for-byte
+  // the single-agent lane that shipped and `evals/mp/tgbot.mjs` measures it
+  // unchanged. Present, it returns the clone bound to THIS bot, or null.
+  //
+  // NULL MEANS THE UPDATE IS DROPPED. An unbound bot, a paused or revoked
+  // binding, an unpublished clone and a withdrawn consent artifact all arrive
+  // as the same null (api/_clonechannel.js flattens them on purpose), and the
+  // only safe response to "I do not know who should answer this" is silence.
+  let bound = null;
+  if (deps.bind) {
+    bound = await deps.bind(ev).catch(() => null);
+    if (!bound) return { ok: false, skipped: "clone_unavailable" };
+  }
+
   const ctx = makeCtx(adapter, {
     ...deps,
     engine,
-    send: sendVia(deps.send || defaultClient),
-    botHandle: BOT_USERNAME,
+    agent: bound?.agent ?? deps.agent,
+    agentId: bound?.agentId ?? deps.agentId,
+    send: bound?.send ?? sendVia(deps.send || defaultClient),
+    botHandle: bound?.botHandle || BOT_USERNAME,
     // `/start` with or without a room token is the linking tap. Without a
     // token it still links: it is the only way a Telegram bot may ever open a
     // conversation with someone.
@@ -359,10 +395,45 @@ export async function handleUpdate(update, deps = {}) {
       const s = parseStartPayload(ev.text);
       return s ? { roomRef: /^r(\d+)$/.exec(s.payload)?.[1] || null } : null;
     },
-    linkFor: (roomId) => startLink(roomId),
+    linkFor: (roomId) => startLink(roomId, bound?.botHandle || BOT_USERNAME),
   });
-  const [ev] = parse(update);
   return await dispatch(ev, ctx);
+}
+
+// ── the clone binding (Gurukul WS-N) ──────────────────────────────────────
+
+/**
+ * A bot id → the published clone that answers on it, with ITS OWN bot token.
+ *
+ * WHERE THE BOT ID COMES FROM. Telegram never names the recipient bot in an
+ * update, because a token is already one bot. So the studio's connect flow
+ * hands the owner a webhook URL carrying `?ch=<bot id>` and this reads it
+ * back. That is a public identifier in a URL an owner registers themselves —
+ * the SECRET half is still `X-Telegram-Bot-Api-Secret-Token`, checked in
+ * constant time above, and a forged `ch` without it gets nowhere.
+ *
+ * NOT VERIFIED: no second bot has ever been connected and no secret has ever
+ * been written — the default secret backend is `none` and refuses, so this
+ * path currently ends in a null and a dropped update. Named here rather than
+ * implied to work, in the same words this file's header uses about `send()`.
+ */
+export async function bindTelegramClone(channelRef, deps = {}) {
+  const ref = String(channelRef || "");
+  if (!ref) return null;
+  const db = deps.db || q;
+  const resolved = await resolveInboundClone(db, "telegram", ref, deps).catch(() => null);
+  if (!resolved) return null;
+  const read = deps.readSecret || getChannelSecret;
+  const token = await read(resolved.channel.credentials_ref).catch(() => null);
+  // No token, no lane. Binding a clone we cannot send as would log the
+  // student's turn and then go silent, which is worse than never resolving.
+  if (!token) return null;
+  return {
+    agent: resolved.module,
+    agentId: resolved.agentId,
+    botHandle: resolved.module?.displayName || BOT_USERNAME,
+    send: sendVia(clientFor(token)),
+  };
 }
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
@@ -375,7 +446,15 @@ export default async function handler(req, res) {
   const auth = await verify(req);
   if (!auth.ok) return res.status(401).json({ error: auth.reason });
   try {
-    const out = await handleUpdate(auth.payload);
+    // The clone binder is wired at the EDGE, never inside the adapter: an
+    // adapter that could reach the database would be an adapter holding a
+    // query, which docs/SURFACES.md §"What you must NOT do" forbids. No `ch`
+    // means Meera's own bot and today's single-agent lane, unchanged.
+    const channelRef = String(req.query?.ch || "");
+    const out = await handleUpdate(
+      auth.payload,
+      channelRef ? { channelRef, bind: () => bindTelegramClone(channelRef) } : {},
+    );
     // Always 200 to Telegram once the update is authenticated: a 500 makes it
     // redeliver the same update forever, which would re-run the writes above.
     return res.status(200).json({ ok: true, handled: out?.ok !== false });

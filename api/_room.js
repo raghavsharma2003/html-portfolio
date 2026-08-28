@@ -188,33 +188,34 @@ export const linkTgPerson = (tgUserId, { username = "", personId = null } = {}, 
 
 // ── room lifecycle ────────────────────────────────────────────────────────
 
-export async function roomByChat(tgChatId, t = ident) {
+export async function roomByChat(tgChatId, t = ident, agentId = MEERA_AGENT_ID) {
   const r = await q(
     `select id, name, tg_chat_id, room_device_id, read_consent_at, quiet_level, member_cap, created_at
-       from ${t("vy_group")} where tg_chat_id = $1`,
-    [String(tgChatId)],
+       from ${t("vy_group")} where tg_chat_id = $1 and agent_id = $2::uuid`,
+    [String(tgChatId), agentId],
   ).catch(() => []);
   return r[0] || null;
 }
 
 export async function ensureRoom(
   tgChatId,
-  { name = "", kind = "friend_group", surface = "telegram" } = {},
+  { name = "", kind = "friend_group", surface = "telegram", agentId = MEERA_AGENT_ID } = {},
   t = ident,
 ) {
-  const have = await roomByChat(tgChatId, t);
+  const have = await roomByChat(tgChatId, t, agentId);
   if (have) return have;
   await q(
-    `insert into ${t("vy_group")} (name, kind, room_device_id, tg_chat_id)
-     values ($1,$2,$3,$4) on conflict do nothing`,
+    `insert into ${t("vy_group")} (agent_id, name, kind, room_device_id, tg_chat_id)
+     values ($1,$2,$3,$4,$5) on conflict do nothing`,
     [
+      agentId,
       String(name || "").slice(0, 120),
       kind,
       surfaceDeviceId(surface, tgChatId),
       String(tgChatId),
     ],
   );
-  return await roomByChat(tgChatId, t);
+  return await roomByChat(tgChatId, t, agentId);
 }
 
 /**
@@ -237,16 +238,16 @@ export function chatKeyToChatId(chatKey) {
   return /^-?\d{1,19}$/.test(s) ? s : null;
 }
 
-export async function roomByChatKey(surface, chatKey, t = ident) {
+export async function roomByChatKey(surface, chatKey, t = ident, agentId = MEERA_AGENT_ID) {
   const id = chatKeyToChatId(chatKey);
   if (id === null) return null;
-  return await roomByChat(id, t);
+  return await roomByChat(id, t, agentId);
 }
 
-export async function ensureRoomForChat(surface, chatKey, { name = "", kind = "friend_group" } = {}, t = ident) {
+export async function ensureRoomForChat(surface, chatKey, { name = "", kind = "friend_group", agentId = MEERA_AGENT_ID } = {}, t = ident) {
   const id = chatKeyToChatId(chatKey);
   if (id === null) return null;
-  return await ensureRoom(id, { name, kind, surface }, t);
+  return await ensureRoom(id, { name, kind, surface, agentId }, t);
 }
 
 /**
@@ -256,15 +257,15 @@ export async function ensureRoomForChat(surface, chatKey, { name = "", kind = "f
  * us for free, whose revocation (demotion) is instant, total and involves no
  * code path of ours. Ingestion is gated on read_consent_at being non-null.
  */
-export async function setReadConsent(groupId, on, t = ident) {
+export async function setReadConsent(groupId, on, t = ident, agentId = MEERA_AGENT_ID) {
   await q(
-    `update ${t("vy_group")} set read_consent_at = ${on ? "now()" : "null"} where id = $1`,
-    [groupId],
+    `update ${t("vy_group")} set read_consent_at = ${on ? "now()" : "null"} where id = $1 and agent_id = $2::uuid`,
+    [groupId, agentId],
   );
 }
 
-export async function setQuiet(groupId, level, t = ident) {
-  await q(`update ${t("vy_group")} set quiet_level = $2 where id = $1`, [groupId, level]);
+export async function setQuiet(groupId, level, t = ident, agentId = MEERA_AGENT_ID) {
+  await q(`update ${t("vy_group")} set quiet_level = $2 where id = $1 and agent_id = $3::uuid`, [groupId, level, agentId]);
 }
 
 /**
@@ -279,45 +280,46 @@ export async function setQuiet(groupId, level, t = ident) {
  * Returns false when the room is full. Existing members and returning members
  * (left_at set) are never refused — only genuinely new ones.
  */
-export async function roomHasSpaceFor(groupId, personId, t = ident) {
+export async function roomHasSpaceFor(groupId, personId, t = ident, agentId = MEERA_AGENT_ID) {
   const r = await q(
     `select g.member_cap,
             (select count(*) from ${t("vy_group")}_member m
-              where m.group_id = g.id and m.left_at is null) as active,
+              where m.group_id = g.id and m.agent_id = $3::uuid and m.left_at is null) as active,
             (select count(*) from ${t("vy_group")}_member m
-              where m.group_id = g.id and m.person_id = $2) as mine
-       from ${t("vy_group")} g where g.id = $1`,
-    [groupId, personId],
+              where m.group_id = g.id and m.agent_id = $3::uuid and m.person_id = $2) as mine
+       from ${t("vy_group")} g where g.id = $1 and g.agent_id = $3::uuid`,
+    [groupId, personId, agentId],
   ).catch(() => []);
   if (!r[0]) return false;
   if (Number(r[0].mine) > 0) return true;
   return Number(r[0].active) < Number(r[0].member_cap);
 }
 
-export async function upsertMember(groupId, { personId, tgUserId = null }, t = ident) {
+export async function upsertMember(groupId, { personId, tgUserId = null, agentId = MEERA_AGENT_ID }, t = ident) {
   await q(
-    `insert into ${t("vy_group")}_member (group_id, person_id, tg_user_id, joined_at)
-     values ($1,$2,$3, now())
+    `insert into ${t("vy_group")}_member (agent_id, group_id, person_id, tg_user_id, joined_at)
+     select $4::uuid, g.id, $2::uuid, $3, now()
+       from ${t("vy_group")} g where g.id = $1 and g.agent_id = $4::uuid
      on conflict (group_id, person_id) do update set left_at = null, tg_user_id = coalesce(excluded.tg_user_id, ${t("vy_group")}_member.tg_user_id)`,
-    [groupId, personId, tgUserId == null ? null : String(tgUserId)],
+    [groupId, personId, tgUserId == null ? null : String(tgUserId), agentId],
   );
 }
 
 /** Leaving never deletes the room for the others (§3.1). left_at is the whole
  *  mechanism: the recipient set reads `left_at is null`, so the very next
  *  retrieval stops disclosing to them — no cascade, nothing to chase. */
-export async function markMemberLeft(groupId, personId, t = ident) {
+export async function markMemberLeft(groupId, personId, t = ident, agentId = MEERA_AGENT_ID) {
   await q(
-    `update ${t("vy_group")}_member set left_at = now() where group_id = $1 and person_id = $2 and left_at is null`,
-    [groupId, personId],
+    `update ${t("vy_group")}_member set left_at = now() where group_id = $1 and person_id = $2 and agent_id = $3::uuid and left_at is null`,
+    [groupId, personId, agentId],
   );
 }
 
-export async function linkMember(groupId, personId, t = ident) {
+export async function linkMember(groupId, personId, t = ident, agentId = MEERA_AGENT_ID) {
   await q(
     `update ${t("vy_group")}_member set linked_at = coalesce(linked_at, now())
-      where group_id = $1 and person_id = $2`,
-    [groupId, personId],
+      where group_id = $1 and person_id = $2 and agent_id = $3::uuid`,
+    [groupId, personId, agentId],
   );
 }
 
@@ -327,9 +329,9 @@ export async function linkMember(groupId, personId, t = ident) {
  *  repo. Membership governs the LIVE CHANNEL; the ACL is read from
  *  vy_episode_participant, which is why a member who joins today does not
  *  become a participant of last month's episodes (M10). */
-export async function recipientSet(groupId, t = ident) {
+export async function recipientSet(groupId, t = ident, agentId = MEERA_AGENT_ID) {
   const sql = RECIPIENT_SET_SQL.replace(/vy_group_member/g, t("vy_group_member"));
-  const r = await q(sql, [groupId]).catch(() => []);
+  const r = await q(sql, [groupId, agentId]).catch(() => []);
   return r[0]?.recipients || [];
 }
 
@@ -337,10 +339,12 @@ export async function recipientSet(groupId, t = ident) {
  *  1:1 relationship. If the room lapses she goes quiet in the room; nobody
  *  loses their own companion. A downgrade that reads as hostage-taking is
  *  NEVER MANIPULATE applied to the business model. */
-export async function roomEntitled(room, t = ident) {
+export async function roomEntitled(room, t = ident, agentId = MEERA_AGENT_ID) {
   const paid = await q(
-    `select 1 from ${t("vy_group")}_entitlement where group_id = $1 and period_end > now() limit 1`,
-    [room.id],
+    `select 1 from ${t("vy_group")}_entitlement e
+       join ${t("vy_group")} g on g.id = e.group_id
+      where e.group_id = $1 and g.agent_id = $2::uuid and e.period_end > now() limit 1`,
+    [room.id, agentId],
   ).catch(() => []);
   if (paid.length) return { entitled: true, reason: "paid" };
   const age = Date.now() - new Date(room.created_at).getTime();
@@ -369,7 +373,7 @@ export async function roomEntitled(room, t = ident) {
  * live, and a new column is a new migration, which is another workstream's
  * ticket, not a thing to smuggle in here.
  */
-export async function roster(groupId, t = ident) {
+export async function roster(groupId, t = ident, agentId = MEERA_AGENT_ID) {
   // The handle now comes from vy_surface_identity when that table exists, and
   // from vy_tg_person when it does not — the same transition fallback
   // personForSurfaceUser runs, for the same reason. `distinct on` is required
@@ -382,11 +386,11 @@ export async function roster(groupId, t = ident) {
                        order by si.linked_at asc limit 1), '') as username,
             r.honorific
        from ${t("vy_group")}_member m
-       left join ${t("vy_rel_state")} r on r.person_id = m.person_id
-      where m.group_id = $1 and m.left_at is null
+       left join ${t("vy_rel_state")} r on r.person_id = m.person_id and r.agent_id = $2::uuid
+      where m.group_id = $1 and m.agent_id = $2::uuid and m.left_at is null
       order by m.joined_at asc, m.person_id asc
       limit 6`,
-    [groupId],
+    [groupId, agentId],
   ).catch(() => null);
   const rows =
     wide ??
@@ -396,11 +400,11 @@ export async function roster(groupId, t = ident) {
               r.honorific
          from ${t("vy_group")}_member m
          left join ${t("vy_tg_person")} p on p.person_id = m.person_id
-         left join ${t("vy_rel_state")} r on r.person_id = m.person_id
-        where m.group_id = $1 and m.left_at is null
+         left join ${t("vy_rel_state")} r on r.person_id = m.person_id and r.agent_id = $2::uuid
+        where m.group_id = $1 and m.agent_id = $2::uuid and m.left_at is null
         order by m.joined_at asc, m.person_id asc
         limit 6`,
-      [groupId],
+      [groupId, agentId],
     ).catch(() => []));
   return rows.map((r) => {
     const h = r.honorific === "aap" || r.honorific === "tu" || r.honorific === "tum" ? r.honorific : null;
@@ -416,7 +420,7 @@ export async function roster(groupId, t = ident) {
 
 // ── retrieval (mp.bridge's and T5's input) ────────────────────────────────
 
-const BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4" };
+const BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4", agentId: "$5" };
 
 /**
  * BASE retrieval for a room turn — the §2.3 predicate and nothing else, so a
@@ -424,7 +428,7 @@ const BIND = { recipients: "$1", isGroup: "$2", roomId: "$3", negTags: "$4" };
  * block recall has always lived in; the room does not get a second, parallel
  * recall path.
  */
-export async function roomRecall(groupId, recipients, { limit = 8 } = {}, t = ident) {
+export async function roomRecall(groupId, recipients, { limit = 8, agentId = MEERA_AGENT_ID } = {}, t = ident) {
   if (!recipients.length) return [];
   const pred = applyResolver(disclosurePredicate("fact", BIND), t);
   return await q(
@@ -433,7 +437,7 @@ export async function roomRecall(groupId, recipients, { limit = 8 } = {}, t = id
       where f.t_invalid is null and f.retracted_at is null ${pred}
       order by f.need_p desc, f.created_at desc
       limit ${Number(limit) | 0}`,
-    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS],
+    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
   ).catch(() => []);
 }
@@ -451,7 +455,7 @@ export async function roomRecall(groupId, recipients, { limit = 8 } = {}, t = id
  * no separate code path": a room's recipient set is strictly more restrictive
  * than any 1:1 evaluation of the same predicate.
  */
-export async function dmRecall(personId, { limit = 8 } = {}, t = ident) {
+export async function dmRecall(personId, { limit = 8, agentId = MEERA_AGENT_ID } = {}, t = ident) {
   const pred = applyResolver(disclosurePredicate("fact", BIND), t);
   return await q(
     `select f.id, f.body, f.name, f.created_at
@@ -459,7 +463,7 @@ export async function dmRecall(personId, { limit = 8 } = {}, t = ident) {
       where f.t_invalid is null and f.retracted_at is null ${pred}
       order by f.need_p desc, f.created_at desc
       limit ${Number(limit) | 0}`,
-    [[personId], false, null, NEGATIVE_AFFECT_TAGS],
+    [[personId], false, null, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
   ).catch(() => []);
 }
@@ -500,7 +504,7 @@ export const bindDmDevice = (tgUserId, personId, t = ident) =>
  * Returns rows in src/engine/room.ts's BridgeRow shape. It selects; the
  * renderer renders; neither decides.
  */
-export async function roomBridge(groupId, recipients, t = ident) {
+export async function roomBridge(groupId, recipients, t = ident, agentId = MEERA_AGENT_ID) {
   if (!recipients.length) return [];
   const out = [];
   const factPred =
@@ -511,7 +515,7 @@ export async function roomBridge(groupId, recipients, t = ident) {
        from ${t("vy_fact")} f
       where f.t_invalid is null and f.retracted_at is null and f.group_id = $3 ${factPred}
       order by f.need_p desc, f.created_at desc limit 6`,
-    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS],
+    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
   ).catch(() => []);
   for (const f of facts) {
@@ -529,7 +533,7 @@ export async function roomBridge(groupId, recipients, t = ident) {
        from ${t("vy_phrase")} f
       where f.group_id = $3 ${phrasePred}
       order by f.uses desc, f.coined_at desc limit 4`,
-    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS],
+    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
   ).catch(() => []);
   for (const p of phrases) out.push({ kind: "word", gist: p.phrase, age: ageShort(p.coined_at) });
@@ -539,12 +543,12 @@ export async function roomBridge(groupId, recipients, t = ident) {
 /** The room's phrase ledger, for the react tier's relevance signal ONLY. Same
  *  predicate — a room word she may not know about is not a word she may react
  *  to. */
-export async function roomWords(groupId, recipients, t = ident) {
+export async function roomWords(groupId, recipients, t = ident, agentId = MEERA_AGENT_ID) {
   if (!recipients.length) return [];
   const pred = applyResolver(disclosurePredicate("phrase", BIND), t);
   const rows = await q(
     `select f.phrase from ${t("vy_phrase")} f where f.group_id = $3 ${pred} limit 40`,
-    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS],
+    [recipients, true, groupId, NEGATIVE_AFFECT_TAGS, agentId],
     20_000,
   ).catch(() => []);
   return rows.map((r) => r.phrase);
@@ -584,14 +588,14 @@ function ageShort(at) {
  */
 export async function openOrExtendGroupEpisode(
   groupId,
-  { gapMs = 45 * 60_000, roomDevice = null } = {},
+  { gapMs = 45 * 60_000, roomDevice = null, agentId = MEERA_AGENT_ID } = {},
   t = ident,
 ) {
   const open = await q(
     `select id, ended_at, started_at from ${t("vy_episode")}
-      where group_id = $1 and provisional = true and superseded_by is null
+      where group_id = $1 and agent_id = $2::uuid and provisional = true and superseded_by is null
       order by started_at desc limit 1`,
-    [groupId],
+    [groupId, agentId],
   ).catch(() => []);
   const now = Date.now();
   if (open[0]) {
@@ -602,7 +606,8 @@ export async function openOrExtendGroupEpisode(
     `insert into ${t("vy_episode")}
        (agent_id, person_id, group_id, device_id, channel, participation, disclosure_scope,
         started_at, ended_at, boundary_reason, summary, provisional)
-     values ($4, null, $1, $2, 'chat', 'group', 'participants', now(), now(), $3, '', true)
+     select $4::uuid, null, g.id, $2, 'chat', 'group', 'participants', now(), now(), $3, '', true
+       from ${t("vy_group")} g where g.id = $1 and g.agent_id = $4::uuid
      returning id`,
     // device_id on a room episode is PROVENANCE only (the legacy forget
     // scopes read it) and it is the room's synthetic device, which is in
@@ -614,7 +619,7 @@ export async function openOrExtendGroupEpisode(
     // violation on the first real room turn — invisible until a token exists,
     // which is exactly when it would have fired. Found by the WS-BINDING
     // fixture (its check 0 mirrors production's catalog, defaults included).
-    [groupId, roomDevice, open[0] ? "channel" : "gap", MEERA_AGENT_ID],
+    [groupId, roomDevice, open[0] ? "channel" : "gap", agentId],
   ).catch(() => []);
   return ins[0] ? { id: ins[0].id, extended: false } : null;
 }
@@ -622,11 +627,13 @@ export async function openOrExtendGroupEpisode(
 /** THE ACL ITSELF. A participant row is what makes the structural branch true
  *  for this person, and dropping it later is what makes withdrawal a delete
  *  rather than an array rewrite (§3.1.2). */
-export async function addEpisodeParticipant(episodeId, personId, role = "participant", t = ident) {
+export async function addEpisodeParticipant(episodeId, personId, role = "participant", t = ident, agentId = MEERA_AGENT_ID) {
   await q(
     `insert into ${t("vy_episode")}_participant (episode_id, person_id, role)
-     values ($1,$2,$3) on conflict do nothing`,
-    [episodeId, personId, role],
+     select e.id, $2, $3 from ${t("vy_episode")} e
+      where e.id = $1 and e.agent_id = $4::uuid
+     on conflict do nothing`,
+    [episodeId, personId, role, agentId],
   );
 }
 
@@ -639,13 +646,15 @@ export async function addEpisodeParticipant(episodeId, personId, role = "partici
  * writing an orphan (§6.4: no person row, no persistence).
  */
 export async function logRoomTurn(
-  { groupId, roomDevice, speakerPersonId, role, content, kind = "text" },
+  { groupId, roomDevice, speakerPersonId, role, content, kind = "text", agentId = MEERA_AGENT_ID },
   t = ident,
 ) {
   if (role === "me" && !speakerPersonId) return null;
   const r = await q(
-    `insert into ${t("meera_log")} (device_id, role, channel, kind, content, at, speaker_person_id, group_id)
-     values ($1,$2,'chat',$3,$4, now(), $5, $6) returning id`,
+    `insert into ${t("meera_log")} (agent_id, device_id, role, channel, kind, content, at, speaker_person_id, group_id)
+     select $7::uuid,$1,$2,'chat',$3,$4, now(), $5,g.id
+       from ${t("vy_group")} g where g.id = $6 and g.agent_id = $7::uuid
+     returning id`,
     [
       roomDevice,
       role === "her" ? "her" : "me",
@@ -653,6 +662,7 @@ export async function logRoomTurn(
       String(content || "").slice(0, 4000),
       speakerPersonId || null,
       groupId,
+      agentId,
     ],
   ).catch(() => []);
   return r[0]?.id ?? null;
@@ -662,13 +672,15 @@ export async function logRoomTurn(
  *  including the lurks — that is what makes the Stage-1 bet measurable rather
  *  than believed (§0.3). */
 export async function recordTurnAction(
-  { groupId, episodeId = null, logId = null, action, addressed = false, reason = "" },
+  { groupId, episodeId = null, logId = null, action, addressed = false, reason = "", agentId = MEERA_AGENT_ID },
   t = ident,
 ) {
   const r = await q(
     `insert into ${t("vy_group")}_turn (agent_id, group_id, episode_id, log_id, action, addressed, reason)
-     values ($7,$1,$2,$3,$4,$5,$6) returning id`,
-    [groupId, episodeId, logId, action, addressed === true, String(reason).slice(0, 160), MEERA_AGENT_ID],
+     select $7::uuid,g.id,$2,$3,$4,$5,$6
+       from ${t("vy_group")} g where g.id = $1 and g.agent_id = $7::uuid
+     returning id`,
+    [groupId, episodeId, logId, action, addressed === true, String(reason).slice(0, 160), agentId],
   ).catch(() => []);
   return r[0]?.id ?? null;
 }
@@ -703,7 +715,7 @@ export async function recordTurnAction(
  * function is what evals/mp/tgbot.mjs calls to PROVE inertness against real
  * rows after a real room turn.
  */
-export async function stateWriteCount(personIds, t = ident) {
+export async function stateWriteCount(personIds, t = ident, agentId = MEERA_AGENT_ID) {
   const out = {};
   const tables = [
     ["vy_rel_event", "person_id"],
@@ -713,8 +725,8 @@ export async function stateWriteCount(personIds, t = ident) {
   ];
   for (const [table, col] of tables) {
     const r = await q(
-      `select count(*)::int n from ${t(table)} where ${col} = any($1::uuid[])`,
-      [personIds],
+      `select count(*)::int n from ${t(table)} where ${col} = any($1::uuid[]) and agent_id = $2::uuid`,
+      [personIds, agentId],
     ).catch(() => [{ n: -1 }]);
     out[table] = Number(r[0]?.n ?? -1);
   }

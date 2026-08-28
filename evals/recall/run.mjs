@@ -23,13 +23,13 @@
 // she simply knows less than she should — or, in the last case, more.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const src = (p) => readFileSync(join(ROOT, p), "utf8");
 
-const M = await import(join(ROOT, "api/memory.js"));
+const M = await import(pathToFileURL(join(ROOT, "api/memory.js")).href);
 const MEMORY_SRC = src("api/memory.js");
 const ACCOUNT_SRC = src("api/account.js");
 const RELCHECK_SRC = src("scripts/relcheck.mjs");
@@ -485,6 +485,41 @@ const FATE = {
   vy_tg_person: "forget-only",
   vy_surface_identity: "forget-only",
 
+  // ── the replica lane's person side (WS-R; migrations 015, 023, 027) ──
+  //
+  // Found by scripts/relcheck.mjs against the LIVE database, which is the
+  // point: all four were person-keyed, none was in the manifest, so a person
+  // who asked to be forgotten kept rows in them and their export came back
+  // with a hole in it. The fourth (vy_replica_runtime_capability) was invisible
+  // even to relcheck until its column list widened — it is keyed on
+  // subject_person_id, and the coverage query enumerated three column names.
+  //
+  // forget-only, all four, for the reason vy_push_token is: none of them has a
+  // term a scoped "forget priya" could match. A dialogue turn stores hashes and
+  // ids, never the words; a session and a capability are grants and timestamps.
+  // Only the stronger door may take them.
+  vy_replica_dialogue_turn: "forget-only",
+  vy_replica_runtime_session: "forget-only",
+  vy_replica_runtime_capability: "forget-only",
+  // The auth↔person bridge (015). A whole wipe takes it because it is the row
+  // that says which person an account IS — the single most identifying row in
+  // the database. A scoped forget must not: unbinding an account from its
+  // person because someone asked to forget one topic would log them out of
+  // their own memory.
+  vy_account_person: "forget-only",
+
+  // ── the consent ledger (task #148, migration 016) ──
+  // The whole wipe takes it: a device-keyed record of a person surviving the
+  // one request whose promise is that nothing about them remains would break
+  // that promise in order to keep evidence of a permission that no longer
+  // applies to anything, and the absence of a granted row IS the absence of
+  // consent. A SCOPED forget must not touch it — "forget priya" has nothing to
+  // prune out of a boolean, and a scoped door that silently revoked a
+  // permission would be a second, larger act done in the name of the first.
+  // The refusal that actually stops the writes is the copy on the device
+  // (src/engine/memory.ts's gate), which no server delete can reach.
+  meera_consent: "forget-only",
+
   // ── the identity itself ──
   vy_person_device:
     "exempt: the mapping is deleted by explicit guarded code at the END of the " +
@@ -552,8 +587,12 @@ ok("…and both are reachable by a window too",
     /created_at >= \$2::timestamptz and created_at < \$3::timestamptz/.test(MEMORY_SRC));
 
 // (e) meera_state: purged on a wipe, REWRITTEN on a scope
+// `forget-follows-the-person` (2026-08-26) renamed the argument to the
+// person's device SET. The property asserted here — every scope reaches the
+// synced blob — is unchanged and strictly stronger, so the pattern accepts
+// either spelling rather than pinning a variable name.
 ok("a whole wipe deletes the synced state row",
-  /purgeSyncedState\(device, \{ all: true \}\)/.test(OP_FORGET));
+  /purgeSyncedState\(devices?, \{ all: true \}\)/.test(OP_FORGET));
 // A1 (survey §Q5) widened the term an item forget carries: the referring
 // expression is resolved to nodes at mutation time and their NAMES join the
 // predicate, so the argument is now `rxWide` rather than `rx`. The property
@@ -561,8 +600,8 @@ ok("a whole wipe deletes the synced state row",
 // TERM and not only by window — is unchanged and strictly stronger, so the
 // pattern accepts either spelling rather than pinning one variable name.
 ok("an item forget rewrites it by term",
-  /purgeSyncedState\(device, \{ rx(: rxWide)? \}\)/.test(OP_FORGET));
-ok("a window forget rewrites it by window", /purgeSyncedState\(device, \{ from, to \}\)/.test(OP_FORGET));
+  /purgeSyncedState\(devices?, \{ rx(: rxWide)? \}\)/.test(OP_FORGET));
+ok("a window forget rewrites it by window", /purgeSyncedState\(devices?, \{ from, to \}\)/.test(OP_FORGET));
 ok("the rewrite never leaves a NULL where the client expects an array",
   /coalesce\(\(select jsonb_agg/.test(MEMORY_SRC));
 ok("the window comparison casts epoch ms to a number, not text",

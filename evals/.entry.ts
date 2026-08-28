@@ -74,11 +74,21 @@ export {
   MAX_TERMS,
   RAISED_BUDGET,
   SHORT_REPLY_WORDS,
+  // WS-GAMEFEEL: the her-side loop fence, a different repetition from the one
+  // above (a repeated LINE, not a repeated topic) living in the same file.
+  isLoopingLine,
+  loopWords,
+  jaccard,
+  LOOP_JACCARD,
+  LOOP_LOOKBACK,
+  LOOP_MIN_WORDS,
+  LOOP_MAX_RETRIES,
+  LOOP_NUDGE,
 } from "../src/engine/repeat";
 export { asksToHangUp } from "../src/engine/hangup";
-export { renderActivity, activityNote, ACTIVITY_BUDGET } from "../src/engine/activity";
-export { chessActivity, moveFact, exchangeFact, chessMoveNote } from "../src/engine/chessTalk";
-export { newGame, play, assessLast, assessMove } from "../src/engine/chess";
+export { renderActivity, activityNote, ACTIVITY_BUDGET, ACTIVITY_BLOCK_MAX, STATE_LAW } from "../src/engine/activity";
+export { chessActivity, moveFact, exchangeFact, chessMoveNote, chessGameState, chessIdea, chessPlanClause } from "../src/engine/chessTalk";
+export { newGame, play, assessLast, assessMove, chooseMove, userPlay, inGameLevel, nextSkill, observedLevel, outplaying, startingLevel, ADAPT } from "../src/engine/chess";
 export { activityOf, activityPickupLine, RECENT_END_MS, lastAssessment } from "../src/state/game";
 export { resolveTheme, isThemeChoice, THEMES, THEME_LABEL } from "../src/engine/theme";
 export {
@@ -160,3 +170,93 @@ export { STORY_POOL, slotForStory, slotStartedAt, pickFor } from "../src/engine/
 export { formatHerLife } from "../src/engine/brain";
 export { mergeHerNow } from "../src/state/merge";
 export { lintLine } from "../src/engine/shapelint";
+
+// WS-K (ROADMAP-100X item 1). The disclosure-reciprocity ledger, plus the
+// compiler surface evals/reciprocity.mjs needs to prove the T17 slot is really
+// wired (manifest row, drop priority, tail order) rather than merely written.
+export {
+  classifyDisclosure,
+  reciprocityState,
+  reciprocityLean,
+  reciprocityNote,
+  renderReciprocity,
+  initialReciprocityState,
+  RECIPROCITY_WINDOW,
+  RECIPROCITY_DECAY,
+  RECIPROCITY_THRESHOLD,
+  RECIPROCITY_MIN_TURNS,
+  RECIPROCITY_MIN_EVIDENCE,
+  RECIPROCITY_BUDGET,
+  DISCLOSURE_WEIGHT,
+} from "../src/engine/reciprocity";
+// WS-O (ROADMAP-100X item 4). Bi-temporal fact edges. `resolveWhen` rides
+// along beside the deriver on purpose: evals/validity.mjs asserts that the
+// deriver's horizons ARE `resolveWhen`'s answers rather than a second parser's,
+// and it can only assert that against the real function.
+export {
+  deriveFactValidity,
+  factStaleness,
+  validityOverlaps,
+  validityMs,
+  validityIso,
+} from "../src/engine/validity";
+export { resolveWhen, STALE_DAYS, TIME_BOUND } from "../src/engine/timeline";
+export {
+  compile,
+  TAIL_MANIFEST,
+  TAIL_ORDER,
+  CORE_MANIFEST,
+  applyDropOrder,
+  assertManifestArithmetic,
+  computeManifestArithmetic,
+  hashManifest,
+  TAIL_CAP,
+  CORE_CAP,
+  SYSTEM_MAX,
+  OPERATIONAL_TAIL_CAP,
+  // WS-O: `evals/exdialog` sizes its arms against the guard api/chat.js
+  // actually enforces, not against SPEC's target CORE_CAP — the shipping brief
+  // already exceeds the target and an assertion on it would fail on the
+  // control (see compiler.ts's own note on why the live guard was raised).
+  OPERATIONAL_CORE_CAP,
+} from "../src/engine/compiler";
+
+// WS-K (ROADMAP-100X item 2). The injected persona module, so evals/drift.mjs
+// can compile a REAL session and — for its negative controls — a deliberately
+// broken copy of the same module.
+export { DEFAULT_AGENT, getAgent, listAgents } from "../src/engine/agents/registry";
+
+// WS-Q. The clone aliveness seam, so evals/clonelife/run.mjs and evals/drift.mjs
+// can drive the REAL modules rather than a copy: the clone's present, the
+// speak-first predicate, the sheet that fills them, and the constructor that
+// turns that sheet into an AgentModule a real compile can take.
+export {
+  cloneNowAt,
+  renderCloneNow,
+  localParts,
+  shapeForDow,
+  validateCloneLife,
+  cloneLifeRows,
+  CLONE_NOW_BUDGET,
+  CLONE_NOW_HEADER,
+  CLONE_TRANSITION_MIN,
+  MINUTES_IN_DAY,
+} from "../src/engine/agents/cloneLife";
+export {
+  initiativeVerdict,
+  renderInitiative,
+  INITIATIVE_BUDGET,
+  INITIATIVE_HEADER,
+  DAYTIME_FROM_MIN,
+  DAYTIME_TO_MIN,
+  OVERDUE_GRACE_MS,
+  STATED_TIME_LEAD_MS,
+  STATED_TIME_TRAIL_MS,
+  PATTERN_MIN_OBSERVATIONS,
+  PATTERN_FRESH_MS,
+} from "../src/engine/agents/initiative";
+export { DEMO_TEACHER } from "../src/engine/agents/characters/demoTeacher";
+export { sheetToModule, validateTeacherSheet } from "../src/engine/agents/fromSheet";
+// `lintLine` is already exported above (evals/reciprocity.mjs's surface) — one
+// export, two readers, rather than a second name for the same function.
+export { moodWordsIn } from "../src/engine/timeline";

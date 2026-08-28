@@ -62,6 +62,251 @@ const suites = {
   chess: "chess.mjs",
   // WS-GAMES: the chess→words layer — opening book, threat facts, shapelint.
   chesstalk: "chesstalk.mjs",
+  // WS-C (Gurukul pedagogy). The practice stack: the JEE Advanced syllabus
+  // taxonomy, the grading state machine, and the practice→words adapter.
+  //
+  // Wired the moment it landed rather than left standalone, because
+  // `dead-writers` bites hardest here: this suite is the only thing that
+  // checks the JEE Advanced partial-marking scheme, and a marking bug is
+  // SILENT — it does not crash, it moves a mastery track by the wrong amount
+  // and chooses a sixteen-year-old's next problem on the strength of it. It
+  // also carries the ability-label ban's negative control, which is the one
+  // check in the practice stack that guards a promise made to a minor rather
+  // than a number.
+  //
+  // Standalone, offline, deterministic, $0, ~2s. Re-bundles from the real
+  // source on every run.
+  practice: "practice.mjs",
+  // WS-B (Gurukul). The teacher-sheet seam: the publish-time validator, the
+  // runtime AgentModule constructor, and the consent gate.
+  //
+  // Wired here on the same `dead-writers` test as the suites around it, and
+  // for a sharper reason than most: this suite is the only thing that checks
+  // the PUBLISH GATE, and every way that gate fails is silent. A sheet with a
+  // helpline the honesty allowlist does not carry publishes fine and ships a
+  // clone that cannot say the child helpline. A sheet missing an arc override
+  // publishes fine and ships a clone of a real named teacher, talking to a
+  // sixteen-year-old, wearing the companion arc. Neither throws.
+  //
+  // It also carries the consent gate's negative control — the predicate
+  // re-run with its consent clause struck, which must go quiet — because a
+  // gate that passes against the bug it exists to catch is not a gate.
+  //
+  // Standalone, offline, deterministic, $0, no DB. Re-bundles from the real
+  // source on every run.
+  teachersheet: "teachersheet.mjs",
+  // WS-F (Gurukul ingestion). The statistical pass, the phrase-bank rule, the
+  // draft assembler's honesty, and the studio endpoint's dispatch.
+  //
+  // Three of its assertions are the ones worth naming here, because each would
+  // go quiet under an ordinary-looking simplification:
+  //
+  //  - THE HELD-OUT CONTROL. The fixture contains a fragment that occurs 8
+  //    times in the half a draft is mined from and 2 times in the half it is
+  //    checked against. An in-sample check passes it; the suite asserts it is
+  //    rejected. That is the only thing standing between "a habit this teacher
+  //    has" and "a memorable line he said once", which is the difference
+  //    teacher-sheet-spec.md §4.3 exists to draw, on the field the core
+  //    deliberately licenses for REPETITION.
+  //  - THE SPLIT'S OWN NEGATIVE CONTROL. Global-index parity is the obvious
+  //    implementation and it hands one half every teacher turn of an
+  //    alternating doubt session and the other half a corpus of a student's
+  //    words. Both copies run here; the wrong one must be visibly wrong.
+  //  - THE DRAFTER'S HONESTY, WITH A DISHONEST TWIN. `draft` ∪ `gaps` must be
+  //    exactly the sheet contract, and a deliberately faking copy of the
+  //    assembler — one field filled with something plausible and quietly
+  //    dropped from the gap list — must fail the same predicate. That is the
+  //    `silent-truncation` failure in miniature, and the shape
+  //    teacher-sheet-spec.md §0 says a pipeline sized for the wrong number of
+  //    fields produces: a sheet that looks complete and speaks with nothing in
+  //    fifteen of its slots.
+  //
+  // The endpoint's logic runs against a FAKE db (api/replica-claims.js's split
+  // is what makes that possible), so this suite stays offline, deterministic,
+  // $0 and DB-free like everything else here.
+  ingest: "ingest.mjs",
+  // Evaluation-only Hinglish scoring. Raw Unicode WER/CER stays visible while
+  // a bounded reviewed alias layer compares Roman Hindi with Devanagari ASR.
+  // Unknown words and English confusables remain errors; coverage is explicit.
+  hinglishscore: "speech/hinglish-script-score.test.mjs",
+  hinditextfrontend: "speech/hindi-text-frontend.test.mjs",
+  voicefrontier: "voice-bakeoff/frontier-plan.mjs",
+  indicf5: "indicf5-runtime/run.mjs",
+  indicf5pronunciation: "indicf5-pronunciation/run.mjs",
+  openvoiceconverter: "openvoice-converter/run.mjs",
+  voxcpm2: "voxcpm2-runtime/run.mjs",
+  moss_tts: "moss-tts-runtime/run.mjs",
+  zonos2: "zonos2-runtime/run.mjs",
+  // WS-Y (Gurukul Mirror Call). The Call tab's state machine and the one
+  // property the whole ambient-approval design rests on: an un-accepted delta
+  // chip is never rendered as applied.
+  //
+  // Wired here rather than left as a studio harness because the studio's
+  // existing checks (`evals/studio-*/harness.tsx`) are browser pages a human
+  // opens, and nothing runs them. This half is pure — `mirrorCallMachine.ts`
+  // has no React and no DOM in it precisely so the property could be fuzzed
+  // by a node process instead of reviewed by eye.
+  //
+  // What it would catch: an optimistic accept (the obvious, friendly
+  // implementation — show it applied, reconcile later) makes the UI claim a
+  // change landed on the sheet that the server may have refused. That is
+  // SPEC-GURUKUL §8 item 3's silent self-update wearing a checkmark. The fuzz
+  // carries its own negative control: a reducer that trusts the tap must fail
+  // the same property, and the suite asserts that it does.
+  //
+  // Offline, deterministic, $0, no DB, no browser, ~2s.
+  mirrorcall: "mirrorcall.mjs",
+  // WS-I (Gurukul stays-current loop). The re-ingestion worker end to end:
+  // a new video on a watched channel becomes a PROPOSED delta on a
+  // `vy_ingest_run` row, and stops there.
+  //
+  // Four of its assertions are the ones worth naming, because each would go
+  // quiet under an ordinary-looking simplification:
+  //
+  //  - THE NEVER-SILENT-UPDATE NEGATIVE CONTROL. SPEC-GURUKUL.md §8 item 3
+  //    is "never silent self-update of a live persona", and the suite writes
+  //    the violating code itself: the approval op's UPDATE with the approver
+  //    and the decision time struck out. The fake db enforces migration 053's
+  //    `vy_ingest_run_approval_gate` exactly as Postgres does, so the twin is
+  //    REFUSED. A fake that ignored the constraint would report an approval
+  //    the database would have rejected.
+  //  - THE SHEET IS NEVER NAMED. Not written, not READ. Asserted over every
+  //    SQL string the sweep issued, because a worker that reads the published
+  //    sheet to "compare" is one edit away from a worker that writes it, and
+  //    that diff looks like a query which was already there.
+  //  - IDEMPOTENCE THROUGH THE INDEX, NOT ONLY THE CURSOR. The suite resets
+  //    `last_seen_video_id` by hand and sweeps again: the unique index on
+  //    (replica_id, video_ref) must swallow every re-open. Reaching that
+  //    point in production means an ASR bill would otherwise be paid twice,
+  //    so a cursor-only check is a check of the cheap half.
+  //  - A REVOKED WATCH PRODUCES ZERO CALLS. Counted, not filtered — the only
+  //    honest way to assert an absence, and a revoked watch is a teacher who
+  //    withdrew permission for their channel to be read.
+  //
+  // Offline, deterministic, $0, no DB and no network: the real worker driven
+  // through a fake `db` and the fixture channel/ASR providers.
+  channel: "channel.mjs",
+  // WS-S (Gurukul in-house YouTube extraction). The lane that made the
+  // stays-current loop able to reach a teacher's actual back catalogue —
+  // `api/_channel/providers/youtube-oauth.js`'s `fetchAudio` was an honest
+  // refusal, because the Data API has no download endpoint, and the answer is
+  // a self-hosted `services/media-extract` wrapping a pinned yt-dlp.
+  //
+  // This lane is different in kind from every other consent lane in the repo
+  // and the suite is shaped around that difference: the others gate what the
+  // platform does with what a teacher HANDED IT, while this one reaches out
+  // and reads media sitting on somebody else's platform. The only thing
+  // between "a teacher's own lectures" and "a general-purpose YouTube
+  // downloader" is a predicate, so the suite checks the predicate four ways:
+  //
+  //  - THE ATTESTATION GATE. No live `vy_channel_attestation` → refused, with
+  //    a typed code, and the transport is never reached. Asserted by counting
+  //    the fetches that must be ZERO, and the upload targets that must never
+  //    be signed — the absence, not the branch.
+  //  - THE BINDING GATE. A live attestation belonging to the SAME owner but
+  //    naming a DIFFERENT channel must not authorize this watch. This is
+  //    precisely the case an "is there an attestation?" check passes, and the
+  //    difference between that check and "is there one FOR THIS CHANNEL?" is
+  //    the entire design. A pre-057 row with a NULL `attestation_id` is
+  //    asserted to read as UNATTESTED rather than grandfathered.
+  //  - TYPED FAILURES, NEVER A CRASH. `extractor_bot_check`,
+  //    `extractor_signature_failed`, `channel_binding_mismatch` and the
+  //    duration ceiling each land as a DISTINCT `vy_ingest_run.failure_code`,
+  //    because an operator must tell "the teacher withdrew permission" from
+  //    "the yt-dlp pin is stale" from "this lecture is nine hours long"
+  //    without opening a log.
+  //  - THE NEGATIVE CONTROL. The attestation predicate is struck out and the
+  //    suite asserts an unattested video then DOES extract. A gate nobody has
+  //    watched fail is a gate nobody knows works, and this is the check that
+  //    turns the three above from claims into evidence.
+  //
+  // Offline, deterministic, $0: the real provider, the real HMAC transport
+  // client and the real worker, driven through a fake network that VERIFIES
+  // the signature the client produced — a fake network, not a fake contract.
+  mediaextract: "mediaextract.mjs",
+  // WS-AI (Gurukul extraction routes). The seam that makes the choice of HOW
+  // we reach YouTube one environment variable instead of a rewrite.
+  //
+  // Wired here rather than left as a script because the property it protects is
+  // invisible on the happy path and expensive when it breaks: a residential
+  // proxy costs money per gigabyte, and an extraction that quietly went out
+  // direct returns exactly the same WAV as one that went through the proxy that
+  // was paid for. The only moment the difference exists is the moment something
+  // asserts the route the service reports against the route we asked for, so
+  // that assertion has a negative control run in both directions.
+  //
+  //  - ROUTE SELECTION. Explicit beats inferred; nothing is silently upgraded.
+  //  - NAMED REFUSALS. Every route without its credential refuses as ITSELF,
+  //    with a distinct code, and every one of those codes reaches the owner's
+  //    Activity surface as a written sentence AND a next action, because the
+  //    fix is a thing only the owner can do.
+  //  - PROVENANCE. The route that served the bytes is the route recorded, or
+  //    the extraction is refused.
+  //  - THE TWO HALVES. A working transcript route must never be able to hide a
+  //    blocked audio route, which is what one combined readiness answer does.
+  //
+  // Offline, deterministic, $0, no network. The measurements that motivate it
+  // are `measurements.md#youtube-extraction-blocked-from-azure` (WS-AD) and
+  // `measurements.md#po-token-helps-until-the-ip-is-burned` (WS-AI).
+  extractroutes: "extractroutes.mjs",
+  // WS-N (Gurukul deployment). "Deploy the clone anywhere": the clone↔surface
+  // binding (migration 055), the generalized surface resolution, and the
+  // embeddable web widget.
+  //
+  // Wired here on the same `dead-writers` test as everything around it, and
+  // for a sharper reason than most: every way this seam fails is silent AND
+  // it fails in front of a student.
+  //
+  //  - THE WRONG CLONE ANSWERS. A mis-resolved binding replies just as
+  //    promptly as a correct one and every log line looks healthy — the
+  //    student asked their physics teacher and reached a persona built for
+  //    consenting adults. So the suite asserts the resolution by AGENT ID and
+  //    by the COMPILED CORE, not by "it replied".
+  //  - THE FAIL-CLOSED SET IS INDISTINGUISHABLE. Unbound, paused, revoked and
+  //    consent-withdrawn must be four situations and one error code, or a
+  //    caller can enumerate which teachers took their clone down.
+  //  - THE DISCLOSURE IS BOUND, NOT REQUESTED. The widget runs on somebody
+  //    else's website, so "it renders the card" cannot be the mechanism. The
+  //    session token carries the card's digest and a stale one cannot buy a
+  //    turn — safety-floor-teacher.md §1's P1 as a predicate.
+  //  - THE NEGATIVE CONTROL. The resolution predicate is re-run with its
+  //    `status = 'connected'` clause struck, and the suite FAILS unless the
+  //    struck copy answers the revoked binding.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  clonechannel: "clonechannel.mjs",
+  // WS-AB (the universal "bring your context" lane). The Context Locker end to
+  // end: many files and many links become owned, hashed, quota-capped items,
+  // and the ones this platform can honestly read become CITED proposals on the
+  // review surface the channel lane already uses.
+  //
+  //  - THE ITEM-TYPE MATRIX. Every accepted format extracts, every refused one
+  //    refuses BY NAME (including a corrupted file, an encrypted PDF and a
+  //    scan with no text layer), and audio/YouTube are ROUTED to the lanes that
+  //    already carry their permissions. A format silently stored-and-ignored is
+  //    the failure this half exists to catch.
+  //  - CITATION INTEGRITY, WITH TWO NEGATIVE CONTROLS. Every proposed addition
+  //    names an item and a span and `body.slice(span)` really contains the
+  //    fragment; a FABRICATED citation and an UNCITED addition must both fail.
+  //    Without them, "cited" is a word the pipeline prints.
+  //  - SPEAKER ATTRIBUTION, WITH ITS WRONG-SPEAKER CONTROL. A chat export is
+  //    mined only for the declared owner; the control re-mines it declaring the
+  //    other party and asserts not one citation lands on the owner's messages.
+  //    A lane that got this wrong would still return confident, well-formed,
+  //    resolvable citations — and a person's clone would talk like their mother.
+  //  - The caps are REFUSALS with their numbers, never trims (`silent-
+  //    truncation`), ownership is a predicate rather than a filter, and NO
+  //    statement the lane issues names `vy_teacher_sheet`.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  contextlocker: "contextlocker.mjs",
+  // WS-D (Gurukul student surface). The mastery fold: thresholds, no
+  // decay-by-absence, order-independence/monotonicity, and XP strictly from
+  // graded outcomes — the properties `src/engine/practice/mastery.ts`'s
+  // header names. UI correctness (PracticeActivity, MasteryMap) is carried by
+  // typecheck + the web build, not by an eval — neither screen computes
+  // anything this suite does not already cover at the engine layer.
+  mastery: "mastery.mjs",
   // WS-ACTIVITY. The generic "what we are doing together" seam and its chess
   // adapter — plus the control that keeps dialogue out of it, since a line she
   // could say in this block is a line she would say every single game.
@@ -98,6 +343,112 @@ const suites = {
   // $0, ~5s. Re-bundles from the real source on every run.
   tttparity: "ttt/parity.mjs",
   relleak: "relational/leak.mjs",
+  // WS-K (ROADMAP-100X item 1). The disclosure-reciprocity ledger and its T17
+  // wiring. Wired here on the same `dead-writers` test as everything else, and
+  // for a specific reason: this block TOUCHES THE COMPILER, and the property
+  // that makes that safe — an absent state moves zero bytes — is one nothing
+  // else in the tree checks except by proxy. The suite also carries the
+  // classifier's precision negatives, which are the half that keeps a
+  // disclosure measure from quietly becoming a usage metric (inner.ts G1).
+  // Offline, deterministic, $0, no DB, no model call, ~1s.
+  reciprocity: "reciprocity.mjs",
+  // WS-K (ROADMAP-100X item 2). The WITHIN-SESSION drift probe suite: a 44-turn
+  // session compiled turn by turn on both lanes, with the anchors, the safety
+  // floor, the register bullets, the stage band and the drop order asserted at
+  // EVERY turn rather than at one convenient one.
+  //
+  // Every other eval in this tree tests a TURN. The external literature this
+  // was built from (Identity Drift, ContextEcho) measures drift as a function
+  // of SESSION LENGTH, and its named mechanism — persona instructions occupying
+  // a shrinking fraction of context — is invisible to a single-turn suite by
+  // construction: the existing gates would pass identically on a build whose
+  // anchors survive turn one and are shouldered out by turn forty.
+  //
+  // It is STRUCTURAL only and says so in its own output: the behavioural half
+  // (does her register actually hold) needs a judge and money, and plugs in
+  // behind the provider seam in §5 rather than being faked into a number here.
+  // Carries three negative controls, including the literal `prompt-position`
+  // defect (the appended-last rules moved mid-brief).
+  //
+  // Offline, deterministic, $0, no DB, ZERO model calls, ~4s.
+  drift: "drift.mjs",
+  // WS-K (ROADMAP-100X item 3). The MEMORY RECALL BENCHMARK: 3 authored dyads
+  // (190 Hinglish turns, 50 ground-truth questions across nine question
+  // classes) driven through the REAL api/memory.js opRecall, with the database
+  // mocked at api/_db.js's own module boundary.
+  //
+  // It exists because "does she remember correctly" was judged informally and
+  // measured nowhere, which contradicts the house ethos in the one place it
+  // matters most. It is a GATE rather than a report because everything it
+  // asserts is silent when it breaks: a retrieval leg that reads zero rows
+  // looks exactly like an empty store (`realtime-recall-never`), which is why
+  // the router refuses to answer a statement it does not recognise.
+  //
+  // Honest about its own coverage, in the run header and not only in a
+  // comment: the LLM EXTRACTOR and the SEMANTIC LEG are NOT exercised, so
+  // every score is a lower bound and no number from it is written to
+  // measurements.md. Offline, deterministic, $0, no DB, no network, ~1s.
+  recallbench: "recallbench/run.mjs",
+  // WS-Q. THE CLONE ALIVENESS GATE — a published clone's own life, and its
+  // right to speak first.
+  //
+  // Wired here on the same `dead-writers` test as everything around it, and
+  // for one specific reason worth naming: this suite carries the negative
+  // control for the ONE mechanic `persona.ts` deleted on ethical grounds
+  // ("do not re-add a silence-triggered ping in any form") and that
+  // `teacher-arc.md` §7 rows 8/9 ban outright for minors. Every way that ban
+  // fails is silent — a clone that pings a sixteen-year-old because they went
+  // quiet looks like a working product from every log line — so the suite
+  // sweeps an empty record across gaps from one minute to one year and asserts
+  // zero verdicts, then rebuilds the deleted idle nudge and asserts the rebuilt
+  // copy IS caught firing on the same input.
+  //
+  // It also carries gate Q1: with no clone fields present the compiled prompt
+  // is byte-identical, which is the property that keeps the 83-fixture battery
+  // meaningful after a seam is added to the compiler.
+  //
+  // Offline, deterministic, $0, no DB, no network, ZERO model calls, ~1s.
+  clonelife: "clonelife/run.mjs",
+  // WS-O (ROADMAP-100X item 4). BI-TEMPORAL FACT EDGES: the fact's own
+  // validity interval (migration 056), the deriver over timeline.ts's real
+  // date table, and the two consumers that replace a row-age guess with a
+  // comparison — `staleNote`'s staleness and consolidation's contradiction
+  // rule.
+  //
+  // It is a GATE and not a report because the property it protects is silent
+  // in both directions. A lost fix reintroduces `stale-note-keys-on-row-age`:
+  // she asks how a November exam went, in August, in a fluent sentence that
+  // nothing about the output marks as wrong. A deriver that gets LOOSE is
+  // worse and equally silent: it asserts a specific horizon where the old rule
+  // merely shrugged, so §3's negatives outnumber §2's positives.
+  //
+  // Carries the defect itself as a fixture (dyad-b's `neet pg`, verbatim), the
+  // one-parser assertion that fails if somebody inlines a regex into
+  // validity.ts, and the absent-is-byte-identical property that lets 056 land
+  // with no backfill. Offline, deterministic, $0, no DB, no clock, ~1s.
+  validity: "validity.mjs",
+  // WS-O (ROADMAP-100X item 5). The EXAMPLE-DIALOGUE FORMAT EXPERIMENT: the
+  // one place where an outside consensus ("example dialogues are the single
+  // most powerful tool") and a measured in-house result (`recited-prompt`:
+  // example quotes recited 4/5, 0 after removal) point opposite ways.
+  //
+  // Three arms — no examples, quotable lines, micro-scenes — compiled through
+  // the REAL compiler by wrapping the real agent module, matched on situation
+  // set, order and byte count so FORMAT is the only variable.
+  //
+  // It measures the recitation SURFACE (emittable spans, liftable ratio,
+  // n-gram overlap with a corpus of her own turns) and says in its own output
+  // that a surface is not a rate. The decisive arm needs generation and a
+  // judge and sits behind a provider seam that reports `judged: false`.
+  //
+  // Wired here rather than left standing alone because §0 is a real gate on a
+  // real risk: it asserts the quotable arm's text reaches NO shipping prompt,
+  // which is the property that makes it safe for a phrase bank to exist in
+  // this repo at all. §4 reports a live gap — shapelint's sentence-shape rule
+  // is anchored on English orthography and cannot see a Hinglish phrase bank.
+  //
+  // Offline, deterministic, $0, no keys, no DB, no model call, ~2s.
+  exdialog: "exdialog/run.mjs",
   // WS-MOVEVOICE: her hand and her mouth on ONE timeline. The owner played
   // chess on a call, she moved milliseconds after him, and then her voice said
   // she SHOULD play the move already on the board. Gates the three halves of
@@ -121,6 +472,207 @@ const suites = {
   // CLASS CHECK: every optional AppState field is either wiped by the
   // teardown or exempted in writing. Offline, $0, ~2s.
   teardown: "teardown.mjs",
+  // Human-replica control plane: consent capability, verified self-only live
+  // challenge, versioned eval verdicts, lifecycle, private object paths and
+  // content-free audit. Offline and provider-free.
+  replica: "replica/run.mjs",
+  // Owner enrollment: account consent cannot mint biometric/inference rights;
+  // evidence is MIME/size/hash bounded, stored under opaque owner paths and
+  // uploaded only through a short-lived capability into a verified private
+  // bucket. Offline, deterministic, no DB or storage call.
+  replicaenrollment: "replica-enrollment/run.mjs",
+  // Azure Blob large-media seam: create-only browser SAS, durable provider
+  // locators, deterministic checksummed blocks, mixed-provider processing and
+  // exact erasure. Every provider response is an offline fixture.
+  azureblob: "azure-blob-storage/run.mjs",
+  // Studio enrollment truth: owner-labeled language coverage never becomes
+  // automatic detection, and a selected or processing calibration never reads
+  // as a ready Hindi/Hinglish reference. Offline, deterministic, no media call.
+  studioenrollmentquality: "studio-enrollment-quality/run.mjs",
+  // Explicit owner-only test builds remove verification and publishing
+  // ceremony from the mounted UI while production remains the default. The
+  // suite carries the naive "hide Deploy only" negative control so old
+  // identity/liveness blockers cannot leak back into the simplified rail.
+  studioselftestui: "studio-self-test-ui/run.mjs",
+  // Noisy-evidence processing: immutable derivatives, composite ownership,
+  // retry-safe leases, provenance-carrying ASR/diarization/analysis evidence
+  // and draft-only VoiceGenome builds. Fake adapters prove contracts only;
+  // there is no network, model call or quality claim in this gate.
+  replicaprocessing: "replica-processing/run.mjs",
+  // Replica delivery safety: active verified self-only capability, approved
+  // version bindings, audible disclosure before playback, streaming watermark,
+  // C2PA asset binding and a signed content-free public receipt. Production
+  // refuses the deterministic adapters used by this offline gate.
+  replicaprovenance: "replica-provenance/run.mjs",
+  // Deployable protection plane: official AudioSeal streaming watermark,
+  // C2PA Python sidecar, Azure Key Vault signatures, authenticated transport,
+  // exact-byte binding and a content-free public verification endpoint.
+  productionprotection: "production-protection/run.mjs",
+  // Real noisy-audio evidence plane: exact-pinned public models, private
+  // authenticated transport, dual speaker embeddings, non-destructive
+  // separation/enhancement candidates and deliberately unknown target
+  // identity until a verified anchor or owner review exists.
+  voiceevidence: "voice-evidence/run.mjs",
+  // Permission-independent zero-shot synthesis: immutable MIT Chatterbox V3,
+  // private HMAC transport, exact disclosure, verified PerTh watermark,
+  // Hindi support and a digest-pinned scale-to-zero Azure GPU deployment.
+  openvoice: "open-voice/run.mjs",
+  // Blinded owner A/B calibration: exact protected generations, constant
+  // prompt/identity/model controls, server-owned delivery conditions and an
+  // append-only content-free preference ledger for future model updates.
+  voicepreference: "voice-preference/run.mjs",
+  voicecurriculum: "voice-curriculum/run.mjs",
+  voicedeliverypolicy: "voice-delivery-policy/run.mjs",
+  voicedeliveryholdout: "voice-delivery-holdout/run.mjs",
+  // Deployable scale-to-zero consumer: composite-tenant leasing, real private
+  // byte verification, current ClamAV, ffprobe, exact evidence adapters,
+  // immutable persistence and one-step DAG settlement.
+  processingworker: "processing-worker/run.mjs",
+  // WS-AH. The CALLER for the above. `runNextProcessingJob` was a complete
+  // runner that nothing invoked, so one real 32.9 MB upload sat at
+  // integrity/queued and never moved. This suite holds the sweep's auth
+  // refusal, its job bound, its legible degradation when a credential or a
+  // binary is absent, and the property that matters most: a step we cannot
+  // perform NEVER yields a clean verdict. That last one carries its own
+  // negative control, because an assertion that a scanner refuses is worthless
+  // unless something proves the scanner could have said yes.
+  processingsweep: "processing-sweep/run.mjs",
+  // Owner processing review: strict tenant binding, append-only controlled
+  // decisions, privacy-safe summaries, real-evidence readiness and an
+  // idempotent draft-only VoiceGenome queue.
+  replicareview: "replica-review/run.mjs",
+  // Internal owner testing can auto-grant enrollment ceremony gates only when
+  // an exact three-part environment guard and the authenticated/leased owner
+  // UUID all match. The legacy one-flag form stays fail-closed.
+  replicaselftestmode: "replica-self-test-mode/run.mjs",
+  // Crash-recoverable, consent-fenced VoiceGenome materialization: one exact
+  // owner-accepted evidence set becomes a draft only, never an active voice.
+  modelbuild: "model-build/run.mjs",
+  // Private replica runtime: immutable qualified version bindings, owner-only
+  // agent/person resolution, RelationalOS isolation, protected cascade speech
+  // and revocation fencing at the signed segment boundary.
+  replicaruntime: "replica-runtime/run.mjs",
+  // WS-J. The fidelity guarantee (SPEC-GURUKUL §8.2): "still sounds like them"
+  // as a number that gates activation rather than a claim in a brief.
+  //
+  // Score math over fixture ECAPA vectors (identical -> 1, orthogonal -> 0,
+  // known-similarity fixtures per verdict tier, and the one-bad-window case
+  // that the mean cannot see and `worst`/`p10` can), the thresholds proved to
+  // be DATA (one changed floor moves the verdict with no code edit), the
+  // activation gate's negative controls in BOTH directions (no fidelity row
+  // and a 'fail' row each fail closed, with ONE indistinguishable blocker code
+  // so "never benched" cannot be told from "benched and failed"), and the
+  // recompute-on-update law that stops a stale pass covering a new voice.
+  //
+  // It is wired here rather than left standalone for the `dead-writers`
+  // reason, and because the thing it guards is a gate: a fidelity gate nothing
+  // runs is a fidelity gate that silently stops gating. Offline,
+  // deterministic, $0, no GPU, no model, no network — every embedding is a
+  // fixture vector, which is exactly what the audio/vectors seam buys.
+  fidelity: "fidelity/run.mjs",
+  // WS-V. earbench — the MECHANICAL half of the blind listening bench that the
+  // fidelity law above depends on and that did not exist until now. The ECAPA
+  // number is a regression monitor by decision; activation quality is decided
+  // by a blind owner pass, on the precedent of `rejected.md#azure-tts` where
+  // every measured axis said switch and the ear said no.
+  //
+  // What is wired here is the INSTRUMENT, never the listening: blinding (opaque
+  // ids, one file size, one wire length, no arm anywhere a listener can reach),
+  // counterbalance, the disclosure trim and its fail-closed refusals, the local
+  // server's inability to serve its own answer key, and the scorer's three
+  // verdicts — distinguishable / indistinguishable-from-chance / under-powered.
+  // That third one is the point: "not significant" is not evidence of sameness,
+  // and a bench that conflates them would license a claim nobody measured.
+  //
+  // Offline, deterministic, $0, loopback only, ~3s. The listening pass itself
+  // is deliberately NOT reachable from here — a gate that waits for a human to
+  // put headphones on would wedge CI until they did.
+  earbench: "earbench/run.mjs",
+  // The cross-candidate owner listening pack. This is the mechanical half only:
+  // exact source and transformed-audio binding, opaque ids, one WAV geometry,
+  // a private whitelist server, attention checks, hidden repeats, the explicit
+  // unseal latch, and the rule that only equal language plus equal text hash
+  // cells may be compared. Human listening remains outside CI by construction.
+  voicelistening: "voice-listening-benchmark/run.mjs",
+  // The fair successor to the consolidated listening pack: every provider in
+  // a language receives the same owner window, exact text, disclosure, seed
+  // and consent binding. The suite is synthetic and offline; cloud execution
+  // stays behind a separate explicit confirmation and a USD 5 ledger stop.
+  voicematched: "voice-matched-pack/run.mjs",
+  // Evidence-backed personality: append-only owner claim decisions,
+  // contradiction-preserving typed Person Models, deterministic source-set
+  // builds and explicit exact-version approval.
+  personmodel: "person-model/run.mjs",
+  // Typed owner calibration: server-owned behavioral contrast pairs,
+  // append-only revisions, deterministic calibration policies and exact
+  // Person Model/runtime version binding without free-text prompt accretion.
+  replicacalibration: "replica-calibration/run.mjs",
+  // Privacy-bounded claim extraction: reviewed target-speaker spans only,
+  // character-preserving direct-identifier redaction, strict Azure Foundry
+  // structured output, exact quote citations and proposal-only persistence.
+  replicaextract: "replica-claim-extraction/run.mjs",
+  // Version-frozen private dialogue: typed Person Model + calibration,
+  // agent/person-scoped relationship context, erasable raw logs, strict
+  // structured output and server-bound protected speech.
+  replicadialogue: "replica-dialogue/run.mjs",
+  // Atomic finite-grant control: conservative reservation before paid network
+  // calls, measured settlement, crash/unknown reconciliation and content-free
+  // accounting under one hard Azure application ceiling.
+  providerbudget: "provider-budget/run.mjs",
+  // Approval-gated Azure Personal Voice lifecycle: consent, verified private
+  // audio, native-unit spend fencing, pinned synthesis, status and deletion.
+  personalvoice: "azure-personal-voice/run.mjs",
+  // Azure voice-talent consent is a second, challenge-bound capability: the
+  // exact provider statement, encrypted legal name, private audio artifact,
+  // verified self-only eligibility and a non-generic finalization path.
+  providerconsent: "provider-consent/run.mjs",
+  // The exact approved VoiceGenome and provider-consent artifact become one
+  // deterministic metered profile through short-lived private reads. Status,
+  // tenant binding and deletion remain server-only and provider-neutral.
+  voiceenrollment: "voice-enrollment/run.mjs",
+  // Replay-resistant self-verification: exact randomized phrase, face
+  // liveness+identity, single-speaker continuity, synthetic-media risk,
+  // capture binding, one-way leases and evidence-bound biometric consent.
+  livenessverify: "liveness-verification/run.mjs",
+  identityproof: "identity-proofing/run.mjs",
+  // Deployable Azure identity broker: exact private-byte binding, pinned
+  // Document Intelligence and Face calls, independently signed authenticity
+  // review, content-free results, tamper/replay fencing, official Face
+  // liveness-with-verify quick links, sealed handles and provider deletion.
+  azureverify: "azure-verifier/run.mjs",
+  // Owner-only consumption of the official Face session contract: narrow
+  // pre-processing consent, pseudonymous device binding, sealed handles,
+  // crash-safe issue/poll/delete states and provider deletion before pass.
+  facesession: "face-session/run.mjs",
+  // Crash-safe biometric deletion: disable-first semantics, one-way leases,
+  // idempotent Azure voice+consent deletion, bounded backoff and a scheduled
+  // reconciler that keeps working even when new cloning has been disabled.
+  voiceerasure: "voice-erasure/run.mjs",
+  // Raw-source deletion is a complete lineage operation: exact private
+  // original+derivative removal, external-voice fencing, claim deletion and
+  // conservative scrubbing/retirement of models that cannot prove exclusion.
+  sourceerasure: "source-erasure/run.mjs",
+  // Full replica deletion: child provider/storage fencing, exact synthetic
+  // agent memory purge, encrypted private-row cascade and an unlinkable
+  // content-free receipt with explicit backup-policy expiry.
+  replicaerasure: "replica-erasure/run.mjs",
+  // Exact-version, multidimensional owner adjudication of a private turn,
+  // including encrypted correction exemplars and sealed-audio lineage.
+  replicafeedback: "replica-feedback/run.mjs",
+  // Content-free, conversation-locked feedback datasets with immutable split
+  // assignments, depth/coverage gates and exact latest-revision rechecks.
+  feedbackdataset: "feedback-dataset/run.mjs",
+  // Blinded paired target-improvement plus cross-layer noninferiority and
+  // zero-tolerance safety gates; qualification never activates a candidate.
+  candidatequal: "candidate-qualification/run.mjs",
+  // Replay-safe owner A/B evaluation: encrypted private assets, server-held
+  // candidate mapping, balanced assignments and all-layer atomic judgments.
+  candidateeval: "candidate-owner-eval/run.mjs",
+  // Second-agent readiness: every shipping insert names agent_id, every
+  // relational/natural-key arbiter is composite, and compatibility defaults
+  // have explicit strict migrations with a working negative control.
+  agentstrict: "agent/strict-readiness.mjs",
+  agentroom: "agentroom.mjs",
   persona: "persona-invariants.mjs",
   fixtures: "fixtures.mjs",
   // WS-HONESTY. Offline and deterministic (no judge, no model call, no cost),
@@ -261,6 +813,10 @@ const suites = {
   // and it is the only thing standing between a flipped flag and a fabricated
   // fact about somebody's mother.
   consolidation: "consolidation/run.mjs",
+  // Migration 018 and the raw RelationalOS boundary: schema parity, explicit
+  // writers, pre-rank readers, per-agent consolidation cursors/leases and
+  // cross-agent negative controls. Offline, deterministic, no DB/network.
+  rawisolation: "agent/raw-isolation.mjs",
   // WS-RECALL. The retrieval cluster (the Hinglish tokenizer's 19-query
   // battery and its precision negatives, the two dead stores' new readers,
   // RRF fusion, the co-citation hop, and the structural proof that spaced
@@ -319,6 +875,15 @@ const suites = {
   // explicit lane, and is deliberately not reachable from here
   // (`dryrun-still-spends`).
   forgethook: "forget/a1.mjs",
+  // WS-FORGET-XS (`legacy-forget-is-device-scoped`, closed 2026-08-26). The
+  // structural half of the cross-surface forget gate: every legacy-lane
+  // device predicate reachable from opForget must be written over the
+  // person's device SET, resolved exactly once, failing closed to the asking
+  // device. The functional half — seed two surfaces, wipe through the real
+  // handler, both empty, another person and a group room SURVIVE — needs a
+  // live database and runs with `--live`; it is deliberately not reachable
+  // from here. Offline, $0, ~1s.
+  forgetxs: "forget/crosssurface.mjs",
   // WS-FELTBATTERY (docs/MEMORY-FELT.md §9). The OFFLINE half of the
   // felt-memory acceptance battery: 14 long-horizon dyads compiled through the
   // REAL engine, the pre-registration hash checked against the committed
@@ -431,9 +996,214 @@ const suites = {
   // deliberately not in this map, same by-construction reason the composer
   // note above gives: it needs a built app on a port.
   assetwire: "assetwire/run.mjs",
+  // WS-M. The SQL parameter-type gate for the replica/gurukul API.
+  //
+  // Wired here rather than left standalone for the reason that matters most in
+  // this particular case: it is the ONLY gate in the repo that can see the bug
+  // class it covers. Every other suite mocks the database, and a mock resolves
+  // no operators, so `operator does not exist: uuid = text` is invisible to all
+  // of them — the studio's first live "create replica" click was the test.
+  //
+  // Reads the checked-in DDL (db/schema.sql + db/migrations/*.sql) into a
+  // column→type map, then reads every SQL template literal under api/ the way
+  // Postgres will. Carries seven negative controls and six positive ones, plus
+  // floors on the parsed table/column counts — because the failure mode of a
+  // static gate is parsing nothing and passing everything.
+  //
+  // Offline, deterministic, $0, ~1s. No database, by design: a gate that needs
+  // credentials is a gate CI skips.
+  sqlcast: "sqlcast.mjs",
+
+  // WS-R. PERSON_TABLES completeness against the checked-in DDL.
+  //
+  // scripts/relcheck.mjs asks the same question of the LIVE database and is
+  // the better place to ask it — but it needs NEON_URL and skips without one,
+  // so every credential-free CI run said nothing at all about the one list
+  // whose omission is a privacy failure. A table missing from PERSON_TABLES is
+  // invisible to BOTH the forget cascade and the DSAR export: a person who
+  // asked to be forgotten keeps rows in it. Three such tables were live when
+  // this was written.
+  //
+  // Offline, deterministic, $0. It cannot see a table created straight against
+  // the database (relcheck is what catches that); it can see every table this
+  // repo wrote a migration for, on a laptop with no secrets.
+  persontables: "persontables.mjs",
+
+  // WS-W. The studio's "Preview my voice" panel — the first surface where an
+  // owner interacts with their own clone, and the first one that has to tell
+  // the truth about a GPU runtime that scales to zero.
+  //
+  // Wired here rather than left standalone for the ordinary `dead-writers`
+  // reason and one specific to this panel: two of the things it checks are
+  // ABSENCES, and an absence has no other witness. A caller who does not own
+  // the replica must not cause a read of the private bucket or a second of
+  // GPU; the suite counts both as zeros, with a positive control proving the
+  // counters can move and a negative control (the owner predicate struck out
+  // of the fence) proving the refusal comes from the owner binding.
+  //
+  // It also holds the third outcome. Audio-or-error is the shape every future
+  // refactor will want to collapse this back into, and the measured facts in
+  // AZURE-DEPLOY-STATE.md §8 say that shape cannot be honest: the runtime is
+  // ready at 161 s and the request that woke it dies at 242 s. And it keeps
+  // `rejected.md#hmac-skew-shorter-than-cold-start` from being re-learned —
+  // nothing may be signed until the unauthenticated /healthz answers 200, and
+  // a wrong key must never be reported as a cold start.
+  //
+  // Offline, deterministic, $0, no DB and no network: the real fence, the real
+  // warm-up module and the real handler on a virtual clock.
+  voicepanel: "voicepanel.mjs",
+  // Owner-facing Meet UI: three visible language choices bound to the two
+  // real synthesis language ids, honest warm-up timing, correction, mobile
+  // layout and self-test ceremony removal. Protected receipts stay required.
+  voicepreviewui: "voice-preview-ui.mjs",
+
+  // WS-X. The Mirror Call — the calibration call where a clone learns from its
+  // own human.
+  //
+  // Wired here on the `dead-writers` test, and it earns the slot on a sharper
+  // argument than most: this is the one lane in the product where a machine
+  // edits the persona of a REAL, NAMED, LIVING PERSON while they are on the
+  // phone with it, and every way it fails is silent.
+  //
+  //  - AN UNAPPROVED DELTA LANDS. The whole "never a silent self-update" law is
+  //    one SQL clause. The suite strikes that clause out of the SHIPPING
+  //    statement and FAILS unless the struck copy lets an already-rejected chip
+  //    write the sheet — with a positive control beside it, because "nothing
+  //    was written" is also true of a pipeline that never writes at all.
+  //  - THE LEARNING LOOP DROPS ITS INPUT AND LOOKS FINE. A dropped window is a
+  //    ROW, counted in an audio-weighted coverage ratio, and the arithmetic is
+  //    checked on a deliberately dropped 20 s window.
+  //  - THE VOICE LOOP LOOKS LIKE IT IS WORKING. Chatterbox truncates its
+  //    reference at 10 s, so a growing pool changes nothing; the suite asserts
+  //    that pool size and SELECTABLE candidates are different numbers, that an
+  //    equal-scoring candidate does not replace the standing selection, and
+  //    that the two fidelity meters cannot be collapsed into one.
+  //  - SOMEONE ELSE'S VOICE, OR THE CLONE'S OWN, GETS INTO THE POOL. Both are
+  //    negative controls: a clone-overlapping window and a foreign speaker each
+  //    fail admission, with the measured owner admitted beside them so the
+  //    refusals are not vacuous.
+  //  - A PHONE NUMBER SAID ALOUD REACHES A PROMPT. The PII scrub is asserted at
+  //    the store seam, on the stored bytes.
+  //
+  // It also checks the payload against the rules WS-Y's own client normalizer
+  // enforces (every chip carries a citation; `applied` is never true without
+  // `accepted`), so a shape the studio would throw on fails here instead of
+  // failing a live call.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity — `evals/sqlcast`'s
+  // strict surface covers the first and `scripts/relcheck.mjs` the second, and
+  // NEITHER has run against a real database for these tables.
+  //
+  // Renamed at merge: WS-Y's UI suite already owns `mirrorcall` above; this is
+  // WS-X's backend suite for the same feature, and the two gate different
+  // halves of the same wire contract.
+  mirrorcallapi: "mirrorcallapi.mjs",
+
+  // WS-AC. The CLONE'S REPLY inside a Mirror Call — the half `mirrorcallapi`
+  // above explicitly did not have, back when `turn_voice` answered 501 and
+  // every window returned a null turn.
+  //
+  // Three things it gates that nothing else can:
+  //  - the reply is assembled from the OWNER'S OWN sheet through the ONE door
+  //    (`gatedReply`), with no fallback persona: a replica with no sheet
+  //    produces no turn and a named reason, and the negative control drives
+  //    exactly that;
+  //  - the no-published-sheet case answers from the DRAFT and SAYS SO on the
+  //    wire, so `plausible-return-hides-a-dead-pipeline` cannot happen quietly;
+  //  - synthesis goes through WS-W's admission-broker path UNFORKED, and a
+  //    deliberately forked path that skips the watermark check is kept beside
+  //    it and must FAIL. That last one is the whole reason this file exists as
+  //    a gate rather than as a comment: the disclosure prefix and the watermark
+  //    are the two things a well-meaning refactor removes first.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call, no
+  // credential. Same blindness as its sibling: it cannot see SQL types.
+  mirrorcallreply: "mirrorcallreply.mjs",
+  // WS-AD. One link, one clone — the single-video enrollment lane.
+  //
+  // The suite exists for one assertion above all others, and it is a
+  // MEASUREMENT rather than a smoke test: on a fixture lecture built to have
+  // exactly the defect the owner described — a noisy, clipped, half-silent
+  // opening and the clean teaching voice three minutes in — the chosen
+  // conditioning window must NOT be the head of the file, and the ranking must
+  // report by how much it beat the head.
+  // `context/measurements.md#reference-window-beats-the-finetune` is why that
+  // matters more than it looks: window choice moved fidelity 0.0625 on the
+  // owner's own voice, three times the measured fine-tune delta, at zero
+  // training cost. A lane that silently took the first ten seconds would pass
+  // any test that merely checked a window came back.
+  //
+  // Alongside it: byte-identical determinism including tie-breaks, the consent
+  // gate refusing before a quota slot is spent, the four caps refusing BY NAME
+  // with their numbers, the not-your-video control (`channel_binding_mismatch`
+  // carried through verbatim), and honest-state coverage for
+  // `channel_extract_extractor_bot_check` — which per
+  // `context/measurements.md#youtube-extraction-blocked-from-azure` is the
+  // state this deploy is actually in, so it is the state that most needs to
+  // stay legible rather than collapsing into "failed".
+  //
+  // Offline, deterministic, $0, no DB and no network — the four service seams
+  // are injected. What it CANNOT see is SQL types and referential integrity:
+  // migration 060 is UNAPPLIED and no statement in this lane has ever executed
+  // against a database (`offline-mocks-cannot-type-check-sql`).
+  videoenroll: "videoenroll.mjs",
+  // WS-AE. The three-step wizard's state machine, run over its whole input
+  // space (6 912 combinations) rather than over the one path a demo takes.
+  //
+  // It exists because the restructure's real risk is not a wrong layout, it is
+  // a rail of confident green ticks over a runtime that is still refusing to
+  // activate. `PRODUCT-JOURNEY.md` §3.2's rule is the suite's spine: no rail
+  // row may render a status that is not derived from data. BREAK 8 (a literal
+  // "0 / No model trained") and BREAK 11 (a hardcoded class that made a 3-step
+  // checklist structurally unable to reach 3/3) were that defect twice, in two
+  // files, both written by people who knew better.
+  //
+  // Four properties are the ones worth naming: at most ONE ember on the rail
+  // (with a stated negative control, since a per-row implementation lights two
+  // on the normal input); `null` means UNKNOWN and never becomes "you have
+  // none"; a blocker code this build has no copy for is RENDERED rather than
+  // filtered out, which is how the retired QuickStartPath could read clear
+  // while Activate stayed disabled; and no step reports done while it still
+  // lists something missing.
+  //
+  // WS-AJ added the honesty split as a fifth property, and it is the one with
+  // the sharpest negative control in the file: the exact sentence the owner was
+  // shown on a phone ("9 things on Meet it are still waiting on you") is
+  // asserted to FAIL both detectors. It rendered while their uploaded audio sat
+  // at `quarantined` behind a queue nothing drained, so every one of those nine
+  // was ours. A blocker is now typed `you` or `us`, a gate that needs processed
+  // material reclassifies to `us` while we are still holding that work, and no
+  // `us` prose may blame the reader anywhere in the input space. Section 9
+  // covers the navigation copy, where a step NAME had been standing in a
+  // sentence slot ("Next: Deploy it").
+  //
+  // Offline, deterministic, $0, no DB, no browser, ~4s.
+  studiowizard: "studiowizard.mjs",
+  // WS-AF. The activity surface — the owner's ask that they be able to see
+  // whether the YouTube video arrived, whether processing finished, and what
+  // everything else is doing.
+  //
+  // It gates the properties that make that report HONEST rather than merely
+  // present: one normalised shape across all seven lanes, ownership as a SQL
+  // predicate with a stranger's refusal, the no-fake-progress rule with a
+  // negative control (a fabricated fraction on a lane that has none must be
+  // caught), a lane that is not deployed rendering as a NAMED absence rather
+  // than an empty success, a lane with no runner saying so, and the poll
+  // backoff and its stop rule read off both halves of the wire.
+  //
+  // It also holds migration 060 to the splitter's rules and to the erasure
+  // reach, both layers.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity: `evals/sqlcast`'s strict
+  // surface covers the first and `scripts/relcheck.mjs` the second, and
+  // migration 060 has never been applied to any database.
+  replicaactivity: "replicaactivity.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
+const failedSuites = [];
 for (const [name, file] of Object.entries(suites)) {
   if (pick && pick !== name) continue;
   console.log(`\n── ${name} ──`);
@@ -441,6 +1211,8 @@ for (const [name, file] of Object.entries(suites)) {
     execSync(`node ${join(HERE, file)}`, { stdio: "inherit", cwd: ROOT });
   } catch {
     failed++;
+    failedSuites.push(name);
   }
 }
+if (failedSuites.length) console.error(`\nfailed suites: ${failedSuites.join(", ")}`);
 process.exit(failed ? 1 : 0);

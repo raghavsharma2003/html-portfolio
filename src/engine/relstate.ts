@@ -785,19 +785,24 @@ const HINDI_MARKER_WORDS = [
  *  legacy table, kept per §0.3's substrate ruling). Read-only against a
  *  table this file does not own — reading across an ownership boundary is
  *  fine; only edits are restricted (§13). */
-export async function computeCsRatio(q: QueryFn, personId: string): Promise<number | null> {
+export async function computeCsRatio(
+  q: QueryFn,
+  personId: string,
+  agentId: string = MEERA_AGENT_ID,
+): Promise<number | null> {
   const pattern = HINDI_MARKER_WORDS.map((w) => `\\m${w}\\M`).join("|");
   const rows = await q(
     `with recent as (
        select l.content from meera_log l
        join vy_person_device d on d.device_id = l.device_id
        where d.person_id = $1 and l.role = 'me'
+         and l.agent_id = ($3)::uuid
        order by l.at desc limit 200
      )
      select count(*)::int as total,
             count(*) filter (where content ~* $2)::int as hindi_hits
        from recent`,
-    [personId, pattern],
+    [personId, pattern, agentId],
   );
   const total = Number(rows[0]?.total ?? 0);
   if (total < 10) return null; // too little signal to be worth rendering
@@ -807,12 +812,16 @@ export async function computeCsRatio(q: QueryFn, personId: string): Promise<numb
 
 /** Ritual density: fraction of tracked vy_ritual rows with an occurrence
  *  in the trailing 30 days. Pure SQL, no LLM. */
-export async function computeRitualDensity(q: QueryFn, personId: string): Promise<number> {
+export async function computeRitualDensity(
+  q: QueryFn,
+  personId: string,
+  agentId: string = MEERA_AGENT_ID,
+): Promise<number> {
   const rows = await q(
     `select count(*) filter (where last_at > now() - interval '30 days')::real
               / greatest(count(*), 1)::real as density
-       from vy_ritual where person_id = $1`,
-    [personId],
+       from vy_ritual where person_id = $1 and agent_id = ($2)::uuid`,
+    [personId, agentId],
   );
   return Math.round((Number(rows[0]?.density ?? 0)) * 1000) / 1000;
 }
@@ -821,14 +830,19 @@ export async function computeRitualDensity(q: QueryFn, personId: string): Promis
  *  the trailing 30 days. Pure SQL, no LLM. Explicitly NOT depth — SPEC
  *  §6.2's own caution: "90 messages in one evening != 90 across a month" —
  *  which is exactly why this is a GAP measure, not a count. */
-export async function computePacingGapS(q: QueryFn, personId: string): Promise<number | null> {
+export async function computePacingGapS(
+  q: QueryFn,
+  personId: string,
+  agentId: string = MEERA_AGENT_ID,
+): Promise<number | null> {
   const rows = await q(
     `select percentile_cont(0.5) within group (order by gap_s) as pacing_gap_s
        from (
          select extract(epoch from started_at - lag(started_at) over (order by started_at)) as gap_s
-           from vy_episode where person_id = $1 and started_at > now() - interval '30 days'
+           from vy_episode where person_id = $1 and agent_id = ($2)::uuid
+             and started_at > now() - interval '30 days'
        ) s where gap_s is not null`,
-    [personId],
+    [personId, agentId],
   );
   const v = rows[0]?.pacing_gap_s;
   return v === null || v === undefined ? null : Math.round(Number(v));
@@ -838,16 +852,20 @@ export async function computePacingGapS(q: QueryFn, personId: string): Promise<n
  *  called independently of rebuildSnapshotFromDb (derived dims are not
  *  event-sourced, so they do not participate in replay and must not bump
  *  snapshot_ver, which "bumps ONLY at consolidation" per event writes). */
-export async function refreshDerivedDims(q: QueryFn, personId: string): Promise<void> {
+export async function refreshDerivedDims(
+  q: QueryFn,
+  personId: string,
+  agentId: string = MEERA_AGENT_ID,
+): Promise<void> {
   const [csRatio, ritualDensity, pacingGapS] = await Promise.all([
-    computeCsRatio(q, personId),
-    computeRitualDensity(q, personId),
-    computePacingGapS(q, personId),
+    computeCsRatio(q, personId, agentId),
+    computeRitualDensity(q, personId, agentId),
+    computePacingGapS(q, personId, agentId),
   ]);
   await q(
     `update vy_rel_state set cs_ratio = $2, ritual_density = $3, pacing_gap_s = $4
-       where person_id = $1`,
-    [personId, csRatio, ritualDensity, pacingGapS],
+       where person_id = $1 and agent_id = ($5)::uuid`,
+    [personId, csRatio, ritualDensity, pacingGapS, agentId],
   );
 }
 

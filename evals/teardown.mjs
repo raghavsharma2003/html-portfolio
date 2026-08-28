@@ -21,7 +21,7 @@
 // No network, no DB, no model, $0, ~1s.
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 
@@ -42,18 +42,21 @@ const ok = (name, cond, extra = "") => {
 const tmp = mkdtempSync(join(tmpdir(), "teardown-"));
 const ENTRY = join(tmp, "entry.ts");
 const BUNDLE = join(tmp, "bundle.mjs");
+const esbuildImport = (path) => JSON.stringify(path.replaceAll("\\", "/"));
 writeFileSync(
   ENTRY,
-  `export { isGameSession } from "${join(ROOT, "src/state/game")}";
-export { safeUser, mergeStates } from "${join(ROOT, "src/state/merge")}";
-export { newGame, play } from "${join(ROOT, "src/engine/chess")}";
+  `export { isGameSession } from ${esbuildImport(join(ROOT, "src/state/game"))};
+export { safeUser, mergeStates } from ${esbuildImport(join(ROOT, "src/state/merge"))};
+export { newGame, play } from ${esbuildImport(join(ROOT, "src/engine/chess"))};
 `,
 );
 execSync(
   `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
   { stdio: "inherit", cwd: ROOT },
 );
-const { isGameSession, safeUser, mergeStates, newGame, play } = await import(BUNDLE);
+const { isGameSession, safeUser, mergeStates, newGame, play } = await import(
+  pathToFileURL(BUNDLE).href
+);
 
 // ══ #2 — a malformed session costs the GAME, never the app ════════════════
 //
@@ -374,6 +377,21 @@ const FATE = {
     "HERE — reachability is torn down by src/notify/index.ts's " +
     "clearReachability, asserted in the REACHABILITY block below, because a " +
     "push token in synced AppState would be another device's reachability.",
+  memoryConsent:
+    "exempt: the answer to the DPDP memory question (task #148), and the " +
+    "exemption is the PROMISE rather than a convenience — the same shape as " +
+    "`notifyPrefs` above and for a sharper reason. `memoryWritesAllowed` " +
+    "treats an ABSENT record as permission (an install that predates the " +
+    "question was never asked, and the answer to never-asked is to ask), so " +
+    "a teardown that wiped this field would silently switch memory back ON " +
+    "for the one person who had just switched it off — and the door that " +
+    "withdraws consent is the forget door itself, so the wipe would undo the " +
+    "withdrawal it was carrying out. It is also not the relationship: it is " +
+    "a standing instruction about what may be stored NEXT, which outlives " +
+    "the conversation being deleted by design. The server half of the record " +
+    "is deleted by the whole wipe (meera_consent, evals/recall/run.mjs's " +
+    "FATE table), because that half is a record OF a person; this half is an " +
+    "instruction FROM one.",
   lastSeen:
     "exempt: HER presence clock, restamped on every mount and rendered as " +
     "'last seen 2m ago'. A fact about this app session, not a memory of him.",

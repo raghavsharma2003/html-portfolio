@@ -18,6 +18,10 @@ export const NEON_URL = "";
 // Auth + photo storage only.
 export const SUPABASE_URL = "";
 export const SUPABASE_KEY = "";
+// Required only for the private replica bucket. It is deliberately distinct
+// from SUPABASE_KEY: biometric storage never guesses that a general app key is
+// privileged. Replica enrollment fails closed when this is absent.
+export const SUPABASE_SERVICE_ROLE_KEY = "";
 
 // FREE-TIER Google AI Studio keys. The pool is spent before any paid provider
 // — see api/_gkeys.js. Measured 2026-08-11: this is a DAILY budget, and a real
@@ -37,6 +41,48 @@ export const GOOGLE_KEYRING = [];
 // it simply never 429s. The tier below it (OpenRouter) cannot stream at all.
 // Tried last in the rotation and never cooled.
 export const GOOGLE_PAID_KEY = "";
+
+// ── WS-COST: the billed Google CHAT lane ─────────────────────────────────
+//
+// GEMINI_PAID_KEY is a prepaid Google AI Studio key. GOOGLE_PAID_KEY above is
+// the VOICE lane's billed key and is a separate slot on purpose: the two lanes
+// have different failure modes and different budgets, and one key doing two
+// jobs is `one-key-two-jobs`.
+//
+// PAID_LANE is the switch, and it is OFF unless it is the string "1" or
+// "true" (env `PAID_LANE` wins over this file, so it can be flipped in Vercel
+// without redeploying the gitignored config). With it off, api/chat.js's
+// ladder is the exact frozen array it was before this lane existed —
+// gemini-free > openrouter > azure — and no request can reach a billed Google
+// key by accident. With it on, and only if a key is present, the order becomes
+// gemini-free > gemini-paid > openrouter > azure (see LANE_ORDER_TEXT_PAID in
+// api/_lanes.js).
+//
+// What it costs, measured 2026-08-25 on gemini-3.6-flash at Google list
+// ($0.75/1M in, $0.075/1M cached-in, $3.75/1M out): ~$0.0101 per chat turn
+// uncached, ~$0.0046 on an implicit-cache hit (8,165 of ~13,400 input tokens,
+// 60.7%, hit on 16 of 19 follow-up calls). Implicit caching is automatic and
+// needs no request field — the `cache_control` marker api/chat.js sends is an
+// Anthropic-shaped hint that Google ignores, measured identical with and
+// without it.
+//
+// WS-COST C added the measured cost path on top of that lane: an explicit
+// Google `cachedContents` object over the byte-stable CORE (12,097 of ~13,400
+// input tokens), so a follow-up turn bills the cached rate on 90% of its input
+// instead of the implicit cache's 60.7% plateau — ~$0.0101 → ~$0.0021 per turn
+// including cache storage, −79.2% (measurements.md#cache-plateau). It runs
+// INSIDE the paid lane only and on Google's native surface (the compat
+// endpoint has no field for a cache), and every failure in it falls back to
+// the plain paid call within the same turn.
+//
+// PAID_CACHE is its opt-out and the polarity is deliberately the opposite of
+// PAID_LANE: it cannot cause spend, only change the shape of spend the paid
+// lane already authorised, so it is ON unless it is "0", "false" or "off".
+// Set it off to put the paid lane back on the plain compat call without a
+// deploy.
+export const GEMINI_PAID_KEY = "";
+export const PAID_LANE = "";
+export const PAID_CACHE = "";
 
 // Azure AI Foundry, on the Microsoft-for-Startups credits — $0 cash.
 //

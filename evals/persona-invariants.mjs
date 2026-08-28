@@ -22,7 +22,7 @@
 //
 //   node evals/persona-invariants.mjs
 import { execSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { buildLanes, safetyFloorChecks, meeraFullChecks } from "./persona-invariants.data.mjs";
 
@@ -37,7 +37,7 @@ execSync(
   { stdio: "inherit", cwd: ROOT },
 );
 
-const { listAgents } = await import(BUNDLE);
+const { listAgents } = await import(pathToFileURL(BUNDLE).href);
 
 let pass = 0;
 let fail = 0;

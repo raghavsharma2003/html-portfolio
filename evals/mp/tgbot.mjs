@@ -25,6 +25,7 @@
 // against tables the fixture does not have. Teardown is a table drop, and
 // residue is greppable rather than trusted.
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { q } from "../../api/_db.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
@@ -33,9 +34,10 @@ import { handleUpdate, ROOM_CARD, parseUpdate, parseStartPayload } from "../../a
 import { stateWriteCount, recipientSet, roomRecall, roomBridge, roster } from "../../api/_room.js";
 import { withdrawSharedRows } from "../../api/memory.js";
 import { disclosurePredicate, NEGATIVE_AFFECT_TAGS } from "../../api/_disclosure.js";
+import { MEERA_AGENT_ID } from "../../api/_agentscope.js";
 import { execFileSync } from "node:child_process";
 
-const ROOT = new URL("../..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const PREFIX = "wstg_test_";
 const TAG = "wstg-test-";
 const KEEP = process.argv.includes("--keep");
@@ -118,6 +120,9 @@ async function proveNoResidue() {
  * harness reads db/migrations/ at all.
  */
 const POST008_TABLES = new Set([
+  "meera_log",
+  "vy_fact",
+  "vy_phrase",
   "vy_group",
   "vy_group_member",
   "vy_group_turn",
@@ -127,19 +132,24 @@ const POST008_TABLES = new Set([
   // fixture the shipping writer cannot insert into — the exact drift this
   // block's own comment warns about.
   "vy_episode",
+  "vy_rel_state",
+  "vy_rel_event",
+  "vy_pattern",
+  "vy_taste_candidate",
+  "vy_currency",
 ]);
-const POST008_FILES = ["009_agents.sql", "013_surface_room_binding.sql"];
+const POST008_FILES = [
+  "009_agents.sql",
+  "010_agent_strict.sql",
+  "013_surface_room_binding.sql",
+  "018_raw_agent_isolation.sql",
+  "021_raw_agent_strict.sql",
+  "064_agent_room_binding.sql",
+];
 
-// KNOWN DIVERGENCE FROM PRODUCTION, named rather than implied: this fixture
-// stops at 009, so `agent_id` keeps the DEFAULT 009 gave it. Migration 010 —
-// which HAS been applied to production — drops that default on all twenty
-// agent-scoped tables so that a writer which never names agent_id fails
-// loudly. api/_surface.js's room/member writers name it and are therefore
-// correct either way; api/_room.js's episode, turn and grant writers do NOT,
-// and against production they raise a NOT NULL violation. That is a real,
-// live defect in a file this workstream does not own (see docs/SURFACES.md §4,
-// "owed"), and dropping the default here would turn this suite red for
-// somebody else's bug rather than surfacing it where it can be fixed.
+// Production strictness is part of this fixture: 010 and 021 drop every
+// compatibility default on the tables the runtime touches. A writer that omits
+// agent_id must therefore fail here exactly as it would after a live deploy.
 
 async function buildSchema() {
   const full = readFileSync(join(ROOT, "db/schema.sql"), "utf8");
@@ -149,9 +159,12 @@ async function buildSchema() {
   const migStmts = MIG_FILES.flatMap((f) =>
     splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8")),
   );
-  const postStmts = POST008_FILES.flatMap((f) =>
-    splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8")),
-  ).filter((s) => POST008_TABLES.has(targetOf(s)));
+  const postStmts = POST008_FILES.flatMap((f) => {
+    const statements = splitSql(readFileSync(join(ROOT, "db/migrations", f), "utf8"));
+    return f === "064_agent_room_binding.sql"
+      ? statements
+      : statements.filter((s) => POST008_TABLES.has(targetOf(s)));
+  });
   for (const s of [...baseStmts, ...migStmts, ...postStmts]) await q(ns(s), [], 60_000);
   return { base: baseStmts.length, migration: migStmts.length + postStmts.length };
 }
@@ -209,8 +222,9 @@ for (const p of [RHEA, VIKRAM, ANJALI, OUTSIDER])
 // honorific bands, so the roster's R6 bet renders three different registers in
 // one strip (M9) instead of one band applied to everybody
 await q(
-  `insert into ${T("vy_rel_state")} (person_id, honorific) values ($1,'tu'),($2,'tum'),($3,'aap')`,
-  [RHEA, VIKRAM, ANJALI],
+  `insert into ${T("vy_rel_state")} (agent_id, person_id, honorific)
+   values ($1,$2,'tu'),($1,$3,'tum'),($1,$4,'aap')`,
+  [MEERA_AGENT_ID, RHEA, VIKRAM, ANJALI],
 );
 
 // ── the injected Telegram client ──────────────────────────────────────────
@@ -510,26 +524,26 @@ ok("no room bundle => the room note never enters core (G1)", !noRoom.core.includ
 console.log("\n── disclosure: the same rows, two channels ──");
 // a DM-only episode of Rhea's, and a fact derived from it
 const [dmEp] = await q(
-  `insert into ${T("vy_episode")} (person_id, channel, participation, disclosure_scope, started_at, summary)
-   values ($1,'chat','user','participants_1to1', now(), $2) returning id`,
-  [RHEA, `${TAG}rhea dm`],
+  `insert into ${T("vy_episode")} (agent_id, person_id, channel, participation, disclosure_scope, started_at, summary)
+   values ($1,$2,'chat','user','participants_1to1', now(), $3) returning id`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}rhea dm`],
 );
 await q(`insert into ${T("vy_episode")}_participant (episode_id, person_id) values ($1,$2)`, [dmEp.id, RHEA]);
 const [dmFact] = await q(
-  `insert into ${T("vy_fact")} (person_id, kind, name, body, provenance, citations)
-   values ($1,'user',$2,$3,'extracted',$4) returning id`,
-  [RHEA, `${TAG}dmfact`, `${TAG}rhea does not want to come`, [dmEp.id]],
+  `insert into ${T("vy_fact")} (agent_id, person_id, kind, name, body, provenance, citations)
+   values ($1,$2,'user',$3,$4,'extracted',$5) returning id`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}dmfact`, `${TAG}rhea does not want to come`, [dmEp.id]],
 );
 // a ROOM fact, cited to the room episode everyone was at
 const [roomFact] = await q(
-  `insert into ${T("vy_fact")} (person_id, kind, name, body, provenance, citations, group_id)
-   values ($1,'world',$2,$3,'extracted',$4,$5) returning id`,
-  [RHEA, `${TAG}roomfact`, `${TAG}goa plan floated for the 14th`, [lurked.episodeId], roomId],
+  `insert into ${T("vy_fact")} (agent_id, person_id, kind, name, body, provenance, citations, group_id)
+   values ($1,$2,'world',$3,$4,'extracted',$5,$6) returning id`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}roomfact`, `${TAG}goa plan floated for the 14th`, [lurked.episodeId], roomId],
 );
 await q(
-  `insert into ${T("vy_phrase")} (person_id, phrase, origin_episode, group_id)
-   values ($1,$2,$3,$4)`,
-  [RHEA, `${TAG}biriyanii`, lurked.episodeId, roomId],
+  `insert into ${T("vy_phrase")} (agent_id, person_id, phrase, origin_episode, group_id)
+   values ($1,$2,$3,$4,$5)`,
+  [MEERA_AGENT_ID, RHEA, `${TAG}biriyanii`, lurked.episodeId, roomId],
 );
 
 const inRoom = await roomRecall(roomId, rset, {}, t);

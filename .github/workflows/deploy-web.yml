@@ -17,7 +17,15 @@ name: Deploy web
 
 on:
   push:
-    branches: [main, "claude/**"]
+    # Narrowed from "claude/**" on the gurukul branch (2026-08-25): this
+    # workflow deploys PRODUCTION meera-silk, and the first gurukul push
+    # proved the glob makes every feature branch of a *different product*
+    # overwrite the live companion. The union tree happened to be safe (all
+    # gates green, /chat verified serving the fresh bundle) — the next one
+    # might not be. Gurukul deploys get their own workflow when they exist;
+    # flipping this branch to production source is an owner decision, made
+    # here, deliberately.
+    branches: [main, "claude/ai-companion-app-rkt1lv"]
   workflow_dispatch:
 
 # A newer push makes an in-flight deploy pointless. Cancel it rather than
@@ -172,6 +180,7 @@ jobs:
           NEON_URL: ${{ secrets.NEON_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           AZURE_KEY: ${{ secrets.AZURE_KEY }}
           # the Telegram surface (api/tg.js) — WEBHOOK_SECRET is what
           # authenticates the webhook; without it api/tg.js refuses every update

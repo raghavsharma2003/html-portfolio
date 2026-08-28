@@ -189,6 +189,22 @@ export const PUBLISHED_HELPLINES: readonly string[] = [
   "116 123", // UK Samaritans
   "1800-599-0019", // KIRAN (Govt. of India)
   "9152987821", // iCall, written without the country code
+  // Childline India, the child-specific helpline. Added with the Gurukul
+  // teacher sheets (SPEC-GURUKUL.md §3.6, safety-floor-teacher.md §3.1), which
+  // make it a REQUIRED member of a teacher clone's `crisisLines` because most
+  // of that product's users are minors. The coupling is the point: the spec
+  // states that adding 1098 to a sheet without adding it here "ships a clone
+  // that cannot say the child helpline", so the two edits are one change.
+  //
+  // Stated precisely rather than overclaimed: at four digits 1098 sits under
+  // MIN_PHONE_DIGITS (8), so `findActionable` would not have classified a bare
+  // "1098" as a dialable identifier today, and the short-code absorber above
+  // already whitelists any 3-7 digit run that appears in the assembled prompt.
+  // This entry is therefore the GUARANTEE, not a fix for a measured leak — the
+  // same reason KIRAN is named here explicitly rather than left to luck, in
+  // this list whose entire purpose is that "the gate cannot be the thing that
+  // deletes a crisis helpline".
+  "1098", // Childline India (under-18)
 ];
 
 /**

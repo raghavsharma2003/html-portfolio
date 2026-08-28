@@ -130,3 +130,240 @@ Gated by `evals/movevoice.mjs` (in `run.mjs`; offline, $0, carries the owner's
 case as a fixture and its own negative control) and measured in a real browser
 by `evals/movevoice-browser.mjs`, which times every one of her turns in a full
 game against the same table the component reads.
+
+## The first-clone chain (WS-T, 2026-08-26)
+
+The order in which a consented audio file becomes a scored clone, and which
+process owns each hop. `scripts/first-clone.mjs` walks exactly this and prints
+one row per hop.
+
+```
+  audio.wav (24 kHz mono PCM16)
+      |
+      |  api/_audio/wav.js::probeEnrollmentWav      [local]
+      v
+  /api/replica create -> /api/replica-consent grant (capture, storage,
+      transcription; account attestation, no liveness needed)
+      |
+      |  /api/replica-source create_upload -> signed PUT -> finalize
+      v
+  Supabase `vyakti-replica-private`   [state: pending_upload -> quarantined,
+      |                                which is what enqueues the `integrity` job]
+      |
+      +--> services/voice-evidence  /v1/analyze {operation: voice_quality}
+      |        4 reference windows -> 4 ECAPA + 4 x-vector unit vectors
+      |        (Azure Container Apps, T4, internal ingress, HMAC per request)
+      |
+      +--> services/open-voice-runtime  /v1/synthesize   [via the CPU
+      |        admission broker; zero-shot, conditioned on the reference]
+      |        -> N clone clips, PerTh-watermarked and verified
+      |             |
+      |             +--> voice-evidence again -> candidate vectors
+      |                        |
+      |                        v
+      |                  api/_fidelity.js  fidelityScore / fidelityVerdict
+      |                        |            + the self-vs-self ceiling control
+      |                        v
+      |                  api/_replica-runtime.js runtimeBlockers
+      |                        (fidelity is a PEER of the 7-suite pass)
+      |
+      +--> api/_asr/providers/sarvam-saaras.js
+               sync <=30 s | batch above it (directory SAS in, `0.json` out)
+                    -> transcriptStats -> draftFromSignals
+                    -> a partial sheet + every gap, with a reason each
+```
+
+Three properties of this chain are not obvious from the diagram and cost a live
+run each to learn:
+
+- **The two GPU services are woken separately and neither wake fits inside a
+  request.** 161 s (runtime) and 176 s (evidence) from zero replicas. Worse,
+  both authenticate with a 60 s HMAC timestamp window, so the waking request is
+  rejected as a *signature* failure — wake on `/healthz` before signing
+  anything (`hmac-skew-shorter-than-cold-start`).
+- **`voice-evidence` has internal ingress and Vercel is not inside its
+  environment.** WS-T reached it by flipping ingress to external for the
+  duration of the run and back afterwards, which is a measurement scaffold and
+  not an answer. `AZURE-DEPLOY-STATE.md` §12 is still the open question: either
+  the processing worker runs inside the managed environment, or evidence needs
+  the same CPU admission broker the runtime already proves works.
+- **`voice_quality` takes at most 4 inputs per call**, and
+  `DEFAULT_FIDELITY_POLICY` wants >=2 references and >=3 candidate windows. Four
+  equal windows per side is the most evidence one call each can carry.
+
+## `voice-preview-panel` — the owner's one-button preview (WS-W, 2026-08-26)
+
+```
+studio (browser)                      Vercel                     Azure
+──────────────────                    ──────                     ─────
+VoicePreviewPanel.tsx
+  └ voicePanelApi.ts ──POST /api/voice-preview──> voice-preview.js
+                                                    │ requireUser()  (Supabase)
+                                                    │ allow(ip) / allow(user)
+                                                    ▼
+                                        _voice/preview-panel.js
+                                          │ capPanelText (280)
+                                          │ beginOwnedVoicePreview ──> Neon
+                                          │      (the ownership + consent fence)
+                                          │ probeAdmissionHealth ─GET /healthz─> broker
+                                          │      (unauthenticated; nothing signed yet)
+                                          │ warmth: warm | warming | cold
+                                          │ readPrivateReplicaObject ──> Supabase bucket
+                                          ▼
+                                   open-chatterbox-preview.js ─HMAC POST /v1/synthesize─>
+                                          │                        broker ──> private GPU
+                                          │ assertSynthesisResult (disclosure)
+                                          │ provider verifies PerTh before returning
+                                          ▼
+                                   _provenance/delivery.js  (watermark, C2PA, ledger)
+                                          ▼
+   200 audio/wav  |  202 {state:"warming"}  |  4xx/5xx {state:"error"}
+```
+
+Three things about this shape are load-bearing:
+
+- **The three-outcome contract.** `202 warming` is not an error dressed up; it
+  is what the panel returns when the GPU runtime is asleep, and the UI renders
+  it as a countdown that retries itself. `preview-cold-start-is-a-state`.
+- **The HMAC secret never leaves the Vercel function.** The browser talks only
+  to `/api/voice-preview`; the broker origin and the signing key exist only in
+  `open-chatterbox-preview.js`'s process. `evals/voicepanel.mjs` asserts both
+  client files are free of either.
+- **The fence is shared, not forked.** `beginOwnedVoicePreview` is the same
+  predicate the calibration lab uses. The panel adds a tighter text cap and a
+  tighter rate bucket and subtracts nothing.
+## The Mirror Call surface (WS-Y, 2026-08-26)
+
+The Call tab in the studio: the owner talks to their own clone and watches the
+three loops of `docs/gurukul/MIRROR-CALL-SPEC.md` run. UI only — the server half
+is `api/mirror-call.js` (WS-X) and is not written up here because at the time of
+writing it did not exist on origin.
+
+```
+  src/studio/StudioApp.tsx
+      |  renders <MirrorCallStudio> above AdvancedSurface, both modes
+      v
+  MirrorCallStudio.tsx ....... the screen: connect/end, captions,
+      |                        fidelity meter, chip rail, per-turn feedback
+      |
+      +-- mirrorCallMachine.ts ..... pure reducer, no React and no DOM, so the
+      |       |                      approval property is fuzz-testable offline
+      |       +-- phases: idle -> connecting -> warming -> live -> ending -> ended
+      |       |            plus backend_absent and failed
+      |       +-- turn phases: capturing -> uploading -> thinking -> speaking
+      |       +-- chipIsApplied()  <- THE property; see decisions.md
+      |       +-- readMeasurementFidelity() / readConditioningFidelity()
+      |       |     two meters, because Chatterbox reads only ~10s of
+      |       |     reference: the estimate improves with pooled audio, the
+      |       |     synthesis does not (mirror-learning.md A2)
+      |       +-- CHIPS_PER_MINUTE budget + evidenceLine()  <- A4/A5
+      |
+      +-- callCapture.ts ........... one open mic stream, many <=30s windows.
+      |       Shares wavCapture.ts's encoder and resampler by import (one
+      |       encoder, so no drift the fidelity meter would have to explain).
+      |       Cap enforced by timer AND sample clamp AND the API client.
+      |
+      +-- mirrorCallApi.ts ......... the ONLY file that knows the wire.
+              GET  ?op=contract        handshake; 404 here = route not deployed
+              POST ?op=create          session bound to (owner, replica)
+              GET  ?op=status          optional: is the GPU warm yet
+              POST ?op=ingest_window   multipart, <=30s WAV -> transcript,
+                                       clone turn, deltas, fidelity, reference
+                                       fidelity = {measurement_score,
+                                       measurement_confidence, pooled_seconds,
+                                       conditioning_window_score,
+                                       conditioning_seconds, window_selected_at,
+                                       window_selections, ceiling}
+              GET  ?op=deltas          the rolling chip list
+              POST ?op=delta_action    accept | reject -> server truth
+              GET  ?op=turn_voice      optional: WAV for one issued turn (WS-W)
+              POST ?op=turn_feedback   thumb + optional re-recorded correction
+              POST ?op=end             deferred chips, counts, queued fine-tune
+
+  evals/mirrorcall.mjs ......... offline gate, wired into evals/run.mjs.
+      63 checks: the phase machine, dropped-window honesty, the fuzzed chip
+      property with a negative control, the end-of-call sweep, the two meters'
+      forbidden vocabulary AND the split property (pooling moves one and must
+      not move the other), the per-minute chip budget, the evidence-strength
+      bands, and the normalizer against a dishonest server.
+```
+
+Two seams deliberately left as single functions to reconcile: `ingest_window`'s
+multipart body (WS-X may prefer the signed-upload handle `enrollmentApi` uses)
+and `turn_voice` (WS-W owns synthesis; WS-X may proxy or may not, and the UI
+degrades to captions-only and says so).
+
+**Both seams are now reconciled.** `ingest_window` takes the signed-upload
+handle (`mirror-call-window-audio-is-a-source-handle`, WS-X) and `turn_voice` is
+served (WS-AC, below).
+
+## The clone's reply inside a Mirror Call (WS-AC, 2026-08-26)
+
+The half that turns "the feature exists" into "the owner can talk to their
+clone". Two lanes, both of them deliberately made of parts that already existed.
+
+```
+  POST /api/mirror-call?op=ingest_window
+      |
+      +-- ASR (WS-X, unchanged) ....... owner window -> transcript
+      |
+      +-- cloneTurnFor()  <- api/mirror-call.js
+              |
+              +-- mirrorReplyAgent(db, owner, replica)   <- _mirrorcall-store.js
+              |     ONE owner-scoped read. Prefers a published+consented sheet,
+              |     else the newest non-revoked DRAFT. The ordering is the
+              |     policy, and it is in SQL so there is no second query that
+              |     could run without the first's owner clause.
+              |
+              +-- assembleMirrorReply()                  <- _mirrorcall-reply.js
+              |     sheetToModule -> engine.compile(medium:voice, mode:call)
+              |       -> gatedReply()   <- THE ONE DOOR (api/_surface.js)
+              |     NO fallback persona. No sheet -> no turn -> a named reason.
+              |     capMirrorReply() caps at 280 = capPanelText's cap, so the
+              |     CAPTION AND THE AUDIO ARE THE SAME STRING.
+              |
+              +-- recordMirrorTurn() -> vy_mirror_turn   <- migration 060
+                    on conflict (window_id) do nothing: an ingest retry is a
+                    retry, not a second clone turn for one thing the owner said.
+
+  GET /api/mirror-call?op=turn_voice&session_id=..&turn_id=..
+      |
+      +-- getMirrorTurn()  <- THE BINDING. The text comes from the ROW.
+      |     There is no branch that reads a string from the query, the body or
+      |     a header, so the studio cannot make the clone say anything the
+      |     server did not author.
+      |
+      +-- mirrorDraftGenomeVersion()  <- resolved server-side, never accepted
+      |     from the client: a caller may not choose which version of a
+      |     person's voice speaks any more than it may choose the words.
+      |
+      +-- handleVoicePreviewPanel()   <- WS-W's handler, UNFORKED
+              same provider, same protection adapters, same ledger, same
+              warmth registry as api/voice-preview.js wires. Therefore the
+              same HMAC admission, the same audible disclosure PREFIX, the
+              same watermark, the same provenance ledger row, and the same
+              202-warming body passed through with Retry-After.
+              |
+              +-- 200 audio/wav -> voice_state='spoken' + generation_id
+              +-- 202 warming   -> voice_state='warming', studio shows WS-W's
+              |                    own copy (MirrorCallVoiceWarming)
+              +-- 503/409/413   -> voice_state='refused' + a named code
+
+  evals/mirrorcallreply.mjs .... offline gate, wired into evals/run.mjs.
+      110 checks. Four negative controls, which are the point:
+        - a cooperative reply function cannot coax a turn out of a sheetless
+          replica (proves the no-fallback-persona claim);
+        - the owner clause struck out of the sheet read DOES leak to a
+          stranger (proves the shipping clause is what refuses them);
+        - a clip with the disclosure prefix stripped is REFUSED;
+        - a FORKED protection path whose watermark proof does not bind to the
+          issued token is REFUSED.
+```
+
+The one declared deviation: `beginOwnedVoicePreview` books the generation as
+`purpose='voice_preview'`, `channel='studio_preview'`, so on the provenance
+ledger a Mirror Call clip looks like a studio preview. Widening 019's `channel`
+CHECK was rejected (`mirror-call-channel-in-the-generation-ledger`); the mirror
+meaning lives on `vy_mirror_turn.generation_id` instead, and
+`vy_mirror_turn_spoken_binding` makes a `spoken` turn without one
+unrepresentable.

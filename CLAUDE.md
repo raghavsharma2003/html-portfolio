@@ -12,6 +12,13 @@ preference.
 
 ---
 
+## Other agents work here too
+
+`AGENTS.md` at the repo root is the tool-neutral entry point (Codex, Cursor,
+Aider, a human). It states the same laws, gates and reading order as this file.
+When you change a rule here, change it there, or the next agent follows the
+stale one. Both defer to `context/` if they disagree with it.
+
 ## Read this before you change anything
 
 `context/` is this project's memory. It exists because a year-long project
@@ -20,6 +27,7 @@ knowledge here is **what was already tried and did not work**.
 
 | file | what it holds |
 |---|---|
+| `context/STATE.md` | **READ FIRST** — one page: what the product is, what is LIVE vs not, open owner items, and the laws not to relearn |
 | `context/graph.json` | the index: nodes + edges, machine-readable |
 | `context/decisions.md` | what was decided, why, and what would reverse it |
 | `context/measurements.md` | every measured number, with n and method |

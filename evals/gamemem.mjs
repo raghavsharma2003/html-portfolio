@@ -17,7 +17,7 @@ import { execSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -29,8 +29,8 @@ execSync(
     `--alias:@capacitor/core=${join(HERE, "stubs/capacitor.mjs")}`,
   { stdio: "inherit", cwd: ROOT },
 );
-const E = await import(bundlePath);
-const S = await import(join(ROOT, "api/memory.js"));
+const E = await import(pathToFileURL(bundlePath).href);
+const S = await import(pathToFileURL(join(ROOT, "api/memory.js")).href);
 
 let passed = 0;
 let failed = 0;

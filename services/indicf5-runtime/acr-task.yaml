@@ -1,0 +1,19 @@
+version: v1.1.0
+volumes:
+  - name: indicf5-build-secrets
+    secret:
+      hf_token: '{{.Values.hfToken | b64enc}}'
+steps:
+  - build: >-
+      --secret id=hf_token,src=/run/indicf5-secrets/hf_token
+      -t $Registry/vyakti/indicf5-eval:$ID
+      -f Dockerfile
+      .
+    env:
+      - DOCKER_BUILDKIT=1
+    volumeMounts:
+      - name: indicf5-build-secrets
+        mountPath: /run/indicf5-secrets
+    timeout: 3600
+  - push:
+      - $Registry/vyakti/indicf5-eval:$ID

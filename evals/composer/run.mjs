@@ -30,15 +30,20 @@
 // gameplay-browser.mjs states about itself: it needs a built app and a server
 // on a port, and a gate that skips looks exactly like a gate that passed.
 
-import { execSync } from "node:child_process";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const src = (p) => readFileSync(join(ROOT, p), "utf8");
+const NPX_COMMAND = process.platform === "win32" ? process.execPath : "npx";
+const NPX_ARGS = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js")]
+  : [];
+const modulePath = (path) => path.replaceAll("\\", "/");
 
 let fail = 0;
 const ok = (name, cond, extra = "") => {
@@ -53,19 +58,20 @@ const ok = (name, cond, extra = "") => {
 const tmp = mkdtempSync(join(tmpdir(), "composer-"));
 const ENTRY = join(tmp, "entry.ts");
 const BUNDLE = join(tmp, "bundle.mjs");
-writeFileSync(ENTRY, `export * from "${join(ROOT, "src/components/attachments")}";\n`);
-execSync(
-  `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
+writeFileSync(ENTRY, `export * from ${JSON.stringify(modulePath(join(ROOT, "src/components/attachments")))};\n`);
+execFileSync(
+  NPX_COMMAND,
+  [...NPX_ARGS, "esbuild", ENTRY, "--bundle", "--format=esm", "--platform=node", `--outfile=${BUNDLE}`, "--log-level=error"],
   { stdio: "inherit", cwd: ROOT },
 );
-const A = await import(BUNDLE);
+const A = await import(pathToFileURL(BUNDLE).href);
 
 // The SERVER's own numbers, imported rather than restated. A client cap that
 // has quietly drifted from the server's is either a refusal the user did not
 // need (client tighter) or a 413 dressed up as a broken app (client looser),
 // and both are invisible until someone hits them.
 const { MAX_DOCS: SERVER_MAX_DOCS, MAX_DOC_CHARS: SERVER_MAX_DOC_CHARS } = await import(
-  join(ROOT, "api/_docs.js")
+  pathToFileURL(join(ROOT, "api/_docs.js")).href
 );
 
 /**
@@ -368,7 +374,7 @@ const doc = (chars = 100, name = "notes.md") => ({
 
   const encoders = files
     .filter((f) => /toDataURL\(\s*["']image\//.test(readFileSync(f, "utf8")))
-    .map((f) => f.replace(ROOT + "/", ""))
+    .map((f) => relative(ROOT, f).replaceAll("\\", "/"))
     .sort();
   // TWO JPEG encoders exist in src/ and exactly two may. The second is
   // useCallEngine.ts's screen-share frame grabber, which is a different subject

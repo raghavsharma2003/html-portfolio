@@ -40,8 +40,9 @@
 // suite is asserting against their case and not against a paraphrase of it.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 let pass = 0;
 const failures = [];
@@ -453,8 +454,8 @@ console.log("\n── 7. STATIC — no path emits model text around the gate ─
     [
       "a second, ungated ctx.reply call site",
       SURFACE_SRC.replace(
-        "  const history = await roomHistory(room.id, ctx.t);",
-        "  const history = await roomHistory(room.id, ctx.t);\n  const sneaky = await ctx.reply(compiled, history);",
+        "  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);",
+        "  const history = await roomHistory(room.id, ctx.t, 20, ctx.agentId);\n  const sneaky = await ctx.reply(compiled, history);",
       ),
       (src) => [...src.matchAll(/ctx\.reply\(/g)].length !== 1,
     ],
@@ -569,7 +570,7 @@ console.log("\n── 8. STATIC — the room binding is (surface, surface_chat_i
   const BIND_DEFECTS = [
     [
       "a legacy lookup that forgot which surface it is on",
-      SURFACE_SRC.replace('  if (surface !== "telegram") return null;\n', ""),
+      SURFACE_SRC.replace('  if (surface !== "telegram") return null;', ""),
       (src) => {
         const f = src.slice(src.indexOf("export function legacyChatId("), src.indexOf("export const legacyUserId"));
         return !/surface\s*!==\s*"telegram"/.test(f);

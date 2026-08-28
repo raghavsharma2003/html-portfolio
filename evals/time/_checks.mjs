@@ -15,12 +15,16 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = join(HERE, "..", "..");
 export const SRC = join(ROOT, "src/engine/timeline.ts");
+const NPX_COMMAND = process.platform === "win32" ? process.execPath : "npx";
+const NPX_ARGS = process.platform === "win32"
+  ? [join(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js")]
+  : [];
 
 export const MIN = 60_000;
 export const HOUR = 3_600_000;
@@ -33,9 +37,9 @@ export function bundle(entry, tag = "timeline") {
   const dir = mkdtempSync(join(tmpdir(), `wstime-${tag}-`));
   const out = join(dir, `${tag}.bundle.mjs`);
   execFileSync(
-    "npx",
+    NPX_COMMAND,
     [
-      "esbuild",
+      ...NPX_ARGS, "esbuild",
       entry,
       "--bundle",
       "--format=esm",
@@ -45,7 +49,7 @@ export function bundle(entry, tag = "timeline") {
     ],
     { stdio: "inherit", cwd: ROOT },
   );
-  return out;
+  return pathToFileURL(out).href;
 }
 
 /** A Monday 00:00 IST anchor, so every sweep below covers a full week with a

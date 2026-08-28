@@ -22,7 +22,7 @@
 //     quietly; an import cannot.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "./build.mjs";
 import { sanitise, normaliseLeg, normaliseSpine, buildBatch, deriveFlags } from "../../api/_trace.js";
 import { REAL_TURN, REAL_TURN_WITH_SECTIONS, TURN2_ZERO_SLOTS } from "./fixtures.mjs";
@@ -91,7 +91,7 @@ console.log("\nA. content firewall (api/_trace.js sanitise)");
 console.log("\nB. correlator over a real turn (meera_tel, 2026-08-20)");
 {
   build();
-  const mod = await import(join(HERE, ".bundle.mjs") + `?t=${Date.now()}`);
+  const mod = await import(pathToFileURL(join(HERE, ".bundle.mjs")).href + `?t=${Date.now()}`);
   const sent = [];
   globalThis.fetch = async (_url, init) => {
     sent.push(JSON.parse(init.body));
@@ -200,7 +200,7 @@ console.log("\nB. correlator over a real turn (meera_tel, 2026-08-20)");
 console.log("\nF. the brain.ts seam (three call sites, exercised here)");
 {
   build();
-  const mod = await import(join(HERE, ".bundle.mjs") + `?t=${Date.now()}f`);
+  const mod = await import(pathToFileURL(join(HERE, ".bundle.mjs")).href + `?t=${Date.now()}f`);
   const sent = [];
   globalThis.fetch = async (_u, init) => {
     sent.push(JSON.parse(init.body));

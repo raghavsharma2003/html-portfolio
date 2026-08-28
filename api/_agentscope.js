@@ -40,8 +40,9 @@
 //     an empty set, which is the fail-open bug _disclosure.js clause 2b exists
 //     to close. Same engine, opposite direction, and the difference is why this
 //     module is an equality and not a containment.
-//   - A row with no agent. `agent_id` is `not null` on all twenty scoped tables
-//     after migration 009, so there is no third state to reason about.
+//   - A row with no agent. `agent_id` is `not null` on all twenty derived
+//     tables after migration 009 and the four raw tables after migration 018,
+//     so there is no third state to reason about.
 //
 // ── the accepted consequence (§2, deliberate, not a gap) ───────────────────
 //
@@ -136,6 +137,23 @@ export const AGENT_SCOPED_TABLES = [
   { table: "vy_group", person: null },
   { table: "vy_group_turn", person: null },
   { table: "vy_disclosure_grant", person: null },
+];
+
+/**
+ * Raw relationship memory added to the hard boundary by migration 018.
+ * `device` is the person-side owner key each table is read and deleted by.
+ * The consolidation lease is operational state rather than memory and is
+ * listed separately because its isolation unit is `(agent_id, person_id)`.
+ */
+export const RAW_AGENT_SCOPED_TABLES = [
+  { table: "meera_log", device: "device_id" },
+  { table: "meera_nodes", device: "device_id" },
+  { table: "meera_edges", device: "device_id" },
+  { table: "meera_forget", device: "device_id" },
+];
+
+export const AGENT_SCOPED_OPERATIONAL_TABLES = [
+  { table: "meera_consolidate_lease", person: "person_id" },
 ];
 
 /** Tables that carry no agent_id and must never gain one — see the header. */
