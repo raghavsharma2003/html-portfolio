@@ -7147,3 +7147,28 @@ raise the ceiling again. Evidence that PostgreSQL serializes the accepted
 contract above the locally reproduced bound also reopens the exact value, but
 never the requirement for an explicit finite limit and an oversized negative
 control.
+
+## `sealed-owner-preview-is-the-live-voice-release-canary` (2026-08-28)
+
+**Decision.** A voice release is not complete at a green health endpoint or a
+successful schema migration. The release canary is one authenticated owner
+journey through the production Studio that opens a tenant-bound generation,
+survives a real scale-to-zero start, returns a browser-playable protected WAV,
+and leaves the durable row `sealed` with audio, watermark and manifest hashes.
+Cold-start rows remain named failed attempts; they are not rewritten as audio
+successes.
+
+**Why.** Migration 065 applied and read back correctly, but the first owner
+request still encountered the expected cold GPU image pull. Azure health then
+became ready while the Studio's bounded automatic checks moved through
+`wake_dispatched` and `wake_in_flight`. Only generation `cf3be95e...` proved
+the complete path: it sealed 33 segments with an empty failure code and all
+three protection commitments, while the browser held one controlled `blob:`
+audio element. Each earlier signal proved a narrower layer.
+
+**What would reverse it.** A fully automated canary may replace the browser
+step only if it uses the same production owner authorization, selected private
+artifact, runtime and broker path, AudioSeal/C2PA protection and durable Neon
+ledger, and verifies the returned WAV rather than a fixture. Unit tests, a
+health endpoint, an unsigned model call or a mocked database cannot reverse
+this requirement.

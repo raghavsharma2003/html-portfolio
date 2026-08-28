@@ -5575,3 +5575,22 @@ is designed to bind.
 focused suite proves the old bound rejects a real builder-produced receipt,
 the new bound accepts it, and an oversized object remains rejected. The
 migration is deliberately not applied by this code-only workstream.
+
+## `cold-runtime-warming-is-not-a-failed-clone` (2026-08-28)
+
+**What was tried.** Treat the first owner preview response after a quiet period
+as the final product result once the database authorization blocker was fixed.
+
+**What specifically broke.** The first production request arrived while Azure
+was pulling the 9.84 GB immutable GPU image and correctly returned
+`open_voice_runtime_warming`. A health or deployment read alone could not tell
+the owner when synthesis was actually available. Reporting this as a bad clone
+would confuse infrastructure readiness with generated audio, while repeatedly
+clicking would create duplicate failed ledger rows and extra GPU work.
+
+**What replaced it.** Read the exact replica state, wait for application and
+readiness success with zero restarts, and let the Studio's bounded automatic
+checks progress through dispatched and in-flight states. Call the release
+successful only after a later owner request produces a protected browser audio
+element and a sealed ledger row. Keep the warming rows as honest failed
+attempts rather than mutating history.

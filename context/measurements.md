@@ -6346,3 +6346,35 @@ evals/voice-preference/run.mjs`, `git diff --check` and the pre-entry context
 graph check passed. No migration, database write, deployment, Docker, cloud,
 model, audio or GPU call ran in this lane. This proves the local migration and
 boundary contract only; it does not claim migration 065 is live.
+
+## `preview-style-migration-live-canary-2026-08-28`
+
+**Measured 2026-08-28, n=1 live Neon migration, n=1 production deployment,
+n=4 production owner preview authorizations and n=1 sealed result.** Migration
+065 applied through the repository SQL-over-HTTP runner as one statement in
+1,011 ms. A read-only catalog query immediately returned the named constraint
+as validated with `octet_length(preview_style::text) <= 2048`. Commit
+`6746796` auto-deployed to Vercel production as Ready deployment
+`dpl_Ed5qHd8DRUyFSYf77P9FHVHXhLZq`; the main production alias pointed at it.
+
+The authenticated owner then retried the exact Hinglish Studio line against
+replica `c5b868e4...`. The first authorization recorded
+`open_voice_runtime_warming`; Azure readback showed the new immutable runtime
+replica pulling its 9.84 GB image with zero restarts. The container started at
+23:52:13Z, application startup completed at 23:52:38Z and the readiness probe
+subsequently returned true. The Studio's bounded checks recorded one
+`voice_preview_wake_dispatched` row and one `voice_preview_wake_in_flight` row
+before the final authorization at 23:56:04Z sealed at 23:56:59Z.
+
+Final generation `cf3be95e-a2e6-4f14-8f69-09c6bbc39e5e` is `sealed`, has an
+empty failure code, 33 segment receipts, and non-null audio, watermark and
+manifest hashes. Its PostgreSQL JSONB preview receipt is 789 bytes and binds
+Hindi synthesis. The production browser exposed one controlled `blob:` audio
+element and the Studio displayed the short receipt and model commitments.
+Before release, `node scripts/verify-release.mjs` passed all 16 checks and the
+focused voice-preference suite passed 29 of 29. No local Docker operation ran.
+
+This proves upload-to-draft-to-protected-preview transport and provenance for
+one owner line. No person listened in this measurement, so it does not prove
+naturalness, accent, Hindi pronunciation, owner likeness or superiority over
+another model.

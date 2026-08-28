@@ -4270,7 +4270,7 @@
       "kind": "decision",
       "title": "Preview-style receipts keep a hard 2,048-byte limit",
       "at": "2026-08-28",
-      "status": "migration 065 and focused controls ready; not applied live"
+      "status": "migration 065 applied and verified live; sealed owner canary passed"
     },
     {
       "id": "preview-style-receipt-limit-local-2026-08-28",
@@ -4282,6 +4282,25 @@
       "id": "preview-style-512-byte-ceiling-predates-the-text-plan-receipt",
       "kind": "rejection",
       "title": "The 512-byte preview-style ceiling predates the text-plan receipt",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "sealed-owner-preview-is-the-live-voice-release-canary",
+      "kind": "decision",
+      "title": "A sealed owner preview is the live voice release canary",
+      "at": "2026-08-28",
+      "status": "one protected Hinglish owner preview sealed in production"
+    },
+    {
+      "id": "preview-style-migration-live-canary-2026-08-28",
+      "kind": "measurement",
+      "title": "Migration 065 and one protected owner preview pass live",
+      "at": "2026-08-28"
+    },
+    {
+      "id": "cold-runtime-warming-is-not-a-failed-clone",
+      "kind": "rejection",
+      "title": "Cold runtime warming is not a failed clone",
       "at": "2026-08-28"
     }
   ],
@@ -8420,6 +8439,31 @@
       "src": "preview-style-receipt-limit-is-2048-bytes",
       "rel": "constrains",
       "dst": "voice-text-plan-rollout-is-runtime-then-broker-then-vercel"
+    },
+    {
+      "src": "preview-style-receipt-limit-is-2048-bytes",
+      "rel": "measured_by",
+      "dst": "preview-style-migration-live-canary-2026-08-28"
+    },
+    {
+      "src": "sealed-owner-preview-is-the-live-voice-release-canary",
+      "rel": "measured_by",
+      "dst": "preview-style-migration-live-canary-2026-08-28"
+    },
+    {
+      "src": "sealed-owner-preview-is-the-live-voice-release-canary",
+      "rel": "caused_by",
+      "dst": "cold-runtime-warming-is-not-a-failed-clone"
+    },
+    {
+      "src": "sealed-owner-preview-is-the-live-voice-release-canary",
+      "rel": "part_of",
+      "dst": "voice-model"
+    },
+    {
+      "src": "preview-style-migration-live-canary-2026-08-28",
+      "rel": "part_of",
+      "dst": "voice-model"
     }
   ]
 }
