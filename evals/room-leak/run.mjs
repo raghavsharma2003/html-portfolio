@@ -278,7 +278,12 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // reads `vy_room_thread` or `vy_room_follower` except to DELETE them. A new
   // creator-facing reader added later — the shape Pulse will eventually be —
   // must fail this line the day it is written without also updating it.
-  const ALLOWED = new Set(["_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js"]);
+  // WS-R16's sweep reads `vy_room_follower` (tier, memory_consent_at) to
+  // decide who gets a check-in delivered - a full, non-aggregate read, but
+  // never a creator-facing one: every row it touches is delivered back into
+  // THAT SAME follower's own private thread, `_room-surface.js`'s own reason
+  // for being admitted here rather than into AGGREGATE_ONLY one line down.
+  const ALLOWED = new Set(["_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js"]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
   // number. Both are the reads the plan permits (counts, never a person), so

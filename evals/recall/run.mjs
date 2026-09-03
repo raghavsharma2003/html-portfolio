@@ -547,6 +547,24 @@ const FATE = {
   // being silently orphaned.
   vy_room_subscription: "forget-only",
 
+  // ── check-ins (WS-R16; migration 079) ──
+  // A follower's own schedule (days, a local time, a timezone) has no term a
+  // scoped "forget priya" could ever match — it names no topic, just a
+  // cadence — its 071/077 siblings' reason exactly. Only the stronger door
+  // may take it: the account-level whole wipe (lane "relational", proven
+  // below) or the Room's own "op":"forget" (`roomForget`'s explicit
+  // room_id+person_id delete, added in the same change as this table). NO
+  // `agent` flag, `vy_room_follower_day`'s own reason: neither this table nor
+  // its delivery ledger carries an `agent_id` column (agent context is
+  // joined from vy_room, the sweep's own reasoning), so both are absent from
+  // `roomScopedTables()`'s generic per-agent loop and reached by name
+  // instead.
+  vy_room_checkin: "forget-only",
+  // The delivery ledger: an id, a due date, a channel, a state, never a word
+  // — the day-count table's own content law restated a fourth time. Only the
+  // stronger door may take it, for the identical reason.
+  vy_room_checkin_delivery: "forget-only",
+
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the
   // one request whose promise is that nothing about them remains would break
