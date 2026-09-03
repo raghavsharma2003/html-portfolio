@@ -1,0 +1,538 @@
+/* room.css — the Room's own components, and nothing else.
+ *
+ * WHAT THIS FILE DELIBERATELY DOES NOT CONTAIN: a palette. `src/room/main.tsx`
+ * imports `../studio/design/tokens.css` for the scale and `../studio/studio.css`
+ * for the palette and the base layer, in that order, exactly as the studio's own
+ * entry does. The Room could have declared its own `--paper` and `--forest` in
+ * fifteen lines and it would have been fifteen lines of drift: two surfaces of
+ * one product whose greens diverge on the first tweak, in the one place a
+ * follower and a creator both look. One palette, two callers, and the cost is a
+ * stylesheet the Room does not use most of.
+ *
+ * Everything below writes into the `components` and `responsive` layers that
+ * `studio.css` already declared, so it wins by source order on equal
+ * specificity rather than by out-specifying anything.
+ *
+ * MOBILE FIRST, and literally: every rule here is written for a 390px phone and
+ * the only media query widens. A follower arrives from a bio link, which means
+ * a phone, which means the wide layout is the exception. DESIGN-LAW's motion
+ * rules are the other constraint: transform and opacity only, under 300ms,
+ * never `ease-in` alone, and a reduced-motion branch for every keyframe.
+ */
+
+@layer components {
+  .room-shell {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 720px;
+    min-height: 100vh;
+    min-height: 100svh;
+    margin: 0 auto;
+    padding: 0;
+  }
+
+  /* ── the header ──────────────────────────────────────────────────────── */
+
+  .room-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    box-sizing: border-box;
+    padding: var(--space-item) var(--space-item) var(--space-row);
+    border-bottom: var(--hairline) solid var(--line);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .room-head h1 {
+    margin: 0;
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-tight);
+  }
+
+  .room-head .room-stat {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
+  .room-head-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-tight);
+  }
+
+  /* ── the thread rail ─────────────────────────────────────────────────── */
+
+  .room-rail {
+    display: flex;
+    gap: var(--space-tight);
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--space-tight) var(--space-item);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .room-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .room-rail button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-rail button:active {
+    transform: scale(0.97);
+  }
+
+  .room-rail button[aria-pressed="true"] {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  /* ── the conversation ────────────────────────────────────────────────── */
+
+  .room-thread {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--space-row);
+    box-sizing: border-box;
+    padding: var(--space-item);
+  }
+
+  .room-card {
+    box-sizing: border-box;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: var(--space-item);
+    background: var(--forest-soft);
+    color: var(--forest-deep);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-card p {
+    margin: 0 0 var(--space-hair);
+    max-width: var(--measure);
+  }
+
+  .room-card p:last-child {
+    margin-bottom: 0;
+  }
+
+  .room-bubble {
+    box-sizing: border-box;
+    max-width: min(88%, var(--measure));
+    border-radius: var(--radius);
+    padding: var(--space-row) var(--space-item);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .room-bubble.from-them {
+    align-self: flex-start;
+    border: var(--hairline) solid var(--line);
+    background: var(--panel-solid);
+    color: var(--ink);
+  }
+
+  .room-bubble.from-me {
+    align-self: flex-end;
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-bubble-enter {
+    animation: room-rise var(--motion-enter) var(--ease-enter) both;
+  }
+
+  @keyframes room-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-bubble-enter {
+      animation: none;
+    }
+    .room-typing i {
+      animation: none;
+      opacity: 0.7;
+    }
+  }
+
+  .room-typing {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 5px;
+    align-items: center;
+    border-radius: var(--radius-pill);
+    padding: 10px 14px;
+    background: var(--panel-solid);
+    border: var(--hairline) solid var(--line);
+  }
+
+  .room-typing i {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    animation: room-pulse 900ms var(--ease-standard) infinite;
+  }
+
+  .room-typing i:nth-child(2) {
+    animation-delay: 140ms;
+  }
+
+  .room-typing i:nth-child(3) {
+    animation-delay: 280ms;
+  }
+
+  @keyframes room-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.85);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .room-cite {
+    align-self: flex-start;
+    min-height: 32px;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0;
+    background: transparent;
+    /* --forest, not --ink-faint. The layout gate measured --ink-faint here at
+     * 3.67:1 against a 4.5:1 floor, which DESIGN-LAW section 3 calls a shipping
+     * defect rather than a preference. An affordance a person is meant to find
+     * is also the last place to spend contrast. */
+    color: var(--forest);
+    font: inherit;
+    font-size: var(--text-small);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .room-cite-answer {
+    align-self: flex-start;
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-cite-answer ul {
+    margin: var(--space-hair) 0 0;
+    padding-left: 18px;
+  }
+
+  /* ── the composer ────────────────────────────────────────────────────── */
+
+  .room-composer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: var(--space-tight);
+    box-sizing: border-box;
+    padding: var(--space-row) var(--space-item)
+      calc(var(--space-item) + env(safe-area-inset-bottom, 0px));
+    border-top: var(--hairline) solid var(--line);
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .room-composer textarea {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    max-height: 140px;
+    box-sizing: border-box;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 11px 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    line-height: var(--leading-snug);
+    resize: none;
+  }
+
+  .room-send {
+    flex: 0 0 auto;
+    min-width: 64px;
+    min-height: 44px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--forest);
+    color: var(--panel-solid);
+    font: inherit;
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-send:active {
+    transform: scale(0.97);
+  }
+
+  .room-send[disabled] {
+    opacity: 0.45;
+  }
+
+  /* ── the join sheet, the cap state, the data menu ────────────────────── */
+
+  .room-join,
+  .room-cap,
+  .room-menu,
+  .room-gone {
+    box-sizing: border-box;
+    margin: var(--space-item);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: var(--panel-solid);
+    box-shadow: var(--shadow);
+  }
+
+  .room-join h2,
+  .room-cap h2,
+  .room-menu h2,
+  .room-gone h2 {
+    margin: 0 0 var(--space-tight);
+    font-size: var(--text-heading);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-tight);
+  }
+
+  .room-join h3 {
+    margin: var(--space-block) 0 var(--space-tight);
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+  }
+
+  .room-lede,
+  .room-fine {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    color: var(--ink-soft);
+    line-height: var(--leading-body);
+  }
+
+  .room-lede {
+    font-size: var(--text-lead);
+  }
+
+  /* --ink-soft, not --ink-faint, everywhere a sentence carries meaning.
+   * --ink-faint measures 3.67:1 on paper and this file's prose includes the
+   * consent explanation, which is the last copy in this product that may be
+   * hard to read (tokens.css says so where it declares the 11px floor). */
+  .room-fine {
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  .room-keeps {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    padding-left: 20px;
+    color: var(--ink-soft);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .room-keeps li {
+    margin-bottom: var(--space-hair);
+  }
+
+  .room-field {
+    display: block;
+    margin-bottom: var(--space-item);
+  }
+
+  .room-field > span {
+    display: block;
+    margin-bottom: var(--space-hair);
+    color: var(--ink-soft);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .room-field input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 46px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+  }
+
+  .room-check {
+    display: flex;
+    gap: var(--space-row);
+    align-items: flex-start;
+    max-width: var(--measure);
+    margin-bottom: var(--space-item);
+    color: var(--ink);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+
+  .room-check input {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin: 0;
+    accent-color: var(--forest);
+  }
+
+  .room-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-tight);
+  }
+
+  .room-btn {
+    min-height: 48px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 var(--space-item);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-btn:active {
+    transform: scale(0.98);
+  }
+
+  .room-btn.primary {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-btn.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  .room-btn[disabled] {
+    opacity: 0.45;
+  }
+
+  .room-note {
+    max-width: var(--measure);
+    margin: var(--space-item) 0 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-error {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    border-radius: var(--radius-control);
+    padding: 10px 14px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  /* The end-of-session line. A statement of where a follower is, rendered
+   * under the last reply, never across one. */
+  .room-upgrade {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-menu-open {
+    min-height: 34px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: transparent;
+    /* Measured at 2.78:1 as --ink-soft against the translucent header, which is
+     * a different background than the same token clears elsewhere. The token
+     * that reads on every one of them is --ink. */
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-small);
+  }
+}
+
+@layer responsive {
+  /* The only widening. Above a phone the shell gets breathing room and the
+   * rail can sit beside the header; nothing reflows into a second column,
+   * because a conversation in two columns is not a conversation. */
+  @media (min-width: 700px) {
+    .room-shell {
+      padding: 0 var(--space-item);
+    }
+
+    .room-head {
+      padding-inline: var(--space-block);
+    }
+
+    .room-thread,
+    .room-rail {
+      padding-inline: var(--space-block);
+    }
+
+    .room-composer {
+      padding-inline: var(--space-block);
+    }
+  }
+}
