@@ -635,6 +635,30 @@ const suites = {
   // capture binding, one-way leases and evidence-bound biometric consent.
   livenessverify: "liveness-verification/run.mjs",
   identityproof: "identity-proofing/run.mjs",
+  // WS-R2. Owner identity by SPEAKER VERIFICATION: the path that ships now,
+  // beside the never-deployed Azure stack the two suites above cover.
+  //
+  // The score math over fixture ECAPA vectors at each of the three measured
+  // bands (accept 0.78, review 0.70-0.78, reject below 0.70, all citing
+  // measurements.md#first-real-clone), the thresholds proved to be DATA, the
+  // anti-replay half (a replayed recording of the owner scores HIGH on voice
+  // and is still refused, because it cannot contain a nonce generated after
+  // it was made), expiry, cancellation, crash recovery, and the settlement
+  // writing the SAME three vy_replica columns under the SAME age guard that
+  // the Azure liveness settlement writes.
+  //
+  // Wired here rather than left standalone for the `dead-writers` reason and
+  // because the thing it guards is THE identity gate: this is the only path
+  // by which anyone can satisfy identity_verification_required on a deployed
+  // tree, so a suite nothing runs is an identity gate that silently stops
+  // gating.
+  //
+  // Its load-bearing case is a NEGATIVE CONTROL that removes the transcript
+  // check and watches the identical replay be accepted, which is the only way
+  // to show the transcript half is what stops a replay rather than decoration
+  // beside the speaker score. Offline, deterministic, $0, no GPU, no model,
+  // no network.
+  identitychallenge: "identity-challenge/run.mjs",
   // Deployable Azure identity broker: exact private-byte binding, pinned
   // Document Intelligence and Face calls, independently signed authenticity
   // review, content-free results, tamper/replay fencing, official Face
