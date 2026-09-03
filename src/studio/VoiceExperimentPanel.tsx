@@ -46,7 +46,7 @@ function friendlyImportError(cause: unknown, kind: "pack" | "ratings" | "result"
   if (code.includes("binding") || code.includes("seal")) return `This ${kind} file belongs to a different sealed experiment.`;
   if (code.includes("size")) return `This ${kind} file is outside the safe size limit.`;
   if (code.includes("hash") || code.includes("geometry") || code.includes("wav")) return "One audio file failed its integrity check. Export the sealed pack again.";
-  if (code.includes("signature") || code.includes("attestation") || code.includes("public_key")) return "This report has no valid private-pack signature, so model identities remain hidden.";
+  if (code.includes("signature") || code.includes("attestation") || code.includes("public_key")) return "This report has no valid private-pack signature, so candidate identities remain hidden.";
   return `This ${kind} file is not a valid Vyakti voice experiment export.`;
 }
 
@@ -286,7 +286,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
   return (
     <details className="voice-experiment" open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
       <summary>
-        <span><strong>Blind voice experiment</strong><small>Compare real outputs before seeing which model made them.</small></span>
+        <span><strong>Blind voice experiment</strong><small>Compare real outputs before seeing which candidate made them.</small></span>
         <span className={result ? "unlocked" : bundle ? "active" : ""}>{status}</span>
       </summary>
 
@@ -297,7 +297,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
           <div className="voice-experiment-import">
             <div>
               <h3>Open a sealed listening pack</h3>
-              <p>Import the one-file Studio bundle. It contains opaque clips and score controls, never model names or the private answer key.</p>
+              <p>Import the one-file Studio bundle. It contains opaque clips and score controls, never candidate names or the private answer key.</p>
             </div>
             <label className={`button secondary-button ${busy ? "disabled" : ""}`}>
               {busy ? "Checking pack..." : "Choose sealed pack"}
@@ -307,7 +307,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
         ) : result ? (
           <div className="voice-experiment-results">
             <header>
-              <div><h3>Experiment identities unlocked</h3><p>{result.acceptedListeners} accepted listener sheet. These are descriptive means, not an automatic model choice.</p></div>
+              <div><h3>Experiment identities unlocked</h3><p>{result.acceptedListeners} accepted listener sheet. These are descriptive means, not an automatic winner.</p></div>
               <span>Signature verified</span>
             </header>
             {result.cells.map((cell) => (
@@ -326,7 +326,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
                 </div>
               </section>
             ))}
-            <p className="voice-experiment-truth">No model is promoted here. Use the ratings as evidence alongside pronunciation checks, speaker similarity, latency, and cost.</p>
+            <p className="voice-experiment-truth">No candidate is promoted here. Use the ratings as evidence alongside pronunciation checks, speaker similarity, latency, and cost.</p>
           </div>
         ) : !startedAt ? (
           <div className="voice-experiment-start">
@@ -342,7 +342,7 @@ export default function VoiceExperimentPanel({ replicaId }: { replicaId: string 
           </div>
         ) : locked ? (
           <div className="voice-experiment-locked">
-            <header><div><h3>Ratings locked on this browser</h3><p>The model mapping is still sealed. Export this sheet, admit it through the private listening gate, then import the unsealed report.</p></div><span>{storageState === "saved" ? "Saved locally" : "Export before leaving"}</span></header>
+            <header><div><h3>Ratings locked on this browser</h3><p>The candidate mapping is still sealed. Export this sheet, admit it through the private listening gate, then import the unsealed report.</p></div><span>{storageState === "saved" ? "Saved locally" : "Export before leaving"}</span></header>
             <div className="voice-experiment-lock-actions">
               <button className="button primary-button" type="button" onClick={() => sheet && downloadJson(`${bundle.runId}-owner-studio-ratings.json`, sheet)}>Export locked ratings</button>
               <label className="button secondary-button">Import unsealed report<input type="file" accept=".json,application/json" onChange={(event) => { void importResult(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>

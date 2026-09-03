@@ -414,7 +414,7 @@ export default function LivenessCapture({
               <p className="eyebrow">Evidence secured</p>
               <h4>Waiting for an independent verifier</h4>
               <p>
-                The challenge recording is isolated in private quarantine. It has not granted biometric, training, inference,
+                The challenge recording is isolated in private quarantine. It has not granted biometric, AI-building, inference,
                 or generation permission. The gate stays locked until the independent composite verifier settles every check.
               </p>
               <button className="text-button" type="button" disabled={faceBusy} onClick={() => void cancelChallenge()}>
@@ -425,7 +425,7 @@ export default function LivenessCapture({
         ) : challenge?.state === "passed" ? (
           <div className="verification-pending verification-passed" role="status">
             <span className="verification-check">✓</span>
-            <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Biometric comparison permission is bound to this evidence. Training and inference permission remain separate.</p></div>
+            <div><p className="eyebrow">Verifier result</p><h4>Live challenge passed</h4><p>Biometric comparison permission is bound to this evidence. Build and inference permission remain separate.</p></div>
           </div>
         ) : !challengeIssued ? (
           <div className="challenge-empty">
@@ -440,11 +440,11 @@ export default function LivenessCapture({
               <fieldset className="biometric-consent-list">
                 <legend>Before any biometric processing</legend>
                 {([
-                  ["live_face_and_voice_processing", "Process my live face and voice only to verify this private self-replica."],
+                  ["live_face_and_voice_processing", "Process my live face and voice only to verify this private, self-only AI."],
                   ["compare_face_to_my_id", "Compare my live face with the government ID I submitted."],
                   ["anti_spoof_and_synthetic_detection", "Run replay, synthetic-media, and single-speaker checks on this attempt."],
                   ["erase_raw_and_provider_session", "Erase raw verification media and the provider session after the decision."],
-                  ["self_only_private_replica", "This is me, I am an adult, and this replica will remain private and disclosed as synthetic."],
+                  ["self_only_private_replica", "This is me, I am an adult, and my AI will remain private and disclosed as synthetic."],
                 ] as const).map(([key, label]) => (
                   <label key={key}>
                     <input

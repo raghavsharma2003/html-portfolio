@@ -115,8 +115,8 @@ const ROUTES: Record<string, unknown> = {
     watches: [],
     statements: [
       "This YouTube channel is mine, I own it or I control it.",
-      "I hold the rights to the videos on it, so I can license their use for my own clone.",
-      "I authorise this platform to take the audio from those videos and use it to build my own clone.",
+      "I hold the rights to the videos on it, so I can license their use for my own AI.",
+      "I authorise this platform to take the audio from those videos and use it to build my own AI.",
     ],
     statement_set: "channel-ownership-v1",
     extraction_available: false,
@@ -162,7 +162,7 @@ const ACTIVITY_LANES = [
 const LANE_LABELS: Record<(typeof ACTIVITY_LANES)[number], string> = {
   upload_processing: "Uploaded recordings", channel_video: "Individual videos",
   channel_watch: "Channel watching", context_item: "Files and links",
-  voice_model_build: "Voice model builds", mirror_finetune: "Mirror Call learning",
+  voice_model_build: "Voice builds", mirror_finetune: "Mirror Call learning",
   erasure: "Erasure",
 };
 

@@ -11,7 +11,7 @@ import type { EvidenceDecision, ReplicaReview, ReviewEvidence } from "./types";
 // job, never phrased as a task for them) rather than inventing a second one.
 const SELF_TEST_NOTICE = disabledReason(
   "us",
-  "Identity and liveness checks are turned off for this replica.",
+  "Identity and liveness checks are turned off for your AI.",
   "REPLICA_SELF_TEST_MODE is on (self-only, internal testing). Nothing below was identity- or liveness-verified by a human.",
 );
 
@@ -119,7 +119,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     setBusyId(`select:${artifactId}`); setError(""); setNotice("");
     try {
       await selectVoiceArtifact(token, { replicaId, artifactId });
-      setNotice("Voice candidate selected. Existing drafts were retired so the next voice model binds this exact audio.");
+      setNotice("Voice candidate selected. Existing drafts were retired so the next voice build binds this exact audio.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Voice candidate could not be selected"); onAuthError(cause); }
     finally { setBusyId(""); }
@@ -174,16 +174,16 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
         </div>}
 
         {review && <article className="build-readiness">
-          <div><p className="eyebrow">Draft only</p><h3>Voice model build gate</h3><p>A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation are still required.</p></div>
-          <div className="readiness-counts"><span><strong>{review.voice_genome_readiness.embedding_families}/2</strong> embedding families</span><span><strong>{review.voice_genome_readiness.voice_measurements}</strong> voice measurements</span><span><strong>{review.voice_genome_readiness.quality_measurements}</strong> quality measurements</span><span><strong>{review.voice_genome_readiness.speaker_segments}</strong> speaker segments</span></div>
+          <div><p className="eyebrow">Draft only</p><h3>Voice build gate</h3><p>A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation are still required.</p></div>
+          <div className="readiness-counts"><span><strong>{review.voice_genome_readiness.embedding_families}/2</strong> acoustic families</span><span><strong>{review.voice_genome_readiness.voice_measurements}</strong> voice measurements</span><span><strong>{review.voice_genome_readiness.quality_measurements}</strong> quality measurements</span><span><strong>{review.voice_genome_readiness.speaker_segments}</strong> speaker segments</span></div>
           {review.voice_genome_readiness.blockers.length > 0 && <ul>{review.voice_genome_readiness.blockers.map((blocker) => <li key={blocker}>{words(blocker)}</li>)}</ul>}
-          <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? "Queueing draft" : "Queue a draft voice model"}</button>
+          <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? "Queueing draft" : "Queue a draft voice"}</button>
           {review.builds.length > 0 && <div className="build-ledger"><strong>Build ledger</strong>{review.builds.map((build) => <span key={build.build_id}>v{build.target_version} · {words(build.state)} · {when(build.created_at)}</span>)}</div>}
           {review.voice_genomes.length > 0 && <div className="genome-draft-ledger">
             <strong>Immutable draft ledger</strong>
             {review.voice_genomes.map((genome) => <div key={genome.version}>
-              <span>Voice model version {genome.version}, {words(genome.status)}</span>
-              <small>{genome.embedding_families} independent embeddings · {genome.target_segments} target segments · {genome.enrollment_artifacts} private enrollment artifacts</small>
+              <span>Voice version {genome.version}, {words(genome.status)}</span>
+              <small>{genome.embedding_families} independent voice-print families · {genome.target_segments} target segments · {genome.enrollment_artifacts} private enrollment artifacts</small>
               <code>{genome.manifest_hash.slice(0, 16)}…</code>
             </div>)}
             <p>Drafts cannot synthesize audio. Approval still requires owner calibration and a real held-out identity evaluation.</p>

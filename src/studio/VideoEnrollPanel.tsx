@@ -39,7 +39,7 @@ const ATTESTATION_COPY: Record<VideoAttestation, string> = {
   owns_or_controls_channel: "This is my channel. I own or control it.",
   is_rights_holder_of_uploads: "I am the rights holder of what I upload to it.",
   authorizes_audio_extraction_for_own_replica:
-    "I authorise Vyakti to take the audio from this video to build MY replica.",
+    "I authorise Vyakti to take the audio from this video to build MY own AI.",
   understands_tos_exposure_is_not_copyright_permission:
     "I understand you can give us copyright permission for your own lecture, and that this is separate from YouTube's own terms about downloading, which nobody but YouTube can grant.",
   understands_revocation_stops_extraction:
@@ -74,7 +74,7 @@ const REASON_COPY: Record<string, string> = {
     "The permission for that channel has been withdrawn or has expired. Attest it again to continue.",
   asr_unavailable:
     "We got your voice reference, but the transcription service was unavailable, so there is no lecture text yet.",
-  replica_not_found: "We could not find that replica under your account.",
+  replica_not_found: "We could not find that AI under your account.",
   slow_down: "Too many requests in a row. Wait a moment and try again.",
 };
 
@@ -150,7 +150,7 @@ export default function VideoEnrollPanel({ token, replicaId, testEnvironment = f
 
   return (
     <section className="studio-panel" aria-labelledby="video-enroll-heading">
-      <h2 id="video-enroll-heading">Make a clone from one video</h2>
+      <h2 id="video-enroll-heading">Make your AI from one video</h2>
       <p>
         Paste a link to one of your own videos: a lecture, a talk, anything
         where you are the one speaking. We take the audio, find the clearest ten
@@ -211,7 +211,7 @@ export default function VideoEnrollPanel({ token, replicaId, testEnvironment = f
       </fieldset>}
 
       <button type="button" disabled={busy || !allTicked || !videoUrl || !channelUrl} onClick={() => void submit()}>
-        {busy ? "Working. This takes a few minutes." : "Make the clone from this video"}
+        {busy ? "Working. This takes a few minutes." : "Make your AI from this video"}
       </button>
       {!testEnvironment && !allTicked && (
         <p className="studio-note">All five need to be true before we can start.</p>
@@ -242,7 +242,7 @@ export default function VideoEnrollPanel({ token, replicaId, testEnvironment = f
           {!result.reference_promoted && (
             <p role="status" className="studio-note">
               This window has been chosen and stored, but it is not yet wired up
-              as the voice this replica previews from.
+              as the voice your AI previews from.
             </p>
           )}
           {result.enrollment.transcript_chars ? (

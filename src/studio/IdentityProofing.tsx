@@ -6,7 +6,7 @@ const STATEMENTS = [
   "This is my own current government-issued identity document.",
   "The document and portrait identify only me.",
   "Use it only to verify my identity and that I am at least 18.",
-  "Do not use this document or portrait for model training.",
+  "Do not use this document or portrait to build my AI.",
   "Erase the document and derived identity reference after verification or withdrawal.",
 ] as const;
 
@@ -122,7 +122,7 @@ export default function IdentityProofing({
           removing the child collapses no column. */}
       <div className="identity-body">
         <div className="panel-title-row">
-          <div><p className="eyebrow">Adult identity</p><h3 id="identity-title">Bind one real person to this replica</h3></div>
+          <div><p className="eyebrow">Adult identity</p><h3 id="identity-title">Bind one real person to your AI</h3></div>
           <span className={`permission-badge ${identityCase?.state === "evidence_ready" || verified ? "permission-active" : pending ? "permission-pending" : ""}`}>
             <i />{verified ? "Identity verified" : identityCase?.state === "evidence_ready" ? "ID evidence ready" : pending ? "Independent review pending" : "Identity gate locked"}
           </span>
@@ -130,7 +130,7 @@ export default function IdentityProofing({
 
         <p className="identity-intro">
           Choose a private ID image or PDF already in your source vault. The verifier must establish document authenticity,
-          current validity, adult age, and a usable portrait. OCR or facial age estimation alone can never unlock the replica.
+          current validity, adult age, and a usable portrait. OCR or facial age estimation alone can never unlock your AI.
         </p>
 
         {loading ? (
@@ -138,7 +138,7 @@ export default function IdentityProofing({
         ) : pending ? (
           <div className="identity-state identity-pending" role="status">
             <span className="verification-orbit"><i /><i /><i /></span>
-            <div><p className="eyebrow">Private evidence isolated</p><h4>Authenticity and age review in progress</h4><p>No name, date of birth, document number, address, portrait, or OCR transcript is written to the replica database.</p></div>
+            <div><p className="eyebrow">Private evidence isolated</p><h4>Authenticity and age review in progress</h4><p>No name, date of birth, document number, address, portrait, or OCR transcript is written to your AI's database.</p></div>
           </div>
         ) : identityCase?.state === "evidence_ready" || verified ? (
           <div className="identity-state identity-ready" role="status">

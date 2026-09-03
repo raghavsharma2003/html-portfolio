@@ -110,7 +110,7 @@ export const ROOM_COPY = {
     all: "Everything",
     create: "New topic",
     namePlaceholder: "Name it",
-    nameHelp: "Training, nutrition, whatever you call it. Only you see these.",
+    nameHelp: "Fitness, nutrition, whatever you call it. Only you see these.",
     save: "Add",
   },
 

@@ -10,7 +10,7 @@ import {
 import type { ClaimExtractionStatus, PersonModelStatus, ReplicaClaim } from "./types";
 
 const BLOCKERS: Record<string, string> = {
-  self_name_required: "Confirm the name this replica uses for itself",
+  self_name_required: "Confirm the name your AI uses for itself",
   language_identity_required: "Confirm its language and code-switching identity",
   behavior_evidence_required: "Review at least one behavior or repair pattern",
   boundary_evidence_required: "Confirm at least one personal boundary",
@@ -19,7 +19,7 @@ const BLOCKERS: Record<string, string> = {
 
 const EXTRACTION_BLOCKERS: Record<string, string> = {
   transcription_consent_required: "Grant transcription consent",
-  training_consent_required: "Grant training consent for model-assisted claim extraction",
+  training_consent_required: "Grant AI-building consent for assisted claim extraction",
   reviewed_subject_transcript_required: "Accept at least one verified speaker transcript",
 };
 
@@ -78,7 +78,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       }
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Person Model could not be loaded");
+      setError(cause instanceof Error ? cause.message : "What we learned about you could not be loaded");
     } finally {
       setLoading(false);
     }
@@ -111,7 +111,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
       await load();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "Person Model build was refused");
+      setError(cause instanceof Error ? cause.message : "Building what we learned about you was refused");
     } finally {
       setBuilding(false);
     }
@@ -174,7 +174,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
               <h3 id="claim-extraction-title">Turn your reviewed recordings into claims you control</h3>
               <p>
                 Only accepted target-speaker transcript spans qualify. Raw transcripts stay server-side, direct identifiers are
-                masked before the model call, and every result remains a proposal until you review it below.
+                masked before the extraction call, and every result remains a proposal until you review it below.
               </p>
               {extraction ? (
                 <div className="extraction-facts">
@@ -220,7 +220,7 @@ export default function PersonModelStudio({ token, replicaId, onAuthError }: { t
               </button>
             ) : (
               <button className="button primary-button" type="button" disabled={building || !status.readiness.ready} onClick={() => void build()}>
-                {building ? "Building model…" : "Build review draft"}
+                {building ? "Building…" : "Build review draft"}
               </button>
             )}
           </div>

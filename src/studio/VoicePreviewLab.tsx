@@ -184,7 +184,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       await loadDelivery();
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) onAuthError(cause);
-      setPairError(cause instanceof Error ? cause.message : "The Voice Delivery Genome could not be frozen");
+      setPairError(cause instanceof Error ? cause.message : "Your voice delivery could not be frozen");
     } finally { setDeliveryBusy(false); }
   }
 
@@ -239,7 +239,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
       <div className="voice-preview-heading">
         <div>
           <h2 id="voice-preview-title">Build a draft voice and compare two takes</h2>
-          <p>This private draft is for your ears and judgment. It cannot join calls or activate a replica.</p>
+          <p>This private draft is for your ears and judgment. It cannot join calls or activate your AI.</p>
         </div>
         <button className="review-refresh" type="button" disabled={loading || generating || pairBusy} onClick={() => void load()}>{loading ? "Checking" : "Refresh draft"}</button>
       </div>
@@ -290,7 +290,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
               <div className="voice-preview-empty-mark" aria-hidden="true">V</div>
               <h3>{draft ? "The room is ready" : "No draft can speak yet"}</h3>
               <p>{draft ? "Choose the words and delivery. No audio leaves the protection boundary unmarked." : "You need a processed recording first. Add one on the Feed step, and we will build a draft voice from it."}</p>
-              <div className="voice-preview-proof"><span>Owner-only</span><span>Self-replica</span><span>No runtime access</span></div>
+              <div className="voice-preview-proof"><span>Owner-only</span><span>Self-only</span><span>No runtime access</span></div>
             </>
           )}
         </div>
@@ -298,8 +298,8 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
 
       <div className="voice-preference-lab">
         <div className="voice-preference-intro">
-          <div><span>Blind preference lab</span><h3>Teach the model with your ears.</h3></div>
-          <p>The server balances a multilingual challenge deck and chooses the next most informative hidden contrast. Both sides keep the assigned words, identity evidence, model, language, and sampling seed fixed.</p>
+          <div><span>Blind preference lab</span><h3>Teach your AI with your ears.</h3></div>
+          <p>The server balances a multilingual challenge deck and chooses the next most informative hidden contrast. Both sides keep the assigned words, identity evidence, voice engine, language, and sampling seed fixed.</p>
           <button className="review-refresh" type="button" disabled={!draft || pairBusy || generating} onClick={() => void generateBlindPair()}>{pairBusy ? "Rendering A, then B" : pair ? "New blind pair" : "Start blind A/B"}</button>
         </div>
         {pair ? (
@@ -342,7 +342,7 @@ export default function VoicePreviewLab({ token, replicaId, onAuthError }: {
         {delivery ? (
           <div className="voice-delivery-freeze">
             <div>
-              <span>Voice Delivery Genome</span>
+              <span>Voice Delivery</span>
               <h4>{delivery.policies[0] ? `Version ${delivery.policies[0].version} is frozen` : "Build an immutable delivery candidate"}</h4>
               <p>{delivery.policies[0] ? `${CONDITION_LABELS[delivery.policies[0].champion_key] || "Learned delivery"} is bound to ${delivery.policies[0].comparisons} exact judgments. It remains draft-only until held-out qualification.` : "The candidate is created only after the multilingual comparison boundary is deep and diverse enough."}</p>
             </div>

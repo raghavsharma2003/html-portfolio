@@ -357,7 +357,7 @@ export default function VoicePreviewPanel({ token, replicaId, wizardInput, onAut
           ? disabledReason(
             "you",
             "The box is empty, so there is nothing to say.",
-            "Type a line for your clone to read aloud.",
+            "Type a line for your AI to read aloud.",
           )
           : overLimit
             ? disabledReason(

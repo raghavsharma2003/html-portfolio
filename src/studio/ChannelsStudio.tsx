@@ -68,7 +68,7 @@ const KINDS: ReadonlyArray<KindSpec> = [
     refPlaceholder: "8123456789",
     secretLabel: "Bot token",
     secretPlaceholder: "8123456789:AA…",
-    blurb: "Your own bot, created in @BotFather, answering as your clone.",
+    blurb: "Your own bot, created in @BotFather, answering as your AI.",
     cost: "No review process. You create the bot and register one webhook URL we give you.",
   },
   {
@@ -78,7 +78,7 @@ const KINDS: ReadonlyArray<KindSpec> = [
     refPlaceholder: "1029384756…",
     secretLabel: "Access token",
     secretPlaceholder: "EAAG…",
-    blurb: "A WhatsApp Business number answering as your clone.",
+    blurb: "A WhatsApp Business number answering as your AI.",
     cost:
       "Needs a Meta Business account, a verified business, and a number registered to the Cloud API. " +
       "Meta's review is measured in days to weeks, and it is theirs, not ours.",
@@ -206,9 +206,9 @@ export default function ChannelsStudio({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Channels</p>
-          <h2 id="channels-title">Where your clone can be reached</h2>
+          <h2 id="channels-title">Where your AI can be reached</h2>
           <p>
-            Publishing makes the clone exist. This is where it meets people. Every channel below is one you
+            Publishing makes your AI reachable. This is where it meets people. Every channel below is one you
             own: your site, your bot, your business number. You can pause or retire any of them at any time
             without asking us.
           </p>
@@ -334,7 +334,7 @@ export default function ChannelsStudio({
 
                 {retired && (
                   <p className="field-note">
-                    Retired for good. That address will never be reattached to this clone. Set up a new one
+                    Retired for good. That address will never be reattached to your AI. Set up a new one
                     instead if you need this channel back.
                   </p>
                 )}

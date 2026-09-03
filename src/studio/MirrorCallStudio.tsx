@@ -93,7 +93,7 @@ function Caption({ line, children }: { line: CaptionLine; children?: ReactNode }
   return (
     <article className={`mirror-caption mirror-caption-${line.kind}`}>
       <span className="mirror-caption-who">
-        {line.kind === "owner" ? "You" : line.kind === "clone" ? "Your clone" : line.kind === "dropped" ? "Missed" : "Call"}
+        {line.kind === "owner" ? "You" : line.kind === "clone" ? "Your AI" : line.kind === "dropped" ? "Missed" : "Call"}
       </span>
       <p>{line.text}</p>
       {children}
@@ -444,7 +444,7 @@ export default function MirrorCallStudio({
       <div className="mirror-call-head">
         <div>
           <p className="eyebrow">Mirror Call</p>
-          <h2 id="mirror-call-title">Talk to your clone and correct it while it listens.</h2>
+          <h2 id="mirror-call-title">Talk to your AI and correct it while it listens.</h2>
           <p>
             Your side goes up in windows of up to 30 seconds. Speak, send, hear the reply. Nothing it learns
             reaches your sheet until you tap it.
@@ -628,7 +628,7 @@ export default function MirrorCallStudio({
                     disabled={!canCapture(state)}
                     onClick={startTalking}
                   >
-                    {state.turnPhase === "uploading" ? "Transcribing..." : state.turnPhase === "thinking" ? "Your clone is answering..." : state.turnPhase === "speaking" ? "Your clone is speaking..." : "Talk"}
+                    {state.turnPhase === "uploading" ? "Transcribing..." : state.turnPhase === "thinking" ? "Your AI is answering..." : state.turnPhase === "speaking" ? "Your AI is speaking..." : "Talk"}
                   </button>
                 )}
                 <small>
@@ -642,7 +642,7 @@ export default function MirrorCallStudio({
                   </p>
                 ) : null}
                 {!state.voiceAvailable ? (
-                  <p className="mirror-note">Captions only on this environment. The clone's voice route is not deployed.</p>
+                  <p className="mirror-note">Captions only on this environment. The voice route for your AI is not deployed.</p>
                 ) : null}
               </div>
             ) : null}
@@ -675,7 +675,7 @@ export default function MirrorCallStudio({
               )) : (
                 <div className="mirror-empty">
                   <strong>Nothing has been said yet.</strong>
-                  <p>Your clone answers what you say and never opens a call on its own.</p>
+                  <p>Your AI answers what you say and never opens a call on its own.</p>
                 </div>
               )}
             </div>

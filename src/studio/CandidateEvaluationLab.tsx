@@ -116,7 +116,7 @@ export default function CandidateEvaluationLab({
           <div className="candidate-eval-empty-mark" aria-hidden="true">A/B</div>
           <div>
             <strong>No qualified candidate is waiting for review.</strong>
-            <p>This opens only after a frozen test set and two encrypted model outputs exist for at least 30 comparisons.</p>
+            <p>This opens only after a frozen test set and two encrypted candidate outputs exist for at least 30 comparisons.</p>
           </div>
         </div>
       ) : evaluation.state === "complete" || !evaluation.assignment ? (

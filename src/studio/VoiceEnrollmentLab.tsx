@@ -30,7 +30,7 @@ function words(value: string) {
 
 function statusCopy(profile: VoiceProfile | null) {
   if (!profile) return "No provider voice has been created.";
-  if (profile.status === "ready") return `Ready from approved voice model version ${profile.genome_version}.`;
+  if (profile.status === "ready") return `Ready from your approved voice, version ${profile.genome_version}.`;
   if (profile.status === "creating") return "Azure is validating and creating the private voice profile.";
   if (profile.status === "deleting") return "Disabled now. Provider erasure is pending.";
   return "Provider creation failed. Review the gate before retrying.";
@@ -73,8 +73,8 @@ export default function VoiceEnrollmentLab({
     !replica.liveness_verified && "Live-person verification",
     !scopes.has("capture") && "Capture consent",
     !scopes.has("storage") && "Private storage consent",
-    !scopes.has("biometric") && "Biometric modeling consent",
-    !scopes.has("training") && "Voice training consent",
+    !scopes.has("biometric") && "Biometric setup consent",
+    !scopes.has("training") && "Voice-building consent",
   ].filter(Boolean) as string[];
 
   const report = useCallback((cause: unknown, fallback: string) => {
@@ -255,7 +255,7 @@ export default function VoiceEnrollmentLab({
       </div>
       <p className="voice-enrollment-intro">
         Your platform permissions are not provider consent. Microsoft requires a separate spoken legal statement,
-        then Vyakti binds it to one reviewed voice model and one private, metered profile.
+        then Vyakti binds it to one reviewed voice and one private, metered profile.
       </p>
 
       {blockers.length > 0 && (
@@ -322,12 +322,12 @@ export default function VoiceEnrollmentLab({
         </article>
 
         <article className="voice-enrollment-card">
-          <span className="voice-step">Exact model binding</span>
+          <span className="voice-step">Exact voice binding</span>
           <h3>Build the private voice</h3>
           <p>{statusCopy(profile)}</p>
           <div className="voice-binding-list">
             <span><i className={providerConsent?.state === "uploaded" || providerConsent?.state === "accepted" ? "done" : ""} />Provider statement</span>
-            <span><i className={profile?.status === "ready" ? "done" : ""} />Approved voice model</span>
+            <span><i className={profile?.status === "ready" ? "done" : ""} />Approved voice</span>
             <span><i className={profile?.status === "ready" ? "done" : ""} />30 to 90 seconds of reviewed WAV</span>
             <span><i className={profile?.status === "ready" ? "done" : ""} />Azure spend reservation</span>
           </div>
@@ -351,7 +351,7 @@ export default function VoiceEnrollmentLab({
         </article>
       </div>
       {error && <p className="inline-error" role="alert">{words(error)}</p>}
-      <p className="voice-enrollment-note">No public voice page, downloadable model, bulk API, telephony, or silent generation is enabled.</p>
+      <p className="voice-enrollment-note">No public voice page, downloadable voice file, bulk API, telephony, or silent generation is enabled.</p>
     </section>
   );
 }
