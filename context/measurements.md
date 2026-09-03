@@ -7232,3 +7232,29 @@ n = 5 migrations, 61 statements; method = applied via Neon SQL-over-HTTP one sta
 | WS-R1 the Room | 071 | 12 | 16 | all plan; scope indexes used |
 
 Full release gate on the merged tree: 14/14 (the two relational DB gates skip without `NEON_URL`; the EXPLAIN pass above is the substitute this session could run). One integration defect found by the gate after merging WS-R3: WS-R2's identity fixture lacked a readiness row. One defect found by EXPLAIN: WS-R5's readiness read ordered by `created_at`, a column `vy_replica_readiness` does not have, inside a try/catch that would have hidden it.
+
+## `ws-r10-vocabulary-hits-before-after`
+
+n = 1 full-tree scan before any fix, 1 after; method = `node
+scripts/check-copy.mjs` with the new `rooms-vocabulary` rule enabled across
+`src/studio/`, `src/room/`, `site/vyakti.html`, `studio.html`, `room.html`;
+date 2026-09-03.
+
+| pass | offences | scopes clean | negative controls |
+|---|---|---|---|
+| before any fix (rule added, no copy touched) | 117 (all `rooms-vocabulary`) | 4 of 6 | 17/17 |
+| after fixing `src/studio/`, `src/room/`, `studio.html` | 19 (all in `site/vyakti.html`, not yet rewritten) | 5 of 6 | 17/17 |
+| after rewriting `site/vyakti.html` | 0 | 6 of 6 | 17/17 |
+
+All 117 original hits were real (no false positive found by manual review of
+each), plus a further 24 real hits the gate's own visible-string heuristic
+missed on the first pass (camelCase keys ending in a banned word do not match
+`VISIBLE_KEY`'s `\b...$` boundary, e.g. `introTitle`, `workspaceNoun`,
+`fieldNote`; `Record<string,string>` blocker/label maps whose property name
+is not itself `label`/`title`/etc.), found by a manual grep sweep and fixed by
+hand; see `rejected.md#ws-r10-check-copy-apostrophe-parity` for the two
+false positives the same heuristic produced (both traced to source, neither
+required a copy change). `node scripts/verify-release.mjs`: 14/14 both before
+this session's changes (untouched-tree baseline, confirmed via `git stash`)
+and after (one eval fixed to match the renamed copy, see
+`decisions.md#ws-r10-rooms-vocabulary-gate`).
