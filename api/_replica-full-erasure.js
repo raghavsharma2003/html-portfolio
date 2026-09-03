@@ -63,6 +63,13 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // their name. A receipt that did not name them would understate what was
       // held. Additive; the eval asserts membership, never the exact list.
       "owner_review_queue",
+      // 075 (WS-R5). The interview is its own class and not a detail of
+      // `mirror_call_sessions`, because what it holds is different in kind: a
+      // Mirror Call transcript is the person talking, an interview answer is
+      // the person ANSWERING A QUESTION ABOUT THEMSELVES that this platform
+      // chose to ask. A receipt that folded the second into the first would be
+      // answering a narrower question than the one asked.
+      "owner_interview_answers",
     ]),
   });
 }
@@ -376,6 +383,19 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- person saying words in that person's cloned voice, and relying on a
      -- cascade for it means relying on an FK nobody re-checks.
      mirror_turns as (delete from vy_mirror_turn x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 075's interview (WS-R5). AHEAD of the mirror windows and sessions
+     -- because an interview session cascades from vy_mirror_session and an
+     -- answer points at a vy_mirror_window: deleting the parents first would
+     -- leave these two to a cascade, and the whole point of naming a table here
+     -- is not to rely on one. Same 059 argument, and it applies harder: an
+     -- interview answer is the ONLY material in this archive where the person
+     -- was answering a question about themselves rather than delivering a
+     -- lecture, which is exactly the material a deletion receipt is about.
+     -- CHILD FIRST — the answer names the session.
+     interview_answers as (delete from vy_interview_answer x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     interview_sessions as (delete from vy_interview_session x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_windows as (delete from vy_mirror_window x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),

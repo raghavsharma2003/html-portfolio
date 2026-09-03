@@ -20,10 +20,13 @@
 // windows, backend absence, and the end-of-call sweep that turns un-actioned
 // chips into "review later" rather than into anything on the sheet.
 import type {
+  InterviewGap,
+  InterviewState,
   MirrorCallDelta,
   MirrorCallDropReason,
   MirrorCallEnd,
   MirrorCallFidelity,
+  MirrorCallMode,
   MirrorCallSession,
   MirrorCallWindowResult,
 } from "./mirrorCallApi";
@@ -114,13 +117,21 @@ export interface CallState {
   chipBudget: { minuteStart: number; admitted: number; overflowed: number };
   /** Whether the deployment serves `turn_voice`. False ⇒ captions only, said out loud. */
   voiceAvailable: boolean;
+  /**
+   * WS-R5. Which mode the SERVER opened. Set from the session payload and never
+   * from the request, so a deployment that cannot interview runs a calibration
+   * call the owner can see is a calibration call.
+   */
+  mode: MirrorCallMode;
+  /** The live interview, or null on a calibration call. */
+  interview: InterviewState | null;
 }
 
 export type CallEvent =
   | { type: "PROBE_START" }
   | { type: "PROBE_OK"; voiceAvailable: boolean }
   | { type: "PROBE_ABSENT"; detail: string }
-  | { type: "CONNECT" }
+  | { type: "CONNECT"; mode?: MirrorCallMode }
   | { type: "SESSION_OPEN"; session: MirrorCallSession }
   | { type: "WARM" }
   | { type: "FAIL"; message: string }
@@ -157,6 +168,8 @@ export const INITIAL_CALL_STATE: CallState = {
   ended: null,
   chipBudget: { minuteStart: 0, admitted: 0, overflowed: 0 },
   voiceAvailable: false,
+  mode: "calibrate",
+  interview: null,
 };
 
 /** Phases in which the microphone may legally open. */
@@ -281,25 +294,50 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
 
     case "CONNECT":
       if (state.phase !== "idle" && state.phase !== "failed" && state.phase !== "ended") return state;
-      return { ...INITIAL_CALL_STATE, phase: "connecting", voiceAvailable: state.voiceAvailable };
+      // The mode here is what the studio ASKED for and is used only to render
+      // the connecting state. `SESSION_OPEN` overwrites it with what the server
+      // actually opened, which is the only value anything else reads.
+      return {
+        ...INITIAL_CALL_STATE,
+        phase: "connecting",
+        voiceAvailable: state.voiceAvailable,
+        mode: event.mode || "calibrate",
+      };
 
-    case "SESSION_OPEN":
+    case "SESSION_OPEN": {
       if (state.phase !== "connecting") return state;
+      const interviewing = event.session.mode === "interview" && event.session.interview !== null;
       return {
         ...state,
         phase: event.session.state === "live" ? "live" : "warming",
         session: event.session,
         fidelity: event.session.fidelity,
+        mode: event.session.mode,
+        interview: event.session.interview,
         captions: [
           ...state.captions,
           caption(
             "system",
             event.session.state === "live"
-              ? "Connected. Talk normally. Your side is sent in windows of up to 30 seconds."
+              ? interviewing
+                // The owner speaks first, always. This is not a UX preference:
+                // `clone-initiative-record-has-no-absence` is the law, and an
+                // interview that opened by talking would be the one lane here
+                // where the AI starts a conversation with a person.
+                ? "Connected. Say hello and it will start asking. It only asks what your material does not already answer."
+                : "Connected. Talk normally. Your side is sent in windows of up to 30 seconds."
               : "Connected. The voice GPU is cold and usually takes two to three minutes to be ready.",
           ),
+          // A mode the server would not open is said out loud rather than
+          // silently downgraded. An owner who tapped "Start the interview" and
+          // got a calibration call has to be told, or the questions they are
+          // waiting for never arriving looks like a fault.
+          ...(state.mode === "interview" && !interviewing
+            ? [caption("system", "This deployment could not open an interview, so this is an ordinary call.")]
+            : []),
         ],
       };
+    }
 
     case "WARM":
       if (state.phase !== "warming") return state;
@@ -328,6 +366,17 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
         if (result.owner_transcript) lines.push(caption("owner", result.owner_transcript));
         if (result.turn) lines.push(caption("clone", result.turn.text, { turnId: result.turn.turn_id }));
       }
+      // WS-R5. An answer that was captured WITHOUT its audio is said out loud.
+      // "We heard you and did not keep the recording" is our failure, and the
+      // honest-states rule splits blockers into waiting-on-you and
+      // waiting-on-us: a silent loss here would be filed by the owner as their
+      // own microphone.
+      if (result.interview?.answer_captured && !result.interview.answer_captured.audio_kept) {
+        lines.push(caption(
+          "system",
+          `That answer on ${result.interview.answer_captured.topic} was noted, but we did not keep the recording of it.`,
+        ));
+      }
       const merged = mergeChips(state.chips, result.deltas, state.chipBudget, event.at ?? Date.now());
       return {
         ...state,
@@ -337,6 +386,9 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
         chipBudget: merged.budget,
         fidelity: result.fidelity ?? state.fidelity,
         reference: result.reference ?? state.reference,
+        // The server's counts, never an increment here. Two counters kept in
+        // two places drift, and this one is printed beside the other.
+        interview: result.interview ?? state.interview,
         ownerWindows: state.ownerWindows + (result.dropped ? 0 : 1),
         droppedWindows: state.droppedWindows + (result.dropped ? 1 : 0),
         cloneTurns: state.cloneTurns + (result.turn ? 1 : 0),
@@ -461,6 +513,9 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
         fidelity: event.end.fidelity ?? state.fidelity,
         captions: [
           ...state.captions,
+          ...(event.end.interview
+            ? [caption("system", interviewClosingLine(event.end.interview))]
+            : []),
           caption(
             "system",
             event.end.finetune.queued
@@ -477,6 +532,96 @@ export function callReducer(state: CallState, event: CallEvent): CallState {
     default:
       return state;
   }
+}
+
+// ── the interview, as data ────────────────────────────────────────────────
+// WS-R5. Kept out of the component for the reason the fidelity meters are: the
+// honesty rules here have to be testable rather than reviewable, and every one
+// of them is a function `evals/interview/run.mjs` drives directly.
+
+/** How the studio names each gap kind. Plain nouns, no jargon, and the word
+ *  "clone" appears nowhere: an owner reads "your AI". */
+export const GAP_KIND_LABEL: Record<InterviewGap["kind"], string> = {
+  contradiction: "Two answers",
+  sheet_field: "Never covered",
+  thin_topic: "Barely covered",
+  readiness: "Weakest part",
+};
+
+/** The evidence line on a gap. It states the COUNT, because the difference
+ *  between "we have nothing" and "we have one thing" is the difference between
+ *  a hole and a hint, and a list that flattened them would be manufacturing
+ *  urgency. */
+export function gapEvidenceLine(gap: InterviewGap) {
+  if (gap.kind === "contradiction") return "Two answers on record, from different times.";
+  if (gap.evidence_count === 0) return "Nothing in your material touches this.";
+  if (gap.evidence_count === 1) return "One thing in your material touches this, which is not enough to answer from.";
+  return `${gap.evidence_count} things in your material touch this, which is still thin.`;
+}
+
+/**
+ * Has the interview run out of time?
+ *
+ * The SERVER decides this too, and its answer wins whenever it is present:
+ * `expired` rides on every payload and is computed from the row's own
+ * `started_at`. This local clock exists for the case where no payload is
+ * arriving, because an interview whose windows stopped coming still has to stop
+ * itself rather than sit open forever.
+ */
+export function interviewExpired(state: CallState, now: number = Date.now()) {
+  const interview = state.interview;
+  if (!interview) return false;
+  if (interview.expired) return true;
+  const started = Date.parse(interview.started_at);
+  if (!Number.isFinite(started)) return false;
+  return now - started >= interview.length_ms;
+}
+
+/** Milliseconds left, floored at zero, or null when this is not an interview. */
+export function interviewRemainingMs(state: CallState, now: number = Date.now()) {
+  const interview = state.interview;
+  if (!interview) return null;
+  const started = Date.parse(interview.started_at);
+  if (!Number.isFinite(started)) return null;
+  return Math.max(0, started + interview.length_ms - now);
+}
+
+/**
+ * Should the studio end the call by itself right now?
+ *
+ * Two conditions and they are different: the twenty minutes are up, or every
+ * gap has an answer. Both are the interview finishing, and neither is the owner
+ * being interrupted mid-sentence — the check runs between turns, never during
+ * one, which is why `turnPhase === "idle"` is part of it.
+ */
+export function interviewShouldStop(state: CallState, now: number = Date.now()) {
+  if (state.phase !== "live" || state.turnPhase !== "idle") return false;
+  const interview = state.interview;
+  if (!interview) return false;
+  if (interviewExpired(state, now)) return true;
+  return interview.gaps.length > 0 && interview.answers_captured >= interview.gaps.length;
+}
+
+/** The line that closes an interview. It says what was answered, what was not,
+ *  and the one thing an owner would otherwise assume wrongly: that answering
+ *  five questions changed something. It did not. Answers become new material
+ *  and nothing else moved (`mirror-reference-accumulation-was-inert`). */
+export function interviewClosingLine(summary: NonNullable<MirrorCallEnd["interview"]>) {
+  const answered = summary.answers_captured;
+  const asked = summary.questions_asked;
+  const next = summary.next_would_ask.length;
+  const head = answered === 0
+    ? `Interview over. It asked ${asked} question${asked === 1 ? "" : "s"} and got no answers back.`
+    : `Interview over. It asked ${asked} and you answered ${answered}.`;
+  const tail = next
+    ? ` Next time it would start with ${summary.next_would_ask[0]?.topic}.`
+    : " There is nothing left on its list.";
+  const effect = summary.effect && !summary.effect.voice_changed && !summary.effect.persona_changed
+    ? " Your answers were saved as new material. Nothing about your AI changed during this call."
+    // The safe default: a payload that could not say nothing changed does not
+    // get to imply it did not.
+    : " Your answers were saved.";
+  return `${head}${tail}${effect}`;
 }
 
 // ── the fidelity meters, as arithmetic ────────────────────────────────────

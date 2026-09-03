@@ -111,6 +111,11 @@ export const MIRROR_TURN_ABSENT_REASONS = Object.freeze([
   // different things for a studio to render, and collapsing them would make a
   // working rule look like a broken clone.
   "clone_reply_never_rule",
+  // WS-R5. The interview mode could not place its ask block in the compiled
+  // prompt without appending it AFTER the appended-last set, and it refused
+  // rather than do that. See `spliceInterviewAsk` for why that refusal is the
+  // whole safety property and not a defensive branch nobody will hit.
+  "interview_ask_unplaceable",
 ]);
 
 /** Why a turn that EXISTS still cannot be spoken. Distinct from the absent
@@ -144,6 +149,44 @@ export function capMirrorReply(value, max = MIRROR_REPLY_TEXT_MAX) {
   // the cut lands where a burst would have split rather than mid-word.
   const first = splitForLimit(raw, max)[0]?.text ?? raw.slice(0, max);
   return { text: first.trim(), assembledChars, truncated: true };
+}
+
+/**
+ * WS-R5 — WHERE AN INTERVIEW QUESTION IS ALLOWED TO SIT IN THE PROMPT.
+ *
+ * The interview mode hands the clone a NOTE about what to ask (shapes, never a
+ * question: `api/_interview-gaps.js` renders no question text and this file
+ * writes none). The note has to go somewhere in the compiled prompt, and where
+ * is not a style question.
+ *
+ * `prompt-position` is measured: an identical rule fired 0 times in 8 mid-brief
+ * and 8 in 8 appended last. The appended-last set is CLOSED AT TWO —
+ * `SEARCH_DECISION` and `FORGET_DECISION`, hard-enforced in CI by
+ * `shapelint.checkAppendedLastExactlyTwo`, and `AGE_TIER_SAFETY_OVERRIDE`
+ * already settled for a worse position rather than dilute it. So the ask
+ * CANNOT be appended last, and appending it after `FORGET_DECISION` anyway
+ * would be a surface quietly widening a set the compiler closes.
+ *
+ * It goes exactly where `compiler.ts` puts T16 and T19 for the same reason
+ * those two sit there: immediately before the appended-last set, which is the
+ * strongest position that is actually available. A Mirror Call compiles with
+ * `mode: "call"`, so `SEARCH_DECISION` is not emitted and `FORGET_DECISION` is
+ * the tail's literal suffix.
+ *
+ * IT REFUSES RATHER THAN GUESSES. If the suffix is not where the compiler says
+ * it is, this returns null and the window reports `interview_ask_unplaceable`.
+ * The alternative is appending after it, which is the one thing this function
+ * exists to make impossible, and a silent fallback there would break the
+ * position law of the whole persona on a lane nobody re-reads.
+ */
+export function spliceInterviewAsk(compiled, agentModule, askBlock) {
+  const block = String(askBlock ?? "").trim();
+  if (!block) return compiled;
+  const suffix = String(agentModule?.FORGET_DECISION ?? "");
+  const tail = String(compiled?.tail ?? "");
+  if (!suffix || !tail.endsWith(suffix)) return null;
+  const spliced = `${tail.slice(0, tail.length - suffix.length)}\n\n${block}${suffix}`;
+  return { ...compiled, tail: spliced, system: `${compiled.core ?? ""}${spliced}` };
 }
 
 /**
@@ -231,7 +274,10 @@ export function mirrorReplyModule(sheetRow) {
  * the whole assembly offline with no engine bundle, no database and no
  * credential — the discipline `api/_voice/preview-panel.js` established.
  *
- * @param deps `{ sheetRow, history, latestText, engine?, reply?, now? }`
+ * @param deps `{ sheetRow, history, latestText, askBlock?, engine?, reply?, now? }`
+ *   `askBlock` is WS-R5's interview note, already rendered as telegraphic lines
+ *   by `api/_interview-gaps.js::renderInterviewAsk`. Absent on a calibration
+ *   call, which is why the calibration lane's bytes do not move.
  * @returns `{ ok: true, ... }` or `{ ok: false, reason }` where `reason` is a
  *   member of MIRROR_TURN_ABSENT_REASONS. It does NOT throw for an expected
  *   refusal: a window whose clone could not answer is still a window that must
@@ -315,17 +361,29 @@ export async function assembleMirrorReply(deps = {}) {
     latestUserText: latest,
   });
 
+  // WS-R5. The interview's note, spliced into the one position the compiler
+  // leaves open. `null` means the tail did not end where the compiler says it
+  // ends, and the honest answer to that is no turn with a named reason — never
+  // a turn assembled with the ask silently dropped, which would be an interview
+  // that asked nothing and reported success.
+  const withAsk = spliceInterviewAsk(compiled, built.module, deps.askBlock);
+  if (withAsk === null) return { ok: false, reason: "interview_ask_unplaceable" };
+
   const turns = [...history, { role: "user", content: latest }];
   let gated;
   try {
     // THE ONE DOOR. `record` and `nameable` are empty, which makes honesty
     // family 4 as strict as it ever is.
-    //
-    // WS-R4's never-rules ride in on `deps` rather than being read here,
-    // because this function is deliberately databaseless so the offline suite
-    // can drive the whole assembly. The caller that has the replica reads them.
-    gated = await gatedReply(ctx, compiled, turns, {
-      label: "studio/mirror-call",
+    // THE SAME DOOR IN BOTH MODES. An interview turn is not assembled anywhere
+    // else and by nothing else: the only difference between calibrate and
+    // interview is one note inside the compiled tail, so every rule added to
+    // `gatedReply` after today reaches the interview lane without anyone
+    // remembering to wire it (`mirror-call-reply-is-the-one-door`).
+    gated = await gatedReply(ctx, withAsk, turns, {
+      label: deps.askBlock ? "studio/mirror-interview" : "studio/mirror-call",
+      // WS-R4. The never-rules ride in on `deps` rather than being read here, because
+      // this function is deliberately databaseless so the offline suite can drive
+      // the whole assembly. The caller that has the replica reads them.
       neverRules: Array.isArray(deps.neverRules) ? deps.neverRules : [],
     });
   } catch (error) {
@@ -350,5 +408,9 @@ export async function assembleMirrorReply(deps = {}) {
     agentSlug: built.slug,
     // Counts only, never the strings — `gateReply`'s rule.
     gate: { applied: Boolean(gated?.gated), findings: Array.isArray(gated?.findings) ? gated.findings.length : 0 },
+    // WS-R5. Whether this turn carried an interview ask at all. A boolean, not
+    // the block: the block is a note about what to ask, and putting it on a
+    // wire payload would put it one copy-paste away from a screen.
+    asked: Boolean(deps.askBlock),
   };
 }

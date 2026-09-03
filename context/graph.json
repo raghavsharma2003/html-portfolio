@@ -4731,6 +4731,49 @@
       "kind": "measurement",
       "title": "evals/readiness/run.mjs: 120/120 offline checks pass; migration 073 and both lock predicates have never been measured against a live database",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r5-interview",
+      "kind": "component",
+      "title": "The interview: the Mirror Call re-pointed at gaps in the archive",
+      "at": "2026-09-03",
+      "status": "built and offline-gated (173/173); migration 075 unapplied, no live call run"
+    },
+    {
+      "id": "ws-r5-interview-is-a-call-mode-not-a-second-door",
+      "kind": "decision",
+      "title": "The interview is a mode of the Mirror Call, not a second call",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r5-gap-list-frozen-at-session-open",
+      "kind": "decision",
+      "title": "The ranked gap list is frozen onto the session at open, never recomputed mid-call",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r5-interview-answer-grows-the-source-set-and-writes-nothing-else",
+      "kind": "decision",
+      "title": "An interview answer stamps a source and writes no sheet, persona or conditioning selection",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses",
+      "kind": "decision",
+      "title": "The ask block splices immediately before the appended-last set, or refuses",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r5-dialogue-register-is-a-pointer-not-a-reweight",
+      "kind": "decision",
+      "title": "Dialogue register is a pointer at interview-sourced claims, not a new confidence weight",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r5-interview-eval-and-gate-counts-2026-09-03",
+      "kind": "measurement",
+      "title": "The interview eval passes 173/173 offline; verify-release 14/14 without NEON_URL",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9458,6 +9501,66 @@
       "src": "ws-r3-readiness-eval-suite-120-checks-offline-only",
       "rel": "part_of",
       "dst": "ws-r3-readiness-screen"
+    },
+    {
+      "src": "ws-r5-interview",
+      "rel": "part_of",
+      "dst": "mirror-call-backend"
+    },
+    {
+      "src": "ws-r5-interview-is-a-call-mode-not-a-second-door",
+      "rel": "part_of",
+      "dst": "ws-r5-interview"
+    },
+    {
+      "src": "ws-r5-interview-is-a-call-mode-not-a-second-door",
+      "rel": "caused_by",
+      "dst": "mirror-call-reply"
+    },
+    {
+      "src": "ws-r5-gap-list-frozen-at-session-open",
+      "rel": "part_of",
+      "dst": "ws-r5-interview"
+    },
+    {
+      "src": "ws-r5-interview-answer-grows-the-source-set-and-writes-nothing-else",
+      "rel": "part_of",
+      "dst": "ws-r5-interview"
+    },
+    {
+      "src": "ws-r5-interview-answer-grows-the-source-set-and-writes-nothing-else",
+      "rel": "caused_by",
+      "dst": "mirror-reference-accumulation-was-inert"
+    },
+    {
+      "src": "ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses",
+      "rel": "part_of",
+      "dst": "ws-r5-interview"
+    },
+    {
+      "src": "ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses",
+      "rel": "caused_by",
+      "dst": "prompt-position"
+    },
+    {
+      "src": "ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
+    },
+    {
+      "src": "ws-r5-dialogue-register-is-a-pointer-not-a-reweight",
+      "rel": "part_of",
+      "dst": "ws-r5-interview"
+    },
+    {
+      "src": "ws-r5-interview-eval-and-gate-counts-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r5-interview"
+    },
+    {
+      "src": "ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses",
+      "rel": "measured_by",
+      "dst": "ws-r5-interview-eval-and-gate-counts-2026-09-03"
     }
   ]
 }

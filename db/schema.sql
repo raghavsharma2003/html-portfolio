@@ -3019,3 +3019,49 @@ create index if not exists vy_replica_readiness_latest_ix
   on vy_replica_readiness (replica_id, owner_user_id, computed_at desc);
 create index if not exists vy_replica_readiness_inputs_ix
   on vy_replica_readiness (replica_id, inputs_hash, computed_at desc);
+-- Migration 075 - the interview: the Mirror Call re-pointed at the gaps in the
+-- archive (WS-R5). `purpose` on vy_replica_source is what lets retrieval prefer
+-- conversational material for register; the two tables below are the interview
+-- itself, and every one of their rows hangs off a Mirror Call session so there
+-- is no second transport, no second consent freeze and no second reply lane.
+alter table vy_replica_source add column if not exists purpose text not null default 'memory';
+alter table vy_replica_source drop constraint if exists vy_replica_source_purpose_check;
+alter table vy_replica_source add constraint vy_replica_source_purpose_check
+  check (purpose in ('memory','identity_document','correction','interview'));
+create index if not exists vy_replica_source_purpose_ix
+  on vy_replica_source (replica_id, owner_user_id, purpose);
+create table if not exists vy_interview_session (
+  session_id        uuid primary key default gen_random_uuid(),
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  mirror_session_id uuid not null references vy_mirror_session(session_id) on delete cascade,
+  policy_version    text not null,
+  started_at        timestamptz not null default now(),
+  ended_at          timestamptz,
+  gaps              jsonb not null default '[]'::jsonb,
+  questions_asked   integer not null default 0 check (questions_asked >= 0),
+  answers_captured  integer not null default 0 check (answers_captured >= 0),
+  updated_at        timestamptz not null default now(),
+  constraint vy_interview_session_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade,
+  constraint vy_interview_session_gaps_shape check (jsonb_typeof(gaps) = 'array' and octet_length(gaps::text) <= 32768),
+  constraint vy_interview_session_answer_gate check (answers_captured <= questions_asked)
+);
+create unique index if not exists vy_interview_session_mirror_ix on vy_interview_session (mirror_session_id);
+create index if not exists vy_interview_session_owner_ix on vy_interview_session (owner_user_id, replica_id, started_at desc);
+create table if not exists vy_interview_answer (
+  answer_id          uuid primary key default gen_random_uuid(),
+  session_id         uuid not null references vy_interview_session(session_id) on delete cascade,
+  replica_id         uuid not null,
+  owner_user_id      uuid not null,
+  gap_kind           text not null check (gap_kind in ('contradiction','sheet_field','thin_topic','readiness')),
+  topic              text not null check (topic <> '' and length(topic) <= 120),
+  question_shape_hash text not null check (question_shape_hash ~ '^[0-9a-f]{64}$'),
+  source_id          uuid references vy_replica_source(source_id) on delete set null,
+  window_id          uuid references vy_mirror_window(window_id) on delete set null,
+  created_at         timestamptz not null default now(),
+  constraint vy_interview_answer_owner_fk foreign key (replica_id, owner_user_id) references vy_replica (replica_id, owner_user_id) on delete cascade
+);
+create unique index if not exists vy_interview_answer_shape_ix on vy_interview_answer (session_id, question_shape_hash);
+create index if not exists vy_interview_answer_session_ix on vy_interview_answer (session_id, created_at);
+create index if not exists vy_interview_answer_owner_ix on vy_interview_answer (owner_user_id, replica_id, created_at desc);
+create index if not exists vy_interview_answer_shape_history_ix on vy_interview_answer (replica_id, owner_user_id, question_shape_hash);

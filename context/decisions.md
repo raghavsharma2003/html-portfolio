@@ -7879,3 +7879,125 @@ enforcement of the "never reversible" half: it removes this exact guard from a
 copy of the real module and requires every assertion resting on it to fail, so
 a future edit that quietly reintroduces the average is caught rather than
 merged.
+## `ws-r5-interview-is-a-call-mode-not-a-second-door` (2026-09-03)
+
+**Decision.** The interview is `mode=interview` on the existing `mirror-call/v1`
+`create` op, not a second call type, a second reply assembler, or a second
+consent freeze. `vy_interview_session.mirror_session_id` is `NOT NULL` and
+unique, so an interview cannot exist detached from the Mirror Call whose
+transport, consent scopes and window table it reuses, and the two modes differ
+in exactly one thing downstream: whether the clone's turn carries a rendered
+ask block. Every turn, in either mode, still leaves through `gatedReply()`
+(`api/_mirrorcall-reply.js`), which is `mirror-call-reply-is-the-one-door`
+applied to the surface where a second door would matter most — the owner is
+answering questions about themselves.
+
+**Why.** A parallel interview lane would need its own consent check, its own
+window ingestion, its own reply assembly, and every future rule added to
+`gatedReply` (a helpline, a manipulation guard, a new honesty family) would
+reach the ordinary call and silently miss the interview unless someone
+remembered to wire it twice. One door means every such rule reaches both modes
+for free, which is the whole argument `api/_clonechat.js` already settled for
+the web widget.
+
+**What would reverse it.** A real product requirement for an interview that
+runs independent of a live Mirror Call — asynchronous, text-only, or resumable
+across days without an open call — would need a new transport, and at that
+point this decision should be revisited rather than stretched. Wanting the
+interview UI to look different from the calibration call is not that evidence;
+the mode flag already carries that without a second door.
+
+## `ws-r5-gap-list-frozen-at-session-open` (2026-09-03)
+
+**Decision.** `api/_interview-gaps.js::buildInterviewGaps` runs once, when the
+interview opens, and its ranked output is written into
+`vy_interview_session.gaps` (jsonb, capped at 32 KB, array-shaped by a CHECK
+constraint) rather than recomputed on every window. `gaps[answers_captured]` is
+the outstanding question for the life of the session.
+
+**Why.** The gap model reads claims, sheet fields, transcript coverage and the
+readiness snapshot, all of which keep changing while a twenty-minute call is in
+progress. Recomputing mid-call would mean the interview's fourth question came
+from a different ranking than its first, with no way for the owner to know the
+ground shifted under them mid-answer. Migration 075's header makes the same
+argument 059 makes for `consent_scopes`: what was true at start is a fact the
+row has to carry.
+
+**What would reverse it.** A live interview session (needs the migration
+applied and a real call) showing that evidence arriving mid-call — a claim
+decision flipping, a contradiction resolving itself — measurably produces worse
+questions under freezing than under a recompute would be grounds to revisit.
+No such measurement exists yet; this is a design argument, not a tested one.
+
+## `ws-r5-interview-answer-grows-the-source-set-and-writes-nothing-else` (2026-09-03)
+
+**Decision.** `recordInterviewAnswer` (`api/_interview-store.js`) only stamps
+`purpose='interview'` onto a `vy_replica_source` row the owner's ordinary
+upload lane already created, and inserts one `vy_interview_answer` row pointing
+at it. Nothing in the interview lane writes `vy_teacher_sheet`, a persona field,
+or a `vy_mirror_conditioning` selection. `evals/interview/run.mjs` asserts no
+statement in the store lane names either table.
+
+**Why.** `context/rejected.md#mirror-reference-accumulation-was-inert` is the
+standing evidence: a voice loop built as spec'd, accumulating references
+automatically, would have changed nothing, because synthesis reads only
+`vy_mirror_conditioning`'s selection. Generalised here, an interview answer is
+not "more true" than an uploaded claim and must not be allowed to look like a
+direct edit to the persona or the sheet — it becomes ordinary material that the
+existing mining and review lane processes like anything else.
+
+**What would reverse it.** Only a new, separately measured decision that the
+voice or persona pipeline should read interview answers directly (superseding
+the "selection over accumulation" argument this is built on) would justify
+writing outside the source set from here. A request for the interview to "move
+readiness faster" is not that evidence; it is a request to route through the
+ordinary mining lane faster.
+
+## `ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses` (2026-09-03)
+
+**Decision.** `spliceInterviewAsk` (`api/_mirrorcall-reply.js`) inserts the
+interview's rendered ask block into the compiled prompt tail immediately
+BEFORE `FORGET_DECISION` — the same position `compiler.ts` gives T16/T19 — and
+returns `null` (surfaced as the named reason `interview_ask_unplaceable`, never
+a silently dropped ask) if the compiled tail does not end with that exact
+suffix. It never appends after it.
+
+**Why.** `prompt-position` measured 0/8 fires for an identical rule buried
+mid-brief against 8/8 for the same rule appended last, and that appended-last
+set is deliberately closed at exactly two members
+(`shapelint.checkAppendedLastExactlyTwo`). Adding the ask as a third
+appended-last item would be quietly widening a set the compiler treats as
+closed, on the one lane where the "line" being smuggled in is the model's own
+instruction for what to ask next.
+
+**What would reverse it.** A re-run of the position experiment (mid-brief vs.
+appended-last vs. immediately-before-appended-last, same measurement method as
+the original `prompt-position` result) showing the ask fires as reliably from a
+different position would justify moving it. No such measurement exists for the
+ask block specifically; the position is inherited from `prompt-position`'s
+result for other rules, not independently confirmed for this one.
+
+## `ws-r5-dialogue-register-is-a-pointer-not-a-reweight` (2026-09-03)
+
+**Decision.** `dialogueRegister` (`api/_person-model.js`) adds
+`speech.dialogue_register` to the person model definition as a set of claim ids
+that came from a source with `purpose='interview'` — a pointer for retrieval to
+prefer, not a new confidence weight or claim domain. The block is always
+present (`sources: 0, claims: []` when the replica has never been interviewed)
+rather than an absent key, because an absent key would be indistinguishable
+from a builder that silently ignored the argument.
+
+**Why.** An interview answer is not more true than an uploaded claim, only
+differently shaped — it is the only material where the person is in a
+conversation rather than composing one. Reweighting confidence on that basis
+would conflate "recently and conversationally given" with "more likely true",
+which nothing in this feature has measured. `evals/interview/run.mjs` drives
+the builder with the same claims twice, with and without the interview source
+ids, and fails unless the two outputs differ, so a future edit that stops
+threading the ids through breaks a gate rather than shipping silently empty.
+
+**What would reverse it.** A measured degradation in register consistency
+(Hinglish/English code-switch matching, the existing `exdialog-surface`-style
+measurement) traceable to boolean membership being too coarse — for example, an
+interview answer given once, offhand, being weighted the same as one repeated
+five times — would be grounds to move to a weighted signal instead of a set.

@@ -1263,6 +1263,39 @@ const suites = {
   // covers the first and `scripts/relcheck.mjs` the second, and migration 073
   // has never been applied to any database.
   readiness: "readiness/run.mjs",
+  // WS-R5. The interview — the Mirror Call re-pointed at the gaps in the
+  // archive, and the only lane in this product where the AI decides what to
+  // ASK.
+  //
+  // Three properties nothing else can gate:
+  //  - THE RANKING, which IS the feature: five questions and twenty minutes
+  //    means which five is the whole product, so the three orderings are
+  //    asserted directly (a contradiction outranks everything; a sheet field
+  //    with no evidence outranks one with some; a thin topic produces a gap
+  //    where a covered one produces none).
+  //  - NO QUOTABLE SENTENCE REACHES THE PROMPT. Every line of every ask block
+  //    the model can generate is run through `src/engine/shapelint.ts`'s OWN
+  //    `lintLine`, bundled from the real TypeScript on every run — including
+  //    the blocks built out of the owner's own claim bodies, which is the one
+  //    place their words ride into a prompt. The assertion was mutation-tested:
+  //    raising all four fragment caps makes it fail, raising any one does not.
+  //  - THE DETECTOR THAT COULD NOT RUN SAYS SO. §5 is the negative control and
+  //    it is the file's spine: the same assertion that passes with the
+  //    contradiction predicate wired MUST FAIL with it disabled, and the
+  //    payload must report `detectors.contradiction === false` rather than an
+  //    empty list a studio would read as "no contradictions".
+  //
+  // Plus: the answer write stamps a source and NO statement in the lane names
+  // `vy_teacher_sheet` or `vy_mirror_conditioning`
+  // (`mirror-reference-accumulation-was-inert`: answers grow the SOURCE set and
+  // change no voice), the ask block splices BEFORE the appended-last set or is
+  // refused outright (`prompt-position`), and the person-model register input
+  // is driven both ways so a builder ignoring it fails.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity: migration 075 is
+  // unapplied and no statement in this lane has executed against a database.
+  interview: "interview/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -28,7 +28,19 @@ export const FIDELITY_FAMILY = "speechbrain-ecapa-voxceleb";
 export const MIRROR_CALL_OPS = Object.freeze([
   "contract", "create", "status", "ingest_window", "deltas",
   "delta_action", "turn_voice", "turn_feedback", "end",
+  // WS-R5. The interview's gap preview, and the only op it adds: the interview
+  // itself is a MODE of `create`, not a second call, because a second call lane
+  // would be a second reply assembler (`mirror-call-reply-is-the-one-door`).
+  // Optional on the client, like `turn_voice` and `status`: a deployment
+  // without it runs calibration calls and the studio says the interview is not
+  // available here rather than offering a button that 400s.
+  "interview_gaps",
 ]);
+
+/** The two modes a Mirror Call can open in. `calibrate` is what every existing
+ *  client asks for by not asking, so an old studio against a new deployment
+ *  behaves exactly as it did. */
+export const MIRROR_CALL_MODES = Object.freeze(["calibrate", "interview"]);
 
 /** Ops the client knows about that this deployment does NOT serve.
  *
