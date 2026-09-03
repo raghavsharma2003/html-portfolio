@@ -563,6 +563,29 @@ console.log("\n── negative control: strike the readiness predicate ──");
   ok("a different owner sees nothing, not an error", notOwner === null);
 }
 
+// ── 12. WS-R18: the Telegram deep link, honest "not connected" over a guess ─
+{
+  const state = freshState();
+  const db = makeDb(state);
+  const created = await createRoom(db, OWNER, REPLICA, {});
+
+  const savedBotUsername = process.env.ROOM_TELEGRAM_BOT_USERNAME;
+  try {
+    delete process.env.ROOM_TELEGRAM_BOT_USERNAME;
+    const unconfigured = await getOwnedRoom(db, OWNER, REPLICA);
+    ok("no bot configured: the deep link is null, not a guessed URL",
+      unconfigured.room.telegram_deep_link === null);
+
+    process.env.ROOM_TELEGRAM_BOT_USERNAME = "VyaktiRoomsBot";
+    const configured = await getOwnedRoom(db, OWNER, REPLICA);
+    ok("bot configured: the deep link names THIS room's own slug",
+      configured.room.telegram_deep_link === `https://t.me/VyaktiRoomsBot?start=${created.slug}`);
+  } finally {
+    if (savedBotUsername === undefined) delete process.env.ROOM_TELEGRAM_BOT_USERNAME;
+    else process.env.ROOM_TELEGRAM_BOT_USERNAME = savedBotUsername;
+  }
+}
+
 // ── the floors this suite pinned itself to, so a moved constant is visible ──
 ok("the readiness floors this suite exercises match the shipping module", READINESS_OVERALL_FLOOR === 70 && READINESS_PART_FLOOR === 55);
 ok("the readiness fragment is IMPORTED from api/_clonechannel.js, not re-typed", typeof readinessPasses === "function");
