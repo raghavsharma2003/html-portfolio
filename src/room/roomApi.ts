@@ -9,14 +9,19 @@
 export class RoomApiError extends Error {
   code: string;
   status: number;
-  /** Only `room_free_cap_reached` carries one, and it is the allowance. */
+  /** `room_free_cap_reached`/`room_paid_cap_reached` carry one: the message
+   *  allowance that was hit. */
   messagesIncluded?: number;
+  /** `room_voice_cap_reached` carries this one instead (WS-R19): the voice
+   *  seconds allowance that was hit. */
+  voiceSecondsIncluded?: number;
 
-  constructor(code: string, status: number, messagesIncluded?: number) {
+  constructor(code: string, status: number, messagesIncluded?: number, voiceSecondsIncluded?: number) {
     super(code);
     this.code = code;
     this.status = status;
     if (typeof messagesIncluded === "number") this.messagesIncluded = messagesIncluded;
+    if (typeof voiceSecondsIncluded === "number") this.voiceSecondsIncluded = voiceSecondsIncluded;
   }
 }
 
@@ -34,6 +39,21 @@ export interface RoomFollower {
   messages_used: number;
   messages_included: number;
   messages_left: number | null;
+  // WS-R19: real only for a paid follower — see api/_room-surface.js's
+  // `clientFollower` for why a free follower's own copy of these is always 0.
+  voice_seconds_used: number;
+  voice_seconds_included: number;
+  voice_seconds_left: number;
+}
+
+export interface RoomSpoken {
+  audio: string;
+  format: { sampleRate: number; channels: number };
+  generation_id: string;
+  watermark_algorithm: string;
+  disclosure_scheme: string;
+  voice: { seconds_used: number; seconds_included: number; seconds_left: number };
+  session: string;
 }
 
 export interface RoomThread {
@@ -88,6 +108,7 @@ async function post<T>(body: Record<string, unknown>, accessToken?: string | nul
       String(data?.error || `room_request_failed_${response.status}`),
       response.status,
       typeof data?.messages_included === "number" ? data.messages_included : undefined,
+      typeof data?.voice_seconds_included === "number" ? data.voice_seconds_included : undefined,
     );
   }
   return data as T;
@@ -126,6 +147,13 @@ export const sayInRoom = (
     thread: options.thread ?? null,
     transcript: options.transcript ?? [],
   });
+
+/** WS-R19, behind `VITE_ROOM_VOICE`. `text` must be the EXACT reply text the
+ *  session just returned from `sayInRoom` — the server binds a clip to the
+ *  reply that produced it and refuses anything else, `room_voice_reply_
+ *  mismatch`. */
+export const speakInRoom = (session: string, text: string) =>
+  post<RoomSpoken>({ op: "speak", session, text });
 
 export const roomHistory = (session: string, thread?: string | null) =>
   post<RoomHistory>({ op: "history", session, thread: thread ?? null });

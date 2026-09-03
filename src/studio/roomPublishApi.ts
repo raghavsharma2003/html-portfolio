@@ -7,6 +7,8 @@ export interface OwnedRoom {
   slug: string;
   display_name: string;
   free_monthly_messages: number;
+  paid_monthly_messages: number;
+  paid_monthly_voice_seconds: number;
   published: boolean;
   paused: boolean;
   published_at: string | null;
@@ -109,6 +111,22 @@ export async function resumeOwnedRoom(token: string, replicaId: string): Promise
 
 export async function setOwnedRoomFreeCap(token: string, replicaId: string, cap: number): Promise<OwnedRoom> {
   const data = await call<{ room: OwnedRoom }>(token, { op: "set_free_cap", replica_id: replicaId, cap });
+  return data.room;
+}
+
+/** Both paid ceilings in one call — `setOwnedRoomFreeCap`'s own shape. */
+export async function setOwnedRoomPaidCeilings(
+  token: string,
+  replicaId: string,
+  messages: number,
+  voiceSeconds: number,
+): Promise<OwnedRoom> {
+  const data = await call<{ room: OwnedRoom }>(token, {
+    op: "set_paid_ceilings",
+    replica_id: replicaId,
+    messages,
+    voice_seconds: voiceSeconds,
+  });
   return data.room;
 }
 

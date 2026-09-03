@@ -52,6 +52,9 @@ const FIXTURE_OPEN: RoomOpen = {
     messages_used: 6,
     messages_included: 20,
     messages_left: 14,
+    voice_seconds_used: 0,
+    voice_seconds_included: 0,
+    voice_seconds_left: 0,
   },
   threads: [
     { thread_id: "11111111-1111-4111-8111-111111111111", title: "fitness", last_message_at: null },

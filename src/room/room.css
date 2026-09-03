@@ -170,6 +170,25 @@
     animation: room-rise var(--motion-enter) var(--ease-enter) both;
   }
 
+  /* WS-R19: the paid voice play control. A small, quiet chip under a reply -
+     it must never compete with the words above it for attention. */
+  .room-bubble-voice {
+    display: block;
+    margin-top: var(--space-item);
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: var(--hairline) solid var(--line);
+    background: transparent;
+    color: inherit;
+    font-size: var(--text-small);
+    cursor: pointer;
+  }
+
+  .room-bubble-voice:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
   @keyframes room-rise {
     from {
       opacity: 0;
