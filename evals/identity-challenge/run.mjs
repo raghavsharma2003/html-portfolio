@@ -590,9 +590,17 @@ ok("the decider is scheduled and cron-authenticated, and an unconfigured deploym
 ok("the studio band is behind its own flag and replaces the Azure cards rather than joining them",
   /VITE_VOICE_IDENTITY_CHALLENGE/.test(app) &&
   /VOICE_IDENTITY_UI \? \(/.test(app) && /<IdentityProofing/.test(app));
-ok("the studio reuses wavCapture's encoder instead of writing a second one",
-  /from "\.\/wavCapture"/.test(studio) && /encodeWav24kMono/.test(studio) &&
-  !/function encodeWav\b/.test(studio));
+// evals/sound.mjs owns the "one sound layer" law and enumerates every file
+// allowed to construct an AudioContext. This panel holds no audio graph at
+// all: the tap lives in wavCapture.ts beside the encoder it shares, so the
+// allowlist did not have to grow to admit a new panel.
+ok("the studio panel holds no audio graph and reuses wavCapture's tap and encoder",
+  /from "\.\/wavCapture"/.test(studio) && /openStreamWavTap/.test(studio) &&
+  !/new\s+AudioContext/.test(studio) && !/function encodeWav\b/.test(studio));
+const wavCapture = readFileSync(join(ROOT, "src/studio/wavCapture.ts"), "utf8");
+ok("the shared tap keeps its processing graph silent, the same proof the other two carry",
+  /export function openStreamWavTap/.test(wavCapture) &&
+  (wavCapture.match(/silent\.gain\.value\s*=\s*0/g) || []).length >= 2);
 ok("the studio states which side is holding the work and what a refusal means",
   studio.includes("Waiting on us") && studio.includes("Read this sentence out loud, on camera") &&
   /REASON: Record<string/.test(studio) && studio.includes("Age is verified separately"));

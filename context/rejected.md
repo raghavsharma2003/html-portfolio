@@ -5942,11 +5942,27 @@ directly incompatible and nothing enforces the boundary: `check-copy.mjs` does
 not read SQL, and `tsc` does not read `api/`. The failure is silent until
 import and its error points at innocent code.
 
+**It happened TWICE in one session, which is the real finding.** The second
+time was in the fix for an unrelated `sqlcast` failure, in a comment written
+to explain why a CTE needed `RETURNING`, roughly an hour after this very entry
+was written up. Knowing about the trap did not prevent it: naming an
+identifier in backticks is muscle memory in a repo whose prose style is
+Markdown, and the SQL is far enough from the enclosing backtick that nothing
+on screen looks like a string.
+
+Note also that `evals/sqlcast.mjs` did NOT catch either instance. It reads SQL
+out of the source with a scanner rather than importing the module, so a file
+that cannot be imported at all still passes it. Two gates that both look at
+this file, and the one that fails is the eval three steps later.
+
 **What replaced it.** Bare identifiers in SQL comments inside template
 literals, and a smoke import of every touched module (`import()` each file and
 print the failure) before running anything longer. The import takes under a
-second and would have caught this immediately, where the full gate takes about
-four minutes to reach the same conclusion less clearly.
+second and would have caught both instances immediately, where the full gate
+takes about four minutes to reach the same conclusion less clearly. The
+cheapest durable fix, not built here because it belongs to whoever owns
+`sqlcast`: have that suite `import()` each file it scans, so "this module
+parses" is gated by the same thing that already reads its queries.
 
 ## `ws-r2-worker-dag-step-for-a-challenge-clip` (2026-09-03, WS-R2)
 

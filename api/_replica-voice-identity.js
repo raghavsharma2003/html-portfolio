@@ -470,6 +470,12 @@ export async function issueOwnedVoiceChallenge(db, ownerUserId, id, options = {}
         from expired e where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid
           and s.source_id in (e.captured_source_id,e.transcript_source_id)
           and s.state in ('pending_upload','quarantined','rejected')
+       -- RETURNING is mandatory here, not decorative: this CTE is SELECTed
+       -- from below (the cross join on count(*) from expired_sources), and
+       -- Postgres refuses a data-modifying WITH query that is read without
+       -- one. 0A000, at execution time, every time. Caught offline by
+       -- evals/sqlcast.mjs before it ever reached a database.
+       returning s.source_id
      ), inserted as (
        insert into vy_replica_voice_challenge
          (challenge_id,replica_id,owner_user_id,sentence,sentence_hash,nonce,

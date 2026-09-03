@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { putSignedUpload, sha256File } from "./enrollmentApi";
-import { encodeWav24kMono, micPermissionMessage, resampleForUpload } from "./wavCapture";
+import { micPermissionMessage, openStreamWavTap, type StreamWavTap } from "./wavCapture";
 import type { ReplicaSource, SignedUpload, VoiceIdentityChallenge as Challenge } from "./types";
 
 // WS-R2. The band that replaces the Azure IdentityProofing + LivenessCapture
@@ -8,19 +8,22 @@ import type { ReplicaSource, SignedUpload, VoiceIdentityChallenge as Challenge }
 //
 // ── one microphone, two artifacts ─────────────────────────────────────────
 // ONE getUserMedia stream feeds both a MediaRecorder (the camera clip that
-// services/voice-evidence embeds) and an AudioContext tap (a 24 kHz mono
-// PCM16 WAV that Sarvam transcribes). The encoder and resampler are IMPORTED
-// from wavCapture.ts rather than rewritten, which is what that file's own
-// header asks for: "Re-implementing these two there would be two encoders
-// that can drift, and a resampler that drifts produces audio the fidelity
-// meter scores lower for reasons nobody can find."
+// services/voice-evidence embeds) and a WAV tap (what Sarvam transcribes).
+// Opening the microphone twice would be two capture sessions of the same
+// person on two clocks, and the transcript would then be of a slightly
+// different recording than the one that was scored.
 //
-// Opening the microphone twice (once for the camera, once via
-// openPrivateWavCapture) would be two capture sessions of the same person
-// with two clocks, and the transcript would then be of a slightly different
-// recording than the one that was scored. One stream, two encoders off the
-// same samples, is the only shape where the two measurements are about the
-// same ten seconds.
+// The tap itself is `openStreamWavTap`, and it lives in wavCapture.ts rather
+// than here. Two reasons, both load-bearing. Its encoder and resampler are
+// already there, and that file's own header says why they must stay one
+// copy: "Re-implementing these two there would be two encoders that can
+// drift, and a resampler that drifts produces audio the fidelity meter scores
+// lower for reasons nobody can find." And `evals/sound.mjs` enumerates every
+// file permitted to construct an AudioContext, because "an AudioContext built
+// anywhere else is a second sound layer with no gate on it" — an enumeration
+// that is only worth anything if new audio graphs move to the owner files
+// instead of the allowlist growing to meet them. This panel therefore holds
+// no audio graph at all.
 //
 // ── honest states ─────────────────────────────────────────────────────────
 // AGENTS.md: blockers split into "waiting on you" and "waiting on us", and a
@@ -146,9 +149,7 @@ export default function VoiceIdentityChallengeBand({
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const samplesRef = useRef<Float32Array[]>([]);
-  const audioRef = useRef<{ context: AudioContext; processor: ScriptProcessorNode; source: MediaStreamAudioSourceNode; gain: GainNode } | null>(null);
-  const capturingRef = useRef(false);
+  const tapRef = useRef<StreamWavTap | null>(null);
   const startedAtRef = useRef(0);
   const previewRef = useRef<HTMLVideoElement>(null);
   const autoStopRef = useRef<number | null>(null);
@@ -162,24 +163,13 @@ export default function VoiceIdentityChallengeBand({
   const settledFail = challenge?.state === "failed" || challenge?.state === "expired";
   const busy = ["requesting", "recording", "hashing", "authorizing", "uploading", "finalizing"].includes(stage);
 
-  function closeAudio() {
-    const audio = audioRef.current;
-    audioRef.current = null;
-    capturingRef.current = false;
-    if (!audio) return;
-    try {
-      audio.processor.disconnect();
-      audio.source.disconnect();
-      audio.gain.disconnect();
-      void audio.context.close();
-    } catch {
-      // A context already closed by an earlier teardown is not an error worth
-      // showing anyone.
-    }
-  }
-
   function stopTracks() {
-    closeAudio();
+    const tap = tapRef.current;
+    tapRef.current = null;
+    // Discard whatever it holds: this path is teardown, not a completed
+    // recording, and the only caller that wants the bytes takes them from the
+    // recorder's own onstop below.
+    if (tap) void tap.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     if (previewRef.current) previewRef.current.srcObject = null;
@@ -298,33 +288,16 @@ export default function VoiceIdentityChallengeBand({
     }
   }
 
-  /** The WAV tap. Same stream, same samples, so the transcript and the
-   *  speaker score are about one recording rather than two. */
-  function openAudioTap(stream: MediaStream) {
-    const context = new AudioContext({ latencyHint: "interactive" });
-    const source = context.createMediaStreamSource(stream);
-    const processor = context.createScriptProcessor(4096, 1, 1);
-    const gain = context.createGain();
-    gain.gain.value = 0;
-    samplesRef.current = [];
-    processor.onaudioprocess = (event) => {
-      if (capturingRef.current) samplesRef.current.push(event.inputBuffer.getChannelData(0).slice());
-    };
-    source.connect(processor);
-    processor.connect(gain);
-    gain.connect(context.destination);
-    audioRef.current = { context, processor, source, gain };
-    void context.resume();
-    return context;
-  }
-
   function startRecording() {
     const stream = streamRef.current;
     if (!stream || !videoMime) return;
     setError("");
     clearRecording();
     chunksRef.current = [];
-    const context = openAudioTap(stream);
+    // Same stream, same samples, so the transcript and the speaker score are
+    // about one recording rather than two.
+    const tap = openStreamWavTap(stream);
+    tapRef.current = tap;
     const recorder = new MediaRecorder(stream, { mimeType: videoMime });
     recorderRef.current = recorder;
     recorder.ondataavailable = (event) => {
@@ -339,23 +312,20 @@ export default function VoiceIdentityChallengeBand({
     recorder.onstop = () => {
       const durationMs = Date.now() - startedAtRef.current;
       const blob = new Blob(chunksRef.current, { type: videoMime });
-      const sourceRate = context.sampleRate;
-      const captured = samplesRef.current;
-      samplesRef.current = [];
-      capturingRef.current = false;
+      tapRef.current = null;
       void (async () => {
-        const total = captured.reduce((sum, chunk) => sum + chunk.length, 0);
-        const merged = new Float32Array(total);
-        let offset = 0;
-        for (const chunk of captured) { merged.set(chunk, offset); offset += chunk.length; }
-        let wavBlob: Blob | null = null;
+        let wav: File | null = null;
         try {
-          wavBlob = encodeWav24kMono(await resampleForUpload(merged, sourceRate), 24_000);
+          wav = await tap.stop();
         } catch {
-          wavBlob = null;
+          // A tap that could not close cleanly has no bytes to give; the
+          // refusal below says so rather than sending half a recording.
+          wav = null;
         }
-        stopTracks();
-        if (durationMs < MIN_MS || blob.size < 1 || !wavBlob || !total) {
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        if (previewRef.current) previewRef.current.srcObject = null;
+        if (durationMs < MIN_MS || blob.size < 1 || !wav) {
           setError("That was too short to check. Read the whole sentence in one go, about ten seconds.");
           setStage("idle");
           return;
@@ -363,7 +333,7 @@ export default function VoiceIdentityChallengeBand({
         const extension = videoMime.includes("mp4") ? "mp4" : "webm";
         setRecording({
           video: new File([blob], `identity-challenge.${extension}`, { type: videoMime }),
-          wav: new File([wavBlob], "identity-challenge.wav", { type: "audio/wav" }),
+          wav,
           url: URL.createObjectURL(blob),
           durationMs,
           mime: videoMime,
@@ -373,7 +343,6 @@ export default function VoiceIdentityChallengeBand({
     };
     startedAtRef.current = Date.now();
     setSecondsRecorded(0);
-    capturingRef.current = true;
     recorder.start(250);
     setStage("recording");
     autoStopRef.current = window.setTimeout(() => stopRecording(), MAX_MS);

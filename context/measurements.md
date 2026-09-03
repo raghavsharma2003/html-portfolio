@@ -6966,8 +6966,10 @@ about 0.4 s.
 
 | thing | value | method |
 |---|---|---|
-| offline decision checks passing | 68/68 | `node evals/identity-challenge/run.mjs`, n=1 run, deterministic (no RNG: the sentence draw and every vector are fixtures) |
+| offline decision checks passing | 69/69 | `node evals/identity-challenge/run.mjs`, n=1 run, deterministic (no RNG: the sentence draw and every vector are fixtures), about 0.4 s |
 | full release gate, untouched tree | 14/14 | `node scripts/verify-release.mjs` at 771feef before any edit, exit 0 |
+| full release gate, after the change | 14/14 | same command, exit 0, eval suite 132 s |
+| defects the existing gates caught in this workstream | 2 | `sqlcast` found a 0A000 (a data-modifying CTE read without `RETURNING`) that would have failed at execution every time; `sound` found this panel building its own AudioContext outside the enumerated owners. Both were real, both were found offline, and both are why the suite exists |
 | accept threshold | 0.78 | constant, carried from `api/_fidelity.js`'s warn band |
 | review floor | 0.70 | constant, carried from `api/_fidelity.js`'s activation floor |
 | owner-vs-owner ceiling this comparison aims at | 0.8869 | NOT re-measured here. Read from `measurements.md#first-real-clone` (WS-T, 2026-08-26, n=1 subject, 2 runs, spread 1e-6) |
