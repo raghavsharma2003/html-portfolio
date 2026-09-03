@@ -551,3 +551,41 @@ editing `src/studio/StudioApp.tsx` and `src/studio/studio.css` right now
 (`origin/gurukul-ws-w` touches both) and a parallel rewrite of those files would
 collide. The queue is ordered and each item names its target files so the wave
 after those merges is mechanical.
+
+---
+
+## Part 5 — Vyakti Rooms v1, new surfaces on this journey (WS-R1..R10, 2026-09-03)
+
+Nothing in Parts 1-4 above is closed by this wave — Rooms is additive, not a
+fix to the audit's BREAK list, and none of the open UX-Q items in
+`UX-QUEUE.md` cite a Rooms workstream as their closer. What changed is that
+the five-phase spine in §3.1 now has real panels behind two of its phases that
+did not exist when that spine was drawn. Status below is honest, not
+aspirational: **"code-complete, gated offline" is not "live"**, and none of
+the six surfaces below has ever been driven by a real signed-in browser
+session against the live database.
+
+| Surface | Where in the §3.1 spine | Status |
+|---|---|---|
+| **The Room** (`/r/<slug>`, `api/room.js` over `api/_room-surface.js`) | Outside the creator's own five phases — this is the FOLLOWER's surface, reached only after phase 5 publishes something | Migration 071 applied live. `evals/room/run.mjs` 54/54 offline. The leak battery (`evals/room-leak/run.mjs`, a release gate) proves the three-scope boundary holds across 2/5/20-follower scenarios, 16,080 retrieval checks + 441 boundary checks, 0 leaks. **No real Room has ever been opened, joined or said-to outside a fake `db`** (WS-R7's own words about `vy_room`) |
+| **RoomStudio** (creator publishes/pauses/renames the Room, sets the free-message cap) | Phase 5, mounted above `ChannelsStudio`'s band, `mode==='teacher'`-gated | `api/_room-publish.js`, 37 offline checks, one required negative control (the readiness `EXISTS` clause struck from the real statement text). No migration of its own — reuses `vy_room`'s existing columns. **No real `vy_room` row has ever been inserted anywhere outside a fake `db`**, so this panel has never been exercised against a real replica either |
+| **Readiness** (`ReadinessPanel.tsx`, one number / five parts / one suggested action, publish lock at 70 overall / 55 per part) | Phase 5, replacing the old `ReadinessStrip` on Meet | Migration 073 applied live. `evals/readiness/run.mjs` 120/120 offline, including the negative control that removes the overall-undefined guard. `scripts/relcheck.mjs`'s reach walk for this table has never run against real Postgres in any WS-R1..R10 session log; **no real readiness snapshot has been written outside a fake `db`** |
+| **The review queue** (`ReviewQueue.tsx`, the Meet step's thirty-second card: Sounds right / Close, fix it / Never say this) | Phase 5, on Meet | Migration 074 applied live. `evals/review-queue/run.mjs` 117/117 offline with five negative controls, including the structural one that matters most: strike the never-rule predicate from `gateReply` and a forbidden reply travels. **No real card has ever been shown to a real creator**; the question generator has only ever been driven by an injected fixture, so "thirty seconds a card" remains the brief's design target, not a measurement |
+| **The interview** (a Mirror Call mode that asks about the archive's own gaps, never quoting the archive back) | Phase 5, opened as `mode=interview` on the Mirror Call's existing `create` op — the placement §3.6 already reasoned about | Migration 075 applied live. `evals/interview/run.mjs` 173/173 offline with two negative controls. **No real call has ever asked a real question** — this inherits every blocker Part 1's Step 9 already named for the Mirror Call backend itself, which has never spoken to a live `api/mirror-call.js` from a browser |
+| **Drift watch** (`DriftWatchCard.tsx`, mounted directly under `ReadinessPanel`: has the voice-engine or the fidelity score moved since the creator last checked) | Phase 5, on Meet, beside Readiness | Migration 076 **built, and stated applied by this workstream's own brief, but with no confirmed live-apply record in `context/` as of this writing** — check before assuming it is there. `evals/drift-watch/run.mjs` 89/89 offline. **Found and logged as an open gap by its own author**: `recordOwnedFidelity` has exactly one caller in the whole tree (its own offline eval), so the score-drop half of this feature reads `not_measured` for every real replica today — the swap-detection half is unaffected because it reads the generation ledger every real preview does write |
+
+**The vendor voice bench arms** (ElevenLabs PVC, Sarvam Bulbul, behind
+`VOICE_VENDOR_ARMS`) are not a journey surface — no panel shows them to
+anyone — and are noted here only because they share this wave: no vendor has
+ever been contacted from this repository, no vendor audio exists, and there is
+no listening result for either arm.
+
+**What this means for §3.1's five-phase spine, plainly:** phase 5 ("Meet it,
+then publish it") now carries five new panels (Readiness, the review queue,
+the interview mode, drift watch, RoomStudio) on top of the Mirror Call,
+`TeacherSheetStudio`, `DisclosurePreview` and `ChannelsStudio` it already had.
+Nobody has re-audited phase 5 for the ordering, numbering-collision and
+wayfinding problems Part 1 found in the OLD studio (BREAK 24, BREAK 28) now
+that it is five panels heavier. That re-audit is not done here and is not
+claimed to be; it is the natural next `PRODUCT-JOURNEY.md` pass once these
+surfaces are live enough to look at with a signed-in session.
