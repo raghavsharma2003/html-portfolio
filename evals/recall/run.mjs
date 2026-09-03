@@ -525,6 +525,15 @@ const FATE = {
   vy_room_thread: "forget-only",
   vy_room_follower: "forget-only",
 
+  // ── WS-R11: the Room's money, person side (migration 078) ──
+  // A subscription is not memory, so a SCOPED "forget priya" has no term that
+  // could ever name it (a provider reference and a state, no words). Only the
+  // stronger door may take it, and even that door only takes it once its
+  // state is terminal - see api/memory.js's own PERSON_TABLES comment on this
+  // row for why a LIVE mandate survives a whole-account wipe rather than
+  // being silently orphaned.
+  vy_room_subscription: "forget-only",
+
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the
   // one request whose promise is that nothing about them remains would break
