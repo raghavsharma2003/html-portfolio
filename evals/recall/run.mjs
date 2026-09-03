@@ -525,6 +525,20 @@ const FATE = {
   vy_room_thread: "forget-only",
   vy_room_follower: "forget-only",
 
+  // ── the Room's cohort day-count (WS-R12; migration 077) ──
+  //
+  // "Did this follower have a turn on this day" - an id, a date, a count, and
+  // no term a scoped "forget priya" could ever match, its two 071 siblings'
+  // reason exactly. Only the stronger door may take it: the account-level
+  // whole wipe (lane "relational", proven below) or the Room's own
+  // "op":"forget" (`roomForget`'s explicit room_id+person_id delete,
+  // api/_room-surface.js). NO `agent` flag, unlike its two siblings - this
+  // table carries no `agent_id` column (071's two do), so it is deliberately
+  // absent from `roomScopedTables()`'s generic per-agent loop and reached by
+  // name instead; `entry.lane === "relational"` is still what makes the
+  // check below true of it.
+  vy_room_follower_day: "forget-only",
+
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the
   // one request whose promise is that nothing about them remains would break

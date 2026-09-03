@@ -7411,3 +7411,53 @@ n = 2 projects, 3 probes; method = `curl -L` with a cookie jar through a Vercel 
 | `vyakti-replica-lab` | `/` | 200, `<title>Vyakti</title>` |
 
 Before the change, an `html-portfolio` preview of this branch would have fallen back to Meera's landing at `/` because the literal branch match failed (`decisions.md#vercel-build-platform-branch-pattern`). Not measured: what `/` served on that project's previous preview, which was not fetched before the fix landed.
+
+## `ws-r12-cohorts-gate-results-2026-09-03`
+
+n = 1 new offline suite (`evals/room-cohorts/run.mjs`, 60/60 checks, 5
+sections: the write, the forget, the pure cohort math against the workstream
+brief's own fixture numbers, the read against a fixture-backed fake db, and a
+content-free negative control on the migration's own column list); method =
+`node evals/room-cohorts/run.mjs` standalone, then the full suite via
+`node scripts/verify-release.mjs`; date 2026-09-03.
+
+`node scripts/verify-release.mjs`: **15/15 on the untouched tree** (confirmed
+via `git stash -u` / `git stash pop`, one collision on the layout gate's
+127.0.0.1:8931 port on the first post-stash run, resolved by waiting for the
+port to free and rerunning per `ws-common.md`'s own note) and **15/15 after**
+this workstream's changes (same 15 named gates; the eval-suite gate's own
+count grew by one registered suite, `room-cohorts`, folded into its total).
+`node evals/room-leak/run.mjs` standalone: 62/62 both before this workstream
+(baseline) and after `_room-cohorts.js` was added to its AGGREGATE_ONLY set —
+16,080 retrieval checks + 441 boundary checks unchanged, confirming the new
+file's addition to that set did not weaken the existing proof.
+`node scripts/check-copy.mjs`: 6 scopes clean, 17 negative controls bit,
+unchanged count from before this session (no new banned word or em-dash
+introduced). `npx tsc --noEmit -p tsconfig.app.json`: clean after widening
+`RoomStudio`'s `onAuthError` prop union to include `RoomCohortsApiError`
+(one real type error found and fixed, not merely re-run until quiet).
+
+NOT MEASURED, stated rather than implied: no real retention percentage for
+any Room — this environment has no `NEON_URL` and migration 077 has never
+executed against a database, so every number `cohortRow`/`verdictFor` ever
+produced this session came from fixture counts chosen to match the
+workstream brief's own examples (7 weeks at 3/10, 8 weeks at 5/10), not from
+observed follower behavior. `scripts/relcheck.mjs`'s owner-lane reach walk
+did not run (same missing `NEON_URL`); no statement in `api/_room-cohorts.js`
+or the new lines in `api/_room-surface.js` has ever been `EXPLAIN`ed against
+a live Postgres. See the SQL statements list in this workstream's final
+report for what the main loop should `EXPLAIN` once 077 is applied.
+
+## `rooms-migration-077-live-verification-2026-09-03`
+
+n = 1 migration (2 statements), 6 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP `run_sql`, one statement per request, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_room-surface.js` and `api/_room-cohorts.js` newly issue, parameters substituted with typed literals; date 2026-09-03, at the WS-R12 merge.
+
+| statement | plan |
+|---|---|
+| `roomSay` upsert into `vy_room_follower_day` | Insert, conflict resolution UPDATE, arbiter `vy_room_follower_day_pkey` |
+| `roomForget` delete from `vy_room_follower_day` | Index Scan on `vy_room_follower_day_scope_ix` (room_id, person_id) |
+| cohort `followers_joined` / `paid_followers` | Bitmap Index Scan on `vy_room_follower_room_seen_ix`, joined_at filtered |
+| cohort `returned_week6` (EXISTS over the day table) | Nested Loop Semi Join; inner Index Scan on `vy_room_follower_day_scope_ix` with room_id and the day range as index conditions |
+| owner room lookup | Index Scan on `vy_room_owner_ix` (owner_user_id, replica_id), limit 1 |
+
+Migration 077 applied cleanly (`create table if not exists`, `create index if not exists`, both returned no rows). Not measured: no row has been written to `vy_room_follower_day`; the first real follower turn writes the first one. `scripts/relcheck.mjs` still cannot run in this container (no `NEON_URL`).

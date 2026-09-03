@@ -98,6 +98,13 @@ export const STRICT_SURFACE = [
   /^api\/_drift-watch\.js$/,
   /^api\/drift-watch\.js$/,
   /^api\/drift-watch-sweep\.js$/,
+  // WS-R12, week-six retention - the number that decides the company. On the
+  // strict list from its first commit, on WS-R3/WS-R9's exact reasoning: this
+  // is the one screen that answers the Rooms plan's Phase 0/Phase 2 gates, so
+  // a parameter Postgres could not type here does not fail a screen, it fails
+  // the only measurement that says whether the product works, silently.
+  /^api\/_room-cohorts\.js$/,
+  /^api\/room-cohorts\.js$/,
 ];
 
 export function isStrict(rel) {

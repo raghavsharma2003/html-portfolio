@@ -5080,6 +5080,48 @@
       "kind": "rejection",
       "title": "A module-level global for the fake storage PUT port would have gone stale across sequential eval scenarios; req.headers.host reads it per request instead",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r12-week-six-instrument",
+      "kind": "component",
+      "title": "the week-six retention instrument: migration 077 (vy_room_follower_day), api/_room-cohorts.js, api/room-cohorts.js, the RoomStudio Week six card",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r12-cohort-week-anchor",
+      "kind": "decision",
+      "title": "retention is measured per ISO week (cohort anchor), not per follower's exact join timestamp",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r12-new-migration-write-gated-on-tableapplied",
+      "kind": "decision",
+      "title": "roomSay's day-table upsert and roomForget's day-table delete are gated on the migration having landed, injectably",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r12-verdict-is-the-oldest-measurable-cohort",
+      "kind": "decision",
+      "title": "the headline verdict bands the OLDEST measurable cohort (week one's arrivals), never the newest or the best",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser",
+      "kind": "rejection",
+      "title": "an EXISTS subquery inside a SELECT list item truncated evals/room-leak/run.mjs's non-greedy select...from capture, passing the AGGREGATE_ONLY check for the wrong reason",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r12-cohorts-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "evals/room-cohorts/run.mjs 60/60; verify-release 15/15 before and after; room-leak 62/62 before and after adding _room-cohorts.js to AGGREGATE_ONLY; check-copy 6 scopes/17 controls unchanged; tsc clean after one real fix",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-077-live-verification-2026-09-03",
+      "kind": "measurement",
+      "title": "Migration 077 applied live; all six new cohort and day-table statements EXPLAIN on the scope indexes (pkey arbiter, scope_ix, room_seen_ix, owner_ix)",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10227,6 +10269,46 @@
       "src": "ws-r15-eval-fixture-port-via-global",
       "rel": "constrains",
       "dst": "ws-r15-first-room-script"
+    },
+    {
+      "src": "ws-r12-week-six-instrument",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r12-cohort-week-anchor",
+      "rel": "part_of",
+      "dst": "ws-r12-week-six-instrument"
+    },
+    {
+      "src": "ws-r12-new-migration-write-gated-on-tableapplied",
+      "rel": "part_of",
+      "dst": "ws-r12-week-six-instrument"
+    },
+    {
+      "src": "ws-r12-verdict-is-the-oldest-measurable-cohort",
+      "rel": "part_of",
+      "dst": "ws-r12-week-six-instrument"
+    },
+    {
+      "src": "ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser",
+      "rel": "constrains",
+      "dst": "ws-r12-cohort-week-anchor"
+    },
+    {
+      "src": "ws-r12-cohort-week-anchor",
+      "rel": "measured_by",
+      "dst": "ws-r12-cohorts-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r12-cohort-week-anchor",
+      "rel": "measured_by",
+      "dst": "rooms-migration-077-live-verification-2026-09-03"
+    },
+    {
+      "src": "ws-r12-new-migration-write-gated-on-tableapplied",
+      "rel": "measured_by",
+      "dst": "rooms-migration-077-live-verification-2026-09-03"
     }
   ]
 }

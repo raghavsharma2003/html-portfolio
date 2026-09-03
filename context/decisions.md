@@ -8519,3 +8519,87 @@ credential the caller presumably wanted is.
 kind of "did not fully succeed" outcome) and `ok/skip/blocked/fail` proves too
 coarse — extend the enum rather than overload `fail`, the same way `blocked`
 was added here instead of overloading it.
+
+## `ws-r12-cohort-week-anchor` — retention is measured per ISO WEEK, not per follower's exact timestamp (2026-09-03, WS-R12)
+
+**Decision.** Migration 077's `vy_room_follower_day` and `api/_room-cohorts.js`
+answer "week-six retention of followers who arrived in week one" by grouping
+followers into their ISO week of `joined_at` (Monday 00:00 UTC through the
+following Monday) and testing every follower in that cohort against the SAME
+36-to-42-day window, measured from the cohort's own Monday — not from each
+follower's own exact `joined_at` timestamp, which could differ by up to six
+days within the same cohort.
+
+**Rationale.** The Rooms plan's own framing is "followers who arrived in week
+one", a cohort concept, not a per-person one. A precise per-follower window
+would need `f.joined_at` read per row inside the retention query, which is
+exactly the kind of column-level read `evals/room-leak/run.mjs`'s
+AGGREGATE_ONLY proof exists to refuse for this table's sibling
+(`vy_room_follower`) — see `ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser`
+in `rejected.md` for the concrete way an attempt at that shape actually broke.
+A whole-week anchor keeps every statement a plain `count(*) filter (where
+f.joined_at >= $2 and f.joined_at < $3)` against a WHERE-clause range, never a
+per-row read, and reports a true property of the cohort (every follower in it
+answers the same question over the same seven-day join window and the same
+window six weeks out) rather than a false precision the plan never asked for.
+
+**Reverses if.** A later phase of the plan asks for per-follower retention
+curves (not per-cohort), or a Room's cohorts are shown to arrive so unevenly
+within a week that the week-anchor materially misstates the six-week mark for
+followers who joined near a week's edge — in which case the fix is to widen
+`vy_room_follower_day`'s read to bind `f.joined_at` per row inside the WHERE
+clause (still never in SELECT) and re-derive the AGGREGATE_ONLY proof for the
+new statement shape.
+
+## `ws-r12-new-migration-write-gated-on-tableapplied` — roomSay's day-table upsert and roomForget's day-table delete are gated on the migration having landed, injectably (2026-09-03, WS-R12)
+
+**Decision.** Both new touches of `vy_room_follower_day` inside
+`api/_room-surface.js` (the upsert in `roomSay`, the explicit delete in
+`roomForget`) are wrapped in `if (await isTableAppliedFor(deps)("vy_room_follower_day"))`,
+where `isTableAppliedFor` resolves to `deps.tableApplied` if the caller
+supplied one, else the real `tableApplied` from `api/memory.js` (a cached
+`to_regclass` probe). When the probe answers false (table absent), the write
+or delete is skipped; nothing else about the turn or the forget changes.
+
+**Rationale.** This is a case `api/memory.js`'s existing `REPLICA_PERSON_TABLES`
+gating pattern was built for but had never actually faced: a table and the
+code that touches it shipping in the SAME change, rather than the table
+having been live for a prior workstream (`vy_room_follower`/`vy_room_thread`
+predate `_room-surface.js`'s own existence, so their explicit deletes in
+`roomForget` never needed a gate). Migration 077 is applied by the main loop
+AFTER this branch merges (`ws-common.md`'s own description of the pipeline),
+so an ungated statement here would 500 every follower's first message, and
+every follower's own forget, in the window between the code deploying and the
+migration landing — exactly the "make it forget me" deploy-ordering hazard
+`api/memory.js`'s own comments already warn about for the account-wide wipe.
+Injectable (`deps.tableApplied`) rather than a bare call, so an offline eval
+can prove both the write and the skip without a live database — the real
+`tableApplied` always resolves false offline (no `NEON_URL`), which would
+otherwise make the write path structurally untestable in this environment.
+
+**Reverses if.** Never removed globally — it costs one cached boolean check
+per process after the first call and closes a real hazard for every table
+this shape ever applies to again. Per table, it stops mattering (though
+nothing requires deleting the gate) once that specific migration has been
+live long enough that "code deployed ahead of its own migration" is no longer
+a credible failure mode for it — the same standing true today of
+`vy_room_follower`/`vy_room_thread`'s unconditional deletes.
+
+## `ws-r12-verdict-is-the-oldest-measurable-cohort` — the headline number is week one's cohort, not the newest or the best (2026-09-03, WS-R12)
+
+**Decision.** `verdictFor()` (`api/_room-cohorts.js`) bands the Phase 0/Phase 2
+thresholds against the OLDEST cohort that has reached measurability, never
+the newest, never the highest-scoring one among several measurable cohorts.
+
+**Rationale.** The plan's own sentence is "week-six retention of followers who
+arrived in week one" — the first cohort a Room ever had is the one the gate is
+actually about, and reporting a later, larger cohort's more favorable share
+instead would let a Room's headline verdict improve just by waiting for a
+better week to become measurable while the original question goes
+unanswered. Consistent with `no-fake-numbers`: the verdict names WHICH
+cohort it is reporting (`cohort_week`) rather than a bare percentage, so a
+reader can see it is week one's answer and not a cherry-picked one.
+
+**Reverses if.** The plan itself is revised to ask about the MOST RECENT
+measurable cohort (a rolling health check) rather than the original arrival
+cohort — a real product question, distinct from the one Phase 0's gate asks.
