@@ -53,6 +53,7 @@ import MirrorCallStudio from "./MirrorCallStudio";
 import VideoEnrollPanel from "./VideoEnrollPanel";
 import ActivityPanel from "./ActivityPanel";
 import ReadinessPanel from "./ReadinessPanel";
+import DriftWatchCard from "./DriftWatchCard";
 import {
   AdvancedArea,
   Band,
@@ -845,6 +846,20 @@ function ReplicaWorkspace({
               with a measurement. */}
           {!testEnvironment && step === "meet" && <ReadinessPanel
             key={`readiness-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+            onGoStep={onGoStep}
+          />}
+
+          {/* WS-R9. "It notices drift" — the Rooms plan's own line, and the
+              caught case it cites by name: a provider swapping a model within
+              four days under the same name. Directly under Readiness on the
+              same step, because both answer "can I trust what I am about to
+              publish" and a creator should not have to go looking for the
+              second half of that answer on a different screen. */}
+          {!testEnvironment && step === "meet" && <DriftWatchCard
+            key={`drift-watch-${replica.replica_id}`}
             token={accessToken}
             replicaId={replica.replica_id}
             onAuthError={onReviewAuthError}
