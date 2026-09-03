@@ -5188,6 +5188,48 @@
       "kind": "rejection",
       "title": "Stripping markers on a both-added hunk that starts mid-statement dropped a shared import opener; the web build caught it, an unread tsc exit code did not",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-voice-reuses-the-preview-ledger-shape",
+      "kind": "decision",
+      "title": "Room voice replies authorize through the existing beginOwnedVoicePreview (purpose='voice_preview', channel='studio_preview'), reused via api/_room-voice.js rather than a new ledger shape - drift watch's swap sweep reads only that lane",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-shared-month-key-cross-counter-rollover",
+      "kind": "decision",
+      "title": "vy_room_follower carries voice_month_key separate from 071's month_key - a shared key let whichever of roomSay/roomSpeak ran first in a new month claim the rollover and strand the other counter unreset, caught by this workstream's own offline eval",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-paid-cap-case-broke-the-shared-room-fixture",
+      "kind": "rejection",
+      "title": "Rewriting roomSay's cap UPDATE to a CASE on tier silently broke evals/room/fixtures.mjs's substring-matched fake, which three suites share - fixed by matching branch column names instead of the whole expression text",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-single-use-fake-stream-hid-the-negative-control",
+      "kind": "rejection",
+      "title": "A single-use async-generator fake stream let deps.protect's own consumption exhaust the source before a struck roomSpeak copy could read it a second time, turning a real leak into an unrelated empty-audio error - fixed with a re-iterable stream fixture",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-clonechannel-voiceengine-does-not-exist",
+      "kind": "rejection",
+      "title": "The workstream brief pointed at api/_clonechannel.js's voiceEngine as the existing voice lane; grepped and confirmed absent - the real lane is api/_voice/preview-panel.js's beginOwnedVoicePreview, found by reading the real callers instead",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-paid-tier-offline-eval-2026-09-03",
+      "kind": "measurement",
+      "title": "evals/room-paid-tier/run.mjs: 38/38 offline assertions - both fair-use ceilings as predicates, the voice cap charged before synthesis, month rollover, three negative controls (free-tier refusal, a struck watermark-read that leaks raw audio, static proof the ledger row matches the preview lane's shape); evals/room 54/54 and evals/room-leak 62/62 reconfirmed after the shared fixture fix",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r19-paid-tier-component",
+      "kind": "component",
+      "title": "The paid tier's fair-use ceilings (api/_room-surface.js's roomSay CASE, roomSpeak) and voice minutes metering (api/_room-voice.js, migration 081, vy_room_voice_usage)",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10435,6 +10477,41 @@
       "src": "both-added-hunk-resolved-by-stripping-markers",
       "rel": "caused_by",
       "dst": "context-union-by-concatenation"
+    },
+    {
+      "src": "ws-r19-paid-tier-offline-eval-2026-09-03",
+      "rel": "supersedes",
+      "dst": "ws-r11-payments-open-gaps"
+    },
+    {
+      "src": "ws-r19-voice-reuses-the-preview-ledger-shape",
+      "rel": "measured_by",
+      "dst": "ws-r19-paid-tier-offline-eval-2026-09-03"
+    },
+    {
+      "src": "ws-r19-shared-month-key-cross-counter-rollover",
+      "rel": "measured_by",
+      "dst": "ws-r19-paid-tier-offline-eval-2026-09-03"
+    },
+    {
+      "src": "ws-r19-paid-cap-case-broke-the-shared-room-fixture",
+      "rel": "caused_by",
+      "dst": "ws-r19-shared-month-key-cross-counter-rollover"
+    },
+    {
+      "src": "ws-r19-voice-reuses-the-preview-ledger-shape",
+      "rel": "part_of",
+      "dst": "ws-r19-paid-tier-component"
+    },
+    {
+      "src": "ws-r19-shared-month-key-cross-counter-rollover",
+      "rel": "part_of",
+      "dst": "ws-r19-paid-tier-component"
+    },
+    {
+      "src": "ws-r19-clonechannel-voiceengine-does-not-exist",
+      "rel": "caused_by",
+      "dst": "ws-r19-voice-reuses-the-preview-ledger-shape"
     }
   ]
 }
