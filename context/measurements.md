@@ -6953,3 +6953,58 @@ cuSPARSE, NCCL, NVTX and Triton packages on x86_64. Azure's A100 event announced
 driver 580.159.04 compatible through CUDA 13.0. This narrows the failure away
 from a CPU-only lock or an obvious CUDA-version mismatch, but it does not prove
 the missing device-exposure mechanism. No diagnostic image was built or run.
+
+## `ws-r2-voice-challenge-offline` — what the identity challenge was and was NOT measured on (2026-09-03, WS-R2)
+
+**Scope line first, because this section is mostly a list of things that were
+not measured.** No live service was called, no GPU was woken, no money was
+spent. Every number below came out of fixture vectors and a fake database.
+The suite is `evals/identity-challenge/run.mjs`, 68 checks, deterministic,
+about 0.4 s.
+
+### What was measured
+
+| thing | value | method |
+|---|---|---|
+| offline decision checks passing | 68/68 | `node evals/identity-challenge/run.mjs`, n=1 run, deterministic (no RNG: the sentence draw and every vector are fixtures) |
+| full release gate, untouched tree | 14/14 | `node scripts/verify-release.mjs` at 771feef before any edit, exit 0 |
+| accept threshold | 0.78 | constant, carried from `api/_fidelity.js`'s warn band |
+| review floor | 0.70 | constant, carried from `api/_fidelity.js`'s activation floor |
+| owner-vs-owner ceiling this comparison aims at | 0.8869 | NOT re-measured here. Read from `measurements.md#first-real-clone` (WS-T, 2026-08-26, n=1 subject, 2 runs, spread 1e-6) |
+
+The fixture vectors are constructed at named cosines (`at(target, off, c)`),
+so a fixture "scoring 0.88" is a dial setting and not a measurement of any
+human. It demonstrates that the ladder responds at each band. It says nothing
+about what a real recording scores.
+
+### What was NOT measured, and must be before this is trusted
+
+1. **The impostor distribution. This is the important one.** No
+   different-speaker control exists anywhere in this repo. Nobody has measured
+   what speaker B scores against speaker A's reference on this stack, so the
+   FALSE-ACCEPT rate of this gate is unknown and 0.70 is a floor chosen by
+   inheritance rather than by evidence. Needed: N speakers x M other speakers'
+   references through the real `voice-evidence` path.
+2. **A real owner's live challenge score.** `first-real-clone`'s 0.8869 is
+   owner-vs-owner across windows of ONE recording, through the same
+   microphone, in the same room, on the same day. A challenge clip is a
+   different room, a different microphone, and months later. How much that
+   costs is unmeasured, and it is the number that decides whether 0.78 rejects
+   real people. n needed: at least one real owner challenge against their own
+   enrolled genome.
+3. **Sarvam's script behaviour on this exact sentence bank.** Unknown whether
+   `saarika:v2.5` returns Latin for a romanised Hinglish prompt sentence or
+   transliterates it into Devanagari
+   (`rejected.md#romanised-lexicon-meets-devanagari-asr`). The word-overlap
+   threshold 0.60 rests on this and is provisional until it is measured. The
+   nonce check is designed to survive either answer.
+4. **Sarvam sync on a browser-encoded 24 kHz WAV.** The measured 4 134 ms /
+   25 s figure is on an ffmpeg-produced file. A `wavCapture.ts` blob is the
+   same PCM16 geometry but has never been sent.
+5. **`voice-evidence` on a `video/webm` container.** `video/webm` is in the
+   adapter's `ALLOWED_MIME`, so the CODE path is proven; whether the service
+   decodes a browser webm and returns two embedding families for it has never
+   been executed.
+6. **End-to-end wall time and cold-start fit.** The sweep's 300 s budget is
+   argued from the measured 176 s voice-evidence cold start plus a ~5 s warm
+   round trip, not observed. Whether a real tick fits has not been run.

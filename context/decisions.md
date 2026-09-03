@@ -7515,3 +7515,132 @@ same environment, and test explicit `resources.gpu: 1` only if ARM validation
 accepts it. Rerun the unchanged ZONOS2 digest only after that canary passes.
 Voice qualification still requires the sealed Hindi, Hinglish and English
 pack, exact receipts, objective metrics and accepted blind owner ratings.
+
+## `ws-r2-voice-identity-challenge-decision` — owner identity by speaker verification, not by document (2026-09-03, WS-R2)
+
+**The decision.** An owner satisfies `identity_verification_required` and
+`liveness_verification_required` by speaking a server-issued sentence on
+camera. Two independent measurements must agree: ECAPA speaker-embedding
+cosine between the challenge clip and the owner's own VoiceGenome reference,
+and a Sarvam transcript that contains that sentence plus a spoken numeric
+nonce. The decision is a row in `vy_replica_voice_challenge` (migration 072),
+and `completeVoiceChallenge` writes the SAME three `vy_replica` columns, under
+the SAME `age_verified_at is not null` guard, that
+`completeLivenessVerification` writes when the Azure composite verifier
+passes. `runtimeBlockers` and `activateOwnedRuntime` are untouched and cannot
+tell the two paths apart.
+
+**Why.** The shipping product has no identity path at all. The Azure Document
+Intelligence + Face Liveness stack (`services/azure-verifier`,
+`api/_replica-identity.js`, `api/_replica-liveness*.js`, migrations 039-041)
+was built, is complete at both ends, and has never been deployed: it needs two
+Microsoft Limited Access approvals nobody has. The only other route is
+`REPLICA_SELF_TEST_MODE`, which is a flag, is owner-UUID-bound, and is
+explicitly not a product path
+(`rejected.md#single-self-test-boolean-is-a-global-footgun`). Self-cloning
+only is a law (`decisions.md#replica-self-only`), and the question that law
+actually asks is "is the person speaking now the person this replica was built
+from" — which is a speaker-verification question, not a document question.
+
+**Why NOT a new DAG step in the processing worker.** The obvious home for
+"embed this clip" is `AUDIO_PROCESSING_DAG`, and it was rejected: the worker
+is a deployed Azure Container Apps Job pinned by image digest, and this repo
+has already paid twice for work that was complete in `api/` while the Job had
+not been rebuilt (`STATE.md`: "the fix is not live: the processing Job has not
+been rebuilt"). A Vercel cron ships with the ordinary push that ships the rest
+of the branch. The cost is a function budget rather than a 3 600 s one, which
+is why `maxJobs` is 1 and why a cold evidence service is a retry rather than a
+failure.
+
+**Why two sources per challenge.** `services/voice-evidence` accepts
+`video/webm` (it is in the adapter's own `ALLOWED_MIME`), so the camera clip
+can be embedded directly. Sarvam's sync endpoint is measured in this repo on
+AUDIO only (`measurements.md#first-real-clone`: 4 134 ms for 25 s, hard 30 s
+cap) and has never been sent a video container; there is no ffmpeg on Vercel
+to demux one. Guessing a vendor's container support on the launch path is the
+shape of `rejected.md#plausible-return-hides-a-dead-pipeline`. So the browser
+encodes a second artifact, a 24 kHz mono WAV, from the SAME `getUserMedia`
+stream using `wavCapture.ts`'s already-exported encoder and resampler.
+
+**What this deliberately does NOT prove, and it is in the code as well as
+here.** It does not prove ADULTHOOD: a voice cannot establish an age, so
+`age_verified_at` remains the ID document's to write and
+`adult_verification_required` survives a perfect challenge. It does not bind a
+LEGAL IDENTITY: it answers "same person as the enrolment", not "who in the
+world is that person". Anything requiring a named human still requires the
+Azure path or an equivalent.
+
+**What would reverse it.** (a) The two Microsoft Limited Access approvals
+landing, at which point the Azure path is strictly stronger for legal identity
+and this becomes the fallback rather than the default. (b) A measured impostor
+control set showing the different-speaker distribution overlaps 0.78 — see
+`ws-r2-voice-challenge-thresholds` below, which is the sharper reversal
+condition and the one that matters first.
+
+## `ws-r2-voice-challenge-thresholds` — the rails are the repo's own numbers, and one side of them is unmeasured (2026-09-03, WS-R2)
+
+**The decision.** Accept at cosine >= 0.78, review 0.70 to 0.78, reject below
+0.70, recorded as constants in `VOICE_CHALLENGE_POLICY` with the measurement
+cited beside them. `review` is a real decided outcome that does NOT open the
+gate.
+
+**Why these numbers.** They are the repo's own, from
+`measurements.md#first-real-clone` (n = 1 subject, 2 end-to-end runs, spread
+1e-6): the owner-vs-owner ceiling across different windows of the same
+recording is 0.8869 (p10 0.8795), `api/_fidelity.js`'s activation floor is
+0.70 and its warn band is 0.78. The owner-vs-owner row is the comparison this
+module actually makes, so a genuine owner should land near 0.88, a full 0.10
+above accept. The FALSE-REJECT side therefore has a measured margin.
+
+**The honest limit, stated as loudly as possible.** THE FALSE-ACCEPT SIDE DOES
+NOT. This repository contains no different-speaker control: nobody has ever
+measured what an impostor scores against a stranger's reference on this stack.
+0.70 is carried from `api/_fidelity.js` because it is the only number in the
+building chosen with any evidence at all, and NOT because anyone has shown an
+impostor falls below it. `api/_fidelity.js` already says of its own thresholds
+that "a threshold nobody measured is dogma with a decimal point on it"; that
+applies here with more force, because what sits on the other side of this gate
+is a person's identity rather than a drift warning. `review` exists precisely
+so that a decision nobody can defend numerically has somewhere to land that is
+not "yes".
+
+**What would reverse it.** An impostor control set: N speakers scored against
+M other speakers' references through this exact path. If that distribution
+overlaps 0.78, the gate is not safe at 0.78 and `VOICE_CHALLENGE_POLICY_VERSION`
+gets bumped rather than the constants quietly edited. The eval proves the
+thresholds are DATA (the same recording moves between decisions under two
+policies with no code edit), so a re-bench is a config change.
+
+## `ws-r2-transcript-is-the-liveness-half` — the anti-replay argument is the transcript, not the voice (2026-09-03, WS-R2)
+
+**The decision.** A challenge cannot be accepted unless the ASR transcript
+matches the issued sentence above a word-overlap threshold AND contains the
+spoken numeric nonce. The nonce is a separate mandatory check rather than more
+tokens in the overlap.
+
+**Why.** A replayed old recording of the owner passes the speaker check by
+construction, because it IS the owner. The only thing that separates it from a
+live reading is that it cannot contain a sentence and digits generated after
+it was recorded. The eval carries the negative control that makes this
+load-bearing rather than decorative: with the transcript gate removed, the
+identical replayed recording is ACCEPTED.
+
+**Why the nonce is separate.** `rejected.md#romanised-lexicon-meets-devanagari-asr`
+measured a visibly bilingual transcript at code-switch ratio 0.000 because
+Sarvam returns Devanagari and transliterates the English half into Devanagari
+too. A Latin-script bank sentence read back in Devanagari would therefore
+score near zero on WORDS while the person did nothing wrong.
+`normalizeChallengeSpeech` keeps `\p{M}` (that entry's defect (a): stripping
+Mark_Nonspacing shreds an abugida into bare consonants) and folds nine Indic
+digit ranges to ASCII, so the digits survive a total script mismatch and the
+anti-replay argument survives with them. The word overlap then degrades into a
+`sentence_not_read` refusal the owner is told how to fix, instead of a silent
+rejection nobody can explain.
+
+**What would reverse it.** A measured script-behaviour bench for Sarvam on
+this exact bank. If it returns Latin for Latin input, the overlap threshold
+can be raised and the fold becomes redundant rather than load-bearing. If it
+returns Devanagari for everything, the bank should be authored in Devanagari
+and the overlap threshold re-derived from that. `transcriptOverlapMin = 0.60`
+is PROVISIONAL and marked so in the code; it is the one number in this
+workstream with no measurement behind it.

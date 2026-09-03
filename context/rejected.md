@@ -5920,3 +5920,92 @@ device injection from library discovery and PyTorch runtime failure. Record the
 device files, NVIDIA environment, driver library, `nvidia-smi` and PyTorch CUDA
 build/runtime state. The existing immutable ZONOS2 digest should be retried only
 after that smaller canary succeeds.
+
+## `ws-r2-sql-comment-backticks-terminate-the-template-literal` (2026-09-03, WS-R2)
+
+**What was tried.** Documenting a new CTE inside
+`markOwnedSourceDeleting`'s query in `api/_replica-source.js` with an SQL
+comment that named the function it pairs with, written the way every other
+comment in this repo names an identifier: in backticks.
+
+**What specifically broke.** The query is a JavaScript template literal, so
+the first backtick ENDED THE STRING and the rest of the 100-line query became
+JavaScript. Node reported `SyntaxError: missing ) after argument list` at line
+279 — a line 20 lines ABOVE the edit, inside a different function, that had
+not been touched. Nothing in the error named the real cause, and the file
+imports fine right up until it does not.
+
+**Why it is worth an entry.** Roughly a third of this repo's decision modules
+carry their reasoning inside the SQL, in template literals, and the house
+style for naming an identifier in prose is backticks. Those two habits are
+directly incompatible and nothing enforces the boundary: `check-copy.mjs` does
+not read SQL, and `tsc` does not read `api/`. The failure is silent until
+import and its error points at innocent code.
+
+**What replaced it.** Bare identifiers in SQL comments inside template
+literals, and a smoke import of every touched module (`import()` each file and
+print the failure) before running anything longer. The import takes under a
+second and would have caught this immediately, where the full gate takes about
+four minutes to reach the same conclusion less clearly.
+
+## `ws-r2-worker-dag-step-for-a-challenge-clip` (2026-09-03, WS-R2)
+
+**What was tried.** Adding `identity_challenge` as a step to
+`AUDIO_PROCESSING_DAG` so the existing `services/replica-processing-worker`
+would embed and transcribe the challenge clip, reusing the eight-step
+machinery, its 3 600 s timeout, and its already-configured adapters. This is
+the design the workstream brief names first and it is genuinely the tidier
+one.
+
+**What specifically broke, before any code was written.** The worker is a
+deployed Azure Container Apps Job pinned by immutable image digest
+(`sha256:192e7372...91a1`), and its image is not rebuilt by pushing this
+branch. A new step would be enqueued by the Vercel API into a worker that has
+no case for it, so `executeProcessingStep` would raise
+`unsupported_processing_stage` and every challenge would sit `queued` forever
+while the API, the studio and the database all looked correct. This is the
+exact shape of `plausible-return-hides-a-dead-pipeline` and of
+`STATE.md`'s standing item "the fix is not live: the processing Job has not
+been rebuilt", which has cost this project real time twice.
+
+**What replaced it.** A Vercel cron (`/api/replica-voice-identity-sweep`,
+every 5 minutes) that ships with the same push that ships the branch. The cost
+is a serverless function budget instead of an hour: `maxJobs` is 1, so a
+single cold `voice-evidence` wake (measured 176 s) plus a warm round trip
+(~5 s) fits inside 300 s, and a wake that does NOT finish raises a retryable
+error that returns the challenge to the queue for the next tick, which finds
+the service this tick already warmed. Nothing widens the evidence service's
+60 s anti-replay window to make a cold start fit inside it; see
+`hmac-skew-shorter-than-cold-start` for why that is the wrong fix.
+
+**What is still unproven.** Whether a real tick fits in 300 s has not been
+observed, only argued from two measured numbers. If it does not, the DAG-step
+design becomes correct again and the rebuild becomes the price of it.
+
+## `ws-r2-revoking-identity-when-challenge-evidence-is-deleted` (2026-09-03, WS-R2)
+
+**What was tried.** Mirroring the Azure path exactly in
+`markOwnedSourceDeleting`: when a challenge source is deleted, null
+`identity_verified_at` / `liveness_verified_at` / `identity_expires_at`, the
+way `liveness_replica` does for a liveness source.
+
+**What specifically broke.** `completeVoiceChallenge` queues the challenge
+clip and its WAV for deletion on EVERY outcome, an accept included, because a
+verification recording that outlives its verdict is a person's face and voice
+sitting in a bucket for no reason. Pairing that with a revocation on deletion
+means every successful challenge revokes itself microseconds after it
+succeeds. The gate would have been permanently unsatisfiable by the only path
+that can satisfy it, and it would have looked like an intermittent bug.
+
+**Why the Azure path is different and it is not an inconsistency.** There, the
+evidence is deleted by the SETTLEMENT itself as part of one transaction, and a
+separate deletion request means the person is withdrawing the evidence behind
+a standing verification. Here the deletion IS the settlement's own cleanup.
+
+**What replaced it.** Deleting a challenge source fails only challenges still
+`issued` / `captured` / `verifying` (those can never be settled, so they get a
+reason now rather than a missing object later) and closes their running
+attempt. A decided challenge's source deletion is the normal lifecycle and
+touches nothing. The asymmetry is written into the SQL comment beside it,
+because the next person to read the two blocks side by side will otherwise
+"fix" the inconsistency.
