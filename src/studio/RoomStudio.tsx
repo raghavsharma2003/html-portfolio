@@ -47,6 +47,13 @@ import {
   type RoomCohortReport,
   type RoomCohortVerdictLine,
 } from "./roomCohortsApi";
+import {
+  readRoomPayments,
+  setRoomPriceInr,
+  PaymentsApiError,
+  type RoomPrice,
+  type RoomRevenue,
+} from "./paymentsApi";
 import "./roomStudio.css";
 
 /** Plain-words sentence for the verdict line - WS-R12's own card. Never a
@@ -74,6 +81,13 @@ function formatCohortDate(iso: string | null): string {
 }
 
 const FREE_CAP_PRESETS = [10, 20, 50, 100] as const;
+// The follower price band - migration 078's own CHECK, mirrored so a bad
+// value reads as a disabled Save button rather than a round trip to find out.
+const PRICE_MIN_INR = 299;
+const PRICE_MAX_INR = 599;
+const PRICE_PRESETS = [299, 399, 499, 599] as const;
+
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
 /** Where each named blocker's fix actually lives. `runtime-gate` sits on
  *  THIS step; the other two are on Meet it, so their affordance navigates
@@ -113,7 +127,7 @@ export default function RoomStudio({
 }: {
   token: string;
   replicaId: string;
-  onAuthError?: (error: ReplicaApiError | RoomPublishApiError | RoomCohortsApiError) => void;
+  onAuthError?: (error: ReplicaApiError | RoomPublishApiError | RoomCohortsApiError | PaymentsApiError) => void;
   onGoStep: (next: StepId) => void;
   /** Fed up so the wizard rail's Deploy readiness can read it without a
    *  second fetch of the same endpoint. */
@@ -125,18 +139,24 @@ export default function RoomStudio({
   const [stats, setStats] = useState<RoomStats | null>(null);
   const [cohortReport, setCohortReport] = useState<RoomCohortReport | null>(null);
   const [cohortError, setCohortError] = useState(false);
+  const [price, setPrice] = useState<RoomPrice | null>(null);
+  const [revenue, setRevenue] = useState<RoomRevenue | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const [capDraft, setCapDraft] = useState(20);
+  const [priceDraft, setPriceDraft] = useState(PRICE_MIN_INR);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fail = useCallback(
     (e: unknown) => {
-      if ((e instanceof ReplicaApiError || e instanceof RoomPublishApiError) && (e.status === 401 || e.status === 403)) {
+      if (
+        (e instanceof ReplicaApiError || e instanceof RoomPublishApiError || e instanceof PaymentsApiError) &&
+        (e.status === 401 || e.status === 403)
+      ) {
         onAuthError?.(e);
         return;
       }
@@ -171,6 +191,10 @@ export default function RoomStudio({
             setCohortError(true);
           }
         }
+        const payments = await readRoomPayments(token, replicaId).catch(() => null);
+        setPrice(payments?.price ?? null);
+        setRevenue(payments?.revenue ?? null);
+        setPriceDraft(payments?.price?.follower_price_inr ?? PRICE_MIN_INR);
       }
     } catch (e) {
       fail(e);
@@ -279,6 +303,24 @@ export default function RoomStudio({
         setRoom(updated);
         setCapDraft(updated.free_monthly_messages);
         setNotice(`Free followers now get ${updated.free_monthly_messages} messages a month.`);
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
+  const savePrice = useCallback(
+    async (next: number) => {
+      setBusy("price");
+      setError("");
+      try {
+        const updated = await setRoomPriceInr(token, replicaId, next);
+        setPrice(updated);
+        setPriceDraft(updated.follower_price_inr);
+        setNotice(`Followers now pay ${inr(updated.follower_price_inr)} a month.`);
       } catch (e) {
         fail(e);
       } finally {
@@ -468,6 +510,82 @@ export default function RoomStudio({
             {busy === "cap" ? "Saving..." : "Save"}
           </button>
         </div>
+      </article>
+
+      <article className="teacher-sheet-card vy-room__price-card">
+        <h3>Price</h3>
+        <p className="field-note">
+          What a follower pays a month for unlimited within fair use, past the free messages above. Between{" "}
+          {inr(PRICE_MIN_INR)} and {inr(PRICE_MAX_INR)}. Vyakti keeps {(price?.platform_take_bp ?? 2500) / 100}% of
+          what a follower pays; the rest is yours.
+        </p>
+        <div className="vy-room__cap-row" role="group" aria-label="Follower price">
+          {PRICE_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className={`vy-room__cap-pill${price?.follower_price_inr === preset ? " vy-room__cap-pill--selected" : ""}`}
+              disabled={busy === "price"}
+              onPointerDown={() => { setPriceDraft(preset); void savePrice(preset); }}
+            >
+              {inr(preset)}
+            </button>
+          ))}
+          <input
+            className="field vy-room__cap-field"
+            type="number"
+            min={PRICE_MIN_INR}
+            max={PRICE_MAX_INR}
+            value={priceDraft}
+            onChange={(event) => setPriceDraft(Number(event.target.value))}
+          />
+          <button
+            className="button secondary-button"
+            type="button"
+            disabled={
+              busy === "price" ||
+              priceDraft === price?.follower_price_inr ||
+              !Number.isFinite(priceDraft) ||
+              priceDraft < PRICE_MIN_INR ||
+              priceDraft > PRICE_MAX_INR
+            }
+            onPointerDown={() => void savePrice(priceDraft)}
+          >
+            {busy === "price" ? "Saving..." : "Save"}
+          </button>
+        </div>
+        {!price && <p className="field-note">No price set yet. Followers cannot subscribe until you set one.</p>}
+      </article>
+
+      <article className="teacher-sheet-card vy-room__money-card">
+        <h3>Money</h3>
+        {revenue && revenue.subscribers > 0 ? (
+          <div className="vy-room__stats-grid">
+            <div className="vy-room__stat">
+              <span className="vy-room__stat-value">{revenue.subscribers}</span>
+              <span className="vy-room__stat-label">Subscribers</span>
+            </div>
+            <div className="vy-room__stat">
+              <span className="vy-room__stat-value">{revenue.churned_this_month}</span>
+              <span className="vy-room__stat-label">Left this month</span>
+            </div>
+            <div className="vy-room__stat">
+              <span className="vy-room__stat-value">{inr(revenue.creator_share_this_month_inr)}</span>
+              <span className="vy-room__stat-label">Your share this month</span>
+            </div>
+          </div>
+        ) : (
+          <p className="field-note">No subscribers yet.</p>
+        )}
+        {revenue?.latest_payout ? (
+          <p className="field-note">
+            Last payout: {inr(revenue.latest_payout.net_inr)} ({revenue.latest_payout.state}), for{" "}
+            {new Date(revenue.latest_payout.period_start).toLocaleDateString()} to{" "}
+            {new Date(revenue.latest_payout.period_end).toLocaleDateString()}.
+          </p>
+        ) : (
+          <p className="field-note">No payout yet.</p>
+        )}
       </article>
 
       <article className="teacher-sheet-card vy-room__stats-card">

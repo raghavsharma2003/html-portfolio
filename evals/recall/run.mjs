@@ -538,6 +538,14 @@ const FATE = {
   // name instead; `entry.lane === "relational"` is still what makes the
   // check below true of it.
   vy_room_follower_day: "forget-only",
+  // ── WS-R11: the Room's money, person side (migration 078) ──
+  // A subscription is not memory, so a SCOPED "forget priya" has no term that
+  // could ever name it (a provider reference and a state, no words). Only the
+  // stronger door may take it, and even that door only takes it once its
+  // state is terminal - see api/memory.js's own PERSON_TABLES comment on this
+  // row for why a LIVE mandate survives a whole-account wipe rather than
+  // being silently orphaned.
+  vy_room_subscription: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

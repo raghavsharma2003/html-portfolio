@@ -57,6 +57,7 @@ import {
   type RoomQuota,
   type RoomThread,
 } from "./roomApi";
+import { RoomPayApiError, startSubscription } from "./roomPayApi";
 
 type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean };
 type Phase = "loading" | "unavailable" | "join" | "talking" | "gone";
@@ -81,6 +82,8 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [upgrade, setUpgrade] = useState(false);
   const [capped, setCapped] = useState(false);
   const [talkedToday, setTalkedToday] = useState<number | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payError, setPayError] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -191,6 +194,45 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       setSending(false);
     }
   }
+
+  /* THE UPGRADE MOMENT'S OWN ACTION. `startSubscription` either hands back a
+   * checkout link (the provider's own UPI Autopay mandate collection page,
+   * which this file never renders itself - a payment form built here would
+   * be exactly the "collect a credential under false pretenses" shape the
+   * Artifact rules refuse, and it is no different in a real product: the
+   * mandate must be authenticated on the provider's own surface) or refuses
+   * with a named, honest reason. Every reason renders as a stated fact, never
+   * a dead button - `context/rejected.md#a-step-is-never-silently-blocked`,
+   * one surface over from the studio's own publish lock. */
+  const subscribe = useCallback(async () => {
+    if (!session || payBusy) return;
+    setPayBusy(true);
+    setPayError("");
+    try {
+      const result = await startSubscription(session);
+      if (result.checkout_url) {
+        window.location.href = result.checkout_url;
+        return;
+      }
+      // A subscription already exists with no fresh link to open - a prior
+      // attempt was abandoned before the mandate was authenticated. Re-
+      // fetching a link for it is Phase 1 work; today the honest answer is
+      // to say so rather than pretend the tap did nothing.
+      setPayError(ROOM_COPY.pay.noLink);
+    } catch (cause) {
+      if (cause instanceof RoomPayApiError && cause.code === "payments_not_configured") {
+        setPayError(ROOM_COPY.pay.notConfigured);
+      } else if (cause instanceof RoomPayApiError && cause.code === "room_price_not_set") {
+        setPayError(ROOM_COPY.pay.priceNotSet);
+      } else if (cause instanceof RoomPayApiError && cause.status === 401) {
+        setPayError(ROOM_COPY.errors.stale);
+      } else {
+        setPayError(ROOM_COPY.pay.failed);
+      }
+    } finally {
+      setPayBusy(false);
+    }
+  }, [session, payBusy]);
 
   if (phase === "loading") {
     return (
@@ -345,6 +387,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             {quota.messages_left === 0
               ? ROOM_COPY.quota.lastOne
               : withIncluded(ROOM_COPY.quota.left, quota.messages_left, quota.messages_included)}
+            {" "}
+            <button type="button" className="room-btn" disabled={payBusy} onPointerDown={() => void subscribe()}>
+              {payBusy ? ROOM_COPY.pay.working : ROOM_COPY.pay.cta}
+            </button>
           </p>
         )}
 
@@ -352,8 +398,13 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           <section className="room-cap">
             <h2>{ROOM_COPY.quota.capped.title}</h2>
             <p className="room-lede">{ROOM_COPY.quota.capped.body}</p>
+            <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
+              {payBusy ? ROOM_COPY.pay.working : ROOM_COPY.pay.cta}
+            </button>
+            {payError && <p className="room-error">{payError}</p>}
           </section>
         )}
+        {!capped && payError && <p className="room-error">{payError}</p>}
 
         <div ref={foot} />
       </div>

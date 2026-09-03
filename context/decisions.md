@@ -8603,3 +8603,127 @@ reader can see it is week one's answer and not a cherry-picked one.
 **Reverses if.** The plan itself is revised to ask about the MOST RECENT
 measurable cohort (a rolling health check) rather than the original arrival
 cohort — a real product question, distinct from the one Phase 0's gate asks.
+
+## `ws-r11-price-and-take-as-data` (2026-09-03, WS-R11)
+
+**Decision.** The follower price (INR 299-599, creator's choice inside the
+band) and the platform take (2500 basis points, 25.00%) both live as columns
+on `vy_room_price` rather than as deployed constants, and the take rate is
+copied onto every `vy_payment_event` row at the moment of the split rather
+than re-read from the price row later.
+
+**Rationale.** 071's own argument for `free_monthly_messages` transfers
+exactly: "a product decision that lives in a deployed constant moves by
+deploy." The take rate needed its own second half of that argument: a
+creator's own price CAN change (`setRoomPrice` is a live upsert), so a split
+computed from a JOIN at read time would silently reprice every past month's
+ledger row the day the take rate itself changes, which is precisely the kind
+of retroactive rewrite a financial ledger may not have. Copying the rate at
+insert time is what makes `vy_payment_event` actually append-only in the way
+its own header claims.
+
+**Reverses if.** The platform ever needs a per-owner or per-tier take rate
+(volume discounts, say) - the column is already there to hold it, so nothing
+about the shape changes, only who is allowed to set it.
+
+## `ws-r11-provider-seam-and-secret-reuse` (2026-09-03, WS-R11)
+
+**Decision.** Two twin provider modules (`api/_payments/providers/razorpay.js`,
+`fake.js`), selected by `PAYMENTS_PROVIDER` (default `none`, which refuses
+every write with a named reason before any provider is called). The
+`razorpay` provider's credential comes from `api/_channel-secrets.js`'s
+existing backend seam under one fixed, well-known ref
+(`PAYMENTS_SECRET_REF`) rather than a new secret store; the `fake` provider
+reads three plain env vars instead, deliberately bypassing that seam so a
+staging deployment or an offline eval never needs an Azure account to prove
+every line of `api/_payments.js`.
+
+**Rationale.** `credential-ref-not-credential` (context/decisions.md,
+2026-08-26) already made the case for a channel's own credential: "a live
+credential... structurally cannot sit in a table the routing path selects,
+joins and logs." A platform-level Razorpay key/secret pair is the identical
+shape of problem one level up - live, real, and never printed - so it goes
+through the SAME refusal-by-default seam rather than a second one invented
+for this file. One ref rather than one per room, because every Room shares
+the ONE platform Razorpay account.
+
+**Reverses if.** A future payment provider needs more than one opaque secret
+value that this ONE JSON-blob-under-one-ref shape cannot express cleanly (a
+key pair with independent rotation schedules, say) - then the seam needs a
+shape, not a string, the same reversal condition `credential-ref-not-credential`
+already names for the channel case.
+
+## `ws-r11-subscription-survives-forget-until-terminal` (2026-09-03, WS-R11)
+
+**Decision.** `vy_room_subscription` is listed in `api/memory.js`'s
+`PERSON_TABLES` (satisfying `scripts/relcheck.mjs`'s manifest-coverage check
+honestly, since it genuinely is a record of a person) but is NOT wiped by
+`api/_room-surface.js`'s narrow, per-Room `roomForget` (it carries no
+`agent_id`, so `roomScopedTables()`'s `agent === true` filter never reaches
+it). It IS reached by the account-wide "forget everything" pass
+(`purgeRelational`, lane "relational") - but only rows whose `state` has
+already reached `cancelled` or `expired` (`wipeWhere: "state in
+('cancelled','expired')"`). A live, non-terminal subscription survives even a
+full account wipe.
+
+**Rationale.** A UPI Autopay mandate keeps debiting a real bank account
+whether or not this table still names it. Deleting the local pointer to a
+LIVE mandate is not privacy, it is losing the only record that a real,
+continuing financial obligation exists - the same class of harm
+`context/rejected.md`'s `silent-truncation` names one surface over: it works,
+the delete returns 200, and a fact that mattered is gone. Forgetting what an
+AI remembers about a follower ("this room's own memory") is a different
+request in kind from forgetting that they owe, or paid, money, and this
+migration keeps the two doors separate: the Room's own forget button cannot
+reach a subscription at all; only the account-level wipe can, and even it
+must wait for the subscription to reach a state where nothing is still
+being charged.
+
+**Reverses if.** Phase 1 wires an automatic provider-cancel into the
+account-wipe path (call `provider.cancelSubscription` for every live row
+before deleting it) - at that point the `wipeWhere` restriction can be
+dropped, because the mandate itself, not just this table's record of it,
+will actually be gone.
+
+## `ws-r11-creator-payout-owner-scoped-erasure-imprecision` (2026-09-03, WS-R11)
+
+**Decision.** `vy_creator_payout` carries `owner_user_id` and no `room_id` or
+`replica_id` (a payout is a roll-up across every room one owner has), so its
+erasure-job delete (`api/_replica-full-erasure.js`) is scoped by
+`owner_user_id` alone. An owner with more than one live replica who erases
+ONE of them would also clear payout history earned by their OTHER,
+still-active replica.
+
+**Rationale.** No column on this table can express a narrower scope without
+changing what a payout roll-up MEANS (it is deliberately an owner-level
+aggregate, not a per-room one, because the platform take is "shown as one
+number" per the Rooms plan's own line). `scripts/relcheck.mjs`'s owner-lane
+check only requires the row be reachable by name, which it is; the
+imprecision is real and is logged here rather than silently accepted,
+per `context/STATE.md`'s own standing rule against implying coverage that
+was not measured.
+
+**Reverses if.** A creator with more than one live, monetized Room becomes a
+real case (today none does) - at which point `vy_creator_payout` needs a
+`replica_id` column and the roll-up (`runPayoutRollup`) needs to group by it
+too, and this erasure delete narrows to match.
+
+## `ws-r11-tds-rate-defaults-to-zero` (2026-09-03, WS-R11)
+
+**Decision.** `runPayoutRollup`'s `tdsRateBp` parameter defaults to 0
+(`TDS_RATE_BP_DEFAULT`). No withholding is applied to a payout unless a
+caller explicitly passes a rate.
+
+**Rationale.** Nobody - not this workstream, not the owner - has decided
+what India TDS treatment applies to a creator's Room earnings on this
+platform. Guessing a percentage (10% under Section 194J is the closest real-
+world analogue, but is not a decision anyone here is authorized to make)
+would be exactly the fabricated number `context/STATE.md`'s no-fake-numbers
+law exists to forbid, applied to a tax line rather than a fidelity score.
+Zero is not a claim that no tax is owed; it is the honest absence of a
+decision, visible on every payout row as `tds_inr: 0` rather than hidden
+behind a plausible-looking rate nobody chose.
+
+**Reverses if.** The owner (or, in a real deployment, a tax advisor) sets an
+actual rate - at which point `runPayoutRollup`'s caller passes it, and this
+default stops mattering for any row computed after that.

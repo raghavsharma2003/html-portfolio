@@ -6489,3 +6489,81 @@ first `from`" is not safe against a subquery that puts a `from` earlier than
 the real one; keep every subquery's own `from` AFTER the outer statement's
 `from`, or the checker's capture boundary silently moves and it stops
 checking what it says it checks.
+
+## `ws-r11-room-leak-blanket-allowlist` (2026-09-03, WS-R11)
+
+**What was tried.** The first run of `evals/room-leak/run.mjs` against this
+workstream's changes failed: "no file outside the allowed set reads the
+Room's follower/thread tables — _payments.js", because `applyWebhook`'s
+tier-flip writes `vy_room_follower` directly (a legitimate write, not a
+creator-facing read of a follower's content). The fast fix considered was
+adding `_payments.js` to `evals/room-leak/run.mjs`'s blanket `ALLOWED` set,
+the same way `_room-surface.js` and `_room.js` already are.
+
+**What specifically broke, or would have.** `ALLOWED` means "this file is
+trusted with no further check" - the room-leak battery's whole argument is
+"a new reader/writer must fail this line without also updating it," and a
+blanket allow would have satisfied that ONE failing assertion while quietly
+disabling every future check on this file: a later edit that added a raw
+`select f.person_id, f.month_message_count from vy_room_follower` for some
+unrelated debugging reason would pass this gate silently, which is exactly
+the leak class this battery exists to catch before a second follower ever
+joins a Room.
+
+**What replaced it.** A third, narrower class (`TIER_WRITE_ONLY`, alongside
+the existing `AGGREGATE_ONLY` carve-out `_room-publish.js` already has):
+`_payments.js`'s only statement naming `vy_room_follower` must be an UPDATE
+whose SET list touches nothing but `tier` and `updated_at`, scoped by
+`follower_id`, whose RETURNING never carries a follower's own content. Proven
+load-bearing by hand (not merely asserted): a copy of the real file with
+`person_id` appended to the RETURNING clause is caught by the same check
+(`node -e` probe, not committed - the assertion's own logic is what the suite
+runs).
+
+## `ws-r11-persontables-wipeWhere-string-literal-false-positive` (2026-09-03, WS-R11)
+
+**What was tried.** `vy_room_subscription`'s `PERSON_TABLES` entry (WS-R11)
+needed a `wipeWhere` restricting the account-wide wipe to terminal states:
+`"state in ('cancelled','expired')"`, the same field `vy_fact`'s own
+`wipeWhere: "group_id is null"` uses. `evals/persontables.mjs` failed three
+times: `PERSON_TABLES entry vy_room_subscription has wipeWhere naming in,
+not a column of it` (and again for `cancelled`, `expired`).
+
+**What specifically broke.** The checker's identifier scan
+(`t.wipeWhere.match(/[a-z_][a-z0-9_]*/g)`) has no way to tell a quoted SQL
+string literal's CONTENTS from an actual identifier - every existing
+`wipeWhere` in the manifest (`vy_fact`'s `group_id is null`,
+`vy_phrase`'s the same) happens to use only column names and keywords, so
+this gap had never been exercised. `in` also was not on the keyword
+allowlist (`is`/`null`/`not`/`and`/`or`/`true`/`false`), a second, smaller
+gap the same fix closed.
+
+**What replaced it.** `evals/persontables.mjs` now strips single-quoted
+string literals (`replace(/'[^']*'/g, "''")`) before running the identifier
+scan, and `in` joins the keyword allowlist. A general fix to the shared
+checker, not an exception carved out for this one table - the next
+`wipeWhere` that compares against a literal is covered by construction
+rather than by a growing exception list.
+
+## `both-added-hunk-resolved-by-stripping-markers` (2026-09-03)
+
+**Tried.** Resolving the six "both added" code conflicts at the WS-R11 merge
+by deleting the conflict marker lines so that both sides' additions stayed,
+HEAD's block first.
+
+**What broke.** In `src/studio/RoomStudio.tsx` the two sides had each added
+a whole `import { ... } from "./x";` statement directly after the same
+shared line, so git's hunk began one line INSIDE both statements: the shared
+`import {` opener sat above the markers and appeared once, and stripping the
+markers produced one import with two `} from` closers. `npx vite build`
+failed with "Expected a semicolon" at the second block; the release gate's
+web build caught it, and only because the gate ran on the merged tree
+rather than trusting each side's own 15/15. A first `tsc` pass printed
+nothing and its exit code was not read, so it counted for nothing.
+
+**Fix.** Re-add the opener, then rerun typecheck WITH its exit code and the
+web build before the gate. Rule from here: marker stripping is fine for
+both-added hunks that are whole statements (registry entries, manifest rows,
+`case` arms); for a hunk that starts mid-statement, look at the line above
+the first marker and reconstruct each side's statement in full. Read the
+exit code of every check, not its stdout.

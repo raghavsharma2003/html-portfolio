@@ -359,6 +359,15 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "room-publish": "room-publish/run.mjs",
+  // WS-R11, the Room's money. The durable ledger and the provider seam:
+  // price band enforcement, subscribe through the fake provider, webhook
+  // signature verification (byte-exact, bad signature refused), idempotent
+  // replay, the state machine, the tier flip (paid ONLY on 'active'), the
+  // 25% split's arithmetic, the payout roll-up, PAYMENTS_PROVIDER=none
+  // refusing every write, and the required negative control naming exactly
+  // what would need to change in api/_payments.js for a skipped
+  // verification to slip through.
+  payments: "payments/run.mjs",
   // WS-AB (the universal "bring your context" lane). The Context Locker end to
   // end: many files and many links become owned, hashed, quota-capped items,
   // and the ones this platform can honestly read become CITED proposals on the

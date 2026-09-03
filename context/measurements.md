@@ -7461,3 +7461,63 @@ n = 1 migration (2 statements), 6 API statements; method = applied to the live N
 | owner room lookup | Index Scan on `vy_room_owner_ix` (owner_user_id, replica_id), limit 1 |
 
 Migration 077 applied cleanly (`create table if not exists`, `create index if not exists`, both returned no rows). Not measured: no row has been written to `vy_room_follower_day`; the first real follower turn writes the first one. `scripts/relcheck.mjs` still cannot run in this container (no `NEON_URL`).
+
+## `ws-r11-gate-results-2026-09-03`
+
+n=1 tree (this workstream's own branch), method `node scripts/verify-release.mjs`
+run to completion (not `--live`, no `NEON_URL` in this environment).
+
+| run | result |
+|---|---|
+| untouched tree (baseline, via `git stash`) | 14/15 - `layout readability` failed on `EADDRINUSE:8931`, a concurrent sibling session's own gate on the same machine (ws-common.md's own documented collision); the other 14 passed |
+| after this workstream's changes | 15/15 |
+
+`node evals/payments/run.mjs` standalone: 62/62, $0, offline, no database, no
+network, no real Razorpay account - method: a fake `db` (in-process, this
+workstream's own fixture, `evals/payments/run.mjs`) driving the REAL
+`api/_payments.js` and the REAL `api/_payments/providers/fake.js` through
+every op named in the brief (band enforcement, subscribe through the fake
+provider, webhook signature verification with a byte-exact negative control,
+idempotent replay, the state machine, the tier flip, the 25% split's
+arithmetic, the payout roll-up, `PAYMENTS_PROVIDER=none` refusing every
+write, and the required negative control naming the exact source lines a
+skipped verification would have to remove).
+
+`node evals/sqlcast.mjs`: 0 uncast sites on the new strict-surface files
+(`api/_payments.js`, `api/_payments/providers/*.js`, `api/payments.js`,
+`api/room-pay.js`, `api/payments-webhook.js`) after fixing 5 the first run
+found (int4 columns written without an explicit cast; see
+`db/migrations/078_room_payments.sql`'s own columns for the types).
+
+**Not measured, and said so rather than implied.** No statement in
+`api/_payments.js` or migration 078 has ever run against a live Postgres; no
+real Razorpay subscription, webhook, or signature has ever been created;
+`platform_take_bp`'s 25.00% default and the price band (299-599 INR) are the
+Rooms plan's own numbers, not independently re-derived here. The RBI e-mandate
+AFA ceiling (INR 15,000/transaction, no additional authentication once a
+mandate itself is AFA-registered) is cited from the Digital Payments E-mandate
+Framework, 2026 (effective 2026-04-21), read via web search on 2026-09-03 -
+not verified against the RBI's own primary text, only against secondary
+reporting of it.
+
+## `rooms-migration-078-live-verification-2026-09-03`
+
+n = 1 migration (43 statements in one transaction, then 1 index added at the merge), 13 API statements and 4 erasure deletes; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (`run_sql_transaction` for the migration, `run_sql` for the rest), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_payments.js` issues and each of the four new delete CTEs in `api/_replica-full-erasure.js` (run standalone against a literal `target` CTE), parameters substituted with typed literals; date 2026-09-03, at the WS-R11 merge.
+
+| statement | plan |
+|---|---|
+| owner room lookup | Index Scan `vy_room_owner_ix` |
+| price read (both shapes) | Index Scan `vy_room_price_room_ix` |
+| price upsert | Insert, conflict UPDATE, arbiter `vy_room_price_room_ix` |
+| live subscription lookup by follower | Index Scan `vy_room_subscription_follower_live_ix` (partial) |
+| subscription insert / ref update | Insert; Update via `vy_room_subscription_pkey` |
+| follower status read (any state) | **Seq Scan before the merge**; Index Scan `vy_room_subscription_follower_ix` after the index added below |
+| webhook context read (provider, ref) | Index Scan `vy_room_subscription_provider_ref_ix`, price by `vy_room_price_room_ix` |
+| webhook three-CTE write | ledger Insert with conflict NOTHING on `vy_payment_event_provider_ref_ix`; subscription Update via pkey; follower tier Update via `vy_room_follower_pkey` |
+| revenue aggregate | Bitmap Index Scan `vy_room_subscription_room_person_ix`, hash join to the ledger |
+| latest payout read | Index Scan Backward `vy_creator_payout_period_ix` |
+| payout roll-up insert | Bitmap Index Scan `vy_payment_event_room_ix` on the received_at range, arbiter `vy_creator_payout_period_ix` |
+| erasure: payment events, subscriptions | `vy_room_owner_ix` then `vy_payment_event_room_ix` / `vy_room_subscription_room_person_ix` |
+| erasure: prices, payouts | `vy_room_price_owner_ix`; `vy_creator_payout_period_ix` on owner_user_id |
+
+One defect found by EXPLAIN and fixed in the same pass: `followerSubscriptionStatus` reads the latest row for a follower in any state, which the partial live-state index cannot serve, so it sequential-scanned; `vy_room_subscription_follower_ix (follower_id, created_at desc)` was appended to 078, mirrored into `db/schema.sql`, and applied live. Not measured: no real price, subscription, ledger row or payout exists; `PAYMENTS_PROVIDER` is unset on every deployment, so every write refuses by name.

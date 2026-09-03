@@ -289,11 +289,44 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // and must never touch a follower's own columns. A future edit that selects
   // `person_id`, a thread title or a message fails this line.
   const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js"]);
+  // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
+  // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
+  // (which is about SELECTs), but it is still a new file naming this table and
+  // this battery's whole argument is "a new reader/writer must fail this line
+  // without also updating it". So it gets its own narrow class: the only
+  // statement in the file that names `vy_room_follower` must be an UPDATE
+  // whose SET list touches nothing but `tier` and `updated_at`, scoped by
+  // `follower_id`, and whose RETURNING never carries a follower's content
+  // (person_id, thread names, anything they said). A future edit that made
+  // this file SELECT a follower's own columns fails this line.
+  const TIER_WRITE_ONLY = new Set(["_payments.js"]);
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
     const src = fs.readFileSync(join(REPO, "api", f), "utf8");
     if (!(src.includes("vy_room_thread") || src.includes("vy_room_follower"))) continue;
+    if (TIER_WRITE_ONLY.has(f)) {
+      // The update sits inside one large multi-CTE template literal alongside
+      // other statements that ALSO contain the words "set" and "from" (the
+      // subscription-state CTE right before it), so this slices from the
+      // update's own start rather than matching the first "set ... from" in
+      // the whole blob, which would silently grade the WRONG clause.
+      const starts = [...src.matchAll(/update\s+vy_room_follower\s+f\b/gi)].map((m) => m.index);
+      if (!starts.length) { offenders.push(f + ":no-statement-found"); continue; }
+      for (const at of starts) {
+        const window = src.slice(at, at + 400);
+        const setMatch = window.match(/\bset\s+([\s\S]*?)\s+from\s+([\s\S]*?)\breturning\b([\s\S]*?)(?:\n\s*\)|$)/i);
+        if (!setMatch) { offenders.push(f + ":non-tier-write"); continue; }
+        const [, setList, fromClause, returningList] = setMatch;
+        const setsOnlyTierAndTimestamp = /^tier\s*=[\s\S]*,\s*updated_at\s*=\s*now\(\)\s*$/.test(setList.trim());
+        const scopedByFollowerId = /f\.follower_id\s*=\s*su\.follower_id/.test(fromClause);
+        const returningLeaksContent = /\b(person_id|thread_id|title|content|message_text|month_key|month_message_count|joined_at|memory_consent_at|age_attested_at)\b/i.test(returningList);
+        if (!setsOnlyTierAndTimestamp || !scopedByFollowerId || returningLeaksContent) {
+          offenders.push(f + ":non-tier-write");
+        }
+      }
+      continue;
+    }
     if (!AGGREGATE_ONLY.has(f)) { offenders.push(f); continue; }
     // Only real statements: a backticked table name inside a comment is prose.
     const stmts = (src.match(/`[^`]*vy_room_(?:follower|thread)[^`]*`/g) || [])

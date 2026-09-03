@@ -70,6 +70,13 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // chose to ask. A receipt that folded the second into the first would be
       // answering a narrower question than the one asked.
       "owner_interview_answers",
+      // 078 (WS-R11). The Room's money is its own class rather than folded
+      // into anything above: a price, a subscription reference and a ledger
+      // of what moved are a different kind of record than a memory or a
+      // consent grant, and a receipt that did not name them would understate
+      // what was held. Additive; the eval asserts membership, never the exact
+      // list.
+      "owner_room_payments",
     ]),
   });
 }
@@ -484,6 +491,33 @@ export async function completeReplicaErasure(db, lease, receipt) {
        where x.agent_id=t.agent_id),
      room_followers as (delete from vy_room_follower x using target t
        where x.agent_id=t.agent_id),
+     -- 078 (WS-R11), the Room's money. All four are reached from THIS side by
+     -- room_id, never by agent_id: none of them carries an agent binding, and
+     -- a room has exactly one agent (vy_room_replica_ix), so the join through
+     -- vy_room is exact rather than approximate. Ledger and payout FIRST,
+     -- subscription SECOND, room LAST - child before parent, 071's own
+     -- ordering restated: vy_payment_event.subscription_id and
+     -- vy_room_subscription.room_id both carry real FK CASCADE from this
+     -- point down, so these three deletes are a backstop rather than the only
+     -- mechanism - "relying on a cascade means relying on an FK nobody
+     -- re-checks" (071's own words, one migration over).
+     --
+     -- vy_creator_payout is the one exception: it has no room_id (a payout is
+     -- a roll-up across every room an owner has), so it is scoped by
+     -- owner_user_id alone - the imprecision migration 078's own header names
+     -- and context/decisions.md logs with its reversal condition.
+     payment_events as (delete from vy_payment_event x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     room_subscriptions as (delete from vy_room_subscription x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     room_prices as (delete from vy_room_price x using target t
+       where x.owner_user_id=t.owner_user_id
+         and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     creator_payouts as (delete from vy_creator_payout x using target t
+       where x.owner_user_id=t.owner_user_id),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (

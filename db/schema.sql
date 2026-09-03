@@ -3185,3 +3185,100 @@ create table if not exists vy_room_follower_day (
 );
 create index if not exists vy_room_follower_day_scope_ix
   on vy_room_follower_day (room_id, person_id, day);
+-- Migration 078 - the durable ledger and provider seam for Rooms money
+-- (WS-R11). No FK on owner/person (009's convention); vy_room_price and
+-- vy_creator_payout deleted by name in api/_replica-full-erasure.js;
+-- vy_room_subscription is in api/memory.js's PERSON_TABLES (lane
+-- "relational", wipeWhere "state in ('cancelled','expired')" - a live mandate
+-- survives an account wipe rather than being silently orphaned);
+-- vy_payment_event is reached only by cascade (no owner/person column of its
+-- own, addressed by room_id/subscription_id like a real payment ledger).
+create table if not exists vy_room_price (
+  price_id           uuid primary key default gen_random_uuid(),
+  room_id            uuid not null references vy_room(room_id) on delete cascade,
+  owner_user_id      uuid not null,
+  follower_price_inr integer not null default 299,
+  currency           text not null default 'INR',
+  platform_take_bp   integer not null default 2500,
+  updated_at         timestamptz not null default now(),
+  constraint vy_room_price_band check (follower_price_inr >= 299 and follower_price_inr <= 599),
+  constraint vy_room_price_currency check (currency = 'INR'),
+  constraint vy_room_price_take_bp check (platform_take_bp >= 0 and platform_take_bp <= 10000)
+);
+create unique index if not exists vy_room_price_room_ix on vy_room_price (room_id);
+create index if not exists vy_room_price_owner_ix on vy_room_price (owner_user_id, room_id);
+
+create table if not exists vy_room_subscription (
+  subscription_id         uuid primary key default gen_random_uuid(),
+  room_id                 uuid not null references vy_room(room_id) on delete cascade,
+  person_id               uuid not null,
+  follower_id             uuid not null references vy_room_follower(follower_id) on delete cascade,
+  provider                text not null,
+  provider_subscription_ref text,
+  state                   text not null default 'created',
+  current_period_start    timestamptz,
+  current_period_end      timestamptz,
+  created_at              timestamptz not null default now(),
+  updated_at              timestamptz not null default now(),
+  constraint vy_room_subscription_provider_check check (provider in ('razorpay','fake')),
+  constraint vy_room_subscription_state_check
+    check (state in ('created','authenticated','active','paused','cancelled','expired'))
+);
+create index if not exists vy_room_subscription_room_person_ix on vy_room_subscription (room_id, person_id);
+create unique index if not exists vy_room_subscription_provider_ref_ix
+  on vy_room_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create unique index if not exists vy_room_subscription_follower_live_ix
+  on vy_room_subscription (follower_id)
+  where state in ('created','authenticated','active','paused');
+create index if not exists vy_room_subscription_follower_ix on vy_room_subscription (follower_id, created_at desc);
+
+create table if not exists vy_payment_event (
+  event_id            uuid primary key default gen_random_uuid(),
+  provider             text not null,
+  provider_event_ref   text not null,
+  room_id              uuid not null references vy_room(room_id) on delete cascade,
+  subscription_id      uuid not null references vy_room_subscription(subscription_id) on delete cascade,
+  kind                 text not null,
+  amount_inr           integer not null default 0,
+  platform_take_inr    integer not null default 0,
+  creator_share_inr    integer not null default 0,
+  received_at          timestamptz not null default now(),
+  signature_verified   boolean not null,
+  payload_hash         text not null,
+  constraint vy_payment_event_provider_check check (provider in ('razorpay','fake')),
+  constraint vy_payment_event_kind_check check (kind in (
+    'subscription.authenticated','subscription.activated','subscription.charged',
+    'subscription.completed','subscription.cancelled','subscription.paused',
+    'subscription.resumed','subscription.pending','subscription.halted',
+    'payment.failed'
+  )),
+  constraint vy_payment_event_amounts_nonneg
+    check (amount_inr >= 0 and platform_take_inr >= 0 and creator_share_inr >= 0),
+  constraint vy_payment_event_split_sums check (platform_take_inr + creator_share_inr = amount_inr),
+  constraint vy_payment_event_signature_verified check (signature_verified = true),
+  constraint vy_payment_event_payload_hash check (payload_hash ~ '^[0-9a-f]{64}$')
+);
+create unique index if not exists vy_payment_event_provider_ref_ix on vy_payment_event (provider, provider_event_ref);
+create index if not exists vy_payment_event_subscription_ix on vy_payment_event (subscription_id, received_at desc);
+create index if not exists vy_payment_event_room_ix on vy_payment_event (room_id, received_at desc);
+
+create table if not exists vy_creator_payout (
+  payout_id      uuid primary key default gen_random_uuid(),
+  owner_user_id  uuid not null,
+  period_start   timestamptz not null,
+  period_end     timestamptz not null,
+  gross_inr      integer not null default 0,
+  take_inr       integer not null default 0,
+  net_inr        integer not null default 0,
+  tds_inr        integer not null default 0,
+  state          text not null default 'pending',
+  created_at     timestamptz not null default now(),
+  constraint vy_creator_payout_state_check check (state in ('pending','paid')),
+  constraint vy_creator_payout_amounts_nonneg
+    check (gross_inr >= 0 and take_inr >= 0 and net_inr >= 0 and tds_inr >= 0),
+  constraint vy_creator_payout_sums check (gross_inr = take_inr + tds_inr + net_inr),
+  constraint vy_creator_payout_period_order check (period_end > period_start)
+);
+create unique index if not exists vy_creator_payout_period_ix
+  on vy_creator_payout (owner_user_id, period_start, period_end);

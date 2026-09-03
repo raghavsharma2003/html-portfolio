@@ -171,8 +171,15 @@ for (const t of PERSON_TABLES) {
     }
   }
   if (t.wipeWhere) {
-    for (const c of t.wipeWhere.match(/[a-z_][a-z0-9_]*/g) || []) {
-      if (["is", "null", "not", "and", "or", "true", "false"].includes(c)) continue;
+    // Quoted string literals are DATA, never identifiers - `state in
+    // ('cancelled','expired')` (WS-R11's own entry) must not have its
+    // literal's CONTENTS mistaken for a column name the way its identifiers
+    // legitimately are. Stripped before the identifier scan rather than
+    // excluded value-by-value, so any future literal is covered by
+    // construction instead of by an ever-growing exception list.
+    const withoutStringLiterals = t.wipeWhere.replace(/'[^']*'/g, "''");
+    for (const c of withoutStringLiterals.match(/[a-z_][a-z0-9_]*/g) || []) {
+      if (["is", "null", "not", "and", "or", "true", "false", "in"].includes(c)) continue;
       if (!(c in cols)) {
         problem(`PERSON_TABLES entry ${t.table} has wipeWhere naming ${c}, not a column of it.`);
       }

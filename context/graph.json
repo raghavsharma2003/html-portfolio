@@ -5122,6 +5122,72 @@
       "kind": "measurement",
       "title": "Migration 077 applied live; all six new cohort and day-table statements EXPLAIN on the scope indexes (pkey arbiter, scope_ix, room_seen_ix, owner_ix)",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-price-and-take-as-data",
+      "kind": "decision",
+      "title": "Follower price band and platform take rate live as columns on vy_room_price, and the take rate is copied onto vy_payment_event at write time, never re-read later",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-provider-seam-and-secret-reuse",
+      "kind": "decision",
+      "title": "razorpay.js/fake.js twin providers behind PAYMENTS_PROVIDER=none by default; the real provider's credential reuses api/_channel-secrets.js's backend under one fixed platform-level ref",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-subscription-survives-forget-until-terminal",
+      "kind": "decision",
+      "title": "vy_room_subscription is in PERSON_TABLES but wipeWhere-gated on a terminal state, so a live UPI Autopay mandate is never silently orphaned by an account wipe",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-creator-payout-owner-scoped-erasure-imprecision",
+      "kind": "decision",
+      "title": "vy_creator_payout's erasure delete is scoped by owner_user_id alone (no room_id column exists); a multi-replica owner erasing one replica also clears payout history from another",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-tds-rate-defaults-to-zero",
+      "kind": "decision",
+      "title": "runPayoutRollup's TDS rate defaults to 0 - no owner or product decision on India tax withholding exists yet, so none is invented",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "verify-release 15/15 after WS-R11 (14/15 untouched, layout gate collided with a concurrent sibling session's own port); evals/payments 62/62 offline; sqlcast 0 uncast sites after 5 fixed",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-room-leak-blanket-allowlist",
+      "kind": "rejection",
+      "title": "Considered adding api/_payments.js to room-leak's blanket ALLOWED set; rejected because it would silently disable future leak checks on the file, replaced with a narrow TIER_WRITE_ONLY class",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-persontables-wipeWhere-string-literal-false-positive",
+      "kind": "rejection",
+      "title": "persontables.mjs's wipeWhere identifier scan mistook quoted SQL string literal contents ('cancelled','expired') for column names; fixed generally by stripping string literals before scanning",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r11-payments-open-gaps",
+      "kind": "open",
+      "title": "No statement in api/_payments.js or migration 078 has run against a live database; no real Razorpay account exists; the paid-tier fair-use ceiling (500 messages/30 voice minutes) named in the Rooms plan is not enforced anywhere; an abandoned mandate flow has no re-fetch-checkout-link path",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-078-live-verification-2026-09-03",
+      "kind": "measurement",
+      "title": "Migration 078 applied live; 13 payments statements and 4 erasure deletes EXPLAIN on their indexes; one seq scan fixed with a follower index added at the merge",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "both-added-hunk-resolved-by-stripping-markers",
+      "kind": "rejection",
+      "title": "Stripping markers on a both-added hunk that starts mid-statement dropped a shared import opener; the web build caught it, an unread tsc exit code did not",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10309,6 +10375,66 @@
       "src": "ws-r12-new-migration-write-gated-on-tableapplied",
       "rel": "measured_by",
       "dst": "rooms-migration-077-live-verification-2026-09-03"
+    },
+    {
+      "src": "ws-r11-provider-seam-and-secret-reuse",
+      "rel": "caused_by",
+      "dst": "credential-ref-not-credential"
+    },
+    {
+      "src": "ws-r11-subscription-survives-forget-until-terminal",
+      "rel": "caused_by",
+      "dst": "silent-truncation"
+    },
+    {
+      "src": "ws-r11-price-and-take-as-data",
+      "rel": "measured_by",
+      "dst": "ws-r11-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r11-room-leak-blanket-allowlist",
+      "rel": "constrains",
+      "dst": "ws-r11-provider-seam-and-secret-reuse"
+    },
+    {
+      "src": "ws-r11-persontables-wipeWhere-string-literal-false-positive",
+      "rel": "constrains",
+      "dst": "ws-r11-subscription-survives-forget-until-terminal"
+    },
+    {
+      "src": "ws-r11-payments-open-gaps",
+      "rel": "blocks",
+      "dst": "ws-r11-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r11-creator-payout-owner-scoped-erasure-imprecision",
+      "rel": "constrains",
+      "dst": "ws-r11-payments-open-gaps"
+    },
+    {
+      "src": "ws-r11-tds-rate-defaults-to-zero",
+      "rel": "constrains",
+      "dst": "ws-r11-payments-open-gaps"
+    },
+    {
+      "src": "ws-r11-price-and-take-as-data",
+      "rel": "measured_by",
+      "dst": "rooms-migration-078-live-verification-2026-09-03"
+    },
+    {
+      "src": "ws-r11-provider-seam-and-secret-reuse",
+      "rel": "measured_by",
+      "dst": "rooms-migration-078-live-verification-2026-09-03"
+    },
+    {
+      "src": "ws-r11-subscription-survives-forget-until-terminal",
+      "rel": "measured_by",
+      "dst": "rooms-migration-078-live-verification-2026-09-03"
+    },
+    {
+      "src": "both-added-hunk-resolved-by-stripping-markers",
+      "rel": "caused_by",
+      "dst": "context-union-by-concatenation"
     }
   ]
 }

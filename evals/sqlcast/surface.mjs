@@ -105,6 +105,18 @@ export const STRICT_SURFACE = [
   // the only measurement that says whether the product works, silently.
   /^api\/_room-cohorts\.js$/,
   /^api\/room-cohorts\.js$/,
+  // WS-R11, the Room's money. On the strict list from its first commit, on
+  // WS-R7's exact reasoning plus one of its own: the webhook write is a
+  // three-CTE statement that flips a real person's billing tier from money a
+  // provider says actually moved, unattended, with nobody watching the
+  // response. A parameter Postgres could not type here does not fail a
+  // screen, it either drops a real payment on the floor or charges the wrong
+  // room's split.
+  /^api\/_payments\.js$/,
+  /^api\/_payments\//,
+  /^api\/payments\.js$/,
+  /^api\/room-pay\.js$/,
+  /^api\/payments-webhook\.js$/,
 ];
 
 export function isStrict(rel) {
