@@ -88,7 +88,7 @@
 import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { AGENT_ID, ROOM_ID, SLUG, loadFixtureAgent, freshState, fakeDb } from "../room/fixtures.mjs";
+import { AGENT_ID, ROOM_ID, OWNER, REPLICA_ID, SLUG, loadFixtureAgent, freshState, fakeDb } from "../room/fixtures.mjs";
 import { disclosurePredicate } from "../../api/_disclosure.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -288,7 +288,14 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // whole-word table name) must select nothing but count()/sum() expressions,
   // and must never touch a follower's own columns. A future edit that selects
   // `person_id`, a thread title or a message fails this line.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js"]);
+  // WS-R17's Pulse card (migration 080) reads `vy_room_thread` for exactly
+  // one purpose: matching a creator's own topic label against a follower's
+  // opted-in thread title, entirely inside a WHERE-clause `exists(...)`
+  // predicate whose own SELECT LIST is `count(*)` alone - `api/_pulse.js`'s
+  // header names the exact rule this shares with `_room-cohorts.js`'s
+  // retention statement. A future edit that selected `title`, `person_id` or
+  // `thread_id` at the top level fails this line.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
@@ -651,6 +658,74 @@ console.log("\n── layer 4: negative controls (both MUST leak) ──");
   const caught = leakedTokens(turn.reply ?? "", [factToken(0)]);
   ok("NEGATIVE CONTROL 2: the scanner catches a reply that pastes another follower's words in as an example",
     caught.length > 0, caught.length ? "" : "control did not fire — the scan above would prove nothing");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 5 — PULSE (WS-R17). The plan's own warning: "Pulse is the write-path
+// leak in a dashboard costume." Section (1c) above already proves NOTHING
+// reached the creator before this feature existed; this proves that now that
+// it does, every unique follower token from a real N-follower world is
+// absent from every row `computeSnapshot` writes AND from the owner's own
+// `readPulse` - the SAME `leakedTokens` scanner layer 2/3 uses above, so a
+// "catch" here is provably the same detector rather than a second, more
+// forgiving one built just to pass.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 5: pulse (opt-in counts never carry a follower token) ──");
+{
+  const { freshPulseState, pulseDb } = await import(pathToFileURL(join(REPO, "evals/pulse/fixtures.mjs")).href);
+  const { setOptIn, setTopics, computeSnapshot, readPulse } = await import(
+    pathToFileURL(join(REPO, "api/_pulse.js")).href
+  );
+  const { createThread, readRoomSession } = room;
+
+  const state = freshPulseState(freshState());
+  const db = pulseDb(state, fakeDb(state));
+  const N = 5;
+  const pulseUid = (i) => `40000000-0000-4000-a000-${String(i).padStart(12, "0")}`;
+  const pulseToken = (i) => `TOKPULSE_${i}_${"w".repeat(8)}`;
+
+  await setTopics(db, OWNER, REPLICA_ID, ["fitness"]);
+  const allTokens = [];
+  for (let i = 0; i < N; i++) {
+    const tok = pulseToken(i);
+    allTokens.push(tok);
+    const joined = await joinRoom(
+      db, { slug: SLUG, authUserId: pulseUid(i), ageAttested: true, memoryConsent: true }, { loadAgent },
+    );
+    const payload = readRoomSession(joined.session);
+    const thread = await createThread(db, {
+      roomId: ROOM_ID, personId: payload.p, agentId: AGENT_ID, title: `fitness ${tok}`,
+    });
+    await setOptIn(db, { session: joined.session, threadId: thread.thread_id }, { loadAgent });
+  }
+
+  const snapshot = await computeSnapshot(db, ROOM_ID, "2026-09-07");
+  boundaryChecks++;
+  ok("pulse: computeSnapshot produced the expected one bucket at 5",
+    snapshot.buckets.length === 1 && snapshot.buckets[0].follower_count === 5);
+
+  const snapshotLeaks = leakedTokens(JSON.stringify(snapshot), allTokens);
+  boundaryChecks++;
+  ok("pulse: every unique follower token is absent from computeSnapshot's own return value",
+    snapshotLeaks.length === 0, snapshotLeaks.join(","));
+  const snapshotTableLeaks = leakedTokens(JSON.stringify(state.pulseSnapshots), allTokens);
+  boundaryChecks++;
+  ok("pulse: every unique follower token is absent from the snapshot TABLE itself",
+    snapshotTableLeaks.length === 0, snapshotTableLeaks.join(","));
+
+  const owner = await readPulse(db, OWNER, REPLICA_ID);
+  const ownerLeaks = leakedTokens(JSON.stringify(owner), allTokens);
+  boundaryChecks++;
+  ok("pulse: every unique follower token is absent from the owner's OWN readPulse",
+    ownerLeaks.length === 0, ownerLeaks.join(","));
+
+  // Sanity: the scan above is not vacuous - the tokens really are present
+  // SOMEWHERE in this world (the threads themselves), so an empty-everywhere
+  // world is not silently passing by having nothing to find at all.
+  const rawWorldHasTokens = leakedTokens(JSON.stringify(state.threads), allTokens).length === allTokens.length;
+  boundaryChecks++;
+  ok("pulse: the scan is not vacuous - every token really is present in the raw thread titles",
+    rawWorldHasTokens);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
