@@ -125,6 +125,19 @@ export const ROOM_COPY = {
     },
   },
 
+  /** The upgrade moment's own action. Every string here is a stated fact
+   *  about what is or is not possible right now, never a nudge - the tap
+   *  either opens the provider's own payment page or says exactly why it
+   *  could not. */
+  pay: {
+    cta: "Upgrade",
+    working: "One moment",
+    notConfigured: "Paid support for this room is not turned on yet.",
+    priceNotSet: "The creator has not set a price for this room yet.",
+    noLink: "A start is already on file, but there is no payment link to open right now.",
+    failed: "Could not start that just now. Try again in a moment.",
+  },
+
   /** ONE number, and only when it is real. A zero renders nothing rather than
    *  a measurement of nothing. */
   stats: {
