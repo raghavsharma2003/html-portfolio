@@ -1,0 +1,615 @@
+// The Room's money (WS-R11) - every decision behind the follower's revenue
+// line: creator pays for capacity (Build/Room/Studio/Institute, a Phase 2
+// concern with no table here); follower pays for the relationship, INR
+// 299-599 a month, set by the creator inside that band. Platform take 25%,
+// shown as one number. Migration 078 is the ledger; this file is every write
+// and read that touches it, api/_room-publish.js's own shape: a decision in a
+// handler is a decision no offline eval can reach.
+//
+// ── PHASE 0, NOT PHASE 1 ────────────────────────────────────────────────
+// "Payments are Phase 1 work. This workstream builds the durable ledger and
+// the provider seam so Phase 1 can turn it on with a key, and spends
+// nothing." `PAYMENTS_PROVIDER` defaults to `none`; every write below refuses
+// with a named reason before any provider is ever called, and NEVER invents a
+// subscription - api/_channel-secrets.js's own posture, copied on purpose
+// rather than re-argued: "the default backend REFUSES, and that is the
+// feature."
+//
+// ── THE PROVIDER SEAM ───────────────────────────────────────────────────
+// `api/_payments/providers/razorpay.js` and `fake.js` are twins: same three
+// functions (createSubscription, cancelSubscription, verifyWebhookSignature),
+// same signature ALGORITHM (HMAC-SHA256 over the raw body), one hits a real
+// account and has never been called, the other is deterministic and zero-
+// network. This file never branches on which one it is talking to beyond
+// selecting it once.
+//
+// ── THE SECRET, FROM THE SAME SEAM AS A CHANNEL'S ──────────────────────
+// api/_channel-secrets.js exists because "a live credential belonging to a
+// real named teacher structurally cannot sit in a table the routing path
+// selects, joins and logs on every inbound event." A Razorpay key/secret pair
+// is the identical shape of problem one level up - this platform's own
+// credential, not a creator's, but no less a live secret - so it is stored
+// through the SAME backend rather than a second one invented for this file.
+// Every Room shares the ONE platform Razorpay account, so there is exactly
+// one credential to hold rather than one per `credentials_ref` the way a
+// creator's own bot token is: `PAYMENTS_SECRET_REF` is a fixed, well-known
+// uuid rather than one minted per row. The `fake` provider deliberately does
+// NOT go through this seam - env vars only, so evals/payments/run.mjs and a
+// staging deploy can prove every line below with zero network and zero Azure
+// account, api/_channel-secrets.js's own "NOT VERIFIED... never a round trip"
+// honesty restated for this file's own seam.
+//
+// ── THE TIER FLIP IS A PREDICATE, NEVER A BRANCH ABOVE THE WRITE ─────────
+// api/_room-surface.js's cap predicate already reads `f.tier <> 'free'` to
+// skip the free-cap UPDATE. `applyWebhook` below flips that column in the
+// SAME statement that lands the webhook's own state change - one multi-CTE
+// write, `api/_provider-budget.js`'s reservation shape one file over - so
+// "paid" can never mean anything other than "a subscription row this
+// database can see is active right now."
+import { sha256Hex } from "./_provenance/contracts.js";
+import { getChannelSecret, ChannelSecretError } from "./_channel-secrets.js";
+import {
+  readRoomSession,
+  resolveRoom,
+  followerRow,
+  roomUnavailable,
+  RoomError,
+  ROOM_SESSION_TTL_MS,
+} from "./_room-surface.js";
+import * as fakeProvider from "./_payments/providers/fake.js";
+import * as razorpayProvider from "./_payments/providers/razorpay.js";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The follower price band. Mirrors migration 078's own CHECK
+ *  (`vy_room_price_band`), validated here too so a bad value returns a NAMED
+ *  reason instead of a raw constraint-violation 500 - `api/_room-publish.js`'s
+ *  ROOM_FREE_CAP_MIN/MAX precedent exactly. */
+export const ROOM_PRICE_MIN_INR = 299;
+export const ROOM_PRICE_MAX_INR = 599;
+export const ROOM_PRICE_CURRENCY = "INR";
+/** 25.00%, in basis points - migration 078's default and every price row's
+ *  default. A column, not only a constant: "a product decision that lives in
+ *  a deployed constant moves by deploy" (071's own argument for the free
+ *  cap), and the platform's cut is exactly that kind of decision. */
+export const PLATFORM_TAKE_BP_DEFAULT = 2500;
+/** No TDS rate has been set by the owner. Zero rather than a guessed
+ *  percentage: `context/rejected.md`'s no-fake-numbers law applied to a tax
+ *  withholding rate nobody has decided, which is a worse thing to invent than
+ *  almost any other number in this file. */
+export const TDS_RATE_BP_DEFAULT = 0;
+
+/** One secret-store entry for the whole platform's Razorpay credential - see
+ *  the header. A uuid so `_channel-secrets.js`'s own `secretNameFor` accepts
+ *  it unchanged; fixed rather than derived so every deployment resolves the
+ *  same Key Vault name. */
+export const PAYMENTS_SECRET_REF = "00000000-0000-4000-8000-0000000000f1";
+
+const PROVIDERS = Object.freeze({ fake: fakeProvider, razorpay: razorpayProvider });
+
+export class PaymentsError extends Error {
+  constructor(code, status = 400, details) {
+    super(code);
+    this.code = code;
+    this.status = status;
+    if (details) this.details = details;
+  }
+}
+
+/** Which provider this deployment runs, resolved per call rather than cached
+ *  at import - `_channel-secrets.js`'s `activeBackend`'s own reasoning: an eval
+ *  can drive every arm in one process, and a serverless instance that warms
+ *  before the env is present does not pin `none` for its whole life. */
+export function activeProviderName(env = process.env) {
+  return String(env.PAYMENTS_PROVIDER || "none");
+}
+
+function providerFor(name) {
+  if (name === "none") throw new PaymentsError("payments_not_configured", 503, { reason: "PAYMENTS_PROVIDER is unset" });
+  const provider = PROVIDERS[name];
+  if (!provider) throw new PaymentsError("payments_provider_unknown", 500, { provider: name });
+  return provider;
+}
+
+/**
+ * The provider's credential. `fake` reads three env vars, no network, no
+ * secret store - the whole point of the fake provider is that nothing above
+ * this line needs an Azure account to prove itself. `razorpay` reads the ONE
+ * JSON blob behind `PAYMENTS_SECRET_REF` through the channel-secret backend
+ * seam; its default backend (`none`) refuses, which is what makes
+ * `PAYMENTS_PROVIDER=razorpay` with no Key Vault configured fail loudly at
+ * the first subscribe rather than mint a row nothing can ever collect on.
+ */
+export async function providerSecrets(providerName, env = process.env, backend) {
+  if (providerName === "fake") {
+    const webhookSecret = String(env.PAYMENTS_FAKE_WEBHOOK_SECRET || "");
+    if (!webhookSecret) throw new PaymentsError("payments_provider_credentials_missing", 503);
+    return {
+      keyId: String(env.PAYMENTS_FAKE_KEY_ID || "fake_key_id"),
+      keySecret: String(env.PAYMENTS_FAKE_KEY_SECRET || "fake_key_secret"),
+      webhookSecret,
+    };
+  }
+  let raw;
+  try {
+    raw = await getChannelSecret(PAYMENTS_SECRET_REF, backend);
+  } catch (e) {
+    throw e instanceof ChannelSecretError ? new PaymentsError(e.code, e.status) : e;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new PaymentsError("payments_secret_shape_invalid", 500);
+  }
+  if (!parsed?.keyId || !parsed?.keySecret || !parsed?.webhookSecret) {
+    throw new PaymentsError("payments_secret_shape_invalid", 500);
+  }
+  return parsed;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE FOLLOWER SESSION - the same room session api/_room-surface.js mints
+// ─────────────────────────────────────────────────────────────────────────
+
+/** `roomSay`'s own preamble, one file over: the session names a room and a
+ *  person, the room resolved NOW must be the room the token was minted
+ *  against, and the follower must have actually joined. Reused rather than
+ *  re-implemented, `surface-bypasses-parse`'s discipline applied to identity
+ *  rather than to a reply. */
+async function paidSessionScope(db, session, deps) {
+  const payload = readRoomSession(session, deps.env);
+  const now = deps.now ?? Date.now();
+  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
+    throw new RoomError("room_session_expired", 401);
+  }
+  const resolved = await resolveRoom(db, payload.r, deps);
+  if (String(resolved.room.room_id) !== String(payload.i) || String(resolved.agentId) !== String(payload.a)) {
+    throw roomUnavailable();
+  }
+  const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
+  if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
+  return { room: resolved.room, follower };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE OWNER-SCOPED ROOM HANDLE - api/_room-publish.js's `ownedRoomRow`, the
+// two columns this file actually needs
+// ─────────────────────────────────────────────────────────────────────────
+
+async function ownedRoomForPayments(db, ownerUserId, replicaId) {
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(replicaId || ""))) {
+    throw new PaymentsError("room_publish_identity_invalid", 400);
+  }
+  const rows = await db(
+    `select room_id, slug, replica_id, owner_user_id
+       from vy_room
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      limit 1`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
+  );
+  return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE PRICE - set by the creator, inside the band, never outside it
+// ─────────────────────────────────────────────────────────────────────────
+
+export function clientPrice(row) {
+  if (!row) return null;
+  return {
+    room_id: row.room_id,
+    follower_price_inr: Number(row.follower_price_inr),
+    currency: row.currency,
+    platform_take_bp: Number(row.platform_take_bp),
+    updated_at: row.updated_at ?? null,
+  };
+}
+
+export async function getRoomPrice(db, ownerUserId, replicaId) {
+  const room = await ownedRoomForPayments(db, ownerUserId, replicaId);
+  if (!room) return null;
+  const rows = await db(
+    `select room_id, follower_price_inr, currency, platform_take_bp, updated_at
+       from vy_room_price where room_id = ($1)::uuid limit 1`,
+    [String(room.room_id)],
+  );
+  return clientPrice(rows[0] || null);
+}
+
+/** Upsert, idempotent on the room - `api/_room-publish.js`'s `setRoomFreeCap`
+ *  one table over. The band is enforced here AND by migration 078's own
+ *  CHECK; this copy is what turns a bad value into a named reason instead of
+ *  a raw 500. */
+export async function setRoomPrice(db, ownerUserId, replicaId, priceInr) {
+  const room = await ownedRoomForPayments(db, ownerUserId, replicaId);
+  if (!room) return null;
+  const n = Number(priceInr);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < ROOM_PRICE_MIN_INR || n > ROOM_PRICE_MAX_INR) {
+    throw new PaymentsError("room_price_invalid", 400, { min: ROOM_PRICE_MIN_INR, max: ROOM_PRICE_MAX_INR });
+  }
+  const rows = await db(
+    `insert into vy_room_price (room_id, owner_user_id, follower_price_inr, currency, platform_take_bp)
+     values (($1)::uuid, ($2)::uuid, ($3)::int4, $4, ($5)::int4)
+     on conflict (room_id) do update
+        set follower_price_inr = excluded.follower_price_inr, updated_at = now()
+     returning room_id, follower_price_inr, currency, platform_take_bp, updated_at`,
+    [String(room.room_id), String(room.owner_user_id), n, ROOM_PRICE_CURRENCY, PLATFORM_TAKE_BP_DEFAULT],
+  );
+  return clientPrice(rows[0] || null);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE SUBSCRIBE FLOW - the follower's side
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Start (or resume) a follower's subscription to this room.
+ *
+ * IDEMPOTENT ON THE FOLLOWER, `vy_room_subscription_follower_live_ix`'s own
+ * guarantee read here rather than relied on blind: an existing non-terminal
+ * row is returned (if it already has a provider ref) or retried (if a prior
+ * attempt died between the local insert and the provider call, leaving a
+ * `created` row with no ref) - never a second row racing the first.
+ *
+ * NEVER INVENTS A SUBSCRIPTION. `PAYMENTS_PROVIDER=none` refuses before any
+ * row is written; no price set refuses before any provider is called.
+ */
+export async function startFollowerSubscription(db, { session }, deps = {}) {
+  const env = deps.env ?? process.env;
+  const { room, follower } = await paidSessionScope(db, session, deps);
+
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+
+  const priceRows = await db(
+    `select follower_price_inr from vy_room_price where room_id = ($1)::uuid limit 1`,
+    [String(room.room_id)],
+  );
+  const price = priceRows[0];
+  if (!price) throw new PaymentsError("room_price_not_set", 409);
+  const priceInr = Number(price.follower_price_inr);
+
+  const existingRows = await db(
+    `select subscription_id, provider_subscription_ref, state
+       from vy_room_subscription
+      where follower_id = ($1)::uuid
+        and state in ('created','authenticated','active','paused')
+      order by created_at desc
+      limit 1`,
+    [String(follower.follower_id)],
+  );
+  let subscriptionId = existingRows[0]?.subscription_id || null;
+  let providerRef = existingRows[0]?.provider_subscription_ref || null;
+  let state = existingRows[0]?.state || null;
+
+  if (!subscriptionId) {
+    const created = await db(
+      `insert into vy_room_subscription (room_id, person_id, follower_id, provider, state)
+       values (($1)::uuid, ($2)::uuid, ($3)::uuid, $4, 'created')
+       returning subscription_id, state`,
+      [String(room.room_id), String(follower.person_id), String(follower.follower_id), providerName],
+    );
+    subscriptionId = created[0]?.subscription_id || null;
+    state = created[0]?.state || "created";
+  }
+  if (!subscriptionId) throw new PaymentsError("payments_subscription_create_failed", 503);
+
+  if (providerRef) {
+    // Already minted on a previous call - return it rather than call the
+    // provider again. A fresh checkout link for an abandoned mandate flow is
+    // a real gap: not built here, named in this workstream's final report.
+    return { subscription_id: subscriptionId, provider: providerName, provider_subscription_ref: providerRef, checkout_url: null, state };
+  }
+
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+  const created = await provider.createSubscription(
+    { priceInr, roomSlug: room.slug, followerId: String(follower.follower_id) },
+    secrets,
+  );
+  providerRef = String(created.provider_subscription_ref || "");
+  if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
+
+  const updated = await db(
+    `update vy_room_subscription
+        set provider_subscription_ref = $2, updated_at = now()
+      where subscription_id = ($1)::uuid
+      returning state`,
+    [String(subscriptionId), providerRef],
+  );
+  state = updated[0]?.state ?? state;
+
+  return {
+    subscription_id: subscriptionId,
+    provider: providerName,
+    provider_subscription_ref: providerRef,
+    checkout_url: created.checkout_url ?? null,
+    state,
+  };
+}
+
+/** The follower's own honest read: their tier and their subscription's state,
+ *  never more than that - no other follower's anything, `docs/SURFACES.md`'s
+ *  rule for this whole surface. */
+export async function followerSubscriptionStatus(db, { session }, deps = {}) {
+  const { follower } = await paidSessionScope(db, session, deps);
+  const rows = await db(
+    `select subscription_id, provider, state, current_period_start, current_period_end
+       from vy_room_subscription
+      where follower_id = ($1)::uuid
+      order by created_at desc
+      limit 1`,
+    [String(follower.follower_id)],
+  );
+  const row = rows[0] || null;
+  return {
+    tier: follower.tier === "paid" ? "paid" : "free",
+    subscription: row && {
+      subscription_id: row.subscription_id,
+      provider: row.provider,
+      state: row.state,
+      current_period_start: row.current_period_start ?? null,
+      current_period_end: row.current_period_end ?? null,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE WEBHOOK - verify, then apply, and never the other order
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Razorpay's own webhook event names this ledger will ever hold a row for -
+ *  migration 078's `vy_payment_event_kind_check`, restated as the map that
+ *  decides what each one does to `vy_room_subscription.state`. Empty string
+ *  means "log the event, change nothing" - `subscription.pending` and
+ *  `payment.failed` are the provider's own retry ladder narrating itself, not
+ *  yet a fact about whether this follower keeps paid access. */
+export const KIND_TO_STATE = Object.freeze({
+  "subscription.authenticated": "authenticated",
+  "subscription.activated": "active",
+  "subscription.charged": "active",
+  "subscription.resumed": "active",
+  "subscription.paused": "paused",
+  // All retries exhausted (Subscriptions States, fetched 2026-09-03). Mapped
+  // to 'paused' rather than 'cancelled': the mandate is not gone, the card
+  // just needs updating, and `resumeRoom`'s own precedent one file over is
+  // "taking it down is unconditional, bringing it back is gated" - a halted
+  // subscription is not this platform's decision to make final.
+  "subscription.halted": "paused",
+  "subscription.cancelled": "cancelled",
+  // end_date reached. The product does not distinguish "cancelled" from
+  // "completed" anywhere downstream (api/_room-surface.js's cap predicate
+  // only ever asks `tier <> 'free'`), so both terminal spellings collapse
+  // to one.
+  "subscription.completed": "cancelled",
+  "subscription.pending": "",
+  "payment.failed": "",
+});
+
+/** Razorpay's own webhook envelope (Webhooks, fetched 2026-09-03):
+ *  `{event, payload:{subscription:{entity},payment:{entity}}}`. The fake
+ *  provider's test fixtures use the IDENTICAL shape on purpose - this parser
+ *  is the one the real provider will hit, not a simplified stand-in for it. */
+export function parseWebhookPayload(json) {
+  const kind = String(json?.event || "");
+  const sub = json?.payload?.subscription?.entity || null;
+  const pay = json?.payload?.payment?.entity || null;
+  const providerSubscriptionRef = String(sub?.id || "");
+  const amountInr = pay?.amount != null && Number.isFinite(Number(pay.amount))
+    ? Math.round(Number(pay.amount) / 100)
+    : 0;
+  const periodStart = sub?.current_start ? new Date(Number(sub.current_start) * 1000).toISOString() : null;
+  const periodEnd = sub?.current_end ? new Date(Number(sub.current_end) * 1000).toISOString() : null;
+  return { kind, providerSubscriptionRef, amountInr, periodStart, periodEnd };
+}
+
+/**
+ * Verify a webhook's signature, then apply it. THE ORDER IS THE WHOLE
+ * FUNCTION: `verifyWebhookSignature` runs before a single byte of the parsed
+ * body is trusted, and a failed verification throws before any database
+ * write is even attempted - migration 078's `vy_payment_event_signature_verified`
+ * CHECK is what makes the alternative (write the row, note that it failed)
+ * structurally impossible, not merely undesired.
+ *
+ * IDEMPOTENT ON `(provider, provider_event_ref)` - a provider retries a
+ * webhook it did not get a 200 for, and the `on conflict ... do nothing`
+ * inside the write is what makes a replay a no-op rather than a second split
+ * applied to the same rupee.
+ *
+ * `eventRef` is Razorpay's `X-Razorpay-Event-Id` header (Best Practices,
+ * fetched 2026-09-03: "identify duplicate webhooks using the
+ * x-razorpay-event-id header"), never a body field - required, and its
+ * absence refuses the whole request rather than falling back to a hash of
+ * the body, which would make every RETRY of the same event look like a new
+ * one the instant the provider changes even one timestamp in it.
+ */
+export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, deps = {}) {
+  const env = deps.env ?? process.env;
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+
+  const bodyBuf = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody ?? ""), "utf8");
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+
+  const verified = provider.verifyWebhookSignature(bodyBuf, String(signatureHeader || ""), secrets.webhookSecret);
+  if (!verified) throw new PaymentsError("payment_webhook_signature_invalid", 401);
+
+  const ref = String(eventRef || "").trim();
+  if (!ref) throw new PaymentsError("payment_webhook_event_id_required", 400);
+
+  let json;
+  try {
+    json = JSON.parse(bodyBuf.toString("utf8"));
+  } catch {
+    throw new PaymentsError("payment_webhook_body_invalid", 400);
+  }
+  const parsed = parseWebhookPayload(json);
+  if (!parsed.kind || !Object.prototype.hasOwnProperty.call(KIND_TO_STATE, parsed.kind)) {
+    throw new PaymentsError("payment_webhook_kind_unknown", 400, { kind: parsed.kind });
+  }
+  if (!parsed.providerSubscriptionRef) {
+    throw new PaymentsError("payment_webhook_subscription_ref_missing", 400);
+  }
+
+  const ctxRows = await db(
+    `select s.subscription_id, s.room_id,
+            coalesce(p.platform_take_bp, $3) as platform_take_bp
+       from vy_room_subscription s
+       left join vy_room_price p on p.room_id = s.room_id
+      where s.provider = $1 and s.provider_subscription_ref = $2
+      limit 1`,
+    [providerName, parsed.providerSubscriptionRef, PLATFORM_TAKE_BP_DEFAULT],
+  );
+  const ctx = ctxRows[0];
+  if (!ctx) throw new PaymentsError("payments_subscription_unknown", 404);
+
+  const takeBp = Number(ctx.platform_take_bp);
+  const platformTakeInr = Math.round((parsed.amountInr * takeBp) / 10000);
+  const creatorShareInr = parsed.amountInr - platformTakeInr;
+  const nextState = KIND_TO_STATE[parsed.kind];
+  const payloadHash = sha256Hex(bodyBuf);
+
+  const rows = await db(
+    `with candidate as (
+       insert into vy_payment_event
+         (provider, provider_event_ref, room_id, subscription_id, kind, amount_inr,
+          platform_take_inr, creator_share_inr, signature_verified, payload_hash)
+       values ($1,$2,($3)::uuid,($4)::uuid,$5,($6)::int4,($7)::int4,($8)::int4,true,$9)
+       on conflict (provider, provider_event_ref) do nothing
+       returning event_id, subscription_id
+     ), sub_update as (
+       update vy_room_subscription s
+          set state = case when $10 = '' then s.state else $10 end,
+              current_period_start = coalesce($11::timestamptz, s.current_period_start),
+              current_period_end = coalesce($12::timestamptz, s.current_period_end),
+              updated_at = now()
+         from candidate c
+        where s.subscription_id = c.subscription_id
+       returning s.subscription_id, s.follower_id, s.state
+     ), follower_update as (
+       update vy_room_follower f
+          set tier = case when su.state = 'active' then 'paid' else 'free' end,
+              updated_at = now()
+         from sub_update su
+        where f.follower_id = su.follower_id
+          and su.state in ('active','cancelled','expired')
+       returning f.follower_id, f.tier
+     )
+     select c.event_id, su.subscription_id, su.state, fu.tier
+       from candidate c
+       left join sub_update su on true
+       left join follower_update fu on true`,
+    [
+      providerName, ref, ctx.room_id, ctx.subscription_id, parsed.kind, parsed.amountInr,
+      platformTakeInr, creatorShareInr, payloadHash, nextState, parsed.periodStart, parsed.periodEnd,
+    ],
+  );
+  const result = rows[0];
+  if (!result) {
+    // ON CONFLICT DO NOTHING fired: this exact (provider, event) pair already
+    // landed a row. A no-op, never an error - a webhook retry earns a 200.
+    return { applied: false, replay: true, subscription_id: ctx.subscription_id };
+  }
+  return {
+    applied: true,
+    replay: false,
+    subscription_id: result.subscription_id,
+    state: result.state,
+    tier: result.tier ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE MONEY STRIP - the owner's real counts, never invented
+// ─────────────────────────────────────────────────────────────────────────
+
+/** "subscribers, churn this month, payout, the one-number take" - real counts
+ *  only, `api/_room-publish.js`'s `ownerRoomStats` precedent exactly: a room
+ *  with no subscribers gets real zeros, never a placeholder. */
+export async function ownerRevenue(db, ownerUserId, replicaId, { now = Date.now() } = {}) {
+  const room = await ownedRoomForPayments(db, ownerUserId, replicaId);
+  if (!room) return null;
+  const monthStart = `${new Date(now).toISOString().slice(0, 7)}-01T00:00:00.000Z`;
+
+  const rows = await db(
+    `select
+        count(*) filter (where s.state = 'active')::int as subscribers,
+        count(*) filter (where s.state in ('cancelled','expired') and s.updated_at >= ($2)::timestamptz)::int as churned_this_month,
+        coalesce(sum(e.amount_inr) filter (where e.received_at >= ($2)::timestamptz), 0)::int as gross_this_month_inr,
+        coalesce(sum(e.platform_take_inr) filter (where e.received_at >= ($2)::timestamptz), 0)::int as platform_take_this_month_inr,
+        coalesce(sum(e.creator_share_inr) filter (where e.received_at >= ($2)::timestamptz), 0)::int as creator_share_this_month_inr
+       from vy_room_subscription s
+       left join vy_payment_event e on e.subscription_id = s.subscription_id
+      where s.room_id = ($1)::uuid`,
+    [String(room.room_id), monthStart],
+  );
+  const row = rows[0] || {};
+
+  const payoutRows = await db(
+    `select payout_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr, state
+       from vy_creator_payout
+      where owner_user_id = ($1)::uuid
+      order by period_start desc
+      limit 1`,
+    [String(room.owner_user_id)],
+  );
+
+  return {
+    subscribers: Number(row.subscribers || 0),
+    churned_this_month: Number(row.churned_this_month || 0),
+    gross_this_month_inr: Number(row.gross_this_month_inr || 0),
+    platform_take_this_month_inr: Number(row.platform_take_this_month_inr || 0),
+    creator_share_this_month_inr: Number(row.creator_share_this_month_inr || 0),
+    latest_payout: payoutRows[0] || null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE MONTHLY PAYOUT ROLL-UP
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Roll up every `vy_payment_event` in `[periodStart, periodEnd)` into one
+ * `vy_creator_payout` row per owner. Idempotent on `(owner, period)` -
+ * re-running the sweep for a period it already rolled up is a no-op.
+ *
+ * `tdsRateBp` defaults to 0 - see `TDS_RATE_BP_DEFAULT`'s own header. The
+ * arithmetic (`gross = take + tds + net`) is enforced twice: once here, once
+ * by migration 078's `vy_creator_payout_sums` CHECK, so a bug in this query
+ * fails loudly against a real database rather than shipping a payout row
+ * nobody can reconcile against what followers actually paid.
+ */
+export async function runPayoutRollup(db, { periodStart, periodEnd, tdsRateBp = TDS_RATE_BP_DEFAULT } = {}) {
+  const start = new Date(periodStart);
+  const end = new Date(periodEnd);
+  if (!(start instanceof Date) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
+    throw new PaymentsError("payout_period_invalid", 400);
+  }
+  const bp = Number(tdsRateBp);
+  if (!Number.isFinite(bp) || bp < 0 || bp > 10000) throw new PaymentsError("payout_tds_rate_invalid", 400);
+
+  const rows = await db(
+    `with per_owner as (
+       select r.owner_user_id,
+              coalesce(sum(e.amount_inr), 0)::int as gross_inr,
+              coalesce(sum(e.platform_take_inr), 0)::int as take_inr,
+              coalesce(sum(e.creator_share_inr), 0)::int as creator_gross_inr
+         from vy_payment_event e
+         join vy_room r on r.room_id = e.room_id
+        where e.received_at >= ($1)::timestamptz and e.received_at < ($2)::timestamptz
+        group by r.owner_user_id
+     ), split_tds as (
+       select owner_user_id, gross_inr, take_inr,
+              (creator_gross_inr * ($3)::int / 10000)::int as tds_inr,
+              creator_gross_inr - (creator_gross_inr * ($3)::int / 10000)::int as net_inr
+         from per_owner
+     )
+     insert into vy_creator_payout (owner_user_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr)
+     select owner_user_id, ($1)::timestamptz, ($2)::timestamptz, gross_inr, take_inr, net_inr, tds_inr
+       from split_tds
+     on conflict (owner_user_id, period_start, period_end) do nothing
+     returning payout_id, owner_user_id, gross_inr, take_inr, net_inr, tds_inr, state`,
+    [start.toISOString(), end.toISOString(), bp],
+  );
+  return rows;
+}
