@@ -49,6 +49,7 @@ import DisclosurePreview from "./DisclosurePreview";
 import MirrorCallStudio from "./MirrorCallStudio";
 import VideoEnrollPanel from "./VideoEnrollPanel";
 import ActivityPanel from "./ActivityPanel";
+import ReadinessPanel from "./ReadinessPanel";
 import {
   AdvancedArea,
   Band,
@@ -576,79 +577,6 @@ function VoiceUnlockNotice({ replica }: { replica: Replica }) {
   );
 }
 
-/**
- * The four readiness cards, and their phone form.
- *
- * Same numbers, same derivation, two layouts. On a phone it is a `<details>`
- * whose summary carries the one number a person is actually tracking, because
- * a four-card grid above the first control is a dashboard where a task should
- * be. Nothing is hidden that is not still one tap away, and nothing here was
- * ever an action, which is what makes it eligible to collapse at all.
- */
-function ReadinessStrip({
-  compact,
-  verificationCount,
-  sourceCount,
-  runtimeStatus,
-}: {
-  compact: boolean;
-  verificationCount: number;
-  sourceCount: number;
-  runtimeStatus: ReplicaRuntimeStatus | null;
-}) {
-  const cards = (
-    <>
-      <article className="readiness-card readiness-primary">
-        <p className="eyebrow">Activation readiness</p>
-        <strong>{verificationCount}/3</strong>
-        <span>identity checks complete</span>
-        <div className="progress-track"><span style={{ transform: `scaleX(${verificationCount * 0.33333})` }} /></div>
-      </article>
-      <article className="readiness-card">
-        <span className="metric-label">Sources</span>
-        <strong>{sourceCount}</strong>
-        <span>{sourceCount ? "Private ledger entries" : "Nothing uploaded"}</span>
-      </article>
-      <article className="readiness-card">
-        <span className="metric-label">Voice versions</span>
-        <strong>{runtimeStatus ? (runtimeStatus.versions.voice_genome ?? 0) : "—"}{/* emdash-ok: the empty-value placeholder, not prose */}</strong>
-        {/* WS-AP, from a measured production defect: this read "0 / Not built
-            yet" while a real draft genome existed, because the count itself
-            used to be scoped to approved-only and the label assumed any
-            non-zero count meant approved. Both are fixed together: the count
-            is now the newest genome that EXISTS (any status,
-            `api/_replica-runtime.js`), and the label reads its own status
-            rather than inferring one from a number. */}
-        <span>
-          {!runtimeStatus || !runtimeStatus.versions.voice_genome
-            ? (!runtimeStatus ? "Checking" : "Not built yet")
-            : runtimeStatus.voice_genome_status === "approved"
-              ? "Approved voice model"
-              : "Draft, needs your approval"}
-        </span>
-      </article>
-      <article className="readiness-card trust-card">
-        <span className="metric-label">Public voice library</span>
-        <strong>Never</strong>
-        <span>Your voice is never listed or shared</span>
-      </article>
-    </>
-  );
-
-  if (!compact) {
-    return <section className="readiness-grid" aria-label="Replica readiness">{cards}</section>;
-  }
-  return (
-    <details className="readiness-compact">
-      <summary>
-        <span className="readiness-compact-count">{verificationCount} of 3</span>
-        <span className="readiness-compact-label">identity checks complete</span>
-      </summary>
-      <div className="readiness-grid" aria-label="Replica readiness">{cards}</div>
-    </details>
-  );
-}
-
 function ReplicaWorkspace({
   replica,
   testEnvironment,
@@ -757,7 +685,6 @@ function ReplicaWorkspace({
   const [confirmation, setConfirmation] = useState("");
   const stopped = replica.lifecycle === "revoked" || replica.lifecycle === "purging";
   const erased = erasureStatus?.state === "complete";
-  const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
   const view = wizard.steps.find((row) => row.id === step) ?? wizard.steps[0];
   const stepNumber = view.number;
   const previewWizardInput = testEnvironment
@@ -862,25 +789,27 @@ function ReplicaWorkspace({
             </section>
           )}
 
-          {/* Every number on this strip is derived. The old version rendered a
-              literal "Voice versions 0 / No model trained" regardless of the
-              real `runtime.versions.voice_genome`, and a "Public access / Off /
-              Cannot be changed" claim that ChannelsStudio exists to falsify
-              (UX-Q-04, copy audit C5 and C6). A status this product cannot
-              derive is not shown.
+          {/* WS-R3. This replaced `ReadinessStrip`, which rendered four derived
+              numbers on every step: identity checks, a source count, a voice
+              version and a trust claim. Two problems, and only the second one
+              is about design. It was a DASHBOARD sitting between the step title
+              and the first control, on a step whose job is one task; and it
+              wore the word "Readiness" while answering none of the five
+              questions a creator actually has to answer before they let their
+              AI talk to anyone.
 
-              ON A PHONE IT IS COLLAPSED, and it is the clearest case in the
-              studio for collapsing something: four cards, none of which is an
-              ACTION, sitting between the step title and the first control. It
-              is a dashboard, and a dashboard above the fold on a step whose job
-              is one task is the fold spent on furniture. The summary keeps the
-              one number that changes ("2 of 3 identity checks"), so nothing a
-              person is tracking disappears. */}
-          {!testEnvironment && <ReadinessStrip
-            compact={compact}
-            verificationCount={verificationCount}
-            sourceCount={sources.length}
-            runtimeStatus={runtimeStatus}
+              The panel answers those five, with an honest "not measured yet"
+              wherever the instrument does not exist, and it is on the MEET step
+              only: readiness is what Meet is for, and repeating it on Feed and
+              Deploy would be the same furniture in three places. Its trust line
+              carries over the one claim from the old strip that never changes
+              with a measurement. */}
+          {!testEnvironment && step === "meet" && <ReadinessPanel
+            key={`readiness-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+            onGoStep={onGoStep}
           />}
 
           {/* The blocking line, now carrying its class. This is the surface the
