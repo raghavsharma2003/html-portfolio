@@ -240,6 +240,19 @@ function fakeDb(state) {
         .map((c) => ({ ...c }));
     }
 
+    // WS-R4. The widget reads the owner's "Never say this" rules per turn and
+    // hands them to `gatedReply` as a predicate. This branch exists because the
+    // read is REAL: it appeared here as an unhandled statement the moment it
+    // was wired, which is exactly the signal a fake database that throws on the
+    // unknown is for. Rows come from `state.neverRules` so a test can arm one.
+    if (sql.includes("from vy_review_never_rule n")) {
+      const [replicaId, ownerId] = params;
+      state.neverRuleReads = (state.neverRuleReads || 0) + 1;
+      return (state.neverRules || [])
+        .filter((r) => r.replica_id === replicaId && r.owner_user_id === ownerId)
+        .map((r) => ({ rule_id: r.rule_id, pattern: r.pattern, revoked_at: r.revoked_at ?? null }));
+    }
+
     throw new Error(`fakeDb: unhandled statement\n${sql}`);
   };
   db.calls = calls;
@@ -464,6 +477,43 @@ console.log("\n── 4. the widget: disclosure on session open ──");
   ok("a properly opened session produces a reply", turn.bubbles.length > 0 && Boolean(turn.reply));
   ok("the reply went through the engine's gate", turn.gate.applied === true);
   ok("the turn mints a NEW session token", turn.session !== opened.session);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+console.log("\n── 4b. WS-R4: a never-say rule reaches the follower-facing wire ──");
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The end-to-end half of `evals/review-queue/run.mjs` section 5. That suite
+// drives the predicate through `gateReply` directly; this one proves the WIRE
+// carries it: rules written against THIS replica, read by the widget lane on
+// the turn, applied at the one door, and the visitor gets silence with the
+// reason named rather than the forbidden sentence.
+{
+  const state = freshState();
+  state.neverRules = [{
+    rule_id: "r-never-1",
+    replica_id: REPLICA_A,
+    owner_user_id: OWNER,
+    pattern: "I guarantee you will clear the exam",
+    revoked_at: null,
+  }];
+  const db = fakeDb(state);
+  const deps = { loadAgent, engine, reply: async () => "I guarantee you will clear the exam, relax" };
+  const opened = await openCloneSession(db, { slug: "arjun-sir-physics", visitorId: "v9" }, deps);
+  const blocked = await cloneChatTurn(db, { session: opened.session, message: "will i clear it", transcript: [] }, deps);
+  ok("the widget lane READ the rules (an unarmed lane would have read nothing)", state.neverRuleReads > 0);
+  ok("a forbidden reply does not reach the visitor", blocked.reply === "");
+  ok("...and the wire says the silence was the owner's rule, not a failure", blocked.gate.never_rule_applied === true);
+
+  // POSITIVE CONTROL, same rules, same lane: an ordinary reply is untouched.
+  const clean = fakeDb(state);
+  const allowed = await cloneChatTurn(
+    clean,
+    { session: opened.session, message: "will i clear it", transcript: [] },
+    { ...deps, reply: async () => "keep revising, you are closer than you think" },
+  );
+  ok("an ordinary reply is unaffected by the same rule set", allowed.reply.length > 0);
+  ok("...and reports no rule applied", allowed.gate.never_rule_applied === false);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
