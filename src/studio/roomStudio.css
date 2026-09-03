@@ -122,6 +122,33 @@
   .vy-room__cap-pill--selected { background: var(--forest); border-color: var(--forest); color: #fff; }
   .vy-room__cap-field { flex: 0 0 90px; height: 44px; text-align: center; }
 
+  /* ── pulse: a topic chip is a pill worn as a <span>, with its own remove
+     button rather than being one whole clickable pill ────────────────── */
+  .vy-room__pulse-card .vy-room__cap-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .vy-room__pulse-topic-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: var(--text-body);
+    line-height: 1;
+    opacity: 0.75;
+    transition: opacity var(--motion-quick) var(--ease-standard),
+                transform var(--motion-instant) var(--ease-standard);
+  }
+  .vy-room__pulse-topic-remove:hover:not(:disabled) { opacity: 1; }
+  .vy-room__pulse-topic-remove:active:not(:disabled) { transform: scale(0.85); }
+
   /* ── the three real numbers ─────────────────────────────────────────── */
   .vy-room__stats-grid {
     display: grid;
@@ -172,5 +199,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .vy-room__cap-pill { transition: none; }
+    .vy-room__pulse-topic-remove { transition: none; }
   }
 }

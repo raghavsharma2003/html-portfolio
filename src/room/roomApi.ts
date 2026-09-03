@@ -133,6 +133,24 @@ export const roomHistory = (session: string, thread?: string | null) =>
 export const newRoomThread = (session: string, title: string) =>
   post<RoomThread>({ op: "thread", session, title });
 
+export interface PulseOptIn {
+  thread_id: string | null;
+  active: boolean;
+  granted_at?: string;
+  revoked_at?: string | null;
+  policy_version?: number;
+}
+
+/** "Let this count" - a follower's own toggle (WS-R17). `threadId` null
+ *  means "this whole relationship", the shape used before the Room has any
+ *  threads. Both are revocable and both answer with the row's own state,
+ *  never a fake success. */
+export const setPulseOptIn = (session: string, threadId: string | null) =>
+  post<PulseOptIn>({ op: "pulse_optin", session, thread: threadId });
+
+export const revokePulseOptIn = (session: string, threadId: string | null) =>
+  post<PulseOptIn>({ op: "pulse_revoke", session, thread: threadId });
+
 export const roomCitations = (session: string) =>
   post<RoomCitations>({ op: "citations", session });
 

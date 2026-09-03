@@ -50,7 +50,9 @@ import {
   roomCitations,
   roomHistory,
   roomStats,
+  revokePulseOptIn,
   sayInRoom,
+  setPulseOptIn,
   slugFromPath,
   type RoomCitations,
   type RoomOpen,
@@ -82,6 +84,13 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [upgrade, setUpgrade] = useState(false);
   const [capped, setCapped] = useState(false);
   const [talkedToday, setTalkedToday] = useState<number | null>(null);
+  // "Let this count" (WS-R17), per scope (a thread id, or "" for the whole
+  // Room). Local-only, optimistic on a successful toggle: the server never
+  // told this client whether an old opt-in already existed for a scope, and
+  // asking it to would mean an extra fetch on every screen load for a state
+  // that starts OFF for everyone by construction (opt-IN, never opt-out).
+  const [pulseOn, setPulseOn] = useState<Record<string, boolean>>({});
+  const [pulseBusy, setPulseBusy] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState("");
   const [draft, setDraft] = useState("");
@@ -234,6 +243,22 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
     }
   }, [session, payBusy]);
 
+  const togglePulse = useCallback(async () => {
+    if (!session || pulseBusy) return;
+    const scope = thread ?? "";
+    const on = pulseOn[scope] === true;
+    setPulseBusy(true);
+    try {
+      const result = on ? await revokePulseOptIn(session, thread) : await setPulseOptIn(session, thread);
+      setPulseOn((prev) => ({ ...prev, [scope]: result.active }));
+    } catch {
+      // Honest silence: the toggle simply stays where it was, and the next
+      // tap tries again - never a fake success on a decision this private.
+    } finally {
+      setPulseBusy(false);
+    }
+  }, [session, thread, pulseOn, pulseBusy]);
+
   if (phase === "loading") {
     return (
       <main className="room-shell">
@@ -318,6 +343,23 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           }
         }}
       />
+
+      <div className="room-pulse">
+        <button
+          type="button"
+          className="room-pulse-toggle"
+          aria-pressed={pulseOn[thread ?? ""] === true}
+          disabled={pulseBusy}
+          onPointerDown={() => void togglePulse()}
+        >
+          {pulseBusy
+            ? ROOM_COPY.pulse.working
+            : pulseOn[thread ?? ""] === true
+              ? ROOM_COPY.pulse.off
+              : ROOM_COPY.pulse.on}
+        </button>
+        <p className="room-pulse-explain">{withName(ROOM_COPY.pulse.explain, name)}</p>
+      </div>
 
       <div className="room-thread">
         {/* The card, as DATA, at the top of the first screen. Never generated,
