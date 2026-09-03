@@ -82,7 +82,7 @@ import { transcriptDigest } from "./_clonechat.js";
 import { loadTeacherAgent } from "./_teachersheet.js";
 import { surfaceDeviceId, dmRecall } from "./_room.js";
 import { openOrExtendEpisode } from "./episodes.js";
-import { activePersonTables, keysOf, ownerEq, wipeWhereSql, wipeParams } from "./memory.js";
+import { activePersonTables, keysOf, ownerEq, wipeWhereSql, wipeParams, tableApplied } from "./memory.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -384,6 +384,11 @@ export async function followerRow(db, roomId, personId, agentId) {
  *  parameter rather than derived in SQL, so the cap eval can drive a month
  *  rollover without waiting a month for one. */
 export const monthKeyOf = (at = Date.now()) => new Date(at).toISOString().slice(0, 7);
+
+/** 'YYYY-MM-DD' in UTC. WS-R12's day key, computed in JS for `dayKeyOf`'s own
+ *  reason as `monthKeyOf`: one place, passed as a parameter, so an eval can
+ *  drive a day rollover without waiting a day for one. */
+export const dayKeyOf = (at = Date.now()) => new Date(at).toISOString().slice(0, 10);
 
 /** The client shape of a follower's own state. Counts and flags, never another
  *  follower's anything, and never the creator's consent state. */
@@ -792,6 +797,28 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   const included = Number(spent[0].free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES);
   const paid = spent[0].tier === "paid";
 
+  // WS-R12 (migration 077): the cohort instrument. Bumped HERE, at the same
+  // point the free cap is spent and for the identical reason - the cap UPDATE
+  // above already proved this is a real, accepted turn, so the day table's
+  // definition of "a turn" and the cap's agree by construction rather than by
+  // two definitions that could drift apart. Gated on the migration having
+  // landed (`isTableApplied`, injectable exactly the way `personTablesFor`
+  // (below) makes `activePersonTables` injectable, so an offline eval can
+  // prove the write happens without a live database) for `activePersonTables`'s
+  // own reason: a database that has not yet had 077 applied must never turn a
+  // follower's first message into a 500 for a deploy-ordering reason.
+  // Content-free by construction - room id, person id, a date, and an integer
+  // the statement itself increments.
+  if (await isTableAppliedFor(deps)("vy_room_follower_day")) {
+    await db(
+      `insert into vy_room_follower_day (room_id, person_id, day, turns)
+       values (($1)::uuid, ($2)::uuid, ($3)::date, 1)
+       on conflict (room_id, person_id, day) do update
+          set turns = vy_room_follower_day.turns + 1`,
+      [String(resolved.room.room_id), String(payload.p), dayKeyOf(now)],
+    );
+  }
+
   const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
   // No engine, no answer, and the failure is LOUD. A hand-rolled fallback
   // prompt here would be a second, unvalidated version of a real, named, living
@@ -1026,6 +1053,12 @@ async function threadDeviceSet(db, roomId, personId, agentId) {
  *  catalog through api/memory.js's own `q`, which a fake db cannot reach. */
 const personTablesFor = (deps) => (deps.personTables ?? activePersonTables)();
 
+/** WS-R12's own version of the seam above, for the one migration (077) that
+ *  ships in the same change as the code that reads its presence: injectable
+ *  so an offline eval can prove the gated write/delete happens without a live
+ *  database to probe. */
+const isTableAppliedFor = (deps) => deps.tableApplied ?? tableApplied;
+
 /** The agent-scoped rows of the manifest, which is the only part of it a
  *  creator's Room may touch. */
 async function roomScopedTables(deps) {
@@ -1109,6 +1142,26 @@ export async function roomForget(db, { session }, deps = {}) {
     [who.roomId, who.personId, who.agentId],
   );
   deleted.vy_room_follower = membership.length;
+
+  // WS-R12 (migration 077): the retention day-counts, this Room only. Not in
+  // `roomScopedTables()` above - it carries no `agent_id` column (see
+  // api/memory.js's PERSON_TABLES comment), so it cannot flow through that
+  // loop's generic `and agent_id = (...)::uuid` delete, and is reached here
+  // explicitly instead, `vy_room_thread`/`vy_room_follower`'s pattern one
+  // statement over. Gated on the migration having landed, `isTableApplied`'s
+  // same seam `roomSay` uses above: unlike those two siblings (live since
+  // 071, long before this file existed), this table and this delete ship in
+  // the same change, so an ungated statement here would 500 every follower's
+  // forget the moment this code deploys ahead of its own migration.
+  if (await isTableAppliedFor(deps)("vy_room_follower_day")) {
+    const dayRows = await db(
+      `delete from vy_room_follower_day
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_day = dayRows.length;
+  }
 
   // THE WITHDRAWAL, appended rather than deleted. 016's content law and its
   // append-only law both point here: the ledger is evidence, and a withdrawal
