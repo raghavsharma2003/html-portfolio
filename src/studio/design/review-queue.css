@@ -1,0 +1,205 @@
+/* review-queue.css — WS-R4, the one card and its three buttons.
+ *
+ * A separate file for the mechanical reason `design/tokens.css` gives in its own
+ * header: `studio.css` is the most contended file in this repo and a layout that
+ * only exists as a diff inside it is a layout that loses a merge. Written into
+ * the `components` layer studio.css already declares, and imported after it, so
+ * it says the final word without out-specifying anything.
+ *
+ * Mobile 390 FIRST. The whole layout below is the phone layout; the only width
+ * rule in the file widens the button row once there is room for it. On a phone
+ * this screen is one thumb and three targets, so every button is at least 48px
+ * tall and they are stacked, because three side-by-side targets at 390px are
+ * three targets nobody hits.
+ *
+ * MOTION. Press feedback is `transform: scale(.97)` at `--motion-instant`, on
+ * `:active`, transform and opacity only, and there is no enter animation on the
+ * card at all. A card that animates in is a card the next tap has to wait for,
+ * and the whole promise of this screen is thirty seconds each.
+ */
+
+@layer components {
+  .review-queue {
+    display: grid;
+    gap: var(--space-item);
+    margin-top: var(--space-block);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-pad);
+    background: var(--panel);
+  }
+  .review-queue:focus { outline: none; }
+
+  .review-queue-head { display: grid; gap: var(--space-tight); }
+  .review-queue-head h3 { margin: 0; font-size: var(--text-title); letter-spacing: var(--tracking-heading); }
+  .review-queue-lede {
+    max-width: var(--measure);
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+  }
+  /* A real count of real rows. It is allowed to exist because the server
+     computed it in SQL; DESIGN-LAW bans the invented kind, not the measured. */
+  .review-queue-count {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .review-queue-notice {
+    margin: 0;
+    border-radius: var(--radius-control);
+    padding: var(--space-row) var(--space-item);
+    background: var(--forest-soft);
+    color: var(--forest-deep);
+    font-size: var(--text-small);
+  }
+  .review-queue-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-tight);
+    border-radius: var(--radius-control);
+    padding: var(--space-row) var(--space-item);
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: var(--text-small);
+  }
+  .review-queue-error button {
+    min-height: 36px;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-control);
+    padding: 0 var(--space-row);
+    background: transparent;
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+  }
+
+  .review-queue-empty {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-tight);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-item);
+    color: var(--ink-soft);
+    font-size: var(--text-body);
+  }
+  .review-queue-empty p { margin: 0; }
+
+  .review-card {
+    display: grid;
+    gap: var(--space-row);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-item);
+    background: rgba(255, 255, 255, 0.46);
+  }
+  .review-card-kind {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+  .review-card-prompt {
+    max-width: var(--measure);
+    margin: 0;
+    font-size: var(--text-lead);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+  }
+  .review-card-answer {
+    max-width: var(--measure);
+    margin: 0;
+    border-left: 3px solid var(--line-strong);
+    padding-left: var(--space-row);
+    color: var(--ink-soft);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    white-space: pre-wrap;
+  }
+  .review-card-answer-absent { color: var(--ink-faint); font-style: italic; }
+
+  .review-card-actions { display: grid; gap: var(--space-tight); }
+  .review-choice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-tight);
+    min-height: 52px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 var(--space-item);
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    text-align: left;
+    transition: transform var(--motion-instant) var(--ease-standard),
+                background-color var(--motion-instant) var(--ease-standard);
+  }
+  /* Feedback on press, not on release. DESIGN-LAW section 2. */
+  .review-choice:active { transform: scale(0.97); }
+  .review-choice:disabled { opacity: 0.55; }
+  .review-choice small {
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 2px 7px;
+    color: var(--ink-faint);
+    font-size: var(--text-micro);
+    font-variant-numeric: tabular-nums;
+  }
+  .review-choice-sounds_right { border-color: var(--forest); color: var(--forest-deep); background: var(--forest-soft); }
+  .review-choice-never { border-color: var(--danger); color: var(--danger); }
+
+  .review-fix { display: grid; gap: var(--space-tight); }
+  .review-fix label { font-size: var(--text-small); font-weight: var(--weight-medium); }
+  .review-fix textarea {
+    width: 100%;
+    min-height: 96px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: var(--space-row);
+    background: var(--paper);
+    color: var(--ink);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    resize: vertical;
+  }
+  .review-fix-note { max-width: var(--measure-tight); margin: 0; color: var(--ink-faint); font-size: var(--text-small); }
+  .review-fix-actions { display: grid; gap: var(--space-tight); }
+  .review-fix-actions .button { min-height: 48px; }
+  .review-hold {
+    min-height: 48px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 var(--space-item);
+    background: transparent;
+    color: var(--ink);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    touch-action: none;
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+  .review-hold:active { transform: scale(0.97); }
+  .review-hold.recording { border-color: var(--danger); color: var(--danger); }
+
+  .review-queue-rules { margin: 0; color: var(--ink-faint); font-size: var(--text-small); }
+}
+
+@layer responsive {
+  /* The only width rule in this file. Three targets fit side by side once there
+     is room; below that they stay stacked, which is the 390px layout the whole
+     file was written at. */
+  @media (min-width: 640px) {
+    .review-queue-head { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+    .review-card-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .review-fix-actions { grid-template-columns: auto auto auto; justify-content: start; align-items: center; }
+  }
+}

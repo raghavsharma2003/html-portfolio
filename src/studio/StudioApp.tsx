@@ -31,6 +31,7 @@ import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import IdentityProofing from "./IdentityProofing";
 import LivenessCapture from "./LivenessCapture";
 import ProcessingReview from "./ProcessingReview";
+import ReviewQueue from "./ReviewQueue";
 import PersonModelStudio from "./PersonModelStudio";
 import CalibrationStudio from "./CalibrationStudio";
 import RuntimeGate from "./RuntimeGate";
@@ -1030,6 +1031,15 @@ function ReplicaWorkspace({
                 title={testEnvironment ? "Processing status" : "Check it and correct it"}
                 blurb={testEnvironment ? "See what the clone is learning from the sources you added." : "What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."}
               >
+                {/* WS-R4. FIRST in this band, and open, because it is the one
+                    thing on the Meet step that is thirty seconds long and moves
+                    the number. Everything below it is a lab. */}
+                {!testEnvironment && <ReviewQueue
+                  key={`review-queue-${replica.replica_id}`}
+                  token={accessToken}
+                  replicaId={replica.replica_id}
+                  onAuthError={onReviewAuthError}
+                />}
                 {!testEnvironment && mode === "teacher" && (
                   <TeacherSheetStudio
                     key={`sheet-${replica.replica_id}-${sheetProvenance}`}

@@ -362,3 +362,43 @@ export interface CandidateEvaluation {
   dimensions?: CandidateEvalDimension[];
   assignment?: CandidateEvalAssignment | null;
 }
+
+// WS-R4, the review queue. `has_correction` rather than the source id: an
+// internal handle has no use on a screen, and the studio only has to know
+// whether the owner's better answer landed.
+export type ReviewCardKind = "question" | "claim" | "delta" | "follower_declined";
+export type ReviewCardState = "open" | "sounds_right" | "fixed" | "never";
+export type ReviewDecision = "sounds_right" | "fixed" | "never";
+
+export interface ReviewCard {
+  card_id: string;
+  kind: ReviewCardKind;
+  prompt_text: string;
+  answer_text: string;
+  source_refs: Array<Record<string, unknown>>;
+  state: ReviewCardState;
+  decided_at: string | null;
+  has_correction: boolean;
+  created_at: string;
+}
+
+export interface ReviewQueue {
+  replica_id: string;
+  cards: ReviewCard[];
+  open_count: number;
+  decided_count: number;
+  fixed_count: number;
+  never_count: number;
+  active_never_rules: number;
+  cap: number;
+}
+
+export interface ReviewCorrectionUpload {
+  source: { source_id: string; mime: string; state: string };
+  upload: {
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    expires_at: string;
+  };
+}
