@@ -6228,3 +6228,70 @@ project's own coverage gate calls incomplete on the very next run.
 **What broke.** The layout readability gate binds `127.0.0.1:8931`; the second run failed with `EADDRINUSE` and reported "1 of 14 checks FAILED", which reads exactly like a real layout regression. It was not: the same tree passed the layout check alone on the first retry. Three finishing agents hit the same collision and were told to retry rather than change the port.
 
 **Rule.** One release gate per machine at a time. A layout failure that names port 8931 is a collision until it reproduces alone.
+
+## `ws-r8-file-level-import-ban-flagged-a-pure-reader` (2026-09-03)
+
+**Tried.** The leak battery's first static check for "the follower lane never
+reaches a creator-material writer" banned transitively importing any FILE
+that contains a write to `vy_teacher_sheet`/`vy_replica_claim`/etc — a simple
+file-reachability walk from `api/_room-surface.js`'s own imports.
+
+**What broke.** It failed immediately, and not on a real risk:
+`api/_room-surface.js` imports `transcriptDigest` from `api/_clonechat.js`,
+which imports `loadNeverRules` from `api/_review-queue.js` — a pure `SELECT`
+against `vy_review_never_rule`, used to gate a reply against the creator's
+"never say this" rules. `_review-queue.js` also happens to contain
+`decideReviewCard`, which DOES write `vy_replica_claim`, elsewhere in the same
+file, reachable only from the creator's own review-queue UI action and never
+from anything the follower lane calls. The file-level ban could not tell
+these apart and flagged the whole chain, which would have made this check
+either permanently red (if left as a hard gate) or silently loosened (if
+someone "fixed" it by widening the allowlist without understanding why it
+fired) — both worse than not having the check.
+
+**What replaced it.** A symbol-level check: parse each creator-material file
+into its functions (exported and private), mark a function "dangerous" if its
+own body writes a creator table or calls another dangerous local function
+(propagated to a fixed point), keep only the exported dangerous names, and
+check THOSE specific names — never the containing file — against every named
+import the follower lane's transitive import graph actually pulls in. See
+`context/decisions.md#ws-r8-writer-symbols-derived-by-intra-file-call-graph-not-hand-listed`.
+
+**Rule.** A static reachability check over creator-material files must
+distinguish reader exports from writer exports at the SYMBOL level. "This
+file also contains a writer" is not evidence of anything if the only thing
+actually imported is a reader — the same false-positive shape that would make
+any codebase self-report widening it into worthlessness.
+
+## `ws-r8-negative-control-2-was-tautological-in-its-first-draft` (2026-09-03)
+
+**Tried.** The leak battery's second required negative control ("a fake
+helpful aggregation that pastes another follower's phrasing in as an
+example") was first written as a standalone string test: build a `secretPhrase`
+constant, construct `helpfulReply()` by interpolating it into a template
+literal, then assert `helpfulReply().includes(secretPhrase)`.
+
+**What broke.** Nothing could ever fail it. `helpfulReply()` is DEFINED to
+contain `secretPhrase` by construction — the assertion was checking that
+string interpolation works, not that any detector caught anything. A negative
+control that cannot fail is exactly `sound-gate-proved-by-silence`'s failure
+shape one level down: not a gate with no negative arm, but a negative arm that
+proves nothing about the gate because it never routes through the gate's own
+detection logic.
+
+**What replaced it.** The control now runs a real two-follower world through
+the REAL `roomSay`, with `deps.reply` rigged to paste follower A's actual
+seeded token into follower B's reply text, then scans `turn.reply` — the
+value `roomSay` actually returned — with `leakedTokens()`, the SAME function
+the main N-follower sweep uses. Verified both directions by hand before
+shipping: reverting the rig to an innocuous reply makes the control FAIL
+(confirming it can), and the real rig makes it PASS. This also surfaced an
+honest finding worth stating plainly: the follower lane's reply path does not
+itself scrub cross-follower content on the way out — retrieval isolation
+(never handing the model another follower's material to begin with) is the
+whole mechanism, not a filter layered after it.
+
+**Rule.** A negative control must be run through the same detector the main
+battery uses, on a real code path, and must be verified to fail when the rig
+is removed — not merely shown to pass when the rig is present. If a control
+cannot fail by construction, it is not a control.

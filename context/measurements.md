@@ -7232,3 +7232,51 @@ n = 5 migrations, 61 statements; method = applied via Neon SQL-over-HTTP one sta
 | WS-R1 the Room | 071 | 12 | 16 | all plan; scope indexes used |
 
 Full release gate on the merged tree: 14/14 (the two relational DB gates skip without `NEON_URL`; the EXPLAIN pass above is the substitute this session could run). One integration defect found by the gate after merging WS-R3: WS-R2's identity fixture lacked a readiness row. One defect found by EXPLAIN: WS-R5's readiness read ordered by `created_at`, a column `vy_replica_readiness` does not have, inside a try/catch that would have hidden it.
+
+## `ws-r8-leak-battery-2026-09-03` — Vyakti Rooms' Phase 1 leak battery, 0 leaks
+
+n and method: `node evals/room-leak/run.mjs`, offline, deterministic, $0, no
+DB, no network, no model call, wall time 5.6-5.9s across repeated runs on
+2026-09-03. World generator: N followers in {2, 5, 20}, each with 4 turns,
+each follower seeded with one unique long-term-fact token and one unique
+per-message token (5 tokens/follower), driven through the REAL follower lane
+(`api/_room-surface.js`'s `joinRoom`/`roomSay`/`roomExport`/`roomForget`,
+unmodified) and the REAL compiler (`src/engine/compiler.ts` via
+`api/_engine.gen.js`).
+
+| layer | count | result |
+|---|---|---|
+| retrieval row-scenario checks (compiled prompt + recalled facts, every follower x every turn x every OTHER follower's tokens) | 16,080 | 0 leaks |
+| boundary checks (export scope, forget scope, forget leaves others standing, re-join after forget, creator sheet byte-identity) | 441 | 0 violations |
+| static: creator-material writer symbols derived from source | 18 exported symbols across 7 files | 0 reachable from the follower lane's import graph (27 files walked) |
+| static: dmRecall predicate text + call-site wiring | 4 assertions | all present (agent clause, person clause, room-isolation clause, splice site) |
+| negative control 1 (person clause struck from a copy of recall) | 1 world, 1 fact | LEAKED as required — control fires |
+| negative control 2 (helpful aggregation pastes another follower's real token into a real `roomSay` reply) | 1 turn | CAUGHT as required — control fires |
+| total assertions | 62 | 62 passed, 0 failed |
+
+Per-world breakdown of the retrieval sweep (checks = N x T x (N-1) x
+(1+T tokens per other follower) x 2 surfaces, T=4):
+
+| N | turns | retrieval checks |
+|---|---|---|
+| 2 | 8 | 80 |
+| 5 | 20 | 800 |
+| 20 | 80 | 15,200 |
+
+Registered as the `room-leak` suite in `evals/run.mjs` and as the named gate
+`"room leak battery"` in `scripts/verify-release.mjs`, immediately after
+`"eval suite"`. `node scripts/verify-release.mjs` on the UNTOUCHED tree, run
+first to separate this session's addition from pre-existing state: **14/14**.
+The same command on the branch tip after this suite was added: **15/15**.
+`node evals/room/run.mjs` (WS-R1's suite, refactored to
+share `evals/room/fixtures.mjs` with this suite rather than duplicating its
+fake `db`): still 54/54, unchanged from WS-R1's original count.
+
+**What this does NOT measure**, stated per this repo's own house rule
+(prefer measuring to reasoning, and say so when you cannot measure
+something): `dmRecall`'s real SQL predicate has never executed in this
+session — no `NEON_URL` in this environment. That predicate's live-clean
+number is `gate0-structural` (0/31,122 violations) at
+`evals/mp/gate0.mjs`, which this suite's static layer connects to (the exact
+predicate function, called with the exact bind `dmRecall` uses, checked for
+the required clauses) rather than re-proving weaker offline.
