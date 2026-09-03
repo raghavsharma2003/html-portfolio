@@ -9,9 +9,113 @@ phase below — it tells you, without ever printing a value, whether the
 subsystems that phase touches are DARK (expected, before), LIVE (expected,
 after), or BROKEN-HALFWAY (stop and fix before continuing).
 
-Nothing in this file has been executed. It is a plan, verified against the
-tree as it exists on `claude/gurukul-platform` today, not a record of what
-happened.
+**This framing is now partially stale, and the section right below corrects
+it.** When this file was written, nothing in it had been executed. As of
+2026-09-03 the migrations in Phase 1's own range and beyond have been applied
+live, in several sessions, well past "a plan" for that part. The phase-by-phase
+Vercel env / standalone-service plan further down is still mostly unexecuted
+and is left as written; **§"The Vercel reality" is the record of what has
+actually happened, and where the two disagree, that section wins.**
+
+---
+
+## The Vercel reality (2026-09-03)
+
+Two Vercel projects build from this one GitHub repo
+(`raghavsharma2003/html-portfolio`), git-connected, each producing a preview
+deployment per branch pushed, behind Vercel's own SSO/deployment protection —
+so a preview URL is not public by default, unlike the production domains.
+Neither project's env vars are visible to the other; §22-25's "not one
+setting" rule applies across projects, not only across the five standalone
+Azure services.
+
+- **`html-portfolio`** — the original project. `.github/workflows/deploy-web.yml`
+  pins it by id (`VERCEL_PROJECT_ID: prj_NZ4BT0Vr2BbkVrvWPcJNF68XCObp`, Phase 0
+  item 2's own warning about why that pin exists). Serves Meera at `/chat` on
+  its production domain, and Vyakti's own landing at `/` for builds off the
+  Rooms platform branch (below).
+- **`vyakti-replica-lab`** — the studio project, added later. Its build sets
+  `STUDIO_ROOT=1` so `scripts/vercel-build.sh` serves the teacher/creator
+  studio at `/` regardless of branch name — "one build, two products, the
+  difference is a per-project env var, never a branch" (the script's own
+  comment). Neither `OPENROUTER_KEY`/`OPENROUTER_API_KEY`, `GOOGLE_KEYS`,
+  `AZURE_KEY` nor `AZURE_ENDPOINT` (ENV-MANIFEST.md §22, §25) has ever been set
+  on this project, so every LLM-backed reply on it — `/api/chat` and, through
+  the shared `think()`/`gatedReply()` door every other surface also uses, a
+  Room's follower turn, a Mirror Call reply, a channel message — cannot
+  produce a completion; see ENV-MANIFEST.md §25 for the two different failure
+  shapes that produces.
+
+**`scripts/vercel-build.sh`'s `site/vyakti.html`-at-`/` branch selection is a
+literal string match, and the platform branch has been renamed since it was
+written.** The script serves Vyakti's landing when `STUDIO_ROOT=1` OR
+`VERCEL_GIT_COMMIT_REF = "claude/gurukul-platform"` (`scripts/vercel-build.sh`,
+the `STUDIO_ROOT` check). `vyakti-replica-lab` is unaffected — it always sets
+`STUDIO_ROOT=1` explicitly. But the `html-portfolio` project's own preview of
+the Rooms platform branch depends on the SECOND half of that OR, and the
+platform branch is `claude/vyakti-cloning-platform-aq05n4` now, not
+`claude/gurukul-platform` (`context/decisions.md#ws-r10-worktree-wrong-base-commit`;
+`git branch -a` in this tree shows both `remotes/origin/claude/gurukul-platform`
+and `remotes/origin/claude/vyakti-cloning-platform-aq05n4` as distinct refs).
+**Unverified in this pass, flagged rather than assumed:** whether
+`html-portfolio`'s production domain is still pointed at the old branch name
+(in which case this is a live no-op) or has moved to the new one (in which
+case an `html-portfolio` build of the current platform branch silently falls
+back to Meera's own `site/index.html` at `/` instead of Vyakti's landing,
+UX-Q-12's exact failure shape one branch rename later). Confirming which is a
+five-minute check against the Vercel dashboard, not a code change, and belongs
+to whoever owns that decision next.
+
+### Migrations actually applied to the live Neon database, in order
+
+Per `context/decisions.md#first-live-apply` (015-054), `#ws-o-live-verified`
+(056), the STATE.md LIVE table (015-062 as of 2026-08-27), the main-session
+06:35Z log entry (064), and `context/decisions.md#rooms-migrations-applied-live-in-the-union-order`
+(071-075, applied 2026-09-03 by the main loop in finish order 072, 074, 073,
+075, 071, each `EXPLAIN`ed against the live database before its branch
+merged): **015 through 065 and 071 through 075 are confirmed applied live.**
+**066-070 are deliberately unused** — another agent applied migrations under
+those numbers live without pushing the files, so the live database already
+carries `vy_replica_voice_preview_intent`, `vy_replica_voice_build_intent`,
+`vy_replica_voice_reference`, `vy_replica_claim_extraction_queue`,
+`vy_replica_claim_extraction_queue_item` and `vy_replica_expression_observation`
+— none of which any file in this tree creates — and leaving the numbers free
+is what lets that tree merge later without a renumbering collision.
+
+**076 (`vy_replica_drift_report`, WS-R9) is stated as applied live by this
+workstream's own task brief, but as of this tree it has no corroborating
+`context/decisions.md` entry of its own** — the Rooms-merge decision above was
+logged before WS-R9 built 076, and no later entry records a live apply for it.
+Treat it as **likely applied but not independently confirmed in `context/`**
+until a session with `NEON_URL` runs `node scripts/relcheck.mjs` and either
+finds `vy_replica_drift_report` present or applies `db/migrations/076_replica_drift_report.sql`
+and logs the result. **077 is the next free migration number.**
+
+### How to apply a migration
+
+```bash
+NEON_URL=<connection string> node db/migrations/apply.mjs          # every *.sql in db/migrations/, idempotent
+NEON_URL=<connection string> node db/migrations/apply.mjs 076      # one file, by its numeric prefix
+```
+
+`apply.mjs` goes through `api/_db.js`'s `q()`, the same path everything else
+uses, and Neon's SQL-over-HTTP endpoint accepts exactly one statement per
+request — the runner splits each file and runs statements one by one, so every
+statement in every migration must be independently idempotent (Phase 1's own
+law, unchanged). Follow with `node scripts/relcheck.mjs` (the zero-orphan
+sweep) while `NEON_URL` is still set; it is a hard gate in
+`scripts/verify-release.mjs` whenever a URL is reachable and a skip, loudly
+printed, when it is not.
+
+### The one-gate-per-machine rule
+
+`scripts/check-layout.mjs` (the layout readability gate inside
+`verify-release.mjs`) binds `127.0.0.1:8931` to render the real signed-in
+studio for measurement, and releases it when the check finishes. Only one
+`verify-release.mjs` run — from any worktree, on this machine — can hold that
+port at a time; a second one gets `EADDRINUSE`. That is a collision with
+another gate run, not a defect: wait a minute for the first one to finish and
+rerun, rather than changing the port or skipping the gate.
 
 ---
 
