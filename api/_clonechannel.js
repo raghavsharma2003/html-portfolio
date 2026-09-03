@@ -94,7 +94,14 @@ export const CLONE_CHANNEL_STATUSES = Object.freeze(["draft", "connected", "paus
 // that hardcoded `$7` would silently compare a floor against a channel kind in
 // one of them. The first four arguments are always (owner, replica, overall
 // floor, part floor).
-const readinessPasses = (owner, replica, overallFloor, partFloor) => `exists (
+//
+// EXPORTED (WS-R7) so the Room's own publish lock — `api/_room-publish.js` —
+// can gate `vy_room.published_at` on the identical text rather than a second
+// hand-typed copy that could drift the moment one of the two moved. "Same
+// three conditions as api/_clonechannel.js" is the Room workstream's own
+// brief, and an import is the only way that sentence stays true by
+// construction instead of by discipline.
+export const readinessPasses = (owner, replica, overallFloor, partFloor) => `exists (
       select 1 from vy_replica_readiness x
        where x.replica_id = (${replica})::uuid and x.owner_user_id = (${owner})::uuid
          and x.unmeasured_count = 0
