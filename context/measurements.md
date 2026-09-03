@@ -7218,3 +7218,17 @@ belt-and-suspenders measure, since neither `tsc` nor `vite build` parses a
 plain `.js` file under `api/`: `api/_room-surface.js`, `api/room.js`,
 `api/memory.js`, `evals/room/run.mjs`, `evals/recall/run.mjs` and
 `evals/replica-erasure/run.mjs` all report clean syntax.
+
+## `rooms-merge-live-verification-2026-09-03`
+
+n = 5 migrations, 61 statements; method = applied via Neon SQL-over-HTTP one statement per request, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every new statement each workstream's API module issues, parameters substituted with typed literals; date 2026-09-03.
+
+| workstream | migration | live statements | statements EXPLAINed | result |
+|---|---|---|---|---|
+| WS-R2 identity by voice | 072 | 15 | 10 | all plan; `latest_ix` and `owner_tuple_ix` used |
+| WS-R4 review queue | 074 | 15 | 12 | all plan; dedupe arbiter index used |
+| WS-R3 readiness | 073 | 17 | 8 | all plan; `latest_ix` used by the publish-lock join |
+| WS-R5 interview | 075 | 13 (purpose statements already live from 074) | 13 | all plan after the `computed_at` fix |
+| WS-R1 the Room | 071 | 12 | 16 | all plan; scope indexes used |
+
+Full release gate on the merged tree: 14/14 (the two relational DB gates skip without `NEON_URL`; the EXPLAIN pass above is the substitute this session could run). One integration defect found by the gate after merging WS-R3: WS-R2's identity fixture lacked a readiness row. One defect found by EXPLAIN: WS-R5's readiness read ordered by `created_at`, a column `vy_replica_readiness` does not have, inside a try/catch that would have hidden it.

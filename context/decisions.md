@@ -8175,3 +8175,19 @@ product, say), that is the point at which per-target limits, not just
 per-target selectors, become necessary — `audit(limits)` already threads a
 `limits` object per call, so the extension point exists without a further
 refactor.
+
+## `rooms-migrations-applied-live-in-the-union-order` (2026-09-03)
+
+**Decision.** Migrations 071 (Room), 072 (voice identity challenge), 073 (readiness), 074 (review queue) and 075 (interview) were applied to the live Neon database on 2026-09-03 by the main loop, one statement per request through Neon's SQL-over-HTTP, in the order 072, 074, 073, 075, 071 (the order the workstreams finished), and every new statement each workstream's API runs was `EXPLAIN`ed against the live database before its branch was merged. 066-070 were left unused because another agent applied migrations under those numbers live without pushing them (the live database carries `vy_replica_voice_preview_intent`, `vy_replica_voice_build_intent`, `vy_replica_voice_reference`, `vy_replica_claim_extraction_queue`, `vy_replica_claim_extraction_queue_item` and `vy_replica_expression_observation`, none of which any file in this tree creates).
+
+**Rationale.** The repo's own law: offline mocks cannot type-check SQL, and EXPLAIN against the live database is the only parser we have. Applying before merging meant the EXPLAIN could see the new tables and indexes, and the plans confirmed every scope index is used. Leaving 066-070 free is what lets the unpushed tree merge without renumbering.
+
+**Reverses if.** The unpushed tree turns out to have used numbers at or above 071, in which case the later of the two colliding files is renumbered and re-applied (every migration here is idempotent, so a re-apply is safe).
+
+## `source-purpose-check-is-the-union-of-every-workstream` (2026-09-03)
+
+**Decision.** `vy_replica_source.purpose` was added by two workstreams independently (074 with `correction`, 075 with `interview`), each with its own CHECK. Both migration files, `db/schema.sql`, `api/_replica-source.js` and the live constraint now carry the union `('memory','identity_document','correction','interview')`, so the result is identical whichever file applies last.
+
+**Rationale.** A CHECK that one migration narrows and a later one widens is order-dependent, and the apply order in production is not the file order (see above). The union is the only version that is correct in every order.
+
+**Reverses if.** Purposes ever need to be per-replica-configurable, in which case they become rows, not a CHECK.

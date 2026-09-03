@@ -6220,3 +6220,11 @@ adding a table to `PERSON_TABLES` and adding its FATE verdict are two edits
 to two different files that the erasure code itself does not link, and a
 workstream that does the first without the second ships a manifest entry the
 project's own coverage gate calls incomplete on the very next run.
+
+## `two-release-gates-on-one-machine` (2026-09-03)
+
+**Tried.** Running `verify-release` in two worktrees at the same time to save wall clock while merging six workstreams.
+
+**What broke.** The layout readability gate binds `127.0.0.1:8931`; the second run failed with `EADDRINUSE` and reported "1 of 14 checks FAILED", which reads exactly like a real layout regression. It was not: the same tree passed the layout check alone on the first retry. Three finishing agents hit the same collision and were told to retry rather than change the port.
+
+**Rule.** One release gate per machine at a time. A layout failure that names port 8931 is a collision until it reproduces alone.

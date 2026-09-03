@@ -4834,6 +4834,30 @@
       "kind": "measurement",
       "title": "WS-R1 offline gate results: room 54/54, replica-erasure 20/20, recall 233/233, full eval suite and verify-release green",
       "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migrations-applied-live-in-the-union-order",
+      "kind": "decision",
+      "title": "Migrations 071-075 applied live before merge, one statement per request, every new statement EXPLAINed; 066-070 left for the unpushed tree",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "source-purpose-check-is-the-union-of-every-workstream",
+      "kind": "decision",
+      "title": "vy_replica_source.purpose CHECK is the union (memory, identity_document, correction, interview) in every file and live",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "two-release-gates-on-one-machine",
+      "kind": "rejection",
+      "title": "Two verify-release runs on one machine collide on the layout server port 8931 and fake a layout failure",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-merge-live-verification-2026-09-03",
+      "kind": "measurement",
+      "title": "Rooms merge: 5 migrations, 61 live statements, 59 EXPLAINed, 14/14 gate on the merged tree",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9721,6 +9745,21 @@
       "src": "ws-r1-new-person-tables-rows-shipped-without-a-written-fate",
       "rel": "measured_by",
       "dst": "ws-r1-room-gate-results-2026-09-03"
+    },
+    {
+      "src": "rooms-migrations-applied-live-in-the-union-order",
+      "rel": "measured_by",
+      "dst": "rooms-merge-live-verification-2026-09-03"
+    },
+    {
+      "src": "source-purpose-check-is-the-union-of-every-workstream",
+      "rel": "constrains",
+      "dst": "rooms-migrations-applied-live-in-the-union-order"
+    },
+    {
+      "src": "two-release-gates-on-one-machine",
+      "rel": "constrains",
+      "dst": "rooms-merge-live-verification-2026-09-03"
     }
   ]
 }
