@@ -2792,6 +2792,36 @@ export const PERSON_TABLES = [
   // counts honest.
   { table: "vy_room_thread",   key: "person_id", lane: "relational", agent: true },
   { table: "vy_room_follower", key: "person_id", lane: "relational", agent: true },
+  // ── WS-R11: the Room's money, PERSON side (migration 078) ────────────────
+  //
+  // A follower's subscription genuinely is a record OF that person - it is
+  // exactly the shape of thing this manifest exists to find - so it is
+  // listed rather than exempted, honestly satisfying scripts/relcheck.mjs's
+  // manifest-coverage check rather than dodging it on a technicality.
+  //
+  // NOT `agent: true`: the table carries no agent_id column (a subscription
+  // is not agent-scoped memory), so it is invisible to
+  // api/_room-surface.js's `roomScopedTables()` (filtered on `agent === true`)
+  // and therefore untouched by the Room's own narrow "forget me" button -
+  // forgetting what an AI remembers about you is not the same request as
+  // forgetting that you owe, or paid, money. It IS reached by the
+  // account-wide "forget everything" pass (this file's `purgeRelational`,
+  // lane "relational", no further code needed - the same door
+  // `meera_consent` goes through for the identical reason: "the absence of a
+  // row is the absence of the relationship").
+  //
+  // `wipeWhere` is the one restriction, and it is load-bearing rather than
+  // decorative: a UPI Autopay mandate keeps debiting a real bank account
+  // whether or not this table still names it, so a whole-account wipe may
+  // only ever remove a subscription that has ALREADY reached a terminal
+  // state ('cancelled'/'expired'). A live one survives the wipe as the one
+  // honest local record that a mandate may still be charging someone who
+  // asked this platform to forget them - api/_room-surface.js's "a
+  // predicate on the write is a guarantee" discipline applied to money
+  // instead of a message cap. Closing this (an automatic provider-cancel
+  // wired into the wipe) is Phase 1 work, not this migration's.
+  { table: "vy_room_subscription", key: "person_id", lane: "relational",
+    wipeWhere: "state in ('cancelled','expired')" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -2934,6 +2964,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_account_person",
   "vy_room_thread",
   "vy_room_follower",
+  // Arrives with 078 (WS-R11), on the identical reasoning.
+  "vy_room_subscription",
 ];
 
 // tables and columns that migration 008 introduces
