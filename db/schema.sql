@@ -2885,7 +2885,7 @@ alter table vy_replica_source
 
 alter table vy_replica_source
   add constraint vy_replica_source_purpose_check
-    check (purpose in ('memory','identity_document','correction'));
+    check (purpose in ('memory','identity_document','correction','interview'));
 
 create index if not exists vy_replica_source_correction_ix
   on vy_replica_source (replica_id, owner_user_id, created_at desc)
