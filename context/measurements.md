@@ -6953,3 +6953,48 @@ cuSPARSE, NCCL, NVTX and Triton packages on x86_64. Azure's A100 event announced
 driver 580.159.04 compatible through CUDA 13.0. This narrows the failure away
 from a CPU-only lock or an obvious CUDA-version mismatch, but it does not prove
 the missing device-exposure mechanism. No diagnostic image was built or run.
+
+## `ws-r5-interview-eval-and-gate-counts-2026-09-03`
+
+**Measured 2026-09-03, offline only, n=173 assertions, method: `node
+evals/interview/run.mjs` against a fake in-process database that routes on
+statement shape (real `api/_interview-gaps.js`, `api/_interview-store.js` and
+`api/_person-model.js`, plus `src/engine/shapelint.ts` bundled fresh from the
+real TypeScript on every run).** All 173 checks passed across the suite's seven
+sections: (1) the ranking itself — contradiction outranks sheet-field-with-no-
+evidence outranks thin-topic outranks readiness, and zero evidence outranks
+some; (2) no quotable sentence reaches the prompt — every line of every ask
+block the model can generate, including blocks built from the owner's own
+claim bodies, passes `shapelint.ts`'s own `lintLine`; (3) the ask block splices
+immediately before the compiled tail's appended-last suffix or is refused with
+`interview_ask_unplaceable`, never appended after it; (4) the session lifecycle
+— an answer implies a question, a retried window changes nothing including the
+count, a source from another of the owner's replicas is refused rather than
+attached, and no statement in the store lane names `vy_teacher_sheet` or
+`vy_mirror_conditioning`; (5) THE NEGATIVE CONTROL — the same contradiction
+assertion that passes with the `overlaps` predicate wired MUST FAIL with it
+disabled, and the payload reports `detectors.contradiction === false` rather
+than an empty gap list; (6) the dialogue register, and a second negative
+control — `buildPersonModelDefinition` is driven with and without the
+interview source ids on identical claims, and the assertion fails unless the
+two outputs differ; (7) migration 075's shape (columns, constraints, closed
+enums) read from the `.sql` file as text.
+
+Also run 2026-09-03, on the unmodified six-commit tree, before any change by
+this session: `node scripts/verify-release.mjs` — **14/14 static checks
+passed** (`NEON_URL` not set in this worktree, so the two relational DB gates —
+`relcheck`'s owner-lane reach walk and the binding gate — are skipped, printed
+as a skip rather than a pass). `node evals/interview/run.mjs` — 173/173 as
+above. `node scripts/check-copy.mjs` — 5 scopes clean, 14 negative controls
+bit. No code change was needed to reach these results; nothing was fixed by
+this session's gate run.
+
+**What was NOT measured, stated rather than implied.** SQL types and
+referential integrity for migration 075 — it has never executed against a
+database, offline or otherwise; `relcheck`'s owner-lane reach walk for the two
+new tables (`vy_interview_session`, `vy_interview_answer`) has never run
+against the live schema. Whether a real model handed a rendered ask block
+actually asks the question, in Hinglish, in the clone's voice — that needs a
+paid live call and none was made. No speaker-similarity, register-consistency,
+or readiness-movement number exists for any interview answer, because no
+interview has ever run end to end.
