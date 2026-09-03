@@ -99,8 +99,54 @@ Notes that will otherwise cost you an hour:
 Idempotent, one statement per request (Neon SQL-over-HTTP allows only one),
 no DO blocks, explicit `::uuid` casts on every comparison, mirrored into
 `db/schema.sql`, and wired into the erasure cascade AND `scripts/relcheck.mjs`'s
-owner-lane reach walk. **058 through 063 are applied live; 064 is the next free
-number.** (063 is `replica_self_test_mode`, verified live 2026-08-27.) Five legacy tables key `device_id` as TEXT, so never assume a cast.
+owner-lane reach walk. **015 through 065 and 071 through 075 are applied live.
+066-070 are deliberately unused** — another agent applied migrations under
+those numbers live without pushing the files, so the live database already
+carries six tables (`vy_replica_voice_preview_intent`,
+`vy_replica_voice_build_intent`, `vy_replica_voice_reference`,
+`vy_replica_claim_extraction_queue`, `vy_replica_claim_extraction_queue_item`,
+`vy_replica_expression_observation`) that no file in this tree creates, and
+leaving the range free is what lets that tree merge later without a
+renumbering collision (`context/decisions.md#rooms-migrations-applied-live-in-the-union-order`).
+**076 is built (`vy_replica_drift_report`) but has no confirmed live-apply
+record in `context/` as of this writing — check before assuming it is there.
+077 is the next free number.** Five legacy tables key `device_id` as TEXT, so
+never assume a cast.
+
+## Vyakti Rooms v1 — the adopted product definition (2026-09-02)
+
+A creator brings their archive; the platform turns it into an AI version of
+them — **"your AI"** to the creator, **"`<Name>` AI"** to a follower, and
+**never** the word "clone" in any user-visible string. Every follower gets a
+private, continuing relationship with it: it remembers them, checks in on
+them, and never reveals them to anyone else. Three scopes, and they never
+blur: **creator material** flows down to everyone who talks to the AI; a
+**follower's own words** stay in that follower's private scope, never write
+back into the creator's persona, and never reach another follower; the
+**creator's view of followers** is counts only, over an opt-in shared
+subgraph, `n>=5`, never a verbatim quote. Readiness is one number, five parts,
+one suggested action; publishing is locked below 70 overall or 55 on any part.
+An incomplete AI is called an **"apprentice"**, never "broken". The Room lives
+at `/r/<slug>` (`api/_room-surface.js`, migration 071); the leak battery
+(`evals/room-leak/run.mjs`) is a release gate that proves the three scopes
+hold — 16,080 retrieval checks and 441 boundary checks, zero leaks, and it
+never ships broken.
+
+## The gate count and the vocabulary rule that ships with it
+
+`node scripts/verify-release.mjs` is **15 checks** as of the Rooms merge
+(2026-09-03) without `NEON_URL` — up from 14 with the addition of the room
+leak battery as a named gate — and 17 with it, adding the zero-orphan sweep
+and citation discipline. `scripts/check-copy.mjs` also gates a **Rooms
+vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
+`training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
+string across `src/studio/`, `src/room/`, `site/vyakti.html`, `studio.html`
+or `room.html`. The only escape hatch is `scripts/roomsVocabAllowlist.mjs`,
+scoped by name to the two files carrying legal text a person already
+consented to under the old vocabulary (`DisclosurePreview.tsx`'s two verbatim
+safety-floor quotes, four of `ModelConsentGate.tsx`'s `STATEMENTS`) — never a
+blanket exemption, and never a new file added to it without naming the exact
+consent artifact it protects.
 
 ## Logging your work is not optional
 

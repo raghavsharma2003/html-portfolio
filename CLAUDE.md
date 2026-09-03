@@ -90,6 +90,36 @@ may import nothing beyond `./level` and `../engine/diag`.
 `npx vite build` alone is NOT a gate — it exits 0 with type errors. That is why
 `tsc` is separate and why CI runs both.
 
+**This same script also gates Vyakti**, the second product built in this
+repo (see the next section). As of the Rooms merge (2026-09-03) it is **15
+checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
+added as a named gate) and **17 with it** (adding the zero-orphan sweep and
+citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
+file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
+`replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
+`LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,
+`site/vyakti.html`, `studio.html` or `room.html`, with the only escape hatch
+(`scripts/roomsVocabAllowlist.mjs`) scoped by name to two files carrying
+pre-existing legal text a person already consented to.
+
+## Vyakti — the other product in this repo
+
+This repo also builds Vyakti, a platform where a creator turns their own
+archive into an AI version of themselves that talks to their followers.
+**Vyakti Rooms v1 (adopted 2026-09-02)** is the current product definition:
+a follower gets a private, continuing relationship with a creator's AI — "your
+AI" to the creator, "`<Name>` AI" to a follower, never "clone" in any
+user-visible string. Three scopes never blur: creator material flows down to
+everyone; a follower's own words stay in that follower's private scope alone;
+the creator sees only counts over an opt-in shared subgraph (`n>=5`, never
+verbatim). The Room lives at `/r/<slug>`; `AGENTS.md` and `docs/gurukul/`
+carry the full detail, `context/STATE.md` the current LIVE state, and this
+file's rules (gates, `context/`, the copy ban, never claiming what you did not
+run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
+065 and 071 through 075 are applied live; 066-070 are deliberately left
+unused** (another agent's unpushed tree already occupies those numbers live);
+**076 is built but not confirmed applied; 077 is next.**
+
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an
 assembled prompt exceeds the cap `api/chat.js` slices it at. This exists because
 truncation is silent and eats the END of the prompt, where the newest and most
