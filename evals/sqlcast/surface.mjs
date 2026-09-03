@@ -81,6 +81,12 @@ export const STRICT_SURFACE = [
   // free follower as a Room that refuses their first message.
   /^api\/_room-surface\.js$/,
   /^api\/room\.js$/,
+  // WS-R19, the paid tier's voice glue. On the strict list from its first
+  // commit, `_room-surface.js`'s own reasoning: `latestDraftGenomeVersion`'s
+  // read feeds `beginOwnedVoicePreview`'s `genome_version` argument, and a
+  // parameter Postgres could not type here fails the same way the free cap
+  // does — silently, as "no genome", never as a loud type error.
+  /^api\/_room-voice\.js$/,
   // WS-R7, the Room's creator side. On the strict list from its first commit
   // for the same reason as the follower side above, plus one of its own:
   // `publishRoom`'s write is the ONLY place `vy_room.published_at` is ever
