@@ -451,6 +451,19 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- behind while reporting success.
      readiness as (delete from vy_replica_readiness x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 076's drift watch history (WS-R9). Unlike the activity trail above,
+     -- and like 073's readiness snapshot immediately above, this table
+     -- carries NO foreign key at all (009's convention for owner-keyed
+     -- tables), so this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. It is a table worth deleting on its own merits too: a drift report
+     -- is a dated record of how closely we thought a named person's clone
+     -- still sounded like them, plus the exact commitment hashes of every
+     -- voice-model swap that clone lived through, and an erasure that left it
+     -- behind would leave exactly the kind of record consent revocation is
+     -- meant to end.
+     drift_reports as (delete from vy_replica_drift_report x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 071's Room (WS-R1). vy_room carries owner_user_id with no person
      -- column, so relcheck's owner-lane reach walk requires it by name here:
      -- 071 declares replica_id/owner_user_id FK-SHAPED BUT NOT FK on 009's

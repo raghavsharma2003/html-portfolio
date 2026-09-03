@@ -81,6 +81,15 @@ export const STRICT_SURFACE = [
   // free follower as a Room that refuses their first message.
   /^api\/_room-surface\.js$/,
   /^api\/room\.js$/,
+  // WS-R9, drift watch. On the strict list from its first commit, on WS-R3's
+  // exact reasoning: the sweep's write is a guarded insert that runs
+  // unattended every six hours against every active replica with nobody
+  // watching, and the read is the number a creator's "still sounds like you"
+  // card is built from. A parameter Postgres could not type here fails
+  // silently for months rather than loudly on the first request.
+  /^api\/_drift-watch\.js$/,
+  /^api\/drift-watch\.js$/,
+  /^api\/drift-watch-sweep\.js$/,
 ];
 
 export function isStrict(rel) {
