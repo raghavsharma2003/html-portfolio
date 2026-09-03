@@ -116,9 +116,9 @@ verbatim). The Room lives at `/r/<slug>`; `AGENTS.md` and `docs/gurukul/`
 carry the full detail, `context/STATE.md` the current LIVE state, and this
 file's rules (gates, `context/`, the copy ban, never claiming what you did not
 run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
-065 and 071 through 075 are applied live; 066-070 are deliberately left
+065 and 071 through 076 are applied live; 066-070 are deliberately left
 unused** (another agent's unpushed tree already occupies those numbers live);
-**076 is built but not confirmed applied; 077 is next.**
+**077 is next.**
 
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an
 assembled prompt exceeds the cap `api/chat.js` slices it at. This exists because

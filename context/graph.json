@@ -5014,6 +5014,42 @@
       "kind": "measurement",
       "title": "verify-release 15/15, context.mjs --check clean, check-copy.mjs clean, both before and after every WS-R13 doc edit",
       "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-076-confirmed-live",
+      "kind": "decision",
+      "title": "Migration 076 (vy_replica_drift_report) confirmed applied live by a pg_class readback; every doc now states 071-076 outright",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "vercel-build-platform-branch-pattern",
+      "kind": "decision",
+      "title": "vercel-build.sh matches the platform branch family by pattern (gurukul-platform or vyakti-cloning-platform-*); previews only, no production domain was affected",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "context-union-by-concatenation",
+      "kind": "rejection",
+      "title": "Unioning an append-only context file by concatenating both sides doubled measurements.md (214 duplicated headings); union = one side plus the other side's diff from base",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-076-live-readback-2026-09-03",
+      "kind": "measurement",
+      "title": "Live catalog readback: vy_replica_drift_report with pkey and three indexes present, matching 076 exactly",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-preview-smoke-2026-09-03",
+      "kind": "measurement",
+      "title": "Four-probe smoke on the studio preview after 071-076: /r/ serves, unknown slug 404 room_unavailable, unknown op 400, owner endpoints 401",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "context-measurements-file-doubling-2026-09-03",
+      "kind": "measurement",
+      "title": "measurements.md 7,297 + 7,260 -> 14,557 lines at 9525e30 with 214 duplicated headings; rebuilt to 7,360 with 0",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10096,6 +10132,36 @@
       "src": "ws-r13-migration-076-status-not-asserted-without-corroboration",
       "rel": "measured_by",
       "dst": "ws-r13-doc-sync-gate-results-2026-09-03"
+    },
+    {
+      "src": "rooms-migration-076-confirmed-live",
+      "rel": "supersedes",
+      "dst": "ws-r13-migration-076-status-not-asserted-without-corroboration"
+    },
+    {
+      "src": "rooms-migration-076-confirmed-live",
+      "rel": "measured_by",
+      "dst": "rooms-migration-076-live-readback-2026-09-03"
+    },
+    {
+      "src": "rooms-migration-076-confirmed-live",
+      "rel": "caused_by",
+      "dst": "rooms-migrations-applied-live-in-the-union-order"
+    },
+    {
+      "src": "vercel-build-platform-branch-pattern",
+      "rel": "supersedes",
+      "dst": "ws-r13-vercel-build-branch-name-flagged-not-fixed"
+    },
+    {
+      "src": "context-union-by-concatenation",
+      "rel": "measured_by",
+      "dst": "context-measurements-file-doubling-2026-09-03"
+    },
+    {
+      "src": "context-union-by-concatenation",
+      "rel": "caused_by",
+      "dst": "rooms-migrations-applied-live-in-the-union-order"
     }
   ]
 }

@@ -57,14 +57,16 @@ platform branch is `claude/vyakti-cloning-platform-aq05n4` now, not
 `claude/gurukul-platform` (`context/decisions.md#ws-r10-worktree-wrong-base-commit`;
 `git branch -a` in this tree shows both `remotes/origin/claude/gurukul-platform`
 and `remotes/origin/claude/vyakti-cloning-platform-aq05n4` as distinct refs).
-**Unverified in this pass, flagged rather than assumed:** whether
-`html-portfolio`'s production domain is still pointed at the old branch name
-(in which case this is a live no-op) or has moved to the new one (in which
-case an `html-portfolio` build of the current platform branch silently falls
-back to Meera's own `site/index.html` at `/` instead of Vyakti's landing,
-UX-Q-12's exact failure shape one branch rename later). Confirming which is a
-five-minute check against the Vercel dashboard, not a code change, and belongs
-to whoever owns that decision next.
+**Resolved 2026-09-03 by the main loop:** `scripts/vercel-build.sh` now
+matches `claude/gurukul-platform` or any `claude/vyakti-cloning-platform-*`
+ref as the platform branch (a `case` pattern, so the next branch rename in
+that family needs no script change). Both Vercel projects build every push of
+the platform branch as a preview (`target: null` on their latest deployments,
+read from the Vercel API); neither has a production deployment from it, so
+the mismatch was preview-only and never changed what any production domain
+served. The build script's own comment records that the studio project sets
+`STUDIO_ROOT=1`; that env var was not re-read from the Vercel API in this
+pass, so a preview of `/` on the studio project is the check that closes it.
 
 ### Migrations actually applied to the live Neon database, in order
 
@@ -82,14 +84,13 @@ carries `vy_replica_voice_preview_intent`, `vy_replica_voice_build_intent`,
 — none of which any file in this tree creates — and leaving the numbers free
 is what lets that tree merge later without a renumbering collision.
 
-**076 (`vy_replica_drift_report`, WS-R9) is stated as applied live by this
-workstream's own task brief, but as of this tree it has no corroborating
-`context/decisions.md` entry of its own** — the Rooms-merge decision above was
-logged before WS-R9 built 076, and no later entry records a live apply for it.
-Treat it as **likely applied but not independently confirmed in `context/`**
-until a session with `NEON_URL` runs `node scripts/relcheck.mjs` and either
-finds `vy_replica_drift_report` present or applies `db/migrations/076_replica_drift_report.sql`
-and logs the result. **077 is the next free migration number.**
+**076 (`vy_replica_drift_report`, WS-R9) is confirmed applied live.** The
+docs workstream that wrote this section (WS-R13) found no `context/` record of
+the apply and flagged it rather than assert it; the main loop then read the
+table and its three indexes (`_latest_ix`, `_inputs_ix`, `_alerts_ix`) back
+from the live database on 2026-09-03 and logged
+`context/decisions.md#rooms-migration-076-confirmed-live`. **077 is the next
+free migration number.**
 
 ### How to apply a migration
 

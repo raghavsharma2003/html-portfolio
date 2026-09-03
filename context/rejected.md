@@ -6363,3 +6363,28 @@ voice route" to "The voice route for your AI"), which is a workaround, not a
 fix. The tokenizer itself still cannot tell a JSX-text apostrophe from a
 string delimiter; whoever next touches `check-copy.mjs`'s extraction should
 track that distinction rather than blanking quotes file-wide.
+
+## `context-union-by-concatenation` (2026-09-03)
+
+**Tried.** Resolving the merge conflict on `context/measurements.md` during
+the WS-R10 merge (commit `9525e30`) by concatenating both sides of the file
+instead of unioning their entries.
+
+**What broke.** The file went from 7,297 lines (HEAD) and 7,260 lines
+(WS-R10) to 14,557 lines: the entire HEAD file followed by the entire WS-R10
+file, with WS-R10's one new entry glued to the second copy's `# Measurements`
+heading mid-line. Every measurement heading from before 2026-09-03 appeared
+twice (214 duplicated `##` headings), so an anchor link such as
+`measurements.md#rooms-merge-live-verification-2026-09-03` resolved to the
+first copy while a reader grepping saw two. `node scripts/context.mjs --check`
+did not catch it because the graph checker validates `graph.json`, not the
+prose files. WS-R13 appended its own entry to the doubled file without
+noticing. Found by the main loop while checking whether 076 had a live-apply
+record (`decisions.md#rooms-migration-076-confirmed-live`).
+
+**Fix.** Rebuilt as HEAD's file plus the WS-R10 entry (`git diff` from the
+merge base, pure append) plus WS-R13's entry: 7,360 lines, 0 duplicated
+headings. Rule from here: an append-only context file is unioned by taking
+one side whole and appending the OTHER side's diff from the merge base,
+never by concatenating both files; and the merge step counts duplicated
+`##` headings before committing.

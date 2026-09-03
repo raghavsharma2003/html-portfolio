@@ -108,9 +108,10 @@ carries six tables (`vy_replica_voice_preview_intent`,
 `vy_replica_expression_observation`) that no file in this tree creates, and
 leaving the range free is what lets that tree merge later without a
 renumbering collision (`context/decisions.md#rooms-migrations-applied-live-in-the-union-order`).
-**076 is built (`vy_replica_drift_report`) but has no confirmed live-apply
-record in `context/` as of this writing — check before assuming it is there.
-077 is the next free number.** Five legacy tables key `device_id` as TEXT, so
+**076 (`vy_replica_drift_report`) is confirmed applied live: the table and its
+three indexes were read back from the live database on 2026-09-03
+(`context/decisions.md#rooms-migration-076-confirmed-live`). 077 is the next
+free number.** Five legacy tables key `device_id` as TEXT, so
 never assume a cast.
 
 ## Vyakti Rooms v1 — the adopted product definition (2026-09-02)

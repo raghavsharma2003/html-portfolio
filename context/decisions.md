@@ -8436,3 +8436,48 @@ branch and either updates the string in `scripts/vercel-build.sh` to match, or
 confirms it was never wrong in production (a preview-only build, say) — either
 way `DEPLOY.md`'s flagged note should be replaced with the resolved fact, not
 left standing after it stops being true.
+
+## `rooms-migration-076-confirmed-live` (2026-09-03)
+
+**Decision.** Migration 076 (`vy_replica_drift_report`, WS-R9) is recorded as
+applied to the live Neon database, and every document WS-R13 had marked
+"built but not confirmed" (`AGENTS.md`, `CLAUDE.md`, `context/STATE.md`,
+`docs/gurukul/DEPLOY.md`, `docs/gurukul/PRODUCT-JOURNEY.md`) now says
+071-076 outright. Supersedes
+`#ws-r13-migration-076-status-not-asserted-without-corroboration`, whose own
+reversal condition this is.
+
+**Rationale.** WS-R13 was right to flag it: the wave-two merge applied 076
+live but logged only the five wave-one migrations in
+`measurements.md#rooms-merge-live-verification-2026-09-03`, so the record
+was five-sixths of the fact. The main loop closed it by reading the catalog
+back rather than by re-asserting the brief: `pg_class` on the live database
+lists `vy_replica_drift_report` with its primary key and the three indexes
+the migration file creates (`_latest_ix`, `_inputs_ix`, `_alerts_ix`), see
+`measurements.md#rooms-migration-076-live-readback-2026-09-03`. A docs
+workstream that refuses to repeat an unlogged claim is doing exactly what
+`AGENTS.md` asks; the fix is to log the fact, not to loosen the rule.
+
+**Reverses if.** `scripts/relcheck.mjs` with `NEON_URL` ever fails to find
+the table, or the erasure cascade's delete-by-name for it errors live.
+
+## `vercel-build-platform-branch-pattern` (2026-09-03)
+
+**Decision.** `scripts/vercel-build.sh` selects the Vyakti landing at `/` for
+`claude/gurukul-platform` OR any `claude/vyakti-cloning-platform-*` ref (a
+shell `case` pattern), instead of the single literal it matched before.
+Supersedes `#ws-r13-vercel-build-branch-name-flagged-not-fixed`.
+
+**Rationale.** Resolved with the fact WS-R13 asked for rather than a guess:
+the Vercel API shows both git-connected projects (`html-portfolio`,
+`vyakti-replica-lab`) building this branch as previews only (`target: null`
+on their latest deployments), so the literal mismatch never changed what a
+production domain served; it did make `html-portfolio` previews of the
+platform branch fall back to Meera's landing at `/`, which is the wrong page
+for a reviewer opening a Rooms preview. Matching the family by pattern means
+the next rename inside it (the branch has already been renamed once,
+`#ws-r10-worktree-wrong-base-commit`) does not need a script edit. `STUDIO_ROOT=1`
+on the studio project is still honoured first, per the script's own comment.
+
+**Reverses if.** A branch in the `claude/vyakti-cloning-platform-*` family is
+ever used for non-Vyakti work, or the two products move to separate repos.
