@@ -44,7 +44,14 @@ export type MirrorCallOp =
   | "delta_action"
   | "turn_voice"
   | "turn_feedback"
-  | "status";
+  | "status"
+  | "interview_gaps";
+
+/** Two modes, one call (WS-R5). `calibrate` is the incumbent behaviour and is
+ *  what a client that sends no mode gets, so an old studio against a new
+ *  deployment is byte-identical. `interview` asks the owner only what the
+ *  archive could not answer. */
+export type MirrorCallMode = "calibrate" | "interview";
 
 /** Every op this UI calls, in the order a call uses them. WS-X's `contract`
  *  response is checked against this list, so an op quietly missing from the
@@ -66,7 +73,7 @@ export const REQUIRED_OPS: readonly MirrorCallOp[] = [
  *  show the GPU's own ESTIMATE of when it will be warm, and an estimate shown
  *  as a fact is the fake-progress-bar failure the spec forbids. With it, the
  *  studio waits on a real answer. Absent, the copy says it is an estimate. */
-export const OPTIONAL_OPS: readonly MirrorCallOp[] = ["turn_voice", "status"];
+export const OPTIONAL_OPS: readonly MirrorCallOp[] = ["turn_voice", "status", "interview_gaps"];
 
 /**
  * The clone's voice runtime is booting. NOT an error and NOT an absent seam.
@@ -211,6 +218,89 @@ export interface MirrorCallDelta {
   created_at: string;
 }
 
+/**
+ * One gap the interview would ask about (WS-R5).
+ *
+ * There is NO question text here and there is none on the wire either. The
+ * server renders the question through the engine at call time out of a SHAPE,
+ * because a stored question is a line and `recited-prompt` is measured: a line
+ * in a prompt gets recited. What the studio renders is the topic, the evidence
+ * count and why it matters, which is what an owner needs to decide whether to
+ * spend twenty minutes on it.
+ */
+export interface InterviewGap {
+  gap_id: string;
+  kind: "contradiction" | "sheet_field" | "thin_topic" | "readiness";
+  topic: string;
+  /** How much the archive already has on this. 0 is the common case and it is
+   *  the whole point of the feature, so it renders as a number and not as a
+   *  warning. */
+  evidence_count: number;
+  why: string;
+  rank: number;
+  answered?: boolean;
+}
+
+/**
+ * WHICH DETECTORS COULD RUN. Rendered beside every gap list.
+ *
+ * `false` is NOT "found nothing" — it is "this detector was not available on
+ * this deployment", and a short gap list means two completely different things
+ * in the two cases. A UI that showed only the list would be stating that the
+ * archive is complete on the strength of a detector that never ran, which is
+ * the `plausible-return-hides-a-dead-pipeline` shape.
+ */
+export interface InterviewDetectors {
+  contradiction: boolean;
+  sheet_field: boolean;
+  thin_topic: boolean;
+  readiness: boolean;
+}
+
+export interface InterviewPreview {
+  length_ms: number;
+  opening_gaps: number;
+  gaps: InterviewGap[];
+  total_gaps: number;
+  skipped_answered: number;
+  detectors: InterviewDetectors | null;
+}
+
+/** The live interview, as it rides on the session, on every window result and
+ *  on the end payload. */
+export interface InterviewState {
+  interview_id: string;
+  started_at: string;
+  ended_at: string | null;
+  length_ms: number;
+  expired: boolean;
+  questions_asked: number;
+  answers_captured: number;
+  gaps: InterviewGap[];
+  detectors: InterviewDetectors | null;
+  /** Non-null on the window that actually captured an answer. */
+  answer_captured: { topic: string; audio_kept: boolean } | null;
+  asked_this_turn: boolean;
+}
+
+/** The end-of-interview summary: what it learned, and what the next one would
+ *  ask. `effect` is the honest half and it is not decoration —
+ *  `mirror-reference-accumulation-was-inert` is the entry that says a growing
+ *  pool is not a changing clone, and an owner who has just answered five
+ *  questions will otherwise assume something moved. */
+export interface InterviewSummary {
+  questions_asked: number;
+  answers_captured: number;
+  learned: { kind: string; topic: string }[];
+  next_would_ask: { kind: string; topic: string; why: string }[];
+  effect: {
+    sources_added: number;
+    voice_changed: boolean;
+    persona_changed: boolean;
+    note: string;
+  } | null;
+}
+
 export interface MirrorCallTurn {
   turn_id: string;
   /** The clone's reply text, for the live caption. */
@@ -240,6 +330,9 @@ export interface MirrorCallWindowResult {
    *  (`clone-initiative-record-has-no-absence`). */
   turn: MirrorCallTurn | null;
   deltas: MirrorCallDelta[];
+  /** Null on a calibration call. On an interview it is the live counts plus
+   *  whether THIS window captured an answer. */
+  interview: InterviewState | null;
   fidelity: MirrorCallFidelity | null;
   /** How the consented reference set grew from this window, or null when the
    *  window was not admitted to it. */
@@ -259,6 +352,12 @@ export interface MirrorCallSession {
   fidelity: MirrorCallFidelity | null;
   /** Ops this deployment actually serves (echoes the handshake). */
   ops: MirrorCallOp[];
+  /** The mode the SERVER opened, never the one the client asked for. An
+   *  interview whose gap model could not be built opens as a calibration call
+   *  and says so, rather than presenting itself as an interview that asks
+   *  nothing. */
+  mode: MirrorCallMode;
+  interview: InterviewState | null;
 }
 
 export interface MirrorCallEnd {
@@ -273,6 +372,8 @@ export interface MirrorCallEnd {
    *  a reason is an honest answer; a fake progress bar is not. */
   finetune: { queued: boolean; job_id: string | null; reason: string | null };
   fidelity: MirrorCallFidelity | null;
+  /** Null on a calibration call. */
+  interview: InterviewSummary | null;
 }
 
 // ── plumbing ───────────────────────────────────────────────────────────────
@@ -375,6 +476,101 @@ function normalizeDeltas(raw: any): MirrorCallDelta[] {
   return Array.isArray(raw) ? raw.map(normalizeDelta) : [];
 }
 
+const GAP_KINDS = ["contradiction", "sheet_field", "thin_topic", "readiness"] as const;
+
+/**
+ * One gap, at the door.
+ *
+ * A gap carrying a `question` field is REFUSED rather than rendered, and that
+ * is the client half of `recited-prompt`. The server does not put question text
+ * on the wire; if a future one did, this UI would be the place a ready-made
+ * line entered the product, so it fails loudly instead of displaying it.
+ */
+export function normalizeInterviewGap(raw: any): InterviewGap {
+  const kind = GAP_KINDS.includes(raw?.kind) ? raw.kind : null;
+  if (!kind) throw new Error("An interview gap arrived with an unknown kind");
+  if (typeof raw?.question === "string" && raw.question) {
+    throw new Error("An interview gap arrived carrying question text, which this studio does not render");
+  }
+  return {
+    gap_id: String(raw.gap_id || ""),
+    kind,
+    topic: String(raw.topic || ""),
+    evidence_count: Number.isFinite(raw.evidence_count) ? Number(raw.evidence_count) : 0,
+    why: String(raw.why || ""),
+    rank: Number.isFinite(raw.rank) ? Number(raw.rank) : 0,
+    ...(typeof raw.answered === "boolean" ? { answered: raw.answered } : {}),
+  };
+}
+
+function normalizeDetectors(raw: any): InterviewDetectors | null {
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    contradiction: raw.contradiction === true,
+    sheet_field: raw.sheet_field === true,
+    thin_topic: raw.thin_topic === true,
+    readiness: raw.readiness === true,
+  };
+}
+
+export function normalizeInterview(raw: any): InterviewState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const id = typeof raw.interview_id === "string" ? raw.interview_id : "";
+  if (!id) return null;
+  const asked = Number.isFinite(raw.questions_asked) ? Number(raw.questions_asked) : 0;
+  const captured = Number.isFinite(raw.answers_captured) ? Number(raw.answers_captured) : 0;
+  if (captured > asked) {
+    // The server's own CHECK makes this row impossible (migration 075). The
+    // client refusing it anyway is the second layer, and it is the one that
+    // survives somebody widening the constraint.
+    throw new Error("The interview reported more answers than questions");
+  }
+  return {
+    interview_id: id,
+    started_at: String(raw.started_at || ""),
+    ended_at: typeof raw.ended_at === "string" ? raw.ended_at : null,
+    length_ms: Number.isFinite(raw.length_ms) ? Number(raw.length_ms) : 20 * 60 * 1000,
+    expired: raw.expired === true,
+    questions_asked: asked,
+    answers_captured: captured,
+    gaps: Array.isArray(raw.gaps) ? raw.gaps.map(normalizeInterviewGap) : [],
+    detectors: normalizeDetectors(raw.detectors),
+    answer_captured: raw.answer_captured && typeof raw.answer_captured === "object"
+      ? {
+        topic: String(raw.answer_captured.topic || ""),
+        audio_kept: raw.answer_captured.audio_kept === true,
+      }
+      : null,
+    asked_this_turn: raw.asked_this_turn === true,
+  };
+}
+
+export function normalizeInterviewSummary(raw: any): InterviewSummary | null {
+  if (!raw || typeof raw !== "object") return null;
+  const list = (value: any) => (Array.isArray(value) ? value : []).map((row: any) => ({
+    kind: String(row?.kind || ""),
+    topic: String(row?.topic || ""),
+    why: String(row?.why || ""),
+  }));
+  return {
+    questions_asked: Number(raw.questions_asked) || 0,
+    answers_captured: Number(raw.answers_captured) || 0,
+    learned: list(raw.learned).map(({ kind, topic }) => ({ kind, topic })),
+    next_would_ask: list(raw.next_would_ask),
+    effect: raw.effect && typeof raw.effect === "object"
+      ? {
+        sources_added: Number(raw.effect.sources_added) || 0,
+        // Defaults in the SAFE direction: a payload that omits these is read as
+        // "something changed and we cannot say what", which is the reading that
+        // makes somebody look, rather than the one that reassures.
+        voice_changed: raw.effect.voice_changed !== false,
+        persona_changed: raw.effect.persona_changed !== false,
+        note: String(raw.effect.note || ""),
+      }
+      : null,
+  };
+}
+
 // ── ops ────────────────────────────────────────────────────────────────────
 
 /**
@@ -411,11 +607,15 @@ export async function probeMirrorCallBackend(token: string): Promise<{ contract:
   return { contract: data.contract, ops };
 }
 
-export async function createMirrorCall(token: string, replicaId: string): Promise<MirrorCallSession> {
+export async function createMirrorCall(
+  token: string,
+  replicaId: string,
+  mode: MirrorCallMode = "calibrate",
+): Promise<MirrorCallSession> {
   const response = await fetch(url("create"), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ replica_id: replicaId, contract: MIRROR_CALL_CONTRACT }),
+    body: JSON.stringify({ replica_id: replicaId, contract: MIRROR_CALL_CONTRACT, mode }),
     signal: AbortSignal.timeout(45_000),
   });
   if (response.status === 404) throw new MirrorCallBackendAbsent("create answered 404");
@@ -438,6 +638,40 @@ export async function createMirrorCall(token: string, replicaId: string): Promis
     window_ms_max: Number.isFinite(windowMax) && windowMax > 0 ? Math.min(windowMax, MAX_WINDOW_MS) : MAX_WINDOW_MS,
     fidelity: normalizeFidelity(session.fidelity ?? null, "session"),
     ops: Array.isArray(session.ops) ? session.ops : [...REQUIRED_OPS],
+    // The server's answer, never the request's. A deployment that does not
+    // serve the interview answers `calibrate` here and the studio runs a
+    // calibration call, visibly.
+    mode: session.mode === "interview" ? "interview" : "calibrate",
+    interview: normalizeInterview(session.interview),
+  };
+}
+
+/**
+ * What the interview would ask, before anyone opens a call.
+ *
+ * Optional op — see OPTIONAL_OPS. A deployment without it throws
+ * `MirrorCallBackendAbsent` and the studio says the interview is not available
+ * here, rather than offering a button that fails when it is pressed.
+ */
+export async function fetchInterviewGaps(token: string, replicaId: string): Promise<InterviewPreview> {
+  const response = await fetch(url("interview_gaps", { replica_id: replicaId }), {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (response.status === 404 || response.status === 400 || response.status === 501) {
+    throw new MirrorCallBackendAbsent(`interview_gaps answered ${response.status}`);
+  }
+  if (!response.ok) throw await readError(response, `the interview list failed (${response.status})`);
+  const data = await response.json().catch(() => ({}) as any);
+  const raw = data?.interview;
+  if (!raw || typeof raw !== "object") throw new Error("The interview list was malformed");
+  return {
+    length_ms: Number.isFinite(raw.length_ms) ? Number(raw.length_ms) : 20 * 60 * 1000,
+    opening_gaps: Number.isFinite(raw.opening_gaps) ? Number(raw.opening_gaps) : 5,
+    gaps: Array.isArray(raw.gaps) ? raw.gaps.map(normalizeInterviewGap) : [],
+    total_gaps: Number(raw.total_gaps) || 0,
+    skipped_answered: Number(raw.skipped_answered) || 0,
+    detectors: normalizeDetectors(raw.detectors),
   };
 }
 
@@ -494,6 +728,7 @@ export async function ingestAudioWindow(token: string, input: {
     owner_transcript: String(result.owner_transcript || ""),
     turn,
     deltas: normalizeDeltas(result.deltas),
+    interview: normalizeInterview(result.interview),
     fidelity: normalizeFidelity(result.fidelity ?? null, "window"),
     reference: result.reference
       ? {
@@ -650,5 +885,6 @@ export async function endMirrorCall(token: string, sessionId: string): Promise<M
       reason: typeof end?.finetune?.reason === "string" ? end.finetune.reason : null,
     },
     fidelity: normalizeFidelity(end?.fidelity ?? null, "end"),
+    interview: normalizeInterviewSummary(end?.interview),
   };
 }

@@ -36,6 +36,7 @@ import {
   actionMirrorCallDelta,
   createMirrorCall,
   endMirrorCall,
+  fetchInterviewGaps,
   fetchMirrorCallTurnVoice,
   getMirrorCallStatus,
   ingestAudioWindow,
@@ -43,7 +44,9 @@ import {
   MirrorCallBackendAbsent,
   probeMirrorCallBackend,
   saveMirrorCallTurnFeedback,
+  type InterviewPreview,
   type MirrorCallDelta,
+  type MirrorCallMode,
 } from "./mirrorCallApi";
 import {
   callReducer,
@@ -52,7 +55,11 @@ import {
   chipIsApplied,
   deferredChips,
   fidelityStatusLine,
+  gapEvidenceLine,
+  GAP_KIND_LABEL,
   INITIAL_CALL_STATE,
+  interviewRemainingMs,
+  interviewShouldStop,
   pendingChips,
   readMeasurementFidelity,
   readConditioningFidelity,
@@ -111,6 +118,12 @@ export default function MirrorCallStudio({
   const [autoCutNotice, setAutoCutNotice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState<{ turnId: string } | null>(null);
+  // WS-R5. `undefined` is "we have not looked yet", `null` is "this deployment
+  // does not serve it". Two absences with different copy, because a missing
+  // button and a button we have not decided about yet look the same on screen
+  // and are not the same thing.
+  const [preview, setPreview] = useState<InterviewPreview | null | undefined>(undefined);
+  const [tick, setTick] = useState(0);
   const captureRef = useRef<CallCapture | null>(null);
   const correctionRef = useRef<CallCapture | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -171,6 +184,47 @@ export default function MirrorCallStudio({
     return () => { live = false; clearInterval(timer); };
   }, [state.phase, state.session, token]);
 
+  // What the interview would ask, fetched once the handshake says the route is
+  // there. It is a preview, so a failure here is never a blocker: the tab keeps
+  // working as a calibration call and the interview entry says why it is not
+  // offered.
+  useEffect(() => {
+    if (state.phase !== "idle" || preview !== undefined) return;
+    let live = true;
+    (async () => {
+      try {
+        const result = await fetchInterviewGaps(token, replicaId);
+        if (live) setPreview(result);
+      } catch {
+        if (live) setPreview(null);
+      }
+    })();
+    return () => { live = false; };
+  }, [preview, replicaId, state.phase, token]);
+
+  // The interview's own clock. One tick a second while an interview is live,
+  // and nothing at all otherwise, so a calibration call does not re-render for
+  // a timer it does not have.
+  useEffect(() => {
+    if (state.phase !== "live" || !state.interview) return;
+    const timer = setInterval(() => setTick((value) => value + 1), 1_000);
+    return () => clearInterval(timer);
+  }, [state.interview, state.phase]);
+
+  // Twenty minutes, then it stops itself. `interviewShouldStop` also fires when
+  // every gap has an answer, and it never fires mid-turn: an interview that cut
+  // the owner off in the middle of an answer would lose the answer AND the
+  // twenty minutes.
+  useEffect(() => {
+    if (busy || !interviewShouldStop(state)) return;
+    void end();
+    // `tick` is in the deps on purpose. The stop condition is a function of the
+    // clock, and without a dependency that changes with the clock this effect
+    // would only re-run when a window arrived, which is exactly the case an
+    // abandoned interview does not produce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, state, tick]);
+
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
   }, [state.captions.length]);
@@ -192,12 +246,12 @@ export default function MirrorCallStudio({
     dispatch({ type: "FAIL", message: `${friendly.headline}. ${friendly.detail}` });
   }, [onAuthError]);
 
-  async function connect() {
+  async function connect(mode: MirrorCallMode = "calibrate") {
     if (busy) return;
     setBusy(true);
-    dispatch({ type: "CONNECT" });
+    dispatch({ type: "CONNECT", mode });
     try {
-      const session = await createMirrorCall(token, replicaId);
+      const session = await createMirrorCall(token, replicaId, mode);
       seqRef.current = 0;
       captureRef.current = await openCallCapture({
         maxWindowMs: session.window_ms_max,
@@ -441,7 +495,7 @@ export default function MirrorCallStudio({
               {state.phase === "checking" ? (
                 <span className="mirror-note">Checking whether this environment has the call backend.</span>
               ) : state.phase === "idle" || state.phase === "ended" || state.phase === "failed" ? (
-                <button className="button primary-button" type="button" disabled={busy} onClick={() => void connect()}>
+                <button className="button primary-button" type="button" disabled={busy} onClick={() => void connect("calibrate")}>
                   {state.phase === "ended" ? "Start another call" : "Start the call"}
                 </button>
               ) : (
@@ -450,6 +504,93 @@ export default function MirrorCallStudio({
                 </button>
               )}
             </div>
+
+            {/* THE INTERVIEW ENTRY. Offered only before a call, and only when
+                the deployment actually serves it: a button that 400s when it is
+                pressed is worse than no button. Every gap is rendered with its
+                evidence count, because "we have nothing on this" and "we have
+                one thing" are different asks and a flat list would hide it. */}
+            {(state.phase === "idle" || state.phase === "ended" || state.phase === "failed") ? (
+              <div className="mirror-interview-entry">
+                <span className="metric-label">The interview</span>
+                <p className="mirror-interview-pitch">
+                  I know what you talk about. I do not know how you think yet. Give me twenty minutes and
+                  I will ask the five things I am most unsure about.
+                </p>
+                {preview === undefined ? (
+                  <span className="mirror-note">Working out what it would ask.</span>
+                ) : preview === null ? (
+                  <span className="mirror-note">
+                    The interview is not available on this environment. Ordinary calls still work.
+                  </span>
+                ) : preview.gaps.length === 0 ? (
+                  <span className="mirror-note">
+                    Nothing is on its list right now. It only asks what your material does not already answer.
+                  </span>
+                ) : (
+                  <>
+                    <ol className="mirror-gap-list">
+                      {preview.gaps.map((gap) => (
+                        <li key={gap.gap_id} className={`mirror-gap mirror-gap-${gap.kind}`}>
+                          <span className="mirror-gap-kind">{GAP_KIND_LABEL[gap.kind]}</span>
+                          <strong>{gap.topic}</strong>
+                          <p>{gap.why}</p>
+                          <small>{gapEvidenceLine(gap)}</small>
+                        </li>
+                      ))}
+                    </ol>
+                    {/* Which detectors could run, beside the list, always. A
+                        short list because the material is complete and a short
+                        list because a detector could not run are different
+                        facts, and only one of them is good news. */}
+                    {preview.detectors && !preview.detectors.contradiction ? (
+                      <p className="mirror-note">
+                        It could not check for answers that changed over time on this environment, so nothing
+                        of that kind is on the list.
+                      </p>
+                    ) : null}
+                    {preview.detectors && !preview.detectors.readiness ? (
+                      <p className="mirror-note">
+                        There is no Readiness snapshot yet, so nothing on the list came from one.
+                      </p>
+                    ) : null}
+                    {preview.skipped_answered ? (
+                      <p className="mirror-note">
+                        {preview.skipped_answered} question{preview.skipped_answered === 1 ? "" : "s"} you
+                        already answered in an earlier interview {preview.skipped_answered === 1 ? "is" : "are"} not
+                        on this list.
+                      </p>
+                    ) : null}
+                    <button
+                      className="button primary-button" type="button" disabled={busy}
+                      onClick={() => void connect("interview")}
+                    >Start the interview</button>
+                  </>
+                )}
+              </div>
+            ) : null}
+
+            {/* THE INTERVIEW, WHILE IT IS RUNNING. Counts and time left, and
+                nothing that grades an answer: the interview collects material,
+                it does not score the person giving it. */}
+            {state.interview && (state.phase === "live" || state.phase === "warming") ? (
+              <div className="mirror-interview-live" role="status">
+                <span className="metric-label">Interview</span>
+                <p>
+                  {state.interview.answers_captured} of {state.interview.gaps.length} answered
+                  {state.interview.questions_asked > state.interview.answers_captured
+                    ? ", one question waiting on you"
+                    : ""}
+                  {interviewRemainingMs(state) !== null
+                    ? `. About ${Math.ceil((interviewRemainingMs(state) ?? 0) / 60_000)} minute${Math.ceil((interviewRemainingMs(state) ?? 0) / 60_000) === 1 ? "" : "s"} left`
+                    : ""}.
+                </p>
+                <small>
+                  It stops itself at the end of the twenty minutes. Your answers are saved as new material and
+                  nothing about your AI changes during the call.
+                </small>
+              </div>
+            ) : null}
 
             {state.phase === "warming" ? (
               <div className="mirror-warming" role="status">
@@ -652,6 +793,53 @@ export default function MirrorCallStudio({
 
       {tab === "review" && state.phase !== "backend_absent" ? (
         <div className="mirror-review" id="mirror-panel-review" role="tabpanel" aria-labelledby="mirror-tab-review">
+          {/* WHAT THE INTERVIEW LEARNED, AND WHAT THE NEXT ONE WOULD ASK.
+              `effect` is the load-bearing half: an owner who has just answered
+              five questions will assume something moved, and nothing did. The
+              answers became new material and that is all. */}
+          {state.ended?.interview ? (
+            <div className="mirror-interview-summary">
+              <span className="metric-label">The interview</span>
+              <p>
+                {state.ended.interview.questions_asked} asked
+                {" · "}{state.ended.interview.answers_captured} answered
+              </p>
+              {state.ended.interview.learned.length ? (
+                <>
+                  <span className="metric-label">What it got</span>
+                  <ul>
+                    {state.ended.interview.learned.map((row) => (
+                      <li key={`${row.kind}:${row.topic}`}>{row.topic}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="mirror-note">Nothing came back this time.</p>
+              )}
+              {state.ended.interview.next_would_ask.length ? (
+                <>
+                  <span className="metric-label">What the next one would ask</span>
+                  <ul>
+                    {state.ended.interview.next_would_ask.map((row) => (
+                      <li key={`${row.kind}:${row.topic}`}>
+                        <strong>{row.topic}</strong>
+                        <small>{row.why}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="mirror-note">There is nothing left on its list.</p>
+              )}
+              <p className="mirror-interview-effect">
+                {state.ended.interview.effect
+                  && !state.ended.interview.effect.voice_changed
+                  && !state.ended.interview.effect.persona_changed
+                  ? `Your answers were saved as ${state.ended.interview.effect.sources_added} new piece${state.ended.interview.effect.sources_added === 1 ? "" : "s"} of material. Nothing about your AI changed during this call.`
+                  : "Your answers were saved. This build could not confirm what else changed, so treat that as unknown."}
+              </p>
+            </div>
+          ) : null}
           <p>
             Nothing here was applied. These are the chips you did not action before the call ended, plus any the
             {" "}{CHIPS_PER_MINUTE}-per-minute rail cap held back so the call did not turn into a stream of questions.

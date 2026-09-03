@@ -3147,6 +3147,60 @@
 .mirror-chip-ev-single { border-left: 3px solid var(--line-strong); }
 .mirror-chip-ev-thin { border-left: 3px solid var(--signal); }
 .mirror-chip-ev-repeated { border-left: 3px solid var(--forest); }
+
+/* ── the interview (WS-R5) ───────────────────────────────────────────────
+   The Mirror Call re-pointed at the gaps in the archive. The visual grammar
+   is the chip rail's, deliberately: a gap and a chip are the same kind of
+   object to an owner (a thing the platform noticed, with its evidence
+   attached), and giving the interview its own idiom would make it read as a
+   second product inside the tab.
+
+   Every gap renders its EVIDENCE COUNT. A list that showed only the topics
+   would flatten "we have nothing on this" into "we have one thing", which is
+   the difference between a hole and a hint. Colour carries kind and nothing
+   else; nothing here encodes urgency, because nothing here measured any.
+
+   Transform and opacity only, per DESIGN-LAW. No layout property is
+   transitioned anywhere in this block. */
+.mirror-interview-entry {
+  display: grid; gap: 12px; padding: 18px 20px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-solid);
+}
+.mirror-interview-pitch { margin: 0; color: var(--ink); font: 500 15px/1.5 var(--serif); }
+.mirror-gap-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.mirror-gap {
+  padding: 12px 14px; border: 1px solid var(--line); border-left-width: 3px;
+  border-radius: var(--radius-sm); background: var(--paper);
+}
+.mirror-gap strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 13px; }
+.mirror-gap p { margin: 0 0 6px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+.mirror-gap small { color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+.mirror-gap-kind {
+  display: block; margin-bottom: 6px; color: var(--forest-deep);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.mirror-gap-contradiction { border-left-color: var(--signal); }
+.mirror-gap-sheet_field { border-left-color: var(--forest); }
+.mirror-gap-thin_topic { border-left-color: var(--line-strong); }
+.mirror-gap-readiness { border-left-color: var(--forest-deep); }
+
+.mirror-interview-live {
+  display: grid; gap: 4px; padding: 14px 16px;
+  border: 1px solid var(--forest); border-radius: var(--radius); background: var(--forest-soft);
+}
+.mirror-interview-live p { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.5; }
+.mirror-interview-live small { color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+
+.mirror-interview-summary {
+  display: grid; gap: 8px; margin-bottom: 18px; padding: 16px 18px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-solid);
+}
+.mirror-interview-summary p { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.55; }
+.mirror-interview-summary ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; }
+.mirror-interview-summary li { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.mirror-interview-summary li strong { display: block; color: var(--ink); }
+.mirror-interview-summary li small { color: var(--ink-faint); font-size: 11px; }
+.mirror-interview-effect { color: var(--ink-soft) !important; font-size: 12px !important; }
 /* ── the Context step (WS-AB) ────────────────────────────────────────────
    "Bring your context": drop many files, paste many links, and every item
    states what it became. The visual grammar is deliberately flat — five
