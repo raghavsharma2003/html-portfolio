@@ -7521,3 +7521,48 @@ n = 1 migration (43 statements in one transaction, then 1 index added at the mer
 | erasure: prices, payouts | `vy_room_price_owner_ix`; `vy_creator_payout_period_ix` on owner_user_id |
 
 One defect found by EXPLAIN and fixed in the same pass: `followerSubscriptionStatus` reads the latest row for a follower in any state, which the partial live-state index cannot serve, so it sequential-scanned; `vy_room_subscription_follower_ix (follower_id, created_at desc)` was appended to 078, mirrored into `db/schema.sql`, and applied live. Not measured: no real price, subscription, ledger row or payout exists; `PAYMENTS_PROVIDER` is unset on every deployment, so every write refuses by name.
+
+## ws-r17-pulse-gate-results-2026-09-03
+
+**n / method.** `node scripts/verify-release.mjs`, this repo's release gate,
+run on the untouched tree (post `git reset --hard 844d9d5`) and again after
+this workstream's changes, both in the same container, no `NEON_URL` set.
+Untouched: **15/15** (paste of the run: typecheck, prompt budget, workflow
+lint, motion lint, board legibility, chrome copy, enrollment sample rate,
+enrollment bandwidth, engine bundle fresh, stuck-turn endpoint, one voice, web
+build, layout readability, eval suite, room leak battery - all `ok`, two
+relational DB gates skipped for the same reason). `node evals/pulse/run.mjs`
+standalone: **19/19**, offline, deterministic, $0, no DB, no network, no model
+call, covering the six cases the workstream brief named (a-f) plus two
+`readPulse` honest-empty-state checks. `node evals/room-leak/run.mjs`
+standalone, before this workstream's layer-5 addition: **62 passed** (the
+number `context/rejected.md#ws-r12-retention-exists-in-select-broke-the-leak-
+batterys-parser` and the WS-R11 merge log both cite); after adding the five
+new Pulse assertions (one snapshot-shape check, three token-absence scans,
+one non-vacuity check): **67 passed, 0 failed**, boundary checks **446** (up
+from the previously logged 441 by exactly the five new `boundaryChecks++`
+calls), retrieval row-scenario checks unchanged at **16,080** (this
+workstream's addition touches no code the N-follower retrieval sweep drives).
+
+**What was proven, and how.** `_pulse.js` was added to
+`evals/room-leak/run.mjs`'s AGGREGATE_ONLY set and the admission was proven
+load-bearing three separate ways, all on this date: (1) removing `_pulse.js`
+from the set and rerunning reproduces `FAIL no file outside the allowed set
+reads the Room's follower/thread tables   _pulse.js` - the file genuinely
+needs the admission, it is not a no-op; (2) rewriting `topicFollowerCount`'s
+statement to `count(distinct op.person_id)` (a one-line `python3` edit, not
+committed) and rerunning reproduces `FAIL ... _pulse.js:non-aggregate-read` -
+the checker genuinely inspects this file's SQL rather than trusting the
+filename; (3) the unmodified file passes cleanly with the admission in place.
+All three runs' full output was read, not merely their exit codes.
+
+**Not measured / not proven.** No statement in migration 080 or `api/_pulse.js`
+has ever executed against a live Postgres server; nothing here was
+`EXPLAIN`ed (no `NEON_URL` in this environment - `offline-mocks-cannot-
+type-check-sql`, AGENTS.md); no real `vy_room_pulse_optin`/`vy_room_pulse_topic`/
+`vy_room_pulse_snapshot` row has ever been inserted anywhere outside a fake
+`db` in an offline eval; `api/pulse-sweep.js`'s cron has never fired (no
+Vercel deploy, no `CRON_SECRET` in this environment); the studio Pulse card
+and the follower's "Let this count" toggle have been proven by the layout
+gate to RENDER correctly at real viewport widths (both fixtures pass with the
+new markup in place) but have never been clicked against a real backend.

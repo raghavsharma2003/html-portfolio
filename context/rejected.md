@@ -6567,3 +6567,54 @@ both-added hunks that are whole statements (registry entries, manifest rows,
 `case` arms); for a hunk that starts mid-statement, look at the line above
 the first marker and reconstruct each side's statement in full. Read the
 exit code of every check, not its stdout.
+
+## `ws-r17-count-distinct-person-id-fails-the-select-list-text-scan` (2026-09-03, WS-R17)
+
+**Tried.** A first draft of `topicFollowerCount` (`api/_pulse.js`) counted the
+distinct followers whose opted-in thread matched a topic with
+`select count(distinct t.person_id)::int as follower_count from vy_room_thread t
+where ... and exists (select 1 from vy_room_pulse_optin o2 where o2.thread_id
+= t.thread_id and o2.revoked_at is null)` - a single statement, no derived
+subquery, the shape that reads most naturally.
+
+**What broke.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY check (§1c)
+extracts a statement's "select list" as everything between the first
+`select` and the first ` from `, then tests that text for `person_id` (among
+other names) with `touchesPerson`. That test runs on the RAW TEXT of the
+select list, not on the parsed structure of it - `count(distinct
+t.person_id)` contains the substring `person_id` inside its own select list
+just as surely as a bare `select t.person_id` would, and the checker cannot
+tell the two apart. Proven, not assumed: reverting to this exact statement
+and rerunning `node evals/room-leak/run.mjs` fails `_pulse.js:non-aggregate-
+read` on the line that used to be clean - see the sibling entry
+`ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser`, which
+found the same checker's OTHER blind spot (a subquery's `from` landing before
+the outer statement's own). This is the checker's blind spot in the opposite
+direction: not "the parser looked at the wrong text," but "the parser looked
+at the right text and a `count(distinct <person column>)` is indistinguishable
+from a real leak by inspection alone" - which is arguably correct caution
+rather than a false positive, since `count(distinct person_id)` really is one
+character away from `person_id` reaching the SELECT list for real.
+
+**What replaced it.** `select count(*)::int as follower_count from (select
+distinct o.person_id from vy_room_pulse_optin o where ...) op where exists
+(select 1 from vy_room_thread t where t.person_id = op.person_id and ...)`.
+The outer statement's own select list is `count(*)` alone; the `distinct
+person_id` projection moved into a DERIVED TABLE whose own `from` sits after
+the outer statement's `from` (this file's own header cites
+`ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser`'s lesson
+for exactly that ordering reason), so the non-greedy `select...from` capture
+stops at the outer `from` and never sees the derived table's projection at
+all. Confirmed load-bearing, not merely asserted: `node evals/room-leak/run.mjs`
+passes with `_pulse.js` added to AGGREGATE_ONLY, and reverting the statement
+to the count-distinct form (a `python3` one-line substitution, not committed)
+reproduces the failure on demand.
+
+**Rule.** `count(distinct <col>)` in a SELECT LIST is not safe merely because
+it is wrapped in an aggregate function - a select-list text scan for a
+forbidden column name will flag it exactly as it would flag `<col>` bare, and
+correctly so: the two are one keystroke apart in a way a `count(*)` over a
+pre-filtered derived table is not. When a genuinely distinct count of a
+person-keyed column is needed, push the `distinct` into a derived table's OWN
+projection (which the checker's capture never reaches) and count `*` over
+that in the outer statement.
