@@ -77,6 +77,13 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // what was held. Additive; the eval asserts membership, never the exact
       // list.
       "owner_room_payments",
+      // 080 (WS-R17). Pulse's own class: a follower's opt-in toggle, the
+      // creator's topic labels, and the content-free weekly counts derived
+      // from both. None of the three is a memory or a payment, so folding
+      // them into either existing class would answer a narrower question
+      // than the one asked. Additive; the eval asserts membership, never the
+      // exact list.
+      "owner_room_pulse",
     ]),
   });
 }
@@ -518,6 +525,26 @@ export async function completeReplicaErasure(db, lease, receipt) {
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      creator_payouts as (delete from vy_creator_payout x using target t
        where x.owner_user_id=t.owner_user_id),
+     -- 080 (WS-R17), Pulse. All three reached by room_id via the same
+     -- subquery the payment_events/room_subscriptions CTEs use two blocks
+     -- up, for the identical reason: none of the three carries an agent
+     -- binding.
+     -- Snapshot and topic FIRST (topic_id cascades from vy_room_pulse_topic,
+     -- so deleting topics after snapshots would be backwards for the same
+     -- child-before-parent reason 071's own header states), optin with them
+     -- since none of the three has a dependency on either of the other two.
+     -- All three also carry real FK CASCADE from vy_room, so these deletes
+     -- are the backstop 071's words describe rather than the only mechanism.
+     pulse_snapshots as (delete from vy_room_pulse_snapshot x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     pulse_topics as (delete from vy_room_pulse_topic x using target t
+       where x.owner_user_id=t.owner_user_id
+         and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     pulse_optins as (delete from vy_room_pulse_optin x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (

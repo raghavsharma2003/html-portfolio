@@ -1163,6 +1163,24 @@ export async function roomForget(db, { session }, deps = {}) {
     deleted.vy_room_follower_day = dayRows.length;
   }
 
+  // WS-R17 (migration 080): Pulse's own toggle, this Room only. Same shape,
+  // same reason as the day-count block immediately above - no `agent_id`
+  // column, so it cannot flow through `roomScopedTables()`'s generic loop,
+  // and it ships in a later change than this file, so it is gated the same
+  // way. A full delete rather than merely setting `revoked_at`: the row is
+  // content-free either way, and this is the follower's OWN "forget me in
+  // this room" - the honest answer is that nothing of theirs is left,
+  // including the record that they once toggled it.
+  if (await isTableAppliedFor(deps)("vy_room_pulse_optin")) {
+    const pulseRows = await db(
+      `delete from vy_room_pulse_optin
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_pulse_optin = pulseRows.length;
+  }
+
   // THE WITHDRAWAL, appended rather than deleted. 016's content law and its
   // append-only law both point here: the ledger is evidence, and a withdrawal
   // that overwrote its own grant would destroy the record of the thing being
