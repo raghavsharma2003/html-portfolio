@@ -384,6 +384,28 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- re-checks. Two independent layers for a harm the next turn does not undo.
      activity as (delete from vy_replica_activity x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 071's Room (WS-R1). `vy_room` carries owner_user_id with no person
+     -- column, so relcheck's owner-lane reach walk requires it by name here:
+     -- 071 declares replica_id/owner_user_id FK-SHAPED BUT NOT FK on 009's
+     -- convention, so there is no cascade to inherit and the room would simply
+     -- outlive the replica. What that means concretely is a public address at
+     -- /r/<slug> still resolving after the creator revoked the AI it points at.
+     --
+     -- CHILD FIRST, as every block above is ordered. The two child tables DO
+     -- carry `room_id references vy_room(room_id) on delete cascade`, so the
+     -- room delete alone would take them; they are deleted by name anyway, on
+     -- 059's precedent and for 059's reason -- relying on a cascade means
+     -- relying on an FK nobody re-checks, and the day someone drops it to add a
+     -- column these rows outlive the receipt and NOTHING reports it. Keyed on
+     -- agent_id rather than room_id because that is the binding the target CTE
+     -- already holds, and because it reaches a follower row whose room was
+     -- deleted out of order by any future path.
+     room_threads as (delete from vy_room_thread x using target t
+       where x.agent_id=t.agent_id),
+     room_followers as (delete from vy_room_follower x using target t
+       where x.agent_id=t.agent_id),
+     rooms as (delete from vy_room x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,
