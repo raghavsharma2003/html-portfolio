@@ -3125,3 +3125,49 @@ create index if not exists vy_room_thread_scope_ix
 create unique index if not exists vy_room_thread_title_ix
   on vy_room_thread (room_id, person_id, lower(title))
   where archived_at is null and title <> '';
+
+-- Migration 076 - vy_replica_drift_report: the history behind "it notices
+-- drift" (WS-R9). No FK on replica/owner (009's convention); deleted by name
+-- in api/_replica-full-erasure.js.
+create table if not exists vy_replica_drift_report (
+  report_id                uuid primary key default gen_random_uuid(),
+  replica_id               uuid not null,
+  owner_user_id            uuid not null,
+  computed_at              timestamptz not null default now(),
+  state                    text not null,
+  score                    double precision,
+  ceiling                  double precision,
+  trend                    jsonb not null default '[]'::jsonb,
+  last_model_change_at     timestamptz,
+  last_model_commitment    text,
+  prosody_anchor_stale     boolean not null,
+  inputs_hash              text not null,
+  alerted_at               timestamptz,
+  constraint vy_replica_drift_report_state_check
+    check (state in ('steady','moved','not_measured')),
+  constraint vy_replica_drift_report_measured_shape check (
+    (state = 'not_measured' and (score is null or ceiling is null))
+    or (state in ('steady','moved') and score is not null and ceiling is not null)
+  ),
+  constraint vy_replica_drift_report_score_range
+    check (score is null or (score >= -1 and score <= 1)),
+  constraint vy_replica_drift_report_ceiling_range
+    check (ceiling is null or (ceiling > 0 and ceiling <= 1)),
+  constraint vy_replica_drift_report_inputs_hash
+    check (inputs_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_drift_report_commitment_hash
+    check (last_model_commitment is null or last_model_commitment ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_drift_report_swap_pairs
+    check ((last_model_change_at is null) = (last_model_commitment is null)),
+  constraint vy_replica_drift_report_trend_array
+    check (jsonb_typeof(trend) = 'array' and octet_length(trend::text) <= 8192),
+  constraint vy_replica_drift_report_alert_shape
+    check (alerted_at is null or state = 'moved')
+);
+create index if not exists vy_replica_drift_report_latest_ix
+  on vy_replica_drift_report (replica_id, owner_user_id, computed_at desc);
+create index if not exists vy_replica_drift_report_inputs_ix
+  on vy_replica_drift_report (replica_id, inputs_hash, computed_at desc);
+create index if not exists vy_replica_drift_report_alerts_ix
+  on vy_replica_drift_report (owner_user_id, alerted_at desc)
+  where alerted_at is not null;
