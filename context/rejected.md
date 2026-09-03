@@ -6363,3 +6363,58 @@ voice route" to "The voice route for your AI"), which is a workaround, not a
 fix. The tokenizer itself still cannot tell a JSX-text apostrophe from a
 string delimiter; whoever next touches `check-copy.mjs`'s extraction should
 track that distinction rather than blanking quotes file-wide.
+
+## `ws-r11-room-leak-blanket-allowlist` (2026-09-03, WS-R11)
+
+**What was tried.** The first run of `evals/room-leak/run.mjs` against this
+workstream's changes failed: "no file outside the allowed set reads the
+Room's follower/thread tables — _payments.js", because `applyWebhook`'s
+tier-flip writes `vy_room_follower` directly (a legitimate write, not a
+creator-facing read of a follower's content). The fast fix considered was
+adding `_payments.js` to `evals/room-leak/run.mjs`'s blanket `ALLOWED` set,
+the same way `_room-surface.js` and `_room.js` already are.
+
+**What specifically broke, or would have.** `ALLOWED` means "this file is
+trusted with no further check" - the room-leak battery's whole argument is
+"a new reader/writer must fail this line without also updating it," and a
+blanket allow would have satisfied that ONE failing assertion while quietly
+disabling every future check on this file: a later edit that added a raw
+`select f.person_id, f.month_message_count from vy_room_follower` for some
+unrelated debugging reason would pass this gate silently, which is exactly
+the leak class this battery exists to catch before a second follower ever
+joins a Room.
+
+**What replaced it.** A third, narrower class (`TIER_WRITE_ONLY`, alongside
+the existing `AGGREGATE_ONLY` carve-out `_room-publish.js` already has):
+`_payments.js`'s only statement naming `vy_room_follower` must be an UPDATE
+whose SET list touches nothing but `tier` and `updated_at`, scoped by
+`follower_id`, whose RETURNING never carries a follower's own content. Proven
+load-bearing by hand (not merely asserted): a copy of the real file with
+`person_id` appended to the RETURNING clause is caught by the same check
+(`node -e` probe, not committed - the assertion's own logic is what the suite
+runs).
+
+## `ws-r11-persontables-wipeWhere-string-literal-false-positive` (2026-09-03, WS-R11)
+
+**What was tried.** `vy_room_subscription`'s `PERSON_TABLES` entry (WS-R11)
+needed a `wipeWhere` restricting the account-wide wipe to terminal states:
+`"state in ('cancelled','expired')"`, the same field `vy_fact`'s own
+`wipeWhere: "group_id is null"` uses. `evals/persontables.mjs` failed three
+times: `PERSON_TABLES entry vy_room_subscription has wipeWhere naming in,
+not a column of it` (and again for `cancelled`, `expired`).
+
+**What specifically broke.** The checker's identifier scan
+(`t.wipeWhere.match(/[a-z_][a-z0-9_]*/g)`) has no way to tell a quoted SQL
+string literal's CONTENTS from an actual identifier - every existing
+`wipeWhere` in the manifest (`vy_fact`'s `group_id is null`,
+`vy_phrase`'s the same) happens to use only column names and keywords, so
+this gap had never been exercised. `in` also was not on the keyword
+allowlist (`is`/`null`/`not`/`and`/`or`/`true`/`false`), a second, smaller
+gap the same fix closed.
+
+**What replaced it.** `evals/persontables.mjs` now strips single-quoted
+string literals (`replace(/'[^']*'/g, "''")`) before running the identifier
+scan, and `in` joins the keyword allowlist. A general fix to the shared
+checker, not an exception carved out for this one table - the next
+`wipeWhere` that compares against a literal is covered by construction
+rather than by a growing exception list.

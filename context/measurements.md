@@ -14555,3 +14555,41 @@ required a copy change). `node scripts/verify-release.mjs`: 14/14 both before
 this session's changes (untouched-tree baseline, confirmed via `git stash`)
 and after (one eval fixed to match the renamed copy, see
 `decisions.md#ws-r10-rooms-vocabulary-gate`).
+
+## `ws-r11-gate-results-2026-09-03`
+
+n=1 tree (this workstream's own branch), method `node scripts/verify-release.mjs`
+run to completion (not `--live`, no `NEON_URL` in this environment).
+
+| run | result |
+|---|---|
+| untouched tree (baseline, via `git stash`) | 14/15 - `layout readability` failed on `EADDRINUSE:8931`, a concurrent sibling session's own gate on the same machine (ws-common.md's own documented collision); the other 14 passed |
+| after this workstream's changes | 15/15 |
+
+`node evals/payments/run.mjs` standalone: 62/62, $0, offline, no database, no
+network, no real Razorpay account - method: a fake `db` (in-process, this
+workstream's own fixture, `evals/payments/run.mjs`) driving the REAL
+`api/_payments.js` and the REAL `api/_payments/providers/fake.js` through
+every op named in the brief (band enforcement, subscribe through the fake
+provider, webhook signature verification with a byte-exact negative control,
+idempotent replay, the state machine, the tier flip, the 25% split's
+arithmetic, the payout roll-up, `PAYMENTS_PROVIDER=none` refusing every
+write, and the required negative control naming the exact source lines a
+skipped verification would have to remove).
+
+`node evals/sqlcast.mjs`: 0 uncast sites on the new strict-surface files
+(`api/_payments.js`, `api/_payments/providers/*.js`, `api/payments.js`,
+`api/room-pay.js`, `api/payments-webhook.js`) after fixing 5 the first run
+found (int4 columns written without an explicit cast; see
+`db/migrations/078_room_payments.sql`'s own columns for the types).
+
+**Not measured, and said so rather than implied.** No statement in
+`api/_payments.js` or migration 078 has ever run against a live Postgres; no
+real Razorpay subscription, webhook, or signature has ever been created;
+`platform_take_bp`'s 25.00% default and the price band (299-599 INR) are the
+Rooms plan's own numbers, not independently re-derived here. The RBI e-mandate
+AFA ceiling (INR 15,000/transaction, no additional authentication once a
+mandate itself is AFA-registered) is cited from the Digital Payments E-mandate
+Framework, 2026 (effective 2026-04-21), read via web search on 2026-09-03 -
+not verified against the RBI's own primary text, only against secondary
+reporting of it.
