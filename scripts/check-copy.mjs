@@ -46,6 +46,7 @@
 // exempts that line. `emdash-ok: <reason>` is kept as an alias so the existing
 // exemptions in the tree keep working.
 import { readFileSync, readdirSync, statSync } from "fs";
+import { isRoomsVocabAllowed } from "./roomsVocabAllowlist.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -63,22 +64,36 @@ const ROOT = new URL("..", import.meta.url).pathname;
  * reason above.
  */
 const SCOPES = [
-  { dir: "src/studio/", rules: "full", codename: true },
+  { dir: "src/studio/", rules: "full", codename: true, roomsVocab: true },
   // WS-R1, the Room. On the `full` list from its first commit, and it is the
   // scope where the word rules matter most: this is the only surface a person
   // who is not a customer of this platform ever reads, so a version stamp, a
   // filler verb or the other product's codename lands in front of a stranger.
-  { dir: "src/room/", rules: "full", codename: true },
+  { dir: "src/room/", rules: "full", codename: true, roomsVocab: true },
   { dir: "src/gurukul/", rules: "full", codename: true },
   { dir: "src/replica/", rules: "full", codename: true },
   { dir: "site/", rules: "full", codename: false },
   { dir: "src/components/", rules: "dash", codename: false },
 ];
 
+/* Root-level HTML entry points. Not under any SCOPES dir, so they need their
+ * own list, walked the same way as a directory scope. */
+const EXTRA_FILES = [
+  { file: "studio.html", rules: "full", codename: false, roomsVocab: true },
+  { file: "room.html", rules: "full", codename: false, roomsVocab: true },
+];
+
 /* `site/index.html` and `site/privacy.html` ARE the Meera product's pages, so
  * the codename rule cannot bind there — it would be flagging a product for
  * being named. It binds on the Vyakti surfaces, where the name is a leak. */
 const CODENAME_FILES = /^site\/vyakti\.html$/;
+
+/* The Rooms vocabulary rule (WS-R10, docs/gurukul's Rooms plan): "not clone,
+ * in front of anyone." `site/` is `full` scope for everything else in it
+ * (privacy pages, the delete-account pages), but the Rooms word bans apply
+ * only to the landing page that tells the Rooms story, not to legal pages
+ * that were not part of this rewrite. */
+const ROOMS_VOCAB_FILES = /^site\/vyakti\.html$/;
 
 /* Files whose entire purpose is copy. Every literal in them is on its way to a
  * screen, so the visible-prop heuristic is skipped and all of them are read. */
@@ -195,6 +210,25 @@ const RULES = [
     codenameOnly: true,
     why: "the internal codename of the OTHER product, in copy a teacher or student reads",
     test: (s) => /\bMeera\b/.test(s),
+  },
+  {
+    id: "rooms-vocabulary",
+    pass: "visible",
+    roomsVocabOnly: true,
+    why:
+      'Rooms vocabulary (the Rooms plan\'s binding rule): "not clone, in front of anyone." ' +
+      'A creator sees "your AI"; a follower sees "<Name> AI". Never clone, replica, model, ' +
+      "fine-tune, train/training, weights, embedding, LoRA, or genome (say \"your voice\").",
+    test: (s) =>
+      /\bclon(?:e[sd]?|ing)\b/i.test(s) ||
+      /\breplica[s]?\b/i.test(s) ||
+      /\bfine[- ]?tun(?:e[sd]?|ing)\b/i.test(s) ||
+      /\btrain(?:ed|ing|s)?\b/i.test(s) ||
+      /\bmodel(?:s|ing|ed)?\b/i.test(s) ||
+      /\bweights?\b/i.test(s) ||
+      /\bembedding[s]?\b/i.test(s) ||
+      /\bLoRA\b/i.test(s) ||
+      /\bgenome[s]?\b/i.test(s),
   },
 ];
 
@@ -338,7 +372,7 @@ const EXEMPT = /(?:copy-ok|emdash-ok)\s*:/;
  * `{ rule, line, text, why }`. Exported shape is what selfTest() asserts on.
  */
 export function scanSource(rel, src, opts = {}) {
-  const { rules = "full", codename = false } = opts;
+  const { rules = "full", codename = false, roomsVocab = false } = opts;
   const isHtml = /\.html?$/.test(rel);
   const offences = [];
   const rawLines = src.split("\n");
@@ -389,6 +423,10 @@ export function scanSource(rel, src, opts = {}) {
     for (const r of RULES) {
       if (r.pass !== "visible") continue;
       if (r.codenameOnly && !codename) continue;
+      if (r.roomsVocabOnly) {
+        if (!roomsVocab) continue;
+        if (isRoomsVocabAllowed(rel, v.text)) continue;
+      }
       if (r.test(v.text)) {
         offences.push({ rule: r.id, line: v.line, text: v.text.slice(0, 100), why: r.why });
       }
@@ -418,10 +456,16 @@ const FIXTURES = [
   ["codename", "bad.html", "<p>Sign in to Meera</p>"],
   ["version-stamp", "bad.tsx", 'const c = { label: "BETA" };'],
   ["codename", "bad.tsx", 'const d = <input aria-label="Meera password" />;'],
+  // WS-R10, the Rooms vocabulary rule: "not clone, in front of anyone."
+  ["rooms-vocabulary", "bad.tsx", 'const g = <p>Your AI clone learns from you.</p>;'],
+  ["rooms-vocabulary", "bad.html", "<p>Train your replica on your archive.</p>"],
+  ["rooms-vocabulary", "bad.tsx", 'const h = { label: "Fine-tune your voice model" };'],
 ];
 
 /* Must produce NOTHING. Every line here is a shape the gate must not punish:
- * house prose in comments, technical identifiers, module paths, one middot. */
+ * house prose in comments, technical identifiers, module paths, one middot,
+ * and (WS-R10) the actual replacement phrase the Rooms vocabulary rule exists
+ * to allow through clean. */
 const CLEAN = `
 // A comment — with an em-dash — is house prose and is exempt.
 /* So is a block comment — see DESIGN-LAW.md §1. */
@@ -430,15 +474,16 @@ const buildId = "build 0048";
 const cls = "panel · row";
 const el = <p>Recorded, nothing owed. Vyakti · teacher studio</p>;
 const f = { key: "seamless-migration", label: "Add one recording" };
+const g = <p>Meet your AI. Give it your material and it learns.</p>;
 `;
 
 function selfTest() {
   const dead = [];
   for (const [rule, name, src] of FIXTURES) {
-    const hits = scanSource(name, src, { rules: "full", codename: true }).map((o) => o.rule);
+    const hits = scanSource(name, src, { rules: "full", codename: true, roomsVocab: true }).map((o) => o.rule);
     if (!hits.includes(rule)) dead.push(`${rule} did not fire on: ${src.trim()}`);
   }
-  const noise = scanSource("clean.tsx", CLEAN, { rules: "full", codename: true });
+  const noise = scanSource("clean.tsx", CLEAN, { rules: "full", codename: true, roomsVocab: true });
   for (const o of noise) dead.push(`false positive [${o.rule}] on clean fixture line ${o.line}: ${o.text}`);
   return dead;
 }
@@ -470,7 +515,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     for (const rel of walk(scope.dir)) {
       const src = readFileSync(ROOT + rel, "utf8");
       const codename = scope.codename || CODENAME_FILES.test(rel);
-      const found = scanSource(rel, src, { rules: scope.rules, codename }).map((o) => ({ ...o, file: rel }));
+      const roomsVocab = scope.roomsVocab || ROOMS_VOCAB_FILES.test(rel);
+      const found = scanSource(rel, src, { rules: scope.rules, codename, roomsVocab }).map((o) => ({ ...o, file: rel }));
       if (WAIVED.has(rel)) {
         if (found.length === 0) waiverClean.push(rel);
         waived.push(...found);
@@ -478,6 +524,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         offences.push(...found);
       }
     }
+  }
+  for (const extra of EXTRA_FILES) {
+    const rel = extra.file;
+    const src = readFileSync(ROOT + rel, "utf8");
+    const codename = extra.codename || CODENAME_FILES.test(rel);
+    const roomsVocab = extra.roomsVocab || ROOMS_VOCAB_FILES.test(rel);
+    const found = scanSource(rel, src, { rules: extra.rules, codename, roomsVocab }).map((o) => ({ ...o, file: rel }));
+    offences.push(...found);
   }
 
   if (waived.length) {
