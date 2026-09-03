@@ -2811,6 +2811,23 @@ export const PERSON_TABLES = [
   // room_id+person_id delete, `vy_room_thread`/`vy_room_follower`'s pattern
   // one statement over.
   { table: "vy_room_follower_day", key: "person_id", lane: "relational" },
+  // ── WS-R16: check-ins, PERSON side (migration 079) ────────────────────────
+  //
+  // A follower's own schedule against a creator's check-in design, and the
+  // content-free delivery ledger behind it, are records OF them in the
+  // identical sense the day-count table one entry above is - an id, a
+  // schedule or a date, a state, never a word. NO `agent: true` on either,
+  // `vy_room_follower_day`'s own reason restated: neither table carries an
+  // `agent_id` column (agent context is joined from vy_room, which is how the
+  // sweep itself reaches it), so routing either through `roomScopedTables()`'s
+  // generic delete - which unconditionally appends "and agent_id =
+  // (...)::uuid" - would 500 every follower's Room forget the day this
+  // migration lands. Reached instead by the same two explicit paths as their
+  // sibling: the whole-account wipe (this file's `purgeRelational`, lane
+  // "relational", no further code) and `roomForget`'s own explicit
+  // room_id+person_id delete, added there in the same change as this entry.
+  { table: "vy_room_checkin", key: "person_id", lane: "relational" },
+  { table: "vy_room_checkin_delivery", key: "person_id", lane: "relational" },
   // ── WS-R11: the Room's money, PERSON side (migration 078) ────────────────
   //
   // A follower's subscription genuinely is a record OF that person - it is
@@ -2987,6 +3004,9 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_follower_day",
   // Arrives with 078 (WS-R11), on the identical reasoning.
   "vy_room_subscription",
+  // Arrive with 079 (WS-R16), on the identical reasoning.
+  "vy_room_checkin",
+  "vy_room_checkin_delivery",
 ];
 
 // tables and columns that migration 008 introduces

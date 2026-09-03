@@ -77,6 +77,13 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // what was held. Additive; the eval asserts membership, never the exact
       // list.
       "owner_room_payments",
+      // 079 (WS-R16). Check-in designs, follower schedules and the delivery
+      // ledger are their own class rather than folded into `agent_relational_memory`:
+      // a schedule and a delivery date are records of a standing arrangement
+      // between this AI and a named follower, distinct in kind from a fact or
+      // a memory, and a receipt that did not name them would understate what
+      // was held. Additive; the eval asserts membership, never the exact list.
+      "owner_room_checkins",
     ]),
   });
 }
@@ -518,6 +525,28 @@ export async function completeReplicaErasure(db, lease, receipt) {
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      creator_payouts as (delete from vy_creator_payout x using target t
        where x.owner_user_id=t.owner_user_id),
+     -- 079 (WS-R16), check-ins. All three are reached from THIS side by
+     -- room_id, payment_events's own reasoning three lines up: none of them
+     -- carries an agent binding, and a room has exactly one agent
+     -- (vy_room_replica_ix), so the join through vy_room is exact. Delivery
+     -- ledger FIRST, schedule SECOND, design THIRD - child before parent, the
+     -- ordering every block above restates. All three also carry real FK
+     -- CASCADE from this point down (room_id references vy_room, checkin_id
+     -- references vy_room_checkin, design_id/follower_id reference their own
+     -- parents), so these three deletes are a backstop rather than the only
+     -- mechanism - "relying on a cascade means relying on an FK nobody
+     -- re-checks" (071's own words, restated at 078 and here for the third
+     -- time).
+     checkin_deliveries as (delete from vy_room_checkin_delivery x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     checkins as (delete from vy_room_checkin x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     checkin_designs as (delete from vy_room_checkin_design x using target t
+       where x.owner_user_id=t.owner_user_id
+         and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (

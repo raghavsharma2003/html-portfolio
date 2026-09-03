@@ -1163,6 +1163,31 @@ export async function roomForget(db, { session }, deps = {}) {
     deleted.vy_room_follower_day = dayRows.length;
   }
 
+  // WS-R16 (migration 079): a follower's own check-in schedules, and the
+  // content-free delivery ledger behind them, this Room only. Neither
+  // carries an `agent_id` column (the sweep's own reasoning — agent context
+  // is joined from vy_room), so neither flows through `roomScopedTables()`'s
+  // generic loop above; both are reached here explicitly,
+  // `vy_room_follower_day`'s pattern (077) one migration over. Gated the
+  // same way: a database that has not yet had 079 applied must never turn a
+  // follower's forget into a 500 for a deploy-ordering reason.
+  if (await isTableAppliedFor(deps)("vy_room_checkin")) {
+    const checkinRows = await db(
+      `delete from vy_room_checkin
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_checkin = checkinRows.length;
+    const deliveryRows = await db(
+      `delete from vy_room_checkin_delivery
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_checkin_delivery = deliveryRows.length;
+  }
+
   // THE WITHDRAWAL, appended rather than deleted. 016's content law and its
   // append-only law both point here: the ledger is evidence, and a withdrawal
   // that overwrote its own grant would destroy the record of the thing being

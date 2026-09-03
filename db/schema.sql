@@ -3282,3 +3282,71 @@ create table if not exists vy_creator_payout (
 );
 create unique index if not exists vy_creator_payout_period_ix
   on vy_creator_payout (owner_user_id, period_start, period_end);
+
+-- Migration 079 - check-ins: follower-scheduled, task-bound (WS-R16).
+-- vy_room_checkin_design is the OWNER lane (deleted by name in
+-- api/_replica-full-erasure.js, like vy_room_price); vy_room_checkin and
+-- vy_room_checkin_delivery are the PERSON lane (PERSON_TABLES, gated in
+-- activePersonTables() on this migration having landed). Content-free like
+-- every Room table before it: an id, a schedule, a date, a state, never a
+-- word of what was said.
+create table if not exists vy_room_checkin_design (
+  design_id     uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  owner_user_id uuid not null,
+  title         text not null default '' check (length(title) <= 120),
+  prompt_shape  text not null default '' check (length(prompt_shape) <= 2000),
+  cadence_hint  text not null default '' check (length(cadence_hint) <= 200),
+  state         text not null default 'active' check (state in ('active','paused')),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists vy_room_checkin_design_owner_ix
+  on vy_room_checkin_design (owner_user_id, room_id, created_at desc);
+
+create table if not exists vy_room_checkin (
+  checkin_id    uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  person_id     uuid not null,
+  follower_id   uuid not null references vy_room_follower(follower_id) on delete cascade,
+  design_id     uuid not null references vy_room_checkin_design(design_id) on delete cascade,
+  days_of_week  integer[] not null default '{}',
+  local_time    time not null,
+  timezone      text not null,
+  next_due_at   timestamptz,
+  state         text not null default 'active' check (state in ('active','stopped')),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  constraint vy_room_checkin_days_shape check (
+    array_length(days_of_week, 1) is not null
+    and array_length(days_of_week, 1) between 1 and 7
+    and days_of_week <@ array[1,2,3,4,5,6,7]
+  )
+);
+create index if not exists vy_room_checkin_due_ix
+  on vy_room_checkin (next_due_at)
+  where state = 'active';
+create index if not exists vy_room_checkin_scope_ix
+  on vy_room_checkin (person_id, room_id);
+create unique index if not exists vy_room_checkin_follower_design_ix
+  on vy_room_checkin (follower_id, design_id)
+  where state = 'active';
+
+create table if not exists vy_room_checkin_delivery (
+  delivery_id  uuid primary key,
+  checkin_id   uuid not null references vy_room_checkin(checkin_id) on delete cascade,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  person_id    uuid not null,
+  due_at       timestamptz not null,
+  delivered_at timestamptz,
+  channel      text not null default 'in_app' check (channel in ('in_app','whatsapp_template')),
+  state        text not null
+    check (state in ('delivered','skipped_free_tier','skipped_stopped','not_configured','failed')),
+  reason       text not null default '',
+  created_at   timestamptz not null default now(),
+  constraint vy_room_checkin_delivery_once unique (checkin_id, due_at, channel)
+);
+create index if not exists vy_room_checkin_delivery_scope_ix
+  on vy_room_checkin_delivery (person_id, room_id, due_at desc);
+create index if not exists vy_room_checkin_delivery_checkin_ix
+  on vy_room_checkin_delivery (checkin_id, due_at desc);
