@@ -81,6 +81,14 @@ export const STRICT_SURFACE = [
   // free follower as a Room that refuses their first message.
   /^api\/_room-surface\.js$/,
   /^api\/room\.js$/,
+  // WS-R7, the Room's creator side. On the strict list from its first commit
+  // for the same reason as the follower side above, plus one of its own:
+  // `publishRoom`'s write is the ONLY place `vy_room.published_at` is ever
+  // set, so a parameter Postgres cannot type here does not fail a screen, it
+  // fails silently closed forever — the Room simply never opens, with no
+  // error a creator would ever see twice.
+  /^api\/_room-publish\.js$/,
+  /^api\/room-publish\.js$/,
 ];
 
 export function isStrict(rel) {

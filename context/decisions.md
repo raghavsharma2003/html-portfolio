@@ -8265,3 +8265,34 @@ helper to reach the write (breaking the single-file call graph this walks),
 the derivation needs to become genuinely cross-file. No such case exists
 today — every write this session found is same-file-reachable from its own
 exported entry point.
+## `ws-r7-publish-lock-shares-readiness-fragment-with-clonechannel` (2026-09-03, WS-R7)
+
+**Decision.** `api/_room-publish.js`'s `publish` write gates `vy_room.published_at` on three conditions in one SQL `CASE`: an active runtime capability, the readiness lock, and an approved disclosure. The readiness fragment is not retyped — `readinessPasses` was exported from `api/_clonechannel.js` (it was a private `const` before this workstream) and imported verbatim, so the Room's publish lock and the channel connect/resume lock are provably reading the identical predicate rather than two hand-copies that happen to agree today.
+
+**Rationale.** The workstream brief itself says "the readiness lock (same three conditions as api/_clonechannel.js)" — an import makes that sentence true by construction instead of by discipline. Two independently typed copies of a floor comparison are exactly the shape that drifts silently the day one file's floor changes and the other is not touched in the same commit; `context/rejected.md` already has several entries in this repo about a rule duplicated in two places disagreeing later.
+
+**Reverses if.** The Room's publish floor is ever deliberately meant to differ from the channel connect floor (e.g. a lower bar for a first Room than for a third-party channel). At that point the two need their own named fragments with their own tests, and the shared `readinessPasses` export should be forked rather than parameterized further, since a fragment that takes a fifth argument to mean two different things is worse than two fragments.
+
+## `ws-r7-deploy-reads-done-on-a-published-room` (2026-09-03, WS-R7)
+
+**Decision.** `src/studio/wizardModel.ts`'s `deployDone` now returns true when EITHER a channel is connected (unchanged) OR the owner's Room is published (`input.roomPublished === true`, new). `deployMissing`'s "connect a channel" ask is suppressed the same way. `roomPublished` defaults to `null` (unknown, not "false") wherever a build never mounts `RoomStudio`, mirroring `connectedChannels`'s own "unknown is not zero" rule exactly, so a build that has not wired the Room in yet behaves byte-identically to before this field existed — asserted directly in `evals/studiowizard.mjs` §11's last check.
+
+**Rationale.** Vyakti Rooms v1's own product paragraph: the Room is the primary, private, remembering address a follower actually reaches, not a channel on somebody else's platform. A Deploy step that only recognized channels would tell a creator who published a working Room, with real followers, that the step is still not done — the exact "platform failure told to the person as their own" shape `docs/HONESTY.md` and `blockerClass.ts` exist to catch, just running in the other direction (claiming NOT done when it is).
+
+**Reverses if.** Channels are ever retired or merged into the Room concept, at which point `connectedChannels` and its branch of `deployDone`/`deployMissing` retire and `roomPublished` becomes the only signal.
+
+## `ws-r7-room-mounts-only-in-teacher-mode-for-v1` (2026-09-03, WS-R7)
+
+**Decision.** `<RoomStudio>` is mounted in `StudioApp.tsx`'s Deploy step only under `mode === "teacher"`, the same gate `<ChannelsStudio>` already carries. Full reasoning and what was tried instead: `context/rejected.md#ws-r7-room-for-generic-mode-with-no-disclosure-pathway`.
+
+**Rationale.** `publishRoom`'s disclosure condition reads `vy_teacher_sheet`, which only the teacher-mode sheet-publish flow (`TeacherSheetStudio.tsx`, also `mode === "teacher"`-gated) can ever populate. Showing the card in generic mode would show a permanently unpublishable Room whose one named blocker points at a screen that mode never renders.
+
+**Reverses if.** A generic-mode self-replica gains its own way to reach `vy_teacher_sheet`-equivalent `status='published'` + `consent_artifact_id` (or `api/_room-publish.js`'s `disclosureApproved` predicate is widened to accept a different consent record for a `selfReplica: true` agent). Nothing in `api/_room-publish.js` needs to change either way — it reads the row by `agent_id` alone, indifferent to which mode wrote it — so the reversal is purely the `mode === "teacher"` guard around `<RoomStudio>` in `StudioApp.tsx`.
+
+## `ws-r7-publish-blockers-are-a-courtesy-read-never-the-gate` (2026-09-03, WS-R7)
+
+**Decision.** `api/_room-publish.js`'s classified blocker list (`waiting_on_you` / `waiting_on_us`, returned by `get` proactively and by `publish` on refusal) is computed by THREE SEPARATE, CHEAP re-reads of the same three predicates the write's own `CASE` already evaluated — never by branching in JS above the write, and never trusted as the enforcement itself. Runtime's sub-reason (owner-owned gate vs. platform-owned gate) is read a second time, from `ownedRuntimeStatus`, the same status `RuntimeGate` already renders on the same Deploy step.
+
+**Rationale.** `api/_clonechannel.js`'s own header states the law this restates: "a sentence in a brief is a preference; a predicate on the write is a guarantee." The courtesy explanation can be stale, wrong, or race the write by a few milliseconds under concurrent edits, and none of that matters, because it decides nothing — worst case it over- or under-explains a lock the write already held regardless. `evals/room-publish/run.mjs`'s negative control proves the write's own predicate is load-bearing independent of this courtesy layer.
+
+**Reverses if.** Never, structurally — this is the same shape `api/_clonechannel.js`'s `connected()` already ships and it is a load-bearing platform convention (context/rejected.md's `gate0-structural`), not a workstream-local choice.

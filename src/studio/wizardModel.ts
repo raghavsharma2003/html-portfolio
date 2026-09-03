@@ -131,6 +131,17 @@ export interface WizardInput {
    */
   connectedChannels: number | null;
   /**
+   * Is the owner's Room (WS-R7, `/r/<slug>`) published right now?
+   *
+   * `null` is UNKNOWN, not "not published" — `RoomStudio` has not answered
+   * yet, the same rule `connectedChannels` above already carries, so Deploy
+   * can never claim "not published" before the Room panel has ever loaded.
+   * A published Room is a second, independent way Deploy reads DONE: it is
+   * the primary, remembering address a follower actually reaches, not a
+   * channel on somebody else's platform.
+   */
+  roomPublished: boolean | null;
+  /**
    * What the PLATFORM is doing, reduced from `/api/replica-activity` (WS-AF).
    *
    * THE FIELD THE OWNER'S SCREENSHOT NEEDED AND DID NOT HAVE. Their uploaded
@@ -536,13 +547,19 @@ function deployMissing(input: WizardInput): Missing[] {
       anchor: "#runtime-gate",
     }, input));
   }
-  if (input.connectedChannels === 0) {
+  // WS-R7: a published Room is a reachable address in its own right, so a
+  // KNOWN zero channels no longer asks for one while the Room already
+  // answers. `roomPublished` defaults to `null` (unknown) wherever this
+  // build never mounts `RoomStudio`, which reduces to the old condition
+  // exactly — the same backward-compatible shape `connectedChannels` itself
+  // uses for "has not answered yet".
+  if (input.connectedChannels === 0 && input.roomPublished !== true) {
     rows.push(missing({
       code: "no_channel",
       label: "One place it can be reached",
       owner: "you",
-      note: "Connect at least one channel after you have read the disclosure card.",
-      anchor: "#channels-studio",
+      note: "Publish your Room, or connect at least one channel, after you have read the disclosure card.",
+      anchor: "#room-studio",
     }, input));
   }
   return rows;
@@ -560,8 +577,10 @@ function deployDone(input: WizardInput): boolean {
   if (!input.runtime?.active) return false;
   // Unknown channel state cannot complete the step: "we did not ask" is not
   // "one is connected". It is also not a blocker with a name, which is why
-  // `deployMissing` stays quiet about it.
-  return (input.connectedChannels ?? 0) > 0;
+  // `deployMissing` stays quiet about it. WS-R7: a published Room is the
+  // other honest way this step reads done, since it is the primary address a
+  // follower actually reaches.
+  return (input.connectedChannels ?? 0) > 0 || input.roomPublished === true;
 }
 
 /**

@@ -46,6 +46,7 @@ import VoicePreviewPanel from "./VoicePreviewPanel";
 import VoiceExperimentPanel from "./VoiceExperimentPanel";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
+import RoomStudio from "./RoomStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
 import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
@@ -616,6 +617,7 @@ function ReplicaWorkspace({
   livenessLoading,
   runtimeStatus,
   onRuntimeStatus,
+  onRoomPublished,
   onContextCount,
   onGrantConsent,
   onRevokeConsent,
@@ -663,6 +665,7 @@ function ReplicaWorkspace({
   livenessLoading: boolean;
   runtimeStatus: ReplicaRuntimeStatus | null;
   onRuntimeStatus: (status: ReplicaRuntimeStatus) => void;
+  onRoomPublished: (published: boolean) => void;
   onContextCount: (count: number) => void;
   onGrantConsent: () => Promise<void>;
   onRevokeConsent: () => Promise<void>;
@@ -1196,6 +1199,32 @@ function ReplicaWorkspace({
                 />
               </Band>
 
+              {/* WS-R7. Above ChannelsStudio's own band on purpose: the Room
+                  is the primary, private, remembering address every follower
+                  actually talks to, and a channel is an address on somebody
+                  ELSE's platform this product connects to. It does not need a
+                  saved sheet to render — it proposes its OWN address from the
+                  replica's name — but publishing stays honestly locked until
+                  the sheet is published, same as everything else that reads
+                  the disclosure card. */}
+              {mode === "teacher" && (
+                <Band
+                  collapsible={compact}
+                  defaultOpen
+                  title="Your Room"
+                  blurb="A private, continuing address for every follower. This is where publishing actually happens."
+                >
+                  <RoomStudio
+                    key={`room-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    onAuthError={onReviewAuthError}
+                    onGoStep={onGoStep}
+                    onStatusChange={onRoomPublished}
+                  />
+                </Band>
+              )}
+
               {mode === "teacher" && (
                 <Band
                   collapsible={compact}
@@ -1350,6 +1379,12 @@ export default function StudioApp() {
   const [runtimeStatus, setRuntimeStatus] = useState<ReplicaRuntimeStatus | null>(null);
   const [contextItemCount, setContextItemCount] = useState<number | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<number | null>(null);
+  // WS-R7. `null` means the Room panel has not answered yet — the same
+  // "unknown is not zero" rule `connectedChannels` above already carries, so
+  // Deploy readiness cannot claim "not published" before the Room has ever
+  // been asked. Fed up from `RoomStudio`'s own load rather than fetched a
+  // second time here, `onRuntimeStatus`'s own pattern one field over.
+  const [roomPublished, setRoomPublished] = useState<boolean | null>(null);
   const [sheetDraft, setSheetDraft] = useState<TeacherSheet | null>(null);
 
   // Phone-sized viewport. Structural, not cosmetic: see `useCompact.ts` for why
@@ -2047,8 +2082,9 @@ export default function StudioApp() {
       }
       : null,
     connectedChannels,
+    roomPublished,
     platformWork,
-  }), [connectedChannels, consents, contextItemCount, mode, platformWork, runtimeStatus, selected, sheetDraft, sources.length]);
+  }), [connectedChannels, consents, contextItemCount, mode, platformWork, roomPublished, runtimeStatus, selected, sheetDraft, sources.length]);
 
   const wizard = useMemo(() => {
     const base = computeWizard(wizardInput);
@@ -2164,6 +2200,7 @@ export default function StudioApp() {
               sheetProvenance={sheetProvenance}
               runtimeStatus={runtimeStatus}
               onRuntimeStatus={setRuntimeStatus}
+              onRoomPublished={setRoomPublished}
               onContextCount={setContextItemCount}
               erasureStatus={erasureStatus}
               consents={consents}

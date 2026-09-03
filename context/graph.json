@@ -4894,6 +4894,48 @@
       "kind": "measurement",
       "title": "Leak battery: 16,080 retrieval checks + 441 boundary checks, 0 leaks, 2/2 negative controls fired, verify-release 15/15",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-room-publish",
+      "kind": "component",
+      "title": "The Room, the creator's side — api/_room-publish.js + api/room-publish.js + src/studio/RoomStudio.tsx: create/rename/publish/pause/resume/set_free_cap/stats for the owner's vy_room row WS-R1 built a reader for but nothing ever wrote",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-publish-lock-shares-readiness-fragment-with-clonechannel",
+      "kind": "decision",
+      "title": "publishRoom's readiness condition imports api/_clonechannel.js's readinessPasses verbatim rather than retyping it, so the two publish locks cannot silently disagree",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-deploy-reads-done-on-a-published-room",
+      "kind": "decision",
+      "title": "wizardModel.ts's deployDone reads true on a published Room OR a connected channel; roomPublished defaults null so an unwired build behaves exactly as before",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-room-mounts-only-in-teacher-mode-for-v1",
+      "kind": "decision",
+      "title": "RoomStudio mounts only under mode==='teacher', matching ChannelsStudio, because the disclosure gate it depends on only that mode can ever satisfy",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-publish-blockers-are-a-courtesy-read-never-the-gate",
+      "kind": "decision",
+      "title": "The waiting_on_you/waiting_on_us blocker list is three cheap re-reads of the same predicates the write's own CASE evaluates, never a branch the write trusts",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway",
+      "kind": "rejection",
+      "title": "Mounting RoomStudio for generic mode too would show a permanently unpublishable Room pointing at a screen (#teacher-sheet-studio) that mode never renders",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r7-room-publish-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "evals/room-publish/run.mjs 37/37 (incl. the required struck-statement negative control); verify-release 14/14; sqlcast strict 0 uncast; studiowizard 86/86; layout gate clean at mode=teacher&step=deploy",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9841,6 +9883,51 @@
       "src": "ws-r8-leak-battery",
       "rel": "measured_by",
       "dst": "ws-r8-leak-battery-2026-09-03"
+    },
+    {
+      "src": "ws-r7-publish-lock-shares-readiness-fragment-with-clonechannel",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-deploy-reads-done-on-a-published-room",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-room-mounts-only-in-teacher-mode-for-v1",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-publish-blockers-are-a-courtesy-read-never-the-gate",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-room-publish-gate-results-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-room-mounts-only-in-teacher-mode-for-v1",
+      "rel": "caused_by",
+      "dst": "ws-r7-room-for-generic-mode-with-no-disclosure-pathway"
+    },
+    {
+      "src": "ws-r1-the-room",
+      "rel": "blocks",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r7-publish-lock-shares-readiness-fragment-with-clonechannel",
+      "rel": "measured_by",
+      "dst": "ws-r7-room-publish-gate-results-2026-09-03"
     }
   ]
 }

@@ -6295,3 +6295,40 @@ whole mechanism, not a filter layered after it.
 battery uses, on a real code path, and must be verified to fail when the rig
 is removed — not merely shown to pass when the rig is present. If a control
 cannot fail by construction, it is not a control.
+## `ws-r7-room-for-generic-mode-with-no-disclosure-pathway` (2026-09-03, WS-R7)
+
+**What was tried.** WS-R7's first draft mounted `RoomStudio` in the Deploy
+step for BOTH studio modes, `generic` and `teacher`, on the grounds that
+Vyakti Rooms v1's own product paragraph says "anyone brings their archive" —
+Rooms is not supposed to be a teacher-only feature, and gating it to one mode
+looked like an arbitrary restriction of a general-purpose thing.
+
+**What specifically broke.** `publishRoom`'s third condition, an APPROVED
+DISCLOSURE, reads `vy_teacher_sheet.status='published' and
+consent_artifact_id is not null` for the replica's agent — the exact gate
+`api/_teachersheet.js`'s `loadTeacherAgent` already requires of EVERY Room
+before `resolveRoom` will answer a single follower (WS-R1). A `generic`-mode
+self-replica's `vy_agent` row is minted opaquely, at runtime activation, by
+`activateOwnedRuntime` in `api/_replica-runtime.js`
+(`'replica-'||replace(s.replica_id::text,'-','')`, `register.selfReplica =
+true`) — and nothing anywhere ever writes a `vy_teacher_sheet` row for it.
+`TeacherSheetStudio.tsx`, the ONLY UI in this repo that can ever set
+`consent_artifact_id`, is itself gated `mode === "teacher"` in
+`StudioApp.tsx` and was built that way well before this workstream. So a
+generic-mode Room would render, accept a slug, and then refuse to publish
+FOREVER, with a "disclosure not approved" reason pointing at
+`#teacher-sheet-studio` — a screen that literal build of the studio never
+shows a generic-mode owner. That is `docs/HONESTY.md`'s exact failure shape:
+a blocker whose fix does not exist on the screen that names it.
+
+**What replaced it.** `RoomStudio` mounts only under `mode === "teacher"`,
+matching `ChannelsStudio` exactly — not because Rooms is conceptually
+teacher-only (the product paragraph says the opposite), but because the
+disclosure pathway it depends on has only ever been wired for that mode. The
+reversal condition is concrete rather than aspirational: the day a
+generic-mode self-replica gets its own way to reach `status='published'` +
+`consent_artifact_id` (a generic sheet-equivalent, or the predicate widened
+to accept a different consent record), lift the `mode === "teacher"` guard
+in `StudioApp.tsx` around `<RoomStudio>` — nothing in `api/_room-publish.js`
+itself would need to change, since its predicate already reads the row by
+`agent_id` alone, indifferent to which mode wrote it.
