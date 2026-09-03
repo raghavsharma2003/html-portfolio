@@ -7232,3 +7232,7 @@ n = 5 migrations, 61 statements; method = applied via Neon SQL-over-HTTP one sta
 | WS-R1 the Room | 071 | 12 | 16 | all plan; scope indexes used |
 
 Full release gate on the merged tree: 14/14 (the two relational DB gates skip without `NEON_URL`; the EXPLAIN pass above is the substitute this session could run). One integration defect found by the gate after merging WS-R3: WS-R2's identity fixture lacked a readiness row. One defect found by EXPLAIN: WS-R5's readiness read ordered by `created_at`, a column `vy_replica_readiness` does not have, inside a try/catch that would have hidden it.
+
+## `ws-r9-fidelity-recorder-has-zero-live-callers` (2026-09-03, WS-R9)
+
+n = 1 (a full-repo grep, not a sample); method = `grep -rln "recordOwnedFidelity"` over the whole tree; date 2026-09-03. Result: `recordOwnedFidelity` (`api/_fidelity.js`) is referenced in exactly two files — its own definition and `evals/fidelity/run.mjs`, its offline eval. No file under `api/` calls it. Consequence for this workstream: `vy_voice_fidelity` carries no history in production today, so `api/_drift-watch.js`'s score-drop signal (0.02 against the same reference set) will report `not_measured` for every real replica until something wires a live caller — see `ws-r9-swap-signal-is-the-generation-ledger` in `context/decisions.md` for what this workstream did instead. Not this workstream's finding to fix: flagged rather than silently routed around, per `AGENTS.md`'s "a capability complete at both ends can still be dead."
