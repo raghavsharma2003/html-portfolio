@@ -40,6 +40,7 @@
 // disclosure, and every log line would look healthy.
 import { randomUUID } from "node:crypto";
 import { loadTeacherAgent } from "./_teachersheet.js";
+import { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -67,6 +68,47 @@ export const CONNECTABLE_KINDS = Object.freeze(["web_widget", "web_embed", "tele
 export const WEB_KINDS = Object.freeze(["web_widget", "web_embed"]);
 
 export const CLONE_CHANNEL_STATUSES = Object.freeze(["draft", "connected", "paused", "revoked"]);
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE PUBLISH LOCK, AT CONNECT TIME (Vyakti Rooms v1, WS-R3)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Connecting a channel is the moment a clone stops being private, so it is the
+// moment readiness has to hold: 70 overall, 55 on every part, nothing
+// unmeasured, read off the LATEST snapshot.
+//
+// It is a SQL fragment rather than a branch above the write for migration
+// 051's reason, quoted in its own header: "prompt instructions leaked 57-98%;
+// the SQL predicate leaked 0 of 31,122 ... A sentence in a brief is a
+// preference; a predicate on the output is a guarantee." A JS check would be a
+// preference, and it would be the third place in this file where a status is
+// decided. So `status` is decided by a CASE that cannot be reached around, and
+// a request to connect that the CASE refuses lands as `draft` — the fail-closed
+// direction — with the owner told why by name afterwards.
+//
+// `computed_at = max(computed_at)` is the same load-bearing clause the runtime
+// activation join carries: without it, a clone that passed once and has since
+// regressed would connect off its own best day.
+// Parameterised by placeholder NUMBER rather than pasted verbatim, because the
+// two writers below bind their arguments in different orders and a fragment
+// that hardcoded `$7` would silently compare a floor against a channel kind in
+// one of them. The first four arguments are always (owner, replica, overall
+// floor, part floor).
+const readinessPasses = (owner, replica, overallFloor, partFloor) => `exists (
+      select 1 from vy_replica_readiness x
+       where x.replica_id = (${replica})::uuid and x.owner_user_id = (${owner})::uuid
+         and x.unmeasured_count = 0
+         and x.overall >= (${overallFloor})::int4 and x.min_part >= (${partFloor})::int4
+         and x.computed_at = (select max(y.computed_at) from vy_replica_readiness y
+                               where y.replica_id = (${replica})::uuid
+                                 and y.owner_user_id = (${owner})::uuid)
+    )`;
+
+/** The named refusal. Distinct from `clone_unavailable` on purpose: that code
+ *  is the INBOUND one, where telling a stranger apart from a revoked teacher
+ *  would let them enumerate revocations. This one is returned to the OWNER,
+ *  about their own clone, and an owner who is refused deserves the reason. */
+export const CHANNEL_READINESS_BLOCKER = "clone_channel_readiness_locked";
 
 export class CloneChannelError extends Error {
   constructor(code, status = 500, details) {
@@ -300,35 +342,54 @@ export async function saveCloneChannel(db, ownerUserId, replicaId, { kind, exter
             -- not silently drop the credential reference a previous save
             -- established, which would leave a row the CHECK forbids.
             credentials_ref = coalesce(($5)::uuid, credentials_ref),
-            status = $6,
+            status = case when $6 = 'connected' and ${readinessPasses("$1", "$2", "$7", "$8")}
+                          then 'connected' else 'draft' end,
             updated_at = now()
       where owner_user_id = ($1)::uuid
         and replica_id = ($2)::uuid
         and kind = $3
         and status <> 'revoked'
       returning channel_id, kind, external_ref, credentials_ref, status, created_at, updated_at`,
-    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), k, ref, credential, status],
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), k, ref, credential, status,
+     READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
-  if (updated[0]) return clientChannel(updated[0]);
+  if (updated[0]) return connected(updated[0], status);
 
   const rows = await db(
     `insert into vy_clone_channel
        (channel_id, agent_id, replica_id, owner_user_id, kind, external_ref, credentials_ref, status)
-     values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, $5, $6, ($7)::uuid, $8)
+     select ($3)::uuid, ($4)::uuid, ($2)::uuid, ($1)::uuid, $5, $6, ($9)::uuid,
+            case when $10 = 'connected' and ${readinessPasses("$1", "$2", "$7", "$8")}
+                 then 'connected' else 'draft' end
      returning channel_id, kind, external_ref, credentials_ref, status, created_at, updated_at`,
     [
+      String(ownerUserId).toLowerCase(),
+      String(replicaId).toLowerCase(),
       randomUUID(),
       String(owned.agent_id).toLowerCase(),
-      String(replicaId).toLowerCase(),
-      String(ownerUserId).toLowerCase(),
       k,
       ref,
+      READINESS_OVERALL_FLOOR,
+      READINESS_PART_FLOOR,
       credential,
       status,
     ],
   );
   if (!rows[0]) throw new CloneChannelError("clone_channel_route_taken", 409);
-  return clientChannel(rows[0]);
+  return connected(rows[0], status);
+}
+
+/** The owner asked to connect and the lock refused. The row is already written
+ *  in the fail-closed direction by the CASE above, so this only names the
+ *  reason: the write is the guarantee, this is the courtesy. */
+function connected(row, requested) {
+  if (requested === "connected" && row.status !== "connected") {
+    throw new CloneChannelError(CHANNEL_READINESS_BLOCKER, 409, {
+      overall_floor: READINESS_OVERALL_FLOOR,
+      part_floor: READINESS_PART_FLOOR,
+    });
+  }
+  return clientChannel(row);
 }
 
 /**
@@ -346,22 +407,30 @@ export async function setCloneChannelStatus(db, ownerUserId, replicaId, channelI
   if (!["connected", "paused", "revoked"].includes(String(next))) {
     throw new CloneChannelError("clone_channel_status_invalid", 400);
   }
+  // Resume carries the same lock as first connect. A clone that was paused
+  // while it was ready and has since regressed must not walk back through an
+  // unlocked door, which is what a status setter with no predicate would be.
+  // Pause and revoke are unconditional: taking a clone DOWN is never gated.
   const rows = await db(
     `update vy_clone_channel
-        set status = $4, updated_at = now()
-      where channel_id = ($1)::uuid
-        and owner_user_id = ($2)::uuid
-        and replica_id = ($3)::uuid
+        set status = case when $6 = 'connected' and not ${readinessPasses("$1", "$2", "$4", "$5")}
+                          then 'paused' else $6 end,
+            updated_at = now()
+      where channel_id = ($3)::uuid
+        and owner_user_id = ($1)::uuid
+        and replica_id = ($2)::uuid
         and status <> 'revoked'
       returning channel_id, kind, external_ref, credentials_ref, status, created_at, updated_at`,
     [
-      String(channelId).toLowerCase(),
       String(ownerUserId).toLowerCase(),
       String(replicaId).toLowerCase(),
+      String(channelId).toLowerCase(),
+      READINESS_OVERALL_FLOOR,
+      READINESS_PART_FLOOR,
       String(next),
     ],
   );
-  return rows[0] ? clientChannel(rows[0]) : null;
+  return rows[0] ? connected(rows[0], String(next)) : null;
 }
 
 /** The reference a credential will be written under. Minted here, server-side,

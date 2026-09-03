@@ -384,6 +384,16 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- re-checks. Two independent layers for a harm the next turn does not undo.
      activity as (delete from vy_replica_activity x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 073's readiness snapshots (WS-R3). Unlike the activity trail above this
+     -- one carries NO foreign key at all (009's convention for owner-keyed
+     -- tables), so this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without it.
+     -- It is also a table worth deleting on its own merits: a readiness history
+     -- is a dated record of how well we thought we had learned a named person,
+     -- which is exactly the kind of row an erasure that skipped it would leave
+     -- behind while reporting success.
+     readiness as (delete from vy_replica_readiness x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,
