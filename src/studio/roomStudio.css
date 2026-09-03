@@ -144,6 +144,32 @@
   .vy-room__stat-value { font-size: var(--text-heading); font-weight: var(--weight-strong); color: var(--forest-deep); }
   .vy-room__stat-label { font-size: var(--text-small); color: var(--ink-soft); }
 
+  /* ── week six: the number that decides the company (WS-R12) ─────────── */
+  .vy-room__cohort-list {
+    list-style: none;
+    margin: var(--space-tight) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  .vy-room__cohort-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  @media (min-width: 480px) {
+    .vy-room__cohort-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-tight); }
+  }
+  .vy-room__cohort-week { font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__cohort-value { font-weight: var(--weight-strong); color: var(--forest-deep); }
+  .vy-room__cohort-value--pending { font-weight: var(--weight-medium); color: var(--ink-soft); }
+  .vy-room__cohort-verdict { margin-top: var(--space-tight); font-weight: var(--weight-medium); color: var(--ink); }
+
   @media (prefers-reduced-motion: reduce) {
     .vy-room__cap-pill { transition: none; }
   }

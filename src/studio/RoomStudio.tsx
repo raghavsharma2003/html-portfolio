@@ -41,7 +41,37 @@ import {
   type RoomBlockers,
   type RoomStats,
 } from "./roomPublishApi";
+import {
+  readOwnedRoomCohorts,
+  RoomCohortsApiError,
+  type RoomCohortReport,
+  type RoomCohortVerdictLine,
+} from "./roomCohortsApi";
 import "./roomStudio.css";
+
+/** Plain-words sentence for the verdict line - WS-R12's own card. Never a
+ *  fabricated number: an unmeasurable verdict names what is missing (a
+ *  cohort six weeks old) rather than guessing at a percentage. */
+function cohortVerdictSentence(v: RoomCohortVerdictLine): string {
+  if (v.verdict === "not_measurable_yet" || v.week6_return_share == null || !v.cohort_week) {
+    return "Not measurable yet. This needs a cohort that has been open for at least six weeks.";
+  }
+  const pct = Math.round(v.week6_return_share * 100);
+  const band =
+    v.verdict === "below_25"
+      ? "below the 25% gate this product needs to work at all"
+      : v.verdict === "above_40"
+        ? "above the 40% line where this becomes a category"
+        : "between the 25% gate and the 40% category line";
+  return `Your oldest measurable cohort, the week of ${v.cohort_week}, returned ${pct}%. That is ${band}.`;
+}
+
+function formatCohortDate(iso: string | null): string {
+  if (!iso) return "soon";
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 
 const FREE_CAP_PRESETS = [10, 20, 50, 100] as const;
 
@@ -83,7 +113,7 @@ export default function RoomStudio({
 }: {
   token: string;
   replicaId: string;
-  onAuthError?: (error: ReplicaApiError | RoomPublishApiError) => void;
+  onAuthError?: (error: ReplicaApiError | RoomPublishApiError | RoomCohortsApiError) => void;
   onGoStep: (next: StepId) => void;
   /** Fed up so the wizard rail's Deploy readiness can read it without a
    *  second fetch of the same endpoint. */
@@ -93,6 +123,8 @@ export default function RoomStudio({
   const [reason, setReason] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<RoomBlockers | null>(null);
   const [stats, setStats] = useState<RoomStats | null>(null);
+  const [cohortReport, setCohortReport] = useState<RoomCohortReport | null>(null);
+  const [cohortError, setCohortError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | null>(null);
   const [error, setError] = useState("");
@@ -129,13 +161,23 @@ export default function RoomStudio({
       onStatusChange?.(Boolean(state?.room?.published));
       if (state?.room) {
         setStats(await readOwnedRoomStats(token, replicaId).catch(() => null));
+        try {
+          setCohortReport(await readOwnedRoomCohorts(token, replicaId));
+          setCohortError(false);
+        } catch (e) {
+          if (e instanceof RoomCohortsApiError && (e.status === 401 || e.status === 403)) {
+            onAuthError?.(e);
+          } else {
+            setCohortError(true);
+          }
+        }
       }
     } catch (e) {
       fail(e);
     } finally {
       setLoading(false);
     }
-  }, [token, replicaId, fail, onStatusChange]);
+  }, [token, replicaId, fail, onAuthError, onStatusChange]);
 
   useEffect(() => {
     void load();
@@ -203,6 +245,7 @@ export default function RoomStudio({
       setNotice("Your Room is live.");
       onStatusChange?.(next.published);
       setStats(await readOwnedRoomStats(token, replicaId).catch(() => null));
+      setCohortReport(await readOwnedRoomCohorts(token, replicaId).catch(() => null));
     } catch (e) {
       fail(e);
     } finally {
@@ -450,6 +493,48 @@ export default function RoomStudio({
           )
         ) : (
           <p className="field-note">Could not load your counts just now. They will show the next time this loads.</p>
+        )}
+      </article>
+
+      <article className="teacher-sheet-card vy-room__cohort-card">
+        <h3>Week six</h3>
+        <p className="field-note">
+          Of the followers who joined in a given week, the share still talking to your AI six weeks later.
+          This is the number that matters most, more than messages sent or how many showed up today.
+        </p>
+        {cohortReport ? (
+          cohortReport.cohorts.length === 0 ? (
+            <p className="field-note">No cohorts yet. This fills in once your Room has its first followers.</p>
+          ) : (
+            <>
+              <ul className="vy-room__cohort-list">
+                {cohortReport.cohorts.map((c) => (
+                  <li key={c.cohort_week} className="vy-room__cohort-row">
+                    <span className="vy-room__cohort-week">Week of {c.cohort_week}</span>
+                    {c.measurable ? (
+                      <span className="vy-room__cohort-value">
+                        {c.week6_return_share == null
+                          ? "No followers that week"
+                          : `${Math.round(c.week6_return_share * 100)}% still talking`}
+                      </span>
+                    ) : (
+                      <span className="vy-room__cohort-value vy-room__cohort-value--pending">
+                        Not measurable until {formatCohortDate(c.not_measurable_until)}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="field-note vy-room__cohort-verdict">{cohortVerdictSentence(cohortReport.verdict)}</p>
+              <p className="field-note">
+                The gate is 25% or higher. 40% or higher is where this stops being a feature and becomes a category.
+              </p>
+            </>
+          )
+        ) : cohortError ? (
+          <p className="field-note">Could not load this just now. It will show the next time this loads.</p>
+        ) : (
+          <p className="field-note" role="status">Loading.</p>
         )}
       </article>
 
