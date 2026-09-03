@@ -279,11 +279,28 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // creator-facing reader added later — the shape Pulse will eventually be —
   // must fail this line the day it is written without also updating it.
   const ALLOWED = new Set(["_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js"]);
+  // WS-R7's creator lane reads `vy_room_follower` for the owner's stats. That is
+  // the one read the plan permits (counts, never a person), so it is admitted
+  // here ONLY as an aggregate reader: every statement in it that names the
+  // follower table must select nothing but count()/sum() expressions, and
+  // must never touch a follower's own columns. A future edit that selects
+  // `person_id`, a thread title or a message fails this line.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js"]);
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
     const src = fs.readFileSync(join(REPO, "api", f), "utf8");
-    if (src.includes("vy_room_thread") || src.includes("vy_room_follower")) offenders.push(f);
+    if (!(src.includes("vy_room_thread") || src.includes("vy_room_follower"))) continue;
+    if (!AGGREGATE_ONLY.has(f)) { offenders.push(f); continue; }
+    const stmts = src.match(/`[^`]*vy_room_(?:follower|thread)[^`]*`/g) || [];
+    if (!stmts.length) offenders.push(f + ":no-statement-found");
+    for (const st of stmts) {
+      const selectList = (st.match(/select([\s\S]*?)\sfrom\s/i) || [, ""])[1];
+      const aggregateOnly = selectList.trim().length > 0 &&
+        selectList.split(",").every((c) => /\b(count|sum)\s*\(/i.test(c));
+      const touchesPerson = /person_id|thread_id|\btitle\b|\bf\.\*|content|message_text/i.test(selectList);
+      if (!aggregateOnly || touchesPerson) offenders.push(f + ":non-aggregate-read");
+    }
   }
   ok("no file outside the allowed set reads the Room's follower/thread tables",
     offenders.length === 0, offenders.join(","));
