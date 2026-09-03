@@ -292,12 +292,21 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
     const src = fs.readFileSync(join(REPO, "api", f), "utf8");
     if (!(src.includes("vy_room_thread") || src.includes("vy_room_follower"))) continue;
     if (!AGGREGATE_ONLY.has(f)) { offenders.push(f); continue; }
-    const stmts = src.match(/`[^`]*vy_room_(?:follower|thread)[^`]*`/g) || [];
+    // Only real statements: a backticked table name inside a comment is prose.
+    const stmts = (src.match(/`[^`]*vy_room_(?:follower|thread)[^`]*`/g) || [])
+      .filter((st) => /\bfrom\s+vy_room_(?:follower|thread)\b/i.test(st));
     if (!stmts.length) offenders.push(f + ":no-statement-found");
     for (const st of stmts) {
       const selectList = (st.match(/select([\s\S]*?)\sfrom\s/i) || [, ""])[1];
-      const aggregateOnly = selectList.trim().length > 0 &&
-        selectList.split(",").every((c) => /\b(count|sum)\s*\(/i.test(c));
+      // Split the select list on top-level commas only: `coalesce(sum(...), 0)`
+      // is one item, not two.
+      const items = []; let depth = 0, cur = "";
+      for (const ch of selectList) {
+        if (ch === "(") depth++; else if (ch === ")") depth--;
+        if (ch === "," && depth === 0) { items.push(cur); cur = ""; } else cur += ch;
+      }
+      if (cur.trim()) items.push(cur);
+      const aggregateOnly = items.length > 0 && items.every((c) => /\b(count|sum)\s*\(/i.test(c));
       const touchesPerson = /person_id|thread_id|\btitle\b|\bf\.\*|content|message_text/i.test(selectList);
       if (!aggregateOnly || touchesPerson) offenders.push(f + ":non-aggregate-read");
     }
