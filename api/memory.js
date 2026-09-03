@@ -2792,6 +2792,25 @@ export const PERSON_TABLES = [
   // counts honest.
   { table: "vy_room_thread",   key: "person_id", lane: "relational", agent: true },
   { table: "vy_room_follower", key: "person_id", lane: "relational", agent: true },
+  // ── WS-R12: the cohort day-count (migration 077) ──────────────────────────
+  //
+  // "Did this follower have a turn on this day" is a record OF them exactly as
+  // their membership row is - an id, a date and a count, but a count tied to
+  // one human, and a whole wipe that kept it would leave "this person talked
+  // on these dates" standing after a receipt that said nothing remains.
+  //
+  // NO `agent: true`, deliberately, and unlike its two 071 siblings above: this
+  // table carries no `agent_id` column (071's convention was already scoping
+  // room_id/person_id; 077 followed it and added nothing new). `agent: true`
+  // routes a table through `roomScopedTables()` in api/_room-surface.js, whose
+  // generic delete unconditionally appends `and agent_id = (...)::uuid` - a
+  // column this table does not have, which would 500 every follower's Room
+  // forget the day 077 lands. Reached instead by two OTHER, explicit paths:
+  // the account-wide whole wipe below (lane "relational", no agent filter,
+  // keyed on person_id alone) and `roomForget`'s own explicit
+  // room_id+person_id delete, `vy_room_thread`/`vy_room_follower`'s pattern
+  // one statement over.
+  { table: "vy_room_follower_day", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -2921,12 +2940,13 @@ export async function tableApplied(name) {
  *  on 016. Named here so the guard cannot drift from the list it guards.
  *
  *  The replica lane's four arrive with 015 / 023 / 027. The Room's two arrive
- *  with 071 and are on this list for the identical reason rather than a
- *  similar one: the wipe loop's delete is NOT catch-wrapped on purpose (the
- *  receipt may only be sent once the delete actually happened), so a manifest
- *  naming a table this database has not got yet turns "make it forget me" into
- *  a 500 for a deploy-ordering reason. Provably lossless in both cases: a table
- *  that does not exist holds no rows. */
+ *  with 071, and its third (the cohort day-count) with 077 - all three are on
+ *  this list for the identical reason rather than a similar one: the wipe
+ *  loop's delete is NOT catch-wrapped on purpose (the receipt may only be
+ *  sent once the delete actually happened), so a manifest naming a table this
+ *  database has not got yet turns "make it forget me" into a 500 for a
+ *  deploy-ordering reason. Provably lossless in both cases: a table that does
+ *  not exist holds no rows. */
 export const REPLICA_PERSON_TABLES = [
   "vy_replica_dialogue_turn",
   "vy_replica_runtime_session",
@@ -2934,6 +2954,7 @@ export const REPLICA_PERSON_TABLES = [
   "vy_account_person",
   "vy_room_thread",
   "vy_room_follower",
+  "vy_room_follower_day",
 ];
 
 // tables and columns that migration 008 introduces

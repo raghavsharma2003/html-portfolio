@@ -3171,3 +3171,17 @@ create index if not exists vy_replica_drift_report_inputs_ix
 create index if not exists vy_replica_drift_report_alerts_ix
   on vy_replica_drift_report (owner_user_id, alerted_at desc)
   where alerted_at is not null;
+
+-- Migration 077 - the Room's cohort day table (WS-R12): one row per
+-- (room, follower, day) turns count. PERSON lane (PERSON_TABLES, gated in
+-- activePersonTables() on this migration having landed). Content-free like
+-- vy_room_follower/vy_room_thread: an id, a date and a count, never a word.
+create table if not exists vy_room_follower_day (
+  room_id   uuid not null references vy_room(room_id) on delete cascade,
+  person_id uuid not null,
+  day       date not null,
+  turns     integer not null default 0 check (turns >= 0),
+  primary key (room_id, person_id, day)
+);
+create index if not exists vy_room_follower_day_scope_ix
+  on vy_room_follower_day (room_id, person_id, day);
