@@ -306,6 +306,36 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   room: "room/run.mjs",
+  // WS-R7, the Room's creator side. WS-R1 built /r/<slug> and the tables it
+  // reads (migration 071) but nothing INSERTED a `vy_room` row — until this
+  // landed no Room could ever be opened by anyone, the sharpest shape of
+  // `dead-writers` this repo has shipped. `api/_room-publish.js` is the
+  // writer; this is its suite.
+  //
+  //  - THE PUBLISH LOCK IS THE WRITE, NEVER A BRANCH ABOVE IT. `published_at`
+  //    only ever becomes non-null inside the UPDATE's own CASE, gated on
+  //    three conditions: an active runtime capability, the readiness lock
+  //    (its SQL fragment IMPORTED from `api/_clonechannel.js`, not re-typed,
+  //    so "same three conditions" is true by construction), and an approved
+  //    disclosure (the agent's `vy_teacher_sheet` published with a consent
+  //    artifact — the same gate `resolveRoom` already requires of every
+  //    follower, so `published_at` can never say "open" over a room nobody
+  //    can actually reach).
+  //  - THE NEGATIVE CONTROL. The readiness clause is struck out of the REAL
+  //    statement text captured off the fake's own call log — not a
+  //    hand-written approximation of the query, the query — and the suite
+  //    fails unless the struck copy leaks the write.
+  //  - A TAKEN SLUG IS A NAMED REFUSAL. `create` and `rename` both hit
+  //    `vy_room_slug_ix`; the suite asserts a code, never a 500.
+  //  - THE BLOCKER LIST IS CLASSED. A runtime held shut ONLY by
+  //    platform-owned gates reports `waiting_on_us`; anything else reports
+  //    `waiting_on_you` — `context/rejected.md#a-step-is-never-silently-blocked`.
+  //  - STATS ARE REAL COUNTS, NEVER INVENTED. A room with no followers gets
+  //    three real zeros from `count`/`sum` over an empty set, never a
+  //    placeholder.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-publish": "room-publish/run.mjs",
   // WS-AB (the universal "bring your context" lane). The Context Locker end to
   // end: many files and many links become owned, hashed, quota-capped items,
   // and the ones this platform can honestly read become CITED proposals on the
