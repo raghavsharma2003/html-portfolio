@@ -31,10 +31,19 @@ import {
   wrapWav,
 } from "../voice-listening-benchmark/lib.mjs";
 import {
+  findDisclosureCut,
+  samples as pcmSamples,
+  toPcm,
+  trimPlausible,
+} from "../earbench/audio.mjs";
+import {
+  ARM_SPECS,
   MATCHED_PACK_CONTRACT,
+  PROTECTION_PATHS,
   SAMPLE_RATE,
   SCORE_AXES,
   canonical,
+  isVendorArm,
   sha256,
 } from "./contract.mjs";
 
@@ -46,8 +55,9 @@ const MAX_STUDIO_BUNDLE_BYTES = 20 * 1024 * 1024;
 const MAX_STUDIO_ANSWER_BYTES = 1024 * 1024;
 const OPAQUE_AUDIO_ID = /^[0-9a-f]{24}$/;
 const STUDIO_FORBIDDEN = [
-  "chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "modelcommitment",
-  "consentreceipt", "runsecret", "sourceitemid", '"correct"',
+  "chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "elevenlabs", "sarvam", "bulbul",
+  "modelcommitment", "consentreceipt", "runsecret", "sourceitemid", "armcategory",
+  "clonestheowner", '"correct"',
 ];
 
 export function pathsFor(home) {
@@ -161,6 +171,11 @@ function verifiedResults(paths, plan) {
     const receipt = JSON.parse(readFileSync(join(paths.receipts, `${item.id}.json`), "utf8"));
     const wavBytes = readFileSync(join(paths.outputs, `${item.id}.wav`));
     const wav = parseWav(wavBytes);
+    // The two transports carry different proofs and the pack checks each one
+    // for what it can actually have. A vendor receipt claiming an HMAC or a
+    // PerTh watermark it cannot have is rejected here as well as in the
+    // verifier, because a receipt on disk is what a later reader trusts.
+    const vendor = isVendorArm(item.armId);
     const required = {
       contract: MATCHED_PACK_CONTRACT,
       itemId: item.id,
@@ -178,8 +193,13 @@ function verifiedResults(paths, plan) {
       sampleRate: SAMPLE_RATE,
       channels: 1,
       encoding: "pcm_s16le",
-      responseHmacVerified: true,
-      perthWatermarkVerified: true,
+      responseHmacVerified: !vendor,
+      perthWatermarkVerified: !vendor,
+      ...(vendor ? {
+        transportProof: "tls_vendor_api",
+        protectionPath: PROTECTION_PATHS.DELIVERY_AUDIOSEAL,
+        clonesTheOwner: ARM_SPECS[item.armId].clonesTheOwner === true,
+      } : {}),
     };
     for (const [key, expected] of Object.entries(required)) {
       if (receipt[key] !== expected) throw new Error(`matched_pack_saved_receipt_invalid:${key}`);
@@ -212,17 +232,86 @@ function safeMean(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-export function sealHome(home, secret = randomBytes(32)) {
+const DISCLOSURE_WINDOW = Object.freeze({ minMs: 1_100, maxMs: 6_000 });
+
+/**
+ * Cut the spoken disclosure off one candidate clip, or refuse.
+ *
+ * `rejected.md#disclosure-announces-the-clone` is the entry this implements:
+ * every synthesised clip opens by saying "This is an AI-generated voice
+ * replica", so opaque filenames and shuffled order blind nothing at all. The
+ * trimmer FAILS CLOSED — no pause inside a plausible window, or an implausible
+ * chars-per-second on what is left, and the seal writes nothing. A trimmer that
+ * always returns something would one day eat the first syllable of the sentence
+ * and do it silently.
+ */
+function cutDisclosure(pcm, text) {
+  const values = pcmSamples(pcm);
+  const cut = findDisclosureCut(values, DISCLOSURE_WINDOW);
+  if (!cut) throw new Error("matched_pack_disclosure_cut_not_found");
+  const body = values.subarray(cut.cutSample);
+  const plausible = trimPlausible({
+    cutMs: cut.cutMs,
+    remainingMs: (body.length / SAMPLE_RATE) * 1000,
+    text,
+    window: DISCLOSURE_WINDOW,
+  });
+  if (!plausible.ok) throw new Error("matched_pack_disclosure_cut_implausible");
+  return Object.freeze({ pcm: toPcm(body), prefixPcm: toPcm(values.subarray(0, cut.cutSample)), cutMs: cut.cutMs });
+}
+
+/**
+ * @param options.trimDisclosure  Remove the spoken disclosure from every
+ *   candidate before listening. Off by default so an existing sealed pack keeps
+ *   its shape; on for any pack whose cells cross arms, because the disclosure
+ *   is spoken by every arm and therefore tells a listener nothing about the
+ *   voice while telling them everything about what they are hearing.
+ */
+export function sealHome(home, secret = randomBytes(32), options = {}) {
   const paths = pathsFor(home);
   if (existsSync(paths.key) || existsSync(join(paths.served, "manifest.json"))) throw new Error("matched_pack_already_sealed");
+  const trimDisclosure = options.trimDisclosure === true;
   const { plan, referenceWav } = loadPrivateInputs(paths);
   const results = verifiedResults(paths, plan);
   const parsedReference = parseWav(referenceWav);
-  const targetRms = commonTargetRms([...results.map((row) => row.wav.pcm), parsedReference.pcm]);
-  const targetSamples = Math.max(parsedReference.samples, ...results.map((row) => row.wav.samples));
+  // The cut happens BEFORE the common loudness and length treatment, so every
+  // served file still has one geometry and the trim cannot be heard as a
+  // different file size. The owner reference has no disclosure to cut and goes
+  // through the identical normalise/pad path, which is what makes the treatment
+  // a constant of the bench rather than a cue.
+  const cuts = new Map();
+  const trimmed = results.map((row) => {
+    if (!trimDisclosure) return row;
+    const cut = cutDisclosure(row.wav.pcm, plan.prompts[row.item.languageId].body);
+    cuts.set(row.item.id, cut);
+    return {
+      ...row,
+      wav: {
+        ...row.wav,
+        pcm: cut.pcm,
+        samples: cut.pcm.length / 2,
+        durationMs: Math.round(cut.pcm.length / 2 * 1000 / SAMPLE_RATE),
+      },
+    };
+  });
+  const targetRms = commonTargetRms([...trimmed.map((row) => row.wav.pcm), parsedReference.pcm]);
+  const targetSamples = Math.max(parsedReference.samples, ...trimmed.map((row) => row.wav.samples));
   mkdirSync(paths.stimuli, { recursive: true });
+  if (trimDisclosure) {
+    // The removed prefixes only, shuffled and unlabelled. This is the ONE way
+    // an operator may confirm the trim by ear: on this bench the operator is
+    // also the listener, so checking the stimuli would unblind the run it was
+    // protecting. Same instrument as `earbench.mjs verify-trim`.
+    const order = shuffled([...cuts.entries()], seededRandom(secret, "trim-check"));
+    const silence = Buffer.alloc(SAMPLE_RATE * 2 * 0.6);
+    writeFileSync(
+      join(paths.private, "trim-check.wav"),
+      wrapWav(Buffer.concat(order.flatMap(([, cut]) => [cut.prefixPcm, silence]))),
+      { mode: 0o600 },
+    );
+  }
 
-  const stimuli = results.map(({ item, receipt, wav }) => {
+  const stimuli = trimmed.map(({ item, receipt, wav }) => {
     const stimulusId = opaqueId(secret, "stimulus", item.id, receipt.outputWavSha256);
     const treated = normaliseAndPad(wav.pcm, { targetRms, samples: targetSamples });
     const served = wrapWav(treated.pcm);
@@ -254,6 +343,16 @@ export function sealHome(home, secret = randomBytes(32)) {
       achievedRms: pcmStats(treated.pcm.subarray(0, wav.pcm.length)).rms,
       responseHmacVerified: receipt.responseHmacVerified,
       perthWatermarkVerified: receipt.perthWatermarkVerified,
+      // Private-side labels only. None of this reaches the served tree, and the
+      // seal verifier proves that separately. They exist so the unsealed report
+      // can say which candidate was a clone and which was a base voice without
+      // anyone having to remember.
+      transport: receipt.transport || "signed_runtime",
+      transportProof: receipt.transportProof || "hmac_sha256",
+      protectionPath: receipt.protectionPath || PROTECTION_PATHS.RUNTIME_PERTH,
+      clonesTheOwner: receipt.clonesTheOwner !== false,
+      armCategory: receipt.armCategory || "voice_clone",
+      disclosureTrimmedMs: cuts.get(item.id) ? Math.round(cuts.get(item.id).cutMs) : null,
     });
   });
 
@@ -363,7 +462,11 @@ export function sealHome(home, secret = randomBytes(32)) {
       fadeMs: 10,
       commonDurationMs: Math.round(targetSamples * 1000 / SAMPLE_RATE),
       commonBytes: 44 + targetSamples * 2,
-      disclosureTrimmed: false,
+      disclosureTrimmed: trimDisclosure,
+      disclosureTrimCheckFile: trimDisclosure ? "private/trim-check.wav" : null,
+      disclosureReason: trimDisclosure
+        ? "Every arm speaks the same disclosure, so it blinds nothing and unblinds the clip."
+        : "Disclosure audibility is a required human rating.",
     },
   };
   const keyBytes = Buffer.from(JSON.stringify(key, null, 2));
@@ -392,6 +495,11 @@ export function sealHome(home, secret = randomBytes(32)) {
     referenceSha256: plan.reference.sha256,
     seed: plan.seed,
     axes: SCORE_AXES.map((axis) => axis.id),
+    disclosureTrimmed: trimDisclosure,
+    // A COUNT, never a list. How many arms a cell holds is a property of the
+    // instrument an owner should be able to see; which arms they are is the
+    // thing the seal exists to hide.
+    vendorArmCount: stimuli.filter((row) => row.transport === "vendor_api").length,
     claim: "instrument_ready_no_human_quality_result",
   };
   mkdirSync(paths.served, { recursive: true });
@@ -414,7 +522,8 @@ export function verifySealedHome(home) {
   if (sha256(keyBytes) !== manifest.sealedKeySha256) throw new Error("matched_pack_seal_hash_invalid");
   if (key.runId !== manifest.runId || key.runId !== trials.runId || key.runId !== paths.runId) throw new Error("matched_pack_run_id_invalid");
   const servedText = Buffer.concat([manifestBytes, trialsBytes, pageBytes]).toString("utf8").toLowerCase();
-  const forbidden = ["chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "modelcommitment", "consentreceipt", "runsecret", "sourceitemid", '"correct"'];
+  const forbidden = ["chatterbox", "qwen", "voxcpm", "indicf5", "zonos", "elevenlabs", "sarvam", "bulbul",
+    "modelcommitment", "consentreceipt", "runsecret", "sourceitemid", "armcategory", "clonestheowner", '"correct"'];
   if (forbidden.some((value) => servedText.includes(value))) throw new Error("matched_pack_served_mapping_leak");
   const expectedIds = new Set([trials.referenceId, ...trials.sequence.map((trial) => trial.stimulusId)]);
   const files = readdirSync(paths.stimuli).filter((file) => file.endsWith(".wav"));
@@ -574,6 +683,12 @@ export function unsealHome(home) {
       model: stimulus.model,
       modelRevision: stimulus.modelRevision,
       modelCommitment: stimulus.modelCommitment,
+      // Carried into the report so a reader cannot compare a base voice with a
+      // clone on owner likeness without seeing that is what they are doing.
+      armCategory: stimulus.armCategory,
+      clonesTheOwner: stimulus.clonesTheOwner,
+      transport: stimulus.transport,
+      protectionPath: stimulus.protectionPath,
       n: rating.n,
       means: rating.means,
       disclosure: rating.disclosure,

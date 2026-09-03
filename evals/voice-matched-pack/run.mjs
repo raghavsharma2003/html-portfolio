@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { constants as cryptoConstants, createPublicKey, verify as cryptoVerify } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -13,16 +13,22 @@ import {
   INDICF5_PRONUNCIATION_NORMALIZATION,
   INDICF5_VARIANTS,
   MATCHED_PACK_CONTRACT,
+  PROTECTION_PATHS,
   SCORE_AXES,
   SEED,
+  TRANSPORTS,
+  VENDOR_CHARACTER_HARD_STOP,
   buildPlan,
   canonical,
   cropReference,
+  isVendorArm,
   payloadForItem,
   reserveAttempt,
+  reserveVendorCharacters,
   sha256,
   transportSignature,
   verifyProviderResult,
+  verifyVendorResult,
 } from "./contract.mjs";
 import {
   exportStudioBundle,
@@ -426,6 +432,183 @@ try {
     && typeof studioUnsealed.attestation?.signatureBase64 === "string");
 } finally {
   rmSync(temp, { recursive: true, force: true });
+}
+
+// ── vendor arms in the pack ──────────────────────────────────────────────────
+// The arms that make `decisions.md#platform-north-star`'s reversal condition
+// testable. Everything here is offline: no key, no vendor, no money.
+const vendorPlan = buildPlan({
+  sourceWav, referenceWav, referenceText, referenceTextEvidenceScope: "asr_unreviewed",
+  consentReceiptSha256, replicaId,
+  armIds: ["chatterbox", "qwen", "voxcpm2", "elevenlabs", "sarvam"],
+});
+ok("vendor arms join the same two exact-text cells without changing them",
+  vendorPlan.comparisonCells.length === 2 &&
+  vendorPlan.comparisonCells.every((cell) => cell.bodySha256 === basePlan.comparisonCells.find((base) => base.languageId === cell.languageId).bodySha256) &&
+  vendorPlan.comparisonCells.find((cell) => cell.languageId === "hi").armIds.length === 4);
+ok("a vendor item is labelled with its transport, protection path and whether it clones anyone",
+  vendorPlan.items.filter((item) => isVendorArm(item.armId)).every((item) =>
+    item.transport === TRANSPORTS.VENDOR_API && item.protectionPath === PROTECTION_PATHS.DELIVERY_AUDIOSEAL) &&
+  vendorPlan.items.find((item) => item.armId === "sarvam").clonesTheOwner === false &&
+  vendorPlan.items.find((item) => item.armId === "elevenlabs").clonesTheOwner === true);
+ok("the self-hosted arms keep the transport and watermark they always had",
+  vendorPlan.items.filter((item) => !isVendorArm(item.armId)).every((item) =>
+    item.transport === TRANSPORTS.SIGNED_RUNTIME && item.protectionPath === PROTECTION_PATHS.RUNTIME_PERTH && item.billableCharacters === 0));
+ok("the plan prices the vendor characters from list prices read on a stated date",
+  vendorPlan.projectedVendorCharacters > 0 &&
+  vendorPlan.projectedVendorCharacters === vendorPlan.items.reduce((sum, item) => sum + item.billableCharacters, 0) &&
+  vendorPlan.projectedVendorCostUsd > 0 && vendorPlan.projectedVendorCostUsd < 0.2 &&
+  vendorPlan.vendorListPricesUsdPerMillionCharacters.elevenlabs === 180);
+
+function vendorRow(plan, item, index) {
+  const spec = ARM_SPECS[item.armId];
+  const payload = payloadForItem({ plan, item, referenceWav, referenceText, ...ids(index) });
+  const pcm = sineWav(2_600 + index * 90, 200 + index * 21).subarray(44);
+  const result = {
+    request_id: payload.request_id,
+    generation_id: payload.generation_id,
+    model: spec.model,
+    model_revision: spec.modelRevision,
+    model_commitment: sha256(`vendor:${item.armId}`),
+    language_id: item.languageId,
+    seed: plan.seed,
+    protection_path: spec.protectionPath,
+    perth_watermark_verified: false,
+    clones_the_owner: spec.clonesTheOwner === true,
+    arm_category: spec.armCategory || "voice_clone",
+    sample_rate: 24_000,
+    channels: 1,
+    encoding: "pcm_s16le",
+    audio_base64: pcm.toString("base64"),
+    output_sha256: sha256(pcm),
+    duration_ms: pcm.length / 2 / 24,
+    elapsed_ms: 900 + index,
+    real_time_factor: 0.4,
+    billed_characters: payload.billable_characters,
+    resampled_to_24k: false,
+  };
+  return {
+    plan, item, payload, result,
+    transportProof: "tls_vendor_api",
+    expectedModelCommitment: result.model_commitment,
+    normalized: verifyVendorResult({
+      plan, item, payload, result, transportProof: "tls_vendor_api", expectedModelCommitment: result.model_commitment,
+    }),
+  };
+}
+
+const vendorItems = vendorPlan.items.filter((item) => isVendorArm(item.armId));
+const vendorRows = vendorItems.map((item, index) => vendorRow(vendorPlan, item, 40 + index));
+ok("a vendor payload carries every cell binding and re-uploads no reference audio",
+  vendorRows.every(({ payload, item }) => payload.text === vendorPlan.prompts[item.languageId].fullText &&
+    payload.seed === SEED && payload.reference_sha256 === vendorPlan.reference.sha256 &&
+    payload.consent_receipt_sha256 === consentReceiptSha256 &&
+    payload.reference_audio_base64 === undefined));
+ok("only the cloning vendor is told the reference was sent to it",
+  vendorRows.find(({ item }) => item.armId === "elevenlabs").payload.reference_sent_to_vendor === true &&
+  vendorRows.find(({ item }) => item.armId === "sarvam").payload.reference_sent_to_vendor === false);
+ok("a verified vendor result records no HMAC and no PerTh, and says which path protects it",
+  vendorRows.every(({ normalized }) => normalized.responseHmacVerified === false &&
+    normalized.perthWatermarkVerified === false &&
+    normalized.protectionPath === PROTECTION_PATHS.DELIVERY_AUDIOSEAL &&
+    normalized.transportProof === "tls_vendor_api"));
+ok("the base arm reaches the receipt labelled as a base arm",
+  vendorRows.find(({ item }) => item.armId === "sarvam").normalized.armCategory === "indian_accent_base_voice" &&
+  vendorRows.find(({ item }) => item.armId === "sarvam").normalized.clonesTheOwner === false);
+
+const vendorFirst = vendorRows[0];
+rejects("a vendor result that claims a PerTh watermark is refused as fabricated evidence",
+  () => verifyVendorResult({ ...vendorFirst, result: { ...vendorFirst.result, perth_watermark_verified: true } }),
+  "matched_pack_vendor_perth_claim_invalid");
+rejects("a vendor result with no transport proof fails closed",
+  () => verifyVendorResult({ ...vendorFirst, transportProof: "" }), "matched_pack_vendor_transport_invalid");
+const sarvamRow = vendorRows.find(({ item }) => item.armId === "sarvam");
+rejects("a base arm that reports itself as a clone is refused",
+  () => verifyVendorResult({ ...sarvamRow, result: { ...sarvamRow.result, clones_the_owner: true } }),
+  "matched_pack_vendor_arm_category_drift");
+rejects("a vendor result that bills a different character count than the plan is refused",
+  () => verifyVendorResult({ ...vendorFirst, result: { ...vendorFirst.result, billed_characters: 1 } }),
+  "matched_pack_vendor_billing_drift");
+rejects("a vendor arm cannot be pushed through the signed-runtime verifier",
+  () => verifyProviderResult({ ...vendorFirst, responseSignatureVerified: true }),
+  "matched_pack_vendor_arm_needs_vendor_verifier");
+rejects("a self-hosted arm that lost its watermark is still refused",
+  () => verifyProviderResult({ ...first, responseSignatureVerified: true,
+    result: { ...first.result, perth_watermark_verified: false } }), "matched_pack_result_perth_invalid");
+
+let vendorLedger = { contract: MATCHED_PACK_CONTRACT, hardStopUsd: CLOUD_HARD_STOP_USD, attempts: [], vendorAttempts: [] };
+vendorLedger = reserveVendorCharacters(vendorLedger, "item-a", 200, 500);
+vendorLedger = reserveVendorCharacters(vendorLedger, "item-b", 200, 500);
+ok("the vendor character ledger reserves before each call and accumulates",
+  vendorLedger.vendorAttempts.length === 2 &&
+  vendorLedger.vendorAttempts.reduce((sum, attempt) => sum + attempt.reservedCharacters, 0) === 400);
+rejects("a request that would cross the caller's character ceiling is refused before the call",
+  () => reserveVendorCharacters(vendorLedger, "item-c", 200, 500), "matched_pack_vendor_character_stop_exceeded");
+rejects("callers cannot raise the vendor character ceiling above the hard stop",
+  () => reserveVendorCharacters({ vendorAttempts: [] }, "item", 10, VENDOR_CHARACTER_HARD_STOP + 1),
+  "matched_pack_vendor_character_limit_invalid");
+
+// ── the disclosure trim ──────────────────────────────────────────────────────
+// `rejected.md#disclosure-announces-the-clone`: every arm opens by saying it is
+// an AI voice replica, so a pack whose cells cross arms is unblinded by its own
+// audio. These clips are shaped like a real one — a disclosure, the pause the
+// trimmer looks for, then the target text.
+function disclosureShapedPcm(index) {
+  const parts = [
+    sineWav(1_900, 210 + index * 9).subarray(44),
+    Buffer.alloc(Math.round(0.30 * 24_000) * 2),
+    sineWav(5_000, 190 + index * 11).subarray(44),
+  ];
+  return Buffer.concat(parts);
+}
+const trimTemp = mkdtempSync(join(tmpdir(), "vyakti-matched-trim-"));
+try {
+  const trimHome = join(trimTemp, "run-trim");
+  const trimPaths = prepareHome({ home: trimHome, plan: basePlan, referenceWav, referenceText });
+  basePlan.items.forEach((item, index) => {
+    const payload = payloadForItem({ plan: basePlan, item, referenceWav, referenceText, ...ids(60 + index) });
+    const pcm = disclosureShapedPcm(index);
+    const result = { ...fakeResult(item, payload, index), audio_base64: pcm.toString("base64"), output_sha256: sha256(pcm), duration_ms: pcm.length / 2 / 24 };
+    saveResult(trimPaths, verifyProviderResult({
+      plan: basePlan, item, payload, result, responseSignatureVerified: true,
+      expectedModelCommitment: result.model_commitment,
+    }));
+  });
+  const trimmed = sealHome(trimHome, Buffer.alloc(32, 9), { trimDisclosure: true });
+  const trimmedKey = JSON.parse(readFileSync(trimmed.paths.key, "utf8"));
+  ok("sealing with the trim removes a plausible disclosure prefix from every candidate",
+    trimmedKey.audioTreatment.disclosureTrimmed === true &&
+    trimmedKey.stimuli.length === 5 &&
+    trimmedKey.stimuli.every((stimulus) => stimulus.disclosureTrimmedMs >= 1_100 && stimulus.disclosureTrimmedMs <= 6_000));
+  ok("the removed prefixes are written out for an ear check that touches no stimulus",
+    existsSync(join(trimmed.paths.private, "trim-check.wav")) &&
+    trimmedKey.audioTreatment.disclosureTrimCheckFile === "private/trim-check.wav");
+  const trimVerified = verifySealedHome(trimHome);
+  ok("a trimmed pack still serves one indistinguishable geometry for every clip",
+    trimVerified.stimuli === 5 && trimVerified.commonGeometry.split(":").length === 5);
+  ok("the trim check file is private and is not served",
+    !readdirSync(trimmed.paths.stimuli).some((file) => file.includes("trim-check")));
+
+  // FAIL CLOSED. A clip with no pause inside the window must stop the seal
+  // rather than have its first syllable guessed away.
+  const noPauseHome = join(trimTemp, "run-no-pause");
+  const noPausePaths = prepareHome({ home: noPauseHome, plan: basePlan, referenceWav, referenceText });
+  basePlan.items.forEach((item, index) => {
+    const payload = payloadForItem({ plan: basePlan, item, referenceWav, referenceText, ...ids(80 + index) });
+    const pcm = sineWav(7_200, 200).subarray(44);
+    const result = { ...fakeResult(item, payload, index), audio_base64: pcm.toString("base64"), output_sha256: sha256(pcm), duration_ms: pcm.length / 2 / 24 };
+    saveResult(noPausePaths, verifyProviderResult({
+      plan: basePlan, item, payload, result, responseSignatureVerified: true,
+      expectedModelCommitment: result.model_commitment,
+    }));
+  });
+  rejects("a clip with no pause inside the disclosure window refuses to seal",
+    () => sealHome(noPauseHome, Buffer.alloc(32, 10), { trimDisclosure: true }),
+    "matched_pack_disclosure_cut_not_found");
+  ok("the untrimmed seal is unchanged, so an existing pack keeps its shape",
+    JSON.parse(readFileSync(sealHome(noPauseHome, Buffer.alloc(32, 11)).paths.key, "utf8")).audioTreatment.disclosureTrimmed === false);
+} finally {
+  rmSync(trimTemp, { recursive: true, force: true });
 }
 
 const guarded = spawnSync(process.execPath, [resolve("scripts/voice-matched-pack.mjs"), "run", "--home", resolve("scratchpad/definitely-not-a-pack")], {

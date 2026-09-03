@@ -286,6 +286,10 @@ export function createElevenLabsVoiceProvider(options = {}) {
       model: ELEVENLABS_PROVIDER_NAME,
       vendorModelId: config.model,
       cloneMode: config.cloneMode,
+      // Symmetric with the base arm's receipt so a bench never has to infer a
+      // category from an arm name it is trying not to look at.
+      armCategory: "voice_clone",
+      clonesTheOwner: true,
       // The vendor voice id is a disposable server-only mapping
       // (`decisions.md#replica-provider-portable`); only its hash is recorded so
       // a receipt can be shown without handing the mapping to anyone.
