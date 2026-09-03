@@ -72,7 +72,7 @@ export interface ReplicaSource {
   source_id: string;
   replica_id: string;
   kind: SourceKind;
-  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "upload" | "import" | "derived";
+  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "identity_challenge" | "upload" | "import" | "derived";
   mime: string;
   byte_size: number;
   state: SourceState;
@@ -114,6 +114,30 @@ export interface LivenessChallenge {
   face_session_expires_at: string | null;
   issued_at: string;
   expires_at: string;
+  updated_at: string;
+}
+
+// WS-R2, migration 072. The voice identity challenge: the owner proves they
+// are the voice in their own enrollment by reading a freshly issued sentence.
+export type VoiceIdentityState = "issued" | "captured" | "verifying" | "verified" | "failed" | "expired";
+/** "" until a verdict exists. `review` is a real, recorded outcome that does
+ *  NOT open the gate, because false acceptance on this metric is unmeasured. */
+export type VoiceIdentityDecision = "" | "accept" | "review" | "reject";
+
+export interface VoiceIdentityChallenge {
+  challenge_id: string;
+  replica_id: string;
+  sentence: string;
+  state: VoiceIdentityState;
+  decision: VoiceIdentityDecision;
+  attempt: number;
+  captured_source_id: string | null;
+  transcript_source_id: string | null;
+  failure_code: string;
+  similarity: number | null;
+  issued_at: string;
+  expires_at: string;
+  decided_at: string | null;
   updated_at: string;
 }
 

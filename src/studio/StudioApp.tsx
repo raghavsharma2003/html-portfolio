@@ -26,10 +26,12 @@ import type {
   SignedUpload,
   SourceKind,
   StudioSession,
+  VoiceIdentityChallenge,
 } from "./types";
 import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import IdentityProofing from "./IdentityProofing";
 import LivenessCapture from "./LivenessCapture";
+import VoiceIdentityChallengeBand from "./VoiceIdentityChallenge";
 import ProcessingReview from "./ProcessingReview";
 import PersonModelStudio from "./PersonModelStudio";
 import CalibrationStudio from "./CalibrationStudio";
@@ -97,6 +99,14 @@ import {
   pollOfficialFaceSession,
   startOfficialFaceSession,
 } from "./livenessApi";
+import {
+  cancelVoiceIdentityChallenge,
+  createVoiceIdentityUpload,
+  finalizeVoiceIdentityUpload,
+  issueVoiceIdentityChallenge,
+  voiceIdentityChallengeUiEnabled,
+  voiceIdentityStatus,
+} from "./voiceIdentityApi";
 
 type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
@@ -105,6 +115,15 @@ const STUDIO_SELF_TEST_UI = studioSelfTestUiEnabled(
   import.meta.env.VITE_REPLICA_SELF_TEST_MODE,
   import.meta.env.VITE_REPLICA_SELF_TEST_ENVIRONMENT,
 );
+
+// WS-R2. When this is on, the "Prove it is you" band shows the spoken
+// identity challenge instead of the Azure ID-document and face-liveness
+// cards. Default OFF and read once at module load, so a deployed build
+// without the variable renders byte-identically to today's studio. The server
+// half is gated separately by VOICE_IDENTITY_CHALLENGE, and BOTH have to be
+// set: a studio that offered the band against a 404 endpoint would be the
+// blame inversion AGENTS.md forbids.
+const VOICE_IDENTITY_UI = voiceIdentityChallengeUiEnabled(import.meta.env.VITE_VOICE_IDENTITY_CHALLENGE);
 
 // The teacher mode seam. Read ONCE, at mount, from `?mode=teacher` — see
 // `readStudioMode()` below. Generic mode ("replica") is the untouched
@@ -681,6 +700,12 @@ function ReplicaWorkspace({
   onCancelChallenge,
   onCreateLivenessUpload,
   onFinalizeLiveness,
+  voiceChallenge,
+  onIssueVoiceChallenge,
+  onCancelVoiceChallenge,
+  onCreateVoiceIdentityUpload,
+  onFinalizeVoiceIdentity,
+  onRefreshVoiceChallenge,
   onIdentityChanged,
   onVerifiedConsentChanged,
   onRevoke,
@@ -738,6 +763,19 @@ function ReplicaWorkspace({
     sha256: string;
   }) => Promise<{ challenge: LivenessChallenge; source: ReplicaSource; upload: SignedUpload }>;
   onFinalizeLiveness: (challengeId: string, sourceId: string) => Promise<LivenessChallenge>;
+  voiceChallenge: VoiceIdentityChallenge | null;
+  onIssueVoiceChallenge: () => Promise<VoiceIdentityChallenge>;
+  onCancelVoiceChallenge: (challengeId: string) => Promise<VoiceIdentityChallenge>;
+  onCreateVoiceIdentityUpload: (input: {
+    challengeId: string;
+    role: "capture" | "transcript";
+    kind: "audio" | "video";
+    mime: string;
+    byteSize: number;
+    sha256: string;
+  }) => Promise<{ challenge: VoiceIdentityChallenge; source: ReplicaSource; upload: SignedUpload }>;
+  onFinalizeVoiceIdentity: (challengeId: string, sourceId: string) => Promise<VoiceIdentityChallenge>;
+  onRefreshVoiceChallenge: () => void;
   onIdentityChanged: () => Promise<void>;
   onVerifiedConsentChanged: () => Promise<void>;
   onRevoke: () => Promise<void>;
@@ -1075,25 +1113,46 @@ function ReplicaWorkspace({
                 title="Prove it is you"
                 blurb="A voice is a person. These are the checks that let your clone speak to anyone other than you, and they are the only reason this product can exist."
               >
-                <IdentityProofing
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  sources={sources}
-                  onChanged={onIdentityChanged}
-                  onAuthError={onReviewAuthError}
-                />
-                <LivenessCapture
-                  consentActive={hasSourceConsent(consents) && replica.age_verified}
-                  challenge={challenge}
-                  loading={livenessLoading}
-                  onIssue={onIssueChallenge}
-                  onStartFace={onStartFaceSession}
-                  onPollFace={onPollFaceSession}
-                  onCancel={onCancelChallenge}
-                  onCreateUpload={onCreateLivenessUpload}
-                  onRetryUpload={onRetryUpload}
-                  onFinalize={onFinalizeLiveness}
-                />
+                {/* WS-R2. One band, two possible identity paths, never both.
+                    The Azure pair needs two Microsoft Limited Access
+                    approvals and has never been deployed; the spoken
+                    challenge uses services that are already running. The flag
+                    is off by default, so this renders exactly what it renders
+                    today until the main loop turns it on. */}
+                {VOICE_IDENTITY_UI ? (
+                  <VoiceIdentityChallengeBand
+                    consentActive={hasSourceConsent(consents)}
+                    challenge={voiceChallenge}
+                    loading={livenessLoading}
+                    onIssue={onIssueVoiceChallenge}
+                    onCancel={onCancelVoiceChallenge}
+                    onCreateUpload={onCreateVoiceIdentityUpload}
+                    onFinalize={onFinalizeVoiceIdentity}
+                    onRefresh={onRefreshVoiceChallenge}
+                  />
+                ) : (
+                  <>
+                    <IdentityProofing
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      sources={sources}
+                      onChanged={onIdentityChanged}
+                      onAuthError={onReviewAuthError}
+                    />
+                    <LivenessCapture
+                      consentActive={hasSourceConsent(consents) && replica.age_verified}
+                      challenge={challenge}
+                      loading={livenessLoading}
+                      onIssue={onIssueChallenge}
+                      onStartFace={onStartFaceSession}
+                      onPollFace={onPollFaceSession}
+                      onCancel={onCancelChallenge}
+                      onCreateUpload={onCreateLivenessUpload}
+                      onRetryUpload={onRetryUpload}
+                      onFinalize={onFinalizeLiveness}
+                    />
+                  </>
+                )}
                 <ModelConsentGate
                   token={accessToken}
                   replica={replica}
@@ -1332,6 +1391,10 @@ export default function StudioApp() {
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
   const [challenge, setChallenge] = useState<LivenessChallenge | null>(null);
   const [livenessLoading, setLivenessLoading] = useState(false);
+  // WS-R2. Only ever populated when VOICE_IDENTITY_UI is on; the status call
+  // is not made otherwise, so a build with the flag off never touches the
+  // endpoint that would 404 at it.
+  const [voiceChallenge, setVoiceChallenge] = useState<VoiceIdentityChallenge | null>(null);
   const [erasureRequestId, setErasureRequestId] = useState("");
   const [erasureStatus, setErasureStatus] = useState<ReplicaErasureStatus | null>(null);
 
@@ -1592,6 +1655,7 @@ export default function StudioApp() {
           runtimeResult,
           sheetResult,
           channelResult,
+          voiceChallengeResult,
         ] = await Promise.allSettled([
           listEnrollmentConsent(fresh.accessToken, replicaId),
           listSources(fresh.accessToken, replicaId),
@@ -1599,6 +1663,7 @@ export default function StudioApp() {
           readRuntimeStatus(fresh.accessToken, replicaId),
           mode === "teacher" ? readTeacherSheetDraft(fresh.accessToken, replicaId) : Promise.resolve(null),
           mode === "teacher" ? listChannels(fresh.accessToken, replicaId) : Promise.resolve(null),
+          VOICE_IDENTITY_UI ? voiceIdentityStatus(fresh.accessToken, replicaId) : Promise.resolve(null),
         ]);
         if (!live) return;
         if (consentResult.status === "fulfilled") setConsents(consentResult.value);
@@ -1609,6 +1674,7 @@ export default function StudioApp() {
         if (channelResult.status === "fulfilled" && channelResult.value) {
           setConnectedChannels(channelResult.value.filter((row) => row.status === "connected").length);
         }
+        if (voiceChallengeResult.status === "fulfilled") setVoiceChallenge(voiceChallengeResult.value);
         // Only the three that were already surfaced raise a banner. A runtime,
         // sheet or channel read that fails degrades the rail to "unknown",
         // which is honest and quiet; interrupting an upload with a banner about
@@ -1921,6 +1987,88 @@ export default function StudioApp() {
     }
   }
 
+  // ── WS-R2: the spoken identity challenge ────────────────────────────────
+  // Every one of these mirrors its liveness twin above. The one difference
+  // worth naming is `handleRefreshVoiceChallenge`: the verdict is reached by a
+  // scheduled sweep and not by any request the studio makes, so the panel
+  // polls while the challenge is in flight rather than awaiting a result that
+  // no open connection is going to deliver.
+  async function handleRefreshVoiceChallenge() {
+    if (!session || !selected) return;
+    try {
+      const fresh = await refreshForRequest(session);
+      setVoiceChallenge(await voiceIdentityStatus(fresh.accessToken, selected.replica_id));
+    } catch {
+      // A failed poll is not worth a banner: the panel already says the check
+      // is with us, and the next tick either succeeds or the person reloads.
+    }
+  }
+
+  async function handleIssueVoiceChallenge() {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const issued = await issueVoiceIdentityChallenge(fresh.accessToken, selected.replica_id);
+      setVoiceChallenge(issued);
+      return issued;
+    } catch (cause) {
+      handleApiError(cause, "Could not get a sentence to read");
+      throw cause;
+    }
+  }
+
+  async function handleCancelVoiceChallenge(challengeId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const cancelled = await cancelVoiceIdentityChallenge(fresh.accessToken, selected.replica_id, challengeId);
+      setVoiceChallenge(cancelled);
+      setSources((items) => items.map((source) =>
+        source.capture_mode === "identity_challenge" ? { ...source, state: "deleting" } : source));
+      setNotice("Attempt cancelled. The recording is queued for deletion.");
+      return cancelled;
+    } catch (cause) {
+      handleApiError(cause, "Could not cancel this attempt");
+      throw cause;
+    }
+  }
+
+  async function handleCreateVoiceIdentityUpload(input: {
+    challengeId: string;
+    role: "capture" | "transcript";
+    kind: "audio" | "video";
+    mime: string;
+    byteSize: number;
+    sha256: string;
+  }) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const created = await createVoiceIdentityUpload(fresh.accessToken, { replicaId: selected.replica_id, ...input });
+      setVoiceChallenge(created.challenge);
+      setSources((items) => [created.source, ...items.filter((item) => item.source_id !== created.source.source_id)]);
+      return created;
+    } catch (cause) {
+      handleApiError(cause, "Could not get permission to send the recording");
+      throw cause;
+    }
+  }
+
+  async function handleFinalizeVoiceIdentity(challengeId: string, sourceId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const result = await finalizeVoiceIdentityUpload(fresh.accessToken, selected.replica_id, challengeId, sourceId);
+      setVoiceChallenge(result.challenge);
+      setSources((items) => [result.source, ...items.filter((item) => item.source_id !== result.source.source_id)]);
+      if (result.challenge.state === "captured") setNotice("Recording secured. We are checking it now.");
+      return result.challenge;
+    } catch (cause) {
+      handleApiError(cause, "Could not secure the recording");
+      throw cause;
+    }
+  }
+
   async function handleDeleteSource(sourceId: string) {
     if (!session || !selected) throw new Error("Your session is no longer available");
     try {
@@ -2096,6 +2244,12 @@ export default function StudioApp() {
               onCancelChallenge={handleCancelChallenge}
               onCreateLivenessUpload={handleCreateLivenessUpload}
               onFinalizeLiveness={handleFinalizeLiveness}
+              voiceChallenge={voiceChallenge}
+              onIssueVoiceChallenge={handleIssueVoiceChallenge}
+              onCancelVoiceChallenge={handleCancelVoiceChallenge}
+              onCreateVoiceIdentityUpload={handleCreateVoiceIdentityUpload}
+              onFinalizeVoiceIdentity={handleFinalizeVoiceIdentity}
+              onRefreshVoiceChallenge={handleRefreshVoiceChallenge}
               onIdentityChanged={handleIdentityChanged}
               onVerifiedConsentChanged={handleVerifiedConsentChanged}
               onRevoke={handleRevoke}
