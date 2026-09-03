@@ -7515,3 +7515,89 @@ same environment, and test explicit `resources.gpu: 1` only if ARM validation
 accepts it. Rerun the unchanged ZONOS2 digest only after that canary passes.
 Voice qualification still requires the sealed Hindi, Hinglish and English
 pack, exact receipts, objective metrics and accepted blind owner ratings.
+
+## `review-correction-is-a-source-not-a-prompt-line` — WS-R4 (2026-09-03)
+
+**Decision.** "Close, fix it" writes the owner's better answer as a row on
+`vy_replica_source` with `purpose='correction'`, uploaded through the ordinary
+signed upload and finalized through the existing source endpoint so the existing
+processing DAG transcribes a dictated one. It is never written into a persona,
+a TeacherSheet, or any compiled prompt. Everything derived from the answer it
+replaces is INVALIDATED (draft `vy_replica_profile` retired, in-flight
+`person_profile` build retired, the originating claim superseded) so the next
+build re-derives; nothing derived is edited in place.
+
+**Why.** `recited-prompt` is measured twice in unrelated features: her own
+example quotes acted as a phrase bank (recited 4/5 → 0 after removal), and taste
+written as polished English sentences was read out verbatim twice, eight turns
+apart. The owner's better answer is the single most recitable string this product
+can produce: a whole sentence, in their own words, about a question their
+audience really asks. 059 already states the same rule one table over for
+`vy_mirror_feedback.rephrase_text` ("the single most recitable thing that could
+enter a prompt"). The invalidate-and-rebuild half is the brief's own wording and
+matches what `markOwnedSourceDeleting` already does on source deletion; the audit
+fact is spelled `derived_models_invalidated` deliberately, so one grep finds
+every place derived material is thrown away.
+
+**What would reverse it.** A measured retrieval lane that can inject a stored
+correction at answer time WITHOUT it appearing in the prompt as a sentence (a
+cited excerpt the model is told to paraphrase, benched for verbatim echo at
+n>=32 like the taste rewrite was), or a measurement showing a correction stored
+as a source is never retrieved and therefore never affects an answer. The second
+would be a reason to change the retrieval, not to paste the sentence in.
+
+## `review-decision-is-one-sql-clause` — WS-R4 (2026-09-03)
+
+**Decision.** A review card flips state in ONE statement, and each of the three
+decisions is gated on its own write having landed IN THAT SAME STATEMENT,
+upstream of the flip:
+
+    fixed  ...  and ($4::text <> 'fixed' or exists (select 1 from correction))
+    never  ...  and ($4::text <> 'never' or exists (select 1 from landed_rule))
+
+plus migration 074's `vy_review_card_fixed_gate`, a CHECK that makes
+`(state='fixed') = (correction_source_id is not null)` true by construction.
+
+**Why.** This is `mirror-call-approval-is-one-sql-clause` (2026-08-26, WS-X)
+applied to a second surface, and it is the half that is easy to get backwards:
+the write is upstream of the state flip, so a decision whose write did not land
+leaves the card OPEN rather than "decided and silently unapplied". A tap that did
+nothing must not look like a tap that worked. `evals/review-queue/run.mjs`
+strikes the `fixed` clause out of the shipping string and asserts the struck copy
+is a different program, and drives the "correction source is gone" path to prove
+the card stays open with a named refusal.
+
+**What would reverse it.** A reviewed, benched path for recording a decision
+whose write is applied asynchronously, with the un-applied state rendered
+honestly in the studio. There is no such path today and the CHECK forbids one on
+the `fixed` branch specifically.
+
+## `never-say-is-a-predicate-at-the-one-door` — WS-R4 (2026-09-03)
+
+**Decision.** "Never say this" writes a `vy_review_never_rule` row. The rules are
+read per turn, compiled by `api/_never-rules.js` (a module that imports nothing),
+and matched inside `api/_surface.js::gateReply` on the assembled bytes, after the
+honesty gate. A match SUPPRESSES the reply and names the rule id; the suppressed
+text never travels and never reaches a log. Nothing is added to any prompt.
+
+**Why.** Two independent measured reasons. `gate0-structural`, quoted in
+`docs/gurukul/safety-floor-teacher.md`: prompt instructions leaked 57-98%, the
+SQL predicate leaked 0 of 31,122. And `recited-prompt`: a list of forbidden
+sentences in a brief is a phrase bank pointed at exactly the strings it forbids.
+The module imports nothing because `api/_surface.js` is on every surface's reply
+path including the Telegram webhook, and enforcing an owner's rule must not drag
+storage config or a database client onto that path.
+
+A long rule is matched by six-token SHINGLE rather than whole, because a clone
+that says the forbidden thing again will not reproduce the paragraph byte for
+byte, and a rule that only fires on an exact repeat is a rule that never fires.
+Rules shorter than three normalised characters are refused at the door: a
+one-character pattern matches every reply this AI will ever produce, and silently
+muting a person's clone is worse than refusing their rule out loud.
+
+**What would reverse it.** A measurement showing the shingle rule produces false
+suppressions on ordinary replies at a rate an owner would call broken (it is
+untested against real traffic; today it has only the suite's fixtures behind it),
+or a bounded per-turn cost measurement showing 200 compiled rules are too
+expensive on the reply path. Either would change the MATCHER. Neither is a reason
+to move the rules into a prompt.

@@ -5920,3 +5920,60 @@ device injection from library discovery and PyTorch runtime failure. Record the
 device files, NVIDIA environment, driver library, `nvidia-smi` and PyTorch CUDA
 build/runtime state. The existing immutable ZONOS2 digest should be retried only
 after that smaller canary succeeds.
+
+## `review-exemplar-needs-a-turn-that-never-happened` — WS-R4 (2026-09-03)
+
+**What was tried.** The WS-R4 brief asks "Sounds right" to mark the card's answer
+as an exemplar on `vy_replica_turn_exemplar`, which is the table the private
+dialogue lab's corrections already write to. The obvious implementation is one
+more CTE in the decision statement.
+
+**What specifically broke.** `vy_replica_turn_exemplar` is keyed `feedback_id`
+with a composite FK to `vy_replica_turn_feedback(feedback_id, replica_id,
+owner_user_id)`, and `recordOwnedTurnFeedback` can only write that parent row
+when an `authorized` CTE finds a `vy_replica_dialogue_turn` in state 'complete',
+with a non-null `response_hash`, joined to an ACTIVE `vy_replica_runtime_capability`
+at matching profile and calibration versions. A review card is not a dialogue
+turn. Three of the four card kinds (claim, delta, question) have no turn at all,
+and the fourth (a follower's question) belongs to a Room conversation and not to
+the owner's private lab. Writing the exemplar would have required minting a
+dialogue turn that never happened, plus a feedback row rating it, plus an
+encrypted exemplar body — a fabricated record in the one table whose entire
+purpose is to be evidence, in a product whose standing law is "prefer an error
+to a believable value".
+
+**What replaced it.** `sounds_right` records the decision on the card, and where
+the card came from a mined claim it approves THAT claim through
+`vy_replica_claim_decision` in the vocabulary `api/_person-model.js` already
+validates ('accepted' / 'accurate'), which is what actually feeds the person
+model. A 'delta' card records its decision and touches `vy_mirror_delta` not at
+all: `decideMirrorDelta` is the only statement in this repo that may move a
+Mirror Call chip, and a second writer here would delete the guarantee that
+decision buys. The consequence, stated rather than hidden: a delta card's
+decision does NOT accept the chip, and the owner still taps it on the call rail.
+
+**What would make the original idea work.** An exemplar table keyed on something
+other than a dialogue turn (a card id, a source id), or a review lane that
+genuinely runs a dialogue turn to produce the answer it shows. The second is the
+better version of this feature and it costs a paid turn per card.
+
+## `review-dedupe-on-the-prompt-collapsed-the-queue` — WS-R4 (2026-09-03)
+
+**What was tried.** One dedupe key for all four card kinds: sha256 over (kind,
+normalised prompt text), on the reasoning that "the same question asked twice is
+one card".
+
+**What specifically broke.** That reasoning is true for a 'question' or
+'follower_declined' card and false for the other two. A 'claim' card's prompt is
+a fixed line of studio copy ("Does your AI have this right about you?") and a
+'delta' card's is another; the thing being judged on those cards is the mined
+TEXT, which sits in `answer_text`. So fifty distinct mined claims all hashed to
+the same key and the unique index reduced them to ONE card. Caught by the eval's
+first assertion (50 claims produced 1 card, not 30), which is the only reason it
+was caught at all: it would have looked, in the studio, exactly like a replica
+that had mined one claim.
+
+**What replaced it.** `reviewDedupeSubject(kind, prompt, answer)` picks the half
+being judged: the prompt for question and follower cards, the answer for claim
+and delta cards. The eval asserts both halves by name so the next kind added has
+to answer the same question.
