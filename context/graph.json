@@ -4936,6 +4936,42 @@
       "kind": "measurement",
       "title": "evals/room-publish/run.mjs 37/37 (incl. the required struck-statement negative control); verify-release 14/14; sqlcast strict 0 uncast; studiowizard 86/86; layout gate clean at mode=teacher&step=deploy",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r9-swap-signal-is-the-generation-ledger",
+      "kind": "decision",
+      "title": "Drift watch detects a model swap off vy_replica_generation.preview_model_commitment, not vy_voice_fidelity",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r9-drift-watch-does-not-write-on-read",
+      "kind": "decision",
+      "title": "api/drift-watch.js is read-only; the sweep is the sole writer, unlike readiness's read-that-writes",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r9-score-drop-threshold-002",
+      "kind": "decision",
+      "title": "Drift watch's score-drop bar is 0.02, cited to run noise (6e-6), window spread (0.0625) and a real LoRA delta (0.0206)",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r9-prosody-anchor-reused-not-rederived",
+      "kind": "decision",
+      "title": "Drift watch reads prosody-baseline.mjs's own lastAlarm verdict rather than a third copy of the current-voice comparison",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r9-fidelity-recorder-has-zero-live-callers",
+      "kind": "measurement",
+      "title": "recordOwnedFidelity has exactly one caller in the tree: its own offline eval",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r9-fidelity-score-drop-unmeasured-in-production",
+      "kind": "open",
+      "title": "Drift watch's score-drop signal reads not_measured for every real replica until recordOwnedFidelity gets a live caller",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9928,6 +9964,66 @@
       "src": "ws-r7-publish-lock-shares-readiness-fragment-with-clonechannel",
       "rel": "measured_by",
       "dst": "ws-r7-room-publish-gate-results-2026-09-03"
+    },
+    {
+      "src": "vision-drift-4day",
+      "rel": "measured_by",
+      "dst": "ws-r9-swap-signal-is-the-generation-ledger"
+    },
+    {
+      "src": "dead-writers",
+      "rel": "caused_by",
+      "dst": "ws-r9-fidelity-recorder-has-zero-live-callers"
+    },
+    {
+      "src": "ws-r9-swap-signal-is-the-generation-ledger",
+      "rel": "caused_by",
+      "dst": "ws-r9-fidelity-recorder-has-zero-live-callers"
+    },
+    {
+      "src": "ws-r9-fidelity-score-drop-unmeasured-in-production",
+      "rel": "caused_by",
+      "dst": "ws-r9-fidelity-recorder-has-zero-live-callers"
+    },
+    {
+      "src": "ws-r9-fidelity-score-drop-unmeasured-in-production",
+      "rel": "blocks",
+      "dst": "ws-r9-score-drop-threshold-002"
+    },
+    {
+      "src": "fidelity-needs-its-ceiling-printed",
+      "rel": "constrains",
+      "dst": "ws-r9-score-drop-threshold-002"
+    },
+    {
+      "src": "lora-vs-zero-shot-71s",
+      "rel": "measured_by",
+      "dst": "ws-r9-score-drop-threshold-002"
+    },
+    {
+      "src": "reference-window-beats-the-finetune",
+      "rel": "measured_by",
+      "dst": "ws-r9-score-drop-threshold-002"
+    },
+    {
+      "src": "cache-outlives-the-voice",
+      "rel": "caused_by",
+      "dst": "ws-r9-prosody-anchor-reused-not-rederived"
+    },
+    {
+      "src": "voice-despina",
+      "rel": "constrains",
+      "dst": "ws-r9-prosody-anchor-reused-not-rederived"
+    },
+    {
+      "src": "prosody-baseline-f0-gap",
+      "rel": "part_of",
+      "dst": "ws-r9-prosody-anchor-reused-not-rederived"
+    },
+    {
+      "src": "ws-r9-drift-watch-does-not-write-on-read",
+      "rel": "caused_by",
+      "dst": "ws-r3-readiness-lock-is-sql-predicate-peer-gate"
     }
   ]
 }

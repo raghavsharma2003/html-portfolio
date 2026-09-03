@@ -1380,6 +1380,27 @@ const suites = {
   // CANNOT see is SQL types and referential integrity: migration 075 is
   // unapplied and no statement in this lane has executed against a database.
   interview: "interview/run.mjs",
+  // WS-R9, drift watch. "It notices drift" — the two independent signals
+  // (a swap walked off `vy_replica_generation.preview_model_commitment`, a
+  // score drop against the SAME `genome_version` only), the 0.02 threshold
+  // held to the three measurements that justify it (6e-6 run noise, 0.0625
+  // window-choice spread, 0.0206 a genuine trained delta), the recency
+  // window that keeps "moved" answering "the day the score moved" rather
+  // than staying tripped forever, the prosody anchor reused rather than
+  // re-derived from `scripts/prosody-baseline.mjs`'s own verdict, and the
+  // negative control the brief asks for by name: a report that says
+  // "steady" across a swap must fail this suite.
+  //
+  // Also holds: the deliberate divergence from readiness's "a read that
+  // writes" (drift watch gates nothing, so the owner GET never writes;
+  // api/drift-watch-sweep.js is the sole writer), migration 076 to the
+  // splitter's rules, and the drift history to the erasure reach.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What
+  // it CANNOT see is SQL types and referential integrity: `evals/sqlcast`
+  // covers the first and `scripts/relcheck.mjs` the second, and migration
+  // 076 has never been applied to any database.
+  driftwatch: "drift-watch/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

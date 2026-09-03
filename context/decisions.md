@@ -8296,3 +8296,36 @@ exported entry point.
 **Rationale.** `api/_clonechannel.js`'s own header states the law this restates: "a sentence in a brief is a preference; a predicate on the write is a guarantee." The courtesy explanation can be stale, wrong, or race the write by a few milliseconds under concurrent edits, and none of that matters, because it decides nothing — worst case it over- or under-explains a lock the write already held regardless. `evals/room-publish/run.mjs`'s negative control proves the write's own predicate is load-bearing independent of this courtesy layer.
 
 **Reverses if.** Never, structurally — this is the same shape `api/_clonechannel.js`'s `connected()` already ships and it is a load-bearing platform convention (context/rejected.md's `gate0-structural`), not a workstream-local choice.
+## `ws-r9-swap-signal-is-the-generation-ledger` — drift watch does not trust `vy_voice_fidelity` for a swap (2026-09-03, WS-R9)
+
+**Decision.** `api/_drift-watch.js` detects a "provider silently swapped a model under the same name" event by walking `vy_replica_generation.preview_model_commitment` across one fixed lane (`purpose='voice_preview', channel='studio_preview'`), NOT by watching `voice_model_ref` on `vy_voice_fidelity`.
+
+**Rationale.** Grepped for a CALLER, not a definition (`AGENTS.md`'s own law): `recordOwnedFidelity` (`api/_fidelity.js`) has exactly one caller in the whole tree, and it is `evals/fidelity/run.mjs`, its own offline eval. Nothing in `api/` writes a `vy_voice_fidelity` row today. A drift detector built only on that table would watch a table nothing fills — a `dead-writers` shape with the polarity reversed, discovered before shipping rather than after. `vy_replica_generation.preview_model_commitment` is written on every real preview synthesis (migrations 019/044) and is the one lane actually live, which makes it `vision-drift-4day`'s exact shape restated: the swap that mattered was caught by watching the ARTIFACT a deployment produces, not a config string nobody reads back.
+
+**What this costs.** The score-drop half of "moved" (a genuine ECAPA drop against the same reference set) is real code, tested, and will report `not_measured` for every replica in production today, because there is no fidelity history to compare. That is the correct honest state, not a bug to route around silently.
+
+**Reverses if.** `recordOwnedFidelity` gets a live caller (the activation pipeline, a scheduled re-bench, or the Mirror Call flow scoring a fresh sample). The day it does, the score-drop signal starts producing real trend points with no code change here — `driftWatchReport`'s `detectScoreDrop` already reads whatever history it is given.
+
+## `ws-r9-drift-watch-does-not-write-on-read` — a monitor is not a lock, and its GET does not snapshot (2026-09-03, WS-R9)
+
+**Decision.** `api/drift-watch.js` (the owner's GET) computes the report live and writes nothing. `api/drift-watch-sweep.js` (cron, every six hours) is the sole writer of `vy_replica_drift_report`, guarded on `inputs_hash` exactly like `snapshotReadiness`'s guard.
+
+**Rationale.** `api/_readiness.js`'s "a read that writes" is deliberate there because the publish lock is a SQL predicate joined against the LATEST readiness snapshot inside the runtime-activation statement — an unsaved fresh compute would show a passing screen while the gate still read a stale failing row. Drift watch gates nothing (no activation, no channel connect reads this table), so there is no predicate that needs one exact compute captured, and a browser GET should never surprise the database with a write it did not ask for. The stronger reason: "an alert the day the score moves" (the brief's own line) must not depend on a creator opening the studio that day — if the write only happened on a GET, a swap on a Tuesday nobody visited the Meet step for would sit unrecorded and unalerted indefinitely. A schedule-driven sole writer is what makes the alert's timing independent of anyone looking.
+
+**Reverses if.** Drift watch ever gates something (a channel pause, a re-review requirement) — at that point it needs readiness's exact shape: the read becomes the writer, guarded the same way, for the same reason.
+
+## `ws-r9-score-drop-threshold-002` — cited to three numbers, not chosen (2026-09-03, WS-R9)
+
+**Decision.** `DRIFT_SCORE_DROP_THRESHOLD = 0.02`. A "moved by score" verdict requires BOTH a drop exceeding this bar AND that the two compared `vy_voice_fidelity` rows share the same `genome_version` (the same reference set).
+
+**Rationale, the three numbers.** All ECAPA-TDNN cosine, all in `context/measurements.md`: run-to-run reproducibility on this stack is **6e-6** (`lora-vs-zero-shot-71s`, corroborated to 5e-6 by a third independent run); choosing a different 10 s reference WINDOW of the identical recording, scored against a FIXED reference set, spans **0.0625** (`reference-window-beats-the-finetune`); a genuine trained change — 60 epochs of LoRA on 62.1 s of speaker audio — moved the mean by **+0.0206** (`lora-vs-zero-shot-71s`). 0.02 sits five orders of magnitude above the noise floor, just under the smallest genuine trained delta measured so far, and a third of the window-choice spread — which is why the same-`genome_version` restriction is load-bearing and not decoration: without it, 0.02 would fire on nothing more than which ten seconds of a recording got scored.
+
+**Reverses if.** A same-reference-set repeatability bench across more than the current n=1 speaker either shows ordinary noise exceeding 0.02 (raise it) or catches a real swap below it (lower it). `DRIFT_POLICY_VERSION` bumps with any change, per `fidelity-needs-its-ceiling-printed`'s own precedent for `policy_version`.
+
+## `ws-r9-prosody-anchor-reused-not-rederived` — the staleness check reads the job's own verdict, not a third copy of "current voice" (2026-09-03, WS-R9)
+
+**Decision.** `api/_drift-watch.js` treats the prosody anchor as stale from `scripts/prosody-baseline.mjs`'s own `lastAlarm` field plus how long ago it last ran (`PROSODY_ANCHOR_STALE_DAYS = 14`, twice the job's own stated "nightly" cadence). It does NOT independently compare "the voice currently in use" against the baseline's recorded voice.
+
+**Rationale.** `cache-outlives-the-voice` already found this exact hazard at two copies: `api/speech.js`'s `DEFAULT_VOICE` and `prosody-baseline.mjs`'s own `TTS_VOICE` constant, kept in sync only by a human running `verify-voice.mjs --set`. A third independent copy inside `api/_drift-watch.js` would be the same mirror-with-no-writer defect a third time. Reading the job's own alarm bit instead means there is exactly one place that decides "did the voice move," and drift watch inherits its answer rather than re-deriving a worse one.
+
+**Reverses if.** The prosody baseline job grows a machine-readable "current expected voice" field of its own that is safe to compare against without re-deriving it — at that point a direct comparison here is strictly more information than a boolean alarm and worth the added coupling.
