@@ -53,6 +53,19 @@ export const STRICT_SURFACE = [
   // (`coverage-lists-that-enumerate-a-subset`).
   /^api\/_replica-activity\.js$/,
   /^api\/replica-activity\.js$/,
+  // WS-R4, the review queue. On the strict list from its first commit, on WS-X
+  // and WS-AF's reasoning: its decide statement is a twelve-CTE write that
+  // moves a person's own claims and retires their derived model, its generate
+  // statement fans a jsonb array into a bulk insert, and nothing in it has ever
+  // run against a database. `api/_review-queue.js` and `api/review-queue.js`
+  // match none of the patterns above, so both are listed by name.
+  /^api\/_review-queue\.js$/,
+  /^api\/_review-queue\//,
+  /^api\/review-queue\.js$/,
+  // The never-rule predicate has no SQL at all and imports nothing. Listed so
+  // that if it ever grows a statement it is covered from that day rather than
+  // from the day it 500s (`coverage-lists-that-enumerate-a-subset`).
+  /^api\/_never-rules\.js$/,
 ];
 
 export function isStrict(rel) {
