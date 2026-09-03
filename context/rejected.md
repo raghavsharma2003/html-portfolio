@@ -6332,3 +6332,34 @@ to accept a different consent record), lift the `mode === "teacher"` guard
 in `StudioApp.tsx` around `<RoomStudio>` — nothing in `api/_room-publish.js`
 itself would need to change, since its predicate already reads the row by
 `agent_id` alone, indifferent to which mode wrote it.
+## `ws-r10-check-copy-apostrophe-parity` (2026-09-03, WS-R10)
+
+**Tried.** Relying on `scripts/check-copy.mjs`'s reported line numbers and
+`text` snippets at face value while fixing `rooms-vocabulary` hits.
+
+**What broke.** `textNodes()`/`jsLiterals()` blank every quoted string in the
+WHOLE file first, with a single regex that does not distinguish a real JS
+string delimiter from an apostrophe sitting inside JSX text ("it's",
+"AI's", "teacher's"). An apostrophe in JSX text can pair with a distant,
+unrelated apostrophe elsewhere in the file and blank the entire span between
+them, tags included. Two directions of failure followed: a real hit (`the
+clone's voice route`) can go unreported because the extractor never sees it
+as a text node in the first place, and a REPORTED hit can be a phantom that
+actually points at an unrelated later expression merged into the same
+"text" by the blanked tags in between (`QuickStartPath.tsx:106` reported
+"clone" from `{replica.display_name}`, a property access nowhere near the
+paragraph named in the offence; `MirrorCallStudio.tsx:645` reported "clone"
+from `line.kind === "clone"`, a type discriminant three JSX elements later).
+Neither `replica.display_name` nor the discriminant is copy, and neither was
+changed.
+
+**Rule.** Do not trust a `check-copy` line number or snippet as the literal
+location of a hit; trace it (`slice(0, 100)` in `scanSource`'s push can be
+widened locally to see the full merged text) before editing. Two real
+merges were resolved by removing one apostrophe from the pair rather than by
+touching the phantom's actual source (`QuickStartPath.tsx`: "who it's
+waiting on" to "who it is waiting on"; `MirrorCallStudio.tsx`: "Your AI's
+voice route" to "The voice route for your AI"), which is a workaround, not a
+fix. The tokenizer itself still cannot tell a JSX-text apostrophe from a
+string delimiter; whoever next touches `check-copy.mjs`'s extraction should
+track that distinction rather than blanking quotes file-wide.

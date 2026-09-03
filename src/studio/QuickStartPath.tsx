@@ -30,14 +30,14 @@ const BLOCKER_META: Record<string, { label: string; owner: Owner; note: string; 
   adult_verification_required: { label: "Living-adult verification", owner: "you", note: "Complete the liveness check below.", anchor: "#liveness-capture" },
   identity_verification_required: { label: "Identity verification", owner: "you", note: "Complete identity proofing below.", anchor: "#identity-proofing" },
   liveness_verification_required: { label: "Live anti-replay check", owner: "you", note: "Complete the liveness check below.", anchor: "#liveness-capture" },
-  inference_consent_required: { label: "Inference permission", owner: "you", note: "Grant training and inference consent below.", anchor: "#model-consent-gate" },
-  person_profile_not_approved: { label: "Approved person model", owner: "you", note: "Review and confirm your claims below.", anchor: "#person-model-studio" },
+  inference_consent_required: { label: "Inference permission", owner: "you", note: "Grant build and inference consent below.", anchor: "#model-consent-gate" },
+  person_profile_not_approved: { label: "Approved: what we learned about you", owner: "you", note: "Review and confirm your claims below.", anchor: "#person-model-studio" },
   calibration_not_approved: { label: "Approved behavior calibration", owner: "you", note: "Complete calibration comparisons below.", anchor: "#calibration-studio" },
-  voice_genome_not_approved: { label: "Approved voice model", owner: "platform", note: "Waiting on processing review and approval.", anchor: "#processing-review" },
+  voice_genome_not_approved: { label: "Approved voice", owner: "platform", note: "Waiting on processing review and approval.", anchor: "#processing-review" },
   voice_not_ready: { label: "Production voice mapping", owner: "platform", note: "Voice synthesis infrastructure is still being connected. Not something you can unblock yet.", anchor: "#voice-enrollment-lab" },
   production_voice_required: { label: "Non-test voice provider", owner: "platform", note: "Voice synthesis infrastructure is still being connected. Not something you can unblock yet.", anchor: "#voice-enrollment-lab" },
   qualification_incomplete: { label: "Automated qualification suite", owner: "platform", note: "Runs automatically once every other gate above is closed.", anchor: "#runtime-gate" },
-  replica_not_ready: { label: "Approved voice and behavior models", owner: "platform", note: "Depends on the gates above being closed first.", anchor: "#runtime-gate" },
+  replica_not_ready: { label: "Approved voice and behavior", owner: "platform", note: "Depends on the gates above being closed first.", anchor: "#runtime-gate" },
 };
 
 function activeScopes(consents: ConsentReceipt[]) {
@@ -101,12 +101,12 @@ export default function QuickStartPath({
     <section className="quickstart" aria-labelledby="quickstart-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Your first clone, the short way</p>
+          <p className="eyebrow">Your first AI, the short way</p>
           <h2 id="quickstart-title">Get to a reviewable draft first. The rest stays exactly as strict</h2>
           <p className="quickstart-sub">
             Nothing below is skipped or weakened. This just orders it: what you can do right now with a name, a
             subject, and one upload; what a reviewable draft looks like from that; and, honestly rather than optimistically,
-            everything still locked, and who it's waiting on.
+            everything still locked, and who it is waiting on.
           </p>
         </div>
       </div>
@@ -115,7 +115,7 @@ export default function QuickStartPath({
         <li className="quickstart-step done">
           <span className="quickstart-step-mark" aria-hidden="true">✓</span>
           <div>
-            <strong>Name your clone</strong>
+            <strong>Name your AI</strong>
             <p>{replica.display_name}, created {new Date(replica.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.</p>
           </div>
         </li>
@@ -153,7 +153,7 @@ export default function QuickStartPath({
         <div className="quickstart-draft-banner" role="status">
           <strong>Your draft is reviewable.</strong>
           <p>
-            See exactly what a student would see and hear if this clone were published: the disclosure card and
+            See exactly what a student would see and hear if your AI were published: the disclosure card and
             spoken opening are fixed and cannot be turned off.
           </p>
           <button type="button" className="button secondary-button" onClick={() => jumpTo("#disclosure-preview")}>
@@ -172,9 +172,9 @@ export default function QuickStartPath({
             <button type="button" onClick={() => void load()}>Retry</button>
           </div>
         ) : runtime?.active ? (
-          <p className="quickstart-active-note">This replica's runtime is active. Every gate below is already closed.</p>
+          <p className="quickstart-active-note">Your AI's runtime is active. Every gate below is already closed.</p>
         ) : blockers.length === 0 && !loading ? (
-          <p className="quickstart-active-note">No launch gates are currently reported as closed for this replica.</p>
+          <p className="quickstart-active-note">No launch gates are currently reported as closed for your AI.</p>
         ) : (
           <div className="quickstart-locked-columns">
             <div>

@@ -86,7 +86,7 @@ const MOODS = {
   },
   meet: {
     title: "What has finished, and what has not",
-    lede: "If your clone does not know something you are sure you gave it, the reason is usually here. Unfinished work first.",
+    lede: "If your AI does not know something you are sure you gave it, the reason is usually here. Unfinished work first.",
     order: ["working", "stopped", "yours", "finished"],
   },
 } as const;

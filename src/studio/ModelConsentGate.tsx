@@ -57,7 +57,7 @@ export default function ModelConsentGate({
   }
 
   async function withdraw() {
-    if (withdrawText !== "PAUSE MODEL") return;
+    if (withdrawText !== "PAUSE AI") return;
     setBusy(true);
     setError("");
     try {
@@ -71,21 +71,21 @@ export default function ModelConsentGate({
   return (
     <section id="model-consent-gate" className="model-consent-section" aria-labelledby="model-consent-title">
       <div className="section-heading">
-        <div><p className="eyebrow">Permission to build the model</p><h2 id="model-consent-title">This is the consent that lets your clone exist</h2></div>
+        <div><p className="eyebrow">Permission to build your AI</p><h2 id="model-consent-title">This is the consent that lets your AI exist</h2></div>
         <span className={`model-consent-state ${modelReady ? "ready" : ""}`}>{modelReady ? "Granted" : "Locked"}</span>
       </div>
-      <p className="voice-enrollment-intro">Uploading memories never grants model rights. This separate ceremony is bound to your passed live identity proof and can be withdrawn at any time.</p>
+      <p className="voice-enrollment-intro">Uploading memories never grants rights to build your AI. This separate ceremony is bound to your passed live identity proof and can be withdrawn at any time.</p>
 
       {!identityReady ? (
         <div className="voice-gate-blockers" role="status"><strong>Verified consent is unavailable</strong><p>Complete adult identity and live face-and-voice verification first. The narrow biometric verification receipt must still be active.</p></div>
       ) : modelReady ? (
         <div className="model-consent-active">
-          <div className="voice-success"><span>✓</span><p><strong>Private modeling authorized</strong><small>Training expires {new Date(active.get("training")!.expires_at!).toLocaleDateString()} · inference expires {new Date(active.get("inference")!.expires_at!).toLocaleDateString()}</small></p></div>
-          <p>Public sharing, downloadable weights, API access, telephony, and provider model improvement remain off.</p>
-          <label className="field-label" htmlFor="pause-model-confirmation">Type PAUSE MODEL to withdraw training and inference</label>
+          <div className="voice-success"><span>✓</span><p><strong>Your AI is authorized to run</strong><small>Build permission expires {new Date(active.get("training")!.expires_at!).toLocaleDateString()} · inference expires {new Date(active.get("inference")!.expires_at!).toLocaleDateString()}</small></p></div>
+          <p>Public sharing, raw downloads, API access, telephony, and using your material to improve anyone else's AI remain off.</p>
+          <label className="field-label" htmlFor="pause-model-confirmation">Type PAUSE AI to withdraw build and inference permission</label>
           <div className="voice-row-actions">
             <input id="pause-model-confirmation" className="field" value={withdrawText} autoComplete="off" onChange={(event) => setWithdrawText(event.target.value.toUpperCase())} />
-            <button className="button destructive-button" type="button" disabled={busy || withdrawText !== "PAUSE MODEL"} onClick={() => void withdraw()}>{busy ? "Withdrawing" : "Withdraw now"}</button>
+            <button className="button destructive-button" type="button" disabled={busy || withdrawText !== "PAUSE AI"} onClick={() => void withdraw()}>{busy ? "Withdrawing" : "Withdraw now"}</button>
           </div>
         </div>
       ) : (
@@ -99,11 +99,11 @@ export default function ModelConsentGate({
               </label>
             ))}
           </div>
-          <button className="button primary-button" type="button" disabled={busy || !allChecked} onClick={() => void grant()}>{busy ? "Writing signed receipts" : "Grant private training and inference"}</button>
+          <button className="button primary-button" type="button" disabled={busy || !allChecked} onClick={() => void grant()}>{busy ? "Writing signed receipts" : "Grant permission to build and run your AI"}</button>
         </div>
       )}
       {error && <p className="inline-error" role="alert">{error.replaceAll("_", " ")}</p>}
-      <p className="voice-enrollment-note">Training permission lasts 180 days; inference permission lasts 30 days. Renewal always requires a new affirmative ceremony.</p>
+      <p className="voice-enrollment-note">Build permission lasts 180 days; inference permission lasts 30 days. Renewal always requires a new affirmative ceremony.</p>
     </section>
   );
 }

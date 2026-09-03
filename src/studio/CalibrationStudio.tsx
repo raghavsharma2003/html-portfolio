@@ -12,7 +12,7 @@ const LAYERS: Record<string, string> = {
 };
 
 const BLOCKERS: Record<string, string> = {
-  approved_person_profile_required: "Approve a Person Model first",
+  approved_person_profile_required: "Approve what we learned about you first",
   delivery_calibration_required: "Choose at least one delivery contrast",
   language_calibration_required: "Choose at least one language contrast",
   behaviour_calibration_required: "Choose at least one behavior contrast",

@@ -8329,3 +8329,57 @@ exported entry point.
 **Rationale.** `cache-outlives-the-voice` already found this exact hazard at two copies: `api/speech.js`'s `DEFAULT_VOICE` and `prosody-baseline.mjs`'s own `TTS_VOICE` constant, kept in sync only by a human running `verify-voice.mjs --set`. A third independent copy inside `api/_drift-watch.js` would be the same mirror-with-no-writer defect a third time. Reading the job's own alarm bit instead means there is exactly one place that decides "did the voice move," and drift watch inherits its answer rather than re-deriving a worse one.
 
 **Reverses if.** The prosody baseline job grows a machine-readable "current expected voice" field of its own that is safe to compare against without re-deriving it — at that point a direct comparison here is strictly more information than a boolean alarm and worth the added coupling.
+## `ws-r10-rooms-vocabulary-gate` (2026-09-03, WS-R10)
+
+**Decision.** `scripts/check-copy.mjs` gained a fifth rule, `rooms-vocabulary`,
+that fails the build on `clone`, `replica`, `model`, `fine-tune`,
+`train`/`training`, `weights`, `embedding`, `LoRA` or `genome` in a
+user-visible string anywhere in `src/studio/`, `src/room/`, `site/vyakti.html`,
+and the two root entry points `studio.html`/`room.html`. Two files carry
+documented, narrow exceptions in a new `scripts/roomsVocabAllowlist.mjs`:
+`DisclosurePreview.tsx`'s two verbatim safety-floor quotes (the disclosure a
+student already hears, word for word) and four of `ModelConsentGate.tsx`'s
+`STATEMENTS` (the exact sentences a teacher affirmatively checks). Every other
+string across both surfaces was rewritten to the Rooms vocabulary table:
+"your AI" to a creator, "<Name> AI" to a follower, "apprentice" for an
+incomplete one, "Studio", "Room", "Readiness", "Review" with its three
+button labels.
+
+**Rationale.** The Rooms plan's own rule: "not clone, in front of anyone." A
+gate that only lints new code lets old strings rot in place, and this repo
+already had 117 of them across `src/studio/` and `src/room/` before this
+session, most from before the Rooms rewrite existed as a decision. Making the
+rule structural (a failing gate, not a style note) is what stops a future
+diff from reintroducing the word by habit, the same reasoning
+`demo-teacher-is-not-a-placeholder` gives for why a fixture may never stand in
+on a consent surface: a word a real person already agreed to, or a role this
+product already promised never to use, cannot be a thing a PR quietly changes
+back.
+
+**Reverses if.** The product renames "your AI" / "<Name> AI" / "apprentice" to
+something else, in which case this rule's regex and the allowlist's reasons
+move together, not independently. If a legitimate new legal-text exception is
+needed, it goes in `roomsVocabAllowlist.mjs` with a `reason` naming the exact
+consent artifact it protects, never as a change to the rule itself.
+
+## `ws-r10-worktree-wrong-base-commit` (2026-09-03, WS-R10)
+
+**Decision.** Before writing any code, this session's worktree branch (then
+`worktree-agent-aa270d73922673987`) was reset from `3a92179` (the tip of an
+unrelated product's history, "Meera", sharing this same physical repo on a
+different branch) to `61634a4` (the tip of
+`claude/vyakti-cloning-platform-aq05n4`, the Rooms platform branch the
+workstream brief actually describes), then renamed to `ws-r10-vocabulary`.
+Confirmed correct by comparing against a sibling workstream's branch
+(`ws-r8-room-leak-battery`), which was based on `61634a4` from the start.
+
+**Rationale.** The checked-out tree had none of the files the brief named
+(`AGENTS.md`, `docs/gurukul/`, `src/studio/`) and the root `CLAUDE.md` (a file
+this session cannot edit as part of its own task) describes a different
+product entirely. Nothing had been written yet, so resetting lost no work;
+proceeding on the wrong base would have produced a branch the main loop could
+not merge into the Rooms platform tree at all.
+
+**Reverses if.** Nothing; this is a one-time environment correction, not a
+product decision. Logged so a future session recognizes the failure mode (a
+worktree on the wrong branch entirely, not merely behind) if it recurs.

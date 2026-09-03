@@ -4972,6 +4972,30 @@
       "kind": "open",
       "title": "Drift watch's score-drop signal reads not_measured for every real replica until recordOwnedFidelity gets a live caller",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r10-rooms-vocabulary-gate",
+      "kind": "decision",
+      "title": "check-copy.mjs gains a rooms-vocabulary rule; clone/replica/model/train/weights/embedding/LoRA/genome banned in src/studio, src/room, site/vyakti.html, studio.html, room.html",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r10-worktree-wrong-base-commit",
+      "kind": "decision",
+      "title": "Worktree branch was reset from an unrelated product tip to the Rooms platform tip (61634a4) before any work began",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r10-vocabulary-hits-before-after",
+      "kind": "measurement",
+      "title": "rooms-vocabulary gate hits: 117 before fixes, 19 after src/studio+src/room+studio.html, 0 after site/vyakti.html rewrite",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r10-check-copy-apostrophe-parity",
+      "kind": "rejection",
+      "title": "check-copy.mjs whole-file quote blanking cannot tell a JSX-text apostrophe from a string delimiter, producing both false negatives and phantom hits",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10024,6 +10048,21 @@
       "src": "ws-r9-drift-watch-does-not-write-on-read",
       "rel": "caused_by",
       "dst": "ws-r3-readiness-lock-is-sql-predicate-peer-gate"
+    },
+    {
+      "src": "ws-r10-rooms-vocabulary-gate",
+      "rel": "measured_by",
+      "dst": "ws-r10-vocabulary-hits-before-after"
+    },
+    {
+      "src": "ws-r10-check-copy-apostrophe-parity",
+      "rel": "constrains",
+      "dst": "ws-r10-rooms-vocabulary-gate"
+    },
+    {
+      "src": "demo-teacher-is-not-a-placeholder",
+      "rel": "constrains",
+      "dst": "ws-r10-rooms-vocabulary-gate"
     }
   ]
 }

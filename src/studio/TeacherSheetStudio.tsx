@@ -181,7 +181,7 @@ export default function TeacherSheetStudio({
           with the next twenty minutes. */}
       {sheetProvenance === "seed" && (
         <p className="field-note" role="status">
-          Nothing is saved for this clone yet. The fields below are blank or set to a middle default, and they carry
+          Nothing is saved for your AI yet. The fields below are blank or set to a middle default, and they carry
           your name because we will never show you somebody else's. Save when you are ready.
         </p>
       )}
@@ -195,7 +195,7 @@ export default function TeacherSheetStudio({
       <div className="teacher-sheet-grid">
         <article className="teacher-sheet-card">
           <h3>Subject &amp; syllabus coverage</h3>
-          <label className="field-label" htmlFor="subject-domain">Subject this clone answers in</label>
+          <label className="field-label" htmlFor="subject-domain">Subject your AI answers in</label>
           <select
             id="subject-domain"
             className="field"
@@ -217,7 +217,7 @@ export default function TeacherSheetStudio({
           />
 
           <p className="field-note">
-            Check every chapter this clone should teach. A physics teacher's clone answering
+            Check every chapter your AI should teach. A physics teacher's AI answering
             organic chemistry is a misrepresentation of them.
           </p>
           <div className="syllabus-coverage" role="group" aria-label="Chapter coverage">
@@ -309,7 +309,7 @@ export default function TeacherSheetStudio({
           <h3>Boundaries</h3>
           <p className="field-note">
             <code>identityLife</code> is yours to write and is never ingested. A teacher's private life is not consented
-            training material even when it appears in your own uploaded videos.
+            material for your AI even when it appears in your own uploaded videos.
           </p>
           <label className="field-label" htmlFor="identity-life">Teaching life, in one breath</label>
           <textarea
@@ -351,7 +351,7 @@ export default function TeacherSheetStudio({
       {error && <p className="inline-error" role="alert">{error}</p>}
       {notice && <p className="field-note" role="status">{notice}</p>}
       <div className="person-model-action">
-        <p>Saving here never publishes a clone. Publish runs the full floor and consent gate separately.</p>
+        <p>Saving here never publishes your AI. Publish runs the full floor and consent gate separately.</p>
         <button className="button primary-button" type="button" disabled={saving} onClick={() => void save()}>
           {saving ? "Saving…" : "Save sheet draft"}
         </button>

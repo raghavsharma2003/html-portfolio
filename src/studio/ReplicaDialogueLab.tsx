@@ -63,7 +63,7 @@ export default function ReplicaDialogueLab({
       }
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "The replica could not answer");
+      setError(cause instanceof Error ? cause.message : "Your AI could not answer");
       await load();
     } finally {
       setSending(false);
@@ -102,9 +102,9 @@ export default function ReplicaDialogueLab({
       <div className="dialogue-lab-head">
         <div>
           <p className="eyebrow">Private conversation</p>
-          <h2 id="dialogue-lab-title">Talk to your clone privately, in text</h2>
+          <h2 id="dialogue-lab-title">Talk to your AI privately, in text</h2>
           <p>
-            Every answer is generated from the frozen Person Model, owner calibration, this relationship's private state,
+            Every answer is generated from what we learned about you, owner calibration, this relationship's private state,
             and recent turns. Voice playback can speak only the exact server-issued reply.
           </p>
         </div>
@@ -114,7 +114,7 @@ export default function ReplicaDialogueLab({
       {!active ? (
         <div className="dialogue-locked">
           <strong>Conversation stays unavailable until the private runtime passes every gate.</strong>
-          <p>No fallback model, generic voice, or partial activation is used.</p>
+          <p>No fallback AI, generic voice, or partial activation is used.</p>
         </div>
       ) : (
         <>
@@ -139,7 +139,7 @@ export default function ReplicaDialogueLab({
             {sending ? <div className="dialogue-thinking" role="status">Building an evidence-bound answer...</div> : null}
           </div>
           <form className="dialogue-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-            <label htmlFor="replica-dialogue-message">Message your replica</label>
+            <label htmlFor="replica-dialogue-message">Message your AI</label>
             <div>
               <textarea id="replica-dialogue-message" value={draft} maxLength={4_000} rows={2} placeholder="What would I say here?" onChange={(event) => setDraft(event.target.value)} />
               <button className="button primary-button" type="submit" disabled={sending || !draft.trim()}>Send privately</button>
@@ -148,7 +148,7 @@ export default function ReplicaDialogueLab({
         </>
       )}
       {error ? <div className="runtime-error" role="alert"><span>{error}</span><button type="button" onClick={() => setError("")}>Dismiss</button></div> : null}
-      <p className="dialogue-trust">Synthetic disclosure and watermarking remain mandatory for audio. Conversation logs are private and erasable; this screen never exposes model, agent, person, storage, or provider identifiers.</p>
+      <p className="dialogue-trust">Synthetic disclosure and watermarking remain mandatory for audio. Conversation logs are private and erasable; this screen never exposes AI, agent, person, storage, or provider identifiers.</p>
     </section>
   );
 }

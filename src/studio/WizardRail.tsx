@@ -106,7 +106,7 @@ export function WizardRail({
   steps,
   current,
   onGo,
-  label = "Your clone, in three steps",
+  label = "Your AI, in three steps",
 }: {
   steps: StepView[];
   current: StepId;

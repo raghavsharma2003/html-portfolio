@@ -244,9 +244,9 @@ const TITLES: Record<StepId, {
   },
   meet: {
     title: "Meet it",
-    promise: "Talk to your clone, hear it, and correct it while it listens.",
-    nextPhrase: "talk to your clone",
-    backPhrase: "talking to your clone",
+    promise: "Talk to your AI, hear it, and correct it while it listens.",
+    nextPhrase: "talk to your AI",
+    backPhrase: "talking to your AI",
   },
   deploy: {
     title: "Deploy it",
@@ -312,10 +312,10 @@ const BLOCKER_META: Record<string, {
   inference_consent_required: {
     label: "Inference permission",
     owner: "you", step: "meet", anchor: "#model-consent-gate",
-    note: "Grant training and inference permission in Advanced on this step.",
+    note: "Grant build and inference permission in Advanced on this step.",
   },
   person_profile_not_approved: {
-    label: "Approved person model",
+    label: "Approved: what we learned about you",
     owner: "you", step: "meet", anchor: "#person-model-studio",
     note: "Review and confirm your claims in Advanced on this step.",
     needsProcessedMaterial: true,
@@ -339,9 +339,9 @@ const BLOCKER_META: Record<string, {
   // A production run measured the old copy telling an owner "nothing to do
   // here" while their own review-and-approve tap was the entire blocker.
   voice_genome_not_approved: {
-    label: "Approved voice model",
+    label: "Approved voice",
     owner: "you", step: "meet", anchor: "#processing-review",
-    note: "Review the evidence and queue a draft voice model under Check it and correct it on this step.",
+    note: "Review the evidence and queue a draft voice under Check it and correct it on this step.",
     needsProcessedMaterial: true,
   },
   voice_not_ready: {
@@ -360,7 +360,7 @@ const BLOCKER_META: Record<string, {
     note: "Runs automatically once every other gate is closed.",
   },
   replica_not_ready: {
-    label: "Approved voice and behavior models",
+    label: "Approved voice and behavior",
     owner: "platform", step: "deploy", anchor: "#runtime-gate",
     note: "Depends on the gates above being closed first.",
   },
@@ -514,7 +514,7 @@ function meetMissing(input: WizardInput): Missing[] {
       code: "sheet_not_saved",
       label: "A saved teaching sheet",
       owner: "you",
-      note: "Review the sheet and save it, so the clone answers as you and not as an example.",
+      note: "Review the sheet and save it, so your AI answers as you and not as an example.",
       anchor: "#teacher-sheet-studio",
     }, input));
   }

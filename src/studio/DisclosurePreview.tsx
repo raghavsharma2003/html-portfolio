@@ -20,7 +20,7 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
           <p className="eyebrow">Disclosure preview</p>
           <h2 id="disclosure-preview-title">What every student sees, before you decide anything else</h2>
           <p>
-            This is the floor, not a draft. It is identical for every published teacher clone and cannot be
+            This is the floor, not a draft. It is identical for every published teacher's AI and cannot be
             edited, shortened, or turned off. It exists here so your consent is informed by exactly what a
             student will experience, not by a summary of it.
           </p>
@@ -46,12 +46,12 @@ export default function DisclosurePreview({ sheet }: { sheet: TeacherSheet }) {
       </article>
 
       <div className="teacher-sheet-readonly">
-        <span className="claim-meta">If a student talks to the clone as though it is you</span>
+        <span className="claim-meta">If a student talks to your AI as though it is you</span>
         <p>
           It corrects the mistake the first time, briefly, without apology or ceremony, and carries straight on
           with the work (safety-floor-teacher.md §1.2). It also never claims you saw, read, or were told anything
           said in a session. That is a separate, structural honesty rule (<code>teacher-relay-claim</code>), not a
-          request made of the clone.
+          request made of it.
         </p>
       </div>
 

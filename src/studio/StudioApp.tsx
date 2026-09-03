@@ -161,19 +161,19 @@ interface StudioCopy {
 }
 
 const GENERIC_COPY: StudioCopy = {
-  brandTag: "PRIVATE REPLICA LAB",
+  brandTag: "PRIVATE AI LAB",
   introEyebrow: "Private by construction",
-  introTitle: "A replica that begins with your permission.",
+  introTitle: "An AI that begins with your permission.",
   introBody:
-    "Build and control a consent-verified model of yourself. Every source stays private, every capability is separately approved, and revocation stops future use.",
-  workspaceNoun: "Self-replica",
-  firstEyebrow: "Your first replica",
+    "Build and control a consent-verified AI of yourself. Every source stays private, every capability is separately approved, and revocation stops future use.",
+  workspaceNoun: "Your AI",
+  firstEyebrow: "Your first AI",
   firstTitle: "Begin with identity, not an upload.",
   firstBody:
     "Name your private workspace. Voice, memories, and behavior remain locked until consent and liveness services are connected.",
-  nameLabel: "Replica name",
+  nameLabel: "AI name",
   namePlaceholder: "Your name",
-  fieldNote: "You may create a replica only of yourself. Verification comes next.",
+  fieldNote: "You may create an AI only of yourself. Verification comes next.",
   // C4 (UX-QUEUE copy audit): the old line spent most of a first success on
   // what does not work. The truth is unchanged and still stated on the panels
   // that own each gate; what changes is that the first thing a person reads
@@ -184,33 +184,33 @@ const GENERIC_COPY: StudioCopy = {
 const TEACHER_COPY: StudioCopy = {
   brandTag: "GURUKUL TEACHER STUDIO",
   introEyebrow: "Verified, consented, disclosed",
-  introTitle: "A teaching clone that begins with your permission, and is disclosed to every student.",
+  introTitle: "A teaching AI that begins with your permission, and is disclosed to every student.",
   introBody:
-    "Build and control a consent-verified teaching clone of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told before every session that they are talking to an AI clone, not you.",
-  workspaceNoun: "Self-teaching-clone",
-  firstEyebrow: "Your first teaching clone",
+    "Build and control a consent-verified teaching AI of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told before every session that they are talking to an AI, not you.",
+  workspaceNoun: "Your teaching AI",
+  firstEyebrow: "Your first teaching AI",
   firstTitle: "Begin with identity, not an upload.",
   firstBody:
-    "Name your teaching clone. Voice, teaching style, and pedagogy remain locked until consent and liveness services are connected.",
-  nameLabel: "Teacher / clone name",
+    "Name your teaching AI. Voice, teaching style, and pedagogy remain locked until consent and liveness services are connected.",
+  nameLabel: "Teacher / AI name",
   namePlaceholder: "Your name, as students will see it",
-  fieldNote: "You may create a teaching clone only of yourself. Verification comes next.",
-  createdNotice: "Your teaching clone has a workspace. Add one lecture or link on this step, and you can hear a private draft voice before any verification.",
+  fieldNote: "You may create a teaching AI only of yourself. Verification comes next.",
+  createdNotice: "Your teaching AI has a workspace. Add one lecture or link on this step, and you can hear a private draft voice before any verification.",
 };
 
 const TEST_COPY: StudioCopy = {
   brandTag: "INTERNAL TEST STUDIO",
   introEyebrow: "",
-  introTitle: "Add your sources. Then test your clone.",
+  introTitle: "Add your sources. Then test your AI.",
   introBody: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it.",
-  workspaceNoun: "Test clone",
+  workspaceNoun: "Test AI",
   firstEyebrow: "",
   firstTitle: "Create a test workspace.",
-  firstBody: "Name the clone, add any useful sources, then hear it and talk to it.",
-  nameLabel: "Clone name",
+  firstBody: "Name your AI, add any useful sources, then hear it and talk to it.",
+  nameLabel: "AI name",
   namePlaceholder: "Your name",
-  fieldNote: "You can change the clone as you test it.",
-  createdNotice: "Test workspace ready. Add useful sources, or start talking to the clone now.",
+  fieldNote: "You can change your AI as you test it.",
+  createdNotice: "Test workspace ready. Add useful sources, or start talking to your AI now.",
 };
 
 const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
@@ -293,7 +293,7 @@ const TEST_SOURCE_TYPES = [
 function TestSourceGuide() {
   return (
     <nav className="test-source-guide" aria-label="Five source types">
-      <p>Add any source type. None is required to open the clone.</p>
+      <p>Add any source type. None is required to open your AI.</p>
       <div>
         {TEST_SOURCE_TYPES.map((source) => (
           <button key={source.label} type="button" onClick={() => jumpTo(source.anchor, source.label)}>
@@ -392,7 +392,7 @@ function AuthGate({ onAuthed, copy, testEnvironment }: { onAuthed: (session: Stu
         <h2 id="signin-title">{step === "email" ? "Enter your studio" : "Check your inbox"}</h2>
         <p className="card-copy">
           {step === "email"
-            ? "Sign in with the email you want to manage this clone from. If you are already signed in on this device, we will recognise you."
+            ? "Sign in with the email you want to manage your AI from. If you are already signed in on this device, we will recognise you."
             : `We sent a six-digit code to ${email}.`}
         </p>
 
@@ -479,7 +479,7 @@ function AuthGate({ onAuthed, copy, testEnvironment }: { onAuthed: (session: Stu
         )}
         {error && <p className="inline-error" role="alert">{error}</p>}
         {!testEnvironment && <p className="legal-copy">
-          Access does not grant cloning permission. Separate, recorded consent is required before any biometric processing.
+          Access does not grant permission to build your AI. Separate, recorded consent is required before any biometric processing.
         </p>}
       </section>
     </main>
@@ -516,7 +516,7 @@ function CreateReplicaCard({ onCreate, busy, copy }: { onCreate: (name: string) 
               onChange={(event) => setName(event.target.value)}
             />
             <button className="button primary-button" disabled={busy || !name.trim()}>
-              {busy ? <Spinner label="Creating replica" /> : "Create workspace"}
+              {busy ? <Spinner label="Creating your AI" /> : "Create workspace"}
             </button>
           </div>
           <p className="field-note">{copy.fieldNote}</p>
@@ -538,8 +538,8 @@ function ReplicaList({
   onNew: () => void;
 }) {
   return (
-    <aside className="replica-rail" aria-label="Your replicas">
-      <div className="rail-label">Your replicas</div>
+    <aside className="replica-rail" aria-label="Your AIs">
+      <div className="rail-label">Your AIs</div>
       <div className="replica-list">
         {replicas.map((replica) => (
           <button
@@ -762,7 +762,7 @@ function ReplicaWorkspace({
       {testEnvironment && (
         <aside className="test-environment-notice" role="status">
           <strong>Internal test environment</strong>
-          <span>Add any useful sources, then hear and talk to the clone.</span>
+          <span>Add any useful sources, then hear and talk to your AI.</span>
         </aside>
       )}
 
@@ -796,7 +796,7 @@ function ReplicaWorkspace({
           <div className={`stop-icon ${erased ? "complete" : ""}`}>{erased ? "✓" : "×"}</div>
           <div>
             <p className="eyebrow">{erased ? "Verified erasure complete" : "Future use disabled"}</p>
-            <h2>{erased ? "This replica has been erased." : "This replica has been revoked."}</h2>
+            <h2>{erased ? "Your AI has been erased." : "Your AI has been revoked."}</h2>
             <p>
               {erased
                 ? `Provider copies and private storage were confirmed deleted. Backup expiry: ${dateLabel(erasureStatus.backup_expires_at || "")}.`
@@ -919,7 +919,7 @@ function ReplicaWorkspace({
                 collapsible={compact}
                 defaultOpen={false}
                 title={testEnvironment ? "Add files and links" : "Files, links, videos, channels"}
-                blurb={testEnvironment ? "Drop text files or paste useful links. Add only what will help the clone understand you." : "Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your clone."}
+                blurb={testEnvironment ? "Drop text files or paste useful links. Add only what will help your AI understand you." : "Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your AI."}
               >
                 <ContextLockerPanel
                   key={`context-${replica.replica_id}`}
@@ -986,7 +986,7 @@ function ReplicaWorkspace({
                 collapsible={compact}
                 defaultOpen
                 title="Hear it, then talk to it"
-                blurb="This is the whole point of the product. The preview is private, and the call is where the clone learns from you while you watch."
+                blurb="This is the whole point of the product. The preview is private, and the call is where your AI learns from you while you watch."
               >
                 <VoicePreviewPanel
                   key={`hear-voice-${replica.replica_id}`}
@@ -1014,7 +1014,7 @@ function ReplicaWorkspace({
                 collapsible={compact}
                 defaultOpen={false}
                 title={testEnvironment ? "Processing status" : "Check it and correct it"}
-                blurb={testEnvironment ? "See what the clone is learning from the sources you added." : "What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."}
+                blurb={testEnvironment ? "See what your AI is learning from the sources you added." : "What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."}
               >
                 {/* WS-R4. FIRST in this band, and open, because it is the one
                     thing on the Meet step that is thirty seconds long and moves
@@ -1068,7 +1068,7 @@ function ReplicaWorkspace({
                 collapsible={compact}
                 defaultOpen={false}
                 title="Prove it is you"
-                blurb="A voice is a person. These are the checks that let your clone speak to anyone other than you, and they are the only reason this product can exist."
+                blurb="A voice is a person. These are the checks that let your AI speak to anyone other than you, and they are the only reason this product can exist."
               >
                 {/* WS-R2. One band, two possible identity paths, never both.
                     The Azure pair needs two Microsoft Limited Access
@@ -1129,7 +1129,7 @@ function ReplicaWorkspace({
               {!testEnvironment && <AdvancedArea
                 id="advanced-meet"
                 title="Advanced tuning, all optional"
-                blurb="Four labs for people who want to go further. Nothing in here is required to activate a clone, and skipping all of it costs you nothing."
+                blurb="Four labs for people who want to go further. Nothing in here is required to activate your AI, and skipping all of it costs you nothing."
               >
                 <VoicePreviewLab
                   key={`voice-preview-${replica.replica_id}`}
@@ -1173,7 +1173,7 @@ function ReplicaWorkspace({
                   collapsible={compact}
                   defaultOpen={false}
                   title="What every student is told first"
-                  blurb="Read this before you decide where the clone can be reached. The order is the informed half of informed consent."
+                  blurb="Read this before you decide where your AI can be reached. The order is the informed half of informed consent."
                 >
                   {sheetProvenance === "draft" ? (
                     <DisclosurePreview sheet={sheet} />
@@ -1262,7 +1262,7 @@ function ReplicaWorkspace({
                           <p className="eyebrow">Nothing saved yet</p>
                           <h2 id="channels-empty-title">A channel needs a saved sheet first</h2>
                           <p>
-                            The embed code and the widget address are built from your clone's public slug, and that
+                            The embed code and the widget address are built from your AI's public slug, and that
                             comes from your saved sheet. Until then any snippet we showed you would point somewhere
                             that is not yours.
                           </p>
@@ -1279,12 +1279,12 @@ function ReplicaWorkspace({
               <AdvancedArea
                 id="advanced-deploy"
                 title="Owner control, including erasure"
-                blurb="Revoking stops future use immediately and queues every stored artifact, derived model and provider copy for verified deletion."
+                blurb="Revoking stops future use immediately and queues every stored artifact, derived AI and provider copy for verified deletion."
               >
                 <section className="danger-zone" aria-labelledby="control-title">
                   <div>
                     <p className="eyebrow">Owner control</p>
-                    <h2 id="control-title">Revoke this replica</h2>
+                    <h2 id="control-title">Revoke your AI</h2>
                     <p>Future use stops immediately. Private artifacts and provider copies are then queued for erasure.</p>
                   </div>
                   <button className="button danger-button" type="button" onClick={() => setConfirming(true)}>
@@ -1311,7 +1311,7 @@ function ReplicaWorkspace({
             <div className="modal-stop">STOP</div>
             <h2 id="revoke-title">Revoke {replica.display_name}?</h2>
             <p>
-              This immediately blocks generation and queues stored sources, derived models, memories, and provider copies for erasure.
+              This immediately blocks generation and queues stored sources, derived AI versions, memories, and provider copies for erasure.
               Audio already exported outside Vyakti cannot be recalled.
             </p>
             <label className="field-label" htmlFor="revoke-confirmation">Type REVOKE to confirm</label>
@@ -1324,13 +1324,13 @@ function ReplicaWorkspace({
               onChange={(event) => setConfirmation(event.target.value.toUpperCase())}
             />
             <div className="modal-actions">
-              <button className="button secondary-button" disabled={revoking} onClick={() => setConfirming(false)}>Keep replica</button>
+              <button className="button secondary-button" disabled={revoking} onClick={() => setConfirming(false)}>Keep your AI</button>
               <button
                 className="button destructive-button"
                 disabled={revoking || confirmation !== "REVOKE"}
                 onClick={() => void onRevoke()}
               >
-                {revoking ? <><Spinner label="Revoking replica" />Revoking</> : "Revoke permanently"}
+                {revoking ? <><Spinner label="Revoking your AI" />Revoking</> : "Revoke permanently"}
               </button>
             </div>
           </section>
@@ -1518,7 +1518,7 @@ export default function StudioApp() {
   }, [signOut]);
 
   const handleReviewAuthError = useCallback((cause: unknown) => {
-    handleApiError(cause, "Replica qualification controls could not be loaded");
+    handleApiError(cause, "AI qualification controls could not be loaded");
   }, [handleApiError]);
 
   const loadReplicas = useCallback(async (activeSession: StudioSession) => {
@@ -1769,9 +1769,9 @@ export default function StudioApp() {
       });
       setSelected(result.replica);
       setReplicas((items) => items.map((item) => item.replica_id === result.replica.replica_id ? result.replica : item));
-      setNotice("Replica revoked. Future use is blocked and verified erasure is pending.");
+      setNotice("Your AI is revoked. Future use is blocked and verified erasure is pending.");
     } catch (cause) {
-      handleApiError(cause, "Could not revoke this replica");
+      handleApiError(cause, "Could not revoke your AI");
     } finally {
       setRevoking(false);
     }
@@ -1803,7 +1803,7 @@ export default function StudioApp() {
       setConsents(nextConsents);
       setSources(nextSources);
       await refreshReplicaView(fresh, selected.replica_id);
-      setNotice("Source permissions withdrawn. The replica is non-operational and source erasure is pending.");
+      setNotice("Source permissions withdrawn. Your AI is non-operational and source erasure is pending.");
     } catch (cause) {
       handleApiError(cause, "Could not withdraw source permissions");
       throw cause;
@@ -1820,10 +1820,10 @@ export default function StudioApp() {
       ]);
       setConsents(nextConsents);
       setNotice(nextConsents.some((receipt) => receipt.scope === "inference" && !receipt.revoked_at)
-        ? "Private training and disclosed inference permissions recorded. No model is active until every independent gate passes."
-        : "Training and inference withdrawn. Model use is disabled and derived copies are queued for erasure.");
+        ? "Private build and disclosed inference permissions recorded. Your AI is not active until every independent gate passes."
+        : "Build and inference permissions withdrawn. Your AI is disabled and derived copies are queued for erasure.");
     } catch (cause) {
-      handleApiError(cause, "Could not refresh verified model permissions");
+      handleApiError(cause, "Could not refresh verified AI permissions");
       throw cause;
     }
   }
@@ -1854,7 +1854,7 @@ export default function StudioApp() {
       const fresh = await refreshForRequest(session);
       const source = await finalizeSource(fresh.accessToken, selected.replica_id, sourceId);
       setSources((items) => [source, ...items.filter((item) => item.source_id !== source.source_id)]);
-      setNotice("Source received and isolated in private quarantine. No model training has started.");
+      setNotice("Source received and isolated in private quarantine. Building your AI from it has not started.");
       return source;
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.data?.source) {
@@ -1968,7 +1968,7 @@ export default function StudioApp() {
       const result = await finalizeLivenessUpload(fresh.accessToken, selected.replica_id, challengeId, sourceId);
       setChallenge(result.challenge);
       setSources((items) => [result.source, ...items.filter((item) => item.source_id !== result.source.source_id)]);
-      setNotice("Live evidence secured. Verification is pending and biometric modeling remains locked.");
+      setNotice("Live evidence secured. Verification is pending and biometric setup remains locked.");
       return result.challenge;
     } catch (cause) {
       handleApiError(cause, "Could not finalize live evidence");
@@ -2135,7 +2135,7 @@ export default function StudioApp() {
           <Mark />
           <span><strong>VYAKTI</strong><small>{mode === "teacher" ? "GURUKUL STUDIO" : "REPLICA STUDIO"}</small></span>
         </a>
-        <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? "Internal test workspace" : mode === "teacher" ? "Private teaching-clone workspace" : "Private self-replica workspace"}</div>
+        <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? "Internal test workspace" : mode === "teacher" ? "Private teaching-AI workspace" : "Private, self-only workspace"}</div>
         <div className="account-menu">
           <span className="account-copy"><strong>{identity}</strong><small>{STUDIO_SELF_TEST_UI ? "Test workspace session" : "Verified account session"}</small></span>
           <button className="signout-button" type="button" onClick={signOut}>Sign out</button>
@@ -2191,7 +2191,7 @@ export default function StudioApp() {
           )}
 
           {loadState === "loading" || loadState === "booting" ? (
-            <div className="workspace-loading" aria-label="Loading replica workspace">
+            <div className="workspace-loading" aria-label="Loading your AI's workspace">
               <div className="skeleton skeleton-title" />
               <div className="skeleton skeleton-subtitle" />
               <div className="skeleton-grid">

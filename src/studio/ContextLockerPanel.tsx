@@ -102,7 +102,7 @@ const REASON_COPY: Record<string, string> = {
   // quotas
   context_item_quota_exhausted: "Your locker is full. Remove something to add more.",
   context_byte_quota_exhausted: "Your locker is out of space. Remove something to add more.",
-  replica_not_found: "That clone is not yours.",
+  replica_not_found: "That AI is not yours.",
 };
 
 const copyFor = (code: string) => REASON_COPY[code] ?? code;
