@@ -853,3 +853,138 @@ directory, not as an `api/*` route. SPEC §4 did not flag this. It is a sixth
 service the deploy runbook has to either build or contract out, not merely
 configure, before `AZURE_IDENTITY_REVIEW_PATH_APPROVED` can honestly become
 `true`.
+
+## 25. Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)
+
+Six workstreams merged as Vyakti Rooms v1 (`context/STATE.md`'s "main loop,
+Rooms merge" session log entry). Two of them introduced env-gated surfaces;
+one reused two existing sweep names against two new handlers. Every row below
+was checked against the file:line that reads it, same discipline as §1-24.
+
+### The owner identity path (WS-R2)
+
+`api/_replica-voice-identity.js` (all decisions), `api/replica-voice-identity.js`
+(the handler), `api/replica-voice-identity-sweep.js` (the attempt-expiry cron),
+and `src/studio/VoiceIdentityChallenge.tsx` (the capture UI). **Two independent
+flags, one per side of the HTTP boundary, and BOTH must be set for the seam to
+do anything** — this is deliberately not one name shared between server and
+build, because a Vite `import.meta.env.*` value is baked into the JS bundle at
+build time while `process.env.*` is read fresh per request, and conflating the
+two would mean "flip it on" sometimes needs a redeploy and sometimes does not,
+silently depending on which side you touched.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VOICE_IDENTITY_CHALLENGE` | `api/_replica-voice-identity.js:389` (`voiceIdentityChallengeEnabled`), read by `api/replica-voice-identity.js:60` and `api/replica-voice-identity-sweep.js:33` | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | the handler answers `404 not_found` on every op and the sweep answers `{ok:true, disabled:true}` — no challenge row is ever created, scored or expired, server-side |
+| `VITE_VOICE_IDENTITY_CHALLENGE` | `src/studio/StudioApp.tsx:130` via `voiceIdentityChallengeUiEnabled()` (`src/studio/voiceIdentityApi.ts:6`) | optional (switch) | must equal the exact string `"1"`; **this is a Vite build-time env var, baked into the bundle by `npx vite build` — setting it on Vercel requires a rebuild to take effect, unlike every `process.env` var in this file** | the capture card never mounts, even if the server flag above is on — a teacher can never reach the UI that would create a challenge |
+
+Setting only one of the pair is a real, reachable state: `VOICE_IDENTITY_CHALLENGE=1`
+alone leaves the API live with no UI path to it (reachable only by a direct
+API call); `VITE_VOICE_IDENTITY_CHALLENGE=1` alone renders a card whose every
+request 404s. Both default OFF, so the deployed tree is byte-identical in
+behaviour to pre-WS-R2 until the main loop sets both
+(`context/STATE.md`'s WS-R2 session log entry: "Both env flags default off, so
+the deployed tree is unchanged until the main loop turns them on").
+
+Two independent measurements gate a challenge internally (ECAPA cosine against
+the owner's own VoiceGenome reference at accept ≥0.78 / review 0.70-0.78 /
+reject <0.70, and a Sarvam transcript overlap plus the spoken nonce) — neither
+is a separate env var; both read the existing `api/_fidelity.js` and `SARVAM_API_KEY`
+(§15b) seams. **Unverified**: whether Sarvam returns Latin or Devanagari script
+for this sentence bank is untested against the live service
+(`context/rejected.md#romanised-lexicon-meets-devanagari-asr`), and there is no
+different-speaker control anywhere in this repo, so the 0.70 reject floor is
+inherited rather than earned (WS-R2's own session log entry says this
+directly).
+
+### Vendor voice bench arms (WS-R6)
+
+`api/_voice/providers/vendor-common.js`, `elevenlabs-pvc.js`, `sarvam-bulbul.js`,
+wired into `api/_voice/registry.js`. **Bench arms only** — `VOICE_LANE_ORDER`
+(the shipped default) is unchanged by any var below; they exist to make
+`context/decisions.md#platform-north-star`'s reversal condition ("the
+self-hosted lane stays materially below the vendor lane after fine-tuning
+effort") testable, and only that.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VOICE_VENDOR_ARMS` | `api/_voice/providers/vendor-common.js:36` (`VENDOR_ARMS_ENV`), read by `enabledVendorArms()` | optional (switch) | empty string → both arms return `available:false, reason:"vendor_arm_not_enabled:VOICE_VENDOR_ARMS", blocker:"waiting_on_you"` | neither bench arm is reachable; comma-separated list of `elevenlabs`, `sarvam` (e.g. `VOICE_VENDOR_ARMS=elevenlabs,sarvam`) |
+| `ELEVENLABS_API_KEY` | `api/_voice/providers/elevenlabs-pvc.js:80,102` (`vendorApiKey`) | required *once the arm is enabled above* | throws `elevenlabs_api_key_required` | the ElevenLabs arm construction 503s with that named reason |
+| `ELEVENLABS_MODEL_ID` | `api/_voice/providers/elevenlabs-pvc.js:83` (`pinnedModelId`) | optional | defaults `"eleven_multilingual_v2"`; rejects a value containing `"latest"` (same law as every other pinned-model var in this file) | none |
+| `ELEVENLABS_CLONE_MODE` | `api/_voice/providers/elevenlabs-pvc.js:84` | optional | defaults `"instant"` | none — `"professional"` mode is the multi-minute training path this file's own header says "cannot complete inside one request" |
+| `SARVAM_TTS_MODEL` | `api/_voice/providers/sarvam-bulbul.js:87` | optional | defaults `"bulbul:v3"` | none |
+| `SARVAM_TTS_SPEAKER` | `api/_voice/providers/sarvam-bulbul.js:89` | optional | defaults `"priya"` | none |
+| `VOICE_PRIMARY_LANE` | `api/_voice/registry.js:152` (`primarySynthesisLane`) | optional | unset → shipped order, self-hosted first, unchanged | naming a lane this file does not know throws `voice_primary_lane_unknown`; naming a real lane that is not configured throws rather than silently falling back to self-hosted — an operator who asks for a vendor primary and gets self-hosted audio without an error has been told the opposite of the truth about what produced it |
+
+`SARVAM_TTS_MODEL`/`SARVAM_TTS_SPEAKER` are new names, but the Sarvam arm's
+**credential** is the pre-existing `SARVAM_API_KEY` (§15b) — its third
+call site in this manifest now (self-hosted-ASR fallback, the processing
+worker's `transcribe` step, and this TTS bench arm), all in the same
+deployment target (`vercel-app`), so — unlike the cross-deployment pattern
+this file's header warns about — this one genuinely is the same setting doing
+three jobs, not three settings sharing a name.
+
+**Nothing here has ever been contacted.** No vendor key exists in any
+environment this repo's sessions can reach; no vendor audio has ever been
+produced; there is no listening result or similarity number for either arm
+(WS-R6's own session log entry). One matched pack costs about USD 0.048 on
+ElevenLabs and INR 0.81 on Sarvam at list prices read 2026-09-03.
+
+### Two more cron consumers of the existing `CRON_SECRET` (WS-R2, WS-R9)
+
+No new var — add these two handlers to §15's consumer list. Same comparator,
+same 24-byte minimum, same failure shape (a silent 401 on a schedule nobody is
+watching) as the five it already names.
+
+| cron | schedule (`vercel.json`) | handler | consumed at |
+|---|---|---|---|
+| identity-challenge attempt sweep | `*/5 * * * *` | `api/replica-voice-identity-sweep.js` | `:23` |
+| drift-watch sweep | `0 */6 * * *` | `api/drift-watch-sweep.js` | `:23` |
+
+`api/drift-watch-sweep.js` is the **sole writer** of `vy_replica_drift_report`
+(migration 076) — `api/drift-watch.js` (the owner-facing read) is deliberately
+read-only, so an unset `CRON_SECRET` here does not just delay an alert, it
+means drift is never computed for anyone, on any schedule, until the next time
+a human happens to open the studio and a synchronous read recomputes it
+inline (if that path exists — **unverified in this pass**, not read as part of
+this reconciliation).
+
+### The studio project's model keys — still absent
+
+Every LLM-backed reply in this repo, on every surface, leaves through exactly
+one of two doors, and both need a model key nobody has set on the **studio**
+Vercel project (`vyakti-replica-lab`, distinct from the `html-portfolio`
+project per this file's own "not one setting" rule — §22's Meera vars living
+on one Vercel project's dashboard does not set them on another project that
+happens to build from the same GitHub repo):
+
+- `api/chat.js:155` (the direct chat endpoint) explicitly checks
+  `process.env.OPENROUTER_API_KEY || OPENROUTER_KEY` (config fallback), a free
+  Google key pool (`poolSize()`), and `azureConfigured()` (`AZURE_KEY` +
+  `AZURE_ENDPOINT`) together, and returns `500 {"error":"no key configured"}`
+  by name when all three are absent.
+- `api/_surface.js:287` (`think()` — the ONE call every other surface's
+  `gatedReply()` routes through, per that file's own header: "One copy for
+  every surface — a second copy is a second set of sampling parameters nobody
+  remembers to keep in step") reads only `process.env.OPENROUTER_API_KEY`
+  directly, with no Google/Azure fallback. **This is a different failure
+  shape from `api/chat.js`'s, not the same one**: an empty key makes the
+  OpenRouter fetch fail its own `.ok` check, and `think()` catches that and
+  returns `""` rather than throwing or naming a reason — so a Room `say`, a
+  Mirror Call reply, a Telegram/WhatsApp turn or an embedded-widget message
+  does not 500 with `"no key configured"`, it hands `gatedReply()`'s honesty
+  gate an EMPTY model reply. **What a follower actually receives from that —
+  a named refusal, a blank message, or something `gateReply`'s own fallback
+  produces — was not traced further in this pass and is marked unverified
+  here rather than guessed at**, per this project's own law that a plausible
+  return hiding a dead pipeline is worse than a loud one.
+
+Neither `OPENROUTER_KEY`/`OPENROUTER_API_KEY`, `GOOGLE_KEYS`, `AZURE_KEY` nor
+`AZURE_ENDPOINT` (§22) has ever been set on the studio project
+(`context/STATE.md`'s "main loop, Rooms merge" session log entry: "Still
+owner-gated: model keys on the studio Vercel project (its chat API answers
+'no key configured')..."). This is a **separate gap from every subsystem in
+§1-24**, which are all replica/voice/identity plumbing — this is the base
+completion call underneath the Room, the Mirror Call, and every channel, and
+without it none of them can produce a reply at all, regardless of how many
+Rooms-specific vars above are set correctly.
