@@ -3,6 +3,7 @@
 //   POST /api/room {op:"open",   room:"<slug>"}                -> card + state
 //   POST /api/room {op:"join",   room, age_18, remember}       -> session
 //   POST /api/room {op:"say",    session, message, thread, transcript}
+//   POST /api/room {op:"speak",  session, text}                -> paid voice (WS-R19)
 //   POST /api/room {op:"history",session, thread}
 //   POST /api/room {op:"thread", session, title}
 //   POST /api/room {op:"citations", session}
@@ -10,6 +11,15 @@
 //   POST /api/room {op:"export", session}
 //   POST /api/room {op:"forget", session}
 //
+// `speak` exists only behind `ROOM_VOICE=1` (WS-R19). Unset, it 404s exactly
+// like `unknown_op` - a follower asking for voice on a deployment that has
+// not turned it on gets the same indistinguishable answer any other absent
+// capability gets here, never a hint that the code exists but is switched
+// off. Its real dependencies (`deps.synth`/`deps.protect`) are the SAME
+// modules `api/voice-preview.js` already wires to the studio panel - reused,
+// never forked - so with no `AZURE_OPEN_VOICE_ORIGIN` configured this op
+// 503s "not configured" exactly as the panel already does, never a live GPU
+// call (`api/_room-voice.js`'s header, "NO GPU WAKES").
 // Thin by construction: cors, rate limit, auth, dispatch, error shape. Every
 // decision lives in api/_room-surface.js where a fake `db` can reach it.
 // api/clone-chat.js over api/_clonechat.js is the house shape and `dead-writers`
@@ -60,6 +70,7 @@ import {
   openRoom,
   joinRoom,
   roomSay,
+  roomSpeak,
   followerHistory,
   createThread,
   roomCitations,
@@ -70,6 +81,11 @@ import {
   personForAccount,
   readRoomSession,
 } from "./_room-surface.js";
+import { createProductionProtectionAdapters } from "./_provenance/registry.js";
+import { protectReplicaStream } from "./_provenance/delivery.js";
+import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
+import { createNeonVoicePreviewLedger } from "./_replica-voice-preview.js";
+import { readPrivateReplicaObject } from "./_replica-storage.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -145,6 +161,78 @@ export default async function handler(req, res) {
         gate_findings: turn.gate.findings,
         remembers: turn.remembers,
       });
+      return res.status(200).json(turn);
+    }
+
+    if (op === "speak") {
+      // Unset means off, everywhere, immediately - `roomSession`'s own
+      // posture for its signing key, one flag over. Falling through to
+      // `unknown_op` rather than a dedicated "voice is off" code: a follower
+      // asking a deployment that never turned this on gets the same
+      // indistinguishable answer any other absent capability gets here.
+      if (String(process.env.ROOM_VOICE || "") !== "1") {
+        return res.status(400).json({ error: "unknown_op" });
+      }
+      // The SAME real modules api/voice-preview.js wires to the studio panel
+      // - constructed here, never forked, so a missing
+      // AZURE_OPEN_VOICE_ORIGIN or HMAC secret fails this op exactly the way
+      // it already fails the panel (caught below), and a follower's clip
+      // always leaves through the identical watermark path a creator's own
+      // preview does. Construction can itself throw (an absent env var), so
+      // it sits INSIDE the same catch as the call below - `api/voice-
+      // preview.js`'s own shape, where the whole request is one try.
+      let turn;
+      try {
+        const provider = createOpenChatterboxPreviewProvider();
+        const protection = createProductionProtectionAdapters({ db: q });
+        const roomVoiceDeps = {
+          db: q,
+          env: process.env,
+          synth: async ({ authorized, text: spoken }) => {
+            const stored = await readPrivateReplicaObject(authorized.reference, {
+              maxBytes: 20 * 1024 * 1024,
+              timeoutMs: 30_000,
+            });
+            return provider.synthesizePreview({
+              requestId: authorized.generation.generation_id,
+              text: spoken,
+              languageId: authorized.generation.preview_language_id,
+              seed: authorized.previewSeed,
+              reference: {
+                bytes: stored.body,
+                sha256: authorized.reference.sha256,
+                durationMs: authorized.reference.durationMs,
+                languageMode: authorized.reference.languageMode,
+                languageEvidenceScope: authorized.reference.languageEvidenceScope,
+              },
+              style: {
+                exaggeration: authorized.previewStyle.exaggeration,
+                cfgWeight: authorized.previewStyle.cfg_weight,
+                temperature: authorized.previewStyle.temperature,
+              },
+            });
+          },
+          protect: (input) => protectReplicaStream({
+            ...input,
+            adapters: Object.freeze({ ...protection, ledger: createNeonVoicePreviewLedger(q) }),
+          }),
+        };
+        turn = await roomSpeak(roomVoiceDeps, body.session, { text: body.text });
+      } catch (error) {
+        if (error instanceof RoomError) throw error;
+        // A configuration absence (no origin, no HMAC secret) fails closed
+        // inside `createOpenChatterboxPreviewProvider`/
+        // `createProductionProtectionAdapters` with a named `*_required`/
+        // `*_invalid`/`*_not_configured` code - `api/voice-preview.js`'s own
+        // class, reused verbatim rather than re-derived, so the two routes
+        // can never disagree about what "not configured" looks like.
+        const code = String(error?.code || "");
+        const configAbsent =
+          /_(origin|secret|key|endpoint|url)_(required|invalid)$/.test(code) ||
+          /_not_configured$/.test(code);
+        throw new RoomError(configAbsent ? "room_voice_not_configured" : "room_voice_failed", 503);
+      }
+      obsBestEffort("room.speak", { seconds: turn.voice.seconds_used });
       return res.status(200).json(turn);
     }
 

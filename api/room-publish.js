@@ -7,6 +7,8 @@
 //   POST /api/room-publish {op:"pause"}          take it down, unconditionally
 //   POST /api/room-publish {op:"resume"}         bring it back, gate-checked
 //   POST /api/room-publish {op:"set_free_cap"}   the monthly free allowance
+//   POST /api/room-publish {op:"set_paid_ceilings"} the paid tier's fair-use
+//                                                    numbers (WS-R19)
 //   POST /api/room-publish {op:"stats"}          real counts, never invented
 //
 // Thin by construction, `api/clone-channel.js`'s own shape: cors, rate limit,
@@ -25,6 +27,7 @@ import {
   pauseRoom,
   resumeRoom,
   setRoomFreeCap,
+  setRoomPaidCeilings,
   ownerRoomStats,
 } from "./_room-publish.js";
 
@@ -99,6 +102,19 @@ export default async function handler(req, res) {
       const room = await setRoomFreeCap(q, user.id, replicaId, body.cap);
       if (!room) return notFound(res);
       obsBestEffort("room_publish.set_free_cap", { cap: room.free_monthly_messages });
+      return res.status(200).json({ room });
+    }
+
+    if (op === "set_paid_ceilings") {
+      const room = await setRoomPaidCeilings(q, user.id, replicaId, {
+        messages: body.messages,
+        voiceSeconds: body.voice_seconds,
+      });
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.set_paid_ceilings", {
+        messages: room.paid_monthly_messages,
+        voice_seconds: room.paid_monthly_voice_seconds,
+      });
       return res.status(200).json({ room });
     }
 
