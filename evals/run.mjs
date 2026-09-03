@@ -306,6 +306,29 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   room: "room/run.mjs",
+  // WS-R8. THE LEAK BATTERY — Phase 1's hard rule for Vyakti Rooms, made a
+  // gate: "The leak battery runs clean before a second follower joins any
+  // Room. No exception for a launch date." Built to `evals/mp/gate0.mjs`'s
+  // shape (context/measurements.md#gate0-structural): a scenario generator (N
+  // followers in {2,5,20} x 4 turns, each with unique tokens), the REAL
+  // follower lane and the REAL compiler driving every turn, a printed
+  // row-by-scenario count (16,080 retrieval checks + 441 boundary checks,
+  // 0 leaks), and two negative controls that MUST fail — a struck person
+  // clause and a "helpful" reply that pastes another follower's words in as
+  // an example — proving the scanner is not vacuous
+  // (`sound-gate-proved-by-silence`, context/rejected.md).
+  //
+  // Also asserts, statically, what no execution can: the follower lane's
+  // import graph never reaches a WRITE-shaped symbol from a creator-material
+  // file (the sheet, the person model, claims, mirror conditioning), and the
+  // only creator-facing read of the Room's own tables is a count. What it
+  // does NOT prove — `dmRecall`'s real SQL executing — is proven live,
+  // elsewhere, at `evals/mp/gate0.mjs` (0/31,122 violations); this suite
+  // checks that the exact predicate function is wired into `dmRecall`'s real
+  // query text rather than re-deriving a weaker offline copy of that proof.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, ~6s.
+  "room-leak": "room-leak/run.mjs",
   // WS-AB (the universal "bring your context" lane). The Context Locker end to
   // end: many files and many links become owned, hashed, quota-capped items,
   // and the ones this platform can honestly read become CITED proposals on the

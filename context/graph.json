@@ -4858,6 +4858,42 @@
       "kind": "measurement",
       "title": "Rooms merge: 5 migrations, 61 live statements, 59 EXPLAINed, 14/14 gate on the merged tree",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r8-leak-battery",
+      "kind": "component",
+      "title": "evals/room-leak/run.mjs — Vyakti Rooms' Phase 1 leak battery, gate0-structural-shaped, gating every push",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r8-leak-battery-scans-tokens-through-the-real-lane-not-a-reimplemented-predicate",
+      "kind": "decision",
+      "title": "The battery drives N followers through the real follower lane and real compiler; dmRecall's own SQL is proven live elsewhere, not reimplemented offline",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r8-writer-symbols-derived-by-intra-file-call-graph-not-hand-listed",
+      "kind": "decision",
+      "title": "The static writer check derives dangerous exported symbols by propagating write-reachability through each file's own call graph",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r8-file-level-import-ban-flagged-a-pure-reader",
+      "kind": "rejection",
+      "title": "Banning transitive import of a creator-material FILE false-positived on _clonechat.js's pure loadNeverRules read",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r8-negative-control-2-was-tautological-in-its-first-draft",
+      "kind": "rejection",
+      "title": "A standalone string-interpolation negative control could not fail by construction; fixed by routing it through the real roomSay reply and the shared scanner",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r8-leak-battery-2026-09-03",
+      "kind": "measurement",
+      "title": "Leak battery: 16,080 retrieval checks + 441 boundary checks, 0 leaks, 2/2 negative controls fired, verify-release 15/15",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9760,6 +9796,51 @@
       "src": "two-release-gates-on-one-machine",
       "rel": "constrains",
       "dst": "rooms-merge-live-verification-2026-09-03"
+    },
+    {
+      "src": "ws-r8-leak-battery-scans-tokens-through-the-real-lane-not-a-reimplemented-predicate",
+      "rel": "part_of",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "ws-r8-writer-symbols-derived-by-intra-file-call-graph-not-hand-listed",
+      "rel": "part_of",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "ws-r8-file-level-import-ban-flagged-a-pure-reader",
+      "rel": "part_of",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "ws-r8-writer-symbols-derived-by-intra-file-call-graph-not-hand-listed",
+      "rel": "supersedes",
+      "dst": "ws-r8-file-level-import-ban-flagged-a-pure-reader"
+    },
+    {
+      "src": "ws-r8-negative-control-2-was-tautological-in-its-first-draft",
+      "rel": "part_of",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "ws-r8-leak-battery-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "gate0-structural",
+      "rel": "constrains",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "ws-r1-the-room",
+      "rel": "constrains",
+      "dst": "ws-r8-leak-battery"
+    },
+    {
+      "src": "ws-r8-leak-battery",
+      "rel": "measured_by",
+      "dst": "ws-r8-leak-battery-2026-09-03"
     }
   ]
 }

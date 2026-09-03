@@ -8191,3 +8191,77 @@ refactor.
 **Rationale.** A CHECK that one migration narrows and a later one widens is order-dependent, and the apply order in production is not the file order (see above). The union is the only version that is correct in every order.
 
 **Reverses if.** Purposes ever need to be per-replica-configurable, in which case they become rows, not a CHECK.
+
+## `ws-r8-leak-battery-scans-tokens-through-the-real-lane-not-a-reimplemented-predicate` (2026-09-03)
+
+**Decision.** The Rooms leak battery (`evals/room-leak/run.mjs`) drives N
+followers (2, 5, 20) x 4 turns EACH through the real, unmodified follower lane
+(`api/_room-surface.js`'s `joinRoom`/`roomSay`/`roomExport`/`roomForget`) and
+the real compiler (`src/engine/compiler.ts` via `api/_engine.gen.js`), seeds
+every follower with unique tokens (a long-term fact plus one per message), and
+scans every compiled prompt, every retrieved fact set and every reply for
+every OTHER follower's tokens. `roomSay`'s `memory.recall` seam is given a
+FAKE that enforces person-AND-agent equality, not `dmRecall`'s real SQL,
+because `dmRecall` calls `q()` (`api/_db.js`) directly and is not
+seam-injectable the way `roomSay`'s own memory functions are — deliberately,
+so a follower's own request can never swap the real predicate for a weaker
+one. The fake's own negative control (strike the person clause) proves it is
+not vacuously safe, and the real predicate's live-clean proof already exists
+at `evals/mp/gate0.mjs` (0/31,122, `context/measurements.md#gate0-structural`)
+— this suite connects to that proof (checks the real predicate TEXT and the
+real call-site wiring) rather than re-deriving a weaker offline copy of it.
+
+**Rationale.** `offline-mocks-cannot-type-check-sql` (AGENTS.md) applies
+directly: no database is reachable in this environment, so `dmRecall` cannot
+be executed here regardless of how the suite is built. The alternative —
+skip the retrieval layer entirely because it cannot be proven end to end
+offline — would leave the single highest-risk path (another follower's
+long-term memory) completely unguarded by any pre-merge gate. A conforming
+fake plus a proven-elsewhere real predicate plus an explicit statement of what
+is and is not proven (this suite's own header) is the honest middle ground:
+`evals/mp/gate0.mjs` already established this exact pattern for the
+multiparty predicate.
+
+**What would reverse it.** If `dmRecall` (or its successor) is ever made
+seam-injectable — a `db`/`recall` parameter the way `roomSay`'s memory
+functions already are — this suite should be rebuilt to drive the REAL
+predicate offline against a `db` that reads the shipping SQL text the way
+`evals/room/fixtures.mjs`'s `fakeDb` already does for the rest of the follower
+lane, and the compliant fake recall becomes redundant. Until then, a change to
+`dmRecall`'s BIND literal or its query text is caught by this suite's static
+layer (1b), which reads both from the real source at run time.
+
+## `ws-r8-writer-symbols-derived-by-intra-file-call-graph-not-hand-listed` (2026-09-03)
+
+**Decision.** The leak battery's static check for "the follower lane never
+reaches a creator-material writer" derives the set of dangerous EXPORTED
+symbols by parsing each creator-material file (`_replica-claims.js`,
+`_replica-consent.js`, `_review-queue.js`, `_replica-source.js`,
+`_teacher-sheet-draft.js`, `_mirrorcall-store.js`, `_person-model.js`) into
+its top-level functions (exported and private), marking a function
+"dangerous" if its own body writes a creator table OR it calls another local
+function already marked dangerous (propagated to a fixed point), then keeping
+only the exported ones. It does NOT ban importing the FILE, and it does NOT
+hand-list symbol names.
+
+**Rationale.** The first draft banned importing the FILE and false-positived
+immediately: `_clonechat.js` legitimately imports `loadNeverRules` (a pure
+SELECT) from `_review-queue.js`, which elsewhere, in a function the follower
+lane never calls, writes `vy_replica_claim` — see
+`context/rejected.md#ws-r8-file-level-import-ban-flagged-a-pure-reader`. The
+call-graph derivation also caught a real gap in its own first pass: a
+same-file, exported-symbol-only scan missed `extractOwnedClaims` because the
+actual `insert into vy_replica_claim` lives in an unexported helper
+(`persistProposals`) it calls — attributing the write to the PRECEDING
+exported function by a naive "next export" text boundary instead. The fixed-
+point propagation is what makes `extractOwnedClaims` (and any future writer
+shaped the same way) show up in the derived set, and the suite asserts this
+by name (`writeSymbols.has("extractOwnedClaims")`) so a regression in the
+derivation itself fails loudly rather than silently under-covering.
+
+**What would reverse it.** If any of the seven creator-material files is
+restructured so a private helper calls back into ANOTHER file's private
+helper to reach the write (breaking the single-file call graph this walks),
+the derivation needs to become genuinely cross-file. No such case exists
+today — every write this session found is same-file-reachable from its own
+exported entry point.

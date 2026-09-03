@@ -33,11 +33,12 @@
 //
 // 5. FORGET IS SCOPED AND REAL. It deletes over the manifest, agent-scoped, and
 //    it leaves the room standing for everyone else. The suite asserts both.
-import { execSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  SLUG, ROOM_ID, AGENT_ID, REPLICA_ID, OWNER, USER_A, USER_B, PERSON_A, PERSON_B,
+  loadFixtureAgent, freshState, fakeDb, fakeMemory,
+} from "./fixtures.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Derived from this file's location, never hardcoded: a literal container path
@@ -56,7 +57,6 @@ const ok = (name, cond, extra = "") => {
   console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
 };
 
-const engine = await import(pathToFileURL(join(REPO, "api/_engine.gen.js")).href);
 const room = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const {
   openRoom,
@@ -76,327 +76,9 @@ const {
   RoomError,
 } = room;
 
-// ── the fixture world ─────────────────────────────────────────────────────
-const SLUG = "anjali";
-const ROOM_ID = "d0000000-0000-4000-8000-000000000001";
-const AGENT_ID = "b1000000-0000-4000-8000-000000000001";
-const REPLICA_ID = "c1000000-0000-4000-8000-000000000001";
-const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const USER_A = "11111111-1111-4111-8111-111111111111";
-const USER_B = "22222222-2222-4222-8222-222222222222";
-const PERSON_A = "aa111111-1111-4111-8111-111111111111";
-const PERSON_B = "bb222222-2222-4222-8222-222222222222";
 
-// The sheet the disclosure card names, bundled from the REAL source.
-// evals/clonechannel.mjs's pattern and CLAUDE.md's reason: a frozen copy of a
-// sheet passes forever while the source rots. The module is built by the
-// shipping `sheetToModule`, so `compile()` here does exactly what it does in
-// production - a hand-shaped stand-in would have made this suite green against
-// an object no real Room ever holds.
-const OUT = mkdtempSync(join(tmpdir(), "room-eval-"));
-const ENTRY = join(OUT, "entry.ts");
-writeFileSync(
-  ENTRY,
-  `export { DEMO_TEACHER } from ${JSON.stringify(join(REPO, "src/engine/agents/characters/demoTeacher"))};\n`,
-);
-const BUNDLE = join(OUT, "room.bundle.mjs");
-execSync(
-  `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error ` +
-    `--alias:@capacitor/core=${join(REPO, "evals/stubs/capacitor.mjs")}`,
-  { cwd: REPO, stdio: "inherit" },
-);
-const { DEMO_TEACHER } = await import(pathToFileURL(BUNDLE).href);
-
-// `name` is the field the consent artifact must byte-match, so it is the only
-// name the disclosure card may carry.
-const SHEET = { ...DEMO_TEACHER, name: "Anjali", slug: SLUG };
-const loadAgent = async (slug) => {
-  if (slug !== SLUG) throw new Error("teacher_sheet_unavailable");
-  return { module: engine.sheetToModule(SHEET), sheet: SHEET, row: {} };
-};
-
-function freshState() {
-  return {
-    rooms: [
-      {
-        room_id: ROOM_ID,
-        slug: SLUG,
-        replica_id: REPLICA_ID,
-        agent_id: AGENT_ID,
-        owner_user_id: OWNER,
-        display_name: "Anjali",
-        free_monthly_messages: 20,
-        published_at: "2026-09-01T00:00:00.000Z",
-        paused_at: null,
-      },
-    ],
-    accounts: [],
-    persons: [],
-    followers: [],
-    threads: [],
-    consent: [],
-    devices: [],
-    facts: [],
-    contextItems: [
-      { source_name: "Class 12 mechanics notes", status: "mined", created_at: "2026-08-01" },
-      { source_name: "Doubt session transcript", status: "routed", created_at: "2026-07-01" },
-      { source_name: "Not yet processed", status: "received", created_at: "2026-06-01" },
-    ],
-  };
-}
-
-/**
- * The fake db.
- *
- * It honours migration 071's laws, because those are what this suite exists to
- * check and a fake that ignored them would be checking itself: the (room,
- * person) uniqueness on a follower, the conditional-increment semantics of the
- * cap UPDATE, and - the one that matters most - the SCOPE PREDICATES, which are
- * read off the SQL TEXT rather than hardcoded, so the negative control below
- * can strike a clause out of the shipping string and this fake honours the
- * strike.
- */
-function fakeDb(state) {
-  const calls = [];
-  const db = async (sql, params = []) => {
-    calls.push(sql);
-    const has = (s) => sql.includes(s);
-
-    if (has("from vy_room r") && has("join vy_agent a")) {
-      const row = state.rooms.find(
-        (r) =>
-          r.slug.toLowerCase() === String(params[0]) &&
-          // the two gate clauses, read off the shipping text
-          (!has("r.published_at is not null") || r.published_at != null) &&
-          (!has("r.paused_at is null") || r.paused_at == null),
-      );
-      return row ? [{ ...row, agent_slug: row.slug }] : [];
-    }
-
-    if (has("insert into vy_account_person")) {
-      const uid = String(params[0]);
-      let bridge = state.accounts.find((a) => a.auth_user_id === uid);
-      if (!bridge) {
-        const pid = uid === USER_A ? PERSON_A : uid === USER_B ? PERSON_B : `pp${uid.slice(2)}`;
-        state.persons.push({ person_id: pid, age_tier: "unverified" });
-        bridge = { auth_user_id: uid, person_id: pid };
-        state.accounts.push(bridge);
-      }
-      return [{ person_id: bridge.person_id }];
-    }
-
-    if (has("from vy_room_follower f") && has("select f.follower_id")) {
-      const [roomId, personId, agentId] = params.map(String);
-      const row = state.followers.find(
-        (f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId,
-      );
-      return row ? [{ ...row }] : [];
-    }
-
-    if (has("insert into vy_room_follower")) {
-      const [followerId, roomId, personId, agentId, ageAt, memAt, monthKey] = params;
-      const found = state.followers.find(
-        (f) => f.room_id === String(roomId) && f.person_id === String(personId),
-      );
-      if (found) {
-        found.age_attested_at = found.age_attested_at ?? ageAt;
-        found.memory_consent_at = memAt;
-        found.last_seen_at = new Date().toISOString();
-        return [{ ...found }];
-      }
-      const row = {
-        follower_id: String(followerId),
-        room_id: String(roomId),
-        person_id: String(personId),
-        agent_id: String(agentId),
-        joined_at: new Date().toISOString(),
-        age_attested_at: ageAt,
-        memory_consent_at: memAt,
-        tier: "free",
-        month_key: String(monthKey),
-        month_message_count: 0,
-        last_seen_at: new Date().toISOString(),
-      };
-      state.followers.push(row);
-      return [{ ...row }];
-    }
-
-    // THE CAP. The predicate is read off the shipping SQL rather than restated,
-    // so a strike lands here too.
-    if (has("update vy_room_follower f") && has("month_message_count")) {
-      const [roomId, personId, agentId, monthKey] = params.map(String);
-      const f = state.followers.find(
-        (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
-      );
-      if (!f) return [];
-      if (has("f.age_attested_at is not null") && f.age_attested_at == null) return [];
-      const r = state.rooms.find((x) => x.room_id === roomId);
-      const capped =
-        has("f.month_message_count < r.free_monthly_messages") &&
-        f.tier === "free" &&
-        f.month_key === monthKey &&
-        f.month_message_count >= r.free_monthly_messages;
-      if (capped) return [];
-      f.month_message_count = f.month_key === monthKey ? f.month_message_count + 1 : 1;
-      f.month_key = monthKey;
-      f.last_seen_at = new Date().toISOString();
-      return [
-        {
-          month_key: f.month_key,
-          month_message_count: f.month_message_count,
-          tier: f.tier,
-          free_monthly_messages: r.free_monthly_messages,
-        },
-      ];
-    }
-
-    if (has("insert into vy_person_device")) {
-      const [device, personId] = params.map(String);
-      if (!state.devices.some((d) => d.device_id === device)) {
-        state.devices.push({ device_id: device, person_id: personId });
-      }
-      return [];
-    }
-
-    if (has("insert into meera_consent")) {
-      state.consent.push({
-        device_id: String(params[0]),
-        user_id: params[1] == null ? null : String(params[1]),
-        kind: String(params[2]),
-        granted: params[3] === true,
-        version: params[4],
-        at: String(params[5]),
-      });
-      return [];
-    }
-
-    if (has("insert into vy_room_thread")) {
-      const [threadId, roomId, personId, agentId, title] = params.map(String);
-      const clash = state.threads.some(
-        (t) =>
-          t.room_id === roomId &&
-          t.person_id === personId &&
-          t.title.toLowerCase() === title.toLowerCase() &&
-          t.archived_at == null,
-      );
-      if (clash) return [];
-      const row = {
-        thread_id: threadId,
-        room_id: roomId,
-        person_id: personId,
-        agent_id: agentId,
-        title,
-        created_at: new Date().toISOString(),
-        last_message_at: null,
-        archived_at: null,
-      };
-      state.threads.push(row);
-      return [{ ...row }];
-    }
-
-    // THE THREAD SCOPE PREDICATE, and the reason this fake reads the SQL text.
-    // `ownedThread` selects two columns; `listThreads` selects four. Both are
-    // filtered by exactly the clauses that are PRESENT in the string.
-    if (has("from vy_room_thread t")) {
-      const byId = has("t.thread_id = ($1)::uuid");
-      const p = params.map(String);
-      const [threadId, roomId, personId, agentId] = byId ? p : [null, p[0], p[1], p[2]];
-      const rows = state.threads.filter(
-        (t) =>
-          (!byId || t.thread_id === threadId) &&
-          (!sql.includes("t.room_id = ") || t.room_id === roomId) &&
-          // THE CLAUSE THE NEGATIVE CONTROL STRIKES
-          (!sql.includes("t.person_id = ") || t.person_id === personId) &&
-          (!sql.includes("t.agent_id = ") || t.agent_id === agentId) &&
-          t.archived_at == null,
-      );
-      return rows.map((t) => ({ ...t }));
-    }
-
-    if (has("update vy_room_thread") && has("last_message_at = now()")) {
-      const t = state.threads.find((x) => x.thread_id === String(params[0]));
-      if (t) t.last_message_at = new Date().toISOString();
-      return [];
-    }
-
-    if (has("from vy_context_item c")) {
-      return state.contextItems
-        .filter((c) => ["mined", "routed"].includes(c.status) && c.source_name)
-        .map((c) => ({ source_name: c.source_name }));
-    }
-
-    if (has("count(*)::int as n") && has("vy_room_follower")) {
-      const roomId = String(params[0]);
-      return [{ n: state.followers.filter((f) => f.room_id === roomId).length }];
-    }
-
-    if (has("delete from vy_room_thread")) {
-      const [roomId, personId, agentId] = params.map(String);
-      const gone = state.threads.filter(
-        (t) => t.room_id === roomId && t.person_id === personId && t.agent_id === agentId,
-      );
-      state.threads = state.threads.filter((t) => !gone.includes(t));
-      return gone.map(() => ({ gone: 1 }));
-    }
-
-    if (has("delete from vy_room_follower")) {
-      const [roomId, personId, agentId] = params.map(String);
-      const gone = state.followers.filter(
-        (f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId,
-      );
-      state.followers = state.followers.filter((f) => !gone.includes(f));
-      return gone.map(() => ({ gone: 1 }));
-    }
-
-    // The manifest lanes. One fixture table (vy_fact) stands in for all of
-    // them: what this suite checks is that the statement is AGENT-SCOPED and
-    // person-scoped, not that Postgres can delete a row.
-    if (has("delete from vy_fact")) {
-      const person = params[0];
-      const agentId = params[params.length - 1];
-      if (!sql.includes("agent_id = ")) throw new Error("forget statement is not agent-scoped");
-      const gone = state.facts.filter((f) => f.person_id === person && f.agent_id === agentId);
-      state.facts = state.facts.filter((f) => !gone.includes(f));
-      return gone.map(() => ({ gone: 1 }));
-    }
-    if (has("select * from vy_fact")) {
-      const person = params[0];
-      const agentId = params[params.length - 1];
-      if (!sql.includes("agent_id = ")) throw new Error("export statement is not agent-scoped");
-      return state.facts.filter((f) => f.person_id === person && f.agent_id === agentId);
-    }
-
-    return [];
-  };
-  db.calls = calls;
-  return db;
-}
-
-/** The memory seam, counted. What this suite proves about it is WHETHER it is
- *  called and with WHAT, which is the whole question for a consent gate. It
- *  proves nothing about whether the real statements parse - that is
- *  `offline-mocks-cannot-type-check-sql`, and it is stated in the report. */
-function fakeMemory(log) {
-  return {
-    openEpisode: async (person, device, agentId) => {
-      log.push({ call: "openEpisode", person, device, agentId });
-      return { id: 1, extended: false };
-    },
-    logTurn: async (args) => {
-      log.push({ call: "logTurn", ...args });
-    },
-    history: async (device, agentId) => {
-      log.push({ call: "history", device, agentId });
-      return log
-        .filter((e) => e.call === "logTurn" && e.device === device)
-        .map((e) => ({ role: e.role === "her" ? "assistant" : "user", content: e.content }));
-    },
-    recall: async (person, agentId) => {
-      log.push({ call: "recall", person, agentId });
-      return [];
-    },
-  };
-}
+// ── the fixture world, shared with evals/room-leak/run.mjs ────────────────
+const { engine, loadAgent } = await loadFixtureAgent(REPO);
 
 const reply = async () => "yes, that one is the same idea seen from the other end.";
 const personTables = async () => [
@@ -406,7 +88,6 @@ const personTables = async () => [
   { table: "vy_surface_identity", key: "person_id", lane: "relational" },
 ];
 const deps = (extra = {}) => ({ loadAgent, engine, reply, personTables, ...extra });
-
 // ── 1. open, signed out ───────────────────────────────────────────────────
 {
   const state = freshState();
