@@ -8001,3 +8001,177 @@ threading the ids through breaks a gate rather than shipping silently empty.
 measurement) traceable to boolean membership being too coarse — for example, an
 interview answer given once, offhand, being weighted the same as one repeated
 five times — would be grounds to move to a weighted signal instead of a set.
+## `ws-r1-room-is-a-third-vite-entry-not-a-studio-route` (2026-09-03)
+
+**Decision.** WS-R1 (the Room, a creator's published follower surface at
+`/r/<slug>`) ships as its own Vite build entry (`room.html` → `src/room/`),
+its own Vercel rewrite (`/r/:slug` → `/room.html`), and its own layout-gate
+fixture (`room-layout-fixture.html`), rather than as a route inside the
+existing studio bundle. Keep it a separate entry as long as the Room and the
+studio remain different audiences.
+
+**Why.** A follower arrives from a bio link with no reason to trust this
+domain yet and no reason to download a creator's authoring tool. Folding the
+Room into the studio bundle would mean every follower's first paint pays for
+code (wizard steps, processing review, mirror-call authoring) they will never
+run, and would put the studio's own surface behind a route a stranger reaches
+first. The two audiences share the design tokens (`src/studio/design/tokens.css`)
+and `src/studio/studioAuth.ts` (see the next entry) and nothing else of
+substance — `src/room/copy.ts` is deliberately its own module rather than a
+reuse of the studio's, because a Room screen is read by someone who is not a
+customer of this platform and the wrong sentence lands in front of a stranger,
+not a colleague.
+
+**What would reverse it.** If a later product decision merges the two
+audiences (a creator previewing their own Room from inside the studio, say,
+with shared navigation chrome), measure the actual bundle-size and first-paint
+cost of a merged entry against today's two-entry cost before merging the
+build target. Do not merge on code-reuse grounds alone; `src/room/copy.ts`'s
+header records why the studio's copy was rejected as a shared module even
+though the shape was reused.
+
+## `ws-r1-phone-otp-lives-in-studioauth-not-a-new-module` (2026-09-03)
+
+**Decision.** Phone OTP sign-in (`sendPhoneOtp` / `verifyPhoneOtp`, calling
+`api/account.js`'s pre-existing but previously uncalled `send_sms` /
+`verify_sms` ops) was added to `src/studio/studioAuth.ts`, the studio's
+existing auth module, rather than to a new `src/room/roomAuth.ts`. Same file
+for `googleSignIn`, which gained a `returnPath` parameter (default `/studio`,
+so every existing caller is byte-identical) so the Room can send Google's
+redirect back to `/r/<slug>` instead of into a creator's studio.
+
+**Why.** The Room is the first surface whose audience signs in by phone
+number by default, but a session shape, a refresh rule and an error taxonomy
+are one contract regardless of which surface mints the session. A second auth
+module is a second place those three things can drift, and the day they did,
+the two products would disagree about what "signed in" means for the same
+person. One module, two callers — the same reasoning `docs/SURFACES.md`
+already states for why a transport must never become a second tenant.
+
+**What would reverse it.** If the Room's session lifecycle needs to diverge
+from the studio's in a way `studioAuth.ts` cannot express without conditionals
+keyed on caller identity (a materially different token lifetime, a different
+refresh cadence), split it then — a module that has to ask "which surface is
+this?" before deciding its own behaviour has already stopped being one
+module in anything but name.
+
+## `ws-r1-free-cap-is-one-conditional-update-not-a-counter` (2026-09-03)
+
+**Decision.** The Room's free-tier cap (20 messages/month, `vy_room.
+free_monthly_messages` as data, not a constant) is enforced by ONE
+conditional SQL `UPDATE` on `vy_room_follower` that rolls `month_key` and
+increments `month_message_count` together, gated in the same statement that
+checks the count against the allowance. No client counter, no
+SELECT-then-UPDATE.
+
+**Why.** `gate0-structural`'s distinction between a preference and a
+guarantee applies directly: a SELECT-then-UPDATE lets two tabs both read 19
+and both write 20, and a client-side counter is trivially bypassed by anyone
+who opens devtools. A single atomically-conditioned UPDATE is the only shape
+where "twenty free messages" is actually true rather than usually true.
+`evals/room/run.mjs` asserts both halves — twenty allowed, the twenty-first
+refused before any model call, and the month rolling over inside the same
+UPDATE.
+
+**What would reverse it.** If the free allowance ever needs to be a true
+rolling 30-day window rather than a calendar month, this exact mechanism
+(two columns, one UPDATE) does not extend to that cleanly and would need
+redesigning — that is a product-shape change, not a bug in this one.
+
+## `ws-r1-room-owner-lane-excluded-from-person-tables` (2026-09-03)
+
+**Decision.** `vy_room` (migration 071) is deliberately absent from
+`api/memory.js`'s `PERSON_TABLES` manifest, even though it is exactly the
+kind of table that manifest exists to catch. Its erasure is wired the other
+way: `api/_replica-full-erasure.js`'s CTE chain deletes `vy_room`,
+`vy_room_follower` and `vy_room_thread` by `agent_id`/`replica_id`/
+`owner_user_id` when a CREATOR revokes their AI. `vy_room_follower` and
+`vy_room_thread` are additionally in `PERSON_TABLES` (with `agent: true`,
+gated on migration 071 having landed, exactly as `meera_consent` is gated on
+016) so a FOLLOWER's own whole wipe takes their membership and thread titles.
+
+**Why.** `vy_room` carries `owner_user_id` and no person column — it is the
+creator's row, not a follower's. A manifest loop that deletes by
+`person_id` has no business touching it, and if it somehow did, one
+follower's "forget me" would take the room away from every other follower in
+it. Both erasure directions are real and independently wired for the reason
+stated throughout this codebase's erasure code: two independent layers for a
+harm the next turn does not undo. `scripts/relcheck.mjs`'s owner-lane reach
+walk is why `vy_room` must be named in `_replica-full-erasure.js`'s SQL by
+text rather than relying on `room_id`'s cascade alone — a table carrying
+`owner_user_id` that is reachable only through a cascade nobody re-checks is
+exactly the defect class that check exists to catch.
+
+**What would reverse it.** If a future migration adds a `person_id` column to
+`vy_room` itself (there is no product reason to today — a room has one
+owner, not one person), that column would need its own decision about
+whether it belongs in `PERSON_TABLES`, and this entry's reasoning would not
+automatically transfer to it.
+
+## `ws-r1-citations-name-sources-never-passages` (2026-09-03)
+
+**Decision.** The Room's citation affordance (`op:"citations"`) returns the
+creator's own Context Locker source names (`vy_context_item.source_name`,
+`status in ('mined','routed')`) with `exact:false`. It never returns a
+passage, a quote, or a claim of exactness.
+
+**Why.** The engine exposes no per-reply provenance on this path — there is
+no mechanism that knows which source a given reply actually drew from, only
+which sources exist for this creator. Answering "where did that come from"
+with a guess dressed as evidence is `plausible-return-hides-a-dead-pipeline`
+in its exact shape: a citation that looks specific but is not earned reads as
+more honest than the truth, which is worse than an honest "this comes from
+{name}'s own material."
+
+**What would reverse it.** If the retrieval path this endpoint reads from
+ever gains real per-reply provenance (which chunk actually fed a given
+generation), `exact` should flip to `true` and the response should carry the
+real passage — but only once that provenance is measured to exist, not
+before.
+
+## `ws-r1-layout-gate-measures-two-products` (2026-09-03)
+
+**Decision.** `scripts/check-layout.mjs` was generalized from one hardcoded
+fixture and step list to a `TARGETS` array, each entry naming its own
+fixture file, its own query-string builder, its own "did this actually
+mount" selector, its own panel selector and its own `minPanels` floor. The
+studio (`studio-layout-fixture.html`, `mode=teacher&step=`, 3 steps, floor 2
+panels) and the Room (`room-layout-fixture.html`, `screen=`, 2 steps —
+`join` and `talk` — floor 1 panel, since a Room screen is one shell with one
+card in it) are both measured, at all three viewports (390/834/1355px),
+every run. Everything NOT specific to a target — the prose CPL/font-size
+floors, the grid-sliver checks, the contrast floor, the overflow check — stays
+shared across both, deliberately: two products of one company disagreeing
+about what readable means is exactly the failure this gate exists to make
+visible.
+
+**Why.** The gate's own history is the argument: `layout-readability-gate`'s
+node records that a surface nobody points this gate at is a surface where the
+collapsed-column defect lives, undetected, until someone happens to look. The
+Room is a second, separate follower-facing surface (see the entry above); a
+`check-layout.mjs` that still only measured the studio would report green
+while the actual product most strangers see went unmeasured. `minPanels` had
+to become per-target rather than one shared constant, because the studio's
+own floor of 2 would fail a correct one-card Room screen — a floor set for
+one shape and silently applied to a different shape is a false failure, and
+a gate that fails correct pages teaches people to stop reading its output.
+
+The same pass also fixed a **pre-existing, unrelated bug** in the gate's
+contrast check found while extending it: `getComputedStyle` on Chromium
+serializes a `color-mix()`-derived background as `color(srgb r g b / a)` with
+components in the 0..1 range, not the `rgb(r,g,b)` 0..255 range the parser
+assumed, so a paper-coloured header parsed as near-black and a genuinely
+4.5:1+ label reported as a 1.18:1 failure. `parseColor` now branches on the
+`color(` prefix and scales up. This was found only because the Room's own
+CSS uses a `color-mix()` background the studio's does not exercise the same
+way; it would eventually have been found by the studio anyway, but WS-R1 is
+why it was found now rather than later.
+
+**What would reverse it.** If a third follower- or creator-facing surface is
+added, add a fourth `TARGETS` entry rather than special-casing it — that is
+the abstraction this refactor exists to make cheap. If the shared checks ever
+need to diverge per-target (a genuinely different contrast floor for one
+product, say), that is the point at which per-target limits, not just
+per-target selectors, become necessary — `audit(limits)` already threads a
+`limits` object per call, so the extension point exists without a further
+refactor.

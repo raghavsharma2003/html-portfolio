@@ -7176,3 +7176,45 @@ actually asks the question, in Hinglish, in the clone's voice — that needs a
 paid live call and none was made. No speaker-similarity, register-consistency,
 or readiness-movement number exists for any interview answer, because no
 interview has ever run end to end.
+## `ws-r1-room-gate-results-2026-09-03`
+
+**Measured 2026-09-03, offline only, no NEON_URL in this environment — every
+number below is n over a full deterministic run of the named suite, method is
+"run the suite/gate and count", not a sample.**
+
+`node evals/room/run.mjs` (fake `db`, driving `api/_room-surface.js` and
+`api/room.js` directly): **54 of 54 assertions passed**, including the one
+required negative control — striking the `and person_id = $2` clause out of
+the shipping thread-lookup predicate makes follower B's device resolve to
+follower A's thread, and the suite fails two assertions when that clause is
+removed from the module under test, confirming the control is watching a real
+mechanism rather than a tautology.
+
+`node scripts/verify-release.mjs` on the tree with WS-R1's five uncommitted
+files (`scripts/check-copy.mjs`, `scripts/check-layout.mjs`,
+`src/studio/studioAuth.ts`, `vercel.json`, `vite.config.ts`) plus
+`room.html`, `room-layout-fixture.html` and `src/room/` added: **13 of 14
+non-database checks passed on the first run**, including `layout readability`
+(30.6s, both the studio's three screens and the Room's `join`/`talk` screens
+at 390/834/1355px — the Room's own summary line reported both fixtures
+present and measured). The one failure was `eval suite`, which does not break
+out per-suite pass/fail counts on its own — the two suites it named
+(`replicaerasure`, `recall`) had to be run individually to find what broke.
+Both failures were pre-existing defects in the two files this workstream
+touched (a JS syntax error from backticks inside a SQL comment inside a
+template literal in `api/_replica-full-erasure.js`, and two missing
+`evals/recall/run.mjs` FATE-table verdicts for the new `vy_room_thread` /
+`vy_room_follower` manifest rows — see `rejected.md` for both), not a defect
+in `verify-release.mjs` itself or in anything already committed. After
+fixing both: `node evals/replica-erasure/run.mjs` **20 of 20 checks passed**;
+`node evals/recall/run.mjs` **233 of 233 assertions passed** (`ALL PASS`);
+the full `node evals/run.mjs` (every suite in the repo, ~90 suites,
+re-bundled from real source) exited 0 with no suite in its `failed suites`
+line. A full re-run of `node scripts/verify-release.mjs` after the fix is the
+number quoted in this session's final report.
+
+Two touched files were also checked with plain `node --check` as a
+belt-and-suspenders measure, since neither `tsc` nor `vite build` parses a
+plain `.js` file under `api/`: `api/_room-surface.js`, `api/room.js`,
+`api/memory.js`, `evals/room/run.mjs`, `evals/recall/run.mjs` and
+`evals/replica-erasure/run.mjs` all report clean syntax.

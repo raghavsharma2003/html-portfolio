@@ -4774,6 +4774,66 @@
       "kind": "measurement",
       "title": "The interview eval passes 173/173 offline; verify-release 14/14 without NEON_URL",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-the-room",
+      "kind": "component",
+      "title": "The Room — api/room.js + api/_room-surface.js + src/room/ + migration 071: a follower's private, continuing relationship with a creator's published AI at /r/<slug>",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-room-is-a-third-vite-entry-not-a-studio-route",
+      "kind": "decision",
+      "title": "The Room ships as its own Vite entry and Vercel rewrite, not a route inside the studio bundle",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-phone-otp-lives-in-studioauth-not-a-new-module",
+      "kind": "decision",
+      "title": "Phone OTP sign-in was added to the shared studioAuth.ts, not a new roomAuth.ts",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-free-cap-is-one-conditional-update-not-a-counter",
+      "kind": "decision",
+      "title": "The Room's 20 free messages/month is one conditional SQL UPDATE, never a client counter",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-room-owner-lane-excluded-from-person-tables",
+      "kind": "decision",
+      "title": "vy_room stays out of PERSON_TABLES; its erasure is the creator's job, not a follower's wipe",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-citations-name-sources-never-passages",
+      "kind": "decision",
+      "title": "The Room's citations name the creator's own source titles with exact:false, never a passage",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-layout-gate-measures-two-products",
+      "kind": "decision",
+      "title": "check-layout.mjs generalized to a TARGETS array so it measures the studio and the Room",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-backtick-inside-a-sql-comment-inside-a-js-template-literal",
+      "kind": "rejection",
+      "title": "Markdown-style backticks in a SQL comment inside a JS template literal silently split the statement",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-new-person-tables-rows-shipped-without-a-written-fate",
+      "kind": "rejection",
+      "title": "New PERSON_TABLES rows shipped without a matching evals/recall FATE-table verdict",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r1-room-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "WS-R1 offline gate results: room 54/54, replica-erasure 20/20, recall 233/233, full eval suite and verify-release green",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9561,6 +9621,106 @@
       "src": "ws-r5-ask-block-splices-before-the-appended-last-set-or-refuses",
       "rel": "measured_by",
       "dst": "ws-r5-interview-eval-and-gate-counts-2026-09-03"
+    },
+    {
+      "src": "ws-r1-room-is-a-third-vite-entry-not-a-studio-route",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-phone-otp-lives-in-studioauth-not-a-new-module",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-free-cap-is-one-conditional-update-not-a-counter",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-room-owner-lane-excluded-from-person-tables",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-citations-name-sources-never-passages",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-layout-gate-measures-two-products",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-layout-gate-measures-two-products",
+      "rel": "part_of",
+      "dst": "layout-readability-gate"
+    },
+    {
+      "src": "ws-r1-backtick-inside-a-sql-comment-inside-a-js-template-literal",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-new-person-tables-rows-shipped-without-a-written-fate",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-room-gate-results-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r1-the-room",
+      "rel": "caused_by",
+      "dst": "room-agent-scope-reaches-the-wire"
+    },
+    {
+      "src": "gate0-structural",
+      "rel": "constrains",
+      "dst": "ws-r1-free-cap-is-one-conditional-update-not-a-counter"
+    },
+    {
+      "src": "structural-disclosure",
+      "rel": "constrains",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "plausible-return-hides-a-dead-pipeline",
+      "rel": "constrains",
+      "dst": "ws-r1-citations-name-sources-never-passages"
+    },
+    {
+      "src": "dead-writers",
+      "rel": "caused_by",
+      "dst": "ws-r1-phone-otp-lives-in-studioauth-not-a-new-module"
+    },
+    {
+      "src": "ws-r1-room-is-a-third-vite-entry-not-a-studio-route",
+      "rel": "measured_by",
+      "dst": "ws-r1-room-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r1-free-cap-is-one-conditional-update-not-a-counter",
+      "rel": "measured_by",
+      "dst": "ws-r1-room-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r1-layout-gate-measures-two-products",
+      "rel": "measured_by",
+      "dst": "ws-r1-room-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r1-backtick-inside-a-sql-comment-inside-a-js-template-literal",
+      "rel": "measured_by",
+      "dst": "ws-r1-room-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r1-new-person-tables-rows-shipped-without-a-written-fate",
+      "rel": "measured_by",
+      "dst": "ws-r1-room-gate-results-2026-09-03"
     }
   ]
 }

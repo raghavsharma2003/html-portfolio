@@ -2769,6 +2769,29 @@ export const PERSON_TABLES = [
   // when another device still maps to it. Listing it here is what closes that
   // case: the bridge dies with the wipe either way.
   { table: "vy_account_person", key: "person_id", lane: "relational" },
+  // ── WS-R1: the Room's PERSON side (migration 071) ────────────────────────
+  //
+  // A follower's membership of a creator's Room, and the names they gave their
+  // own topic threads. Neither holds a word anybody said (071's content law
+  // restates 012's), and both are still unambiguously records OF that person:
+  // the membership says they joined this creator's room and answered the
+  // memory question, the thread titles are nouns they typed. A whole wipe that
+  // kept either would leave "this human follows Anjali and calls one of their
+  // threads `injury`" standing after a receipt that said nothing remains.
+  //
+  // The ROOM itself (vy_room) is deliberately not here. It is owner-keyed with
+  // no person column, so it is the owner lane, and a manifest loop deleting it
+  // on one follower's request would take a creator's room away from everyone
+  // else in it. Its erasure is api/_replica-full-erasure.js's, which also
+  // deletes these two by agent_id - the same rows, reached from the other side,
+  // which is the house rule for a harm the next turn does not undo.
+  //
+  // Child before parent, exactly as the replica-lane block above is ordered:
+  // both carry `room_id references vy_room on delete cascade`, so nothing here
+  // can outlive its room, and listing them ahead of nothing keeps the receipt's
+  // counts honest.
+  { table: "vy_room_thread",   key: "person_id", lane: "relational", agent: true },
+  { table: "vy_room_follower", key: "person_id", lane: "relational", agent: true },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -2893,14 +2916,24 @@ export async function tableApplied(name) {
   return present;
 }
 
-/** The replica lane's person-keyed manifest entries, gated per table on the
- *  migration that creates them (015, 023, 027) exactly as meera_consent is on
- *  016. Named here so the guard cannot drift from the list it guards. */
+/** The manifest entries that arrive with a migration LATER than the ones a
+ *  given database may have applied, gated per table exactly as meera_consent is
+ *  on 016. Named here so the guard cannot drift from the list it guards.
+ *
+ *  The replica lane's four arrive with 015 / 023 / 027. The Room's two arrive
+ *  with 071 and are on this list for the identical reason rather than a
+ *  similar one: the wipe loop's delete is NOT catch-wrapped on purpose (the
+ *  receipt may only be sent once the delete actually happened), so a manifest
+ *  naming a table this database has not got yet turns "make it forget me" into
+ *  a 500 for a deploy-ordering reason. Provably lossless in both cases: a table
+ *  that does not exist holds no rows. */
 export const REPLICA_PERSON_TABLES = [
   "vy_replica_dialogue_turn",
   "vy_replica_runtime_session",
   "vy_replica_runtime_capability",
   "vy_account_person",
+  "vy_room_thread",
+  "vy_room_follower",
 ];
 
 // tables and columns that migration 008 introduces

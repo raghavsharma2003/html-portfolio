@@ -6150,3 +6150,73 @@ that had mined one claim.
 being judged: the prompt for question and follower cards, the answer for claim
 and delta cards. The eval asserts both halves by name so the next kind added has
 to answer the same question.
+## `ws-r1-backtick-inside-a-sql-comment-inside-a-js-template-literal` (2026-09-03)
+
+**What was tried.** `api/_replica-full-erasure.js`'s erasure CTE chain is one
+long JS template literal holding a `with target as (...)` SQL statement, and
+every table added to it is preceded by an SQL `--` comment explaining why
+it's there (the file's established style — see the Mirror Call and Context
+Locker blocks above it). WS-R1's new comment, explaining why `vy_room` is
+deleted by name rather than left to its cascade, used backtick-quoted
+identifiers for readability: `` `vy_room` carries owner_user_id... `` and
+`` carry `room_id references vy_room(room_id) on delete cascade` ``.
+
+**What specifically broke.** Those are JS backticks, and the surrounding SQL
+is itself inside a JS template literal. Each pair of backticks in the comment
+closed the outer literal and reopened a new one, splitting the single
+`db(\`with target as (...)\`, [...])` call into several fragments — most of
+which are not valid JS on their own. `node --check` on the file failed with
+`SyntaxError: missing ) after argument list`, reported at the START of the
+template literal (line 235) rather than at the actual backticks (387, 395),
+because that is where the parser's bracket-matching state finally gave up.
+Nothing in `verify-release.mjs`'s prior thirteen static gates caught it:
+`tsc` does not type-check plain `.js` files under `api/`, `npx vite build`
+never touches a serverless function, and neither does the layout gate. Only
+`evals/run.mjs`'s `replicaerasure` suite — which dynamically imports the real
+module — actually parsed the file, and it failed at import time with a raw
+Node stack trace rather than a suite assertion, which is what made it findable
+at all.
+
+**What replaced it.** The two comments were rewritten without backticks
+(`vy_room carries owner_user_id...`, `carry room_id references vy_room
+(room_id) on delete cascade`). The general rule this leaves for the next
+person editing a `db(\`...\`)` template literal in this codebase: a
+markdown-style backtick used for emphasis inside a SQL comment is not inert
+here the way it would be inside an actual `--` SQL comment in a `.sql` file —
+it is live JS syntax the whole time, and `node --check <file>.js` is a
+zero-cost way to catch it before any gate does, since none of the thirteen
+static gates ahead of the eval suite exercise a plain `.js` file's own
+syntax.
+
+## `ws-r1-new-person-tables-rows-shipped-without-a-written-fate` (2026-09-03)
+
+**What was tried.** Migration 071 added `vy_room_thread` and
+`vy_room_follower` to `api/memory.js`'s `PERSON_TABLES` manifest (correctly —
+both hold rows a whole wipe must reach). The commit that did this did not add
+a matching entry to `evals/recall/run.mjs`'s `FATE` table, the enumeration
+that requires every `PERSON_TABLES` row to carry a written verdict on what a
+SCOPED forget does to it versus what a WHOLE wipe does.
+
+**What specifically broke.** `evals/recall/run.mjs` failed two assertions:
+`vy_room_thread has a written forget fate` and `vy_room_follower has a
+written forget fate`, each naming the table and stating exactly what was
+missing — the check's own failure message is written to be the fix
+instructions. Nothing else in `verify-release.mjs` could have caught this:
+the manifest addition itself was correct and complete (the wipe loop takes
+both tables by construction, lane `"relational"`), so `relcheck` — the gate
+that finds tables missing FROM the manifest — had nothing to flag. §8's FATE
+table exists specifically because "the manifest is correct" and "the
+decision about what a scoped forget does to this table was made and written
+down" are two different claims, and the second one is the one nobody
+enforces by construction.
+
+**What replaced it.** Both tables were given a `"forget-only"` verdict:
+neither has a term a scoped "forget priya"-style item forget could match (a
+membership row is a join timestamp and a consent boolean; a thread row is a
+UUID and a short label), so only the stronger door — the account-level whole
+wipe, or the Room's own `op:"forget"`, itself a whole wipe scoped to one
+agent via `PERSON_TABLES`' `agent` flag — may take them. The general lesson:
+adding a table to `PERSON_TABLES` and adding its FATE verdict are two edits
+to two different files that the erasure code itself does not link, and a
+workstream that does the first without the second ships a manifest entry the
+project's own coverage gate calls incomplete on the very next run.

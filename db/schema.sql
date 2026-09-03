@@ -3010,7 +3010,7 @@ create table if not exists vy_replica_readiness (
     check ((unmeasured_count > 0 and overall is null) or (unmeasured_count = 0 and overall is not null)),
   constraint vy_replica_readiness_min_part_pairs
     check ((overall is null and min_part is null) or (overall is not null and min_part is not null)),
-  constraint vy_replica_readiness_inputs_hash check (inputs_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_readiness_inputs_hash check (inputs_hash ~ '^[0-9a-f]{64}),
   constraint vy_replica_readiness_parts_object
     check (jsonb_typeof(parts) = 'object' and jsonb_typeof(suggested_action) = 'object'
            and jsonb_typeof(blockers) = 'array')
@@ -3055,7 +3055,7 @@ create table if not exists vy_interview_answer (
   owner_user_id      uuid not null,
   gap_kind           text not null check (gap_kind in ('contradiction','sheet_field','thin_topic','readiness')),
   topic              text not null check (topic <> '' and length(topic) <= 120),
-  question_shape_hash text not null check (question_shape_hash ~ '^[0-9a-f]{64}$'),
+  question_shape_hash text not null check (question_shape_hash ~ '^[0-9a-f]{64}),
   source_id          uuid references vy_replica_source(source_id) on delete set null,
   window_id          uuid references vy_mirror_window(window_id) on delete set null,
   created_at         timestamptz not null default now(),
@@ -3065,3 +3065,63 @@ create unique index if not exists vy_interview_answer_shape_ix on vy_interview_a
 create index if not exists vy_interview_answer_session_ix on vy_interview_answer (session_id, created_at);
 create index if not exists vy_interview_answer_owner_ix on vy_interview_answer (owner_user_id, replica_id, created_at desc);
 create index if not exists vy_interview_answer_shape_history_ix on vy_interview_answer (replica_id, owner_user_id, question_shape_hash);
+-- Migration 071 - the Room: the follower's side of a published replica.
+-- vy_room is the OWNER lane (deleted by name in api/_replica-full-erasure.js);
+-- vy_room_follower and vy_room_thread are the PERSON lane (PERSON_TABLES,
+-- gated in activePersonTables() on this migration having landed). No column in
+-- any of the three can hold anything anybody said, and none ever may - 012's
+-- content law, and 016's reason for restating it on a consent ledger.
+create table if not exists vy_room (
+  room_id               uuid primary key,
+  slug                  text not null,
+  replica_id            uuid not null,
+  agent_id              uuid not null,
+  owner_user_id         uuid not null,
+  display_name          text not null default '',
+  free_monthly_messages integer not null default 20
+                        check (free_monthly_messages >= 0 and free_monthly_messages <= 100000),
+  published_at          timestamptz,
+  paused_at             timestamptz,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+create unique index if not exists vy_room_slug_ix on vy_room (lower(slug));
+create unique index if not exists vy_room_replica_ix on vy_room (replica_id);
+create index if not exists vy_room_owner_ix on vy_room (owner_user_id, replica_id);
+create index if not exists vy_room_agent_ix on vy_room (agent_id);
+create table if not exists vy_room_follower (
+  follower_id         uuid primary key,
+  room_id             uuid not null references vy_room(room_id) on delete cascade,
+  person_id           uuid not null,
+  agent_id            uuid not null,
+  joined_at           timestamptz not null default now(),
+  age_attested_at     timestamptz,
+  memory_consent_at   timestamptz,
+  tier                text not null default 'free' check (tier in ('free','paid')),
+  month_key           text not null default '',
+  month_message_count integer not null default 0 check (month_message_count >= 0),
+  last_seen_at        timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+create unique index if not exists vy_room_follower_person_ix
+  on vy_room_follower (room_id, person_id);
+create index if not exists vy_room_follower_scope_ix
+  on vy_room_follower (person_id, agent_id);
+create index if not exists vy_room_follower_room_seen_ix
+  on vy_room_follower (room_id, last_seen_at desc);
+create table if not exists vy_room_thread (
+  thread_id       uuid primary key,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  agent_id        uuid not null,
+  title           text not null default '' check (length(title) <= 80),
+  created_at      timestamptz not null default now(),
+  last_message_at timestamptz,
+  archived_at     timestamptz
+);
+create index if not exists vy_room_thread_scope_ix
+  on vy_room_thread (person_id, room_id, last_message_at desc);
+create unique index if not exists vy_room_thread_title_ix
+  on vy_room_thread (room_id, person_id, lower(title))
+  where archived_at is null and title <> '';

@@ -275,6 +275,37 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   clonechannel: "clonechannel.mjs",
+  // WS-R1, the Room: the follower's side of a published replica, at /r/<slug>.
+  //
+  // Wired here on the same `dead-writers` test as the suite above, and for the
+  // sharpest version of its reason yet: this is the first lane in the repo
+  // where two DIFFERENT members of a creator's audience hold rows in the same
+  // tables at the same time, so every failure here is a follower seeing
+  // another follower, and every one of them returns 200.
+  //
+  //  - ONE FOLLOWER CANNOT SEE ANOTHER. Two followers, one room, one thread
+  //    each. The suite asserts B is refused A's thread AND re-runs the same
+  //    shipping call with the person clause STRUCK out of the SQL, failing
+  //    unless the struck copy leaks. A check that passes against the bug it
+  //    exists to catch is not a check.
+  //  - THE CAP IS A PREDICATE. Twenty free messages a month, and the
+  //    twenty-first is refused by the UPDATE's own WHERE clause BEFORE any
+  //    work happens. The suite counts to 21, asserts the refusal is not
+  //    mid-turn, and rolls the month over to prove the allowance returns
+  //    through the same statement rather than through a second code path.
+  //  - MEMORY IS GATED, NOT FILTERED. A follower who declined the memory
+  //    question produces ZERO calls to the episode opener, the turn logger and
+  //    the recall path, asserted by call COUNT: a filter applied later is a
+  //    filter a later edit removes.
+  //  - THE DISCLOSURE IS BOUND. A session minted against a different card
+  //    cannot buy a turn, so a page cannot opt out of the card by not
+  //    rendering it.
+  //  - FORGET IS SCOPED AND REAL. It deletes over PERSON_TABLES, agent-scoped,
+  //    leaves the other follower's rows and the room itself standing, and
+  //    appends a withdrawal to the consent ledger rather than erasing a grant.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  room: "room/run.mjs",
   // WS-AB (the universal "bring your context" lane). The Context Locker end to
   // end: many files and many links become owned, hashed, quota-capped items,
   // and the ones this platform can honestly read become CITED proposals on the

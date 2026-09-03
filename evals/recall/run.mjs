@@ -508,6 +508,23 @@ const FATE = {
   // their own memory.
   vy_account_person: "forget-only",
 
+  // ── the Room's person side (WS-R1; migration 071) ──
+  //
+  // A follower's membership of a creator's Room, and the titles they gave
+  // their own topic threads. Neither has a term a scoped "forget priya" could
+  // match — a membership is a join timestamp and a consent boolean, a thread
+  // row is a UUID and a short label the follower typed once — so api/memory.js's
+  // opForget, which resolves a referring expression against extracted facts and
+  // episodes, has no predicate that could ever name either table; api/room.js
+  // never calls opForget at all. Only the stronger door may take them: the
+  // account-level whole wipe (this manifest's loop, lane "relational", which is
+  // what the check below proves) or the Room's own "op":"forget" — a whole
+  // wipe scoped to one agent rather than one account, and PERSON_TABLES'
+  // `agent` flag is what keeps it from also taking a follower's rows in every
+  // OTHER creator's room.
+  vy_room_thread: "forget-only",
+  vy_room_follower: "forget-only",
+
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the
   // one request whose promise is that nothing about them remains would break

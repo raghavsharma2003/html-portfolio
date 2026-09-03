@@ -73,6 +73,14 @@ export const STRICT_SURFACE = [
   // screen, it fails the gate that decides whether a clone may talk to anyone.
   /^api\/_readiness\.js$/,
   /^api\/readiness\.js$/,
+  // WS-R1, the Room. On the strict list from its first commit for WS-X's
+  // reason, and one of its own: this surface's conditional UPDATE is what
+  // enforces the free cap, and a type error in it does not fail loudly, it
+  // fails as zero rows updated, which this lane reads as "the cap is spent".
+  // A parameter whose type Postgres could not deduce would present to every
+  // free follower as a Room that refuses their first message.
+  /^api\/_room-surface\.js$/,
+  /^api\/room\.js$/,
 ];
 
 export function isStrict(rel) {
