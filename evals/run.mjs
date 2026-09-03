@@ -1401,6 +1401,31 @@ const suites = {
   // covers the first and `scripts/relcheck.mjs` the second, and migration
   // 076 has never been applied to any database.
   driftwatch: "drift-watch/run.mjs",
+  // WS-R15, Phase 0's own proof: the first Room, in one command
+  // (`scripts/first-room.mjs`, `scripts/first-clone.mjs`'s sibling). This
+  // suite spawns the REAL script as a subprocess against a fake HTTP server
+  // (node:http, a random loopback port) replaying recorded response shapes —
+  // it never imports the script's internals, so a rewrite that keeps the
+  // words but breaks the contract is caught the same way a human running it
+  // would notice: by reading its own stdout.
+  //
+  //  - THE HAPPY PATH, owner and follower, every one of fourteen steps ok:
+  //    replica, consent, upload, the processing DAG polled to done, the five
+  //    readiness parts, the review queue filled without ever deciding a card,
+  //    the Room created and published, then open/join/say/history/forget on
+  //    a SECOND session.
+  //  - TWO NAMED REFUSALS. Publish locked by readiness (the blocker list
+  //    printed and split waiting-on-you/waiting-on-us, and the follower side
+  //    proven NEVER to run even though a follower token was supplied) and the
+  //    slug taken (stops at room-create; room-publish never appears as a
+  //    step).
+  //  - THE NEGATIVE CONTROL. A 200 with an empty body, struck mid-chain on the
+  //    consent grant, must fail that step by name (`empty_response`) and must
+  //    never let the upload step that follows it run — the exact rule the
+  //    script's own header names as its second law.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, ~2s.
+  firstroom: "first-room/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -5056,6 +5056,30 @@
       "kind": "measurement",
       "title": "After the pattern match, both projects' previews of the platform branch serve the Vyakti landing at /; /chat still 200 on html-portfolio",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r15-first-room-script",
+      "kind": "component",
+      "title": "scripts/first-room.mjs — one command from consent through the processing DAG, Readiness, the review queue, Room publish, and a second follower session, against the live deployment",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r15-first-room-follows-first-clone-shape",
+      "kind": "decision",
+      "title": "scripts/first-room.mjs copies first-clone.mjs's stage-reporting contract and adds one status, blocked, for the publish lock",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r15-refusal-absence-cannot-be-a-substring-check",
+      "kind": "rejection",
+      "title": "Asserting a step never ran by searching stdout for a substring of its shared endpoint's URL produced a false failure",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r15-eval-fixture-port-via-global",
+      "kind": "rejection",
+      "title": "A module-level global for the fake storage PUT port would have gone stale across sequential eval scenarios; req.headers.host reads it per request instead",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10173,6 +10197,36 @@
       "src": "vercel-build-platform-branch-pattern",
       "rel": "measured_by",
       "dst": "platform-branch-previews-serve-vyakti-2026-09-03"
+    },
+    {
+      "src": "ws-r15-first-room-script",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r15-first-room-script",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r15-first-room-follows-first-clone-shape",
+      "rel": "caused_by",
+      "dst": "first-clone-is-the-entry-point"
+    },
+    {
+      "src": "ws-r15-first-room-follows-first-clone-shape",
+      "rel": "part_of",
+      "dst": "ws-r15-first-room-script"
+    },
+    {
+      "src": "ws-r15-refusal-absence-cannot-be-a-substring-check",
+      "rel": "constrains",
+      "dst": "ws-r15-first-room-script"
+    },
+    {
+      "src": "ws-r15-eval-fixture-port-via-global",
+      "rel": "constrains",
+      "dst": "ws-r15-first-room-script"
     }
   ]
 }

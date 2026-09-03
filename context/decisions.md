@@ -8481,3 +8481,41 @@ on the studio project is still honoured first, per the script's own comment.
 
 **Reverses if.** A branch in the `claude/vyakti-cloning-platform-*` family is
 ever used for non-Vyakti work, or the two products move to separate repos.
+
+## `ws-r15-first-room-follows-first-clone-shape` — the Room's own one-command script copies first-clone.mjs's reporting shape rather than inventing one (2026-09-03, WS-R15)
+
+**The decision.** `scripts/first-room.mjs` (Phase 0's "hand-build one Room for
+one real creator") uses the exact same stage-reporting contract as
+`scripts/first-clone.mjs` (`first-clone-is-the-entry-point`): a `record(name,
+status, detail)` call per step, a step is `ok` only after a real 2xx with a
+real parseable body, and the final action is always a printed table plus a
+non-zero exit for any step that did not fully succeed. One addition: a fourth
+status, `blocked`, distinct from `fail`, for the one refusal that is an
+expected honest state rather than a bug — the Room's publish lock. `stop()`
+(new) prints the classed `waiting_on_you` / `waiting_on_us` blocker list from
+`api/_room-publish.js` and exits exactly like `die()` does, but the status
+word tells a reader "this creator is not ready yet" rather than "the script
+broke."
+
+**Rationale.** Two scripts reporting the same class of event two different
+ways is a shape a future reader has to re-learn for no reason, and
+`first-clone.mjs`'s shape was already proven against live services
+(`context/measurements.md#first-real-clone`). The `blocked` status exists
+because `context/decisions.md#a-step-is-never-silently-blocked` and the honest-
+states law (`AGENTS.md`) both say a locked gate must never look identical to a
+platform failure — collapsing it into `fail` would have made every first run
+of this script (readiness is locked for every replica today,
+`api/_readiness.js` §4) print as if something were broken.
+
+**A second, smaller decision inside the same file.** `--skip-follower` does
+not add a `skip` row and does not count against the exit code, while a
+follower stage skipped for a MISSING `VYAKTI_FOLLOWER_SESSION` does (one row,
+`skip`, non-zero exit) — deliberately diverging from `first-clone.mjs`'s
+uniform "any non-ok stage is a non-zero exit" rule. An explicit opt-out is not
+a stage that "did not run" in the sense that rule was written for; a missing
+credential the caller presumably wanted is.
+
+**Reverses if.** A later script in this family needs a fifth status (a third
+kind of "did not fully succeed" outcome) and `ok/skip/blocked/fail` proves too
+coarse — extend the enum rather than overload `fail`, the same way `blocked`
+was added here instead of overloading it.
