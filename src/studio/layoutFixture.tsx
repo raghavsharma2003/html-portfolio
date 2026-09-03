@@ -25,6 +25,10 @@ import "./design/tokens.css";
 import "./studio.css";
 import "./design/honesty.css";
 import "./design/mobile.css";
+// WS-R4. The review card is rendered by this fixture, so the gate has to load
+// the stylesheet the real studio loads or it would measure an unstyled panel
+// and report OK about a layout nobody ships.
+import "./design/review-queue.css";
 import type { Replica } from "./types";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", ""]);
@@ -52,6 +56,34 @@ const ROUTES: Record<string, unknown> = {
   "/api/account": { account: { email: "teacher@example.edu", verified: true } },
   "/api/replica-source": { sources: [] },
   "/api/replica-review": { review: null, items: [] },
+  /* WS-R4. POPULATED on purpose, unlike most routes here: the review card is
+     the longest single block of model-authored prose in the studio and it is
+     the exact shape the collapsed-column defect lives in. An empty queue would
+     render three sentences and prove nothing. */
+  "/api/review-queue": {
+    queue: {
+      replica_id: "fixture-replica-0001",
+      cards: [{
+        card_id: "fixture-card-0001",
+        kind: "question",
+        prompt_text: "Should I do cardio on lifting days, or keep the two completely separate through the week?",
+        answer_text: "Keep them separate where you can. If you have to stack them, lift first and put the cardio after, "
+          + "twenty minutes at a pace you could hold a conversation at. The point is that the lifting session is the one "
+          + "you protect, and everything else fits around it.",
+        source_refs: [],
+        state: "open",
+        decided_at: null,
+        has_correction: false,
+        created_at: "2026-08-01T09:00:00.000Z",
+      }],
+      open_count: 14,
+      decided_count: 16,
+      fixed_count: 3,
+      never_count: 1,
+      active_never_rules: 1,
+      cap: 30,
+    },
+  },
   // `ActivityView`. `jobs` and `lanes` are both read without a guard, and
   // `next_poll_ms: null` is what stops the panel polling forever under the gate.
   "/api/replica-activity": {

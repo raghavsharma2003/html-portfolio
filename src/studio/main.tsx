@@ -22,6 +22,10 @@ import "./studio.css";
 // merge. See each file's header for what it owns and why.
 import "./design/honesty.css";
 import "./design/mobile.css";
+// WS-R4. The review queue's one card and its three buttons, in its own file for
+// the reason the two above are in theirs: `studio.css` is contended, and a
+// layout that only exists as a diff inside it loses a merge.
+import "./design/review-queue.css";
 import { restoreStudioMode } from "./studioAuth";
 
 // BEFORE render, never after. `StudioApp.readStudioMode()` reads `?mode=` once

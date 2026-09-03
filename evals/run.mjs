@@ -1234,6 +1234,18 @@ const suites = {
   // surface covers the first and `scripts/relcheck.mjs` the second, and
   // migration 060 has never been applied to any database.
   replicaactivity: "replicaactivity.mjs",
+  // WS-R4, the review queue. The card generator's dedupe and cap, each
+  // decision's writes read off the REAL SQL, the clause that stops a fix
+  // landing without its correction source, the invalidation request, and the
+  // never-rule predicate driven through the REAL `gateReply` with the negative
+  // control the brief asks for by name: remove the predicate and the forbidden
+  // reply travels, so the suite fails.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What it
+  // CANNOT see is SQL types and referential integrity: `evals/sqlcast`'s strict
+  // surface covers the first and `scripts/relcheck.mjs` the second, and
+  // migration 074 has never been applied to any database.
+  reviewqueue: "review-queue/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

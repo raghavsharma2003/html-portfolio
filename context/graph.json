@@ -4653,6 +4653,60 @@
       "kind": "rejection",
       "title": "Bulbul v3's announcement names voice cloning; the API reference documents no endpoint for it",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r4-review-queue",
+      "kind": "component",
+      "title": "The review queue: one card, three buttons, in the Meet step",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r4-never-rule-predicate",
+      "kind": "component",
+      "title": "Never-say rules compiled and matched inside gateReply, the one door",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "review-correction-is-a-source-not-a-prompt-line",
+      "kind": "decision",
+      "title": "A correction is a cited source, and derived material is rebuilt rather than patched",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "review-decision-is-one-sql-clause",
+      "kind": "decision",
+      "title": "A card's state flip is gated on its own write landing in the same statement",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "never-say-is-a-predicate-at-the-one-door",
+      "kind": "decision",
+      "title": "Never-say rules are rows matched on the output, never lines in a prompt",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r4-offline-gate-2026-09-03",
+      "kind": "measurement",
+      "title": "117 offline checks green, 14 release gates green, migration 074 never applied",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "review-exemplar-needs-a-turn-that-never-happened",
+      "kind": "rejection",
+      "title": "Sounds right cannot write a turn exemplar without fabricating a dialogue turn",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "review-dedupe-on-the-prompt-collapsed-the-queue",
+      "kind": "rejection",
+      "title": "One dedupe key over the prompt reduced fifty mined claims to one card",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r4-review-queue-never-explained",
+      "kind": "open",
+      "title": "Migration 074 and every review-queue statement are unapplied and unEXPLAINed",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9275,6 +9329,76 @@
       "src": "ws-r6-vendor-offline-suite-2026-09-03",
       "rel": "part_of",
       "dst": "ws-r6-vendor-arms-are-bench-arms"
+    },
+    {
+      "src": "review-correction-is-a-source-not-a-prompt-line",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "review-decision-is-one-sql-clause",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "never-say-is-a-predicate-at-the-one-door",
+      "rel": "part_of",
+      "dst": "ws-r4-never-rule-predicate"
+    },
+    {
+      "src": "review-exemplar-needs-a-turn-that-never-happened",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "review-dedupe-on-the-prompt-collapsed-the-queue",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "ws-r4-offline-gate-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "ws-r4-review-queue-never-explained",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "review-correction-is-a-source-not-a-prompt-line",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
+    },
+    {
+      "src": "never-say-is-a-predicate-at-the-one-door",
+      "rel": "caused_by",
+      "dst": "recited-prompt"
+    },
+    {
+      "src": "review-decision-is-one-sql-clause",
+      "rel": "caused_by",
+      "dst": "mirror-call-approval-is-one-sql-clause"
+    },
+    {
+      "src": "review-correction-is-a-source-not-a-prompt-line",
+      "rel": "caused_by",
+      "dst": "mirror-call-writes-only-the-phrase-bank"
+    },
+    {
+      "src": "review-exemplar-needs-a-turn-that-never-happened",
+      "rel": "caused_by",
+      "dst": "review-correction-is-a-source-not-a-prompt-line"
+    },
+    {
+      "src": "review-dedupe-on-the-prompt-collapsed-the-queue",
+      "rel": "caused_by",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "ws-r4-never-rule-predicate",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
     }
   ]
 }

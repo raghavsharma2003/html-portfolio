@@ -62,7 +62,7 @@ export function sourceUploadInput(value) {
   if (!SHA256.test(sha256)) fail("lowercase SHA-256 is required");
   if (typeof input.contains_third_parties !== "boolean") fail("contains_third_parties declaration required");
   const purpose = String(input.purpose || "memory").trim();
-  if (!new Set(["memory", "identity_document", "identity_challenge"]).has(purpose)) fail("unsupported source purpose");
+  if (!new Set(["memory", "identity_document", "identity_challenge", "correction", "interview"]).has(purpose)) fail("unsupported source purpose");
   if (purpose === "identity_document") {
     const accepted = (kind === "image" && new Set(["image/jpeg", "image/png"]).has(mime)) ||
       (kind === "document" && mime === "application/pdf");
@@ -82,6 +82,14 @@ export function sourceUploadInput(value) {
   const captureMode = purpose === "identity_document" ? "identity_document"
     : purpose === "identity_challenge" ? "identity_challenge"
       : "upload";
+  // WS-R4. A correction is the owner's better answer to a review card. It is
+  // typed or dictated, so it is text or audio and nothing else, and it names
+  // only the owner — a correction that declares third parties would put someone
+  // else's words into the material this AI answers from.
+  if (purpose === "correction") {
+    if (!new Set(["text", "audio"]).has(kind)) fail("a correction must be text or audio");
+    if (input.contains_third_parties) fail("a correction must contain only the owner");
+  }
   return {
     kind,
     mime,
@@ -89,6 +97,7 @@ export function sourceUploadInput(value) {
     sha256,
     containsThirdParties: input.contains_third_parties,
     captureMode,
+    purpose,
   };
 }
 
@@ -104,6 +113,9 @@ export function clientSource(row) {
     replica_id: row.replica_id,
     kind: row.kind,
     capture_mode: row.capture_mode,
+    // WS-R4. Named on the wire so a studio can tell a lecture from a correction
+    // without inferring it from the mime type.
+    purpose: row.purpose || "memory",
     mime: row.mime,
     byte_size: Number(row.byte_size),
     state: row.state,
@@ -114,7 +126,7 @@ export function clientSource(row) {
   };
 }
 
-const SOURCE_RETURNING = `source_id, replica_id, owner_user_id, kind, capture_mode, storage_bucket,
+const SOURCE_RETURNING = `source_id, replica_id, owner_user_id, kind, capture_mode, purpose, storage_bucket,
   object_path, mime, byte_size, sha256, state, contains_third_parties,
   rejection_code, created_at, updated_at`;
 
@@ -155,9 +167,9 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
        insert into vy_replica_source
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
-          contains_third_parties, provenance)
+          contains_third_parties, provenance, purpose)
        select $3::uuid, owned.replica_id, $2::uuid, capture.consent_id, $4, $12,
-              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb
+              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb, $13::text
          from owned cross join capture cross join storage_ok cross join pending_budget
        returning ${SOURCE_RETURNING}
      ), audit as (
@@ -167,12 +179,13 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
               (select policy_version from owned), 'allowed',
               jsonb_build_object('kind', kind, 'byte_size', byte_size,
                                  'contains_third_parties', contains_third_parties,
-                                 'capture_mode', capture_mode)
+                                 'capture_mode', capture_mode, 'purpose', purpose)
          from inserted
      )
      select * from inserted`,
     [rid, ownerUserId, sourceId, input.kind, REPLICA_STORAGE_WRITE_BUCKET, path, input.mime,
-      input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode],
+      input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode,
+      input.purpose],
   );
   return rows[0] || null;
 }

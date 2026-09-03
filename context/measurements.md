@@ -7050,3 +7050,41 @@ fixtures transcribed from each vendor's documented response shape on 2026-09-03,
 with deterministic synthetic audio standing in for vendor bytes. They prove
 request shape, response parsing, format normalisation, budget fencing, erasure
 and every failure path. They do not prove the vendor answers this way today.
+## `ws-r4-offline-gate-2026-09-03` — WS-R4, the review queue (2026-09-03)
+
+**Gates, before and after, same machine, same command.** `npm install
+--no-audit --no-fund`, `CI=1 node scripts/write-config.mjs --stub`, `node
+evals/echosim/build.mjs`, then `node scripts/verify-release.mjs`.
+
+- BEFORE, on the untouched tree at 771feef: `all 14 checks passed`, with the two
+  relational DB gates printing `SKIPPED (no NEON_URL in this environment)`.
+- AFTER: see the session log entry. Method identical; n=1 each, which is what a
+  gate run is.
+
+**The eval.** `node evals/review-queue/run.mjs`: 117 checks, 117 passed. Offline,
+deterministic, no database, no network, no model call, ~0.4 s. It contains five
+negative controls, one per property, including the one the brief names: the same
+forbidden reply passed through the REAL `gateReply` with the never-rules removed
+travels unchanged, and with them present is suppressed.
+
+**`evals/sqlcast.mjs` after the change**: 553 SQL statements scanned, 261 on the
+strict surface (up from 553/230 before this workstream's files joined it), 0
+conflicts, 0 uncast sites, 0 unparseable shapes. `db/schema.sql` grew from 125 to
+127 tables.
+
+**What is NOT measured, and must not be read as measured.**
+- Migration 074 has never been applied to any database, and no statement in this
+  lane has ever been EXPLAINed. The offline suite proves control flow and clause
+  presence; `offline-mocks-cannot-type-check-sql` still binds.
+- `scripts/relcheck.mjs` did not run: no `NEON_URL` in this environment. The
+  owner-lane reach walk is the gate that would catch a missing erasure delete for
+  `vy_review_card` / `vy_review_never_rule`; both are deleted by name in
+  `api/_replica-full-erasure.js` and the eval asserts the text of those deletes,
+  which is not the same as the walk passing.
+- No number exists for how long a card actually takes to decide. "Thirty seconds
+  a card" is the brief's design target, not a measurement, and nothing in this
+  workstream measured it.
+- The never-rule shingle matcher has no false-positive rate against real replies.
+  It has only this suite's fixtures behind it.
+- The synthetic question generator has never been called against a real provider.
+  It is proven only through an injected fixture.

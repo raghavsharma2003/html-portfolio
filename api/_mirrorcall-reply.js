@@ -105,6 +105,12 @@ export const MIRROR_TURN_ABSENT_REASONS = Object.freeze([
   "clone_engine_unavailable",
   "clone_reply_empty",
   "clone_reply_failed",
+  // WS-R4. The owner tapped "Never say this" on this shape of answer, and the
+  // predicate at the one door caught it. Distinct from `clone_reply_empty`
+  // because "your own rule stopped this" and "the clone had nothing to say" are
+  // different things for a studio to render, and collapsing them would make a
+  // working rule look like a broken clone.
+  "clone_reply_never_rule",
 ]);
 
 /** Why a turn that EXISTS still cannot be spoken. Distinct from the absent
@@ -314,12 +320,24 @@ export async function assembleMirrorReply(deps = {}) {
   try {
     // THE ONE DOOR. `record` and `nameable` are empty, which makes honesty
     // family 4 as strict as it ever is.
-    gated = await gatedReply(ctx, compiled, turns, { label: "studio/mirror-call" });
+    //
+    // WS-R4's never-rules ride in on `deps` rather than being read here,
+    // because this function is deliberately databaseless so the offline suite
+    // can drive the whole assembly. The caller that has the replica reads them.
+    gated = await gatedReply(ctx, compiled, turns, {
+      label: "studio/mirror-call",
+      neverRules: Array.isArray(deps.neverRules) ? deps.neverRules : [],
+    });
   } catch (error) {
     return { ok: false, reason: "clone_reply_failed", details: { code: String(error?.code || "") } };
   }
 
   const capped = capMirrorReply(gated?.text);
+  // A reply the owner's own rule suppressed is NOT "the clone had nothing to
+  // say". Naming it separately is the same discipline every other absent reason
+  // on this lane follows: a lane that answered silence would be the fake
+  // progress bar with a speaker on it.
+  if (!capped.text && gated?.neverRule) return { ok: false, reason: "clone_reply_never_rule" };
   if (!capped.text) return { ok: false, reason: "clone_reply_empty" };
 
   return {

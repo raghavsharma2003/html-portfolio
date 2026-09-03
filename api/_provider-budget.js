@@ -1,6 +1,10 @@
 import { canonicalJson, sha256Hex } from "./_provenance/contracts.js";
 
-const OPERATIONS = new Set(["claim_extraction", "dialogue", "transcription", "voice_training", "synthesis", "liveness", "watermarking"]);
+// WS-R4 adds `review_question`: the synthetic question set the review queue
+// opens with before a single follower has spoken. It is a metered model call
+// like every other member of this set, so it reserves and settles through the
+// same ledger rather than spending outside it.
+const OPERATIONS = new Set(["claim_extraction", "dialogue", "transcription", "voice_training", "synthesis", "liveness", "watermarking", "review_question"]);
 const BUDGET_ID = /^[a-z][a-z0-9_-]{2,63}$/;
 
 function fail(code, status = 503, details) {
