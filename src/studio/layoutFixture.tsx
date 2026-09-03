@@ -108,6 +108,11 @@ const ROUTES: Record<string, unknown> = {
     },
   },
   "/api/clone-channel": { channels: [] },
+  // WS-R7. The Room's creator side. `room: null` with a named reason is the
+  // REAL shape `getOwnedRoom` returns before a creator has ever set one up —
+  // the empty state that carries this panel's longest prose, so it is the one
+  // worth measuring rather than a bare `{}`.
+  "/api/room-publish": { room: null, reason: "not_created" },
   // `ChannelWatchView`. `attestations` is read without a guard, so it has to
   // be an array or the Feed step throws before it paints.
   "/api/channel-watch": {

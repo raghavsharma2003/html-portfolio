@@ -1,0 +1,150 @@
+/* roomStudio.css — the Room's own stylesheet. WS-R7.
+ *
+ * A SEPARATE FILE for `readiness.css`'s own mechanical reason: `studio.css`
+ * is thousands of lines and contended by several workstreams, and a shared
+ * file is where a concurrent diff goes to lose a merge. Everything here is
+ * namespaced under `.vy-room`; the cards themselves reuse `.teacher-sheet-card`
+ * / `.field` / `.button` from `studio.css` rather than reinventing them.
+ *
+ * Every value comes from `design/tokens.css` and `studio.css`'s palette
+ * layer. MOBILE 390 FIRST: the stats grid is one column under 480px, three
+ * from there up, and the slug/cap rows stack before they ever wrap awkwardly.
+ * MOTION: only transform and opacity animate, `prefers-reduced-motion`
+ * collapses every transition to near-zero via `tokens.css`'s own guard.
+ */
+
+@layer components {
+  .vy-room .section-heading { align-items: flex-start; justify-content: space-between; gap: var(--space-item); }
+
+  .vy-room__status {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-hair);
+    border-radius: var(--radius-pill);
+    padding: 6px 14px;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .vy-room__status--draft { color: var(--ink-soft); background: rgba(43, 46, 40, 0.06); }
+  .vy-room__status--live { color: var(--forest); background: var(--forest-soft); }
+  .vy-room__status--paused { color: var(--state-waiting); background: var(--state-waiting-soft); }
+
+  .vy-room__link-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+    margin: var(--space-tight) 0 var(--space-item);
+  }
+  .vy-room__link {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 10px 14px;
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    background: rgba(255, 255, 255, 0.6);
+    font-family: var(--mono);
+    font-size: var(--text-small);
+    color: var(--forest-deep);
+  }
+
+  .vy-room__slug-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-tight);
+    align-items: center;
+  }
+  .vy-room__slug-row .field { flex: 1 1 220px; }
+
+  /* ── the publish blockers: the honesty split, rendered ─────────────── */
+  .vy-room__blockers {
+    list-style: none;
+    margin: var(--space-item) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row);
+  }
+  .vy-room__blocker {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: var(--space-tight) var(--space-row);
+    border-radius: var(--radius-control);
+    padding: var(--space-row);
+    border: var(--hairline) solid var(--line);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__blocker p { margin: 0; }
+  .vy-room__blocker p + p { margin-top: 2px; }
+  .vy-room__blocker-badge {
+    grid-row: 1 / span 2;
+    align-self: start;
+    border-radius: var(--radius-pill);
+    padding: 4px 10px;
+    font-size: var(--text-micro);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .vy-room__blocker--you .vy-room__blocker-badge { color: var(--state-waiting); background: var(--state-waiting-soft); }
+  .vy-room__blocker--us .vy-room__blocker-badge { color: var(--state-running); background: var(--state-running-soft); }
+
+  /* ── the free-cap presets ───────────────────────────────────────────── */
+  .vy-room__cap-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+  .vy-room__cap-pill {
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: var(--radius-pill);
+    border: var(--hairline) solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--ink);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard),
+                background var(--motion-quick) var(--ease-standard),
+                color var(--motion-quick) var(--ease-standard);
+  }
+  .vy-room__cap-pill:active:not(:disabled) { transform: scale(0.95); }
+  .vy-room__cap-pill--selected { background: var(--forest); border-color: var(--forest); color: #fff; }
+  .vy-room__cap-field { flex: 0 0 90px; height: 44px; text-align: center; }
+
+  /* ── the three real numbers ─────────────────────────────────────────── */
+  .vy-room__stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-row);
+    margin-top: var(--space-tight);
+  }
+  @media (min-width: 480px) {
+    .vy-room__stats-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .vy-room__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__stat-value { font-size: var(--text-heading); font-weight: var(--weight-strong); color: var(--forest-deep); }
+  .vy-room__stat-label { font-size: var(--text-small); color: var(--ink-soft); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vy-room__cap-pill { transition: none; }
+  }
+}
