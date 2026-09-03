@@ -1401,6 +1401,20 @@ const suites = {
   // covers the first and `scripts/relcheck.mjs` the second, and migration
   // 076 has never been applied to any database.
   driftwatch: "drift-watch/run.mjs",
+  // WS-R12. The number that decides the company: week-six retention of
+  // followers who arrived in week one. Nothing measured this before migration
+  // 077 and api/_room-cohorts.js. Five sections: THE WRITE (roomSay upserts
+  // vy_room_follower_day once per accepted turn, gated on the migration
+  // having landed, skipped rather than a 500 when it has not), THE FORGET
+  // (roomForget's own explicit delete, gated the same way), THE MATH
+  // (cohortRow/verdictFor, pure, driven with the workstream brief's own
+  // numbers - a 2-week cohort, 3/10 at 7 weeks, 5/10 at 8 weeks), THE READ
+  // (roomFollowerCohorts/readOwnedRoomCohorts against a fake db, structurally
+  // aggregate-only), and a content-free negative control on the migration's
+  // own column list that MUST catch an injected text column.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-cohorts": "room-cohorts/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

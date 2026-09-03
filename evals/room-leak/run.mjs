@@ -279,13 +279,16 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // creator-facing reader added later — the shape Pulse will eventually be —
   // must fail this line the day it is written without also updating it.
   const ALLOWED = new Set(["_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js"]);
-  // WS-R7's creator lane reads `vy_room_follower` for the owner's stats. That is
-  // the one read the plan permits (counts, never a person), so it is admitted
-  // here ONLY as an aggregate reader: every statement in it that names the
-  // follower table must select nothing but count()/sum() expressions, and
-  // must never touch a follower's own columns. A future edit that selects
+  // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
+  // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
+  // number. Both are the reads the plan permits (counts, never a person), so
+  // both are admitted here ONLY as aggregate readers: every statement in
+  // either that names the follower table (or its day-count sibling, which
+  // `.includes("vy_room_follower")` catches as a substring the same as the
+  // whole-word table name) must select nothing but count()/sum() expressions,
+  // and must never touch a follower's own columns. A future edit that selects
   // `person_id`, a thread title or a message fails this line.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js"]);
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js"]);
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
