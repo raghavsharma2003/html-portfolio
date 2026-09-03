@@ -384,6 +384,21 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- re-checks. Two independent layers for a harm the next turn does not undo.
      activity as (delete from vy_replica_activity x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 072's voice identity challenge (WS-R2). FK-SHAPED, NOT FK, the same
+     -- 009 convention as 053/055/057/058/061 above, so there is no cascade to
+     -- inherit and these rows would simply outlive the replica.
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- these two lines, which is how they got here. What they hold is the
+     -- reason it matters: a challenge row is a dated, numeric verdict on
+     -- whether a named person's own voice matched their own recording, and an
+     -- attempt row is every time that judgement was made about them. That is
+     -- a biometric conclusion about a human being, and it outliving the
+     -- deletion receipt would be exactly the standing claim revocation is
+     -- meant to end. CHILD FIRST: the attempt names a challenge.
+     voice_challenge_attempts as (delete from vy_replica_voice_challenge_attempt x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     voice_challenges as (delete from vy_replica_voice_challenge x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,

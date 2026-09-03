@@ -62,20 +62,33 @@ export function sourceUploadInput(value) {
   if (!SHA256.test(sha256)) fail("lowercase SHA-256 is required");
   if (typeof input.contains_third_parties !== "boolean") fail("contains_third_parties declaration required");
   const purpose = String(input.purpose || "memory").trim();
-  if (!new Set(["memory", "identity_document"]).has(purpose)) fail("unsupported source purpose");
+  if (!new Set(["memory", "identity_document", "identity_challenge"]).has(purpose)) fail("unsupported source purpose");
   if (purpose === "identity_document") {
     const accepted = (kind === "image" && new Set(["image/jpeg", "image/png"]).has(mime)) ||
       (kind === "document" && mime === "application/pdf");
     if (!accepted) fail("identity document must be JPEG PNG or PDF");
     if (input.contains_third_parties) fail("identity document must contain only the verified subject");
   }
+  // WS-R2 (migration 072). A spoken identity challenge is audio or video of
+  // exactly one person reading a server-issued sentence. It is VERIFICATION
+  // evidence and never enrollment material: `finalizeOwnedSource` below only
+  // enqueues the eight-step DAG for capture_mode='upload', so this mode
+  // cannot reach a voice genome, and `completeVoiceChallenge` queues the
+  // bytes for deletion the moment a decision exists.
+  if (purpose === "identity_challenge") {
+    if (kind !== "audio" && kind !== "video") fail("identity challenge must be audio or video");
+    if (input.contains_third_parties) fail("identity challenge must contain only the verified subject");
+  }
+  const captureMode = purpose === "identity_document" ? "identity_document"
+    : purpose === "identity_challenge" ? "identity_challenge"
+      : "upload";
   return {
     kind,
     mime,
     byteSize,
     sha256,
     containsThirdParties: input.contains_third_parties,
-    captureMode: purpose === "identity_document" ? "identity_document" : "upload",
+    captureMode,
   };
 }
 
@@ -291,6 +304,35 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
         where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
           and exists (select 1 from liveness_challenges)
+     ),
+     -- WS-R2. A voice identity challenge whose evidence is being deleted
+     -- while it is STILL IN FLIGHT can never be settled, so it fails now with
+     -- a reason rather than being leased later and failing for a missing
+     -- object. Its running attempt is closed with the same code.
+     --
+     -- Deliberately NOT paired with an identity revocation, unlike the
+     -- liveness block above. completeVoiceChallenge queues this exact source
+     -- for deletion on EVERY decision including an accept, because a
+     -- verification recording that outlives its verdict is a person's face
+     -- and voice kept for no purpose. Revoking identity here would therefore
+     -- undo every successful challenge microseconds after it succeeded. The
+     -- decision is the durable artifact; the recording is not, and that
+     -- asymmetry is the whole point of deleting it.
+     voice_challenges as (
+       update vy_replica_voice_challenge ch set state='expired',
+              failure_code='challenge_evidence_deleted',
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
+        where ch.replica_id=$1::uuid and ch.owner_user_id=$2::uuid
+          and $3::uuid in (ch.captured_source_id,ch.transcript_source_id)
+          and ch.state in ('issued','captured','verifying')
+          and exists (select 1 from target)
+       returning ch.challenge_id,ch.verification_attempt
+     ), voice_challenge_attempts as (
+       update vy_replica_voice_challenge_attempt a set outcome='failed',
+              failure_code='challenge_evidence_deleted',finished_at=now()
+        from voice_challenges ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
      ), identity_cases as (
        update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
               lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()

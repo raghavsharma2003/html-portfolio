@@ -2711,3 +2711,94 @@ alter table vy_replica_generation
   drop constraint if exists vy_replica_generation_preview_style_check,
   add constraint vy_replica_generation_preview_style_check
     check (jsonb_typeof(preview_style)='object' and octet_length(preview_style::text)<=2048);
+
+-- Migration 072 - owner identity by SPEAKER VERIFICATION (WS-R2). The third
+-- path past identity_verification_required / liveness_verification_required,
+-- beside the never-deployed Azure stack (039-041) and the owner-bound
+-- REPLICA_SELF_TEST_MODE flag (063). The owner speaks a freshly issued
+-- sentence on camera; the deployed voice-evidence service embeds it and
+-- Sarvam transcribes it; the two numbers decide. The decision is a ROW and
+-- the existing gate reads it through the SAME vy_replica columns the Azure
+-- path would have written. No FKs on replica_id/owner_user_id (009's
+-- WHERE-clause binding), so this table is deleted BY NAME in
+-- api/_replica-full-erasure.js and relcheck's owner-lane walk enforces that.
+create table if not exists vy_replica_voice_challenge (
+  challenge_id              uuid primary key default gen_random_uuid(),
+  replica_id                uuid not null,
+  owner_user_id             uuid not null,
+  sentence                  text not null,
+  sentence_hash             text not null,
+  nonce                     text not null,
+  policy_version            text not null,
+  challenge_policy          text not null,
+  attempt                   integer not null default 1 check (attempt > 0),
+  state                     text not null default 'issued'
+                            check (state in ('issued','captured','verifying','verified','failed','expired')),
+  decision                  text not null default ''
+                            check (decision in ('','accept','review','reject')),
+  similarity                double precision,
+  transcript_overlap        double precision,
+  reference_source_id       uuid,
+  reference_genome_version  integer,
+  captured_source_id        uuid,
+  transcript_source_id      uuid,
+  decision_basis            jsonb not null default '{}'::jsonb,
+  failure_code              text not null default '',
+  verification_attempt      integer not null default 0 check (verification_attempt >= 0),
+  verification_next_attempt_at   timestamptz not null default now(),
+  verification_lease_token_hash  text not null default '',
+  verification_leased_at         timestamptz,
+  verification_lease_expires_at  timestamptz,
+  issued_at                 timestamptz not null default now(),
+  expires_at                timestamptz not null,
+  decided_at                timestamptz,
+  updated_at                timestamptz not null default now()
+);
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_basis_check,
+  add constraint vy_replica_voice_challenge_basis_check
+    check (jsonb_typeof(decision_basis)='object' and octet_length(decision_basis::text)<=4096);
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_lease_check,
+  add constraint vy_replica_voice_challenge_lease_check
+    check (verification_lease_token_hash='' or verification_lease_token_hash ~ '^[0-9a-f]{64}$');
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_hash_check,
+  add constraint vy_replica_voice_challenge_hash_check
+    check (sentence_hash ~ '^[0-9a-f]{64}$');
+alter table vy_replica_voice_challenge
+  drop constraint if exists vy_replica_voice_challenge_decision_check,
+  add constraint vy_replica_voice_challenge_decision_check
+    check ((state in ('verified','failed')) = (decision <> '' and decided_at is not null));
+create unique index if not exists vy_replica_voice_challenge_owner_tuple_ix
+  on vy_replica_voice_challenge (challenge_id,replica_id,owner_user_id);
+create index if not exists vy_replica_voice_challenge_latest_ix
+  on vy_replica_voice_challenge (replica_id,owner_user_id,issued_at desc);
+create index if not exists vy_replica_voice_challenge_ready_ix
+  on vy_replica_voice_challenge (verification_next_attempt_at,issued_at)
+  where state in ('captured','verifying');
+create table if not exists vy_replica_voice_challenge_attempt (
+  challenge_id      uuid not null,
+  replica_id        uuid not null,
+  owner_user_id     uuid not null,
+  attempt           integer not null check (attempt > 0),
+  verifier          text not null,
+  verifier_version  text not null,
+  outcome           text not null check (outcome in ('running','retry','verified','failed')),
+  failure_code      text not null default '',
+  result            jsonb not null default '{}'::jsonb,
+  started_at        timestamptz not null default now(),
+  finished_at       timestamptz,
+  primary key (challenge_id,attempt)
+);
+alter table vy_replica_voice_challenge_attempt
+  drop constraint if exists vy_replica_voice_challenge_attempt_result_check,
+  add constraint vy_replica_voice_challenge_attempt_result_check
+    check (jsonb_typeof(result)='object' and octet_length(result::text)<=4096);
+create index if not exists vy_replica_voice_challenge_attempt_owner_ix
+  on vy_replica_voice_challenge_attempt (owner_user_id,replica_id,started_at desc);
+alter table vy_replica_source
+  drop constraint if exists vy_replica_source_capture_mode_check,
+  add constraint vy_replica_source_capture_mode_check
+    check (capture_mode in ('live_challenge','provider_consent','identity_document',
+                            'identity_challenge','upload','import','derived'));
