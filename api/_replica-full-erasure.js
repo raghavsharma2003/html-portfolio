@@ -57,6 +57,12 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // and when, video titles included, and a receipt that did not name it
       // would understate what was held.
       "owner_activity_trail",
+      // 074 (WS-R4). The review queue is its own class on the same test the
+      // three above pass: it holds questions asked of this person's AI, what it
+      // answered, and the sentences the person said must never be spoken in
+      // their name. A receipt that did not name them would understate what was
+      // held. Additive; the eval asserts membership, never the exact list.
+      "owner_review_queue",
     ]),
   });
 }
@@ -383,6 +389,22 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- videos, and relying on a cascade for that means relying on an FK nobody
      -- re-checks. Two independent layers for a harm the next turn does not undo.
      activity as (delete from vy_replica_activity x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 074's review queue (WS-R4). FK-SHAPED, NOT FK, same convention as
+     -- 053/055/057/058/061 above, so there is no cascade to inherit and these
+     -- rows would simply outlive the replica. scripts/relcheck.mjs's owner-lane
+     -- reach walk fails the build for exactly that, which is why they are here.
+     -- What they hold makes it unacceptable independently of the gate: a card
+     -- is a question somebody asked this person's AI together with what it
+     -- answered, and a never-rule is a standing record of a sentence a named
+     -- person did not want said in their name. Both outliving the deletion
+     -- receipt is the receipt being false.
+     --
+     -- CHILD FIRST, as the chains above are ordered: a never-rule names the
+     -- card it came from, so nothing can strand a rule whose card is gone.
+     review_never_rules as (delete from vy_review_never_rule x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     review_cards as (delete from vy_review_card x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
