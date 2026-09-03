@@ -146,6 +146,14 @@ await gate("layout readability", NODE, ["scripts/check-layout.mjs"]);
 // this is a gate on the tree being shipped, not on a frozen copy — the same
 // reason tsc runs even though vite exits 0 with type errors.
 await gate("eval suite", NODE, ["evals/run.mjs"]);
+// WS-R8. Vyakti Rooms' Phase 1 hard rule, named as its own gate rather than
+// left to ride inside "eval suite": "the leak battery runs clean before a
+// second follower joins any Room. No exception for a launch date." Offline,
+// $0, ~6s — N followers (2, 5, 20) x 4 turns through the REAL follower lane
+// and the REAL compiler, 16,080 retrieval checks + 441 boundary checks, 0
+// leaks, two negative controls that must fail. See evals/room-leak/run.mjs's
+// header for what it does and does not prove.
+await gate("room leak battery", NODE, ["evals/room-leak/run.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the
