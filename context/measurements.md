@@ -14555,3 +14555,39 @@ required a copy change). `node scripts/verify-release.mjs`: 14/14 both before
 this session's changes (untouched-tree baseline, confirmed via `git stash`)
 and after (one eval fixed to match the renamed copy, see
 `decisions.md#ws-r10-rooms-vocabulary-gate`).
+
+## `ws-r12-cohorts-gate-results-2026-09-03`
+
+n = 1 new offline suite (`evals/room-cohorts/run.mjs`, 60/60 checks, 5
+sections: the write, the forget, the pure cohort math against the workstream
+brief's own fixture numbers, the read against a fixture-backed fake db, and a
+content-free negative control on the migration's own column list); method =
+`node evals/room-cohorts/run.mjs` standalone, then the full suite via
+`node scripts/verify-release.mjs`; date 2026-09-03.
+
+`node scripts/verify-release.mjs`: **15/15 on the untouched tree** (confirmed
+via `git stash -u` / `git stash pop`, one collision on the layout gate's
+127.0.0.1:8931 port on the first post-stash run, resolved by waiting for the
+port to free and rerunning per `ws-common.md`'s own note) and **15/15 after**
+this workstream's changes (same 15 named gates; the eval-suite gate's own
+count grew by one registered suite, `room-cohorts`, folded into its total).
+`node evals/room-leak/run.mjs` standalone: 62/62 both before this workstream
+(baseline) and after `_room-cohorts.js` was added to its AGGREGATE_ONLY set —
+16,080 retrieval checks + 441 boundary checks unchanged, confirming the new
+file's addition to that set did not weaken the existing proof.
+`node scripts/check-copy.mjs`: 6 scopes clean, 17 negative controls bit,
+unchanged count from before this session (no new banned word or em-dash
+introduced). `npx tsc --noEmit -p tsconfig.app.json`: clean after widening
+`RoomStudio`'s `onAuthError` prop union to include `RoomCohortsApiError`
+(one real type error found and fixed, not merely re-run until quiet).
+
+NOT MEASURED, stated rather than implied: no real retention percentage for
+any Room — this environment has no `NEON_URL` and migration 077 has never
+executed against a database, so every number `cohortRow`/`verdictFor` ever
+produced this session came from fixture counts chosen to match the
+workstream brief's own examples (7 weeks at 3/10, 8 weeks at 5/10), not from
+observed follower behavior. `scripts/relcheck.mjs`'s owner-lane reach walk
+did not run (same missing `NEON_URL`); no statement in `api/_room-cohorts.js`
+or the new lines in `api/_room-surface.js` has ever been `EXPLAIN`ed against
+a live Postgres. See the SQL statements list in this workstream's final
+report for what the main loop should `EXPLAIN` once 077 is applied.

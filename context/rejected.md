@@ -6363,3 +6363,49 @@ voice route" to "The voice route for your AI"), which is a workaround, not a
 fix. The tokenizer itself still cannot tell a JSX-text apostrophe from a
 string delimiter; whoever next touches `check-copy.mjs`'s extraction should
 track that distinction rather than blanking quotes file-wide.
+
+## `ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser` (2026-09-03, WS-R12)
+
+**Tried.** A first draft of `roomFollowerCohorts` computed a cohort's
+followers-joined, paid-conversion AND week-six-return counts in ONE statement
+per week, with the retention count written as a `count(*) filter (where
+exists (select 1 from vy_room_follower_day d where d.person_id = f.person_id
+and ...))` item inside the SELECT list, alongside the two simple `count(*)`
+items.
+
+**What broke.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY check (§1c) extracts
+the "select list" with `st.match(/select([\s\S]*?)\sfrom\s/i)` — non-greedy,
+so it stops at the FIRST literal `from` anywhere in the statement text. The
+nested `select 1 from vy_room_follower_day d` inside the EXISTS clause sits
+BEFORE the outer statement's own `from vy_room_follower f`, so the checker's
+capture truncated mid-expression, right after `select 1 `. Two failure
+directions followed, both making the check pass for the wrong reason: the
+truncated text happened to still contain `count(` for every item (so
+`aggregateOnly` stayed true) while the LATER two SELECT items (paid
+conversion, and half the retention item itself) were never actually
+inspected at all, and `d.person_id`/`f.person_id` — which WOULD have tripped
+`touchesPerson` — sat just past the truncation point and were invisible to
+it. The design would have passed the gate by accident, not by being
+aggregate-only; `sound-gate-proved-by-silence` names exactly this shape of
+false confidence.
+
+**What replaced it.** Two statements per cohort week, in
+`api/_room-cohorts.js`: one plain `count(*)`/`count(*) filter (where f.tier =
+'paid')` read (no subquery at all), and a SEPARATE statement whose SELECT list
+is a single `count(*)::int as returned_week6` with the `exists (select 1 from
+vy_room_follower_day d where ...)` clause moved into the outer query's WHERE,
+after its own `from vy_room_follower f`. The non-greedy `select...from` match
+now correctly stops at the real, first `from`, the retention statement's
+select list is genuinely one aggregate expression, and `d.person_id` never
+appears anywhere the checker's `touchesPerson` regex looks — proven, not
+assumed: `node evals/room-leak/run.mjs` passes 62/62 with `_room-cohorts.js`
+added to AGGREGATE_ONLY.
+
+**Rule.** A person id may appear in a WHERE-clause predicate (including one
+buried inside an `exists (...)` subquery) without ever appearing in what a
+statement SELECTS — that is the whole mechanism this repo's aggregate-only
+reads rely on. But a checker built to police the SELECT list by finding "the
+first `from`" is not safe against a subquery that puts a `from` earlier than
+the real one; keep every subquery's own `from` AFTER the outer statement's
+`from`, or the checker's capture boundary silently moves and it stops
+checking what it says it checks.
