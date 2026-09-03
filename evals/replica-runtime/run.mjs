@@ -72,6 +72,16 @@ function statusRow(extra = {}) {
     fidelity_status: "pass",
     fidelity_score: { mean: 0.91, p10: 0.88, worst: 0.86, windows: 10, references: 3 },
     fidelity_computed_at: "2026-08-24T00:00:00.000Z",
+    // WS-R3: the publish lock is a THIRD peer gate beside the seven suites and
+    // the fidelity verdict (Vyakti Rooms v1: 70 overall, 55 on every part,
+    // nothing unmeasured). It appears in the baseline row for the same reason
+    // fidelity does, so this suite's baseline stays a genuinely activatable
+    // clone, and it gets its own negative check below.
+    readiness_qualified: true,
+    readiness_overall: 82,
+    readiness_min_part: 71,
+    readiness_unmeasured: 0,
+    readiness_computed_at: "2026-08-24T00:00:00.000Z",
     capability_state: null,
     capability_activated_at: null,
     ...extra,
@@ -133,6 +143,11 @@ ok("unapproved calibration can never activate", runtimeBlockers(statusRow({ cali
 ok("missing one suite blocks activation", runtimeBlockers(statusRow({ qualification_passed: 6 })).includes("qualification_incomplete"));
 ok("a clone that passes all seven suites still cannot activate without a fidelity pass",
   runtimeBlockers(statusRow({ fidelity_qualified: false })).includes("voice_fidelity_not_qualified"));
+ok("a clone that sounds right and behaves right still cannot activate below the readiness floor",
+  runtimeBlockers(statusRow({ readiness_qualified: false })).includes("readiness_floor_not_met"));
+ok("a clone with no readiness snapshot at all is blocked the same way, and indistinguishably",
+  runtimeBlockers(statusRow({ readiness_qualified: undefined, readiness_computed_at: null }))
+    .includes("readiness_floor_not_met"));
 const safeStatus = clientRuntimeStatus(statusRow());
 ok("client runtime status is whitelist-built", !/(owner|agent|person|provider|voice_profile|qualification_hash)/i.test(JSON.stringify(safeStatus)));
 
@@ -156,6 +171,11 @@ ok("activation requires current inference consent and every suite", /scope='infe
 ok("activation binds the owner's account person to the self subject", /ap\.auth_user_id=r\.owner_user_id and ap\.person_id=r\.subject_person_id/i.test(activationSql));
 ok("activation creates an opaque server-side agent slug", /'replica-'\|\|replace\(s\.replica_id::text,'-',''\)/i.test(activationSql));
 ok("qualification verdicts bind the exact calibration version", /e\.calibration_version=cal\.version/i.test(activationSql));
+ok("activation joins the publish lock, so no qualifying readiness row means no capability",
+  /join lateral \(\s*\n\s*select x\.readiness_id from vy_replica_readiness x/.test(activationSql)
+  && /x\.unmeasured_count=0 and x\.overall>=\$8::int4 and x\.min_part>=\$9::int4/.test(activationSql));
+ok("...against the NEWEST snapshot, so a clone cannot activate off its own best day",
+  /x\.computed_at=\(select max\(y\.computed_at\) from vy_replica_readiness y/.test(activationSql));
 
 const sessionCalls = [];
 const openedSession = await openOwnedRuntimeSession(async (sql, params) => {

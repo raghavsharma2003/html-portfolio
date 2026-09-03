@@ -92,6 +92,7 @@ const {
   listCloneChannels,
   CONNECTABLE_KINDS,
   CLONE_CHANNEL_KINDS,
+  CHANNEL_READINESS_BLOCKER,
 } = await import(pathToFileURL(join(REPO, "api/_clonechannel.js")).href);
 const { openCloneSession, cloneChatTurn, transcriptDigest, mintSession } = await import(
   pathToFileURL(join(REPO, "api/_clonechat.js")).href
@@ -184,8 +185,25 @@ function fakeDb(state) {
       return r ? [{ replica_id: r.replica_id, agent_id: r.agent_id }] : [];
     }
 
+    // WS-R3's publish lock, modelled the way the fake models migration 055's
+    // CHECK: read off the SQL TEXT rather than hardcoded, so a negative control
+    // that strikes the predicate out of the shipping string is honoured here
+    // rather than silently passing. The floors arrive as bound parameters and
+    // are compared against the fixture snapshot, so a floor moved in
+    // api/_readiness.js moves this fake too.
+    const readinessPasses = (replicaId, ownerId, overallFloor, partFloor) => {
+      if (!sql.includes("from vy_replica_readiness x")) return true;
+      const snap = state.readiness.find(
+        (x) => x.replica_id === replicaId && x.owner_user_id === ownerId,
+      );
+      if (!snap) return false;
+      return snap.unmeasured_count === 0
+        && snap.overall >= overallFloor
+        && snap.min_part >= partFloor;
+    };
+
     if (sql.includes("update vy_clone_channel") && sql.includes("set external_ref")) {
-      const [ownerId, replicaId, kind, ref, cred, status] = params;
+      const [ownerId, replicaId, kind, ref, cred, status, overallFloor, partFloor] = params;
       const row = state.channels.find(
         (c) =>
           c.owner_user_id === ownerId &&
@@ -194,14 +212,21 @@ function fakeDb(state) {
           c.status !== "revoked",
       );
       if (!row) return [];
-      const next = { ...row, external_ref: ref, credentials_ref: cred || row.credentials_ref, status };
+      const locked = status === "connected" && !readinessPasses(replicaId, ownerId, overallFloor, partFloor);
+      const next = {
+        ...row,
+        external_ref: ref,
+        credentials_ref: cred || row.credentials_ref,
+        status: locked ? "draft" : status,
+      };
       gate(next, row);
       Object.assign(row, next);
       return [{ ...row }];
     }
 
     if (sql.includes("insert into vy_clone_channel")) {
-      const [channelId, agentId, replicaId, ownerId, kind, ref, cred, status] = params;
+      const [ownerId, replicaId, channelId, agentId, kind, ref, overallFloor, partFloor, cred, status] = params;
+      const locked = status === "connected" && !readinessPasses(replicaId, ownerId, overallFloor, partFloor);
       const row = gate({
         channel_id: channelId,
         agent_id: agentId,
@@ -210,7 +235,7 @@ function fakeDb(state) {
         kind,
         external_ref: ref,
         credentials_ref: cred,
-        status,
+        status: locked ? "draft" : status,
         created_at: "2026-08-26T00:00:00Z",
         updated_at: "2026-08-26T00:00:00Z",
       });
@@ -219,7 +244,7 @@ function fakeDb(state) {
     }
 
     if (sql.includes("update vy_clone_channel") && sql.includes("set status =")) {
-      const [channelId, ownerId, replicaId, next] = params;
+      const [ownerId, replicaId, channelId, overallFloor, partFloor, next] = params;
       const row = state.channels.find(
         (c) =>
           c.channel_id === channelId &&
@@ -228,8 +253,10 @@ function fakeDb(state) {
           c.status !== "revoked",
       );
       if (!row) return [];
-      gate({ ...row, status: next }, row);
-      row.status = next;
+      const locked = next === "connected" && !readinessPasses(replicaId, ownerId, overallFloor, partFloor);
+      const resolved = locked ? "paused" : next;
+      gate({ ...row, status: resolved }, row);
+      row.status = resolved;
       return [{ ...row }];
     }
 
@@ -247,6 +274,14 @@ function fakeDb(state) {
 }
 
 const freshState = () => ({
+  // WS-R3. Both fixture replicas carry a PASSING readiness snapshot, so every
+  // assertion in this suite keeps testing migration 055's gates rather than
+  // accidentally testing the publish lock. §6a below is where the lock itself
+  // is exercised, by taking the snapshot away.
+  readiness: [
+    { replica_id: REPLICA_A, owner_user_id: OWNER, overall: 82, min_part: 71, unmeasured_count: 0 },
+    { replica_id: REPLICA_B, owner_user_id: OTHER_OWNER, overall: 82, min_part: 71, unmeasured_count: 0 },
+  ],
   agents: [
     { agent_id: AGENT_A, slug: "arjun-sir-physics" },
     { agent_id: AGENT_B, slug: "meena-maam-chem" },
@@ -571,6 +606,89 @@ console.log("\n── 6. the owner ops, and the gate that is a CHECK ──");
     igCode = e.code;
   }
   ok("connecting instagram_dm is refused with a named code", igCode === "clone_channel_kind_unsupported");
+}
+
+// -------------------------------------------------------------------------
+console.log("\n\u2500\u2500 6a. the publish lock, at connect time (WS-R3) \u2500\u2500");
+// -------------------------------------------------------------------------
+//
+// Connecting a channel is the moment a clone stops being private. Readiness
+// therefore has to hold HERE and not only on the studio screen, and it has to
+// hold as a SQL predicate rather than a branch. Migration 051's own measured
+// argument, one axis over: a sentence in a brief is a preference; a predicate
+// on the output is a guarantee.
+{
+  const state = freshState();
+  // No snapshot at all, which is the state of every replica in this product
+  // today (api/_readiness.js section 4: two of the five instruments do not
+  // exist, so no replica can reach a defined overall).
+  state.readiness = [];
+  const db = fakeDb(state);
+
+  let lockedCode = "ACCEPTED";
+  let lockedRow = null;
+  try {
+    lockedRow = await saveCloneChannel(db, OWNER, REPLICA_A, {
+      kind: "web_widget",
+      externalRef: "arjun-sir-physics",
+    });
+  } catch (e) {
+    lockedCode = e.code;
+  }
+  ok("a clone below the readiness floor cannot connect a channel", lockedCode === CHANNEL_READINESS_BLOCKER);
+  ok("...and the refusal is named, so the owner is told rather than left guessing", lockedRow === null);
+  ok(
+    "...while the row it wrote is DRAFT, which is the fail-closed direction",
+    state.channels
+      .filter((c) => c.replica_id === REPLICA_A && c.kind === "web_widget")
+      .every((c) => c.status !== "connected"),
+  );
+
+  // The same replica, once a passing snapshot exists.
+  state.readiness = [
+    { replica_id: REPLICA_A, owner_user_id: OWNER, overall: 82, min_part: 71, unmeasured_count: 0 },
+  ];
+  const opened = await saveCloneChannel(db, OWNER, REPLICA_A, {
+    kind: "web_widget",
+    externalRef: "arjun-sir-physics",
+  });
+  ok("...and the identical call connects once readiness passes", opened.status === "connected");
+
+  // A part that fell below its own floor closes the door again, and RESUME is
+  // gated too: a clone paused while it was ready must not walk back through an
+  // unlocked door.
+  await setCloneChannelStatus(db, OWNER, REPLICA_A, opened.channel_id, "paused");
+  state.readiness = [
+    { replica_id: REPLICA_A, owner_user_id: OWNER, overall: 82, min_part: 41, unmeasured_count: 0 },
+  ];
+  let resumeCode = "ACCEPTED";
+  try {
+    await setCloneChannelStatus(db, OWNER, REPLICA_A, opened.channel_id, "connected");
+  } catch (e) {
+    resumeCode = e.code;
+  }
+  ok("a regressed clone cannot RESUME a paused channel either", resumeCode === CHANNEL_READINESS_BLOCKER);
+
+  // Taking a clone DOWN is never gated. A lock that could trap a teacher's
+  // clone online would be a safety defect wearing a quality label.
+  const down = await setCloneChannelStatus(db, OWNER, REPLICA_A, opened.channel_id, "revoked");
+  ok("taking a clone down is never gated by readiness", down.status === "revoked");
+
+  // An unmeasured part locks even when both numbers look healthy. That is the
+  // DESIGN-LAW section 1 clause, enforced at the door and not only on a screen.
+  const other = fakeDb({
+    ...freshState(),
+    readiness: [
+      { replica_id: REPLICA_B, owner_user_id: OTHER_OWNER, overall: 90, min_part: 88, unmeasured_count: 1 },
+    ],
+  });
+  let unmeasuredCode = "ACCEPTED";
+  try {
+    await saveCloneChannel(other, OTHER_OWNER, REPLICA_B, { kind: "web_embed", externalRef: "meena-maam-chem" });
+  } catch (e) {
+    unmeasuredCode = e.code;
+  }
+  ok("a 90 with one part unmeasured is still locked", unmeasuredCode === CHANNEL_READINESS_BLOCKER);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
