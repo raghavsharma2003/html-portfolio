@@ -361,7 +361,7 @@ export async function readInterviewInputs(db, ownerUserId, replicaIdValue) {
     const rows = await db(
       `select * from vy_replica_readiness
         where replica_id = $1::uuid and owner_user_id = $2::uuid
-        order by created_at desc limit 1`,
+        order by computed_at desc limit 1`,
       [rid, ownerUserId],
     );
     readiness = rows[0] || null;
