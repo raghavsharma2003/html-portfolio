@@ -6567,3 +6567,102 @@ both-added hunks that are whole statements (registry entries, manifest rows,
 `case` arms); for a hunk that starts mid-statement, look at the line above
 the first marker and reconstruct each side's statement in full. Read the
 exit code of every check, not its stdout.
+
+## `ws-r18-personforsurfaceuser-is-not-db-injectable` (2026-09-03, WS-R18)
+
+**Tried.** Assumed `personForSurfaceUser`/`linkSurfacePerson`
+(`api/_room.js`) accept an injectable `db`, the same shape every function in
+`api/_room-surface.js` uses (`db` as the first parameter, a fake swapped in
+for offline evals). The first eval draft routed Telegram identity through
+the SAME fake `db` the follower-lane calls already used.
+
+**What broke.** Both functions call the module-level `q` (imported from
+`api/_db.js`) directly - they were written for Meera's engine, where a fake
+TABLE-NAME RESOLVER (`t`) is the injection point, tested against a real
+Postgres schema rather than a JS object. With no `NEON_URL` in this
+environment, `q()` failed silently (both call sites wrap it in `.catch`), so
+`linkSurfacePerson` returned `null` on every call - and because that
+function's null return also means "known minor, refused", the eval's own
+`handleCallback` reported `refused: "minor"` for every single join attempt,
+which reads as a plausible product state rather than an obvious wiring bug.
+`state.followers`, `state.persons` and `state.surfaceIdentities` all stayed
+empty after a full join sequence produced three ok-looking outbound
+messages - `plausible-return-hides-a-dead-pipeline`, one migration over.
+
+**Fix.** `api/_room-telegram.js` already had the right seam
+(`deps.personForSurfaceUser ?? personForSurfaceUser`,
+`deps.linkSurfacePerson ?? linkSurfacePerson` - built in from the start
+because the header already knew these two functions were being reused rather
+than reimplemented); the eval was missing the fake on the OTHER side of that
+seam. `evals/room-telegram/run.mjs`'s `fakePersonBridge(state)` implements
+both functions directly in JS, backed by the SAME `state` object the fake
+`db` mutates, and is injected through `deps.personForSurfaceUser`/
+`deps.linkSurfacePerson` rather than routed through `db`.
+
+**Rule.** A function's own signature is the only trustworthy source for
+"is this injectable, and how" - inferring it from a sibling function's shape
+in the same file is a guess, and a guess that fails silently (a `.catch`
+around every network call) produces a wrong-but-plausible result rather than
+a crash that would have caught the mistake in seconds.
+
+## `ws-r18-fake-db-branch-would-have-swallowed-the-channel-table` (2026-09-03, WS-R18)
+
+**Tried.** Adding fake-`db` branches for the new `vy_room_follower_channel`
+table's INSERT/SELECT/DELETE statements at the point in
+`evals/room/fixtures.mjs` that seemed topically closest - alongside the
+OTHER `vy_room_follower` branches, further down the function.
+
+**What broke, before it shipped.** `vy_room_follower_channel` CONTAINS
+`vy_room_follower` as a literal substring, and every branch in that fake is a
+plain `sql.includes(...)` check evaluated in file order with an early
+return. Placed after the generic `insert into vy_room_follower` branch (which
+destructures `[followerId, roomId, personId, agentId, ageAt, memAt,
+monthKey]` from `params`), the new table's 5-parameter insert would have
+been silently mis-parsed by the OLDER branch first -
+`router-matched-a-table-instead-of-a-statement`'s exact shape
+(`context/rejected.md`), rediscovered rather than avoided, because a
+substring collision between an old table name and a new one that extends it
+is not a pattern this repo had named for `insert` statements specifically,
+only for `select`s keyed by table name.
+
+**Fix.** Every WS-R18 branch was placed FIRST in the function, matched on the
+FULLER, more specific statement text (`"select person_id, handle from
+vy_surface_identity"`, `"insert into vy_room_follower_channel"`, etc.) so it
+intercepts before any shorter, older prefix-match can. Caught before merge
+by running the new suite and watching `state.followers`'s shape corrupt on
+the very first join, not discovered later.
+
+**Rule.** A shared fake `db` keyed by `sql.includes(...)` is an ORDERED list
+of prefix tests, not a dictionary - a new table whose name extends an
+existing one must be checked before it, matched on more of the statement,
+every time, not just when it happens to be noticed.
+
+## `ws-r18-fake-db-does-not-simulate-postgres-fk-cascade` (2026-09-03, WS-R18)
+
+**Tried.** Relying on `vy_room_follower_channel.follower_id references
+vy_room_follower(follower_id) on delete cascade` (migration 082) to make the
+eval's "`/forget`'s channel pointer is gone too" assertion true, the same way
+it will be true against real Postgres.
+
+**What broke.** The fake `db` in `evals/room/fixtures.mjs` is a hand-rolled
+JS object model with no foreign-key engine underneath it - deleting a
+`state.followers` row does nothing to `state.channelMap` unless something
+says so in JS. The assertion failed the first time it ran, correctly: the
+SCHEMA promises the cascade, the FAKE does not enact it, and nothing before
+this bridged the gap. `offline-mocks-cannot-type-check-sql`'s sibling for
+referential integrity rather than syntax - a fake proves control flow, not a
+constraint declared in DDL it never parses.
+
+**Fix.** The shared fake's `delete from vy_room_follower` branch (used by
+`roomForget` for every Room suite, not only this one) now also filters
+`state.channelMap` by the deleted rows' `follower_id`s, with a comment naming
+this as a DELIBERATE simulation of the real cascade rather than an
+incidental behaviour. Harmless to the other two suites that share this fake
+(`evals/room/run.mjs`, `evals/room-leak/run.mjs`): their `state.channelMap`
+is always empty, since neither one ever calls `bindTelegramChannel`.
+
+**Rule.** A `references ... on delete cascade` in a migration is a fact about
+Postgres, never a fact about a fake that stands in for it - every cascade a
+handler's correctness depends on needs its own line in the fake, named as
+what it is standing in for, or the offline suite proves a schema promise
+rather than the code that promise depends on.
