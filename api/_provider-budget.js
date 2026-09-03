@@ -257,22 +257,26 @@ export async function reserveAzureSpeechSpend(db, { requestKey, adapter, inputs,
   });
 }
 
-export async function reserveAzurePersonalVoiceSpend(
+/**
+ * The one reservation body for every character/profile metered voice lane.
+ *
+ * Azure Personal Voice and the vendor bench arms differ in their METER NAMES
+ * and their rate cards, and in nothing else that this ledger cares about: both
+ * reserve conservatively before a paid call, settle on measured units, and
+ * leave a reconcilable row if the outcome is unknown. Two copies of this
+ * statement would drift, and the copy that drifted would be the one deciding
+ * whether the owner's money gets spent twice.
+ */
+async function reserveMeteredVoiceSpend(
   db,
-  { operation, requestKey, inputCommitment, adapter, text = "", env = process.env },
+  { operation, requestKey, inputCommitment, adapter, expectedMeter, units, unitKind, config },
 ) {
   if (typeof db !== "function") fail("provider_budget_db_required");
   if (!new Set(["voice_training", "synthesis"]).has(operation)) fail("provider_budget_operation_invalid");
-  const expectedMeter = operation === "voice_training"
-    ? "azure_personal_voice_profiles"
-    : "azure_personal_voice_characters";
   if (adapter?.billing?.[operation]?.meter !== expectedMeter) return null;
   const commitment = String(inputCommitment || "").trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(commitment)) fail("provider_voice_input_commitment_invalid");
-  const config = personalVoiceBudgetConfig(env);
-  const units = operation === "voice_training" ? 1 : conservativeCharacterUnits(text);
   const reservedMicrousd = personalVoiceReservationMicrousd(operation, units, config);
-  const unitKind = operation === "voice_training" ? "requests" : "characters";
   const requestHash = sha256Hex(canonicalJson({
     operation,
     request_key: String(requestKey || ""),
@@ -333,6 +337,122 @@ export async function reserveAzurePersonalVoiceSpend(
     config,
   });
 }
+
+export async function reserveAzurePersonalVoiceSpend(
+  db,
+  { operation, requestKey, inputCommitment, adapter, text = "", env = process.env },
+) {
+  if (!new Set(["voice_training", "synthesis"]).has(operation)) fail("provider_budget_operation_invalid");
+  const expectedMeter = operation === "voice_training"
+    ? "azure_personal_voice_profiles"
+    : "azure_personal_voice_characters";
+  if (adapter?.billing?.[operation]?.meter !== expectedMeter) return null;
+  return reserveMeteredVoiceSpend(db, {
+    operation,
+    requestKey,
+    inputCommitment,
+    adapter,
+    expectedMeter,
+    units: operation === "voice_training" ? 1 : conservativeCharacterUnits(text),
+    unitKind: operation === "voice_training" ? "requests" : "characters",
+    config: personalVoiceBudgetConfig(env),
+  });
+}
+
+// ── vendor bench arms: a PER-DAY character cap ───────────────────────────────
+// The vendor arms exist to answer one question (`decisions.md#platform-north-star`
+// names its reversal condition) and a bench that can run away with the owner's
+// money answers a different one. The guard is a character budget per UTC day,
+// and it is expressed as a budget ROW rather than as a counter in code so the
+// same atomic reserve/settle/reconcile the rest of this file already proves
+// applies to it unchanged. The budget id carries the date, so yesterday's spend
+// cannot fund today's and today's cap cannot be raised by restarting a process.
+export const VENDOR_VOICE_METERS = Object.freeze({
+  elevenlabs: Object.freeze({
+    voice_training: "elevenlabs_voice_clones",
+    synthesis: "elevenlabs_characters",
+    dailyCharactersEnv: "ELEVENLABS_DAILY_CHARACTERS",
+    usdPerMillionEnv: "ELEVENLABS_USD_PER_MCHARACTERS",
+    usdPerCloneEnv: "ELEVENLABS_USD_PER_VOICE_CLONE",
+    // elevenlabs.io/pricing, read 2026-09-03: Creator tier is USD 11 for
+    // 121,000 credits and one V2 multilingual character is one credit, so
+    // USD 0.18 per 1,000 characters = USD 180 per million. Instant Voice
+    // Cloning carries no separate per-clone list charge on a paid tier.
+    defaultUsdPerMillion: 180,
+  }),
+  sarvam: Object.freeze({
+    voice_training: "sarvam_voice_clones",
+    synthesis: "sarvam_characters",
+    dailyCharactersEnv: "SARVAM_DAILY_CHARACTERS",
+    usdPerMillionEnv: "SARVAM_USD_PER_MCHARACTERS",
+    usdPerCloneEnv: "SARVAM_USD_PER_VOICE_CLONE",
+    // docs.sarvam.ai/api/getting-started/pricing, read 2026-09-03:
+    // bulbul:v3 is INR 30 per 10,000 characters. Converted at INR 88 to the
+    // dollar that is about USD 34 per million; the env var is the authority
+    // and this default is only a floor so an unset rate cannot read as free.
+    defaultUsdPerMillion: 34,
+  }),
+});
+
+const DEFAULT_VENDOR_DAILY_CHARACTERS = 20_000;
+const MAX_VENDOR_DAILY_CHARACTERS = 2_000_000;
+
+export function vendorVoiceBudgetConfig(vendor, env = process.env, now = new Date()) {
+  const meters = VENDOR_VOICE_METERS[vendor];
+  if (!meters) fail("provider_vendor_voice_unknown");
+  const day = new Date(now).toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) fail("provider_vendor_voice_day_invalid");
+  const budgetId = `vendor-voice-${vendor}-${day}`;
+  if (!BUDGET_ID.test(budgetId)) fail("provider_budget_id_invalid");
+  const dailyCharacters = Number(env[meters.dailyCharactersEnv] || DEFAULT_VENDOR_DAILY_CHARACTERS);
+  if (!Number.isSafeInteger(dailyCharacters) || dailyCharacters <= 0 || dailyCharacters > MAX_VENDOR_DAILY_CHARACTERS) {
+    fail("provider_vendor_daily_characters_invalid");
+  }
+  const usdPerMillion = positive(
+    env[meters.usdPerMillionEnv] || meters.defaultUsdPerMillion,
+    "provider_voice_synthesis_rate_required",
+    10_000,
+  );
+  // A voice clone is included in the vendor's plan rather than billed per call.
+  // The reservation is still at least one microusd so the create takes a real
+  // ledger row: an operation with no row is an operation with no reconciliation.
+  const cloneUsd = Number(env[meters.usdPerCloneEnv] || 0);
+  if (!Number.isFinite(cloneUsd) || cloneUsd < 0 || cloneUsd > 1_000) fail("provider_voice_profile_rate_required");
+  return Object.freeze({
+    budget_id: budgetId,
+    vendor,
+    day,
+    daily_characters: dailyCharacters,
+    limit_microusd: Math.max(1, Math.ceil(dailyCharacters * usdPerMillion)),
+    profile_usd: Math.max(cloneUsd, 1e-6),
+    synthesis_usd_per_million: usdPerMillion,
+  });
+}
+
+export async function reserveVendorVoiceSpend(
+  db,
+  { vendor, operation, requestKey, inputCommitment, adapter, text = "", env = process.env, now = new Date() },
+) {
+  const meters = VENDOR_VOICE_METERS[vendor];
+  if (!meters) fail("provider_vendor_voice_unknown");
+  if (!new Set(["voice_training", "synthesis"]).has(operation)) fail("provider_budget_operation_invalid");
+  const expectedMeter = meters[operation];
+  if (adapter?.billing?.[operation]?.meter !== expectedMeter) return null;
+  return reserveMeteredVoiceSpend(db, {
+    operation,
+    requestKey,
+    inputCommitment,
+    adapter,
+    expectedMeter,
+    units: operation === "voice_training" ? 1 : conservativeCharacterUnits(text),
+    unitKind: operation === "voice_training" ? "requests" : "characters",
+    config: vendorVoiceBudgetConfig(vendor, env, now),
+  });
+}
+
+// Settlement is meter-neutral: it charges measured units at the reservation's
+// own config, so the vendor arms reuse the Azure settlement unchanged.
+export const settleVendorVoiceSpend = settleAzurePersonalVoiceSpend;
 
 export async function beginFoundrySpend(db, reservation) {
   if (!reservation) return null;

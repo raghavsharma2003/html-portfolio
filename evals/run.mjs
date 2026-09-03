@@ -599,6 +599,16 @@ const suites = {
   // and consent binding. The suite is synthetic and offline; cloud execution
   // stays behind a separate explicit confirmation and a USD 5 ledger stop.
   voicematched: "voice-matched-pack/run.mjs",
+  // WS-R6. The vendor bench arms. `decisions.md#platform-north-star` names the
+  // evidence that would make a vendor primary again and no vendor arm had ever
+  // been benched, so the reversal condition was unfalsifiable. This suite is
+  // the mechanical half: an absent key is a named unavailability rather than a
+  // clip, vendor audio arrives as the platform's one format or fails by name,
+  // the per-day character budget refuses before a paid call, a 402 keeps its
+  // own blocker, and erasure reaches the vendor through the existing sweep.
+  // The negative control is the point: an arm that fabricates a clip with no
+  // key fails it. Offline, deterministic, $0, no network.
+  voicevendor: "voice-vendor/run.mjs",
   // Evidence-backed personality: append-only owner claim decisions,
   // contradiction-preserving typed Person Models, deterministic source-set
   // builds and explicit exact-version approval.

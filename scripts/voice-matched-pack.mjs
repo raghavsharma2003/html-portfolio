@@ -3,6 +3,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { createElevenLabsVoiceProvider, createElevenLabsVoiceEraser } from "../api/_voice/providers/elevenlabs-pvc.js";
+import { createSarvamBulbulProvider } from "../api/_voice/providers/sarvam-bulbul.js";
 import { serveListeningBenchmark } from "../evals/voice-listening-benchmark/server.mjs";
 import {
   ARM_SPECS,
@@ -10,16 +12,21 @@ import {
   MATCHED_PACK_CONTRACT,
   SYNTHESIS_PATH,
   TRANSPORT_PROTOCOL,
+  VENDOR_CHARACTER_HARD_STOP,
   buildPlan,
   canonical,
+  characterUnits,
   cropReference,
   decodeSecret,
+  isVendorArm,
   payloadForItem,
   reserveAttempt,
+  reserveVendorCharacters,
   sha256,
   signaturesEqual,
   transportSignature,
   verifyProviderResult,
+  verifyVendorResult,
 } from "../evals/voice-matched-pack/contract.mjs";
 import {
   pathsFor,
@@ -73,6 +80,197 @@ function selectedArmIds() {
   return raw.split(",").map((value) => value.trim()).filter(Boolean);
 }
 
+// ── vendor arms ──────────────────────────────────────────────────────────────
+// Everything below exists so the sentence in `context/decisions.md#platform-
+// north-star` can be tested instead of quoted. A vendor arm reaches the pack
+// through the SAME plan, the same exact text, the same reference window, the
+// same seed and the same sealed listening tree as every other arm; what differs
+// is the transport (an API key over TLS, not a signed request to a runtime we
+// operate) and the spend unit (characters, which are known exactly before the
+// call, rather than half a dollar per attempt).
+const VENDOR_PROVIDER_FACTORY = Object.freeze({
+  elevenlabs: createElevenLabsVoiceProvider,
+  sarvam: createSarvamBulbulProvider,
+});
+
+function vendorVoicesPath(paths) {
+  return join(paths.private, "vendor-voices.json");
+}
+
+function readVendorVoices(paths) {
+  const file = vendorVoicesPath(paths);
+  return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+}
+
+function writeVendorVoices(paths, value) {
+  writeFileSync(vendorVoicesPath(paths), JSON.stringify(value, null, 2), { mode: 0o600 });
+}
+
+/**
+ * The local character ledger.
+ *
+ * The provider modules fence spend against the platform's `vy_provider_budget`
+ * row, which a bench run from a laptop cannot reach. So the bench brings its
+ * own ledger with the same reserve-before-call shape, backed by a file in the
+ * pack's private tree, and `--max-chars` is its ceiling. Reserving BEFORE the
+ * request is what makes a failed run unable to walk past the ceiling by
+ * retrying, which is the property the USD ledger already has.
+ */
+function characterLedgerBudget(paths, maxCharacters, onEvent = () => {}) {
+  return {
+    async reserve(_db, input) {
+      if (input.operation !== "synthesis") return Object.freeze({ state: "reserved", operation: input.operation });
+      // Counted from the text the provider is about to send, by the same rule
+      // the vendor bills on, so the ledger and the invoice count the same thing.
+      const characters = characterUnits(input.text);
+      const ledger = JSON.parse(readFileSync(paths.ledger, "utf8"));
+      const next = reserveVendorCharacters(ledger, String(input.requestKey || "vendor"), characters, maxCharacters);
+      writeFileSync(paths.ledger, JSON.stringify(next, null, 2));
+      return Object.freeze({ state: "reserved", operation: input.operation, characters });
+    },
+    async begin() {},
+    async settle(_db, reservation, usage) { onEvent({ kind: "settle", units: usage.units, operation: reservation.operation }); },
+    async release() {},
+    async uncertain(_db, _reservation, error) { onEvent({ kind: "uncertain", code: String(error?.code || error?.message || "") }); },
+  };
+}
+
+function vendorProvider(armId, paths, maxCharacters) {
+  const factory = VENDOR_PROVIDER_FACTORY[armId];
+  if (!factory) fail(`matched_pack_vendor_arm_unknown:${armId}`);
+  return factory({
+    env: process.env,
+    // The provider's own database fence is replaced, not bypassed: the bench
+    // hands it a ledger with the same contract. `db` is unused by that ledger
+    // and is present only because the provider refuses to be built without one.
+    db: async () => [],
+    budget: characterLedgerBudget(paths, maxCharacters),
+  });
+}
+
+function vendorConsentAttestation() {
+  const consent = {
+    statementSha256: String(process.env.VOICE_MATCHED_CONSENT_STATEMENT_SHA256 || ""),
+    audioSha256: String(process.env.VOICE_MATCHED_CONSENT_AUDIO_SHA256 || ""),
+    templateVersion: String(process.env.VOICE_MATCHED_CONSENT_TEMPLATE_VERSION || ""),
+    providerConsentId: String(process.env.VOICE_MATCHED_PROVIDER_CONSENT_ID || ""),
+  };
+  if (!/^[0-9a-f]{64}$/.test(consent.statementSha256) || !/^[0-9a-f]{64}$/.test(consent.audioSha256) ||
+      !consent.templateVersion || !/^[0-9a-f-]{36}$/.test(consent.providerConsentId)) {
+    fail("matched_pack_vendor_consent_attestation_required");
+  }
+  return consent;
+}
+
+/**
+ * Create the vendor-side voice once, from the pack's own reference window.
+ *
+ * Kept as its own command rather than folded into `run` for the reason the USD
+ * confirmation exists: creating a biometric voice at a third party is a
+ * different decision from synthesising a sentence, and it should need its own
+ * yes. The vendor voice id lands in the pack's private tree and nowhere else.
+ */
+async function vendorEnroll() {
+  if (flags.get("confirm-vendor") !== "exact-text-matched-pack") fail("matched_pack_vendor_confirmation_required");
+  const armId = String(flags.get("arm") || "");
+  if (!isVendorArm(armId)) fail("matched_pack_vendor_arm_unknown");
+  const paths = pathsFor(home);
+  const planValue = readPlan(paths);
+  if (!planValue.arms.some((arm) => arm.id === armId)) fail("matched_pack_vendor_arm_not_planned");
+  if (ARM_SPECS[armId].clonesTheOwner !== true) fail("matched_pack_vendor_arm_has_no_voice_to_enroll");
+  const voices = readVendorVoices(paths);
+  if (voices[armId]) {
+    console.log(`${armId}: a voice already exists for this pack; erase it before creating another`);
+    return;
+  }
+  const referenceWav = readFileSync(paths.reference);
+  const provider = vendorProvider(armId, paths, VENDOR_CHARACTER_HARD_STOP);
+  const created = await provider.createVoice({
+    replicaId: planValue.replicaId,
+    genomeVersion: 1,
+    idempotencyKey: `matched-pack-${paths.runId}-${armId}`,
+    consent: vendorConsentAttestation(),
+    references: [{ bytes: referenceWav, sha256: planValue.reference.sha256, durationMs: planValue.reference.durationMs }],
+  });
+  voices[armId] = {
+    providerRef: created.providerRef,
+    enrollmentCommitment: created.enrollmentCommitment,
+    state: created.state,
+    createdAt: new Date().toISOString(),
+  };
+  writeVendorVoices(paths, voices);
+  console.log(`${armId}: voice created, state ${created.state}`);
+  if (created.blocker) console.log(`waiting on you: ${created.blocker.code}`);
+  console.log("the vendor voice id is stored only in the pack's private tree");
+}
+
+/** Delete the vendor-side voice. Runs the same eraser the platform's erasure
+ *  sweep uses, so a bench cannot leave a biometric voice behind a vendor. */
+async function vendorErase() {
+  const armId = String(flags.get("arm") || "");
+  if (!isVendorArm(armId)) fail("matched_pack_vendor_arm_unknown");
+  const paths = pathsFor(home);
+  const voices = readVendorVoices(paths);
+  if (!voices[armId]) {
+    console.log(`${armId}: no voice recorded for this pack; nothing to delete`);
+    return;
+  }
+  if (armId !== "elevenlabs") fail("matched_pack_vendor_arm_has_no_voice_to_erase");
+  await createElevenLabsVoiceEraser({ env: process.env }).deleteVoice(voices[armId].providerRef);
+  const remaining = { ...voices };
+  delete remaining[armId];
+  writeVendorVoices(paths, remaining);
+  console.log(`${armId}: vendor voice deleted and removed from the pack`);
+}
+
+async function vendorResult({ armId, paths, planValue, item, payload, referenceWav, maxCharacters }) {
+  const spec = ARM_SPECS[armId];
+  const provider = vendorProvider(armId, paths, maxCharacters);
+  const providerRef = spec.clonesTheOwner ? readVendorVoices(paths)[armId]?.providerRef : null;
+  if (spec.clonesTheOwner && !providerRef) fail(`matched_pack_vendor_voice_missing:${armId}`);
+  const preview = await provider.synthesizePreview({
+    providerRef,
+    // The exact frozen text, disclosure included. The provider prepends the
+    // disclosure itself, so the pack hands it the BODY and then checks that
+    // what came back is the full text the cell was planned on.
+    text: planValue.prompts[item.languageId].body,
+    languageId: item.languageId,
+    seed: planValue.seed,
+    reference: {
+      bytes: referenceWav,
+      sha256: planValue.reference.sha256,
+      durationMs: planValue.reference.durationMs,
+    },
+    requestId: payload.request_id,
+  });
+  if (preview.renderedText !== planValue.prompts[item.languageId].fullText) fail("matched_pack_vendor_rendered_text_drift");
+  return {
+    request_id: payload.request_id,
+    generation_id: payload.generation_id,
+    model: preview.receipt.model,
+    model_revision: preview.receipt.vendorModelId,
+    model_commitment: provider.modelCommitment,
+    language_id: item.languageId,
+    seed: planValue.seed,
+    protection_path: preview.receipt.protectionPath,
+    perth_watermark_verified: preview.receipt.perthWatermarkVerified,
+    clones_the_owner: preview.receipt.clonesTheOwner,
+    arm_category: preview.receipt.armCategory,
+    sample_rate: preview.format.sampleRate,
+    channels: preview.format.channels,
+    encoding: preview.format.encoding,
+    audio_base64: preview.pcm.toString("base64"),
+    output_sha256: preview.receipt.outputSha256,
+    duration_ms: preview.receipt.durationMs,
+    elapsed_ms: preview.receipt.elapsedMs,
+    real_time_factor: preview.receipt.realTimeFactor,
+    billed_characters: preview.receipt.billedCharacters,
+    resampled_to_24k: preview.receipt.resampledTo24k,
+    transportProof: preview.receipt.transportProof,
+    modelCommitment: provider.modelCommitment,
+  };
+}
+
 function plan() {
   const sourcePath = resolve(String(flags.get("source") || DEFAULT_SOURCE));
   const evidencePath = resolve(String(flags.get("reference-evidence") || DEFAULT_REFERENCE_EVIDENCE));
@@ -104,6 +302,10 @@ function plan() {
   prepareHome({ home, plan: value, referenceWav, referenceText });
   console.log(`matched pack plan ready: ${value.items.length} exact-text requests across ${value.arms.length} arms`);
   console.log(`comparison cells: ${value.comparisonCells.length}; projected request reservation: USD ${value.projectedAttemptReservationUsd.toFixed(2)} of USD ${value.cloudHardStopUsd.toFixed(2)}`);
+  if (value.projectedVendorCharacters) {
+    console.log(`vendor characters in this pack: ${value.projectedVendorCharacters}; at the list prices read on 2026-09-03 that is about USD ${value.projectedVendorCostUsd.toFixed(4)}`);
+    console.log("run needs --max-chars before any vendor request is made");
+  }
   console.log("cloud/model calls: 0");
 }
 
@@ -170,16 +372,42 @@ async function runCloud() {
   const only = flags.get("only") ? new Set(String(flags.get("only")).split(",").map((value) => value.trim()).filter(Boolean)) : null;
   if (only && [...only].some((armId) => !planValue.arms.some((arm) => arm.id === armId))) fail("matched_pack_only_arm_invalid");
   const pending = planValue.items.filter((item) => (!only || only.has(item.armId)) && !existsSync(join(paths.outputs, `${item.id}.wav`)));
+  // The vendor stop is separate from the USD stop and is required whenever a
+  // vendor item is in flight. A caller who did not name one has not decided how
+  // much of someone else's money to spend, and the run refuses rather than
+  // choosing for them.
+  const vendorPending = pending.filter((item) => isVendorArm(item.armId));
+  let maxChars = 0;
+  if (vendorPending.length) {
+    maxChars = Number(flags.get("max-chars"));
+    if (!Number.isInteger(maxChars) || maxChars <= 0 || maxChars > VENDOR_CHARACTER_HARD_STOP) {
+      fail("matched_pack_vendor_character_limit_invalid");
+    }
+    const needed = vendorPending.reduce((sum, item) => sum + item.billableCharacters, 0);
+    if (needed > maxChars) fail("matched_pack_vendor_character_stop_exceeded");
+  }
   for (const item of pending) {
     const requestId = randomUUID();
     const generationId = randomUUID();
     const payload = payloadForItem({ plan: planValue, item, referenceWav, referenceText, requestId, generationId });
-    const { origin, secret, expectedModelCommitment } = armEnvironment(item);
     ledger = reserveAttempt(ledger, item.id, maxUsd);
     writeFileSync(paths.ledger, JSON.stringify(ledger, null, 2));
     try {
-      const { result, responseSignatureVerified } = await signedCall({ origin, secret, payload });
-      const normalized = verifyProviderResult({ plan: planValue, item, payload, result, responseSignatureVerified, expectedModelCommitment });
+      let normalized;
+      if (isVendorArm(item.armId)) {
+        const result = await vendorResult({
+          armId: item.armId, paths, planValue, item, payload, referenceWav, maxCharacters: maxChars,
+        });
+        normalized = verifyVendorResult({
+          plan: planValue, item, payload, result,
+          transportProof: result.transportProof,
+          expectedModelCommitment: result.modelCommitment,
+        });
+      } else {
+        const { origin, secret, expectedModelCommitment } = armEnvironment(item);
+        const { result, responseSignatureVerified } = await signedCall({ origin, secret, payload });
+        normalized = verifyProviderResult({ plan: planValue, item, payload, result, responseSignatureVerified, expectedModelCommitment });
+      }
       saveResult(paths, normalized);
       ledger = updateLedger(paths, ledger, item.id, "succeeded", {
         outputWavSha256: normalized.outputWavSha256,
@@ -191,13 +419,22 @@ async function runCloud() {
       throw error;
     }
   }
-  console.log(pending.length ? `completed ${pending.length} signed synthesis request(s)` : "no pending requests for the selected arms");
+  console.log(pending.length ? `completed ${pending.length} synthesis request(s)` : "no pending requests for the selected arms");
+  if (vendorPending.length) {
+    const spent = vendorPending.reduce((sum, item) => sum + item.billableCharacters, 0);
+    console.log(`vendor characters used: ${spent} of the ${maxChars} you allowed`);
+  }
 }
 
 function seal() {
-  const built = sealHome(home);
+  const trimDisclosure = flags.get("trim-disclosure") === true;
+  const built = sealHome(home, undefined, { trimDisclosure });
   console.log(`matched listening pack sealed: ${built.manifest.baseStimuli} clips, ${built.manifest.exactTextCrossProviderCells} exact-text cells`);
   console.log(`rating screens: ${built.manifest.ratingTrials}; model mapping remains sealed`);
+  if (trimDisclosure) {
+    console.log("spoken disclosure removed from every candidate; the removed prefixes are in private/trim-check.wav");
+    console.log("confirm the trim by ear on THAT file only, never on a stimulus, or you unblind yourself");
+  }
   console.log("human listening: not started; no quality winner exists");
 }
 
@@ -262,9 +499,11 @@ function unseal() {
 
 function usage() {
   console.log("voice-matched-pack");
-  console.log("  plan --consent-receipt <sha256> --replica-id <uuid> [--arms chatterbox,qwen,voxcpm2,indicf5,zonos2] [--indicf5-variant unnormalized_baseline|pronunciation_normalized] [--home path]");
-  console.log("  run --confirm-cloud exact-text-matched-pack --max-usd 5 [--only arm,arm] [--home path]");
-  console.log("  seal [--home path]");
+  console.log("  plan --consent-receipt <sha256> --replica-id <uuid> [--arms chatterbox,qwen,voxcpm2,indicf5,zonos2,elevenlabs,sarvam] [--indicf5-variant unnormalized_baseline|pronunciation_normalized] [--home path]");
+  console.log("  vendor-enroll --arm elevenlabs --confirm-vendor exact-text-matched-pack [--home path]");
+  console.log("  run --confirm-cloud exact-text-matched-pack --max-usd 5 [--max-chars 2000] [--only arm,arm] [--home path]");
+  console.log("  vendor-erase --arm elevenlabs [--home path]");
+  console.log("  seal [--trim-disclosure] [--home path]");
   console.log("  verify [--home path]");
   console.log("  listen [--home path] [--port 8792]");
   console.log("  studio-bundle --out path [--home path]");
@@ -275,6 +514,8 @@ function usage() {
 
 try {
   if (command === "plan") plan();
+  else if (command === "vendor-enroll") await vendorEnroll();
+  else if (command === "vendor-erase") await vendorErase();
   else if (command === "run") await runCloud();
   else if (command === "seal") seal();
   else if (command === "verify") await verify();

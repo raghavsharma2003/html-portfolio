@@ -4611,6 +4611,48 @@
       "kind": "rejection",
       "title": "Revoking identity on evidence deletion would have made every accept revoke itself",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-vendor-arms-are-bench-arms",
+      "kind": "decision",
+      "title": "Vendor voice arms are BENCH arms; VOICE_LANE_ORDER is unchanged and one env var moves the primary lane",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-sarvam-is-the-accent-control",
+      "kind": "decision",
+      "title": "Sarvam Bulbul is the Indian-accent BASE arm, not a clone arm, and says so on every receipt",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-vendor-clip-carries-no-perth",
+      "kind": "decision",
+      "title": "A vendor clip records no PerTh and is refused if it claims one; delivery watermarks it",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-vendor-list-prices-2026-09-03",
+      "kind": "measurement",
+      "title": "Vendor list prices and the cost of one exact-text pack: about USD 0.048 on ElevenLabs, INR 0.81 on Sarvam",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-vendor-offline-suite-2026-09-03",
+      "kind": "measurement",
+      "title": "45/45 vendor checks and 74/74 matched-pack checks offline, 0 network calls, USD 0.00",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-vendor-arm-reuses-signed-runtime-verifier",
+      "kind": "rejection",
+      "title": "One evidence shape for two transports: the vendor arm had to fake an HMAC and a watermark or strip both checks",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r6-sarvam-cloning-from-the-marketing-page",
+      "kind": "rejection",
+      "title": "Bulbul v3's announcement names voice cloning; the API reference documents no endpoint for it",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9173,6 +9215,66 @@
       "src": "ws-r2-voice-identity-challenge",
       "rel": "constrains",
       "dst": "hmac-skew-shorter-than-cold-start"
+    },
+    {
+      "src": "ws-r6-vendor-arms-are-bench-arms",
+      "rel": "part_of",
+      "dst": "platform-north-star"
+    },
+    {
+      "src": "ws-r6-vendor-arms-are-bench-arms",
+      "rel": "measured_by",
+      "dst": "ws-r6-vendor-offline-suite-2026-09-03"
+    },
+    {
+      "src": "ws-r6-vendor-arms-are-bench-arms",
+      "rel": "constrains",
+      "dst": "earbench"
+    },
+    {
+      "src": "ws-r6-vendor-arms-are-bench-arms",
+      "rel": "constrains",
+      "dst": "replica-provider-portable"
+    },
+    {
+      "src": "ws-r6-sarvam-is-the-accent-control",
+      "rel": "caused_by",
+      "dst": "azure-tts"
+    },
+    {
+      "src": "ws-r6-sarvam-is-the-accent-control",
+      "rel": "part_of",
+      "dst": "ws-r6-vendor-arms-are-bench-arms"
+    },
+    {
+      "src": "ws-r6-vendor-clip-carries-no-perth",
+      "rel": "part_of",
+      "dst": "ws-r6-vendor-arms-are-bench-arms"
+    },
+    {
+      "src": "ws-r6-vendor-arm-reuses-signed-runtime-verifier",
+      "rel": "caused_by",
+      "dst": "ws-r6-vendor-clip-carries-no-perth"
+    },
+    {
+      "src": "ws-r6-vendor-arm-reuses-signed-runtime-verifier",
+      "rel": "part_of",
+      "dst": "plausible-return-hides-a-dead-pipeline"
+    },
+    {
+      "src": "ws-r6-sarvam-cloning-from-the-marketing-page",
+      "rel": "caused_by",
+      "dst": "ws-r6-sarvam-is-the-accent-control"
+    },
+    {
+      "src": "ws-r6-vendor-list-prices-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r6-vendor-arms-are-bench-arms"
+    },
+    {
+      "src": "ws-r6-vendor-offline-suite-2026-09-03",
+      "rel": "part_of",
+      "dst": "ws-r6-vendor-arms-are-bench-arms"
     }
   ]
 }
