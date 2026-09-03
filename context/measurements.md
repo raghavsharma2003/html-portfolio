@@ -14555,3 +14555,40 @@ required a copy change). `node scripts/verify-release.mjs`: 14/14 both before
 this session's changes (untouched-tree baseline, confirmed via `git stash`)
 and after (one eval fixed to match the renamed copy, see
 `decisions.md#ws-r10-rooms-vocabulary-gate`).
+
+## `ws-r13-doc-sync-gate-results-2026-09-03`
+
+n=2 (one full gate run on the untouched tree, one after every doc edit in this
+workstream — no source, API, script or eval file was touched, only
+`docs/gurukul/ENV-MANIFEST.md`, `docs/gurukul/DEPLOY.md`, `AGENTS.md`,
+`CLAUDE.md`, `context/STATE.md`, `docs/gurukul/PRODUCT-JOURNEY.md`,
+`docs/gurukul/UX-QUEUE.md` and this session's own `context/` entries).
+Method: from this worktree, `npm install --no-audit --no-fund`, then
+`CI=1 node scripts/write-config.mjs --stub`, then `node evals/echosim/build.mjs`,
+then `node scripts/verify-release.mjs`, `node scripts/context.mjs --check`,
+`node scripts/check-copy.mjs`, each run twice (before touching any file, and
+again after every doc edit was made).
+
+- **Before:** `verify-release.mjs` 15/15 (no `NEON_URL` in this environment,
+  relational DB gates skipped and printed as such). `context.mjs --check`:
+  "context graph ok — 820 nodes, 1013 edges, 4 documents". `check-copy.mjs`:
+  "6 scopes clean, 17 negative controls bit".
+- **After:** `verify-release.mjs` **15/15**, unchanged — a doc-only change
+  should not move this needle and it did not. `context.mjs --check`:
+  "context graph ok — 820 nodes, 1013 edges, 4 documents", unchanged (this
+  measurement's own append happens after this check ran; a subsequent
+  `--check` after the graph.json append is expected to report a higher node
+  and edge count and is not re-quoted here to avoid this entry going stale the
+  moment it is written). `check-copy.mjs`: "6 scopes clean, 17 negative
+  controls bit", unchanged — none of the seven touched files fall inside
+  `check-copy.mjs`'s scanned scopes (`src/studio/`, `src/room/`, `site/*.html`,
+  `studio.html`, `room.html`), and `context/`/`docs/` prose is explicitly
+  exempt (`CLAUDE.md`'s own rule), which is why the heavy em-dash use in this
+  session's own additions to those docs is not a gate violation.
+
+**Scope note.** This measurement proves the gates did not regress from a
+documentation change; it proves nothing about whether the documentation's
+CLAIMS are correct beyond what each claim's own citation supports. See
+`decisions.md#ws-r13-migration-076-status-not-asserted-without-corroboration`
+for the one claim this session could not independently confirm and chose to
+flag rather than assert.

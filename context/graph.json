@@ -4996,6 +4996,24 @@
       "kind": "rejection",
       "title": "check-copy.mjs whole-file quote blanking cannot tell a JSX-text apostrophe from a string delimiter, producing both false negatives and phantom hits",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r13-migration-076-status-not-asserted-without-corroboration",
+      "kind": "decision",
+      "title": "Docs state 071-075 as confirmed applied live and 076 as built-but-unconfirmed, rather than repeating the task brief's unqualified 071-076 claim",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r13-vercel-build-branch-name-flagged-not-fixed",
+      "kind": "decision",
+      "title": "vercel-build.sh still matches the retired claude/gurukul-platform branch name, not the current claude/vyakti-cloning-platform-aq05n4; DEPLOY.md flags it, out of scope to fix here",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r13-doc-sync-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "verify-release 15/15, context.mjs --check clean, check-copy.mjs clean, both before and after every WS-R13 doc edit",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10063,6 +10081,21 @@
       "src": "demo-teacher-is-not-a-placeholder",
       "rel": "constrains",
       "dst": "ws-r10-rooms-vocabulary-gate"
+    },
+    {
+      "src": "ws-r13-migration-076-status-not-asserted-without-corroboration",
+      "rel": "caused_by",
+      "dst": "rooms-migrations-applied-live-in-the-union-order"
+    },
+    {
+      "src": "ws-r13-vercel-build-branch-name-flagged-not-fixed",
+      "rel": "caused_by",
+      "dst": "ws-r10-worktree-wrong-base-commit"
+    },
+    {
+      "src": "ws-r13-migration-076-status-not-asserted-without-corroboration",
+      "rel": "measured_by",
+      "dst": "ws-r13-doc-sync-gate-results-2026-09-03"
     }
   ]
 }

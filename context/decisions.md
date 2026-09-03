@@ -8383,3 +8383,56 @@ not merge into the Rooms platform tree at all.
 **Reverses if.** Nothing; this is a one-time environment correction, not a
 product decision. Logged so a future session recognizes the failure mode (a
 worktree on the wrong branch entirely, not merely behind) if it recurs.
+
+## `ws-r13-migration-076-status-not-asserted-without-corroboration` (2026-09-03)
+
+**Decision.** This docs workstream's own task brief stated migrations
+071-076 are applied live. Checked against `#rooms-migrations-applied-live-in-the-union-order`
+above, which names only five (072, 074, 073, 075, 071) as confirmed applied
+and was logged before migration 076 (`vy_replica_drift_report`, WS-R9) was
+even authored — no later `context/` entry records a live apply for 076. Every
+doc this workstream touched (`docs/gurukul/ENV-MANIFEST.md` §25,
+`docs/gurukul/DEPLOY.md`, `AGENTS.md`, `CLAUDE.md`, `context/STATE.md`,
+`docs/gurukul/PRODUCT-JOURNEY.md`) states 071-075 as confirmed and 076 as
+"built, stated applied by the brief, no corroborating context entry" rather
+than asserting all six flatly.
+
+**Rationale.** `AGENTS.md`'s own law: never claim what you did not run, and
+this workstream's own brief said every claim must be traceable to a file in
+the tree or a context entry. A task brief is an instruction to act on, not
+evidence a future session can point at. Six versus five migrations is exactly
+the kind of small drift that compounds if repeated uncritically across seven
+documents.
+
+**Reverses if.** A session with `NEON_URL` runs `scripts/relcheck.mjs` or
+`EXPLAIN`s a 076 statement against live Postgres and confirms
+`vy_replica_drift_report` exists, or the main loop logs its own decision entry
+recording the apply directly — at that point every doc this workstream
+touched should be updated to say "071-076 confirmed" outright, and this entry
+should gain a `supersedes` edge from the one that does it.
+
+## `ws-r13-vercel-build-branch-name-flagged-not-fixed` (2026-09-03)
+
+**Decision.** `scripts/vercel-build.sh`'s selection of `site/vyakti.html` at
+`/` depends on `VERCEL_GIT_COMMIT_REF === "claude/gurukul-platform"` as a
+literal string match, but the Rooms platform branch has been
+`claude/vyakti-cloning-platform-aq05n4` since `#ws-r10-worktree-wrong-base-commit`
+confirmed the rename, and `git branch -a` in this tree shows both refs still
+existing as distinct branches. `docs/gurukul/DEPLOY.md` now documents this as
+a flagged, unverified discrepancy — whether `html-portfolio`'s Vercel trigger
+still points at the old name (live no-op) or the new one (a silent fallback to
+Meera's landing on that branch, UX-Q-12's exact failure shape one rename
+later) — rather than silently repeating the old plan or changing the script.
+
+**Rationale.** This is a WS-R13 docs task, not an authorization to change a
+build script that decides what every future Vercel deploy of this branch
+serves at `/`. `AGENTS.md`'s honest-states law says to name whose problem this
+is rather than guess at a fix outside scope, and a five-minute dashboard check
+by whoever owns the Vercel projects resolves it faster and more safely than a
+code change guessed at from this worktree.
+
+**Reverses if.** Someone confirms `html-portfolio`'s deploy trigger for this
+branch and either updates the string in `scripts/vercel-build.sh` to match, or
+confirms it was never wrong in production (a preview-only build, say) — either
+way `DEPLOY.md`'s flagged note should be replaced with the resolved fact, not
+left standing after it stops being true.
