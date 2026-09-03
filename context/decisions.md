@@ -7515,3 +7515,76 @@ same environment, and test explicit `resources.gpu: 1` only if ARM validation
 accepts it. Rerun the unchanged ZONOS2 digest only after that canary passes.
 Voice qualification still requires the sealed Hindi, Hinglish and English
 pack, exact receipts, objective metrics and accepted blind owner ratings.
+
+## `ws-r6-vendor-arms-are-bench-arms` (2026-09-03, WS-R6)
+
+**Decision.** ElevenLabs and Sarvam are registered as VOICE BENCH ARMS, not as
+lanes. `VOICE_LANE_ORDER` is unchanged and still puts the self-hosted lane
+first; setting `ELEVENLABS_API_KEY` gets an operator a bench arm and nothing
+else. Exactly one environment variable, `VOICE_PRIMARY_LANE`, can move the
+primary synthesis lane, it is read in one place (`api/_voice/registry.js`), and
+it throws rather than falling back when it names a lane that is not configured.
+
+**Why.** `platform-north-star` names the evidence that would make a vendor lane
+primary again: the self-hosted lane's fidelity staying materially below the
+vendor lane after fine-tuning effort. No vendor arm had ever been benched, so
+that reversal condition was unfalsifiable, and an unfalsifiable reversal
+condition is the dogma the file's own rules exist to prevent. Building the arms
+as BENCH arms makes it testable without pre-deciding it: the shipped product
+does not change until a listening pass says it should. An operator who asks for
+a vendor primary and silently gets the self-hosted one has been told the
+opposite of the truth about what produced their audio, which is why the
+override refuses instead of falling through.
+
+**What would reverse it.** A sealed listening pack in which the ElevenLabs cell
+beats the self-hosted cell on OWNER LIKENESS, from at least one accepted
+listener who passed both attention checks, on both the English and Hindi
+exact-text cells, with the disclosure trimmed and the mapping unsealed only
+after the ratings were locked. That flips `VOICE_LANE_ORDER` and makes the
+in-house lane the research track. A better naturalness or pronunciation score
+is NOT reversal evidence, and neither is any ECAPA number: `azure-tts` is the
+entry where every measured axis said switch and the ear was right to refuse.
+
+## `ws-r6-sarvam-is-the-accent-control` (2026-09-03, WS-R6)
+
+**Decision.** The Sarvam Bulbul arm is implemented as an Indian-accent BASE
+voice with a preset speaker, labelled `indian_accent_base_voice` on every
+receipt and in the unsealed report, and its `createVoice` and `deleteVoice`
+refuse rather than returning anything. It can never win the owner-likeness axis
+and the instrument says so before anyone reads a number.
+
+**Why.** Sarvam's marketing says Bulbul v3 supports voice cloning; their public
+API reference documents preset speakers and no endpoint that builds a custom
+speaker from a reference recording (read 2026-09-03 across the API reference,
+the Bulbul model page and the endpoint index; the only cloning in the docs is
+inside the separate Dubbing product). Returning a preset speaker from a call
+named `createVoice` would put a base voice into the clone lane where nothing
+downstream could tell the difference. It is still worth benching, for the reason
+`azure-tts` gives: that battery measured whether Hindi words come back as Hindi
+words, never whether the speaker sounds like a person from this country, and
+only the second decides likeness. A native-accent base voice is the control
+that separates the two axes.
+
+**What would reverse it.** Sarvam documenting a custom-speaker endpoint, at
+which point the arm grows a `createVoice` and changes category. A marketing page
+is not documentation and does not reverse this.
+
+## `ws-r6-vendor-clip-carries-no-perth` (2026-09-03, WS-R6)
+
+**Decision.** Vendor arm receipts record `perthWatermarkVerified: false` and
+`protectionPath: "delivery_audioseal"`. The matched pack's verifier REFUSES a
+vendor result that claims a PerTh watermark, and still refuses a self-hosted
+result that lost one. The platform watermark reaches a vendor clip through
+`api/_provenance/delivery.js` on delivery, not at synthesis.
+
+**Why.** PerTh is embedded by `services/open-voice-runtime`; it is a property of
+the self-hosted lane, not of every generated clip. The platform requirement that
+every delivered clip is watermarked is met by the delivery path, which is
+provider neutral. The temptation was to let a vendor arm report the field as
+true so the existing pack accepted it unchanged. That is fabricated evidence in
+the exact shape `AGENTS.md` names, and it would have been fabricated in the one
+place it does the most damage: the bench that decides `platform-north-star`.
+
+**What would reverse it.** A vendor that documents an embedded watermark our
+detector can verify, plus a verification run against a real clip. A vendor
+claiming a watermark in a response field is not evidence.

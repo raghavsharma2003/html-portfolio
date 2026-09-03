@@ -5920,3 +5920,73 @@ device injection from library discovery and PyTorch runtime failure. Record the
 device files, NVIDIA environment, driver library, `nvidia-smi` and PyTorch CUDA
 build/runtime state. The existing immutable ZONOS2 digest should be retried only
 after that smaller canary succeeds.
+
+---
+
+## `ws-r6-vendor-arm-reuses-signed-runtime-verifier` — one evidence shape for two transports (2026-09-03, WS-R6)
+
+**What was tried.** Adding ElevenLabs and Sarvam to the exact-text matched pack
+by giving them arm specs and letting `verifyProviderResult` check them like
+every other arm. It is the obvious move: one verifier, one receipt shape, one
+set of bindings, and the vendor arms land in the same cells with no new code.
+
+**What broke.** `verifyProviderResult` requires two things a vendor call cannot
+produce. It requires `responseSignatureVerified === true`, which is an HMAC over
+the response body keyed to a secret shared with a runtime we operate; a vendor
+response is authenticated by TLS and an API key and by nothing else. And it
+requires `perth_watermark_verified === true` with a score above 0.5, which is
+embedded by `services/open-voice-runtime` at synthesis; no vendor in this
+registry embeds PerTh.
+
+The path of least resistance was to have the vendor adapter report both fields
+as true, since the pack only reads what the adapter hands it. That is exactly
+`plausible-return-hides-a-dead-pipeline` with the stakes raised: the receipt is
+what a later reader trusts, and it would have carried an invented cryptographic
+proof and an invented watermark into the one bench that decides
+`platform-north-star`'s reversal condition. The second path of least resistance
+was to drop both requirements from the verifier, which would have removed the
+HMAC and watermark checks from the four arms that DO have them, to accommodate
+two arms that do not.
+
+**What was done instead.** The pack records the TRANSPORT and the PROTECTION
+PATH per arm, and `verifyVendorResult` is a separate function holding the
+strictest rules a vendor call can actually support. The two refusals are
+symmetric and both are tested: a self-hosted result that lost its watermark is
+still refused, and a vendor result that CLAIMS a watermark is refused as
+fabricated evidence. `matched_pack_vendor_arm_needs_vendor_verifier` stops a
+vendor item being pushed through the old path by accident.
+
+**The generalisable rule.** When a new arm cannot produce the evidence an
+instrument demands, the choice is never "fake the evidence" or "stop demanding
+it". It is to make the instrument record WHICH evidence each arm carries, and
+refuse the mismatch in both directions.
+
+---
+
+## `ws-r6-sarvam-cloning-from-the-marketing-page` — a documented capability that is not in the API (2026-09-03, WS-R6)
+
+**What was tried.** Building the Sarvam arm as a voice-cloning arm, on the
+strength of Sarvam's own Bulbul v3 announcement, which says the model "supports
+voice cloning, allowing teams to create custom voices".
+
+**What broke.** The public API reference documents no such endpoint. The
+text-to-speech call takes `speaker` from a fixed list of about forty preset
+voices, and there is no documented route that creates a custom speaker from a
+reference recording. The only cloning anywhere in the docs is inside the
+separate Dubbing product. Read on 2026-09-03 across the API reference, the
+Bulbul model page and the endpoint index. Had the arm been built as a clone
+anyway, its `createVoice` would have had nothing to call, and the honest
+alternative available to it would have been to return a preset speaker, which
+enters a clone cell as a candidate for OWNER LIKENESS while being a stranger's
+voice.
+
+**What was done instead.** The arm is the Indian-accent BASE arm, labelled as
+one on every receipt and in the unsealed report, and `createVoice` refuses with
+`sarvam_voice_cloning_not_documented`. It is still worth having: `azure-tts` is
+the entry where a battery measured pronunciation, never accent identity, and got
+the answer the owner's ear overturned. A native-accent base voice is the control
+that tells those two axes apart.
+
+**The generalisable rule.** A capability is documented when its ENDPOINT is
+documented. A blog post naming a feature is a reason to go looking for the
+endpoint, never a reason to write a client for it.

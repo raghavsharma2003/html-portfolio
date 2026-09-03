@@ -6953,3 +6953,44 @@ cuSPARSE, NCCL, NVTX and Triton packages on x86_64. Azure's A100 event announced
 driver 580.159.04 compatible through CUDA 13.0. This narrows the failure away
 from a CPU-only lock or an obvious CUDA-version mismatch, but it does not prove
 the missing device-exposure mechanism. No diagnostic image was built or run.
+
+## `ws-r6-vendor-list-prices-2026-09-03` — vendor list prices and pack cost (2026-09-03, WS-R6)
+
+**Method.** Public pricing pages fetched and read on 2026-09-03. n = 1 reading
+per vendor. No account, no invoice, no live call: these are published rates, not
+observed charges, and a bill has never been compared against them.
+
+- ElevenLabs (elevenlabs.io/pricing): Creator tier USD 11 per month for 121,000
+  credits; one character is one credit on the V2 multilingual models. That is
+  **USD 0.18 per 1,000 characters**, or USD 180 per million. Instant Voice
+  Cloning is available from the Starter tier (USD 6) and Professional Voice
+  Cloning from Creator; neither carries a documented per-clone charge.
+- Sarvam (docs.sarvam.ai/api/getting-started/pricing): bulbul:v3 at **INR 30 per
+  10,000 characters**, billed per character rounded up per request. New accounts
+  get INR 100 of free credit. At INR 88 to the dollar that is about USD 34 per
+  million characters; the conversion is this session's arithmetic, not a
+  published USD rate.
+
+**One exact-text matched pack**, disclosure prefix included, measured by
+counting the frozen prompt bodies in `evals/voice-matched-pack/contract.mjs`:
+141 characters of English and 128 of Hindi, so 269 characters per arm for both
+languages. At the rates above that is **about USD 0.048 on ElevenLabs** and
+**about INR 0.81 on Sarvam** for a complete two-language vendor arm. The default
+per-day cap in `api/_provider-budget.js` is 20,000 characters, roughly 74 packs.
+
+**What is NOT measured.** Nothing here has been charged. No vendor has been
+contacted from this repository: there is no ElevenLabs key in any environment
+this session could reach, and `context/measurements.md`'s earlier entry records
+the owner's Sarvam key returning Payment Required. No vendor audio exists, so
+there is still no speaker-similarity number and no listening result for any
+vendor arm, and `platform-north-star`'s reversal condition remains untested.
+
+## `ws-r6-vendor-offline-suite-2026-09-03` — the offline vendor suites (2026-09-03, WS-R6)
+
+`node evals/run.mjs voicevendor`: 45/45 checks, 0 network calls, USD 0.00.
+`node evals/run.mjs voicematched`: 74/74 checks, up from 51 before this
+workstream, 0 network calls. Both are deterministic and run from recorded
+fixtures transcribed from each vendor's documented response shape on 2026-09-03,
+with deterministic synthetic audio standing in for vendor bytes. They prove
+request shape, response parsing, format normalisation, budget fencing, erasure
+and every failure path. They do not prove the vendor answers this way today.
