@@ -5050,6 +5050,12 @@
       "kind": "measurement",
       "title": "measurements.md 7,297 + 7,260 -> 14,557 lines at 9525e30 with 214 duplicated headings; rebuilt to 7,360 with 0",
       "at": "2026-09-03"
+    },
+    {
+      "id": "platform-branch-previews-serve-vyakti-2026-09-03",
+      "kind": "measurement",
+      "title": "After the pattern match, both projects' previews of the platform branch serve the Vyakti landing at /; /chat still 200 on html-portfolio",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -10162,6 +10168,11 @@
       "src": "context-union-by-concatenation",
       "rel": "caused_by",
       "dst": "rooms-migrations-applied-live-in-the-union-order"
+    },
+    {
+      "src": "vercel-build-platform-branch-pattern",
+      "rel": "measured_by",
+      "dst": "platform-branch-previews-serve-vyakti-2026-09-03"
     }
   ]
 }

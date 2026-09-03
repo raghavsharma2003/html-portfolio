@@ -7399,3 +7399,15 @@ n = 1 file; method = `grep '^## ' context/measurements.md | sort | uniq -d | wc 
 | this rebuild | 7,360 | 0 |
 
 `decisions.md`, `rejected.md`, `STATE.md` and `architecture.md` were checked the same way at `a8c23fe`: 0 duplicated headings each. See `rejected.md#context-union-by-concatenation`.
+
+## `platform-branch-previews-serve-vyakti-2026-09-03`
+
+n = 2 projects, 3 probes; method = `curl -L` with a cookie jar through a Vercel share link against each project's git preview of `claude/vyakti-cloning-platform-aq05n4` at `4e80c30` (the first push after `scripts/vercel-build.sh` learned to match the platform branch family by pattern); date 2026-09-03.
+
+| project | path | result |
+|---|---|---|
+| `html-portfolio` | `/` | 200, `<title>Vyakti</title>`, the Rooms landing |
+| `html-portfolio` | `/chat` | 200 |
+| `vyakti-replica-lab` | `/` | 200, `<title>Vyakti</title>` |
+
+Before the change, an `html-portfolio` preview of this branch would have fallen back to Meera's landing at `/` because the literal branch match failed (`decisions.md#vercel-build-platform-branch-pattern`). Not measured: what `/` served on that project's previous preview, which was not fetched before the fix landed.

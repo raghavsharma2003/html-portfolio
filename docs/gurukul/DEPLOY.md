@@ -64,9 +64,10 @@ that family needs no script change). Both Vercel projects build every push of
 the platform branch as a preview (`target: null` on their latest deployments,
 read from the Vercel API); neither has a production deployment from it, so
 the mismatch was preview-only and never changed what any production domain
-served. The build script's own comment records that the studio project sets
-`STUDIO_ROOT=1`; that env var was not re-read from the Vercel API in this
-pass, so a preview of `/` on the studio project is the check that closes it.
+served. Checked after the change on the previews both projects built from
+`4e80c30`: `/` serves the Vyakti landing (`<title>Vyakti</title>`) on both,
+and `/chat` still answers 200 on `html-portfolio`
+(`context/measurements.md#platform-branch-previews-serve-vyakti-2026-09-03`).
 
 ### Migrations actually applied to the live Neon database, in order
 
