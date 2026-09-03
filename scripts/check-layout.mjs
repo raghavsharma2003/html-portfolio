@@ -68,7 +68,6 @@ assertPortableRootResolution();
 const ROOT = rootFromModuleUrl(import.meta.url);
 const DIST = join(ROOT, "dist");
 const PORT = 8931;
-const FIXTURE = "studio-layout-fixture.html";
 
 // Prose is judged in CHARACTERS PER LINE rather than pixels. An absolute pixel
 // floor cannot be right at two viewport widths at once: 219px is a cramped
@@ -97,7 +96,8 @@ const MIN_CHARS_TO_JUDGE = 60;
 // is the assertion that stops the gate passing on an empty screen, which it
 // once did: per screen the studio must have mounted and rendered panels, and
 // across the whole run there must be a real amount of prose to have judged.
-const MIN_PANELS_RENDERED = 2;
+// Per-target now (TARGETS above), because a Room screen is one shell with one
+// card in it and the studio's two would fail a page that is correct.
 const MIN_TOTAL_BLOCKS = 150;
 // WCAG AA for body-sized text. Disabled controls are exempt by the standard and
 // are skipped, but they still have to clear the readability checks above.
@@ -108,7 +108,49 @@ const VIEWPORTS = [
   { name: "tablet", width: 834, height: 1112 },
   { name: "desktop", width: 1355, height: 800 },
 ];
-const STEPS = ["feed", "meet", "deploy"];
+// WS-R1: the gate now measures TWO products, because the Room is a second
+// surface with its own layout and the first version of this gate proved that a
+// surface nobody points the gate at is a surface where the collapsed column
+// lives. Each target names its fixture, the query it varies, and the selector
+// that says "this page actually mounted" — everything else (the prose limits,
+// the contrast floor, the overflow check) is shared, deliberately: two products
+// of one company that disagree about what readable means is the failure this
+// file exists to make visible.
+//
+// The Room fixture is required for the same reason the studio's is: every Room
+// screen worth measuring is signed in, and pointed at the real page the gate
+// would render "this room is not open" three times and report OK.
+const TARGETS = [
+  {
+    name: "studio",
+    fixture: "studio-layout-fixture.html",
+    query: (step) => `mode=teacher&step=${step}`,
+    steps: ["feed", "meet", "deploy"],
+    mounted: ".studio-shell, .studio-layout",
+    panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
+    minPanels: 2,
+  },
+  {
+    name: "room",
+    fixture: "room-layout-fixture.html",
+    query: (screen) => `screen=${screen}`,
+    // The two screens with completely different layouts. `join` carries the
+    // longest prose in the product (the disclosure card plus the whole memory
+    // question); `talk` is the conversation, whose bubbles are the one block
+    // here that is allowed to be narrow and must still clear the floor.
+    steps: ["join", "talk"],
+    mounted: ".room-shell",
+    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
+    // A Room screen is one shell with one card in it; two is the studio's
+    // number and would fail a page that is correct.
+    minPanels: 1,
+  },
+];
+
+/** Every (viewport, target, screen) the run covers. Derived rather than
+ *  written down, so adding a target cannot leave the coverage line lying. */
+const SCREEN_COUNT = VIEWPORTS.length * TARGETS.reduce((n, t) => n + t.steps.length, 0);
+const SCREEN_NAMES = TARGETS.map((t) => `${t.name}:${t.steps.join("/")}`).join(", ");
 
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
@@ -232,7 +274,22 @@ function audit(limits) {
   }
 
   // ── 4. a control whose label does not read against its own background ────
-  const parseColor = (s) => { const m = s.match(/[\d.]+/g); return m ? m.slice(0, 4).map(Number) : null; };
+  // WS-R1: `color(srgb 0.96 0.95 0.91 / 0.92)` is how Chrome serializes a
+  // `color-mix()` background, and its components are 0..1 rather than 0..255.
+  // Read as 0..255 they are all essentially ZERO, so the walker below accepted
+  // a paper-coloured header as near-black and reported a 14:1 label at 1.18:1.
+  // A gate that fails a correct page is as expensive as one that passes a
+  // broken one: it teaches people to stop reading its output. So the two
+  // serializations are parsed as the two different things they are.
+  const parseColor = (s) => {
+    const m = String(s).match(/[\d.]+(?:e-?\d+)?/g);
+    if (!m) return null;
+    const n = m.slice(0, 4).map(Number);
+    if (/^color\(/.test(String(s).trim())) {
+      return [n[0] * 255, n[1] * 255, n[2] * 255, n[3] ?? 1];
+    }
+    return n;
+  };
   const luminance = ([r, g, b]) => {
     const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
     return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
@@ -294,9 +351,12 @@ function audit(limits) {
   // What is NOT negotiable is that the studio actually mounted and this is the
   // step we asked for. If that is true and the prose is thin, the screen is
   // thin; if it is false, the gate is blind and must say so.
-  const mounted = Boolean(document.querySelector(".studio-shell, .studio-layout"));
+  // The two selectors are passed IN rather than hardcoded, because this gate
+  // now measures two surfaces and a hardcoded studio selector would make the
+  // Room's coverage assertion vacuously false (or, worse, vacuously true).
+  const mounted = Boolean(document.querySelector(limits.mountedSelector));
   const stepTitle = document.querySelector(".wizard-step-title, h1, h2");
-  const panels = document.querySelectorAll(".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice").length;
+  const panels = document.querySelectorAll(limits.panelSelector).length;
 
   return {
     findings: out,
@@ -325,12 +385,16 @@ async function main() {
     console.log("  skip  layout readability: dist/ absent, run `npx vite build` first");
     return 0;
   }
-  if (!existsSync(join(DIST, FIXTURE))) {
-    // Not a skip. The fixture is a build input; if it is missing, the gate has
-    // been silently disabled, and silently disabled is how the first one failed.
-    console.log(`FAIL  layout readability: dist/${FIXTURE} is missing.`);
-    console.log("        It is a vite input in vite.config.ts and the only way this gate can");
-    console.log("        see the signed-in panels. Restore it rather than skipping the check.");
+  // Not a skip, for EITHER target. A fixture is a build input; if one is
+  // missing, the gate has been silently disabled for that surface, and
+  // silently disabled is how the first version of this gate failed.
+  const absent = TARGETS.filter((t) => !existsSync(join(DIST, t.fixture)));
+  if (absent.length) {
+    console.log(
+      `FAIL  layout readability: ${absent.map((t) => `dist/${t.fixture}`).join(", ")} missing.`,
+    );
+    console.log("        They are vite inputs in vite.config.ts and the only way this gate can");
+    console.log("        see the signed-in screens. Restore them rather than skipping the check.");
     return 1;
   }
   let chromium;
@@ -369,26 +433,38 @@ async function main() {
     const crashed = [];
     page.on("pageerror", (e) => crashed.push(e.message.slice(0, 120)));
 
-    for (const step of STEPS) {
-      const where = `${vp.name}/${step}`;
-      await page.goto(`http://127.0.0.1:${PORT}/${FIXTURE}?mode=teacher&step=${step}`,
-        { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(1800);
+    for (const target of TARGETS) {
+      const perTarget = {
+        ...limits,
+        mountedSelector: target.mounted,
+        panelSelector: target.panels,
+      };
+      for (const step of target.steps) {
+        const where = `${vp.name}/${target.name}:${step}`;
+        await page.goto(
+          `http://127.0.0.1:${PORT}/${target.fixture}?${target.query(step)}`,
+          { waitUntil: "domcontentloaded" },
+        );
+        await page.waitForTimeout(1800);
 
-      const { findings: got, judged, mounted, panels, overflow } = await page.evaluate(audit, limits);
-      totalJudged += judged;
+        const { findings: got, judged, mounted, panels, overflow } = await page.evaluate(
+          audit,
+          perTarget,
+        );
+        totalJudged += judged;
 
-      // A CHECK THAT SAW NOTHING MUST NOT REPORT OK.
-      if (!mounted || panels < MIN_PANELS_RENDERED) {
-        findings.push({ where, kind: "coverage", el: "document", n: panels, unit: " panels",
-          text: crashed[0] ? `page threw: ${crashed[0]}`
-            : mounted ? "the studio mounted but rendered almost no panels"
-              : "the studio did not mount at all" });
+        // A CHECK THAT SAW NOTHING MUST NOT REPORT OK.
+        if (!mounted || panels < target.minPanels) {
+          findings.push({ where, kind: "coverage", el: "document", n: panels, unit: " panels",
+            text: crashed[0] ? `page threw: ${crashed[0]}`
+              : mounted ? `${target.name} mounted but rendered almost nothing`
+                : `${target.name} did not mount at all` });
+        }
+        if (overflow > 2) {
+          findings.push({ where, kind: "overflow", el: "document", n: overflow, unit: "px", text: "sideways scroll" });
+        }
+        for (const f of got) findings.push({ where, ...f });
       }
-      if (overflow > 2) {
-        findings.push({ where, kind: "overflow", el: "document", n: overflow, unit: "px", text: "sideways scroll" });
-      }
-      for (const f of got) findings.push({ where, ...f });
     }
     await ctx.close();
   }
@@ -400,7 +476,7 @@ async function main() {
   if (totalJudged < MIN_TOTAL_BLOCKS) {
     findings.push({ where: "whole run", kind: "coverage", el: "document",
       n: totalJudged, unit: " blocks",
-      text: `only ${totalJudged} prose blocks across all ${VIEWPORTS.length * STEPS.length} screens` });
+      text: `only ${totalJudged} prose blocks across all ${SCREEN_COUNT} screens` });
   }
 
   if (findings.length) {
@@ -410,7 +486,7 @@ async function main() {
       if (!byKind.has(f.kind)) byKind.set(f.kind, []);
       byKind.get(f.kind).push(f);
     }
-    console.log(`FAIL  layout readability: ${findings.length} finding(s) across ${VIEWPORTS.length} widths x ${STEPS.length} steps`);
+    console.log(`FAIL  layout readability: ${findings.length} finding(s) across ${VIEWPORTS.length} widths x ${SCREEN_COUNT / VIEWPORTS.length} screens`);
     for (const [kind, list] of byKind) {
       console.log(`\n      ${kind.toUpperCase()} (${list.length})`);
       const seen = new Set();
@@ -425,7 +501,7 @@ async function main() {
     }
     return 1;
   }
-  console.log(`  ok    layout readability: ${totalJudged} prose blocks judged across ${VIEWPORTS.map((v) => v.width).join(", ")}px x ${STEPS.join(", ")}`);
+  console.log(`  ok    layout readability: ${totalJudged} prose blocks judged across ${VIEWPORTS.map((v) => v.width).join(", ")}px x ${SCREEN_NAMES}`);
   return 0;
 }
 

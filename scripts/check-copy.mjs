@@ -64,6 +64,11 @@ const ROOT = new URL("..", import.meta.url).pathname;
  */
 const SCOPES = [
   { dir: "src/studio/", rules: "full", codename: true },
+  // WS-R1, the Room. On the `full` list from its first commit, and it is the
+  // scope where the word rules matter most: this is the only surface a person
+  // who is not a customer of this platform ever reads, so a version stamp, a
+  // filler verb or the other product's codename lands in front of a stranger.
+  { dir: "src/room/", rules: "full", codename: true },
   { dir: "src/gurukul/", rules: "full", codename: true },
   { dir: "src/replica/", rules: "full", codename: true },
   { dir: "site/", rules: "full", codename: false },
