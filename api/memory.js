@@ -2841,6 +2841,20 @@ export const PERSON_TABLES = [
   // wired into the wipe) is Phase 1 work, not this migration's.
   { table: "vy_room_subscription", key: "person_id", lane: "relational",
     wipeWhere: "state in ('cancelled','expired')" },
+  // ── WS-R18: which room a Telegram chat currently means (migration 082) ───
+  //
+  // A pointer, not a subscription list - it names one room for one Telegram
+  // chat, never a follower's whole Telegram history. NOT `agent: true`: the
+  // table carries no agent_id column (db/migrations/082's own header), so it
+  // is invisible to api/_room-surface.js's `roomScopedTables()` on purpose,
+  // exactly the reasoning `vy_room_follower_day`/`vy_room_subscription` give
+  // above. It still cannot outlive a follower's own "leave this Room": the
+  // `follower_id references vy_room_follower(follower_id) on delete cascade`
+  // means `roomForget`'s explicit delete of the follower row already takes
+  // this one with it, with no code here or there needing to know its name.
+  // Reached by the account-wide whole wipe through the "relational" lane
+  // alone, the same door `vy_room_subscription` goes through.
+  { table: "vy_room_follower_channel", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -2987,6 +3001,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_follower_day",
   // Arrives with 078 (WS-R11), on the identical reasoning.
   "vy_room_subscription",
+  // Arrives with 082 (WS-R18), on the identical reasoning.
+  "vy_room_follower_channel",
 ];
 
 // tables and columns that migration 008 introduces

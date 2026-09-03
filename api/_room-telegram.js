@@ -1,0 +1,508 @@
+// The Room on Telegram (WS-R18). A transport, never a tenant.
+//
+// Every message that reaches a reply goes through the SAME follower lane the
+// web Room uses (api/_room-surface.js: resolve, join, say, export, forget)
+// and leaves through the ONE reply door (`gatedReply`, reached inside
+// `roomSay`). This file adds exactly one new thing to that lane: a Telegram-
+// shaped IDENTITY BRIDGE and a Telegram-shaped ADDRESS BOOK, never a second
+// engine and never a second reply assembler (`surface-bypasses-parse`,
+// context/rejected.md - a lane that owns its own model call has silently
+// become a second engine, missing every rule added after the fork).
+//
+// ── identity: reuse, never a second system ─────────────────────────────────
+//
+// `personForSurfaceUser`/`linkSurfacePerson` (api/_room.js) are the exact
+// bridge api/tg.js already uses to map a Telegram user to a `vy_person` for
+// Meera - agent-independent, surface-independent, migration 009's own law.
+// Reused here verbatim rather than re-derived: a Telegram follower and a
+// Supabase-authenticated web follower are bridged into the SAME shared person
+// table by two different doors (`vy_surface_identity` here,
+// `vy_account_person` there), which is what `openRoom`/`joinRoom`'s new
+// `personId` bypass exists to accept.
+//
+// ── which Room: the pointer, not the identity ───────────────────────────────
+//
+// `ROOM_TELEGRAM_BOT_TOKEN` is ONE bot for the whole platform, so one private
+// Telegram chat can mean different creators' Rooms at different times. The
+// pointer that resolves "which Room is THIS ordinary message for" is the
+// channel-mapping table migration 082 adds, read and written only through
+// `api/_room-surface.js`'s `bindTelegramChannel`/`telegramChannelRoom`/
+// `unbindTelegramChannel` - never a raw query here, so this file never grows
+// the SQL `evals/room-leak/run.mjs`'s repo-wide scan for a creator-facing
+// reader of the follower tables would have to allowlist by name.
+//
+// ── the gate, before any reply ──────────────────────────────────────────────
+//
+// `/start <slug>` sends the disclosure card once, then an inline-keyboard age
+// question, then (only on "yes") an inline-keyboard memory question - both
+// answered BEFORE `joinRoom` is ever called, exactly the web join's own
+// requirement that both answers arrive together. An ordinary message from a
+// chat with no active Room pointer, or a follower row with no attestation,
+// gets the app-voiced "open a Room first" card and NEVER reaches `roomSay` -
+// Law 4. Nothing in this file's cards is model text; they are deterministic
+// strings sent by the app, the same posture `api/_surface.js`'s ROOM_CARD
+// rail and `_room-surface.js`'s `roomDisclosureCard` both take.
+import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  resolveRoom,
+  RoomError,
+  roomDisclosureCard,
+  roomNameFor,
+  joinRoom,
+  roomSay,
+  roomExport,
+  roomForget,
+  followerRow,
+  mintFollowerSession,
+  bindTelegramChannel,
+  telegramChannelRoom,
+  unbindTelegramChannel,
+} from "./_room-surface.js";
+import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
+import { activeProviderName } from "./_payments.js";
+
+/** Telegram's own hard limit on a text message body - `roomSay`'s own bubbles
+ *  are split at 4000 (`ROOM_TEXT_LIMIT`, api/_room-surface.js), which already
+ *  fits under this with room to spare, so nothing here re-splits them. */
+export const ROOM_TG_TEXT_LIMIT = 4096;
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE APP-VOICED CARDS - deterministic strings, never model text
+// ─────────────────────────────────────────────────────────────────────────
+
+export function welcomeNoSlugCard() {
+  return "Open a creator's Room with the link they shared with you - it looks like " +
+    "t.me/<bot>?start=<their room>.";
+}
+
+export function adultGateCard() {
+  return "Before your first message: this Room is for adults. Are you 18 or older?";
+}
+
+export function memoryGateCard() {
+  return "One more question. Should this Room remember you between messages, or start fresh every time?";
+}
+
+export function adultRefusedCard() {
+  return "This Room is for adults only. You are welcome back if that changes.";
+}
+
+export function joinedCard(follower) {
+  const lines = ["You're in. Send a message any time."];
+  const included = follower?.messages_included;
+  if (Number.isFinite(included)) {
+    lines.push(
+      follower?.remembers
+        ? `This Room will remember you between messages. You have ${included} free messages this month.`
+        : `This Room will not remember you between messages. You have ${included} free messages this month.`,
+    );
+  }
+  lines.push("Commands here: /forget deletes your history with this Room, /export sends you a copy, /stop leaves the Room.");
+  return lines.join("\n");
+}
+
+export function joinFirstCard() {
+  return "Open a Room first. Use the link a creator shared with you, then answer the two questions here.";
+}
+
+export function roomUnavailableCard() {
+  return "This Room is not available right now.";
+}
+
+export function cappedCard(details, providerConfigured) {
+  const included = details?.messages_included;
+  const base = Number.isFinite(included)
+    ? `You have used your ${included} free messages this month.`
+    : "You have used your free messages this month.";
+  const line = providerConfigured
+    ? "A paid plan is available on the web Room if you want to keep talking without waiting for next month."
+    : "Paid plans are not set up yet. More free messages arrive next month.";
+  return `${base} ${line}`;
+}
+
+export function forgottenCard(result) {
+  return String(result?.note || "Your conversation with this Room is deleted.");
+}
+
+export function stoppedCard() {
+  return "You left this Room. Nothing was deleted - your history stays as it was. Open the Room's link again any time to come back.";
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PARSING - one Telegram update -> zero or one classified event
+// ─────────────────────────────────────────────────────────────────────────
+
+const displayName = (from) =>
+  String(from?.username || [from?.first_name, from?.last_name].filter(Boolean).join(" ") || "").slice(0, 64);
+
+/** Only PRIVATE chats. A group or supergroup is refused BY NAME, before any
+ *  identity resolution or db read - Law: "groups refused by name". Vyakti
+ *  Rooms v1 has no multiparty shape; a group update here is not a smaller
+ *  version of the product, it is a different one this file does not build. */
+export function classifyRoomTelegramUpdate(update) {
+  if (update?.callback_query) {
+    const cq = update.callback_query;
+    const chat = cq.message?.chat || {};
+    if (chat.id == null || cq.from?.id == null) {
+      return { kind: "ignore", reason: "callback missing chat or user" };
+    }
+    return {
+      kind: "callback",
+      chatId: String(chat.id),
+      tgUserId: String(cq.from.id),
+      handle: displayName(cq.from),
+      data: String(cq.data || ""),
+      callbackQueryId: String(cq.id || ""),
+    };
+  }
+  const m = update?.message;
+  if (!m) return { kind: "ignore", reason: "unparsable" };
+  const chat = m.chat || {};
+  if (chat.type !== "private") return { kind: "ignore", reason: "group chat refused" };
+  if (m.from?.id == null || chat.id == null) return { kind: "ignore", reason: "no user" };
+  return {
+    kind: "message",
+    chatId: String(chat.id),
+    tgUserId: String(m.from.id),
+    handle: displayName(m.from),
+    text: String(m.text || ""),
+    messageId: m.message_id ?? null,
+  };
+}
+
+/** `/start <slug>` (with or without a payload) -> the slug, `null` for a bare
+ *  `/start`, or `undefined` for "not a /start at all" - three outcomes on
+ *  purpose, so a caller never confuses "no payload" with "not this command".
+ *  The slug shape matches `vy_room.slug`'s own contract
+ *  (`api/_room-surface.js`'s `slugOf`), so a malformed payload is treated as
+ *  no payload rather than trusted through to `resolveRoom`. */
+export function parseStartCommand(text) {
+  const m = /^\/start(?:@[\w_]+)?(?:\s+([a-z0-9][a-z0-9-]{0,62}))?\s*$/i.exec(String(text || "").trim());
+  if (!m) return undefined;
+  return m[1] ? m[1].toLowerCase() : null;
+}
+
+/** `/forget`, `/export`, `/stop`. One command each, plain words - the law. */
+export function parseRoomCommand(text) {
+  const m = /^\/(forget|export|stop)(?:@[\w_]+)?\s*$/.exec(String(text || "").trim());
+  return m ? m[1] : null;
+}
+
+const CALLBACK_RE = /^(a1|a0|m1|m0):([a-z0-9][a-z0-9-]{0,62})$/;
+export function parseCallbackData(data) {
+  const m = CALLBACK_RE.exec(String(data || ""));
+  return m ? { step: m[1], slug: m[2] } : null;
+}
+
+const ageKeyboard = (slug) => ({
+  inline_keyboard: [[
+    { text: "Yes, 18 or older", callback_data: `a1:${slug}` },
+    { text: "No", callback_data: `a0:${slug}` },
+  ]],
+});
+const memoryKeyboard = (slug) => ({
+  inline_keyboard: [[
+    { text: "Remember me", callback_data: `m1:${slug}` },
+    { text: "Do not remember me", callback_data: `m0:${slug}` },
+  ]],
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE OUTBOUND CLIENT - injectable, so the eval fakes it with no network
+// ─────────────────────────────────────────────────────────────────────────
+
+async function tgCall(token, method, body) {
+  if (!token) return { ok: false, error: "no bot token" };
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!r) return { ok: false, error: "network" };
+  const j = await r.json().catch(() => ({}));
+  return { ok: j?.ok === true, result: j?.result };
+}
+
+async function tgSendDocument(token, chatId, buffer, filename, caption) {
+  if (!token) return { ok: false, error: "no bot token" };
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  if (caption) form.append("caption", String(caption).slice(0, 1024));
+  form.append("document", new Blob([buffer], { type: "application/json" }), filename);
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: "POST",
+    body: form,
+    signal: AbortSignal.timeout(20_000),
+  }).catch(() => null);
+  if (!r) return { ok: false, error: "network" };
+  const j = await r.json().catch(() => ({}));
+  return { ok: j?.ok === true, result: j?.result };
+}
+
+/** The shipping client. `send()` is never called from an offline eval - the
+ *  Do-not list this workstream carries: "No calls to Telegram from any
+ *  eval." Every suite injects its own fake through `deps.tg`. */
+export function defaultRoomTelegramClient(token) {
+  return {
+    sendMessage: (chatId, text, extra = {}) =>
+      tgCall(token, "sendMessage", { chat_id: chatId, text, ...extra }),
+    sendDocument: (chatId, buffer, filename, caption) =>
+      tgSendDocument(token, chatId, buffer, filename, caption),
+    answerCallbackQuery: (callbackQueryId, text = "") =>
+      tgCall(token, "answerCallbackQuery", { callback_query_id: callbackQueryId, text: String(text).slice(0, 200) }),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE WEBHOOK SECRET - fail closed, and unset is its own named reason
+// ─────────────────────────────────────────────────────────────────────────
+
+function secretOk(header, secret) {
+  const a = createHmac("sha256", "room-tg-webhook").update(String(header || "")).digest();
+  const b = createHmac("sha256", "room-tg-webhook").update(String(secret)).digest();
+  return timingSafeEqual(a, b);
+}
+
+/** Law 5. An UNSET secret is a named 503 (`room_telegram_unconfigured`), never
+ *  a silent 200 and never treated the same as a wrong one - a half-configured
+ *  deploy must read as "not set up" on the owner's own dashboard, not as "no
+ *  updates have arrived yet". A wrong (but configured) secret is a 401,
+ *  refused in constant time, before any db read - negative control (b). */
+export function verifyRoomTelegramWebhook(req, env = process.env) {
+  const secret = String(env.ROOM_TELEGRAM_WEBHOOK_SECRET || "");
+  if (!secret) return { ok: false, status: 503, reason: "room_telegram_unconfigured" };
+  const header = req?.headers?.["x-telegram-bot-api-secret-token"];
+  if (!secretOk(header, secret)) return { ok: false, status: 401, reason: "room_telegram_bad_secret" };
+  return { ok: true, status: 200, reason: "" };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE STATE MACHINE - SQL predicates on the follower row, nothing kept in
+// memory between updates (a serverless function remembers nothing a request
+// did not just prove)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Resolve "which Room, which person, is this chat's active follower" from
+ *  nothing but the chat and Telegram's own identity for it. Never creates a
+ *  follower row - that is `joinRoom`'s job alone, reached only through the
+ *  two-question gate. */
+async function resolveActiveFollower(db, ev, ctx) {
+  const identity = await ctx.findPerson("telegram", ev.tgUserId, ctx.t);
+  if (!identity) return { error: "not_linked" };
+  const slug = await telegramChannelRoom(db, ev.chatId);
+  if (!slug) return { error: "no_room" };
+  let resolved;
+  try {
+    resolved = await resolveRoom(db, slug, ctx.roomDeps);
+  } catch {
+    return { error: "unavailable" };
+  }
+  const follower = await followerRow(db, resolved.room.room_id, identity.person_id, resolved.agentId);
+  if (!follower || follower.age_attested_at == null) return { error: "not_joined" };
+  return { identity, resolved, follower };
+}
+
+async function handleStart(db, tg, ev, slug, ctx) {
+  let resolved;
+  try {
+    resolved = await resolveRoom(db, slug, ctx.roomDeps);
+  } catch {
+    await tg.sendMessage(ev.chatId, roomUnavailableCard());
+    return { ok: true, unavailable: true };
+  }
+  // Law 1: the disclosure line, BEFORE the first reply, sent once. Then the
+  // age question - the first of the two answers `joinRoom` requires together.
+  await tg.sendMessage(ev.chatId, roomDisclosureCard(roomNameFor(resolved.sheet)));
+  await tg.sendMessage(ev.chatId, adultGateCard(), { reply_markup: ageKeyboard(slug) });
+  return { ok: true, gate: "age", slug };
+}
+
+async function handleCallback(db, tg, ev, ctx) {
+  const parsed = parseCallbackData(ev.data);
+  if (!parsed) {
+    await tg.answerCallbackQuery(ev.callbackQueryId);
+    return { ok: true, skipped: "bad callback" };
+  }
+  await tg.answerCallbackQuery(ev.callbackQueryId);
+
+  if (parsed.step === "a0") {
+    await tg.sendMessage(ev.chatId, adultRefusedCard());
+    return { ok: true, declined: "age" };
+  }
+
+  if (parsed.step === "a1") {
+    await tg.sendMessage(ev.chatId, memoryGateCard(), { reply_markup: memoryKeyboard(parsed.slug) });
+    return { ok: true, gate: "memory" };
+  }
+
+  // "m1" (remember me) or "m0" (do not remember me) - BOTH answers are now
+  // known, so this is the one moment `joinRoom` is called, with both at once,
+  // matching the web join's own atomic requirement.
+  let resolved;
+  try {
+    resolved = await resolveRoom(db, parsed.slug, ctx.roomDeps);
+  } catch {
+    await tg.sendMessage(ev.chatId, roomUnavailableCard());
+    return { ok: true, unavailable: true };
+  }
+
+  const identity = await ctx.linkPerson("telegram", ev.tgUserId, { handle: ev.handle }, ctx.t);
+  // §6.4's adult gate, structural: a known minor gets no identity row at all,
+  // so there is nothing here to join. Refused with the SAME card as "no" on
+  // the age question - a caller must not be able to tell "declined" from
+  // "already known to be a minor" apart, which would be an oracle.
+  if (!identity) {
+    await tg.sendMessage(ev.chatId, adultRefusedCard());
+    return { ok: true, refused: "minor" };
+  }
+
+  let joined;
+  try {
+    joined = await joinRoom(
+      db,
+      { slug: parsed.slug, personId: identity.personId, ageAttested: true, memoryConsent: parsed.step === "m1" },
+      ctx.roomDeps,
+    );
+  } catch (e) {
+    if (e instanceof RoomError) {
+      await tg.sendMessage(ev.chatId, roomUnavailableCard());
+      return { ok: true, unavailable: true };
+    }
+    throw e;
+  }
+
+  // THE POINTER. Written from a FRESH read of the follower row rather than
+  // from `joined.follower` (the CLIENT shape, which deliberately carries no
+  // follower_id) - `followerRow` is the same read every other op in this file
+  // uses, so this is not a second definition of "this follower".
+  const followerRowNow = await followerRow(db, resolved.room.room_id, identity.personId, resolved.agentId);
+  if (followerRowNow) {
+    await bindTelegramChannel(db, {
+      roomId: resolved.room.room_id,
+      personId: identity.personId,
+      followerId: followerRowNow.follower_id,
+      channelRef: ev.chatId,
+    });
+  }
+
+  await tg.sendMessage(ev.chatId, joinedCard(joined.follower));
+  return { ok: true, joined: true, slug: parsed.slug };
+}
+
+async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
+  const scope = await resolveActiveFollower(db, ev, ctx);
+  if (scope.error) {
+    await tg.sendMessage(
+      ev.chatId,
+      scope.error === "unavailable" ? roomUnavailableCard() : joinFirstCard(),
+    );
+    return { ok: true, skipped: scope.error };
+  }
+  const session = mintFollowerSession(scope.resolved, scope.identity.person_id, { now, env });
+
+  if (cmd === "forget") {
+    const result = await roomForget(db, { session }, ctx.roomDeps);
+    await tg.sendMessage(ev.chatId, forgottenCard(result));
+    return { ok: true, forgotten: true };
+  }
+  if (cmd === "export") {
+    const result = await roomExport(db, { session }, ctx.roomDeps);
+    const buf = Buffer.from(JSON.stringify(result, null, 2), "utf8");
+    await tg.sendDocument(ev.chatId, buf, "room-export.json", "Your data from this Room.");
+    return { ok: true, exported: true };
+  }
+  // cmd === "stop" - LEAVES, no deletion. Only the channel POINTER goes: the
+  // membership, the memory, the consent ledger are all untouched. Reopening
+  // the same slug's deep link re-binds the pointer and answers again.
+  await unbindTelegramChannel(db, ev.chatId);
+  await tg.sendMessage(ev.chatId, stoppedCard());
+  return { ok: true, stopped: true };
+}
+
+async function handleOrdinaryMessage(db, tg, now, env, ev, ctx) {
+  const scope = await resolveActiveFollower(db, ev, ctx);
+  if (scope.error) {
+    // Law 4: a chat that has not joined gets the app-voiced card and NEVER a
+    // creator-voiced reply. `roomSay` (and therefore `gatedReply`) is simply
+    // never reached on this branch.
+    await tg.sendMessage(
+      ev.chatId,
+      scope.error === "unavailable" ? roomUnavailableCard() : joinFirstCard(),
+    );
+    return { ok: true, skipped: scope.error };
+  }
+  const text = String(ev.text || "").trim();
+  if (!text) return { ok: true, skipped: "empty" };
+
+  const session = mintFollowerSession(scope.resolved, scope.identity.person_id, { now, env });
+  let turn;
+  try {
+    turn = await roomSay(db, { session, message: text, transcript: [] }, ctx.roomDeps);
+  } catch (e) {
+    if (e instanceof RoomError) {
+      if (e.code === "room_free_cap_reached") {
+        const providerConfigured = activeProviderName(env) !== "none";
+        await tg.sendMessage(ev.chatId, cappedCard(e.details, providerConfigured));
+        return { ok: true, capped: true };
+      }
+      if (e.code === "room_join_required" || e.code === "room_session_expired" || e.code === "room_disclosure_stale") {
+        await tg.sendMessage(ev.chatId, joinFirstCard());
+        return { ok: true, skipped: "not joined" };
+      }
+      await tg.sendMessage(ev.chatId, roomUnavailableCard());
+      return { ok: true, unavailable: true };
+    }
+    throw e;
+  }
+  for (const bubble of turn.bubbles) {
+    if (bubble) await tg.sendMessage(ev.chatId, bubble);
+  }
+  return { ok: true, said: turn.bubbles.length > 0, gate: turn.gate };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE ONE ENTRY POINT
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * `db`, `tg` and every follower-lane dependency are injected so an offline
+ * eval drives the REAL pipeline with a fake db and a fake Telegram client and
+ * no network - `evals/room-telegram/run.mjs`'s own shape, `evals/mp/tgbot.mjs`'s
+ * precedent one surface over.
+ */
+export async function handleRoomTelegramUpdate(update, deps = {}) {
+  const db = deps.db;
+  if (typeof db !== "function") throw new RoomError("room_db_required", 500);
+  const env = deps.env ?? process.env;
+  const now = deps.now ?? Date.now();
+  const tg = deps.tg ?? defaultRoomTelegramClient(String(env.ROOM_TELEGRAM_BOT_TOKEN || ""));
+  const ctx = {
+    findPerson: deps.personForSurfaceUser ?? personForSurfaceUser,
+    linkPerson: deps.linkSurfacePerson ?? linkSurfacePerson,
+    t: deps.t,
+    // Threaded into every `_room-surface.js` call so the SAME injection points
+    // that lane already offers (`loadAgent`, `engine`, `memory`, `reply`,
+    // `personTables`, `tableApplied`, …) reach an offline eval from here too.
+    roomDeps: { ...deps, now, env },
+  };
+
+  const ev = classifyRoomTelegramUpdate(update);
+  if (ev.kind === "ignore") return { ok: true, skipped: ev.reason };
+
+  if (ev.kind === "callback") return await handleCallback(db, tg, ev, ctx);
+
+  const startSlug = parseStartCommand(ev.text);
+  if (startSlug !== undefined) {
+    if (startSlug === null) {
+      await tg.sendMessage(ev.chatId, welcomeNoSlugCard());
+      return { ok: true, started: false };
+    }
+    return await handleStart(db, tg, ev, startSlug, ctx);
+  }
+
+  const cmd = parseRoomCommand(ev.text);
+  if (cmd) return await handleRoomCommand(db, tg, now, env, ev, cmd, ctx);
+
+  return await handleOrdinaryMessage(db, tg, now, env, ev, ctx);
+}

@@ -546,6 +546,13 @@ const FATE = {
   // row for why a LIVE mandate survives a whole-account wipe rather than
   // being silently orphaned.
   vy_room_subscription: "forget-only",
+  // ── WS-R18: which room a Telegram chat currently means (migration 082) ──
+  // A pointer - room_id, person_id, follower_id, a channel name, a chat
+  // address - and no words in it a scoped "forget priya" could ever match.
+  // Only the stronger door may take it: the account-level whole wipe (lane
+  // "relational", proven below) or the Room's own "op":"forget", reached
+  // through the follower_id -> vy_room_follower cascade rather than by name.
+  vy_room_follower_channel: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

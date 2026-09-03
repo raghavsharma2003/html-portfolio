@@ -3282,3 +3282,24 @@ create table if not exists vy_creator_payout (
 );
 create unique index if not exists vy_creator_payout_period_ix
   on vy_creator_payout (owner_user_id, period_start, period_end);
+
+-- Migration 082 - the Room on Telegram: which room a Telegram chat currently
+-- means (WS-R18). See db/migrations/082_room_telegram_channel.sql for the
+-- full argument; mirrored here per this file's own convention.
+create table if not exists vy_room_follower_channel (
+  channel_map_id uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  person_id      uuid not null,
+  follower_id    uuid not null references vy_room_follower(follower_id) on delete cascade,
+  channel        text not null,
+  channel_ref    text not null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  constraint vy_room_follower_channel_channel_check check (channel in ('telegram'))
+);
+create unique index if not exists vy_room_follower_channel_ref_ix
+  on vy_room_follower_channel (channel, channel_ref);
+create index if not exists vy_room_follower_channel_person_ix
+  on vy_room_follower_channel (person_id, channel);
+create index if not exists vy_room_follower_channel_follower_ix
+  on vy_room_follower_channel (follower_id);

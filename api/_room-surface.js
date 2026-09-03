@@ -220,6 +220,36 @@ export function roomDisclosureCard(creatorName) {
  *  for a heading and is never substituted for this. */
 export const roomNameFor = (sheet) => String(sheet?.name || "").trim();
 
+/**
+ * Mint a session for an ALREADY-RESOLVED room and an ALREADY-KNOWN person -
+ * `openRoom`/`joinRoom`'s own inline construction, factored out for WS-R18.
+ *
+ * A Telegram reply has no browser tab to hold a session between turns, so
+ * `api/_room-telegram.js` mints one fresh on every message rather than
+ * persisting one. The disclosure digest inside it (`sha(disclosure)`) MUST be
+ * computed with the exact function `roomSay` checks it against - a
+ * Telegram-side re-derivation of that hash would be a second copy a future
+ * edit to `roomDisclosureCard` could silently stop agreeing with, which is
+ * exactly the failure `roomSay`'s own "the disclosure predicate is
+ * RE-COMPUTED, never trusted" discipline exists to prevent.
+ */
+export function mintFollowerSession(resolved, personId, { now = Date.now(), env } = {}) {
+  const disclosure = roomDisclosureCard(roomNameFor(resolved.sheet));
+  return mintRoomSession(
+    {
+      r: resolved.room.slug,
+      i: String(resolved.room.room_id),
+      p: String(personId),
+      a: String(resolved.agentId),
+      dd: sha(disclosure),
+      td: transcriptDigest([]),
+      iat: now,
+      n: 0,
+    },
+    env,
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RESOLUTION
 // ─────────────────────────────────────────────────────────────────────────
@@ -408,6 +438,74 @@ export function clientFollower(row, room, at = Date.now()) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE TELEGRAM CHANNEL POINTER (WS-R18, migration 082)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// ONE bot serves every creator's Room (`ROOM_TELEGRAM_BOT_TOKEN`, unlike
+// Meera's per-clone `vy_clone_channel.credentials_ref`), so a single Telegram
+// chat can mean different Rooms at different times - creator A's slug today,
+// creator B's next month. An ordinary text message carries no room reference
+// at all, so "which Room is THIS message for" needs the one fact this schema
+// otherwise has no place to keep: which Room this chat's deep link most
+// recently pointed at. `db/migrations/082_room_telegram_channel.sql` carries
+// the full argument; these two functions are its only reader and writer, kept
+// here (not in `api/_room-telegram.js`) so the raw table name lives in the
+// ONE file `evals/room-leak/run.mjs`'s repo-wide scan already allowlists for
+// it - see that suite's own header on why "the file that also holds a writer"
+// is not the same question as "does the follower lane leak".
+//
+// A POINTER, not a subscription list. `on conflict (channel, channel_ref)`
+// REPLACES the row rather than adding a second one, so a chat has at most one
+// current Room, ever - re-`/start`ing a different slug in the same chat is a
+// deliberate switch, never an accumulation.
+
+/** Point one Telegram chat at one Room membership. Idempotent, and a second
+ *  call for the same chat with a DIFFERENT room switches the pointer rather
+ *  than erroring - the ordinary shape of "I `/start`ed a different creator's
+ *  Room in this same chat". */
+export async function bindTelegramChannel(db, { roomId, personId, followerId, channelRef }, deps = {}) {
+  const id = deps.newId ? deps.newId() : randomUUID();
+  await db(
+    `insert into vy_room_follower_channel
+       (channel_map_id, room_id, person_id, follower_id, channel, channel_ref)
+     values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, 'telegram', $5)
+     on conflict (channel, channel_ref) do update
+        set room_id = excluded.room_id,
+            person_id = excluded.person_id,
+            follower_id = excluded.follower_id,
+            updated_at = now()`,
+    [id, String(roomId), String(personId), String(followerId), String(channelRef)],
+  );
+}
+
+/** The slug this Telegram chat currently means, or null for a chat that has
+ *  never completed a join. The join to `vy_room` (rather than returning a bare
+ *  room_id) is what lets `api/_room-telegram.js` hand the result straight to
+ *  `resolveRoom`, which is the ONLY function in this file allowed to decide
+ *  whether a Room may answer. */
+export async function telegramChannelRoom(db, channelRef) {
+  const rows = await db(
+    `select r.slug
+       from vy_room_follower_channel c
+       join vy_room r on r.room_id = c.room_id
+      where c.channel = 'telegram' and c.channel_ref = $1
+      limit 1`,
+    [String(channelRef)],
+  );
+  return rows[0]?.slug ? String(rows[0].slug) : null;
+}
+
+/** `/stop` - LEAVES, no deletion. Removes only the pointer, so an ordinary
+ *  message afterward reads as "not joined" (the same app-voiced card a chat
+ *  that never joined gets) until the follower `/start`s again, while their
+ *  membership, memory and consent ledger stay exactly as they were. */
+export async function unbindTelegramChannel(db, channelRef) {
+  await db(`delete from vy_room_follower_channel where channel = 'telegram' and channel_ref = $1`, [
+    String(channelRef),
+  ]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // OP: open
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -423,8 +521,19 @@ export function clientFollower(row, room, at = Date.now()) {
  * A session is minted ONLY for a follower who has completed the join. Without
  * one there is nothing to bind: no attestation, no answer to the memory
  * question, and therefore nothing this lane is allowed to do.
+ *
+ * `personId` is WS-R18's own bypass, and it is the identity BRIDGE that
+ * changes, never the SQL below it. A Telegram follower has no Supabase bearer
+ * token to hand `personForAccount`, and `docs/SURFACES.md` §0 forbids a second
+ * identity system rather than a second door here - `api/_room-telegram.js`
+ * resolves a person through `vy_surface_identity`
+ * (`personForSurfaceUser`/`linkSurfacePerson`, the exact bridge api/tg.js
+ * already uses for Meera) and hands the uuid straight in. `authUserId` still
+ * wins if both are somehow present, which is what makes this additive: every
+ * existing caller passes only `authUserId`, so its behaviour is unchanged byte
+ * for byte.
  */
-export async function openRoom(db, { slug, authUserId = null }, deps = {}) {
+export async function openRoom(db, { slug, authUserId = null, personId: givenPersonId = null }, deps = {}) {
   const resolved = await resolveRoom(db, slug, deps);
   const name = roomNameFor(resolved.sheet);
   const disclosure = roomDisclosureCard(name);
@@ -442,9 +551,9 @@ export async function openRoom(db, { slug, authUserId = null }, deps = {}) {
     follower: null,
     session: null,
   };
-  if (!authUserId) return out;
+  if (!authUserId && !givenPersonId) return out;
 
-  const personId = await personForAccount(db, authUserId);
+  const personId = authUserId ? await personForAccount(db, authUserId) : String(givenPersonId);
   const follower = await followerRow(db, resolved.room.room_id, personId, resolved.agentId);
   // An attestation that never happened is not a join, whatever else the row
   // says. Fail toward "ask again" rather than toward "already answered".
@@ -498,15 +607,19 @@ export async function openRoom(db, { slug, authUserId = null }, deps = {}) {
  */
 export async function joinRoom(
   db,
-  { slug, authUserId, ageAttested, memoryConsent },
+  { slug, authUserId = null, personId: givenPersonId = null, ageAttested, memoryConsent },
   deps = {},
 ) {
   const resolved = await resolveRoom(db, slug, deps);
-  if (!authUserId) throw new RoomError("room_sign_in_required", 401);
+  // WS-R18's bypass, `openRoom`'s own header explains why: a Telegram follower
+  // hands a personId already resolved through `vy_surface_identity`, never a
+  // Supabase bearer token. `authUserId` still wins when both are present, and
+  // every pre-existing caller passes only `authUserId`, so this is additive.
+  if (!authUserId && !givenPersonId) throw new RoomError("room_sign_in_required", 401);
   if (ageAttested !== true) throw new RoomError("room_age_attestation_required", 403);
   if (typeof memoryConsent !== "boolean") throw new RoomError("room_memory_answer_required", 400);
 
-  const personId = await personForAccount(db, authUserId);
+  const personId = authUserId ? await personForAccount(db, authUserId) : String(givenPersonId);
   const now = deps.now ?? Date.now();
   const at = new Date(now).toISOString();
 
