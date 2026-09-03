@@ -164,4 +164,19 @@ export const ROOM_COPY = {
     stale: "This room was updated. Reload to see what changed.",
     tooLong: "That is longer than one message can be.",
   },
+
+  checkins: {
+    title: "Check-ins",
+    intro: "Pick a check-in and a schedule. It will follow up right in this room, at the time you choose.",
+    empty: "This creator has not set up any check-ins yet.",
+    daysLabel: "Which days",
+    timeLabel: "What time",
+    zoneLabel: "Your timezone",
+    add: "Start this check-in",
+    mineTitle: "Your check-ins",
+    mineEmpty: "None yet.",
+    stop: "Stop",
+    stopped: "Stopped",
+    close: "Close",
+  },
 } as const;

@@ -40,6 +40,7 @@ import type { StudioSession } from "../studio/types";
 import { readStoredSession, restoreSession, writeStoredSession } from "../studio/session";
 import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../studio/studioAuth";
 import { ROOM_COPY, withName } from "./copy";
+import CheckinsPanel from "./CheckinsPanel";
 import {
   RoomApiError,
   exportRoomData,
@@ -89,10 +90,16 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [error, setError] = useState("");
   const [cite, setCite] = useState<RoomCitations | null>(null);
   const [menu, setMenu] = useState(false);
+  const [checkinsOpen, setCheckinsOpen] = useState(false);
   const foot = useRef<HTMLDivElement | null>(null);
 
   const name = room?.room.name || room?.room.display_name || "";
   const remembers = room?.follower?.remembers === true;
+  // Check-ins are paid-only and require a remembered thread to land in
+  // (api/_checkins.js's own reasoning) — the button is simply absent rather
+  // than present-and-disabled, `context/rejected.md`'s standing rule that a
+  // control still shown for a state it cannot act on reads as a bug.
+  const canCheckin = room?.follower?.tier === "paid" && remembers;
 
   /* The address resolves once, and it resolves BEFORE any sign-in: a follower
    * arriving from a bio link must see the room, not a login wall. */
@@ -291,9 +298,16 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       <header className="room-head">
         <div className="room-head-row">
           <h1>{name ? `${name} AI` : room?.room.display_name}</h1>
-          <button type="button" className="room-menu-open" onClick={() => setMenu(true)}>
-            {ROOM_COPY.menu.title}
-          </button>
+          <div className="room-head-actions">
+            {canCheckin && (
+              <button type="button" className="room-menu-open" onClick={() => setCheckinsOpen(true)}>
+                {ROOM_COPY.checkins.title}
+              </button>
+            )}
+            <button type="button" className="room-menu-open" onClick={() => setMenu(true)}>
+              {ROOM_COPY.menu.title}
+            </button>
+          </div>
         </div>
         {/* ONE statistic, and only if a real count came back. */}
         {typeof talkedToday === "number" && talkedToday > 0 && (
@@ -447,6 +461,9 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             setPhase("gone");
           }}
         />
+      )}
+      {checkinsOpen && session && (
+        <CheckinsPanel session={session} onClose={() => setCheckinsOpen(false)} />
       )}
     </main>
   );

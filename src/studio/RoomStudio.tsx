@@ -47,6 +47,7 @@ import {
   type RoomCohortReport,
   type RoomCohortVerdictLine,
 } from "./roomCohortsApi";
+import CheckinsCard from "./CheckinsCard";
 import {
   readRoomPayments,
   setRoomPriceInr,
@@ -655,6 +656,8 @@ export default function RoomStudio({
           <p className="field-note" role="status">Loading.</p>
         )}
       </article>
+
+      <CheckinsCard token={token} replicaId={replicaId} />
 
       {error && <p className="inline-error" role="alert">{error}</p>}
       {notice && <p className="field-note" role="status">{notice}</p>}
