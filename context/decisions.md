@@ -7515,3 +7515,82 @@ same environment, and test explicit `resources.gpu: 1` only if ARM validation
 accepts it. Rerun the unchanged ZONOS2 digest only after that canary passes.
 Voice qualification still requires the sealed Hindi, Hinglish and English
 pack, exact receipts, objective metrics and accepted blind owner ratings.
+
+## `ws-r3-readiness-lock-is-sql-predicate-peer-gate` (2026-09-03)
+
+**Decision.** The Readiness publish lock (Vyakti Rooms v1: 70 overall, 55 on
+every part, nothing unmeasured) is enforced as a SQL predicate joined against
+the newest `vy_replica_readiness` snapshot, wired into two places as a PEER of
+the existing fidelity gate rather than a successor to it or a JS branch above
+either write: `activateOwnedRuntime`'s activation CTE (`api/_replica-runtime.js`,
+an INNER lateral join, pinned to `computed_at = max(computed_at)`) and
+`saveCloneChannel`/`setCloneChannelStatus`'s status CASE
+(`api/_clonechannel.js`, a reused `readinessPasses()` fragment across the three
+writers so the floors cannot drift out of step between them). A clone can pass
+either gate while failing the other; readiness answers "is it finished enough
+to be let out", fidelity answers "does it sound like them", and the seven
+suites answer "does it behave like them".
+
+**Why.** `gate0-structural` (measurements.md) is the governing measurement for
+this shape: the prompt-instruction arm of that build leaked 57.1% of
+naturalistic and 98.1% of adversarial scenarios, the SQL disclosure predicate
+leaked 0 of 31,122. A readiness check evaluated in the browser or beside the
+activation write in JS is a preference; a row the activation statement JOINS
+against, or a CASE the connect write cannot be steered around, is a guarantee.
+Fail-closed is the specific direction chosen throughout: no snapshot at all
+reads exactly like a snapshot that failed (peer to `FIDELITY_BLOCKER`'s own
+precedent, so a caller cannot probe the gate for the difference), a refused
+connect writes `draft`/`paused` rather than leaving the prior status, and pause
+/ revoke are left ungated because a lock that could trap a teacher's clone
+online would be a safety defect wearing a quality label.
+
+**What would reverse it.** Nothing about the SQL-predicate shape itself; that
+follows directly from `gate0-structural` and would need that measurement
+overturned first. What COULD legitimately change the wiring: a third caller of
+either gate discovered later that cannot afford the extra lateral join's cost
+at its own scale (unmeasured here — no live database was reachable this
+session, so the join has never been EXPLAINed against real
+`vy_replica_readiness` volume), in which case the fix is an index or a
+materialized flag column kept in sync by the same snapshot writer, not
+weakening the predicate back into a branch.
+
+## `ws-r3-readiness-overall-undefined-while-any-part-unmeasured` (2026-09-03)
+
+**Decision.** `readinessScreen`'s `overall` and `min_part` are `null` whenever
+any of the five parts (`knows_your_material`, `sounds_like_you`,
+`thinks_like_you`, `knows_what_not_to_say`, `up_to_date`) lacks a real
+instrument, never a mean over whichever parts happen to have numbers. Enforced
+twice: in the pure function itself (`unmeasured.length === 0 ? ... : null`,
+both for `overall` and `min_part`, guarded together because a mean without a
+matching min would let the lock predicate read a null as a pass on one of the
+two) and, independently, by migration 073's paired CHECK constraints
+(`vy_replica_readiness_overall_undefined`, `vy_replica_readiness_min_part_pairs`)
+so a row cannot exist in the database with five measured parts and a null
+overall, or two of five measured and a real one.
+
+**Why.** `plausible-return-hides-a-dead-pipeline` (rejected.md) applied to a
+score: a readiness of 61 assembled out of three real numbers and two guesses
+is the most persuasive version of that defect this product could ship, because
+a creator would act on it. `ground-truth-ceiling` (measurements.md,
+2026-08-18) is why one of the two missing instruments (`sounds_like_you`) is
+specifically dangerous to fake: a trusted judge agreed with its own archived
+verdicts only 77.1% of the time, so a similarity score expressed against
+anyone's ceiling but the speaker's own imports one person's consistency into
+everybody else's number. Today BOTH `knows_your_material` (no recall-run
+writer exists anywhere in this repo) and `sounds_like_you` (no owner-ceiling
+writer exists; `definition.evidence.self_similarity_ceiling` is read but never
+written) are structurally unmeasured for every replica, so this decision is
+the reason the publish lock is closed for every clone in the product today,
+not an edge case.
+
+**What would reverse it.** Never reversible as stated — it is the load-bearing
+half of the spec (`unmeasured stays unmeasured, never a placeholder`). What
+would change the STATE it describes: a recall-run writer and an owner-ceiling
+writer landing at the two named seams (`readRecallRun` in `api/_readiness.js`,
+and whatever writes `vy_replica_voice_genome.definition.evidence.
+self_similarity_ceiling`), at which point real replicas would start showing a
+defined overall for the first time. `evals/readiness/run.mjs` section 4 is the
+enforcement of the "never reversible" half: it removes this exact guard from a
+copy of the real module and requires every assertion resting on it to fail, so
+a future edit that quietly reintroduces the average is caught rather than
+merged.

@@ -4552,6 +4552,30 @@
       "kind": "rejection",
       "title": "Regional Container Apps A100 did not expose CUDA to ZONOS2",
       "at": "2026-08-28"
+    },
+    {
+      "id": "ws-r3-readiness-screen",
+      "kind": "component",
+      "title": "The Readiness screen: api/_readiness.js + api/readiness.js + migration 073 (vy_replica_readiness) + src/studio/ReadinessPanel.tsx, gated by evals/readiness/run.mjs (120 checks)",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r3-readiness-lock-is-sql-predicate-peer-gate",
+      "kind": "decision",
+      "title": "The publish lock is a SQL predicate joined as a peer of the fidelity blocker, in both runtime activation and channel connect",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r3-readiness-overall-undefined-while-any-part-unmeasured",
+      "kind": "decision",
+      "title": "Readiness overall and min_part stay null while any of the five parts lacks a real instrument, enforced by the pure function and by paired migration 073 CHECK constraints",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r3-readiness-eval-suite-120-checks-offline-only",
+      "kind": "measurement",
+      "title": "evals/readiness/run.mjs: 120/120 offline checks pass; migration 073 and both lock predicates have never been measured against a live database",
+      "at": "2026-09-03"
     }
   ],
   "edges": [
@@ -9034,6 +9058,41 @@
       "src": "zonos2-regional-a100-without-visible-cuda-device",
       "rel": "part_of",
       "dst": "voice-model"
+    },
+    {
+      "src": "ws-r3-readiness-screen",
+      "rel": "part_of",
+      "dst": "replica-control-plane"
+    },
+    {
+      "src": "ws-r3-readiness-lock-is-sql-predicate-peer-gate",
+      "rel": "part_of",
+      "dst": "ws-r3-readiness-screen"
+    },
+    {
+      "src": "ws-r3-readiness-lock-is-sql-predicate-peer-gate",
+      "rel": "measured_by",
+      "dst": "gate0-structural"
+    },
+    {
+      "src": "ws-r3-readiness-overall-undefined-while-any-part-unmeasured",
+      "rel": "part_of",
+      "dst": "ws-r3-readiness-screen"
+    },
+    {
+      "src": "ws-r3-readiness-overall-undefined-while-any-part-unmeasured",
+      "rel": "caused_by",
+      "dst": "plausible-return-hides-a-dead-pipeline"
+    },
+    {
+      "src": "ws-r3-readiness-overall-undefined-while-any-part-unmeasured",
+      "rel": "measured_by",
+      "dst": "ground-truth-ceiling"
+    },
+    {
+      "src": "ws-r3-readiness-eval-suite-120-checks-offline-only",
+      "rel": "part_of",
+      "dst": "ws-r3-readiness-screen"
     }
   ]
 }
