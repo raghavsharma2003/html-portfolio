@@ -416,6 +416,9 @@ function gateRow(extra = {}) {
     age_verified_at: "2026-09-01T00:00:00.000Z",
     inference_consent: true, profile_approved: true, calibration_approved: true,
     genome_approved: true, voice_ready: true, qualification_passed: 7, fidelity_qualified: true,
+    // WS-R3 added readiness as a peer blocker of fidelity; a qualified snapshot
+    // keeps this fixture about identity and nothing else.
+    readiness_qualified: true,
     ...extra,
   };
 }
