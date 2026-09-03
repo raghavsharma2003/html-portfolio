@@ -6363,3 +6363,58 @@ voice route" to "The voice route for your AI"), which is a workaround, not a
 fix. The tokenizer itself still cannot tell a JSX-text apostrophe from a
 string delimiter; whoever next touches `check-copy.mjs`'s extraction should
 track that distinction rather than blanking quotes file-wide.
+
+## `ws-r15-refusal-absence-cannot-be-a-substring-check` — asserting a step never ran by searching stdout for its endpoint's URL (2026-09-03, WS-R15)
+
+**What was tried.** `evals/first-room/run.mjs`'s "slug taken" scenario
+asserted `!/room-publish/.test(stdout)` to prove `scripts/first-room.mjs`
+never reached its `room-publish` step after `room-create` was refused.
+
+**What specifically broke.** `room-create` and `room-publish` are the SAME
+HTTP endpoint (`POST /api/room-publish`, `{op:"create"}` vs `{op:"publish"}`,
+`api/room-publish.js`'s own header). The `die("room-create", error)` line
+prints `error.message`, which is built from the request's own URL —
+`POST /api/room-publish -> 409 room_slug_taken`. The substring "room-publish"
+therefore appears in the FAIL line for the step that correctly stopped the
+script, and the assertion failed on a passing script.
+
+**The fix.** Assert on the bracketed step-name format the report actually
+writes (`/\[(OK  |FAIL|BLKD)\] room-publish/`) rather than a bare substring —
+the same distinction `context/rejected.md#ws-r10-check-copy-apostrophe-parity`
+draws for a different tool: a name that shows up inside another field's text
+is not evidence the thing itself ran.
+
+**Rule.** When a workstream shares one endpoint across ops (as `api/_room-
+publish.js` and `api/_clonechannel.js` both do on purpose, to keep one lock
+in one place), a test asserting a step never fired must match the step's OWN
+recorded line, never the endpoint path — the two are not the same fact.
+
+## `ws-r15-eval-fixture-port-via-global` — a module-level global for the fake storage PUT URL, dropped for `req.headers.host` (2026-09-03, WS-R15)
+
+**What was tried.** `evals/first-room/run.mjs`'s fake `create_upload` handler
+built the signed-PUT URL it hands back to the real script from a
+`globalThis.__firstRoomPort` set once, right after the fake `http.Server`
+started listening.
+
+**What specifically broke.** Nothing failed loudly — this is the "obviously
+good and measurably wrong" shape `context/rejected.md`'s own header warns
+about. The four scenarios each start their own server on its own ephemeral
+port, sequentially, in one process; a global set by scenario 1 stays set
+after scenario 1 closes its server, so scenario 2's handler would silently
+read scenario 1's stale port the moment the scenarios stopped running in
+exactly the order and cadence they do today. A reorder, a scenario added in
+the middle, or a future parallelization of the suite would hand the real
+script a PUT url pointing at a server that no longer exists, and the failure
+would show up as an inexplicable `ECONNREFUSED` on `upload`, nowhere near the
+actual defect.
+
+**The fix.** Each server's own `req.headers.host` — set by Node's HTTP client
+to the exact `host:port` it dialed — builds the PUT URL inside the handler
+that needs it, so the URL is correct for whichever server answered this
+particular request and no state crosses scenario boundaries at all.
+
+**Rule.** A fake server driving a subprocess should derive per-request facts
+(the port it is actually listening on) from the request it just received,
+never from a variable set once outside the request/response cycle — the same
+reason `api/_readiness.js` takes `now` as an argument rather than reading
+`Date.now()` inside a part builder.
