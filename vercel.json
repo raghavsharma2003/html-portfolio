@@ -19,6 +19,7 @@
     { "path": "/api/replica-voice-identity-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/replica-model-build-sweep", "schedule": "*/5 * * * *" },
     { "path": "/api/channel-ingest-sweep", "schedule": "0 */6 * * *" },
-    { "path": "/api/drift-watch-sweep", "schedule": "0 */6 * * *" }
+    { "path": "/api/drift-watch-sweep", "schedule": "0 */6 * * *" },
+    { "path": "/api/checkins-sweep", "schedule": "*/15 * * * *" }
   ]
 }
