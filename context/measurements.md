@@ -7232,3 +7232,16 @@ n = 5 migrations, 61 statements; method = applied via Neon SQL-over-HTTP one sta
 | WS-R1 the Room | 071 | 12 | 16 | all plan; scope indexes used |
 
 Full release gate on the merged tree: 14/14 (the two relational DB gates skip without `NEON_URL`; the EXPLAIN pass above is the substitute this session could run). One integration defect found by the gate after merging WS-R3: WS-R2's identity fixture lacked a readiness row. One defect found by EXPLAIN: WS-R5's readiness read ordered by `created_at`, a column `vy_replica_readiness` does not have, inside a try/catch that would have hidden it.
+
+## `ws-r7-room-publish-gate-results-2026-09-03`
+
+n = 1 workstream (WS-R7, the Room's creator side); method = `node scripts/verify-release.mjs` run on this worktree after fast-forwarding it onto `claude/vyakti-cloning-platform-aq05n4` (the platform branch plus WS-R1..R6 merged), no `NEON_URL` in this sandbox; date 2026-09-03.
+
+- `node evals/room-publish/run.mjs` (new suite, offline, fake `db`, zero network): **37 of 37 checks passed**, including the required negative control (the readiness `EXISTS` clause struck out of the REAL captured statement text, not a hand-written approximation, and the struck copy leaks the write).
+- `node scripts/verify-release.mjs`: **14 of 14 checks passed** (the two relational DB gates skip without `NEON_URL`; `relcheck.mjs` run standalone fails with `getaddrinfo ENOTFOUND sql`, the same environmental wall every prior WS-R session in this file records, not something this workstream's code caused).
+- `node evals/sqlcast.mjs` after adding `api/_room-publish.js` and `api/room-publish.js` to the strict-cast surface list: **0 uncast sites** across 305 statements on the strict surface (up from whatever the count was before these two files; every `$N` against a non-text column in both new files carries an explicit cast).
+- `node scripts/check-copy.mjs`: **6 scopes clean, 14 negative controls bit** (up from 5 scopes before this session; no scope was added, `src/studio/` already covers the two new `.tsx`/`.ts` files here).
+- `node evals/run.mjs studiowizard`: **86 of 86 checks pass**, including the new §11 (6 checks) asserting `roomPublished` completes Deploy the same way a connected channel does, and that its absence reproduces the pre-existing behavior byte-for-byte.
+- Layout gate (`node scripts/verify-release.mjs`'s "layout readability" line, part of the 14): passed at all three viewports (390/834/1355px) with `mode=teacher&step=deploy`, which now mounts the real `RoomStudio` panel against its own explicit fixture route (`/api/room-publish: {room:null, reason:"not_created"}` in `src/studio/layoutFixture.tsx`) rather than the generic `{}` every unmocked route gets.
+
+NOT MEASURED, stated plainly: no statement in `api/_room-publish.js` has ever been `EXPLAIN`ed against a live Postgres, because this sandbox has no `NEON_URL`. Nothing here has ever inserted a real `vy_room` row. The main loop's live-database pass (mirroring `rooms-merge-live-verification-2026-09-03` above) is what would close that gap.
