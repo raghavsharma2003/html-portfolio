@@ -382,7 +382,11 @@ export default function MirrorCallStudio({
   if (stopped) return null;
 
   return (
-    <section className="mirror-call" aria-labelledby="mirror-call-title">
+    // `id` added by WS-R3: the readiness action table sends a creator here
+    // ("Run one Mirror Call"), and `jumpTo` returns silently on a missing
+    // target, so an action pointing at nothing would look exactly like a
+    // working button. Every anchor in that table is asserted to exist.
+    <section id="mirror-call" className="mirror-call" aria-labelledby="mirror-call-title">
       <div className="mirror-call-head">
         <div>
           <p className="eyebrow">Mirror Call</p>

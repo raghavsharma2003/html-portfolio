@@ -66,6 +66,13 @@ export const STRICT_SURFACE = [
   // that if it ever grows a statement it is covered from that day rather than
   // from the day it 500s (`coverage-lists-that-enumerate-a-subset`).
   /^api\/_never-rules\.js$/,
+  // WS-R3, readiness and the publish lock. On the strict list from its first
+  // commit for the same reason, plus one that is specific to it: the lock this
+  // module computes is joined against inside the runtime activation statement,
+  // so a parameter whose type Postgres cannot deduce here does not fail a
+  // screen, it fails the gate that decides whether a clone may talk to anyone.
+  /^api\/_readiness\.js$/,
+  /^api\/readiness\.js$/,
 ];
 
 export function isStrict(rel) {

@@ -2980,3 +2980,42 @@ alter table vy_replica_source
 create index if not exists vy_replica_source_correction_ix
   on vy_replica_source (replica_id, owner_user_id, created_at desc)
   where purpose = 'correction';
+-- Migration 073 - vy_replica_readiness: the readiness snapshot behind the one
+-- creator screen (one number, five parts, one action, one publish lock).
+-- `parts` is the truth; `overall`, `min_part` and `unmeasured_count` are its
+-- projections and exist as columns because the publish lock is a SQL predicate
+-- inside two much larger statements (runtime activation, channel connect) and
+-- a jsonb path expression in that position is the kind of thing a later edit
+-- gets subtly wrong. A wrong lock opens. The two paired CHECKs make
+-- DESIGN-LAW §1's "the overall is undefined until every part has a value"
+-- unrepresentable rather than merely observed. No FK (009's convention);
+-- deleted by name in api/_replica-full-erasure.js.
+create table if not exists vy_replica_readiness (
+  readiness_id     uuid primary key default gen_random_uuid(),
+  replica_id       uuid not null,
+  owner_user_id    uuid not null,
+  computed_at      timestamptz not null default now(),
+  policy_version   text not null default '',
+  overall          integer,
+  min_part         integer,
+  unmeasured_count integer not null,
+  parts            jsonb not null default '{}'::jsonb,
+  blockers         jsonb not null default '[]'::jsonb,
+  suggested_action jsonb not null default '{}'::jsonb,
+  inputs_hash      text not null,
+  constraint vy_replica_readiness_unmeasured_range check (unmeasured_count >= 0 and unmeasured_count <= 5),
+  constraint vy_replica_readiness_overall_range check (overall is null or (overall >= 0 and overall <= 100)),
+  constraint vy_replica_readiness_min_part_range check (min_part is null or (min_part >= 0 and min_part <= 100)),
+  constraint vy_replica_readiness_overall_undefined
+    check ((unmeasured_count > 0 and overall is null) or (unmeasured_count = 0 and overall is not null)),
+  constraint vy_replica_readiness_min_part_pairs
+    check ((overall is null and min_part is null) or (overall is not null and min_part is not null)),
+  constraint vy_replica_readiness_inputs_hash check (inputs_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_replica_readiness_parts_object
+    check (jsonb_typeof(parts) = 'object' and jsonb_typeof(suggested_action) = 'object'
+           and jsonb_typeof(blockers) = 'array')
+);
+create index if not exists vy_replica_readiness_latest_ix
+  on vy_replica_readiness (replica_id, owner_user_id, computed_at desc);
+create index if not exists vy_replica_readiness_inputs_ix
+  on vy_replica_readiness (replica_id, inputs_hash, computed_at desc);

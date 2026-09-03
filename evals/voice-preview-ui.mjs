@@ -45,7 +45,7 @@ function findings(panelSource, apiSource, appSource, cssSource) {
   if (!/Not right yet\?/.test(panelSource) || !/Edit the line/.test(panelSource) || !/Generate another take/.test(panelSource)) issues.push("correction-loop");
   if (!/!testEnvironment && <dl className="hear-voice-proof"/.test(panelSource)) issues.push("self-test-ceremony-hidden");
   if (!/disclosure !== "audible-prefix-v1"/.test(apiSource) || !/x-vyakti-text-plan/.test(apiSource)) issues.push("protected-receipt-required");
-  if (!/!testEnvironment && <ReadinessStrip/.test(appSource) || !/!testEnvironment && <Band[\s\S]*title="Prove it is you"/.test(appSource)) issues.push("self-test-compliance-removed");
+  if (!/!testEnvironment && step === "meet" && <ReadinessPanel/.test(appSource) || !/!testEnvironment && <Band[\s\S]*title="Prove it is you"/.test(appSource)) issues.push("self-test-compliance-removed");
   if (!/\.hear-voice \.voice-preview-language \{ grid-template-columns: repeat\(3/.test(cssSource)) issues.push("language-control-layout");
   if (!cssSource.includes(".hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }")) issues.push("mobile-correction-layout");
   if (!/\.hear-voice-stage-ready \{[^}]*background: var\(--forest-deep\)/.test(cssSource)) issues.push("ready-state-material");
@@ -63,7 +63,7 @@ const negativeControls = [
   ["fake progress returns", panel.replace('<div className="hear-voice-wait-metrics"', '<progress value="50" max="100" /><div className="hear-voice-wait-metrics"'), api, app, css, "fake-progress"],
   ["correction action disappears", panel.replace("Not right yet?", "Result"), api, app, css, "correction-loop"],
   ["receipt disclosure weakens", panel, api.replace('disclosure !== "audible-prefix-v1"', "false"), app, css, "protected-receipt-required"],
-  ["self-test readiness returns", panel, api, app.replace("!testEnvironment && <ReadinessStrip", "true && <ReadinessStrip"), css, "self-test-compliance-removed"],
+  ["self-test readiness returns", panel, api, app.replace('!testEnvironment && step === "meet" && <ReadinessPanel', 'true && <ReadinessPanel'), css, "self-test-compliance-removed"],
   ["mobile correction rule disappears", panel, api, app, css.replace(".hear-voice-wait-metrics, .hear-voice-correction { grid-template-columns: 1fr; }", ".hear-voice-wait-metrics { grid-template-columns: 1fr; }"), "mobile-correction-layout"],
 ];
 

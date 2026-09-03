@@ -1246,6 +1246,23 @@ const suites = {
   // surface covers the first and `scripts/relcheck.mjs` the second, and
   // migration 074 has never been applied to any database.
   reviewqueue: "review-queue/run.mjs",
+  // WS-R3. The one creator screen: one number, five parts, one action, one
+  // publish lock. What it exists to hold is DESIGN-LAW §1's hardest clause —
+  // the overall is UNDEFINED until every part has a value — against the very
+  // reasonable future request to "just average what we have", which would turn
+  // this screen into `plausible-return-hides-a-dead-pipeline` with a score
+  // attached. §4 of the suite removes that guard from a copy of the real
+  // module and requires the assertions to fail.
+  //
+  // It also holds the two lock predicates (runtime activation, channel
+  // connect) to their SQL shape, migration 073 to the splitter's rules, and
+  // the readiness history to the erasure reach.
+  //
+  // Offline, deterministic, $0, no database, no network, no model call. What
+  // it CANNOT see is SQL types and referential integrity: `evals/sqlcast`
+  // covers the first and `scripts/relcheck.mjs` the second, and migration 073
+  // has never been applied to any database.
+  readiness: "readiness/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

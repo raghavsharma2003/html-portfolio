@@ -7088,3 +7088,47 @@ conflicts, 0 uncast sites, 0 unparseable shapes. `db/schema.sql` grew from 125 t
   It has only this suite's fixtures behind it.
 - The synthetic question generator has never been called against a real provider.
   It is proven only through an injected fixture.
+## `ws-r3-readiness-eval-suite-120-checks-offline-only` (2026-09-03)
+
+**What was measured.** `node evals/readiness/run.mjs`: **120/120 checks
+passed**, offline, deterministic, $0, no database, no network, zero model
+calls, in this worktree (no `NEON_URL` set). `node scripts/verify-release.mjs`:
+**14/14** static gates passed, including the eval suite this readiness suite
+is bundled into. `node scripts/check-copy.mjs`: 5 scopes clean, 14 negative
+controls bit. Method: the runner as checked in, one process, one pass, output
+read directly rather than summarised from memory.
+
+**What this does NOT establish, named rather than implied.** No number here
+came from a live database. `node scripts/relcheck.mjs` (the owner-lane erasure
+reach walk that migration 073's own header cites as the layer that actually
+re-checks the no-foreign-key convention) failed immediately with
+`getaddrinfo ENOTFOUND sql` — it requires `NEON_URL` and none was reachable
+from this sandbox, so the "wired into `scripts/relcheck.mjs`" half of the
+migration convention is asserted only by `evals/readiness/run.mjs`'s own
+SQL-source-shape checks (constraint pairing, splitter safety, the erasure
+line's exact WHERE clause) and has never been checked against a real schema.
+Migration 073 has never been applied to any database, and none of the six
+`readReadinessInputs` queries or either lock predicate (the activation lateral
+join, the channel-connect CASE) has ever been `EXPLAIN`ed against real
+`vy_replica_readiness` rows — `offline-mocks-cannot-type-check-sql` applies in
+full: `evals/clonechannel.mjs` and `evals/readiness/run.mjs`'s fake databases
+prove control flow only.
+
+**A structural fact worth recording precisely because it is not a sampled
+number.** `api/_readiness.js` §4 names, by construction rather than by survey,
+that `knows_your_material` and `sounds_like_you` have no writer anywhere in
+this repo (no per-replica recall-run table exists; nothing writes
+`vy_replica_voice_genome.definition.evidence.self_similarity_ceiling`). That
+means every replica in the product today has `unmeasured_count >= 2`, `overall
+= null`, and `publish_locked = true`, regardless of how the other three parts
+score — this is a fact about the code as shipped, not a measurement with an n,
+and it should not be read as one; it is recorded here so the next session does
+not re-derive it from scratch, per `ws-r3-readiness-overall-undefined-while-any-part-unmeasured`
+(decisions.md).
+
+**What would extend this measurement.** Running the same suite with
+`NEON_URL` set would add the two relational DB gates and `relcheck.mjs`'s
+static schema check; applying migration 073 live and running one real
+`readOwnedReadiness` call against a seeded owner/replica pair would be the
+first live number for this feature, and it is the natural next step for
+whoever owns the live database.
