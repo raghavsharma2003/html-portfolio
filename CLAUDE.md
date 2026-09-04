@@ -91,7 +91,7 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of WS-R42 (2026-09-04) it is **20
+repo (see the next section). As of WS-R57 (2026-09-04) it is **21
 checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
 the room export completeness battery, `evals/room-export/run.mjs`, the
 room door battery, `evals/room-doors/run.mjs` — every way into a Room
@@ -104,7 +104,14 @@ real Chromium under CDP throttling shaped like a bad Indian 4G day, failing
 on a named target and metric — and `mirrored constants`,
 `scripts/check-mirrors.mjs` — every `// mirror of api/<file>.js#<NAME>`
 marker in `src/` and `site/suites.html` parsed on both sides and asserted
-equal — each added as a named gate) and **22 with
+equal — and `security headers`, `scripts/check-headers.mjs` — the Room, the
+studio and four static marketing pages loaded in real Chromium on
+127.0.0.1:8934 with `vercel.json`'s own headers applied exactly as Vercel
+would and CSP violation reporting captured, plus `npm ci --dry-run` lockfile
+integrity, `npm audit --omit=dev --audit-level=high` (fails, never passes
+silently, if the registry is unreachable) and an install-script scan against
+the named allowlist in `scripts/installScriptAllowlist.mjs` — each added as
+a named gate) and **23 with
 it** (adding the zero-orphan sweep and citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
