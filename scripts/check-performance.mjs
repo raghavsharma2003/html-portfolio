@@ -87,8 +87,9 @@
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
-import { extname, join, normalize, sep } from "node:path";
+import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
 function rootFromModuleUrl(moduleUrl) {
   return fileURLToPath(new URL("..", moduleUrl));
@@ -165,15 +166,35 @@ async function resolveFile(pathname) {
   return null;
 }
 
+// Vercel gzip/brotli-compresses every text asset it serves; a static server
+// that hands back raw bytes would measure a JS budget against a number no
+// phone on a real deployment ever downloads, and the whole point of this gate
+// is the number a phone actually waits for. So text assets are gzipped here
+// (Chromium always sends `Accept-Encoding: gzip` and decodes it transparently
+// — CDP's `encodedDataLength`, which this gate reads, reports the COMPRESSED
+// count, the true over-the-wire size the throttle above is shaping) and
+// binary assets (images, already-compressed) are served as-is.
+const COMPRESSIBLE = new Set([
+  "text/html", "text/javascript", "text/css", "application/json",
+  "image/svg+xml", "application/manifest+json",
+]);
+
 function serveApp() {
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
       const file = await resolveFile(url.pathname);
       if (!file) { res.writeHead(404).end("not found"); return; }
-      const body = await readFile(file);
-      res.writeHead(200, { "content-type": contentTypeFor(file) });
-      res.end(body);
+      const type = contentTypeFor(file);
+      const raw = await readFile(file);
+      if (COMPRESSIBLE.has(type)) {
+        const gz = gzipSync(raw, { level: 9 });
+        res.writeHead(200, { "content-type": type, "content-encoding": "gzip" });
+        res.end(gz);
+      } else {
+        res.writeHead(200, { "content-type": type });
+        res.end(raw);
+      }
     } catch {
       res.writeHead(404).end("not found");
     }
@@ -408,8 +429,14 @@ async function main() {
   ].find((p) => p && existsSync(p));
 
   const server = await serveApp();
+  // --disable-background-networking: Chromium's own component-updater/Safe
+  // Browsing/variations pings are unrelated to the page under test but share
+  // its CPU and network throttle, so they inject noise into a measurement
+  // that already has $0 network to spend (law 5) and no route to a real
+  // Google host from this sandbox in the first place.
+  const LAUNCH_ARGS = ["--no-sandbox", "--disable-background-networking"];
   const browser = await chromium.launch(
-    executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] },
+    executablePath ? { executablePath, args: LAUNCH_ARGS } : { args: LAUNCH_ARGS },
   ).catch(() => null);
   if (!browser) {
     server.close();
