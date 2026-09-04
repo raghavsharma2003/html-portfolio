@@ -82,7 +82,10 @@ import { transcriptDigest } from "./_clonechat.js";
 import { loadTeacherAgent } from "./_teachersheet.js";
 import { surfaceDeviceId, dmRecall } from "./_room.js";
 import { openOrExtendEpisode } from "./episodes.js";
-import { activePersonTables, keysOf, ownerEq, wipeWhereSql, wipeParams, tableApplied } from "./memory.js";
+import {
+  activePersonTables, keysOf, ownerEq, wipeWhereSql, wipeParams, tableApplied,
+  roomForgetReceiptHash, ROOM_FORGET_RECEIPT_POLICY_VERSION,
+} from "./memory.js";
 import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1497,6 +1500,46 @@ async function roomScopedTables(deps) {
   return (await personTablesFor(deps)).filter((t) => t.agent === true);
 }
 
+/**
+ * WS-R27 (migration 090). Nine Room-scoped person-lane tables landed after
+ * WS-R1's original two (`vy_room_thread`/`vy_room_follower`, both `agent:
+ * true` and already covered by `roomScopedTables()`'s loop above) - none of
+ * them carries an `agent_id` column (every one of the comments in
+ * api/memory.js's PERSON_TABLES states the same reason: agent context is
+ * joined from `vy_room`), so none of them was ever reachable through that
+ * loop, and until this workstream `roomExport` never named a single one.
+ * Listed exactly once, here, so `roomExport`, `roomExportManifest` and
+ * `evals/room-export/run.mjs`'s static battery cannot drift about which of
+ * them is a full ROW export (the follower's own content, theirs to see
+ * verbatim) versus a COUNT (a ledger whose content already IS a count, per
+ * the workstream brief's own words: "the delivery ledger and the day counts
+ * belong in the export as counts").
+ */
+const ROOM_EXPORT_EXTRA = Object.freeze([
+  { table: "vy_room_checkin", shape: "rows",
+    reason: "the follower's own check-in schedule (days, time, timezone) - theirs to see in full" },
+  { table: "vy_room_subscription", shape: "rows",
+    reason: "the follower's own subscription record - theirs to see in full" },
+  { table: "vy_room_pulse_optin", shape: "rows",
+    reason: "the follower's own opt-in decision - theirs to see in full" },
+  { table: "vy_room_follower_channel", shape: "rows",
+    reason: "the follower's own Telegram binding - theirs to see in full" },
+  { table: "vy_room_push_subscription", shape: "rows",
+    reason: "the follower's own push registration - theirs to see in full" },
+  { table: "vy_room_handoff", shape: "rows",
+    reason: "the follower's own verbatim ask and the creator's own verbatim reply to it - " +
+      "083's own exception to 'never a word' restated, theirs to see in full" },
+  { table: "vy_room_follower_day", shape: "count",
+    reason: "a day-count ledger (turns per day) - the export already states how many days " +
+      "and how many turns; a row-by-row dump would say nothing more" },
+  { table: "vy_room_checkin_delivery", shape: "count",
+    reason: "a content-free delivery ledger (079's own law) - exported as counts per " +
+      "delivery state, never a row" },
+  { table: "vy_room_voice_usage", shape: "count",
+    reason: "a day-count ledger (seconds and clips per day) - same reasoning as " +
+      "vy_room_follower_day above" },
+]);
+
 export async function roomExport(db, { session }, deps = {}) {
   const who = await selfScope(db, session, deps);
   const devices = await threadDeviceSet(db, who.roomId, who.personId, who.agentId);
@@ -1516,6 +1559,29 @@ export async function roomExport(db, { session }, deps = {}) {
     ).catch(() => []);
     if (rows.length) tables[t.table] = rows;
   }
+  // WS-R27: the nine extras above. Gated per table, `isTableAppliedFor`'s
+  // same seam `roomForget` below already uses - a database that has not
+  // applied a later Room migration yet gets a smaller-but-honest export
+  // rather than a 500.
+  for (const e of ROOM_EXPORT_EXTRA) {
+    if (!(await isTableAppliedFor(deps)(e.table))) continue;
+    if (e.shape === "rows") {
+      const rows = await db(
+        `select * from ${e.table} where room_id = ($1)::uuid and person_id = ($2)::uuid limit 5000`,
+        [who.roomId, who.personId],
+      ).catch(() => []);
+      if (rows.length) tables[e.table] = rows;
+    } else {
+      // COUNT shape: one number, never the rows themselves - `e.reason`
+      // states why for this table.
+      const rows = await db(
+        `select count(*)::int as n from ${e.table} where room_id = ($1)::uuid and person_id = ($2)::uuid`,
+        [who.roomId, who.personId],
+      ).catch(() => []);
+      const n = Number(rows[0]?.n);
+      if (Number.isFinite(n) && n > 0) tables[e.table] = { count: n };
+    }
+  }
   return {
     format: "vyakti-room-export/1",
     exported_at: new Date(deps.now ?? Date.now()).toISOString(),
@@ -1528,6 +1594,22 @@ export async function roomExport(db, { session }, deps = {}) {
       "this creator's AI does not hold them.",
     tables,
   };
+}
+
+/**
+ * WS-R27. Every table `roomExport` reaches, agent-scoped rows plus the nine
+ * extras above - one list, so `evals/room-export/run.mjs`'s completeness
+ * battery has a single authority to compare against `PERSON_TABLES` rather
+ * than reading `roomExport`'s own source a second time and risking drift
+ * between what the battery THINKS the function does and what it actually
+ * does. Async and `deps`-shaped identically to `roomScopedTables`, for the
+ * same reason: the agent-scoped half is genuinely dynamic (it depends on
+ * which migrations this database has applied), so a static list here would
+ * either duplicate that logic or silently under-report it.
+ */
+export async function roomExportManifest(deps = {}) {
+  const scoped = await roomScopedTables(deps);
+  return [...scoped.map((t) => t.table), ...ROOM_EXPORT_EXTRA.map((e) => e.table)];
 }
 
 /** The ownership half of `wipeWhereSql`, and NOTHING else: the owning columns
@@ -1544,6 +1626,180 @@ export async function roomForget(db, { session }, deps = {}) {
   const who = await selfScope(db, session, deps);
   const devices = await threadDeviceSet(db, who.roomId, who.personId, who.agentId);
   const deleted = {};
+
+  // ── WS-R27: EVERY explicit statement below runs CHILD BEFORE PARENT ───────
+  //
+  // `vy_room_thread` and `vy_room_follower` are deleted at the BOTTOM of this
+  // function, not the top, and every table below carries `follower_id
+  // references vy_room_follower(follower_id) on delete cascade` and/or
+  // `thread_id references vy_room_thread(thread_id) on delete cascade`. This
+  // used to be the other way round - thread/follower deleted first, every
+  // other table's own explicit delete running after - which meant Postgres's
+  // OWN cascade had already removed every row before this function's later
+  // statements ever ran: the end state was correct (the rows really were
+  // gone) but every one of those statements' `rows.length` was unconditionally
+  // zero, so `deleted.vy_room_checkin`/`vy_room_voice_usage`/`vy_room_handoff`
+  // etc. lied about how many rows a real forget had just removed. Found while
+  // building `evals/room-export/run.mjs`'s dynamic battery (law 2: "the
+  // receipt's counts must equal what was deleted"), which is exactly the
+  // property this ordering broke. `api/memory.js`'s `PERSON_TABLES` array had
+  // the identical bug for the account-wide whole wipe and is reordered in the
+  // same change, by the same reasoning, stated at that array's own header.
+  if (await isTableAppliedFor(deps)("vy_room_follower_day")) {
+    // WS-R12 (migration 077): the retention day-counts, this Room only. No
+    // `follower_id`/`thread_id` column at all (071's convention scoped
+    // room_id/person_id and 077 added nothing new), so this one has no
+    // cascade to race and its position here is not load-bearing the way the
+    // rest of this block's is - it stays first only because it always has.
+    const dayRows = await db(
+      `delete from vy_room_follower_day
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_day = dayRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_checkin")) {
+    // WS-R16 (migration 079): a follower's own check-in schedules, and the
+    // content-free delivery ledger behind them, this Room only. DELIVERY
+    // BEFORE CHECKIN: `vy_room_checkin_delivery.checkin_id references
+    // vy_room_checkin(checkin_id) on delete cascade`, so deleting the checkin
+    // row first would cascade its delivery rows away before this statement
+    // ever ran, the identical shape this block's own header names.
+    const deliveryRows = await db(
+      `delete from vy_room_checkin_delivery
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_checkin_delivery = deliveryRows.length;
+    const checkinRows = await db(
+      `delete from vy_room_checkin
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_checkin = checkinRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_voice_usage")) {
+    // WS-R19 (migration 081): the voice usage day-counts, this Room only.
+    // Carries `follower_id references vy_room_follower(follower_id) on
+    // delete cascade`, so it runs before the follower delete at the bottom.
+    const voiceRows = await db(
+      `delete from vy_room_voice_usage
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_voice_usage = voiceRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_subscription")) {
+    // WS-R27 (migration 078): a follower's own subscription, this Room only
+    // - and ONLY a subscription already in a terminal state, api/memory.js's
+    // `vy_room_subscription` PERSON_TABLES entry's own `wipeWhere` restated
+    // rather than loosened: a UPI Autopay mandate keeps debiting a real bank
+    // account whether or not this table still names it, so this statement
+    // may not remove a LIVE subscription any more than the account-wide
+    // wipe's identical restriction may - an automatic provider-cancel wired
+    // into either wipe is Phase 1 work, an owner decision, not this
+    // workstream's.
+    //
+    // What this statement cannot prevent, stated rather than hidden: the
+    // table's OWN `follower_id references vy_room_follower(follower_id) on
+    // delete cascade` means the follower-row delete at the bottom of this
+    // function removes EVERY subscription row for this follower regardless
+    // of state, live one included, the moment it runs - a pre-existing
+    // schema fact this workstream did not introduce and does not fix (see
+    // `context/decisions.md#ws-r27-subscription-cascade-still-reaches-a-live-row`).
+    // This statement's count is honest about what IT safely removed; it is
+    // not a claim that nothing else happened to this table a moment later.
+    const subRows = await db(
+      `delete from vy_room_subscription
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+          and state in ('cancelled','expired')
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_subscription = subRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_pulse_optin")) {
+    // WS-R17 (migration 080): Pulse's own toggle, this Room only. A full
+    // delete rather than merely setting `revoked_at`: the row is
+    // content-free either way, and this is the follower's OWN "forget me in
+    // this room" - the honest answer is that nothing of theirs is left,
+    // including the record that they once toggled it. Carries a nullable
+    // `thread_id references vy_room_thread(thread_id) on delete cascade`, so
+    // it runs before the thread delete below.
+    const pulseRows = await db(
+      `delete from vy_room_pulse_optin
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_pulse_optin = pulseRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_follower_channel")) {
+    // WS-R27 (migration 082): which Telegram chat currently means this Room,
+    // for this follower. Previously reached ONLY by the
+    // `follower_id references vy_room_follower(follower_id) on delete
+    // cascade` this table already carries (082's own header) - real, but
+    // uncounted: the row really was deleted, and the receipt never said so.
+    // Named explicitly here instead, `roomForget`'s own "a delete nobody can
+    // see the size of is a delete nobody can tell happened" applied to a row
+    // this function was already deleting, just not by name.
+    const channelRows = await db(
+      `delete from vy_room_follower_channel
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_channel = channelRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_push_subscription")) {
+    // WS-R27 (migration 085): a follower's own push registration, this Room
+    // only. `vy_room_follower_channel`'s exact reasoning restated one table
+    // over - previously cascade-only and uncounted, named explicitly now.
+    const pushRows = await db(
+      `delete from vy_room_push_subscription
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_push_subscription = pushRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_handoff")) {
+    // WS-R20 (migration 083): Handoff. A departure from every content-free
+    // sibling above in one respect worth naming: the rows this deletes carry
+    // the follower's own verbatim words and the creator's own verbatim
+    // reply to them (083's own header states why that exception exists at
+    // all) - "forget me in this room" takes both, exactly as it takes every
+    // other trace of the relationship. Carries BOTH `follower_id` and a
+    // nullable `thread_id`, each `references ... on delete cascade`, so it
+    // runs before BOTH the follower and the thread deletes below - this was
+    // the clearest instance of the ordering bug this function's own header
+    // names, since this statement already existed and simply ran too late
+    // to ever count anything.
+    const handoffRows = await db(
+      `delete from vy_room_handoff
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_handoff = handoffRows.length;
+  }
+
+  // The agent-scoped rows (`vy_fact` et al., via `roomScopedTables()`) carry
+  // no dependency on thread or follower - `agent_id` is their own scope, not
+  // a foreign key to either - so their position relative to the two below is
+  // not load-bearing; run here, ahead of the last two, out of habit rather
+  // than necessity.
   for (const t of await roomScopedTables(deps)) {
     const where = wipeWhereSql(t, { deviceSet: true });
     const params = wipeParams(t, { device: devices, person: who.personId });
@@ -1557,9 +1813,11 @@ export async function roomForget(db, { session }, deps = {}) {
     deleted[t.table] = rows.length;
   }
 
-  // The membership and the thread names. The ROOM is untouched: a follower's
-  // forget is not a creator's takedown, and deleting vy_room here would take
-  // the room away from everyone else in it.
+  // The topic threads, THEN the membership row itself - the two roots every
+  // table above (except the day-count and the agent-scoped loop) cascades
+  // from, so they are last. The ROOM is untouched: a follower's forget is not
+  // a creator's takedown, and deleting vy_room here would take the room away
+  // from everyone else in it.
   const threads = await db(
     `delete from vy_room_thread
       where room_id = ($1)::uuid and person_id = ($2)::uuid and agent_id = ($3)::uuid
@@ -1574,103 +1832,6 @@ export async function roomForget(db, { session }, deps = {}) {
     [who.roomId, who.personId, who.agentId],
   );
   deleted.vy_room_follower = membership.length;
-
-  // WS-R12 (migration 077): the retention day-counts, this Room only. Not in
-  // `roomScopedTables()` above - it carries no `agent_id` column (see
-  // api/memory.js's PERSON_TABLES comment), so it cannot flow through that
-  // loop's generic `and agent_id = (...)::uuid` delete, and is reached here
-  // explicitly instead, `vy_room_thread`/`vy_room_follower`'s pattern one
-  // statement over. Gated on the migration having landed, `isTableApplied`'s
-  // same seam `roomSay` uses above: unlike those two siblings (live since
-  // 071, long before this file existed), this table and this delete ship in
-  // the same change, so an ungated statement here would 500 every follower's
-  // forget the moment this code deploys ahead of its own migration.
-  if (await isTableAppliedFor(deps)("vy_room_follower_day")) {
-    const dayRows = await db(
-      `delete from vy_room_follower_day
-        where room_id = ($1)::uuid and person_id = ($2)::uuid
-       returning 1 as gone`,
-      [who.roomId, who.personId],
-    );
-    deleted.vy_room_follower_day = dayRows.length;
-  }
-
-  // WS-R16 (migration 079): a follower's own check-in schedules, and the
-  // content-free delivery ledger behind them, this Room only. Neither
-  // carries an `agent_id` column (the sweep's own reasoning — agent context
-  // is joined from vy_room), so neither flows through `roomScopedTables()`'s
-  // generic loop above; both are reached here explicitly,
-  // `vy_room_follower_day`'s pattern (077) one migration over. Gated the
-  // same way: a database that has not yet had 079 applied must never turn a
-  // follower's forget into a 500 for a deploy-ordering reason.
-  if (await isTableAppliedFor(deps)("vy_room_checkin")) {
-    const checkinRows = await db(
-      `delete from vy_room_checkin
-        where room_id = ($1)::uuid and person_id = ($2)::uuid
-       returning 1 as gone`,
-      [who.roomId, who.personId],
-    );
-    deleted.vy_room_checkin = checkinRows.length;
-    const deliveryRows = await db(
-      `delete from vy_room_checkin_delivery
-        where room_id = ($1)::uuid and person_id = ($2)::uuid
-       returning 1 as gone`,
-      [who.roomId, who.personId],
-    );
-    deleted.vy_room_checkin_delivery = deliveryRows.length;
-  }
-
-  // WS-R17 (migration 080): Pulse's own toggle, this Room only. Same shape,
-  // same reason as the day-count block immediately above - no `agent_id`
-  // column, so it cannot flow through `roomScopedTables()`'s generic loop,
-  // and it ships in a later change than this file, so it is gated the same
-  // way. A full delete rather than merely setting `revoked_at`: the row is
-  // content-free either way, and this is the follower's OWN "forget me in
-  // this room" - the honest answer is that nothing of theirs is left,
-  // including the record that they once toggled it.
-  if (await isTableAppliedFor(deps)("vy_room_pulse_optin")) {
-    const pulseRows = await db(
-      `delete from vy_room_pulse_optin
-        where room_id = ($1)::uuid and person_id = ($2)::uuid
-       returning 1 as gone`,
-      [who.roomId, who.personId],
-    );
-    deleted.vy_room_pulse_optin = pulseRows.length;
-  }
-
-  // WS-R19 (migration 081): the voice usage day-counts, this Room only.
-  // Identical reasoning and identical gate as `vy_room_follower_day`
-  // immediately above, one migration over: no `agent_id` column, ships in
-  // this same change, so the gate is what keeps an out-of-order deploy from
-  // 500ing every follower's forget.
-  if (await isTableAppliedFor(deps)("vy_room_voice_usage")) {
-    const voiceRows = await db(
-      `delete from vy_room_voice_usage
-        where room_id = ($1)::uuid and person_id = ($2)::uuid
-       returning 1 as gone`,
-      [who.roomId, who.personId],
-    );
-    deleted.vy_room_voice_usage = voiceRows.length;
-  }
-
-  // WS-R20 (migration 083): Handoff. No `agent_id` column (same reasoning as
-  // every block immediately above: agent context is joined from vy_room), so
-  // it cannot flow through `roomScopedTables()`'s generic loop and is reached
-  // here explicitly, gated the same way against an out-of-order deploy. This
-  // is a departure from every sibling above in one respect worth naming: the
-  // rows this deletes carry the follower's own verbatim words and the
-  // creator's own verbatim reply to them (083's own header states why that
-  // exception exists at all) - "forget me in this room" takes both, exactly
-  // as it takes every other trace of the relationship.
-  if (await isTableAppliedFor(deps)("vy_room_handoff")) {
-    const handoffRows = await db(
-      `delete from vy_room_handoff
-        where room_id = ($1)::uuid and person_id = ($2)::uuid
-       returning 1 as gone`,
-      [who.roomId, who.personId],
-    );
-    deleted.vy_room_handoff = handoffRows.length;
-  }
 
   // THE WITHDRAWAL, appended rather than deleted. 016's content law and its
   // append-only law both point here: the ledger is evidence, and a withdrawal
@@ -1688,6 +1849,36 @@ export async function roomForget(db, { session }, deps = {}) {
     });
   }
 
+  // THE RECEIPT (migration 090, WS-R27). Written LAST, after every delete
+  // above has committed, so its counts are true rather than a promise made
+  // before the deletes ran - the one INSERT in this function gets the same
+  // "only sent once the delete actually happened" discipline every DELETE
+  // above already has, just from the other direction. `person_hash` never
+  // `person_id` (`roomForgetReceiptHash`'s own header states why); `counts`
+  // is a literal copy of `deleted` (WS-R27 law 1: the receipt's counts and
+  // this response's counts must be the same claim, not two). Gated on its
+  // own migration exactly as every table above it that shipped after this
+  // file did - an ungated INSERT here would 500 every follower's forget the
+  // moment this code deploys ahead of migration 090.
+  let receipt = null;
+  if (await isTableAppliedFor(deps)("vy_room_forget_receipt")) {
+    const receiptId = deps.newId ? deps.newId() : randomUUID();
+    const personHash = roomForgetReceiptHash(who.roomId, who.personId, ROOM_FORGET_RECEIPT_POLICY_VERSION);
+    await db(
+      `insert into vy_room_forget_receipt (receipt_id, room_id, person_hash, policy_version, counts, issued_at)
+       values (($1)::uuid, ($2)::uuid, $3, ($4)::int4, $5::jsonb, ($6)::timestamptz)`,
+      [receiptId, who.roomId, personHash, ROOM_FORGET_RECEIPT_POLICY_VERSION, JSON.stringify(deleted), at],
+    );
+    receipt = {
+      receipt_id: receiptId,
+      room: who.slug,
+      person_hash: personHash,
+      policy_version: ROOM_FORGET_RECEIPT_POLICY_VERSION,
+      counts: { ...deleted },
+      issued_at: at,
+    };
+  }
+
   return {
     forgotten: true,
     scope: "this room only",
@@ -1695,6 +1886,10 @@ export async function roomForget(db, { session }, deps = {}) {
     // COUNTS, per table, because a delete nobody can see the size of is a
     // delete nobody can tell happened.
     deleted,
+    // The one row that survives this request. `null` only on a database that
+    // has not yet applied migration 090 - never because the write failed,
+    // since a failed write throws before this function returns at all.
+    receipt,
     note:
       "Your conversations with this creator's AI are deleted. Your account and " +
       "your conversations with anyone else are untouched.",
