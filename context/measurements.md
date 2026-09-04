@@ -8549,3 +8549,78 @@ n = 1 migration (12 statements in one transaction, plus 2 `validate constraint` 
 | erasure delete of combos (and weeks, same shape) | `vy_room_owner_ix` then Bitmap on the combo's room index |
 
 Cost note: the publish plans at a few thousand units per candidate set at zero rows, and it runs per label pair per Room once a week inside the sweep; the title LIKE is a filter under the thread scope index, bounded by one follower's threads per probe. Not measured: no Pulse row exists; no combination has ever been published or suppressed on the live database; nobody has seen the combo card or the weekly note.
+
+## `ws-r39-room-account-offline-eval-2026-09-04`
+
+n = 42 assertions, `evals/room-account/run.mjs` (offline, deterministic, $0,
+no DB, no network, no model call), method: the real `roomSettings`/
+`roomSettingsReviewed`/`roomDismissOffer` (api/_room-surface.js) and
+`recordOffer` (api/_phase-gate.js) driven through `evals/room-account/
+fixtures.mjs`'s own wrapper of the shared `evals/room/fixtures.mjs` fake
+`db`. 42/42 passed on first full run after the sqlcast fix below (a prior
+run with the uncast `$4` failed sqlcast, not this suite - this suite itself
+was 41/42 on its very first run over an arithmetic error in the test's own
+expected masked-phone string, fixed in the test, not the code, before this
+number). Sections: §1 the composed read carries every one of six sections
+for a follower whose rows exist in all of them; §2 a two-follower world (B
+carries none of A's push/WhatsApp/telegram/offer state, though price is a
+shared room fact and does appear for both); §3 the reviewed write is
+session-scoped, verified against BOTH followers' rows directly; §4 the
+cap-reached offer recorded, surfaced, and dismissed exactly once through the
+real `recordOffer`/`roomDismissOffer`; §5 a static proof `RoomApp.tsx`'s
+cap-reached card JSX is gated on `capped && capOffer`, not either alone; §6
+both locales carry every one of `account`/`capOffer`/`settingsReminder`'s
+keys (a scoped re-check of what `evals/room-locale/run.mjs`'s own generic
+key-parity check already covers for the whole table). Three negative
+controls, each proven to bite: (a) a body-supplied follower id passed to
+`roomSettingsReviewed` is silently ignored - the function's own destructured
+parameter is `{session}` alone; (b) a static regex scan of `roomSettings`'s
+isolated source text for a message-shaped select, proven against a
+deliberately poisoned copy carrying `select content from vy_room_thread`;
+(c) `scripts/check-copy.mjs`'s `scanSource` catches a manufactured string
+naming the banned word and a separate one carrying an em dash.
+
+## `ws-r39-sqlcast-2026-09-04`
+
+n = 2 uncast sites found and fixed, on the first `node evals/sqlcast.mjs`
+run this workstream made (both at `api/_room-surface.js:2516`, the same
+statement counted twice - once for the SET clause, once for the table/
+column pair - `roomSettingsReviewed`'s `settings_reviewed_at = $4`, a
+`timestamptz` column bound without a cast). Fixed with `($4)::timestamptz`;
+re-run: `rule B (strict surface): 0 uncast sites`, `804` statements scanned
+(`411` on the strict surface), unchanged from before this workstream's own
+addition in count of OTHER files' statements. See
+`rejected.md#ws-r39-settings-reviewed-at-uncast-timestamp-param`.
+
+## `ws-r39-gate-2026-09-04`
+
+`node scripts/verify-release.mjs`: **16/16 after** every file in this
+report, without `NEON_URL` (the two relational DB gates skipped with a
+printed notice, as this environment has no live database reachable).
+Individual gate timings from that run: typecheck 15.6s, prompt budget 2.5s,
+workflow lint 51ms, motion lint 349ms, board legibility 25.2s, chrome copy
+243ms, enrollment sample rate 50ms, enrollment bandwidth 105ms, engine
+bundle fresh 1.1s, stuck-turn endpoint 2.7s, one voice 24.2s, web build
+2.4s, layout readability 68.5s, eval suite 154.6s, room leak battery 6.6s,
+room export completeness 1.3s. **No separate full `verify-release.mjs` run
+was captured on the fully untouched tree at the very start of this session**
+- stated honestly rather than assumed clean, the same gap several prior
+workstream sessions logged for themselves. What WAS captured on the
+untouched tree, directly, is narrower but real: `node scripts/check-layout.mjs`
+alone, run against every TRACKED file reverted to HEAD via `git checkout --
+.` (no `git stash`, the cross-worktree ban binds) after this workstream's
+layout regression was first found - 638 prose blocks judged, 0 findings,
+confirming the overflow this session hit
+(`rejected.md#ws-r39-header-actions-row-overflowed-at-390px`) was this
+workstream's own defect and not pre-existing, before the same tracked
+changes were reapplied via `git apply` and the fix made. Every OTHER suite
+this workstream's own report lists as regression-checked (`room` 54/54,
+`room-leak` 78/78, `room-export` 44/44, `room-locale` 44/44, `room-push`
+43/43, `room-whatsapp` 63/63, `room-telegram-checkins` 64/64, `payments`
+62/62, `checkins` 37/37, `room-paid-tier` 38/38, `handoff` 30/30,
+`room-publish` 39/39, `room-cohorts` 60/60, `pulse` 51/51, `persontables` 56
+manifest entries, `recall` 266 assertions, `phase-gate` 49/49) was run
+directly, by name, after this workstream's own changes, and every one
+passed with the SAME count its own most recent session log entry names -
+the honest substitute for a from-scratch untouched-tree number this session
+did not separately capture for the whole gate.
