@@ -27,7 +27,12 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
   try {
     const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 50));
-    const summary = await sweep({ db: q, limit, loadAgent: loadTeacherAgent }, Date.now());
+    // `fetch` is required, explicitly, by `deliverers.webPush` (WS-R22) — the
+    // module never falls back to a global on its own, so a caller that
+    // forgets this line gets a loud throw rather than a silent skip. The
+    // platform's own global `fetch` is the real one here; only an eval
+    // injects a fake.
+    const summary = await sweep({ db: q, limit, loadAgent: loadTeacherAgent, fetch: globalThis.fetch }, Date.now());
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;

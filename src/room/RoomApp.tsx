@@ -212,6 +212,53 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
     void loadHistory(session, thread);
   }, [phase, session, thread, remembers, loadHistory, fixtureOpen]);
 
+  /* WS-R22: the installable Room. `public/room.webmanifest` (linked from
+   * room.html) is ONE static file shared by every creator's Room — its own
+   * `start_url` can only ever be a placeholder, because the Room is
+   * multi-tenant and a manifest file has no way to know which `/r/<slug>` a
+   * given browser tab is even on. So once THIS tab knows its own slug and
+   * the creator's own PUBLIC name (`room.name`/`display_name` — never a
+   * word this follower said), it swaps the manifest link to an in-memory
+   * Blob URL carrying THIS room's `start_url` — the standard "dynamic web
+   * app manifest" technique, no server route needed. A browser that installs
+   * before this effect runs (or with JS disabled) still gets the static
+   * fallback rather than nothing; this only makes "Add to Home Screen" land
+   * back on the right creator instead of a generic, unrouted `/r/`. Never
+   * runs for the layout fixture — it touches `document.head`, not this
+   * component's own rendered DOM, and the gate has no `URL.createObjectURL`
+   * expectation to keep honest either way. */
+  useEffect(() => {
+    if (fixtureOpen || !slug) return;
+    let href = "";
+    try {
+      const manifest = {
+        name: name ? `${name} AI` : "The Room",
+        short_name: "Room",
+        description: "A private, continuing conversation with a creator's AI.",
+        start_url: `/r/${slug}`,
+        display: "standalone",
+        background_color: "#f4f1e9",
+        theme_color: "#f4f1e9",
+        icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml" }],
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+      href = URL.createObjectURL(blob);
+      let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "manifest";
+        document.head.appendChild(link);
+      }
+      link.href = href;
+    } catch {
+      // Best effort only — a browser that cannot do this still has the
+      // static room.webmanifest room.html already links.
+    }
+    return () => {
+      if (href) URL.revokeObjectURL(href);
+    };
+  }, [slug, name, fixtureOpen]);
+
   useEffect(() => {
     foot.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [turns.length, sending]);

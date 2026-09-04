@@ -190,3 +190,15 @@ export const exportRoomData = (session: string, accessToken: string) =>
 
 export const forgetRoomData = (session: string, accessToken: string) =>
   post<{ forgotten: boolean; deleted: Record<string, number> }>({ op: "forget", session }, accessToken);
+
+// ── web push (WS-R22, migration 085) ───────────────────────────────────────
+// The endpoint/keys are the browser's OWN `PushSubscription`, never
+// constructed here - `CheckinsPanel.tsx`'s `enablePush` builds them via the
+// real `PushManager` and hands the three fields straight through.
+export const pushSubscribe = (session: string, endpoint: string, p256dh: string, auth: string) =>
+  post<{ subscribed: boolean; subscription_id?: string }>({ op: "push_subscribe", session, endpoint, p256dh, auth });
+
+export const pushUnsubscribe = (session: string, endpoint: string) =>
+  post<{ subscribed: boolean; revoked: boolean }>({ op: "push_unsubscribe", session, endpoint });
+
+export const pushStatus = (session: string) => post<{ subscribed: boolean }>({ op: "push_status", session });

@@ -6887,3 +6887,43 @@ workstream's own brief does not spend the same twenty minutes re-grepping a
 dead lead. If `api/_clonechannel.js` ever DOES grow a `voiceEngine` export,
 this entry's claim becomes stale and should be superseded rather than
 trusted.
+
+## `ws-r22-rfc-8291-known-answer-vector-from-memory` (2026-09-04, WS-R22)
+
+**Tried.** Hard-coding RFC 8291 Appendix A's own published test vector (the
+example receiver/sender keypairs, salt, plaintext "When I grow up, I want to
+be a watermelon", and the expected aes128gcm ciphertext) as a known-answer
+assertion for `api/_push/webpush.js`'s `encryptPayload`, transcribed from
+memory since this environment has no network route to look the RFC up.
+
+**What broke.** The transcribed receiver public key (`BCVxsr7N...`) failed to
+parse as a valid point on the P-256 curve — `node:crypto`'s ECDH threw
+`ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY` the moment the shared secret was
+computed, before the encryption logic itself was ever exercised. That is
+exactly the risk this kind of test carries and the reason it was not pushed
+through by "fixing" anything: a memorized 44-plus-character base64url string
+is easy to get byte-wrong in a way that either (a) fails a CORRECT
+implementation, wasting time chasing a bug that is not there, or worse
+(b) gets "fixed" by adjusting the implementation to match a wrong constant,
+which would ship a wrong implementation with a green check mark vouching for
+it. Neither outcome is acceptable, and there was no way in this environment
+to independently confirm the transcription was right.
+
+**Fix.** Dropped the memorized vector entirely. `encryptPayload`/
+`decryptPayload` are instead round-tripped against a FRESHLY GENERATED real
+P-256 keypair (`node:crypto`'s own `generateKeyPairSync`), with the decoder
+written as the receiver's own independent math rather than a mirror of the
+encoder — this proves the two sides of the module agree with each other on
+the wire format and the key derivation, which is what an offline environment
+can actually prove. What it does NOT prove — byte-for-byte conformance to
+RFC 8291's own published vector, and real interop with an actual browser or
+push service — is stated plainly in the module's own header and in
+`decisions.md#ws-r22-hand-rolled-webpush-crypto` rather than implied by a
+passing test.
+
+**Generalises to:** any RFC/spec known-answer test written from memory in an
+offline environment with no way to verify the transcription against the
+source document. Prefer proving the ALGORITHM structurally (round-trip
+self-consistency, independently-derived encode/decode, or a locally
+verifiable property like "node's own `crypto.verify` accepts this
+signature") over a hard-coded constant nobody in the session can check.

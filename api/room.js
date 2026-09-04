@@ -8,6 +8,9 @@
 //   POST /api/room {op:"thread", session, title}
 //   POST /api/room {op:"pulse_optin",  session, thread}   -> "let this count"
 //   POST /api/room {op:"pulse_revoke", session, thread}   -> turn it back off
+//   POST /api/room {op:"push_subscribe",   session, endpoint, p256dh, auth}
+//   POST /api/room {op:"push_unsubscribe", session, endpoint}
+//   POST /api/room {op:"push_status",      session}       -> {subscribed}
 //   POST /api/room {op:"citations", session}
 //   POST /api/room {op:"stats",  room:"<slug>"}
 //   POST /api/room {op:"export", session}
@@ -84,6 +87,7 @@ import {
   readRoomSession,
 } from "./_room-surface.js";
 import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
+import { setSubscription, removeSubscription, subscriptionStatus } from "./_room-push.js";
 import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
@@ -268,6 +272,29 @@ export default async function handler(req, res) {
         ? await setOptIn(q, { session: body.session, threadId: body.thread || null })
         : await revokePulseOptIn(q, { session: body.session, threadId: body.thread || null });
       return res.status(200).json(optin);
+    }
+
+    if (op === "push_subscribe") {
+      // WS-R22. Scope comes off the session exactly as "thread"/"pulse_optin"
+      // do above; the endpoint/keys are a browser's own PushSubscription,
+      // never trusted for identity — only for where to send.
+      const subscribed = await setSubscription(q, {
+        session: body.session,
+        endpoint: body.endpoint,
+        p256dh: body.p256dh,
+        auth: body.auth,
+        userAgent: req.headers?.["user-agent"],
+      });
+      return res.status(200).json(subscribed);
+    }
+
+    if (op === "push_unsubscribe") {
+      const removed = await removeSubscription(q, { session: body.session, endpoint: body.endpoint });
+      return res.status(200).json(removed);
+    }
+
+    if (op === "push_status") {
+      return res.status(200).json(await subscriptionStatus(q, { session: body.session }));
     }
 
     if (op === "citations") {
