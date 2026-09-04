@@ -8058,3 +8058,70 @@ unverified in the time this workstream had.
 **What broke:** Vercel refused to deploy the merged branch on both projects: `Error while validating your Cron Jobs expressions: Invalid value found 24 (0 */24 * * *)`. A step value for the hour field must be 1..23; `*/24` is not a cron expression, and the first thing to reject it was the deployment, after the push.
 
 **Fix:** the schedule is `0 0 * * *`, and the parser gained the one daily slot shape (`0 H * * *` is 24 hours) so the ops board still reads it; `evals/ops/run.mjs` asserts the daily shapes, the renewals entry, and that every hour step in `vercel.json` is within 1..23, so the next invalid step fails offline. Rule: a schedule the parser can read is not the same as a schedule the platform will run; when the two disagree, extend the parser, never bend the schedule.
+
+## `ws-r49-performance-gate-served-uncompressed-bytes` (2026-09-04, WS-R49)
+
+**Tried:** `scripts/check-performance.mjs`'s first draft served the built
+tree from a plain `node:http` server with `readFile` straight onto the
+response, no `Content-Encoding` header, mirroring `scripts/check-
+layout.mjs`'s own static server exactly (that gate has no byte budget, so
+compression was never a concern there).
+
+**What broke:** on the untouched tree this measured `/r/<slug>` at 262.5KB
+JS / 165.0KB CSS transfer and `/studio` at 675.9KB JS / 197.1KB CSS —
+both apparently failing the 180KB JS budget by a wide margin. Vercel
+gzip/brotli-compresses every text asset it actually serves in production
+(`npx vite build`'s own reporter prints a `gzip:` size next to every raw
+size for exactly this reason), so the gate was budgeting bytes no real
+phone on the internet ever downloads — a number roughly 3-4x too large,
+inflated in exactly the direction that would fail a page a real user never
+waits for.
+
+**Fix:** the server now gzips every compressible response
+(html/js/css/json/svg/manifest) before serving, and the gate reads bytes
+back via CDP's `Network.loadingFinished` `encodedDataLength`, which
+reports the actual compressed over-the-wire count — the same number the
+1.6Mbps throttle is shaping against. Re-measured on the SAME untouched
+Room code: `/r/<slug>` JS 262.5KB -> 79.7KB, now well under budget, with
+zero product code changed (`context/measurements.md#ws-r49-room-gzip-
+methodology-2026-09-04`).
+
+**The rule.** A synthetic performance gate that serves assets differently
+from how production actually serves them is not measuring the product; it
+is measuring its own server. Any budget number this gate reports is only
+as honest as the transport it was measured over.
+
+## `ws-r49-studio-shell-orphan-check-dynamic-import-gap` (2026-09-04, WS-R49)
+
+**Tried:** converting nine `StudioApp.tsx` panels from a static `import X
+from "./X"` to `const X = lazy(() => import("./X"))`, each still rendered
+at its same JSX usage site (now inside a `Suspense` boundary) — a real,
+unchanged mount, just fetched lazily.
+
+**What broke:** `evals/studio-shell/run.mjs`'s orphan check (WS-R31, the
+static text scan proving every panel file is mounted "somewhere") reported
+all nine as orphaned: 9 failed, 55 passed, `node scripts/verify-
+release.mjs`'s `eval suite` gate failed. The check's `isMountedSomewhere()`
+regex only matched `from ["']\./NAME["']` — the static-import shape — and
+a dynamic `import("./NAME")` call has no `from` keyword, so a check
+written before this repo had any lazy-loaded panel could not see the new,
+semantically equivalent shape. This is the same recurring class as
+`ws-r35-pulse-combo-sql-factored-through-a-helper-evaded-the-leak-
+batterys-static-scan`: a static text scanner blind to code that does the
+same thing in a different shape.
+
+**Fix:** widened the regex to also match `import\(["']\./NAME["']\)`, in
+`evals/studio-shell/run.mjs` itself — NOT by adding the nine panels to
+`NOT_A_STANDALONE_PANEL`, which would have been dishonest (they ARE
+standalone panels, still mounted, just lazily) and would have made the
+check permanently blind to a real future orphan among them. The negative
+control (a panel struck from both files' text, asserted caught as
+orphaned) still targets a statically-imported panel (`ProcessingReview`),
+so it remains a real proof the widened check still catches an actual
+absence. `evals/studio-shell/run.mjs`: 9 failed / 55 passed -> 64/64.
+
+**The rule.** When a fix changes an established source SHAPE (static
+import to dynamic import, a for-loop to a `.map`, etc.), grep every static
+text-scanning check in the repo for the shape it is leaving behind before
+calling the fix done — the check will not tell you it stopped seeing what
+it was written to see.
