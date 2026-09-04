@@ -12653,3 +12653,77 @@ collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
 to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
 runtime budget is a reason to scope narrowly by default, not a reason to
 stay narrow once there is a real defect to catch.
+
+## `ws-r60-razorpay-provider-file-edited-append-only` (2026-09-04, WS-R60)
+
+**Decision.** `api/_payments/providers/razorpay.js`'s existing docblocks for
+`updateSubscriptionQuantity`, `registerFundAccount` and `sendPayout` were
+LEFT AS WRITTEN by WS-R41 ("STILL NOT VERIFIED" / "PARTIALLY VERIFIED"),
+even though this workstream fully verified all three. The new findings
+landed instead in one new comment block appended after
+`verifyWebhookSignature`, at the physical end of the file.
+
+**Rationale.** This workstream's own brief (law 3) names WS-R56 as building
+the RazorpayX payout status webhook against these same shapes concurrently,
+and instructs "keep your edits to the provider file append-only so the
+merge is mechanical." Editing the three existing docblocks in place — even
+just to flip a status word — risks a hunk collision with whatever WS-R56
+touches nearby in the same file, which a pure end-of-file append cannot
+cause regardless of where WS-R56's own edits land. The cost is an admitted
+one: two comments about the same function (the stale one above, the
+corrected one at the end) can drift apart if a THIRD workstream edits only
+one of them — flagged explicitly in the addendum's own opening lines,
+which name the fix (fold the addendum into the docblock, delete the
+addendum) for whoever next touches these three functions directly, rather
+than left implicit.
+
+**Reversal condition.** Once WS-R56 has merged and no longer risks a
+concurrent edit to this file, fold the addendum's three per-function notes
+into their own docblocks in place and delete the addendum block — the
+merge-safety reason for the split disappears the moment the concurrency
+does.
+
+## `ws-r60-meta-subscribed-apps-api-answers-the-two-url-question` (2026-09-04, WS-R60)
+
+**Decision.** The operator question `ws-r29-whatsapp-credentials-reused-
+not-forked` logged open ("does Meta permit routing one subscription's
+deliveries to two URLs, does an operator need to merge the two doors behind
+one URL, or does Rooms need its own WABA number") is now ANSWERED from
+Meta's own reference documentation, though not yet ACTED on — no code in
+this repo changes as a result of this entry; it narrows the operator's
+choice, it does not make it for them.
+
+**What the documents say, cross-checked three ways.** (1)
+`developers.facebook.com/documentation/business-messaging/whatsapp/
+reference/whatsapp-business-account/subscribed-apps-api`: `GET/POST/DELETE
+/<WABA_ID>/subscribed_apps` — the GET response's `data` field is "array of
+[SubscribedApp]", and each `SubscribedApp` carries its own optional
+`override_callback_uri`. (2) `.../webhooks/overview`: "Meta sends retries
+to all apps that have subscribed to webhooks... for the WhatsApp Business
+account" — plural apps, explicitly. (3) `.../webhooks/override/`: the
+DIFFERENT, narrower mechanism (one app, one override URL per WABA or per
+phone number, with a documented fallback hierarchy: phone-number override
+> WABA override > app default) — this is NOT the same capability as (1)
+and answers a different question (how one app routes its own deliveries
+away from its App Dashboard default), so the original decision's option
+(a) ("Meta permits routing one subscription's deliveries to two URLs") was
+almost right but conflated two mechanisms: ONE app cannot get two URLs for
+the same WABA/number via the override mechanism, but TWO DIFFERENT apps
+CAN each be subscribed to the SAME WABA via the Subscribed Apps API, each
+getting its own full delivery at its own URL (its own override, or its own
+App Dashboard default).
+
+**What this still does not resolve.** No document fetched states a ceiling
+on how many apps one WABA may have subscribed at once, so whether Meera's
+DM lane (`api/whatsapp.js`) and the Room's check-in lane (`api/room-wa.js`)
+becoming two separate Meta Developer Apps is workable in practice — versus
+merging behind one door, versus a second WABA number — is still an
+operator decision for whoever registers the real webhook, made with a real
+WABA in front of them, not a code decision this workstream can make blind
+(the original decision's own words, restated because they are still true).
+
+**Reversal condition.** If an operator registers two apps against one WABA
+via the Subscribed Apps API and Meta refuses, rejects, or silently drops
+one — supersede this entry and `ws-r29-whatsapp-credentials-reused-not-
+forked`'s open paragraph with what actually happened, and fall back to
+option (b) or (c) from the original decision.

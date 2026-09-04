@@ -498,6 +498,26 @@ payload under the App Secret — matches `api/whatsapp.js`'s own
 `signatureOk()` exactly. See that file's own header for the full set of
 shapes this pass checked against Meta's own documents.
 
+### Provider contract marks (WS-R60, 2026-09-04)
+
+WS-R41 (2026-09-04) verified most provider-contract marks against the
+providers' own documents and left four open by name; this pass closed all
+four (two fully VERIFIED via cross-checked secondary sources where the
+primary page is unreachable by this session's fetch tool, two ANSWERED from
+the provider's own reference where the mark was an operator question rather
+than a code shape). Full citations:
+`context/measurements.md#ws-r60-open-provider-marks-2026-09-04`.
+
+| mark | status |
+|---|---|
+| Razorpay `updateSubscriptionQuantity` (subscription seat PATCH) | VERIFIED |
+| Razorpay `registerFundAccount` (fund account GET) | VERIFIED |
+| Razorpay `sendPayout` (payout POST) | VERIFIED |
+| RazorpayX payout webhook events (`payout.processed`/`failed`/`reversed` and 5 more) + payload | VERIFIED |
+| RazorpayX webhook signature (same `X-Razorpay-Signature`/HMAC-SHA256 mechanism as Subscriptions) | VERIFIED |
+| Telegram `setMessageReaction` body shape | VERIFIED (via the Bot API changelog + a typed SDK, not the primary reference page — it still truncates for this session's fetch tool) |
+| Meta: can one WABA/number's webhook be delivered to two apps or URLs | ANSWERED — yes, via the Subscribed Apps API (`POST /<WABA_ID>/subscribed_apps`), which is a different mechanism from the per-app webhook override; still an operator's call which shape to use, not a code decision |
+
 See `docs/gurukul/INSTAGRAM-DM-GAP.md` §3 for why WhatsApp is not yet
 self-serve (Tech Provider enrolment + Embedded Signup) and §1–2 for why
 Instagram DM has no adapter and no variables at all.

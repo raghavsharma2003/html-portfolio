@@ -78,15 +78,29 @@
 //     full citation, and `context/rejected.md#ws-r41-tg-reply-to-message-id-
 //     is-pre-bot-api-7-0`.
 //   - `setMessageReaction`'s own body shape
-//     ({chat_id, message_id, reaction:[{type:"emoji", emoji}]}) could NOT be
-//     independently confirmed against core.telegram.org/bots/api in this
-//     pass: the page is one very large document and this session's fetch
-//     tool truncates it before reaching that method's own table (confirmed
-//     by repeated fetches of #setmessagereaction and #reactiontypeemoji,
-//     each truncated at the same point in "Available types", never reaching
-//     "Available methods"). It stays UNVERIFIED, named rather than implied
-//     to work — settled by a tool that can retrieve that one method's table
-//     directly, or a real `setMessageReaction` call against a live bot.
+//     ({chat_id, message_id, reaction:[{type:"emoji", emoji}]}) — VERIFIED
+//     (WS-R60, 2026-09-04), but not by the primary page directly: this
+//     session's fetch tool reproduced WS-R41's exact truncation once more
+//     (core.telegram.org/bots/api, fetched again 2026-09-04, still cuts off
+//     inside "Available types" — this pass's own last-heading probe landed on
+//     "InputChecklist" — and the third-party mirror JSON spec at
+//     github.com/PaulSonOfLars/telegram-bot-api-spec truncates too, at
+//     "sendVenue", alphabetically right before "setMessageReaction" — new
+//     evidence this is the fetch tool's own size limit, not a page-specific
+//     failure). Two independent sources instead: (1) core.telegram.org/bots/
+//     api-changelog, fetched 2026-09-04, Bot API 7.0 (2023-12-29): "Added the
+//     method setMessageReaction that allows bots to react to messages" — this
+//     page IS reachable and confirms the method exists and its version; (2)
+//     raw.githubusercontent.com/grammyjs/types (main/methods.ts,
+//     main/message.ts), fetched 2026-09-04 — a widely-used typed SDK
+//     generated from Telegram's own reference — gives `setMessageReaction`'s
+//     full parameter table (`chat_id: number|string`, `message_id: number`,
+//     `reaction?: ReactionType[]`, `is_big?: boolean`) and `ReactionTypeEmoji`
+//     (`{type: "emoji", emoji: <59-value enum>}`), matching this file's
+//     `clientFor(...).react()` body exactly, field for field. See
+//     context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways
+//     for the original attempts and context/measurements.md#ws-r60-open-provider-marks-2026-09-04
+//     for the full citation set.
 //
 // ── the security boundary at the edge ─────────────────────────────────────
 //
@@ -354,8 +368,12 @@ function tgExtra(msg) {
 }
 
 /** The legacy client shape the offline suite injects — kept as the seam so
- *  evals/mp/tgbot.mjs drives the REAL pipeline with no network. */
-const clientFor = (token) => ({
+ *  evals/mp/tgbot.mjs drives the REAL pipeline with no network. Exported
+ *  (WS-R60) purely so evals/mp/tgbot.mjs can also pin the REAL outbound
+ *  `setMessageReaction` body shape against a monkey-patched fetch, rather
+ *  than only against the injected fake client that never reaches `tgCall`
+ *  at all — no behaviour change, the function itself is untouched. */
+export const clientFor = (token) => ({
   message: (chatId, text, extra = {}) =>
     tgCall("sendMessage", { chat_id: chatId, text, ...extra }, token),
   react: (chatId, messageId, emoji) =>

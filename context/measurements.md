@@ -9661,3 +9661,48 @@ sites are exercised by the current fixtures: `.room-stat` (talked-today
 count) needs `talked_today > 0`, `.room-upgrade` needs `upgrade_prompt`
 true, neither of which this workstream's static fixtures set - stated
 plainly rather than implying wider coverage than this run actually proves.
+
+## `ws-r60-open-provider-marks-2026-09-04`
+
+n = the 4 open marks this workstream's brief named by name (Razorpay
+subscription PATCH, RazorpayX payout webhook events/payload/signature,
+Telegram `setMessageReaction`, Meta one-number-two-webhooks), plus 2 marks
+WS-R41 had left "partially verified" that this pass closed fully
+(`registerFundAccount`, `sendPayout`); method = one or more `WebFetch`
+calls per mark against a document, cross-checked with an independent
+second fetch (a different URL, or a different phrasing of the same
+question against the same URL) wherever the first result was surprising or
+the primary provider page was unreachable; date 2026-09-04.
+
+| mark | status | citation |
+|---|---|---|
+| Razorpay `updateSubscriptionQuantity` (PATCH method/path/body) | **VERIFIED** | `razorpay.com/docs/api/payments/subscriptions/update-subscription/` — curl example quoted verbatim: `PATCH https://api.razorpay.com/v1/subscriptions/sub_00000000000001`; request table names `quantity`, `schedule_change_at` (`now`\|`cycle_end`), `plan_id`, `offer_id`, `remaining_count`, `start_at`, `customer_notify` |
+| Razorpay `registerFundAccount` (GET method/path — response shape already verified by WS-R41) | **VERIFIED** (was: partially) | `razorpay.com/docs/us/api/x/fund-accounts/fetch-with-id/` — curl example: `GET https://api.razorpay.com/v1/fund_accounts/fa_00000000000001` |
+| Razorpay `sendPayout` (POST method/path/body, `account_number` as a REQUEST field — WS-R41 had only the RESPONSE field `debit_account_number`) | **VERIFIED** (was: partially) | `razorpay.com/docs/api/x/payouts/create/bank-account/` — `POST https://api.razorpay.com/v1/payouts`, request table naming `account_number`, `fund_account_id`, `amount`, `currency`, `mode` (`NEFT`\|`RTGS`\|`IMPS`), `purpose` (incl. `payout`), `queue_if_low_balance`, `reference_id` (max 40 chars), `narration` (max 30 chars) |
+| RazorpayX payout webhook event names | **VERIFIED** | `d6xcmfyh68wv8.cloudfront.net/docs/x/webhooks/` (razorpay.com's own domain 404s on this exact path for a direct GET — see the rejection entry below; this is Razorpay's own CDN serving the identical pre-rendered page) — exhaustive list `payout.pending`, `payout.rejected`, `payout.queued`, `payout.initiated`, `payout.processed`, `payout.updated`, `payout.reversed`, `payout.failed`; "It is mandatory to subscribe to the payout.failed event"; `payout.processed`/`payout.reversed` are terminal |
+| RazorpayX payout webhook payload (`payout.processed`, `payout.failed`, `payout.reversed`) | **VERIFIED** | `d6xcmfyh68wv8.cloudfront.net/docs/webhooks/payloads/x/` — full JSON sample for all three events quoted verbatim: envelope `{entity:"event", account_id, event, contains:["payout"], payload:{payout:{entity:{...}}}, created_at}`; inner entity carries `id, entity, fund_account_id, amount, currency, notes, fees, tax, status, purpose, utr, mode, reference_id, narration, batch_id, status_details:{description,source,reason}, created_at, fee_type` |
+| RazorpayX webhook signature header/algorithm | **VERIFIED** | same cloudfront mirror, `/docs/x/webhooks/` — "The hash signature is calculated using HMAC with SHA256 algorithm, your webhook secret set as the key and the webhook request body as the message", header `X-Razorpay-Signature` — the SAME mechanism as the Subscriptions webhook `verifyWebhookSignature` already implements, no separate RazorpayX variant |
+| Telegram `setMessageReaction` body shape | **VERIFIED** (not via the primary page — see below) | `core.telegram.org/bots/api-changelog`: "Added the method setMessageReaction... allows bots to react to messages" (Bot API 7.0, 2023-12-29, confirms existence+version); `raw.githubusercontent.com/grammyjs/types` (`methods.ts`, `message.ts`): full parameter table `{chat_id, message_id, reaction?: ReactionType[], is_big?}` and `ReactionTypeEmoji {type:"emoji", emoji}` — matches `api/tg.js`'s existing body exactly |
+| Meta: can one phone number's webhook be subscribed by two apps/URLs | **ANSWERED** (operator question, not a code shape) | `developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-account/subscribed-apps-api`: `GET/POST/DELETE /<WABA_ID>/subscribed_apps`, response `data` an array of `SubscribedApp`, each with its own optional `override_callback_uri` — **yes**, a WABA can have MULTIPLE apps subscribed at once, each app getting its own full delivery, optionally at its own URL. Distinct from `.../webhooks/override/`'s per-app override (one URL per app per WABA/number, a hierarchy of overrides, not multiple URLs for ONE app) |
+
+**Not settled by any document, named rather than guessed (unchanged from
+WS-R41):** whether Meera's own Meta app and the Room's check-in lane
+*should* become two separate Meta Developer Apps subscribed to the same
+WABA (this pass's finding makes it POSSIBLE; it does not make it the right
+operational choice — that needs a human who can see the real WABA's
+current app count and Meta's per-WABA subscribed-app limit, which no
+document fetched in this pass states a number for) — see
+`context/decisions.md#ws-r60-meta-subscribed-apps-api-answers-the-two-url-question`.
+
+**What remains not measured / not proven.** No live provider account of
+any kind exists in this environment (unchanged from every prior wave);
+nothing here made an authenticated or paid call. `evals/payments/run.mjs`'s
+new §11 (8 assertions) ran clean, 78/78 total, offline, no `NEON_URL`
+needed. `evals/mp/tgbot.mjs`'s new `setMessageReaction`-shape section is
+written and syntax-checked but, like every other assertion in that file,
+needs `NEON_URL` to actually run (unchanged limitation from WS-R41,
+`measurements.md#ws-r41-provider-contract-marks-2026-09-04`) — not run in
+this environment. `evals/payouts/run.mjs` ran clean too once one addendum
+sentence was reworded (`rejected.md#ws-r60-quoted-provider-reason-code-tripped-a-negative-control`):
+50/50, up from 49/50 on the first (broken) draft, which had tripped its
+own WS-R36 negative control by quoting a RazorpayX reason code verbatim.
