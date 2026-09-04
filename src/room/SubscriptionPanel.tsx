@@ -43,6 +43,18 @@ export default function SubscriptionPanel({
     void load();
   }, [load]);
 
+  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
+  // (`RoomApp.tsx`), one file over: Escape closes this dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const doCancel = useCallback(async () => {
     setBusy(true);
     setError("");
@@ -66,7 +78,7 @@ export default function SubscriptionPanel({
       : "";
 
   return (
-    <section className="room-menu room-subscription" role="dialog" aria-label={copy.subscription.title}>
+    <section className="room-menu room-subscription" role="dialog" aria-modal="true" aria-label={copy.subscription.title}>
       <h2>{copy.subscription.title}</h2>
       {error && <p className="room-error">{error}</p>}
 

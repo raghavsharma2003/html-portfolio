@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 17 checks without NEON_URL; 19 with it
+node scripts/verify-release.mjs      # 18 checks without NEON_URL; 20 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -135,12 +135,15 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **17 checks** as of WS-R38
+`node scripts/verify-release.mjs` is **18 checks** as of WS-R50
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
-leak battery, the room export completeness battery, and the room door
+leak battery, the room export completeness battery, the room door
 battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
-through the real decision modules the thin HTTP doors call) as named gates —
-and 19 with it, adding the zero-orphan sweep and citation discipline.
+through the real decision modules the thin HTTP doors call) and the
+accessibility gate (`scripts/check-accessibility.mjs`, axe-core WCAG 2.1 A/AA
+plus a keyboard walk over every follower and creator screen in both locales,
+on 127.0.0.1:8933) as named gates — and 20 with it, adding the zero-orphan
+sweep and citation discipline.
 Migrations 071 through 099 and 101 are applied live; 100 is unused (WS-R38
 needed no new migration, every finding it fixed was a missing check in
 existing JS, never a schema change); 102 is the next free number.

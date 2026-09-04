@@ -33,7 +33,7 @@ import {
 } from "./roomApi";
 import { listCheckinDesignsAndPushKey, setTelegramCheckins } from "./roomCheckinsApi";
 import { paymentStatus, type RoomPaymentStatus } from "./roomPayApi";
-import { LanguageSwitch } from "./RoomApp";
+import { activateOnKey, LanguageSwitch } from "./RoomApp";
 
 /** RFC 4648 base64url, both directions — `CheckinsPanel.tsx`'s own pair,
  *  reused verbatim rather than re-typed: the same encoding a browser
@@ -122,6 +122,18 @@ export default function AccountPage({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmingForget, setConfirmingForget] = useState(false);
+
+  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
+  // (`RoomApp.tsx`), one component over: Escape closes this page.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   // WS-R39: one composed read, once, when the page opens — never on a fixture
   // (the layout gate has no network at all, `RoomApp.tsx`'s own rule for
@@ -306,7 +318,7 @@ export default function AccountPage({
     : copy.account.subscriptionFree;
 
   return (
-    <section className="room-menu room-account" role="dialog" aria-label={copy.account.title}>
+    <section className="room-menu room-account" role="dialog" aria-modal="true" aria-label={copy.account.title}>
       <h2>{copy.account.title}</h2>
       {error && <p className="room-error">{error}</p>}
 
@@ -329,6 +341,7 @@ export default function AccountPage({
           className="room-btn"
           disabled={memoryBusy || !auth}
           onPointerDown={() => onMemoryChange(!remembers)}
+          onKeyDown={activateOnKey(() => onMemoryChange(!remembers))}
         >
           {memoryBusy ? copy.pay.working : remembers ? copy.account.memoryDisable : copy.account.memoryEnable}
         </button>
@@ -342,7 +355,13 @@ export default function AccountPage({
       {pushKey && (
         <div className="room-checkins-push">
           <p className="room-fine">{pushOn ? copy.checkins.pushOnCopy : copy.checkins.pushOffCopy}</p>
-          <button type="button" className="room-btn" disabled={busy === "push"} onPointerDown={() => void togglePush()}>
+          <button
+            type="button"
+            className="room-btn"
+            disabled={busy === "push"}
+            onPointerDown={() => void togglePush()}
+            onKeyDown={activateOnKey(() => void togglePush())}
+          >
             {busy === "push" ? copy.pay.working : pushOn ? copy.checkins.pushDisable : copy.checkins.pushEnable}
           </button>
         </div>
@@ -354,7 +373,13 @@ export default function AccountPage({
             {waOn && waPhoneMasked ? copy.checkins.waOnCopy.replace("{phone}", waPhoneMasked) : copy.checkins.waOffCopy}
           </p>
           {waOn ? (
-            <button type="button" className="room-btn" disabled={busy === "whatsapp"} onPointerDown={() => void disableWhatsapp()}>
+            <button
+              type="button"
+              className="room-btn"
+              disabled={busy === "whatsapp"}
+              onPointerDown={() => void disableWhatsapp()}
+              onKeyDown={activateOnKey(() => void disableWhatsapp())}
+            >
               {busy === "whatsapp" ? copy.pay.working : copy.checkins.waDisable}
             </button>
           ) : (
@@ -373,6 +398,7 @@ export default function AccountPage({
                 className="room-btn"
                 disabled={busy === "whatsapp" || !waPhone.trim()}
                 onPointerDown={() => void saveWhatsapp()}
+                onKeyDown={activateOnKey(() => void saveWhatsapp())}
               >
                 {busy === "whatsapp" ? copy.pay.working : copy.checkins.waSave}
               </button>
@@ -386,7 +412,13 @@ export default function AccountPage({
           <p className="room-fine">
             {tgStopped ? copy.checkins.tgStoppedCopy : tgOn ? copy.checkins.tgOnCopy : copy.checkins.tgOffCopy}
           </p>
-          <button type="button" className="room-btn" disabled={busy === "telegram"} onPointerDown={() => void toggleTelegram()}>
+          <button
+            type="button"
+            className="room-btn"
+            disabled={busy === "telegram"}
+            onPointerDown={() => void toggleTelegram()}
+            onKeyDown={activateOnKey(() => void toggleTelegram())}
+          >
             {busy === "telegram" ? copy.pay.working : tgOn ? copy.checkins.tgDisable : copy.checkins.tgEnable}
           </button>
         </div>
@@ -404,7 +436,13 @@ export default function AccountPage({
       )}
       {payment?.tier === "free" ? (
         <div className="room-actions">
-          <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={onSubscribe}>
+          <button
+            type="button"
+            className="room-btn primary"
+            disabled={payBusy}
+            onPointerDown={onSubscribe}
+            onKeyDown={activateOnKey(onSubscribe)}
+          >
             {payBusy ? copy.pay.working : copy.pay.cta}
           </button>
           {payError && <p className="room-error">{payError}</p>}
@@ -417,13 +455,24 @@ export default function AccountPage({
 
       <h3 className="room-checkins-subhead">{copy.account.dataTitle}</h3>
       <div className="room-actions">
-        <button type="button" className="room-btn" disabled={busy === "export" || !auth} onPointerDown={() => void download()}>
+        <button
+          type="button"
+          className="room-btn"
+          disabled={busy === "export" || !auth}
+          onPointerDown={() => void download()}
+          onKeyDown={activateOnKey(() => void download())}
+        >
           {busy === "export" ? copy.pay.working : copy.menu.download}
         </button>
         <p className="room-fine">{copy.menu.downloadNote}</p>
 
         {!confirmingForget ? (
-          <button type="button" className="room-btn danger" onPointerDown={() => setConfirmingForget(true)}>
+          <button
+            type="button"
+            className="room-btn danger"
+            onPointerDown={() => setConfirmingForget(true)}
+            onKeyDown={activateOnKey(() => setConfirmingForget(true))}
+          >
             {copy.menu.forget}
           </button>
         ) : (
@@ -434,16 +483,22 @@ export default function AccountPage({
               className="room-btn danger"
               disabled={busy === "forget" || !auth}
               onPointerDown={() => void confirmForget()}
+              onKeyDown={activateOnKey(() => void confirmForget())}
             >
               {busy === "forget" ? copy.pay.working : copy.menu.forgetConfirm}
             </button>
-            <button type="button" className="room-btn" onPointerDown={() => setConfirmingForget(false)}>
+            <button
+              type="button"
+              className="room-btn"
+              onPointerDown={() => setConfirmingForget(false)}
+              onKeyDown={activateOnKey(() => setConfirmingForget(false))}
+            >
               {copy.menu.forgetCancel}
             </button>
           </>
         )}
 
-        <button type="button" className="room-btn" onPointerDown={onClose}>
+        <button type="button" className="room-btn" onPointerDown={onClose} onKeyDown={activateOnKey(onClose)}>
           {copy.account.close}
         </button>
       </div>

@@ -65,6 +65,18 @@ export default function HandoffPanel({
     void load();
   }, [load]);
 
+  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
+  // (`RoomApp.tsx`), one file over: Escape closes this dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const togglePick = (i: number) =>
     setPicked((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort((a, b) => a - b)));
 
@@ -121,7 +133,7 @@ export default function HandoffPanel({
   );
 
   return (
-    <section className="room-menu room-handoff" role="dialog" aria-label={withName(copy.handoff.title, creatorName)}>
+    <section className="room-menu room-handoff" role="dialog" aria-modal="true" aria-label={withName(copy.handoff.title, creatorName)}>
       <h2>{withName(copy.handoff.title, creatorName)}</h2>
       {error && <p className="room-error">{error}</p>}
 

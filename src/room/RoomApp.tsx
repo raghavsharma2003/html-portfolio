@@ -86,6 +86,22 @@ import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./ro
 type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean };
 type Phase = "loading" | "unavailable" | "join" | "talking" | "gone";
 
+/** WS-R50 (WCAG 2.1.1, keyboard). A handful of controls in this file fire
+ *  their action on `onPointerDown` rather than `onClick` — DESIGN-LAW's own
+ *  "feedback on pointerdown" law, taken further than it asked: pointerdown
+ *  fires the whole action here, not just the press feedback `:active` in
+ *  `room.css` already gives for free. A native `<button>` only turns
+ *  Enter/Space into a synthetic CLICK, never a pointer event, so every one
+ *  of those controls was unreachable from a keyboard — measured on the
+ *  pulse toggle, true of every button built the same way. This does not
+ *  touch the pointerdown behaviour (still fires first, still fast); it adds
+ *  the missing other half so Enter and Space reach the same action. */
+export const activateOnKey = (fn: () => void) => (e: React.KeyboardEvent) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  fn();
+};
+
 /** WS-R19: the play control never renders for a free follower, whatever this
  *  says - `import.meta.env.VITE_ROOM_VOICE` only decides whether the FLAG
  *  itself is on for this deployment. `voiceIdentityChallengeUiEnabled`'s own
@@ -169,6 +185,9 @@ export default function RoomApp({
   // exist").
   const [capOffer, setCapOffer] = useState<RoomOffer | null>(null);
   const foot = useRef<HTMLDivElement | null>(null);
+  // WS-R50: whether the scroll-to-bottom effect below has already run once.
+  // See that effect's own comment for why this exists.
+  const scrolledOnce = useRef(false);
   // WS-R19: which bubble is being fetched/played, and the one <audio> both
   // share (one clip at a time - a second tap stops the first rather than
   // layering two voices).
@@ -419,7 +438,25 @@ export default function RoomApp({
     };
   }, [slug, name, fixtureOpen]);
 
+  // WS-R50 (WCAG 2.4.3, focus order): this used to fire on the FIRST paint
+  // too, whenever `turns` already held anything at mount — every returning
+  // follower with `remembers: true` and a history, since `loadHistory`
+  // populates `turns` moments after mount. A page that scrolls itself on
+  // load, before anyone has done anything, is disorienting on its own
+  // (nothing here asked to move), and it was measured to have a second,
+  // sharper cost: with the viewport already carried to the foot of the
+  // thread, a keyboard user's very first Tab landed on the composer at the
+  // BOTTOM of the screen instead of the language switch at the TOP - a real
+  // browser's "focus nothing -> Tab" heuristic starts from what is on
+  // screen, not from the top of the DOM. `scrolledOnce` skips exactly the
+  // one call that fires before any real exchange has happened; every
+  // scroll that follows a person's OWN new message, or the creator's own
+  // reply, still runs exactly as before.
   useEffect(() => {
+    if (!scrolledOnce.current) {
+      scrolledOnce.current = true;
+      return;
+    }
     foot.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [turns.length, sending]);
 
@@ -729,6 +766,7 @@ export default function RoomApp({
           aria-pressed={pulseOn[thread ?? ""] === true}
           disabled={pulseBusy}
           onPointerDown={() => void togglePulse()}
+          onKeyDown={activateOnKey(() => void togglePulse())}
         >
           {pulseBusy
             ? copy.pulse.working
@@ -824,7 +862,13 @@ export default function RoomApp({
               ? copy.quota.lastOne
               : withIncluded(copy.quota.left, quota.messages_left, quota.messages_included)}
             {" "}
-            <button type="button" className="room-btn" disabled={payBusy} onPointerDown={() => void subscribe()}>
+            <button
+              type="button"
+              className="room-btn"
+              disabled={payBusy}
+              onPointerDown={() => void subscribe()}
+              onKeyDown={activateOnKey(() => void subscribe())}
+            >
               {payBusy ? copy.pay.working : copy.pay.cta}
             </button>
           </p>
@@ -834,7 +878,13 @@ export default function RoomApp({
           <section className="room-cap">
             <h2>{copy.quota.capped.title}</h2>
             <p className="room-lede">{copy.quota.capped.body}</p>
-            <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
+            <button
+              type="button"
+              className="room-btn primary"
+              disabled={payBusy}
+              onPointerDown={() => void subscribe()}
+              onKeyDown={activateOnKey(() => void subscribe())}
+            >
               {payBusy ? copy.pay.working : copy.pay.cta}
             </button>
             {payError && <p className="room-error">{payError}</p>}
@@ -854,10 +904,21 @@ export default function RoomApp({
                 ? withName(withPrice(copy.capOffer.body, `Rs ${capOffer.price_inr}`), name)
                 : withName(copy.capOffer.bodyNoPrice, name)}
             </p>
-            <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
+            <button
+              type="button"
+              className="room-btn primary"
+              disabled={payBusy}
+              onPointerDown={() => void subscribe()}
+              onKeyDown={activateOnKey(() => void subscribe())}
+            >
               {payBusy ? copy.pay.working : copy.capOffer.subscribe}
             </button>
-            <button type="button" className="room-btn" onPointerDown={dismissCapOffer}>
+            <button
+              type="button"
+              className="room-btn"
+              onPointerDown={dismissCapOffer}
+              onKeyDown={activateOnKey(dismissCapOffer)}
+            >
               {copy.capOffer.continue}
             </button>
           </section>
@@ -875,10 +936,21 @@ export default function RoomApp({
                 ? withName(withPrice(copy.offer.body, `Rs ${offerCard.price_inr}`), name)
                 : withName(copy.offer.bodyNoPrice, name)}
             </p>
-            <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
+            <button
+              type="button"
+              className="room-btn primary"
+              disabled={payBusy}
+              onPointerDown={() => void subscribe()}
+              onKeyDown={activateOnKey(() => void subscribe())}
+            >
               {payBusy ? copy.pay.working : copy.offer.subscribe}
             </button>
-            <button type="button" className="room-btn" onPointerDown={dismissOfferCard}>
+            <button
+              type="button"
+              className="room-btn"
+              onPointerDown={dismissOfferCard}
+              onKeyDown={activateOnKey(dismissOfferCard)}
+            >
               {copy.offer.continueFree}
             </button>
           </section>
@@ -1293,8 +1365,22 @@ function DataMenu({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // WS-R50 (WCAG 2.1.2, no keyboard trap / a keyboard user must be able to
+  // dismiss what they opened). `AuthSheet.tsx`'s own pattern, one product
+  // over: Escape closes the panel that is open right now, same as every
+  // other `role="dialog"` this codebase already ships.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <section className="room-menu" role="dialog" aria-label={copy.menu.title}>
+    <section className="room-menu" role="dialog" aria-modal="true" aria-label={copy.menu.title}>
       <h2>{copy.menu.title}</h2>
       {/* WS-R19: real numbers from the follower's own row, never estimated -
           law 5. Renders only for a paid follower with the flag on; a free
