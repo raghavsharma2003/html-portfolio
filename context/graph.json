@@ -5662,6 +5662,72 @@
       "kind": "measurement",
       "title": "Migration 088 applied live; markStep's ownership predicate and first-write-wins plan as one CTE with the pkey as conflict arbiter, every funnel read and the sweep retention delete plan on their indexes",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-room-hindi",
+      "kind": "decision",
+      "title": "The Room in Hindi (WS-R24): src/room/copy.ts becomes a locale table (ROOM_COPY_TABLE.en/.hi), migration 087 adds vy_room_follower.locale and vy_room.default_locale, the AI's own replies are never translated - only app-voiced chrome moves",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-session-carries-its-own-minted-locale",
+      "kind": "decision",
+      "title": "The room session token gained a loc field; roomSay/roomSpeak recompute the disclosure digest against payload.loc, never the follower row's current locale",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-locale-excluded-from-repeat-join-conflict-update",
+      "kind": "decision",
+      "title": "joinRoom's ON CONFLICT DO UPDATE never touches locale, so a repeat join cannot silently undo a roomSetLocale change",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-locale-hint-never-overrides-a-joined-followers-own-row",
+      "kind": "decision",
+      "title": "openRoom's browser/Telegram locale hint is consulted only before a follower row exists; a joined follower's own stored locale always wins",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-room-card-in-api-surface-js-is-not-vyakti-rooms",
+      "kind": "decision",
+      "title": "api/_surface.js's ROOM_CARD is Meera's own MULTIPARTY group-chat card, unreachable by any Vyakti Rooms follower; left untouched despite being named in the brief",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-check-copy-textnodes-devanagari-letter-run",
+      "kind": "decision",
+      "title": "scripts/check-copy.mjs's textNodes() extractor now recognizes Devanagari letters as content, not only [A-Za-z]",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-disclosure-recomputed-from-the-follower-row-broke-every-session-across-a-switch",
+      "kind": "rejection",
+      "title": "Recomputing the disclosure digest from the follower row's CURRENT locale (rather than the session's own minted locale) refuses valid outstanding sessions across a locale switch",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-sql-comment-backticks-terminate-the-template-literal-again",
+      "kind": "rejection",
+      "title": "A backtick-quoted identifier inside a SQL comment inside joinRoom's template literal closed the JS string early - the third instance of this exact defect shape in this repo's history",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-textnodes-devanagari-blind-spot",
+      "kind": "measurement",
+      "title": "Before the fix, a pure-Devanagari HTML/JSX text node with a banned word inside it produced ZERO check-copy offences; after, one rooms-vocabulary offence",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r24-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "room-locale 44/44; room/room-leak/checkins/pulse/room-cohorts/room-publish/handoff/room-push/room-telegram/payments unchanged; check-copy 6/6 scopes, 21/21 negative controls; tsc clean; verify-release 15/15; layout gate 337 blocks across studio+room+room-hi",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-087-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 087 applied live; the follower locale and the Room default locale plan on the existing room-seen and owner indexes, the join INSERT arbitrates on the person index with locale absent from its SET list",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11409,6 +11475,71 @@
       "src": "rooms-migration-088-live-verification-2026-09-04",
       "rel": "supersedes",
       "dst": "ws-r25-migration-088-not-proven-live"
+    },
+    {
+      "src": "ws-r24-room-hindi",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r24-room-hindi",
+      "rel": "constrains",
+      "dst": "ws-r10-rooms-vocabulary-gate"
+    },
+    {
+      "src": "ws-r24-session-carries-its-own-minted-locale",
+      "rel": "part_of",
+      "dst": "ws-r24-room-hindi"
+    },
+    {
+      "src": "ws-r24-session-carries-its-own-minted-locale",
+      "rel": "caused_by",
+      "dst": "ws-r24-disclosure-recomputed-from-the-follower-row-broke-every-session-across-a-switch"
+    },
+    {
+      "src": "ws-r24-locale-excluded-from-repeat-join-conflict-update",
+      "rel": "part_of",
+      "dst": "ws-r24-room-hindi"
+    },
+    {
+      "src": "ws-r24-locale-hint-never-overrides-a-joined-followers-own-row",
+      "rel": "part_of",
+      "dst": "ws-r24-room-hindi"
+    },
+    {
+      "src": "ws-r24-room-card-in-api-surface-js-is-not-vyakti-rooms",
+      "rel": "part_of",
+      "dst": "ws-r24-room-hindi"
+    },
+    {
+      "src": "ws-r24-check-copy-textnodes-devanagari-letter-run",
+      "rel": "caused_by",
+      "dst": "ws-r24-textnodes-devanagari-blind-spot"
+    },
+    {
+      "src": "ws-r24-check-copy-textnodes-devanagari-letter-run",
+      "rel": "part_of",
+      "dst": "ws-r24-room-hindi"
+    },
+    {
+      "src": "ws-r24-room-hindi",
+      "rel": "measured_by",
+      "dst": "ws-r24-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r24-locale-excluded-from-repeat-join-conflict-update",
+      "rel": "measured_by",
+      "dst": "rooms-migration-087-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r24-locale-hint-never-overrides-a-joined-followers-own-row",
+      "rel": "measured_by",
+      "dst": "rooms-migration-087-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r24-room-hindi",
+      "rel": "measured_by",
+      "dst": "rooms-migration-087-live-verification-2026-09-04"
     }
   ]
 }

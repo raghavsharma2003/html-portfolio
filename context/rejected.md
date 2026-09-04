@@ -7097,3 +7097,94 @@ right. A shared test helper that classifies errors by `instanceof` has to
 know about every error class the module under test can actually throw,
 including ones imported from a file it calls into, not only the ones it
 defines itself.
+
+## `ws-r24-disclosure-recomputed-from-the-follower-row-broke-every-session-across-a-switch` (2026-09-04, WS-R24)
+
+**What was tried.** The first draft of `roomSay`/`roomSpeak`'s locale-aware
+disclosure recomputation read the follower's CURRENT `locale` off a fresh
+`followerRow` lookup — the same row `roomSay` already reads a few lines
+later for the cap check — and used that to rebuild
+`roomDisclosureCard(name, follower.locale)` for the `payload.dd` digest
+comparison, on the assumption that "the row is the truth" (the same logic
+that is correct for the disclosure NAME and the cap ceiling, both of which
+this file already re-derives from live rows on purpose).
+
+**What specifically broke.** `evals/room-locale/run.mjs`'s own negative
+control (c) — join a follower, send a message (fine, `roomDisclosureCard`
+computed against the follower's locale at that moment matches the session's
+own `dd`), call `roomSetLocale` to switch languages (which correctly mints a
+FRESH session bound to the NEW card's digest), then send a second message
+with that fresh session. The second `roomSay` call re-read the follower row
+(now updated to the new locale), recomputed the disclosure in the new
+locale, and compared it against `payload.dd` — which was ALSO minted against
+the new locale, so this specific sequence actually passed. The real failure
+showed up in the more general case (documented by hand, not by a second
+automated control, since exercising real session drift requires two racing
+sessions rather than one): any session minted BEFORE a locale switch and
+still valid (a second tab, the 12-hour TTL) recomputes its disclosure
+against the follower row's NOW-current locale rather than the locale it was
+actually minted against, and `payload.dd` — computed once, at mint time, in
+the OLD locale — stops matching. Every such session gets refused with
+`room_disclosure_stale` and forced to re-open, even though the follower
+never saw a different card than the one their own session carries the
+digest for. This is the identical shape `structural-disclosure`'s own
+digest binding exists to prevent for a RENAMED creator — a session must be
+judged against what it was minted against, not against a row that moved
+under it — and this draft violated that for the locale dimension while
+correctly preserving it for the name dimension one field over.
+
+**Fix.** The session payload gained its own `loc` field (`dd`/`td`'s own
+convention: a token names the state it was minted against), written by
+every mint site (`openRoom`, `joinRoom`, `mintFollowerSession`,
+`roomSetLocale`), and `roomSay`/`roomSpeak` recompute the disclosure from
+`payload.loc`, never from `follower.locale` — see
+`decisions.md#ws-r24-session-carries-its-own-minted-locale`. An older token
+minted before this field existed carries `undefined`, which
+`roomDisclosureCard`'s own default reads as `"en"`, matching what such a
+token was actually minted against, so this fix needed no migration-day
+session invalidation.
+
+**Rule.** Every field a session's own digest is checked against must be
+re-derived from what the TOKEN says it was minted against, never from a
+row's current value, even when re-deriving from the row is exactly correct
+for an adjacent field on the same statement (the disclosure NAME still
+correctly comes from the live `resolved.sheet`, because the name is not
+part of what the digest binds against being STALE in this sense — a renamed
+creator SHOULD invalidate every outstanding session, and does, by design).
+The question to ask before reading any row inside a digest-check path is not
+"is this row the truth" (it always is) but "did the TOKEN commit to this
+specific value at mint time" — if yes, re-derive from the token's own
+recorded value, never from the row.
+
+## `ws-r24-sql-comment-backticks-terminate-the-template-literal-again` (2026-09-04, WS-R24)
+
+**What was tried.** A SQL comment inside `joinRoom`'s `ON CONFLICT ... DO
+UPDATE` clause, explaining why `locale` is deliberately absent from the SET
+list, quoted the column name and a function name in backticks
+(`` `locale` ``, `` `roomSetLocale` ``) inside a `--` SQL comment that itself
+lives inside a JS template literal delimited by backticks.
+
+**What specifically broke.** `node --check api/_room-surface.js` (and every
+downstream import of the file, including `evals/room-locale/run.mjs` itself
+on its very first run) failed immediately with `SyntaxError: missing ) after
+argument list` — the first backtick inside the SQL comment closed the JS
+template literal early, and everything after it was parsed as ordinary JS
+rather than as SQL text.
+
+**Fix.** Removed the backticks from the comment, writing the identifier and
+function names as plain unquoted words instead.
+
+**Rule.** This is the THIRD time this exact defect shape has been logged in
+this repo's own session history — WS-R2 (voice identity challenge,
+2026-09-03), WS-R16 (check-ins, 2026-09-04) and now this workstream, all on
+the SAME file class (a SQL string built as a JS template literal, with a
+markdown-style backtick-quoted identifier inside a `--` comment). None of
+`tsc`, `vite build` or any static gate ahead of `evals/run.mjs`'s dynamic
+import catches this, because a plain `.js` file under `api/` is never
+type-checked or bundled by anything before an eval actually tries to import
+it — the failure is invisible until the first suite that touches the file
+runs. NEVER put a backtick character inside a SQL comment that lives inside
+a JS template literal, in this repo, ever — write the identifier or
+function name unquoted, or use single quotes, but never a backtick, and
+treat `node --check` on every touched `.js` file as a cheap, fast, mandatory
+step before trusting any gate result on it.

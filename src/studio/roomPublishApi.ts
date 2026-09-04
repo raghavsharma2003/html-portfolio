@@ -9,6 +9,10 @@ export interface OwnedRoom {
   free_monthly_messages: number;
   paid_monthly_messages: number;
   paid_monthly_voice_seconds: number;
+  // WS-R24: the Room's default CHROME language for a follower whose browser
+  // reports nothing usable and who has no follower row yet - never the AI's
+  // own reply language, which this file has no opinion about.
+  default_locale: "en" | "hi";
   published: boolean;
   paused: boolean;
   published_at: string | null;
@@ -131,6 +135,15 @@ export async function setOwnedRoomPaidCeilings(
     messages,
     voice_seconds: voiceSeconds,
   });
+  return data.room;
+}
+
+export async function setOwnedRoomDefaultLocale(
+  token: string,
+  replicaId: string,
+  locale: "en" | "hi",
+): Promise<OwnedRoom> {
+  const data = await call<{ room: OwnedRoom }>(token, { op: "set_default_locale", replica_id: replicaId, locale });
   return data.room;
 }
 

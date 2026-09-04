@@ -20,6 +20,13 @@
  * renders the conversation. Both are measured, because the two have completely
  * different layouts and the collapsed-column bug the gate exists for lives in
  * whichever one nobody looked at.
+ *
+ * ?lang=hi (WS-R24) renders the SAME two screens with the Room's chrome in
+ * Hindi (`ROOM_COPY_TABLE.hi`) instead of English - `scripts/check-layout.mjs`'s
+ * `room:hi` target points here. The disclosure card below has its own Hindi
+ * text for exactly the same reason `RoomApp.tsx`'s real one does: the card's
+ * bytes are locale-bound, so a fixture claiming `locale: "hi"` while still
+ * showing the English card would measure a screen no follower ever sees.
  */
 import ReactDOM from "react-dom/client";
 import RoomApp from "./RoomApp";
@@ -41,9 +48,19 @@ const CARD = [
   "What you say stays in your own thread. Nobody else who talks to Anjali AI can see any of it.",
 ].join("\n");
 
+/** Byte-identical in shape to `roomDisclosureCard("Anjali", "hi")` in
+ *  api/_room-surface.js - same reason `CARD` above is written out rather than
+ *  imported. */
+const CARD_HI = [
+  "आप Anjali AI से बात कर रहे हैं। यह Anjali नहीं है।",
+  "Anjali ने इसे अपनी सामग्री से बनाया और यहां प्रकाशित किया। Anjali यह बातचीत नहीं पढ़ते।",
+  "आप जो कहते हैं वह सिर्फ आपकी अपनी थ्रेड में रहता है। Anjali AI से बात करने वाला कोई और इसमें से कुछ भी नहीं देख सकता।",
+].join("\n");
+
 const FIXTURE_OPEN: RoomOpen = {
   room: { slug: "anjali", display_name: "Anjali", name: "Anjali", handoff_enabled: true },
   disclosure: CARD,
+  locale: "en",
   joined: true,
   follower: {
     joined_at: "2026-08-14T09:00:00.000Z",
@@ -82,8 +99,14 @@ const FIXTURE_TURNS = [
 ];
 
 function render() {
-  const screen = new URLSearchParams(window.location.search).get("screen") || "talk";
-  const open = screen === "join" ? { ...FIXTURE_OPEN, joined: false, session: null } : FIXTURE_OPEN;
+  const params = new URLSearchParams(window.location.search);
+  const screen = params.get("screen") || "talk";
+  // WS-R24: ?lang=hi swaps the chrome locale AND the disclosure card's own
+  // bytes together, so this fixture can never show a "hi" room whose card is
+  // still in English - the one shape a real Room may never be in.
+  const hindi = params.get("lang") === "hi";
+  const base = hindi ? { ...FIXTURE_OPEN, locale: "hi" as const, disclosure: CARD_HI } : FIXTURE_OPEN;
+  const open = screen === "join" ? { ...base, joined: false, session: null } : base;
   ReactDOM.createRoot(document.getElementById("room-root")!).render(
     <RoomApp fixtureOpen={open} fixtureTurns={screen === "join" ? [] : FIXTURE_TURNS} />,
   );

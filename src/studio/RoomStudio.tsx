@@ -34,6 +34,7 @@ import {
   resumeOwnedRoom,
   setOwnedRoomFreeCap,
   setOwnedRoomPaidCeilings,
+  setOwnedRoomDefaultLocale,
   readOwnedRoomStats,
   roomLink,
   RoomPublishApiError,
@@ -160,7 +161,7 @@ export default function RoomStudio({
   const [pulseError, setPulseError] = useState(false);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
@@ -344,6 +345,27 @@ export default function RoomStudio({
         setRoom(updated);
         setCapDraft(updated.free_monthly_messages);
         setNotice(`Free followers now get ${updated.free_monthly_messages} messages a month.`);
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
+  const saveDefaultLocale = useCallback(
+    async (next: "en" | "hi") => {
+      setBusy("locale");
+      setError("");
+      try {
+        const updated = await setOwnedRoomDefaultLocale(token, replicaId, next);
+        setRoom(updated);
+        setNotice(
+          next === "hi"
+            ? "New followers with no language set will see Hindi first."
+            : "New followers with no language set will see English first.",
+        );
       } catch (e) {
         fail(e);
       } finally {
@@ -625,6 +647,28 @@ export default function RoomStudio({
           >
             {busy === "cap" ? "Saving..." : "Save"}
           </button>
+        </div>
+      </article>
+
+      <article className="teacher-sheet-card vy-room__cap-card">
+        <h3>Room language</h3>
+        <p className="field-note">
+          Your AI keeps speaking whatever you speak with it - this only picks the app's own screens: the buttons,
+          the disclosure line, the menu. A follower who has joined before, or whose own browser reports a
+          language, sees that instead; this is only the first screen for everyone else.
+        </p>
+        <div className="vy-room__cap-row" role="group" aria-label="Default room language">
+          {(["en", "hi"] as const).map((loc) => (
+            <button
+              key={loc}
+              type="button"
+              className={`vy-room__cap-pill${room.default_locale === loc ? " vy-room__cap-pill--selected" : ""}`}
+              disabled={busy === "locale"}
+              onPointerDown={() => void saveDefaultLocale(loc)}
+            >
+              {loc === "hi" ? "हिन्दी" : "English"}
+            </button>
+          ))}
         </div>
       </article>
 

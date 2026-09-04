@@ -69,6 +69,10 @@ export interface RoomOpen {
   follower: RoomFollower | null;
   threads?: RoomThread[];
   session: string | null;
+  /** WS-R24. The follower's own stored locale once joined; the browser hint
+   *  behind the creator's own `default_locale` before that. `roomDisclosureCard`
+   *  above is rendered in exactly this locale - never re-picked client side. */
+  locale: "en" | "hi";
 }
 
 export interface RoomTurn {
@@ -123,17 +127,32 @@ export function slugFromPath(pathname = window.location.pathname): string {
   return match ? match[1].toLowerCase() : "";
 }
 
-export const openRoom = (slug: string, accessToken?: string | null) =>
-  post<RoomOpen>({ op: "open", room: slug }, accessToken);
+/** `locale` is a HINT, read only when there is no follower row yet to answer
+ *  the question instead - `api/_room-surface.js`'s `openRoom` ignores it the
+ *  moment a follower already exists. Omit it and the server falls back to the
+ *  creator's own `default_locale`. */
+export const openRoom = (slug: string, accessToken?: string | null, locale?: string | null) =>
+  post<RoomOpen>({ op: "open", room: slug, locale: locale || undefined }, accessToken);
 
 export const joinRoom = (
   slug: string,
   accessToken: string,
   answers: { age18: boolean; remember: boolean },
+  locale?: string | null,
 ) => post<RoomOpen & { session: string }>(
-  { op: "join", room: slug, age_18: answers.age18, remember: answers.remember },
+  { op: "join", room: slug, age_18: answers.age18, remember: answers.remember, locale: locale || undefined },
   accessToken,
 );
+
+/** WS-R24, the follower's own chrome language, changed from inside a Room
+ *  they have already joined. Scoped off the SESSION, never a person id in the
+ *  body - `api/_room-surface.js`'s `roomSetLocale` is the one predicate that
+ *  enforces this, so a follower cannot name another follower's row here even
+ *  by constructing the request by hand. Returns a fresh session, because the
+ *  disclosure card's bytes (and therefore its bound digest) changed with the
+ *  language. */
+export const setRoomLocale = (session: string, locale: "en" | "hi") =>
+  post<{ locale: "en" | "hi"; session: string }>({ op: "locale", session, locale });
 
 export const sayInRoom = (
   session: string,

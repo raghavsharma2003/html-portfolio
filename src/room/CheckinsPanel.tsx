@@ -3,7 +3,7 @@
 // dialog in this app knows this one. Owns no decision — every rule lives in
 // api/_checkins.js; this file only turns a pick into a POST.
 import { useCallback, useEffect, useState } from "react";
-import { ROOM_COPY } from "./copy";
+import type { RoomCopy } from "./copy";
 import {
   listCheckinDesignsAndPushKey,
   listMyCheckins,
@@ -35,7 +35,15 @@ function bufToB64u(buf: ArrayBuffer | null): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export default function CheckinsPanel({ session, onClose }: { session: string; onClose: () => void }) {
+export default function CheckinsPanel({
+  session,
+  copy,
+  onClose,
+}: {
+  session: string;
+  copy: RoomCopy;
+  onClose: () => void;
+}) {
   const [designs, setDesigns] = useState<RoomCheckinDesign[]>([]);
   const [mine, setMine] = useState<RoomCheckin[]>([]);
   const [error, setError] = useState("");
@@ -66,7 +74,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
           .catch(() => {});
       }
     } catch {
-      setError(ROOM_COPY.errors.generic);
+      setError(copy.errors.generic);
     }
   }, [session]);
 
@@ -99,7 +107,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
       await pushSubscribe(session, endpoint, p256dh, auth);
       setPushOn(true);
     } catch {
-      setPushError(ROOM_COPY.checkins.pushError);
+      setPushError(copy.checkins.pushError);
     } finally {
       setPushBusy(false);
     }
@@ -117,7 +125,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
       }
       setPushOn(false);
     } catch {
-      setPushError(ROOM_COPY.checkins.pushError);
+      setPushError(copy.checkins.pushError);
     } finally {
       setPushBusy(false);
     }
@@ -144,7 +152,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
         setPicking(null);
         await load();
       } catch (e) {
-        setError(e instanceof RoomCheckinsApiError ? ROOM_COPY.errors.generic : ROOM_COPY.errors.generic);
+        setError(e instanceof RoomCheckinsApiError ? copy.errors.generic : copy.errors.generic);
       } finally {
         setBusy(null);
       }
@@ -160,7 +168,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
         await stopCheckin(session, checkinId);
         await load();
       } catch {
-        setError(ROOM_COPY.errors.generic);
+        setError(copy.errors.generic);
       } finally {
         setBusy(null);
       }
@@ -169,24 +177,24 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
   );
 
   return (
-    <section className="room-menu room-checkins" role="dialog" aria-label={ROOM_COPY.checkins.title}>
-      <h2>{ROOM_COPY.checkins.title}</h2>
-      <p className="room-fine">{ROOM_COPY.checkins.intro}</p>
+    <section className="room-menu room-checkins" role="dialog" aria-label={copy.checkins.title}>
+      <h2>{copy.checkins.title}</h2>
+      <p className="room-fine">{copy.checkins.intro}</p>
       {error && <p className="room-error">{error}</p>}
 
       {mine.length > 0 && (
         <>
-          <h3 className="room-checkins-subhead">{ROOM_COPY.checkins.mineTitle}</h3>
+          <h3 className="room-checkins-subhead">{copy.checkins.mineTitle}</h3>
           <ul className="room-checkins-list">
             {mine.map((c) => (
               <li key={c.checkin_id} className="room-checkins-row">
                 <span>{c.title}</span>
                 {c.state === "active" ? (
                   <button type="button" className="room-btn" disabled={busy === c.checkin_id} onClick={() => void stop(c.checkin_id)}>
-                    {busy === c.checkin_id ? "..." : ROOM_COPY.checkins.stop}
+                    {busy === c.checkin_id ? "..." : copy.checkins.stop}
                   </button>
                 ) : (
-                  <span className="room-fine">{ROOM_COPY.checkins.stopped}</span>
+                  <span className="room-fine">{copy.checkins.stopped}</span>
                 )}
               </li>
             ))}
@@ -195,7 +203,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
       )}
 
       {designs.length === 0 ? (
-        <p className="room-fine">{ROOM_COPY.checkins.empty}</p>
+        <p className="room-fine">{copy.checkins.empty}</p>
       ) : (
         <ul className="room-checkins-list">
           {designs
@@ -208,7 +216,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
                 </div>
                 {picking === d.design_id ? (
                   <div className="room-checkins-schedule">
-                    <div className="room-checkins-days" role="group" aria-label={ROOM_COPY.checkins.daysLabel}>
+                    <div className="room-checkins-days" role="group" aria-label={copy.checkins.daysLabel}>
                       {WEEKDAY_LABELS.map((w) => (
                         <button
                           type="button"
@@ -221,17 +229,17 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
                       ))}
                     </div>
                     <label className="room-fine">
-                      {ROOM_COPY.checkins.timeLabel}
+                      {copy.checkins.timeLabel}
                       <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
                     </label>
                     <div className="room-checkins-quiet">
-                      <span className="room-fine">{ROOM_COPY.checkins.quietLabel}</span>
+                      <span className="room-fine">{copy.checkins.quietLabel}</span>
                       <label className="room-fine">
-                        {ROOM_COPY.checkins.quietFromLabel}
+                        {copy.checkins.quietFromLabel}
                         <input type="time" value={quietFrom} onChange={(e) => setQuietFrom(e.target.value)} />
                       </label>
                       <label className="room-fine">
-                        {ROOM_COPY.checkins.quietToLabel}
+                        {copy.checkins.quietToLabel}
                         <input type="time" value={quietTo} onChange={(e) => setQuietTo(e.target.value)} />
                       </label>
                     </div>
@@ -241,12 +249,12 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
                       disabled={busy === d.design_id || !days.length}
                       onClick={() => void start(d.design_id)}
                     >
-                      {busy === d.design_id ? "..." : ROOM_COPY.checkins.add}
+                      {busy === d.design_id ? "..." : copy.checkins.add}
                     </button>
                   </div>
                 ) : (
                   <button type="button" className="room-btn" onClick={() => setPicking(d.design_id)}>
-                    {ROOM_COPY.checkins.add}
+                    {copy.checkins.add}
                   </button>
                 )}
               </li>
@@ -256,7 +264,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
 
       {pushKey && (
         <div className="room-checkins-push">
-          <p className="room-fine">{pushOn ? ROOM_COPY.checkins.pushOnCopy : ROOM_COPY.checkins.pushOffCopy}</p>
+          <p className="room-fine">{pushOn ? copy.checkins.pushOnCopy : copy.checkins.pushOffCopy}</p>
           {pushError && <p className="room-error">{pushError}</p>}
           <button
             type="button"
@@ -264,13 +272,13 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
             disabled={pushBusy}
             onClick={() => void (pushOn ? disablePush() : enablePush())}
           >
-            {pushBusy ? "..." : pushOn ? ROOM_COPY.checkins.pushDisable : ROOM_COPY.checkins.pushEnable}
+            {pushBusy ? "..." : pushOn ? copy.checkins.pushDisable : copy.checkins.pushEnable}
           </button>
         </div>
       )}
 
       <button type="button" className="room-btn" onClick={onClose}>
-        {ROOM_COPY.checkins.close}
+        {copy.checkins.close}
       </button>
     </section>
   );

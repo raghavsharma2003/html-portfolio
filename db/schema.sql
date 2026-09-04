@@ -3623,6 +3623,24 @@ create index if not exists vy_room_handoff_person_ix
 create index if not exists vy_room_handoff_cap_ix
   on vy_room_handoff (follower_id, month_key, state);
 
+-- Migration 087 - the Room in Hindi (WS-R24). See
+-- db/migrations/087_room_locale.sql for the full argument: `locale` is the
+-- follower's OWN choice once they have a row (set at INSERT, changed only via
+-- api/_room-surface.js's session-scoped roomSetLocale, never reset by a
+-- repeat join), `default_locale` is the CREATOR's own fallback for a follower
+-- with no row yet and no usable browser hint. Both CHECK-bounded to the two
+-- locales this product ships.
+alter table vy_room_follower
+  add column if not exists locale text not null default 'en';
+alter table vy_room_follower
+  drop constraint if exists vy_room_follower_locale_check,
+  add constraint vy_room_follower_locale_check check (locale in ('en', 'hi'));
+
+alter table vy_room
+  add column if not exists default_locale text not null default 'en';
+alter table vy_room
+  drop constraint if exists vy_room_default_locale_check,
+  add constraint vy_room_default_locale_check check (default_locale in ('en', 'hi'));
 -- Migration 088 - the creator funnel marks (WS-R25). See
 -- db/migrations/088_replica_funnel.sql for the full rationale: the two
 -- moments no other table knows (studio wizard mount, Publish click), never a

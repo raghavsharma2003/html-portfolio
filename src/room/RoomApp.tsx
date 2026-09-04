@@ -39,7 +39,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StudioSession } from "../studio/types";
 import { readStoredSession, restoreSession, writeStoredSession } from "../studio/session";
 import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../studio/studioAuth";
-import { ROOM_COPY, withName } from "./copy";
+import {
+  ROOM_COPY_TABLE,
+  ROOM_LANGUAGE_LABELS,
+  ROOM_LOCALES,
+  normalizeLocale,
+  withName,
+  type RoomCopy,
+  type RoomLocale,
+} from "./copy";
 import CheckinsPanel from "./CheckinsPanel";
 import HandoffPanel from "./HandoffPanel";
 import {
@@ -55,6 +63,7 @@ import {
   revokePulseOptIn,
   sayInRoom,
   setPulseOptIn,
+  setRoomLocale,
   speakInRoom,
   slugFromPath,
   type RoomCitations,
@@ -118,6 +127,14 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [voiceBusy, setVoiceBusy] = useState<number | null>(null);
   const [voicePlaying, setVoicePlaying] = useState<number | null>(null);
   const audioEl = useRef<HTMLAudioElement | null>(null);
+  // WS-R24: the follower's own chrome language. `room.locale` is the server's
+  // answer (the follower row once joined, the browser hint before that, the
+  // creator's own default when the browser gave nothing) - never guessed here
+  // a second time. `copy` is the ONE lookup every string in this file reads
+  // through from here down; nothing below picks a locale for itself.
+  const locale: RoomLocale = room?.locale ?? "en";
+  const copy: RoomCopy = ROOM_COPY_TABLE[locale];
+  const [localeBusy, setLocaleBusy] = useState(false);
 
   const name = room?.room.name || room?.room.display_name || "";
   const remembers = room?.follower?.remembers === true;
@@ -155,8 +172,8 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       } catch (e) {
         setError(
           e instanceof RoomApiError && e.code === "room_voice_paid_only"
-            ? ROOM_COPY.voice.freeOnly
-            : ROOM_COPY.voice.unavailable,
+            ? copy.voice.freeOnly
+            : copy.voice.unavailable,
         );
       } finally {
         setVoiceBusy((current) => (current === index ? null : current));
@@ -175,7 +192,14 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       if (!live) return;
       if (restored) setAuth(restored);
       try {
-        const opened = await openRoom(slug, restored?.accessToken ?? null);
+        // The browser's own language is only a HINT, read once on first
+        // open: a follower who has already joined gets back their OWN stored
+        // locale regardless of what this says (`api/_room-surface.js`'s
+        // `openRoom` ignores the hint once a follower row exists), and one
+        // who has not gets it only as a fallback behind the creator's own
+        // `default_locale`.
+        const hint = normalizeLocale(typeof navigator !== "undefined" ? navigator.language : "");
+        const opened = await openRoom(slug, restored?.accessToken ?? null, hint);
         if (!live) return;
         setRoom(opened);
         setSession(opened.session);
@@ -189,6 +213,47 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       live = false;
     };
   }, [slug, fixtureOpen]);
+
+  /* `lang` on the document, not just on this component's own root: a screen
+   * reader and the browser's own find-in-page both read it from here, and
+   * this is chrome, not the AI's voice - the AI's own replies keep the
+   * creator's Room-level language setting regardless of what this says. */
+  useEffect(() => {
+    if (fixtureOpen) return;
+    document.documentElement.lang = locale;
+  }, [locale, fixtureOpen]);
+
+  /* The language switch. Two shapes, because a follower who has not joined
+   * yet has no session to persist a choice against - `roomDisclosureCard`'s
+   * bytes are locale-bound, so switching before joining re-opens for a fresh
+   * card in the new language rather than only relabelling buttons around a
+   * card the follower never actually saw in that language. Once joined, the
+   * choice is a session-scoped write (`api/_room-surface.js`'s `roomSetLocale`)
+   * that mints a fresh session bound to the new card's digest. */
+  const switchLocale = useCallback(
+    async (next: RoomLocale) => {
+      if (fixtureOpen || localeBusy || next === locale) return;
+      setLocaleBusy(true);
+      try {
+        if (session && phase === "talking") {
+          const result = await setRoomLocale(session, next);
+          setSession(result.session);
+          setRoom((prev) => (prev ? { ...prev, locale: result.locale } : prev));
+        } else {
+          const opened = await openRoom(slug, auth?.accessToken ?? null, next);
+          setRoom(opened);
+          setSession(opened.session);
+          setThreads(opened.threads ?? []);
+        }
+      } catch {
+        // Honest silence: the switch stays where it was, and the next tap
+        // tries again - never a fake success on the language a person reads.
+      } finally {
+        setLocaleBusy(false);
+      }
+    },
+    [fixtureOpen, localeBusy, locale, session, phase, slug, auth],
+  );
 
   /* The one statistic, and only when it is real. A null renders nothing rather
    * than a zero that looks like a measurement. */
@@ -300,11 +365,11 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         setDraft(text);
         setTurns((prev) => prev.slice(0, -1));
       } else if (cause instanceof RoomApiError && cause.code === "room_disclosure_stale") {
-        setError(ROOM_COPY.errors.stale);
+        setError(copy.errors.stale);
       } else if (cause instanceof RoomApiError && cause.code === "room_message_too_long") {
-        setError(ROOM_COPY.errors.tooLong);
+        setError(copy.errors.tooLong);
       } else {
-        setError(ROOM_COPY.errors.generic);
+        setError(copy.errors.generic);
         setTurns((prev) => prev.slice(0, -1));
         setDraft(text);
       }
@@ -336,16 +401,16 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       // attempt was abandoned before the mandate was authenticated. Re-
       // fetching a link for it is Phase 1 work; today the honest answer is
       // to say so rather than pretend the tap did nothing.
-      setPayError(ROOM_COPY.pay.noLink);
+      setPayError(copy.pay.noLink);
     } catch (cause) {
       if (cause instanceof RoomPayApiError && cause.code === "payments_not_configured") {
-        setPayError(ROOM_COPY.pay.notConfigured);
+        setPayError(copy.pay.notConfigured);
       } else if (cause instanceof RoomPayApiError && cause.code === "room_price_not_set") {
-        setPayError(ROOM_COPY.pay.priceNotSet);
+        setPayError(copy.pay.priceNotSet);
       } else if (cause instanceof RoomPayApiError && cause.status === 401) {
-        setPayError(ROOM_COPY.errors.stale);
+        setPayError(copy.errors.stale);
       } else {
-        setPayError(ROOM_COPY.pay.failed);
+        setPayError(copy.pay.failed);
       }
     } finally {
       setPayBusy(false);
@@ -370,9 +435,9 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
 
   if (phase === "loading") {
     return (
-      <main className="room-shell">
+      <main className="room-shell" lang={locale}>
         <div className="room-thread">
-          <p className="room-lede">{ROOM_COPY.loading}</p>
+          <p className="room-lede">{copy.loading}</p>
         </div>
       </main>
     );
@@ -380,10 +445,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
 
   if (phase === "unavailable") {
     return (
-      <main className="room-shell">
+      <main className="room-shell" lang={locale}>
         <section className="room-gone">
-          <h2>{ROOM_COPY.unavailable.title}</h2>
-          <p className="room-lede">{ROOM_COPY.unavailable.body}</p>
+          <h2>{copy.unavailable.title}</h2>
+          <p className="room-lede">{copy.unavailable.body}</p>
         </section>
       </main>
     );
@@ -391,10 +456,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
 
   if (phase === "gone") {
     return (
-      <main className="room-shell">
+      <main className="room-shell" lang={locale}>
         <section className="room-gone">
-          <h2>{ROOM_COPY.menu.forgetDone}</h2>
-          <p className="room-lede">{withName(ROOM_COPY.menu.forgetNote, name)}</p>
+          <h2>{copy.menu.forgetDone}</h2>
+          <p className="room-lede">{withName(copy.menu.forgetNote, name)}</p>
         </section>
       </main>
     );
@@ -406,6 +471,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         room={room}
         name={name}
         auth={auth}
+        copy={copy}
+        locale={locale}
+        localeBusy={localeBusy}
+        onSwitchLocale={switchLocale}
         onAuth={(next) => {
           setAuth(next);
           writeStoredSession(next);
@@ -421,23 +490,24 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   }
 
   return (
-    <main className="room-shell">
+    <main className="room-shell" lang={locale}>
       <header className="room-head">
         <div className="room-head-row">
           <h1>{name ? `${name} AI` : room?.room.display_name}</h1>
           <div className="room-head-actions">
+            <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={switchLocale} />
             {canCheckin && (
               <button type="button" className="room-menu-open" onClick={() => setCheckinsOpen(true)}>
-                {ROOM_COPY.checkins.title}
+                {copy.checkins.title}
               </button>
             )}
             {canHandoff && (
               <button type="button" className="room-menu-open" onClick={() => setHandoffOpen(true)}>
-                {withName(ROOM_COPY.handoff.title, name || room?.room.display_name || "")}
+                {withName(copy.handoff.title, name || room?.room.display_name || "")}
               </button>
             )}
             <button type="button" className="room-menu-open" onClick={() => setMenu(true)}>
-              {ROOM_COPY.menu.title}
+              {copy.menu.title}
             </button>
           </div>
         </div>
@@ -445,13 +515,14 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         {typeof talkedToday === "number" && talkedToday > 0 && (
           <p className="room-stat">
             {talkedToday === 1
-              ? ROOM_COPY.stats.talkedTodayOne
-              : withCount(ROOM_COPY.stats.talkedToday, talkedToday)}
+              ? copy.stats.talkedTodayOne
+              : withCount(copy.stats.talkedToday, talkedToday)}
           </p>
         )}
       </header>
 
       <ThreadRail
+        copy={copy}
         threads={threads}
         active={thread}
         onPick={setThread}
@@ -474,12 +545,12 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           onPointerDown={() => void togglePulse()}
         >
           {pulseBusy
-            ? ROOM_COPY.pulse.working
+            ? copy.pulse.working
             : pulseOn[thread ?? ""] === true
-              ? ROOM_COPY.pulse.off
-              : ROOM_COPY.pulse.on}
+              ? copy.pulse.off
+              : copy.pulse.on}
         </button>
-        <p className="room-pulse-explain">{withName(ROOM_COPY.pulse.explain, name)}</p>
+        <p className="room-pulse-explain">{withName(copy.pulse.explain, name)}</p>
       </div>
 
       <div className="room-thread">
@@ -491,7 +562,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           ))}
         </div>
 
-        {!remembers && <p className="room-fine">{ROOM_COPY.conversation.notRemembering}</p>}
+        {!remembers && <p className="room-fine">{copy.conversation.notRemembering}</p>}
 
         {turns.map((turn, i) => (
           <div
@@ -514,14 +585,14 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
                 disabled={voiceBusy === i}
                 onClick={() => void playReply(i, turn.content)}
               >
-                {voicePlaying === i ? ROOM_COPY.voice.playing : ROOM_COPY.voice.play}
+                {voicePlaying === i ? copy.voice.playing : copy.voice.play}
               </button>
             )}
           </div>
         ))}
 
         {sending && (
-          <div className="room-typing" aria-label={ROOM_COPY.conversation.thinking}>
+          <div className="room-typing" aria-label={copy.conversation.thinking}>
             <i />
             <i />
             <i />
@@ -540,13 +611,13 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
               if (answer) setCite(answer);
             }}
           >
-            {ROOM_COPY.conversation.whereFrom}
+            {copy.conversation.whereFrom}
           </button>
         )}
 
         {cite && (
           <div className="room-cite-answer">
-            {withName(ROOM_COPY.conversation.citedFrom, cite.name || name)}
+            {withName(copy.conversation.citedFrom, cite.name || name)}
             {cite.sources.length > 0 && (
               <ul>
                 {cite.sources.map((s) => (
@@ -564,21 +635,21 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         {upgrade && quota && quota.messages_left !== null && !capped && (
           <p className="room-upgrade">
             {quota.messages_left === 0
-              ? ROOM_COPY.quota.lastOne
-              : withIncluded(ROOM_COPY.quota.left, quota.messages_left, quota.messages_included)}
+              ? copy.quota.lastOne
+              : withIncluded(copy.quota.left, quota.messages_left, quota.messages_included)}
             {" "}
             <button type="button" className="room-btn" disabled={payBusy} onPointerDown={() => void subscribe()}>
-              {payBusy ? ROOM_COPY.pay.working : ROOM_COPY.pay.cta}
+              {payBusy ? copy.pay.working : copy.pay.cta}
             </button>
           </p>
         )}
 
         {capped && (
           <section className="room-cap">
-            <h2>{ROOM_COPY.quota.capped.title}</h2>
-            <p className="room-lede">{ROOM_COPY.quota.capped.body}</p>
+            <h2>{copy.quota.capped.title}</h2>
+            <p className="room-lede">{copy.quota.capped.body}</p>
             <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
-              {payBusy ? ROOM_COPY.pay.working : ROOM_COPY.pay.cta}
+              {payBusy ? copy.pay.working : copy.pay.cta}
             </button>
             {payError && <p className="room-error">{payError}</p>}
           </section>
@@ -592,7 +663,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={ROOM_COPY.conversation.placeholder}
+          placeholder={copy.conversation.placeholder}
           rows={1}
           disabled={capped}
           onKeyDown={(e) => {
@@ -611,13 +682,14 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           onClick={() => void send()}
           disabled={sending || capped || !draft.trim()}
         >
-          {ROOM_COPY.conversation.send}
+          {copy.conversation.send}
         </button>
       </div>
 
       {menu && session && (
         <DataMenu
           name={name}
+          copy={copy}
           session={session}
           auth={auth}
           follower={room?.follower ?? null}
@@ -629,7 +701,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         />
       )}
       {checkinsOpen && session && (
-        <CheckinsPanel session={session} onClose={() => setCheckinsOpen(false)} />
+        <CheckinsPanel session={session} copy={copy} onClose={() => setCheckinsOpen(false)} />
       )}
       {handoffOpen && session && (
         <HandoffPanel
@@ -637,6 +709,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           turns={turns}
           threadId={thread}
           creatorName={name || room?.room.display_name || ""}
+          copy={copy}
           onClose={() => setHandoffOpen(false)}
         />
       )}
@@ -648,14 +721,50 @@ const withCount = (template: string, n: number) => template.split("{n}").join(St
 const withIncluded = (template: string, n: number, included: number) =>
   withCount(template, n).split("{included}").join(String(included));
 
+/* ── the language switch (WS-R24) ───────────────────────────────────────────
+ *
+ * Two words, both shown, in both locales, always: `ROOM_LANGUAGE_LABELS`'s own
+ * header explains why - a follower who can only read one script still has to
+ * be able to find the OTHER one's name to reach it. The current locale reads
+ * as pressed (`aria-pressed`) rather than disabled, so it stays announced by a
+ * screen reader as the state it is. */
+function LanguageSwitch({
+  locale,
+  busy,
+  onSwitch,
+}: {
+  locale: RoomLocale;
+  busy: boolean;
+  onSwitch: (next: RoomLocale) => void;
+}) {
+  return (
+    <div className="room-lang-switch" role="group" aria-label="हिन्दी / English">
+      {ROOM_LOCALES.map((l) => (
+        <button
+          key={l}
+          type="button"
+          className="room-lang-btn"
+          aria-pressed={locale === l}
+          disabled={busy}
+          onClick={() => onSwitch(l)}
+        >
+          {ROOM_LANGUAGE_LABELS[l]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ── the thread rail ────────────────────────────────────────────────────── */
 
 function ThreadRail({
+  copy,
   threads,
   active,
   onPick,
   onCreate,
 }: {
+  copy: RoomCopy;
   threads: RoomThread[];
   active: string | null;
   onPick: (id: string | null) => void;
@@ -664,9 +773,9 @@ function ThreadRail({
   const [naming, setNaming] = useState(false);
   const [title, setTitle] = useState("");
   return (
-    <nav className="room-rail" aria-label={ROOM_COPY.threads.title}>
+    <nav className="room-rail" aria-label={copy.threads.title}>
       <button type="button" aria-pressed={active === null} onClick={() => onPick(null)}>
-        {ROOM_COPY.threads.all}
+        {copy.threads.all}
       </button>
       {threads.map((t) => (
         <button
@@ -681,8 +790,8 @@ function ThreadRail({
       {naming ? (
         <>
           <input
-            aria-label={ROOM_COPY.threads.namePlaceholder}
-            placeholder={ROOM_COPY.threads.namePlaceholder}
+            aria-label={copy.threads.namePlaceholder}
+            placeholder={copy.threads.namePlaceholder}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
@@ -696,12 +805,12 @@ function ThreadRail({
               setNaming(false);
             }}
           >
-            {ROOM_COPY.threads.save}
+            {copy.threads.save}
           </button>
         </>
       ) : (
         <button type="button" onClick={() => setNaming(true)}>
-          {ROOM_COPY.threads.create}
+          {copy.threads.create}
         </button>
       )}
     </nav>
@@ -718,12 +827,20 @@ function JoinSheet({
   room,
   name,
   auth,
+  copy,
+  locale,
+  localeBusy,
+  onSwitchLocale,
   onAuth,
   onJoined,
 }: {
   room: RoomOpen;
   name: string;
   auth: StudioSession | null;
+  copy: RoomCopy;
+  locale: RoomLocale;
+  localeBusy: boolean;
+  onSwitchLocale: (next: RoomLocale) => void;
   onAuth: (session: StudioSession) => void;
   onJoined: (joined: RoomOpen & { session: string }) => void;
 }) {
@@ -736,25 +853,32 @@ function JoinSheet({
 
   async function finish(remember: boolean) {
     if (!auth) {
-      setError(ROOM_COPY.errors.signIn);
+      setError(copy.errors.signIn);
       return;
     }
     setBusy(true);
     setError("");
     try {
-      const joined = await joinRoom(room.room.slug, auth.accessToken, { age18, remember });
+      // `room.locale` is the exact language the disclosure card above was
+      // rendered in - passed through rather than re-picked, so the follower
+      // row's initial locale can never disagree with the card the follower
+      // actually read before agreeing to anything.
+      const joined = await joinRoom(room.room.slug, auth.accessToken, { age18, remember }, room.locale);
       onJoined(joined);
     } catch {
-      setError(ROOM_COPY.errors.generic);
+      setError(copy.errors.generic);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="room-shell">
+    <main className="room-shell" lang={locale}>
       <section className="room-join">
-        <h2>{withName(ROOM_COPY.join.title, name)}</h2>
+        <div className="room-head-row">
+          <h2>{withName(copy.join.title, name)}</h2>
+          <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
+        </div>
         {/* The card first, and as data. A person answering the memory question
             below has already been told what they are talking to. */}
         <div className="room-card" role="note">
@@ -763,28 +887,28 @@ function JoinSheet({
           ))}
         </div>
         <p className="room-lede" style={{ marginTop: "var(--space-item)" }}>
-          {ROOM_COPY.join.lede}
+          {copy.join.lede}
         </p>
 
         {error && <p className="room-error">{error}</p>}
 
         {!auth && (
           <>
-            <h3>{ROOM_COPY.join.signIn}</h3>
+            <h3>{copy.join.signIn}</h3>
             <label className="room-field">
-              <span>{ROOM_COPY.join.phoneLabel}</span>
+              <span>{copy.join.phoneLabel}</span>
               <input
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder={ROOM_COPY.join.phonePlaceholder}
+                placeholder={copy.join.phonePlaceholder}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
             </label>
             {codeSent && (
               <label className="room-field">
-                <span>{ROOM_COPY.join.codeLabel}</span>
+                <span>{copy.join.codeLabel}</span>
                 <input
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -809,13 +933,13 @@ function JoinSheet({
                       onAuth(await verifyPhoneOtp(phone, code));
                     }
                   } catch {
-                    setError(ROOM_COPY.errors.generic);
+                    setError(copy.errors.generic);
                   } finally {
                     setBusy(false);
                   }
                 }}
               >
-                {busy ? ROOM_COPY.join.working : codeSent ? ROOM_COPY.join.verify : ROOM_COPY.join.sendCode}
+                {busy ? copy.join.working : codeSent ? copy.join.verify : copy.join.sendCode}
               </button>
               <button
                 type="button"
@@ -824,10 +948,10 @@ function JoinSheet({
                   // Back to THIS room, not to a creator's studio. The path must
                   // also be on the Supabase redirect allow list; see
                   // studioAuth.googleSignIn for that dependency stated in full.
-                  void googleSignIn(`/r/${room.room.slug}`).catch(() => setError(ROOM_COPY.errors.generic));
+                  void googleSignIn(`/r/${room.room.slug}`).catch(() => setError(copy.errors.generic));
                 }}
               >
-                {ROOM_COPY.join.google}
+                {copy.join.google}
               </button>
             </div>
           </>
@@ -837,23 +961,23 @@ function JoinSheet({
           <>
             <label className="room-check">
               <input type="checkbox" checked={age18} onChange={(e) => setAge18(e.target.checked)} />
-              <span>{ROOM_COPY.join.age}</span>
+              <span>{copy.join.age}</span>
             </label>
-            <p className="room-fine">{ROOM_COPY.join.ageWhy}</p>
+            <p className="room-fine">{copy.join.ageWhy}</p>
 
             {/* THE MEMORY QUESTION. Its own moment, its own words, asked once.
                 Both answers are buttons of equal weight: a "no" that is a link
                 under a "yes" is not an unbundled question. */}
-            <h3>{ROOM_COPY.memory.title}</h3>
-            <p className="room-lede">{ROOM_COPY.memory.lede}</p>
+            <h3>{copy.memory.title}</h3>
+            <p className="room-lede">{copy.memory.lede}</p>
             <ul className="room-keeps">
-              {ROOM_COPY.memory.keeps.map((k) => (
+              {copy.memory.keeps.map((k) => (
                 <li key={k}>{k}</li>
               ))}
             </ul>
             <p className="room-fine">
-              {ROOM_COPY.memory.only} {withName(ROOM_COPY.memory.private, name)}{" "}
-              {ROOM_COPY.memory.undo}
+              {copy.memory.only} {withName(copy.memory.private, name)}{" "}
+              {copy.memory.undo}
             </p>
             <div className="room-actions">
               <button
@@ -862,7 +986,7 @@ function JoinSheet({
                 disabled={!age18 || busy}
                 onClick={() => void finish(true)}
               >
-                {ROOM_COPY.memory.yes}
+                {copy.memory.yes}
               </button>
               <button
                 type="button"
@@ -870,11 +994,11 @@ function JoinSheet({
                 disabled={!age18 || busy}
                 onClick={() => void finish(false)}
               >
-                {ROOM_COPY.memory.no}
+                {copy.memory.no}
               </button>
             </div>
             {/* What "no" means, stated where "no" is chosen. */}
-            <p className="room-note">{ROOM_COPY.memory.noMeans}</p>
+            <p className="room-note">{copy.memory.noMeans}</p>
           </>
         )}
       </section>
@@ -890,6 +1014,7 @@ function JoinSheet({
  * data to whoever holds it. */
 function DataMenu({
   name,
+  copy,
   session,
   auth,
   follower,
@@ -897,6 +1022,7 @@ function DataMenu({
   onForgotten,
 }: {
   name: string;
+  copy: RoomCopy;
   session: string;
   auth: StudioSession | null;
   follower: RoomFollower | null;
@@ -908,15 +1034,15 @@ function DataMenu({
   const [error, setError] = useState("");
 
   return (
-    <section className="room-menu" role="dialog" aria-label={ROOM_COPY.menu.title}>
-      <h2>{ROOM_COPY.menu.title}</h2>
+    <section className="room-menu" role="dialog" aria-label={copy.menu.title}>
+      <h2>{copy.menu.title}</h2>
       {/* WS-R19: real numbers from the follower's own row, never estimated -
           law 5. Renders only for a paid follower with the flag on; a free
           follower's own copy of these fields is always 0 by construction
           (`clientFollower`), so there is nothing honest to show them here. */}
       {ROOM_VOICE_UI && follower?.tier === "paid" && (
         <p className="room-fine">
-          {ROOM_COPY.voice.minutesLeft
+          {copy.voice.minutesLeft
             .replace("{used}", String(Math.round(follower.voice_seconds_used / 60)))
             .replace("{included}", String(Math.round(follower.voice_seconds_included / 60)))}
         </p>
@@ -940,23 +1066,23 @@ function DataMenu({
               a.click();
               URL.revokeObjectURL(url);
             } catch {
-              setError(ROOM_COPY.errors.generic);
+              setError(copy.errors.generic);
             } finally {
               setBusy(false);
             }
           }}
         >
-          {ROOM_COPY.menu.download}
+          {copy.menu.download}
         </button>
-        <p className="room-fine">{ROOM_COPY.menu.downloadNote}</p>
+        <p className="room-fine">{copy.menu.downloadNote}</p>
 
         {!confirming ? (
           <button type="button" className="room-btn danger" onClick={() => setConfirming(true)}>
-            {ROOM_COPY.menu.forget}
+            {copy.menu.forget}
           </button>
         ) : (
           <>
-            <p className="room-fine">{withName(ROOM_COPY.menu.forgetNote, name)}</p>
+            <p className="room-fine">{withName(copy.menu.forgetNote, name)}</p>
             <button
               type="button"
               className="room-btn danger"
@@ -968,22 +1094,22 @@ function DataMenu({
                   await forgetRoomData(session, auth.accessToken);
                   onForgotten();
                 } catch {
-                  setError(ROOM_COPY.errors.generic);
+                  setError(copy.errors.generic);
                 } finally {
                   setBusy(false);
                 }
               }}
             >
-              {ROOM_COPY.menu.forgetConfirm}
+              {copy.menu.forgetConfirm}
             </button>
             <button type="button" className="room-btn" onClick={() => setConfirming(false)}>
-              {ROOM_COPY.menu.forgetCancel}
+              {copy.menu.forgetCancel}
             </button>
           </>
         )}
 
         <button type="button" className="room-btn" onClick={onClose}>
-          {ROOM_COPY.menu.close}
+          {copy.menu.close}
         </button>
       </div>
     </section>

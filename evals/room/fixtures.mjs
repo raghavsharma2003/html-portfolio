@@ -83,6 +83,11 @@ export function freshState() {
         // real column rather than `undefined`.
         handoff_enabled: false,
         handoff_monthly_cap: 5,
+        // WS-R24 (migration 087): the creator's own fallback for a
+        // follower with no row yet and no usable browser hint - present on
+        // every room fixture from here on, "en" mirroring the column's
+        // real DB default.
+        default_locale: "en",
         published_at: "2026-09-01T00:00:00.000Z",
         paused_at: null,
       },
@@ -233,7 +238,9 @@ export function fakeDb(state) {
     }
 
     if (has("insert into vy_room_follower")) {
-      const [followerId, roomId, personId, agentId, ageAt, memAt, monthKey] = params;
+      // WS-R24 (migration 087): `locale` is the 8th and last param on the
+      // real INSERT. Positional, matching every sibling in this handler.
+      const [followerId, roomId, personId, agentId, ageAt, memAt, monthKey, locale] = params;
       const found = state.followers.find(
         (f) => f.room_id === String(roomId) && f.person_id === String(personId),
       );
@@ -241,6 +248,10 @@ export function fakeDb(state) {
         found.age_attested_at = found.age_attested_at ?? ageAt;
         found.memory_consent_at = memAt;
         found.last_seen_at = new Date().toISOString();
+        // `locale` is deliberately UNTOUCHED here, mirroring the real
+        // statement's own ON CONFLICT SET list (`api/_room-surface.js`'s
+        // `joinRoom` header explains why): a repeat join must never reset a
+        // locale the follower may have changed since with `roomSetLocale`.
         return [{ ...found }];
       }
       const row = {
@@ -254,6 +265,11 @@ export function fakeDb(state) {
         tier: "free",
         month_key: String(monthKey),
         month_message_count: 0,
+        // WS-R24 (migration 087): the follower's OWN initial chrome locale,
+        // "en" mirroring the column's real DB default when a suite's fake
+        // caller passes nothing (most callers in the OLDER suites that share
+        // this fixture never pass one, and must keep working unchanged).
+        locale: locale ? String(locale) : "en",
         // WS-R19 (migration 081): the paid tier's own spend counter and its
         // OWN rollover key, always present from here on. A SEPARATE key from
         // `month_key` on purpose - see migration 081's own header for the
@@ -267,6 +283,23 @@ export function fakeDb(state) {
       };
       state.followers.push(row);
       return [{ ...row }];
+    }
+
+    // WS-R24 (migration 087): `roomSetLocale`'s own write. THE PREDICATE IS
+    // THE SCOPE - room, person and agent all come off the verified session,
+    // never a request field, so this branch's own params (positional, off
+    // the real statement) are what a negative control would strike to prove
+    // scoping, not a second check added here.
+    if (has("update vy_room_follower") && has("set locale = $4")) {
+      const [roomId, personId, agentId, locale] = params.map(String);
+      const f = state.followers.find(
+        (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
+      );
+      if (!f) return [];
+      if (has("age_attested_at is not null") && f.age_attested_at == null) return [];
+      f.locale = locale;
+      f.updated_at = new Date().toISOString();
+      return [{ locale: f.locale }];
     }
 
     // THE CAP. The predicate is read off the shipping SQL rather than

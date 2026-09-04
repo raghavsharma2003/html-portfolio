@@ -9658,3 +9658,163 @@ ignore the list.
 minutes" implies the window should eventually be much shorter than 7 days),
 change `STALL_WINDOW_MS` in `api/_funnel.js` - it is the one constant the
 whole stall computation depends on, not a value duplicated anywhere else.
+
+## `ws-r24-room-hindi` (2026-09-04, WS-R24)
+
+**Decision.** The Room's chrome ships in two locales, English and Hindi
+(Devanagari): `src/room/copy.ts` became `ROOM_COPY_TABLE` (keyed `en`/`hi`,
+same keys required in both, checked against the real export by
+`evals/room-locale/run.mjs`), migration 087 adds `vy_room_follower.locale`
+and `vy_room.default_locale`, and every server-rendered app-voiced string a
+follower reads before joining (the disclosure card, the Telegram onboarding
+cards, the capped card) picks its locale the same way: a joined follower's
+own stored choice first, a browser or Telegram `language_code` hint before
+that exists, the creator's own `default_locale` when neither says anything.
+The creator's AI itself is completely untouched — its reply language is the
+creator's own material and the engine's register, and this workstream never
+opens `src/engine/persona.ts`.
+
+**Rationale.** India-first, stated as this project's own north star
+(`context/STATE.md`), and a follower who cannot read the buttons on the
+screen the product is judged on is not a follower this product actually
+served, whatever language its AI happens to answer in.
+
+**Reversal condition.** If a third locale is ever needed, `ROOM_LOCALES`
+widens in three places at once (`src/room/copy.ts`, `api/_room-surface.js`,
+migration 087's two CHECK constraints) and `evals/room-locale/run.mjs`'s key-
+parity check extends to it automatically (it walks whatever locales
+`ROOM_COPY_TABLE` actually has); if Hindi is ever found to perform worse
+than no localization at all (unmeasured, no listening or usability test has
+ever been run against this workstream's copy), that is a product call for
+whoever runs one, not a reversal this entry can pre-empt.
+
+## `ws-r24-session-carries-its-own-minted-locale` (2026-09-04, WS-R24)
+
+**Decision.** The room session token (migration-independent, HMAC-signed)
+gained a fourth binding field, `loc`, alongside the existing `dd` (disclosure
+digest), `td` (transcript digest) and `iat`. `roomSay` and `roomSpeak`
+recompute the disclosure card to CHECK `payload.dd` against using
+`roomDisclosureCard(name, payload.loc)` — the locale the TOKEN was minted in
+— never `follower.locale`, the row's current value.
+
+**Rationale.** This was not a stylistic choice; it fixed a real bug this
+workstream's own offline eval caught before it shipped
+(`rejected.md#ws-r24-disclosure-recomputed-from-the-follower-row-broke-every-session-across-a-switch`).
+`dd`/`td` already establish the pattern — a session names what it was minted
+against, and every later op RE-DERIVES from that named state rather than
+re-reading a row that may have moved since. Locale is exactly that kind of
+field: `roomSetLocale` can change a follower's row between the moment a
+session was minted and the moment it is used (a second tab, a device that
+switches languages mid-session), and re-deriving the disclosure from the
+follower row's CURRENT locale would refuse a perfectly valid, unexpired
+session for a reason that has nothing to do with the card the follower
+actually saw. An older token minted before this field existed carries
+`undefined` for `loc`, which `roomDisclosureCard`'s own default reads as
+`"en"` — exactly the card such a token was actually minted against, so no
+migration-day session is invalidated by this change.
+
+**Reversal condition.** If a future redesign makes the disclosure card
+locale-independent (a single language for the card regardless of chrome —
+unlikely given the whole point of this workstream, but nameable), `loc`
+becomes unused and can be dropped from new tokens; existing tokens still
+carrying it need no migration since `mintRoomSession` is only ever read by
+`readRoomSession`, never validated against a fixed field set.
+
+## `ws-r24-locale-excluded-from-repeat-join-conflict-update` (2026-09-04, WS-R24)
+
+**Decision.** `joinRoom`'s INSERT sets `locale` only in the VALUES list, never
+in the `ON CONFLICT ... DO UPDATE SET` clause — a repeat join (re-attesting,
+changing the memory answer) leaves an existing follower's `locale` exactly
+as it was.
+
+**Rationale.** `joinRoom` is also how a follower changes their memory answer
+later, and doing so must not silently undo a language choice made through
+`roomSetLocale` in between. The same asymmetry migration 071's own
+`memory_consent_at` handling already has in the other direction (REPLACED,
+never coalesced, because a consent answer must always reflect the latest
+one) — `locale` needs the opposite treatment because it is not a consent
+answer being re-affirmed, it is a display preference an unrelated write must
+not clobber.
+
+**Reversal condition.** If a product decision ever wants "the join screen's
+displayed language always becomes the follower's stored language, every
+time," add `locale = excluded.locale` back to the SET list — but then a
+follower who explicitly switched languages via `roomSetLocale` and later
+re-attests (e.g. changing their memory answer) would silently lose that
+choice, which is the exact failure this decision exists to prevent, so that
+change should not be made without also solving that.
+
+## `ws-r24-locale-hint-never-overrides-a-joined-followers-own-row` (2026-09-04, WS-R24)
+
+**Decision.** `openRoom`'s `locale` argument (the browser's `navigator.language`,
+or a Telegram `language_code`) is consulted ONLY for a follower with no row
+yet. A follower who has already joined always gets back `normalizeLocale(follower.locale)`,
+regardless of what the hint says.
+
+**Rationale.** The hint is real signal exactly once: the first screen a
+stranger ever sees, where there is no stored answer to trust instead. Past
+that point, honoring a fresh hint over a follower's own stored choice would
+mean a shared device, a browser reset to a different OS language, or simply
+opening the Room from a different phone could silently override a language
+the follower deliberately picked with `roomSetLocale` — the read path
+quietly undoing what the write path just did.
+
+**Reversal condition.** If followers are ever measured wanting "always match
+my current browser," build that as an explicit opt-in (a follower-chosen
+"always follow my browser" toggle) rather than an implicit default, since the
+implicit version is indistinguishable from the bug this decision exists to
+prevent.
+
+## `ws-r24-room-card-in-api-surface-js-is-not-vyakti-rooms` (2026-09-04, WS-R24)
+
+**Decision.** `api/_surface.js`'s `ROOM_CARD` constant was left untouched by
+this workstream, despite both this workstream's own brief and the common
+brief naming "api/_surface.js's ROOM_CARD rail" among the files to read and
+give a locale parameter.
+
+**Rationale.** Investigated before touching it, per this repo's own law
+(`rejected.md` — read before building, never assume a brief's premise):
+`ROOM_CARD` is Meera's MULTIPARTY.md group-chat disclosure card (a Telegram
+GROUP room, a completely different product from Vyakti Rooms' follower Room
+at `/r/<slug>`), written in Hinglish for Meera's own persona, sent via
+`deliver()` against `meera_consent`/multiparty tables `api/_room-surface.js`
+never imports from and never touches. No Vyakti Rooms follower session, web
+or Telegram, ever reaches the code path that sends it. Threading a `locale`
+parameter through it would touch Meera's own product surface for zero
+benefit to any Vyakti Rooms follower, and `CLAUDE.md`'s own law is explicit
+that Meera's register and app-voiced rails are measured and not to be
+touched casually. The brief's naming of it appears to be a genuine
+misattribution rather than a real requirement — the two OTHER items in the
+same sentence (the disclosure card, the capped card) and the Telegram
+command replies are all real Vyakti Rooms surfaces and are the ones this
+workstream actually localized.
+
+**Reversal condition.** If a future session finds an actual call path from a
+Vyakti Rooms follower to `ROOM_CARD`, that finding supersedes this entry and
+`ROOM_CARD` should gain the same locale treatment `roomDisclosureCard` got
+here.
+
+## `ws-r24-check-copy-textnodes-devanagari-letter-run` (2026-09-04, WS-R24)
+
+**Decision.** `scripts/check-copy.mjs`'s `textNodes()` extractor (PASS 2's
+JSX/HTML text-node reader) now treats a run containing EITHER a Latin letter
+OR a Devanagari letter as real content, where it previously required
+`[A-Za-z]` specifically.
+
+**Rationale.** A real, measured blind spot, not a hypothetical one
+(`measurements.md#ws-r24-textnodes-devanagari-blind-spot`): a JSX or HTML
+text node written entirely in Devanagari, with no embedded Latin word (no
+"AI", no English brand term), has ZERO `[A-Za-z]` characters and was
+therefore invisible to this extractor — a banned word inside one could never
+have tripped the gate at all, in any rule, not just rooms-vocabulary. This
+is exactly the "the gate is not biting" failure `check-copy.mjs`'s own
+`selfTest()` exists to catch, just for a shape nobody had written a fixture
+for yet because this repo had shipped no Devanagari copy before this
+workstream. Fixed narrowly (widen the one character class, not the
+extraction logic) so every other rule's existing behaviour is unchanged for
+ASCII content.
+
+**Reversal condition.** If this product ever ships a THIRD script with no
+Latin letters of its own (unlikely for the two-locale v1 this workstream
+ships), the same class widens again rather than being special-cased per
+script.
