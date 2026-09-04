@@ -7576,3 +7576,37 @@ including experimentally, including for a few seconds - the WIP-commit +
 HEAD~1` (to keep working) round trip this same session used correctly
 elsewhere in it is the only sanctioned way to set work aside, and it has no
 shared-state window at all.
+
+## `ws-r34-boolean-parameter-reused-in-a-case-expression-without-a-cast` (2026-09-04, WS-R34)
+
+**Tried.** `setTelegramCheckinsEnabledForFollower`'s UPDATE
+(`api/_room-surface.js`) wrote `set checkins_enabled = $2, stopped_code =
+case when $2 then null else stopped_code end` - a plain `$2` used twice,
+once directly against a `boolean` column (where Postgres can usually infer
+the type from context) and once inside a bare `case when $2 then ...`,
+which carries no column to infer a type from at all.
+
+**What broke.** `node evals/sqlcast.mjs` (the release gate's own SQL-cast
+scanner) failed with `api/_room-surface.js:661 - checkins_enabled = $2 -
+column is bool; write $2::bool`, reported TWICE for the same line - once
+for the direct assignment, once for the bare `case when` - confirming the
+gate treats a parameter's every appearance in a strict-surface statement as
+its own site, not merely one per statement. Caught by the release gate's
+own `eval suite` check on the first full `verify-release.mjs` run this
+session made (`measurements.md#ws-r34-checkins-telegram-gate-results-
+2026-09-04`), never by `node --check` (a syntax check, not a type check)
+or by the offline eval suite (a fake `db` does not parse SQL at all,
+`offline-mocks-cannot-type-check-sql`'s own point, hit here for a boolean
+column rather than the usual `::uuid`).
+
+**Fix.** Cast both occurrences explicitly: `($2)::bool` in the SET clause
+AND inside the CASE's own `when` condition - `evals/sqlcast.mjs`'s rule B
+does not average across a statement's uses of one parameter, it flags
+every uncast site.
+
+**The rule.** Every bound parameter on the strict surface needs its OWN
+explicit cast at EVERY point it appears in a statement, not once per
+statement and not once per parameter - a parameter reused inside a `CASE`
+expression, a second WHERE clause, or a second SET target is a second site
+sqlcast checks independently, and a cast on the first occurrence does not
+carry over to the second.

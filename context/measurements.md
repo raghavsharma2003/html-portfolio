@@ -8275,3 +8275,47 @@ n = 1 migration (3 statements in one transaction), 10 API statements; method = a
 | the price read for the offer card; `roomForget`'s delete | `vy_room_price_room_ix`; Bitmap on `vy_room_upgrade_offer_room_shown_ix` with person filtered |
 
 Not measured: no offer row exists; no follower has seen the offer card or the "Continue free" and "Subscribe" controls; the Phase gate card shows `not_enough_data` on every number until twenty followers and three creators exist, which is the honest state today.
+
+## `ws-r34-room-telegram-checkins-offline-suite-2026-09-04`
+
+n = 64 assertions, `node evals/room-telegram-checkins/run.mjs`, all passing;
+method = offline, deterministic, $0, no DB, no network, no Telegram call, no
+model call, driving the real `api/_room-surface.js` (the four new
+`follower_id`-scoped SQL functions), `api/_room-telegram.js`
+(`/checkins on|off` through the real `handleRoomTelegramUpdate` pipeline,
+`resolveReplyThreadId`) and `api/_checkins.js` (`deliverers.telegram`,
+`telegramCheckinsStatus`/`setTelegramCheckins`) through a hand-rolled fake
+`db` wrapping the shared `evals/room/fixtures.mjs` (never editing it,
+`evals/checkins/run.mjs`'s own `withCheckins` precedent restated). Seven
+sections (parsing and the thread-mapping seam; the toggle's SQL predicate
+with two negative controls; `/checkins on|off` end to end; the send with two
+more negative controls and the 403/429/5xx branches; a static-plus-
+behavioural proof that the deliverer can reach no model call and carries the
+caller's own `said` byte for byte; the Room panel's session-scoped toggle
+with a B-cannot-touch-A check; static wiring across five files); date
+2026-09-04.
+
+## `ws-r34-checkins-telegram-gate-results-2026-09-04`
+
+n = 1 full `node scripts/verify-release.mjs` run recorded as the "before"
+this session, and one as "after" (no separate untouched-tree baseline was
+captured before this session's edits began - the same honest gap
+`ws-r18-room-telegram-gate-results-2026-09-03` and
+`ws-r22-web-push-gate-results-2026-09-04` both name for the identical
+reason: work started before the baseline step was run); method = the exact
+command the release gate runs, read from its own printed summary line, no
+`NEON_URL` in this environment (so 16, not 18, checks run). First full run
+(with the untested `setTelegramCheckinsEnabledForFollower` statement still
+missing its `::bool` cast): **15/16**, `eval suite` FAILED with `sqlcast: 2
+FAILED` naming `api/_room-surface.js:661` twice (the same statement's SET
+clause and its CASE both reading the untyped `$2`). Fixed by casting both
+occurrences to `($2)::bool`; `node evals/sqlcast.mjs` alone: **0 uncast
+sites** after the fix, confirmed by re-running `node evals/room-telegram-
+checkins/run.mjs` (64/64), `node evals/checkins/run.mjs` (37/37) and `node
+evals/room-telegram/run.mjs` (51/51) unchanged. Second full run: **16/16**.
+Regression-checked unchanged by direct runs during this session: `room-leak`
+78/78, `recall` 266 assertions, `persontables` 56 manifest entries,
+`room-whatsapp` 63/63, `room-push` 43/43, `room` 54/54, `room-export` ok,
+`room-locale` 44/44, `check-copy` 6 scopes clean/21 negative controls,
+`context.mjs --check` clean (998 nodes/1228 edges before this session's own
+additions), `tsc --noEmit` clean.
