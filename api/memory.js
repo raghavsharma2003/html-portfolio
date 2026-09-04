@@ -57,6 +57,14 @@ import {
   AZURE_KEY,
 } from "./_config.js";
 
+// WS-R27 (migration 090): the plain SHA-256 helper the Room forget receipt's
+// hash is built from - see `roomForgetReceiptHash` below for why this is a
+// bare hash rather than the HMAC `api/_replica-full-erasure.js` uses for its
+// own deletion receipt. A leaf module (no imports of its own beyond
+// node:crypto), so importing it here creates no cycle with api/_room-surface.js,
+// which imports FROM this file already.
+import { sha256Hex } from "./_replica-processing/contracts.js";
+
 // ── the validity deriver (ROADMAP-100X item 4, WS-O) ──────────────────────
 //
 // LAZY, and cached across invocations of a warm function. api/_engine.gen.js is
@@ -2581,6 +2589,35 @@ async function noteForgotten(devices, terms, agentId = MEERA_AGENT_ID) {
 // (§2). vy_episode_participant is NOT marked — it is the ACL join table and
 // takes its scope from the episode it points at, so an agent_id on it would be
 // a second, forgeable copy of a fact the join already carries.
+// ── WS-R27: the Room forget receipt's hash (migration 090) ──────────────────
+//
+// `vy_room_forget_receipt` is the ONE row that survives a follower's "forget
+// me" in a creator's Room. It names no person — `person_hash`, never
+// `person_id` — and this is the ONE function that computes it, called by both
+// the writer (`api/_room-surface.js`'s `roomForget`, at forget time) and the
+// eraser (`purgeRelational` below, at whole-wipe time), so the two can never
+// disagree about what a person's own hash is.
+//
+// NOT AN HMAC, unlike `api/_replica-full-erasure.js`'s deletion receipt,
+// which hashes with a per-deploy secret key precisely because THAT receipt is
+// looked up later, by an operator, from a request id. This receipt is never
+// looked up by anyone after the one response that carries it (WS-R27's own
+// law 3 — "no later lookup by anyone: there is nothing to look it up by"), so
+// a secret key would buy a property nothing here needs, at the cost of a new
+// env var this workstream's own brief says not to add. `room_id` and
+// `policy_version` sit in PLAIN TEXT on the receipt row for exactly this
+// reason: they are what let the whole wipe RECOMPUTE this same hash for the
+// person being wiped, against a table with no person_id column to filter by.
+// See `context/decisions.md#ws-r27-forget-receipt-hash-recomputed-not-looked-up`
+// for the reversal condition (a future consumer that DOES look a receipt up
+// by hash, which would need the HMAC treatment instead).
+export const ROOM_FORGET_RECEIPT_POLICY_VERSION = 1;
+export function roomForgetReceiptHash(roomId, personId, policyVersion) {
+  return sha256Hex(
+    `vy-room-forget-receipt:v1:${String(roomId)}:${String(personId)}:${String(policyVersion)}`,
+  );
+}
+
 export const PERSON_TABLES = [
   { table: "meera_log",         key: "device_id", lane: "legacy", agent: true,
     keys: ["device_id", "speaker_person_id"] },
@@ -2769,29 +2806,43 @@ export const PERSON_TABLES = [
   // when another device still maps to it. Listing it here is what closes that
   // case: the bridge dies with the wipe either way.
   { table: "vy_account_person", key: "person_id", lane: "relational" },
-  // ── WS-R1: the Room's PERSON side (migration 071) ────────────────────────
+  // ── WS-R27 (2026-09-04): the whole Room block below is ordered CHILD
+  // BEFORE PARENT, not migration-landing order any more ─────────────────────
   //
-  // A follower's membership of a creator's Room, and the names they gave their
-  // own topic threads. Neither holds a word anybody said (071's content law
-  // restates 012's), and both are still unambiguously records OF that person:
-  // the membership says they joined this creator's room and answered the
-  // memory question, the thread titles are nouns they typed. A whole wipe that
-  // kept either would leave "this human follows Anjali and calls one of their
-  // threads `injury`" standing after a receipt that said nothing remains.
+  // Every table from here down that carries a `follower_id references
+  // vy_room_follower(follower_id) on delete cascade` (checkin, checkin's own
+  // delivery ledger, voice usage, subscription, the Telegram pointer, push,
+  // handoff) or a `thread_id references vy_room_thread(thread_id) on delete
+  // cascade` (pulse_optin, handoff) is listed BEFORE `vy_room_thread`/
+  // `vy_room_follower` themselves, and `vy_room_checkin_delivery` (which
+  // carries `checkin_id references vy_room_checkin(checkin_id) on delete
+  // cascade`) is listed before `vy_room_checkin`. This loop iterates the
+  // array in order and is not `.catch()`-wrapped between statements — the
+  // WS-R1 comment this block used to open with already said "child before
+  // parent... listing them ahead of nothing keeps the receipt's counts
+  // honest," but the array itself put `vy_room_thread`/`vy_room_follower`
+  // FIRST among the Room tables, ahead of every child added by a LATER
+  // workstream (077 through 085). A parent deleted before its children means
+  // every child's own `delete ... returning 1 as x` finds the cascade already
+  // got there first: the row really is gone, `out[t.table]` is a real zero
+  // rather than a lie, but a zero that is ALWAYS the answer regardless of how
+  // many rows a real forget actually removed is the exact failure WS-R27's
+  // own law 2 exists to catch ("the receipt's counts must equal what was
+  // deleted") — found while building that battery, not by inspection alone.
+  // Fixed here by REORDERING the array (a pure move — no entry's own fields
+  // changed) rather than by teaching this loop a dependency sort, so the
+  // array's own literal order stays the one and only source of delete order,
+  // exactly as `vy_replica_dialogue_turn`/`vy_replica_runtime_session`/
+  // `vy_replica_runtime_capability` above already do it for the identical
+  // reason (that block's own header: "Child before parent... deleting the
+  // capability first would make the two deletes below it report zero for
+  // rows they really did remove").
   //
-  // The ROOM itself (vy_room) is deliberately not here. It is owner-keyed with
-  // no person column, so it is the owner lane, and a manifest loop deleting it
-  // on one follower's request would take a creator's room away from everyone
-  // else in it. Its erasure is api/_replica-full-erasure.js's, which also
-  // deletes these two by agent_id - the same rows, reached from the other side,
-  // which is the house rule for a harm the next turn does not undo.
+  // The identical ordering bug existed in `api/_room-surface.js`'s
+  // `roomForget` itself (its OWN explicit per-table deletes ran after its
+  // own `delete from vy_room_follower`) and is fixed there in the same
+  // change, by the same reasoning, restated at that file's own header.
   //
-  // Child before parent, exactly as the replica-lane block above is ordered:
-  // both carry `room_id references vy_room on delete cascade`, so nothing here
-  // can outlive its room, and listing them ahead of nothing keeps the receipt's
-  // counts honest.
-  { table: "vy_room_thread",   key: "person_id", lane: "relational", agent: true },
-  { table: "vy_room_follower", key: "person_id", lane: "relational", agent: true },
   // ── WS-R12: the cohort day-count (migration 077) ──────────────────────────
   //
   // "Did this follower have a turn on this day" is a record OF them exactly as
@@ -2799,17 +2850,19 @@ export const PERSON_TABLES = [
   // one human, and a whole wipe that kept it would leave "this person talked
   // on these dates" standing after a receipt that said nothing remains.
   //
-  // NO `agent: true`, deliberately, and unlike its two 071 siblings above: this
-  // table carries no `agent_id` column (071's convention was already scoping
-  // room_id/person_id; 077 followed it and added nothing new). `agent: true`
-  // routes a table through `roomScopedTables()` in api/_room-surface.js, whose
-  // generic delete unconditionally appends `and agent_id = (...)::uuid` - a
-  // column this table does not have, which would 500 every follower's Room
-  // forget the day 077 lands. Reached instead by two OTHER, explicit paths:
-  // the account-wide whole wipe below (lane "relational", no agent filter,
+  // NO `agent: true`, deliberately: this table carries no `agent_id` column
+  // (071's convention was already scoping room_id/person_id; 077 followed it
+  // and added nothing new). `agent: true` routes a table through
+  // `roomScopedTables()` in api/_room-surface.js, whose generic delete
+  // unconditionally appends `and agent_id = (...)::uuid` - a column this
+  // table does not have, which would 500 every follower's Room forget the
+  // day 077 lands. Reached instead by two OTHER, explicit paths: the
+  // account-wide whole wipe below (lane "relational", no agent filter,
   // keyed on person_id alone) and `roomForget`'s own explicit
-  // room_id+person_id delete, `vy_room_thread`/`vy_room_follower`'s pattern
-  // one statement over.
+  // room_id+person_id delete. No `follower_id`/`thread_id` column either, so
+  // unlike every entry below it this one has no cascade to race against and
+  // its position here is only "as early as the rest of the block allows,"
+  // not load-bearing the way the others' positions are.
   { table: "vy_room_follower_day", key: "person_id", lane: "relational" },
   // ── WS-R16: check-ins, PERSON side (migration 079) ────────────────────────
   //
@@ -2826,8 +2879,14 @@ export const PERSON_TABLES = [
   // sibling: the whole-account wipe (this file's `purgeRelational`, lane
   // "relational", no further code) and `roomForget`'s own explicit
   // room_id+person_id delete, added there in the same change as this entry.
-  { table: "vy_room_checkin", key: "person_id", lane: "relational" },
+  //
+  // `vy_room_checkin_delivery` BEFORE `vy_room_checkin` (WS-R27): the
+  // delivery ledger carries `checkin_id references vy_room_checkin(checkin_id)
+  // on delete cascade`, so deleting the checkin row first would cascade the
+  // delivery rows away before this loop's own delivery statement ever runs -
+  // this block's own new header names the general rule this is an instance of.
   { table: "vy_room_checkin_delivery", key: "person_id", lane: "relational" },
+  { table: "vy_room_checkin", key: "person_id", lane: "relational" },
   // ── WS-R19: the Room's voice usage, PERSON side (migration 081) ──────────
   //
   // "How many seconds of voice this follower spent, on this day" is a record
@@ -2838,7 +2897,10 @@ export const PERSON_TABLES = [
   // either), so it is invisible to `roomScopedTables()`'s generic per-agent
   // loop and reached instead by the account-wide whole wipe below (lane
   // "relational", no agent filter, keyed on person_id alone) and
-  // `roomForget`'s own explicit room_id+person_id delete, one statement over.
+  // `roomForget`'s own explicit room_id+person_id delete. Carries
+  // `follower_id references vy_room_follower(follower_id) on delete cascade`
+  // (migration 081), so it is listed before `vy_room_follower`, this block's
+  // own header rule.
   { table: "vy_room_voice_usage", key: "person_id", lane: "relational" },
   // ── WS-R11: the Room's money, PERSON side (migration 078) ────────────────
   //
@@ -2849,25 +2911,42 @@ export const PERSON_TABLES = [
   //
   // NOT `agent: true`: the table carries no agent_id column (a subscription
   // is not agent-scoped memory), so it is invisible to
-  // api/_room-surface.js's `roomScopedTables()` (filtered on `agent === true`)
-  // and therefore untouched by the Room's own narrow "forget me" button -
-  // forgetting what an AI remembers about you is not the same request as
-  // forgetting that you owe, or paid, money. It IS reached by the
-  // account-wide "forget everything" pass (this file's `purgeRelational`,
-  // lane "relational", no further code needed - the same door
-  // `meera_consent` goes through for the identical reason: "the absence of a
-  // row is the absence of the relationship").
+  // api/_room-surface.js's `roomScopedTables()` (filtered on `agent === true`).
+  // WS-R27 gives `roomForget` its OWN explicit statement for this table too,
+  // restricted by the SAME `wipeWhere` below - forgetting what an AI
+  // remembers about you is not the same request as forgetting that you owe,
+  // or paid, money, so only a subscription already in a terminal state is
+  // reachable from the Room's own narrow "forget me" button, exactly as from
+  // the account-wide one. It is ALSO reached by the account-wide "forget
+  // everything" pass (this file's `purgeRelational`, lane "relational", no
+  // further code needed - the same door `meera_consent` goes through for the
+  // identical reason: "the absence of a row is the absence of the
+  // relationship").
   //
   // `wipeWhere` is the one restriction, and it is load-bearing rather than
   // decorative: a UPI Autopay mandate keeps debiting a real bank account
-  // whether or not this table still names it, so a whole-account wipe may
-  // only ever remove a subscription that has ALREADY reached a terminal
-  // state ('cancelled'/'expired'). A live one survives the wipe as the one
-  // honest local record that a mandate may still be charging someone who
-  // asked this platform to forget them - api/_room-surface.js's "a
-  // predicate on the write is a guarantee" discipline applied to money
-  // instead of a message cap. Closing this (an automatic provider-cancel
-  // wired into the wipe) is Phase 1 work, not this migration's.
+  // whether or not this table still names it, so neither wipe may ever
+  // remove a subscription that has not ALREADY reached a terminal state
+  // ('cancelled'/'expired'). A live one survives either wipe's OWN explicit
+  // statement as the one honest local record that a mandate may still be
+  // charging someone who asked this platform to forget them - api/
+  // _room-surface.js's "a predicate on the write is a guarantee" discipline
+  // applied to money instead of a message cap.
+  //
+  // What NEITHER wipe's own statement can prevent, discovered rather than
+  // designed (WS-R27, context/decisions.md#ws-r27-subscription-cascade-still-
+  // reaches-a-live-row): `vy_room_subscription.follower_id` itself carries
+  // `references vy_room_follower(follower_id) on delete cascade` (078's own
+  // DDL), so the moment ANYTHING deletes the follower row - including this
+  // very manifest loop's own `vy_room_follower` entry below, or
+  // `roomForget`'s identical statement - Postgres removes every subscription
+  // row for that follower by cascade regardless of `state`, live one
+  // included. This entry's `wipeWhere` restricts what THIS statement
+  // deletes; it cannot restrict what the schema's own FK does two statements
+  // later. Closing that (changing the FK to RESTRICT or SET NULL, forcing a
+  // provider-cancel step before a live follower's row can go) is Phase 1
+  // work and an owner decision, not this migration's - named here rather
+  // than silently left for the next person to rediscover.
   { table: "vy_room_subscription", key: "person_id", lane: "relational",
     wipeWhere: "state in ('cancelled','expired')" },
   // ── WS-R17: Pulse's own toggle (migration 080) ────────────────────────────
@@ -2882,10 +2961,14 @@ export const PERSON_TABLES = [
   // NOT `agent: true`: this table carries no `agent_id` column (071's
   // convention was already scoping room_id/person_id; 080 followed it and
   // added nothing new, the identical reasoning `vy_room_follower_day` states
-  // two entries up). Reached instead by two OTHER, explicit paths: the
+  // several entries up). Reached instead by two OTHER, explicit paths: the
   // account-wide whole wipe below (lane "relational", no agent filter, keyed
   // on person_id alone) and `roomForget`'s own explicit room_id+person_id
-  // delete, `vy_room_follower_day`'s pattern one statement over.
+  // delete. Carries a nullable `thread_id references vy_room_thread(thread_id)
+  // on delete cascade`, so a thread-scoped opt-in is listed (and thus
+  // deleted) before `vy_room_thread`, this block's own header rule - a
+  // Room-scoped opt-in (`thread_id is null`) has no such dependency, but the
+  // rule is simplest applied to the whole entry rather than split by row.
   { table: "vy_room_pulse_optin", key: "person_id", lane: "relational" },
   // ── WS-R18: which room a Telegram chat currently means (migration 082) ───
   //
@@ -2894,12 +2977,13 @@ export const PERSON_TABLES = [
   // table carries no agent_id column (db/migrations/082's own header), so it
   // is invisible to api/_room-surface.js's `roomScopedTables()` on purpose,
   // exactly the reasoning `vy_room_follower_day`/`vy_room_subscription` give
-  // above. It still cannot outlive a follower's own "leave this Room": the
-  // `follower_id references vy_room_follower(follower_id) on delete cascade`
-  // means `roomForget`'s explicit delete of the follower row already takes
-  // this one with it, with no code here or there needing to know its name.
-  // Reached by the account-wide whole wipe through the "relational" lane
-  // alone, the same door `vy_room_subscription` goes through.
+  // above. Carries `follower_id references vy_room_follower(follower_id) on
+  // delete cascade` (082's own DDL), so it is listed before `vy_room_follower`
+  // - WS-R27 also gives `roomForget` its own explicit, BY-NAME delete for
+  // this table (previously left to the cascade alone, which meant a real
+  // deletion happened but the receipt never counted it - the same class of
+  // gap this whole block's header names). Reached by the account-wide whole
+  // wipe through the "relational" lane alone too.
   { table: "vy_room_follower_channel", key: "person_id", lane: "relational" },
   // ── WS-R22: a follower's own web push subscription (migration 085) ───────
   //
@@ -2907,13 +2991,12 @@ export const PERSON_TABLES = [
   // not a word the follower said. NOT `agent: true`: the table carries no
   // `agent_id` column (`vy_room_follower_channel`'s own precedent one row
   // above), so it is invisible to `roomScopedTables()`'s generic per-agent
-  // loop on purpose. It still cannot outlive a follower's own "leave this
-  // Room": `follower_id references vy_room_follower(follower_id) on delete
-  // cascade` means `roomForget`'s existing delete of the follower row already
-  // takes every subscription with it, with no code here or there needing to
-  // know this table's name - `vy_room_follower_channel`'s exact proof that
-  // shape works, restated rather than re-derived. Reached by the
-  // account-wide whole wipe through the "relational" lane alone.
+  // loop on purpose. Carries `follower_id references vy_room_follower
+  // (follower_id) on delete cascade`, so it is listed before `vy_room_follower`
+  // - WS-R27 gives `roomForget` its own explicit, BY-NAME delete for this
+  // table too, `vy_room_follower_channel`'s exact reasoning restated one row
+  // over. Reached by the account-wide whole wipe through the "relational"
+  // lane alone.
   { table: "vy_room_push_subscription", key: "person_id", lane: "relational" },
   // ── Handoff (WS-R20; migration 083) ──
   //
@@ -2925,11 +3008,40 @@ export const PERSON_TABLES = [
   // `agent_id` column - agent context is joined from vy_room, the sweep's
   // own reasoning restated a sixth time), the account-wide whole wipe below
   // (lane "relational") and `roomForget`'s own explicit room_id+person_id
-  // delete (added in the same change as this migration) are the only two
-  // doors. `follower_id references vy_room_follower(follower_id) on delete
-  // cascade` means a follower who leaves this Room takes their handoff rows
-  // with them even before either door runs.
+  // delete are the only two doors. Carries BOTH `follower_id references
+  // vy_room_follower(follower_id) on delete cascade` AND a nullable
+  // `thread_id references vy_room_thread(thread_id) on delete cascade`, so it
+  // is listed before BOTH `vy_room_thread` and `vy_room_follower` - this was
+  // the clearest instance of the ordering bug this block's own header
+  // describes: `roomForget`'s own handoff delete existed from 083 onward but
+  // ran AFTER its follower delete, so it always reported zero regardless of
+  // how many rows the cascade had really just removed.
   { table: "vy_room_handoff", key: "person_id", lane: "relational" },
+  // ── WS-R1: the Room's PERSON side (migration 071), moved LAST among the
+  // Room's relational-lane entries by WS-R27 (see this block's own header) ──
+  //
+  // A follower's membership of a creator's Room, and the names they gave their
+  // own topic threads. Neither holds a word anybody said (071's content law
+  // restates 012's), and both are still unambiguously records OF that person:
+  // the membership says they joined this creator's room and answered the
+  // memory question, the thread titles are nouns they typed. A whole wipe that
+  // kept either would leave "this human follows Anjali and calls one of their
+  // threads `injury`" standing after a receipt that said nothing remains.
+  //
+  // The ROOM itself (vy_room) is deliberately not here. It is owner-keyed with
+  // no person column, so it is the owner lane, and a manifest loop deleting it
+  // on one follower's request would take a creator's room away from everyone
+  // else in it. Its erasure is api/_replica-full-erasure.js's, which also
+  // deletes these two by agent_id - the same rows, reached from the other side,
+  // which is the house rule for a harm the next turn does not undo.
+  //
+  // `vy_room_thread` before `vy_room_follower`: `vy_room_thread` is itself a
+  // PARENT other entries above (`vy_room_pulse_optin`, `vy_room_handoff`)
+  // must be listed and deleted ahead of, and `vy_room_follower` is the ROOT
+  // every OTHER Room child in this whole block cascades from - so it is the
+  // very last relational-lane Room entry in the array, deliberately.
+  { table: "vy_room_thread",   key: "person_id", lane: "relational", agent: true },
+  { table: "vy_room_follower", key: "person_id", lane: "relational", agent: true },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -3397,6 +3509,39 @@ async function purgeRelational(devices, scope, { logIds = [], rx = null, from = 
         30_000,
       );
       if (gone.length) out[t.table] = gone.length;
+    }
+    // WS-R27 (migration 090): every Room forget receipt this person's own
+    // past "forget me in this room" requests ever produced, across every
+    // Room. `vy_room_forget_receipt` is deliberately NOT a PERSON_TABLES
+    // entry (it carries no person_id column - `roomForgetReceiptHash`'s own
+    // header states why), so the generic manifest loop above cannot see it
+    // and this is its one explicit door. There is no person-keyed WHERE to
+    // issue: the table is read whole (bounded, since this is not a table
+    // anything writes to except one row per completed Room forget) and each
+    // row's OWN room_id/policy_version is used to recompute what THIS
+    // person's hash would be for it; a match is a receipt this person
+    // produced and a whole wipe must take it, unmatched rows belong to other
+    // people and are left standing. Gated on the table existing at all
+    // (090's own migration), the same guard `meera_consent` gets for 016 -
+    // a manifest naming a table this database has not got yet must never
+    // turn "forget everything" into a 500.
+    if (await tableApplied("vy_room_forget_receipt")) {
+      const receiptCandidates = await q(
+        `select receipt_id, room_id, policy_version, person_hash
+           from vy_room_forget_receipt
+          limit 10000`,
+        [],
+      );
+      const deadReceiptIds = receiptCandidates
+        .filter((r) => roomForgetReceiptHash(r.room_id, person, r.policy_version) === r.person_hash)
+        .map((r) => r.receipt_id);
+      if (deadReceiptIds.length) {
+        const goneReceipts = await q(
+          `delete from vy_room_forget_receipt where receipt_id = any($1::uuid[]) returning 1 as x`,
+          [deadReceiptIds],
+        );
+        out.vy_room_forget_receipt = goneReceipts.length;
+      }
     }
     // the mapping and (if no other device shares it) the person row itself:
     // a full wipe that kept the identity row would keep a record of them
