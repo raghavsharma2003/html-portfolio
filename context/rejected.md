@@ -7683,3 +7683,58 @@ than widening what they point at. The mutual-exclusion CHECK
 two-mutually-exclusive-lanes`) is what makes "a row that names neither, or
 both, lanes" unrepresentable, at the schema level, with every existing FK
 left exactly as strict as it was before this workstream touched anything.
+
+## `ws-r35-pulse-combo-sql-factored-through-a-helper-evaded-the-leak-batterys-static-scan` (2026-09-04, WS-R35)
+
+**What was tried.** A first draft of `comboFollowerCount`/`publishCombo`
+(`api/_pulse.js`) factored their shared "person matches every label in this
+array" SQL fragment into one small helper function, `matchesAllLabelsSql`,
+returning its own template-literal string, interpolated into each caller's
+own `db(\`...\`)` call via `${matchesAllLabelsSql(...)}` - ordinary DRY,
+and the kind of extraction this file's OWN comments elsewhere praise
+(`api/_room-surface.js`'s "one hand-written ownership check" argument).
+
+**What broke.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser (§1c) is a
+STATIC TEXT scan of this file's own source: it finds every backtick-
+delimited template literal containing the literal substring
+`vy_room_thread`/`vy_room_follower`, and grades THAT literal's own outer
+select list. Factoring the fragment into a helper broke this two different
+ways in the SAME change: the helper's own tiny literal (`select 1 from
+vy_room_thread ...`) was found and graded ON ITS OWN — a non-aggregate outer
+select ("1") — and failed outright; and, more dangerously, the CALLER's
+literal, having interpolated the helper's RETURN VALUE via `${...}` rather
+than containing the words `vy_room_thread` as source text, was no longer
+recognised as touching that table AT ALL and silently escaped the scan -
+the opposite of "aggregate-only," a statement the battery never even
+looked at. Caught by hand-running the parser's own regex against the file
+as a standalone script BEFORE the eval suite did (a five-line reproduction:
+extract every `` `[^\`]*vy_room_(?:follower|thread)[^\`]*` `` match, check
+its first select-to-from span is aggregate-only and person-free) — the
+same technique this session then kept as `evals/pulse/run.mjs`'s own
+negative control (vii), so the next session does not need to rediscover
+this failure mode by hand a second time.
+
+**Fix.** Every statement touching `vy_room_thread` (`comboFollowerCount`,
+and TWICE inside `publishCombo` - the candidate's own population and the
+pairwise-safety subquery) writes the full "matches every label" clause out
+inline, longhand, three times, rather than sharing it through a function.
+Verbosity traded for correctness: a parser that only understands literal
+source text cannot be satisfied by a factoring that hides the text it is
+looking for.
+
+**Generalises to.** Any future SQL-building helper in an AGGREGATE_ONLY file
+that would move `vy_room_thread`/`vy_room_follower` text out of the
+CALLING function's own template literal. The rule is not "avoid helper
+functions" - it is "never let a helper function be the only place the
+watched table name appears in source text." A helper that builds a WHERE
+fragment for a table OUTSIDE the leak battery's watch (e.g. this same file's
+`vy_room_pulse_topic`/`vy_room_pulse_optin`-only statements) has no such
+restriction.
+
+## `ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it` (2026-09-04, at the WS-R35 merge)
+
+**Tried:** `publishCombo`'s k-anonymous INSERT wrapped every literal column of its aggregate select list in `min(...)` so the whole row is aggregate-only (`min(($1)::uuid)`, `min(($2)::uuid)`, `min(($3)::uuid)`, `min(($4)::date)`, `min(($5)::text[])`, `count(*)`, `min(now())`), following WS-R25's `min(...)` technique. The offline suite passed 51/51 because `evals/pulse/fixtures.mjs` matches the statement by text and mirrors its semantics in JS.
+
+**What broke:** the first live `EXPLAIN` at the merge refused the statement with `function min(uuid) does not exist`. Postgres ships `min` for text, date, arrays and timestamps but not for `uuid`, and no mock can know that. `offline-mocks-cannot-type-check-sql`, restated with a fourth shipped instance: this statement had never executed anywhere.
+
+**Fix:** the three uuid constants became `min(($n)::text)::uuid`, which keeps the select list aggregate-only for the leak battery's parser (`_pulse.js` stays in the class) and re-plans on the live database; the fixture matcher was pointed at the new text. Rule: a `min(...)`-wrapped literal is only safe for a type Postgres has a `min` aggregate for, and the only way to know is the live EXPLAIN.

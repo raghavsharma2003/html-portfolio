@@ -6196,6 +6196,78 @@
       "kind": "measurement",
       "title": "Migration 095 applied live; the three-way coalesced seat cap is visible inside attachRoom's One-Time Filter, webhook lanes resolve on the partial provider-ref indexes, the creator subscription reads plan on its live and owner indexes",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-pairwise-check-is-set-vs-single-label",
+      "kind": "decision",
+      "title": "Pulse v1's k-anonymity predicate checks a candidate label set against every OTHER single active label (not every other combination of any size) - catches the plan's own visas/divorce example and generalises soundly via subset math, without a second correlated subquery per candidate.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-combo-size-capped-at-two",
+      "kind": "decision",
+      "title": "computeComboSnapshot only ever GENERATES size-1 and size-2 label combinations even though migration 097's schema allows 1-3 - proven sufficient for the risk closed, unmeasured headroom kept open rather than a built and tested capability.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-v0-snapshot-kept-not-replaced",
+      "kind": "decision",
+      "title": "runPulseSweep calls both v0's computeSnapshot and v1's new computeComboSnapshot for every published Room; vy_room_pulse_snapshot is not touched, migrated, or deprecated by this workstream.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-label-bounds-added-not-valid",
+      "kind": "decision",
+      "title": "Migration 097's two new CHECK constraints on vy_room_pulse_topic (label length 2-32, slot 1-12) are added NOT VALID and slot is a bare nullable column, since this session cannot confirm no live row would violate a tighter bound than v0's original.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-slot-column-structural-label-cap",
+      "kind": "decision",
+      "title": "The 12-active-label-per-Room cap is enforced by a slot smallint column CHECKed to 1..12 paired with a unique index on (room_id, slot) - the standard Postgres idiom for a row-count cap without a trigger or function; setTopics clears every slot before reassigning to avoid a transient collision.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-note-computed-at-read-not-stored",
+      "kind": "decision",
+      "title": "weeklyNote's output is never persisted - readPulse calls the pure function fresh over the currently-published week's combo_buckets on every read, so a stored note can never drift from the buckets it was computed from.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-withdraw-is-free-via-v0-revoke",
+      "kind": "decision",
+      "title": "Law 5 (withdrawing opt-in narrows only future publishes) needed zero new code - setOptIn/revoke are unchanged, and every v1 read already filters revoked_at is null, the same predicate v0 already proved correct.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-pulse-combo-sql-factored-through-a-helper-evaded-the-leak-batterys-static-scan",
+      "kind": "rejection",
+      "title": "Factoring the shared 'person matches every label' SQL fragment into a helper function broke evals/room-leak/run.mjs's static text scan two ways at once: the helper's own tiny literal failed on its own non-aggregate select, and the caller's literal no longer contained the watched table name in source text and silently escaped the scan entirely. Fixed by writing the fragment inline, longhand, in all three call sites.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-pulse-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "51 assertions (19 pre-existing + 32 new), node evals/pulse/run.mjs, offline/deterministic/$0, 2026-09-04: the intersection boundary at overlap 0/1/5, label bounds, rename-keeps-history, withdraw-narrows-future-only, the note's closed action list, and two negative controls (content-free INSERT column lists; the room-leak detector proven to fire against a hand-built leaky statement).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-gate-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 16/16 on the untouched tree and 16/16 after every WS-R35 file, both without NEON_URL; tsc --noEmit clean.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-097-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 097 applied live and its CHECKs validated on an empty table; the k-anonymous publish plans as one Aggregate filter after the min(uuid) fix, with the pairwise suppression as an Anti Join over the Room's topics",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it",
+      "kind": "rejection",
+      "title": "publishCombo wrapped uuid constants in min(...) and the fake db passed it; Postgres has no min(uuid) and the live EXPLAIN at the merge refused the statement. Fixed as min(($n)::text)::uuid; a min-wrapped literal is safe only for types Postgres aggregates, and only the live EXPLAIN knows which.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12478,6 +12550,71 @@
       "src": "ws-r33-creator-subscription-owner-lane",
       "rel": "measured_by",
       "dst": "rooms-migration-095-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r35-pairwise-check-is-set-vs-single-label",
+      "rel": "measured_by",
+      "dst": "ws-r35-pulse-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r35-combo-size-capped-at-two",
+      "rel": "measured_by",
+      "dst": "ws-r35-pulse-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r35-slot-column-structural-label-cap",
+      "rel": "measured_by",
+      "dst": "ws-r35-pulse-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r35-withdraw-is-free-via-v0-revoke",
+      "rel": "measured_by",
+      "dst": "ws-r35-pulse-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r35-note-computed-at-read-not-stored",
+      "rel": "measured_by",
+      "dst": "ws-r35-pulse-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r35-pulse-combo-sql-factored-through-a-helper-evaded-the-leak-batterys-static-scan",
+      "rel": "measured_by",
+      "dst": "ws-r35-pulse-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r35-v0-snapshot-kept-not-replaced",
+      "rel": "measured_by",
+      "dst": "ws-r35-gate-2026-09-04"
+    },
+    {
+      "src": "ws-r35-label-bounds-added-not-valid",
+      "rel": "measured_by",
+      "dst": "ws-r35-gate-2026-09-04"
+    },
+    {
+      "src": "ws-r35-combo-size-capped-at-two",
+      "rel": "constrains",
+      "dst": "ws-r35-pairwise-check-is-set-vs-single-label"
+    },
+    {
+      "src": "ws-r35-pairwise-check-is-set-vs-single-label",
+      "rel": "measured_by",
+      "dst": "rooms-migration-097-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r35-slot-column-structural-label-cap",
+      "rel": "measured_by",
+      "dst": "rooms-migration-097-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r35-label-bounds-added-not-valid",
+      "rel": "measured_by",
+      "dst": "rooms-migration-097-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it",
+      "rel": "constrains",
+      "dst": "ws-r35-pairwise-check-is-set-vs-single-label"
     }
   ]
 }

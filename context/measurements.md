@@ -8461,3 +8461,91 @@ n = 1 migration (21 statements in one transaction), 14 API statements; method = 
 | `updateOrgSeats`'s seats-used count | Bitmap on the partial `vy_room_org_ix` |
 
 Not measured: no Suite subscription, creator subscription or Suite-lane ledger row exists; no provider has been contacted; Razorpay's subscription quantity PATCH shape is unverified against its docs (R33 marked it so); the money lines have not been seen in a browser.
+
+## `ws-r35-pulse-offline-eval-2026-09-04`
+
+n = 51 assertions (19 pre-existing v0 assertions, unchanged and still
+passing, plus 32 new WS-R35 assertions), `node evals/pulse/run.mjs`,
+offline/deterministic/$0/no DB/no network/no GPU, 2026-09-04. Method:
+`api/_pulse.js`'s real `comboFollowerCount`/`computeComboSnapshot`/
+`weeklyNote`/`setTopics` driven through `evals/pulse/fixtures.mjs`'s fake
+`db` (extended this session with two new in-memory tables,
+`state.pulseWeeks`/`state.pulseCombos`, and a `personsMatchingLabelSet`
+helper mirroring the real SQL's "for every label, some actively opted-in
+thread matches" predicate exactly), plus `evals/room-surface.js`'s real
+`joinRoom`/`createThread`/`setOptIn`/`revoke` for real follower worlds.
+(i) the intersection boundary: overlap=0 (two disjoint 5-follower labels)
+admits both singles and correctly never clears the pair's own floor;
+overlap=1 (the plan's own "visas"/"divorce" shape, one shared person)
+refuses BOTH singles, 3 of 3 candidates suppressed; overlap=5 (identical
+5-person populations) admits both singles AND the pair, suppressed=0. (ii)
+label bounds: 15 offered labels keep exactly `PULSE_MAX_LABELS`(12); a
+1-character label is dropped, a 2-character label is kept, a 40-character
+label truncates to `PULSE_LABEL_MAX_LEN`(32). (iii) renaming a label
+between two weeks leaves the FIRST week's stored `labels` text unchanged.
+(iv) revoking one follower's opt-in leaves week 1's already-published row
+untouched while week 2 (computed after the revocation) drops below the
+floor. (v) the weekly note: all 3 closed-list action codes produce distinct
+real sentences, an unrecognised code falls back to the default rather than
+throwing, a sub-floor row is silently excluded rather than printed, and two
+structurally-distinct-but-value-identical row arrays produce a
+byte-identical note. (vi) STATIC: the real source's two new INSERT column
+lists (`vy_room_pulse_combo`, `vy_room_pulse_week`) contain only their
+content-free columns, mirroring v0's own test (f) one migration later.
+(vii) NEGATIVE CONTROL: `evals/room-leak/run.mjs`'s own §1c
+AGGREGATE_ONLY algorithm, copied inline (that file is a script, never
+imported), passes the real min/count-wrapped shape and correctly REFUSES
+the same statement with a bare `person_id` or `thread_id` column added to
+its select list - the detector proven to fire, not just to stay silent
+(`sound-gate-proved-by-silence`).
+
+Also run standalone, before the eval suite, as a five-line reproduction of
+`evals/room-leak/run.mjs`'s own §1c regex against the real
+`api/_pulse.js` source: 3 statements found touching `vy_room_thread`
+(`topicFollowerCount` unchanged from v0, plus the two new v1 statements),
+0 offenders - this is what caught and fixed
+`context/rejected.md#ws-r35-pulse-combo-sql-factored-through-a-helper-
+evaded-the-leak-batterys-static-scan` before the real battery ran.
+
+`node evals/room-leak/run.mjs`: 78/78 unchanged (16,096 retrieval checks,
+452 boundary checks; `_pulse.js` still in the AGGREGATE_ONLY set by name,
+now proving out 3 statements instead of 1). `node scripts/check-copy.mjs`:
+6 scopes clean, 21 negative controls, unchanged. `node --check` run on
+every `api/` file this workstream touched (`api/_pulse.js`,
+`api/_replica-full-erasure.js`) - the second one caught a real syntax error
+this session introduced and fixed in the same turn: a markdown-style
+backtick pair (`` `on delete cascade` ``) written inside a `--` SQL comment
+that itself lives inside that file's giant JS template literal, terminating
+the string early. This is the SAME recurring mistake `context/rejected.md`
+already names twice (`ws-r1-backtick-inside-a-sql-comment-inside-a-js-
+template-literal`, `ws-r2-sql-comment-backticks-terminate-the-template-
+literal`) and WS-R28's own session log records hitting a third time - a
+fourth occurrence, not logged again as its own entry since the lesson is
+already written down twice over; caught by this workstream's own
+`node --check api/_replica-full-erasure.js` before any eval ran, fixed by
+writing "ON DELETE CASCADE" in plain caps instead.
+
+## `ws-r35-gate-2026-09-04`
+
+`node scripts/verify-release.mjs`: **16/16 on the untouched tree**
+(confirmed first, before any file in this workstream was written) and
+**16/16 after** every file in this report was written, both without
+`NEON_URL`. `npx tsc --noEmit -p .`: clean. Not measured with `--live`:
+no deployed URL exists for this branch, and no `NEON_URL` was available in
+this environment for the two relational DB gates (`relcheck`, citation
+discipline) - both skipped with a printed notice, as documented.
+
+## `rooms-migration-097-live-verification-2026-09-04`
+
+n = 1 migration (12 statements in one transaction, plus 2 `validate constraint` statements added at the merge), 12 API statements; method = the live `vy_room_pulse_topic` read first (0 rows, v0's `1..60` label CHECK present), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, both `not valid` CHECKs validated in the same sitting because the table was empty (`convalidated = true` read back for all four CHECKs), catalog read back for the two new tables and their FKs and indexes, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_pulse.js` added or changed and of the erasure job's two new CTEs, parameters substituted with typed literals; date 2026-09-04, at the WS-R35 merge over the WS-R33 tip.
+
+| statement | plan |
+|---|---|
+| `publishCombo` (the k-anonymous INSERT) as written by WS-R35 | refused: `function min(uuid) does not exist` (see `rejected.md#ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it`) |
+| `publishCombo` after the fix (`min(($n)::text)::uuid`) | Insert over one Aggregate whose `Filter` is `(NOT (InitPlan 6)) AND (count(*) >= 5)`: the floor and the pairwise suppression are one statement's filter; the opted-in population by `vy_room_pulse_optin_active_ix`, each label's threads by `vy_room_thread_scope_ix` with the title LIKE filtered, the pairwise check as an Anti Join over the Room's topics on `vy_room_pulse_topic_label_ix` with two aggregate SubPlans per other label |
+| `comboFollowerCount` | the same Anti Join shape without the HAVING, on the same indexes |
+| active labels read; slot clear; slot-bearing UPDATE | Bitmap on `vy_room_pulse_topic_slot_ix` by room; pkey |
+| week and combo deletes for the week; the week's suppressed UPDATE; the combo read; latest week | `_owner_read_ix` on (room_id, week_start) for all, `vy_room_pulse_week_pkey` for the update, an Index Only Scan `limit 1` for `max(week_start)` |
+| erasure delete of combos (and weeks, same shape) | `vy_room_owner_ix` then Bitmap on the combo's room index |
+
+Cost note: the publish plans at a few thousand units per candidate set at zero rows, and it runs per label pair per Room once a week inside the sweep; the title LIKE is a filter under the thread scope index, bounded by one follower's threads per probe. Not measured: no Pulse row exists; no combination has ever been published or suppressed on the live database; nobody has seen the combo card or the weekly note.

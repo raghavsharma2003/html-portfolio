@@ -89,7 +89,9 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // from both. None of the three is a memory or a payment, so folding
       // them into either existing class would answer a narrower question
       // than the one asked. Additive; the eval asserts membership, never the
-      // exact list.
+      // exact list. 097 (WS-R35) added two more tables to this SAME class
+      // (a k-anonymous week header and its combo buckets) rather than a new
+      // class of its own - same reasoning, one migration later.
       "owner_room_pulse",
       // 083 (WS-R20). Handoff's own class: a follower's verbatim ask and the
       // creator's verbatim reply to it are a different kind of record than
@@ -632,6 +634,19 @@ export async function completeReplicaErasure(db, lease, receipt) {
          and x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      pulse_optins as (delete from vy_room_pulse_optin x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 097 (WS-R35), Pulse v1. Same room_id-via-vy_room reasoning as the
+     -- three blocks just above, one migration later: neither table carries
+     -- an agent binding. Combo FIRST (it carries a real FK to the week
+     -- header, ON DELETE CASCADE, so deleting the header first would work
+     -- too, but child-before-parent is 071's own stated convention and this
+     -- delete is a backstop to that cascade either way, not the only
+     -- mechanism).
+     pulse_v1_combos as (delete from vy_room_pulse_combo x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     pulse_v1_weeks as (delete from vy_room_pulse_week x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      -- 083 (WS-R20), Handoff. Reached by room_id, the payment_events/

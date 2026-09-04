@@ -3853,3 +3853,58 @@ alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_cha
 
 alter table vy_room_follower_channel add column if not exists checkins_enabled boolean not null default true;
 alter table vy_room_follower_channel add column if not exists stopped_code text;
+
+-- Migration 097 - Pulse v1 (WS-R35): k-anonymous label combinations. See
+-- db/migrations/097_pulse_v1.sql for the full argument; mirrored here per
+-- this file's own convention. Tightens v0's `vy_room_pulse_topic` bounds
+-- (2-32 characters, structurally capped at 12 active labels per Room via a
+-- 1..12 `slot` column plus a unique index) and adds two new tables:
+-- `vy_room_pulse_week` (one header row per Room per week, carrying only a
+-- `suppressed` count) and `vy_room_pulse_combo` (a count over a SET of 1-3
+-- label TEXTS captured at publish time, never a topic_id FK, so a later
+-- rename never rewrites an already-published week).
+alter table vy_room_pulse_topic
+  drop constraint if exists vy_room_pulse_topic_label_v1_len_check;
+alter table vy_room_pulse_topic
+  add constraint vy_room_pulse_topic_label_v1_len_check
+  check (length(label) between 2 and 32) not valid;
+
+alter table vy_room_pulse_topic add column if not exists slot smallint;
+
+alter table vy_room_pulse_topic
+  drop constraint if exists vy_room_pulse_topic_slot_check;
+alter table vy_room_pulse_topic
+  add constraint vy_room_pulse_topic_slot_check
+  check (slot is null or slot between 1 and 12) not valid;
+
+create unique index if not exists vy_room_pulse_topic_slot_ix
+  on vy_room_pulse_topic (room_id, slot);
+-- Validated at the merge: the live table held zero rows, so both CHECKs bind.
+alter table vy_room_pulse_topic validate constraint vy_room_pulse_topic_label_v1_len_check;
+alter table vy_room_pulse_topic validate constraint vy_room_pulse_topic_slot_check;
+
+create table if not exists vy_room_pulse_week (
+  week_id     uuid primary key,
+  room_id     uuid not null references vy_room(room_id) on delete cascade,
+  week_start  date not null,
+  suppressed  integer not null default 0 check (suppressed >= 0),
+  computed_at timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_week_ix
+  on vy_room_pulse_week (room_id, week_start);
+create index if not exists vy_room_pulse_week_owner_read_ix
+  on vy_room_pulse_week (room_id, week_start desc);
+
+create table if not exists vy_room_pulse_combo (
+  combo_id       uuid primary key,
+  week_id        uuid not null references vy_room_pulse_week(week_id) on delete cascade,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  week_start     date not null,
+  labels         text[] not null check (coalesce(array_length(labels, 1), 0) between 1 and 3),
+  follower_count integer not null check (follower_count >= 5),
+  computed_at    timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_combo_ix
+  on vy_room_pulse_combo (room_id, week_start, labels);
+create index if not exists vy_room_pulse_combo_owner_read_ix
+  on vy_room_pulse_combo (room_id, week_start desc);

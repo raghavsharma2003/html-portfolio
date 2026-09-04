@@ -10720,3 +10720,180 @@ by re-running it unchanged, 62/62 green.
 fields (e.g. a multi-party split that the provider itself must know about
 at creation time), widen `input` further rather than reverting to
 per-lane-named fields - the generalization already paid for itself once.
+
+## `ws-r35-pairwise-check-is-set-vs-single-label` (2026-09-04, WS-R35)
+
+**Decision.** Pulse v1's k-anonymity predicate checks a candidate label SET
+`S` (1 or 2 labels) against every OTHER single active label `L` not already
+in `S` - "does adding `L` to `S` shrink the population to 1-4" - rather than
+against every OTHER candidate combination of any size.
+
+**Rationale.** The plan's own worked example is exactly this shape: two
+SINGLE labels, "visas" and "divorce," each individually at 5, sharing one
+person. Checking `S` against every other single label catches that example
+directly, and generalises soundly for the reason set-intersection math
+makes true regardless of size: `persons(S union {L})` is always a SUBSET of
+both `persons(S)` and `persons({L})`, so if that subset lands at 1-4, EITHER
+half publishing alone already lets a reader who also knows (or later learns)
+the other half's population narrow toward the same small group - the
+predicate does not need to also compare `S` against a second 2-label
+combination to catch that. A full "check `S` against every other candidate
+of any size" predicate would be sound too, but strictly more conservative
+for no example this session could construct where it refuses something the
+narrower form admits unsafely; it also does not fit in one SQL statement's
+`having` clause without a second correlated subquery per candidate T, which
+`publishCombo` (`api/_pulse.js`) does not need today.
+
+**Reversal condition.** If a future audit constructs a real scenario where
+two ALREADY-multi-label candidates (never a bare single label) are the only
+disclosive pair - i.e. `S`={A,B} and `T`={C,D} intersect at 1-4 while every
+pairwise single-label check both pass - widen `publishCombo`'s `having`
+clause to also compare `S` against every OTHER same-size-or-larger
+candidate the sweep generates, not only single labels, and re-derive the
+AGGREGATE_ONLY proof for the wider statement.
+
+## `ws-r35-combo-size-capped-at-two` (2026-09-04, WS-R35)
+
+**Decision.** `computeComboSnapshot` (`api/_pulse.js`) only ever GENERATES
+size-1 and size-2 label combinations (`MAX_COMBO_SIZE = 2`), even though
+migration 097's own `vy_room_pulse_combo.labels` CHECK allows a stored set
+of 1 to 3.
+
+**Rationale.** The brief's own worked example and every disclosure this
+session could reason through are 2-label shapes. Generating size-3 too
+grows a 12-label Room's candidate count from C(12,1)+C(12,2)=78 to
+C(12,1)+C(12,2)+C(12,3)=298 per Room per week, each candidate its own
+network round trip against Neon SQL-over-HTTP (no batched multi-statement
+transaction here, 009's law) inside `api/pulse-sweep.js`'s 60-second
+`maxDuration` shared across every published Room the sweep visits in one
+invocation. Two is proven sufficient for the risk this workstream was asked
+to close; three is unmeasured headroom the schema keeps open rather than a
+built and tested capability.
+
+**Reversal condition.** If a real Room ever publishes two DISJOINT 2-label
+combinations whose own populations still let a reader triangulate a small
+group across three labels at once (the size-3 analogue of the plan's
+worked example), or if `PULSE_MAX_LABELS` is ever raised past 12 such that
+even C(N,1)+C(N,2) risks the sweep's time budget, raise `MAX_COMBO_SIZE` to
+3 and measure the real per-Room candidate count and round-trip time before
+shipping it, the same way this decision was reached for size 2.
+
+## `ws-r35-v0-snapshot-kept-not-replaced` (2026-09-04, WS-R35)
+
+**Decision.** `runPulseSweep` calls BOTH v0's `computeSnapshot` (the
+single-topic, `topic_id`-FK'd snapshot, migration 080, unchanged) AND v1's
+new `computeComboSnapshot` (migration 097) for every published Room, inside
+the SAME try/catch. `vy_room_pulse_snapshot` is not touched, migrated, or
+deprecated by this workstream.
+
+**Rationale.** v0's own floor (n>=5 per topic) is still a correct, narrower
+guarantee that holds regardless of v1 existing alongside it; nothing in the
+brief asked for its removal, and this session found no `context/rejected.md`
+or `decisions.md` entry establishing that a later migration may safely drop
+an earlier Rooms table with unknown live row counts. Building v1 as a
+strict ADDITION rather than a replacement means a Room's existing v0 data
+(however unlikely to be non-empty, per `context/STATE.md`'s own accounting)
+is never touched, and the studio card (`RoomStudio.tsx`) now reads from v1's
+`combo_buckets`/`suppressed`/`note` for display while v0's `status`
+computation still gates the "not enough people opted in yet" honest empty
+state, since both read the SAME underlying opt-in floor.
+
+**Reversal condition.** Once a live Room has run v1 for several weeks with
+no discrepancy between v0's single-topic reading and v1's own size-1
+buckets, and the main loop confirms (via a live `select count(*) from
+vy_room_pulse_snapshot`) that no real row exists there worth preserving,
+retiring `computeSnapshot`'s call from `runPulseSweep` (and, separately,
+dropping the table in its own migration) is a reasonable follow-up - not a
+call this workstream is positioned to make without that live read.
+
+## `ws-r35-label-bounds-added-not-valid` (2026-09-04, WS-R35)
+
+**Decision.** Migration 097's two new CHECK constraints on the existing,
+possibly-live `vy_room_pulse_topic` table (label length 2-32, `slot` between
+1 and 12) are both added with `not valid`, and the new `slot` column is a
+bare nullable `smallint` rather than `not null`.
+
+**Rationale.** `offline-mocks-cannot-type-check-sql` (AGENTS.md) generalises
+past types: this session has no `NEON_URL` and cannot confirm no live
+`vy_room_pulse_topic` row violates a tighter bound than v0's original 1-60
+check. A CHECK added `not valid` still applies to every future INSERT/UPDATE
+from the moment it lands (so the bound is real going forward), but does not
+retroactively validate existing rows, so this migration cannot fail to
+apply because of data written before it existed - the risk this session
+cannot see is made harmless rather than assumed away.
+
+**Reversal condition.** Once the main loop confirms via a live read that
+every existing `vy_room_pulse_topic` row already satisfies both bounds
+(vanishingly likely to fail, since v0 shipped with an 8-label/60-character
+app-level cap already narrower than 12/32 in count and not far off in
+length), run `alter table vy_room_pulse_topic validate constraint
+vy_room_pulse_topic_label_v1_len_check` (and the slot check) to make the
+guarantee retroactive too - a follow-up this workstream is not positioned
+to make without that live read.
+
+## `ws-r35-slot-column-structural-label-cap` (2026-09-04, WS-R35)
+
+**Decision.** The 12-active-label-per-Room cap (law 2) is enforced by a
+`slot smallint` column, CHECKed to 1..12, paired with a bare (non-partial)
+UNIQUE index on `(room_id, slot)` - `setTopics` is the only writer, and it
+clears every row's slot for the Room in one statement before assigning a
+fresh 1..N to the final list in a second pass.
+
+**Rationale.** A CHECK constraint is per-row and cannot itself count rows,
+and migrations may carry no trigger or function (009's law), so a genuine
+row-count cap needs a bounded-domain column plus a uniqueness constraint on
+it - the standard Postgres idiom for "at most N rows of this shape" without
+procedural code. The two-phase clear-then-assign write avoids a transient
+collision a naive row-by-row reassignment could hit: Neon SQL-over-HTTP runs
+one statement per request, not one transaction, so a slot SWAP (row A wants
+row B's old slot, mid-list) could otherwise violate the unique index for
+the instant between the two UPDATEs.
+
+**Reversal condition.** If a future Room ever needs its labels reordered
+without a full `setTopics` rewrite (e.g. drag-to-reorder in the studio),
+this two-phase clear-then-assign shape gets slower than a single positional
+UPDATE per row would be at real scale; that tradeoff should be revisited
+with a measured per-call latency once real Rooms exist with 12 labels.
+
+## `ws-r35-note-computed-at-read-not-stored` (2026-09-04, WS-R35)
+
+**Decision.** `weeklyNote`'s output is never persisted. `readPulse` calls it
+fresh, over the currently-published week's `combo_buckets`, on every read;
+no new column or table holds the note's text.
+
+**Rationale.** `weeklyNote` is pure and cheap (pure JS over an already-small
+in-memory array, no database access of its own), so storing its output
+would only ever be a cache with a staleness risk this workstream has no
+reason to accept: a stored note could drift from the buckets it was
+computed from if `computeComboSnapshot` ever re-ran for the same week (it
+does not today, but nothing stops a future fix from doing so), and a
+computed-fresh note can never disagree with what the card shows next to it.
+
+**Reversal condition.** If `weeklyNote` ever needs anything beyond `rows`
+and a closed action code (a per-Room tone setting, a translation, a
+creator-edited version), storing it becomes the right call, and the
+staleness risk above becomes something a `computed_at`/`buckets_hash`
+column can guard against explicitly rather than something this decision
+could keep assuming away by construction.
+
+## `ws-r35-withdraw-is-free-via-v0-revoke` (2026-09-04, WS-R35)
+
+**Decision.** Law 5 (withdrawing opt-in narrows only FUTURE publishes,
+never rewrites a past one) needed zero new code: `setOptIn`/`revoke`
+(WS-R17, unchanged by this workstream) are the only writers of
+`vy_room_pulse_optin.revoked_at`, and every v1 read (`comboFollowerCount`,
+`publishCombo`'s own population subqueries) already filters
+`revoked_at is null` - the SAME predicate v0's `topicFollowerCount` uses.
+
+**Rationale.** Building v1's population-matching logic to read the SAME
+opt-in table with the SAME "actively opted in" predicate v0 already proved
+correct (`evals/pulse/run.mjs`'s original tests (d)) means a revocation's
+effect on v1 is a direct, untested-by-choice consequence of a fact already
+established, not a new code path that could independently be wrong. This
+workstream's new test (iv) exists to PROVE this inheritance holds, not to
+introduce new withdrawal logic.
+
+**Reversal condition.** If v1 ever needs to read opt-in state through a
+DIFFERENT predicate than v0 (e.g. a grace period before revocation takes
+effect), this decision reverses and withdrawal needs its own tested logic
+rather than borrowed correctness.

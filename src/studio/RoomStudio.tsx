@@ -63,7 +63,14 @@ import {
   type RoomRevenue,
   type CreatorTierStatus,
 } from "./paymentsApi";
-import { readPulse, setPulseTopics, PulseApiError, type PulseReport } from "./pulseApi";
+import {
+  readPulse,
+  setPulseTopics,
+  PulseApiError,
+  PULSE_MAX_LABELS,
+  PULSE_LABEL_MAX_LEN,
+  type PulseReport,
+} from "./pulseApi";
 import { markFunnelStep } from "./funnelApi";
 import "./roomStudio.css";
 
@@ -987,12 +994,12 @@ export default function RoomStudio({
               </button>
             </span>
           ))}
-          {(pulse?.topics?.length ?? 0) < 8 && (
+          {(pulse?.topics?.length ?? 0) < PULSE_MAX_LABELS && (
             <>
               <input
                 className="field vy-room__cap-field"
                 type="text"
-                maxLength={60}
+                maxLength={PULSE_LABEL_MAX_LEN}
                 placeholder="Add a topic, e.g. exam stress"
                 value={topicDraft}
                 onChange={(event) => setTopicDraft(event.target.value)}
@@ -1009,22 +1016,31 @@ export default function RoomStudio({
           )}
         </div>
         {pulse ? (
-          pulse.status === "ready" ? (
-            <div className="vy-room__stats-grid">
-              {pulse.buckets.map((b) => (
-                <div key={b.topic_id} className="vy-room__stat">
-                  <span className="vy-room__stat-value">{b.follower_count}</span>
-                  <span className="vy-room__stat-label">{b.label}</span>
-                </div>
-              ))}
-            </div>
-          ) : pulse.status === "not_enough_optins" ? (
-            <p className="field-note">Not enough people have opted in yet.</p>
-          ) : (
-            <p className="field-note">
-              Enough followers have opted in, but no topic has five behind it yet.
-            </p>
-          )
+          <>
+            {pulse.status === "not_enough_optins" ? (
+              <p className="field-note">Not enough people have opted in yet.</p>
+            ) : (pulse.combo_buckets?.length ?? 0) > 0 ? (
+              <div className="vy-room__stats-grid">
+                {pulse.combo_buckets.map((b) => (
+                  <div key={b.labels.join("+")} className="vy-room__stat">
+                    <span className="vy-room__stat-value">{b.follower_count}</span>
+                    <span className="vy-room__stat-label">{b.labels.join(" and ")}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="field-note">
+                Enough followers have opted in, but nothing has five behind it yet.
+              </p>
+            )}
+            {pulse.suppressed > 0 && (
+              <p className="field-note">
+                {pulse.suppressed} combination{pulse.suppressed === 1 ? "" : "s"} were held back this week because
+                showing them would have named someone.
+              </p>
+            )}
+            {pulse.note && <p className="field-note vy-room__pulse-note">{pulse.note}</p>}
+          </>
         ) : pulseError ? (
           <p className="field-note">Could not load this just now. It will show the next time this loads.</p>
         ) : (
