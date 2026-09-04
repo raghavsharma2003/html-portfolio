@@ -141,6 +141,16 @@ function opsDb(state) {
       return [{ active: n }];
     }
 
+    // ── WS-R29: platform-wide WhatsApp spend this month ──────────────────
+    if (has("from vy_room_checkin_delivery") && has("channel = 'whatsapp_template'")) {
+      const [cutoffIso] = p;
+      const n = (state.checkinDeliveries || []).filter(
+        (d) => d.channel === "whatsapp_template" && d.state === "delivered"
+          && (d.created_at == null || d.created_at >= cutoffIso),
+      ).length;
+      return [{ n }];
+    }
+
     // ── deliveries, grouped by state ─────────────────────────────────────
     if (has("from vy_room_checkin_delivery") && has("group by state")) {
       const [roomId] = p;
@@ -403,6 +413,18 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
   state.checkinDeliveries.push(
     { room_id: ROOM_ID, state: "delivered" }, { room_id: ROOM_ID, state: "delivered" },
     { room_id: ROOM_ID, state: "skipped_free_tier" },
+    // WS-R29: three delivered WhatsApp templates this month, across BOTH
+    // rooms (the query is platform-wide, never `where room_id = ...` -
+    // seeded on the SECOND room too, deliberately, so the ordinary
+    // per-room `deliveries_last_24h` assertions below stay untouched by a
+    // query that does not scope by room at all). One delivered BEFORE this
+    // month (must not count), one not_configured (must not count - only
+    // 'delivered' is a real send).
+    { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "delivered", created_at: "2026-09-05T00:00:00Z" },
+    { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "delivered", created_at: "2026-09-08T00:00:00Z" },
+    { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "delivered", created_at: "2026-09-09T00:00:00Z" },
+    { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "delivered", created_at: "2026-08-20T00:00:00Z" },
+    { room_id: SECOND_ROOM_ID, channel: "whatsapp_template", state: "not_configured", created_at: "2026-09-06T00:00:00Z" },
   );
   state.subscriptions.push({ room_id: ROOM_ID, state: "active" }, { room_id: ROOM_ID, state: "cancelled" });
   state.paymentEvents.push(
@@ -455,6 +477,14 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
     overview.sweeps.find((s) => s.sweep === "pulse").staleness === "never_ran");
   ok("every one of this repo's 11 crons appears in the sweeps strip",
     overview.sweeps.length === vercelJson.crons.length);
+
+  // WS-R29: platform-wide, THIS MONTH only, delivered only, never
+  // not_configured/failed/skipped, never grouped by room (it is the
+  // owner's own bill across every Room).
+  ok("whatsapp.template_sends_this_month counts only delivered rows in the current month, across BOTH rooms",
+    overview.whatsapp.template_sends_this_month === 3, JSON.stringify(overview.whatsapp));
+  ok("whatsapp.cost_this_month_inr is the count times the named unit cost constant",
+    overview.whatsapp.cost_this_month_inr === 0.33, JSON.stringify(overview.whatsapp));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

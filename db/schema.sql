@@ -3745,3 +3745,29 @@ create unique index if not exists vy_org_subscription_provider_ref_ix
   on vy_org_subscription (provider, provider_subscription_ref)
   where provider_subscription_ref is not null;
 create index if not exists vy_org_subscription_org_ix on vy_org_subscription (org_id, created_at desc);
+
+-- Migration 092 - check-ins over WhatsApp utility templates (WS-R29). See
+-- db/migrations/092_room_whatsapp.sql for the full argument; mirrored here
+-- per this file's own convention. One row per follower (primary key
+-- follower_id) - a WhatsApp destination the follower themselves provided,
+-- separate from the Room's OTP sign-in phone. `state` carries the
+-- revoke-on-failure law: 'failed' is set by a 4xx from Meta naming an
+-- invalid number, `last_failure_code` names it, and no further sends go out
+-- until the follower opts in again.
+create table if not exists vy_room_follower_whatsapp (
+  follower_id     uuid primary key references vy_room_follower(follower_id) on delete cascade,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  phone_e164      text not null check (phone_e164 ~ '^\+[1-9][0-9]{7,14}$'),
+  consented_at    timestamptz not null default now(),
+  state           text not null default 'active' check (state in ('active', 'stopped', 'failed')),
+  last_failure_code text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists vy_room_follower_whatsapp_scope_ix
+  on vy_room_follower_whatsapp (room_id, person_id);
+-- Added at the merge: the inbound webhook's lookup by the number Meta hands
+-- back planned as a sequential scan on the live database without this.
+create index if not exists vy_room_follower_whatsapp_phone_ix
+  on vy_room_follower_whatsapp (phone_e164);

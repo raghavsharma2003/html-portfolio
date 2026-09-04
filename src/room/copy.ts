@@ -274,6 +274,18 @@ const EN = {
     pushOnCopy: "A due check-in will reach this phone even when the room is closed.",
     pushOffCopy: "Turn on notifications so a due check-in reaches this phone even when the room is closed.",
     pushError: "Could not turn that on. Check your browser's notification permission and try again.",
+    // WS-R29 (migration 092). `waOnCopy` carries `{phone}`, the masked number
+    // the server already returned — never the raw digits, and never
+    // constructed client side.
+    waTitle: "Check-ins on WhatsApp",
+    waPhoneLabel: "WhatsApp number",
+    waPhonePlaceholder: "+91XXXXXXXXXX",
+    waSave: "Save",
+    waDisable: "Turn off",
+    waOnCopy: "Check-ins go to {phone} on WhatsApp.",
+    waOffCopy: "Add a number and a due check-in reaches you on WhatsApp too.",
+    waError: "That did not go through. Check the number and try again.",
+    waPhoneInvalid: "Enter the number with a country code, like +91XXXXXXXXXX.",
   },
 
   handoff: {
@@ -448,6 +460,15 @@ const HI: typeof EN = {
     pushOnCopy: "रूम बंद होने पर भी एक बकाया चेक-इन इस फ़ोन तक पहुंचेगा।",
     pushOffCopy: "नोटिफ़िकेशन चालू करें ताकि रूम बंद होने पर भी बकाया चेक-इन इस फ़ोन तक पहुंचे।",
     pushError: "वह चालू नहीं हो सका। अपने ब्राउज़र की नोटिफ़िकेशन अनुमति जांचें और फिर कोशिश करें।",
+    waTitle: "व्हाट्सएप पर चेक-इन",
+    waPhoneLabel: "व्हाट्सएप नंबर",
+    waPhonePlaceholder: "+91XXXXXXXXXX",
+    waSave: "सहेजें",
+    waDisable: "बंद करें",
+    waOnCopy: "चेक-इन व्हाट्सएप पर {phone} को जाते हैं।",
+    waOffCopy: "एक नंबर जोड़ें, बकाया चेक-इन व्हाट्सएप पर भी पहुंचेगा।",
+    waError: "वह नहीं भेजा जा सका। नंबर जांचें और फिर कोशिश करें।",
+    waPhoneInvalid: "देश कोड सहित नंबर डालें, जैसे +91XXXXXXXXXX।",
   },
 
   handoff: {

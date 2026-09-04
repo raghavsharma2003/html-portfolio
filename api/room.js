@@ -12,6 +12,9 @@
 //   POST /api/room {op:"push_subscribe",   session, endpoint, p256dh, auth}
 //   POST /api/room {op:"push_unsubscribe", session, endpoint}
 //   POST /api/room {op:"push_status",      session}       -> {subscribed}
+//   POST /api/room {op:"whatsapp_optin",  session, phone} -> {subscribed, phone_masked}
+//   POST /api/room {op:"whatsapp_stop",   session}
+//   POST /api/room {op:"whatsapp_status", session}         -> {available, subscribed, phone_masked}
 //   POST /api/room {op:"citations", session}
 //   POST /api/room {op:"stats",  room:"<slug>"}
 //   POST /api/room {op:"export", session}
@@ -91,6 +94,7 @@ import {
 } from "./_room-surface.js";
 import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
 import { setSubscription, removeSubscription, subscriptionStatus } from "./_room-push.js";
+import { optIn as whatsappOptIn, stop as whatsappStop, status as whatsappStatus } from "./_room-whatsapp.js";
 import { createProductionProtectionAdapters } from "./_provenance/registry.js";
 import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
@@ -341,6 +345,22 @@ export default async function handler(req, res) {
 
     if (op === "push_status") {
       return res.status(200).json(await subscriptionStatus(q, { session: body.session }));
+    }
+
+    if (op === "whatsapp_optin") {
+      // WS-R29. Same burst-limit shape as "push_subscribe" above — a follower
+      // toggling a real switch never approaches this ceiling.
+      const waPayload = readRoomSession(body.session);
+      if (await refused(res, "room_push_follower", waPayload.p)) return;
+      return res.status(200).json(await whatsappOptIn(q, { session: body.session, phone: body.phone }));
+    }
+
+    if (op === "whatsapp_stop") {
+      return res.status(200).json(await whatsappStop(q, { session: body.session }));
+    }
+
+    if (op === "whatsapp_status") {
+      return res.status(200).json(await whatsappStatus(q, { session: body.session }));
     }
 
     if (op === "citations") {

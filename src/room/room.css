@@ -749,6 +749,36 @@
     border-top: var(--hairline) solid var(--line);
   }
 
+  /* ── check-ins on WhatsApp (WS-R29): absent entirely on a deployment with
+   *  ROOM_WHATSAPP_TEMPLATE_APPROVED unset, `.room-checkins-push`'s own rule
+   *  one channel over. */
+  .room-checkins-wa-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-tight);
+    margin-top: var(--space-tight);
+  }
+
+  .room-checkins-wa-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
+  .room-checkins-wa-form input[type="tel"] {
+    min-height: 40px;
+    min-width: 200px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 10px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .room-checkins-day { transition: none; }
   }

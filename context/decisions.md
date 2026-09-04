@@ -10205,3 +10205,90 @@ work, not a mistake. When Phase 2 builds a creator tier charge, its own tier
 read should call `seatCoversCreatorTier` before applying any charge, and that
 commit should log a `measured_by`-style edge back to this one rather than
 re-deriving the exemption logic.
+
+## `ws-r29-whatsapp-credentials-reused-not-forked` (2026-09-04, WS-R29)
+
+**Decision.** Check-ins over WhatsApp (migration 092, `vy_room_follower_
+whatsapp`) send through the SAME shared credentials `api/whatsapp.js`
+already reads (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`,
+`WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`) rather than a parallel
+`ROOM_WHATSAPP_*` credential set. `api/room-wa.js`'s webhook door reuses
+`api/whatsapp.js`'s own `verify()` (the HMAC check and the GET handshake)
+and, for the ONE deterministic auto-reply line an inbound message earns,
+its own `send()`/`noteInbound()` - never a second implementation of either.
+
+**Rationale.** The workstream brief said so explicitly ("the existing
+WHATSAPP_* names reused, do not invent parallel ones"), and it is also the
+smaller surface: one WABA number, one HMAC implementation, one 24-hour-
+window ledger, shared by Meera's own DM lane and the Room's check-in lane.
+A parallel `ROOM_WHATSAPP_*` set would have meant a second app secret to
+rotate, a second webhook HMAC to keep in step with Meta's algorithm, and a
+second place `WA_WINDOW_MS`/`windowOpen` could quietly drift from the first.
+
+**What this does NOT resolve, named rather than assumed away.** Meta's Cloud
+API webhook subscription is registered against ONE callback URL per app; two
+different files in this repo (`api/whatsapp.js`, `api/room-wa.js`) now both
+want to be that URL for the SAME number. This was never exercised against a
+real WABA (no credentials in this environment), so which of "Meta permits
+routing one subscription's deliveries to two URLs", "an operator merges the
+two doors behind one URL and dispatches internally" or "Rooms needs its own
+WABA number after all" is true is NOT KNOWN and is an owner/operator decision
+for whoever registers the real webhook, not a code decision this workstream
+can make blind.
+
+**Reversal condition.** The day an operator actually registers this webhook
+and finds Meta will not deliver to two URLs for one number: either (a) merge
+`api/room-wa.js`'s dispatch into `api/whatsapp.js`'s own handler (both would
+then share one `verify()` call site as they already share the function), or
+(b) mint a second WABA number for Rooms and this decision reverses to a
+parallel `ROOM_WHATSAPP_*` credential set after all, with a `supersedes` edge
+back to this entry.
+
+## `ws-r29-429-excluded-from-the-4xx-revoke-bucket` (2026-09-04, WS-R29)
+
+**Decision.** `deliverers.whatsappTemplate` (api/_checkins.js) revokes a
+follower's WhatsApp opt-in (`markFollowerWhatsappFailed`, state -> 'failed')
+on a response in `[400, 500)` EXCEPT 429, which is treated identically to a
+5xx: no ledger row is written at all, and the opt-in is left untouched.
+
+**Rationale.** The workstream brief's own words ("a 429 or 5xx leaves the
+row for the next sweep") already answer this, and the reason is what a 429
+MEANS: "too many requests right now", not "this number is invalid". 429 is
+numerically inside `[400,500)`, and the first version of this function
+revoked on it - see `rejected.md#ws-r29-429-treated-as-a-generic-4xx-would-
+have-revoked-a-good-number`, the exact bug this decision closes.
+
+**Reversal condition.** If Meta is ever observed returning 429 for a genuinely
+dead number (rather than rate limiting), or if a REPEATED 429 streak for the
+same follower should itself become a revoke signal (a judgment this
+workstream did not make, since no real traffic exists to judge it against),
+add a streak counter rather than folding 429 back into the blanket 4xx
+range - the blanket range is exactly the bug this decision exists to avoid
+reintroducing.
+
+## `ws-r29-no-wamid-correlation-column-added` (2026-09-04, WS-R29)
+
+**Decision.** `vy_room_checkin_delivery` gained no new column in migration
+092 (the workstream brief's own law 5: "vy_room_checkin_delivery gains
+nothing"). Meta's async status callbacks (sent/delivered/read/failed,
+arriving on `api/room-wa.js` after the fact) are therefore NEVER correlated
+back to the ledger row a send produced - `handleStatusWebhook` reads them
+only to decide whether to fire the one deterministic auto-reply for an
+INBOUND message; a `statuses[]` entry is otherwise a no-op, counted for the
+caller's own logging and nothing else.
+
+**Rationale.** The synchronous send response (the 2xx/4xx/429/5xx
+`sendTemplate` itself gets back) is already the authoritative signal this
+product acts on - a 4xx revokes at send time, a 2xx marks 'delivered'
+(meaning "handed to Meta", the same honest scope every other channel's
+'delivered' state already carries, never "the follower's phone rang").
+Adding a `wamid` column to correlate a LATER async status back to that row
+would be new schema for a signal nothing in this workstream's brief asked
+the product to act on.
+
+**Reversal condition.** The day a real operator needs to know "did this
+template actually reach the device" rather than "did Meta accept the send" -
+for example, to distinguish a follower who silently stopped reading
+WhatsApp from one whose number went dead - add `wamid text` to
+`vy_room_checkin_delivery`, capture it from `sendTemplate`'s own response
+body, and correlate `statuses[].id` against it in `handleStatusWebhook`.

@@ -5926,6 +5926,66 @@
       "kind": "measurement",
       "title": "Migration 091 applied live; attachRoom's three refusals are visible as one One-Time Filter over three InitPlans in a single UPDATE, every Suite read plans on its index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-whatsapp-checkins",
+      "kind": "component",
+      "title": "Check-ins delivered as a WhatsApp UTILITY TEMPLATE (migration 092, vy_room_follower_whatsapp): api/_room-whatsapp.js owns opt-in/stop/status, the pure scannable payload builder, sendTemplate, and the webhook (verify reused verbatim from api/whatsapp.js); api/room-wa.js is the thin HTTP door; api/_checkins.js's deliverers.whatsappTemplate is wired for real.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-whatsapp-credentials-reused-not-forked",
+      "kind": "decision",
+      "title": "The Room's WhatsApp channel reuses api/whatsapp.js's shared WHATSAPP_* credentials and its verify()/send() rather than a parallel ROOM_WHATSAPP_* set; whether Meta permits one number's webhook to route to two URLs is unknown and named as the open item this decision cannot resolve.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-429-excluded-from-the-4xx-revoke-bucket",
+      "kind": "decision",
+      "title": "deliverers.whatsappTemplate revokes an opt-in on a 4xx EXCEPT 429, which is treated as transient like a 5xx: no ledger row, opt-in untouched.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-no-wamid-correlation-column-added",
+      "kind": "decision",
+      "title": "vy_room_checkin_delivery gains no wamid column; async Meta status callbacks are never correlated back to a send, only the synchronous send response drives state.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-429-treated-as-a-generic-4xx-would-have-revoked-a-good-number",
+      "kind": "rejection",
+      "title": "A generic [400,500) revoke range caught 429 and would have permanently revoked a valid opt-in on Meta's own rate limiting; caught by evals/room-whatsapp/run.mjs's own transient-failure test.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-meta-wire-phone-format-vs-stored-e164-mismatch",
+      "kind": "rejection",
+      "title": "Comparing Meta's digits-only inbound from field directly against the stored +-prefixed phone_e164 would never match in a real deployment; a self-matching fixture hid it until the webhook test modelled Meta's real documented shape.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-duplicate-fixture-row-for-a-primary-keyed-table-hid-a-stale-find",
+      "kind": "rejection",
+      "title": "Pushing a second fixture row for a PRIMARY KEY(follower_id) table produced a false test failure via a stale .find() match; fixed by mutating the one row in place, mirroring the real upsert.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-room-whatsapp-offline-battery-2026-09-04",
+      "kind": "measurement",
+      "title": "63/63 assertions, evals/room-whatsapp/run.mjs, offline/deterministic/$0, opt-in scoping, the payload static scan, every real send outcome, the webhook door, export/forget.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r29-gate-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs 16/16 before and after; evals/run.mjs exit 0 across all suites including room-whatsapp; check-copy.mjs and context.mjs --check both clean.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-092-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 092 applied live; the phone lookup for inbound replies seq-scanned until an index on phone_e164 was added at the merge; every other statement on its index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11933,6 +11993,71 @@
       "src": "ws-r28-vy-org-creator-column-is-not-named-owner-user-id",
       "rel": "measured_by",
       "dst": "rooms-migration-091-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r29-whatsapp-checkins",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r29-whatsapp-checkins",
+      "rel": "caused_by",
+      "dst": "ws-r16-checkins-component"
+    },
+    {
+      "src": "ws-r29-whatsapp-credentials-reused-not-forked",
+      "rel": "constrains",
+      "dst": "ws-r29-whatsapp-checkins"
+    },
+    {
+      "src": "ws-r29-429-excluded-from-the-4xx-revoke-bucket",
+      "rel": "measured_by",
+      "dst": "ws-r29-429-treated-as-a-generic-4xx-would-have-revoked-a-good-number"
+    },
+    {
+      "src": "ws-r29-429-treated-as-a-generic-4xx-would-have-revoked-a-good-number",
+      "rel": "caused_by",
+      "dst": "ws-r29-whatsapp-checkins"
+    },
+    {
+      "src": "ws-r29-meta-wire-phone-format-vs-stored-e164-mismatch",
+      "rel": "caused_by",
+      "dst": "ws-r29-whatsapp-checkins"
+    },
+    {
+      "src": "ws-r29-duplicate-fixture-row-for-a-primary-keyed-table-hid-a-stale-find",
+      "rel": "caused_by",
+      "dst": "ws-r29-room-whatsapp-offline-battery-2026-09-04"
+    },
+    {
+      "src": "ws-r29-no-wamid-correlation-column-added",
+      "rel": "constrains",
+      "dst": "ws-r29-whatsapp-checkins"
+    },
+    {
+      "src": "ws-r29-whatsapp-checkins",
+      "rel": "measured_by",
+      "dst": "ws-r29-room-whatsapp-offline-battery-2026-09-04"
+    },
+    {
+      "src": "ws-r29-whatsapp-checkins",
+      "rel": "measured_by",
+      "dst": "ws-r29-gate-2026-09-04"
+    },
+    {
+      "src": "ws-r29-429-excluded-from-the-4xx-revoke-bucket",
+      "rel": "measured_by",
+      "dst": "rooms-migration-092-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r29-whatsapp-credentials-reused-not-forked",
+      "rel": "measured_by",
+      "dst": "rooms-migration-092-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r29-whatsapp-checkins",
+      "rel": "measured_by",
+      "dst": "rooms-migration-092-live-verification-2026-09-04"
     }
   ]
 }

@@ -599,6 +599,14 @@ const FATE = {
   // "op":"forget", reached through the follower_id -> vy_room_follower
   // cascade rather than by name.
   vy_room_push_subscription: "forget-only",
+  // ── WS-R29: check-ins over WhatsApp utility templates (migration 092) ──
+  // A phone number and a state - `vy_room_push_subscription`'s exact
+  // reasoning restated for a phone number instead of a push endpoint: no
+  // words in it a scoped "forget priya" could ever match. Only the stronger
+  // door may take it: the account-level whole wipe (lane "relational",
+  // proven below) or the Room's own "op":"forget" (`roomForget`'s explicit
+  // room_id+person_id delete, added in the same change as this migration).
+  vy_room_follower_whatsapp: "forget-only",
   // ── Handoff (WS-R20; migration 083) ──
   // A follower's own verbatim ask and the creator's own verbatim reply -
   // unlike every Room table above, this one DOES hold words (083's own

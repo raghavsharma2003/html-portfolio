@@ -62,6 +62,13 @@ import {
 import { activeSubscriptionsFor, revokeSubscriptionById, touchSubscription } from "./_room-push.js";
 import { send as webPushSend, checkinPushPayload } from "./_push/webpush.js";
 import { purgeStalePublicRateWindows } from "./_rate-limit.js";
+import {
+  templateApproved,
+  activeWhatsappFollower,
+  markFollowerWhatsappFailed,
+  buildTemplatePayload,
+  sendTemplate,
+} from "./_room-whatsapp.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -474,37 +481,99 @@ export async function countDelivery(deps = {}) {
 }
 
 /**
- * The WhatsApp seam. Records intent in the SAME ledger, on the SAME
+ * The WhatsApp seam — WS-R29, migration 092. Wired for real now: a template
+ * ALWAYS (never `api/whatsapp.js`'s free-form `send()`, which refuses
+ * outside Meta's 24-hour window — the exact defect a proactive check-in
+ * would hit on every send). Records intent in the SAME ledger, on the SAME
  * (checkin_id, due_at, channel) idempotency key, `channel='whatsapp_template'`
- * - and never calls Meta. Out of scope to SEND (workstream law #5); this
- * function is the seam the sweep does not call today, kept reachable and
- * tested so WS-R19 or a later wave can wire it without inventing the ledger
- * shape a second time. `ROOM_WHATSAPP_TEMPLATE_ID`/`ROOM_WHATSAPP_NUMBER_ID`
- * unset means `not_configured`, always - there is no code path in this
- * function that reaches a network call, configured or not.
+ * — `api/_room-whatsapp.js`'s own header carries the full argument for the
+ * choices below; this function is the one place they meet the check-in
+ * sweep's own row shape.
+ *
+ * States, in the order this function can reach them:
+ *   not_configured      the flag is off OR the shared WhatsApp credentials
+ *                        are absent — no read of the opt-in table at all.
+ *   skipped_stopped      configured, but this follower has no ACTIVE opt-in
+ *                        (never opted in, or opted in then stopped) — no
+ *                        network call. Workstream negative control (c).
+ *   delivered            a 2xx from Meta.
+ *   failed                a 4xx naming an invalid number — the opt-in is
+ *                        ALSO marked 'failed' here (revoke on failure,
+ *                        workstream law #4) so no further check-in for this
+ *                        follower attempts a send until they opt in again.
+ *   (no row written)     a 429/5xx — transient, `api/_room-whatsapp.js`'s own
+ *                        header states why no ledger row is written for this
+ *                        case: writing one would be a false terminal state
+ *                        for a failure that was never final.
  */
 export const deliverers = {
-  async whatsappTemplate(db, row, { env = process.env } = {}) {
-    const templateId = String(env.ROOM_WHATSAPP_TEMPLATE_ID || "");
-    const numberId = String(env.ROOM_WHATSAPP_NUMBER_ID || "");
-    const configured = templateId.length > 0 && numberId.length > 0;
-    // `not_configured` either way for v1: the brief is explicit that sending
-    // is out of scope, so even a fully configured template/number never
-    // reaches Meta from this function - only the seam and the ledger row do.
-    // No network call anywhere in this function, configured or not.
-    const state = "not_configured";
-    const reason = configured
-      ? "whatsapp sending is out of scope for this workstream (WS-R16)"
-      : "ROOM_WHATSAPP_TEMPLATE_ID/ROOM_WHATSAPP_NUMBER_ID not set";
-    const rows = await db(
-      `insert into vy_room_checkin_delivery
-         (delivery_id, checkin_id, room_id, person_id, due_at, delivered_at, channel, state, reason)
-       values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::timestamptz, null, 'whatsapp_template', $6, $7)
-       on conflict (checkin_id, due_at, channel) do nothing
-       returning delivery_id`,
-      [randomUUID(), row.checkin_id, row.room_id, row.person_id, new Date(row.due_at).toISOString(), state, reason],
-    );
-    return rows[0] || null;
+  async whatsappTemplate(db, row, deps = {}) {
+    const env = deps.env || process.env;
+    const insertLedger = async (state, reason, deliveredAt = null) => {
+      const rows = await db(
+        `insert into vy_room_checkin_delivery
+           (delivery_id, checkin_id, room_id, person_id, due_at, delivered_at, channel, state, reason)
+         values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::timestamptz, ($6)::timestamptz, 'whatsapp_template', $7, $8)
+         on conflict (checkin_id, due_at, channel) do nothing
+         returning delivery_id`,
+        [
+          randomUUID(),
+          row.checkin_id,
+          row.room_id,
+          row.person_id,
+          new Date(row.due_at).toISOString(),
+          deliveredAt ? new Date(deliveredAt).toISOString() : null,
+          state,
+          reason,
+        ],
+      );
+      return rows[0] || null;
+    };
+
+    if (!templateApproved(env)) {
+      return insertLedger("not_configured", "ROOM_WHATSAPP_TEMPLATE_APPROVED is not set to 1");
+    }
+    const accessToken = deps.accessToken ?? env.WHATSAPP_ACCESS_TOKEN ?? "";
+    const phoneId = deps.phoneId ?? env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+    if (!accessToken || !phoneId) {
+      return insertLedger("not_configured", "WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID not set");
+    }
+
+    const followerId = row.follower_id;
+    const optin = followerId ? await activeWhatsappFollower(db, followerId) : null;
+    if (!optin) {
+      // Workstream NEGATIVE CONTROL (c): a stopped (or never-made) opt-in is
+      // never sent to. No network call above this line.
+      return insertLedger("skipped_stopped", "no active WhatsApp opt-in for this follower");
+    }
+
+    const payload = buildTemplatePayload(row.slug, row.display_name, row.title, null);
+    const result = await sendTemplate(optin.phone_e164, payload, {
+      env,
+      accessToken,
+      phoneId,
+      fetch: deps.fetch,
+    });
+
+    if (result.ok) {
+      return insertLedger("delivered", "", deps.now ?? Date.now());
+    }
+    // 429 is numerically a 4xx and DELIBERATELY excluded from the revoke
+    // branch below (workstream law #4's own words: "a 429 or 5xx leaves the
+    // row for the next sweep") — it means "too many requests", never
+    // "invalid number", and revoking a real opt-in over Meta's own rate
+    // limiting would be a false positive with a permanent effect.
+    if (result.status >= 400 && result.status < 500 && result.status !== 429) {
+      // Revoke on failure (workstream law #4) — a 4xx from Meta naming an
+      // invalid/unreachable number stops every future send to this follower
+      // until they opt in again.
+      await markFollowerWhatsappFailed(db, followerId, result.errorCode || String(result.status)).catch(() => {});
+      return insertLedger("failed", `meta error ${result.errorCode || result.status}`);
+    }
+    // 429/5xx/network — transient. `api/_room-whatsapp.js`'s own header: no
+    // ledger row here, so this occurrence is left rather than recorded as a
+    // false terminal failure.
+    return null;
   },
 
   /**
@@ -689,6 +758,12 @@ async function deliverOne(db, row, deps) {
     // delivery failing, and `deliverers.webPush` never throws (it logs its
     // own ledger row and swallows a per-subscription send error).
     if (claimed) await deliverers.webPush(db, row, deps);
+    // WS-R29: the WhatsApp template, same "only after the claim" rule one
+    // channel over — a losing racer has nothing to text about either.
+    // `deliverers.whatsappTemplate` never throws (every branch it can take
+    // either writes its own ledger row or, for a transient failure,
+    // deliberately writes nothing).
+    if (claimed) await deliverers.whatsappTemplate(db, row, deps);
     return { claimed, delivered: claimed };
   }
   // The gate suppressed everything a turn could have said. Still a completed

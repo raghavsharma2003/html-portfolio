@@ -249,3 +249,24 @@ export const pushUnsubscribe = (session: string, endpoint: string) =>
   post<{ subscribed: boolean; revoked: boolean }>({ op: "push_unsubscribe", session, endpoint });
 
 export const pushStatus = (session: string) => post<{ subscribed: boolean }>({ op: "push_status", session });
+
+// ── check-ins on WhatsApp (WS-R29, migration 092) ──────────────────────────
+// `available` is server-driven, `pushKey`'s own shape one channel over: null/
+// false means `ROOM_WHATSAPP_TEMPLATE_APPROVED` is unset on this deployment,
+// and the whole control is absent, never shown-and-disabled (workstream law
+// #3 - "structurally absent the way INVITES_REQUIRED was").
+export interface RoomWhatsappStatus {
+  available: boolean;
+  subscribed: boolean;
+  state: "active" | "stopped" | "failed" | null;
+  phone_masked: string | null;
+}
+
+export const whatsappStatus = (session: string) =>
+  post<RoomWhatsappStatus>({ op: "whatsapp_status", session });
+
+export const whatsappOptIn = (session: string, phone: string) =>
+  post<{ subscribed: boolean; state: string; phone_masked: string }>({ op: "whatsapp_optin", session, phone });
+
+export const whatsappStop = (session: string) =>
+  post<{ subscribed: boolean; state: string }>({ op: "whatsapp_stop", session });

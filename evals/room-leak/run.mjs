@@ -283,7 +283,18 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // never a creator-facing one: every row it touches is delivered back into
   // THAT SAME follower's own private thread, `_room-surface.js`'s own reason
   // for being admitted here rather than into AGGREGATE_ONLY one line down.
-  const ALLOWED = new Set(["_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js"]);
+  // WS-R29: `api/_room-whatsapp.js` reads/writes `vy_room_follower_whatsapp`
+  // (a table name containing the "vy_room_follower" substring this scan
+  // matches on, `_room-cohorts.js`'s own comment already warns future
+  // readers about) entirely off the caller's OWN verified session, and its
+  // one cross-follower read (`replyWithRoomLink`, resolving which Room a
+  // phone number means) looks up ONE follower's own locale/slug by that
+  // SAME follower's own phone number - never a creator-facing read, never a
+  // scan across followers, `api/_checkins.js`'s own admission one row below
+  // for the identical shape of reason.
+  const ALLOWED = new Set([
+    "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
+  ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
   // number. Both are the reads the plan permits (counts, never a person), so
