@@ -309,7 +309,14 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // the same shape `_room-cohorts.js` and `_pulse.js` already prove out. A
   // future edit that selected a follower's own column (person_id, a thread
   // title, anything they said) fails this line.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js"]);
+  // WS-R25's creator funnel (`api/_funnel.js`, migration 088) reads
+  // `vy_room_follower` for exactly one number: the first follower's
+  // `joined_at` per Room, scoped to `where room_id = ($1)::uuid`, never
+  // grouped across rooms - the same shape every sibling above already
+  // proves out, one aggregate function wider (see the `min` addition to the
+  // parser just below). A future edit that selected a follower's own column
+  // here fails this line the same way it would in any other admitted file.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
@@ -363,7 +370,13 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
         if (ch === "," && depth === 0) { items.push(cur); cur = ""; } else cur += ch;
       }
       if (cur.trim()) items.push(cur);
-      const aggregateOnly = items.length > 0 && items.every((c) => /\b(count|sum)\s*\(/i.test(c));
+      // WS-R25 widened this to admit `min(...)` alongside `count(...)`/
+      // `sum(...)`: `api/_funnel.js`'s one follower-table read is
+      // `min(joined_at)`, a real SQL aggregate exactly as much as the other
+      // two, and admitting it here is what "aggregate-only" was always
+      // supposed to mean rather than a `count`/`sum`-only accident of which
+      // two functions happened to be needed first.
+      const aggregateOnly = items.length > 0 && items.every((c) => /\b(count|sum|min)\s*\(/i.test(c));
       const touchesPerson = /person_id|thread_id|\btitle\b|\bf\.\*|content|message_text/i.test(selectList);
       if (!aggregateOnly || touchesPerson) offenders.push(f + ":non-aggregate-read");
     }

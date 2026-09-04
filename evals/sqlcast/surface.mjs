@@ -151,6 +151,14 @@ export const STRICT_SURFACE = [
   // being exact.
   /^api\/_handoff\.js$/,
   /^api\/handoff\.js$/,
+  // WS-R25, the creator funnel. On the strict list from its first commit,
+  // WS-R9/WS-R12's exact reasoning: `opsFunnel` fans out one CTE-gated write
+  // (`markStep`) and eight scoped reads per replica across an unattended
+  // board nobody re-checks by hand, so a parameter Postgres could not type
+  // here fails the one instrument that answers "where do creators stall" -
+  // silently, the same way an uncast readiness or drift-watch parameter
+  // would have.
+  /^api\/_funnel\.js$/,
 ];
 
 export function isStrict(rel) {
