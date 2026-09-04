@@ -1809,6 +1809,20 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
   "room-doors": "room-doors/run.mjs",
+  // WS-R45. The creator directory (`api/_creators.js`), the crawler feed
+  // (`api/_sitemap.js`) and the `list`/`unlist`/`set_bio` ops added to
+  // `api/_room-publish.js`, all driven through a fake `db`. Proves the
+  // directory's own predicate (listed AND published, never one without the
+  // other) holds for both readers; that the directory read never names a
+  // follower table or runs an aggregate over one (a static scan of its own
+  // source, so the guarantee cannot silently drift the way a comment could);
+  // that a non-owner's `list` is refused by the owner-scoped WHERE; and that
+  // a bio carrying an em dash or a Rooms-vocabulary word is refused by the
+  // REAL `scripts/check-copy.mjs` scanner rather than a second, hand-rolled
+  // regex. The directory's JSON-LD builder is pulled out of
+  // `site/creators.html`'s own real source text and executed, never
+  // reimplemented. Offline, deterministic, $0, no DB, no network, no model call.
+  "creator-directory": "creator-directory/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
