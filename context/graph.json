@@ -7102,6 +7102,78 @@
       "kind": "rejection",
       "title": "Found, not fixed: opening Check-ins/Handoff/Data/Settings from the Room header produces no visible change on a real phone with a conversation taller than one screen, because the dialog is a plain in-flow block with no scroll-into-view or focus call",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-security-headers-gate",
+      "kind": "component",
+      "title": "scripts/check-headers.mjs: loads the Room (room-layout-fixture.html), the studio, /, /vyakti, /suites, /creators in real Chromium on 127.0.0.1:8934, applying vercel.json headers[] exactly as Vercel would, failing on any CSP violation, any missing header per route class, or a CSP looser than the law; plus npm ci --dry-run, npm audit --omit=dev --audit-level=high (fails, never passes silently, on an unreachable registry) and an npm query install-script scan against scripts/installScriptAllowlist.mjs. Named gate 21 in verify-release.mjs.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-style-src-unsafe-inline-scoped-to-style-only",
+      "kind": "decision",
+      "title": "vercel.json CSP: style-src carries self unsafe-inline everywhere (React style={{...}} in src/room and src/studio is dynamic, cannot be hashed); script-src never carries unsafe-inline anywhere.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-csp-hashes-not-nonces-for-static-marketing-pages",
+      "kind": "decision",
+      "title": "The four static marketing pages script-src uses committed sha256- hashes, not per-request nonces, because they are static files with no per-request handler to mint a nonce into.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-room-and-studio-csp-tested-against-layout-fixtures",
+      "kind": "decision",
+      "title": "check-headers.mjs tests the Room CSP against room-layout-fixture.html (?screen=join), not the real room.html, because the real shell crashes without a live /api/room; the studio target stays the real studio.html, which needs no fixture.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-frame-ancestors-none-with-no-exception-taken",
+      "kind": "decision",
+      "title": "Every route class carries frame-ancestors none with no per-route relaxation; grep finds zero <iframe> anywhere in src/ or site/, consistent with WS-R46s no-iframe-v0 decision.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-connect-src-self-everywhere-no-external-host-needed",
+      "kind": "decision",
+      "title": "connect-src self on every route class; every fetch() in src/room and src/studio targets a literal /api/... path, and the two external-identity hops (Google sign-in, Azure Face Liveness) are both top-level navigations of a new or different browsing context, not fetches the parent CSP governs.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path",
+      "kind": "decision",
+      "title": "vercel.json headers[], check-headers.mjs and evals/ops/run.mjs §6 cover exactly the Room, the studio, /, /vyakti, /suites, /creators and /api/(.*) - the briefs own closed list - not every path vercel.json rewrites (/privacy, /embed.js, /sitemap.xml left uncovered, named as a gap).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-check-headers-runtime-2026-09-04",
+      "kind": "measurement",
+      "title": "scripts/check-headers.mjs wall-clock: 11008ms-13411ms across five runs (clean runs, two deliberate negative-control runs, one inside the full verify-release.mjs pipeline under heavy sibling load), well under the two-minute budget.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-csp-inline-content-inventory-2026-09-04",
+      "kind": "measurement",
+      "title": "npx vite build output, grepped: room.html/studio.html/room-layout-fixture.html/studio-layout-fixture.html each carry exactly one inline <style> (identical 53-char @layer literal, hashed but unused since style-src is unsafe-inline) and zero inline <script>. site/index.html has 2 inline scripts, vyakti.html 1, suites.html 1, creators.html 2 (an ld+json placeholder plus one script) - all seven hashed into vercel.json. dist/site/creators.html is byte-identical to its source.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-supply-chain-baseline-2026-09-04",
+      "kind": "measurement",
+      "title": "On the committed package-lock.json (456 packages): npm ci --dry-run exits 0; npm audit --omit=dev --audit-level=high --json reports 0 high/critical, 4 moderate (xmldom XML fragment injection, uuid missing bounds check via capacitor/cli->xcode->uuid, not fixed, out of scope, --audit-level=high threshold); npm query for preinstall/postinstall scripts returns [] (zero hits), so scripts/installScriptAllowlist.mjs ships empty.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-naive-api-stub-crashes-the-real-room-shell",
+      "kind": "rejection",
+      "title": "Pointing check-headers.mjs at the real room.html with a generic 200 {ok:true} /api/* stub crashed RoomApp.tsx on mount (Cannot read properties of undefined reading name) because openRoom expects a full RoomOpen shape. Fixed by reusing room-layout-fixture.html, the same fixture check-layout.mjs/check-accessibility.mjs already built for this wall.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-vercel-json-comment-field-is-invalid-schema",
+      "kind": "rejection",
+      "title": "A {_comment: ...} pseudo-entry as the first element of vercel.json headers[] is valid JSON but not a valid Vercel headers entry (source and headers are both required) - would have broken every future deploy. Caught by inspection before commit; rationale moved into scripts/check-headers.mjs own header comment instead.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14249,6 +14321,61 @@
       "src": "ws-r43-viewport-only-screenshot-missed-in-flow-dialogs",
       "rel": "caused_by",
       "dst": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view"
+    },
+    {
+      "src": "ws-r57-security-headers-gate",
+      "rel": "measured_by",
+      "dst": "ws-r57-check-headers-runtime-2026-09-04"
+    },
+    {
+      "src": "ws-r57-security-headers-gate",
+      "rel": "measured_by",
+      "dst": "ws-r57-csp-inline-content-inventory-2026-09-04"
+    },
+    {
+      "src": "ws-r57-security-headers-gate",
+      "rel": "measured_by",
+      "dst": "ws-r57-supply-chain-baseline-2026-09-04"
+    },
+    {
+      "src": "ws-r57-csp-hashes-not-nonces-for-static-marketing-pages",
+      "rel": "measured_by",
+      "dst": "ws-r57-csp-inline-content-inventory-2026-09-04"
+    },
+    {
+      "src": "ws-r57-style-src-unsafe-inline-scoped-to-style-only",
+      "rel": "constrains",
+      "dst": "ws-r57-security-headers-gate"
+    },
+    {
+      "src": "ws-r57-frame-ancestors-none-with-no-exception-taken",
+      "rel": "constrains",
+      "dst": "ws-r57-security-headers-gate"
+    },
+    {
+      "src": "ws-r57-connect-src-self-everywhere-no-external-host-needed",
+      "rel": "constrains",
+      "dst": "ws-r57-security-headers-gate"
+    },
+    {
+      "src": "ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path",
+      "rel": "constrains",
+      "dst": "ws-r57-security-headers-gate"
+    },
+    {
+      "src": "ws-r57-frame-ancestors-none-with-no-exception-taken",
+      "rel": "caused_by",
+      "dst": "ws-r46-no-iframe-v0"
+    },
+    {
+      "src": "ws-r57-room-and-studio-csp-tested-against-layout-fixtures",
+      "rel": "caused_by",
+      "dst": "ws-r57-naive-api-stub-crashes-the-real-room-shell"
+    },
+    {
+      "src": "ws-r57-security-headers-gate",
+      "rel": "part_of",
+      "dst": "ws-r57-room-and-studio-csp-tested-against-layout-fixtures"
     }
   ]
 }

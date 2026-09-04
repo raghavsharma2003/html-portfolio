@@ -12653,3 +12653,195 @@ collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
 to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
 runtime budget is a reason to scope narrowly by default, not a reason to
 stay narrow once there is a real defect to catch.
+
+## `ws-r57-style-src-unsafe-inline-scoped-to-style-only` (2026-09-04, WS-R57)
+
+**Decision.** `vercel.json`'s CSP carries `style-src 'self' 'unsafe-inline'`
+on every route class. `script-src` never carries `'unsafe-inline'`
+anywhere - it is either `'self'` alone (the Room, the studio: `npx vite
+build` emits zero inline `<script>` on either, verified by grepping the
+built `dist/*.html` for a bare `<script>` tag with no `src`) or `'self'`
+plus the exact `sha256-` hash of each literal inline script the four static
+marketing pages ship (`/`, `/vyakti`, `/suites`, `/creators`).
+
+**Rationale.** The brief's own law names this split explicitly for
+scripts ("never `'unsafe-inline'` for scripts") and is silent on styles,
+and the silence is not an oversight: `grep -rn "style={{" src/room
+src/studio` finds 16 call sites of React's own inline `style` prop across
+both surfaces (`RoomApp.tsx`, `MirrorCallStudio.tsx`, `LivenessCapture.tsx`
+and others) - values computed at RENDER TIME (a drag position, an
+in-flight opacity), which a static hash cannot cover no matter how the
+build is arranged, because a hash is a hash of one fixed string and these
+strings differ on every render. `'unsafe-hashes'` (the CSP3 keyword that
+lets a hash cover an ATTRIBUTE rather than an element) does not solve this
+either, for the same reason: the values are dynamic, not a small fixed set.
+Style injection is also a materially smaller blast radius than script
+injection - it cannot itself execute arbitrary JS or exfiltrate a session
+token the way an unreviewed inline script can - which is the standard,
+widely-used justification for treating the two directives differently
+rather than an ad hoc exception invented for this repo.
+
+**Reversal condition.** If `src/room` or `src/studio` is ever refactored to
+express all dynamic positioning/opacity through CSS custom properties set
+via `element.style.setProperty()` (still governed by `style-src`, so this
+alone does not remove the need for `'unsafe-inline'`) AND a nonce-based
+`style-src` becomes practical (a per-request nonce needs the HTML to be
+generated per-request, which `dist/room.html`/`dist/studio.html` are not -
+they are static files Vercel serves unchanged to every visitor), tighten
+`style-src` to match `script-src`'s posture. Until then this is the honest
+floor, not a placeholder for laziness.
+
+## `ws-r57-csp-hashes-not-nonces-for-static-marketing-pages` (2026-09-04, WS-R57)
+
+**Decision.** The four static marketing pages' `script-src` uses `sha256-`
+hashes of each page's exact inline `<script>` content, computed once and
+committed as literal strings in `vercel.json`, rather than a `nonce-`
+value generated per request.
+
+**Rationale.** A nonce has to be minted fresh on every response and
+threaded into both the CSP header and the `<script nonce="...">`
+attribute by the SAME request handler - it only works when the HTML is
+generated per-request. `site/index.html`, `site/vyakti.html`, `site/
+suites.html` and `site/creators.html` (three of the four; the fourth is a
+Vite build input) are static files copied verbatim into `dist/` at BUILD
+time and served unchanged to every visitor by Vercel's CDN - there is no
+per-request handler to mint a nonce into, and adding one (an Edge Function
+in front of four pages that exist specifically so they need no server) is
+a materially bigger change than this workstream's brief asked for. A hash
+needs no per-request anything: it is computed once from the exact,
+unchanging script text and is either right or, if the text ever changes,
+loudly wrong - `scripts/check-headers.mjs`'s own Chromium pass is what
+catches that drift (see its own header), not a promise that the hash was
+computed correctly once.
+
+**Reversal condition.** If any of these four pages ever needs a script
+whose content varies per request (per-visitor A/B copy, a server-rendered
+CSRF token inlined into a `<script>` block), that page's static-file
+status ends and its `script-src` should move to a nonce minted by whatever
+handler starts rendering it, at which point its hash-based entry in
+`vercel.json` becomes wrong by construction rather than merely unused.
+
+## `ws-r57-room-and-studio-csp-tested-against-layout-fixtures` (2026-09-04, WS-R57)
+
+**Decision.** `scripts/check-headers.mjs` loads `room-layout-fixture.html`
+(with `?screen=join`) to test the Room's CSP, not the real, shipping
+`room.html` - while the studio target loads the real, shipping `studio.html`
+directly, no fixture.
+
+**Rationale.** The real `room.html` fetches `/api/room` on mount
+(`RoomApp.tsx`'s first `useEffect`) to resolve who is asking; in
+production the real handler always answers with a full `RoomOpen` shape or
+a proper typed error, but this gate runs with no secret and no database (a
+hard law: "No money: no GPU wakes, no paid API calls" and the door/leak/
+export batteries already prove handler BEHAVIOUR offline through fakes -
+duplicating that here was never this gate's job). A naive `{ok:true}` stub
+for every `/api/*` path was tried first and threw `Cannot read properties
+of undefined (reading 'name')` inside React the moment the page tried to
+read `.room.name` off a body shaped nothing like `RoomOpen` - a crash
+this gate must not confuse with a CSP defect. `room-layout-fixture.html`
+already exists to solve exactly this wall for `scripts/check-layout.mjs`
+and `scripts/check-accessibility.mjs` (its own header: "no secret, no
+network, deterministic"), including a working `/api/room` fetch stub
+(`installFetchStub`), so this reuses it rather than inventing a third
+answer to the same question. `dist/studio.html` needed no such swap:
+`scripts/check-performance.mjs` already proved the real, signed-out studio
+shell loads cleanly with no API call at all (it does not fetch account
+state until a person actually starts signing in), confirmed again here.
+The CSP itself is unaffected either way: `diff` on the built `<style>`
+element and the `<script src>` shape across `room.html`/`room-layout-
+fixture.html` shows the identical shell (both carry the one inline
+`<style>@layer ...</style>` line, byte-identical, and one external
+`<script type="module" src="/assets/...">`, external either way) - only
+the fixture's OWN bundle filename differs, which is irrelevant to
+`script-src 'self'`.
+
+**Reversal condition.** If a future change makes `room.html`'s mount-time
+fetch tolerant of an unexpected 200 body (fails soft into the "this room
+is not open" honest-empty state rather than throwing), point this gate at
+the real file directly, the same way the studio target already is, and
+drop the fixture dependency for the Room too.
+
+## `ws-r57-frame-ancestors-none-with-no-exception-taken` (2026-09-04, WS-R57)
+
+**Decision.** Every route class's CSP carries `frame-ancestors 'none'`,
+with no per-route exception - the brief's own text flagged WS-R46's embed
+decision as a possible reason to relax it, and this workstream read that
+decision and did not.
+
+**Rationale.** `context/decisions.md#ws-r46-no-iframe-v0` already settled
+this: the Room's own-site embed opens `/r/<slug>?via=embed` in a NEW TAB
+at this platform's own origin, deliberately never inside an `<iframe>`,
+specifically because a per-creator allowed-origin table (the thing that
+would justify relaxing `frame-ancestors`) is real, unbuilt write surface
+that decision explicitly declined to build. `grep -rn "<iframe" src/
+site/` (both directories, both this workstream's own concern and every
+neighbouring one) returns zero matches anywhere in this tree. Relaxing a
+header for a feature that does not exist is not defence in depth, it is a
+door left open for nobody.
+
+**Reversal condition.** Exactly WS-R46's own reversal condition, inherited
+rather than restated with a new one: the first creator who asks for the
+Room to sit INSIDE their page (an iframe request, not a button-styling
+preference) is the signal to build the per-creator allowed-origin table
+AND relax `frame-ancestors` for that route to name it - never a blanket
+`'self'` or a wildcard added ahead of that table existing.
+
+## `ws-r57-connect-src-self-everywhere-no-external-host-needed` (2026-09-04, WS-R57)
+
+**Decision.** `connect-src 'self'` on every route class, with no external
+host added, despite the brief's own text anticipating one ("the Supabase
+auth host and whatever the Room's API doors need").
+
+**Rationale.** Read from `src/`, as the brief asked: every `fetch()` call
+in `src/room/` and `src/studio/` targets a literal `/api/...` path (`grep
+-rn 'fetch(' src/room src/studio`, cross-checked against every non-
+literal call site by hand - `mirrorCallApi.ts`'s `url()` helper builds
+`/api/mirror-call?op=...`, still same-origin). `studioAuth.ts`'s Google
+sign-in (`googleSignIn`) and `LivenessCapture.tsx`'s Azure Face Liveness
+flow (`startFaceSession`) are the two places this tree actually talks to
+an external identity provider, and NEITHER is a `fetch()` the parent
+document's `connect-src` would gate: the first is `window.location.assign(url)`,
+a top-level navigation of the SAME browsing context; the second opens a
+popup (`window.open("about:blank", ...)`) and navigates IT
+(`popup.location.replace(link.toString())`) - a different browsing
+context with its own CSP surface, unaffected by the parent's. Both are
+proven same-origin-only rather than assumed: `scripts/check-headers.mjs`'s
+own Chromium pass loads the real Room and studio shells with `connect-src
+'self'` already enforced and reports zero violations.
+
+**Reversal condition.** If a future change adds a browser-side
+`supabase-js` client (replacing the current server-side proxy through
+`api/account`) or any other direct browser fetch to a non-`/api/*` host,
+add that host to `connect-src` in the same commit that adds the fetch -
+never after, and never a wildcard in the meantime.
+
+## `ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path` (2026-09-04, WS-R57)
+
+**Decision.** `vercel.json`'s new `headers[]` array, `scripts/check-
+headers.mjs`'s Chromium pass, and `evals/ops/run.mjs`'s new static §6 all
+cover exactly seven route classes: the Room, the studio, `/`, `/vyakti`,
+`/suites`, `/creators` and `/api/(.*)`. Nothing was added for `/privacy`,
+`/delete-account`, `/embed.js`, `/room-embed.js` or `/sitemap.xml`, all
+five of which `vercel.json`'s own `rewrites` array already names.
+
+**Rationale.** This is the brief's own closed list, quoted verbatim in its
+law 2 ("loads the Room, the studio, `/`, `/vyakti`, `/suites`, `/creators`
+in Chromium"). Widening it to every rewritten path is a bigger, unscoped
+security audit nobody asked this workstream for, and the two kinds this
+brief did not name are meaningfully different animals: `/privacy` and
+`/delete-account` are legal-text pages this repo already treats specially
+(`scripts/roomsVocabAllowlist.mjs`'s own two-file scope, `context/
+rejected.md`'s convention of never touching consented legal copy without a
+named reason), and `/embed.js`/`/room-embed.js`/`/sitemap.xml` are
+non-HTML responses (JavaScript, XML) that a page-shell CSP does not even
+apply to the same way. Extending coverage to those needs its own decision
+about what each one's policy should BE, not a mechanical copy of this
+workstream's HTML-page template onto files that are not HTML pages.
+
+**Reversal condition.** If a future incident or review names one of the
+five uncovered paths specifically (a report that `/sitemap.xml` is
+missing `nosniff`, say), add that ONE path's header entry in its own
+commit with its own reasoning - not a blanket widening of this
+workstream's `ROUTE_CLASSES` list to "everything `vercel.json` rewrites,"
+which would silently start asserting a policy about pages nobody has
+looked at yet.

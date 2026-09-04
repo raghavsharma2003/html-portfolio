@@ -9661,3 +9661,65 @@ sites are exercised by the current fixtures: `.room-stat` (talked-today
 count) needs `talked_today > 0`, `.room-upgrade` needs `upgrade_prompt`
 true, neither of which this workstream's static fixtures set - stated
 plainly rather than implying wider coverage than this run actually proves.
+
+## WS-R57 security headers gate (2026-09-04)
+
+### `ws-r57-check-headers-runtime-2026-09-04`
+
+**`scripts/check-headers.mjs` runtime.** n=1 full run (plus a re-run after
+restoring `vercel.json` from two deliberate negative-control edits, and
+three standalone-first runs during development), method: `node scripts/
+check-headers.mjs` wall-clock as printed by the gate itself, on this
+machine, un-throttled (no CDP throttling the way `check-performance.mjs`
+applies - this gate measures correctness, not speed). 11008ms-13411ms
+across five runs (`11008ms`, `11228ms`, `11861ms` (negative control run,
+more console violations to serialize), `11182ms` (second negative
+control), `13411ms` inside the full `verify-release.mjs` pipeline under
+heavy concurrent sibling load) - well under the brief's own two-minute
+budget, and stable: the six-page-target loop plus both supply-chain
+sub-checks together are the whole cost, no build (dist/ already present
+from the "web build" gate immediately before this one in `scripts/
+verify-release.mjs`'s own ordering).
+
+### `ws-r57-csp-inline-content-inventory-2026-09-04`
+
+**CSP inline-content inventory, `npx vite build`'s real output, read not
+guessed.** Method: `grep -n "<script\|<style" dist/*.html` plus a targeted
+regex extraction script (`node -e` one-off, output kept in this
+workstream's commit history via the `sha256-` values now literal in
+`vercel.json`), run once against a clean `npx vite build` on 2026-09-04.
+Result: `dist/room.html`, `dist/studio.html`, `dist/room-layout-
+fixture.html` and `dist/studio-layout-fixture.html` each carry exactly ONE
+inline element, a `<style>` tag with the identical 53-character literal
+`@layer reset, tokens, base, components, responsive;` (hash `sha256-
+9SKdmyAa9zP7N79XQm/cLgqe4HBVtdKvcehGf6PpKhY=`, computed but not used in
+`vercel.json` - see `context/decisions.md#ws-r57-style-src-unsafe-inline-scoped-to-style-only`
+for why `style-src` carries `'unsafe-inline'` instead) and ZERO inline
+`<script>` elements - every script tag on all four is `<script type="module"
+crossorigin src="/assets/...">`. `site/index.html` carries 2 inline
+scripts (5880 and 930 bytes), `site/vyakti.html` 1 (2306 bytes), `site/
+suites.html` 1 (7545 bytes), `site/creators.html` 2 (a 2-byte `application/
+ld+json` placeholder and a 7583-byte script) - all seven hashed into
+`vercel.json`'s corresponding route's `script-src`. `diff site/creators.html
+dist/site/creators.html` (the one static marketing page that IS also a
+Vite build input, per `vite.config.ts`'s `creators-directory` entry):
+zero lines different, confirming the hash computed from source matches
+what actually ships.
+
+### `ws-r57-supply-chain-baseline-2026-09-04`
+
+**Supply chain baseline, 2026-09-04, on the committed `package-lock.json`
+(456 packages, `npm install --no-audit --no-fund`).** `npm ci --dry-run`:
+exit 0, resolves every package. `npm audit --omit=dev --audit-level=high
+--json`: `metadata.vulnerabilities` = `{ high: 0, critical: 0, moderate: 4,
+low: 0, info: 0 }` - the four moderate findings are `@xmldom/xmldom`
+0.9.0-0.9.11 (GHSA-6gmq-8vp8-gcm6, XML fragment injection) and `uuid` <11.1.1
+(GHSA-w5hq-g745-h8pq, missing bounds check), the latter pulled in
+transitively through `xcode` -> `@capacitor/cli` and fixable only via
+`npm audit fix --force` (a `@capacitor/cli` major bump this workstream did
+not make - out of scope, reported not fixed, per this gate's own
+`--audit-level=high` threshold, the same moderate/critical split
+`scripts/check-accessibility.mjs` already uses). `npm query ':attr(scripts,
+[preinstall]), :attr(scripts, [postinstall])'`: `[]` - zero packages in
+this tree declare either script, so `scripts/installScriptAllowlist.mjs`
+ships empty (see that file's own header).

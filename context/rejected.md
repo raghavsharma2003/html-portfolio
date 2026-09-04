@@ -8830,3 +8830,78 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r57-naive-api-stub-crashes-the-real-room-shell` (2026-09-04, WS-R57)
+
+**The idea.** Point `scripts/check-headers.mjs`'s CSP check straight at
+the REAL, shipping `dist/room.html` (not a fixture), and answer every
+`/api/*` request from the gate's own static server with one generic 200
+`{ ok: true }` stub - simpler than reusing a fixture, and CSP is a
+property of the page shell, not of the data in it, so surely any 200
+would do.
+
+**What broke.** `RoomApp.tsx`'s first `useEffect` calls `openRoom` on
+mount, which expects the real handler's `RoomOpen` shape
+(`{ room: { slug, display_name, name, handoff_enabled }, disclosure,
+joined, follower, session, locale }`). Handed `{ ok: true }` instead, the
+component tried to read a field off `undefined` and threw `Cannot read
+properties of undefined (reading 'name')` as an uncaught `pageerror` -
+every single time, deterministically, nothing to do with headers at all.
+A generic 200 is not "any response the app can survive"; it is "a response
+shaped enough like a real one to not crash," and a fake `db`/fetch stub
+that does not bother shaping its response is exactly the class of
+"plausible return hides a dead pipeline" this repo's own `AGENTS.md` names
+as a law, just showing up on the TEST side of a gate instead of the
+product side.
+
+**What was built instead.** `room-layout-fixture.html` (`?screen=join`) -
+the same fixture `scripts/check-layout.mjs` and `scripts/check-
+accessibility.mjs` already built for this exact wall, complete with a real
+`/api/room` fetch stub (`installFetchStub`) that answers with a correctly
+shaped `RoomOpen`. The studio target did NOT need this swap - `dist/
+studio.html` signed-out fetches nothing on mount, already proven by
+`scripts/check-performance.mjs` running clean against it before this
+workstream existed. See `context/decisions.md#ws-r57-room-and-studio-csp-tested-against-layout-fixtures`.
+
+**What would reverse this.** If `openRoom`'s caller is ever made tolerant
+of an unexpected-but-200 body (fail soft into the room's own honest "not
+open" state rather than throwing), the real `room.html` becomes safe to
+test directly again and the fixture dependency can be dropped.
+
+## `ws-r57-vercel-json-comment-field-is-invalid-schema` (2026-09-04, WS-R57)
+
+**The idea.** `vercel.json` has no comment syntax (it is parsed as strict
+JSON, not JSON5/JSONC), and this workstream's `headers[]` array needed a
+long rationale attached to the route-class design as a whole rather than
+repeated seven times per entry. A `{ "_comment": "..." }` object as the
+first element of the `headers` array looked like a harmless place to put
+it - valid JSON, ignored by anything that only reads `source`/`headers`
+keys off entries it recognises.
+
+**Why it is wrong, caught before it shipped.** Vercel's own build-time
+schema validation for `vercel.json` requires every `headers[]` entry to
+carry `source` and `headers` - an object with neither is not "an extra key
+nothing reads," it is a MALFORMED entry the validator has no reason to
+skip past. This was never actually deployed to prove the failure mode
+(no live Vercel project to test against, and the brief's own law: no money,
+no live service calls this workstream cannot afford) - caught by inspection
+of the schema shape instead, which is the honest, cheaper thing to do
+before finding out the hard way that a config change silently broke every
+future deploy on this branch until read closely. Removed before commit;
+the file is checked with `JSON.parse` in this workstream's own testing but
+that alone would NOT have caught this, since the object is valid JSON -
+only knowing Vercel's own required-fields shape catches it, which is why
+this rejection exists as a note for whoever next reaches for a "just leave
+a comment in the JSON" shortcut here.
+
+**What was built instead.** The rationale lives in `scripts/check-
+headers.mjs`'s own file header instead (the established pattern every
+sibling gate in this repo already uses - `scripts/check-performance.mjs`'s
+70-line header, `scripts/check-accessibility.mjs`'s own) and in `context/
+decisions.md`'s per-decision entries, where prose belongs.
+
+**What would reverse this.** If Vercel's own schema is ever confirmed
+(from their own docs, read directly, not assumed) to tolerate an unknown
+key on a `headers[]` entry without rejecting the file, an actual comment
+field becomes safe to reintroduce - until then, treat every key in this
+array as schema-checked, not decoration.
