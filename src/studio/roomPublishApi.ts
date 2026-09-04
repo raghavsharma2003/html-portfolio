@@ -160,6 +160,15 @@ export function roomLink(slug: string, origin = window.location.origin): string 
   return `${origin}/r/${slug}`;
 }
 
+/** WS-R46. `channelsApi.ts`'s `embedSnippet` shape, one surface over: one
+ *  script tag, `data-room` naming the address, `defer` so it never blocks
+ *  the creator's own page. Built from the browser's own origin for the
+ *  identical reason `roomLink` is — a preview deployment prints a snippet
+ *  pointing at itself. */
+export function roomEmbedSnippet(slug: string, origin = window.location.origin): string {
+  return `<script src="${origin}/room-embed.js" data-room="${slug}" defer></script>`;
+}
+
 // WS-R31. The one derived fact `StudioShell.tsx`'s Share tab needs from a
 // `RoomBlockers` read: the single next thing, waiting-on-you first, else
 // waiting-on-us, matching `RoomStudio.tsx`'s own "name the top one" rule

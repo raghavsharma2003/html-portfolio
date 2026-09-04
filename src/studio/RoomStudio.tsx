@@ -37,6 +37,7 @@ import {
   setOwnedRoomDefaultLocale,
   readOwnedRoomStats,
   roomLink,
+  roomEmbedSnippet,
   firstRoomBlocker,
   RoomPublishApiError,
   type OwnedRoom,
@@ -193,11 +194,13 @@ export default function RoomStudio({
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
   const [capDraft, setCapDraft] = useState(20);
   const [priceDraft, setPriceDraft] = useState(PRICE_MIN_INR);
   const [paidMessagesDraft, setPaidMessagesDraft] = useState(500);
   const [paidVoiceDraft, setPaidVoiceDraft] = useState(1800);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const embedCopiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fail = useCallback(
     (e: unknown) => {
@@ -277,7 +280,10 @@ export default function RoomStudio({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replicaId]);
 
-  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    if (embedCopiedTimer.current) clearTimeout(embedCopiedTimer.current);
+  }, []);
 
   const jumpTo = useCallback(
     (anchor: string) => {
@@ -536,6 +542,20 @@ export default function RoomStudio({
     );
   }, [room]);
 
+  const embedSnippet = useMemo(() => (room ? roomEmbedSnippet(room.slug) : ""), [room]);
+
+  const copyEmbed = useCallback(() => {
+    if (!embedSnippet) return;
+    void navigator.clipboard?.writeText(embedSnippet).then(
+      () => {
+        setEmbedCopied(true);
+        if (embedCopiedTimer.current) clearTimeout(embedCopiedTimer.current);
+        embedCopiedTimer.current = setTimeout(() => setEmbedCopied(false), 2400);
+      },
+      () => setEmbedCopied(false),
+    );
+  }, [embedSnippet]);
+
   const slugPreview = useMemo(
     () => slugDraft.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
     [slugDraft],
@@ -710,6 +730,23 @@ export default function RoomStudio({
             not a requirement.
           </p>
         )}
+      </article>
+
+      <article className="teacher-sheet-card vy-room__link-card">
+        <h3>On your own site</h3>
+        <p className="field-note">
+          Paste this into any page you control: a coaching site, a Linktree, a blog post. It shows one button
+          with your Room's disclosure beneath it, and opens your Room in a new tab when a visitor clicks it. It
+          sets no cookie and asks nothing of your visitors.
+        </p>
+        <pre className="embed-snippet" aria-label="Embed snippet"><code>{embedSnippet}</code></pre>
+        <button className="button secondary-button" type="button" onPointerDown={copyEmbed}>
+          {embedCopied ? "Copied" : "Copy snippet"}
+        </button>
+        <p className="field-note">
+          Visitors see the disclosure in whichever language your Room shows first, English or Hindi, and this
+          button never places your Room inside their page. It always opens your Room's own address.
+        </p>
       </article>
 
       <article className="teacher-sheet-card vy-room__publish-card">
