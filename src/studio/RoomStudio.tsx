@@ -499,6 +499,23 @@ export default function RoomStudio({
         </p>
       </article>
 
+      <article className="teacher-sheet-card vy-room__link-card">
+        <h3>Your Room on Telegram</h3>
+        {room.telegram_deep_link ? (
+          <div className="vy-room__link-row">
+            <code className="vy-room__link">{room.telegram_deep_link}</code>
+            <a className="button secondary-button" href={room.telegram_deep_link} target="_blank" rel="noreferrer">
+              Open
+            </a>
+          </div>
+        ) : (
+          <p className="field-note">
+            Not connected yet. Followers still reach your Room at the address above; Telegram is a second way in,
+            not a requirement.
+          </p>
+        )}
+      </article>
+
       <article className="teacher-sheet-card vy-room__publish-card">
         <h3>{room.published ? "Publishing" : "Publish your Room"}</h3>
         {!room.published && (

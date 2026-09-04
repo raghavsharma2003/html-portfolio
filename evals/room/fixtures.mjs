@@ -87,6 +87,13 @@ export function freshState() {
       { source_name: "Doubt session transcript", status: "routed", created_at: "2026-07-01" },
       { source_name: "Not yet processed", status: "received", created_at: "2026-06-01" },
     ],
+    // WS-R18: the Telegram identity bridge (api/_room.js's `vy_surface_identity`
+    // / `vy_tg_person`) and the channel pointer (migration 082's
+    // `vy_room_follower_channel`, read/written only through
+    // api/_room-surface.js's own three functions).
+    surfaceIdentities: [],
+    tgLegacy: [],
+    channelMap: [],
   };
 }
 
@@ -101,6 +108,86 @@ export function fakeDb(state) {
   const db = async (sql, params = []) => {
     calls.push(sql);
     const has = (s) => sql.includes(s);
+
+    // ── WS-R18: the Telegram identity bridge (api/_room.js) ────────────────
+    // Placed FIRST and matched on the FULL statement text, deliberately: the
+    // generic `insert into vy_room_follower`/`from vy_room r` checks below
+    // would otherwise swallow these, since `vy_room_follower_channel` and
+    // `vy_person (person_id)` both contain those shorter strings as
+    // substrings — `router-matched-a-table-instead-of-a-statement`
+    // (context/rejected.md), restated one migration over.
+    if (has("select person_id, handle from vy_surface_identity")) {
+      const [surface, surfaceUserId] = params.map(String);
+      const row = state.surfaceIdentities.find(
+        (r) => r.surface === surface && r.surface_user_id === surfaceUserId,
+      );
+      return row ? [{ person_id: row.person_id, handle: row.handle }] : [];
+    }
+    if (has("select person_id, username from vy_tg_person")) {
+      const tgUserId = String(params[0]);
+      const row = state.tgLegacy.find((r) => r.tg_user_id === tgUserId);
+      return row ? [{ person_id: row.person_id, username: row.username }] : [];
+    }
+    if (has("insert into vy_surface_identity")) {
+      const [surface, surfaceUserId, personId, handle] = params.map(String);
+      if (!state.surfaceIdentities.some((r) => r.surface === surface && r.surface_user_id === surfaceUserId)) {
+        state.surfaceIdentities.push({ surface, surface_user_id: surfaceUserId, person_id: personId, handle });
+      }
+      return [];
+    }
+    if (has("insert into vy_tg_person")) {
+      const [tgUserId, personId, username] = params.map(String);
+      if (!state.tgLegacy.some((r) => r.tg_user_id === tgUserId)) {
+        state.tgLegacy.push({ tg_user_id: tgUserId, person_id: personId, username });
+      }
+      return [];
+    }
+    if (has("insert into vy_person (person_id)")) {
+      const personId = String(params[0]);
+      if (!state.persons.some((p) => p.person_id === personId)) {
+        state.persons.push({ person_id: personId, age_tier: "unverified" });
+      }
+      return [{ person_id: personId }];
+    }
+    if (has("select age_tier from vy_person")) {
+      const personId = String(params[0]);
+      const p = state.persons.find((x) => x.person_id === personId);
+      return p ? [{ age_tier: p.age_tier }] : [];
+    }
+
+    // ── WS-R18: the channel pointer (migration 082) ─────────────────────────
+    if (has("insert into vy_room_follower_channel")) {
+      const [id, roomId, personId, followerId, channelRef] = params.map(String);
+      const existing = state.channelMap.find(
+        (c) => c.channel === "telegram" && c.channel_ref === channelRef,
+      );
+      if (existing) {
+        existing.room_id = roomId;
+        existing.person_id = personId;
+        existing.follower_id = followerId;
+      } else {
+        state.channelMap.push({
+          channel_map_id: id, room_id: roomId, person_id: personId,
+          follower_id: followerId, channel: "telegram", channel_ref: channelRef,
+        });
+      }
+      return [];
+    }
+    if (has("from vy_room_follower_channel c")) {
+      const channelRef = String(params[0]);
+      const row = state.channelMap.find((c) => c.channel === "telegram" && c.channel_ref === channelRef);
+      if (!row) return [];
+      const room = state.rooms.find((r) => r.room_id === row.room_id);
+      return room ? [{ slug: room.slug }] : [];
+    }
+    if (has("delete from vy_room_follower_channel")) {
+      const channelRef = String(params[0]);
+      const before = state.channelMap.length;
+      state.channelMap = state.channelMap.filter(
+        (c) => !(c.channel === "telegram" && c.channel_ref === channelRef),
+      );
+      return state.channelMap.length < before ? [{ gone: 1 }] : [];
+    }
 
     if (has("from vy_room r") && has("join vy_agent a")) {
       const row = state.rooms.find(
@@ -279,12 +366,18 @@ export function fakeDb(state) {
       return gone.map(() => ({ gone: 1 }));
     }
 
-    if (has("delete from vy_room_follower")) {
+    if (has("delete from vy_room_follower") && !has("delete from vy_room_follower_channel")) {
       const [roomId, personId, agentId] = params.map(String);
       const gone = state.followers.filter(
         (f) => f.room_id === roomId && f.person_id === personId && f.agent_id === agentId,
       );
       state.followers = state.followers.filter((f) => !gone.includes(f));
+      // WS-R18: `vy_room_follower_channel.follower_id` carries
+      // `on delete cascade` in the real schema - simulated here so this fake
+      // stays honest about what `roomForget`'s single explicit delete already
+      // reaches for real, rather than silently under-modelling it.
+      const goneIds = new Set(gone.map((f) => f.follower_id));
+      state.channelMap = state.channelMap.filter((c) => !goneIds.has(c.follower_id));
       return gone.map(() => ({ gone: 1 }));
     }
 

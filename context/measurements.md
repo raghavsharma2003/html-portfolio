@@ -7683,3 +7683,75 @@ n = 1 migration (11 statements in one transaction), 15 distinct API statements, 
 | erasure deletes | `vy_room_owner_ix` then `_snapshot_owner_read_ix`, `_topic_owner_ix`, `_optin_scope_ix` |
 
 The floor is a database constraint (`follower_count >= 5`) and the bucket count is a `count(distinct person_id)`, so neither a JS bug nor a future reader can emit a row below five. Not measured: no opt-in, topic or snapshot row exists; the weekly cron runs only once this branch deploys.
+
+## `ws-r18-room-telegram-gate-results-2026-09-03`
+
+n = 1 workstream session; method = every command run directly in this
+worktree, output read and its exit code checked, `NEON_URL` absent
+throughout (offline only); date 2026-09-03.
+
+`node evals/room-telegram/run.mjs` (new suite): **51/51**, covering the
+parser/webhook-secret unit checks, all four required negative controls
+((a) an unjoined chat's model call count stays 0; (b) a wrong/unset secret
+refused by a function proven to take no `db` parameter; (c) a group update
+refused by name with a poisoned `db` proving no read follows; (d) two
+Telegram followers, zero cross-follower tokens, with the detector proven
+capable of failing first via a rigged reply), join via deep link, the
+attestation gate, disclosure sent exactly once across four total turns, the
+free cap spent to exactly 20/20 by `roomSay`'s own conditional UPDATE (not a
+re-implementation), the capped card's two variants (`PAYMENTS_PROVIDER` unset
+vs `fake`), and the full `/forget` `/export` `/stop` command table including
+a `/stop`-then-re-`/start` round trip that stays at one follower row.
+
+Every sibling suite re-run UNCHANGED after this workstream's edits to shared
+files (`api/_room-surface.js`, `api/memory.js`, `evals/room/fixtures.mjs`,
+`evals/recall/run.mjs`):
+
+| suite | result | notes |
+|---|---|---|
+| `evals/room/run.mjs` | 54/54 | unchanged from pre-WS-R18 |
+| `evals/room-leak/run.mjs` | 62/62 | 16,080 retrieval + 441 boundary checks, 0 leaks, both static layers (1a creator-writer scan, 1c repo-wide follower-table scan) still clean with `api/_room-telegram.js`/`api/room-tg.js` present |
+| `evals/room-publish/run.mjs` | 39/39 | 37 pre-existing + 2 new (`telegram_deep_link` null when `ROOM_TELEGRAM_BOT_USERNAME` unset, the real link when set) |
+| `evals/payments/run.mjs` | 62/62 | unchanged |
+| `evals/room-cohorts/run.mjs` | 60/60 | unchanged |
+| `evals/recall/run.mjs` | 242 assertions, ALL PASS | includes the new `vy_room_follower_channel` FATE verdict (`"forget-only"`) |
+| `node scripts/check-copy.mjs` | 6 scopes clean, 17 negative controls | unchanged |
+| `node scripts/context.mjs --check` | clean | before this session's own append |
+
+`node scripts/verify-release.mjs`: **15/15**, run once, on the tree WITH this
+workstream's full changeset already applied (typecheck 13.5s, prompt budget,
+workflow lint, motion lint, board legibility, chrome copy, enrollment sample
+rate, enrollment bandwidth, engine bundle fresh, stuck-turn endpoint, one
+voice, web build, layout readability, eval suite 137s, room leak battery
+6.3s; the two relational DB gates print a skip, no `NEON_URL` here). Stated
+plainly per the common brief's own instruction to run the gate on the
+UNTOUCHED tree first: this session did not capture that separate baseline
+run as an explicit first step before editing (it went straight to reading
+context, then building). The indirect evidence that the untouched tree was
+already 15/15 is `context/STATE.md`'s own recorded state after the WS-R11
+merge, and every individual suite this workstream touched was independently
+re-run above at the exact pass count already on record for it before this
+session's first edit.
+
+**Not measured, named rather than assumed:** no statement in migration 082
+has ever executed against a live Postgres (no `NEON_URL` in this
+environment); `scripts/relcheck.mjs`'s manifest-coverage and owner-lane
+reach-walk checks for the new table have never run against a live catalog,
+only read by eye against the migration's own column list and `follower_id`'s
+cascade; no real Telegram update has ever been sent to `api/room-tg.js` (the
+Do-not list forbids it) - `ROOM_TELEGRAM_BOT_TOKEN`/`ROOM_TELEGRAM_WEBHOOK_SECRET`/
+`ROOM_TELEGRAM_BOT_USERNAME` are unset on every deployment, so this surface
+is code-complete and offline-proven only, `docs/SURFACES.md`'s own three-column
+status table applied to a fourth surface.
+
+## `rooms-migration-082-live-verification-2026-09-04`
+
+n = 1 migration (4 statements in one transaction), 3 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement the Telegram lane adds to `api/_room-surface.js`, parameters substituted with typed literals; date 2026-09-04, at the WS-R18 merge.
+
+| statement | plan |
+|---|---|
+| bind a chat to a Room (upsert) | Insert, conflict UPDATE, arbiter `vy_room_follower_channel_ref_ix` (channel, channel_ref) |
+| the slug a chat currently means | Index Scan `vy_room_follower_channel_ref_ix`, room by pkey, limit 1 |
+| `/stop` (unbind) | Delete via `vy_room_follower_channel_ref_ix` |
+
+`api/_room-telegram.js` issues no SQL of its own: every read and write goes through `api/_room-surface.js`'s existing functions (a transport, never a tenant), so the three statements above are the whole new surface. The table has no erasure line by name because `follower_id` cascades from `vy_room_follower`, which `roomForget` and the erasure chain already delete. Not measured: no chat has been bound; `ROOM_TELEGRAM_BOT_TOKEN` and `ROOM_TELEGRAM_WEBHOOK_SECRET` are unset on every deployment, so the webhook answers 503 by name.

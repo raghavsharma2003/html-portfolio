@@ -177,10 +177,28 @@ function isUniqueViolation(error, indexName) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE TELEGRAM DEEP LINK (WS-R18) — honest "not connected" over a guess
+// ─────────────────────────────────────────────────────────────────────────
+//
+// ONE bot serves every creator's Room (`ROOM_TELEGRAM_BOT_USERNAME`, not a
+// per-creator credential — see `api/_room-telegram.js`'s own header on why),
+// so the link a creator's card shows is the SAME bot for everyone, addressed
+// by THIS room's own slug (`t.me/<bot>?start=<slug>`, `api/tg.js`'s
+// `startLink` shape one surface over). `null` when the env var is unset — the
+// server telling the client honestly rather than the client guessing a URL
+// that would 404 — `context/rejected.md`'s no-fake-numbers law applied to a
+// link instead of a metric.
+export function telegramDeepLink(slug, env = process.env) {
+  const bot = String(env.ROOM_TELEGRAM_BOT_USERNAME || "").trim();
+  if (!bot || !slug) return null;
+  return `https://t.me/${bot}?start=${slug}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // THE CLIENT SHAPE
 // ─────────────────────────────────────────────────────────────────────────
 
-export function clientRoom(row, { now = Date.now() } = {}) {
+export function clientRoom(row, { now = Date.now(), env = process.env } = {}) {
   if (!row) return null;
   return {
     room_id: row.room_id,
@@ -193,6 +211,9 @@ export function clientRoom(row, { now = Date.now() } = {}) {
     paused_at: row.paused_at ?? null,
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
+    // null means "not connected" — the studio renders that honestly rather
+    // than printing a link nobody registered a bot to answer.
+    telegram_deep_link: telegramDeepLink(row.slug, env),
     _now: now,
   };
 }

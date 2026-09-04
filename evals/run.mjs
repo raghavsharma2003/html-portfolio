@@ -368,6 +368,20 @@ const suites = {
   // what would need to change in api/_payments.js for a skipped
   // verification to slip through.
   payments: "payments/run.mjs",
+  // WS-R18, the Room on Telegram. A transport, never a tenant: every update
+  // that reaches a reply goes through the SAME follower lane
+  // (api/_room-surface.js) the web Room uses, with a Telegram-shaped
+  // identity bridge (`personForSurfaceUser`/`linkSurfacePerson`,
+  // `vy_surface_identity`) standing in for the web's Supabase bearer token.
+  // Webhook secret fail-closed (unconfigured is a named 503, wrong secret a
+  // 401, both before any db read), age attestation and the disclosure card
+  // sent before any reply, the free cap spent through the identical
+  // conditional UPDATE, `/forget` `/export` `/stop`, a group chat refused by
+  // name, and a two-follower run through the real follower lane proving zero
+  // cross-follower tokens (evals/room-leak's own scenario shape, reused).
+  //
+  // Offline, deterministic, $0, no DB, no network, no Telegram call.
+  "room-telegram": "room-telegram/run.mjs",
   // WS-AB (the universal "bring your context" lane). The Context Locker end to
   // end: many files and many links become owned, hashed, quota-capped items,
   // and the ones this platform can honestly read become CITED proposals on the

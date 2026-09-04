@@ -117,6 +117,14 @@ export const STRICT_SURFACE = [
   /^api\/payments\.js$/,
   /^api\/room-pay\.js$/,
   /^api\/payments-webhook\.js$/,
+  // WS-R18, the Room on Telegram. `api/_room-telegram.js` issues no SQL of
+  // its own (every read and write goes through the already-strict
+  // `api/_room-surface.js`), and `api/room-tg.js` is a thin handler with
+  // none either — both listed anyway, from their first commit, on
+  // `_never-rules.js`'s own precedent: covered from the day either one
+  // grows a statement rather than from the day it 500s.
+  /^api\/_room-telegram\.js$/,
+  /^api\/room-tg\.js$/,
 ];
 
 export function isStrict(rel) {

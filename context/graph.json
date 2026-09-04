@@ -5296,6 +5296,66 @@
       "kind": "measurement",
       "title": "Migration 080 applied live; every Pulse statement, the forget delete and the erasure deletes EXPLAIN on their indexes; the n>=5 floor is a CHECK on the snapshot table",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r18-room-telegram",
+      "kind": "component",
+      "title": "The Room on Telegram - api/_room-telegram.js + api/room-tg.js + migration 082: a transport over the SAME follower lane (api/_room-surface.js), a Telegram-shaped identity bridge (vy_surface_identity), and a chat-to-Room pointer for the one platform bot that serves every creator",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-personid-bypass-not-a-second-identity-system",
+      "kind": "decision",
+      "title": "openRoom/joinRoom gained an optional personId parameter, tried before the Supabase bridge, so Telegram identity (vy_surface_identity) reuses the follower lane's own SQL rather than a second copy of it",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table",
+      "kind": "decision",
+      "title": "vy_room_follower_channel (082) holds only which Room a Telegram chat currently means, unique on (channel, channel_ref), follower_id cascading - identity and chat addressing both already existed and needed no new table",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-stop-removes-the-pointer-only-no-new-ledger-kind",
+      "kind": "decision",
+      "title": "/stop deletes only the channel pointer (unbindTelegramChannel); the follower row, memory and consent ledger are untouched, satisfying \"leaves the Room, no deletion\" without a second consent-ledger kind",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-telegram-memory-decline-has-no-cross-turn-continuity",
+      "kind": "decision",
+      "title": "A Telegram follower who declines memory gets an empty transcript minted fresh on every message - there is no browser tab to hold a running one, and this scope gap is named rather than silently papered over",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-personforsurfaceuser-is-not-db-injectable",
+      "kind": "rejection",
+      "title": "Assumed personForSurfaceUser/linkSurfacePerson took an injectable db like _room-surface.js's functions; they call q() directly and failed silently offline, misreporting every join as a refused minor",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-fake-db-branch-would-have-swallowed-the-channel-table",
+      "kind": "rejection",
+      "title": "A new fake-db branch for vy_room_follower_channel placed after the older vy_room_follower branch would have been swallowed by it, since the new name contains the old one as a substring",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-fake-db-does-not-simulate-postgres-fk-cascade",
+      "kind": "rejection",
+      "title": "The hand-rolled fake db does not enact migration 082's ON DELETE CASCADE automatically; roomForget's follower-row delete had to be taught to also filter the fake's channel-map array",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r18-room-telegram-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "evals/room-telegram/run.mjs 51/51 (4 required negative controls); every sibling Room suite re-run unchanged; verify-release.mjs 15/15 on the changed tree; migration 082 never run live",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-082-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 082 applied live; the three Telegram channel-pointer statements EXPLAIN on the channel ref index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -10643,6 +10703,76 @@
       "src": "ws-r17-pulse-toggle-is-local-optimistic-no-prefetch",
       "rel": "measured_by",
       "dst": "rooms-migration-080-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r18-personid-bypass-not-a-second-identity-system",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r18-stop-removes-the-pointer-only-no-new-ledger-kind",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r18-telegram-memory-decline-has-no-cross-turn-continuity",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r18-room-telegram",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r18-personid-bypass-not-a-second-identity-system",
+      "rel": "measured_by",
+      "dst": "ws-r18-room-telegram-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table",
+      "rel": "measured_by",
+      "dst": "ws-r18-room-telegram-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r18-stop-removes-the-pointer-only-no-new-ledger-kind",
+      "rel": "measured_by",
+      "dst": "ws-r18-room-telegram-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r18-fake-db-branch-would-have-swallowed-the-channel-table",
+      "rel": "caused_by",
+      "dst": "ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table"
+    },
+    {
+      "src": "ws-r18-fake-db-does-not-simulate-postgres-fk-cascade",
+      "rel": "caused_by",
+      "dst": "ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table"
+    },
+    {
+      "src": "ws-r18-personforsurfaceuser-is-not-db-injectable",
+      "rel": "caused_by",
+      "dst": "ws-r18-personid-bypass-not-a-second-identity-system"
+    },
+    {
+      "src": "ws-r18-personid-bypass-not-a-second-identity-system",
+      "rel": "measured_by",
+      "dst": "rooms-migration-082-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table",
+      "rel": "measured_by",
+      "dst": "rooms-migration-082-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r18-stop-removes-the-pointer-only-no-new-ledger-kind",
+      "rel": "measured_by",
+      "dst": "rooms-migration-082-live-verification-2026-09-04"
     }
   ]
 }

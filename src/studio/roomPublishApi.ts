@@ -13,6 +13,10 @@ export interface OwnedRoom {
   paused_at: string | null;
   created_at: string | null;
   updated_at: string | null;
+  // WS-R18. `null` means no ROOM_TELEGRAM_BOT_USERNAME is configured on this
+  // deployment — the server's own honest "not connected", never a guessed
+  // URL the client assembles itself.
+  telegram_deep_link: string | null;
 }
 
 export interface RoomBlocker {

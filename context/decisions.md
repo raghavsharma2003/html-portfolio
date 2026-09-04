@@ -8889,3 +8889,124 @@ are currently opted in (not just let them toggle blind) - at which point
 `open`'s response gains a `pulse_optin` field per thread, sourced from a
 single aggregate-free, person-scoped read (this follower's own rows, which is
 not a leak the way a creator-facing read would be).
+
+## `ws-r18-personid-bypass-not-a-second-identity-system` (2026-09-03, WS-R18)
+
+**Decision.** `openRoom`/`joinRoom` (`api/_room-surface.js`) gained an
+optional `personId` parameter, tried after `authUserId` and before the
+existing Supabase bridge. `api/_room-telegram.js` resolves a Telegram
+follower's person through `personForSurfaceUser`/`linkSurfacePerson`
+(`api/_room.js`'s `vy_surface_identity` bridge - the exact one `api/tg.js`
+already uses for Meera) and hands the uuid straight in, never re-deriving
+identity resolution inside the Telegram file itself.
+
+**Rationale.** The follower lane's own SQL - the free-cap UPDATE, the
+disclosure predicate, the manifest-driven forget/export loop - lives in
+`api/_room-surface.js` and nowhere else, and `evals/room-leak/run.mjs`'s
+repo-wide scan (§1c) allowlists exactly that file for the follower tables'
+raw SQL text. Re-implementing `joinRoom`'s INSERT in the new Telegram file to
+avoid a two-line signature change would have been a second, unreviewed copy
+of a statement whose correctness this whole product depends on -
+`surface-bypasses-parse`'s family of defect, one migration over: a second
+writer silently misses every rule added to the first one after the fork. The
+alternative also considered - minting a synthetic `vy_account_person` bridge
+row for a Telegram user so `personForAccount` could be reused unchanged -
+was rejected as inventing a SECOND identity system wearing the first one's
+column, exactly what `docs/SURFACES.md` §0 forbids ("person is shared,
+agent scopes the relationship, surface scopes nothing").
+`authUserId` still wins when both are present and every existing caller
+(`api/room.js`) passes only `authUserId`, so the change is additive: nothing
+about the web Room's own behaviour moved.
+
+**Reverses if.** A future surface needs a THIRD way to resolve a person (not
+a Supabase bearer, not a `vy_surface_identity` row) - at which point the
+bypass generalises to `resolvePersonId(deps)` rather than growing a third
+named parameter, and this decision's "additive, no existing caller touched"
+property is what a reviewer should re-check first.
+
+## `ws-r18-migration-082-is-a-chat-to-room-pointer-not-an-identity-table` (2026-09-03, WS-R18)
+
+**Decision.** Migration 082 adds exactly one table,
+`vy_room_follower_channel` (room_id, person_id, follower_id, channel,
+channel_ref, unique on `(channel, channel_ref)`, `follower_id` carrying `on
+delete cascade`). It answers one question only: which Room does THIS
+Telegram chat's next ordinary message mean.
+
+**Rationale.** `ROOM_TELEGRAM_BOT_TOKEN` is deliberately ONE bot for the
+whole platform (docs/gurukul's own Rooms-on-Telegram scope), not a
+per-creator credential the way `vy_clone_channel.credentials_ref` is for
+Meera's clones. That means a single private Telegram chat can `/start` one
+creator's slug today and a different creator's next month, and an ordinary
+message afterward carries no slug at all - so "which Room" is a fact this
+schema had nowhere to keep before this migration. The brief's own instruction
+was "082 only if a mapping table is truly needed, prefer reuse", and reuse
+WAS tried first and correctly rejected in the same session: `vy_surface_identity`
+already gives IDENTITY for free (no new table), and a private chat's id
+equals its user's id (`api/tg.js`'s own documented fact) so no new table was
+needed to ADDRESS a chat either. What remained missing, and what this table
+holds, is the "current Room" pointer alone. `follower_id`'s cascade is what
+lets a follower's own `/forget` (deleting `vy_room_follower` by name, as it
+already does) remove this pointer too with zero new code in that path - the
+pointer cannot outlive the membership it points at.
+
+**Reverses if.** The platform moves to per-creator Telegram bot credentials
+(a `vy_clone_channel`-shaped seam for Rooms) - at which point a chat's
+address alone (bot + chat id) determines the Room again, `channel_ref` stops
+needing to carry the "currently active" meaning, and this table's unique
+constraint becomes redundant with the bot-level binding rather than load-
+bearing.
+
+## `ws-r18-stop-removes-the-pointer-only-no-new-ledger-kind` (2026-09-03, WS-R18)
+
+**Decision.** `/stop` calls one new function, `unbindTelegramChannel`, which
+deletes only the row migration 082 added for this chat. The follower's
+membership row, their memory, and the consent ledger are all left exactly as
+they were.
+
+**Rationale.** The workstream's own law states `/stop` "leaves the Room (no
+deletion)". `vy_room_follower` has no `left_at`/paused column the way Meera's
+multiparty `vy_group_member` does, and adding one was out of scope for this
+migration (a schema change to an already-live, 071-shipped table competing
+with a concurrent sibling workstream, `ws-r19-paid-tier`, also touching that
+table). A first design considered a new append-only consent-ledger `kind`
+(`room_telegram_active`) to record "muted until re-`/start`", matching
+migration 016's own "a second question is a new VALUE, not a new table"
+instruction - but the channel pointer this migration already builds says
+exactly the same thing more cheaply: no pointer means "not currently
+addressed here", which is indistinguishable, for every purpose this product
+needs, from "muted". Removing the pointer alone satisfies "no deletion"
+literally (nothing about the follower is touched) and gives `/stop` a
+real, observable effect (the very next ordinary message reads as unjoined)
+without a second consent kind to keep in sync with the first.
+
+**Reverses if.** A future law wants `/stop` to also suppress something
+persistent across MULTIPLE rooms in one chat (not applicable today - one
+pointer means one active Room per chat by construction) - at which point the
+ledger-kind design above is the fallback, not a new table.
+
+## `ws-r18-telegram-memory-decline-has-no-cross-turn-continuity` (2026-09-03, WS-R18)
+
+**Decision.** A Telegram follower who answers "do not remember me" gets a
+FRESH, empty transcript minted on every single message
+(`mintFollowerSession`'s `td: transcriptDigest([])`, `transcript: []`), never
+a transcript that accumulates across turns the way the web widget's
+anonymous lane carries one on the client.
+
+**Rationale.** `roomSay`'s memory-free path is built for a BROWSER TAB that
+holds the running transcript in memory and resends it every request,
+verified by a digest bound into the session. A Telegram webhook has no such
+client: each update is one stateless HTTP call to this server, and there is
+no place on Telegram's side that plays the browser tab's role. Building one
+(a short-TTL per-chat transcript cache) is a real, buildable feature and was
+scoped OUT of this workstream rather than built speculatively - the
+alternative, pretending the anonymous lane "just works" the same way on
+Telegram, would have shipped a silent behaviour change (every declined-memory
+message reads as a first message) with no comment marking it as one, which
+is exactly the dishonest-by-omission shape `context/STATE.md`'s standing rule
+forbids.
+
+**Reverses if.** A Telegram-side transcript cache is built (keyed by chat id,
+short TTL, matching the web session's 12-hour window) - at which point
+`api/_room-telegram.js`'s ordinary-message handler reads and writes it instead
+of always minting an empty transcript, and this limitation is retired rather
+than worked around.
