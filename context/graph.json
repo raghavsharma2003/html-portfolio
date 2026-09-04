@@ -6730,6 +6730,42 @@
       "kind": "measurement",
       "at": "2026-09-04",
       "title": "node scripts/verify-release.mjs: 17/17 confirmed on the untouched tree (one EADDRINUSE:8931 collision reconfirmed standalone), 18/18 after this workstream's commits; performance budgets gate itself 45.6s, under the 3-minute ceiling"
+    },
+    {
+      "id": "ws-r45-creator-directory",
+      "kind": "component",
+      "title": "The creator directory and search presence (migration 105, vy_room.listed_at/one_line_bio): api/_creators.js/api/creators.js (the public GET /api/creators read, no follower table ever named), api/_sitemap.js/api/sitemap.js (/sitemap.xml), site/creators.html (static, EN/HI via ?lang=hi, JSON-LD ItemList), site/robots.txt, and listRoom/unlistRoom/setRoomBio added to api/_room-publish.js/api/room-publish.js.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r45-one-line-bio-added-in-migration-105",
+      "kind": "decision",
+      "title": "Migration 105 adds vy_room.one_line_bio (140 chars) alongside listed_at, beyond the brief's own SQL bullet, because the directory read and the Share tab control both require creator-authored free text no existing column holds.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r45-bio-copy-gate-reused-not-reimplemented",
+      "kind": "decision",
+      "title": "setRoomBio imports scanSource from scripts/check-copy.mjs and runs a candidate bio through the REAL copy gate rather than a second hand-rolled dash/Rooms-vocabulary regex, refusing with room_bio_copy_violation.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r45-creators-html-vite-entry-for-gate-only",
+      "kind": "decision",
+      "title": "site/creators.html is added to vite.config.ts as a build entry solely so the layout gate's plain vite build produces a fixture (emits to dist/site/creators.html, not dist/creators.html); the real production copy still comes from scripts/vercel-build.sh's own cp step, leaving one harmless unrouted duplicate URL.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r45-backtick-command-substitution-corrupts-commit-dash-m-messages",
+      "kind": "rejection",
+      "title": "A git commit -m message inside a double-quoted shell string, containing backticks around code identifiers, silently lost the backtick-quoted span to bash command substitution (vite build ran and failed, its empty stdout replaced the text) with git commit itself exiting 0 — fixed by composing the message in a file and using git commit -F.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r45-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs 17/17 on the untouched tree and 17/17 after every commit in this workstream (no NEON_URL); evals/creator-directory/run.mjs 55/55 offline; check-copy.mjs 6 scopes/21 controls unchanged; the layout gate hit EADDRINUSE four times from sibling worktrees before passing on the fifth attempt.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13487,6 +13523,41 @@
       "src": "ws-r49-performance-budget-gate",
       "rel": "measured_by",
       "dst": "ws-r49-full-gate-2026-09-04"
+    },
+    {
+      "src": "ws-r45-creator-directory",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r45-one-line-bio-added-in-migration-105",
+      "rel": "part_of",
+      "dst": "ws-r45-creator-directory"
+    },
+    {
+      "src": "ws-r45-bio-copy-gate-reused-not-reimplemented",
+      "rel": "part_of",
+      "dst": "ws-r45-creator-directory"
+    },
+    {
+      "src": "ws-r45-creators-html-vite-entry-for-gate-only",
+      "rel": "part_of",
+      "dst": "ws-r45-creator-directory"
+    },
+    {
+      "src": "ws-r45-backtick-command-substitution-corrupts-commit-dash-m-messages",
+      "rel": "part_of",
+      "dst": "ws-r45-creator-directory"
+    },
+    {
+      "src": "ws-r45-creator-directory",
+      "rel": "measured_by",
+      "dst": "ws-r45-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r45-bio-copy-gate-reused-not-reimplemented",
+      "rel": "constrains",
+      "dst": "ws-r45-one-line-bio-added-in-migration-105"
     }
   ]
 }

@@ -55,6 +55,12 @@ import { readinessPasses } from "./_clonechannel.js";
 import { READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR } from "./_readiness.js";
 import { ownedRuntimeStatus } from "./_replica-runtime.js";
 import { monthKeyOf } from "./_room-surface.js";
+// WS-R45. `setRoomBio` reuses the REAL copy gate rather than a second,
+// hand-rolled regex that could drift from it — the identical reason
+// `readinessPasses` above is imported rather than restated. See
+// `assertBioClean` below for why a plain string is wrapped as a JS literal
+// before it is handed to `scanSource`.
+import { scanSource } from "../scripts/check-copy.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -75,6 +81,11 @@ export const ROOM_PAID_MESSAGES_MIN = 100;
 export const ROOM_PAID_MESSAGES_MAX = 2000;
 export const ROOM_PAID_VOICE_SECONDS_MIN = 0;
 export const ROOM_PAID_VOICE_SECONDS_MAX = 3600;
+
+/** The directory bio's bound (WS-R45), mirroring migration 105's own CHECK
+ *  (`vy_room_one_line_bio_len`) for the same reason every other bound in this
+ *  file is mirrored: a bad value returns a NAMED reason, not a raw 500. */
+export const ROOM_BIO_MAX = 140;
 
 export class RoomPublishError extends Error {
   constructor(code, status = 400, details) {
@@ -131,6 +142,7 @@ async function ownedRoomRow(db, ownerUserId, replicaId) {
   const rows = await db(
     `select room_id, slug, replica_id, agent_id, owner_user_id, display_name,
             free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at
        from vy_room
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
@@ -222,6 +234,12 @@ export function clientRoom(row, { now = Date.now(), env = process.env } = {}) {
     // reports no usable language and who has no row of their own yet -
     // `api/_room-surface.js`'s `openRoom` fallback chain, migration 087.
     default_locale: row.default_locale === "hi" ? "hi" : "en",
+    // WS-R45. The directory's own third field, alongside the name and the
+    // language above - never rendered on this card as anything but plain
+    // text the creator wrote about themselves.
+    one_line_bio: row.one_line_bio || "",
+    listed: row.listed_at != null,
+    listed_at: row.listed_at ?? null,
     published: row.published_at != null,
     paused: row.paused_at != null,
     published_at: row.published_at ?? null,
@@ -297,6 +315,7 @@ export async function createRoom(db, ownerUserId, replicaId, { slug } = {}) {
        values (($1)::uuid, $2, ($3)::uuid, ($4)::uuid, ($5)::uuid, $6)
        returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                  free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at`,
       [
         randomUUID(),
@@ -338,6 +357,7 @@ export async function renameRoom(db, ownerUserId, replicaId, slug) {
         where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
         returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                   free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at`,
       [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), normalized],
     );
@@ -409,6 +429,7 @@ export async function publishRoom(db, ownerUserId, replicaId) {
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
                 r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
+                r.listed_at, r.one_line_bio,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
@@ -514,6 +535,7 @@ export async function pauseRoom(db, ownerUserId, replicaId) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );
@@ -538,6 +560,7 @@ export async function resumeRoom(db, ownerUserId, replicaId) {
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
                 r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
+                r.listed_at, r.one_line_bio,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
@@ -566,6 +589,7 @@ export async function setRoomFreeCap(db, ownerUserId, replicaId, cap) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), n],
   );
@@ -602,6 +626,7 @@ export async function setRoomPaidCeilings(db, ownerUserId, replicaId, { messages
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), m, v],
   );
@@ -629,8 +654,123 @@ export async function setRoomDefaultLocale(db, ownerUserId, replicaId, locale) {
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), loc],
+  );
+  return rows[0] ? clientRoom(rows[0]) : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: set_bio (WS-R45, migration 105)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The bio is the one piece of free text a CREATOR writes that a STRANGER
+ *  reads before choosing to become anyone's follower — the directory card,
+ *  never a private message a creator only shows people who already trust
+ *  them. So it is held to the same copy law every other user-visible string
+ *  in this product is: no em-dash or en-dash, never "clone"/"model"/
+ *  "replica"/etc. Wrapped as `const label = <bio>;` so `scanSource` — the
+ *  REAL function `scripts/check-copy.mjs` runs over the whole repo, not a
+ *  reimplementation of its rules — reads it exactly as it reads any other
+ *  visible string keyed by a name on `VISIBLE_KEY`'s own list ("label" is
+ *  the first entry on it). A 400 here, never a silent strip or a
+ *  best-effort clean: the creator's own words are not this file's to
+ *  rewrite, only to refuse and ask for again. */
+function assertBioClean(text) {
+  if (!text) return;
+  const fixture = `const label = ${JSON.stringify(text)};`;
+  const offences = scanSource("room-bio-input.tsx", fixture, { rules: "full", codename: true, roomsVocab: true });
+  if (offences.length) {
+    throw new RoomPublishError("room_bio_copy_violation", 400, {
+      rules: [...new Set(offences.map((o) => o.rule))],
+    });
+  }
+}
+
+/** The directory's one-line description of the creator. `setRoomFreeCap`'s
+ *  exact shape: bounded here for a named 400 rather than a raw
+ *  constraint-violation 500, migration 105's CHECK as the backstop. Never
+ *  trims trailing/leading whitespace away silently beyond a plain `.trim()`
+ *  — a creator's own words, not this file's to reformat. */
+export async function setRoomBio(db, ownerUserId, replicaId, bio) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const text = String(bio ?? "").trim();
+  if (text.length > ROOM_BIO_MAX) {
+    throw new RoomPublishError("room_bio_invalid", 400, { max: ROOM_BIO_MAX });
+  }
+  assertBioClean(text);
+  const rows = await db(
+    `update vy_room
+        set one_line_bio = $3, updated_at = now()
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
+                published_at, paused_at, created_at, updated_at`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), text],
+  );
+  return rows[0] ? clientRoom(rows[0]) : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: list / unlist (WS-R45, migration 105) — the directory opt-in
+// ─────────────────────────────────────────────────────────────────────────
+//
+// `listed_at` is a SECOND, independent switch from `published_at` (071) —
+// this file's own "the publish lock is a write predicate" law, restated one
+// column over. `list` is refused unless the Room is ALREADY published, and
+// that refusal is the write predicate's own CASE, never a JS `if` above it
+// — the identical reason `publishRoom`'s three-fragment CASE gives for why a
+// status may never be decided twice. `unlist` is UNCONDITIONAL — the same
+// "taking something down is never gated" law `pauseRoom`'s own comment
+// states, because a creator changing their mind about being found is not a
+// decision this product second-guesses.
+//
+// `coalesce(listed_at, now())` mirrors `publishRoom`'s own
+// `coalesce(published_at, now())`: a creator who unlists and relists must
+// not have their listing's own "on the directory since" date read as new
+// again — the identical reasoning, restated because the identical bug would
+// otherwise ship twice.
+
+export async function listRoom(db, ownerUserId, replicaId) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const room = await ownedRoomRow(db, ownerUserId, replicaId);
+  if (!room) return null;
+
+  const rows = await db(
+    `update vy_room r
+        set listed_at = case
+              when r.published_at is not null then coalesce(r.listed_at, now())
+              else r.listed_at
+            end,
+            updated_at = now()
+      where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
+      returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
+                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
+                r.listed_at, r.one_line_bio,
+                r.published_at, r.paused_at, r.created_at, r.updated_at`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
+  );
+  const next = rows[0];
+  if (!next) return null;
+  if (!next.listed_at) {
+    throw new RoomPublishError("room_list_requires_published", 409);
+  }
+  return clientRoom(next);
+}
+
+export async function unlistRoom(db, ownerUserId, replicaId) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const rows = await db(
+    `update vy_room
+        set listed_at = null, updated_at = now()
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                listed_at, one_line_bio,
+                published_at, paused_at, created_at, updated_at`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );
   return rows[0] ? clientRoom(rows[0]) : null;
 }

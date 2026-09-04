@@ -9,7 +9,9 @@
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },
     { "source": "/embed.js", "destination": "/api/embed.js" },
-    { "source": "/room-embed.js", "destination": "/api/room-embed.js" }
+    { "source": "/room-embed.js", "destination": "/api/room-embed.js" },
+    { "source": "/creators", "destination": "/creators.html" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" }
   ],
   "crons": [
     { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },

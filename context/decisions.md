@@ -11811,3 +11811,99 @@ palette+base block (`studio.css` lines ~210-266, verified as exactly what
 `room.css`'s own header claims it needs) into its own file that both
 `studio.css` and `room.css` import, so there remains one canonical
 declaration rather than a duplicate.
+
+## `ws-r45-one-line-bio-added-in-migration-105` (2026-09-04, WS-R45)
+
+**Decision.** Migration 105 adds `vy_room.one_line_bio text not null default
+'' check (length <= 140)` alongside `listed_at`, even though the workstream
+brief's own SQL bullet for migration 105 named only the listing switch and
+its partial index. `api/_creators.js`'s directory read is specified to
+return "display name, slug, the one-line bio, locale, and listed_at" and
+the Share tab control is specified to promise a follower sees "the name,
+the one-line bio and the language" — but no column anywhere in this schema
+holds free text a creator writes for a stranger to read (`display_name` is
+the name; every other creator-authored field is either private material or
+shaped for a different audience). Adding the column was the only way to
+build what both of those other bullets require.
+
+**Rationale.** The bio is bounded to 140 characters (fits one line on a
+390px directory card, this workstream's own `check-layout.mjs` floor at
+that width), defaults to `''` so an existing Room opts in explicitly rather
+than the migration inventing text, and is run through the real copy gate
+at write time (`ws-r45-bio-copy-gate-reused-not-reimplemented`, below) —
+the same discipline every other user-visible string in this product is
+held to, extended here because this is the first field a CREATOR writes
+that a STRANGER, not yet anyone's follower, reads before the Room exists
+for them at all.
+
+**Reversal condition.** If a later workstream determines the directory
+should show something other than free text (a fixed set of tags, say, or a
+sentence assembled from the teacher sheet rather than typed by hand),
+`one_line_bio` should be deprecated with a `supersedes` edge rather than
+repurposed — the column's whole contract is "the creator's own words,
+unedited by this platform."
+
+## `ws-r45-bio-copy-gate-reused-not-reimplemented` (2026-09-04, WS-R45)
+
+**Decision.** `api/_room-publish.js`'s `setRoomBio` imports `scanSource`
+from `scripts/check-copy.mjs` and runs the candidate bio through it
+(wrapped as `const label = <bio>;` so the visible-literal heuristic reads
+it) rather than writing a second em-dash/Rooms-vocabulary regex inside the
+API layer. A bio that trips the dash rule or the Rooms-vocabulary rule is
+refused with a named `room_bio_copy_violation`, never silently accepted or
+silently cleaned.
+
+**Rationale.** This repo's own law (`AGENTS.md`, `CLAUDE.md`) is "write
+shapes never lines" and "the copy gate bites" as a STATIC scan over
+committed source — but a bio is the one piece of copy in this whole
+product that is neither committed source nor a compile-time literal, it is
+runtime data a creator types into a form. Two independently maintained
+copies of the same banned-word list drift; this repo's own
+`context/rejected.md` is full of entries about exactly that failure shape
+one abstraction over. Reusing the real scanner function means the bio gate
+and the static gate can never quietly disagree about what "clone" or an
+em dash means.
+
+**Reversal condition.** If `scripts/check-copy.mjs` ever grows a
+non-trivial runtime cost or a dependency `api/_room-publish.js` cannot
+carry into the Vercel function bundle (neither observed in this session:
+the import added no measurable latency to `setRoomBio` and pulls in only
+`scripts/roomsVocabAllowlist.mjs` besides `node:fs`, which is never called
+on this path), replace the call with a small dedicated regex mirroring
+only the dash and Rooms-vocabulary tests, and note in this entry's
+supersession why the shared scanner stopped being the right choice.
+
+## `ws-r45-creators-html-vite-entry-for-gate-only` (2026-09-04, WS-R45)
+
+**Decision.** `site/creators.html` is added to `vite.config.ts`'s
+`rollupOptions.input` under the key `creators-directory`, purely so
+`scripts/verify-release.mjs`'s plain `vite build` step (which never runs
+`scripts/vercel-build.sh`'s copy step) produces a file
+`scripts/check-layout.mjs` can point its `creators`/`creators-hi` targets
+at. Vite emits a multi-page HTML input at a path mirroring its OWN
+relative path from the project root, not the input key, so this produces
+`dist/site/creators.html`, never `dist/creators.html` — confirmed by an
+empirical build during this session, not assumed. The layout gate's fixture
+path is `site/creators.html` to match. The real production page is still
+served from `dist/creators.html`, copied there by
+`scripts/vercel-build.sh`'s own `cp site/creators.html dist/creators.html`
+after `vite build` runs; the vite-input copy is a second, unrouted file
+that ships alongside it on every real deploy too, reachable at
+`/site/creators.html`.
+
+**Rationale.** The alternative — teaching `scripts/verify-release.mjs`
+itself to run (or shell out to) the site-copy half of
+`scripts/vercel-build.sh` before the layout gate — touches a script every
+workstream's gate depends on, for one page's fixture. The duplicate URL
+this decision leaves behind is harmless by construction: identical public
+content, nothing per-person, no second code path to drift from the first
+(both are the exact same file).
+
+**Reversal condition.** If a security or SEO review ever treats a second,
+unrewritten URL serving identical public content as a real problem (a
+canonical-tag conflict a crawler penalizes, say), either give
+`scripts/verify-release.mjs`'s "web build" step its own small copy step for
+`site/*.html` fixtures instead of a vite input, or add a `<link
+rel="canonical" href="/creators">` — already present in
+`site/creators.html`'s `<head>` — is the first, cheaper lever if that day
+comes.

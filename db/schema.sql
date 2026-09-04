@@ -4008,6 +4008,24 @@ alter table vy_creator_subscription add column if not exists cancel_at_period_en
 alter table vy_room_follower
   add column if not exists settings_reviewed_at timestamptz null;
 
+-- Migration 105 - the creator directory's listing switch (WS-R45). See
+-- db/migrations/105_room_listed.sql for the full argument: `listed_at` is
+-- the creator's own opt-in to being found, independent of `published_at`
+-- (071) and checked alongside it in the SAME predicate by every reader;
+-- `one_line_bio` is the directory's third field, bounded to 140 characters.
+-- No PERSON_TABLES/erasure/relcheck change: both columns are on `vy_room`,
+-- already an owner-lane table deleted by name.
+alter table vy_room
+  add column if not exists listed_at timestamptz;
+alter table vy_room
+  add column if not exists one_line_bio text not null default '';
+alter table vy_room
+  drop constraint if exists vy_room_one_line_bio_len,
+  add constraint vy_room_one_line_bio_len check (length(one_line_bio) <= 140);
+create index if not exists vy_room_listed_ix
+  on vy_room (listed_at desc)
+  where listed_at is not null and published_at is not null;
+
 -- Migration 106 - creator-issued invites (WS-R47). See
 -- db/migrations/106_creator_issued_invites.sql for the full argument: one
 -- column on the table 086 already put on the owner lane, defaulted to

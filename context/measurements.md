@@ -9120,3 +9120,50 @@ under the brief's 3-minute ceiling for the gate's own runtime.
 
 **`node scripts/context.mjs --check`**: run after this session's context
 edits, see this workstream's final report for the pass/fail line.
+
+## `ws-r45-gate-results-2026-09-04`
+
+**Method.** `node scripts/verify-release.mjs` run on this worktree
+(`ws-r45-creator-directory`, branched from `321a0fd`) BEFORE any file was
+touched (confirmed via a temporary revert of the two files already edited
+at that point — migration 105 and its `db/schema.sql` mirror — rather than
+a fresh checkout, since this worktree started with those two files already
+in progress; both were backed up, reverted, gated, then restored), and
+again after every commit in this workstream. Each run also included the
+new `evals/creator-directory/run.mjs` battery once it existed, both
+standalone (`node evals/creator-directory/run.mjs`) and inside `node
+evals/run.mjs` (the "eval suite" gate). No `NEON_URL` in this environment,
+so the two relational DB gates were skipped both times, consistent with
+every other WS-R workstream's own report.
+
+**n and results.**
+- Untouched tree: **17/17** (`all 17 checks passed`).
+- After every file in this workstream (five commits: migration 105,
+  `_room-publish.js`'s new ops, the `_creators.js`/`_sitemap.js` read
+  modules and their doors, `site/creators.html` and its gate wiring, and
+  the offline battery): **17/17** (`all 17 checks passed`). The check count
+  itself did not move — this workstream added no NEW named release gate,
+  only two new targets (`creators`, `creators-hi`) inside the EXISTING
+  `layout readability` gate and one new suite (`creator-directory`) inside
+  the EXISTING `eval suite` gate.
+- `evals/creator-directory/run.mjs` standalone: **55 passed, 0 failed**,
+  offline, deterministic, $0, ~0.1s.
+- `node scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls,
+  both before and after (the em-dash and Rooms-vocabulary fixtures this
+  workstream's own eval relies on — see negative control (c) — are the
+  SAME 21 the gate already carried; this workstream added zero new
+  fixtures to `check-copy.mjs` itself, only extended which files two
+  existing per-file regexes match).
+- `node scripts/context.mjs --check`: clean before this session's own
+  append (1074 nodes, 1313 edges, 4 documents) — see this entry's own
+  graph append below for the count after.
+- `scripts/check-layout.mjs` hit `EADDRINUSE:8931` from a concurrent
+  sibling worktree's own gate run **four times in a row** on the final
+  confirmation pass before succeeding on the fifth attempt — the highest
+  collision count logged by name in `context/` so far, consistent with
+  `ws-common.md`'s own warning that ten sibling worktrees were running
+  gates on this machine concurrently during this wave. Each collision was
+  a hard `EADDRINUSE` crash of the gate's own process (not a graceful
+  retry inside the script), confirming the existing convention — wait a
+  fixed interval and rerun the whole gate — is still the right workaround
+  rather than something this workstream needed to fix.

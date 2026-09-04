@@ -71,3 +71,14 @@ fi
 cp site/styles.css dist/styles.css
 mkdir -p dist/assets
 cp -R site/assets/. dist/assets/
+
+# WS-R45: the creator directory and robots.txt. Copied unconditionally
+# (neither branches on STUDIO_ROOT/PLATFORM_BRANCH the way vyakti.html does
+# above) — Meera's build has no /creators route and no crawler policy of its
+# own to collide with, and shipping these two static files on every build is
+# simpler than a second copy of the branch check above for one page and one
+# text file. robots.txt needs no vercel.json rewrite: a file already named
+# robots.txt at dist's root serves at /robots.txt with no rewrite required,
+# the same reason privacy.html DOES need one and this does not.
+cp site/creators.html dist/creators.html
+cp site/robots.txt dist/robots.txt

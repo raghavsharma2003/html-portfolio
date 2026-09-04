@@ -13,6 +13,12 @@ export interface OwnedRoom {
   // reports nothing usable and who has no follower row yet - never the AI's
   // own reply language, which this file has no opinion about.
   default_locale: "en" | "hi";
+  // WS-R45. The creator directory's own two fields: the one-line description
+  // shown alongside the name, and whether this Room currently opts in to
+  // being listed there at all.
+  one_line_bio: string;
+  listed: boolean;
+  listed_at: string | null;
   published: boolean;
   paused: boolean;
   published_at: string | null;
@@ -144,6 +150,28 @@ export async function setOwnedRoomDefaultLocale(
   locale: "en" | "hi",
 ): Promise<OwnedRoom> {
   const data = await call<{ room: OwnedRoom }>(token, { op: "set_default_locale", replica_id: replicaId, locale });
+  return data.room;
+}
+
+/** The directory's one-line description of the creator, `setOwnedRoomFreeCap`'s
+ *  own shape. */
+export async function setOwnedRoomBio(token: string, replicaId: string, bio: string): Promise<OwnedRoom> {
+  const data = await call<{ room: OwnedRoom }>(token, { op: "set_bio", replica_id: replicaId, bio });
+  return data.room;
+}
+
+/** Opt in to the creator directory. Refused (a named `room_list_requires_
+ *  published` error, `RoomPublishApiError`'s own shape) unless the Room is
+ *  already published — `api/_room-publish.js`'s own write predicate, never a
+ *  client-side guess repeated here. */
+export async function listOwnedRoom(token: string, replicaId: string): Promise<OwnedRoom> {
+  const data = await call<{ room: OwnedRoom }>(token, { op: "list", replica_id: replicaId });
+  return data.room;
+}
+
+/** Opt out. Unconditional, `pauseOwnedRoom`'s own shape. */
+export async function unlistOwnedRoom(token: string, replicaId: string): Promise<OwnedRoom> {
+  const data = await call<{ room: OwnedRoom }>(token, { op: "unlist", replica_id: replicaId });
   return data.room;
 }
 
