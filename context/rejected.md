@@ -8058,3 +8058,55 @@ unverified in the time this workstream had.
 **What broke:** Vercel refused to deploy the merged branch on both projects: `Error while validating your Cron Jobs expressions: Invalid value found 24 (0 */24 * * *)`. A step value for the hour field must be 1..23; `*/24` is not a cron expression, and the first thing to reject it was the deployment, after the push.
 
 **Fix:** the schedule is `0 0 * * *`, and the parser gained the one daily slot shape (`0 H * * *` is 24 hours) so the ops board still reads it; `evals/ops/run.mjs` asserts the daily shapes, the renewals entry, and that every hour step in `vercel.json` is within 1..23, so the next invalid step fails offline. Rule: a schedule the parser can read is not the same as a schedule the platform will run; when the two disagree, extend the parser, never bend the schedule.
+
+## `ws-r45-backtick-command-substitution-corrupts-commit-dash-m-messages` (2026-09-04, WS-R45)
+
+**Tried:** wrote a `git commit -q -m "..."` call where the commit-message
+string, inside DOUBLE quotes, referenced code identifiers wrapped in
+backticks (`` `vite build` `` and others) — the way every prose file in
+`context/` and every code comment in this repo formats an inline
+identifier, and the way this very entry is formatted. The shell tool the
+commit ran through accepted the call with no error surfaced to the caller
+as a failure; a `vite: command not found` line printed alongside it looked
+like harmless build-tool noise from something else running nearby.
+
+**What broke:** it was not noise. Bash's double-quoted strings still
+perform command substitution on backtick pairs — single quotes suppress
+it, double quotes do not. `` `vite build` `` was executed as a shell
+command, `vite` was not on PATH at that call site, its stdout (empty) SILENTLY
+replaced the entire backtick-quoted span in the commit message, and its
+stderr (`vite: command not found`) is what actually appeared in the tool
+output — read, at the time, as unrelated chatter rather than the symptom.
+The recorded commit message read "...so verify-release.mjs's plain  (no
+vercel-build.sh copy step) produces a fixture..." with the backtick-quoted
+words simply gone and no error anywhere in the commit machinery itself:
+`git commit` exited 0, because the STRING IT RECEIVED was already
+corrupted before git ever saw it. Two other commit messages in this same
+session that also used backticks around plain filenames (no spaces, no
+shell-meaningful content, e.g. `` `dist/creators.html` ``) survived
+intact — Bash's command substitution only visibly clobbers a span whose
+content, read as a command, produces different output than the literal
+text, or errors with a message unlikely to be mistaken for anything else.
+A backtick span is not reliably safe just because most of them "happen" to
+survive; the ones that do not are the trap.
+
+**What closed it:** `git commit --amend -q -F <file>` with the message
+composed in a plain file first (`Write`, not a shell string), which sidesteps
+shell quoting entirely — the same reason this repo's own migration and
+eval files are always authored with `Write`/`Edit` and never assembled via
+`echo`/`cat <<` inside a `-m` argument. Diffed the four commit messages
+made in this session against what was actually typed and found exactly
+one corrupted (the one with a backtick span whose content happened to
+resolve to a real, differently-behaving command); the other three,
+composed the same way, were checked and were clean by luck rather than by
+any property that could have been trusted in advance.
+
+**The law:** never pass a commit message containing a backtick through a
+double-quoted shell string. Either use `git commit -F <file>` with the
+message authored via `Write`, or strip backticks from commit-message prose
+entirely (plain identifiers, no inline-code marks) — the second is safer
+by default, the first is required whenever the message needs to describe
+code the way this project's own prose everywhere else does. A tool call
+that "succeeds" (exit 0, no thrown error) is not proof the string it
+received was the string that was intended; the only way to know is to
+`git log --format=%B` the commit back and actually read it.
