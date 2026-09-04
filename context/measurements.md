@@ -9281,3 +9281,63 @@ n = 1 migration (4 statements in one transaction, plus 2 indexes added at the me
 | `suitesFunnelThisWeek`: Suites started; seats attached | Seq Scan on `vy_org (created_at)` and on `vy_room (org_attached_at)` as written, neither column indexed; `vy_org_created_ix` and the partial `vy_room_org_attached_ix` were added to 107 and the schema mirror and applied live at the merge (the planner still declines them at zero rows, which is the expected choice for an empty table) |
 
 Not measured: no Suite has been started through the page, no application carries `intent = 'suite'`, nobody has seen `/suites` in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r40-room-share-offline-eval-2026-09-04`
+
+n = 48 assertions, 0 failed. Method: `node evals/room-share/run.mjs`, offline,
+deterministic, $0, no DB, no network, no model call, no GPU - drives the REAL
+`api/_room-page.js` (`resolveRoomPage`/`buildRoomPageHtml`) against a small,
+dedicated fake `vy_room` table (three rows: published, paused, never
+published) built for this suite rather than the shared `evals/room/fixtures.mjs`
+world (this read needs none of that fixture's heavier agent-sheet machinery);
+the REAL `api/_room-surface.js` (`resolveArrivalVia`, `recordRoomArrival`)
+against the same fake db's `vy_room_arrival` table; the REAL
+`api/_funnel.js` (`shareArrivalsThisWeek`, `shareArrivalNote`); a static
+parse of the REAL `vercel.json` for rewrite order and `has` regex behaviour
+against eight real bot user-agent strings and one real Android Chrome
+string; a static regex extraction of `src/room/RoomApp.tsx`'s own
+`shareUrl` builder; and the REAL `scripts/check-copy.mjs` `scanSource`
+against both a poisoned Hindi fixture and the real `src/room/copy.ts`.
+Covers: the unfurl for published/paused/unknown (identical platform-only
+card for the latter two), a static proof `publicRoomBySlug`'s select list
+is exactly the four public columns and names no follower table, the
+arrival upsert's one-row-not-two-rows behaviour across two same-day opens,
+`resolveArrivalVia`'s allowlist including an SQL-shaped poisoned value, the
+funnel line's n>=5 floor in both directions, and four required negative
+controls (share url carries no follower id/session/token; a poisoned via
+becomes 'direct'; the floor sentence never carries a real number; an em
+dash in Hindi copy fails the real gate).
+
+Run repeatedly during development (48/48 on the final tree; one earlier run
+at 47/48 while `api/_funnel.js` still had the double-quoted-string collision
+described in `context/rejected.md#ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner`).
+
+**NOT PROVEN.** No statement in migration 102 has ever executed against a
+live Postgres (no `NEON_URL` in this environment). No real crawler has ever
+fetched `/r/<slug>` and received this unfurl; no human has tapped the Share
+control in a real browser and confirmed `navigator.share` or the clipboard
+fallback actually fires; the Vercel `has` header-matching behaviour is
+proven only against this suite's own regex re-implementation of what
+Vercel's docs say that field does, never against a live Vercel edge
+request. `scripts/relcheck.mjs` did not run (no `NEON_URL`).
+
+## `ws-r40-gate-before-after-2026-09-04`
+
+Method: `node scripts/verify-release.mjs` on the worktree at e7b6a6d.
+
+- **Before any edit:** 19/19 checks passed (no `NEON_URL`).
+- **After all edits (final tree):** 19/19 checks passed (no `NEON_URL`),
+  including the room leak battery (81 passed, 0 failed when run standalone,
+  up from a mid-development 80/1 while the two collisions in
+  `context/rejected.md` were still unfixed) and the full `evals/run.mjs`
+  suite (all registered suites, including the new `room-share` suite, exit
+  0 with no failed-suites line).
+
+n = 2 full gate runs recorded here (before, after); several intermediate
+runs of individual suites during development are not separately logged,
+per this repo's own convention of reporting the before/after pair rather
+than every iteration.
+
+Not measured: the two relational DB gates (`zero-orphan sweep`, `citation
+discipline`) - both skip without `NEON_URL`, which this environment does
+not have.

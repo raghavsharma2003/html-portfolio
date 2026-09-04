@@ -6844,6 +6844,60 @@
       "kind": "rejection",
       "title": "Keeping both sides of a both-added hunk broke a block comment and left a function unclosed, and the syntax loop's failures scrolled past unseen; the loop now names its failures and runs alone",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-share-and-arrival",
+      "kind": "component",
+      "title": "Share and arrival — api/room-page.js + api/_room-page.js over api/_room-publish.js's publicRoomBySlug (crawler-only unfurl at /r/<slug>, vercel.json bot rewrite), the Room header's Share control (src/room/RoomApp.tsx), api/_room-surface.js's recordRoomArrival/resolveArrivalVia (the arrival upsert), and api/_funnel.js's shareArrivalsThisWeek (the creator's n>=5 floored growth line). Migration 102, vy_room_arrival.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-unfurl-is-a-function-only-for-crawlers",
+      "kind": "decision",
+      "title": "The bot-only vercel.json rewrite to api/room-page.js sits above the existing static /room.html rewrite; a person's own Room load stays a static file at zero function cost.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-share-url-carries-no-sender-identity",
+      "kind": "decision",
+      "title": "The Share control's url carries exactly ?via=share and never a follower id, session, or token; a recipient can never be traced back to who invited them.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session",
+      "kind": "decision",
+      "title": "recordRoomArrival runs on every openRoom call (mount and a pre-join locale switch), passing the same via value each time; migration 102's table has no session column by design, so a rare double-count in the same day/via bucket is accepted over silently reclassifying a share as direct.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-public-room-read-lives-in-room-publish-not-a-new-file",
+      "kind": "decision",
+      "title": "publicRoomBySlug (slug -> the four public vy_room columns) lives in api/_room-publish.js, not resolveRoom and not a new file - lighter than loading the agent sheet, and deliberately without api/_creators.js's listed_at condition.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-room-share-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-share/run.mjs: 48/48 offline - the unfurl for published/paused/unknown, a static proof of the closed select list, the arrival upsert's one-row-not-two behaviour, resolveArrivalVia's allowlist, the funnel line's n>=5 floor, four negative controls.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-gate-before-after-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs on the WS-R40 worktree at e7b6a6d: 19/19 before any edit, 19/19 after (room leak battery 81/0 standalone, up from 80/1 mid-development).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-backtick-in-a-sql-comment-hit-a-fifth-time-in-the-same-file-despite-four-prior-writeups",
+      "kind": "rejection",
+      "title": "A markdown-backtick-quoted comment inside api/_replica-full-erasure.js one giant JS template literal SQL statement closed the string early - the FIFTH recorded instance of this exact defect (four prior rejected.md entries, WS-R1/WS-R2/WS-R28/WS-R35, none of which prevented a fifth) despite each naming the fix.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner",
+      "kind": "rejection",
+      "title": "A double-quoted tableApplied(\"vy_room_arrival\") call sitting between two unrelated backtick-quoted JSDoc mentions and the real query's own opening backtick fooled evals/room-leak/run.mjs's naive backtick-pairing scanner into silently reporting no-statement-found for a real, correct query - fixed by naming the string as a constant declared away from any backtick.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13726,6 +13780,71 @@
       "src": "ws-r48-merge-both-added-hunks-broke-two-files-and-the-syntax-loop-was-silenced",
       "rel": "supersedes",
       "dst": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it"
+    },
+    {
+      "src": "ws-r40-share-and-arrival",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r40-share-and-arrival",
+      "rel": "part_of",
+      "dst": "ws-r25-creator-funnel-component"
+    },
+    {
+      "src": "ws-r40-unfurl-is-a-function-only-for-crawlers",
+      "rel": "part_of",
+      "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-share-url-carries-no-sender-identity",
+      "rel": "part_of",
+      "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session",
+      "rel": "part_of",
+      "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-public-room-read-lives-in-room-publish-not-a-new-file",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r40-unfurl-is-a-function-only-for-crawlers",
+      "rel": "measured_by",
+      "dst": "ws-r40-room-share-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r40-share-url-carries-no-sender-identity",
+      "rel": "measured_by",
+      "dst": "ws-r40-room-share-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session",
+      "rel": "measured_by",
+      "dst": "ws-r40-room-share-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r40-room-share-offline-eval-2026-09-04",
+      "rel": "part_of",
+      "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-gate-before-after-2026-09-04",
+      "rel": "part_of",
+      "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-backtick-in-a-sql-comment-hit-a-fifth-time-in-the-same-file-despite-four-prior-writeups",
+      "rel": "caused_by",
+      "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner",
+      "rel": "caused_by",
+      "dst": "ws-r40-share-and-arrival"
     }
   ]
 }
