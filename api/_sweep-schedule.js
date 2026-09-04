@@ -19,7 +19,7 @@ export function sweepNameFromPath(path) {
  * The longest gap that should EVER separate two firings of a standard 5-field
  * cron expression, in milliseconds - not a general cron parser, only the
  * shapes `vercel.json` actually uses in this repo (every-N-minutes,
- * every-N-hours, hourly, and one weekly slot). Returns null for a shape this
+ * every-N-hours, hourly, one daily slot, and one weekly slot). Returns null for a shape this
  * does not recognise, and the caller must treat null as "unknown", never as
  * "never fires" - guessing a number for a schedule this cannot read would be
  * exactly the "read at build time, not guessed" law broken from the inside.
@@ -37,6 +37,12 @@ export function expectedIntervalMs(schedule) {
     const everyHour = hour.match(/^\*\/(\d+)$/);
     if (everyHour && dow === "*") return Number(everyHour[1]) * 3_600_000;
     if (hour === "*" && dow === "*") return 3_600_000; // hourly
+    // One daily slot (`0 H * * *`). WS-R37 first wrote its daily sweep as
+    // `0 */24 * * *` so this parser's every-N-hours arm would read it;
+    // Vercel rejected the deployment (`Invalid value found 24`: an hour step
+    // must be 1..23), so the daily shape is read here instead
+    // (rejected.md#ws-r37-cron-step-of-24-hours-is-not-a-cron).
+    if (/^\d+$/.test(hour) && dow === "*") return 24 * 3_600_000;
     if (/^\d+$/.test(hour) && /^[0-6]$/.test(dow)) return 7 * 24 * 3_600_000; // one weekly slot
   }
   return null;

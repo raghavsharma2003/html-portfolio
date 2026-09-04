@@ -6514,6 +6514,12 @@
       "kind": "measurement",
       "title": "evals/room-doors/run.mjs: 109 assertions, 15 doors, 8 named attack classes plus a door-list-completeness check and static wiring proofs, 0 failures, offline, ~1.8s. Found and fixed 2 real findings. Gate: 16/16 on the untouched tree, 17/17 after (room door battery is the 17th named check).",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-cron-step-of-24-hours-is-not-a-cron",
+      "kind": "rejection",
+      "title": "A daily sweep scheduled as 0 */24 * * * so the ops board could read it; Vercel refused the deployment because an hour step must be 1..23; the parser learned the daily slot instead",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13076,6 +13082,11 @@
       "src": "ws-r38-door-battery-case-counts-2026-09-04",
       "rel": "caused_by",
       "dst": "ws-r38-thread-op-no-live-follower-check"
+    },
+    {
+      "src": "ws-r37-cron-step-of-24-hours-is-not-a-cron",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
     }
   ]
 }

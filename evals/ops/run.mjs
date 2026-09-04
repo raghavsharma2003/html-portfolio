@@ -279,6 +279,14 @@ ok("every one of this repo's 11 crons resolves to a NON-NULL interval (no shape 
 ok("an unrecognised schedule shape (day-of-month) is null, never guessed",
   expectedIntervalMs("0 0 1 * *") === null);
 ok("a malformed schedule string is null, never guessed", expectedIntervalMs("not a cron") === null);
+// The renewals sweep (WS-R37) is daily at midnight. It was first written as
+// `0 */24 * * *`, which Vercel refuses to deploy (an hour step must be 1..23);
+// the parser reads the daily slot shape instead, and the invalid shape stays
+// unrecognised rather than guessed.
+ok("a daily slot (0 0 * * *) is read as 24 hours", expectedIntervalMs("0 0 * * *") === 24 * 3_600_000);
+ok("a daily slot at a fixed hour (0 6 * * *) is read as 24 hours", expectedIntervalMs("0 6 * * *") === 24 * 3_600_000);
+ok("renewals is read as daily from vercel.json", schedules["renewals"]?.expected_interval_ms === 24 * 3_600_000);
+ok("every schedule in vercel.json has an hour step Vercel accepts (1..23)", (schedules && Object.values(schedules).every((s) => { const m = String(s.schedule).split(/\s+/)[1].match(/^\*\/(\d+)$/); return !m || (Number(m[1]) >= 1 && Number(m[1]) <= 23); })));
 
 // ── staleness math ──────────────────────────────────────────────────────
 const NOW = Date.parse("2026-09-10T00:00:00Z");

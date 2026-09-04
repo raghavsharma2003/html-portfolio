@@ -8050,3 +8050,11 @@ and documenting why is itself the correct outcome here, not a consolation
 prize for a fix that "didn't work" — the alternative was shipping a change
 whose full effect on dozens of other suites' own testing conventions was
 unverified in the time this workstream had.
+
+## `ws-r37-cron-step-of-24-hours-is-not-a-cron` (2026-09-04, after the WS-R37 merge)
+
+**Tried:** the renewals sweep's daily schedule was written as `0 */24 * * *` in `vercel.json`, chosen over `0 0 * * *` because `api/_sweep-schedule.js`'s interval parser read every-N-hours shapes and not a fixed daily hour, so the ops board's staleness math could read it. The offline suites passed (the parser accepted it; nothing offline validates a cron field's range). The main loop saw the expression at the merge, thought it odd, and let it through.
+
+**What broke:** Vercel refused to deploy the merged branch on both projects: `Error while validating your Cron Jobs expressions: Invalid value found 24 (0 */24 * * *)`. A step value for the hour field must be 1..23; `*/24` is not a cron expression, and the first thing to reject it was the deployment, after the push.
+
+**Fix:** the schedule is `0 0 * * *`, and the parser gained the one daily slot shape (`0 H * * *` is 24 hours) so the ops board still reads it; `evals/ops/run.mjs` asserts the daily shapes, the renewals entry, and that every hour step in `vercel.json` is within 1..23, so the next invalid step fails offline. Rule: a schedule the parser can read is not the same as a schedule the platform will run; when the two disagree, extend the parser, never bend the schedule.
