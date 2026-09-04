@@ -139,7 +139,7 @@ never ships broken.
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
 leak battery and the room export completeness battery as named gates — and
 18 with it, adding the zero-orphan sweep and citation discipline. Migrations
-071 through 090 are applied live; 091 to 093 are reserved by wave seven; 094
+071 through 093 are applied live; 094 to 097 are reserved by wave eight; 098
 is the next free number. `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
