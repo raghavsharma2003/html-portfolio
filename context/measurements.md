@@ -8697,3 +8697,21 @@ unchanged (the new table is deliberately NOT in `PERSON_TABLES`, on
 strict surface (`api/_payments.js`, `api/_payments/`, `api/payments.js` were
 already strict before this workstream; every new parameter site in this
 workstream's own SQL carries an explicit cast).
+
+## `rooms-migration-098-live-verification-2026-09-04`
+
+n = 1 migration (17 statements in one transaction), 11 API statements plus the erasure delete; method = the live `vy_creator_payout` read first (0 rows, the old `('pending','paid')` state CHECK and the `'pending'` default present, no writer of either value left in `api/`), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, the catalog read back (five CHECKs on the payout table including the widened state set and the new `suite_share_inr <= gross_inr` bound, the `'built'` default, the failed and owner-list indexes; three constraints and the unique `(owner_user_id, provider)` index on the new account table), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_payments.js` added or changed, parameters substituted with typed literals (`::uuid`, `::timestamptz`, `::int4`); date 2026-09-04, at the WS-R36 merge over the WS-R39 tip ab131c2.
+
+| statement | plan |
+|---|---|
+| `runPayoutRollup` (widened, the Suite share folded in) | Insert with `vy_creator_payout_period_ix` as the conflict arbiter over a Full Merge Join of two sorted aggregates: the follower arm by `vy_payment_event_room_ix` on the period bounds then `vy_room_pkey`; the Suite arm a Hash Join of `vy_org_subscription_org_live_ix` (state filter) against a Seq Scan of `vy_room` filtered `org_id is not null` (318 rows planned; the partial `vy_room_org_ix` from 091 exists and the planner declines it at this table size; bounded by the number of Rooms, once per period in the rollup) |
+| `sendPayout` read; the three `built|pending_account ->` transitions; `queued -> sent`; `sent -> settled`; `failed -> built` | `vy_creator_payout_pkey` with the leaving state as the filter, one row each |
+| fund account lookup | `vy_creator_payout_account_owner_provider_ix` on both columns, `verified_at is not null` as the filter |
+| `registerFundAccount` upsert | Insert with the owner-provider unique index as the arbiter, `ON CONFLICT DO UPDATE` |
+| statement main row | pkey with owner as the filter |
+| follower subscription count | `vy_room_owner_ix` then `vy_payment_event_room_ix` on room and the period bounds, `count(distinct)` |
+| Suite name | `vy_room_owner_ix` then `vy_org_pkey`, `limit 1` |
+| the owner's list | Bitmap on `vy_creator_payout_owner_list_ix`, Sort on `period_start desc` |
+| erasure delete of payout accounts | Bitmap on the owner-provider unique index by owner |
+
+Not measured: no payout row exists in any state; no fund account has been registered; the `razorpay` twin's `sendPayout` and `registerFundAccount` have never made a request (NOT VERIFIED in source, WS-R41 closes it against the documents); nobody has seen the Payouts card in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).

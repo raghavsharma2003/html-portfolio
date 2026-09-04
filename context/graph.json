@@ -6388,6 +6388,12 @@
       "kind": "measurement",
       "title": "node scripts/verify-release.mjs: 16/16 on the untouched tree and 16/16 after every WS-R36 file; tsc --noEmit clean; sqlcast 166 tables 0 uncast; persontables 133 tables 74 owner lane 56 manifest entries",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-098-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 098 applied live over an empty payout table and read back; the widened rollup plans as a full merge join of two aggregates, every state transition on the pkey with the leaving state as the filter, the fund account on its unique index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12820,6 +12826,26 @@
       "src": "ws-r36-gate-2026-09-04",
       "rel": "measured_by",
       "dst": "ws-r36-payouts-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r36-suite-share-flat-per-seat-not-ledger-derived",
+      "rel": "measured_by",
+      "dst": "rooms-migration-098-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r36-pending-account-reattempted-via-sendpayout-not-a-second-operator-unlock",
+      "rel": "measured_by",
+      "dst": "rooms-migration-098-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r36-fund-account-ref-verified-not-created-by-the-provider-seam",
+      "rel": "measured_by",
+      "dst": "rooms-migration-098-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r36-payout-account-folded-into-owner-room-payments-receipt-class",
+      "rel": "measured_by",
+      "dst": "rooms-migration-098-live-verification-2026-09-04"
     }
   ]
 }
