@@ -108,10 +108,10 @@ carries six tables (`vy_replica_voice_preview_intent`,
 `vy_replica_expression_observation`) that no file in this tree creates, and
 leaving the range free is what lets that tree merge later without a
 renumbering collision (`context/decisions.md#rooms-migrations-applied-live-in-the-union-order`).
-**Every migration from 076 to 097 was read back from the live catalog at its
-merge; `context/measurements.md` carries a `rooms-migration-0NN-live-verification`
-entry for each. 098 through 101 are reserved by wave nine's worktrees; 102
-is the next free number.** Five legacy tables key `device_id` as TEXT, so
+**Every migration from 076 to 099 and 101 was read back from the live catalog
+at its merge; `context/measurements.md` carries a `rooms-migration-0NN-live-verification`
+entry for each. 100 is deliberately unused (WS-R38's door battery needed no
+schema change); 102 is the next free number.** Five legacy tables key `device_id` as TEXT, so
 never assume a cast.
 
 ## Vyakti Rooms v1 — the adopted product definition (2026-09-02)
@@ -141,9 +141,9 @@ leak battery, the room export completeness battery, and the room door
 battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
 through the real decision modules the thin HTTP doors call) as named gates —
 and 19 with it, adding the zero-orphan sweep and citation discipline.
-Migrations 071 through 097 are applied live; 098 to 101 are reserved by wave
-nine; 102 is the next free number — WS-R38 needed no new migration, every
-finding it fixed was a missing check in existing JS, never a schema change.
+Migrations 071 through 099 and 101 are applied live; 100 is unused (WS-R38
+needed no new migration, every finding it fixed was a missing check in
+existing JS, never a schema change); 102 is the next free number.
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
