@@ -45,6 +45,7 @@ import {
   ROOM_LOCALES,
   normalizeLocale,
   withName,
+  withRetry,
   type RoomCopy,
   type RoomLocale,
 } from "./copy";
@@ -373,6 +374,13 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         setError(copy.errors.stale);
       } else if (cause instanceof RoomApiError && cause.code === "room_message_too_long") {
         setError(copy.errors.tooLong);
+      } else if (cause instanceof RoomApiError && cause.code === "rate_limited") {
+        // WS-R26 (api/_rate-limit.js). The message is handed back, same
+        // posture as the free-cap branch above: a follower who was refused
+        // for going too fast, not for what they said, keeps their draft.
+        setError(withRetry(copy.errors.rateLimited, cause.retryAfterSeconds ?? 60));
+        setDraft(text);
+        setTurns((prev) => prev.slice(0, -1));
       } else {
         setError(copy.errors.generic);
         setTurns((prev) => prev.slice(0, -1));

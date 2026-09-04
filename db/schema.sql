@@ -3659,6 +3659,20 @@ alter table vy_replica_funnel_mark add constraint vy_replica_funnel_mark_step_ch
   check (step in ('studio_opened', 'publish_clicked'));
 create index if not exists vy_replica_funnel_mark_owner_ix
   on vy_replica_funnel_mark (owner_user_id, replica_id);
+-- Migration 089 - abuse limits on the public doors (WS-R26). No
+-- person/device/owner column by construction - a sha256 hash of a caller's
+-- key salted per day, never the raw IP or contact; see that migration's own
+-- header for why it needs no PERSON_TABLES entry and no relcheck exemption.
+create table if not exists vy_public_rate (
+  scope        text not null check (length(scope) > 0 and length(scope) <= 64),
+  key_hash     text not null check (length(key_hash) = 64),
+  window_start timestamptz not null,
+  count        integer not null default 0 check (count >= 0),
+  updated_at   timestamptz not null default now(),
+  primary key (scope, key_hash, window_start)
+);
+create index if not exists vy_public_rate_window_ix
+  on vy_public_rate (window_start);
 -- Migration 090 - the forget receipt (WS-R27): the one row that survives a
 -- follower's "forget me" in a creator's Room. See
 -- db/migrations/090_room_forget_receipt.sql for the full argument; mirrored

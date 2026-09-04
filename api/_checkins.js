@@ -61,6 +61,7 @@ import {
 } from "./_room-surface.js";
 import { activeSubscriptionsFor, revokeSubscriptionById, touchSubscription } from "./_room-push.js";
 import { send as webPushSend, checkinPushPayload } from "./_push/webpush.js";
+import { purgeStalePublicRateWindows } from "./_rate-limit.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -804,6 +805,17 @@ export async function sweep(deps, now = Date.now()) {
       summary.errors++;
       console.error("[checkins sweep] skip-log failure:", error?.message || "unknown");
     }
+  }
+
+  // WS-R26: the abuse-limit windows table's own retention delete, run inside
+  // whichever sweep is cheapest (migration 089's own header names this one -
+  // the 15-minute cron). Best-effort: a purge failure must never fail the
+  // check-ins sweep itself, the same posture withSweepRun's own heartbeat
+  // writes take (api/_sweep-run.js).
+  try {
+    summary.ratePurged = await purgeStalePublicRateWindows(db, now);
+  } catch (error) {
+    console.error("[checkins sweep] rate purge failure:", error?.message || "unknown");
   }
 
   return summary;

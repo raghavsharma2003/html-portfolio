@@ -79,6 +79,21 @@ export const ROOM_LANGUAGE_LABELS: Record<RoomLocale, string> = {
   hi: "हिन्दी",
 };
 
+/** WS-R26 (api/_rate-limit.js's `retryAfterSeconds`). Rounded up to whole
+ *  minutes (never "in 45 seconds" for a one-minute window - a number small
+ *  enough to look like it should have worked reads as a bug report, not an
+ *  explanation) and correctly singular at exactly one minute, the one case a
+ *  bare `{minutes}` substitution would otherwise read "in 1 minutes". */
+export const withRetry = (template: string, retryAfterSeconds: number) => {
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  return template
+    .split("{minutes}")
+    .join(String(minutes))
+    .split("{s}")
+    .join(minutes === 1 ? "" : "s");
+};
+
+
 const EN = {
   /** While the address is resolving. Not a spinner's label: it says what is
    *  happening rather than that something is. */
@@ -232,6 +247,10 @@ const EN = {
     signIn: "Sign in first.",
     stale: "This room was updated. Reload to see what changed.",
     tooLong: "That is longer than one message can be.",
+    // WS-R26. Honest, not a captcha, not a silent drop - workstream law #4.
+    // `withRetry` fills in `{minutes}`/`{s}` from the server's own
+    // `retry_after_seconds`.
+    rateLimited: "Too many attempts from this connection. Try again in {minutes} minute{s}.",
   },
 
   checkins: {
@@ -404,6 +423,8 @@ const HI: typeof EN = {
     signIn: "पहले साइन इन करें।",
     stale: "यह रूम अपडेट हो गया है। बदलाव देखने के लिए फिर लोड करें।",
     tooLong: "यह एक संदेश में जितना हो सकता है उससे ज़्यादा लंबा है।",
+    // WS-R26, Hindi: same fact, minutes as a digit; Hindi needs no plural marker, so {s} is absent.
+    rateLimited: "इस कनेक्शन से बहुत ज़्यादा कोशिशें हुईं। {minutes} मिनट बाद फिर कोशिश करें।",
   },
 
   checkins: {

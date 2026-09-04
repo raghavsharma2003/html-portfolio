@@ -55,12 +55,25 @@ export default async function handler(req, res) {
       rawBody,
       signatureHeader: req.headers?.["x-razorpay-signature"],
       eventRef: req.headers?.["x-razorpay-event-id"],
-    });
+    }, { ip: ipOf(req) });
     obsBestEffort("payments.webhook", { applied: result.applied, replay: result.replay, state: result.state ?? null });
     return res.status(200).json({ ok: true });
   } catch (error) {
     if (error instanceof PaymentsError) {
       console.error("[payments-webhook] refused:", error.code);
+      // WS-R26: the one code that carries a Retry-After header - the
+      // provider (and Telegram's own retry policy one file over) is expected
+      // to try again later, honestly told how much later. Every OTHER
+      // PaymentsError code keeps this handler's existing shape unchanged
+      // (`error.details` was never surfaced here before this workstream, and
+      // still is not for anything but this one code).
+      if (error.code === "rate_limited" && error.details?.retry_after_seconds) {
+        res.setHeader("Retry-After", String(error.details.retry_after_seconds));
+        return res.status(error.status).json({
+          error: error.code,
+          retry_after_seconds: error.details.retry_after_seconds,
+        });
+      }
       return res.status(error.status).json({ error: error.code });
     }
     console.error("[payments-webhook] failure:", error?.message || "unknown");

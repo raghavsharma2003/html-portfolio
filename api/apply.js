@@ -12,6 +12,7 @@
 // reach it - api/checkins.js is this file's own pattern.
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { ApplyError, submitApplication, listApplications, eraseApplicationsByContact } from "./_apply.js";
 import { InvitesError, requireOperator } from "./_invites.js";
@@ -34,6 +35,13 @@ export default async function handler(req, res) {
   try {
     if (op === "submit") {
       if (!allow(ipOf(req), "apply_ip", 10)) return res.status(429).json({ error: "slow_down" });
+      // WS-R26: the persistent second layer - the in-memory gate above
+      // resets on a cold start, this one does not.
+      const gate = await consume(q, { scope: "apply_submit_ip", key: ipOf(req) });
+      if (!gate.ok) {
+        res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+        return res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+      }
       const application = await submitApplication(q, body);
       return res.status(201).json({ application });
     }
