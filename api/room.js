@@ -84,13 +84,12 @@ import {
   roomSpeak,
   roomSetLocale,
   followerHistory,
-  createThread,
+  createFollowerThread,
   roomCitations,
   roomStats,
   roomExport,
   roomForget,
   roomDismissOffer,
-  resolveRoom,
   personForAccount,
   readRoomSession,
 } from "./_room-surface.js";
@@ -295,14 +294,12 @@ export default async function handler(req, res) {
       // The scope comes off the SESSION, never off the body. A `person` or
       // `room` field here would be a field a client could set, which is the
       // whole defect api/_auth.js's first law names.
-      const payload = readRoomSession(body.session);
-      const resolved = await resolveRoom(q, payload.r);
-      const created = await createThread(q, {
-        roomId: resolved.room.room_id,
-        personId: payload.p,
-        agentId: resolved.agentId,
-        title: body.title,
-      });
+      //
+      // WS-R38: `createFollowerThread` (not the bare `createThread` primitive)
+      // so this op gets the SAME session-freshness and live-follower checks
+      // every other session-consuming op here already gets, rather than
+      // trusting a decoded session with nothing in between.
+      const created = await createFollowerThread(q, { session: body.session, title: body.title });
       return res.status(200).json(created);
     }
 

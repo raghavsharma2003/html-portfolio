@@ -1122,6 +1122,28 @@ export async function createThread(db, { roomId, personId, agentId, title }) {
   return { thread_id: rows[0].thread_id, title: rows[0].title, last_message_at: null };
 }
 
+/**
+ * WS-R38 (the door battery). `createThread` above is a low-level primitive —
+ * every OTHER caller in this codebase (evals, `_handoff.js`, `_pulse.js`)
+ * already resolves its own (room, person, agent) some other way and hands it
+ * in directly, so its signature stays exactly as it was. `api/room.js`'s
+ * `thread` op was the ONE caller that fed it straight off a decoded session
+ * with no check in between — no freshness check, and no confirmation that a
+ * `vy_room_follower` row for that (room, person, agent) still exists and is
+ * attested. Every sibling op (`roomSay`, `followerHistory`, `selfScope`)
+ * requires both before it will touch a table; this door did not, so a
+ * signed-but-stale session, or one whose follower row `roomForget` already
+ * deleted, could still mint a brand-new `vy_room_thread` row — an orphan no
+ * export or forget sweep would ever be asked to find again, because nothing
+ * ties it back to a follower who, by the time it was created, no longer had
+ * one. This is the session-consuming door `createThread` should have been
+ * reached through all along; `api/room.js` now calls this instead.
+ */
+export async function createFollowerThread(db, { session, title }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  return createThread(db, { roomId: who.roomId, personId: who.personId, agentId: who.agentId, title });
+}
+
 /** THE THREAD SCOPE PREDICATE. Person and agent are in the WHERE clause, before
  *  anything is returned - not checked afterwards in JS. This is the clause the
  *  offline suite's negative control STRIKES, and the suite fails unless the
