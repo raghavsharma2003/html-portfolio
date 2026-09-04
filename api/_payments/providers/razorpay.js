@@ -75,7 +75,7 @@ function basicAuthHeader(keyId, keySecret) {
  *  no "create a subscription with an inline amount" call, only plan-then-
  *  subscribe. Never called from an offline eval; PAYMENTS_PROVIDER=fake takes
  *  that lane instead. */
-async function ensurePlan(priceInr, secrets) {
+async function ensurePlan(priceInr, label, secrets) {
   const r = await fetch(`${API}/plans`, {
     method: "POST",
     headers: {
@@ -85,7 +85,7 @@ async function ensurePlan(priceInr, secrets) {
     body: JSON.stringify({
       period: "monthly",
       interval: 1,
-      item: { name: `Vyakti Room ${priceInr} INR/month`, amount: priceInr * 100, currency: "INR" },
+      item: { name: `Vyakti ${label} ${priceInr} INR/month`, amount: priceInr * 100, currency: "INR" },
     }),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
@@ -96,15 +96,19 @@ async function ensurePlan(priceInr, secrets) {
 }
 
 /**
- * Create a subscription. `input`: { priceInr, roomSlug, followerId }.
- * `secrets`: { keyId, keySecret } from the channel-secret backend seam.
- * Returns { provider_subscription_ref, checkout_url, status }.
+ * Create a subscription. `input`: { priceInr, label, ref } - WS-R33's own
+ * generalisation of the original `{priceInr, roomSlug, followerId}` shape
+ * (see fake.js's own header): `label` names what this subscription is FOR
+ * (a Room's slug, a Suite's slug, a creator tier's plan name), `ref` names
+ * WHO it is for (a follower id, an org id, a replica id). `secrets`:
+ * { keyId, keySecret } from the channel-secret backend seam. Returns
+ * { provider_subscription_ref, checkout_url, status }.
  */
 export async function createSubscription(input, secrets) {
   if (!secrets?.keyId || !secrets?.keySecret) {
     throw Object.assign(new Error("payments_provider_credentials_missing"), { code: "payments_provider_credentials_missing", status: 503 });
   }
-  const planId = await ensurePlan(input.priceInr, secrets);
+  const planId = await ensurePlan(input.priceInr, String(input.label || "subscription"), secrets);
   const r = await fetch(`${API}/subscriptions`, {
     method: "POST",
     headers: {
@@ -118,7 +122,7 @@ export async function createSubscription(input, secrets) {
       // count and this provider's own contract is "unlimited within fair
       // use", so the ceiling is a long one rather than a real limit
       quantity: 1,
-      notes: { room_slug: String(input.roomSlug || ""), follower_id: String(input.followerId || "") },
+      notes: { label: String(input.label || ""), ref: String(input.ref || "") },
     }),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
@@ -126,6 +130,35 @@ export async function createSubscription(input, secrets) {
   const body = await r.json().catch(() => ({}));
   if (!body?.id) throw Object.assign(new Error("payments_provider_subscription_failed"), { code: "payments_provider_subscription_failed", status: 502 });
   return { provider_subscription_ref: body.id, checkout_url: body.short_url || null, status: body.status || "created" };
+}
+
+/**
+ * Change a subscription's seat quantity - the Suite lane's own operation
+ * (WS-R33). `PATCH /v1/subscriptions/:id` accepting `{quantity}` is
+ * Razorpay's documented way to change a running subscription's billed
+ * quantity, prorating the current cycle on their side - NOT VERIFIED, named
+ * rather than implied per this file's own header: no fresh doc fetch was
+ * performed for this endpoint in this session (unlike every endpoint above,
+ * each pinned with the date it was read), and nothing here has ever made a
+ * real request. Shaped from the same PATCH-a-running-subscription convention
+ * `cancelSubscription` above already uses for `/cancel`.
+ */
+export async function updateSubscriptionQuantity(providerSubscriptionRef, quantity, secrets) {
+  if (!secrets?.keyId || !secrets?.keySecret) {
+    throw Object.assign(new Error("payments_provider_credentials_missing"), { code: "payments_provider_credentials_missing", status: 503 });
+  }
+  const r = await fetch(`${API}/subscriptions/${encodeURIComponent(providerSubscriptionRef)}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: basicAuthHeader(secrets.keyId, secrets.keySecret),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ quantity: Number(quantity), schedule_change_at: "now" }),
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!r || !r.ok) throw Object.assign(new Error("payments_provider_seat_update_failed"), { code: "payments_provider_seat_update_failed", status: 502 });
+  const body = await r.json().catch(() => ({}));
+  return { ok: true, quantity: Number(body?.quantity ?? quantity) };
 }
 
 export async function cancelSubscription(providerSubscriptionRef, secrets) {

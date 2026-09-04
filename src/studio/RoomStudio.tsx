@@ -57,9 +57,11 @@ import { roomSuite, type SuiteRoomStatus } from "./orgApi";
 import {
   readRoomPayments,
   setRoomPriceInr,
+  startCreatorTierSubscription,
   PaymentsApiError,
   type RoomPrice,
   type RoomRevenue,
+  type CreatorTierStatus,
 } from "./paymentsApi";
 import { readPulse, setPulseTopics, PulseApiError, type PulseReport } from "./pulseApi";
 import { markFunnelStep } from "./funnelApi";
@@ -171,12 +173,13 @@ export default function RoomStudio({
   const [cohortError, setCohortError] = useState(false);
   const [price, setPrice] = useState<RoomPrice | null>(null);
   const [revenue, setRevenue] = useState<RoomRevenue | null>(null);
+  const [creatorTier, setCreatorTier] = useState<CreatorTierStatus | null>(null);
   const [pulse, setPulse] = useState<PulseReport | null>(null);
   const [pulseError, setPulseError] = useState(false);
   const [suiteStatus, setSuiteStatus] = useState<SuiteRoomStatus | null>(null);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
@@ -235,6 +238,7 @@ export default function RoomStudio({
         const payments = await readRoomPayments(token, replicaId).catch(() => null);
         setPrice(payments?.price ?? null);
         setRevenue(payments?.revenue ?? null);
+        setCreatorTier(payments?.creator_tier ?? null);
         setPriceDraft(payments?.price?.follower_price_inr ?? PRICE_MIN_INR);
         // WS-R28. Which Suite (if any) this Room belongs to - a card that
         // cannot see this still lets the creator publish and run their Room,
@@ -441,6 +445,23 @@ export default function RoomStudio({
     [token, replicaId, fail],
   );
 
+  const startTier = useCallback(
+    async (plan: "room" | "studio") => {
+      setBusy("creator_tier");
+      setError("");
+      try {
+        const subscription = await startCreatorTierSubscription(token, replicaId, plan);
+        setCreatorTier((prev) => (prev ? { ...prev, tier: subscription?.state === "active" ? plan : prev.tier, subscription } : prev));
+        setNotice("Your tier subscription has started.");
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
   const saveTopics = useCallback(
     async (next: string[]) => {
       setBusy("topics");
@@ -565,6 +586,42 @@ export default function RoomStudio({
         </div>
         {suiteStatus && (
           <p className="field-note vy-room__suite-note">Part of {suiteStatus.name}.</p>
+        )}
+        {creatorTier && (
+          creatorTier.tier === "covered_by_suite" ? (
+            <p className="field-note vy-room__suite-note">
+              Your seat in {suiteStatus?.name ?? "your Suite"} covers this Room.
+            </p>
+          ) : creatorTier.tier === "free" ? (
+            <div className="vy-room__cap-row" role="group" aria-label="Tier">
+              <span className="field-note">Your tier: free capacity.</span>
+              <button
+                className="button secondary-button"
+                type="button"
+                disabled={busy === "creator_tier"}
+                onPointerDown={() => void startTier("room")}
+              >
+                {busy === "creator_tier" ? "Working..." : `Upgrade to Room (${inr(4999)}/mo)`}
+              </button>
+              <button
+                className="button secondary-button"
+                type="button"
+                disabled={busy === "creator_tier"}
+                onPointerDown={() => void startTier("studio")}
+              >
+                {busy === "creator_tier" ? "Working..." : `Upgrade to Studio (${inr(19999)}/mo)`}
+              </button>
+            </div>
+          ) : (
+            // `creatorTier.tier` only ever names a plan ("room"/"studio")
+            // when the subscription behind it is 'active' -
+            // api/_creator-tier.js's own `creatorTierFromRows` returns
+            // "free" for every other state, so this line never needs to
+            // qualify itself with a pending or lapsed state.
+            <p className="field-note vy-room__suite-note">
+              Your tier: {creatorTier.tier === "room" ? "Room" : "Studio"}.
+            </p>
+          )
         )}
 
         <label className="field-label" htmlFor="room-slug">Change the address</label>

@@ -14,6 +14,23 @@ export interface Suite {
 export interface MySuite extends Suite {
   role: "admin" | "creator";
   seats_used: number;
+  /** WS-R33: the coalesced cap - an active subscription's own seats, 0 once
+   *  one has lapsed, or `seat_limit` when none was ever started. What the
+   *  attach predicate actually enforces; never the same as `seat_limit`
+   *  once a subscription exists. */
+  seats_paid: number;
+}
+
+export interface SuiteSubscription {
+  subscription_id: string;
+  plan: "starter" | "institute";
+  seats: number;
+  price_per_seat_inr: number;
+  currency: string;
+  state: "created" | "authenticated" | "active" | "paused" | "cancelled" | "expired";
+  provider: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
 }
 
 export interface SuiteMember {
@@ -93,3 +110,12 @@ export const suiteMembers = (token: string, orgId: string) =>
 
 export const roomSuite = (token: string, replicaId: string) =>
   post<{ org: SuiteRoomStatus | null }>(token, { op: "room_status", replica_id: replicaId }).then((r) => r.org);
+
+export const suiteSubscription = (token: string, orgId: string) =>
+  post<{ org_id: string; subscription: SuiteSubscription | null }>(token, { op: "subscription", org_id: orgId }).then((r) => r.subscription);
+
+export const startSuiteSubscription = (token: string, orgId: string, plan: "starter" | "institute", seats: number) =>
+  post<{ subscription: SuiteSubscription }>(token, { op: "start_subscription", org_id: orgId, plan, seats }).then((r) => r.subscription);
+
+export const updateSuiteSeats = (token: string, orgId: string, seats: number) =>
+  post<{ subscription: SuiteSubscription }>(token, { op: "update_seats", org_id: orgId, seats }).then((r) => r.subscription);

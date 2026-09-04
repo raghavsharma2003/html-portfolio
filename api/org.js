@@ -10,6 +10,8 @@
 //   POST {op:"detach_room",     room_id}
 //   POST {op:"board",           org_id}
 //   POST {op:"subscription",    org_id}
+//   POST {op:"start_subscription", org_id, plan, seats}   (WS-R33)
+//   POST {op:"update_seats",    org_id, seats}            (WS-R33)
 //   POST {op:"list_mine"}
 //   POST {op:"members",         org_id}
 //   POST {op:"room_status",     replica_id}
@@ -29,6 +31,7 @@ import {
   listOrgMembers,
   roomSuiteStatus,
 } from "./_org.js";
+import { PaymentsError, startOrgSubscription, updateOrgSeats } from "./_payments.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -83,6 +86,14 @@ export default async function handler(req, res) {
       const subscription = await orgSubscriptionStatus(q, user.id, body.org_id);
       return res.status(200).json(subscription);
     }
+    if (op === "start_subscription") {
+      const subscription = await startOrgSubscription(q, { ownerUserId: user.id, orgId: body.org_id, plan: body.plan, seats: body.seats });
+      return res.status(200).json({ subscription });
+    }
+    if (op === "update_seats") {
+      const subscription = await updateOrgSeats(q, { ownerUserId: user.id, orgId: body.org_id, seats: body.seats });
+      return res.status(200).json({ subscription });
+    }
     if (op === "list_mine") {
       return res.status(200).json({ orgs: await listMyOrgs(q, user.id) });
     }
@@ -96,6 +107,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {
     if (error instanceof OrgError) {
+      return res.status(error.status).json({ error: error.code, ...(error.details ? { details: error.details } : {}) });
+    }
+    if (error instanceof PaymentsError) {
       return res.status(error.status).json({ error: error.code, ...(error.details ? { details: error.details } : {}) });
     }
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });

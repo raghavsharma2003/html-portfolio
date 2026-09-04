@@ -106,6 +106,15 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // deliberately outlives this erasure - see migration 091's header -
       // so this class names only the MEMBERSHIP, never the organisation.
       "owner_org_membership",
+      // 095 (WS-R33). A creator's own tier subscription is its own class
+      // rather than folded into `owner_room_payments`: it is a record of
+      // what the OWNER pays the platform for capacity, distinct in kind
+      // from `owner_room_payments`'s record of what FOLLOWERS pay a Room -
+      // one is money going out, the other money coming in - and a receipt
+      // that did not name it separately would answer a narrower question
+      // than the one asked. Additive; the eval asserts membership, never
+      // the exact list.
+      "owner_creator_tier_subscription",
     ]),
   });
 }
@@ -556,6 +565,18 @@ export async function completeReplicaErasure(db, lease, receipt) {
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      creator_payouts as (delete from vy_creator_payout x using target t
        where x.owner_user_id=t.owner_user_id),
+     -- 095 (WS-R33), the creator's own tier subscription. Owner lane, NOT
+     -- person lane (this migration's own header restates the argument):
+     -- it is a record of what the OWNER pays the platform for capacity, not
+     -- a relationship with any person, so it is deleted BY NAME here rather
+     -- than through api/memory.js's PERSON_TABLES manifest. Scoped by BOTH
+     -- replica_id and owner_user_id directly - unlike vy_creator_payout two
+     -- lines up, this table carries its own replica_id column, so it is
+     -- exact rather than the owner-wide imprecision that table's own header
+     -- names: erasing one replica erases only that replica's own tier
+     -- subscription, never a sibling replica's.
+     creator_subscriptions as (delete from vy_creator_subscription x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 086 (WS-R23), creator invites. vy_creator_invite has no room_id and no
      -- replica_id of its own - an invite is redeemed once, before any room
      -- exists, so it is scoped by owner_user_id alone, creator_payouts' own

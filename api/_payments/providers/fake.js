@@ -1,26 +1,45 @@
-// The fake provider (WS-R11) - the offline twin of razorpay.js, same
-// interface, same signature ALGORITHM (HMAC-SHA256 over the raw body), zero
-// network. Selected by `PAYMENTS_PROVIDER=fake`; used by evals/payments/run.mjs
-// to drive api/_payments.js's real code with no live account, and safe to run
-// against a staging deployment for the same reason api/_channel-secrets.js's
+// The fake provider (WS-R11, widened WS-R33) - the offline twin of
+// razorpay.js, same interface, same signature ALGORITHM (HMAC-SHA256 over
+// the raw body), zero network. Selected by `PAYMENTS_PROVIDER=fake`; used by
+// evals/payments/run.mjs and evals/org-billing/run.mjs to drive
+// api/_payments.js's real code with no live account, and safe to run against
+// a staging deployment for the same reason api/_channel-secrets.js's
 // backends exist as named alternatives rather than a single hardcoded vendor.
 //
-// Deterministic on purpose: the same (roomSlug, followerId, priceInr) always
-// mints the same reference, so a retried "subscribe" request during a flaky
-// network is idempotent at the PROVIDER layer too, not only at
-// api/_payments.js's own database layer.
+// `input` is a GENERIC subscription-for-anything shape: `{priceInr, label,
+// ref}`. `label` names what this subscription is FOR (a Room's own slug, a
+// Suite's own slug, a creator tier's plan name) and `ref` names WHO it is
+// for (a follower id, an org id, a replica id) - WS-R33's own widening of
+// WS-R11's original `{priceInr, roomSlug, followerId}` shape, one seam for
+// every lane rather than a second provider client per lane (the workstream
+// brief's own law 1).
+//
+// Deterministic on purpose: the same (label, ref, priceInr) always mints the
+// same reference, so a retried "subscribe" request during a flaky network is
+// idempotent at the PROVIDER layer too, not only at api/_payments.js's own
+// database layer.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const name = "fake";
 
 export async function createSubscription(input) {
-  const seed = `${input.roomSlug || ""}:${input.followerId || ""}:${input.priceInr || 0}`;
+  const seed = `${input.label || ""}:${input.ref || ""}:${input.priceInr || 0}`;
   const ref = `fake_sub_${createHash("sha256").update(seed).digest("hex").slice(0, 24)}`;
   return { provider_subscription_ref: ref, checkout_url: `https://fake-provider.invalid/pay/${ref}`, status: "created" };
 }
 
 export async function cancelSubscription(_providerSubscriptionRef) {
   return { ok: true };
+}
+
+/** Change a subscription's seat quantity - the Suite lane's own operation,
+ *  WS-R33: "adding a seat is a subscription update through the seam,
+ *  prorated by the provider, never by us." No proration happens in the fake
+ *  twin (nothing to prorate against, offline) - it exists to prove the CALL
+ *  SHAPE and the caller's own handling of the response, `cancelSubscription`'s
+ *  own scope one function up. */
+export async function updateSubscriptionQuantity(_providerSubscriptionRef, quantity) {
+  return { ok: true, quantity: Number(quantity) };
 }
 
 /** Byte-identical algorithm to razorpay.js's, so a suite proving "a bad

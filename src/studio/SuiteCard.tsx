@@ -14,12 +14,21 @@ import {
   detachRoomFromSuite,
   listMySuites,
   suiteMembers,
+  suiteSubscription,
+  startSuiteSubscription,
+  updateSuiteSeats,
   OrgApiError,
   type MySuite,
   type SuiteMember,
+  type SuiteSubscription,
 } from "./orgApi";
 
 const NAME_MAX = 120;
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+/** Mirrors api/_payments.js's own PLATFORM_TAKE_BP_DEFAULT (2500 = 25.00%) -
+ *  shown as the same one number every other money card in this studio
+ *  already quotes, never a second figure invented for the Suite lane. */
+const PLATFORM_TAKE_PERCENT = 25;
 
 function readableError(e: unknown, fallback: string): string {
   return e instanceof OrgApiError ? e.code.replaceAll("_", " ") : fallback;
@@ -53,6 +62,11 @@ export default function SuiteCard({
   const [openMembers, setOpenMembers] = useState<string | null>(null);
   const [members, setMembers] = useState<SuiteMember[] | null>(null);
   const [joinOrgId, setJoinOrgId] = useState("");
+  const [openMoney, setOpenMoney] = useState<string | null>(null);
+  // undefined: not loaded yet (show "Loading money"). null: loaded, no
+  // subscription exists yet. A SuiteSubscription: loaded and real.
+  const [subscription, setSubscription] = useState<SuiteSubscription | null | undefined>(undefined);
+  const [seatEditDraft, setSeatEditDraft] = useState(1);
 
   const load = useCallback(async () => {
     try {
@@ -173,6 +187,62 @@ export default function SuiteCard({
     [token, openMembers],
   );
 
+  const toggleMoney = useCallback(
+    async (orgId: string, seats_used: number) => {
+      if (openMoney === orgId) {
+        setOpenMoney(null);
+        return;
+      }
+      setOpenMoney(orgId);
+      setSubscription(undefined);
+      try {
+        const sub = await suiteSubscription(token, orgId);
+        setSubscription(sub);
+        setSeatEditDraft(Math.max(sub?.seats ?? seats_used, seats_used, 1));
+      } catch (e) {
+        setError(readableError(e, "could not load this Suite's money"));
+      }
+    },
+    [token, openMoney],
+  );
+
+  const startMoney = useCallback(
+    async (orgId: string, plan: "starter" | "institute", seats: number) => {
+      setBusy(`start-money-${orgId}`);
+      setError("");
+      setNotice("");
+      try {
+        const sub = await startSuiteSubscription(token, orgId, plan, seats);
+        setSubscription(sub);
+        setNotice("Suite subscription started.");
+      } catch (e) {
+        setError(readableError(e, "could not start this Suite's subscription"));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token],
+  );
+
+  const addSeat = useCallback(
+    async (orgId: string, seats: number) => {
+      setBusy(`seats-${orgId}`);
+      setError("");
+      setNotice("");
+      try {
+        const sub = await updateSuiteSeats(token, orgId, seats);
+        setSubscription(sub);
+        await load();
+        setNotice("Seats updated.");
+      } catch (e) {
+        setError(readableError(e, "could not update seats"));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, load],
+  );
+
   return (
     <article className="teacher-sheet-card vy-room__suite-card">
       <h3>Suites</h3>
@@ -189,7 +259,7 @@ export default function SuiteCard({
               <div className="vy-room__suite-row-head">
                 <span className="vy-room__suite-name">{s.name}</span>
                 <span className="vy-room__suite-seats">
-                  {s.seats_used} of {s.seat_limit} seats used - {s.role === "admin" ? "you administer this Suite" : "you are a member"}
+                  {s.seats_used} of {s.seats_paid} seats used - {s.role === "admin" ? "you administer this Suite" : "you are a member"}
                 </span>
               </div>
               <div className="vy-room__suite-actions">
@@ -210,16 +280,23 @@ export default function SuiteCard({
                     >
                       {openMembers === s.org_id ? "Hide members" : "Show members"}
                     </button>
+                    <button
+                      className="button secondary-button"
+                      type="button"
+                      onPointerDown={() => void toggleMoney(s.org_id, s.seats_used)}
+                    >
+                      {openMoney === s.org_id ? "Hide money" : "Show money"}
+                    </button>
                     {roomId && roomOrgId !== s.org_id && (
                       <button
                         className="button primary-button"
                         type="button"
-                        disabled={busy === `attach-${s.org_id}` || Boolean(roomOrgId) || s.seats_used >= s.seat_limit}
+                        disabled={busy === `attach-${s.org_id}` || Boolean(roomOrgId) || s.seats_used >= s.seats_paid}
                         onPointerDown={() => void attach(s.org_id)}
                       >
                         {busy === `attach-${s.org_id}`
                           ? "Working..."
-                          : s.seats_used >= s.seat_limit
+                          : s.seats_used >= s.seats_paid
                             ? "No seat free"
                             : "Attach this Room"}
                       </button>
@@ -246,6 +323,59 @@ export default function SuiteCard({
                   </ul>
                 ) : (
                   <p className="field-note" role="status">Loading members.</p>
+                )
+              )}
+              {openMoney === s.org_id && (
+                subscription !== undefined ? (
+                  <div className="vy-room__suite-money">
+                    {subscription ? (
+                      <>
+                        <p className="field-note">
+                          {subscription.seats} seats at {inr(subscription.price_per_seat_inr)} a month each - state: {subscription.state}.
+                        </p>
+                        {subscription.state === "active" && subscription.current_period_end && (
+                          <p className="field-note">
+                            Next charge: {inr(subscription.seats * subscription.price_per_seat_inr)} on{" "}
+                            {new Date(subscription.current_period_end).toLocaleDateString()}.
+                          </p>
+                        )}
+                        <p className="field-note">Vyakti's platform take is {PLATFORM_TAKE_PERCENT}%, the same as every Room's own follower price.</p>
+                        <div className="vy-room__cap-row" role="group" aria-label="Add seats">
+                          <input
+                            className="field vy-room__cap-field"
+                            type="number"
+                            min={1}
+                            max={500}
+                            value={seatEditDraft}
+                            onChange={(event) => setSeatEditDraft(Math.max(1, Math.min(500, Number(event.target.value) || 1)))}
+                          />
+                          <button
+                            className="button secondary-button"
+                            type="button"
+                            disabled={busy === `seats-${s.org_id}` || seatEditDraft === subscription.seats}
+                            onPointerDown={() => void addSeat(s.org_id, seatEditDraft)}
+                          >
+                            {busy === `seats-${s.org_id}` ? "Working..." : "Update seats"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="field-note">No Suite subscription yet. Seats stay capped at this Suite's own free seat limit until one starts.</p>
+                        <p className="field-note">Vyakti's platform take is {PLATFORM_TAKE_PERCENT}%, the same as every Room's own follower price.</p>
+                        <button
+                          className="button primary-button"
+                          type="button"
+                          disabled={busy === `start-money-${s.org_id}`}
+                          onPointerDown={() => void startMoney(s.org_id, s.plan, Math.max(s.seats_used, 1))}
+                        >
+                          {busy === `start-money-${s.org_id}` ? "Working..." : "Start Suite subscription"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="field-note" role="status">Loading money.</p>
                 )
               )}
             </li>

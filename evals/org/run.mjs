@@ -94,6 +94,26 @@ function seedTwoOrgsTwoRooms(state) {
   );
 }
 
+// WS-R33: mirrors api/_org.js's `seatCapSql` exactly (an active
+// subscription's own seats; 0 once one has lapsed; `seat_limit` when none
+// was ever started or the only one is still pending) so this suite's
+// existing fixtures - none of which seed `orgSubscriptions` - keep behaving
+// exactly as before (fall through to `seat_limit`), while staying
+// consistent with the coalesce logic evals/org-billing/run.mjs proves in
+// depth.
+function effectiveSeatCap(org, state) {
+  if (!org) return null;
+  const subs = state.orgSubscriptions
+    .filter((s) => s.org_id === org.org_id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const latest = subs[0];
+  if (latest) {
+    if (latest.state === "active") return Number(latest.seats);
+    if (["paused", "cancelled", "expired"].includes(latest.state)) return 0;
+  }
+  return Number(org.seat_limit);
+}
+
 function orgDb(state) {
   const db = async (sql, params = []) => {
     const has = (s) => sql.includes(s);
@@ -130,7 +150,7 @@ function orgDb(state) {
       const isAdmin = state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === adminId && m.role === "admin");
       if (!isAdmin) return [];
       const org = state.orgs.find((o) => o.org_id === orgId);
-      return org ? [org] : [];
+      return org ? [{ ...org, seats_paid: effectiveSeatCap(org, state) }] : [];
     }
 
     // ── inviteMember's admin-check select ───────────────────────────────
@@ -152,7 +172,7 @@ function orgDb(state) {
       const isAdmin = state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === adminId && m.role === "admin");
       const creatorMember = state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === room.owner_user_id && m.role === "creator");
       const seatsUsed = state.rooms.filter((r) => r.org_id === orgId).length;
-      if (!isAdmin || !creatorMember || seatsUsed >= Number(org.seat_limit)) return [];
+      if (!isAdmin || !creatorMember || seatsUsed >= Number(effectiveSeatCap(org, state))) return [];
       room.org_id = orgId;
       return [{ room_id: room.room_id, org_id: room.org_id, slug: room.slug }];
     }
@@ -168,7 +188,7 @@ function orgDb(state) {
         is_admin: state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === adminId && m.role === "admin"),
         creator_member: room ? state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === room.owner_user_id && m.role === "creator") : false,
         seats_used: state.rooms.filter((r) => r.org_id === orgId).length,
-        seat_limit: org ? org.seat_limit : null,
+        seat_limit: org ? effectiveSeatCap(org, state) : null,
       }];
     }
 
@@ -245,7 +265,7 @@ function orgDb(state) {
         .filter((m) => m.owner_user_id === ownerId)
         .map((m) => {
           const org = state.orgs.find((o) => o.org_id === m.org_id);
-          return { ...org, role: m.role, seats_used: state.rooms.filter((r) => r.org_id === m.org_id).length };
+          return { ...org, role: m.role, seats_used: state.rooms.filter((r) => r.org_id === m.org_id).length, seats_paid: effectiveSeatCap(org, state) };
         });
     }
 

@@ -3233,12 +3233,18 @@ create unique index if not exists vy_room_subscription_follower_live_ix
   where state in ('created','authenticated','active','paused');
 create index if not exists vy_room_subscription_follower_ix on vy_room_subscription (follower_id, created_at desc);
 
+-- Migration 095 (WS-R33) widened this table with a Suite lane: room_id and
+-- subscription_id (the follower lane) are now NULLABLE, and org_id/
+-- org_subscription_id (the Suite lane) were added, with a CHECK making the
+-- two lanes mutually exclusive - see that migration's own header.
 create table if not exists vy_payment_event (
   event_id            uuid primary key default gen_random_uuid(),
   provider             text not null,
   provider_event_ref   text not null,
-  room_id              uuid not null references vy_room(room_id) on delete cascade,
-  subscription_id      uuid not null references vy_room_subscription(subscription_id) on delete cascade,
+  room_id              uuid references vy_room(room_id) on delete cascade,
+  subscription_id      uuid references vy_room_subscription(subscription_id) on delete cascade,
+  org_id               uuid references vy_org(org_id) on delete set null,
+  org_subscription_id  uuid references vy_org_subscription(subscription_id) on delete cascade,
   kind                 text not null,
   amount_inr           integer not null default 0,
   platform_take_inr    integer not null default 0,
@@ -3257,11 +3263,17 @@ create table if not exists vy_payment_event (
     check (amount_inr >= 0 and platform_take_inr >= 0 and creator_share_inr >= 0),
   constraint vy_payment_event_split_sums check (platform_take_inr + creator_share_inr = amount_inr),
   constraint vy_payment_event_signature_verified check (signature_verified = true),
-  constraint vy_payment_event_payload_hash check (payload_hash ~ '^[0-9a-f]{64}$')
+  constraint vy_payment_event_payload_hash check (payload_hash ~ '^[0-9a-f]{64}$'),
+  constraint vy_payment_event_one_lane check (
+    (room_id is not null and subscription_id is not null and org_id is null and org_subscription_id is null)
+    or
+    (room_id is null and subscription_id is null and org_id is not null and org_subscription_id is not null)
+  )
 );
 create unique index if not exists vy_payment_event_provider_ref_ix on vy_payment_event (provider, provider_event_ref);
 create index if not exists vy_payment_event_subscription_ix on vy_payment_event (subscription_id, received_at desc);
 create index if not exists vy_payment_event_room_ix on vy_payment_event (room_id, received_at desc);
+create index if not exists vy_payment_event_org_ix on vy_payment_event (org_id, received_at desc) where org_id is not null;
 
 create table if not exists vy_creator_payout (
   payout_id      uuid primary key default gen_random_uuid(),
@@ -3745,6 +3757,34 @@ create unique index if not exists vy_org_subscription_provider_ref_ix
   on vy_org_subscription (provider, provider_subscription_ref)
   where provider_subscription_ref is not null;
 create index if not exists vy_org_subscription_org_ix on vy_org_subscription (org_id, created_at desc);
+
+-- Migration 095 (WS-R33). The creator tier subscription - what a creator
+-- pays for capacity, owner lane (deleted by name in
+-- api/_replica-full-erasure.js, never in api/memory.js's PERSON_TABLES).
+create table if not exists vy_creator_subscription (
+  subscription_id            uuid primary key default gen_random_uuid(),
+  owner_user_id              uuid not null,
+  replica_id                 uuid not null,
+  plan                       text not null check (plan in ('room', 'studio')),
+  price_inr                  integer not null check (price_inr > 0),
+  currency                   text not null default 'INR' check (currency = 'INR'),
+  state                      text not null default 'created'
+                             check (state in ('created', 'authenticated', 'active', 'paused', 'cancelled', 'expired')),
+  provider                   text not null check (provider in ('razorpay', 'fake')),
+  provider_subscription_ref  text,
+  current_period_start       timestamptz,
+  current_period_end         timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+create unique index if not exists vy_creator_subscription_replica_live_ix
+  on vy_creator_subscription (replica_id)
+  where state in ('created', 'authenticated', 'active', 'paused');
+create unique index if not exists vy_creator_subscription_provider_ref_ix
+  on vy_creator_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create index if not exists vy_creator_subscription_owner_replica_ix
+  on vy_creator_subscription (owner_user_id, replica_id, created_at desc);
 
 -- Migration 092 - check-ins over WhatsApp utility templates (WS-R29). See
 -- db/migrations/092_room_whatsapp.sql for the full argument; mirrored here

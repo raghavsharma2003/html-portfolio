@@ -1,16 +1,23 @@
-// The Room's money, owner side (WS-R11).
+// The Room's money, owner side (WS-R11; the creator tier read/write, WS-R33).
 //
-//   GET  /api/payments?replica_id=…                this room's price + revenue
-//   POST /api/payments {op:"set_price", price_inr}  set the follower price
+//   GET  /api/payments?replica_id=…                     this room's price,
+//                                                        revenue and the
+//                                                        caller's own
+//                                                        creator tier state
+//   POST /api/payments {op:"set_price", price_inr}       set the follower price
+//   POST /api/payments {op:"start_creator_subscription",
+//                        plan}                           WS-R33
 //
 // Thin by construction, api/room-publish.js's own shape: cors, rate limit,
-// auth, dispatch, error shape. Every decision lives in api/_payments.js,
-// where a fake `db` can reach it.
+// auth, dispatch, error shape. Every decision lives in api/_payments.js and
+// api/_creator-tier.js, where a fake `db` can reach it.
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
-import { PaymentsError, getRoomPrice, setRoomPrice, ownerRevenue } from "./_payments.js";
+import { PaymentsError, getRoomPrice, setRoomPrice, ownerRevenue, startCreatorSubscription } from "./_payments.js";
+import { readCreatorTier } from "./_creator-tier.js";
+import { OrgError } from "./_org.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -43,10 +50,12 @@ export default async function handler(req, res) {
         // whether `revenue` came back at all.
         const revenue = await ownerRevenue(q, user.id, replicaId);
         if (revenue === null) return notFound(res);
-        return res.status(200).json({ price: null, revenue });
+        const creator_tier = await readCreatorTier(q, user.id, replicaId);
+        return res.status(200).json({ price: null, revenue, creator_tier });
       }
       const revenue = await ownerRevenue(q, user.id, replicaId);
-      return res.status(200).json({ price, revenue });
+      const creator_tier = await readCreatorTier(q, user.id, replicaId);
+      return res.status(200).json({ price, revenue, creator_tier });
     }
 
     const body = req.body || {};
@@ -59,11 +68,19 @@ export default async function handler(req, res) {
       obsBestEffort("payments.set_price", { price_inr: price.follower_price_inr });
       return res.status(200).json({ price });
     }
+    if (op === "start_creator_subscription") {
+      const subscription = await startCreatorSubscription(q, { ownerUserId: user.id, replicaId, plan: body.plan });
+      obsBestEffort("payments.start_creator_subscription", { plan: body.plan });
+      return res.status(200).json({ subscription });
+    }
 
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });
     if (error instanceof PaymentsError) {
+      return res.status(error.status).json({ error: error.code, ...(error.details ? { details: error.details } : {}) });
+    }
+    if (error instanceof OrgError) {
       return res.status(error.status).json({ error: error.code, ...(error.details ? { details: error.details } : {}) });
     }
     console.error("[payments] failure:", error?.message || "unknown");

@@ -46,6 +46,19 @@
 // write, `api/_provider-budget.js`'s reservation shape one file over - so
 // "paid" can never mean anything other than "a subscription row this
 // database can see is active right now."
+//
+// ── WS-R33: THE SUITE AND CREATOR TIER LANES ────────────────────────────
+// `startOrgSubscription`/`updateOrgSeats`/`startCreatorSubscription` and
+// `applyWebhook`'s widened lane resolution are this workstream's own
+// additions, over WS-R11's original follower-only file. Three subscription
+// tables now share the one provider seam (`vy_room_subscription`, 078;
+// `vy_org_subscription`, 091; `vy_creator_subscription`, 095) and the one
+// signature-verify-then-apply webhook door - never a second webhook
+// receiver, never a second provider client, this file's own header
+// restated for a second and third lane. `seatCoversCreatorTier`
+// (api/_org.js, built and proven by WS-R28 with no caller) gets its one
+// caller here: `startCreatorSubscription` refuses BEFORE any provider call
+// when a Suite seat already covers this creator - law 4.
 import { sha256Hex } from "./_provenance/contracts.js";
 import { consume } from "./_rate-limit.js";
 import { getChannelSecret, ChannelSecretError } from "./_channel-secrets.js";
@@ -58,6 +71,7 @@ import {
   RoomError,
   ROOM_SESSION_TTL_MS,
 } from "./_room-surface.js";
+import { seatCoversCreatorTier } from "./_org.js";
 import * as fakeProvider from "./_payments/providers/fake.js";
 import * as razorpayProvider from "./_payments/providers/razorpay.js";
 
@@ -80,6 +94,19 @@ export const PLATFORM_TAKE_BP_DEFAULT = 2500;
  *  withholding rate nobody has decided, which is a worse thing to invent than
  *  almost any other number in this file. */
 export const TDS_RATE_BP_DEFAULT = 0;
+
+/** The creator tier's own two priced plans, from the Rooms plan itself
+ *  (api/_payments.js's original header: "creator pays for capacity...
+ *  Build free, Room, Studio, Institute"). 'institute' has no fixed self-serve
+ *  price - it is sold to a Suite (`SUITE_SEAT_PRICE_INSTITUTE_INR`,
+ *  api/_org.js), never charged to one creator directly, so
+ *  `startCreatorSubscription` below refuses it by name. */
+export const CREATOR_TIER_ROOM_PRICE_INR = 4999;
+export const CREATOR_TIER_STUDIO_PRICE_INR = 19999;
+const CREATOR_TIER_PLAN_PRICE_INR = Object.freeze({
+  room: CREATOR_TIER_ROOM_PRICE_INR,
+  studio: CREATOR_TIER_STUDIO_PRICE_INR,
+});
 
 /** One secret-store entry for the whole platform's Razorpay credential - see
  *  the header. A uuid so `_channel-secrets.js`'s own `secretNameFor` accepts
@@ -306,7 +333,7 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
   const created = await provider.createSubscription(
-    { priceInr, roomSlug: room.slug, followerId: String(follower.follower_id) },
+    { priceInr, label: room.slug, ref: String(follower.follower_id) },
     secrets,
   );
   providerRef = String(created.provider_subscription_ref || "");
@@ -353,6 +380,278 @@ export async function followerSubscriptionStatus(db, { session }, deps = {}) {
       current_period_start: row.current_period_start ?? null,
       current_period_end: row.current_period_end ?? null,
     },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE SUITE'S OWN SUBSCRIPTION - a Suite pays per seat, monthly, through the
+// SAME seam (WS-R33). `startOrgSubscription`/`updateOrgSeats` are the ops
+// `api/_org.js`'s `orgSubscriptionStatus` (a read, WS-R28) was built beside
+// but never wrote to - "table and read only, no start-subscription writer
+// built" (that file's own header). Admin-only, exactly like every write in
+// `api/_org.js`; the admin check is repeated here rather than imported,
+// since `api/_org.js` exports no bare "is this owner an admin" helper and
+// this file's own house style is "the decision lives where the write is."
+// ─────────────────────────────────────────────────────────────────────────
+
+function clientOrgSubscription(row) {
+  if (!row) return null;
+  return {
+    subscription_id: row.subscription_id,
+    plan: row.plan,
+    seats: Number(row.seats),
+    price_per_seat_inr: Number(row.price_per_seat_inr),
+    currency: row.currency,
+    state: row.state,
+    provider: row.provider,
+    current_period_start: row.current_period_start ?? null,
+    current_period_end: row.current_period_end ?? null,
+  };
+}
+
+async function orgAdminOrThrow(db, orgId, adminOwnerUserId) {
+  const rows = await db(
+    `select o.org_id, o.slug, o.plan, o.seat_limit
+       from vy_org o
+       join vy_org_member m on m.org_id = o.org_id and m.owner_user_id = ($2)::uuid and m.role = 'admin'
+      where o.org_id = ($1)::uuid
+      limit 1`,
+    [String(orgId), String(adminOwnerUserId)],
+  );
+  if (!rows[0]) throw new PaymentsError("org_not_found", 404);
+  return rows[0];
+}
+
+/**
+ * Start (or resume) a Suite's own seat subscription. IDEMPOTENT ON THE ORG,
+ * `startFollowerSubscription`'s own shape one section up: an existing
+ * non-terminal row is returned (if it already has a provider ref) or
+ * resumed (if a prior attempt died between the local insert and the
+ * provider call). NEVER INVENTS A SUBSCRIPTION - `PAYMENTS_PROVIDER=none`
+ * refuses before any row is written.
+ */
+export async function startOrgSubscription(db, { ownerUserId, orgId, plan, seats }, deps = {}) {
+  const env = deps.env ?? process.env;
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(orgId || ""))) {
+    throw new PaymentsError("org_owner_identity_invalid", 400);
+  }
+  const org = await orgAdminOrThrow(db, orgId, ownerUserId);
+
+  const orgPlan = plan === "institute" ? "institute" : plan === "starter" ? "starter" : null;
+  if (!orgPlan) throw new PaymentsError("org_subscription_plan_invalid", 400);
+  const seatCount = Number.isFinite(Number(seats)) ? Math.trunc(Number(seats)) : Number(org.seat_limit) || 1;
+  const minSeats = orgPlan === "institute" ? 10 : 1;
+  if (!Number.isInteger(seatCount) || seatCount < minSeats || seatCount > 500) {
+    throw new PaymentsError("org_subscription_seats_invalid", 400, { min: minSeats, max: 500 });
+  }
+  const pricePerSeatInr = orgPlan === "institute" ? 1999 : 2999;
+
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+
+  const existingRows = await db(
+    `select subscription_id, provider_subscription_ref, state, seats
+       from vy_org_subscription
+      where org_id = ($1)::uuid
+        and state in ('created','authenticated','active','paused')
+      order by created_at desc
+      limit 1`,
+    [String(orgId)],
+  );
+  let subscriptionId = existingRows[0]?.subscription_id || null;
+  let providerRef = existingRows[0]?.provider_subscription_ref || null;
+  let state = existingRows[0]?.state || null;
+
+  if (!subscriptionId) {
+    const created = await db(
+      `insert into vy_org_subscription (org_id, plan, seats, price_per_seat_inr, currency, provider, state)
+       values (($1)::uuid, $2, ($3)::int4, ($4)::int4, $5, $6, 'created')
+       returning subscription_id, state`,
+      [String(orgId), orgPlan, seatCount, pricePerSeatInr, ROOM_PRICE_CURRENCY, providerName],
+    );
+    subscriptionId = created[0]?.subscription_id || null;
+    state = created[0]?.state || "created";
+  }
+  if (!subscriptionId) throw new PaymentsError("payments_subscription_create_failed", 503);
+
+  if (providerRef) {
+    return { subscription_id: subscriptionId, provider: providerName, provider_subscription_ref: providerRef, checkout_url: null, state, seats: existingRows[0]?.seats ?? seatCount };
+  }
+
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+  const created = await provider.createSubscription(
+    { priceInr: pricePerSeatInr * seatCount, label: org.slug, ref: String(orgId) },
+    secrets,
+  );
+  providerRef = String(created.provider_subscription_ref || "");
+  if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
+
+  const updated = await db(
+    `update vy_org_subscription
+        set provider_subscription_ref = $2, updated_at = now()
+      where subscription_id = ($1)::uuid
+      returning state, seats`,
+    [String(subscriptionId), providerRef],
+  );
+  state = updated[0]?.state ?? state;
+
+  return {
+    subscription_id: subscriptionId,
+    provider: providerName,
+    provider_subscription_ref: providerRef,
+    checkout_url: created.checkout_url ?? null,
+    state,
+    seats: updated[0]?.seats ?? seatCount,
+  };
+}
+
+/**
+ * Add (or reduce) a Suite's seats on its own LIVE subscription. "Adding a
+ * seat is a subscription update through the seam, prorated by the provider,
+ * never by us" (this workstream's own law 3): once a provider ref exists,
+ * the new quantity is sent to the provider FIRST, and the local row is only
+ * ever updated with what the provider actually accepted. A subscription that
+ * has not yet been authenticated (no provider ref) has nothing for a
+ * provider to prorate, so the local row alone is updated.
+ */
+export async function updateOrgSeats(db, { ownerUserId, orgId, seats }, deps = {}) {
+  const env = deps.env ?? process.env;
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(orgId || ""))) {
+    throw new PaymentsError("org_owner_identity_invalid", 400);
+  }
+  await orgAdminOrThrow(db, orgId, ownerUserId);
+
+  const seatCount = Number.isFinite(Number(seats)) ? Math.trunc(Number(seats)) : NaN;
+  if (!Number.isInteger(seatCount) || seatCount < 1 || seatCount > 500) {
+    throw new PaymentsError("org_subscription_seats_invalid", 400, { min: 1, max: 500 });
+  }
+
+  const rows = await db(
+    `select subscription_id, provider, provider_subscription_ref, plan, price_per_seat_inr, currency, state
+       from vy_org_subscription
+      where org_id = ($1)::uuid
+        and state in ('created','authenticated','active','paused')
+      order by created_at desc
+      limit 1`,
+    [String(orgId)],
+  );
+  const sub = rows[0];
+  if (!sub) throw new PaymentsError("org_subscription_not_started", 409);
+
+  const usedRows = await db(
+    `select count(*)::int as seats_used from vy_room where org_id = ($1)::uuid`,
+    [String(orgId)],
+  );
+  const seatsUsed = Number(usedRows[0]?.seats_used || 0);
+  if (seatCount < seatsUsed) {
+    throw new PaymentsError("org_seats_below_usage", 409, { seats_used: seatsUsed, requested: seatCount });
+  }
+
+  if (sub.provider_subscription_ref) {
+    const secrets = deps.secrets ?? (await providerSecrets(sub.provider, env, deps.secretBackend));
+    const provider = providerFor(sub.provider);
+    await provider.updateSubscriptionQuantity(sub.provider_subscription_ref, seatCount, secrets);
+  }
+
+  const updated = await db(
+    `update vy_org_subscription
+        set seats = ($2)::int4, updated_at = now()
+      where subscription_id = ($1)::uuid
+      returning subscription_id, seats, state`,
+    [String(sub.subscription_id), seatCount],
+  );
+  return { subscription_id: updated[0].subscription_id, seats: Number(updated[0].seats), state: updated[0].state };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE CREATOR'S OWN TIER SUBSCRIPTION - what a creator pays the platform for
+// capacity (WS-R33). Refuses BEFORE any provider call when a Suite seat
+// already covers this creator - law 4, `seatCoversCreatorTier`'s one caller.
+// ─────────────────────────────────────────────────────────────────────────
+
+async function ownedReplicaHandle(db, ownerUserId, replicaId) {
+  // No `vy_replica` read needed: every caller of this file already knows the
+  // replica belongs to the owner by construction (the studio only ever
+  // offers this action against the caller's OWN replica id), and this file
+  // holds no `vy_replica` query anywhere else - `ownedRoomForPayments`'s own
+  // scope (a room row, not a replica row) one section up. UUID shape is
+  // still validated, the same "refuse before any write" discipline as every
+  // other identity check in this file.
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(replicaId || ""))) {
+    throw new PaymentsError("room_publish_identity_invalid", 400);
+  }
+}
+
+/**
+ * Start (or resume) a creator's own tier subscription. REFUSES BEFORE ANY
+ * PROVIDER CALL when a Suite seat already covers this creator (law 4) - the
+ * exemption check runs first, before the provider is even resolved, so the
+ * negative control "a creator charge started while a seat covers them is
+ * refused before any provider call" can assert the fake twin recorded zero
+ * calls. IDEMPOTENT ON THE REPLICA, the follower/org sections' own shape.
+ */
+export async function startCreatorSubscription(db, { ownerUserId, replicaId, plan }, deps = {}) {
+  await ownedReplicaHandle(db, ownerUserId, replicaId);
+
+  const covered = await (deps.seatCoversCreatorTier ?? seatCoversCreatorTier)(db, ownerUserId, replicaId);
+  if (covered) throw new PaymentsError("creator_tier_covered_by_suite", 409);
+
+  const priceInr = CREATOR_TIER_PLAN_PRICE_INR[plan];
+  if (!priceInr) throw new PaymentsError("creator_tier_plan_invalid", 400, { plans: Object.keys(CREATOR_TIER_PLAN_PRICE_INR) });
+
+  const env = deps.env ?? process.env;
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+
+  const existingRows = await db(
+    `select subscription_id, provider_subscription_ref, state
+       from vy_creator_subscription
+      where replica_id = ($1)::uuid
+        and state in ('created','authenticated','active','paused')
+      order by created_at desc
+      limit 1`,
+    [String(replicaId)],
+  );
+  let subscriptionId = existingRows[0]?.subscription_id || null;
+  let providerRef = existingRows[0]?.provider_subscription_ref || null;
+  let state = existingRows[0]?.state || null;
+
+  if (!subscriptionId) {
+    const created = await db(
+      `insert into vy_creator_subscription (owner_user_id, replica_id, plan, price_inr, currency, provider, state)
+       values (($1)::uuid, ($2)::uuid, $3, ($4)::int4, $5, $6, 'created')
+       returning subscription_id, state`,
+      [String(ownerUserId), String(replicaId), plan, priceInr, ROOM_PRICE_CURRENCY, providerName],
+    );
+    subscriptionId = created[0]?.subscription_id || null;
+    state = created[0]?.state || "created";
+  }
+  if (!subscriptionId) throw new PaymentsError("payments_subscription_create_failed", 503);
+
+  if (providerRef) {
+    return { subscription_id: subscriptionId, provider: providerName, provider_subscription_ref: providerRef, checkout_url: null, state };
+  }
+
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+  const created = await provider.createSubscription({ priceInr, label: `creator-tier:${plan}`, ref: String(replicaId) }, secrets);
+  providerRef = String(created.provider_subscription_ref || "");
+  if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
+
+  const updated = await db(
+    `update vy_creator_subscription
+        set provider_subscription_ref = $2, updated_at = now()
+      where subscription_id = ($1)::uuid
+      returning state`,
+    [String(subscriptionId), providerRef],
+  );
+  state = updated[0]?.state ?? state;
+
+  return {
+    subscription_id: subscriptionId,
+    provider: providerName,
+    provider_subscription_ref: providerRef,
+    checkout_url: created.checkout_url ?? null,
+    state,
   };
 }
 
@@ -464,7 +763,15 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     throw new PaymentsError("payment_webhook_subscription_ref_missing", 400);
   }
 
-  const ctxRows = await db(
+  // WS-R33: THREE subscription tables now share this one webhook door.
+  // Resolved in a fixed order (follower, then Suite, then creator tier) -
+  // `(provider, provider_subscription_ref)` is unique WITHIN each table
+  // (078/091/095's own partial unique indexes), never across them, so at
+  // most one of the three lookups below can ever match a given ref, and
+  // trying them in order rather than in parallel keeps the common case (a
+  // follower webhook, by far the highest volume) at one query instead of
+  // three.
+  const followerCtxRows = await db(
     `select s.subscription_id, s.room_id,
             coalesce(p.platform_take_bp, $3) as platform_take_bp
        from vy_room_subscription s
@@ -473,14 +780,114 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
       limit 1`,
     [providerName, parsed.providerSubscriptionRef, PLATFORM_TAKE_BP_DEFAULT],
   );
-  const ctx = ctxRows[0];
-  if (!ctx) throw new PaymentsError("payments_subscription_unknown", 404);
+  let lane = null;
+  let ctx = followerCtxRows[0] || null;
+  if (ctx) {
+    lane = "follower";
+  } else {
+    const orgCtxRows = await db(
+      `select subscription_id, org_id from vy_org_subscription where provider = $1 and provider_subscription_ref = $2 limit 1`,
+      [providerName, parsed.providerSubscriptionRef],
+    );
+    if (orgCtxRows[0]) {
+      lane = "org";
+      ctx = orgCtxRows[0];
+    } else {
+      const creatorCtxRows = await db(
+        `select subscription_id from vy_creator_subscription where provider = $1 and provider_subscription_ref = $2 limit 1`,
+        [providerName, parsed.providerSubscriptionRef],
+      );
+      if (creatorCtxRows[0]) {
+        lane = "creator";
+        ctx = creatorCtxRows[0];
+      }
+    }
+  }
+  if (!lane) throw new PaymentsError("payments_subscription_unknown", 404);
 
+  const nextState = KIND_TO_STATE[parsed.kind];
+  const payloadHash = sha256Hex(bodyBuf);
+
+  // ── THE CREATOR TIER LANE: a plain state flip, no ledger row. See
+  //    db/migrations/095_creator_and_org_billing.sql's own header for why:
+  //    a creator's own subscription to the platform has no second party to
+  //    split revenue with, so there is nothing for `vy_payment_event`'s
+  //    take/share columns to represent. Idempotency is the state machine's
+  //    own: setting the same state twice is a no-op by construction, so no
+  //    `(provider, event)` dedup is needed here the way the other two lanes
+  //    need it for money math. ──────────────────────────────────────────
+  if (lane === "creator") {
+    const rows = await db(
+      `update vy_creator_subscription s
+          set state = case when $2 = '' then s.state else $2 end,
+              current_period_start = coalesce($3::timestamptz, s.current_period_start),
+              current_period_end = coalesce($4::timestamptz, s.current_period_end),
+              updated_at = now()
+        where s.subscription_id = ($1)::uuid
+       returning s.subscription_id, s.state`,
+      [ctx.subscription_id, nextState, parsed.periodStart, parsed.periodEnd],
+    );
+    const result = rows[0];
+    return {
+      applied: true,
+      replay: false,
+      lane,
+      subscription_id: result?.subscription_id ?? ctx.subscription_id,
+      state: result?.state ?? null,
+      tier: null,
+      offer_marked_paid: null,
+    };
+  }
+
+  // ── THE SUITE LANE: a ledger row that names the org, never a room. The
+  //    whole amount is platform take today - see the migration's header for
+  //    why distributing a Suite's seat charge across its attached creators
+  //    is out of scope here rather than invented. ─────────────────────────
+  if (lane === "org") {
+    const rows = await db(
+      `with candidate as (
+         insert into vy_payment_event
+           (provider, provider_event_ref, org_id, org_subscription_id, kind, amount_inr,
+            platform_take_inr, creator_share_inr, signature_verified, payload_hash)
+         values ($1,$2,($3)::uuid,($4)::uuid,$5,($6)::int4,($6)::int4,0,true,$7)
+         on conflict (provider, provider_event_ref) do nothing
+         returning event_id
+       ), sub_update as (
+         update vy_org_subscription s
+            set state = case when $8 = '' then s.state else $8 end,
+                current_period_start = coalesce($9::timestamptz, s.current_period_start),
+                current_period_end = coalesce($10::timestamptz, s.current_period_end),
+                updated_at = now()
+           from candidate c
+          where s.subscription_id = ($4)::uuid
+         returning s.subscription_id, s.state
+       )
+       select c.event_id, su.subscription_id, su.state
+         from candidate c
+         left join sub_update su on true`,
+      [
+        providerName, ref, ctx.org_id, ctx.subscription_id, parsed.kind, parsed.amountInr,
+        payloadHash, nextState, parsed.periodStart, parsed.periodEnd,
+      ],
+    );
+    const result = rows[0];
+    if (!result) return { applied: false, replay: true, lane, subscription_id: ctx.subscription_id };
+    return {
+      applied: true,
+      replay: false,
+      lane,
+      subscription_id: result.subscription_id,
+      state: result.state,
+      tier: null,
+      offer_marked_paid: null,
+    };
+  }
+
+  // ── THE FOLLOWER LANE: unchanged from WS-R11/WS-R30, byte-identical SQL
+  //    and behaviour to before this workstream. ──────────────────────────
   const takeBp = Number(ctx.platform_take_bp);
   const platformTakeInr = Math.round((parsed.amountInr * takeBp) / 10000);
   const creatorShareInr = parsed.amountInr - platformTakeInr;
-  const nextState = KIND_TO_STATE[parsed.kind];
-  const payloadHash = sha256Hex(bodyBuf);
 
   // WS-R30 (migration 093): the conversion moment's own outcome. "When a
   // subscription becomes active, the most recent open offer for that
@@ -554,11 +961,12 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
   if (!result) {
     // ON CONFLICT DO NOTHING fired: this exact (provider, event) pair already
     // landed a row. A no-op, never an error - a webhook retry earns a 200.
-    return { applied: false, replay: true, subscription_id: ctx.subscription_id };
+    return { applied: false, replay: true, lane: "follower", subscription_id: ctx.subscription_id };
   }
   return {
     applied: true,
     replay: false,
+    lane: "follower",
     subscription_id: result.subscription_id,
     state: result.state,
     tier: result.tier ?? null,

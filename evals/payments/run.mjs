@@ -182,6 +182,14 @@ function makeDb(state) {
       const price = state.prices.find((p) => p.room_id === row.room_id);
       return [{ subscription_id: row.subscription_id, room_id: row.room_id, platform_take_bp: price ? price.platform_take_bp : params[2] }];
     }
+    // ── applyWebhook (WS-R33): the Suite and creator-tier lane lookups.
+    // This suite carries no org/creator fixtures at all — see
+    // evals/org-billing/run.mjs for those — so both always miss, which is
+    // exactly what proves an unknown ref falls through all three lookups to
+    // a clean `payments_subscription_unknown` rather than an unmodelled
+    // statement.
+    if (has("from vy_org_subscription where provider")) return [];
+    if (has("from vy_creator_subscription where provider")) return [];
 
     // ── applyWebhook: THE BIG WRITE ──
     if (has("with candidate as") && has("insert into vy_payment_event")) {
