@@ -8560,3 +8560,81 @@ defence used here was cross-checking: multiple differently-worded fetches
 of the same nominal target, and for Telegram in particular, treating a
 consistent truncation point across four attempts as evidence of a tool
 limit rather than retrying a fifth time expecting a different result.
+
+## `ws-r44-threw-helper-swallows-a-success-value` (2026-09-04, WS-R44)
+
+**Tried:** two of this workstream's own new cases (`room-pay.js`'s
+`cancel`, `payments.js`'s `retry_failed_payout`) wrote `const result =
+await threw(() => someRealFn(...))` and then asserted on `result`'s
+SUCCESS shape (`result.cancel_at_period_end === true`,
+`state.payouts[0].state !== "failed"`) exactly as every OTHER assertion
+in this file's positive-path checks does.
+
+**What broke:** `threw()` (this file's own helper, defined at the top)
+returns the CAUGHT ERROR on failure and `null` on success - the opposite
+of what a caller reading `result.<field>` wants. Both cases silently
+computed `undefined.<field>` against `null`, which JS's optional chaining
+turns into `undefined !== true`/`!== "failed"` comparisons that read as
+plausible booleans rather than throwing - a live instance of `context/
+rejected.md`'s own repeated lesson that a plausible-looking value hides a
+real defect more effectively than a crash does. Both cases FAILED on
+first run, which is what caught them: `threw()` is the right tool for a
+REFUSAL assertion (this file's overwhelming majority use, "the call threw
+the right error code") and the wrong one for a SUCCESS assertion ("the
+fixture is sound" positive controls this workstream added alongside
+almost every new negative case, matching §7's own precedent of proving
+the real code path can also succeed).
+
+**Fix:** both call sites now `await` the real function directly and
+assert on its RETURN value, `threw()` reserved for its own stated purpose.
+No code outside this eval file was touched - both were bugs in this
+workstream's own new test code, never in `api/_renewals.js` or
+`api/_payments.js`.
+
+**Rule for the next workstream extending this file:** a positive control
+("the real owner's own X actually succeeds - the fixture is sound") must
+`await` the function directly, never route it through `threw()`; only a
+NEGATIVE assertion ("this is refused") belongs behind `threw()`. The
+pattern is easy to get backwards specifically because both shapes compile
+and both look identical at a glance - `const x = await threw(() => fn())`
+reads the same whether `fn` is expected to throw or to return.
+
+## `ws-r44-new-payout-and-directory-cases-needed-fixture-sql-this-workstream-had-not-yet-added` (2026-09-04, WS-R44)
+
+**Tried:** four of this workstream's new §11/§13 cases
+(`register_fund_account`, `retry_failed_payout`, `room-publish.js`'s
+`list`/`unlist`/`set_bio`) were written and run BEFORE the matching SQL
+patterns existed in `evals/room-doors/fixtures.mjs`.
+
+**What broke:** `register_fund_account` threw `payments_provider_
+credentials_missing` because `api/_payments.js`'s own `providerSecrets`
+ran for real (no `deps.secrets` was passed) with no
+`PAYMENTS_FAKE_WEBHOOK_SECRET` in the test's own `env`; `retry_failed_
+payout` fell through this file's fixture to `evals/room/fixtures.mjs`'s
+base `fakeDb`, which has no reason to know `vy_creator_payout`'s shape
+and threw `unmodelled statement`-style errors partway through `sendPayout`'s
+own built -> pending_account fallback (the `select fund_account_ref`/`set
+state = 'pending_account'`/`select payout_id, owner_user_id, net_inr,
+state` reads this file had not yet ported over from `evals/payouts/
+run.mjs`'s own working fixture); `room-publish.js`'s three new ops threw
+similarly because the `set listed_at = case`/`set listed_at = null`/`set
+one_line_bio = $3` UPDATE shapes `evals/creator-directory/run.mjs`'s own
+fixture already proves against had not yet been copied into this file's
+`doorsPatterns`.
+
+**Fix:** ported the missing patterns from their respective existing eval
+suites (`evals/payouts/run.mjs`, `evals/creator-directory/run.mjs`)
+verbatim rather than re-deriving them, `evals/room/fixtures.mjs`'s own
+header rule for why two fakes must never quietly stop agreeing about what
+the real SQL text says. Also passed explicit `secrets` in test `deps`
+for `register_fund_account`'s two calls rather than relying on env vars a
+fixture-only test has no reason to fake.
+
+**Rule for the next workstream extending this file:** before writing a
+NEW case against a decision-module function this fixture has never driven,
+grep the function's OWN SQL text against every existing fixture in
+`evals/` first (`evals/payouts/run.mjs`, `evals/creator-directory/run.mjs`,
+`evals/renewals/run.mjs` all already model tables this file's own
+`doorsPatterns` did not carry before this workstream) - reusing an
+existing, already-correct pattern is strictly less work and strictly less
+risk than writing a new one from the SQL source cold.

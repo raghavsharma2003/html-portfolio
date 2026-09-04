@@ -67,6 +67,15 @@ export function freshDoorsState() {
   state.checkinDesigns = [];
   state.checkins = [];
   state.handoffs = [];
+  // WS-R44: WS-R36's own payout ledger and fund-account table — neither the
+  // base Room fixture nor this file's own `freshDoorsState` had any reason to
+  // carry before this workstream's `payout_statements`/`payout_statement`/
+  // `register_fund_account`/`retry_failed_payout` cases needed them.
+  // `state.creatorSubscriptions`/`state.orgSubscriptions` above already exist
+  // for `_org.js`'s own reads; WS-R37's cancel lane (`cancel_creator_
+  // subscription`/`cancel_subscription`) reuses them.
+  state.payouts = [];
+  state.payoutAccounts = [];
   return state;
 }
 
@@ -268,7 +277,11 @@ function doorsPatterns(state) {
       state.replicas.push(row);
       return [row];
     }
-    if (has("insert into vy_creator_invite")) {
+    // WS-R44: excludes issueCreatorInvite's own INSERT (below, "quota_ok as
+    // (" — a different SQL text this generic operator-issue shape must never
+    // swallow, since the two functions bind their positional params in a
+    // different order).
+    if (has("insert into vy_creator_invite") && !has("quota_ok as (")) {
       const [inviteId, codeHash, contact, issuedBy, applicationId, expiresAt] = params;
       const row = {
         invite_id: inviteId, code_hash: codeHash, issued_to_contact: contact,
@@ -375,6 +388,196 @@ function doorsPatterns(state) {
         }
       }
       return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, tier }];
+    }
+
+    // ── WS-R44: WS-R45's list / unlist / set_bio (api/_room-publish.js) ────
+    // Read off the REAL SQL text `evals/creator-directory/run.mjs`'s own
+    // fixture already proves against — reused, never re-derived. The
+    // owner-scoped READ these three writes all open with (`ownedRoomRow`) is
+    // already the generic "from vy_room" + "where owner_user_id = ($1)::uuid
+    // and replica_id = ($2)::uuid" pattern above; this is their own WRITE.
+    if (has("set listed_at = case")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      if (r.published_at != null && !r.listed_at) r.listed_at = new Date().toISOString();
+      return [{ ...r }];
+    }
+    if (has("set listed_at = null")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.listed_at = null;
+      return [{ ...r }];
+    }
+    if (has("set one_line_bio = $3")) {
+      const [ownerUserId, replicaId, bio] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.one_line_bio = bio;
+      return [{ ...r }];
+    }
+
+    // ── WS-R44: WS-R37's cancel lane (api/_renewals.js) ────────────────────
+    // `cancelFollowerRenewal`'s own SELECT already matches the pattern above
+    // ("from vy_room_subscription" + the same state-in clause
+    // `followerSubscriptionStatus` uses); this is its own UPDATE, and the
+    // creator/org twins one level up — all three read off the REAL SQL text
+    // `evals/renewals/run.mjs`'s own fixture already proves against, reused
+    // here at the same fidelity rather than re-derived.
+    if (has("update vy_room_subscription") && has("set cancel_at_period_end = true")) {
+      const [subId] = params.map(String);
+      const row = state.subscriptions.find((s) => s.subscription_id === subId);
+      if (!row) return [];
+      row.cancel_at_period_end = true;
+      return [{ subscription_id: row.subscription_id, state: row.state, current_period_end: row.current_period_end ?? null, cancel_at_period_end: true }];
+    }
+    if (has("from vy_creator_subscription") && has("owner_user_id = ($1)::uuid and replica_id = ($2)::uuid") && has("state in (")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const row = state.creatorSubscriptions.find(
+        (s) => s.owner_user_id === ownerUserId && s.replica_id === replicaId &&
+          ["created", "authenticated", "active", "paused"].includes(s.state),
+      );
+      return row ? [{ ...row }] : [];
+    }
+    if (has("update vy_creator_subscription") && has("set cancel_at_period_end = true")) {
+      const [subId] = params.map(String);
+      const row = state.creatorSubscriptions.find((s) => s.subscription_id === subId);
+      if (!row) return [];
+      row.cancel_at_period_end = true;
+      return [{ subscription_id: row.subscription_id, state: row.state, current_period_end: row.current_period_end ?? null, cancel_at_period_end: true }];
+    }
+    if (has("from vy_org_subscription") && has("org_id = ($1)::uuid") && has("state in (")) {
+      const [orgId] = params.map(String);
+      const row = state.orgSubscriptions.find(
+        (s) => s.org_id === orgId && ["created", "authenticated", "active", "paused"].includes(s.state),
+      );
+      return row ? [{ ...row }] : [];
+    }
+    if (has("update vy_org_subscription") && has("set cancel_at_period_end = true")) {
+      const [subId] = params.map(String);
+      const row = state.orgSubscriptions.find((s) => s.subscription_id === subId);
+      if (!row) return [];
+      row.cancel_at_period_end = true;
+      return [{ subscription_id: row.subscription_id, state: row.state, current_period_end: row.current_period_end ?? null, cancel_at_period_end: true }];
+    }
+    // `orgAdminOrThrow` (api/_payments.js) — `cancelOrgRenewal`'s own admin
+    // check, byte-identical to the join `api/_org.js`'s own admin gate
+    // uses one query shape over (that one is matched by the "from
+    // vy_org_member" pattern above, which this query's own text does NOT
+    // contain — it says "join vy_org_member m", not "from vy_org_member").
+    if (has("from vy_org o") && has("join vy_org_member m")) {
+      const [orgId, ownerUserId] = params.map(String);
+      const org = state.orgs?.find((o) => o.org_id === orgId);
+      const isAdmin = state.orgMembers.some(
+        (m) => m.org_id === orgId && m.owner_user_id === ownerUserId && m.role === "admin",
+      );
+      if (!isAdmin) return [];
+      return [{ org_id: orgId, slug: org?.slug ?? null, plan: org?.plan ?? null, seat_limit: org?.seat_limit ?? null }];
+    }
+
+    // ── WS-R44: WS-R36's payout ledger and fund account (api/_payments.js) ─
+    // Read off the REAL SQL text `evals/payouts/run.mjs`'s own fixture
+    // already proves against — reused, never re-derived, so the two fakes
+    // cannot quietly stop agreeing about what the real statement says.
+    if (has("select payout_id, owner_user_id, net_inr, state") && has("state in ('built','pending_account')")) {
+      const [payoutId, ownerUserId] = params.map(String);
+      const row = state.payouts.find(
+        (p) => p.payout_id === payoutId && p.owner_user_id === ownerUserId && ["built", "pending_account"].includes(p.state),
+      );
+      return row ? [{ ...row }] : [];
+    }
+    if (has("select fund_account_ref from vy_creator_payout_account")) {
+      const [ownerUserId, provider] = params.map(String);
+      const row = state.payoutAccounts.find((a) => a.owner_user_id === ownerUserId && a.provider === provider && a.verified_at);
+      return row ? [{ fund_account_ref: row.fund_account_ref }] : [];
+    }
+    if (has("set state = 'pending_account'")) {
+      const [payoutId] = params.map(String);
+      const row = state.payouts.find((p) => p.payout_id === payoutId && ["built", "pending_account"].includes(p.state));
+      if (!row) return [];
+      row.state = "pending_account";
+      return [{ state: row.state }];
+    }
+    if (has("set state = 'failed'")) {
+      const [payoutId] = params.map(String);
+      const row = state.payouts.find((p) => p.payout_id === payoutId && ["built", "pending_account"].includes(p.state));
+      if (row) row.state = "failed";
+      return [];
+    }
+    if (has("set state = 'queued'")) {
+      const [payoutId, providerRef] = params;
+      const row = state.payouts.find((p) => p.payout_id === String(payoutId) && ["built", "pending_account"].includes(p.state));
+      if (!row) return [];
+      row.state = "queued";
+      row.provider_payout_ref = providerRef;
+      return [{ state: row.state, provider_payout_ref: row.provider_payout_ref }];
+    }
+    if (has("insert into vy_creator_payout_account")) {
+      const [ownerUserId, provider, ref] = params;
+      let row = state.payoutAccounts.find((a) => a.owner_user_id === ownerUserId && a.provider === provider);
+      if (!row) {
+        row = { owner_user_id: ownerUserId, provider, fund_account_ref: ref, verified_at: new Date().toISOString() };
+        state.payoutAccounts.push(row);
+      } else {
+        row.fund_account_ref = ref;
+        row.verified_at = new Date().toISOString();
+      }
+      return [{ ...row }];
+    }
+    if (has("set state = 'built'")) {
+      const [payoutId] = params.map(String);
+      const row = state.payouts.find((p) => p.payout_id === payoutId && p.state === "failed");
+      if (!row) return [];
+      row.state = "built";
+      return [{ owner_user_id: row.owner_user_id, state: row.state }];
+    }
+    if (has("suite_share_inr, state, provider_payout_ref, created_at")) {
+      const [payoutId, ownerUserId] = params.map(String);
+      const row = state.payouts.find((p) => p.payout_id === payoutId && p.owner_user_id === ownerUserId);
+      return row ? [{ ...row }] : [];
+    }
+    if (has("count(distinct e.subscription_id)")) {
+      return [{ follower_subscriptions: 0 }];
+    }
+    if (has("select o.name") && has("join vy_org o on o.org_id = r.org_id")) {
+      return [];
+    }
+    if (has("gross_inr, net_inr, state, created_at") && has("order by period_start desc")) {
+      const [ownerUserId] = params.map(String);
+      return state.payouts
+        .filter((p) => p.owner_user_id === ownerUserId)
+        .sort((a, b) => b.period_start.localeCompare(a.period_start))
+        .map((p) => ({ ...p }));
+    }
+
+    // ── WS-R44: WS-R47's creator-issued invites (api/_invites.js) ──────────
+    if (has("quota_ok as (") && has("insert into vy_creator_invite")) {
+      const [ownerUserId, inviteId, codeHash, contact, expiresAt, quota] = params;
+      const alreadyIssued = state.invites.filter(
+        (i) => i.issued_by_user_id === String(ownerUserId) && i.issued_kind === "creator",
+      ).length;
+      const hasPublishedRoom = state.rooms.some(
+        (r) => r.owner_user_id === String(ownerUserId) && r.published_at != null,
+      );
+      if (alreadyIssued >= Number(quota) || !hasPublishedRoom) return [];
+      const row = {
+        invite_id: inviteId, code_hash: codeHash, issued_to_contact: contact,
+        issued_by_user_id: String(ownerUserId), application_id: null, expires_at: expiresAt,
+        redeemed_at: null, redeemed_by_user_id: null, created_at: new Date().toISOString(), issued_kind: "creator",
+      };
+      state.invites.push(row);
+      return [row];
+    }
+    if (has("from vy_creator_invite") && has("issued_by_user_id = $1::uuid and issued_kind")) {
+      const [ownerUserId] = params.map(String);
+      return state.invites
+        .filter((i) => i.issued_by_user_id === ownerUserId && i.issued_kind === "creator")
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((i) => ({
+          invite_id: i.invite_id, issued_to_contact: i.issued_to_contact,
+          expires_at: i.expires_at, redeemed_at: i.redeemed_at, created_at: i.created_at,
+        }));
     }
 
     // ── vy_public_rate (api/_rate-limit.js) — the SAME real upsert semantics
