@@ -10435,3 +10435,149 @@ one screen reads as noisy or as double-asking, fold `upgrade_prompt`'s
 render into the SAME card component (still two independent predicates
 underneath) rather than removing either signal - the funnel this
 workstream now measures depends on both existing.
+
+## `ws-r33-payment-event-two-mutually-exclusive-lanes` (2026-09-04, WS-R33)
+
+**Decision.** `vy_payment_event` (078) grows a SECOND lane rather than a
+second table: `room_id`/`subscription_id` (the follower lane) become
+nullable, `org_id`/`org_subscription_id` (the Suite lane) are added
+nullable, and a CHECK (`vy_payment_event_one_lane`) makes exactly one of
+the two pairs non-null on every row - never both, never neither.
+
+**Rationale.** The alternative was a second ledger table for Suite
+payments. Rejected because `ownerRevenue`/`runPayoutRollup`'s own reasoning
+("this room's events... never grouped across rooms") and the append-only
+discipline both belong to the CONCEPT of "a payment event", not to the
+follower lane specifically - a second table would have meant two idempotency
+mechanisms, two signature-verified CHECKs, two places `applyWebhook` writes
+to, for no reason but that a Suite event names an org instead of a room.
+One table with a lane CHECK keeps the append-only/idempotent/signature-
+verified guarantees singular while making the two lanes' mutual exclusion a
+constraint Postgres enforces, not a discipline the write has to remember -
+migration 095's own header states this at length.
+
+**Reversal condition.** If a third lane (the creator tier charge) is ever
+given its own ledger row too (see the next entry's reversal condition),
+re-examine whether a lane CHECK still reads cleanly at three cases or
+whether a `lane` enum column plus a single nullable `target_id` is the
+clearer shape at that point - two cases is comfortably a CHECK, three
+might not be.
+
+## `ws-r33-creator-tier-charge-has-no-ledger-row` (2026-09-04, WS-R33)
+
+**Decision.** A creator tier subscription's webhook events flip
+`vy_creator_subscription.state` directly (a plain UPDATE) and write NO row
+to `vy_payment_event`. Idempotency for this lane is the state machine's
+own (setting the same state twice is a no-op), not a `(provider, event)`
+dedup the way the other two lanes need for money math.
+
+**Rationale.** `vy_payment_event`'s `platform_take_inr`/`creator_share_inr`
+columns exist to record a revenue SPLIT with a creator. A creator's own
+subscription to the platform has no second party to split revenue with -
+100% is platform revenue by definition - so recording it in a table shaped
+around a split would mean inventing meaning for columns that do not apply,
+exactly the fabricated-precision failure `context/rejected.md`'s
+no-fake-numbers law names for other proxy metrics.
+
+**Reversal condition.** The day this product needs a reconciliation history
+for creator-tier charges (a support dispute, an accounting export), add a
+dedicated append-only ledger shaped like `vy_payment_event` but scoped by
+`owner_user_id`/`replica_id` rather than retrofitting a third lane onto a
+table already carrying two - migration 095's own header states this
+identically, cited here so the reasoning lives in both places a future
+session might look.
+
+## `ws-r33-suite-seat-revenue-not-distributed-to-creators` (2026-09-04, WS-R33)
+
+**Decision.** A Suite's own seat charge lands as one `vy_payment_event` row
+per billing event with `platform_take_inr = amount_inr` and
+`creator_share_inr = 0` - the whole amount is platform revenue in v0.
+Nothing in this workstream fans a Suite's aggregate seat charge out across
+its attached creators' own `ownerRevenue`/payout figures.
+
+**Rationale.** A Suite pays ONE subscription for N seats; its attached
+creators are N different owners. Splitting that one charge across N
+creators requires a formula (equally? by seat tenure? by follower count
+under each attached Room?) nobody in this product has decided, and this
+workstream's own brief never asked for one - it asked for "the Suite's own
+money end to end" and "the one take number... shown before anyone pays",
+both of which this design satisfies without inventing a distribution rule.
+Guessing one here would be worse than not building it: a wrong formula
+silently under- or over-pays a real creator every month.
+
+**Reversal condition.** The day the product defines how a Suite's seat
+revenue splits across its attached creators, extend the org-lane webhook
+branch in `applyWebhook` to also write per-creator ledger rows (or a
+distinct roll-up) using that formula, and re-derive `runPayoutRollup`'s own
+`join vy_room r on r.room_id = e.room_id` join to also reach Suite-sourced
+revenue, which it structurally cannot today (Suite ledger rows carry
+`room_id = null`).
+
+## `ws-r33-coalesced-seat-cap-three-way-not-boolean` (2026-09-04, WS-R33)
+
+**Decision.** `api/_org.js`'s `seatCapSql` fragment resolves the effective
+seat cap in three cases, not two: an ACTIVE subscription's own `seats`
+value (may raise OR lower the cap below the static `seat_limit`); a
+subscription that has never authenticated (`created`/`authenticated`)
+falls through to `seat_limit` exactly as if no subscription existed; a
+subscription that WAS active and has since lapsed (`paused`/`cancelled`/
+`expired`) drops the cap to ZERO rather than falling back to `seat_limit`.
+
+**Rationale.** Two cases (subscription exists vs. does not) would have
+conflated "never started paying" with "used to pay and stopped" - the
+first should behave exactly as if nothing had ever happened (the
+workstream brief's own required negative control: a `created` subscription
+must not raise the cap), the second must NOT quietly readmit new Rooms at
+the old static `seat_limit`, because that number was never re-validated
+against whether the institute's card still works. "Nothing a creator
+published should vanish because an institute's card expired" (law 5) only
+holds for Rooms ALREADY attached; it says nothing about admitting new ones
+on a lapsed card, and falling back to `seat_limit` would have done exactly
+that.
+
+**Reversal condition.** If a Suite is ever allowed a grace period after
+lapsing (a common billing UX: a few days before hard-stopping new seats),
+add a `lapsed_at` timestamp to `vy_org_subscription` and widen the
+`paused`/`cancelled`/`expired` branch to `case when now() - lapsed_at <
+interval '...' then seat_limit else 0 end` rather than the unconditional
+zero this workstream ships.
+
+## `ws-r33-creator-subscription-owner-lane` (2026-09-04, WS-R33)
+
+**Decision.** `vy_creator_subscription` (095) is OWNER lane: reached by
+name (`owner_user_id` AND `replica_id`) in `api/_replica-full-erasure.js`,
+never listed in `api/memory.js`'s `PERSON_TABLES`, and its own class
+(`owner_creator_tier_subscription`) added to the deletion receipt.
+
+**Rationale.** The table is a record of what the OWNER pays the platform
+for their own capacity, not a relationship with any person - it carries no
+`person_id` column and could not, since a creator's tier plan has no
+follower on the other end of it. `vy_room_price`/`vy_creator_payout`
+(078) are the exact precedent this restates rather than re-derives.
+
+**Reversal condition.** None foreseen: the table would need to gain a
+`person_id` column before this classification could be wrong, and nothing
+in the Rooms plan suggests a creator tier charge will ever be about a
+specific follower.
+
+## `ws-r33-provider-seam-generalized-to-label-ref` (2026-09-04, WS-R33)
+
+**Decision.** `api/_payments/providers/{fake,razorpay}.js`'s
+`createSubscription(input, secrets)` widened its `input` shape from
+`{priceInr, roomSlug, followerId}` (WS-R11, follower-only) to `{priceInr,
+label, ref}` (any lane: `label` names what the subscription is FOR, `ref`
+names WHO it is for) rather than adding lane-specific fields or a second
+provider client.
+
+**Rationale.** The workstream brief's own law 1: "extend the seam with a
+subscription-for-org shape; never a second provider client." Three call
+sites (follower, Suite, creator tier) now share one provider interface;
+`evals/payments/run.mjs`'s own assertions never inspected the internal
+field names (only the output shape: a `fake_sub_[0-9a-f]{24}` ref, a
+checkout URL), so the rename cost nothing in that suite and was confirmed
+by re-running it unchanged, 62/62 green.
+
+**Reversal condition.** If a future lane needs more than two identifying
+fields (e.g. a multi-party split that the provider itself must know about
+at creation time), widen `input` further rather than reverting to
+per-lane-named fields - the generalization already paid for itself once.

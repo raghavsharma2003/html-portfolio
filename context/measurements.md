@@ -8275,3 +8275,96 @@ n = 1 migration (3 statements in one transaction), 10 API statements; method = a
 | the price read for the offer card; `roomForget`'s delete | `vy_room_price_room_ix`; Bitmap on `vy_room_upgrade_offer_room_shown_ix` with person filtered |
 
 Not measured: no offer row exists; no follower has seen the offer card or the "Continue free" and "Subscribe" controls; the Phase gate card shows `not_enough_data` on every number until twenty followers and three creators exist, which is the honest state today.
+
+## `ws-r33-org-billing-offline-eval-2026-09-04` (WS-R33)
+
+n = 40 assertions, `node evals/org-billing/run.mjs` (also confirmed via
+`node evals/run.mjs org-billing`, the registered path), offline,
+deterministic, $0, no DB, no network, no real provider, no GPU, 2026-09-04.
+Method: `api/_payments.js` (`startOrgSubscription`, `updateOrgSeats`,
+`startCreatorSubscription`, `applyWebhook`'s widened three-lane
+resolution), `api/_org.js` (`attachRoom`'s coalesced seat cap,
+`seatCoversCreatorTier`) and the REAL `api/_payments/providers/fake.js`
+driven through a hand-written fake `db`, `evals/org/run.mjs`'s own fixture
+shape restated for a billing-focused world. §1 the seam twins: both
+`startOrgSubscription` and `startCreatorSubscription` mint a
+`fake_sub_[0-9a-f]{24}` ref through the real fake provider, both idempotent
+on their own key (org / replica), the room/studio plan prices read back as
+exactly 4,999/19,999, `institute` refused for a creator (no self-serve
+price), `PAYMENTS_PROVIDER=none` refuses before any row is written. §2 the
+coalesced seat cap: an active subscription (seats=3) admits three Rooms
+despite a static `seat_limit=1`, the fourth refused at the exact boundary
+(`seats_used:3, seat_limit:3`); NEGATIVE CONTROL (b), a `created`
+(never-authenticated) subscription with `seats=5` does NOT raise the cap -
+the second Room is refused at `seat_limit:1`, not 5; the lapse behaviour -
+three Rooms stay attached after their Suite's subscription is cancelled,
+and a fourth attach is refused with the cap coalesced to 0, not the static
+`seat_limit=5`. §3 the exemption: `seatCoversCreatorTier` reports covered
+once a Room is attached to an org with an ACTIVE subscription; NEGATIVE
+CONTROL (c), a creator charge started while covered is refused
+(`creator_tier_covered_by_suite`), zero rows inserted into
+`vy_creator_subscription`, and the only `db` call recorded across the whole
+attempt is the exemption's own read (no insert, no update) - plus a static
+proof that the exemption check appears in the source before
+`provider.createSubscription` is ever called. §4 the webhook: the org lane
+resolves and applies (ledger row lands with `org_id` set,
+`platform_take_inr = amount_inr`, `creator_share_inr = 0`), a replay is a
+no-op; the creator lane resolves and applies with NO ledger row written (by
+design, see `context/decisions.md#ws-r33-creator-tier-charge-has-no-ledger-
+row`); NEGATIVE CONTROL (a), an unsigned webhook is refused and every
+billing table (org subscriptions, creator subscriptions, payment events) is
+byte-for-byte unchanged; a ref unknown to all three lanes is refused by the
+same `payments_subscription_unknown` code. §5 `updateOrgSeats`: refused
+before any subscription exists, seats update once one does, reducing below
+the seat count already in use is refused with the real usage count named.
+
+`node scripts/verify-release.mjs`: **16/16 on the untouched tree** and
+**16/16 after** every file in this report. `node evals/payments/run.mjs`
+(WS-R11's original suite): 62/62 unchanged - the follower-lane webhook SQL
+is byte-identical to before this workstream, confirmed by re-running it
+after `applyWebhook`'s three-lane rewrite; its fixture's own `makeDb`
+needed two new lines (return `[]` for the two new ctx-resolution lookups
+this workstream added) so an unknown ref still falls through cleanly to
+`payments_subscription_unknown` rather than an unmodelled-statement throw -
+not a behaviour change, a fixture completeness fix. `node evals/org/run.mjs`
+(WS-R28's original suite): 54/54 unchanged - its own fixture gained a
+small `effectiveSeatCap` helper mirroring `api/_org.js`'s new `seatCapSql`
+exactly, so every existing assertion (none of which seed
+`orgSubscriptions`) keeps falling through to `seat_limit` precisely as
+before. `node evals/sqlcast.mjs`: 163 tables (up from 162 on the untouched
+tree, measured by re-running `loadSchema` against a reconstructed copy of
+HEAD's `db/schema.sql` + every `db/migrations/*.sql` file in an isolated
+temp directory - the `+1` is exactly `vy_creator_subscription`), 0
+conflicts, 0 uncast sites, 783 statements scanned (402 on the strict
+surface, unchanged - neither `api/_org.js` nor `api/_payments.js` was added
+to `STRICT_SURFACE` in this workstream). `node evals/persontables.mjs`: 132
+person-keyed tables in the DDL (73 owner lane, up from 72 at the WS-R28
+merge - `vy_creator_subscription.owner_user_id` joins the scan; 4 exempt in
+writing; 55 listed, unchanged - this table is deliberately NOT added to
+`PERSON_TABLES`, see the owner-lane decision cited above), 56 manifest
+entries (unchanged from the WS-R29 merge). `node evals/replica-erasure/
+run.mjs`: 20/20 unchanged. `node evals/room-leak/run.mjs`: 78/78 unchanged
+(16,096 retrieval checks, 452 boundary checks) - neither
+`api/_creator-tier.js` nor this workstream's additions to `api/_org.js`/
+`api/_payments.js` name `vy_room_follower` or `vy_room_thread` anywhere, so
+the battery's file scanner never inspects them. `node scripts/check-copy.mjs`:
+6 scopes clean, 21 negative controls, unchanged - no banned word, no
+em-dash, in `SuiteCard.tsx`'s new money section or `RoomStudio.tsx`'s new
+tier sentence.
+
+Not measured, stated plainly: no statement in migration 095, `api/_org.js`'s
+widened `attachRoom`/`orgBoard`/`listMyOrgs`, or `api/_payments.js`'s new
+org/creator functions and webhook branches has ever run against a live
+Postgres (no `NEON_URL` in this environment - every new SQL statement is
+listed verbatim in this workstream's final report for the main loop to
+`EXPLAIN`); no real `vy_creator_subscription` row, no real Suite-lane
+`vy_payment_event` row, and no real widened-column `vy_payment_event` row
+exists anywhere outside a fake `db`; no human has ever seen `SuiteCard.tsx`'s
+new money section or `RoomStudio.tsx`'s new tier sentence render in a
+browser; `scripts/relcheck.mjs` did not run (no `NEON_URL`); the Razorpay
+`PATCH /v1/subscriptions/:id` endpoint `updateSubscriptionQuantity` sends
+has never been fetched from Razorpay's own docs in this session (unlike
+every other endpoint in `api/_payments/providers/razorpay.js`, which
+carries a fetch date) and is named as NOT VERIFIED in that file's own
+header - do not treat it as confirmed against the provider's real API
+surface.
