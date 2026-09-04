@@ -78,7 +78,7 @@
 // second engine, missing every gate `gatedReply` provides — building one for
 // ONE MORE WIRE inside a workstream scoped to a delivery channel is exactly
 // the shortcut that law exists to refuse.
-import { RoomError, readRoomSession, resolveRoom, followerRow } from "./_room-surface.js";
+import { RoomError, readRoomSession, assertSessionFresh, resolveRoom, followerRow } from "./_room-surface.js";
 import { verify as verifyWhatsappWebhook, send as whatsappSend, noteInbound } from "./whatsapp.js";
 
 /** The named template. A constant, never a request field and never an env
@@ -129,6 +129,8 @@ export function maskPhone(phone) {
  *  _room-cohorts.js`'s `ownedRoomHandle`/`api/_checkins.js`'s own copy). */
 async function followerScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
+  // WS-R38: see api/_handoff.js's own followerScope for the finding.
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw new RoomError("room_unavailable", 404);
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);

@@ -55,6 +55,7 @@ import {
   RoomError,
   roomUnavailable,
   readRoomSession,
+  assertSessionFresh,
   resolveRoom,
   followerRow,
   ownedThread,
@@ -119,6 +120,11 @@ async function ownedRoomHandle(db, ownerUserId, replicaId) {
  *  house's convention). */
 async function followerScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
+  // WS-R38: this door - and every other `followerScope` copy in this product
+  // except `roomSay`/`roomSpeak`/`roomSetLocale`/`_pulse.js` - never checked
+  // the session's own age. A signed session more than twelve hours old kept
+  // drafting and sending handoff requests forever.
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);

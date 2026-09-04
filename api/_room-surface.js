@@ -209,6 +209,46 @@ export function readRoomSession(token, env = process.env) {
   return payload;
 }
 
+/**
+ * THE ONE STALENESS CHECK, so every op enforces the SAME 12-hour ceiling
+ * rather than each op's own copy of the same three-line `if`.
+ *
+ * WS-R38 (the door battery): `roomSay`/`roomSpeak`/`roomSetLocale` and
+ * `_payments.js`'s `paidSessionScope` each carried this inline, correctly,
+ * while `selfScope` (export/forget/offer_dismiss), `followerHistory`,
+ * `roomCitations`, and every OTHER `followerScope` in this product
+ * (`_handoff.js`, `_checkins.js`, `_room-push.js`, `_room-whatsapp.js`) did
+ * not call it at all — a signed session more than twelve hours old (a tab
+ * left open, a device that changed hands, a token that leaked) went on
+ * buying reads and writes on those doors forever, including the two ops
+ * this file's OWN header names as the highest-consequence ones a stolen
+ * session can reach ("a stolen one downloading their whole history or
+ * deleting it is a harm the next turn does not undo"). Exported and called
+ * from every scope resolver in this product now, so a future op can only
+ * get this right by construction rather than by remembering to copy it.
+ *
+ * A FUTURE-DATED `iat` is NOT bounded here, and `evals/room-doors/run.mjs`
+ * says so rather than silently matching only the cases that were easy: this
+ * check only ever bounds `now - iat` from ABOVE. A token whose own `iat`
+ * claims to be from the future has a NEGATIVE age, which is never greater
+ * than the ceiling, so it does not expire by this check until `now` catches
+ * up to that future instant. WS-R38 tried adding a symmetric lower bound and
+ * reverted it (`rejected.md#ws-r38-session-clock-skew-lower-bound`): no
+ * request field ever reaches the `now` a session is MINTED with (every mint
+ * call is `deps.now ?? Date.now()`, a real server clock, never a client
+ * value), so a future `iat` is not a live external hole — and the fix broke
+ * a convention this test suite uses repo-wide, minting a session against the
+ * real wall clock while driving a scenario's own business-math `deps.now`
+ * against a fixed calendar date unrelated to it, which is now negative
+ * relative to a real `iat` and would need auditing across every suite that
+ * does it, not just the one this fix happened to touch first.
+ */
+export function assertSessionFresh(payload, now = Date.now()) {
+  if (!Number.isFinite(payload?.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
+    throw new RoomError("room_session_expired", 401);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // THE APP-VOICED DISCLOSURE CARD
 // ─────────────────────────────────────────────────────────────────────────
@@ -946,9 +986,7 @@ export async function joinRoom(
 export async function roomSetLocale(db, { session, locale }, deps = {}) {
   const payload = readRoomSession(session, deps.env);
   const now = deps.now ?? Date.now();
-  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
-    throw new RoomError("room_session_expired", 401);
-  }
+  assertSessionFresh(payload, now);
   // Refused by name rather than silently folded into English: an empty value
   // (nothing to change to) and a value this deployment does not recognise
   // (garbage, a typo, a future locale) both read as `room_locale_invalid`,
@@ -1153,9 +1191,7 @@ const DEFAULT_MEMORY = {
 export async function roomSay(db, { session, message, threadId = null, transcript = [] }, deps = {}) {
   const payload = readRoomSession(session, deps.env);
   const now = deps.now ?? Date.now();
-  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
-    throw new RoomError("room_session_expired", 401);
-  }
+  assertSessionFresh(payload, now);
   const text = String(message ?? "").trim();
   if (!text) throw new RoomError("room_message_empty", 400);
   if (text.length > ROOM_INBOUND_LIMIT) throw new RoomError("room_message_too_long", 413);
@@ -1492,9 +1528,7 @@ export async function roomSpeak(deps, session, replyRef) {
   if (typeof db !== "function") throw new RoomError("room_db_required", 500);
   const payload = readRoomSession(session, deps.env);
   const now = deps.now ?? Date.now();
-  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
-    throw new RoomError("room_session_expired", 401);
-  }
+  assertSessionFresh(payload, now);
 
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i) ||
@@ -1758,6 +1792,7 @@ export function collector() {
  */
 export async function followerHistory(db, { session, threadId = null, limit = ROOM_RECALL_TURNS }, deps = {}) {
   const payload = readRoomSession(session, deps.env);
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
@@ -2322,10 +2357,17 @@ export async function roomForget(db, { session }, deps = {}) {
  *  where getting it wrong hands one follower another follower's whole history. */
 async function selfScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
-  if (!follower) throw new RoomError("room_join_required", 403);
+  // WS-R38: this used to check only `!follower`, unlike every sibling scope
+  // resolver (`roomSay`, `_handoff.js`/`_checkins.js`/`_room-whatsapp.js`'s
+  // own `followerScope`), which all also require attestation. Harmless today
+  // (nothing in this file inserts a `vy_room_follower` row without one — see
+  // `joinRoom`), but this is the ONE gate export/forget/offer_dismiss run
+  // through, so it is the one place that omission would matter most.
+  if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
   return {
     personId: String(payload.p),
     agentId: String(resolved.agentId),
@@ -2384,8 +2426,16 @@ export async function roomDismissOffer(db, { session }, deps = {}) {
  */
 export async function roomCitations(db, { session }, deps = {}) {
   const payload = readRoomSession(session, deps.env);
+  // WS-R38: this door used to skip BOTH checks every other session-consuming
+  // op runs — no freshness check, and no confirmation a follower row for this
+  // (room, person, agent) still exists at all. A signed-but-stale token, or
+  // one for a person who has since `forget`-left this Room, could still list
+  // the creator's own source titles forever.
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
+  const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
+  if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
   const rows = await db(
     `select c.source_name
        from vy_context_item c

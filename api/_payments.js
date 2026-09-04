@@ -65,11 +65,11 @@ import { getChannelSecret, ChannelSecretError } from "./_channel-secrets.js";
 import { tableApplied } from "./memory.js";
 import {
   readRoomSession,
+  assertSessionFresh,
   resolveRoom,
   followerRow,
   roomUnavailable,
   RoomError,
-  ROOM_SESSION_TTL_MS,
 } from "./_room-surface.js";
 import { seatCoversCreatorTier } from "./_org.js";
 import * as fakeProvider from "./_payments/providers/fake.js";
@@ -189,9 +189,7 @@ export async function providerSecrets(providerName, env = process.env, backend) 
 async function paidSessionScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
   const now = deps.now ?? Date.now();
-  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
-    throw new RoomError("room_session_expired", 401);
-  }
+  assertSessionFresh(payload, now);
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i) || String(resolved.agentId) !== String(payload.a)) {
     throw roomUnavailable();
