@@ -12423,3 +12423,117 @@ immediately satisfies rule (a) or gains a credential worth attacking, and
 belongs in `DOOR_MODULES`/`EXPECTED_DOORS` and this file's own attack
 classes from that commit onward - not retrofitted later once the gap has
 had time to matter.
+
+## `ws-r40-unfurl-is-a-function-only-for-crawlers` (2026-09-04, WS-R40, migration 102)
+
+**Decision.** `/r/:slug` stays a static `room.html` rewrite for every
+ordinary visitor. `vercel.json` gets ONE new rewrite, matched only when the
+`user-agent` header names a known unfurl bot (facebookexternalhit,
+WhatsApp, Twitterbot, TelegramBot, Slackbot, LinkedInBot, Discordbot,
+Googlebot), sitting ABOVE the static rewrite in array order; that one
+routes to `api/room-page.js`, a real serverless function reading the Room's
+public fields and answering a minimal HTML head.
+
+**Rationale.** A shared link needs server-rendered metadata (a name, a
+sentence, a canonical url) because the crawlers that build a chat app's
+link preview never run this page's JS - they read only the bytes the
+server hands back. A person's own load needs none of that: `RoomApp.tsx`
+renders everything client side and always has. Making EVERY `/r/:slug`
+request pay for a function invocation and a database read to serve the
+~1% of traffic that is a bot would be the wrong trade for the 99% that is
+not; splitting the two by `has` on the request itself, before either path
+ever runs, keeps a person's Room load exactly as cheap as it was before
+this workstream - a static file at zero function cost - while giving the
+crawler the one thing it actually reads.
+
+**Reversal condition.** The day this product needs server-rendered state
+for a PERSON too (an SEO push that needs `/r/:slug` itself to carry real
+content for a search crawler distinct from an unfurl bot, or a no-JS
+fallback), `api/room-page.js` becomes the answer for everyone and the two
+rewrites collapse into one - until then, keeping them separate is what
+keeps the common case free.
+
+## `ws-r40-share-url-carries-no-sender-identity` (2026-09-04, WS-R40)
+
+**Decision.** The url a follower's Share control builds
+(`${origin}/r/<slug>?via=share`) carries exactly one query parameter and
+never a follower id, a session token, or anything else that could identify
+who sent it. `evals/room-share/run.mjs`'s own negative control (a) proves
+this statically against the real `RoomApp.tsx` source, not only by reading
+the code once.
+
+**Rationale.** This product's whole privacy shape is that a follower's own
+words never reach another follower and a follower is never revealed to
+anyone, including the creator, beyond an opt-in n>=5 count
+(`context/rejected.md`'s and `AGENTS.md`'s standing law, restated for
+growth instrumentation rather than conversation content). A share url that
+carried a sender id would let a recipient - or anyone who intercepted the
+link - learn who invited them, which is a form of revealing one follower
+to another this product has never allowed anywhere else. `via=share` says
+HOW a visit arrived, in aggregate, across every follower who ever shares;
+it says nothing about WHO.
+
+**Reversal condition.** The day this product needs to credit a specific
+follower for a referral (a "invite a friend" reward, say), that is a new,
+explicit consent surface with its own opt-in and its own disclosure - not
+a silent parameter added to the existing share url. Log that decision
+separately when it happens; this entry's own guarantee (today's share url
+carries no identity) should stay true regardless.
+
+## `ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session` (2026-09-04, WS-R40, migration 102)
+
+**Decision.** `recordRoomArrival` runs on EVERY `openRoom` call this front
+end makes for a given tab - the initial mount and, separately, a re-open
+triggered by switching the chrome language before joining - each passing
+the SAME `via` value read once off the URL. A visitor who switches
+language before joining is counted twice in that day's bucket for that
+`via`, not deduplicated to one.
+
+**Rationale.** `vy_room_arrival` was deliberately built with no session
+column and no finer-than-a-day timestamp (migration 102's own header), so
+there was never a mechanism available to deduplicate "the same visit" in
+the first place - the table's whole design is a coarse, cheap daily count,
+not a unique-visitor tracker. Given that, the two real choices were: pass
+`via` on every call (a rare double-count inflates the SAME bucket the
+value would have landed in anyway), or omit it on the second call (which
+would silently reclassify a real share visit as 'direct', the opposite
+direction of wrong - polluting a specific-cause bucket with noise rather
+than merely over-counting it). The first is the smaller, more honest
+error.
+
+**Reversal condition.** If a future measurement shows this double-counting
+materially distorts the funnel line (an unusually high rate of pre-join
+language switches, say), the fix is a session-scoped, front-end-only
+"already counted this tab" flag that suppresses the SECOND call's `via`
+without touching the table's own no-session design - never a new column
+on `vy_room_arrival` for the reason above.
+
+## `ws-r40-public-room-read-lives-in-room-publish-not-a-new-file` (2026-09-04, WS-R40)
+
+**Decision.** The crawler unfurl's one database read (`publicRoomBySlug`:
+slug -> `{slug, display_name, one_line_bio, default_locale}` for a
+published, unpaused Room, or null) lives in `api/_room-publish.js`, not in
+a new file and not as an extension of `api/_room-surface.js`'s
+`resolveRoom`.
+
+**Rationale.** `api/_room-publish.js` is already the file that owns the
+concept of a "published Room" and its predicate (`ownedRoomRow`,
+`clientRoom`, the publish lock) - a second, public-facing reader of the
+same row belongs next to the owner-facing one rather than in a third file
+that would also have to restate what "published" means. It is
+deliberately NOT `resolveRoom`: that function also loads the agent's
+published sheet through `loadTeacherAgent`, a heavier read a crawler's own
+cost budget (this workstream's other decision, above) does not need - a
+bot wants a name and a sentence, not the whole agent module. It is also
+deliberately WITHOUT `api/_creators.js`'s `listed_at is not null`
+condition: the directory is an opt-in feed a creator chooses to appear on,
+but a follower can share a Room's link, and that link should unfurl,
+whether or not its creator ever opted into the public directory.
+
+**Reversal condition.** If a second public, unauthenticated reader of
+`vy_room`'s public columns is ever needed (a QR code generator, say) and
+its predicate needs to differ from this one (e.g. it SHOULD require
+`listed_at`), that is the moment to extract a shared predicate helper
+rather than duplicating the WHERE clause a third time - two callers with
+the identical predicate is a coincidence worth naming once; three is a
+pattern.

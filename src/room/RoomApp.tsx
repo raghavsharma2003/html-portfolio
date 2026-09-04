@@ -72,6 +72,7 @@ import {
   setRoomLocale,
   speakInRoom,
   slugFromPath,
+  viaFromLocation,
   type RoomCitations,
   type RoomFollower,
   type RoomForgetReceipt,
@@ -283,7 +284,10 @@ export default function RoomApp({
         // who has not gets it only as a fallback behind the creator's own
         // `default_locale`.
         const hint = normalizeLocale(typeof navigator !== "undefined" ? navigator.language : "");
-        const opened = await openRoom(slug, restored?.accessToken ?? null, hint);
+        // WS-R40: read once, off this tab's own URL - the same value every
+        // openRoom call in this component passes, `roomApi.ts`'s own header.
+        const via = typeof window !== "undefined" ? viaFromLocation() : "";
+        const opened = await openRoom(slug, restored?.accessToken ?? null, hint, via);
         if (!live) return;
         setRoom(opened);
         setSession(opened.session);
@@ -324,7 +328,7 @@ export default function RoomApp({
           setSession(result.session);
           setRoom((prev) => (prev ? { ...prev, locale: result.locale } : prev));
         } else {
-          const opened = await openRoom(slug, auth?.accessToken ?? null, next);
+          const opened = await openRoom(slug, auth?.accessToken ?? null, next, viaFromLocation());
           setRoom(opened);
           setSession(opened.session);
           setThreads(opened.threads ?? []);
@@ -695,6 +699,10 @@ export default function RoomApp({
         <div className="room-head-row">
           <h1>{name ? `${name} AI` : room?.room.display_name}</h1>
           <div className="room-head-actions">
+            {/* WS-R40: growth is a follower sending this link to a friend. */}
+            {room && (
+              <ShareButton slug={room.room.slug} disclosure={room.disclosure} copy={copy} />
+            )}
             <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={switchLocale} />
             {canCheckin && (
               <button type="button" className="room-menu-open" onClick={() => setCheckinsOpen(true)}>
@@ -1052,6 +1060,84 @@ export default function RoomApp({
 const withCount = (template: string, n: number) => template.split("{n}").join(String(n));
 const withIncluded = (template: string, n: number, included: number) =>
   withCount(template, n).split("{included}").join(String(included));
+
+/* ── the share control (WS-R40) ─────────────────────────────────────────────
+ *
+ * `navigator.share` where the browser has it (the native sheet - WhatsApp,
+ * Messages, whatever the person already uses); a copy-to-clipboard
+ * confirmation otherwise. Either way the url is built ONCE, here, and
+ * carries `?via=share` and NOTHING else - never a follower id, never a
+ * token that could identify the sender, so a recipient can never be traced
+ * back to who invited them (a decision this workstream logs with its own
+ * reversal condition: the day this product needs to credit a specific
+ * follower for a referral, which nothing in it does today).
+ *
+ * Feedback fires on `pointerdown`, DESIGN-LAW's own law, and Enter/Space
+ * reach the same action through `activateOnKey` - this file's own pattern
+ * for every control here that has a real effect rather than only opening a
+ * panel. The confirmation is `role="status"`/`aria-live="polite"` so a
+ * screen reader announces it without moving focus, and it clears itself
+ * after a few seconds rather than sitting there stale. */
+function ShareButton({
+  slug,
+  disclosure,
+  copy,
+}: {
+  slug: string;
+  disclosure: string;
+  copy: RoomCopy;
+}) {
+  const [copied, setCopied] = useState(false);
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const shareUrl = useMemo(() => {
+    if (typeof window === "undefined" || !slug) return "";
+    return `${window.location.origin}/r/${encodeURIComponent(slug)}?via=share`;
+  }, [slug]);
+
+  const share = useCallback(() => {
+    if (!shareUrl) return;
+    const nav = typeof navigator !== "undefined" ? navigator : null;
+    if (nav && typeof nav.share === "function") {
+      nav.share({ title: copy.share.button, text: disclosure, url: shareUrl }).catch(() => {});
+      return;
+    }
+    if (!nav?.clipboard?.writeText) return;
+    nav.clipboard
+      .writeText(shareUrl)
+      .then(() => {
+        setCopied(true);
+        if (clearTimer.current) clearTimeout(clearTimer.current);
+        clearTimer.current = setTimeout(() => setCopied(false), 3000);
+      })
+      .catch(() => {});
+  }, [shareUrl, disclosure, copy]);
+
+  useEffect(
+    () => () => {
+      if (clearTimer.current) clearTimeout(clearTimer.current);
+    },
+    [],
+  );
+
+  if (!shareUrl) return null;
+
+  return (
+    <span className="room-share">
+      <button
+        type="button"
+        className="room-share-btn"
+        onPointerDown={share}
+        onKeyDown={activateOnKey(share)}
+      >
+        {copy.share.button}
+      </button>
+      <span className="room-share-toast" role="status" aria-live="polite">
+        {copied ? copy.share.copied : ""}
+      </span>
+    </span>
+  );
+}
 
 /* ── the language switch (WS-R24) ───────────────────────────────────────────
  *

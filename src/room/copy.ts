@@ -283,6 +283,14 @@ const EN = {
     talkedTodayOne: "1 person talked here today",
   },
 
+  /** WS-R40. `navigator.share` where the browser has it; a copy-to-clipboard
+   *  confirmation otherwise (`RoomApp.tsx`'s own fallback). Neither string
+   *  names the mechanism — a follower reads what happened, not which API ran. */
+  share: {
+    button: "Share",
+    copied: "Link copied.",
+  },
+
   menu: {
     title: "Your data",
     download: "Download everything it holds about you",
@@ -562,6 +570,11 @@ const HI: typeof EN = {
   stats: {
     talkedToday: "आज यहां {n} लोगों ने बात की",
     talkedTodayOne: "आज यहां 1 व्यक्ति ने बात की",
+  },
+
+  share: {
+    button: "शेयर करें",
+    copied: "लिंक कॉपी हो गया।",
   },
 
   menu: {

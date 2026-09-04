@@ -717,6 +717,54 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// ARRIVAL COUNTING (WS-R40, migration 102) — how a Room was reached, never
+// by whom. `vy_room_arrival` carries no person column and no session; a row
+// says nothing more than "this Room had N arrivals of this kind on this
+// day". Counted from `openRoom` below, the Room's own first-load op,
+// whether or not the visitor ever joins.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The whole set `vy_room_arrival.via` may carry — matches migration 102's
+ *  CHECK constraint byte for byte, so a value this list rejects can never
+ *  reach the table either. `embed` is WS-R46's own `?via=embed` link
+ *  (`api/_room-embed.js`'s script), uncounted until this migration. */
+export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search"]);
+
+/** Anything not exactly one of the four named values becomes 'direct' — a
+ *  stray query param, an empty string, undefined, or a value with SQL-shaped
+ *  punctuation pasted into it (`"share; drop table vy_room_arrival"`). This
+ *  allowlist runs BEFORE the table is ever touched, so migration 102's CHECK
+ *  constraint is a second, structural layer behind a value that was already
+ *  safe by the time it reached SQL — `api/_disclosure.js`'s own standing
+ *  rule (a predicate belongs in the WHERE clause, never applied after) held
+ *  here for a write instead of a read. */
+export function resolveArrivalVia(value) {
+  const v = String(value || "").trim().toLowerCase();
+  return ROOM_ARRIVAL_VIA.includes(v) ? v : "direct";
+}
+
+/**
+ * ONE upsert. `day` is a plain UTC calendar date computed from `now` (never
+ * trusted from a caller), so two opens on the same UTC day always land on
+ * the same row and a third never creates a second.
+ *
+ * Best effort by construction: the caller wraps this in `.catch(() => {})`,
+ * `recordOffer`'s own posture (`_phase-gate.js`) applied to a growth count
+ * instead of a money one — a write failure here must never turn a Room's
+ * first screen into an error for a counting reason.
+ */
+export async function recordRoomArrival(db, { roomId, via, now = Date.now() } = {}) {
+  const day = new Date(now).toISOString().slice(0, 10);
+  await db(
+    `insert into vy_room_arrival (room_id, day, via, count)
+     values (($1)::uuid, ($2)::date, ($3)::text, 1)
+     on conflict (room_id, day, via) do update
+       set count = vy_room_arrival.count + 1`,
+    [String(roomId), day, resolveArrivalVia(via)],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // OP: open
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -751,15 +799,33 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
  * is the only signal there is. Behind that, the creator's own
  * `vy_room.default_locale` (never a hardcoded "en") is what a browser that
  * reports nothing at all falls back to.
+ *
+ * `via` (WS-R40, migration 102) is the growth counter's own hint: read once
+ * off the query string a bio link, a share, or an embed carries, and passed
+ * through `resolveArrivalVia`'s allowlist before it ever reaches SQL. It
+ * never changes what this function returns — the arrival write is a side
+ * effect, best-effort, gated on migration 102 actually being applied
+ * (`isTableAppliedFor`, this file's own seam), and counted before anything
+ * else about the caller is resolved: a signed-out arrival is exactly as
+ * real as a signed-in one.
  */
 export async function openRoom(
   db,
-  { slug, authUserId = null, personId: givenPersonId = null, locale: hintLocale = null },
+  {
+    slug,
+    authUserId = null,
+    personId: givenPersonId = null,
+    locale: hintLocale = null,
+    via: hintVia = null,
+  },
   deps = {},
 ) {
   const resolved = await resolveRoom(db, slug, deps);
   const name = roomNameFor(resolved.sheet);
   const now = deps.now ?? Date.now();
+  if (await isTableAppliedFor(deps)("vy_room_arrival")) {
+    await recordRoomArrival(db, { roomId: resolved.room.room_id, via: hintVia, now }).catch(() => {});
+  }
   const personId = authUserId
     ? await personForAccount(db, authUserId)
     : givenPersonId

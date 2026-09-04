@@ -448,7 +448,14 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
   );
 
   const db = opsDb(state);
-  const overview = await opsOverview(db, Date.parse("2026-09-10T12:00:00Z"));
+  // WS-R40: migration 102 is not part of this fixture's schema, so the gate
+  // is driven explicitly rather than left to the real `tableApplied` (which
+  // would otherwise attempt one real, if fast-failing, network round trip
+  // per call in this offline suite - `evals/phase-gate/run.mjs`'s own
+  // precedent for the identical seam).
+  const overview = await opsOverview(db, Date.parse("2026-09-10T12:00:00Z"), {
+    tableApplied: async () => false,
+  });
 
   ok("both Rooms are present", overview.rooms.length === 2);
   const primary = overview.rooms.find((r) => r.room_id === ROOM_ID);
@@ -493,6 +500,14 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
     overview.whatsapp.template_sends_this_month === 3, JSON.stringify(overview.whatsapp));
   ok("whatsapp.cost_this_month_inr is the count times the named unit cost constant",
     overview.whatsapp.cost_this_month_inr === 0.33, JSON.stringify(overview.whatsapp));
+
+  // WS-R40 (migration 102): this fixture's schema does not carry
+  // vy_room_arrival, and `tableApplied` was forced false above, so the
+  // board's own line renders the honest "not applied yet" shape rather than
+  // a query the fixture db has no table to answer.
+  ok("share_arrivals_this_week is the honest not-enough-data shape when migration 102 is unapplied",
+    overview.share_arrivals_this_week.n === null && overview.share_arrivals_this_week.below_floor === true,
+    JSON.stringify(overview.share_arrivals_this_week));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

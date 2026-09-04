@@ -8638,3 +8638,98 @@ grep the function's OWN SQL text against every existing fixture in
 `doorsPatterns` did not carry before this workstream) - reusing an
 existing, already-correct pattern is strictly less work and strictly less
 risk than writing a new one from the SQL source cold.
+
+## `ws-r40-backtick-in-a-sql-comment-hit-a-fifth-time-in-the-same-file-despite-four-prior-writeups` (2026-09-04, WS-R40)
+
+**Tried:** documenting the new `vy_room_arrival` CTE added to
+`completeReplicaErasure`'s erasure statement (`api/_replica-full-erasure.js`)
+with markdown-backtick-quoted identifiers - `` `deletedClasses` ``,
+`` `vy_replica_funnel_mark` ``, `` `vy_replica_drift_report` `` - inside an
+SQL `--` comment, this repo's ordinary prose style for naming an identifier.
+
+**What broke.** Exactly what `ws-r1-backtick-inside-a-sql-comment-inside-a-js-template-literal`
+(2026-09-03) already named in THIS SAME FILE: the whole multi-hundred-line
+erasure query is one JS template literal, a raw backtick inside it closes
+the string regardless of the SQL `--` prefix around it, and three
+backtick PAIRS toggled the lexer's in-string state until the module failed
+to import with `SyntaxError: missing ) after argument list` reported at
+the literal's OPENING line, nowhere near the real mistake.
+
+**This is the FIFTH recorded instance of the identical defect, not a new
+one** - `ws-r1-backtick-inside-a-sql-comment-inside-a-js-template-literal`
+(2026-09-03, this same file), `ws-r2-sql-comment-backticks-terminate-the-template-literal`
+(2026-09-03, `api/_replica-source.js`, twice in one session), WS-R28's own
+session-log instance, and WS-R35's session log ("a defect of the SAME
+recurring shape this repo has now hit four times"). Each prior write-up
+already states the rule this session re-broke: backticks are live JS
+syntax inside a `db(\`...\`)` template literal, `node --check <file>.js`
+catches it for free, and a comment in this exact file's own SQL should
+never use one. Reading `context/rejected.md` before writing did not
+prevent this - the search terms that would have surfaced these four
+entries (`backtick`, `template literal`) were never tried, because nothing
+about "write an SQL comment for a CTE" reads as a search-rejected.md-first
+moment on its own.
+
+**Fix, same as every prior instance.** Rewrote the comment in plain prose
+with no backtick-quoting.
+
+**The real finding, worth logging above the mechanical fix.** Four
+written, specific, correctly-diagnosed prior entries did not stop a fifth
+occurrence in the SAME FILE. `context/rejected.md`'s own stated purpose
+("without this file the same work gets redone") assumes the next agent
+searches it for the right term before hitting the wall, and this session
+is proof that assumption fails when the trigger (editing one comment in
+one file) does not itself feel like a moment to search first. The
+mechanical fix that would actually close this (not attempted here, out of
+this workstream's scope): add `node --check` over every touched
+`api/*.js` file as its own named, EARLY static gate in
+`scripts/verify-release.mjs` - the fix every prior entry already names as
+"a zero-cost way to catch it" but nobody has wired in as a gate across
+five occurrences.
+
+## `ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner` (2026-09-04, WS-R40)
+
+**Tried:** gating `api/_funnel.js`'s new `shareArrivalsThisWeek` on
+migration 102 being applied with `await applied("vy_room_arrival")` - an
+ordinary double-quoted JS string literal, the same shape every other
+`tableApplied("...")` call in this repo already uses.
+
+**What broke.** `evals/room-leak/run.mjs`'s aggregate-only scanner finds a
+file's real SQL statements with a single regex,
+`` /`[^`]*vy_room_arrival[^`]*`/g ``, that pairs the NEAREST two backticks
+in the raw file text and checks whether "vy_room_arrival" appears between
+them - it does not parse JS or know a double-quoted string from a SQL
+comment from a real query. This file's own JSDoc, two paragraphs above the
+real query, uses TWO separate backtick-quoted mentions
+(`` `tableApplied` ``, `` `deps.tableApplied` ``), both clean, self-closing
+pairs on their own. But the double-quoted `applied("vy_room_arrival")` call
+sits in the stretch of text BETWEEN the second of those two backtick pairs
+and the real query's own opening backtick - a stretch with no backtick of
+its own. The scanner's backtick-pairing, having exhausted every earlier
+pair that did not contain "vy_room_arrival", eventually tried starting a
+match at that second JSDoc pair's CLOSING backtick, found the double-quoted
+call's plain-text "vy_room_arrival" sitting in the gap before it, and
+matched all the way to the real query's OWN opening backtick as if that
+were the match's closing delimiter - consuming it, and leaving the real
+SQL statement (and its `from vy_room_arrival`) never found at all. The
+battery reported `_funnel.js:no-statement-found`, which reads exactly like
+"this file forgot to query the table" rather than "a scanner false-matched
+two unrelated backticks" - a silent, plausible-looking failure, not a
+crash, and the more dangerous shape of the two bugs this workstream hit
+for exactly that reason.
+
+**Fix.** Moved the literal string into a named constant
+(`const ROOM_ARRIVAL_TABLE = "vy_room_arrival";`) declared in a stretch of
+the file with no nearby backticks, so no double-quoted "vy_room_arrival"
+text sits between any two backticks anywhere in the file any more. The
+constant's own definition site was verified backtick-free before and after.
+
+**Rule for the next agent adding a `tableApplied("some_table_name")` call
+(or any other bare string containing a table name the room-leak scanner
+also searches for) near a file that already has backtick-quoted inline
+code in its comments:** the collision is invisible by reading the diff -
+it only shows up as a downstream "no-statement-found" failure in a
+DIFFERENT eval. After adding such a call, grep the target function's real
+SQL statement out with the exact scanner regex
+(`` `[^`]*<table_name>[^`]*` ``) and confirm it captures the real query text,
+not a mid-comment fragment - the way this rejection's own fix was verified.

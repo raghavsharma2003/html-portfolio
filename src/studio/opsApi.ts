@@ -64,6 +64,15 @@ export interface OpsFunnel {
   stalled_at: OpsFunnelStall[];
 }
 
+// WS-R40 (migration 102). `api/_funnel.js`'s own `shareArrivalsThisWeek`
+// shape, typed here unchanged - this file computes nothing, `opsApi.ts`'s
+// own header rule restated.
+export interface OpsShareArrivals {
+  n: number | null;
+  below_floor: boolean;
+  note: string;
+}
+
 // WS-R30 (migration 093). `api/_phase-gate.js`'s own `phaseGate` shape, typed
 // here unchanged - this file computes nothing, `opsApi.ts`'s own header rule.
 export type OpsGateState = "below" | "at_or_above" | "not_enough_data";
@@ -111,6 +120,8 @@ export interface OpsOverview {
   sweeps: OpsSweep[];
   funnel: OpsFunnel;
   phase_gate: OpsPhaseGate;
+  // WS-R40 (migration 102).
+  share_arrivals_this_week: OpsShareArrivals;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

@@ -25,6 +25,12 @@ import { replicaId as validReplicaId } from "./_replica.js";
 // import it rather than each computing their own Monday, and the creator-
 // invite arrival line below reads the same week boundary they do.
 import { isoWeekStart } from "./_room-cohorts.js";
+// WS-R40 (migration 102). `tableApplied` gates `shareArrivalsThisWeek` below
+// exactly the way `api/_room-surface.js`'s `isTableAppliedFor` gates
+// `recordRoomArrival` - the same seam, imported rather than re-derived, so a
+// database this migration has not yet reached returns the honest "not
+// enough data" shape instead of a query against a table that is not there.
+import { tableApplied } from "./memory.js";
 
 const MARK_STEPS = Object.freeze(["studio_opened", "publish_clicked"]);
 
@@ -413,4 +419,67 @@ export async function suitesFunnelThisWeek(db, now = Date.now()) {
     suites_started_this_week: Number(started?.n || 0),
     suite_seats_attached_this_week: Number(attached?.n || 0),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R40 (migration 102). One aggregate line for the share loop: how many
+// arrivals this week came in through a shared link. `vy_room_arrival` names
+// no follower or thread table at all, so this statement sits outside
+// `evals/room-leak/run.mjs`'s AGGREGATE_ONLY class (that class exists for
+// `vy_room_follower`/`vy_room_thread` reads specifically); a SEPARATE scan
+// in that same file holds this statement to the identical discipline for
+// `vy_room_arrival` - a select list that is nothing but an aggregate
+// function, never a per-row read.
+//
+// Same n>=5 anonymity floor `creatorInviteArrivalsThisWeek` above already
+// applies, `api/_pulse.js`'s PULSE_MIN_FOLLOWERS restated a second time in
+// this file: a bucket this small over ONE creator's own Room could point at
+// the one follower who forwarded the link. Below the floor this returns
+// `n: null` and only the floor sentence; at or above it, the real number.
+// ─────────────────────────────────────────────────────────────────────────
+export const SHARE_ARRIVAL_FLOOR = 5;
+
+// Named rather than inlined below: evals/room-leak/run.mjs's own static
+// scanner pairs source text between backticks to find this file's real SQL,
+// and a bare "vy_room_arrival" string literal sitting between two comment
+// backticks elsewhere in this file was once mistaken for one end of that
+// pairing, which silently ate the real statement below - a rejected.md
+// entry names the exact collision and why a constant (never a second
+// inline string) is the fix.
+const ROOM_ARRIVAL_TABLE = "vy_room_arrival";
+
+/** Pure, `creatorInviteArrivalNote`'s own shape one function up: the fixed
+ *  sentence below the floor never carries the real count, whatever `n`
+ *  this is called with. */
+export function shareArrivalNote(n) {
+  if (n < SHARE_ARRIVAL_FLOOR) {
+    return "Fewer than five arrivals came from a share this week.";
+  }
+  return `${n} arrival${n === 1 ? "" : "s"} came from a share this week.`;
+}
+
+/**
+ * ONE statement, platform-wide, `via = 'share'` over the rolling 7-day
+ * window `suitesFunnelThisWeek` above already uses for "this week". Gated
+ * on migration 102 actually being applied (`tableApplied`, injectable via
+ * `deps.tableApplied` for the offline suite) so a database this migration
+ * has not yet reached returns the honest "not enough data" shape rather
+ * than throwing on a table that is not there yet.
+ */
+export async function shareArrivalsThisWeek(db, now = Date.now(), deps = {}) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied(ROOM_ARRIVAL_TABLE))) {
+    return { n: null, below_floor: true, note: shareArrivalNote(0) };
+  }
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString().slice(0, 10);
+  const [row] = await db(
+    `select coalesce(sum(count), 0)::int as n
+       from vy_room_arrival
+      where via = 'share' and day >= ($1)::date`,
+    [since],
+  );
+  const n = Number(row?.n || 0);
+  const belowFloor = n < SHARE_ARRIVAL_FLOOR;
+  return { n: belowFloor ? null : n, below_floor: belowFloor, note: shareArrivalNote(n) };
 }

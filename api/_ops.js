@@ -30,7 +30,7 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
-import { opsFunnel, creatorInviteArrivalsThisWeek } from "./_funnel.js";
+import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek } from "./_funnel.js";
 // WS-R29 (migration 092). The unit cost is a named constant in the one file
 // that owns the send path - imported here rather than restated, so the
 // board's own number and the send path's own comment can never drift apart.
@@ -292,8 +292,12 @@ async function sweepsOverview(db, now) {
 
 /** The board's one call. `now` is a parameter (default `Date.now()`) so
  *  `evals/ops/run.mjs` can drive it at a fixed instant rather than racing a
- *  real clock. */
-export async function opsOverview(db, now = Date.now()) {
+ *  real clock. `deps` (WS-R40) exists for exactly one downstream seam today
+ *  - `shareArrivalsThisWeek`'s `tableApplied` gate, `api/_room-surface.js`'s
+ *  `isTableAppliedFor` restated - so an offline eval can drive migration
+ *  102's applied/unapplied states without a real database round trip; the
+ *  production caller (`api/ops.js`) passes none and gets the real gate. */
+export async function opsOverview(db, now = Date.now(), deps = {}) {
   if (typeof db !== "function") throw new Error("ops_overview_database_required");
   const rooms = await db(
     `select room_id, slug, display_name, replica_id, agent_id, owner_user_id,
@@ -318,6 +322,10 @@ export async function opsOverview(db, now = Date.now()) {
     // creator" card computes, read here rather than re-derived so the two
     // can never disagree - `_funnel.js`'s own aggregate-only line.
     creator_invite_arrivals: await creatorInviteArrivalsThisWeek(db, now),
+    // WS-R40 (migration 102). Growth from the share loop: how many arrivals
+    // this week came in through a shared link, n>=5 floored the same way
+    // the line immediately above already is.
+    share_arrivals_this_week: await shareArrivalsThisWeek(db, now, deps),
     // WS-R29. "The owner sees the bill before Meta does" - the workstream
     // brief's own words.
     whatsapp: await whatsappSpendThisMonth(db, now),

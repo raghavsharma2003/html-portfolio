@@ -985,6 +985,24 @@ console.log("\n── §11: payments.js payout / cancel_creator_subscription ops
   okClass("e-owner-bearer", "payments.js", "retry_failed_payout: the real operator's retry actually moves the payout off 'failed' (the fixture is sound)", !(retryOutcome instanceof PaymentsError) && state.payouts[0].state !== "failed");
 }
 {
+  // reconcile (WS-R42, landed beside this workstream at the merge) — the same
+  // operator-only shape as retry_failed_payout: the security boundary is the
+  // door's own `isOpsOwner` check, proven dynamically on the primitive and
+  // statically as running BEFORE `reconcilePeriod`; a non-operator bearer gets
+  // 404 by name, never 403, never a period's findings.
+  const OPS_ENV = { OPS_OWNER_USER_IDS: "op-uid-r44" };
+  okClass("e-owner-bearer", "payments.js", "reconcile: isOpsOwner admits the configured operator", isOpsOwner("op-uid-r44", OPS_ENV) === true);
+  okClass("e-owner-bearer", "payments.js", "reconcile: isOpsOwner refuses a non-operator bearer (404, never 403, decided at the door)", isOpsOwner(OWNER_B, OPS_ENV) === false);
+  const src = readFileSync(join(API, "payments.js"), "utf8");
+  const block = src.slice(src.indexOf('if (op === "reconcile")'));
+  ok(
+    '[wiring/payments.js] "reconcile" checks isOpsOwner BEFORE calling reconcilePeriod, never after',
+    block.indexOf("isOpsOwner(user.id)") !== -1 &&
+      block.indexOf("reconcilePeriod(") !== -1 &&
+      block.indexOf("isOpsOwner(user.id)") < block.indexOf("reconcilePeriod("),
+  );
+}
+{
   // cancel_creator_subscription — class e: owner bearer on ANOTHER owner's
   // replica is refused, never touches OWNER's own subscription — the SAME
   // shape §5 already proves for getOwnedReplica/getOwnedRoom/listDesigns,
@@ -1213,6 +1231,7 @@ const OP_COVERAGE = {
     payout_statement: { classes: ["c"] },
     register_fund_account: { classes: ["e"] },
     retry_failed_payout: { classes: ["e"] },
+    reconcile: { classes: ["e"] },
     cancel_creator_subscription: { classes: ["e"] },
   },
   "org.js": {

@@ -254,6 +254,47 @@ export function clientRoom(row, { now = Date.now(), env = process.env } = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE PUBLIC READ — a stranger's own view, no owner scope (WS-R40)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * slug -> the Room's PUBLIC fields, or null for anything not currently
+ * reachable — unpublished, paused, or unknown. `api/_room-page.js`'s crawler
+ * unfurl is the one caller.
+ *
+ * Same predicate `api/_room-surface.js`'s `roomBySlug` already enforces
+ * (`published_at is not null and paused_at is null`), restated here rather
+ * than imported — `api/_disclosure.js`'s own standing rule, both gate
+ * clauses IN the WHERE, never applied after a row is already in hand.
+ * Deliberately WITHOUT `api/_creators.js`'s `listed_at` condition: the
+ * directory is an opt-in feed a creator chooses to appear on, but a
+ * follower can share a Room's own link — and that link should unfurl —
+ * whether or not its creator ever opted into being listed.
+ *
+ * Deliberately NOT `resolveRoom`: that function also loads the agent's
+ * published sheet (`loadTeacherAgent`), a read this endpoint's own cost
+ * budget does not need — a crawler wants a name and a sentence, nothing an
+ * agent module knows that the Room row does not already carry. Returns only
+ * the four columns a card can be built from, never anything from the sheet,
+ * a follower table, or a count.
+ */
+export async function publicRoomBySlug(db, slug) {
+  if (typeof db !== "function") throw new RoomPublishError("room_publish_db_required", 500);
+  const s = String(slug || "").trim().toLowerCase();
+  if (!s) return null;
+  const rows = await db(
+    `select slug, display_name, one_line_bio, default_locale
+       from vy_room
+      where lower(slug) = $1
+        and published_at is not null
+        and paused_at is null
+      limit 1`,
+    [s],
+  );
+  return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // OP: get
 // ─────────────────────────────────────────────────────────────────────────
 

@@ -430,6 +430,52 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
     .filter((l) => l.includes("vy_room_thread") || l.includes("vy_room_follower"));
   ok("the erasure job's only touch of those tables is a delete",
     erasureLines.length > 0 && erasureLines.every((l) => /delete from/i.test(l)));
+
+  // WS-R40, migration 102. `vy_room_arrival` carries no person column by
+  // construction (that migration's own header) — it is not the follower/
+  // thread scan above's business — but it is still part of the Room's
+  // public surface, so it gets the same discipline: a closed set of files
+  // may touch it at all, and every SELECT naming it must be aggregate-only,
+  // never a per-row read. `_room-surface.js` (the one upsert,
+  // `recordRoomArrival`) and `_replica-full-erasure.js` (the delete,
+  // child-before-parent alongside its siblings) may write or delete;
+  // `_funnel.js`'s `shareArrivalsThisWeek` is the one aggregate reader.
+  const ARRIVAL_WRITE_OR_DELETE = new Set(["_room-surface.js", "_replica-full-erasure.js"]);
+  const ARRIVAL_AGGREGATE_ONLY = new Set(["_funnel.js"]);
+  const arrivalOffenders = [];
+  for (const f of fs.readdirSync(join(REPO, "api"))) {
+    if (!f.endsWith(".js")) continue;
+    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    if (!src.includes("vy_room_arrival")) continue;
+    if (ARRIVAL_WRITE_OR_DELETE.has(f)) continue; // proven a write/delete below, never a creator-facing read
+    if (!ARRIVAL_AGGREGATE_ONLY.has(f)) { arrivalOffenders.push(f); continue; }
+    const stmts = (src.match(/`[^`]*vy_room_arrival[^`]*`/g) || [])
+      .filter((st) => /\bfrom\s+vy_room_arrival\b/i.test(st));
+    if (!stmts.length) { arrivalOffenders.push(f + ":no-statement-found"); continue; }
+    for (const st of stmts) {
+      const selectList = (st.match(/select([\s\S]*?)\sfrom\s/i) || [, ""])[1];
+      const items = []; let depth = 0, cur = "";
+      for (const ch of selectList) {
+        if (ch === "(") depth++; else if (ch === ")") depth--;
+        if (ch === "," && depth === 0) { items.push(cur); cur = ""; } else cur += ch;
+      }
+      if (cur.trim()) items.push(cur);
+      const aggregateOnly = items.length > 0 && items.every((c) => /\b(count|sum|min|coalesce)\s*\(/i.test(c));
+      if (!aggregateOnly) arrivalOffenders.push(f + ":non-aggregate-read");
+    }
+  }
+  ok("no file outside the allowed set reads vy_room_arrival except an aggregate-only count",
+    arrivalOffenders.length === 0, arrivalOffenders.join(","));
+
+  const arrivalWriteSrc = fs.readFileSync(join(REPO, "api/_room-surface.js"), "utf8");
+  ok("the arrival write is exactly one insert ... on conflict upsert",
+    /insert into vy_room_arrival[\s\S]{0,200}on conflict \(room_id, day, via\) do update/.test(arrivalWriteSrc));
+
+  const arrivalErasureLines = erasureSrc
+    .split("\n")
+    .filter((l) => l.includes("vy_room_arrival"));
+  ok("the erasure job's only touch of vy_room_arrival is a delete",
+    arrivalErasureLines.length > 0 && arrivalErasureLines.every((l) => /delete from/i.test(l)));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
