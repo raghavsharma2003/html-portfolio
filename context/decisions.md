@@ -12060,3 +12060,129 @@ widen the CHECK's set rather than inventing a second column - the same
 drop-then-add pattern this migration itself used (migration 096's own
 precedent) keeps it a one-column, one-CHECK design rather than a column per
 intent.
+
+## `ws-r42-third-lane-rejected-dedicated-table-built-instead` (2026-09-04, WS-R42, migration 104)
+
+**Decision.** The creator-tier charge ledger is a NEW, dedicated table
+(`vy_creator_charge_event`, owner lane: `owner_user_id`/`replica_id`, no
+split columns) rather than a third disjunct on `vy_payment_event_one_lane`
+(migration 095). This workstream's own brief reads, on a first pass, like an
+instruction to widen that CHECK to three lanes ("under migration 095's
+two-lane CHECK") - read literally, that reading is wrong, and this decision
+is the record of why it was not built that way.
+
+**Rationale.** `vy_payment_event`'s `platform_take_inr`/`creator_share_inr`
+columns exist to record a revenue SPLIT (`ws-r33-creator-tier-charge-has-no-ledger-row`'s
+own words: "a creator's own subscription to the platform has no second
+party to split revenue with, 100% is platform revenue by definition").
+Widening the CHECK to a third disjunct would still force every row in that
+lane to carry SOME value in both split columns, inventing meaning for them
+on a row that is not a split - the fabricated-precision failure
+`context/rejected.md`'s no-fake-numbers law forbids for a proxy metric,
+applied here to a column's own meaning rather than a number. Migration
+095's own header and `ws-r33-creator-tier-charge-has-no-ledger-row`'s own
+reversal condition both name the SAME alternative in the SAME words: "add a
+dedicated append-only ledger shaped like `vy_payment_event` but scoped by
+`owner_user_id`/`replica_id` rather than retrofitting a third lane onto a
+table already carrying two." An interrupted first attempt at this
+workstream (branch `ws-r42-money-reconciles-wip`, never merged, read as a
+reference per this workstream's own brief) had already reached the
+identical conclusion before this session started, independently deriving
+the same table shape - a second, independent read of the same evidence
+landing on the same answer is itself corroborating.
+
+**Reversal condition.** None foreseen from this side: the day
+`vy_payment_event`'s own two-lane CHECK is refactored to a `lane` enum plus
+a single nullable `target_id` (the alternative `ws-r33-payment-event-two-mutually-exclusive-lanes`'s
+own reversal condition names for a THREE-case CHECK), re-examine whether
+folding the creator-tier ledger into that generalised table becomes the
+simpler design at that point - but that refactor has not happened, and
+building this table as if it had would be designing for a schema that does
+not exist.
+
+## `ws-r42-suite-reconcile-recomputes-the-builder-formula` (2026-09-04, WS-R42)
+
+**Decision.** `reconcile`'s Suite-lane check recomputes `runPayoutRollup`'s
+OWN flat per-seat formula (`Math.trunc(price_per_seat_inr * SUITE_SEAT_SHARE_BP / 10000)`,
+summed per owner over every Room currently attached to a paying Suite) from
+`suiteRows`, and compares THAT against the recorded `suite_share_inr` on
+each payout row - never by summing the Suite's own org-lane
+`vy_payment_event` rows for the period and multiplying by the share
+basis-points, which is what this workstream's own brief describes in law 2
+("Suite-lane ledger sum times SUITE_SEAT_SHARE_BP... summed over attached
+Rooms, equals the sum of suite_share_inr").
+
+**Rationale.** That literal reading is not the invariant `runPayoutRollup`
+actually holds. `ws-r36-suite-share-flat-per-seat-not-ledger-derived` is
+explicit: `suite_share_inr` is a flat share of the Suite's CURRENT
+`price_per_seat_inr`, for every Room attached at build time, "never as a
+fan-out of what that Suite's own `vy_payment_event` org-lane rows actually
+collected." A Suite pays ONE subscription for N seats; comparing that one
+ledger total against a PER-ROOM share only coincides by construction when
+seats-billed equals rooms-attached, which nothing enforces. Building the
+check against the wrong invariant would have manufactured a mismatch on
+every real Suite that has ever had an unused seat or more than one Room per
+seat - a false alarm indistinguishable, to the operator reading the ops
+board, from a real bug. Recomputing the builder's OWN formula instead
+proves the thing that can actually go wrong: that `suite_share_inr` was not
+corrupted or left stale after `price_per_seat_inr` or the attached-Room set
+changed.
+
+**Reversal condition.** The day `ws-r36-suite-share-flat-per-seat-not-ledger-derived`'s
+own reversal condition fires (a real formula for splitting a Suite's
+COLLECTED seat revenue across its attached creators replaces the flat
+per-seat share), `reconcile`'s Suite check must be rebuilt against THAT
+formula and `suiteRows` widened to carry the org-lane ledger sum it would
+then need - this decision is bound to that one, not independent of it.
+
+## `ws-r42-ledger-and-payout-are-both-whole-rupees` (2026-09-04, WS-R42)
+
+**Decision.** `reconcile` performs NO unit conversion between
+`vy_payment_event.amount_inr` and any `vy_creator_payout` money column - it
+compares both as whole rupees directly, and reports a mismatch's own
+`difference_paise` as `(actual_inr - expected_inr) * 100`, always an exact
+multiple of 100.
+
+**Rationale.** This workstream's own brief (law 4) states "amounts are
+integer paise in the ledger and integer rupees in the payout row (read the
+columns, do not assume)". Read: migration 078's own header, verbatim -
+"`amount_inr` is whole rupees, matching `follower_price_inr`... the
+provider's own amounts are paise and are divided by 100 the moment a
+webhook is parsed, never stored as paise here." Both tables are whole
+rupees; there is no paise/rupee split between them at all. Building a
+conversion the columns do not need would not merely be redundant - it would
+be exactly the kind of "trust the brief's assumption over the schema" error
+`context/rejected.md`'s culture exists to catch, since a conversion applied
+to numbers that are already the same unit multiplies every real amount by
+100 and reports every clean period as a mismatch.
+
+**Reversal condition.** If either table is ever changed to store a
+fractional rupee (a paise column, or `numeric` amounts), `reconcile` must
+gain a real unit-aware comparison at that point, and this decision's own
+"no conversion" claim becomes false and must be superseded, not edited in
+place.
+
+## `ws-r42-reconcile-suite-lane-uses-current-attachment` (2026-09-04, WS-R42)
+
+**Decision.** `reconcilePeriod` (the DB-backed wrapper around `reconcile`)
+reads `suiteRows` from CURRENT `vy_org_subscription`/`vy_room` state - which
+Rooms are attached to a paying Suite RIGHT NOW - never a historical snapshot
+of who was attached at the END of the period being reconciled.
+
+**Rationale.** This product keeps no such snapshot; `runPayoutRollup` itself
+already has the identical limitation ("read fresh, never stored anywhere
+else", `SUITE_SEAT_SHARE_BP`'s own header). Building a snapshot table for
+`reconcile` alone, when the thing it is reconciling AGAINST does not itself
+use one, would let the check disagree with the builder for a reason that is
+not a real bug - attachment drift since the period closed, not a
+miscalculation. For the MOST RECENTLY BUILT period (the common case: an
+operator reconciling the payout run that just happened), current and
+period-end attachment are the same thing in practice.
+
+**Reversal condition.** The day a Room-organisation attachment history table
+exists (needed for other reasons: an audit trail of which Suite a Room sat
+in over time), `reconcilePeriod` should read attachment AS OF the period's
+own `period_end` from it instead, and this decision is superseded. Until
+then, reconciling an OLD period can report a false Suite finding if
+attachment changed since - stated plainly as NOT PROVEN for any period but
+the most recent one.
