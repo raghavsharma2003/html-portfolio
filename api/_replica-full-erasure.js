@@ -479,6 +479,15 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- behind while reporting success.
      readiness as (delete from vy_replica_readiness x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 088's funnel marks (WS-R25). Same shape as readiness immediately
+     -- above and for the same reason: NO foreign key (009's convention),
+     -- so this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. Content-free (a step name and a timestamp, never a message), but
+     -- still a dated record of what a named person did and when, which is
+     -- exactly what an erasure that skipped it would leave behind.
+     funnel_marks as (delete from vy_replica_funnel_mark x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 076's drift watch history (WS-R9). Unlike the activity trail above,
      -- and like 073's readiness snapshot immediately above, this table
      -- carries NO foreign key at all (009's convention for owner-keyed

@@ -16,6 +16,7 @@ import {
 import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
 import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
 import { deleteOwnedFaceSessionNow } from "./_replica-face-session.js";
+import { markStep } from "./_funnel.js";
 
 export const config = { maxDuration: 60 };
 
@@ -83,6 +84,14 @@ export default async function handler(req, res) {
       return status
         ? res.status(200).json({ erasure: status })
         : res.status(404).json({ error: "erasure_request_not_found" });
+    }
+    if (body.op === "funnel_mark") {
+      // WS-R25 (migration 088). The two studio-only funnel moments -
+      // "studio_opened" on the wizard mount, "publish_clicked" on the
+      // button, RoomStudio.tsx's own click site. markStep itself refuses an
+      // owner mismatch before any write; a bad/unknown step is a 400.
+      const mark = await markStep(q, user.id, body.replica_id, body.step);
+      return res.status(200).json(mark);
     }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {
