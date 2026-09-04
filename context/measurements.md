@@ -9702,4 +9702,7 @@ needed. `evals/mp/tgbot.mjs`'s new `setMessageReaction`-shape section is
 written and syntax-checked but, like every other assertion in that file,
 needs `NEON_URL` to actually run (unchanged limitation from WS-R41,
 `measurements.md#ws-r41-provider-contract-marks-2026-09-04`) — not run in
-this environment.
+this environment. `evals/payouts/run.mjs` ran clean too once one addendum
+sentence was reworded (`rejected.md#ws-r60-quoted-provider-reason-code-tripped-a-negative-control`):
+50/50, up from 49/50 on the first (broken) draft, which had tripped its
+own WS-R36 negative control by quoting a RazorpayX reason code verbatim.

@@ -7132,6 +7132,12 @@
       "kind": "rejection",
       "title": "core.telegram.org/bots/api and an unrelated third-party JSON mirror of the same reference both truncate immediately before setMessageReaction, confirming a fetch-tool size ceiling rather than a page-specific failure",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r60-quoted-provider-reason-code-tripped-a-negative-control",
+      "kind": "rejection",
+      "title": "Quoting a RazorpayX reason code verbatim in a comment tripped evals/payouts/run.mjs's text-scanning negative control for a forbidden bank-account substring; fixed by describing the codes in prose",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14309,6 +14315,11 @@
       "src": "ws-r60-meta-subscribed-apps-api-answers-the-two-url-question",
       "rel": "constrains",
       "dst": "ws-r29-whatsapp-credentials-reused-not-forked"
+    },
+    {
+      "src": "ws-r60-quoted-provider-reason-code-tripped-a-negative-control",
+      "rel": "caused_by",
+      "dst": "ws-r60-open-provider-marks-2026-09-04"
     }
   ]
 }

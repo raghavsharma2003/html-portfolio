@@ -8909,3 +8909,38 @@ truncates at an analogous point (not just re-fetching the same page again)
 is what turns "probably a tool limit" into "confirmed a tool limit" —
 worth the one extra fetch before writing a mark down as unreachable rather
 than a strong reproduction limit inherited from the same suspicion twice.
+
+## `ws-r60-quoted-provider-reason-code-tripped-a-negative-control` (2026-09-04, WS-R60)
+
+**What was tried.** Documenting the RazorpayX `payout.failed` webhook's
+`status_details.reason` field in `api/_payments/providers/razorpay.js`'s
+new addendum, quoting the machine-readable reason codes seen in the fetched
+sample payloads verbatim, the way every other quoted field name and value
+in this file's comments already is.
+
+**What broke.** `evals/payouts/run.mjs`'s own WS-R36 negative control
+(`§3`) scans this exact file's ENTIRE source text for the literal
+substring naming a bank account field and fails if it is found ANYWHERE —
+deliberately, since the whole point of that control is that this file must
+never even be able to SPELL that concept, let alone send one (this file's
+own header: "This platform NEVER sends a bank account number or a UPI
+VPA"). One of Razorpay's own reason codes for a failed payout happens to
+contain exactly that substring as part of its name. Quoting the code
+literally in a comment — not sending it, not naming a real field, just
+citing what the document said — was enough to trip a scanner that reads
+the whole file as text, with no concept of "this is a comment describing a
+string a doc published" versus "this is a field this code sends." The
+first, unfixed attempt at the fix ALSO failed the same way (writing "the
+substring `bank_account`" to explain the fix re-introduced the exact
+substring it was explaining).
+
+**The law.** A negative control that scans a FILE'S TEXT rather than its
+PARSED STRUCTURE cannot distinguish a forbidden pattern from a comment
+ABOUT that pattern. This is the correct trade for the control to make (a
+structural check that tried to be clever about "is this really code" would
+be far more complex and could itself be fooled), but it means anyone
+documenting a provider's own vocabulary inside a file a text-scanning
+negative control watches must describe forbidden-looking strings in prose
+rather than quote them verbatim — the fix here, and worth checking for
+before adding rich citations to any file with a same-substring negative
+control elsewhere in this codebase.
