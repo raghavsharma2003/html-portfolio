@@ -33,7 +33,8 @@ import RoomApp from "./RoomApp";
 import "../studio/design/tokens.css";
 import "../studio/studio.css";
 import "./room.css";
-import type { RoomOpen } from "./roomApi";
+import type { RoomOpen, RoomSettings } from "./roomApi";
+import type { RoomPaymentStatus } from "./roomPayApi";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", ""]);
 
@@ -72,6 +73,9 @@ const FIXTURE_OPEN: RoomOpen = {
     voice_seconds_used: 0,
     voice_seconds_included: 0,
     voice_seconds_left: 0,
+    // WS-R39: a follower who has never opened the account screen yet, so
+    // ?screen=account below has a real reminder line to measure.
+    settings_reviewed_at: null,
   },
   threads: [
     { thread_id: "11111111-1111-4111-8111-111111111111", title: "fitness", last_message_at: null },
@@ -98,6 +102,38 @@ const FIXTURE_TURNS = [
   },
 ];
 
+/* WS-R39. `roomSettings`'s own composed shape, at real values — a masked
+ * WhatsApp number and a connected Telegram pointer, both true, so the account
+ * screen's channel section renders every one of its blocks rather than the
+ * shortest possible one. Byte-similar to what `api/_room-surface.js`'s
+ * `roomSettings` actually returns; not imported, for the same standalone
+ * reason `CARD`/`CARD_HI` above are written out rather than imported. */
+const FIXTURE_SETTINGS: RoomSettings = {
+  room: { slug: "anjali", name: "Anjali", display_name: "Anjali" },
+  disclosure: CARD,
+  locale: "en",
+  follower: FIXTURE_OPEN.follower!,
+  settings_reviewed_at: null,
+  channels: {
+    push: { subscribed: false },
+    whatsapp: { available: true, subscribed: true, state: "active", phone_masked: "+91 ••••••78" },
+    telegram: { connected: true, checkins_enabled: true, stopped: false },
+  },
+  price: { price_inr: 299, currency: "INR" },
+  offer: null,
+};
+
+const FIXTURE_SETTINGS_HI: RoomSettings = {
+  ...FIXTURE_SETTINGS,
+  disclosure: CARD_HI,
+  locale: "hi",
+};
+
+const FIXTURE_PAYMENT: RoomPaymentStatus = {
+  tier: "free",
+  subscription: null,
+};
+
 function render() {
   const params = new URLSearchParams(window.location.search);
   const screen = params.get("screen") || "talk";
@@ -108,7 +144,15 @@ function render() {
   const base = hindi ? { ...FIXTURE_OPEN, locale: "hi" as const, disclosure: CARD_HI } : FIXTURE_OPEN;
   const open = screen === "join" ? { ...base, joined: false, session: null } : base;
   ReactDOM.createRoot(document.getElementById("room-root")!).render(
-    <RoomApp fixtureOpen={open} fixtureTurns={screen === "join" ? [] : FIXTURE_TURNS} />,
+    <RoomApp
+      fixtureOpen={open}
+      fixtureTurns={screen === "join" ? [] : FIXTURE_TURNS}
+      // WS-R39: the account page overlay, forced open with its own composed
+      // read supplied — no network reachable from this fixture.
+      fixtureAccountOpen={screen === "account"}
+      fixtureSettings={hindi ? FIXTURE_SETTINGS_HI : FIXTURE_SETTINGS}
+      fixturePayment={FIXTURE_PAYMENT}
+    />,
   );
 }
 

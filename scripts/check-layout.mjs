@@ -154,21 +154,25 @@ const TARGETS = [
     name: "room",
     fixture: "room-layout-fixture.html",
     query: (screen) => `screen=${screen}`,
-    // The two screens with completely different layouts. `join` carries the
+    // The three screens with completely different layouts. `join` carries the
     // longest prose in the product (the disclosure card plus the whole memory
     // question); `talk` is the conversation, whose bubbles are the one block
-    // here that is allowed to be narrow and must still clear the floor.
-    steps: ["join", "talk"],
+    // here that is allowed to be narrow and must still clear the floor;
+    // `account` (WS-R39) is the follower's own settings page, an overlay
+    // stacked over `talk` with the most SECTIONS of any screen in the product
+    // - the one place a narrow column would most easily go unnoticed among
+    // several short blocks rather than one long one.
+    steps: ["join", "talk", "account"],
     mounted: ".room-shell",
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
     // A Room screen is one shell with one card in it; two is the studio's
     // number and would fail a page that is correct.
     minPanels: 1,
   },
-  // WS-R24: the SAME two screens, with the chrome in Hindi (Devanagari, Noto
-  // Sans Devanagari) instead of English. A separate target rather than a
-  // third `step` on `room` above, because `MIN_CPL`/`MAX_CPL`/`MIN_FONT_PX`
-  // are typeface-and-script-sensitive and a collapsed Devanagari column is
+  // WS-R24: the SAME screens, with the chrome in Hindi (Devanagari, Noto Sans
+  // Devanagari) instead of English. A separate target rather than a third
+  // `step` on `room` above, because `MIN_CPL`/`MAX_CPL`/`MIN_FONT_PX` are
+  // typeface-and-script-sensitive and a collapsed Devanagari column is
   // exactly the defect class this whole gate exists to catch - measuring only
   // the English chrome would leave the follower-facing screen most likely to
   // actually be read in Hindi unmeasured by this gate entirely.
@@ -176,7 +180,7 @@ const TARGETS = [
     name: "room-hi",
     fixture: "room-layout-fixture.html",
     query: (screen) => `screen=${screen}&lang=hi`,
-    steps: ["join", "talk"],
+    steps: ["join", "talk", "account"],
     mounted: ".room-shell",
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
     minPanels: 1,

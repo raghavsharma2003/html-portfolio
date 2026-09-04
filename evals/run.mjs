@@ -1742,6 +1742,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
   "org-billing": "org-billing/run.mjs",
+  // WS-R39, migration 101 (`vy_room_follower.settings_reviewed_at`). The
+  // follower's own page: `roomSettings` (one composed read: disclosure,
+  // memory consent, the three check-in channels, the room's price, any OPEN
+  // cap-reached offer, `settings_reviewed_at`) and `roomSettingsReviewed`
+  // (the one write, session-scoped exactly as `roomSetLocale`'s is). A
+  // two-follower world proves B carries none of A's own channel/offer state;
+  // the cap-reached offer is recorded, surfaced, and dismissed exactly once
+  // (`api/_phase-gate.js`'s real `recordOffer`/`roomDismissOffer`); a static
+  // proof that `RoomApp.tsx`'s cap-reached card is gated on BOTH the refusal
+  // and the offer row, never either alone; both locales carry every new key.
+  // THREE NEGATIVE CONTROLS: (a) a body-supplied follower id is ignored by
+  // `roomSettingsReviewed`; (b) the composed read's own SQL never selects a
+  // message column, a static scan proven to bite on a poisoned copy; (c) a
+  // string naming the banned word or carrying an em dash fails the copy gate.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-account": "room-account/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -3908,3 +3908,11 @@ create unique index if not exists vy_room_pulse_combo_ix
   on vy_room_pulse_combo (room_id, week_start, labels);
 create index if not exists vy_room_pulse_combo_owner_read_ix
   on vy_room_pulse_combo (room_id, week_start desc);
+
+-- Migration 101 - the follower's own settings page needs one column
+-- (WS-R39). See db/migrations/101_room_follower_settings_reviewed.sql for
+-- the full argument: nullable, no table it belongs to is new, no
+-- PERSON_TABLES/erasure/relcheck change (the row it lives on is already
+-- reached by roomForget's own vy_room_follower delete).
+alter table vy_room_follower
+  add column if not exists settings_reviewed_at timestamptz null;

@@ -10897,3 +10897,152 @@ introduce new withdrawal logic.
 DIFFERENT predicate than v0 (e.g. a grace period before revocation takes
 effect), this decision reverses and withdrawal needs its own tested logic
 rather than borrowed correctness.
+
+## `ws-r39-room-settings-reused-raw-sql-not-imports` (2026-09-04, WS-R39)
+
+**Decision.** `roomSettings` (api/_room-surface.js) reads push and WhatsApp
+channel status via raw SQL written out in this file, byte-similar to
+`api/_room-push.js`'s `subscriptionStatus` and `api/_room-whatsapp.js`'s
+`status`, rather than importing either function. Telegram needs no such
+re-derivation: WS-R34 already put `telegramCheckinsStatusFor` directly in
+`api/_room-surface.js` for the identical reason, so `roomSettings` calls it.
+
+**Rationale.** `api/_room-push.js`, `api/_room-whatsapp.js`, `api/_checkins.js`
+and `api/_payments.js` all already import `readRoomSession`/`resolveRoom`/
+`followerRow`/`RoomError` FROM `api/_room-surface.js`. An import the other
+way would be circular - the exact wall `api/_room-whatsapp.js`'s own header
+already names for why it re-derives `followerScope` rather than importing
+it, and `roomExport`'s pre-existing WhatsApp extra (WS-R29) already crosses
+the same wall the same way. This is not a new pattern this workstream
+invented; it is the third instance of an existing one.
+
+**Reversal condition.** If any of those three files is ever refactored to
+stop importing from `api/_room-surface.js` (a shared, non-circular identity
+module extracted from both, say), `roomSettings` should import the real
+functions instead of carrying a second copy of their SQL - two definitions
+of "is this follower subscribed" is a drift risk this decision accepts only
+because the alternative (a circular import) is not buildable at all.
+
+## `ws-r39-subscription-status-read-through-existing-op-not-duplicated` (2026-09-04, WS-R39)
+
+**Decision.** `AccountPage.tsx` reads the follower's subscription state
+(provider, state, `current_period_end`) through the EXISTING `/api/room-pay
+{op:"status"}` op (`followerSubscriptionStatus`, api/_payments.js) as a
+second request alongside `roomSettings`, rather than folding that read into
+`roomSettings` itself.
+
+**Rationale.** `followerSubscriptionStatus` already exists, is already
+session-scoped exactly the way `roomSettings` is, and is already the one
+read `api/_payments.js`'s own header calls "the follower's own honest read".
+Re-deriving the same query inside `api/_room-surface.js` would be the same
+divergence risk `ws-r39-room-settings-reused-raw-sql-not-imports` above
+accepted for push/WhatsApp only because there was no existing op to call
+instead - here there is one, so reusing it rather than duplicating it is the
+same law applied the other way.
+
+**Reversal condition.** If the account page's own load time is ever measured
+to matter enough that a second round trip is a real cost (unmeasured today -
+this workstream added no client-side timing), folding a THIRD read of
+`vy_room_subscription` into `roomSettings`'s existing composed read removes
+one request at the cost of a second definition of that query - acceptable
+only once the first cost is shown to be real.
+
+## `ws-r39-cap-reached-offer-needs-a-second-read` (2026-09-04, WS-R39)
+
+**Decision.** The Room does not learn whether WS-R30 recorded a
+`cap_reached` offer from the `room_free_cap_reached` refusal itself (that
+response carries only `messages_included`, `api/room.js`'s own error
+mapping). `RoomApp.tsx`'s `send()` instead calls `roomSettings` a SECOND
+time, only after that specific refusal, to ask whether an open `cap_reached`
+offer exists before rendering the offer card.
+
+**Rationale.** `roomSay`'s cap-reached branch throws before any response
+body could carry an `offer` field, and the offer write on that path is
+explicitly best-effort (`.catch(() => {})`, `api/_room-surface.js`'s own
+comment: "this write's own failure must never turn a 402 into a 500"). So
+the card's own required law ("renders only when both the refusal and the
+offer row exist", this workstream's brief) cannot be proven from the
+refusal's own response alone - a second, independent read is what makes
+"the row exists" a checked fact rather than an assumption baked into the
+client the moment it saw a 402.
+
+**Reversal condition.** If `RoomError`'s `details` object is ever extended
+to carry the same `{reason, shown_at}` shape `roomSettings.offer` already
+returns (mirroring how `room_free_cap_reached` already carries
+`messages_included`), the second read becomes redundant and the card can
+render straight off the refusal's own response - a strict subset of what
+this decision already checks for, so the reversal only ever removes a round
+trip, never a guarantee.
+
+## `ws-r39-settings-reminder-baseline-includes-join-date` (2026-09-04, WS-R39)
+
+**Decision.** The Room's quarterly "you have not looked at your settings
+since `<date>`" sentence uses `settings_reviewed_at ?? joined_at` as its
+baseline, never `settings_reviewed_at` alone - a follower who has NEVER
+opened the account page gets `joined_at` as the date the sentence names,
+rather than showing nothing until their first review or fabricating an
+epoch.
+
+**Rationale.** The brief's own words ("never a nag") rule out reminding a
+follower who joined yesterday; using `joined_at` when `settings_reviewed_at`
+is null means the 90-day quiet period starts at the moment a relationship
+with this creator's AI began, which is the only other real timestamp on the
+row that can honestly answer "since when". The alternative - showing nothing
+until a first review exists - would mean a follower who never opens the page
+at all never sees the reminder either, which defeats its purpose.
+
+**Reversal condition.** If a product review decides the reminder should
+never appear before a first deliberate review (i.e. the sentence should only
+ever compare against a follower's OWN past visit, never their join date),
+drop the `?? joined_at` fallback and gate the whole reminder on
+`settings_reviewed_at !== null`.
+
+## `ws-r39-settings-reminder-computed-client-side-no-analytics` (2026-09-04, WS-R39)
+
+**Decision.** The quarterly reminder's due/not-due math (`settingsReminderDue`,
+`RoomApp.tsx`) is a pure client-side computation over `room.follower`'s
+existing fields, run on every render. No new server read backs it, and no
+`obsBestEffort` call fires when it shows, hides, or is tapped.
+
+**Rationale.** The brief's own law 5 states the page "gets no analytics
+beyond `settings_reviewed_at`, and why: a follower's settings visits are
+theirs." A server-side computation (or a logged impression) would be a
+second, unnecessary channel carrying the same fact `settings_reviewed_at`
+already carries, and a follower's decision to ignore a reminder is exactly
+the kind of behaviour this decision keeps off any board a creator or an
+operator could read.
+
+**Reversal condition.** If a future workstream needs the reminder to fire
+identically across a follower's multiple open tabs/devices in real time
+(this decision's own math can disagree between two tabs open across a
+render), or needs a server-driven channel (a push notification, say) rather
+than a sentence rendered on next load, the due/not-due decision moves
+server-side - but the no-analytics law should survive that move unless a
+human explicitly asks for a count.
+
+## `ws-r39-account-page-additive-not-consolidating-scattered-controls` (2026-09-04, WS-R39)
+
+**Decision.** `AccountPage.tsx` is a new, additional screen reachable from
+the Room's header. `DataMenu` (export/forget) and `CheckinsPanel` (the same
+three channel toggles, duplicated) are left exactly as they were - neither
+was deleted, redirected to the new page, nor had its own header button
+removed.
+
+**Rationale.** The brief's own framing ("a follower's controls scattered
+through the Room... build the follower's page... where every decision about
+themselves lives") reads most naturally as a call to consolidate, but doing
+that inside this workstream means touching three existing, gate-covered
+surfaces (`DataMenu`'s export/forget flow, `CheckinsPanel`'s three channel
+toggles, the header's own `LanguageSwitch` placement) whose own suites this
+workstream did not write and whose regression risk is not worth taking
+inside a single workstream that already adds a new screen, a new migration
+and a new eval suite. Every control on the new page reuses the SAME ops the
+scattered ones already call (this workstream's law 1), so nothing about
+the DATA path changed - only where a follower can reach it from.
+
+**Reversal condition.** Once `AccountPage.tsx` has been seen working end to
+end by a human on a real device (named as unproven in this workstream's own
+final report), a follow-up workstream should remove `DataMenu` and fold
+`CheckinsPanel`'s channel controls into the account page alone, leaving
+exactly one place - closing the gap this decision knowingly leaves open
+rather than closing it under this workstream's own time and risk budget.

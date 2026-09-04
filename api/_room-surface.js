@@ -451,7 +451,7 @@ export async function followerRow(db, roomId, personId, agentId) {
     `select f.follower_id, f.room_id, f.person_id, f.agent_id, f.joined_at,
             f.age_attested_at, f.memory_consent_at, f.tier,
             f.month_key, f.month_message_count, f.voice_seconds_month, f.voice_month_key, f.last_seen_at,
-            f.locale
+            f.locale, f.settings_reviewed_at
        from vy_room_follower f
       where f.room_id = ($1)::uuid
         and f.person_id = ($2)::uuid
@@ -506,6 +506,13 @@ export function clientFollower(row, room, at = Date.now()) {
     voice_seconds_used: paid ? voiceUsed : 0,
     voice_seconds_included: paid ? voiceCap : 0,
     voice_seconds_left: paid ? Math.max(0, voiceCap - voiceUsed) : 0,
+    // WS-R39 (migration 101). `null` for a follower who has never opened
+    // their own settings page - never a fabricated epoch. Read here so the
+    // Room's own quarterly reminder sentence rides on the SAME `open`/`join`/
+    // `say` response every other follower-state field already does, rather
+    // than costing the account page's own `roomSettings` read a second trip
+    // before it can even be offered.
+    settings_reviewed_at: row.settings_reviewed_at ?? null,
   };
 }
 
@@ -2360,6 +2367,160 @@ export async function roomDismissOffer(db, { session }, deps = {}) {
     followerId: follower.follower_id, outcome: "dismissed", now: deps.now ?? Date.now(),
   });
   return { dismissed: Boolean(row) };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE FOLLOWER'S OWN PAGE (WS-R39, migration 101)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Every decision a follower can make about THEMSELVES, in one screen: memory
+// consent (changed through the existing `join` op - it already replaces the
+// answer), the three check-in channels, their subscription, their locale,
+// export and forget, and the disclosure sentence repeated. This file adds
+// exactly one new READ (`roomSettings`, below) and one new WRITE
+// (`roomSettingsReviewed`) - every other decision on the page is made through
+// an op this file or a sibling already shipped; the page is a new front door,
+// never a new kind of write.
+//
+// `roomSettings` DOES NOT IMPORT `api/_room-push.js`/`api/_room-whatsapp.js`/
+// `api/_payments.js`/`api/_checkins.js`. It cannot: every one of those files
+// already imports FROM this one (`readRoomSession`/`resolveRoom`/
+// `followerRow`/`RoomError`, `_checkins.js` besides), so an import the other
+// way would be circular. This is the SAME wall `api/_room-whatsapp.js`'s own
+// header names for why it re-derives `followerScope` rather than importing
+// it, and `roomExport`'s own WhatsApp extra above already crosses it the same
+// way: the raw SQL for push/WhatsApp status is written out here, byte-similar
+// to `_room-push.js`'s `subscriptionStatus`/`_room-whatsapp.js`'s `status`,
+// because a second, divergent definition of "is this follower subscribed" is
+// the worse failure. Telegram needs no such re-derivation: WS-R34 already put
+// `telegramCheckinsStatusFor` in THIS file for the identical reason, so it is
+// called directly, not duplicated a second time.
+//
+// Subscription STATE is deliberately NOT read here. `api/room-pay.js`'s
+// `status` op (`followerSubscriptionStatus`, api/_payments.js) already
+// answers exactly that, already session-scoped the same way, and the account
+// page calls it directly - a second copy of that query here would be the
+// same divergence risk the paragraph above just refused to take for push and
+// WhatsApp, for a table this file has even less business reading.
+
+/**
+ * One composed read for the follower's own settings page. Everything below
+ * is derived from the SAME verified session `selfScope` already uses for
+ * export/forget/dismiss - never a client-supplied id, and there is no
+ * request field anywhere in this function's signature that could name a
+ * different follower even by accident.
+ *
+ * WHAT THIS SAVES: without it, the page would need six separate round trips
+ * (follower state, push status, WhatsApp status, Telegram status, the room's
+ * price, any open cap-reached offer) before it could render anything.
+ * WHAT THIS DOES NOT ADD: no value here is a NEW fact about a follower - it
+ * is the same five or six facts `open`/`join`/`push_status`/`whatsapp_status`/
+ * `telegram_status`/`roomSay`'s own inline price read already know, read
+ * once, together, for one screen.
+ */
+export async function roomSettings(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const resolved = await resolveRoom(db, who.slug, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  const name = roomNameFor(resolved.sheet);
+  const disclosure = roomDisclosureCard(name, who.locale);
+
+  // ── push (`_room-push.js`'s `subscriptionStatus`, byte-similar) ──────────
+  let push = { subscribed: false };
+  if (await isTableAppliedFor(deps)("vy_room_push_subscription")) {
+    const rows = await db(
+      `select count(*)::int as n from vy_room_push_subscription
+        where follower_id = ($1)::uuid and revoked_at is null`,
+      [follower.follower_id],
+    );
+    push = { subscribed: Number(rows[0]?.n || 0) > 0 };
+  }
+
+  // ── WhatsApp (`_room-whatsapp.js`'s `status`/`templateApproved`, byte-
+  //    similar - `available` is read BEFORE the table read, the same
+  //    "structurally absent, not merely hidden" shape that file's own header
+  //    names) ──────────────────────────────────────────────────────────────
+  let whatsapp = { available: false, subscribed: false, state: null, phone_masked: null };
+  const waApproved = String((deps.env || process.env).ROOM_WHATSAPP_TEMPLATE_APPROVED || "") === "1";
+  if (waApproved && await isTableAppliedFor(deps)("vy_room_follower_whatsapp")) {
+    const rows = await db(
+      `select phone_e164, state from vy_room_follower_whatsapp where follower_id = ($1)::uuid limit 1`,
+      [follower.follower_id],
+    );
+    const row = rows[0];
+    whatsapp = row
+      ? { available: true, subscribed: row.state === "active", state: row.state, phone_masked: maskPhoneForExport(row.phone_e164) }
+      : { available: true, subscribed: false, state: null, phone_masked: null };
+  }
+
+  // ── Telegram: THIS file's own `telegramCheckinsStatusFor`, not re-derived ─
+  const telegram = await isTableAppliedFor(deps)("vy_room_follower_channel")
+    ? await telegramCheckinsStatusFor(db, follower.follower_id)
+    : { connected: false, checkins_enabled: false, stopped: false };
+
+  // ── price (`roomSay`'s own inline read, one file up, byte-identical) ─────
+  const priceRows = await db(
+    `select follower_price_inr, currency from vy_room_price where room_id = ($1)::uuid limit 1`,
+    [who.roomId],
+  ).catch(() => []);
+  const price = priceRows[0]
+    ? { price_inr: Number(priceRows[0].follower_price_inr), currency: priceRows[0].currency }
+    : null;
+
+  // ── the OPEN cap-reached offer, if any (WS-R30, migration 093) ───────────
+  // `reason = 'cap_reached'` specifically: `roomSay`'s own `session_worked`
+  // offer already reaches the client on the turn that earns it (`offer` on
+  // `RoomTurn`) and is rendered there. A `cap_reached` offer is written on a
+  // REFUSAL, and a refusal throws before any offer field could ride along on
+  // that response - this is the one place a follower ever learns one was
+  // recorded at all.
+  let offer = null;
+  if (await isTableAppliedFor(deps)("vy_room_upgrade_offer")) {
+    const rows = await db(
+      `select reason, shown_at from vy_room_upgrade_offer
+        where follower_id = ($1)::uuid and outcome is null and reason = 'cap_reached'
+        order by shown_at desc
+        limit 1`,
+      [follower.follower_id],
+    );
+    offer = rows[0] ? { reason: rows[0].reason, shown_at: rows[0].shown_at } : null;
+  }
+
+  return {
+    room: { slug: who.slug, name, display_name: resolved.room.display_name || name },
+    disclosure,
+    locale: who.locale,
+    follower: clientFollower(follower, resolved.room),
+    settings_reviewed_at: follower.settings_reviewed_at ?? null,
+    channels: { push, whatsapp, telegram },
+    price,
+    offer,
+  };
+}
+
+/**
+ * The one write this workstream adds: "I looked at this page." Scoped off
+ * the session exactly as `roomSetLocale`'s write is - room, person and agent
+ * all come off the verified token, so there is no request field a caller
+ * could set to mark a DIFFERENT follower's page reviewed.
+ *
+ * No analytics event accompanies this write (WS-R39 law 5): a follower's own
+ * settings visits are theirs, and this column exists so the Room can read a
+ * fact BACK TO THE SAME FOLLOWER, never so anyone else can count it.
+ */
+export async function roomSettingsReviewed(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const at = new Date(deps.now ?? Date.now()).toISOString();
+  const rows = await db(
+    `update vy_room_follower
+        set settings_reviewed_at = ($4)::timestamptz, updated_at = now()
+      where room_id = ($1)::uuid and person_id = ($2)::uuid and agent_id = ($3)::uuid
+      returning settings_reviewed_at`,
+    [who.roomId, who.personId, who.agentId, at],
+  );
+  if (!rows[0]) throw new RoomError("room_join_required", 403);
+  return { settings_reviewed_at: rows[0].settings_reviewed_at };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

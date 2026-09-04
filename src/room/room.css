@@ -608,12 +608,19 @@
     font-size: var(--text-small);
   }
 
-  /* Two header buttons instead of one (WS-R16). `.room-head-row` already
+  /* Two header buttons instead of one (WS-R16), now as many as five
+   * (language, check-ins, handoff, data, WS-R39's own "your settings") on a
+   * Room with every optional surface turned on. `.room-head-row` already
    * carries `justify-content: space-between`; this wraps them so they read
-   * as one group at its right edge instead of pushing apart. */
+   * as one group at its right edge instead of pushing apart - and WRAPS
+   * ONTO A SECOND LINE rather than forcing the row (and therefore the whole
+   * page) to scroll sideways at 390px, the exact failure class DESIGN-LAW's
+   * own layout gate exists to catch. */
   .room-head-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: var(--space-hair);
   }
 

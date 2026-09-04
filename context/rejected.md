@@ -7738,3 +7738,57 @@ restriction.
 **What broke:** the first live `EXPLAIN` at the merge refused the statement with `function min(uuid) does not exist`. Postgres ships `min` for text, date, arrays and timestamps but not for `uuid`, and no mock can know that. `offline-mocks-cannot-type-check-sql`, restated with a fourth shipped instance: this statement had never executed anywhere.
 
 **Fix:** the three uuid constants became `min(($n)::text)::uuid`, which keeps the select list aggregate-only for the leak battery's parser (`_pulse.js` stays in the class) and re-plans on the live database; the fixture matcher was pointed at the new text. Rule: a `min(...)`-wrapped literal is only safe for a type Postgres has a `min` aggregate for, and the only way to know is the live EXPLAIN.
+
+## `ws-r39-header-actions-row-overflowed-at-390px` (2026-09-04, WS-R39)
+
+**Tried:** adding the follower's own page's header link ("Your settings") as a
+fifth child of `.room-head-actions` (already carrying the language switch,
+and, on a Room with check-ins and Handoff both on, up to three more buttons)
+without changing that rule's own CSS at all - `display: flex; align-items:
+center; gap: var(--space-hair)`, no `flex-wrap`.
+
+**What broke:** `node scripts/check-layout.mjs` failed on a real 5px
+horizontal overflow at 390px on `room:talk` - not even the new `room:account`
+screen this workstream added the check for, but the ORDINARY conversation
+screen every follower sees, because the extra header button is present
+there too. Confirmed the defect was this workstream's own by reverting every
+tracked file to HEAD (`git checkout -- .`, no `git stash` - the cross-worktree
+ban binds) and re-running the gate clean (638 blocks judged, 0 findings) on
+the untouched tree, then reapplying the same changes and reproducing the
+failure again before touching anything.
+
+**Fix:** `.room-head-actions` gained `flex-wrap: wrap` and `justify-content:
+flex-end`, so a header that outgrows one line at 390px wraps onto a second
+one instead of forcing the whole page to scroll sideways - the exact failure
+class `check-layout.mjs`'s own header names as the reason it measures
+readability rather than trusting "no overflow" and "primary action above the
+fold" alone. Rule: a flex row of an UNBOUNDED number of optional header
+controls (this Room's own count already ranges from one to five depending on
+which optional surfaces a creator has turned on) needs `flex-wrap` from the
+day it is capable of holding more than fit on the narrowest viewport the
+product ships to, not only once a real device proves it - the room-hi target
+(longer Hindi labels) makes the same row wider still and was checked clean
+only after this fix, not before.
+
+## `ws-r39-settings-reviewed-at-uncast-timestamp-param` (2026-09-04, WS-R39)
+
+**Tried:** `roomSettingsReviewed`'s own UPDATE, `set settings_reviewed_at =
+$4, updated_at = now()`, mirroring `roomSetLocale`'s adjacent `set locale =
+$4` (itself uncast, because `locale` is `text` and the column infers the
+type) without noticing the two columns are not the same type.
+
+**What broke:** `node evals/sqlcast.mjs` failed on the strict surface:
+`api/_room-surface.js` is on it (as every file `evals/room-leak/run.mjs`
+already reaches is), the column is `timestamptz`, and an uncast parameter
+bound directly to a string is exactly the ambiguous-type shape that check
+exists to catch before a live `EXPLAIN` would have to.
+
+**Fix:** `($4)::timestamptz` at the one site. Rule, restated a fourth time in
+this file's own running count of the same defect shape
+(`ws-r34-boolean-parameter-reused-in-a-case-expression-without-a-cast` is the
+most recent prior instance): copying a neighbouring statement's own
+parameter-casting CHOICE is not the same as copying its REASONING - `locale`
+being safely uncast there says nothing about a `timestamptz` column two
+lines below it, and the strict-surface gate is what catches the gap between
+"looks like the same shape" and "is the same type" before a live database
+ever has to.

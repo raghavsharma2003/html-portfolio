@@ -6268,6 +6268,72 @@
       "kind": "rejection",
       "title": "publishCombo wrapped uuid constants in min(...) and the fake db passed it; Postgres has no min(uuid) and the live EXPLAIN at the merge refused the statement. Fixed as min(($n)::text)::uuid; a min-wrapped literal is safe only for types Postgres aggregates, and only the live EXPLAIN knows which.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-room-settings-reused-raw-sql-not-imports",
+      "kind": "decision",
+      "title": "roomSettings re-derives push/WhatsApp status as raw SQL rather than importing api/_room-push.js or api/_room-whatsapp.js, since both already import from api/_room-surface.js and an import the other way would be circular; telegramCheckinsStatusFor is called directly since WS-R34 already put it in this same file for the identical reason.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-subscription-status-read-through-existing-op-not-duplicated",
+      "kind": "decision",
+      "title": "AccountPage reads subscription state through the EXISTING /api/room-pay {op:status} op (followerSubscriptionStatus) as a second request, rather than folding that read into roomSettings and duplicating the query.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-cap-reached-offer-needs-a-second-read",
+      "kind": "decision",
+      "title": "room_free_cap_reached's refusal never carries an offer field (it throws before any response body could), so RoomApp.tsx calls roomSettings a second time after that specific refusal to check whether WS-R30 actually recorded an open cap_reached offer before rendering the card.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-settings-reminder-baseline-includes-join-date",
+      "kind": "decision",
+      "title": "The quarterly settings reminder's baseline is settings_reviewed_at ?? joined_at, never settings_reviewed_at alone, so a follower who has never opened the account page still gets an honest since-date rather than the reminder never firing at all.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-settings-reminder-computed-client-side-no-analytics",
+      "kind": "decision",
+      "title": "The reminder's due/not-due math is a pure client-side computation over fields roomSettings/openRoom already return; no server read and no obsBestEffort call backs it, per the workstream's own law that a follower's settings visits are theirs.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-account-page-additive-not-consolidating-scattered-controls",
+      "kind": "decision",
+      "title": "AccountPage.tsx is a new, additional screen; DataMenu and CheckinsPanel are left exactly as they were rather than deleted or redirected, to keep this workstream's blast radius to one new screen rather than three touched existing ones.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-header-actions-row-overflowed-at-390px",
+      "kind": "rejection",
+      "title": "Adding the account page's header button as a fifth child of .room-head-actions (no flex-wrap) caused a real 5px horizontal overflow at 390px on room:talk, caught by check-layout.mjs and confirmed as this workstream's own defect by reverting the tracked tree to HEAD and re-running clean. Fixed with flex-wrap: wrap; justify-content: flex-end.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-settings-reviewed-at-uncast-timestamp-param",
+      "kind": "rejection",
+      "title": "roomSettingsReviewed's UPDATE bound $4 to a timestamptz column without a cast, mirroring roomSetLocale's adjacent (safely uncast, text) set locale = $4 without noticing the column types differ. Caught by evals/sqlcast.mjs's strict-surface rule; fixed with ($4)::timestamptz.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-room-account-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-account/run.mjs: 42/42 offline, $0 - the composed read's six sections, a two-follower world proving no channel/offer leak, the reviewed write's session scope, the cap-reached offer recorded/surfaced/dismissed once through the real functions, a static proof of RoomApp.tsx's AND-gated card, locale key parity, and three negative controls.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-sqlcast-2026-09-04",
+      "kind": "measurement",
+      "title": "node evals/sqlcast.mjs: 2 uncast sites found (one statement, counted twice) on first run, 0 after the ($4)::timestamptz fix; 804 statements scanned, 411 on the strict surface, unchanged in count of other files' statements.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r39-gate-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 16/16 after every file in this workstream's report, without NEON_URL. No full untouched-tree verify-release run was captured at session start; a narrower, direct untouched-tree check-layout.mjs run (638 blocks, 0 findings, via git checkout -- . with no git stash) confirmed the one regression found was this workstream's own. Every other suite named in the final report was re-run by name after this workstream's changes and matched its own most recent session-log count.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12615,6 +12681,41 @@
       "src": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it",
       "rel": "constrains",
       "dst": "ws-r35-pairwise-check-is-set-vs-single-label"
+    },
+    {
+      "src": "ws-r39-room-settings-reused-raw-sql-not-imports",
+      "rel": "measured_by",
+      "dst": "ws-r39-room-account-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r39-cap-reached-offer-needs-a-second-read",
+      "rel": "measured_by",
+      "dst": "ws-r39-room-account-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r39-settings-reminder-baseline-includes-join-date",
+      "rel": "measured_by",
+      "dst": "ws-r39-room-account-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r39-settings-reminder-computed-client-side-no-analytics",
+      "rel": "constrains",
+      "dst": "ws-r39-settings-reminder-baseline-includes-join-date"
+    },
+    {
+      "src": "ws-r39-header-actions-row-overflowed-at-390px",
+      "rel": "constrains",
+      "dst": "ws-r39-account-page-additive-not-consolidating-scattered-controls"
+    },
+    {
+      "src": "ws-r39-settings-reviewed-at-uncast-timestamp-param",
+      "rel": "measured_by",
+      "dst": "ws-r39-sqlcast-2026-09-04"
+    },
+    {
+      "src": "ws-r39-subscription-status-read-through-existing-op-not-duplicated",
+      "rel": "constrains",
+      "dst": "ws-r39-room-settings-reused-raw-sql-not-imports"
     }
   ]
 }

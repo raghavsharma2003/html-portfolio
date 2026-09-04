@@ -52,6 +52,7 @@ import {
 } from "./copy";
 import CheckinsPanel from "./CheckinsPanel";
 import HandoffPanel from "./HandoffPanel";
+import AccountPage from "./AccountPage";
 import {
   RoomApiError,
   dismissOffer,
@@ -62,6 +63,7 @@ import {
   openRoom,
   roomCitations,
   roomHistory,
+  roomSettings as fetchRoomSettings,
   roomStats,
   revokePulseOptIn,
   sayInRoom,
@@ -75,9 +77,10 @@ import {
   type RoomOffer,
   type RoomOpen,
   type RoomQuota,
+  type RoomSettings,
   type RoomThread,
 } from "./roomApi";
-import { RoomPayApiError, startSubscription } from "./roomPayApi";
+import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
 
 type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean };
 type Phase = "loading" | "unavailable" | "join" | "talking" | "gone";
@@ -94,9 +97,21 @@ interface Props {
    *  without a secret. Production passes neither. */
   fixtureOpen?: RoomOpen;
   fixtureTurns?: Turn[];
+  /** WS-R39: `?screen=account` opens the account page immediately, with its
+   *  own composed read supplied rather than fetched — the layout gate has no
+   *  network at all, `AccountPage.tsx`'s own `fixtureSettings` seam. */
+  fixtureAccountOpen?: boolean;
+  fixtureSettings?: RoomSettings;
+  fixturePayment?: RoomPaymentStatus;
 }
 
-export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
+export default function RoomApp({
+  fixtureOpen,
+  fixtureTurns,
+  fixtureAccountOpen,
+  fixtureSettings,
+  fixturePayment,
+}: Props) {
   const slug = useMemo(() => (fixtureOpen ? fixtureOpen.room.slug : slugFromPath()), [fixtureOpen]);
   const [phase, setPhase] = useState<Phase>(fixtureOpen ? (fixtureOpen.joined ? "talking" : "join") : "loading");
   const [room, setRoom] = useState<RoomOpen | null>(fixtureOpen ?? null);
@@ -134,6 +149,19 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [menu, setMenu] = useState(false);
   const [checkinsOpen, setCheckinsOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
+  // WS-R39: the follower's own page, and the memory-consent toggle that lives
+  // there. `memoryBusy` is its own flag rather than reusing `localeBusy` —
+  // the two writes go through different ops (`join` versus `roomSetLocale`)
+  // and a follower could in principle tap both in close succession.
+  const [accountOpen, setAccountOpen] = useState(fixtureAccountOpen ?? false);
+  const [memoryBusy, setMemoryBusy] = useState(false);
+  // WS-R30's cap-reached offer card. Independent of `offerCard` above (that
+  // one is `session_worked`, delivered on a turn that WORKED): this is
+  // fetched only after a `room_free_cap_reached` refusal, and only rendered
+  // when the server confirms an offer was actually recorded — the workstream
+  // brief's own law ("renders only when both the refusal and the offer row
+  // exist").
+  const [capOffer, setCapOffer] = useState<RoomOffer | null>(null);
   const foot = useRef<HTMLDivElement | null>(null);
   // WS-R19: which bubble is being fetched/played, and the one <audio> both
   // share (one clip at a time - a second tap stops the first rather than
@@ -165,6 +193,22 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   // first turn) if present, the join/open response otherwise. Both are real
   // server state - this line picks between two true answers, never guesses.
   const tier = quota?.tier ?? room?.follower?.tier ?? "free";
+
+  // WS-R39: the quarterly reminder's own math, pure and client side (no
+  // analytics event, `_room-surface.js`'s own law 5). The baseline is the
+  // follower's own last review, or their join date when they have never
+  // reviewed at all — both are real timestamps already on `room.follower`,
+  // so the sentence never has to say "since" a date it does not have.
+  const settingsBaseline = room?.follower?.settings_reviewed_at ?? room?.follower?.joined_at ?? null;
+  const settingsReminderDue =
+    !!settingsBaseline && Date.now() - new Date(settingsBaseline).getTime() >= 90 * 24 * 60 * 60 * 1000;
+  const settingsReminderDate = settingsBaseline
+    ? new Date(settingsBaseline).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
 
   const playReply = useCallback(
     async (index: number, text: string) => {
@@ -267,6 +311,30 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       }
     },
     [fixtureOpen, localeBusy, locale, session, phase, slug, auth],
+  );
+
+  /* WS-R39: the memory-consent toggle, changed from the account page. The
+   * `join` op already replaces the answer (`api/_room-surface.js`'s own
+   * `ON CONFLICT ... DO UPDATE` sets `memory_consent_at = excluded...`, never
+   * coalesced) — this calls it again rather than adding a second write, and
+   * mints a fresh session exactly as a repeat join always has. */
+  const updateMemoryConsent = useCallback(
+    async (next: boolean) => {
+      if (fixtureOpen || !auth || memoryBusy) return;
+      setMemoryBusy(true);
+      try {
+        const joined = await joinRoom(slug, auth.accessToken, { age18: true, remember: next }, locale);
+        setRoom(joined);
+        setSession(joined.session);
+        setThreads(joined.threads ?? []);
+      } catch {
+        // Honest silence, `switchLocale`'s own posture: the answer stays
+        // where it was, and the next tap tries again.
+      } finally {
+        setMemoryBusy(false);
+      }
+    },
+    [fixtureOpen, auth, memoryBusy, slug, locale],
   );
 
   /* The one statistic, and only when it is real. A null renders nothing rather
@@ -379,6 +447,26 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         // it is still theirs.
         setDraft(text);
         setTurns((prev) => prev.slice(0, -1));
+        // WS-R30/WS-R39: the cap-reached refusal itself never carries an
+        // offer (it throws before any response body could). This is the ONE
+        // place a follower ever learns whether WS-R30's best-effort write on
+        // the SAME refusal actually landed — checked here, not assumed, so
+        // the card renders only when the server confirms both halves are
+        // true: `roomSettings`'s own `offer` field is `null` unless an OPEN
+        // `cap_reached` row exists for this follower right now.
+        if (session) {
+          fetchRoomSettings(session)
+            .then((s) => {
+              if (s.offer?.reason === "cap_reached") {
+                setCapOffer({
+                  reason: "cap_reached",
+                  price_inr: s.price?.price_inr ?? null,
+                  currency: s.price?.currency ?? null,
+                });
+              }
+            })
+            .catch(() => {});
+        }
       } else if (cause instanceof RoomApiError && cause.code === "room_disclosure_stale") {
         setError(copy.errors.stale);
       } else if (cause instanceof RoomApiError && cause.code === "room_message_too_long") {
@@ -447,6 +535,15 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
    * talking. */
   const dismissOfferCard = useCallback(() => {
     setOfferCard(null);
+    if (!session) return;
+    void dismissOffer(session).catch(() => {});
+  }, [session]);
+
+  /* "Continue next month" (WS-R39, the cap-reached variant). Same op, same
+   * fire-and-forget posture as `dismissOfferCard` above — `roomDismissOffer`
+   * finds the follower's own most recent OPEN offer regardless of reason. */
+  const dismissCapOffer = useCallback(() => {
+    setCapOffer(null);
     if (!session) return;
     void dismissOffer(session).catch(() => {});
   }, [session]);
@@ -568,6 +665,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             <button type="button" className="room-menu-open" onClick={() => setMenu(true)}>
               {copy.menu.title}
             </button>
+            {/* WS-R39: the follower's own page, reachable from every screen. */}
+            <button type="button" className="room-menu-open" onClick={() => setAccountOpen(true)}>
+              {copy.account.open}
+            </button>
           </div>
         </div>
         {/* ONE statistic, and only if a real count came back. */}
@@ -576,6 +677,20 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             {talkedToday === 1
               ? copy.stats.talkedTodayOne
               : withCount(copy.stats.talkedToday, talkedToday)}
+          </p>
+        )}
+        {/* WS-R39: the quarterly reminder — a plain sentence, never a nag,
+            shown only once `settingsReviewedAt` is 90 days old or more (or
+            never set at all). Resets the moment the follower actually opens
+            the page (`onReviewed` below writes the fresh timestamp straight
+            into `room.follower`, so the sentence disappears without a
+            reload). */}
+        {settingsReminderDue && (
+          <p className="room-stat">
+            {copy.settingsReminder.note.split("{date}").join(settingsReminderDate)}{" "}
+            <button type="button" className="room-menu-open" onClick={() => setAccountOpen(true)}>
+              {copy.settingsReminder.review}
+            </button>
           </p>
         )}
       </header>
@@ -713,6 +828,28 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             {payError && <p className="room-error">{payError}</p>}
           </section>
         )}
+
+        {/* WS-R39: the cap-reached offer card, UNDER the capped screen above,
+            never replacing its sentence — the workstream brief's own law.
+            Rendered only when the server confirmed BOTH halves: the refusal
+            happened (`capped`) AND WS-R30 actually recorded a `cap_reached`
+            offer (`capOffer`, fetched in `send()`'s own catch block above). */}
+        {capped && capOffer && (
+          <section className="room-cap" role="note">
+            <h2>{copy.capOffer.title}</h2>
+            <p className="room-lede">
+              {capOffer.price_inr != null
+                ? withName(withPrice(copy.capOffer.body, `Rs ${capOffer.price_inr}`), name)
+                : withName(copy.capOffer.bodyNoPrice, name)}
+            </p>
+            <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
+              {payBusy ? copy.pay.working : copy.capOffer.subscribe}
+            </button>
+            <button type="button" className="room-btn" onPointerDown={dismissCapOffer}>
+              {copy.capOffer.continue}
+            </button>
+          </section>
+        )}
         {/* THE CONVERSION MOMENT (WS-R30). "The offer belongs at the end of a
             session that worked" - under the last reply, dismissible, and
             never rendered on top of the capped screen (which already has its
@@ -795,6 +932,32 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           onClose={() => setHandoffOpen(false)}
         />
       )}
+      {accountOpen && session && (
+        <AccountPage
+          session={session}
+          copy={copy}
+          locale={locale}
+          name={name || room?.room.display_name || ""}
+          auth={auth}
+          remembers={remembers}
+          memoryBusy={memoryBusy}
+          onMemoryChange={(next) => void updateMemoryConsent(next)}
+          localeBusy={localeBusy}
+          onSwitchLocale={(next) => void switchLocale(next)}
+          payBusy={payBusy}
+          payError={payError}
+          onSubscribe={() => void subscribe()}
+          onReviewed={(at) => setRoom((prev) => (prev?.follower ? { ...prev, follower: { ...prev.follower, settings_reviewed_at: at } } : prev))}
+          onClose={() => setAccountOpen(false)}
+          onForgotten={(receipt) => {
+            setForgetReceipt(receipt);
+            setAccountOpen(false);
+            setPhase("gone");
+          }}
+          fixtureSettings={fixtureSettings}
+          fixturePayment={fixturePayment}
+        />
+      )}
     </main>
   );
 }
@@ -810,7 +973,7 @@ const withIncluded = (template: string, n: number, included: number) =>
  * be able to find the OTHER one's name to reach it. The current locale reads
  * as pressed (`aria-pressed`) rather than disabled, so it stays announced by a
  * screen reader as the state it is. */
-function LanguageSwitch({
+export function LanguageSwitch({
   locale,
   busy,
   onSwitch,
