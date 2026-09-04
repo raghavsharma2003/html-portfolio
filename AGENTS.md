@@ -99,7 +99,7 @@ Notes that will otherwise cost you an hour:
 Idempotent, one statement per request (Neon SQL-over-HTTP allows only one),
 no DO blocks, explicit `::uuid` casts on every comparison, mirrored into
 `db/schema.sql`, and wired into the erasure cascade AND `scripts/relcheck.mjs`'s
-owner-lane reach walk. **015 through 065 and 071 through 093 are applied live.
+owner-lane reach walk. **015 through 065 and 071 through 097 are applied live.
 066-070 are deliberately unused** — another agent applied migrations under
 those numbers live without pushing the files, so the live database already
 carries six tables (`vy_replica_voice_preview_intent`,
@@ -108,9 +108,9 @@ carries six tables (`vy_replica_voice_preview_intent`,
 `vy_replica_expression_observation`) that no file in this tree creates, and
 leaving the range free is what lets that tree merge later without a
 renumbering collision (`context/decisions.md#rooms-migrations-applied-live-in-the-union-order`).
-**Every migration from 076 to 093 was read back from the live catalog at its
+**Every migration from 076 to 097 was read back from the live catalog at its
 merge; `context/measurements.md` carries a `rooms-migration-0NN-live-verification`
-entry for each. 094 through 097 are reserved by wave eight's worktrees; 098
+entry for each. 098 through 101 are reserved by wave nine's worktrees; 102
 is the next free number.** Five legacy tables key `device_id` as TEXT, so
 never assume a cast.
 
@@ -139,7 +139,7 @@ never ships broken.
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
 leak battery and the room export completeness battery as named gates — and
 18 with it, adding the zero-orphan sweep and citation discipline. Migrations
-071 through 093 are applied live; 094 to 097 are reserved by wave eight; 098
+071 through 097 are applied live; 098 to 101 are reserved by wave nine; 102
 is the next free number. `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
