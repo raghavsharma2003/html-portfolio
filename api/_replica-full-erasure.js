@@ -119,6 +119,17 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // than the one asked. Additive; the eval asserts membership, never
       // the exact list.
       "owner_creator_tier_subscription",
+      // 099 (WS-R37). A follower's own renewal-reminder history on this
+      // owner's Rooms (`owner_room_payments`'s own reach, one table over)
+      // and this owner's own creator-tier reminder history
+      // (`owner_creator_tier_subscription`'s own reach, one table over) are
+      // named as their own class rather than folded into either: the
+      // reminder ledger is a distinct KIND of record from a payment or a
+      // subscription state - when this creator's AI reminded someone, and
+      // on which channel - and a receipt that did not name it would
+      // understate what was held. Additive; the eval asserts membership,
+      // never the exact list.
+      "owner_room_renewal_reminders",
     ]),
   });
 }
@@ -588,6 +599,24 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- subscription, never a sibling replica's.
      creator_subscriptions as (delete from vy_creator_subscription x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 099 (WS-R37), the renewal reminder ledger. TWO lanes reached from
+     -- THIS side, in the SAME statement, vy_payment_event_one_lane's own
+     -- mutually-exclusive-columns shape restated for a delete predicate: the
+     -- FOLLOWER lane by room_id via the same vy_room subquery
+     -- payment_events/room_subscriptions use three lines up (a reminder
+     -- carries no agent binding), and the CREATOR lane by replica_id +
+     -- owner_user_id, creator_subscriptions' own scoping one line up. The
+     -- Suite lane (subject_kind='org') is deliberately UNREACHED here,
+     -- vy_org_subscription's own 091 precedent restated: a Suite's own
+     -- reminder history survives an owner's erasure exactly as the Suite
+     -- itself does. Carries real FK CASCADE from both vy_room and the
+     -- follower roster table for the follower lane, so this delete is a
+     -- backstop to that cascade rather than the only mechanism - 071's own
+     -- words, restated here for the Nth time.
+     renewal_reminders as (delete from vy_renewal_reminder x using target t
+       where (x.subject_kind='follower' and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id))
+          or (x.subject_kind='creator' and x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id)),
      -- 086 (WS-R23), creator invites. vy_creator_invite has no room_id and no
      -- replica_id of its own - an invite is redeemed once, before any room
      -- exists, so it is scoped by owner_user_id alone, creator_payouts' own

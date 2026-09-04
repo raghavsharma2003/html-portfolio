@@ -161,7 +161,17 @@ export async function updateSubscriptionQuantity(providerSubscriptionRef, quanti
   return { ok: true, quantity: Number(body?.quantity ?? quantity) };
 }
 
-export async function cancelSubscription(providerSubscriptionRef, secrets) {
+/**
+ * `opts.atCycleEnd` (WS-R37) - widened from the original single-argument
+ * shape, which always sent `cancel_at_cycle_end: 0` (cancel now). No caller
+ * of this function exists anywhere in this tree yet (confirmed by grep
+ * before this change), so `opts = {}` defaulting to `atCycleEnd: false`
+ * reproduces the exact request body this function has always sent; the only
+ * new behaviour is what a caller who passes `{atCycleEnd: true}` gets. The
+ * Rooms plan's own law here (this workstream's brief, law 5) needs the
+ * cycle-end form: "the Room or seat keeps working until period_end."
+ */
+export async function cancelSubscription(providerSubscriptionRef, opts = {}, secrets) {
   if (!secrets?.keyId || !secrets?.keySecret) {
     throw Object.assign(new Error("payments_provider_credentials_missing"), { code: "payments_provider_credentials_missing", status: 503 });
   }
@@ -171,11 +181,11 @@ export async function cancelSubscription(providerSubscriptionRef, secrets) {
       Authorization: basicAuthHeader(secrets.keyId, secrets.keySecret),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ cancel_at_cycle_end: 0 }),
+    body: JSON.stringify({ cancel_at_cycle_end: opts.atCycleEnd ? 1 : 0 }),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
   if (!r || !r.ok) throw Object.assign(new Error("payments_provider_cancel_failed"), { code: "payments_provider_cancel_failed", status: 502 });
-  return { ok: true };
+  return { ok: true, cancel_at_cycle_end: Boolean(opts.atCycleEnd) };
 }
 
 /**

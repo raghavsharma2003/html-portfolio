@@ -375,19 +375,28 @@ console.log("\n── §4: conversionReport — the ratio and the funnel ──"
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-console.log("\n── §5: renewedUnasked — the honest zero ──");
+console.log("\n── §5: renewedUnasked — the honest zero, and now the wired count (WS-R37) ──");
 // ═════════════════════════════════════════════════════════════════════════
 {
   const state = freshPhaseGateState();
   state.rooms.push(
     { room_id: "r1", owner_user_id: "owner-a" }, { room_id: "r2", owner_user_id: "owner-b" }, { room_id: "r3", owner_user_id: "owner-a" },
   );
-  const r = await renewedUnasked(phaseGateDb(state), T0);
+  // WS-R37: `renewedUnasked` now reads through `api/_renewals.js`'s
+  // `renewedUnaskedCount`, which is gated on migration 099
+  // (`vy_renewal_reminder`) being applied. `tableApplied: async () => false`
+  // reproduces exactly what this section always tested - a database that has
+  // not applied 099 yet - without this offline suite ever calling the REAL
+  // `tableApplied` (which reaches the real database, `api/_renewals.js`'s
+  // own header names this as the reason the gate exists at all). See
+  // `evals/renewals/run.mjs` for the WIRED path (`tableApplied: async () =>
+  // true`), which this suite does not re-test.
+  const r = await renewedUnasked(phaseGateDb(state), T0, { tableApplied: async () => false });
   ok("counts DISTINCT owners (2), not rooms (3)", r.creators_total === 2, String(r.creators_total));
-  ok("renewed_unasked is a real, honest zero - no creator subscription table exists to count from",
+  ok("renewed_unasked is a real, honest zero when migration 099 has not been applied",
     r.renewed_unasked === 0);
-  ok("the note names exactly why, in the workstream brief's own words",
-    r.note === "no reminders exist yet, so every renewal counts as unasked");
+  ok("n is 0 (nothing measurable yet), never the creator count", r.n === 0, String(r.n));
+  ok("the note names exactly why", r.note === "no reminder mechanism has been applied to this database yet");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -395,7 +404,7 @@ console.log("\n── §6: phaseGate — composition, and the three honest state
 // ═════════════════════════════════════════════════════════════════════════
 {
   // not_enough_data everywhere: no rooms, no followers, no creators.
-  const empty = await phaseGate(phaseGateDb(freshPhaseGateState()), T0);
+  const empty = await phaseGate(phaseGateDb(freshPhaseGateState()), T0, { tableApplied: async () => false });
   ok("no data anywhere: all three states are not_enough_data", empty.conversion.state === "not_enough_data" &&
     empty.retention.state === "not_enough_data" && empty.renewed_unasked.state === "not_enough_data");
   ok("phase2_may_start is false when nothing is measurable", empty.phase2_may_start === false);
@@ -407,7 +416,7 @@ console.log("\n── §6: phaseGate — composition, and the three honest state
   for (let i = 0; i < 20; i++) {
     s.followers.push({ room_id: ROOM_ID, person_id: `p${i}`, tier: i < 3 ? "paid" : "free", joined_at: new Date(T0 - 30 * DAY).toISOString() });
   }
-  const withConversion = await phaseGate(phaseGateDb(s), T0);
+  const withConversion = await phaseGate(phaseGateDb(s), T0, { tableApplied: async () => false });
   ok("20 eligible, 3 paid = 15%, at or above the 12% floor", withConversion.conversion.pct === 15 &&
     withConversion.conversion.state === "at_or_above", String(withConversion.conversion.pct));
   ok("retention and renewed-unasked are STILL not_enough_data - one number clearing its bar never implies another did",
@@ -418,7 +427,7 @@ console.log("\n── §6: phaseGate — composition, and the three honest state
   const below = freshPhaseGateState();
   below.rooms.push({ room_id: ROOM_ID, owner_user_id: "owner-a", created_at: new Date(T0 - 90 * DAY).toISOString(), published_at: new Date(T0 - 90 * DAY).toISOString() });
   for (let i = 0; i < 25; i++) below.followers.push({ room_id: ROOM_ID, person_id: `q${i}`, tier: "free", joined_at: new Date(T0 - 30 * DAY).toISOString() });
-  const belowResult = await phaseGate(phaseGateDb(below), T0);
+  const belowResult = await phaseGate(phaseGateDb(below), T0, { tableApplied: async () => false });
   ok("25 eligible, 0 paid: below, never not_enough_data (n is well above the floor)",
     belowResult.conversion.state === "below" && belowResult.conversion.pct === 0);
 

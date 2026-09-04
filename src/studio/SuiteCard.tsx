@@ -17,6 +17,7 @@ import {
   suiteSubscription,
   startSuiteSubscription,
   updateSuiteSeats,
+  cancelSuiteSubscription,
   OrgApiError,
   type MySuite,
   type SuiteMember,
@@ -243,6 +244,27 @@ export default function SuiteCard({
     [token, load],
   );
 
+  // WS-R37: cancel at period end - never immediately, api/_renewals.js's own
+  // law. Every attached Room keeps its seat until the date shown; only
+  // `cancel_at_period_end` changes.
+  const cancelMoney = useCallback(
+    async (orgId: string) => {
+      setBusy(`cancel-money-${orgId}`);
+      setError("");
+      setNotice("");
+      try {
+        const sub = await cancelSuiteSubscription(token, orgId);
+        setSubscription(sub);
+        setNotice("Will not renew after the current period ends.");
+      } catch (e) {
+        setError(readableError(e, "could not cancel this Suite's subscription"));
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token],
+  );
+
   return (
     <article className="teacher-sheet-card vy-room__suite-card">
       <h3>Suites</h3>
@@ -335,11 +357,22 @@ export default function SuiteCard({
                         </p>
                         {subscription.state === "active" && subscription.current_period_end && (
                           <p className="field-note">
-                            Next charge: {inr(subscription.seats * subscription.price_per_seat_inr)} on{" "}
-                            {new Date(subscription.current_period_end).toLocaleDateString()}.
+                            {subscription.cancel_at_period_end
+                              ? `Will not renew after ${new Date(subscription.current_period_end).toLocaleDateString()}. Every attached Room keeps its seat until then.`
+                              : `Next charge: ${inr(subscription.seats * subscription.price_per_seat_inr)} on ${new Date(subscription.current_period_end).toLocaleDateString()}.`}
                           </p>
                         )}
                         <p className="field-note">Vyakti's platform take is {PLATFORM_TAKE_PERCENT}%, the same as every Room's own follower price.</p>
+                        {subscription.state === "active" && !subscription.cancel_at_period_end && (
+                          <button
+                            className="button secondary-button"
+                            type="button"
+                            disabled={busy === `cancel-money-${s.org_id}`}
+                            onPointerDown={() => void cancelMoney(s.org_id)}
+                          >
+                            {busy === `cancel-money-${s.org_id}` ? "Working..." : "Cancel"}
+                          </button>
+                        )}
                         <div className="vy-room__cap-row" role="group" aria-label="Add seats">
                           <input
                             className="field vy-room__cap-field"

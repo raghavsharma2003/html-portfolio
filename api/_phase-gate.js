@@ -49,6 +49,10 @@
 // names the reversal condition.
 import { randomUUID } from "node:crypto";
 import { PAID_CONVERSION_FLOOR_PCT, PHASE2_FLOOR_PCT, roomFollowerCohorts } from "./_room-cohorts.js";
+// WS-R37 (migration 099). `renewedUnaskedCount` is the wired reader; this
+// file no longer computes the honest zero itself, it only carries the
+// card's own composition.
+import { renewedUnaskedCount } from "./_renewals.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -357,29 +361,21 @@ export async function conversionReport(db, roomId, now = Date.now()) {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * "A creator subscription whose second period started without a reminder
- * delivery in the prior 7 days." `api/_payments.js`'s own header states the
- * fact this function has to be honest about: "creator pays for capacity
- * (Build/Room/Studio/Institute, a Phase 2 concern with no table here)" - no
- * creator-tier subscription exists anywhere in this database, and no
- * reminder mechanism exists either. So this counts what CAN be counted
- * honestly (how many creators exist at all, from `vy_room`'s own
- * `owner_user_id`, never a guarded table) and reports the renewal count as a
- * real zero rather than fabricating one - `context/rejected.md`'s
- * "a plausible return hides a dead pipeline" restated for a metric instead
- * of a pipeline. The note names exactly why, in the same words the
- * workstream brief itself gives for the card.
+ * WS-R37 (migration 099): wired to the real reminder ledger. "A creator
+ * subscription whose new period began... with no reminder row for the
+ * previous period_end in the 7 days before it" - `api/_renewals.js`'s
+ * `renewedUnaskedCount` holds the query (LEFT JOIN against
+ * `vy_renewal_reminder`, `channel = 'in_app'` as the one guaranteed-single
+ * row per subject-period, `api/_room-cohorts.js`'s WS-R12 "keep the EXISTS
+ * out of the SELECT list" lesson applied via a JOIN instead). This function
+ * is now a thin pass-through so `phaseGate` below and this file's own
+ * `MIN_CREATORS_FOR_DATA` verdict logic do not have to know that the read
+ * moved - `deps` is threaded through so a caller (this file's own offline
+ * eval) can inject `tableApplied`/`db` exactly as `api/_payments.js`'s
+ * gated `offer_update` CTE already is.
  */
-export async function renewedUnasked(db, now = Date.now()) {
-  const [row] = await db(`select count(distinct owner_user_id)::int as creators from vy_room`, []);
-  const creatorsTotal = Number(row?.creators || 0);
-  return {
-    creators_total: creatorsTotal,
-    renewed_unasked: 0,
-    n: creatorsTotal,
-    note: "no reminders exist yet, so every renewal counts as unasked",
-    computed_at: new Date(now).toISOString(),
-  };
+export async function renewedUnasked(db, now = Date.now(), deps = {}) {
+  return renewedUnaskedCount(db, now, deps);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -394,8 +390,8 @@ function verdict(pct, n, floorPct, minN) {
 }
 
 /**
- * `phaseGate(db, now)`: the three numbers, each with n and a verdict, plus
- * one sentence. Loops every Room exactly the way `api/_ops.js`'s
+ * `phaseGate(db, now, deps)`: the three numbers, each with n and a verdict,
+ * plus one sentence. Loops every Room exactly the way `api/_ops.js`'s
  * `opsOverview` and `api/_funnel.js`'s `opsFunnel` already do - "the honest
  * tradeoff at Phase 0 scale against a grouped statement", WS-R25's own words,
  * restated here for a third metric family. Retention reuses
@@ -404,8 +400,14 @@ function verdict(pct, n, floorPct, minN) {
  * `week6_return_share * followers_joined` (exact, since the share itself was
  * computed from those same two integers) rather than adding a second query
  * to a function whose own header already documents its per-week cost.
+ *
+ * `deps` (WS-R37) is threaded to `renewedUnasked` alone - it is the only one
+ * of the three reads gated on a migration that may not have landed on every
+ * database yet (`isTableAppliedFor`, this file's new import's own header).
+ * Optional and defaulted so `api/_ops.js`'s existing call (production, a
+ * real database, no injection needed) is unchanged.
  */
-export async function phaseGate(db, now = Date.now()) {
+export async function phaseGate(db, now = Date.now(), deps = {}) {
   const rooms = await db(`select room_id, created_at, published_at from vy_room`, []);
 
   let eligible = 0, paying = 0;
@@ -434,7 +436,7 @@ export async function phaseGate(db, now = Date.now()) {
   }
   const retentionPct = joined > 0 ? (returned / joined) * 100 : null;
 
-  const renewed = await renewedUnasked(db, now);
+  const renewed = await renewedUnasked(db, now, deps);
   const renewedState = renewed.n < MIN_CREATORS_FOR_DATA
     ? "not_enough_data"
     : (renewed.renewed_unasked >= RENEWED_UNASKED_TARGET ? "at_or_above" : "below");

@@ -404,7 +404,7 @@ export async function orgSubscriptionStatus(db, adminOwnerUserId, orgId) {
 
   const rows = await db(
     `select subscription_id, plan, seats, price_per_seat_inr, currency, state,
-            provider, current_period_start, current_period_end
+            provider, current_period_start, current_period_end, cancel_at_period_end
        from vy_org_subscription
       where org_id = ($1)::uuid
       order by created_at desc
@@ -424,6 +424,8 @@ export async function orgSubscriptionStatus(db, adminOwnerUserId, orgId) {
       provider: row.provider,
       current_period_start: row.current_period_start ?? null,
       current_period_end: row.current_period_end ?? null,
+      // WS-R37: distinct from `state` - api/_renewals.js's own header.
+      cancel_at_period_end: row.cancel_at_period_end === true,
     },
   };
 }

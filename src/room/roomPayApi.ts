@@ -25,6 +25,11 @@ export interface RoomSubscriptionState {
   state: "created" | "authenticated" | "active" | "paused" | "cancelled" | "expired";
   current_period_start?: string | null;
   current_period_end?: string | null;
+  // WS-R37: set once the follower asks the provider to stop at the end of
+  // this period - distinct from `state`, which keeps meaning only what the
+  // provider has confirmed, so this flag is what the panel reads to say
+  // "will not renew" while access itself keeps working until period_end.
+  cancel_at_period_end?: boolean;
 }
 
 export interface RoomSubscribeResult {
@@ -37,6 +42,12 @@ export interface RoomSubscribeResult {
 
 export interface RoomPaymentStatus {
   tier: "free" | "paid";
+  // WS-R37: the room's CURRENT price, null when the creator has never set
+  // one - the same honest-null `api/_payments.js`'s `getRoomPrice` already
+  // returns, restated on this response so the subscription panel can state
+  // "renews on X for Y" without a second endpoint.
+  price_inr: number | null;
+  currency: string | null;
   subscription: RoomSubscriptionState | null;
 }
 
@@ -59,3 +70,10 @@ export const startSubscription = (session: string) =>
 
 export const paymentStatus = (session: string) =>
   post<RoomPaymentStatus>({ op: "status", session });
+
+// WS-R37. "Cancel is a first-class op": the provider is told to stop at the
+// end of the CURRENT period, never immediately - the returned row's own
+// `cancel_at_period_end` is what the panel reads back to confirm it, never
+// a client-side guess about what the click did.
+export const cancelSubscription = (session: string) =>
+  post<{ subscription: RoomSubscriptionState }>({ op: "cancel", session });

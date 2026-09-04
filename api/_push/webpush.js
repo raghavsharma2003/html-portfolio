@@ -289,6 +289,24 @@ export function checkinPushPayload(slug, displayName, threadId = null) {
 }
 
 /**
+ * WS-R37. `checkinPushPayload`'s own shape and its own law, restated for a
+ * renewal notice: the room slug and the room's own PUBLIC display name,
+ * nothing else. No date, no amount, no channel - a renewal's own date and
+ * amount are exactly the content this notification body must never carry
+ * (this file's own header, `evals/renewals/run.mjs`'s static scan asserts
+ * it the same way `checkinPushPayload`'s own negative control does), because
+ * a push notification renders on a lock screen and the follower's own room
+ * panel is where the real sentence lives.
+ */
+export function renewalPushPayload(slug, displayName) {
+  return JSON.stringify({
+    t: "renewal",
+    r: String(slug || ""),
+    n: String(displayName || "").slice(0, 80),
+  });
+}
+
+/**
  * Send one push to one subscription. Returns `{ ok, status, notConfigured }`
  * — never throws for an ordinary HTTP failure (a 404/410 is exactly as
  * expected a result as a 201; the caller decides what a status means). Only

@@ -7823,3 +7823,65 @@ plain `import`+mount is not enough by itself to pass this repo's own eval
 suite; `evals/studio-shell/run.mjs`'s exclusion set needs the same one-line
 addition every time, and the gate is what catches a missed one, not a
 memory of this rule.
+
+## `ws-r37-sql-comment-backticks-terminate-the-template-literal-a-third-time` (2026-09-04, WS-R37)
+
+**Tried.** A new CTE in `api/_replica-full-erasure.js`'s giant erasure
+statement (a JS template literal) was documented with an SQL `--` comment
+that named `vy_payment_event_one_lane` in backticks, following this
+codebase's own Markdown-in-comment style.
+
+**What broke.** `node --check api/_replica-full-erasure.js` failed with
+`SyntaxError: missing ) after argument list` - the backtick inside the SQL
+comment closed the outer JS template literal early, exactly the defect
+`rejected.md#ws-r16-sql-comment-backticks-terminate-the-template-literal`
+(WS-R16) and its restatement at WS-R24 both already name. This is the
+THIRD recorded instance of the identical shape, in the identical file
+family (a SQL comment, inside a JS template literal, quoting an
+identifier the way this repo's own prose always does).
+
+**Fix.** Removed the backtick pair around the one identifier; the comment
+reads the same without it. Caught before any suite ran, by `node --check`
+alone - the same cheap, first-line-of-defense catch WS-R16 and WS-R24 both
+record.
+
+**Generalises to.** Anyone writing a new SQL comment inside a JS template
+literal in `api/_replica-full-erasure.js` (or any file built the same way)
+must never wrap an identifier in backticks inside that comment, no matter
+how natural the habit is everywhere else in this codebase's prose. Run
+`node --check` on the file before running any suite against it - it is
+free and it catches this specific defect deterministically.
+
+## `ws-r37-explanatory-comments-named-the-guarded-tables-and-tripped-the-leak-battery` (2026-09-04, WS-R37)
+
+**Tried.** `api/_renewals.js`'s own header comment stated, in plain prose,
+that "no statement here ever names `vy_room_follower` or `vy_room_thread`"
+- explaining a fact about the file by naming the two tables it does NOT
+touch.
+
+**What broke.** `node evals/room-leak/run.mjs` failed two assertions in
+its own negative-control-adjacent static scan (§7 of this workstream's own
+`evals/renewals/run.mjs`, written to prove the same property, caught it
+first): the battery's file-level check is a raw substring search over the
+WHOLE FILE TEXT for `vy_room_follower`/`vy_room_thread`, comments
+included - `rejected.md#ws-r28-leak-battery-scanner-matches-prose-not-
+only-sql` already names this scope for the real battery, and this
+workstream's own prose tripped over the exact thing that entry warns
+about, while explaining why it does not need to. The identical mistake was
+made a second time in the same session, in `api/_replica-full-erasure.js`'s
+own new comment naming "vy_room_follower for the follower lane."
+
+**Fix.** Reworded both comments to describe the two tables without
+spelling either literal name (e.g. "the two tables the leak battery
+guards", "the follower roster table"). `evals/renewals/run.mjs`'s own §7
+now asserts this negatively as a permanent regression guard - if a future
+edit to `api/_renewals.js` reintroduces either literal name anywhere, that
+suite fails before the leak battery would need to.
+
+**Generalises to.** Any file that must stay OUTSIDE `evals/room-leak/
+run.mjs`'s guarded-table scope by never mentioning the guarded table names
+should say so in its own comments without ever typing either name
+literally - the scanner cannot tell documentation from a query, on
+purpose (that is the whole point of scanning source text rather than a
+parsed AST), and neither should the person writing the comment assume it
+can.

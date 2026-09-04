@@ -45,6 +45,7 @@ import {
 import { readCreatorTier } from "./_creator-tier.js";
 import { OrgError } from "./_org.js";
 import { isOpsOwner } from "./_ops.js";
+import { cancelCreatorRenewal } from "./_renewals.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -120,6 +121,12 @@ export default async function handler(req, res) {
       if (!isOpsOwner(user.id)) return res.status(404).json({ error: "not_found" });
       const payout = await retryFailedPayout(q, { payoutId: body.payout_id });
       return res.status(200).json({ payout });
+    }
+    // WS-R37: cancel at period end, `_renewals.js`'s own seam-through-cancel.
+    if (op === "cancel_creator_subscription") {
+      const subscription = await cancelCreatorRenewal(q, { ownerUserId: user.id, replicaId });
+      obsBestEffort("payments.cancel_creator_subscription", { state: subscription?.state });
+      return res.status(200).json({ subscription });
     }
 
     return res.status(400).json({ error: "unknown_op" });

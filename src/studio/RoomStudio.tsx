@@ -59,6 +59,7 @@ import {
   readRoomPayments,
   setRoomPriceInr,
   startCreatorTierSubscription,
+  cancelCreatorTierSubscription,
   PaymentsApiError,
   type RoomPrice,
   type RoomRevenue,
@@ -470,6 +471,23 @@ export default function RoomStudio({
     [token, replicaId, fail],
   );
 
+  // WS-R37: cancel at period end - never immediately, api/_renewals.js's own
+  // law. The subscription keeps working until `current_period_end`; only
+  // `cancel_at_period_end` changes.
+  const cancelTier = useCallback(async () => {
+    setBusy("creator_tier");
+    setError("");
+    try {
+      const subscription = await cancelCreatorTierSubscription(token, replicaId);
+      setCreatorTier((prev) => (prev ? { ...prev, subscription } : prev));
+      setNotice("Will not renew after the current period ends.");
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  }, [token, replicaId, fail]);
+
   const saveTopics = useCallback(
     async (next: string[]) => {
       setBusy("topics");
@@ -626,9 +644,26 @@ export default function RoomStudio({
             // api/_creator-tier.js's own `creatorTierFromRows` returns
             // "free" for every other state, so this line never needs to
             // qualify itself with a pending or lapsed state.
-            <p className="field-note vy-room__suite-note">
-              Your tier: {creatorTier.tier === "room" ? "Room" : "Studio"}.
-            </p>
+            <div className="vy-room__cap-row" role="group" aria-label="Tier">
+              <span className="field-note">
+                Your tier: {creatorTier.tier === "room" ? "Room" : "Studio"}.
+                {/* WS-R37: the reminder line, one stated fact, no urgency. */}
+                {creatorTier.subscription?.current_period_end &&
+                  (creatorTier.subscription.cancel_at_period_end
+                    ? ` Will not renew after ${new Date(creatorTier.subscription.current_period_end).toLocaleDateString()}.`
+                    : ` Renews on ${new Date(creatorTier.subscription.current_period_end).toLocaleDateString()}.`)}
+              </span>
+              {creatorTier.subscription && !creatorTier.subscription.cancel_at_period_end && (
+                <button
+                  className="button secondary-button"
+                  type="button"
+                  disabled={busy === "creator_tier"}
+                  onPointerDown={() => void cancelTier()}
+                >
+                  {busy === "creator_tier" ? "Working..." : "Cancel"}
+                </button>
+              )}
+            </div>
           )
         )}
 

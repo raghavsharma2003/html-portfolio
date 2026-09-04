@@ -1776,6 +1776,19 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no real provider.
   payouts: "payouts/run.mjs",
+  // WS-R37, migration 099 (`vy_renewal_reminder`). The due-select's window
+  // and NOT EXISTS (one statement per subject kind, no `vy_room_follower`/
+  // `vy_room_thread` reference anywhere in this file), the insert-then-send
+  // idempotency (`recordAndSend`), the cancel op per subject kind through
+  // the seam (never immediately - `cancel_at_period_end`, distinct from
+  // `state`), and `renewedUnaskedCount`'s wired LEFT JOIN against the real
+  // `vy_creator_subscription`. THREE NEGATIVE CONTROLS: (a) a second sweep
+  // in the same day inserts nothing and sends nothing; (b) a cancelled (or
+  // cancel-at-period-end) subscription is never reminded; (c) a follower's
+  // reminder carries no message text of theirs (static scan).
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
+  renewals: "renewals/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

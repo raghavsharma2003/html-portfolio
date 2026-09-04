@@ -164,6 +164,15 @@ export const STRICT_SURFACE = [
   // statement feeding a boolean that decides whether a follower is shown a
   // paid offer, and nothing in this file has ever run against a database.
   /^api\/_phase-gate\.js$/,
+  // WS-R37, the renewal reminder ledger. On the strict list from its first
+  // commit, `_phase-gate.js`'s exact reasoning one row up: `dueReminders`'
+  // three statements and `recordAndSend`'s INSERT feed an unattended DAILY
+  // sweep nobody watches, and a parameter Postgres could not type here
+  // either silently reminds nobody or double-reminds someone whose
+  // subscription already lapsed - the same silent-failure shape a
+  // readiness or drift-watch uncast parameter would have had.
+  /^api\/_renewals\.js$/,
+  /^api\/renewals-sweep\.js$/,
 ];
 
 export function isStrict(rel) {

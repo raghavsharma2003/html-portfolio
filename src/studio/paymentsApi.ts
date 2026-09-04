@@ -89,6 +89,8 @@ export interface CreatorTierStatus {
     provider: string;
     current_period_start: string | null;
     current_period_end: string | null;
+    // WS-R37: distinct from `state` - see api/_renewals.js's own header.
+    cancel_at_period_end: boolean;
   } | null;
 }
 
@@ -162,4 +164,19 @@ export async function readPayoutStatement(token: string, payoutId: string): Prom
 export async function registerPayoutFundAccount(token: string, fundAccountRef: string): Promise<PayoutAccount> {
   const data = await call<{ account: PayoutAccount }>(token, { op: "register_fund_account", fund_account_ref: fundAccountRef });
   return data.account;
+}
+
+// WS-R37. Cancel at period end - the provider is told to stop at the end of
+// the CURRENT cycle, never immediately; the returned row's own
+// `cancel_at_period_end` is what the card reads back, never a client-side
+// guess about what the click did.
+export async function cancelCreatorTierSubscription(
+  token: string,
+  replicaId: string,
+): Promise<CreatorTierStatus["subscription"]> {
+  const data = await call<{ subscription: NonNullable<CreatorTierStatus["subscription"]> }>(token, {
+    op: "cancel_creator_subscription",
+    replica_id: replicaId,
+  });
+  return data.subscription;
 }

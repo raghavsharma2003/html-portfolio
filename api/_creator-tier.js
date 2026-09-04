@@ -40,6 +40,9 @@ function clientCreatorSubscription(row) {
     provider: row.provider,
     current_period_start: row.current_period_start ?? null,
     current_period_end: row.current_period_end ?? null,
+    // WS-R37: distinct from `state` on purpose - see api/_renewals.js's own
+    // header for why cancelling never flips `state` early.
+    cancel_at_period_end: row.cancel_at_period_end === true,
   };
 }
 
@@ -51,7 +54,8 @@ function clientCreatorSubscription(row) {
 export async function readCreatorTier(db, ownerUserId, replicaId, deps = {}) {
   const suiteCovered = await (deps.seatCoversCreatorTier ?? seatCoversCreatorTier)(db, ownerUserId, replicaId);
   const rows = await db(
-    `select subscription_id, plan, price_inr, currency, state, provider, current_period_start, current_period_end
+    `select subscription_id, plan, price_inr, currency, state, provider, current_period_start, current_period_end,
+            cancel_at_period_end
        from vy_creator_subscription
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       order by created_at desc
