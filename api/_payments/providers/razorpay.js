@@ -322,3 +322,104 @@ export function verifyWebhookSignature(rawBody, signatureHeader, secret) {
     return false;
   }
 }
+
+// ── WS-R60 verification addendum (2026-09-04) ──────────────────────────────
+//
+// Appended rather than edited in place, deliberately: WS-R56 is building the
+// RazorpayX payout status webhook against these same shapes at the same time
+// (this workstream's own brief, law 3), and an append-only diff to this file
+// is the one shape of edit that merges with theirs mechanically, with no hunk
+// overlap regardless of where in the file their work lands. The comments
+// ABOVE this line (`updateSubscriptionQuantity`, `registerFundAccount`,
+// `sendPayout`) still say "STILL NOT VERIFIED" / "PARTIALLY VERIFIED" from
+// WS-R41 — that is now STALE, corrected here rather than there, and whoever
+// next touches those functions directly should fold this addendum into their
+// own header and delete this block rather than let two competing notes about
+// the same function drift apart.
+//
+// ── updateSubscriptionQuantity: now VERIFIED (was: not verified) ──────────
+// razorpay.com/docs/api/payments/subscriptions/update-subscription/, fetched
+// 2026-09-04 (found by web search for the operation's own title rather than
+// by guessing a URL slug — the exact fix WS-R41's own rejected.md entry named
+// as untried): "PATCH https://api.razorpay.com/v1/subscriptions/{id}", curl
+// example quoted verbatim: "curl -u <YOUR_KEY>:<YOUR_SECRET> -X PATCH
+// https://api.razorpay.com/v1/subscriptions/sub_00000000000001". The request
+// table names `quantity` (integer), `schedule_change_at` (`now` | `cycle_end`,
+// described as "When the update applies"), plus `plan_id`, `offer_id`,
+// `remaining_count`, `start_at`, `customer_notify` this file never sends. The
+// function's existing `{quantity, schedule_change_at: "now"}` body matches
+// exactly — no code change needed, only the mark.
+//
+// ── registerFundAccount: now fully VERIFIED (was: partially) ──────────────
+// razorpay.com/docs/us/api/x/fund-accounts/fetch-with-id/, fetched
+// 2026-09-04: "GET https://api.razorpay.com/v1/fund_accounts/{id}", curl
+// example quoted verbatim: "curl -u [YOUR_KEY_ID]:[YOUR_KEY_SECRET] -X GET
+// https://api.razorpay.com/v1/fund_accounts/fa_00000000000001" -> a full
+// response sample including `"active": false`. The method+path WS-R41 could
+// not reach (only the response/entity page was reachable then) is now
+// confirmed too, alongside the response shape WS-R41 already had. No code
+// change — this function's GET-by-id was already correct.
+//
+// ── sendPayout: now fully VERIFIED (was: partially) ────────────────────────
+// razorpay.com/docs/api/x/payouts/create/bank-account/, fetched 2026-09-04:
+// "POST https://api.razorpay.com/v1/payouts", request table naming
+// `account_number` (string, required — "The account from which you want to
+// make the payout... Not your contact's bank account number", confirming
+// this is the PLATFORM's own account exactly as this function's existing
+// comment already argued from convention), `fund_account_id`, `amount`
+// (paise, min 100), `currency`, `mode` (`NEFT`|`RTGS`|`IMPS`), `purpose`
+// (`refund`|`cashback`|`payout`|`salary`|`utility bill`|`vendor bill`),
+// `queue_if_low_balance` (boolean, optional), `reference_id` (string,
+// optional, "maximum 40 characters" — WS-R41's own fix already truncates to
+// this), `narration` (string, optional, max 30 chars, this file never sends
+// one). The REQUEST field name `account_number` — previously only convention,
+// since WS-R41 could reach only the RESPONSE field `debit_account_number` for
+// the same concept — is now confirmed as the actual request parameter name.
+// No code change — this function's body was already correct.
+//
+// ── RazorpayX payout webhooks: event names, payload and signature ─────────
+// (WS-R56's own seam — logged here, not built here; this file adds no
+// webhook HANDLER, only the citations the handler needs).
+//
+// Event names — d6xcmfyh68wv8.cloudfront.net/docs/x/webhooks/, fetched
+// 2026-09-04 (razorpay.com's own domain 404s on this exact path for a direct
+// GET, the same SPA-routing failure mode WS-R41's rejected.md entry named;
+// this is Razorpay's own CDN serving the identical pre-rendered content at
+// the identical path — a third fetch path beyond the two the rejection
+// named, not a different provider): the exhaustive list is `payout.pending`,
+// `payout.rejected`, `payout.queued`, `payout.initiated`, `payout.processed`,
+// `payout.updated`, `payout.reversed`, `payout.failed`. Quoted verbatim:
+// "It is mandatory to subscribe to the payout.failed event if you are using
+// RazorpayX APIs." `payout.processed` and `payout.reversed` are terminal:
+// "Any webhook received after these should be ignored." This matches the
+// three named in this workstream's brief (`payout.processed`, `payout.failed`,
+// `payout.reversed`) exactly, plus five more WS-R56 may or may not need.
+//
+// Payload shape — d6xcmfyh68wv8.cloudfront.net/docs/webhooks/payloads/x/,
+// fetched 2026-09-04, full JSON samples quoted for all three named events:
+// the envelope is `{entity:"event", account_id, event, contains:["payout"],
+// payload:{payout:{entity:{...}}}, created_at}` — ONE LEVEL DEEPER than the
+// Subscriptions webhook envelope this file's own header already documents
+// (`payload.subscription.entity` there; `payload.payout.entity` here, same
+// shape of nesting, different key). The inner `payout.entity` object carries
+// `id`, `entity:"payout"`, `fund_account_id`, `amount`, `currency`, `notes`,
+// `fees`, `tax`, `status` (`processed`|`failed`|`reversed`, matching the
+// `event` suffix), `purpose`, `utr`, `mode`, `reference_id`, `narration`,
+// `batch_id`, `status_details:{description, source, reason}` (`reason`
+// includes `payout_processed`, `bank_account_closed`,
+// `beneficiary_bank_offline` in the three samples fetched), `created_at`,
+// `fee_type`.
+//
+// Signature — same cloudfront mirror, `/docs/x/webhooks/`, fetched
+// 2026-09-04, quoted verbatim: "The hash signature is calculated using HMAC
+// with SHA256 algorithm, your webhook secret set as the key and the webhook
+// request body as the message" under the `X-Razorpay-Signature` header —
+// confirmed the SAME mechanism as the Subscriptions webhook this file's
+// `verifyWebhookSignature` already implements (no RazorpayX-specific
+// variant), so WS-R56's payout webhook door can and should call this exact
+// function rather than write a second HMAC implementation, per this file's
+// own header rule for why one algorithm gets one implementation.
+//
+// See context/measurements.md#ws-r60-open-provider-marks-2026-09-04 for the
+// full mark table and context/rejected.md for the two fetch paths WS-R41
+// found closed and the two more this pass tried instead.

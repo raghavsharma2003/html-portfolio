@@ -590,5 +590,89 @@ console.log("\n§10 WS-R41: THE REAL RAZORPAY SIGNATURE, REPRODUCED DIRECTLY");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+console.log("\n§11 WS-R60: THE OPEN PROVIDER MARKS, PINNED AS FIXTURES");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // No network: a monkey-patched global.fetch captures the REAL request each
+  // function builds, then a fake success response lets the function return
+  // normally so its own return-shape can be asserted too. Restored after
+  // each call so later sections (and any suite run after this one in the
+  // same process) see the real global.fetch again.
+  const realFetch = globalThis.fetch;
+  const withFetch = async (impl, run) => {
+    let captured = null;
+    globalThis.fetch = async (url, init) => {
+      captured = { url: String(url), method: init?.method, body: init?.body ? JSON.parse(init.body) : null };
+      return impl(captured);
+    };
+    try {
+      return { captured: () => captured, result: await run() };
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  };
+
+  // razorpay.com/docs/api/payments/subscriptions/update-subscription/,
+  // fetched 2026-09-04: "PATCH https://api.razorpay.com/v1/subscriptions/{id}",
+  // request table names `quantity` and `schedule_change_at` — closes the mark
+  // rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways
+  // left open (found this time by web search for the operation's own title,
+  // not a guessed slug). See api/_payments/providers/razorpay.js's own
+  // WS-R60 addendum for the full citation.
+  {
+    const { captured } = await withFetch(
+      () => ({ ok: true, json: async () => ({ id: "sub_wsr60", quantity: 3 }) }),
+      () => razorpay.updateSubscriptionQuantity("sub_wsr60", 3, { keyId: "k", keySecret: "s" }),
+    );
+    const c = captured();
+    ok("updateSubscriptionQuantity PATCHes /v1/subscriptions/:id",
+      c?.method === "PATCH" && c.url === "https://api.razorpay.com/v1/subscriptions/sub_wsr60");
+    ok("...with exactly the documented {quantity, schedule_change_at} fields",
+      c?.body?.quantity === 3 && c.body.schedule_change_at === "now");
+  }
+
+  // razorpay.com/docs/us/api/x/fund-accounts/fetch-with-id/, fetched
+  // 2026-09-04: "GET https://api.razorpay.com/v1/fund_accounts/{id}" — closes
+  // the "method+path still convention" half of the WS-R41 partial mark (the
+  // response shape, including `active`, was already confirmed then).
+  {
+    const { captured, result } = await withFetch(
+      () => ({ ok: true, json: async () => ({ id: "fa_wsr60", contact_id: "cont_1", account_type: "bank_account", active: true }) }),
+      () => razorpay.registerFundAccount("fa_wsr60", { keyId: "k", keySecret: "s" }),
+    );
+    const c = captured();
+    ok("registerFundAccount GETs /v1/fund_accounts/:id",
+      c?.method === "GET" && c.url === "https://api.razorpay.com/v1/fund_accounts/fa_wsr60");
+    ok("...and reads only the documented 'active' boolean off the response",
+      result.verified === true);
+  }
+
+  // razorpay.com/docs/api/x/payouts/create/bank-account/, fetched 2026-09-04:
+  // "POST https://api.razorpay.com/v1/payouts", request table names
+  // `account_number` as a REQUEST field (WS-R41 had only confirmed the
+  // RESPONSE field `debit_account_number` for the same concept) plus `mode`,
+  // `purpose`, `reference_id` (max 40 chars, already enforced by WS-R41's own
+  // fix) — closes the mark.
+  {
+    const { captured } = await withFetch(
+      () => ({ ok: true, json: async () => ({ id: "pout_wsr60", status: "queued" }) }),
+      () => razorpay.sendPayout(
+        { fundAccountRef: "fa_wsr60", amountInr: 500, ref: "r".repeat(60) },
+        { keyId: "k", keySecret: "s", accountNumber: "7878780080316316" },
+      ),
+    );
+    const c = captured();
+    ok("sendPayout POSTs /v1/payouts",
+      c?.method === "POST" && c.url === "https://api.razorpay.com/v1/payouts");
+    ok("...with the documented request field name account_number (no longer just convention)",
+      c?.body?.account_number === "7878780080316316");
+    ok("...mode IMPS and purpose payout, both documented enum values",
+      c?.body?.mode === "IMPS" && c.body.purpose === "payout");
+    ok("...reference_id still truncated to the documented 40-char ceiling",
+      c?.body?.reference_id?.length === 40);
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

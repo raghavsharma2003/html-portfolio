@@ -30,7 +30,7 @@ import { join } from "node:path";
 import { q } from "../../api/_db.js";
 import { splitSql } from "../../db/migrations/apply.mjs";
 import { MIG_FILES } from "./harness.mjs";
-import { handleUpdate, ROOM_CARD, parseUpdate, parseStartPayload } from "../../api/tg.js";
+import { handleUpdate, ROOM_CARD, parseUpdate, parseStartPayload, clientFor } from "../../api/tg.js";
 import { stateWriteCount, recipientSet, roomRecall, roomBridge, roster } from "../../api/_room.js";
 import { withdrawSharedRows } from "../../api/memory.js";
 import { disclosurePredicate, NEGATIVE_AFFECT_TAGS } from "../../api/_disclosure.js";
@@ -187,6 +187,43 @@ if (CLEANUP_ONLY) {
   const res = await proveNoResidue();
   console.log(`dropped ${n} fixture relation(s); residue: ${JSON.stringify(res)}`);
   process.exit(res.relations.length || res.productionRows.length ? 1 : 0);
+}
+
+// ── WS-R60: the REAL setMessageReaction body shape, pinned ────────────────
+//
+// Every OTHER assertion below drives `send`/`react` as INJECTED fakes (the
+// suite's own header explains why: `reply` and the wire are the two things a
+// test cannot own) — which means nothing else in this file has ever exercised
+// `clientFor(...).react()`'s own call into the REAL `tgCall`, the function
+// that actually builds the outbound body. This section does, with no DB and
+// no network: a monkey-patched global.fetch captures the request `tgCall`
+// would send, then the real fetch is restored before schema setup below.
+// Citation: api/tg.js's own header, WS-R60 finding — the changelog (Bot API
+// 7.0 added the method) plus grammyjs/types' typed parameter table, since
+// core.telegram.org/bots/api itself still truncates before this method's own
+// section for this fetch tool (context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways).
+console.log("── setMessageReaction body shape (WS-R60) ──");
+{
+  const realFetch = globalThis.fetch;
+  let captured = null;
+  globalThis.fetch = async (url, init) => {
+    captured = { url: String(url), body: init?.body ? JSON.parse(init.body) : null };
+    return { ok: true, json: async () => ({ ok: true, result: true }) };
+  };
+  try {
+    await clientFor("faketoken12345").react(-100777001, 42, "🔥");
+    ok("setMessageReaction is called at bot<token>/setMessageReaction",
+      captured?.url === "https://api.telegram.org/botfaketoken12345/setMessageReaction");
+    ok("...with {chat_id, message_id, reaction:[{type:'emoji', emoji}]} exactly",
+      captured?.body?.chat_id === -100777001 &&
+      captured?.body?.message_id === 42 &&
+      Array.isArray(captured?.body?.reaction) &&
+      captured.body.reaction.length === 1 &&
+      captured.body.reaction[0].type === "emoji" &&
+      captured.body.reaction[0].emoji === "🔥");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 }
 
 // ── 0. the engine bundle must be the one this tree compiles ───────────────
