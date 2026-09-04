@@ -185,6 +185,39 @@ const TARGETS = [
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
     minPanels: 1,
   },
+  // WS-R45: the creator directory, `site/creators.html`. Unlike `studio` and
+  // `room` this page needs no signed-in fixture at all - it is PUBLIC and
+  // unauthenticated by construction, so the real static file (see
+  // vite.config.ts's own comment on why it emits to `dist/site/creators.html`
+  // under this gate's plain `vite build` rather than `dist/creators.html`) is
+  // both the production page and its own fixture. `minPanels: 2` because the
+  // hero heading and at least one list card (a real creator, or the honest
+  // loading/empty/error status card the page always renders instead of
+  // nothing) are the floor for "this page actually rendered something",
+  // `room`'s own "one shell, one card" reasoning at one panel more since the
+  // directory's hero and its list are two structurally different regions.
+  {
+    name: "creators",
+    fixture: "site/creators.html",
+    query: () => "",
+    steps: ["directory"],
+    mounted: ".creators-shell",
+    panels: ".creators-hero, .creators-card",
+    minPanels: 2,
+  },
+  // WS-R24's own reason, restated one surface over: `MIN_CPL`/`MAX_CPL`/
+  // `MIN_FONT_PX` are typeface-and-script-sensitive, so the Hindi chrome
+  // needs its own measured target rather than trusting the English one to
+  // stand in for it.
+  {
+    name: "creators-hi",
+    fixture: "site/creators.html",
+    query: () => "lang=hi",
+    steps: ["directory"],
+    mounted: ".creators-shell",
+    panels: ".creators-hero, .creators-card",
+    minPanels: 2,
+  },
 ];
 
 /** Every (viewport, target, screen) the run covers. Derived rather than
