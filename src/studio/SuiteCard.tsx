@@ -5,7 +5,7 @@
 // through `RoomStudio.tsx`'s already-large hook graph, and it fails closed
 // on its own - a creator who cannot see this card can still publish and run
 // their Room without a Suite at all.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createSuite,
   inviteToSuite,
@@ -20,9 +20,15 @@ import {
   cancelSuiteSubscription,
   OrgApiError,
   type MySuite,
+  type Suite,
   type SuiteMember,
   type SuiteSubscription,
 } from "./orgApi";
+// WS-R48. "Start a Suite" on site/suites.html: a name and a seat count that
+// have to survive a sign-in round trip land here as a stored draft; this
+// card is where they turn into an actual Suite, reusing `createSuite`/
+// `startSuiteSubscription` above verbatim - never a second write path.
+import { takeStartSuiteDraft } from "./startSuiteDraft";
 
 const NAME_MAX = 120;
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -68,6 +74,9 @@ export default function SuiteCard({
   // subscription exists yet. A SuiteSubscription: loaded and real.
   const [subscription, setSubscription] = useState<SuiteSubscription | null | undefined>(undefined);
   const [seatEditDraft, setSeatEditDraft] = useState(1);
+  // WS-R48. null: nothing to auto-start, or already finished. Otherwise the
+  // two-step self-serve flow's own progress, shown while it runs.
+  const [autoStart, setAutoStart] = useState<"creating" | "starting" | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +89,53 @@ export default function SuiteCard({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // WS-R48. "Start a Suite" self-serve: a draft waiting in localStorage (see
+  // startSuiteDraft.ts's own header for why it is not a URL param by now)
+  // becomes a real Suite the moment this card mounts, whether that is
+  // straight off the marketing page or after a sign-in redirect brought the
+  // visitor back here. `consumed` guards React StrictMode's double-invoke in
+  // development - `takeStartSuiteDraft()` already removes the draft from
+  // storage as it reads it, so a REAL second mount (a route change, not
+  // StrictMode) also runs this at most once, since the second call finds
+  // nothing left to take.
+  const consumed = useRef(false);
+  useEffect(() => {
+    if (consumed.current) return;
+    const draft = takeStartSuiteDraft();
+    if (!draft) return;
+    consumed.current = true;
+    void (async () => {
+      setAutoStart("creating");
+      setError("");
+      setNotice("");
+      let org: Suite;
+      try {
+        org = await createSuite(token, { name: draft.name, plan: draft.plan, seatLimit: draft.seats });
+        await load();
+      } catch (e) {
+        setAutoStart(null);
+        setError(readableError(e, "could not start this Suite automatically"));
+        return;
+      }
+      // Law 2's own words: "nothing new is charged: the provider is none or
+      // fake until the owner sets Razorpay." A provider that is not
+      // configured yet is not a failed Suite - it is created either way, and
+      // its admin starts the subscription later from the SAME "Start Suite
+      // subscription" control this card already ships (WS-R28), so a
+      // provider failure here is reported gently rather than as an error.
+      setAutoStart("starting");
+      try {
+        await startSuiteSubscription(token, org.org_id, draft.plan, draft.seats);
+        await load();
+        setNotice(`"${draft.name}" is live, and its seat subscription has started.`);
+      } catch {
+        setNotice(`"${draft.name}" is live. Start its subscription below when you are ready to charge seats.`);
+      } finally {
+        setAutoStart(null);
+      }
+    })();
+  }, [token, load]);
 
   const create = useCallback(async () => {
     const name = nameDraft.trim();
@@ -273,6 +329,12 @@ export default function SuiteCard({
         (a coach, a teacher, a doctor) under one roster; an admin sees only counts for each Room, never what a
         follower said.
       </p>
+
+      {autoStart && (
+        <p className="field-note" role="status">
+          {autoStart === "creating" ? "Creating your Suite." : "Starting its seat subscription."}
+        </p>
+      )}
 
       {suites && suites.length > 0 && (
         <ul className="vy-room__suite-list">

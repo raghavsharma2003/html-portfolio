@@ -41,11 +41,25 @@ export function contactKey(contact) {
   return String(contact ?? "").trim().toLowerCase();
 }
 
+const INTENTS = new Set(["creator", "suite"]);
+
+/** WS-R48 (migration 107): "someone who wants to talk first" from the
+ *  Suites landing page uses this SAME form, SAME table, SAME daily rate
+ *  limit - never a second endpoint. Unknown or absent collapses to the
+ *  table's own long-standing default rather than throwing: every caller of
+ *  this function before this workstream sent no `intent` at all, and their
+ *  behaviour must stay byte-identical. */
+function normalizeIntent(value) {
+  const v = String(value ?? "").trim().toLowerCase();
+  return INTENTS.has(v) ? v : "creator";
+}
+
 export async function submitApplication(db, input = {}, { now = Date.now() } = {}) {
   const name = field(input.name, MAX.name);
   const archiveLink = field(input.archive_link, MAX.archive_link);
   const audience = field(input.audience, MAX.audience);
   const contact = field(input.contact, MAX.contact);
+  const intent = normalizeIntent(input.intent);
   if (!name) throw new ApplyError("application_name_required", 400);
   if (!archiveLink) throw new ApplyError("application_archive_link_required", 400);
   if (!contact) throw new ApplyError("application_contact_required", 400);
@@ -57,11 +71,11 @@ export async function submitApplication(db, input = {}, { now = Date.now() } = {
   // separate SELECT before this INSERT would not be.
   const rows = await db(
     `insert into vy_creator_application
-       (application_id, name, archive_link, audience, contact, contact_key, applied_on)
-     values ($1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text, $7::date)
+       (application_id, name, archive_link, audience, contact, contact_key, applied_on, intent)
+     values ($1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text, $7::date, $8::text)
      on conflict (contact_key, applied_on) do nothing
-     returning application_id, name, archive_link, audience, contact, status, created_at`,
-    [randomUUID(), name, archiveLink, audience, contact, key, day],
+     returning application_id, name, archive_link, audience, contact, status, intent, created_at`,
+    [randomUUID(), name, archiveLink, audience, contact, key, day, intent],
   );
   if (!rows[0]) throw new ApplyError("application_already_submitted_today", 429);
   return rows[0];
@@ -72,7 +86,7 @@ export async function listApplications(db, options = {}) {
   const status = String(options.status || "").trim();
   const rows = status
     ? await db(
-        `select application_id, name, archive_link, audience, contact, status, created_at
+        `select application_id, name, archive_link, audience, contact, status, intent, created_at
            from vy_creator_application
           where status = $1::text
           order by created_at desc
@@ -80,13 +94,37 @@ export async function listApplications(db, options = {}) {
         [status, cap],
       )
     : await db(
-        `select application_id, name, archive_link, audience, contact, status, created_at
+        `select application_id, name, archive_link, audience, contact, status, intent, created_at
            from vy_creator_application
           order by created_at desc
           limit $1::int`,
         [cap],
       );
   return rows;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R48. The ops board's own line: how many Suite-intent applications
+// landed in the rolling window a person could have applied in. A plain
+// count over this file's own application table - it names no follower or
+// thread table anywhere, so it never joins `evals/room-leak/run.mjs`'s
+// scanned set at all (that scanner's own header explains the rule this
+// paraphrase exists to stay clear of - see `context/rejected.md#ws-r28-leak-
+// battery-scanner-matches-prose-not-only-sql`). Rolling 7 days,
+// `api/_ops.js`'s own `roomOverview.joined_7d` precedent, restated here
+// rather than a calendar-week boundary this repo has no other convention
+// for.
+// ─────────────────────────────────────────────────────────────────────────
+export async function suiteIntentApplicationsThisWeek(db, now = Date.now()) {
+  if (typeof db !== "function") throw new Error("suite_intent_applications_database_required");
+  const since = new Date(now - 7 * 24 * 3_600_000).toISOString();
+  const [row] = await db(
+    `select count(*)::int as n
+       from vy_creator_application
+      where intent = 'suite' and created_at >= ($1)::timestamptz`,
+    [since],
+  );
+  return Number(row?.n || 0);
 }
 
 /** Deletes every application from one contact - "deletable by name from an

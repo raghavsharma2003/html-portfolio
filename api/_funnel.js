@@ -376,5 +376,38 @@ export async function creatorInviteArrivalsThisWeek(db, now = Date.now()) {
     n: belowFloor ? null : n,
     below_floor: belowFloor,
     note: creatorInviteArrivalNote(n),
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R48 (Suites sell themselves, migration 107). Two platform-wide lines
+// for the ops board's own self-serve section: how many Suites started, and
+// how many seats an existing Suite attached, in the rolling 7 days
+// `roomOverview.joined_7d` already uses as this repo's own "this week".
+//
+// Neither is a follower count and neither identifies a person: a Suite is
+// an organisation, `org_attached_at` is a Room joining one, and this file's
+// own header law (aggregate-only wherever it touches a follower table) does
+// not even apply here - neither statement below names `vy_room_follower` or
+// `vy_room_thread`. No n>=5 floor for the same reason `whatsappSpendThisMonth`
+// and this file's own `stalled_at` counts carry none: those describe
+// deliveries and replicas, these describe Suites and Rooms, never a
+// follower - the floor exists to keep a creator from re-deriving one
+// specific person out of a small bucket of THEIR OWN FOLLOWERS, which is not
+// what either count below could ever do.
+// ─────────────────────────────────────────────────────────────────────────
+const WEEK_WINDOW_MS = 7 * 24 * 3_600_000;
+
+export async function suitesFunnelThisWeek(db, now = Date.now()) {
+  if (typeof db !== "function") throw new Error("suites_funnel_database_required");
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString();
+  const [started] = await db(
+    `select count(*)::int as n from vy_org where created_at >= ($1)::timestamptz`,
+    [since],
+  );
+  const [attached] = await db(
+    `select count(*)::int as n from vy_room where org_attached_at >= ($1)::timestamptz`,
+    [since],
+  );
+  return {
+    suites_started_this_week: Number(started?.n || 0),
+    suite_seats_attached_this_week: Number(attached?.n || 0),
   };
 }

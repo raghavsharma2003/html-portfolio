@@ -6772,6 +6772,66 @@
       "kind": "measurement",
       "title": "Migration 105 applied live and read back; the directory read plans on the partial listed index with an incremental sort, the listing writes on the owner index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-suites-self-serve",
+      "kind": "component",
+      "title": "Suites B2B front door (site/suites.html, both locales) and self-serve start: a name and a seat count survive a sign-in redirect via startSuiteDraft.ts localStorage, land in the EXISTING SuiteCard.tsx/orgApi.ts (createOrg/startOrgSubscription, WS-R28/WS-R33), never a new write path. api/apply.js gains intent:\"suite\" (migration 107); api/_funnel.js/_ops.js gain two ops-board lines.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-suite-price-mirrored-with-a-marker-comment-not-imported",
+      "kind": "decision",
+      "title": "site/suites.html states api/_org.js's price/seat-bound constants next to a `// mirror of api/_org.js#NAME` comment, parsed and cross-checked by evals/suites-self-serve/run.mjs, since the page ships no build step and cannot import the module directly.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-self-serve-writes-through-existing-suitecard-never-a-new-door",
+      "kind": "decision",
+      "title": "The self-serve flow adds no new HTTP endpoint or backend function: SuiteCard.tsx's own useEffect calls the SAME createSuite/startSuiteSubscription the manual controls already call.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-start-suite-draft-in-localstorage-not-carried-through-oauth",
+      "kind": "decision",
+      "title": "startSuiteDraft.ts captures the Suite name/plan/seats into localStorage before React mounts and reads it back after sign-in, restating studioAuth.ts's restoreStudioMode() precedent rather than trusting an OAuth redirect to preserve extra query params.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-org-attached-at-is-a-new-column-not-vy-room-updated-at",
+      "kind": "decision",
+      "title": "Migration 107 adds vy_room.org_attached_at, written only by attachRoom and cleared only by detachRoom, because vy_room.updated_at is also touched by publish/pause/price-change writers and cannot honestly answer \"attached this week\".",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-no-n-gte-5-floor-on-suite-or-application-counts",
+      "kind": "decision",
+      "title": "suitesFunnelThisWeek and suiteIntentApplicationsThisWeek carry no n>=5 floor: none of the three counts describes a follower, the same floor-free shape whatsappSpendThisMonth and stalled_at already carry on the platform-operator-only ops board.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-apply-intent-is-a-new-column-not-the-audience-field",
+      "kind": "decision",
+      "title": "vy_creator_application gains an intent column (migration 107) rather than overloading the existing audience free-text field, which already means something else and would become lossy on both questions.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-suites-self-serve-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/suites-self-serve/run.mjs: 60/60 offline, price/seat-bound mirror parsed from both real files, the self-serve flow through the real seam (fake provider positive path, none-provider refusal proven both dynamically and by static source order), the apply intent, suitesFunnelThisWeek's rolling window, three required negative controls, a static wiring proof.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 17/17 on the untouched tree (isolated worktree at 321a0fd) and 17/17 after every file in this workstream's report, both confirmed via a standalone check-layout.mjs run once a sibling worktree's EADDRINUSE:8931 collision cleared.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-explanatory-comment-named-the-guarded-tables-a-fourth-time",
+      "kind": "rejection",
+      "title": "A new header comment in api/_apply.js named vy_room_follower/vy_room_thread in prose to say the file avoids them, tripping evals/room-leak/run.mjs's own blunt substring scanner - the same defect shape logged three times before this session.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13579,6 +13639,61 @@
       "src": "ws-r45-creators-html-vite-entry-for-gate-only",
       "rel": "measured_by",
       "dst": "rooms-migration-105-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r48-suite-price-mirrored-with-a-marker-comment-not-imported",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-self-serve-writes-through-existing-suitecard-never-a-new-door",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-start-suite-draft-in-localstorage-not-carried-through-oauth",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-org-attached-at-is-a-new-column-not-vy-room-updated-at",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-no-n-gte-5-floor-on-suite-or-application-counts",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-apply-intent-is-a-new-column-not-the-audience-field",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-suites-self-serve",
+      "rel": "measured_by",
+      "dst": "ws-r48-suites-self-serve-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r48-suites-self-serve",
+      "rel": "measured_by",
+      "dst": "ws-r48-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r48-explanatory-comment-named-the-guarded-tables-a-fourth-time",
+      "rel": "caused_by",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r48-self-serve-writes-through-existing-suitecard-never-a-new-door",
+      "rel": "part_of",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r48-org-attached-at-is-a-new-column-not-vy-room-updated-at",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
     }
   ]
 }

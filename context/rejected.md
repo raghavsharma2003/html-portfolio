@@ -8359,3 +8359,34 @@ code the way this project's own prose everywhere else does. A tool call
 that "succeeds" (exit 0, no thrown error) is not proof the string it
 received was the string that was intended; the only way to know is to
 `git log --format=%B` the commit back and actually read it.
+
+## `ws-r48-explanatory-comment-named-the-guarded-tables-a-fourth-time` (2026-09-04, WS-R48)
+
+**What was tried.** `api/_apply.js`'s new `suiteIntentApplicationsThisWeek`
+function got a header comment explaining that it is "aggregate-only in the
+sense this repo's own leak battery names... it does not touch
+`vy_room_follower`/`vy_room_thread` at all, so that scanner never looks at
+this file" - naming the two guarded tables, in prose, to say the function
+does NOT touch them.
+
+**What broke.** `evals/room-leak/run.mjs`'s own scanner decides whether a
+file is in scope with one blunt check over the RAW FILE TEXT:
+`src.includes("vy_room_thread") || src.includes("vy_room_follower")`. The
+comment's literal table names tripped it exactly as a real query would.
+Once tripped, `api/_apply.js` (a file with ZERO statements naming either
+table) failed the "no-statement-found" check `AGGREGATE_ONLY` membership
+requires, and the full eval suite dropped from 78/78 to 77/78.
+
+**Fix.** Reworded the comment to say "a follower or thread table" instead
+of naming them by name - the substantive claim survives intact.
+
+**Rule, restated a fourth time in this repo's own history.** This is the
+SAME defect shape as `ws-r28-leak-battery-scanner-matches-prose-not-only-
+sql`, `ws-r37`'s "explanatory comments named the guarded tables" entry, and
+at least one earlier occurrence: a comment in ANY file under `api/` that
+discusses `vy_room_follower`/`vy_room_thread` BY NAME - even to say a
+function avoids them - joins that file to the leak battery's scanned set
+exactly as a real query would. This has now been hit often enough that a
+future session writing a new aggregate-only function should assume the
+rule applies and paraphrase from the first draft, rather than discovering
+it again the same way this workstream just did.

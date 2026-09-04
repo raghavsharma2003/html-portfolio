@@ -88,7 +88,9 @@ const EXTRA_FILES = [
  * being named. It binds on the Vyakti surfaces, where the name is a leak.
  * WS-R45 adds the creator directory: also a Vyakti surface, also a page a
  * stranger reads first. */
-const CODENAME_FILES = /^site\/(vyakti|creators)\.html$/;
+ * WS-R48 adds `site/suites.html`: the same product's second landing page,
+ * telling the same Rooms story to a Suite buyer instead of a solo creator. */
+const CODENAME_FILES = /^site\/(vyakti|creators|suites)\.html$/;
 
 /* The Rooms vocabulary rule (WS-R10, docs/gurukul's Rooms plan): "not clone,
  * in front of anyone." `site/` is `full` scope for everything else in it
@@ -96,7 +98,11 @@ const CODENAME_FILES = /^site\/(vyakti|creators)\.html$/;
  * only to the pages that tell the Rooms story: the landing page, and (WS-R45)
  * the directory a stranger reaches from search before they are anyone's
  * follower — not to legal pages that were not part of either rewrite. */
-const ROOMS_VOCAB_FILES = /^site\/(vyakti|creators)\.html$/;
+ * only to the pages that tell the Rooms story, not to legal pages that were
+ * not part of this rewrite. WS-R48 adds `site/suites.html` alongside
+ * `site/vyakti.html`: a Suite is several Rooms under one bill, and this page
+ * describes what a Suite admin sees of them in the SAME vocabulary. */
+const ROOMS_VOCAB_FILES = /^site\/(vyakti|creators|suites)\.html$/;
 
 /* Files whose entire purpose is copy. Every literal in them is on its way to a
  * screen, so the visible-prop heuristic is skipped and all of them are read. */

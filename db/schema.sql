@@ -4037,3 +4037,22 @@ alter table vy_creator_invite
     check (issued_kind in ('operator', 'creator'));
 create index if not exists vy_creator_invite_issued_kind_ix
   on vy_creator_invite (issued_by_user_id, issued_kind);
+
+-- Migration 107 - Suites sell themselves (WS-R48). See
+-- db/migrations/107_suites_self_serve.sql for the full argument: `intent`
+-- distinguishes a Suite-first application from a creator application on the
+-- SAME apply form/table rather than overloading `audience`; `org_attached_at`
+-- is the honest "seats attached this week" signal `vy_room.updated_at`
+-- cannot be, since publish/pause/price/detach all touch that column too.
+alter table vy_creator_application
+  add column if not exists intent text not null default 'creator';
+alter table vy_creator_application drop constraint if exists vy_creator_application_intent_check;
+alter table vy_creator_application add constraint vy_creator_application_intent_check
+  check (intent in ('creator','suite'));
+
+alter table vy_room add column if not exists org_attached_at timestamptz null;
+create index if not exists vy_room_org_attached_ix
+  on vy_room (org_attached_at)
+  where org_attached_at is not null;
+create index if not exists vy_org_created_ix
+  on vy_org (created_at desc);
