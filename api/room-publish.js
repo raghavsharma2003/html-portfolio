@@ -9,6 +9,8 @@
 //   POST /api/room-publish {op:"set_free_cap"}   the monthly free allowance
 //   POST /api/room-publish {op:"set_paid_ceilings"} the paid tier's fair-use
 //                                                    numbers (WS-R19)
+//   POST /api/room-publish {op:"set_default_locale"} the Room's default
+//                                                    CHROME language (WS-R24)
 //   POST /api/room-publish {op:"stats"}          real counts, never invented
 //
 // Thin by construction, `api/clone-channel.js`'s own shape: cors, rate limit,
@@ -28,6 +30,7 @@ import {
   resumeRoom,
   setRoomFreeCap,
   setRoomPaidCeilings,
+  setRoomDefaultLocale,
   ownerRoomStats,
 } from "./_room-publish.js";
 
@@ -115,6 +118,13 @@ export default async function handler(req, res) {
         messages: room.paid_monthly_messages,
         voice_seconds: room.paid_monthly_voice_seconds,
       });
+      return res.status(200).json({ room });
+    }
+
+    if (op === "set_default_locale") {
+      const room = await setRoomDefaultLocale(q, user.id, replicaId, body.locale);
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.set_default_locale", { locale: room.default_locale });
       return res.status(200).json({ room });
     }
 

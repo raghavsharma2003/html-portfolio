@@ -130,7 +130,7 @@ async function ownedReplica(db, ownerUserId, replicaId) {
 async function ownedRoomRow(db, ownerUserId, replicaId) {
   const rows = await db(
     `select room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-            free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+            free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
                 published_at, paused_at, created_at, updated_at
        from vy_room
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
@@ -218,6 +218,10 @@ export function clientRoom(row, { now = Date.now(), env = process.env } = {}) {
     free_monthly_messages: Number(row.free_monthly_messages ?? 20),
     paid_monthly_messages: Number(row.paid_monthly_messages ?? 500),
     paid_monthly_voice_seconds: Number(row.paid_monthly_voice_seconds ?? 1800),
+    // WS-R24: the creator's own fallback for a follower whose browser
+    // reports no usable language and who has no row of their own yet -
+    // `api/_room-surface.js`'s `openRoom` fallback chain, migration 087.
+    default_locale: row.default_locale === "hi" ? "hi" : "en",
     published: row.published_at != null,
     paused: row.paused_at != null,
     published_at: row.published_at ?? null,
@@ -292,7 +296,7 @@ export async function createRoom(db, ownerUserId, replicaId, { slug } = {}) {
          (room_id, slug, replica_id, agent_id, owner_user_id, display_name)
        values (($1)::uuid, $2, ($3)::uuid, ($4)::uuid, ($5)::uuid, $6)
        returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
                 published_at, paused_at, created_at, updated_at`,
       [
         randomUUID(),
@@ -333,7 +337,7 @@ export async function renameRoom(db, ownerUserId, replicaId, slug) {
           set slug = $3, updated_at = now()
         where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
         returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                  free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                  free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
                 published_at, paused_at, created_at, updated_at`,
       [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), normalized],
     );
@@ -404,7 +408,7 @@ export async function publishRoom(db, ownerUserId, replicaId) {
             updated_at = now()
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
-                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds,
+                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
@@ -509,7 +513,7 @@ export async function pauseRoom(db, ownerUserId, replicaId) {
         set paused_at = now(), updated_at = now()
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );
@@ -533,7 +537,7 @@ export async function resumeRoom(db, ownerUserId, replicaId) {
             updated_at = now()
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
-                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds,
+                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds, r.default_locale,
                 r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
@@ -561,7 +565,7 @@ export async function setRoomFreeCap(db, ownerUserId, replicaId, cap) {
         set free_monthly_messages = ($3)::int4, updated_at = now()
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), n],
   );
@@ -597,9 +601,36 @@ export async function setRoomPaidCeilings(db, ownerUserId, replicaId, { messages
             updated_at = now()
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
                 published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), m, v],
+  );
+  return rows[0] ? clientRoom(rows[0]) : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: set_default_locale (WS-R24, migration 087)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The creator's own default for the Room's CHROME language - never the
+ *  AI's own reply language, which this file has no opinion about.
+ *  `setRoomFreeCap`'s exact shape: validated here for a named 400 rather
+ *  than a raw constraint-violation 500, migration 087's CHECK as the
+ *  backstop rather than the first line of defence. */
+export async function setRoomDefaultLocale(db, ownerUserId, replicaId, locale) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const loc = String(locale || "").trim().toLowerCase();
+  if (loc !== "en" && loc !== "hi") {
+    throw new RoomPublishError("room_default_locale_invalid", 400, { allowed: ["en", "hi"] });
+  }
+  const rows = await db(
+    `update vy_room
+        set default_locale = $3, updated_at = now()
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds, default_locale,
+                published_at, paused_at, created_at, updated_at`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), loc],
   );
   return rows[0] ? clientRoom(rows[0]) : null;
 }
