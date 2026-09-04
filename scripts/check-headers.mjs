@@ -27,14 +27,19 @@
 // second build, on the common path.
 //
 // SIX TARGETS, the exact list the brief named: the Room (`/r/anjali`, via
-// `dist/room.html` -- CSP is a property of the page SHELL, not of which
-// screen the follower is on, so unlike the layout/accessibility gates this
-// file needs no signed-in fixture), the studio (`/studio`, `dist/
-// studio.html`), and the four static marketing pages `/`, `/vyakti`,
-// `/suites`, `/creators` (served straight from `site/*.html`, the same
-// no-build-step files `scripts/check-performance.mjs` already reads by
-// name). A seventh check hits `/api/*` directly over plain HTTP (no browser
-// needed for two headers on a JSON response).
+// `room-layout-fixture.html` -- the real `room.html` fetches `/api/room` on
+// mount and this gate has no secret to answer that for real; see `context/
+// decisions.md#ws-r57-room-and-studio-csp-tested-against-layout-fixtures`
+// and `context/rejected.md#ws-r57-naive-api-stub-crashes-the-real-room-shell`
+// for why, and why the HEADERS under test are still the real `/r/:slug`
+// rule -- CSP is a property of the page SHELL, and the fixture's shell is
+// byte-identical to the shipping one), the studio (`/studio`, the real
+// `dist/studio.html` -- no fixture needed, it fetches nothing signed out),
+// and the four static marketing pages `/`, `/vyakti`, `/suites`, `/creators`
+// (served straight from `site/*.html`, the same no-build-step files
+// `scripts/check-performance.mjs` already reads by name). A seventh check
+// hits `/api/*` directly over plain HTTP (no browser needed for two headers
+// on a JSON response).
 //
 // WHAT COUNTS AS A FAILURE, gate for gate, exactly the brief's three:
 //   1. ANY CSP violation -- caught two ways at once: a `securitypolicyviolation`
@@ -45,9 +50,9 @@
 //      already parsing when the listener attaches) still always reaches the
 //      console.
 //   2. A missing header per class -- every route's live response headers are
-//      checked against a per-class REQUIRED set (`ROUTES` below), by name, so
-//      a miss says "researchers.html: Permissions-Policy absent", never a
-//      bare failure.
+//      checked against a per-class REQUIRED set (`TARGETS` below), by name,
+//      so a miss says "studio: Permissions-Policy absent", never a bare
+//      failure.
 //   3. A CSP "looser than the law" -- the header VALUE itself is parsed
 //      (`parseCsp`) and asserted against the law in this workstream's brief:
 //      `default-src` is exactly `'self'`, `script-src` carries neither
