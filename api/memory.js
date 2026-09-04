@@ -3095,6 +3095,29 @@ export const PERSON_TABLES = [
   // above have, from the start, rather than repeating the child-before-
   // parent ordering bug WS-R27 found and fixed for them.
   { table: "vy_room_upgrade_offer", key: "person_id", lane: "relational" },
+  // ── WS-R37: the renewal reminder ledger (migration 099) ───────────────────
+  //
+  // ONE table, THREE subject kinds (`api/_renewals.js`'s own header): a
+  // follower's own reminder history is a record of THIS manifest's bar, a
+  // creator's is owner lane (reached BY NAME in
+  // api/_replica-full-erasure.js, never here), and a Suite's is reached only
+  // by cascade from `vy_org` (`vy_org_subscription`'s own 091 precedent). So
+  // `wipeWhere` restricts this entry to `subject_kind = 'follower'` -
+  // `vy_room_subscription`'s own `wipeWhere` shape several rows up, applied
+  // to a subject lane instead of a subscription state - which is what makes
+  // this ONE manifest entry correct for a table that also holds rows this
+  // entry must never touch (person_id is null on every creator/org row
+  // anyway, so the restriction is defense in depth as much as it is
+  // documentation). Content-free (subject_kind, period_end, channel,
+  // sent_at, a short failure code - never a word the follower typed), but a
+  // record of when this creator's AI reminded THIS follower about their own
+  // subscription. Carries BOTH `room_id references vy_room(room_id) on
+  // delete cascade` AND `follower_id references vy_room_follower
+  // (follower_id) on delete cascade`, 078's own double-FK shape, so it is
+  // listed before `vy_room_follower` below - `roomForget`'s own explicit
+  // room_id+person_id delete gives it the same named, counted statement its
+  // siblings above have, from the start.
+  { table: "vy_renewal_reminder", key: "person_id", lane: "relational", wipeWhere: "subject_kind = 'follower'" },
   // ── WS-R1: the Room's PERSON side (migration 071), moved LAST among the
   // Room's relational-lane entries by WS-R27 (see this block's own header) ──
   //
@@ -3281,6 +3304,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_handoff",
   // Arrives with 093 (WS-R30), on the identical reasoning.
   "vy_room_upgrade_offer",
+  // Arrives with 099 (WS-R37), on the identical reasoning.
+  "vy_renewal_reminder",
 ];
 
 // tables and columns that migration 008 introduces

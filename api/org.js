@@ -12,6 +12,7 @@
 //   POST {op:"subscription",    org_id}
 //   POST {op:"start_subscription", org_id, plan, seats}   (WS-R33)
 //   POST {op:"update_seats",    org_id, seats}            (WS-R33)
+//   POST {op:"cancel_subscription", org_id}               (WS-R37)
 //   POST {op:"list_mine"}
 //   POST {op:"members",         org_id}
 //   POST {op:"room_status",     replica_id}
@@ -32,6 +33,7 @@ import {
   roomSuiteStatus,
 } from "./_org.js";
 import { PaymentsError, startOrgSubscription, updateOrgSeats } from "./_payments.js";
+import { cancelOrgRenewal } from "./_renewals.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -92,6 +94,10 @@ export default async function handler(req, res) {
     }
     if (op === "update_seats") {
       const subscription = await updateOrgSeats(q, { ownerUserId: user.id, orgId: body.org_id, seats: body.seats });
+      return res.status(200).json({ subscription });
+    }
+    if (op === "cancel_subscription") {
+      const subscription = await cancelOrgRenewal(q, { ownerUserId: user.id, orgId: body.org_id });
       return res.status(200).json({ subscription });
     }
     if (op === "list_mine") {

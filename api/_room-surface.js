@@ -1890,6 +1890,17 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   { table: "vy_room_follower_whatsapp", shape: "masked_phone",
     reason: "the follower's own WhatsApp opt-in - a masked number and its state, " +
       "never the number in full" },
+  // WS-R37 (migration 099). Content-free (subject_kind, period_end,
+  // channel, sent_at, a short failure code - never a word the follower
+  // typed), but every row IS a record of when this creator's AI reminded
+  // this follower about their own subscription - `vy_room_upgrade_offer`'s
+  // own reasoning restated for a reminder instead of an offer, exported as
+  // a COUNT rather than the rows: the export already states how many
+  // reminders and on which channels; a row-by-row dump would say nothing
+  // more.
+  { table: "vy_renewal_reminder", shape: "count",
+    reason: "a content-free reminder ledger (when a renewal notice was due and sent) - " +
+      "exported as a count, never a row" },
 ]);
 
 /** `api/_room-whatsapp.js`'s own function, re-derived here rather than
@@ -2206,6 +2217,29 @@ export async function roomForget(db, { session }, deps = {}) {
       [who.roomId, who.personId],
     );
     deleted.vy_room_upgrade_offer = offerRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_renewal_reminder")) {
+    // WS-R37 (migration 099): a follower's own renewal-reminder history,
+    // this Room only. Content-free (subject_kind/period_end/channel/
+    // sent_at, never a word the follower typed), but it is a record of when
+    // this creator's AI reminded this follower about their own
+    // subscription - `vy_room_upgrade_offer`'s own reasoning restated one
+    // table over. Carries `follower_id references vy_room_follower
+    // (follower_id) on delete cascade`, so it runs before the follower
+    // delete at the bottom of this function, this block's own
+    // child-before-parent rule; `subject_kind = 'follower'` restricts this
+    // statement to the follower lane alone - this table also holds
+    // creator/Suite rows this function must never touch, and which this
+    // Room's own person_id could never match anyway (they are null on every
+    // non-follower row).
+    const reminderRows = await db(
+      `delete from vy_renewal_reminder
+        where subject_kind = 'follower' and room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_renewal_reminder = reminderRows.length;
   }
 
   // The agent-scoped rows (`vy_fact` et al., via `roomScopedTables()`) carry

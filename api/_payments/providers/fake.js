@@ -28,8 +28,15 @@ export async function createSubscription(input) {
   return { provider_subscription_ref: ref, checkout_url: `https://fake-provider.invalid/pay/${ref}`, status: "created" };
 }
 
-export async function cancelSubscription(_providerSubscriptionRef) {
-  return { ok: true };
+/** `opts.atCycleEnd` (WS-R37) - default false is byte-identical to this
+ *  function's original, single-argument behaviour (no prior caller exists
+ *  anywhere in this tree, confirmed by grep before this widening), so this
+ *  is a pure addition rather than a behaviour change for anything already
+ *  shipped. `secrets` is accepted, and ignored, only so the fake and real
+ *  twins share one call shape at every call site (`updateSubscriptionQuantity`'s
+ *  own precedent one function up). */
+export async function cancelSubscription(_providerSubscriptionRef, opts = {}, _secrets) {
+  return { ok: true, cancel_at_cycle_end: Boolean(opts.atCycleEnd) };
 }
 
 /** Change a subscription's seat quantity - the Suite lane's own operation,

@@ -3908,3 +3908,59 @@ create unique index if not exists vy_room_pulse_combo_ix
   on vy_room_pulse_combo (room_id, week_start, labels);
 create index if not exists vy_room_pulse_combo_owner_read_ix
   on vy_room_pulse_combo (room_id, week_start desc);
+
+-- Migration 099 - the reminder ledger, and "renewed unasked" made real
+-- (WS-R37). See db/migrations/099_renewal_reminder.sql for the full
+-- argument; mirrored here per this file's own convention. One table, three
+-- mutually exclusive subject lanes (follower/creator/org), person lane for
+-- followers (PERSON_TABLES) and owner lane for creators (deleted by name in
+-- api/_replica-full-erasure.js); a Suite's own rows are reached only by
+-- cascade, vy_org_subscription's own 091 precedent.
+create table if not exists vy_renewal_reminder (
+  reminder_id    uuid not null default gen_random_uuid(),
+  subject_kind   text not null check (subject_kind in ('creator', 'follower', 'org')),
+  subject_id     uuid not null,
+  room_id        uuid references vy_room(room_id) on delete cascade,
+  person_id      uuid,
+  follower_id    uuid references vy_room_follower(follower_id) on delete cascade,
+  owner_user_id  uuid,
+  replica_id     uuid,
+  org_id         uuid references vy_org(org_id) on delete cascade,
+  period_end     timestamptz not null,
+  channel        text not null check (channel in ('in_app', 'web_push', 'telegram')),
+  sent_at        timestamptz,
+  reason         text not null default '',
+  created_at     timestamptz not null default now(),
+  primary key (subject_kind, subject_id, period_end, channel),
+  constraint vy_renewal_reminder_one_lane check (
+    (subject_kind = 'follower'
+       and room_id is not null and person_id is not null and follower_id is not null
+       and owner_user_id is null and replica_id is null and org_id is null)
+    or
+    (subject_kind = 'creator'
+       and owner_user_id is not null and replica_id is not null
+       and room_id is null and person_id is null and follower_id is null and org_id is null)
+    or
+    (subject_kind = 'org'
+       and org_id is not null
+       and room_id is null and person_id is null and follower_id is null
+       and owner_user_id is null and replica_id is null)
+  )
+);
+create index if not exists vy_renewal_reminder_room_person_ix
+  on vy_renewal_reminder (room_id, person_id) where room_id is not null;
+create index if not exists vy_renewal_reminder_owner_replica_ix
+  on vy_renewal_reminder (owner_user_id, replica_id) where owner_user_id is not null;
+create index if not exists vy_renewal_reminder_org_ix
+  on vy_renewal_reminder (org_id) where org_id is not null;
+
+create index if not exists vy_room_subscription_due_ix
+  on vy_room_subscription (state, current_period_end) where current_period_end is not null;
+create index if not exists vy_org_subscription_due_ix
+  on vy_org_subscription (state, current_period_end) where current_period_end is not null;
+create index if not exists vy_creator_subscription_due_ix
+  on vy_creator_subscription (state, current_period_end) where current_period_end is not null;
+
+alter table vy_room_subscription add column if not exists cancel_at_period_end boolean not null default false;
+alter table vy_org_subscription add column if not exists cancel_at_period_end boolean not null default false;
+alter table vy_creator_subscription add column if not exists cancel_at_period_end boolean not null default false;

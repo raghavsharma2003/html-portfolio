@@ -21,6 +21,7 @@
     { "path": "/api/channel-ingest-sweep", "schedule": "0 */6 * * *" },
     { "path": "/api/drift-watch-sweep", "schedule": "0 */6 * * *" },
     { "path": "/api/checkins-sweep", "schedule": "*/15 * * * *" },
-    { "path": "/api/pulse-sweep", "schedule": "0 3 * * 1" }
+    { "path": "/api/pulse-sweep", "schedule": "0 3 * * 1" },
+    { "path": "/api/renewals-sweep", "schedule": "0 */24 * * *" }
   ]
 }

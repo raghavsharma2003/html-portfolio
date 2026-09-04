@@ -18,6 +18,7 @@ import { obsBestEffort } from "./_obs.js";
 import { PaymentsError, getRoomPrice, setRoomPrice, ownerRevenue, startCreatorSubscription } from "./_payments.js";
 import { readCreatorTier } from "./_creator-tier.js";
 import { OrgError } from "./_org.js";
+import { cancelCreatorRenewal } from "./_renewals.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -71,6 +72,12 @@ export default async function handler(req, res) {
     if (op === "start_creator_subscription") {
       const subscription = await startCreatorSubscription(q, { ownerUserId: user.id, replicaId, plan: body.plan });
       obsBestEffort("payments.start_creator_subscription", { plan: body.plan });
+      return res.status(200).json({ subscription });
+    }
+    // WS-R37: cancel at period end, `_renewals.js`'s own seam-through-cancel.
+    if (op === "cancel_creator_subscription") {
+      const subscription = await cancelCreatorRenewal(q, { ownerUserId: user.id, replicaId });
+      obsBestEffort("payments.cancel_creator_subscription", { state: subscription?.state });
       return res.status(200).json({ subscription });
     }
 

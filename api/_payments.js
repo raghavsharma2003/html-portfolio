@@ -133,7 +133,11 @@ export function activeProviderName(env = process.env) {
   return String(env.PAYMENTS_PROVIDER || "none");
 }
 
-function providerFor(name) {
+// Exported (WS-R37): api/_renewals.js's three cancel functions resolve the
+// same provider twin through this one function - "this file never branches
+// on which provider it is talking to beyond selecting it once" (this file's
+// own header), restated for a second caller.
+export function providerFor(name) {
   if (name === "none") throw new PaymentsError("payments_not_configured", 503, { reason: "PAYMENTS_PROVIDER is unset" });
   const provider = PROVIDERS[name];
   if (!provider) throw new PaymentsError("payments_provider_unknown", 500, { provider: name });
@@ -186,7 +190,11 @@ export async function providerSecrets(providerName, env = process.env, backend) 
  *  against, and the follower must have actually joined. Reused rather than
  *  re-implemented, `surface-bypasses-parse`'s discipline applied to identity
  *  rather than to a reply. */
-async function paidSessionScope(db, session, deps) {
+// Exported (WS-R37): api/_renewals.js's follower-lane `cancelRenewal` reuses
+// this exact identity resolution rather than re-deriving it - the same
+// "reuse the seam, never re-implement" rule this file's own header states
+// for the provider twins, applied to identity instead of HTTP.
+export async function paidSessionScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
   const now = deps.now ?? Date.now();
   if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
@@ -359,11 +367,15 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
 
 /** The follower's own honest read: their tier and their subscription's state,
  *  never more than that - no other follower's anything, `docs/SURFACES.md`'s
- *  rule for this whole surface. */
+ *  rule for this whole surface. `price_inr`/`currency` (WS-R37) are the
+ *  room's CURRENT price - `startFollowerSubscription`'s own read one section
+ *  up - so the subscription panel can state "renews on X for Y" without a
+ *  second endpoint; absent when the room has never had one set. */
 export async function followerSubscriptionStatus(db, { session }, deps = {}) {
-  const { follower } = await paidSessionScope(db, session, deps);
+  const { room, follower } = await paidSessionScope(db, session, deps);
   const rows = await db(
-    `select subscription_id, provider, state, current_period_start, current_period_end
+    `select subscription_id, provider, state, current_period_start, current_period_end,
+            cancel_at_period_end
        from vy_room_subscription
       where follower_id = ($1)::uuid
       order by created_at desc
@@ -371,14 +383,22 @@ export async function followerSubscriptionStatus(db, { session }, deps = {}) {
     [String(follower.follower_id)],
   );
   const row = rows[0] || null;
+  const priceRows = await db(
+    `select follower_price_inr, currency from vy_room_price where room_id = ($1)::uuid limit 1`,
+    [String(room.room_id)],
+  );
+  const price = priceRows[0] || null;
   return {
     tier: follower.tier === "paid" ? "paid" : "free",
+    price_inr: price ? Number(price.follower_price_inr) : null,
+    currency: price ? price.currency : null,
     subscription: row && {
       subscription_id: row.subscription_id,
       provider: row.provider,
       state: row.state,
       current_period_start: row.current_period_start ?? null,
       current_period_end: row.current_period_end ?? null,
+      cancel_at_period_end: row.cancel_at_period_end === true,
     },
   };
 }
@@ -409,7 +429,10 @@ function clientOrgSubscription(row) {
   };
 }
 
-async function orgAdminOrThrow(db, orgId, adminOwnerUserId) {
+// Exported (WS-R37): api/_renewals.js's org-lane `cancelRenewal` reuses this
+// exact admin check rather than a second, hand-rolled join over
+// vy_org_member - `paidSessionScope`'s own reasoning one section up.
+export async function orgAdminOrThrow(db, orgId, adminOwnerUserId) {
   const rows = await db(
     `select o.org_id, o.slug, o.plan, o.seat_limit
        from vy_org o
