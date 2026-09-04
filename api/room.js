@@ -161,7 +161,16 @@ export default async function handler(req, res) {
       const authUserId = await optionalUser(req);
       // WS-R24: a browser hint, consulted only when no follower row exists
       // yet to answer the question instead - `openRoom`'s own header.
-      const opened = await openRoom(q, { slug: body.room, authUserId, locale: body.locale });
+      // WS-R40: `body.via` is the SAME `?via=` query-string hint the front
+      // end read off its own URL - `openRoom`'s `resolveArrivalVia`
+      // allowlists it before it ever reaches SQL, so anything unrecognised
+      // (or absent) counts as 'direct'.
+      const opened = await openRoom(q, {
+        slug: body.room,
+        authUserId,
+        locale: body.locale,
+        via: body.via,
+      });
       obsBestEffort("room.open", { joined: opened.joined });
       return res.status(200).json(opened);
     }
