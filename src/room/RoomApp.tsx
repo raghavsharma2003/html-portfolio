@@ -45,6 +45,7 @@ import {
   ROOM_LOCALES,
   normalizeLocale,
   withName,
+  withPrice,
   withRetry,
   type RoomCopy,
   type RoomLocale,
@@ -53,6 +54,7 @@ import CheckinsPanel from "./CheckinsPanel";
 import HandoffPanel from "./HandoffPanel";
 import {
   RoomApiError,
+  dismissOffer,
   exportRoomData,
   forgetRoomData,
   joinRoom,
@@ -70,6 +72,7 @@ import {
   type RoomCitations,
   type RoomFollower,
   type RoomForgetReceipt,
+  type RoomOffer,
   type RoomOpen,
   type RoomQuota,
   type RoomThread,
@@ -105,6 +108,11 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [quota, setQuota] = useState<RoomQuota | null>(null);
   const [upgrade, setUpgrade] = useState(false);
   const [capped, setCapped] = useState(false);
+  // WS-R30 (migration 093). Independent of `upgrade` above: that flag is a
+  // fact about the quota (few messages left this month), this one is a fact
+  // about the session that just happened. Both can be true on the same turn;
+  // both render, never one hiding the other.
+  const [offerCard, setOfferCard] = useState<RoomOffer | null>(null);
   const [talkedToday, setTalkedToday] = useState<number | null>(null);
   // WS-R27: the forget receipt, shown once on the "gone" screen and nowhere
   // else - there is nothing to look it up by later (law 3), so this is the
@@ -359,6 +367,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       setSession(turn.session);
       setQuota(turn.quota);
       setUpgrade(turn.upgrade_prompt);
+      if (turn.offer) setOfferCard(turn.offer);
       setTurns((prev) => [...prev, { role: "assistant", content: turn.reply, fresh: true }]);
       if (turn.thread_id && !threads.some((t) => t.thread_id === turn.thread_id)) {
         setThreads((prev) => prev);
@@ -429,6 +438,18 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       setPayBusy(false);
     }
   }, [session, payBusy]);
+
+  /* "Continue free" (WS-R30). The card is dismissed locally the moment the
+   * tap happens - a follower who taps "continue free" expects the card gone,
+   * not a spinner - and the outcome write is fire-and-forget, `RoomStudio.
+   * tsx`'s `publish_clicked` mark precedent: a failed write here must never
+   * block the one thing the follower actually asked for, which is to keep
+   * talking. */
+  const dismissOfferCard = useCallback(() => {
+    setOfferCard(null);
+    if (!session) return;
+    void dismissOffer(session).catch(() => {});
+  }, [session]);
 
   const togglePulse = useCallback(async () => {
     if (!session || pulseBusy) return;
@@ -692,6 +713,28 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             {payError && <p className="room-error">{payError}</p>}
           </section>
         )}
+        {/* THE CONVERSION MOMENT (WS-R30). "The offer belongs at the end of a
+            session that worked" - under the last reply, dismissible, and
+            never rendered on top of the capped screen (which already has its
+            own subscribe control). `cap_reached` offers are ledger-only and
+            never reach this render at all - see roomApi.ts's `RoomOffer`. */}
+        {offerCard && offerCard.reason === "session_worked" && !capped && (
+          <section className="room-cap" role="note">
+            <h2>{copy.offer.title}</h2>
+            <p className="room-lede">
+              {offerCard.price_inr != null
+                ? withName(withPrice(copy.offer.body, `Rs ${offerCard.price_inr}`), name)
+                : withName(copy.offer.bodyNoPrice, name)}
+            </p>
+            <button type="button" className="room-btn primary" disabled={payBusy} onPointerDown={() => void subscribe()}>
+              {payBusy ? copy.pay.working : copy.offer.subscribe}
+            </button>
+            <button type="button" className="room-btn" onPointerDown={dismissOfferCard}>
+              {copy.offer.continueFree}
+            </button>
+          </section>
+        )}
+
         {!capped && payError && <p className="room-error">{payError}</p>}
 
         <div ref={foot} />

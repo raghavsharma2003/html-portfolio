@@ -1690,6 +1690,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no Meta, no model call.
   "room-whatsapp": "room-whatsapp/run.mjs",
+  // WS-R30, migration 093 (`vy_room_upgrade_offer`). The conversion moment:
+  // `sessionWorked`'s three clauses (each tested to fail alone), the 14-day
+  // cooldown as a write not a read-then-write, `markOfferOutcome`'s "most
+  // recent OPEN offer only", `conversionReport`'s ratio and funnel,
+  // `renewedUnasked`'s honest zero (no creator-subscription table exists
+  // yet), `phaseGate`'s three-way composition (below/at_or_above/
+  // not_enough_data) and its one sentence, a real turn through `roomSay`
+  // carrying an offer, the cap-reached refusal ALSO recording an offer, and
+  // the payments webhook's inline `offer_update` CTE marking 'paid' in the
+  // same statement as the tier flip. THREE NEGATIVE CONTROLS: (a) a
+  // sessionWorked-shaped select reading a message-body column is caught by
+  // room-leak's own aggregate-only parser, copied inline; (b) a second offer
+  // inside 14 days never inserts; (c) the reply bytes are byte-identical
+  // whether or not an offer is attached.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "phase-gate": "phase-gate/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

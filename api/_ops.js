@@ -35,6 +35,11 @@ import { opsFunnel } from "./_funnel.js";
 // that owns the send path - imported here rather than restated, so the
 // board's own number and the send path's own comment can never drift apart.
 import { WHATSAPP_TEMPLATE_UNIT_COST_INR } from "./_room-whatsapp.js";
+// WS-R30 (migration 093). `phaseGate`'s own header names the same rule this
+// file already keeps: aggregate-only, one room at a time, imported rather
+// than re-derived so the board's Phase gate card can never disagree with the
+// function that actually decided the numbers.
+import { phaseGate } from "./_phase-gate.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -301,5 +306,7 @@ export async function opsOverview(db, now = Date.now()) {
     // WS-R29. "The owner sees the bill before Meta does" - the workstream
     // brief's own words.
     whatsapp: await whatsappSpendThisMonth(db, now),
+    // WS-R30. The three Phase 2 numbers, one sentence.
+    phase_gate: await phaseGate(db, now),
   };
 }

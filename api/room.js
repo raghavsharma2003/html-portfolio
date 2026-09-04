@@ -15,6 +15,7 @@
 //   POST /api/room {op:"whatsapp_optin",  session, phone} -> {subscribed, phone_masked}
 //   POST /api/room {op:"whatsapp_stop",   session}
 //   POST /api/room {op:"whatsapp_status", session}         -> {available, subscribed, phone_masked}
+//   POST /api/room {op:"offer_dismiss", session}     -> "continue free" (WS-R30)
 //   POST /api/room {op:"citations", session}
 //   POST /api/room {op:"stats",  room:"<slug>"}
 //   POST /api/room {op:"export", session}
@@ -88,6 +89,7 @@ import {
   roomStats,
   roomExport,
   roomForget,
+  roomDismissOffer,
   resolveRoom,
   personForAccount,
   readRoomSession,
@@ -361,6 +363,12 @@ export default async function handler(req, res) {
 
     if (op === "whatsapp_status") {
       return res.status(200).json(await whatsappStatus(q, { session: body.session }));
+    }
+
+    if (op === "offer_dismiss") {
+      // WS-R30. Scope comes off the session exactly as "thread"/"pulse_optin"
+      // do above - no offer id in the body, `roomDismissOffer`'s own header.
+      return res.status(200).json(await roomDismissOffer(q, { session: body.session }));
     }
 
     if (op === "citations") {

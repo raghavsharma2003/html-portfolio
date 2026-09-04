@@ -620,6 +620,13 @@ const FATE = {
   // Room's own "op":"forget" (`roomForget`'s explicit room_id+person_id
   // delete, added in the same change as this migration).
   vy_room_handoff: "forget-only",
+  // ── WS-R30: the upgrade-offer ledger (migration 093) ──
+  // "Forget-only" for the identical reason every Room table above is: no
+  // scoped "forget priya" op reaches any Room table, only the stronger door
+  // (the account-level whole wipe, lane "relational", proven below, or
+  // `roomForget`'s own explicit room_id+person_id delete, added in the same
+  // change as this migration).
+  vy_room_upgrade_offer: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

@@ -10292,3 +10292,146 @@ for example, to distinguish a follower who silently stopped reading
 WhatsApp from one whose number went dead - add `wamid text` to
 `vy_room_checkin_delivery`, capture it from `sendTemplate`'s own response
 body, and correlate `statuses[].id` against it in `handleStatusWebhook`.
+
+## `ws-r30-session-worked-one-statement-follower-scope-first` (2026-09-04, WS-R30)
+
+**Decision.** `api/_phase-gate.js`'s `sessionWorked` is written as ONE SQL
+statement (one round trip: six CTEs - `follower_scope`, `thread_scope`,
+`cap_history`, `lane`, `session_start`, `session_msgs` - and a final SELECT),
+with `follower_scope` placed FIRST in the WITH clause even though it is not
+the first CTE a reader would reach for logically (the message-lane session
+count is the workstream's own headline number). `follower_scope`'s own
+SELECT list is aggregate-only (`min(f.tier)`, `min(f.month_message_count)`,
+`min(case ... end)`), a WHERE-scoped single row's own value read back through
+an aggregate function - `api/_funnel.js`'s `min(joined_at)` precedent,
+applied to two more columns.
+
+**Rationale.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY checker finds the
+FIRST `select ... from` pair in a statement's text and judges the WHOLE
+statement by it (`rejected.md#ws-r12-retention-exists-in-select-broke-the-
+leak-batterys-parser` names this exactly). A CTE chain that opened with
+`lane`/`meera_log` (an ungoverned table, fine to read non-aggregate) would
+still be textually first, and the checker would judge the statement by THAT
+segment, not by the `vy_room_follower`-touching one it actually exists to
+police - a false pass for the wrong reason, the same shape WS-R12 already
+hit once. Ordering `follower_scope` first makes the checked segment the
+correct one BY CONSTRUCTION rather than by the checker's own accident.
+
+**Reversal condition.** If `evals/room-leak/run.mjs`'s parser is ever
+rewritten to inspect every CTE's own `select...from` pair (not only the
+statement's first one), this ordering constraint no longer matters and the
+CTEs may be reordered for readability instead.
+
+## `ws-r30-hit-cap-before-uses-current-ceiling` (2026-09-04, WS-R30)
+
+**Decision.** `sessionWorked`'s "has hit the cap in a prior month" clause
+sums `vy_room_follower_day.turns` by calendar month (excluding the current
+month) and compares each month's sum against the room's CURRENT
+`free_monthly_messages`, not whatever ceiling applied in that historical
+month.
+
+**Rationale.** No table in this schema remembers a room's free-cap value
+over time - `vy_room.free_monthly_messages` is a single mutable column, and
+a follower who was PAID during some past month would have had a different
+(higher) ceiling then too, which this comparison also cannot see. Building a
+per-month cap-history table was out of this workstream's scope for a
+predicate whose only consequence is "should this follower be shown a
+dismissible offer card", never money or access.
+
+**Reversal condition.** If a room's free cap changes often enough, or if a
+significant fraction of followers move between tiers often enough, that this
+approximation visibly misfires (an offer shown to someone who never actually
+hit a cap, or withheld from someone who did) - build a
+`vy_room_free_cap_history` table (mirroring `vy_room_price`'s own
+"a product decision that lives in a deployed constant moves by deploy"
+argument, 071's own free-cap header) and read it here instead.
+
+## `ws-r30-webhook-offer-update-inlined-not-called` (2026-09-04, WS-R30)
+
+**Decision.** `api/_payments.js`'s `applyWebhook` does NOT call
+`api/_phase-gate.js`'s `markOfferOutcome` when a subscription becomes
+active. It inlines an equivalent `offer_update` CTE (same predicate: the
+follower's most recent offer with a null outcome) directly into its own
+multi-CTE write, spliced in only when migration 093 has landed
+(`(deps.tableApplied ?? tableApplied)("vy_room_upgrade_offer")`, the same
+injectable seam `api/_room-surface.js`'s `isTableAppliedFor` already uses).
+
+**Rationale.** The workstream brief's law 3 requires the 'paid' outcome to
+land "in the SAME statement family" as the subscription's own state flip -
+one Neon SQL-over-HTTP round trip, not two. `markOfferOutcome` cannot be
+that same statement AND also be the generic, reusable, standalone function
+`api/_room-surface.js`'s `roomDismissOffer` calls for "Continue free" -
+those are two different callers needing two different shapes (one that must
+share a transaction with an unrelated write, one that must not). Duplicating
+the SQL text rather than trying to parameterize one function into both
+shapes keeps each caller's own statement simple and independently auditable.
+
+**Reversal condition.** If this predicate (`follower_id`'s most recent
+open offer) ever needs to change, both copies must change together by hand;
+there is no shared source. If that drift ever actually happens once, extract
+a pure SQL-FRAGMENT-returning function both call sites can build their own
+statement string around, rather than two independent copies.
+
+## `ws-r30-renewed-unasked-honest-zero` (2026-09-04, WS-R30)
+
+**Decision.** `renewedUnasked(db, now)` (`api/_phase-gate.js`) counts real
+creators (`count(distinct owner_user_id) from vy_room`) but returns a
+hardcoded `renewed_unasked: 0`, with the note "no reminders exist yet, so
+every renewal counts as unasked" attached always, not conditionally.
+
+**Rationale.** `api/_payments.js`'s own header states the fact plainly:
+"creator pays for capacity (Build/Room/Studio/Institute, a Phase 2 concern
+with no table here)". No creator-tier subscription table exists anywhere in
+this database, so "a creator subscription whose second period started"
+cannot be measured today by any means - not approximated, not proxied
+through `vy_room_subscription` (which is a FOLLOWER paying a ROOM, a
+different relationship entirely). `context/rejected.md`'s "a plausible
+return hides a dead pipeline" law, applied to a metric rather than a
+pipeline: inventing a proxy number here would be worse than the honest zero.
+
+**Reversal condition.** The day a creator-tier subscription table and a
+reminder-delivery mechanism both exist, `renewedUnasked` gains a real query
+against them and the hardcoded `0` and its note both go.
+
+## `ws-r30-phase-gate-loops-rooms-like-ops-and-funnel` (2026-09-04, WS-R30)
+
+**Decision.** `phaseGate(db, now)` computes the platform-wide conversion and
+retention numbers by looping every row of `vy_room` and calling
+`conversionReport`/`roomFollowerCohorts` once per room, summing the raw
+counts in JS - never one grouped SQL statement spanning every room.
+
+**Rationale.** `api/_funnel.js`'s own header names the law this restates:
+"the honest tradeoff at Phase 0 scale against a grouped statement that would
+have to group `vy_room_follower` across rooms, which this file's own law and
+`_ops.js`'s both forbid." Reusing `roomFollowerCohorts` (rather than a
+second retention query) means the Phase gate card's retention number can
+never disagree with `api/_room-cohorts.js`'s own tested math.
+
+**Reversal condition.** `api/_room-cohorts.js`'s own decisions.md entry
+already names the reversal condition for the per-room-per-week query cost
+this composes on top of (`ws-r12-per-week-queries`): if the Room count ever
+makes this read slow enough to matter, replace the loop with one grouped
+statement and re-derive the AGGREGATE_ONLY proof for it - the identical
+fix, one level up.
+
+## `ws-r30-offer-card-separate-from-existing-upgrade-prompt` (2026-09-04, WS-R30)
+
+**Decision.** The new "session that worked" offer card (`RoomApp.tsx`'s
+`offerCard` state, driven by `turn.offer`) renders ALONGSIDE the existing
+`upgrade_prompt`/`quota.messages_left` nudge (WS-R19's "3 messages left"
+line) rather than replacing it. Both can be visible on the same turn.
+
+**Rationale.** The two answer different questions and are computed by
+different predicates: `upgrade_prompt` is a fact about the QUOTA (few
+messages remain this month, cheap to compute, fires on every qualifying
+turn); the new offer is a fact about the SESSION that just happened
+(expensive-ish, one SQL round trip, rate-limited to once per 14 days by its
+own ledger). Building one combined UI element would have needed a combined
+predicate nobody asked for, and would have hidden the quota nudge on the
+turns the 14-day cooldown suppresses the new offer.
+
+**Reversal condition.** If real usage shows two upgrade-shaped elements on
+one screen reads as noisy or as double-asking, fold `upgrade_prompt`'s
+render into the SAME card component (still two independent predicates
+underneath) rather than removing either signal - the funnel this
+workstream now measures depends on both existing.

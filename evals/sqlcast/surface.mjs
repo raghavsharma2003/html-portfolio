@@ -159,6 +159,11 @@ export const STRICT_SURFACE = [
   // silently, the same way an uncast readiness or drift-watch parameter
   // would have.
   /^api\/_funnel\.js$/,
+  // WS-R30, the conversion moment. On the strict list from its first commit,
+  // `_funnel.js`'s exact reasoning one row up: `sessionWorked` is a six-CTE
+  // statement feeding a boolean that decides whether a follower is shown a
+  // paid offer, and nothing in this file has ever run against a database.
+  /^api\/_phase-gate\.js$/,
 ];
 
 export function isStrict(rel) {

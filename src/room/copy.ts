@@ -94,6 +94,11 @@ export const withRetry = (template: string, retryAfterSeconds: number) => {
 };
 
 
+/** WS-R30. `offer.body`'s `{price}` placeholder - the same `.split().join()`
+ *  shape as `withName`, composable with it since neither cares what order it
+ *  runs in. `priceLabel` is already formatted ("₹299") by the caller. */
+export const withPrice = (template: string, priceLabel: string) => template.split("{price}").join(priceLabel);
+
 const EN = {
   /** While the address is resolving. Not a spinner's label: it says what is
    *  happening rather than that something is. */
@@ -201,6 +206,19 @@ const EN = {
     priceNotSet: "The creator has not set a price for this room yet.",
     noLink: "A start is already on file, but there is no payment link to open right now.",
     failed: "Could not start that just now. Try again in a moment.",
+  },
+
+  /** WS-R30 (migration 093). Shown under the last reply of a session that
+   *  worked, never across one - `quota.left`'s own placement one block up.
+   *  `price` is filled in only when the creator has set one; `bodyNoPrice`
+   *  is the honest fallback. No countdown, no scarcity - a stated fact about
+   *  what the room can do, exactly `pay`'s own rule above. */
+  offer: {
+    title: "That felt like a real conversation",
+    body: "Keep talking to {name} AI as a paid follower, {price} a month.",
+    bodyNoPrice: "Keep talking to {name} AI as a paid follower.",
+    continueFree: "Continue free",
+    subscribe: "Subscribe",
   },
 
   /** "Let this count" - a follower's own toggle (WS-R17). One plain sentence
@@ -398,6 +416,14 @@ const HI: typeof EN = {
     priceNotSet: "क्रिएटर ने इस रूम के लिए अभी कीमत तय नहीं की है।",
     noLink: "एक शुरुआत पहले से दर्ज है, पर अभी खोलने के लिए कोई पेमेंट लिंक नहीं है।",
     failed: "अभी शुरू नहीं हो सका। एक पल बाद फिर कोशिश करें।",
+  },
+
+  offer: {
+    title: "यह एक असली बातचीत जैसा लगा",
+    body: "{name} AI से पेड फॉलोअर के तौर पर बात जारी रखें, {price} प्रति महीना।",
+    bodyNoPrice: "{name} AI से पेड फॉलोअर के तौर पर बात जारी रखें।",
+    continueFree: "मुफ़्त जारी रखें",
+    subscribe: "सब्सक्राइब करें",
   },
 
   pulse: {

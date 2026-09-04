@@ -3771,3 +3771,22 @@ create index if not exists vy_room_follower_whatsapp_scope_ix
 -- back planned as a sequential scan on the live database without this.
 create index if not exists vy_room_follower_whatsapp_phone_ix
   on vy_room_follower_whatsapp (phone_e164);
+-- Migration 093 - the upgrade moment's own ledger (WS-R30): one row per time
+-- a follower is shown the conversion offer. See
+-- db/migrations/093_room_upgrade_offer.sql for the full argument; mirrored
+-- here per this file's own convention.
+create table if not exists vy_room_upgrade_offer (
+  offer_id    uuid primary key,
+  room_id     uuid not null references vy_room(room_id) on delete cascade,
+  person_id   uuid not null,
+  follower_id uuid not null references vy_room_follower(follower_id) on delete cascade,
+  shown_at    timestamptz not null default now(),
+  reason      text not null check (reason in ('session_worked', 'cap_reached')),
+  outcome     text check (outcome in ('dismissed', 'started', 'paid')),
+  outcome_at  timestamptz,
+  constraint vy_room_upgrade_offer_outcome_pairs check ((outcome is null) = (outcome_at is null))
+);
+create index if not exists vy_room_upgrade_offer_follower_ix
+  on vy_room_upgrade_offer (follower_id, shown_at desc);
+create index if not exists vy_room_upgrade_offer_room_shown_ix
+  on vy_room_upgrade_offer (room_id, shown_at desc);
