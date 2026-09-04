@@ -49,6 +49,7 @@
 import { sha256Hex } from "./_provenance/contracts.js";
 import { consume } from "./_rate-limit.js";
 import { getChannelSecret, ChannelSecretError } from "./_channel-secrets.js";
+import { tableApplied } from "./memory.js";
 import {
   readRoomSession,
   resolveRoom,
@@ -481,6 +482,39 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
   const nextState = KIND_TO_STATE[parsed.kind];
   const payloadHash = sha256Hex(bodyBuf);
 
+  // WS-R30 (migration 093): the conversion moment's own outcome. "When a
+  // subscription becomes active, the most recent open offer for that
+  // follower gets outcome 'paid' in the same statement family (a second
+  // UPDATE in the webhook's transaction; no new provider call)." Built as a
+  // FIFTH CTE (`offer_update`) rather than a second round trip, spliced in
+  // ONLY when migration 093 has landed - `isTableAppliedFor`'s own reason,
+  // `_room-surface.js`'s seam, restated here: an ungated reference to a table
+  // that does not exist yet would turn every webhook into a 500, including
+  // the subscription state flip this file existed to make safe BEFORE this
+  // workstream. The predicate mirrors `api/_phase-gate.js`'s
+  // `markOfferOutcome` (most recent offer with a null outcome, for this
+  // follower) - inlined rather than called, because that function's own
+  // header explains why: it cannot be, and stay, one statement, once it is
+  // ALSO the write that flips `su.state`.
+  const offerTableReady = await (deps.tableApplied ?? tableApplied)("vy_room_upgrade_offer");
+  const offerCte = offerTableReady
+    ? `, offer_update as (
+       update vy_room_upgrade_offer o
+          set outcome = 'paid', outcome_at = now()
+         from sub_update su
+        where su.state = 'active'
+          and o.offer_id = (
+                select offer_id from vy_room_upgrade_offer
+                 where follower_id = su.follower_id and outcome is null
+                 order by shown_at desc
+                 limit 1
+              )
+       returning o.offer_id
+     )`
+    : "";
+  const offerJoin = offerTableReady ? "\n       left join offer_update ou on true" : "";
+  const offerSelect = offerTableReady ? ", ou.offer_id as offer_marked_paid" : "";
+
   const rows = await db(
     `with candidate as (
        insert into vy_payment_event
@@ -506,11 +540,11 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
         where f.follower_id = su.follower_id
           and su.state in ('active','cancelled','expired')
        returning f.follower_id, f.tier
-     )
-     select c.event_id, su.subscription_id, su.state, fu.tier
+     )${offerCte}
+     select c.event_id, su.subscription_id, su.state, fu.tier${offerSelect}
        from candidate c
        left join sub_update su on true
-       left join follower_update fu on true`,
+       left join follower_update fu on true${offerJoin}`,
     [
       providerName, ref, ctx.room_id, ctx.subscription_id, parsed.kind, parsed.amountInr,
       platformTakeInr, creatorShareInr, payloadHash, nextState, parsed.periodStart, parsed.periodEnd,
@@ -528,6 +562,7 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
     subscription_id: result.subscription_id,
     state: result.state,
     tier: result.tier ?? null,
+    offer_marked_paid: result.offer_marked_paid ?? null,
   };
 }
 

@@ -87,6 +87,7 @@ import {
   roomForgetReceiptHash, ROOM_FORGET_RECEIPT_POLICY_VERSION,
 } from "./memory.js";
 import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
+import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1153,6 +1154,18 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     // this line was refused for money, and the app-voiced capped card can
     // now say the right thing to a paid follower instead of the free line.
     const paidCeiling = follower.tier === "paid";
+    // WS-R30 (migration 093): the OTHER moment the offer is shown, alongside
+    // "a session that worked" - a free follower dead-ending on the cap. This
+    // is a WRITE to the ledger only, never the reply: the refusal below is
+    // unchanged and this write's own failure must never turn a 402 into a
+    // 500 for a ledger reason, so it is best-effort, `_ops.js`'s own
+    // `obsBestEffort` posture applied to a table write instead of a metric.
+    if (!paidCeiling && await isTableAppliedFor(deps)("vy_room_upgrade_offer")) {
+      await recordOffer(db, {
+        roomId: resolved.room.room_id, personId: payload.p, followerId: follower.follower_id,
+        reason: "cap_reached", now,
+      }).catch(() => {});
+    }
     throw new RoomError(paidCeiling ? "room_paid_cap_reached" : "room_free_cap_reached", 402, {
       messages_included: Number(
         paidCeiling
@@ -1286,11 +1299,55 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // deserves the same honest countdown a free follower gets, never a `null`
   // that reads as "unlimited" when it is merely "unenforced".
   const left = Math.max(0, included - used);
+
+  // WS-R30 (migration 093): "the offer belongs at the end of a session that
+  // worked." Checked AFTER a real reply already left through `gatedReply` -
+  // `said`/`sent` above are already final, and nothing below this point can
+  // change them, so a struck copy of this block still delivers a
+  // byte-identical reply with or without an offer attached. Free tier only
+  // (`!paid`, the same guard `upgrade_prompt` already uses); a real thread
+  // required (a brand new thread fails `sessionWorked`'s own "continued from
+  // an earlier day" clause anyway, so this is a cheap short-circuit, not a
+  // second definition of that rule); gated on migration 093 having landed.
+  let offer = null;
+  if (!paid && thread && await isTableAppliedFor(deps)("vy_room_upgrade_offer")) {
+    const worked = await sessionWorked(db, {
+      roomId: resolved.room.room_id, personId: payload.p, threadId: thread.thread_id,
+      agentId: resolved.agentId, deviceId: device, now,
+    });
+    if (worked.worked) {
+      const recorded = await recordOffer(db, {
+        roomId: resolved.room.room_id, personId: payload.p, followerId: follower.follower_id,
+        reason: "session_worked", now,
+      });
+      if (recorded.inserted) {
+        // The price, read here rather than through api/_payments.js: that
+        // file already imports FROM this one (`paidSessionScope`), so an
+        // import the other way would be circular. A one-line duplicate read
+        // of `vy_room_price`, `api/_room-cohorts.js`'s own `ownedRoomHandle`
+        // precedent for "stays reachable with only a fake db" applied to a
+        // second small table instead of a second whole function.
+        const priceRows = await db(
+          `select follower_price_inr, currency from vy_room_price where room_id = ($1)::uuid limit 1`,
+          [String(resolved.room.room_id)],
+        ).catch(() => []);
+        offer = {
+          reason: "session_worked",
+          price_inr: priceRows[0] ? Number(priceRows[0].follower_price_inr) : null,
+          currency: priceRows[0]?.currency ?? null,
+        };
+      }
+    }
+  }
+
   return {
     bubbles: sent,
     reply: said,
     remembers,
     thread_id: thread?.thread_id ?? null,
+    // Chrome, never a second reply — see the block above. `null` when no
+    // offer applies, exactly like `thread_id`'s own `?? null`.
+    offer,
     quota: { tier: paid ? "paid" : "free", messages_used: used, messages_included: included, messages_left: left },
     // A STATE THE CLIENT RENDERS AT THE END, never an interruption. True only
     // on the last few messages of a free month, so it is a fact about where
@@ -1717,6 +1774,13 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   { table: "vy_room_handoff", shape: "rows",
     reason: "the follower's own verbatim ask and the creator's own verbatim reply to it - " +
       "083's own exception to 'never a word' restated, theirs to see in full" },
+  // WS-R30 (migration 093). Content-free (`reason`/`outcome` are both closed
+  // enums, never a word the follower typed), but every row IS a record of
+  // when this follower was offered an upgrade and what they did about it -
+  // exactly this manifest's own bar, `vy_room_subscription`'s reasoning one
+  // row up restated for a ledger instead of a mandate.
+  { table: "vy_room_upgrade_offer", shape: "rows",
+    reason: "the follower's own upgrade-offer history (when, why, and what happened) - theirs to see in full" },
   { table: "vy_room_follower_day", shape: "count",
     reason: "a day-count ledger (turns per day) - the export already states how many days " +
       "and how many turns; a row-by-row dump would say nothing more" },
@@ -1983,6 +2047,23 @@ export async function roomForget(db, { session }, deps = {}) {
     deleted.vy_room_handoff = handoffRows.length;
   }
 
+  if (await isTableAppliedFor(deps)("vy_room_upgrade_offer")) {
+    // WS-R30 (migration 093): the upgrade-offer ledger, this Room only.
+    // Content-free (a reason, an outcome, two timestamps), but still this
+    // follower's own record - `roomExport`'s own entry above states why it
+    // is exported at all. Carries `follower_id references
+    // vy_room_follower(follower_id) on delete cascade`, so it runs before
+    // the follower delete at the bottom of this function, this block's own
+    // child-before-parent rule.
+    const offerRows = await db(
+      `delete from vy_room_upgrade_offer
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_upgrade_offer = offerRows.length;
+  }
+
   // The agent-scoped rows (`vy_fact` et al., via `roomScopedTables()`) carry
   // no dependency on thread or follower - `agent_id` is their own scope, not
   // a foreign key to either - so their position relative to the two below is
@@ -2112,6 +2193,29 @@ async function selfScope(db, session, deps) {
     // after the follower who asked for it no longer has a row to read it off.
     locale: normalizeLocale(follower.locale),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: offer_dismiss - WS-R30 (migration 093)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * "Continue free." Marks the follower's own most recent open offer
+ * `dismissed`. No `offer_id` in the request body - scope comes off the
+ * SESSION exactly as "thread"/"pulse_optin" do (`api/room.js`'s own rule),
+ * so a follower cannot name a different offer even by constructing the
+ * request by hand. `markOfferOutcome` (api/_phase-gate.js) does the actual
+ * write; this function only derives the follower's own `follower_id` from
+ * the verified session, the way every other self-scoped op here does.
+ */
+export async function roomDismissOffer(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  const row = await markOfferOutcome(db, {
+    followerId: follower.follower_id, outcome: "dismissed", now: deps.now ?? Date.now(),
+  });
+  return { dismissed: Boolean(row) };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

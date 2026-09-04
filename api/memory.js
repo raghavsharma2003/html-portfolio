@@ -3017,6 +3017,20 @@ export const PERSON_TABLES = [
   // ran AFTER its follower delete, so it always reported zero regardless of
   // how many rows the cascade had really just removed.
   { table: "vy_room_handoff", key: "person_id", lane: "relational" },
+  // ── WS-R30: the upgrade-offer ledger (migration 093) ──────────────────────
+  //
+  // Content-free (`reason`/`outcome` are both closed enums, never a word the
+  // follower typed), but a record OF that person exactly this manifest's own
+  // bar - `vy_room_subscription`'s reasoning several rows up, restated for a
+  // ledger instead of a mandate. NOT `agent: true`: no `agent_id` column
+  // (agent context is joined from `vy_room`, the sweep's own reasoning
+  // restated a seventh time). Carries `follower_id references
+  // vy_room_follower(follower_id) on delete cascade`, so it is listed before
+  // `vy_room_follower` below - `roomForget`'s own explicit room_id+person_id
+  // delete gives it the identical, named, counted statement its siblings
+  // above have, from the start, rather than repeating the child-before-
+  // parent ordering bug WS-R27 found and fixed for them.
+  { table: "vy_room_upgrade_offer", key: "person_id", lane: "relational" },
   // ── WS-R1: the Room's PERSON side (migration 071), moved LAST among the
   // Room's relational-lane entries by WS-R27 (see this block's own header) ──
   //
@@ -3201,6 +3215,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_push_subscription",
   // Arrives with 083 (WS-R20), on the identical reasoning.
   "vy_room_handoff",
+  // Arrives with 093 (WS-R30), on the identical reasoning.
+  "vy_room_upgrade_offer",
 ];
 
 // tables and columns that migration 008 introduces
