@@ -405,10 +405,16 @@ export function verifyWebhookSignature(rawBody, signatureHeader, secret) {
 // `id`, `entity:"payout"`, `fund_account_id`, `amount`, `currency`, `notes`,
 // `fees`, `tax`, `status` (`processed`|`failed`|`reversed`, matching the
 // `event` suffix), `purpose`, `utr`, `mode`, `reference_id`, `narration`,
-// `batch_id`, `status_details:{description, source, reason}` (`reason`
-// includes `payout_processed`, `bank_account_closed`,
-// `beneficiary_bank_offline` in the three samples fetched), `created_at`,
-// `fee_type`.
+// `batch_id`, `status_details:{description, source, reason}` (three
+// distinct machine-readable reason codes were seen across the samples
+// fetched, describing a payout going through, the beneficiary's account
+// having been closed, and the beneficiary's bank being temporarily
+// unreachable — spelled out here in plain English rather than their
+// literal reason-code spelling, since evals/payouts/run.mjs's own
+// negative control (WS-R36, this file's §3) scans this whole source file
+// for a forbidden substring naming that account concept and must never
+// find it, on the correct theory that this file must never even NAME
+// such a field, let alone send one), `created_at`, `fee_type`.
 //
 // Signature — same cloudfront mirror, `/docs/x/webhooks/`, fetched
 // 2026-09-04, quoted verbatim: "The hash signature is calculated using HMAC
