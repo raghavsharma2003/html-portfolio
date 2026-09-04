@@ -716,3 +716,63 @@ header stacks up. See the header for the full reason.
 - **WS-R30, the conversion moment (2026-09-04)** — the plan's Phase 2 gate needs three numbers (paid conversion >=12%, week-six retention >=35%, three creators renewing unasked); before this workstream nothing measured conversion at all, since `vy_room_subscription` only ever gets a row once a follower already said yes, and the only upgrade prompt a follower ever saw was the capped card, shown only after refusal. Migration 093 adds `vy_room_upgrade_offer` (offer_id, room_id, person_id, follower_id, shown_at, reason in ('session_worked','cap_reached'), outcome/outcome_at, both null or both set together; index on `(follower_id, shown_at desc)`; PERSON lane, `api/memory.js`'s `PERSON_TABLES` and `REPLICA_PERSON_TABLES`, `roomExport`/`roomForget`'s `ROOM_EXPORT_EXTRA`, `evals/recall/run.mjs`'s FATE table as "forget-only"). `api/_phase-gate.js` holds every decision: `sessionWorked` (law 1's predicate — free tier, >=4 of the follower's own messages in the current 30-minute-gap session read from `meera_log` (never `vy_room_follower_day`, which cannot resolve a 30-minute boundary), the thread continued from an earlier calendar day, and either <5 messages remaining this month or a prior CALENDAR MONTH's summed turns already reached the room's cap — one SQL statement, six CTEs, the `vy_room_follower`-touching CTE placed FIRST so `evals/room-leak/run.mjs`'s own first-select-from parser judges the correct aggregate-only segment, `ws-r30-session-worked-one-statement-follower-scope-first`); `recordOffer` (INSERT...WHERE NOT EXISTS, the 14-day cooldown IS the write, `vy_public_rate`'s own upsert-is-the-check shape one file over); `markOfferOutcome` (the follower's own most recent OPEN offer only, never a client-supplied offer id); `conversionReport` (per room, aggregate-only, eligible = joined 14-60 days ago, paying/eligible, plus the offer funnel by reason); `renewedUnasked` (an honest, hardcoded zero — `api/_payments.js`'s own header already says a creator-tier subscription table is "a Phase 2 concern with no table here", so nothing can be measured, and the note says so on the card rather than a fabricated number); `phaseGate` (loops every room exactly as `api/_ops.js`/`api/_funnel.js` already do — "never a grouped statement across rooms" — composing `below`/`at_or_above`/`not_enough_data` per number plus one sentence, thresholds imported from `api/_room-cohorts.js`'s existing `PAID_CONVERSION_FLOOR_PCT`/`PHASE2_FLOOR_PCT` rather than re-typed). `api/_room-surface.js`'s `roomSay` gains `offer: {reason, price_inr, currency}` on the response, computed AFTER the reply already left through `gatedReply` (byte-identical reply text with or without an offer, proven as a negative control) and only for a free follower with a real thread; the cap-reached refusal branch also best-effort records a `cap_reached` offer before throwing, so the refusal itself is unchanged; `roomDismissOffer` (a new self-scoped op, no offer id trusted from the client) backs "Continue free". `api/_payments.js`'s `applyWebhook` inlines a fifth CTE (`offer_update`, spliced in only when migration 093 has landed) marking the follower's most recent open offer 'paid' in the SAME statement as the subscription's own state flip — never a second round trip, never a call to `markOfferOutcome` itself, since that function must also serve the standalone dismiss path (`ws-r30-webhook-offer-update-inlined-not-called`). `api/_ops.js`/`OpsBoard.tsx` gain a Phase gate card (three numbers, badges, the offer funnel table, the one sentence). `src/room/copy.ts` gains an `offer` block in both locales; `RoomApp.tsx` renders it alongside (never replacing) the existing quota nudge. `evals/phase-gate/run.mjs`: 49/49 offline, real turns through the real follower lane and the real payments webhook, three negative controls (a message-body-shaped select caught by room-leak's own aggregate-only parser copied inline; a second offer inside 14 days never inserts; the reply is byte-identical with and without an offer). Two real defects were found and fixed by the gates themselves before any count was recorded: `_phase-gate.js` had to be added to `evals/room-leak/run.mjs`'s `AGGREGATE_ONLY` set BY NAME even though its SQL was already shaped correctly (`ws-r30-phase-gate-not-registered-in-leak-battery`); `evals/sqlcast`'s strict-surface rule caught one real uncast `outcome_at = $3` the moment the file was added to `STRICT_SURFACE`, fixed to `($3)::timestamptz`. A separate eval-fixture lesson, worth a future session's five minutes: a third invented auth id in a test fell through `evals/room/fixtures.mjs`'s `USER_A`/`USER_B`-only clean-hex mapping into a `pp<slice>` shape that correctly failed strict UUID validation (`ws-r30-third-synthetic-user-id-fails-strict-uuid-validation`). `node scripts/verify-release.mjs`: **16/16 on the untouched tree, confirmed first via a WIP-commit-and-`git reset --hard`/`--soft` round trip, and 16/16 again after every file in this report** (`measurements.md#ws-r30-phase-gate-offline-eval-2026-09-04`). `node scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls, unchanged. `node scripts/context.mjs --check`: clean, 970 nodes / 1192 edges. A process note logged rather than hidden: this session issued `git stash` once by accident mid-verification, against the explicit cross-worktree prohibition, and reversed it in the same turn with `git stash pop` before any other command ran, confirming every file intact afterward (`ws-r30-git-stash-run-once-by-accident-mid-session`) — no evidence of any collision, but the rule is restated rather than treated as merely reconfirmed. NOT PROVEN, stated plainly: no statement in migration 093 or `api/_phase-gate.js` has ever run against a live Postgres (no `NEON_URL` in this environment; every new statement is listed verbatim in this workstream's final report for the main loop to `EXPLAIN`); no real `vy_room_upgrade_offer` row exists outside a fake `db`; no real follower has ever seen the offer card; the Phase gate card's three numbers have never been read off a live database. Did not push; on branch `ws-r30-conversion`. No env vars added.
 
 **2026-09-04, WS-R30 merged (the conversion moment, and the three Phase gates on one card).** Last of wave seven, merged over the WS-R29 tip. Ten conflicts: the context files unioned from the wave-six base (0 duplicated headings), the graph (+12 nodes, +11 edges), the schema and suite registry kept both ways, the ops module's two both-added hunks (R29's WhatsApp spend beside R30's Phase gate), the leak battery's aggregate-only set merged to carry both `_org.js` and `_phase-gate.js` with both comments, and the Room door's two hunks, one of which began mid-statement: keeping both sides left the WhatsApp status handler unclosed, which `node --check` caught before any suite did (the merge rule about mid-statement hunks, restated; every api file is now syntax-checked at the merge). Migration 093 applied live and read back; ten statements EXPLAINed, the 14-day cooldown reading as the INSERT's One-Time Filter. Gate 16/16 on the merged tree; phase-gate 49/49, room-leak 78/78, ops 64/64, room 54/54, room-export ok, room-whatsapp 63/63, payments 62/62, room-cohorts 60/60, recall 266, persontables 56 entries, sqlcast 0 uncast. R30 logged six decisions with reversal conditions and three rejections, one of them its own accidental `git stash -u`, reversed in the same turn with the stash list empty before and after; no sibling was affected. Deliberately unbuilt and logged: a dedicated card for the cap-reached offer (ledger only today), and renewed-unasked is an honest zero until a creator subscription exists (WS-R33). Wave seven is complete: migrations 087 to 093 are live; 094 is next.
+
+**2026-09-04, WS-R32 (hardening: the OTP doors, and the whole-wipe receipt
+sweep bounded by Rooms, migration 094), built.** Closes the two open items
+logged at the wave-six merges. (1) `api/account.js`'s `send_sms`/`verify_sms`
+- the OTP sign-in the Room uses - now consume from `vy_public_rate` (WS-R26)
+at `otp_send_ip`/`otp_send_dest`/`otp_verify_ip`/`otp_verify_dest`
+(`api/_rate-limit.js`'s `DEFAULT_LIMITS`: 10/hr + 30/hr for send, 10/min +
+30/hr for verify), on top of the existing in-memory `otp_dest` throttle,
+which stays as a fast first layer and is explicitly documented as not enough
+alone (per-instance, resets on cold start); `verify_sms` had NO throttle of
+any kind before this, so `otp_verify_dest`'s 10-a-minute ceiling is now the
+actual brute-force floor against a 6-digit code, not a supplement to one.
+Both doors validate the destination BEFORE gating, so a malformed
+destination never touches the counter. (2) The account-wide whole wipe's
+receipt sweep (`api/memory.js`) is rewritten as an extracted, injectable
+function, `purgeRoomForgetReceipts(db, personId)`: it walks every `vy_room`
+row (no `limit`, bounded by Rooms - hundreds at most in Phase 1 - rather
+than by receipts) times every `ROOM_FORGET_RECEIPT_POLICY_VERSION`,
+recomputes each candidate `roomForgetReceiptHash`, and deletes
+`vy_room_forget_receipt where person_hash = any($1)` in one statement under
+migration 094's new index on `person_hash` - replacing the old `select ...
+limit 10000` read, which silently stopped reaching older receipts once the
+table passed that size and could never have reached a person whose Room A
+follower row was already gone (they forgot it earlier) by walking "the
+rooms this person currently follows" instead. Extracted specifically so a
+test could drive it through a fake `db` at all - `purgeRelational` itself
+calls `q` directly with no injection seam anywhere else in this file.
+`evals/rate-limit/run.mjs`: 80/80 (up from 63) - the four scopes, an
+11-attempt brute-force negative control through the REAL `consume()`, and a
+static proof (call-site literals, not bare names -
+`ws-r26-static-order-proof-indexof-matched-the-definition-not-the-call`'s
+own discipline) that validation precedes both gates. `evals/room-export/run.mjs`:
+44/44 (up from 33, still the 16th named release gate) - a new layer 4
+proves the exact scenario the fix targets: forget Room A, join Room B (a
+second room seeded directly into the fixture, reusing the one demo sheet),
+whole-wipe, Room A's receipt is gone though no follower row names it any
+more, and a stray receipt hashed for a different person survives. One
+rejection logged on the way: the new static "the old read is gone" check
+first failed on the FIXED tree because `purgeRoomForgetReceipts`'s own
+header comment quoted the old SQL shape it was explaining, and the regex
+matched the comment rather than the code
+(`ws-r32-static-check-matched-its-own-explanatory-comment`) - fixed by
+rewording the comment to prose. `node scripts/verify-release.mjs`: **16/16
+on the untouched tree** (confirmed via a separate detached git worktree at
+7729450 rather than `git stash`, removed after the read) **and 16/16
+after**, both without `NEON_URL`. `node scripts/check-copy.mjs`: 6 scopes
+clean, 21 negative controls. `node scripts/context.mjs --check`: clean,
+1002 nodes / 1233 edges. Two decisions logged with reversal conditions
+(`ws-r32-otp-doors-behind-vy-public-rate`, `ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms`),
+each with a `supersedes` edge onto the open node it closes; one measurement;
+one rejection. No new env vars. NOT PROVEN, stated plainly: neither the four
+`consume()` calls in `api/account.js` nor `purgeRoomForgetReceipts`'s two
+statements have ever run against a live Postgres (no `NEON_URL` in this
+environment - every new SQL statement is listed verbatim in this
+workstream's final report for the main loop to `EXPLAIN`); no real
+`vy_public_rate` row has ever been written by an OTP door outside a fake
+`db`; no real `vy_room_forget_receipt` row has ever been deleted by the new
+sweep outside a fake `db`; every OTP limit is a stated judgment call, not a
+measured traffic ceiling. Did not push; on branch `ws-r32-hardening`.
+Migration 094 is this workstream's; 095 is next.
