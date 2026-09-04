@@ -3466,3 +3466,33 @@ create index if not exists vy_room_voice_usage_scope_ix
   on vy_room_voice_usage (room_id, person_id, day);
 create index if not exists vy_room_voice_usage_follower_ix
   on vy_room_voice_usage (follower_id);
+
+-- Migration 084 - the sweep heartbeat (WS-R21). No person/device/owner
+-- column by construction; see that migration's own header for why it needs
+-- no PERSON_TABLES entry and no relcheck exemption.
+create table if not exists vy_sweep_run (
+  run_id       uuid primary key,
+  sweep        text not null check (length(sweep) > 0 and length(sweep) <= 80),
+  started_at   timestamptz not null default now(),
+  finished_at  timestamptz,
+  outcome      text not null default 'running',
+  counts       jsonb not null default '{}'::jsonb,
+  error_code   text not null default ''
+);
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_outcome_check;
+alter table vy_sweep_run add constraint vy_sweep_run_outcome_check
+  check (outcome in ('running', 'ok', 'partial', 'failed'));
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_counts_object;
+alter table vy_sweep_run add constraint vy_sweep_run_counts_object
+  check (jsonb_typeof(counts) = 'object');
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_counts_size;
+alter table vy_sweep_run add constraint vy_sweep_run_counts_size
+  check (octet_length(counts::text) <= 4096);
+alter table vy_sweep_run drop constraint if exists vy_sweep_run_finished_matches_outcome;
+alter table vy_sweep_run add constraint vy_sweep_run_finished_matches_outcome
+  check (
+    (outcome = 'running' and finished_at is null)
+    or (outcome <> 'running' and finished_at is not null)
+  );
+create index if not exists vy_sweep_run_sweep_started_ix
+  on vy_sweep_run (sweep, started_at desc);

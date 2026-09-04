@@ -16,6 +16,7 @@ import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { runVoiceChallengeSweep, voiceIdentityChallengeEnabled } from "./_replica-voice-identity.js";
 import { configuredVoiceChallengeVerifier } from "./_voice-identity/verifier.js";
+import { withSweepRun } from "./_sweep-run.js";
 
 export const config = { maxDuration: 300 };
 
@@ -30,10 +31,15 @@ export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
   try {
-    if (!voiceIdentityChallengeEnabled()) return res.status(200).json({ ok: true, disabled: true });
-    const verifier = configuredVoiceChallengeVerifier();
-    if (!verifier) return res.status(200).json({ ok: true, disabled: true });
-    const summary = await runVoiceChallengeSweep({ db: q, verifier, maxJobs: 1 });
+    // WS-R21: the ops board's heartbeat (migration 084) - wraps the disabled
+    // short-circuit too, so a feature-flagged-off sweep shows as "ran,
+    // disabled" rather than looking indistinguishable from "never ran".
+    const summary = await withSweepRun(q, "replica-voice-identity", async () => {
+      if (!voiceIdentityChallengeEnabled()) return { disabled: true };
+      const verifier = configuredVoiceChallengeVerifier();
+      if (!verifier) return { disabled: true };
+      return runVoiceChallengeSweep({ db: q, verifier, maxJobs: 1 });
+    });
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;

@@ -1,0 +1,204 @@
+/* ops-board.css - WS-R21. The platform-operator board's own scoped sheet,
+ * `drift-watch.css`/`review-queue.css`'s own precedent: a layout that only
+ * exists as a diff inside `studio.css` is a layout that loses a merge.
+ *
+ * Tokens from `design/tokens.css` and the palette `studio.css` already
+ * declares in its own `@layer tokens` block (--paper, --ink, --forest,
+ * --danger, --radius*, --shadow). One theme (DESIGN-LAW §3): this page never
+ * flips to dark, matching every other studio screen today.
+ */
+@layer components {
+  .ops-board {
+    min-height: 100dvh;
+    background: var(--paper);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    padding: var(--space-pad);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-section);
+  }
+
+  .ops-board__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-item);
+    max-width: 1080px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .ops-board__title {
+    font-size: var(--text-heading);
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-heading);
+    font-weight: var(--weight-strong);
+    margin: 0;
+  }
+
+  .ops-board__meta {
+    font-size: var(--text-small);
+    color: var(--ink-faint);
+  }
+
+  .ops-board__refresh {
+    appearance: none;
+    border: var(--hairline) solid var(--ink-faint);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) var(--space-item);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: transform var(--motion-instant) var(--ease-standard), background var(--motion-quick) var(--ease-standard);
+  }
+  .ops-board__refresh:active { transform: scale(0.97); }
+  .ops-board__refresh:disabled { opacity: 0.55; cursor: default; transform: none; }
+  .ops-board__refresh:focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
+
+  .ops-board__body {
+    max-width: 1080px;
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-section);
+  }
+
+  .ops-board__panel {
+    background: color-mix(in srgb, var(--paper) 96%, var(--ink) 4%);
+    border: var(--hairline) solid color-mix(in srgb, var(--ink) 12%, transparent);
+    border-radius: var(--radius);
+    padding: var(--space-block);
+  }
+
+  .ops-board__panel h2 {
+    font-size: var(--text-title);
+    letter-spacing: var(--tracking-heading);
+    margin: 0 0 var(--space-item);
+  }
+
+  .ops-board__panel h3 {
+    font-size: var(--text-lead);
+    margin: 0 0 var(--space-hair);
+  }
+
+  .ops-board__room + .ops-board__room {
+    margin-top: var(--space-block);
+    padding-top: var(--space-block);
+    border-top: var(--hairline) solid color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+
+  .ops-board__room-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-tight);
+    margin-bottom: var(--space-row);
+  }
+
+  .ops-board__slug {
+    font-size: var(--text-small);
+    color: var(--ink-faint);
+  }
+
+  .ops-board__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-hair);
+    font-size: var(--text-micro);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    padding: 2px var(--space-tight);
+    border-radius: var(--radius-pill);
+    font-weight: var(--weight-medium);
+  }
+  .ops-board__badge--done { background: var(--state-done-soft); color: var(--state-done); }
+  .ops-board__badge--waiting { background: var(--state-waiting-soft); color: var(--state-waiting); }
+  .ops-board__badge--running { background: var(--state-running-soft); color: var(--state-running); }
+  .ops-board__badge--stopped { background: var(--state-stopped-soft); color: var(--state-stopped); }
+
+  .ops-board__stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-row);
+  }
+
+  .ops-board__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ops-board__stat-value {
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    line-height: 1.1;
+  }
+  .ops-board__stat-label {
+    font-size: var(--text-micro);
+    color: var(--ink-faint);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+
+  .ops-board__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-small);
+  }
+  .ops-board__table th, .ops-board__table td {
+    text-align: left;
+    padding: var(--space-tight) var(--space-row);
+    border-bottom: var(--hairline) solid color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+  .ops-board__table th {
+    font-size: var(--text-micro);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: var(--weight-medium);
+  }
+  .ops-board__table td.ops-board__num { text-align: right; }
+  .ops-board__table tbody tr:last-child td { border-bottom: none; }
+
+  .ops-board__empty, .ops-board__error, .ops-board__loading {
+    font-size: var(--text-body);
+    color: var(--ink-soft);
+    padding: var(--space-block);
+    text-align: center;
+  }
+  .ops-board__error { color: var(--danger); }
+
+  .ops-board__signin {
+    max-width: 420px;
+    margin: 15vh auto;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-item);
+  }
+  .ops-board__signin button {
+    appearance: none;
+    border: none;
+    background: var(--forest);
+    color: var(--paper);
+    border-radius: var(--radius-control);
+    padding: var(--space-row) var(--space-block);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+  .ops-board__signin button:active { transform: scale(0.97); }
+
+  @media (max-width: 640px) {
+    .ops-board { padding: var(--space-item); }
+    .ops-board__table { display: block; overflow-x: auto; }
+  }
+}

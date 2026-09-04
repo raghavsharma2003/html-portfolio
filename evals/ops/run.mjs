@@ -1,0 +1,514 @@
+// WS-R21. The ops board's offline suite: `api/_ops.js` (overview + auth
+// gate), `api/_sweep-run.js` (the heartbeat), `api/_sweep-schedule.js`
+// (vercel.json's own schedule table, read not guessed).
+//
+//   node evals/ops/run.mjs
+//
+// Offline, deterministic, $0, no network, no real Postgres. Reuses
+// `evals/room/fixtures.mjs`'s `fakeDb`/`freshState` and `evals/pulse/
+// fixtures.mjs`'s `pulseDb` rather than re-deriving a third follower fixture
+// (`dead-writers`'s sibling risk this repo names repeatedly: two fakes for
+// the same tables silently drifting apart). This file only adds the tables
+// those two do not already know about: `vy_room_follower_day` (day-level
+// turns, room-cohorts's own convention), `vy_room_checkin`/`_delivery`,
+// `vy_room_subscription`, `vy_payment_event`, `vy_replica_drift_report` and
+// the new `vy_sweep_run` (migration 084).
+import fs from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { freshState, fakeDb, ROOM_ID, REPLICA_ID, OWNER } from "../room/fixtures.mjs";
+import { freshPulseState, pulseDb } from "../pulse/fixtures.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO = resolve(HERE, "..", "..");
+
+let pass = 0;
+let fail = 0;
+const ok = (name, cond, extra = "") => {
+  if (cond) pass++;
+  else fail++;
+  console.log(`${cond ? "  ok  " : "FAIL  "}${name}${extra ? `   ${extra}` : ""}`);
+};
+
+const {
+  opsOverview,
+  opsBoardConfigured,
+  isOpsOwner,
+  sweepStaleness,
+} = await import(pathToFileURL(join(REPO, "api/_ops.js")).href);
+const { withSweepRun, sanitizeCounts } = await import(pathToFileURL(join(REPO, "api/_sweep-run.js")).href);
+const { sweepSchedules, expectedIntervalMs, sweepNameFromPath } = await import(
+  pathToFileURL(join(REPO, "api/_sweep-schedule.js")).href
+);
+
+// ═════════════════════════════════════════════════════════════════════════
+// THE FIXTURE. One db function covering everything `opsOverview` and
+// `withSweepRun` touch: the base Room fixture, Pulse's own reader, and the
+// tables new to this migration.
+// ═════════════════════════════════════════════════════════════════════════
+const SECOND_ROOM_ID = "d0000000-0000-4000-8000-000000000002";
+const SECOND_REPLICA_ID = "c1000000-0000-4000-8000-000000000002";
+
+function opsState() {
+  const state = freshPulseState(freshState());
+  // A second, EMPTY Room — the honest-empty-states check (law 4): a Room
+  // with zero followers, zero everything, must report real zeros, never
+  // omit itself or fake a number.
+  state.rooms.push({
+    room_id: SECOND_ROOM_ID,
+    slug: "quiet-room",
+    replica_id: SECOND_REPLICA_ID,
+    agent_id: "b1000000-0000-4000-8000-000000000002",
+    owner_user_id: OWNER,
+    display_name: "Quiet",
+    free_monthly_messages: 20,
+    paid_monthly_messages: 500,
+    paid_monthly_voice_seconds: 1800,
+    published_at: "2026-09-02T00:00:00.000Z",
+    paused_at: null,
+  });
+  state.followerDays = [];
+  state.checkins = [];
+  state.checkinDeliveries = [];
+  state.subscriptions = [];
+  state.paymentEvents = [];
+  state.driftReports = [];
+  state.sweepRuns = [];
+  return state;
+}
+
+/** Layered on `pulseDb(state, fakeDb(state))`, `evals/room-leak/run.mjs`'s
+ *  layer 5 precedent for combining the two — this only ADDS handlers for
+ *  what neither of those already answers. Day/24h-window filtering is not
+ *  reproduced here (that SQL semantics is already proven by `evals/room-
+ *  cohorts/run.mjs` and `evals/payments/*`); this fixture exists to prove
+ *  the OVERVIEW's own plumbing - the right numbers reach the right field
+ *  names - not to re-derive every WHERE clause a second time. */
+function opsDb(state) {
+  const base = pulseDb(state, fakeDb(state));
+  return async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const p = (params || []).map((v) => (v == null ? null : String(v)));
+
+    // ── the board's own room list ──────────────────────────────────────────
+    if (has("order by created_at asc") && has("from vy_room") && !has("vy_room_")) {
+      return state.rooms.map((r) => ({
+        room_id: r.room_id,
+        slug: r.slug,
+        display_name: r.display_name,
+        replica_id: r.replica_id,
+        agent_id: r.agent_id,
+        owner_user_id: r.owner_user_id,
+        free_monthly_messages: r.free_monthly_messages,
+        paid_monthly_messages: r.paid_monthly_messages,
+        published_at: r.published_at,
+        paused_at: r.paused_at,
+        created_at: r.created_at ?? "2026-09-01T00:00:00.000Z",
+      }));
+    }
+
+    // ── followers aggregate (AGGREGATE_ONLY - see api/_ops.js's header) ────
+    if (has("count(*)::int as total,")) {
+      const [roomId, monthKey, paidCeiling, freeCeiling] = p;
+      const rows = state.followers.filter((f) => f.room_id === roomId);
+      const total = rows.length;
+      const paid = rows.filter((f) => f.tier === "paid").length;
+      const joined7d = rows.filter((f) => Date.now() - new Date(f.joined_at).getTime() < 7 * 86_400_000).length;
+      const atCap = rows.filter((f) => {
+        if (f.month_key !== monthKey) return false;
+        const ceiling = f.tier === "paid" ? Number(paidCeiling) : Number(freeCeiling);
+        return Number(f.month_message_count) >= ceiling;
+      }).length;
+      const voiceSeconds = rows
+        .filter((f) => f.voice_month_key === monthKey)
+        .reduce((sum, f) => sum + Number(f.voice_seconds_month || 0), 0);
+      return [{ total, paid, joined_7d: joined7d, at_cap: atCap, voice_seconds: voiceSeconds }];
+    }
+
+    // ── messages last 24h, from vy_room_follower_day ────────────────────────
+    if (has("as last_24h")) {
+      const [roomId] = p;
+      const sum = (state.followerDays || [])
+        .filter((d) => d.room_id === roomId)
+        .reduce((s, d) => s + Number(d.turns || 0), 0);
+      return [{ last_24h: sum }];
+    }
+
+    // ── active check-ins ─────────────────────────────────────────────────
+    if (has("count(*)::int as active")) {
+      const [roomId] = p;
+      const n = (state.checkins || []).filter((c) => c.room_id === roomId && c.state === "active").length;
+      return [{ active: n }];
+    }
+
+    // ── deliveries, grouped by state ─────────────────────────────────────
+    if (has("from vy_room_checkin_delivery") && has("group by state")) {
+      const [roomId] = p;
+      const bucket = new Map();
+      for (const d of state.checkinDeliveries || []) {
+        if (d.room_id !== roomId) continue;
+        bucket.set(d.state, (bucket.get(d.state) || 0) + 1);
+      }
+      return [...bucket.entries()].map(([state_, n]) => ({ state: state_, n }));
+    }
+
+    // ── subscriptions by state ───────────────────────────────────────────
+    if (has("as expired")) {
+      const [roomId] = p;
+      const rows = (state.subscriptions || []).filter((s) => s.room_id === roomId);
+      const count = (st) => rows.filter((s) => s.state === st).length;
+      return [{
+        created: count("created"), authenticated: count("authenticated"), active: count("active"),
+        paused: count("paused"), cancelled: count("cancelled"), expired: count("expired"),
+      }];
+    }
+
+    // ── revenue this month ────────────────────────────────────────────────
+    if (has("as this_month_inr")) {
+      const [roomId] = p;
+      const sum = (state.paymentEvents || [])
+        .filter((e) => e.room_id === roomId && e.kind === "subscription.charged")
+        .reduce((s, e) => s + Number(e.amount_inr || 0), 0);
+      return [{ this_month_inr: sum }];
+    }
+
+    // ── latest drift report ──────────────────────────────────────────────
+    if (has("from vy_replica_drift_report")) {
+      const [replicaId, ownerUserId] = p;
+      const rows = (state.driftReports || [])
+        .filter((r) => r.replica_id === replicaId && r.owner_user_id === ownerUserId)
+        .sort((a, b) => b.computed_at.localeCompare(a.computed_at));
+      return rows.length ? [{ state: rows[0].state, computed_at: rows[0].computed_at }] : [];
+    }
+
+    // ── vy_sweep_run: the heartbeat itself ───────────────────────────────
+    if (has("insert into vy_sweep_run")) {
+      const [runId, sweep, startedAt] = params;
+      state.sweepRuns.push({ run_id: runId, sweep, started_at: startedAt, finished_at: null, outcome: "running", counts: {}, error_code: "" });
+      return [];
+    }
+    if (has("update vy_sweep_run")) {
+      const [runId, outcome, counts, errorCode] = params;
+      const row = state.sweepRuns.find((r) => r.run_id === runId);
+      if (!row) return [];
+      row.finished_at = new Date().toISOString();
+      row.outcome = outcome;
+      row.counts = counts; // stored as the raw string, mirroring Neon's ::jsonb round trip
+      row.error_code = errorCode;
+      return [];
+    }
+    if (has("distinct on (sweep)")) {
+      const bySweep = new Map();
+      for (const r of state.sweepRuns) {
+        const prev = bySweep.get(r.sweep);
+        if (!prev || r.started_at > prev.started_at) bySweep.set(r.sweep, r);
+      }
+      return [...bySweep.values()];
+    }
+
+    return base(sql, params);
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §1 — LAW 1: platform-operator only, 404 by name. Pure functions, no db.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("── §1: platform-operator allowlist ──");
+
+ok("unconfigured: opsBoardConfigured is false with no env var set", !opsBoardConfigured({}));
+ok("unconfigured: opsBoardConfigured is false with an empty string", !opsBoardConfigured({ OPS_OWNER_USER_IDS: "" }));
+ok("configured: opsBoardConfigured is true once at least one id is set",
+  opsBoardConfigured({ OPS_OWNER_USER_IDS: OWNER }));
+
+const ENV = { OPS_OWNER_USER_IDS: `${OWNER}, 11111111-1111-4111-8111-111111111111` };
+ok("the operator's own id (any case) is allowed", isOpsOwner(OWNER.toUpperCase(), ENV));
+ok("a second listed id is allowed", isOpsOwner("11111111-1111-4111-8111-111111111111", ENV));
+ok("NEGATIVE CONTROL (b): unset allowlist refuses EVERY id, including one that would otherwise match",
+  !isOpsOwner(OWNER, {}));
+
+// NEGATIVE CONTROL (a): a non-allowlisted user gets refused BEFORE any db
+// read. Modelled on api/ops.js's own control flow rather than re-describing
+// it: a db that throws if touched at all, run through the identical
+// "configured? -> isOpsOwner? -> only then read" order the real handler
+// uses, proves the ordering rather than asserting it.
+{
+  let dbTouched = false;
+  const poisoned = async () => {
+    dbTouched = true;
+    throw new Error("db must not be read for a non-owner");
+  };
+  const STRANGER = "99999999-9999-4999-8999-999999999999";
+  async function handleLikeOpsJs(userId, env) {
+    if (!opsBoardConfigured(env)) return 404;
+    if (!isOpsOwner(userId, env)) return 404;
+    await opsOverview(poisoned, Date.now());
+    return 200;
+  }
+  const status = await handleLikeOpsJs(STRANGER, ENV);
+  ok("NEGATIVE CONTROL (a): a non-allowlisted user gets 404, and the db was never touched",
+    status === 404 && !dbTouched);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §2 — the schedule table: read from vercel.json, not guessed.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §2: sweep schedules, read from vercel.json ──");
+
+const vercelJson = JSON.parse(fs.readFileSync(join(REPO, "vercel.json"), "utf8"));
+const schedules = sweepSchedules(vercelJson);
+
+ok("every cron in vercel.json's own crons array resolves to a sweep name",
+  vercelJson.crons.every((c) => sweepNameFromPath(c.path)));
+ok("drift-watch is read as every 6 hours", schedules["drift-watch"]?.expected_interval_ms === 6 * 3_600_000);
+ok("checkins is read as every 15 minutes", schedules["checkins"]?.expected_interval_ms === 15 * 60_000);
+ok("pulse is read as weekly", schedules["pulse"]?.expected_interval_ms === 7 * 24 * 3_600_000);
+ok("consolidate is read as hourly", schedules["consolidate"]?.expected_interval_ms === 3_600_000);
+ok("replica-erasure is read as every 10 minutes", schedules["replica-erasure"]?.expected_interval_ms === 10 * 60_000);
+ok("every one of this repo's 11 crons resolves to a NON-NULL interval (no shape here goes unrecognised)",
+  Object.values(schedules).filter((s) => Number.isFinite(s.expected_interval_ms)).length === vercelJson.crons.length);
+ok("an unrecognised schedule shape (day-of-month) is null, never guessed",
+  expectedIntervalMs("0 0 1 * *") === null);
+ok("a malformed schedule string is null, never guessed", expectedIntervalMs("not a cron") === null);
+
+// ── staleness math ──────────────────────────────────────────────────────
+const NOW = Date.parse("2026-09-10T00:00:00Z");
+const sixHourSchedule = { expected_interval_ms: 6 * 3_600_000 };
+ok("staleness: a sweep that ran 1 hour ago against a 6h schedule is fresh",
+  sweepStaleness({ started_at: new Date(NOW - 3_600_000).toISOString() }, sixHourSchedule, NOW) === "fresh");
+ok("staleness: a sweep that ran 13 hours ago against a 6h schedule (>2x) is stale",
+  sweepStaleness({ started_at: new Date(NOW - 13 * 3_600_000).toISOString() }, sixHourSchedule, NOW) === "stale");
+ok("staleness: exactly 2x the interval is still fresh (the boundary is exclusive)",
+  sweepStaleness({ started_at: new Date(NOW - 12 * 3_600_000).toISOString() }, sixHourSchedule, NOW) === "fresh");
+ok("staleness: no row at all, but a schedule exists, is 'never_ran' - not 'ok', law 4",
+  sweepStaleness(null, sixHourSchedule, NOW) === "never_ran");
+ok("staleness: no row and no schedule is 'unscheduled'", sweepStaleness(null, null, NOW) === "unscheduled");
+ok("staleness: a row exists but the schedule is unrecognised is 'unknown_schedule', never guessed",
+  sweepStaleness({ started_at: new Date(NOW).toISOString() }, { expected_interval_ms: null }, NOW) === "unknown_schedule");
+
+// ═════════════════════════════════════════════════════════════════════════
+// §3 — withSweepRun: the heartbeat, and its content-free guarantee.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §3: withSweepRun (the heartbeat) ──");
+
+{
+  const state = opsState();
+  const db = opsDb(state);
+
+  const summary = await withSweepRun(db, "drift-watch", async () => ({ checked: 3, written: 2, alerted: 0, errors: 0 }));
+  ok("withSweepRun returns the wrapped function's value UNCHANGED",
+    summary.checked === 3 && summary.written === 2);
+  ok("a successful run writes exactly one vy_sweep_run row", state.sweepRuns.length === 1);
+  const row = state.sweepRuns[0];
+  ok("the row's outcome is 'ok' (no errors reported)", row.outcome === "ok");
+  ok("the row carries finished_at", Boolean(row.finished_at));
+  const counts = JSON.parse(row.counts);
+  ok("the row's counts match the sanitized digest", counts.checked === 3 && counts.written === 2);
+}
+
+// A summary carrying `errors > 0` (this repo's own `runPulseSweep`/
+// `runDriftWatchSweep` shape) classifies as 'partial', never 'ok' - a
+// partially-failed sweep must never read as healthy on the board.
+{
+  const state = opsState();
+  const db = opsDb(state);
+  await withSweepRun(db, "pulse", async () => ({ checked: 4, computed: 2, errors: 2 }));
+  ok("a summary with errors > 0 writes outcome 'partial'", state.sweepRuns[0].outcome === "partial");
+}
+{
+  const state = opsState();
+  const db = opsDb(state);
+  await withSweepRun(db, "consolidate", async () => ({ halted: true, processed: 1 }));
+  ok("a summary with halted:true writes outcome 'partial'", state.sweepRuns[0].outcome === "partial");
+}
+
+// CONTENT-FREE, PROVEN NOT ASSUMED: a summary carrying a string field (this
+// repo's own sweeps do - `error_details: [{room_id, message}]`) must never
+// land that string in `counts`. An array collapses to its length.
+{
+  const state = opsState();
+  const db = opsDb(state);
+  await withSweepRun(db, "channel-ingest", async () => ({
+    checked: 1,
+    room_id: "d0000000-0000-4000-8000-000000000009", // a real-looking id, on purpose
+    note: "processed for Anjali's room",              // a real-looking name, on purpose
+    error_details: [{ room_id: "x", message: "a follower's own words would go here" }],
+  }));
+  const written = JSON.stringify(state.sweepRuns[0].counts);
+  ok("a string field on the summary never reaches the written row",
+    !written.includes("Anjali") && !written.includes("d0000000-0000-4000-8000-000000000009"));
+  ok("a follower's words inside a nested array never reach the written row",
+    !written.includes("follower's own words"));
+  ok("the array DOES survive, as its length only", JSON.parse(state.sweepRuns[0].counts).error_details === 1);
+  ok("sanitizeCounts itself drops a bare string field, direct unit check",
+    sanitizeCounts({ ok: true, name: "a person's name" }).name === undefined);
+}
+
+// NEGATIVE CONTROL (d): a sweep that THROWS still writes finished_at with
+// outcome 'failed' - proven by making the wrapped function throw, not by
+// reading the implementation.
+{
+  const state = opsState();
+  const db = opsDb(state);
+  let threw = false;
+  try {
+    await withSweepRun(db, "replica-liveness", async () => {
+      throw new Error("verifier_unreachable");
+    });
+  } catch (e) {
+    threw = true;
+    ok("NEGATIVE CONTROL (d): the original error is rethrown, never swallowed",
+      e.message === "verifier_unreachable");
+  }
+  ok("NEGATIVE CONTROL (d): withSweepRun's own try/catch actually ran (the throw was not silently absorbed higher up)",
+    threw);
+  ok("NEGATIVE CONTROL (d): the row was still written", state.sweepRuns.length === 1);
+  const row = state.sweepRuns[0];
+  ok("NEGATIVE CONTROL (d): outcome is 'failed'", row.outcome === "failed");
+  ok("NEGATIVE CONTROL (d): finished_at is set (not left at null/'running' forever)", Boolean(row.finished_at));
+  // errorCodeOf prefers err.code/err.error_code/err.name, falling back to
+  // "sweep_failed" only when none exist - a plain `new Error(...)` carries
+  // `.name === "Error"`, which IS the short code here, not the raw message.
+  ok("NEGATIVE CONTROL (d): error_code is a short code (err.name), never the raw message text",
+    row.error_code === "Error" && row.error_code !== "verifier_unreachable");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §4 — opsOverview: honest counts, honest empty states, no follower content.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §4: opsOverview (real counts, honest empty states) ──");
+
+{
+  const state = opsState();
+  // Three followers in the primary Room: two free (one at cap, one not),
+  // one paid, seeded directly (fixture precedent: evals/room-leak/run.mjs's
+  // own N-follower seeding does the same for the same reason - predictable
+  // ids for token/number assertions). `monthKey` matches the FIXED `now`
+  // passed to `opsOverview` below (2026-09-10), never the real wall clock -
+  // a test whose fixture month depends on when it happens to run is a test
+  // that passes today and fails on its own next October.
+  const monthKey = "2026-09";
+  state.followers.push(
+    { follower_id: "f1", room_id: ROOM_ID, person_id: "p1", agent_id: "a1", tier: "free",
+      month_key: monthKey, month_message_count: 20, joined_at: new Date().toISOString(),
+      voice_seconds_month: 0, voice_month_key: "" },
+    { follower_id: "f2", room_id: ROOM_ID, person_id: "p2", agent_id: "a1", tier: "free",
+      month_key: monthKey, month_message_count: 3, joined_at: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+      voice_seconds_month: 0, voice_month_key: "" },
+    { follower_id: "f3", room_id: ROOM_ID, person_id: "p3", agent_id: "a1", tier: "paid",
+      month_key: monthKey, month_message_count: 40, joined_at: new Date().toISOString(),
+      voice_seconds_month: 300, voice_month_key: monthKey },
+  );
+  state.followerDays.push({ room_id: ROOM_ID, person_id: "p1", day: "2026-09-10", turns: 5 });
+  state.checkins.push({ room_id: ROOM_ID, state: "active" }, { room_id: ROOM_ID, state: "stopped" });
+  state.checkinDeliveries.push(
+    { room_id: ROOM_ID, state: "delivered" }, { room_id: ROOM_ID, state: "delivered" },
+    { room_id: ROOM_ID, state: "skipped_free_tier" },
+  );
+  state.subscriptions.push({ room_id: ROOM_ID, state: "active" }, { room_id: ROOM_ID, state: "cancelled" });
+  state.paymentEvents.push(
+    { room_id: ROOM_ID, kind: "subscription.charged", amount_inr: 499 },
+    { room_id: ROOM_ID, kind: "subscription.charged", amount_inr: 499 },
+    { room_id: ROOM_ID, kind: "payment.failed", amount_inr: 0 },
+  );
+  state.driftReports.push({ replica_id: REPLICA_ID, owner_user_id: OWNER, state: "steady", computed_at: "2026-09-09T00:00:00Z" });
+  // Two heartbeat rows, so the sweeps strip has something to read.
+  state.sweepRuns.push(
+    { run_id: "r1", sweep: "drift-watch", started_at: "2026-09-10T10:00:00Z", finished_at: "2026-09-10T10:00:02Z", outcome: "ok", counts: "{}", error_code: "" },
+    { run_id: "r2", sweep: "checkins", started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:00:01Z", outcome: "ok", counts: "{}", error_code: "" },
+  );
+
+  const db = opsDb(state);
+  const overview = await opsOverview(db, Date.parse("2026-09-10T12:00:00Z"));
+
+  ok("both Rooms are present", overview.rooms.length === 2);
+  const primary = overview.rooms.find((r) => r.room_id === ROOM_ID);
+  const quiet = overview.rooms.find((r) => r.room_id === SECOND_ROOM_ID);
+
+  ok("followers_total is the real count", primary.followers_total === 3);
+  ok("followers_paid is the real count", primary.followers_paid === 1);
+  ok("at_cap_this_month counts the free follower at the 20-message ceiling, not the paid one",
+    primary.at_cap_this_month === 1);
+  ok("voice_seconds_this_month sums only THIS month's rows", primary.voice_seconds_this_month === 300);
+  ok("messages_last_24h reflects the seeded day row", primary.messages_last_24h === 5);
+  ok("active_check_ins counts only the active row", primary.active_check_ins === 1);
+  ok("deliveries_last_24h is grouped by state, real counts",
+    primary.deliveries_last_24h.delivered === 2 && primary.deliveries_last_24h.skipped_free_tier === 1);
+  ok("subscriptions is a full state breakdown, not only active",
+    primary.subscriptions.active === 1 && primary.subscriptions.cancelled === 1 && primary.subscriptions.created === 0);
+  ok("revenue_this_month_inr sums only subscription.charged events", primary.revenue_this_month_inr === 998);
+  ok("drift_state reflects the latest report", primary.drift_state === "steady");
+
+  ok("LAW 4, honest empty state: the second Room reports REAL zeros, not omitted",
+    quiet.followers_total === 0 && quiet.followers_paid === 0 && quiet.revenue_this_month_inr === 0);
+  ok("LAW 4: an empty Room's drift_state says so honestly rather than a fake status",
+    quiet.drift_state === "no_report");
+
+  ok("no follower id, thread title or message ever appears anywhere in the overview (JSON-wide scan)",
+    !JSON.stringify(overview).match(/\bp1\b|\bp2\b|\bp3\b/));
+
+  ok("sweeps: drift-watch's latest run is fresh (2h ago against a 6h schedule)",
+    overview.sweeps.find((s) => s.sweep === "drift-watch").staleness === "fresh");
+  ok("sweeps: checkins' latest run is from January - stale against a 15-minute schedule",
+    overview.sweeps.find((s) => s.sweep === "checkins").staleness === "stale");
+  ok("sweeps: pulse has never run at all and reports 'never_ran', not 'ok' - law 4 again",
+    overview.sweeps.find((s) => s.sweep === "pulse").last_outcome === "never_ran" &&
+    overview.sweeps.find((s) => s.sweep === "pulse").staleness === "never_ran");
+  ok("every one of this repo's 11 crons appears in the sweeps strip",
+    overview.sweeps.length === vercelJson.crons.length);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §5 — NEGATIVE CONTROL (c): a select list that adds a follower text column
+// fails the SAME aggregate-only parser evals/room-leak/run.mjs runs.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5: the aggregate-only parser catches a leaking select list ──");
+
+// The identical check evals/room-leak/run.mjs's §1c runs (copied, not
+// imported - that file has no exported entry point for it, by design: the
+// check is meant to run over the WHOLE api/ directory, not be called a la
+// carte). Read the REAL api/_ops.js source, not retyped, so a change to the
+// shipping SQL is what this test sees.
+function aggregateOnlyVerdict(statementText) {
+  const selectList = (statementText.match(/select([\s\S]*?)\sfrom\s/i) || [, ""])[1];
+  const items = [];
+  let depth = 0, cur = "";
+  for (const ch of selectList) {
+    if (ch === "(") depth++; else if (ch === ")") depth--;
+    if (ch === "," && depth === 0) { items.push(cur); cur = ""; } else cur += ch;
+  }
+  if (cur.trim()) items.push(cur);
+  const aggregateOnly = items.length > 0 && items.every((c) => /\b(count|sum)\s*\(/i.test(c));
+  const touchesPerson = /person_id|thread_id|\btitle\b|\bf\.\*|content|message_text/i.test(selectList);
+  return { aggregateOnly, touchesPerson, leaks: !aggregateOnly || touchesPerson };
+}
+
+const opsSrc = fs.readFileSync(join(REPO, "api/_ops.js"), "utf8");
+const followersStmtMatch = opsSrc.match(/`select\s+count\(\*\)::int as total,[\s\S]*?\sfrom vy_room_follower\s*\n\s*where room_id[\s\S]*?`/);
+ok("the real followers statement is found in api/_ops.js (not moved/renamed)", Boolean(followersStmtMatch));
+const realStmt = followersStmtMatch ? followersStmtMatch[0] : "";
+const realVerdict = aggregateOnlyVerdict(realStmt);
+ok("the REAL shipping statement passes the aggregate-only parser (every item is count()/sum())",
+  realVerdict.aggregateOnly && !realVerdict.touchesPerson);
+
+// NEGATIVE CONTROL (c): a copy of that exact statement with a follower text
+// column appended to the select list.
+const leakingStmt = realStmt.replace(
+  "select\n        count(*)::int as total,",
+  "select\n        person_id,\n        count(*)::int as total,",
+);
+ok("the mutation actually changed the text (the control is not vacuous)", leakingStmt !== realStmt);
+const leakingVerdict = aggregateOnlyVerdict(leakingStmt);
+ok("NEGATIVE CONTROL (c): a select list with a bare follower column (person_id) FAILS the aggregate-only parser",
+  leakingVerdict.leaks);
+
+// A second shape of the same control: appending a thread title instead of
+// re-adding person_id, so the control does not rely on one single keyword.
+const leakingStmt2 = realStmt.replace(
+  "select\n        count(*)::int as total,",
+  "select\n        message_text,\n        count(*)::int as total,",
+);
+ok("NEGATIVE CONTROL (c), second shape: a select list with message_text also FAILS",
+  aggregateOnlyVerdict(leakingStmt2).leaks);
+
+console.log(`\nops: ${pass} passed, ${fail} failed`);
+if (fail) process.exit(1);

@@ -300,7 +300,16 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // header names the exact rule this shares with `_room-cohorts.js`'s
   // retention statement. A future edit that selected `title`, `person_id` or
   // `thread_id` at the top level fails this line.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js"]);
+  // WS-R21's ops board (`api/_ops.js`, migration 084) reads
+  // `vy_room_follower` for the per-Room strip a platform operator sees -
+  // followers total/paid/joined-7d, at-cap-this-month, voice seconds - and
+  // `vy_room_follower_day` for messages in the last 24h. Every statement is
+  // scoped to ONE room (`where room_id = ($1)::uuid`, never grouped across
+  // rooms) so its select list can be nothing but count()/sum() expressions,
+  // the same shape `_room-cohorts.js` and `_pulse.js` already prove out. A
+  // future edit that selected a follower's own column (person_id, a thread
+  // title, anything they said) fails this line.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
