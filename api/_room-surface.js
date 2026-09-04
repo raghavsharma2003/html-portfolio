@@ -127,6 +127,25 @@ export const ROOM_CONSENT_MEMORY = "room_memory";
 export const ROOM_CONSENT_AGE = "room_age";
 export const ROOM_CONSENT_VERSION = 1;
 
+/** WS-R24, migration 087. v1: English and Hindi (Devanagari). Adding a third
+ *  locale means widening this array, `vy_room_follower`/`vy_room`'s CHECK
+ *  constraints, and every locale-keyed table this file and `src/room/copy.ts`
+ *  hold - `evals/room-locale/run.mjs` fails loudly on a mismatch rather than
+ *  silently falling one of them back to English. */
+export const ROOM_LOCALES = ["en", "hi"];
+
+/** Anything that is not exactly "hi" or a "hi-*" variant reads as "en" - a
+ *  browser's `navigator.language`, a Telegram `language_code`, an absent
+ *  value or garbage all fall back to the locale this product already ships,
+ *  never to a thrown error on someone's very first request. The client copy
+ *  of this function (`src/room/copy.ts`) must stay byte-identical in
+ *  behaviour; `evals/room-locale/run.mjs` asserts both agree on a fixed input
+ *  set rather than trusting the comment. */
+export function normalizeLocale(input) {
+  const s = String(input || "").trim().toLowerCase();
+  return s === "hi" || s.startsWith("hi-") ? "hi" : "en";
+}
+
 export class RoomError extends Error {
   constructor(code, status = 400, details) {
     super(code);
@@ -211,8 +230,21 @@ export function readRoomSession(token, env = process.env) {
 //   2. the creator built it and published it, and does not read this.
 //   3. no other follower ever sees any of it (the private scope, which is
 //      `dmRecall`'s one-recipient disclosure predicate, not a promise).
-export function roomDisclosureCard(creatorName) {
+/** WS-R24: `locale` picks the WORDS, never the FACTS. Both languages state the
+ *  identical three things in the identical order (never-deny-AI first), and
+ *  `evals/room-locale/run.mjs` checks both against the same three fact
+ *  predicates rather than trusting a translation to have kept them - a
+ *  disclosure that reads differently in two languages is the exact failure
+ *  the whole card exists to prevent, in a second language. */
+export function roomDisclosureCard(creatorName, locale = "en") {
   const name = String(creatorName || "").trim() || "this creator";
+  if (normalizeLocale(locale) === "hi") {
+    return [
+      `आप ${name} AI से बात कर रहे हैं। यह ${name} नहीं है।`,
+      `${name} ने इसे अपनी सामग्री से बनाया और यहां प्रकाशित किया। ${name} यह बातचीत नहीं पढ़ते।`,
+      `आप जो कहते हैं वह सिर्फ आपकी अपनी थ्रेड में रहता है। ${name} AI से बात करने वाला कोई और इसमें से कुछ भी नहीं देख सकता।`,
+    ].join("\n");
+  }
   return [
     `You are talking with ${name} AI. It is not ${name}.`,
     `${name} built it from their own material and published it here. ${name} does not read these conversations.`,
@@ -241,8 +273,8 @@ export const roomNameFor = (sheet) => String(sheet?.name || "").trim();
  * exactly the failure `roomSay`'s own "the disclosure predicate is
  * RE-COMPUTED, never trusted" discipline exists to prevent.
  */
-export function mintFollowerSession(resolved, personId, { now = Date.now(), env } = {}) {
-  const disclosure = roomDisclosureCard(roomNameFor(resolved.sheet));
+export function mintFollowerSession(resolved, personId, { now = Date.now(), env, locale = "en" } = {}) {
+  const disclosure = roomDisclosureCard(roomNameFor(resolved.sheet), locale);
   return mintRoomSession(
     {
       r: resolved.room.slug,
@@ -250,6 +282,11 @@ export function mintFollowerSession(resolved, personId, { now = Date.now(), env 
       p: String(personId),
       a: String(resolved.agentId),
       dd: sha(disclosure),
+      // WS-R24: the locale this card was minted in. roomSay/roomSpeak
+      // re-derive the disclosure against THIS, never the follower row's
+      // current value - a self-describing token, `dd`'s own discipline
+      // extended: it names what it was minted against, not what is true now.
+      loc: locale,
       td: transcriptDigest([]),
       iat: now,
       n: 0,
@@ -285,7 +322,7 @@ export async function roomBySlug(db, slug) {
     `select r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id,
             r.display_name, r.free_monthly_messages, r.paid_monthly_messages,
             r.paid_monthly_voice_seconds, r.handoff_enabled, r.handoff_monthly_cap,
-            r.published_at, a.slug as agent_slug
+            r.default_locale, r.published_at, a.slug as agent_slug
        from vy_room r
        join vy_agent a on a.agent_id = r.agent_id
       where lower(r.slug) = $1
@@ -409,7 +446,8 @@ export async function followerRow(db, roomId, personId, agentId) {
   const rows = await db(
     `select f.follower_id, f.room_id, f.person_id, f.agent_id, f.joined_at,
             f.age_attested_at, f.memory_consent_at, f.tier,
-            f.month_key, f.month_message_count, f.voice_seconds_month, f.voice_month_key, f.last_seen_at
+            f.month_key, f.month_message_count, f.voice_seconds_month, f.voice_month_key, f.last_seen_at,
+            f.locale
        from vy_room_follower f
       where f.room_id = ($1)::uuid
         and f.person_id = ($2)::uuid
@@ -562,12 +600,46 @@ export async function unbindTelegramChannel(db, channelRef) {
  * wins if both are somehow present, which is what makes this additive: every
  * existing caller passes only `authUserId`, so its behaviour is unchanged byte
  * for byte.
+ *
+ * `locale` (WS-R24) is a HINT and only ever a fallback: a follower who has
+ * already joined gets back their OWN stored `vy_room_follower.locale`
+ * regardless of what this argument says - the hint exists for the screen
+ * shown BEFORE a follower row exists at all, where the browser's own language
+ * is the only signal there is. Behind that, the creator's own
+ * `vy_room.default_locale` (never a hardcoded "en") is what a browser that
+ * reports nothing at all falls back to.
  */
-export async function openRoom(db, { slug, authUserId = null, personId: givenPersonId = null }, deps = {}) {
+export async function openRoom(
+  db,
+  { slug, authUserId = null, personId: givenPersonId = null, locale: hintLocale = null },
+  deps = {},
+) {
   const resolved = await resolveRoom(db, slug, deps);
   const name = roomNameFor(resolved.sheet);
-  const disclosure = roomDisclosureCard(name);
   const now = deps.now ?? Date.now();
+  const personId = authUserId
+    ? await personForAccount(db, authUserId)
+    : givenPersonId
+      ? String(givenPersonId)
+      : null;
+  const follower = personId
+    ? await followerRow(db, resolved.room.room_id, personId, resolved.agentId)
+    : null;
+  // An attestation that never happened is not a join, whatever else the row
+  // says. Fail toward "ask again" rather than toward "already answered".
+  const joined = !!follower && follower.age_attested_at != null;
+  // THE ONE PLACE THIS DECISION IS MADE. A joined follower's OWN stored
+  // locale wins over any hint this call carries, always - a stale browser
+  // hint (a shared device, a follower who reads Hindi on a phone set to
+  // English) must never silently override a choice already recorded on the
+  // row. Only pre-join is the hint consulted, and only when it is a
+  // recognised value; otherwise the creator's own default answers.
+  const locale = joined
+    ? normalizeLocale(follower.locale)
+    : hintLocale != null && String(hintLocale).trim()
+      ? normalizeLocale(hintLocale)
+      : normalizeLocale(resolved.room.default_locale);
+  const disclosure = roomDisclosureCard(name, locale);
   const out = {
     room: {
       slug: resolved.room.slug,
@@ -582,17 +654,17 @@ export async function openRoom(db, { slug, authUserId = null, personId: givenPer
     // The bytes the page MUST render, returned as DATA, in the app's voice,
     // never generated by the model.
     disclosure,
+    locale,
     joined: false,
     follower: null,
     session: null,
   };
-  if (!authUserId && !givenPersonId) return out;
-
-  const personId = authUserId ? await personForAccount(db, authUserId) : String(givenPersonId);
-  const follower = await followerRow(db, resolved.room.room_id, personId, resolved.agentId);
-  // An attestation that never happened is not a join, whatever else the row
-  // says. Fail toward "ask again" rather than toward "already answered".
-  if (!follower || follower.age_attested_at == null) return out;
+  if (!personId) return out;
+  if (!joined) {
+    // Signed in (or a bridged Telegram person) but not yet a follower: no
+    // session to mint, nothing else to add.
+    return out;
+  }
   out.joined = true;
   out.follower = clientFollower(follower, resolved.room, now);
   out.threads = await listThreads(db, resolved.room.room_id, personId, resolved.agentId);
@@ -603,6 +675,7 @@ export async function openRoom(db, { slug, authUserId = null, personId: givenPer
       p: personId,
       a: String(resolved.agentId),
       dd: sha(disclosure),
+      loc: locale,
       td: transcriptDigest([]),
       iat: now,
       n: 0,
@@ -642,7 +715,14 @@ export async function openRoom(db, { slug, authUserId = null, personId: givenPer
  */
 export async function joinRoom(
   db,
-  { slug, authUserId = null, personId: givenPersonId = null, ageAttested, memoryConsent },
+  {
+    slug,
+    authUserId = null,
+    personId: givenPersonId = null,
+    ageAttested,
+    memoryConsent,
+    locale: hintLocale = null,
+  },
   deps = {},
 ) {
   const resolved = await resolveRoom(db, slug, deps);
@@ -657,13 +737,21 @@ export async function joinRoom(
   const personId = authUserId ? await personForAccount(db, authUserId) : String(givenPersonId);
   const now = deps.now ?? Date.now();
   const at = new Date(now).toISOString();
+  // WS-R24: the locale this NEW row starts at, when it IS new. `openRoom`'s
+  // own header explains the fallback chain; `hintLocale` here is normally the
+  // very locale `openRoom` just told the client to render the join screen in,
+  // passed back rather than re-derived, so the two can never disagree about
+  // what a follower who has not answered anything yet was shown.
+  const initialLocale = hintLocale != null && String(hintLocale).trim()
+    ? normalizeLocale(hintLocale)
+    : normalizeLocale(resolved.room.default_locale);
 
   const rows = await db(
     `insert into vy_room_follower
        (follower_id, room_id, person_id, agent_id, age_attested_at, memory_consent_at,
-        tier, month_key, month_message_count, last_seen_at)
+        tier, month_key, month_message_count, last_seen_at, locale)
      values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::timestamptz, ($6)::timestamptz,
-             'free', $7, 0, now())
+             'free', $7, 0, now(), $8)
      on conflict (room_id, person_id) do update
         set age_attested_at = coalesce(vy_room_follower.age_attested_at, excluded.age_attested_at),
             -- the memory answer is REPLACED, not coalesced: this op is also how
@@ -671,10 +759,15 @@ export async function joinRoom(
             -- first answer permanent, which is the one thing a consent record
             -- may never be.
             memory_consent_at = excluded.memory_consent_at,
+            -- locale is deliberately ABSENT from this SET list. A repeat
+            -- join (changing the memory answer, re-attesting) must never
+            -- silently reset a locale the follower may have changed since
+            -- with roomSetLocale - only the INSERT branch, a genuinely new
+            -- follower, gets to set it at all.
             last_seen_at = now(),
             updated_at = now()
      returning follower_id, room_id, person_id, agent_id, joined_at, age_attested_at,
-               memory_consent_at, tier, month_key, month_message_count, last_seen_at`,
+               memory_consent_at, tier, month_key, month_message_count, last_seen_at, locale`,
     [
       randomUUID(),
       String(resolved.room.room_id),
@@ -683,6 +776,7 @@ export async function joinRoom(
       at,
       memoryConsent ? at : null,
       monthKeyOf(now),
+      initialLocale,
     ],
   );
   const follower = rows[0];
@@ -709,9 +803,11 @@ export async function joinRoom(
     at,
   });
 
-  const disclosure = roomDisclosureCard(roomNameFor(resolved.sheet));
+  const locale = normalizeLocale(follower.locale);
+  const disclosure = roomDisclosureCard(roomNameFor(resolved.sheet), locale);
   return {
     joined: true,
+    locale,
     follower: clientFollower(follower, resolved.room, now),
     threads: await listThreads(db, resolved.room.room_id, personId, resolved.agentId),
     session: mintRoomSession(
@@ -721,6 +817,86 @@ export async function joinRoom(
         p: personId,
         a: String(resolved.agentId),
         dd: sha(disclosure),
+        loc: locale,
+        td: transcriptDigest([]),
+        iat: now,
+        n: 0,
+      },
+      deps.env,
+    ),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: locale (WS-R24, migration 087)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Change the follower's own chrome language.
+ *
+ * THE PREDICATE IS THE SCOPE. Room, person and agent all come off the
+ * VERIFIED session token, never a request field - the same discipline
+ * `roomSay`'s cap UPDATE and `_pulse.js`'s `setOptIn` both carry, restated
+ * here for exactly the reason those comments give: a `person_id` in a JSON
+ * body is not identity proof. There is no shape of this call, honest or
+ * forged, that can name a DIFFERENT follower's row, because nothing about
+ * whose row is written comes from the caller at all.
+ *
+ * The disclosure card's bytes are locale-bound (`payload.dd`), so changing
+ * the language invalidates the digest the old session carried on purpose - a
+ * fresh session is minted here, bound to the new card, the same as any other
+ * write that changes what a session must agree to.
+ */
+export async function roomSetLocale(db, { session, locale }, deps = {}) {
+  const payload = readRoomSession(session, deps.env);
+  const now = deps.now ?? Date.now();
+  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
+    throw new RoomError("room_session_expired", 401);
+  }
+  // Refused by name rather than silently folded into English: an empty value
+  // (nothing to change to) and a value this deployment does not recognise
+  // (garbage, a typo, a future locale) both read as `room_locale_invalid`,
+  // never as a quiet "en". `normalizeLocale` is deliberately NOT used to
+  // pick the outcome here - it exists to fall a HINT back to a safe default
+  // for rendering, not to launder an invalid explicit REQUEST into success.
+  const requested = String(locale || "").trim().toLowerCase();
+  if (!requested || !ROOM_LOCALES.includes(requested)) {
+    throw new RoomError("room_locale_invalid", 400);
+  }
+  const loc = requested;
+
+  const resolved = await resolveRoom(db, payload.r, deps);
+  if (
+    String(resolved.room.room_id) !== String(payload.i) ||
+    String(resolved.agentId) !== String(payload.a)
+  ) {
+    throw roomUnavailable();
+  }
+
+  const rows = await db(
+    `update vy_room_follower
+        set locale = $4, updated_at = now()
+      where room_id = ($1)::uuid
+        and person_id = ($2)::uuid
+        and agent_id = ($3)::uuid
+        and age_attested_at is not null
+      returning locale`,
+    [String(resolved.room.room_id), String(payload.p), String(resolved.agentId), loc],
+  );
+  if (!rows[0]) throw new RoomError("room_join_required", 403);
+
+  const name = roomNameFor(resolved.sheet);
+  const disclosure = roomDisclosureCard(name, loc);
+  return {
+    locale: loc,
+    session: mintRoomSession(
+      {
+        r: resolved.room.slug,
+        i: String(resolved.room.room_id),
+        p: String(payload.p),
+        a: String(resolved.agentId),
+        dd: sha(disclosure),
+        loc,
         td: transcriptDigest([]),
         iat: now,
         n: 0,
@@ -902,7 +1078,17 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // under a disclosure the follower never saw. The client's response to this
   // code is to re-open, which is to say to re-render the card.
   const name = roomNameFor(resolved.sheet);
-  const disclosure = roomDisclosureCard(name);
+  // WS-R24: recomputed against `payload.loc` - the locale THIS TOKEN was
+  // minted in, never the follower row's current value. The two can
+  // legitimately differ for a moment (a second tab, a session minted just
+  // before a language switch on another device), and re-deriving from the
+  // row would refuse a perfectly valid session for a reason that has
+  // nothing to do with the card actually shown - `payload.dd`'s own
+  // "recomputed from what the token names, never trusted, never re-guessed"
+  // discipline, applied to the language dimension too. An older token minted
+  // before this field existed carries `undefined`, which reads as "en" -
+  // exactly the card such a token was actually minted against.
+  const disclosure = roomDisclosureCard(name, payload.loc);
   if (payload.dd !== sha(disclosure)) throw new RoomError("room_disclosure_stale", 409);
 
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
@@ -1168,7 +1354,9 @@ export async function roomSpeak(deps, session, replyRef) {
   // against an older card is refused rather than allowed to buy audio under a
   // disclosure the follower never saw.
   const name = roomNameFor(resolved.sheet);
-  const disclosure = roomDisclosureCard(name);
+  // WS-R24: `payload.loc`, `roomSay`'s own comment explains why - the token
+  // names what it was minted against, never re-guessed from the row.
+  const disclosure = roomDisclosureCard(name, payload.loc);
   if (payload.dd !== sha(disclosure)) throw new RoomError("room_disclosure_stale", 409);
 
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
@@ -1695,9 +1883,16 @@ export async function roomForget(db, { session }, deps = {}) {
     // COUNTS, per table, because a delete nobody can see the size of is a
     // delete nobody can tell happened.
     deleted,
+    // WS-R24: `who.locale` was read off the follower row BEFORE this
+    // function deleted it, `selfScope`'s own header explains why - this is
+    // the one app-voiced string in this file whose only reader today is a
+    // Telegram card (`forgottenCard`), so it is localized the same way every
+    // other card here is rather than left the one English string among them.
     note:
-      "Your conversations with this creator's AI are deleted. Your account and " +
-      "your conversations with anyone else are untouched.",
+      who.locale === "hi"
+        ? "इस क्रिएटर के AI के साथ आपकी बातचीत मिटा दी गई है। आपका अकाउंट और आपकी किसी और के साथ की बातचीत अछूती है।"
+        : "Your conversations with this creator's AI are deleted. Your account and " +
+          "your conversations with anyone else are untouched.",
   };
 }
 
@@ -1717,6 +1912,10 @@ async function selfScope(db, session, deps) {
     roomId: String(resolved.room.room_id),
     slug: String(resolved.room.slug),
     device: roomThreadDevice(resolved.room.room_id, payload.p, null),
+    // WS-R24: captured HERE, before `roomForget` deletes the row this came
+    // from, so the app-voiced note it returns can still be honestly localized
+    // after the follower who asked for it no longer has a row to read it off.
+    locale: normalizeLocale(follower.locale),
   };
 }
 

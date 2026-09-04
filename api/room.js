@@ -6,6 +6,7 @@
 //   POST /api/room {op:"speak",  session, text}                -> paid voice (WS-R19)
 //   POST /api/room {op:"history",session, thread}
 //   POST /api/room {op:"thread", session, title}
+//   POST /api/room {op:"locale", session, locale}         -> {locale, session}
 //   POST /api/room {op:"pulse_optin",  session, thread}   -> "let this count"
 //   POST /api/room {op:"pulse_revoke", session, thread}   -> turn it back off
 //   POST /api/room {op:"push_subscribe",   session, endpoint, p256dh, auth}
@@ -76,6 +77,7 @@ import {
   joinRoom,
   roomSay,
   roomSpeak,
+  roomSetLocale,
   followerHistory,
   createThread,
   roomCitations,
@@ -132,7 +134,9 @@ export default async function handler(req, res) {
   try {
     if (op === "open") {
       const authUserId = await optionalUser(req);
-      const opened = await openRoom(q, { slug: body.room, authUserId });
+      // WS-R24: a browser hint, consulted only when no follower row exists
+      // yet to answer the question instead - `openRoom`'s own header.
+      const opened = await openRoom(q, { slug: body.room, authUserId, locale: body.locale });
       obsBestEffort("room.open", { joined: opened.joined });
       return res.status(200).json(opened);
     }
@@ -149,6 +153,9 @@ export default async function handler(req, res) {
         // the client is answering two questions, not filling two fields.
         ageAttested: body.age_18 === true,
         memoryConsent: typeof body.remember === "boolean" ? body.remember : null,
+        // WS-R24: the exact locale the client's `open` call was just told to
+        // render the join screen in, passed back rather than re-derived.
+        locale: body.locale,
       });
       // COUNTS AND DECISIONS, never conversation text - `_obs.js`'s law. The
       // memory answer is a decision and is logged as one; whose it is, is not.
@@ -262,6 +269,13 @@ export default async function handler(req, res) {
         title: body.title,
       });
       return res.status(200).json(created);
+    }
+
+    if (op === "locale") {
+      // WS-R24: scope comes off the session exactly as "thread"/"pulse_optin"
+      // do - there is no `person`/`room` field here for a client to set,
+      // because `roomSetLocale` reads all three off the verified token.
+      return res.status(200).json(await roomSetLocale(q, { session: body.session, locale: body.locale }));
     }
 
     if (op === "pulse_optin" || op === "pulse_revoke") {
