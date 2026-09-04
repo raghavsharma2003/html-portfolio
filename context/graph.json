@@ -5614,6 +5614,36 @@
       "kind": "measurement",
       "title": "Migration 083 applied live after pgcrypto was confirmed; the hash-matched consented-only predicate parses and plans on the queue index; the cap is an InitPlan over the cap index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r27-forget-receipt-hash-recomputed-not-looked-up",
+      "kind": "decision",
+      "title": "vy_room_forget_receipt (migration 090) hashes with a plain SHA-256, never an HMAC; the account-wide wipe deletes a person's own past receipts by recomputing the hash, never by lookup.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r27-subscription-cascade-still-reaches-a-live-row",
+      "kind": "open",
+      "title": "vy_room_subscription.follower_id's on-delete-cascade still removes a LIVE subscription's row when a follower's membership goes, regardless of the wipeWhere restriction either wipe's own statement honours. Left unfixed on purpose; reversal condition in decisions.md.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r27-child-before-parent-ordering-bug-in-roomforget-and-persontables",
+      "kind": "rejection",
+      "title": "roomForget and PERSON_TABLES both deleted vy_room_thread/vy_room_follower before their FK children, so four child tables' delete counts were unconditionally zero via Postgres's own cascade. Fixed by reordering both to child-before-parent.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r27-unaliased-generic-export-select-untested-by-every-prior-suite",
+      "kind": "rejection",
+      "title": "roomExport's generic agent-scoped select for vy_room_thread/vy_room_follower uses no table alias; every prior suite's personTables override omitted both tables, so nothing ever drove the real manifest through this code path until WS-R27's own fixture added matchers for it.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r27-room-export-completeness-battery-2026-09-04",
+      "kind": "measurement",
+      "title": "33/33 assertions, node evals/room-export/run.mjs, offline/deterministic/$0, 2026-09-04. Static DDL-scan layer + dynamic real-follower-lane layer + two negative controls, both proven to fire. verify-release.mjs 16/16 without NEON_URL (new 16th gate).",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11311,6 +11341,26 @@
       "src": "ws-r20-handoff-not-tier-gated",
       "rel": "measured_by",
       "dst": "rooms-migration-083-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r27-forget-receipt-hash-recomputed-not-looked-up",
+      "rel": "measured_by",
+      "dst": "ws-r27-room-export-completeness-battery-2026-09-04"
+    },
+    {
+      "src": "ws-r27-child-before-parent-ordering-bug-in-roomforget-and-persontables",
+      "rel": "measured_by",
+      "dst": "ws-r27-room-export-completeness-battery-2026-09-04"
+    },
+    {
+      "src": "ws-r27-unaliased-generic-export-select-untested-by-every-prior-suite",
+      "rel": "measured_by",
+      "dst": "ws-r27-room-export-completeness-battery-2026-09-04"
+    },
+    {
+      "src": "ws-r27-subscription-cascade-still-reaches-a-live-row",
+      "rel": "caused_by",
+      "dst": "ws-r27-room-export-completeness-battery-2026-09-04"
     }
   ]
 }
