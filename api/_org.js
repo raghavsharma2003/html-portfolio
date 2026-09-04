@@ -236,6 +236,14 @@ export async function acceptMembership(db, ownerUserId, orgId) {
 // ─────────────────────────────────────────────────────────────────────────
 // OP: attachRoom - law 2. ONE UPDATE carries every condition; the diagnostic
 // read runs only after a zero-row result.
+//
+// WS-R48 (migration 107): the same UPDATE also stamps `org_attached_at`, the
+// dedicated "this Room joined a Suite" timestamp the ops board's weekly
+// self-serve line (`api/_funnel.js`'s `suitesFunnelThisWeek`) reads -
+// `updated_at` cannot answer that question honestly, since publish, pause,
+// price changes and detach all touch it too. `detachRoom` clears the same
+// column back to null on the way out, so a re-attached Room always carries
+// the DATE OF ITS CURRENT membership, never a stale earlier one.
 // ─────────────────────────────────────────────────────────────────────────
 export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
   const admin = assertUuid(adminOwnerUserId, "org_owner_identity_invalid");
@@ -244,7 +252,7 @@ export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
 
   const rows = await db(
     `update vy_room r
-        set org_id = ($2)::uuid, updated_at = now()
+        set org_id = ($2)::uuid, org_attached_at = now(), updated_at = now()
       where r.room_id = ($1)::uuid
         and r.org_id is null
         and exists (
@@ -303,7 +311,7 @@ export async function detachRoom(db, callerOwnerUserId, roomId) {
 
   const rows = await db(
     `update vy_room r
-        set org_id = null, updated_at = now()
+        set org_id = null, org_attached_at = null, updated_at = now()
       where r.room_id = ($1)::uuid
         and r.org_id is not null
         and (

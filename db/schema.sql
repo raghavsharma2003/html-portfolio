@@ -4007,3 +4007,17 @@ alter table vy_creator_subscription add column if not exists cancel_at_period_en
 -- reached by roomForget's own vy_room_follower delete).
 alter table vy_room_follower
   add column if not exists settings_reviewed_at timestamptz null;
+
+-- Migration 107 - Suites sell themselves (WS-R48). See
+-- db/migrations/107_suites_self_serve.sql for the full argument: `intent`
+-- distinguishes a Suite-first application from a creator application on the
+-- SAME apply form/table rather than overloading `audience`; `org_attached_at`
+-- is the honest "seats attached this week" signal `vy_room.updated_at`
+-- cannot be, since publish/pause/price/detach all touch that column too.
+alter table vy_creator_application
+  add column if not exists intent text not null default 'creator';
+alter table vy_creator_application drop constraint if exists vy_creator_application_intent_check;
+alter table vy_creator_application add constraint vy_creator_application_intent_check
+  check (intent in ('creator','suite'));
+
+alter table vy_room add column if not exists org_attached_at timestamptz null;

@@ -201,8 +201,9 @@ function makeDb(state) {
       return [{ state: row.state }];
     }
 
-    // ── attachRoom's own UPDATE (checked before the diagnostic) ──
-    if (has("update vy_room r") && has("set org_id = ($2)::uuid, updated_at = now()")) {
+    // ── attachRoom's own UPDATE (checked before the diagnostic). WS-R48:
+    //    also stamps org_attached_at in the same statement. ──
+    if (has("update vy_room r") && has("set org_id = ($2)::uuid, org_attached_at = now(), updated_at = now()")) {
       const [roomId, orgId, adminId] = params;
       const room = state.rooms.find((r) => r.room_id === roomId);
       const o = state.orgs.find((x) => x.org_id === orgId);
@@ -213,6 +214,7 @@ function makeDb(state) {
       const cap = effectiveSeatCap(orgId, state);
       if (!isAdmin || !creatorMember || cap == null || seatsUsed >= cap) return [];
       room.org_id = orgId;
+      room.org_attached_at = new Date().toISOString();
       return [{ room_id: room.room_id, org_id: room.org_id, slug: room.room_id }];
     }
     // ── attachRoom's diagnostic select ──

@@ -163,8 +163,10 @@ function orgDb(state) {
     }
 
     // ── attachRoom's own UPDATE (checked before the generic vy_room select
-    //    below) ───────────────────────────────────────────────────────────
-    if (has("update vy_room r") && has("set org_id = ($2)::uuid, updated_at = now()")) {
+    //    below). WS-R48 (migration 107): the same statement now also stamps
+    //    org_attached_at - the fixture's own room gains it too, so a test
+    //    reading that column back sees the real write. ───────────────────
+    if (has("update vy_room r") && has("set org_id = ($2)::uuid, org_attached_at = now(), updated_at = now()")) {
       const [roomId, orgId, adminId] = params;
       const room = state.rooms.find((r) => r.room_id === roomId);
       const org = state.orgs.find((o) => o.org_id === orgId);
@@ -174,6 +176,7 @@ function orgDb(state) {
       const seatsUsed = state.rooms.filter((r) => r.org_id === orgId).length;
       if (!isAdmin || !creatorMember || seatsUsed >= Number(effectiveSeatCap(org, state))) return [];
       room.org_id = orgId;
+      room.org_attached_at = new Date().toISOString();
       return [{ room_id: room.room_id, org_id: room.org_id, slug: room.slug }];
     }
 
@@ -192,8 +195,10 @@ function orgDb(state) {
       }];
     }
 
-    // ── detachRoom's own UPDATE ──────────────────────────────────────────
-    if (has("update vy_room r") && has("set org_id = null, updated_at = now()")) {
+    // ── detachRoom's own UPDATE. WS-R48: clears org_attached_at back to
+    //    null in the SAME statement, so a re-attach always carries the date
+    //    of its CURRENT membership. ────────────────────────────────────────
+    if (has("update vy_room r") && has("set org_id = null, org_attached_at = null, updated_at = now()")) {
       const [roomId, callerId] = params;
       const room = state.rooms.find((r) => r.room_id === roomId);
       if (!room || !room.org_id) return [];
@@ -201,6 +206,7 @@ function orgDb(state) {
       const isAdmin = state.orgMembers.some((m) => m.org_id === room.org_id && m.owner_user_id === callerId && m.role === "admin");
       if (!isOwner && !isAdmin) return [];
       room.org_id = null;
+      room.org_attached_at = null;
       return [{ room_id: room.room_id }];
     }
 
