@@ -10897,3 +10897,84 @@ introduce new withdrawal logic.
 DIFFERENT predicate than v0 (e.g. a grace period before revocation takes
 effect), this decision reverses and withdrawal needs its own tested logic
 rather than borrowed correctness.
+
+## `ws-r38-assert-session-fresh-shared-helper` (2026-09-04, WS-R38)
+
+**Decision.** The Room's 12-hour session-staleness check is now ONE
+exported function, `assertSessionFresh(payload, now)` in
+`api/_room-surface.js`, called from every scope resolver in the product
+(`roomSay`, `roomSpeak`, `roomSetLocale`, `selfScope`, `followerHistory`,
+`roomCitations`, `_payments.js`'s `paidSessionScope`, and the independently
+copied `followerScope` in `_handoff.js`, `_checkins.js`, `_room-push.js`,
+`_room-whatsapp.js`, `_pulse.js`) rather than each op carrying its own
+three-line `if`.
+
+**Rationale.** The door battery found that of roughly a dozen call sites
+that decode a follower session, only four had ever written this check
+correctly; the rest inherited the HMAC-signature check (which every
+`readRoomSession` call gets for free) but never asked how OLD the session
+was. A duplicated three-line check is exactly the shape that gets copied
+right three times and forgotten seven — `assertSessionFresh` makes "does
+this scope resolver check freshness" a question with one answer rather than
+a dozen independently-maintained ones.
+
+**Reversal condition.** If a future op ever legitimately needs a DIFFERENT
+staleness window than the Room's own 12 hours (a longer-lived owner-side
+session, a shorter one for a higher-consequence op), this decision reverses
+and the ceiling becomes a parameter rather than a shared constant baked
+into one function every caller shares.
+
+## `ws-r38-door-list-completeness-rule` (2026-09-04, WS-R38)
+
+**Decision.** The door battery's completeness assertion (`evals/room-doors/
+run.mjs` §0) defines a "door" as a top-level `api/*.js` file that (a) reads
+a request body — `req.body`, a raw-stream reader, or `bodyParser: false` —
+AND (b) imports from a closed set of fourteen Room/owner-door decision
+modules the workstream brief names, OR is `api/account.js` by name (the OTP
+brute-force surface, which owns no shared decision module of its own).
+`api/export.js` and `api/memory.js` are EXCLUDED even though a raw grep for
+`meera_state`/`meera_consent` also finds them: they are Meera's own
+account-wide surfaces (the whole-person export/forget door), not Room-
+scoped, and already carry their own dedicated batteries
+(`evals/persontables.mjs`, `evals/recall`). `api/room-cohorts.js` needed no
+explicit exclusion — it is GET-only, `req.query`, and rule (a) alone
+already never admits it.
+
+**Rationale.** A "reads a body and touches a sensitive table" rule wide
+enough to catch every door the workstream brief names by construction is
+also wide enough to catch Meera's own, already-separately-battery-tested
+surfaces if it is keyed on table names rather than on the specific decision
+modules Rooms actually built for this product. Naming the module set
+closed (rather than pattern-matching table names) keeps the rule specific
+to Vyakti Rooms' own doors without silently re-scoping this battery onto a
+different product's surface it was not asked to attack and does not own.
+
+**Reversal condition.** If a future Room door is built OUTSIDE the fourteen
+named decision modules (a genuinely new kind of decision file, not just a
+new op on an existing one), this rule will not discover it and the module
+list needs a new entry, named in the same PR that adds the door.
+
+## `ws-r38-ipv6-key-canonicalization-not-fixed` (2026-09-04, WS-R38)
+
+**Decision.** `api/_rate-limit.js`'s `hashKey()` and `api/_ratelimit.js`'s
+`ipOf()` are left as they were: neither canonicalizes an IPv6 address
+before hashing or bucketing it, so two textual spellings of the same
+address (`2001:db8::1` vs its fully-expanded form) get two independent rate
+counters. Measured directly in `evals/room-doors/run.mjs` §6, not fixed.
+
+**Rationale.** `ipOf()` reads ONLY platform-set headers (`x-real-ip`,
+`x-vercel-forwarded-for`, or the LAST — platform-appended — hop of
+`x-forwarded-for`), never anything a request's own client can format
+freely; the platform is the one choosing how an address is spelled on the
+way in, and this workstream found no path by which a caller controls that
+spelling. Canonicalizing on the read side would add code with no
+measured attacker-reachable case behind it — exactly the failure mode
+`context/rejected.md`'s own recurring lesson warns against, fixing a
+theoretical gap nobody demonstrated a path to.
+
+**Reversal condition.** If Vercel's own header ever demonstrably varies its
+IPv6 formatting for the SAME client across requests (a proxy layer change,
+a dual-stack routing quirk observed in production logs), or if a future
+door ever accepts an address from a request-controlled field rather than a
+platform header, canonicalize before hashing and log the incident that
+proved the path.
