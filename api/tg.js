@@ -46,15 +46,47 @@
 // driven end to end by evals/mp/tgbot.mjs against real Postgres with mock
 // updates, and the room binding by evals/mp/binding.mjs.
 //
-// NOT exercised, and it cannot be from here: every `send()` path. No outbound
-// Bot API call has ever been made. `tgCall()` refuses fail-closed without
-// TELEGRAM_BOT_TOKEN, which is the only thing that has been proven about it.
-// The webhook has never been registered, so nothing has verified that
-// promotion-after-addition clears privacy mode for a chat (both outcomes are
-// handled without a code change — see api/_surface.js's onBotMembership), nor
-// that `chat_member` is delivered at the rate the roster path assumes. All of
-// that needs TELEGRAM_BOT_TOKEN / TELEGRAM_WEBHOOK_SECRET /
-// TELEGRAM_BOT_USERNAME, which are deliberately empty in api/_config.js.
+// NOT exercised, and it cannot be from here: every `send()` path — no
+// outbound Bot API call has ever been made, and `tgCall()` refuses
+// fail-closed without TELEGRAM_BOT_TOKEN, which is the only thing an offline
+// eval can prove about it. The webhook has never been registered, so nothing
+// has verified that promotion-after-addition clears privacy mode for a chat
+// (both outcomes are handled without a code change — see api/_surface.js's
+// onBotMembership), nor that `chat_member` is delivered at the rate the
+// roster path assumes. All of that needs TELEGRAM_BOT_TOKEN /
+// TELEGRAM_WEBHOOK_SECRET / TELEGRAM_BOT_USERNAME, which are deliberately
+// empty in api/_config.js — no human action short of registering a real
+// webhook against a real bot settles it.
+//
+// WS-R41 (2026-09-04): what CAN be verified without a token — the request
+// SHAPES `send()` builds — is now checked against core.telegram.org/bots/api
+// (and its changelog), not merely self-consistent:
+//   - `https://api.telegram.org/bot<token>/<method>`: "All queries to the
+//     Telegram Bot API must be served over HTTPS and need to be presented in
+//     this form: https://api.telegram.org/bot<token>/METHOD_NAME" — matches
+//     `tgCall()` exactly.
+//   - The response envelope `{ok, result, description, error_code}`: "Always
+//     has a Boolean field 'ok'"; "the result of the query can be found in
+//     the 'result' field" — matches `tgCall()`'s own `{ok: j?.ok === true,
+//     result: j?.result}`, and its comment about never surfacing
+//     `description` (which could carry the token back in an error string).
+//   - FINDING, FIXED: `tgExtra()`'s reply shape used the pre-Bot-API-7.0
+//     `reply_to_message_id`. core.telegram.org/bots/api-changelog: Bot API
+//     7.0 (2023-12-29) "replaced parameters reply_to_message_id and
+//     allow_sending_without_reply" with the `ReplyParameters` class across
+//     every send method. See `tgExtra()`'s own header for the fix and the
+//     full citation, and `context/rejected.md#ws-r41-tg-reply-to-message-id-
+//     is-pre-bot-api-7-0`.
+//   - `setMessageReaction`'s own body shape
+//     ({chat_id, message_id, reaction:[{type:"emoji", emoji}]}) could NOT be
+//     independently confirmed against core.telegram.org/bots/api in this
+//     pass: the page is one very large document and this session's fetch
+//     tool truncates it before reaching that method's own table (confirmed
+//     by repeated fetches of #setmessagereaction and #reactiontypeemoji,
+//     each truncated at the same point in "Available types", never reaching
+//     "Available methods"). It stays UNVERIFIED, named rather than implied
+//     to work — settled by a tool that can retrieve that one method's table
+//     directly, or a real `setMessageReaction` call against a live bot.
 //
 // ── the security boundary at the edge ─────────────────────────────────────
 //
@@ -64,6 +96,15 @@
 // room, a member, or an admin promotion. It is compared in constant time, it
 // is required (a missing configured secret refuses every request rather than
 // defaulting open), and it is never logged.
+//
+// verified against core.telegram.org/bots/api#setwebhook, fetched
+// 2026-09-04: "A secret token to be sent in a header
+// 'X-Telegram-Bot-Api-Secret-Token' in every webhook request, 1-256
+// characters. Only characters A-Z, a-z, 0-9, _ and - are allowed" — matches
+// the header name `secretOk()` reads exactly. `chat_member` must be
+// explicitly named in `allowed_updates` — this file's own header already
+// says so and the same fetch confirms it: "explicitly specify 'chat_member'
+// in the list of allowed_updates to receive these updates".
 //
 // ── how this endpoint gets its updates ────────────────────────────────────
 //
@@ -287,10 +328,24 @@ async function tgCall(method, body, token = BOT_TOKEN) {
   return { ok: j?.ok === true, result: j?.result };
 }
 
-/** The Bot API's own vocabulary for an OutboundMessage's optional parts. */
+/**
+ * The Bot API's own vocabulary for an OutboundMessage's optional parts.
+ *
+ * FINDING (WS-R41, 2026-09-04, fixed): this used to send a top-level
+ * `reply_to_message_id`. core.telegram.org/bots/api-changelog, fetched
+ * 2026-09-04, Bot API 7.0 (2023-12-29): "Added the class ReplyParameters and
+ * replaced parameters reply_to_message_id and allow_sending_without_reply"
+ * across sendMessage and every other send method. core.telegram.org/bots/api
+ * #replyparameters, fetched the same date, confirms the replacement's own
+ * shape: `message_id` (Integer) is "Identifier of the message that will be
+ * replied to in the current chat" — no `chat_id` needed for a same-chat
+ * reply, which is the only kind this file ever sends. `reply_to_message_id`
+ * does not appear anywhere in the current Bot API reference this file's own
+ * fetch could reach. Fixed to `reply_parameters: {message_id}`.
+ */
 function tgExtra(msg) {
   const extra = {};
-  if (msg.replyTo != null) extra.reply_to_message_id = msg.replyTo;
+  if (msg.replyTo != null) extra.reply_parameters = { message_id: msg.replyTo };
   if (msg.buttons?.length)
     extra.reply_markup = {
       inline_keyboard: [msg.buttons.map((b) => ({ text: b.text, url: b.url }))],
@@ -412,10 +467,16 @@ export async function handleUpdate(update, deps = {}) {
  * the SECRET half is still `X-Telegram-Bot-Api-Secret-Token`, checked in
  * constant time above, and a forged `ch` without it gets nowhere.
  *
- * NOT VERIFIED: no second bot has ever been connected and no secret has ever
- * been written — the default secret backend is `none` and refuses, so this
- * path currently ends in a null and a dropped update. Named here rather than
- * implied to work, in the same words this file's header uses about `send()`.
+ * NOT VERIFIED, AND NO PUBLIC DOCUMENT CAN SETTLE IT (WS-R41): whether a
+ * second connected bot's own token actually authorizes sends is this
+ * platform's own operational state, not a fact Telegram's docs publish — no
+ * second bot has ever been connected and no secret has ever been written, so
+ * the default secret backend `none` refuses and this path currently ends in
+ * a null and a dropped update. What WOULD settle it: an owner completing the
+ * studio's connect flow against a real second bot with
+ * `CHANNEL_SECRET_BACKEND=azure-keyvault` configured, then a single `/start`
+ * exercising this function end to end. Named here rather than implied to
+ * work, in the same words this file's header uses about `send()`.
  */
 export async function bindTelegramClone(channelRef, deps = {}) {
   const ref = String(channelRef || "");
