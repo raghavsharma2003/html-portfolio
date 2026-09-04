@@ -6472,6 +6472,48 @@
       "kind": "rejection",
       "title": "The follower due-select read r.locale from vy_room, which has no locale; the fake db fabricated the column and the live EXPLAIN refused it",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-session-ttl-missing-from-most-followerscope-copies",
+      "kind": "rejection",
+      "title": "Only 4 of ~11 session-consuming scope resolvers checked the 12h session TTL; the door battery's forged-session class found 7 that decoded and trusted a session of any age. Fixed with one shared, exported assertSessionFresh() called from every resolver.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-thread-op-no-live-follower-check",
+      "kind": "rejection",
+      "title": "api/room.js's thread op called the bare createThread primitive straight off a decoded session, with no check that a live, attested follower row still existed. Fixed with createFollowerThread, which runs selfScope's own checks first.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-session-clock-skew-lower-bound",
+      "kind": "rejection",
+      "title": "Tried adding a symmetric lower bound to assertSessionFresh to refuse a future-dated iat; reverted after it broke a repo-wide eval convention (a session minted against real time, read against a fixed scenario clock for unrelated business-logic math). No live external path reaches a future iat, so this is measured and left alone rather than fixed blind.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-assert-session-fresh-shared-helper",
+      "kind": "decision",
+      "title": "The Room's session-staleness check is one exported assertSessionFresh(payload, now) in _room-surface.js, called from every scope resolver in the product rather than a duplicated inline check per op.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-door-list-completeness-rule",
+      "kind": "decision",
+      "title": "The door battery's door list is every api/*.js file that reads a request body AND imports from a closed set of 14 named Room/owner-door decision modules, or is api/account.js by name. api/export.js and api/memory.js are deliberately excluded (Meera's own account-wide surfaces, already separately battery-tested); api/room-cohorts.js is GET/query-only and never matches on its own.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-ipv6-key-canonicalization-not-fixed",
+      "kind": "decision",
+      "title": "api/_rate-limit.js's hashKey() and api/_ratelimit.js's ipOf() are left uncanonicalized for IPv6 addresses; two textual spellings of the same address get two counters. Measured, not fixed: ipOf() reads only platform-set headers, never a client-controlled field, so no attacker-reachable path was found.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r38-door-battery-case-counts-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-doors/run.mjs: 109 assertions, 15 doors, 8 named attack classes plus a door-list-completeness check and static wiring proofs, 0 failures, offline, ~1.8s. Found and fixed 2 real findings. Gate: 16/16 on the untouched tree, 17/17 after (room door battery is the 17th named check).",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13004,6 +13046,36 @@
       "src": "ws-r37-room-locale-does-not-exist-the-fake-db-passed-it",
       "rel": "part_of",
       "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r38-assert-session-fresh-shared-helper",
+      "rel": "caused_by",
+      "dst": "ws-r38-session-ttl-missing-from-most-followerscope-copies"
+    },
+    {
+      "src": "ws-r38-session-clock-skew-lower-bound",
+      "rel": "constrains",
+      "dst": "ws-r38-assert-session-fresh-shared-helper"
+    },
+    {
+      "src": "ws-r38-assert-session-fresh-shared-helper",
+      "rel": "measured_by",
+      "dst": "ws-r38-door-battery-case-counts-2026-09-04"
+    },
+    {
+      "src": "ws-r38-door-list-completeness-rule",
+      "rel": "measured_by",
+      "dst": "ws-r38-door-battery-case-counts-2026-09-04"
+    },
+    {
+      "src": "ws-r38-ipv6-key-canonicalization-not-fixed",
+      "rel": "measured_by",
+      "dst": "ws-r38-door-battery-case-counts-2026-09-04"
+    },
+    {
+      "src": "ws-r38-door-battery-case-counts-2026-09-04",
+      "rel": "caused_by",
+      "dst": "ws-r38-thread-op-no-live-follower-check"
     }
   ]
 }

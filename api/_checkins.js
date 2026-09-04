@@ -54,6 +54,7 @@ import {
   RoomError,
   roomUnavailable,
   readRoomSession,
+  assertSessionFresh,
   resolveRoom,
   followerRow,
   roomThreadDevice,
@@ -186,6 +187,8 @@ export async function pauseDesign(db, ownerUserId, replicaId, designId, { state 
  *  house's convention, `_room-cohorts.js`'s `ownedRoomHandle`). */
 async function followerScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
+  // WS-R38: see api/_handoff.js's own followerScope for the finding.
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);

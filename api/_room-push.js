@@ -32,10 +32,12 @@
 // error` with a row's own columns, only with a caller's already-safe scope
 // identifiers when something fails.
 import { randomUUID } from "node:crypto";
-import { RoomError, readRoomSession, resolveRoom, followerRow } from "./_room-surface.js";
+import { RoomError, readRoomSession, assertSessionFresh, resolveRoom, followerRow } from "./_room-surface.js";
 
 async function followerScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
+  // WS-R38: see api/_handoff.js's own followerScope for the finding.
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw new RoomError("room_unavailable", 404);
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);

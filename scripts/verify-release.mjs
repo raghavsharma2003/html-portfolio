@@ -163,6 +163,18 @@ await gate("room leak battery", NODE, ["evals/room-leak/run.mjs"]);
 // follower lane), with two negative controls that must fail. See
 // evals/room-export/run.mjs's header for what it does and does not prove.
 await gate("room export completeness", NODE, ["evals/room-export/run.mjs"]);
+// WS-R38. THE DOOR BATTERY: every way into a Room, attacked offline through
+// the REAL decision modules the thin HTTP doors call — forged/expired
+// sessions, cross-Room sessions, body-supplied ids belonging to someone
+// else, webhook replay and signature tampering, an owner bearer reaching
+// for another owner's replica/org, rate-key malformation, invite-code
+// guessing, and the OTP verify brute-force floor. The door list is
+// enumerated by a static rule and asserted complete against api/'s own
+// directory listing. See evals/room-doors/run.mjs's own header for what it
+// proves, and this workstream's context entries for the two findings it
+// fixed (session-TTL enforcement was missing on most session-consuming
+// ops; a thread-creation door had no live-follower check at all).
+await gate("room door battery", NODE, ["evals/room-doors/run.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the

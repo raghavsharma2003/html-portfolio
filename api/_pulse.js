@@ -103,8 +103,8 @@
 import { randomUUID } from "node:crypto";
 import {
   RoomError,
-  ROOM_SESSION_TTL_MS,
   readRoomSession,
+  assertSessionFresh,
   resolveRoom,
   followerRow,
   listThreads,
@@ -164,10 +164,7 @@ export class PulseError extends Error {
 // ─────────────────────────────────────────────────────────────────────────
 async function followerScope(db, session, deps) {
   const payload = readRoomSession(session, deps.env);
-  const now = deps.now ?? Date.now();
-  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
-    throw new RoomError("room_session_expired", 401);
-  }
+  assertSessionFresh(payload, deps.now ?? Date.now());
   const resolved = await resolveRoom(db, payload.r, deps);
   if (String(resolved.room.room_id) !== String(payload.i)) throw new RoomError("room_unavailable", 404);
   const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);

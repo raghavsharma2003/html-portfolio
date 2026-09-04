@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 16 checks without NEON_URL; 18 with it
+node scripts/verify-release.mjs      # 17 checks without NEON_URL; 19 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -135,12 +135,16 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **16 checks** as of wave six
+`node scripts/verify-release.mjs` is **17 checks** as of WS-R38
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
-leak battery and the room export completeness battery as named gates — and
-18 with it, adding the zero-orphan sweep and citation discipline. Migrations
-071 through 097 are applied live; 098 to 101 are reserved by wave nine; 102
-is the next free number. `scripts/check-copy.mjs` also gates a **Rooms
+leak battery, the room export completeness battery, and the room door
+battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
+through the real decision modules the thin HTTP doors call) as named gates —
+and 19 with it, adding the zero-orphan sweep and citation discipline.
+Migrations 071 through 097 are applied live; 098 to 101 are reserved by wave
+nine; 102 is the next free number — WS-R38 needed no new migration, every
+finding it fixed was a missing check in existing JS, never a schema change.
+`scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
 string across `src/studio/`, `src/room/`, `site/vyakti.html`, `studio.html`

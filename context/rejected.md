@@ -7893,3 +7893,160 @@ can.
 **What broke:** the first live `EXPLAIN` at the merge refused the statement with `column r.locale does not exist`. A locale is a follower's choice (WS-R24, migration 086) and lives on `vy_room_follower`; `vy_room` never had one. The fifth shipped instance of `offline-mocks-cannot-type-check-sql`: the fixture mirrored the author's belief about the schema, not the schema.
 
 **Fix:** the select joins `vy_room_follower f on f.follower_id = s.follower_id` and reads `f.locale` alone; `api/_renewals.js` is admitted to the leak battery's ALLOWED set for that one-row-back-to-its-own-follower shape (`_checkins.js`'s reason), and the workstream's negative control was replaced by three tighter ones (the table is named exactly once, the reference is that join by the follower's own id, the only `f.` column read is `locale`). A second finding from the same EXPLAIN pass: `recordAndSend`'s two updates by `reminder_id` seq-scanned because the primary key is the composite `(subject_kind, subject_id, period_end, channel)`; a unique index on `reminder_id` was added to 099 and the schema mirror and applied live. Rule: a column a fixture returns is a claim, and only the live EXPLAIN checks it.
+
+## `ws-r38-session-ttl-missing-from-most-followerscope-copies` (2026-09-04, WS-R38)
+
+**Tried:** for years (WS-R1 through WS-R35), every new session-consuming op
+copied the shape of the one before it — read the session, resolve the
+room, load the follower row — and trusted that shape to be complete because
+`readRoomSession`'s own HMAC check already refused a forged or tampered
+token. Four call sites (`roomSay`, `roomSpeak`, `roomSetLocale`,
+`_payments.js`'s `paidSessionScope`) ALSO happened to copy the three-line
+age check `roomSay` originated with; the rest did not, because nothing
+forced a new op to notice the omission — the HMAC check alone is enough to
+make an incorrect scope resolver return correct answers for every WELL-
+BEHAVED case an ordinary suite would drive it with, which is exactly why
+`evals/room-leak/run.mjs` (a battery built to catch cross-follower leakage
+in a well-behaved client) never found it.
+
+**What was possible:** `api/_room-surface.js`'s `selfScope` (the gate for
+`export`, `forget` and `offer_dismiss` — the two ops this file's own header
+names as the highest-consequence ones a stolen session can reach),
+`followerHistory`, `roomCitations` (which additionally never checked a
+follower row existed AT ALL, session age aside), and the independently
+re-derived `followerScope` in `api/_handoff.js`, `api/_checkins.js`,
+`api/_room-push.js` and `api/_room-whatsapp.js` all decoded a session,
+verified its signature, and answered — forever, for a session of any age.
+A signed session from a tab left open since last Tuesday, or one that
+leaked from a device that changed hands, kept reading a follower's whole
+history, exporting or deleting their relationship with a creator, listing
+a creator's source titles, drafting and sending handoff requests to a real
+person, opting into and reading check-in schedules, and managing push and
+WhatsApp subscriptions, with no ceiling.
+
+**What closed it:** `evals/room-doors/run.mjs`'s forged-session attack
+class (a) drives each of these functions with a session minted 13 hours in
+the past by the REAL `mintRoomSession`, using the fixture's own secret —
+not a re-implemented check, the actual production minting code — and
+asserts a `room_session_expired` refusal. Every one of the seven affected
+call sites failed this assertion before the fix (confirmed one at a time
+by reverting the fix and rerunning; see the workstream's final report).
+The fix is one shared, exported `assertSessionFresh(payload, now)` in
+`_room-surface.js`, called from all ten-plus scope resolvers now, plus a
+static wiring proof (§9) confirming each file calls it exactly once rather
+than carrying a re-derived copy.
+
+**The law:** a check that lives correctly in the FIRST four places it was
+ever written and is silently absent from the next seven is not a review
+failure at any one of those seven sites — it is a missing SHARED PRIMITIVE.
+`context/rejected.md`'s recurring lesson about duplicated SQL patterns
+(`ws-r16-sql-comment-backticks-terminate-the-template-literal`,
+`ws-r24-sql-comment-backticks-terminate-the-template-literal-again`)
+applies one level up here: the thing that needed to be shared was not a
+constant or a query fragment but a CHECK, and only an offline suite built
+specifically to attack the doors (rather than to prove they work for a
+well-behaved client) was ever going to notice its absence.
+
+## `ws-r38-thread-op-no-live-follower-check` (2026-09-04, WS-R38)
+
+**Tried:** `api/room.js`'s `"thread"` op — create a named thread inside a
+follower's own Room relationship — was built by decoding the session,
+resolving the room, and calling `_room-surface.js`'s `createThread(db,
+{roomId, personId, agentId, title})` directly, the same three-step shape
+`"locale"`/`"pulse_optin"`'s own comments describe as "the scope comes off
+the session, never off the body." That comment is true as far as it goes —
+no request field COULD name a different follower's scope — but it elided a
+second thing every sibling op also checks and this one never did: that a
+LIVE, ATTESTED follower row for that (room, person, agent) still exists at
+all. `createThread` itself has no such check either; it is a low-level
+primitive every OTHER caller in this codebase (this file's own evals,
+`_handoff.js`, `_pulse.js`) already resolves scope for some other way
+before calling.
+
+**What was possible:** a session signed once, at join time, remains a
+valid HMAC-verified token forever from `readRoomSession`'s own point of
+view — `roomForget` deleting the follower row underneath it changes
+nothing about whether the SIGNATURE still checks out. A follower who left
+a Room (or a stale session from before this workstream's TTL fix existed)
+could still call `"thread"` and mint a brand-new `vy_room_thread` row for a
+(room, person, agent) triple with no follower behind it: an orphan no
+export or forget sweep would ever be asked to find again, because nothing
+in the schema ties a thread back to the follower_id that created it — and,
+per `evals/room-doors/run.mjs`'s cross-room case (b), a session RENAMED to
+name a different room's slug (an internally-consistent-looking forgery
+this workstream's own mint-then-tamper method can construct even though no
+external caller ever could) would have created a thread in a room the
+session's own `i`/`a` fields do not actually authorize, had `resolveRoom`'s
+id-match check not already existed one layer below.
+
+**What closed it:** `api/_room-surface.js` gained
+`createFollowerThread(db, {session, title}, deps)`, which runs the SAME
+`selfScope` check `roomExport`/`roomForget`/`roomDismissOffer` already use
+(session freshness, a live follower row, `age_attested_at` not null)
+before calling the unchanged `createThread` primitive. `api/room.js`'s
+`"thread"` op now calls `createFollowerThread` instead of assembling scope
+by hand. Proven two ways: dynamically (a session minted 13 hours in the
+past, and a session renamed to a different room's slug, are both refused
+through `createFollowerThread` directly) and statically (§9 greps the real
+`api/room.js` source for the call site and confirms `createThread`, the
+unchecked primitive, is not even imported by that door any more) —
+reverting either the function or the door's own call site was confirmed to
+fail the corresponding case.
+
+**The law:** "the scope comes off the session, never the body" is a real
+and necessary property, but it is not the same claim as "the session still
+names something real." A comment that states the first can read, to a
+reviewer, as covering the second — the two failure modes look identical
+from the request body's point of view (nothing in it can widen scope
+either way) and only differ in whether the THING the session names is
+still true. `selfScope`'s own three checks (signature, freshness, a live
+attested row) are the complete list; a caller that reimplements only the
+first two of them silently drops the third.
+
+## `ws-r38-session-clock-skew-lower-bound` (2026-09-04, WS-R38)
+
+**Tried:** widened `assertSessionFresh` to also refuse a FUTURE-dated
+`iat` — `age < -SESSION_CLOCK_SKEW_ALLOWANCE_MS` alongside the existing
+`age > ROOM_SESSION_TTL_MS` — closing the observation that the original
+check (present even in the four call sites that had it right) only ever
+bounded staleness from ABOVE: a token whose own `iat` claims to be from the
+future has a NEGATIVE age, which is never greater than the twelve-hour
+ceiling, so it never expires by this check at all until real time catches
+up to that future instant.
+
+**What broke:** `evals/checkins/run.mjs`'s §2 happy path failed with
+`room_session_expired` on a call that had nothing to do with sessions at
+all — its `optIn` call passed `deps.now` fixed to a scenario calendar date
+(`2026-09-03T10:00:00Z`, chosen for the check-in schedule math, not for
+session freshness) while the session backing it had been minted moments
+earlier against the REAL wall clock (`Date.now()`, which in this sandbox
+reads as 2026-09-04-ish) — a full day LATER than the fixed scenario `now`.
+That produced a genuinely negative age, and the new lower bound refused it.
+This is a real, repo-wide testing CONVENTION (a fixture mints a session
+against real time while a test drives its own business-logic clock against
+a fixed scenario date unrelated to it), not a bug isolated to one suite —
+auditing every eval that does it was out of this workstream's scope to
+chase down safely in the time available.
+
+**What closed it:** reverted the lower bound; `assertSessionFresh` bounds
+staleness from above only, exactly as it always did. `evals/room-doors/
+run.mjs`'s own §1 tests this directly and documents it as MEASURED rather
+than fixed: no request field ever reaches the `now` a session is minted
+with (every mint call in this product is `deps.now ?? Date.now()`, a real
+server clock, never a client-supplied value), so a future-dated `iat` is
+not a live external hole today — it would only become reachable through a
+compromised signing key or a genuinely wrong server clock, neither of
+which this check can defend against better than the existing TTL already
+does once real time passes that future instant. See
+`decisions.md#ws-r38-assert-session-fresh-shared-helper`'s reversal
+condition for what would justify revisiting the WHOLE ceiling shape, and
+the note in this entry for what would justify the lower bound specifically:
+finding an actual request-reachable path to a future `iat`.
+
+**The law:** a security fix with a broad, repo-wide blast radius across
+suites this workstream did not fully audit is not automatically the right
+trade against a hole with no measured live exploitation path. Reverting
+and documenting why is itself the correct outcome here, not a consolation
+prize for a fix that "didn't work" — the alternative was shipping a change
+whose full effect on dozens of other suites' own testing conventions was
+unverified in the time this workstream had.

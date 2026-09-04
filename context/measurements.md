@@ -8798,3 +8798,78 @@ n = 1 migration (16 statements in one transaction, plus 1 unique index added at 
 | erasure delete (follower lane by room, creator lane by owner+replica) | BitmapOr of the pkey's `subject_kind` prefix and `vy_renewal_reminder_owner_replica_ix`, the Room list as a hashed SubPlan on `vy_room_owner_ix` |
 
 Not measured: no reminder row exists; the daily sweep has never fired live (`vercel.json` cron `0 */24 * * *`); no renewal notice has reached a real Telegram chat or push subscription; Razorpay's `cancel_at_cycle_end` has never been called (WS-R41); nobody has seen the subscription panel or the studio's cancel controls in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r38-door-battery-case-counts-2026-09-04`
+
+`evals/room-doors/run.mjs` (WS-R38), 109 assertions total, offline,
+deterministic, $0, ~1.8s, run against the merged tree. n = 109 individual
+`ok`/`FAIL` assertions across 15 doors and 8 named attack classes, method:
+each attack class driven through the REAL decision module the thin HTTP
+door calls (session forgery via the real `mintRoomSession`/`readRoomSession`
+then tampered; webhook signatures via the real `applyWebhook`/`whatsapp.js`'s
+`signatureOk`; the real `consume()` for rate-limit cases), against a fake
+`db` extending `evals/room/fixtures.mjs`'s own shared fixture
+(`evals/room-doors/fixtures.mjs`).
+
+Case count per attack class, counted from the suite's own section totals
+(every `ok`/`FAIL` line printed under that section's own header, including
+a handful of fixture-sanity and decode-only assertions alongside the refusal
+assertions proper — the `okClass()`-tagged subset the suite ALSO prints as
+"case counts per attack class, per door" at the end of its own run is a
+tighter count of the refusal assertions specifically and is smaller by
+design; both are real, and this table uses the section total since it is
+what `grep -c "  ok  "` against the log actually verifies, per-section,
+rather than trusting a second in-process tally to agree with the log):
+
+| class | doors exercised | cases (§ total) |
+|---|---|---|
+| §0 door-list completeness | (the enumeration itself, against all of `api/`) | 1 |
+| (a) forged/stale session | room.js, checkins.js, handoff.js, pulse.js, room-pay.js | 35 |
+| (b) cross-Room session | room.js, checkins.js, handoff.js, room-pay.js | 9 |
+| (c) body-supplied ids | handoff.js, checkins.js, org.js, room.js | 9 |
+| (d) webhook replay/signature | payments-webhook.js, room-tg.js, room-wa.js | 13 |
+| (e) owner bearer, another owner's replica/org | replica.js, room-publish.js, checkins.js, handoff.js, org.js | 10 |
+| (f) rate-key malformation | api/_rate-limit.js, api/_ratelimit.js | 10 |
+| (g) invite code guessing | replica.js | 4 |
+| (h) OTP verify brute force | account.js | 4 |
+| §9 static wiring proofs | room.js, _room-surface.js, _handoff.js, _checkins.js, _room-push.js, _room-whatsapp.js, _pulse.js | 14 |
+| **total** | 15 doors | **109 ok, 0 failed** |
+
+The tighter, refusal-only sub-count `okClass()` tracks per (class, door) at
+runtime — printed by the suite itself, and the one to read for "how many
+distinct forgeries/cross-room presentations/etc. were tried against door
+X" — is: a-forged-session 30, b-cross-room 9, c-body-ids 5, d-webhook-replay
+13, e-owner-bearer 10, f-rate-key 9, g-invite-guess 3, h-otp-brute-force 4
+(sum 83; the remaining 26 are §0's door-list check, §9's 14 static wiring
+proofs, and 11 fixture-sanity/decode-only assertions distributed across
+§1-§3 that confirm a precondition rather than assert a refusal).
+
+Door list (n = 15), method: a static rule read off `api/*.js`'s own source
+at run time (reads a request body AND imports from the closed set of
+Room/owner-door decision modules the workstream brief names, or is
+`api/account.js` by name) — `account.js, apply.js, checkins.js, handoff.js,
+invites.js, org.js, payments-webhook.js, payments.js, pulse.js, replica.js,
+room-pay.js, room-publish.js, room-tg.js, room-wa.js, room.js` — asserted
+equal to a hardcoded `EXPECTED_DOORS`, so a new door matching the rule fails
+the assertion rather than sailing through unattacked.
+
+Findings: **2**, both fixed in this workstream, each its own prior commit
+and its own `rejected.md` entry — session-TTL enforcement missing from
+`selfScope`/`followerHistory`/`roomCitations`/`_handoff.js`/`_checkins.js`/
+`_room-push.js`/`_room-whatsapp.js`'s own `followerScope` copies
+(`rejected.md#ws-r38-session-ttl-missing-from-most-followerscope-copies`),
+and `api/room.js`'s `thread` op creating rows with no live-follower check
+(`rejected.md#ws-r38-thread-op-no-live-follower-check`). Both proven fixed
+by reverting each in turn and confirming the corresponding case (and, for
+the second, the §9 static wiring proof) fails — see this workstream's final
+report for the exact revert-and-rerun transcript.
+
+Gate: `node scripts/verify-release.mjs` — **16/16 on the untouched tree**
+(method: `git checkout -- .` back to `170cb1e` before any file in this
+workstream was written, confirmed first, then the fix and battery commits
+reapplied) and **17/17 after**, both without `NEON_URL`; the layout
+readability gate hit `EADDRINUSE:8931` twice from a concurrent sibling
+worktree's own gate run and was reconfirmed passing standalone both times
+after the port freed. `node evals/run.mjs`: every suite including the new
+`room-doors`, 0 failures. `node scripts/check-copy.mjs`: 6 scopes clean, 21
+negative controls. `node scripts/context.mjs --check`: clean.

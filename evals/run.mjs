@@ -1789,6 +1789,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
   renewals: "renewals/run.mjs",
+  // WS-R38. THE DOOR BATTERY — every way into a Room, attacked offline,
+  // through the REAL decision modules the thin HTTP doors call (never a
+  // re-implemented check): forged/expired sessions, cross-Room sessions,
+  // body-supplied ids belonging to someone else, webhook replay and
+  // signature tampering, an owner bearer reaching for another owner's
+  // replica/org, rate-key malformation, invite-code guessing, and the OTP
+  // verify brute-force floor (re-asserting WS-R32). The door LIST is
+  // enumerated by a static rule (reads a request body AND imports one of
+  // the closed set of Room/owner-door decision modules, or is
+  // `api/account.js` by name) and asserted complete against `api/`'s own
+  // directory listing, so a new door cannot appear unattacked. Two real
+  // findings were fixed building it: the 12h session TTL was enforced on
+  // only three of ten-plus session-consuming ops (`assertSessionFresh` now
+  // shared by every one of them), and `api/room.js`'s `thread` op created
+  // rows with no check that a live, attested follower still existed for
+  // the session at all (`createFollowerThread`). See evals/room-doors/
+  // run.mjs's own header for the full account and what each fix closed.
+  //
+  // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
+  "room-doors": "room-doors/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
