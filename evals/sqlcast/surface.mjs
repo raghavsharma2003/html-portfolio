@@ -131,6 +131,17 @@ export const STRICT_SURFACE = [
   // grows a statement rather than from the day it 500s.
   /^api\/_room-telegram\.js$/,
   /^api\/room-tg\.js$/,
+  // WS-R23, creator applications and invites. On the strict list from their
+  // first commit, on WS-R1's exact reasoning: `createSelfReplica`'s own CTE
+  // (already strict via `^api\/_replica[^/]*\.js$` above) now redeems an
+  // invite and gates the replica INSERT on it in one statement, and a
+  // parameter Postgres could not type in either new module would fail the
+  // same way the free cap does — silently, as a refused signup with no
+  // Postgres error to point at.
+  /^api\/_apply\.js$/,
+  /^api\/apply\.js$/,
+  /^api\/_invites\.js$/,
+  /^api\/invites\.js$/,
 ];
 
 export function isStrict(rel) {

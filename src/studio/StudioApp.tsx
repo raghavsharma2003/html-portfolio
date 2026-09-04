@@ -67,6 +67,7 @@ import {
 } from "./WizardRail";
 import { useCompact } from "./useCompact";
 import { BlockerNotice } from "./BlockerNotice";
+import { InviteGate } from "./InviteGate";
 import { CLASS_COPY } from "./blockerClass";
 import type { ActivityJob, ActivityView } from "./activityApi";
 import {
@@ -128,6 +129,17 @@ const STUDIO_SELF_TEST_UI = studioSelfTestUiEnabled(
 // set: a studio that offered the band against a 404 endpoint would be the
 // blame inversion AGENTS.md forbids.
 const VOICE_IDENTITY_UI = voiceIdentityChallengeUiEnabled(import.meta.env.VITE_VOICE_IDENTITY_CHALLENGE);
+
+// WS-R23 (086). When this is on, a brand new account (one with zero
+// workspaces) sees InviteGate before CreateReplicaCard. Default OFF and read
+// once at module load, `VOICE_IDENTITY_UI`'s own pattern: the server half is
+// gated separately by `INVITES_REQUIRED`, and the server predicate is what
+// actually decides — this flag only decides whether the studio ASKS first.
+// An account that already owns a workspace never sees this screen regardless
+// of this flag (StudioApp's own render condition also checks
+// `replicas.length === 0`), matching the server's "or an account already
+// owning a replica" exemption exactly.
+const INVITES_REQUIRED_UI = import.meta.env.VITE_INVITES_REQUIRED === "1";
 
 // The teacher mode seam. Read ONCE, at mount, from `?mode=teacher` — see
 // `readStudioMode()` below. Generic mode ("replica") is the untouched
@@ -1353,6 +1365,13 @@ export default function StudioApp() {
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  // WS-R23 (086). `inviteConfirmed` gates CreateReplicaCard behind
+  // InviteGate for a brand new account; `inviteCode` is what the eventual
+  // create call sends. Neither is read at all unless INVITES_REQUIRED_UI is
+  // on and replicas.length === 0 — see the render condition below.
+  const [inviteConfirmed, setInviteConfirmed] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<ReturnType<typeof friendlyError> | null>(null);
   // Focus moves here the moment an error appears (WS-AP): "if there is an
@@ -1734,12 +1753,34 @@ export default function StudioApp() {
     setError(null);
     try {
       const fresh = await refreshForRequest(session);
-      const replica = await createReplica(fresh.accessToken, name);
+      const replica = await createReplica(fresh.accessToken, name, inviteCode || undefined);
       setReplicas((items) => [replica, ...items]);
       setSelected(replica);
       setShowCreate(false);
+      setInviteConfirmed(false);
+      setInviteCode("");
+      setInviteError(null);
       setNotice(copy.createdNotice);
     } catch (cause) {
+      // WS-R23 (086). The server's ONLY two invite refusals, named exactly
+      // (api/replica.js's error field IS the code, not a sentence — see
+      // ReplicaApiError's own `raw.replaceAll("_", " ")` transform, why this
+      // matches on the space-separated form rather than the wire form).
+      // Handled here rather than through errorCopy.ts's REFUSAL_COPY map so
+      // the person lands back on InviteGate with a reason, not on the
+      // generic error banner with no form to retry from.
+      if (
+        cause instanceof ReplicaApiError &&
+        (cause.message.trim() === "invite required" || cause.message.trim() === "invite invalid")
+      ) {
+        setInviteConfirmed(false);
+        setInviteError(
+          cause.message.trim() === "invite required"
+            ? "An invite code is required for your first workspace."
+            : "That code did not work. Check it and try again, or apply below.",
+        );
+        return;
+      }
       handleApiError(cause, "Could not create your workspace");
     } finally {
       setCreating(false);
@@ -2200,7 +2241,18 @@ export default function StudioApp() {
               <div className="skeleton skeleton-panel" />
             </div>
           ) : showCreate || (!selected && loadState === "ready") ? (
-            <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
+            INVITES_REQUIRED_UI && replicas.length === 0 && !inviteConfirmed ? (
+              <InviteGate
+                onContinue={(code) => {
+                  setInviteError(null);
+                  setInviteCode(code);
+                  setInviteConfirmed(true);
+                }}
+                error={inviteError}
+              />
+            ) : (
+              <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
+            )
           ) : selected && sheet ? (
             <ReplicaWorkspace
               replica={selected}

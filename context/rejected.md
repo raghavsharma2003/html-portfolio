@@ -6979,3 +6979,55 @@ source document. Prefer proving the ALGORITHM structurally (round-trip
 self-consistency, independently-derived encode/decode, or a locally
 verifiable property like "node's own `crypto.verify` accepts this
 signature") over a hard-coded constant nobody in the session can check.
+
+## `ws-r23-owner-lane-column-name-is-a-second-blind-spot` (2026-09-04, WS-R23)
+
+**What was tried.** `vy_creator_invite.redeemed_by_user_id` IS the replica
+owner's Supabase id once a code is spent - the same fact that makes
+`owner_user_id` an owner-lane column everywhere else in this schema - so the
+first attempt was to add `redeemed_by_user_id` to `scripts/relcheck.mjs`'s
+`PERSON_COLUMNS` (so the coverage scan sees the table at all) and its
+`OWNER_KEYS` (widened from a single `owner_user_id` string to an array, so
+the table is recognized as owner-lane and checked against the FK-graph
+walk rather than needing a written exemption) and assumed `evals/
+persontables.mjs`, the offline mirror of that same logic, would need only
+the identical `PERSON_COLUMNS` addition to match.
+
+**What broke.** `evals/persontables.mjs`'s own `ownerLane()` helper checks
+ONLY the LITERAL column name `owner_user_id` (`"owner_user_id" in cols`), by
+its own docstring's design - it does not take a column-name list at all.
+Adding `redeemed_by_user_id` to that file's `PERSON_COLUMNS` (needed anyway,
+to keep the two files' lists from drifting, which is itself an asserted
+check in this file) made the offline DDL scan SEE `vy_creator_invite` as
+person-keyed for the first time, but `ownerLane()` still returned false for
+it (no literal `owner_user_id` column), so it fell through to "person-keyed,
+not owner-lane, not in PERSON_TABLES, not in EXEMPT" and failed the gate
+with exactly the message this file's own history warns about: invisible to
+both forget and export. Caught immediately, by the gate itself, on the very
+next `node evals/persontables.mjs` run after widening `PERSON_COLUMNS` alone.
+
+**What replaced it.** Added `vy_creator_invite` to `evals/persontables.mjs`'s
+own `EXEMPT` map (mirroring `scripts/relcheck.mjs`'s `EXEMPT`, the escape
+hatch that file already documents for exactly this shape: "a table on the
+owner lane through a differently-named column"), rather than widening
+`ownerLane()` itself to accept multiple column names. Left `ownerLane()`
+narrow on purpose: its docstring's whole argument is that "owner-keyed" is a
+one-column rule with one written exception list, and generalizing it to
+accept a list would re-open the exact ambiguity (a table that is BOTH
+person-keyed on one column AND owner-keyed on another, needing the split
+that same docstring explains three different tables already needed) that
+motivated `PERSON_SIDE`/`ownerLane`'s narrow definition in the first place.
+A one-line EXEMPT entry with the same argument restated was the smaller,
+safer change.
+
+**The general shape.** Two files assert the SAME logical claim
+(`scripts/relcheck.mjs`'s live-DB-dependent walk, `evals/persontables.mjs`'s
+offline DDL mirror) and this repo already has a mechanical check that their
+PERSON_COLUMNS lists cannot silently drift apart - but that check only
+covers the LIST, not every downstream function keyed off column NAMES
+rather than the list. A helper reading a single hardcoded string instead of
+the shared list is a second, narrower version of the exact blind spot this
+file's history is otherwise about (`meera_state`, `vy_disclosure_grant`):
+"the coverage check is only as wide as the thing it enumerates" applies one
+level down, inside a single file, to any function that re-derives its own
+notion of "owner-keyed" from a literal rather than importing the list.

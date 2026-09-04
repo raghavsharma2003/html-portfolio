@@ -285,6 +285,14 @@ const EXEMPT = {
 // considered the 48 tables keyed on `owner_user_id`. The column list is now
 // every name that means "a natural person" in this schema, which is what makes
 // the OWNER_LANE verdict below a decision instead of a blind spot.
+// WS-R23 (086): `redeemed_by_user_id` (vy_creator_invite) joins this list for
+// exactly the reason this comment names — an invite IS the replica owner's id
+// once redeemed, the same fact that makes it OWNER lane rather than person
+// lane, and leaving the column out would reproduce the blind spot this file's
+// own history is written to prevent (`issued_by_user_id`, the OPERATOR who
+// issued the code, deliberately stays OUT: they are platform staff acting in
+// that capacity, not a consumer of this table's own erasure obligation, and
+// the row is fully reached either way once it is deleted by name).
 const PERSON_COLUMNS = [
   "person_id",
   "device_id",
@@ -295,6 +303,7 @@ const PERSON_COLUMNS = [
   "granted_by",
   "granted_to",
   "owner_user_id",
+  "redeemed_by_user_id",
 ];
 
 // `owner_user_id` is the replica OWNER's Supabase auth id — a natural person,
@@ -311,7 +320,18 @@ const PERSON_COLUMNS = [
 // named outright in api/_replica-full-erasure.js. The walk below found three
 // tables that were reachable by neither (053/055 declare replica_id and
 // owner_user_id FK-shaped but not FK), which is the whole reason it exists.
-const OWNER_KEY = "owner_user_id";
+//
+// WS-R23 (086): `redeemed_by_user_id` joins `owner_user_id` here, not just in
+// PERSON_COLUMNS above — vy_creator_invite has no `owner_user_id` column of
+// its own, so without this it would be `keyed` (via PERSON_COLUMNS) but never
+// `ownerOnly`, which would make it FAIL manifest coverage for not being in
+// PERSON_TABLES (correctly excluded, on OWNER_LANE's own verdict) with no
+// escape hatch except a written EXEMPT entry duplicating an argument this
+// file already makes. Folding it into the SAME owner-lane machinery instead
+// means it gets the STRONGER, CHECKED guarantee every other owner-keyed table
+// gets: reachable by cascade or named in api/_replica-full-erasure.js, walked
+// below rather than merely asserted.
+const OWNER_KEYS = ["owner_user_id", "redeemed_by_user_id"];
 
 const keyed = await q(
   `select distinct table_name from information_schema.columns
@@ -324,8 +344,8 @@ const ownerOnly = new Set(
   (
     await q(
       `select distinct table_name from information_schema.columns
-        where table_schema = 'public' and column_name = $1`,
-      [OWNER_KEY],
+        where table_schema = 'public' and column_name = any($1::text[])`,
+      [OWNER_KEYS],
     )
   ).map((r) => r.table_name),
 );
@@ -381,7 +401,7 @@ const unreachable = [...ownerOnly]
 if (unreachable.length) {
   failed++;
   console.log(
-    `FAIL  owner-lane erasure reach: ${unreachable.join(", ")} carry ${OWNER_KEY} but are neither ` +
+    `FAIL  owner-lane erasure reach: ${unreachable.join(", ")} carry ${OWNER_KEYS.join("/")} but are neither ` +
       `reached by ON DELETE CASCADE from vy_replica nor deleted by name in ` +
       `api/_replica-full-erasure.js. They survive the erasure job, so they are covered by NOTHING ` +
       `— not the person manifest, which excludes the owner lane on purpose, and not the chain that ` +
@@ -390,7 +410,7 @@ if (unreachable.length) {
 } else {
   const named = [...ownerOnly].filter((t) => !reached.has(t)).length;
   console.log(
-    `  ok  owner-lane erasure reach (${ownerOnly.size} ${OWNER_KEY} tables: ` +
+    `  ok  owner-lane erasure reach (${ownerOnly.size} ${OWNER_KEYS.join("/")} tables: ` +
       `${ownerOnly.size - named} by cascade from vy_replica, ${named} deleted by name)`,
   );
 }

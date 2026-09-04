@@ -7933,3 +7933,80 @@ n = 1 migration (9 statements in one transaction), 10 API statements; method = t
 | both sweep selects with the quiet-hours predicate | unchanged shape: Index Scan `vy_room_checkin_due_ix` with `next_due_at IS NOT NULL AND <= now` as index conditions and the quiet-hours CASE as a row filter (evaluated per due row, never widening the scan) |
 
 The channel CHECK now admits `web_push` live. Not measured: no subscription row exists; no push has reached a real browser (the VAPID keys are unset everywhere, so the seam records `not_configured`); the RFC 8291 appendix vector was not reproduced (logged by WS-R22 as a rejection).
+
+## `ws-r23-invites-offline-eval-2026-09-04` (WS-R23)
+
+n = 57 assertions, `node evals/invites/run.mjs`, offline/deterministic/$0/no
+DB/no network/no model/no GPU, 2026-09-04. Four sections against a
+from-scratch fake db (no shared Room fixture - this workstream touches no
+Room table): applications (the happy path, the daily-per-contact refusal
+proven against a fake `ON CONFLICT DO NOTHING` unique index, the SAME
+contact clearing the next day, a missing-name/missing-contact refusal each
+by name, list, and the operator's case-insensitive erase-by-contact);
+invites (issue returns the code exactly once and the stored/returned object
+never carries it or its hash, canonicalization proven punctuation- and
+case-insensitive, list's three status filters, revoke and erase both
+refusing an already-redeemed invite by name); the replica-create predicate
+itself (`api/_replica.js`'s real `createSelfReplica`, invoked through the
+fake db, not re-implemented) with three NEGATIVE CONTROLS: (a) the same code
+redeemed by two different accounts one after another - one replica created,
+the second call refused `invite_invalid`, the invite naming only the first
+owner; (b) an expired code refuses `invite_invalid` by name and is left
+unredeemed rather than silently consumed; (c) with `invitesRequired: false`
+and zero rows in the fake invite table and no code offered, creation still
+succeeds - proving the predicate is structurally absent rather than merely
+unmet when `INVITES_REQUIRED` is unset, so an existing test account is
+unaffected. A fourth section is a STATIC proof (regex over the real source
+text of `api/_replica.js` and `api/replica.js`) that the gate is inside the
+INSERT: the replica INSERT's own WHERE reads `gate.ok`, `gate.ok` itself
+depends on `invite_redeem`'s output in the SAME statement, and a raw invite
+code is hashed before it ever reaches a bound SQL parameter.
+
+Also reconfirmed clean on the touched tree: `node evals/replica/run.mjs`
+(36 assertions, unchanged behaviour - `createSelfReplica`'s call shape
+`createSelfReplica(q, user.id, ...)` still matches its own regex check
+after gaining a fourth argument); `node evals/persontables.mjs` (125
+person-keyed tables, 70 owner lane, 4 exempt in writing including the new
+`vy_creator_invite` entry, 51 listed, 2 negative controls caught);
+`node scripts/check-copy.mjs` (6 scopes clean, 17 negative controls bit,
+covering the new `src/studio/InviteGate.tsx` and the rewritten
+`site/vyakti.html` apply form under the Rooms vocabulary and dash rules).
+
+**Not measured, stated rather than implied**: no statement in migration
+086, `createSelfReplica`'s widened CTE, or any statement in `api/_apply.js`/
+`api/_invites.js` has ever run against a live Postgres (no `NEON_URL` in
+this environment - `offline-mocks-cannot-type-check-sql`). No real
+`vy_creator_application` or `vy_creator_invite` row has ever been written
+outside a fake `db`. No HTTP request has ever reached `api/apply.js` or
+`api/invites.js` in a deployed environment; the apply form's inline script
+on `site/vyakti.html` has never been exercised in a real browser against a
+real deployment. `INVITES_REQUIRED` and `OPS_OWNER_USER_IDS` are unset on
+every deployment, so today's behaviour (no invite gate, no operator surface
+reachable) is unchanged in production regardless of any of the above.
+
+## `ws-r23-gate-2026-09-04` (WS-R23)
+
+`node scripts/verify-release.mjs`: **15/15 on the untouched tree** (baseline
+captured by committing a WIP stash, running the gate, then recovering via
+`git checkout <stash-commit> -- <paths>` after a sibling worktree's
+concurrent `git stash pop` consumed the stash entry from under this session
+- see `context/rejected.md#stash-in-a-shared-git-dir`, already logged by
+WS-AE and reconfirmed live by this workstream rather than re-derived) and
+**15/15 after** this workstream's full change set. `node scripts/context.mjs
+--check`: clean before this entry, 888 nodes / 1092 edges.
+
+## `rooms-migration-086-live-verification-2026-09-04`
+
+n = 1 migration (8 statements in one transaction), 12 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_apply.js` and `api/_invites.js` issue, the invite-redeem CTE of `createSelfReplica` run standalone against a literal `already_owns`, the pre-check, and the new erasure delete; date 2026-09-04, at the WS-R23 merge.
+
+| statement | plan |
+|---|---|
+| application submit | Insert, conflict NOTHING, arbiter `vy_creator_application_contact_day_ix` (the daily rate limit as a unique index) |
+| application list by status / all; operator erase by contact | `_status_ix`; `_created_ix` (index-ordered, no sort); `_contact_day_ix` on contact_key |
+| invite issue; revoke; erase; redeemed check | Insert; pkey scans with `redeemed_at` filtered |
+| operator invite list (pending clause) | Seq Scan on `vy_creator_invite`; accepted: an operator-only read over a hand-issued table of tens of rows |
+| invite redeem inside `createSelfReplica` | Index Scan `vy_creator_invite_code_hash_ix` with `redeemed_at IS NULL AND expires_at > now()` filtered, gated by a one-time filter on `already_owns` |
+| already-owns pre-check | Seq Scan on `vy_replica` at its current size; `vy_replica_owner_ix (owner_user_id, created_at)` exists and takes over once the table grows |
+| erasure of a redeemed invite | Bitmap Index Scan on the partial `vy_creator_invite_redeemed_ix` |
+
+Not measured: no application or invite row exists; `INVITES_REQUIRED`, `VITE_INVITES_REQUIRED` and `OPS_OWNER_USER_IDS` are unset everywhere, so replica creation behaves exactly as before this merge.

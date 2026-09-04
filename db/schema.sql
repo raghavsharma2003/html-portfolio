@@ -3532,3 +3532,48 @@ alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_cha
 
 alter table vy_room_checkin add column if not exists quiet_from time;
 alter table vy_room_checkin add column if not exists quiet_to time;
+-- Migration 086 - creator applications and invites (WS-R23). See
+-- db/migrations/086_creator_invites.sql for the full rationale: the public
+-- application form's rate limit is a plain-column unique index rather than a
+-- functional one (Postgres requires index expressions to be IMMUTABLE, and
+-- timestamptz-to-date is not); vy_creator_invite is on the OWNER lane
+-- (redeemed_by_user_id IS the replica owner's id once spent), not in
+-- api/memory.js's PERSON_TABLES, reached instead by a named delete in
+-- api/_replica-full-erasure.js and by scripts/relcheck.mjs's widened
+-- PERSON_COLUMNS/owner-lane walk.
+create table if not exists vy_creator_application (
+  application_id uuid primary key,
+  name           text not null default '' check (length(name) <= 200),
+  archive_link   text not null default '' check (length(archive_link) <= 2000),
+  audience       text not null default '' check (length(audience) <= 2000),
+  contact        text not null check (length(contact) between 1 and 320),
+  contact_key    text not null check (length(contact_key) between 1 and 320),
+  applied_on     date not null,
+  status         text not null default 'new' check (status in ('new','reviewing','invited','declined')),
+  created_at     timestamptz not null default now()
+);
+create unique index if not exists vy_creator_application_contact_day_ix
+  on vy_creator_application (contact_key, applied_on);
+create index if not exists vy_creator_application_created_ix
+  on vy_creator_application (created_at desc);
+create index if not exists vy_creator_application_status_ix
+  on vy_creator_application (status, created_at desc);
+
+create table if not exists vy_creator_invite (
+  invite_id           uuid primary key,
+  code_hash           text not null check (length(code_hash) = 64),
+  issued_to_contact   text not null default '' check (length(issued_to_contact) <= 320),
+  issued_by_user_id   uuid not null,
+  application_id      uuid,
+  expires_at          timestamptz not null,
+  redeemed_at         timestamptz,
+  redeemed_by_user_id uuid,
+  created_at          timestamptz not null default now()
+);
+create unique index if not exists vy_creator_invite_code_hash_ix
+  on vy_creator_invite (code_hash);
+create index if not exists vy_creator_invite_issued_ix
+  on vy_creator_invite (issued_by_user_id, created_at desc);
+create index if not exists vy_creator_invite_redeemed_ix
+  on vy_creator_invite (redeemed_by_user_id)
+  where redeemed_by_user_id is not null;

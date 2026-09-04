@@ -46,10 +46,22 @@ export async function readReplica(token: string, id: string): Promise<Replica> {
   return data.replica;
 }
 
-export async function createReplica(token: string, displayName: string): Promise<Replica> {
+/**
+ * `inviteCode` is optional and only ever matters the first time an account
+ * creates a workspace under `INVITES_REQUIRED=1` — the server predicate
+ * (WS-R23, migration 086) is what actually decides, and an account that
+ * already owns a workspace is admitted with no code at all. Omitted entirely
+ * rather than sent as an empty string, so a build with invites off never puts
+ * an `invite_code` key on the wire.
+ */
+export async function createReplica(token: string, displayName: string, inviteCode?: string): Promise<Replica> {
   const data = await replicaRequest<{ replica: Replica }>(token, "/api/replica", {
     method: "POST",
-    body: JSON.stringify({ op: "create", display_name: displayName }),
+    body: JSON.stringify({
+      op: "create",
+      display_name: displayName,
+      ...(inviteCode ? { invite_code: inviteCode } : {}),
+    }),
   });
   return data.replica;
 }

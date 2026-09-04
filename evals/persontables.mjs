@@ -60,6 +60,10 @@ const PERSON_COLUMNS = [
   "granted_by",
   "granted_to",
   "owner_user_id",
+  // WS-R23 (086): joins relcheck's own list for the identical reason -
+  // vy_creator_invite's redeemed_by_user_id IS the replica owner's id once a
+  // code is spent, the owner-lane fact that keeps it off PERSON_TABLES.
+  "redeemed_by_user_id",
 ];
 
 // The owner lane. `owner_user_id` is the replica owner's Supabase auth id — a
@@ -111,6 +115,17 @@ const EXEMPT = {
     "the erasure cascade's root; the subject link is severed by 015's " +
     "on-delete-set-null when vy_person goes, and deleting the row is the " +
     "owner's request, not the subject's",
+  // WS-R23 (086). `ownerLane()` above only recognizes the LITERAL column name
+  // `owner_user_id`, by design (its own docstring), so a table on the owner
+  // lane through a differently-named column falls to this map instead of that
+  // function - redeemed_by_user_id IS the replica owner's id once a code is
+  // spent, the identical fact scripts/relcheck.mjs's widened owner-lane check
+  // (OWNER_KEYS) walks against the live FK graph. Reached by name in
+  // api/_replica-full-erasure.js, never by this manifest.
+  vy_creator_invite:
+    "redeemed_by_user_id is the owner lane under a different column name; " +
+    "erased by name in api/_replica-full-erasure.js, checked by relcheck's " +
+    "FK walk rather than this offline manifest",
 };
 
 const listed = new Set(PERSON_TABLES.map((t) => t.table));
