@@ -47,6 +47,7 @@ const {
 const roomSurface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { mintRoomSession, RoomError } = roomSurface;
 const fake = await import(pathToFileURL(join(REPO, "api/_payments/providers/fake.js")).href);
+const razorpay = await import(pathToFileURL(join(REPO, "api/_payments/providers/razorpay.js")).href);
 
 // ── the fixture world ───────────────────────────────────────────────────
 const OWNER = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -551,6 +552,41 @@ console.log("\n§9 REQUIRED NEGATIVE CONTROL — skipping signature verification
     "and applyWebhook's own INSERT always passes the literal `true`, never a variable",
     /values \(\$1,\$2,\(\$3\)::uuid,\(\$4\)::uuid,\$5,\(\$6\)::int4,\(\$7\)::int4,\(\$8\)::int4,true,\$9\)/.test(src),
   );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§10 WS-R41: THE REAL RAZORPAY SIGNATURE, REPRODUCED DIRECTLY");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // §4 above already proves applyWebhook rejects a bad signature and accepts
+  // a good one, but only through the FAKE provider's twin algorithm. This
+  // section calls the REAL api/_payments/providers/razorpay.js
+  // `verifyWebhookSignature` directly - law 3's own reproduction, against
+  // razorpay.com/docs/webhooks/, fetched 2026-09-04: header
+  // `X-Razorpay-Signature`, "HMAC-SHA256 over the RAW request body... with
+  // the webhook secret as the key" (this file's own header, one workstream
+  // over, restates the same citation date).
+  const rzpBody = Buffer.from(JSON.stringify({ event: "subscription.charged" }), "utf8");
+  const rzpSecret = "test-razorpay-secret-ws-r41";
+  const goodSig = createHmac("sha256", rzpSecret).update(rzpBody).digest("hex");
+  ok("razorpay.js's real verifyWebhookSignature accepts a genuinely valid signature",
+    razorpay.verifyWebhookSignature(rzpBody, goodSig, rzpSecret) === true);
+  ok("...and refuses a one-byte-corrupted body under the same valid-looking signature",
+    razorpay.verifyWebhookSignature(Buffer.concat([rzpBody, Buffer.from("x")]), goodSig, rzpSecret) === false);
+  ok("...and refuses a header of the wrong length before ever comparing",
+    razorpay.verifyWebhookSignature(rzpBody, "ab", rzpSecret) === false);
+  ok("...and refuses a well-formed-but-wrong 64-hex-char signature",
+    razorpay.verifyWebhookSignature(rzpBody, "0".repeat(64), rzpSecret) === false);
+  ok("...and refuses when no secret is configured, rather than comparing against undefined",
+    razorpay.verifyWebhookSignature(rzpBody, goodSig, "") === false);
+
+  const razorpaySrc = readFileSync(join(REPO, "api/_payments/providers/razorpay.js"), "utf8");
+  ok("razorpay.js's own source compares in constant time (timingSafeEqual), not ===",
+    /return timingSafeEqual\(a, b\)/.test(razorpaySrc));
+  ok("...and refuses a length mismatch BEFORE calling it",
+    /if \(a\.length !== b\.length\) return false;\s*\n\s*try \{\s*\n\s*return timingSafeEqual/.test(razorpaySrc));
+  ok("...wrapped in a try/catch, so a malformed hex string throws into 'false', never past this function",
+    /try \{\s*\n\s*return timingSafeEqual\(a, b\);\s*\n\s*\} catch \{\s*\n\s*return false;/.test(razorpaySrc));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

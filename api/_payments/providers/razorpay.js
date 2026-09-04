@@ -136,12 +136,22 @@ export async function createSubscription(input, secrets) {
  * Change a subscription's seat quantity - the Suite lane's own operation
  * (WS-R33). `PATCH /v1/subscriptions/:id` accepting `{quantity}` is
  * Razorpay's documented way to change a running subscription's billed
- * quantity, prorating the current cycle on their side - NOT VERIFIED, named
- * rather than implied per this file's own header: no fresh doc fetch was
- * performed for this endpoint in this session (unlike every endpoint above,
- * each pinned with the date it was read), and nothing here has ever made a
- * real request. Shaped from the same PATCH-a-running-subscription convention
- * `cancelSubscription` above already uses for `/cancel`.
+ * quantity, prorating the current cycle on their side - STILL NOT VERIFIED
+ * (WS-R41, 2026-09-04): a fresh doc fetch WAS attempted this session and did
+ * not settle it. razorpay.com/docs/api/payments/subscriptions/ (the page
+ * this file's other endpoints above are pinned against) is a small,
+ * standalone "Plans Entity" reference page, not the operations page its own
+ * URL shape suggests - every fragment (#update-a-subscription,
+ * #update-subscription, #change-subscription-quantity) and every guessed
+ * sibling path (razorpay.com/docs/api/payments/subscriptions/update,
+ * razorpay.com/docs/us/api/payments/subscriptions) returned either that same
+ * Plans Entity content or a 404, never an "Update a Subscription" operation
+ * page. So the PATCH method, the `quantity`/`schedule_change_at` field names,
+ * and the proration behaviour remain shaped from convention
+ * (`cancelSubscription`'s own `/cancel` precedent one function up), never
+ * confirmed against Razorpay's own text. Settled by whoever can reach the
+ * actual operations page (the docs site is a client-routed SPA this
+ * session's fetch tool could not deep-link into), or a sandbox PATCH call.
  */
 export async function updateSubscriptionQuantity(providerSubscriptionRef, quantity, secrets) {
   if (!secrets?.keyId || !secrets?.keySecret) {
@@ -192,9 +202,18 @@ export async function cancelSubscription(providerSubscriptionRef, opts = {}, sec
  * Verify a fund account reference (WS-R36). RazorpayX is a SEPARATE product
  * from the Subscriptions API every function above talks to - it is the
  * payouts side of the same Razorpay account, with its own Fund Accounts and
- * Payouts APIs. NOT VERIFIED, named per this file's own header: no fresh doc
- * fetch was performed for the exact response shape below, unlike every
- * dated endpoint above it, and nothing here has ever made a real request.
+ * Payouts APIs. PARTIALLY VERIFIED (WS-R41, 2026-09-04): the RESPONSE SHAPE
+ * below is confirmed against razorpay.com/docs/api/x/fund-accounts/, fetched
+ * 2026-09-04 - its own Fund Accounts Entity sample JSON is
+ * `{"id":"fa_...","contact_id":"cont_...","account_type":<a bank/VPA enum>,
+ * "active":true,...}`, matching the shape this function expects field for
+ * field (the account_type value itself is one more field this file never
+ * inspects - it verifies `active`, nothing else, per its own header's "this
+ * platform NEVER sends a bank account number or a UPI VPA"). NOT settled by that fetch: the exact operation page for "fetch a
+ * fund account by id" (only the entity/schema page was reachable, the same
+ * SPA-routing limit `updateSubscriptionQuantity`'s own comment names above),
+ * so the `GET .../fund_accounts/:id` method+path is still convention, not a
+ * quoted sentence.
  *   GET https://api.razorpay.com/v1/fund_accounts/:id
  *     -> { id, contact_id, account_type, active: boolean, ... }
  * This platform NEVER sends a bank account number or a UPI VPA to mint a
@@ -217,13 +236,33 @@ export async function registerFundAccount(fundAccountRef, secrets) {
 }
 
 /**
- * Send a payout (WS-R36). RazorpayX Payouts API, NOT VERIFIED per this
- * file's own header (no fresh doc fetch performed this session):
+ * Send a payout (WS-R36). RazorpayX Payouts API, PARTIALLY VERIFIED
+ * (WS-R41, 2026-09-04) against razorpay.com/docs/api/x/payouts/, fetched
+ * 2026-09-04, whose own Payouts Entity sample JSON and field table confirm,
+ * field for field:
+ *   - `fund_account_id`, `amount` ("The payout amount, in paise"; min 100),
+ *     `currency` ("INR"), `reference_id` ("max 40 characters") all match
+ *     this function's request exactly.
+ *   - `mode`: "the modes through which the payout is processed... NEFT,
+ *     RTGS, or IMPS" - `"IMPS"` is a documented value.
+ *   - `purpose`: the doc's own default classifications list is "refund",
+ *     "cashback", **"payout"**, "salary", "utility bill", "vendor bill" -
+ *     `"payout"` is a documented value, not an invented one.
+ *   - `status_details.reason` includes `"low_balance"`, which is the
+ *     documented consequence of `queue_if_low_balance: true` rather than an
+ *     assumed one.
  *   POST https://api.razorpay.com/v1/payouts
  *     { account_number, fund_account_id, amount (paise), currency: "INR",
  *       mode: "IMPS", purpose: "payout", queue_if_low_balance: true,
  *       reference_id }
  *     -> { id: "pout_...", status: "queued" | "processing" | ... }
+ * NOT settled by that fetch: the same SPA-routing limit named on the two
+ * functions above means the exact operation page (method + path +
+ * request-parameter table, as opposed to the response/entity page this
+ * fetch actually reached) was never reached, so `POST /v1/payouts` and the
+ * REQUEST field name `account_number` (the entity page shows only the
+ * RESPONSE field `debit_account_number` for the same concept, never a
+ * request-parameter table) stay convention, not a quoted sentence.
  * `account_number` is the PLATFORM's own RazorpayX current account number
  * (`secrets.accountNumber`, read from the same channel-secret blob as
  * `keyId`/`keySecret` - never a creator's own account, which this file never
@@ -250,7 +289,11 @@ export async function sendPayout(input, secrets) {
       mode: "IMPS",
       purpose: "payout",
       queue_if_low_balance: true,
-      reference_id: String(input.ref || ""),
+      // FINDING (WS-R41, fixed): razorpay.com/docs/api/x/payouts/, fetched
+      // 2026-09-04: "reference_id... max 40 characters". Unbounded before -
+      // `input.ref` today is always a uuid (36 chars) and would have passed
+      // by luck, but nothing enforced the documented ceiling.
+      reference_id: String(input.ref || "").slice(0, 40),
     }),
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
