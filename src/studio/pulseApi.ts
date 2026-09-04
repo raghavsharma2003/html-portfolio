@@ -18,8 +18,8 @@ export type PulseStatus = "ready" | "not_enough_optins" | "no_topic_at_floor";
  *  constants (AGENTS.md's own "enrollment sample-rate mirror" example).
  *  Keep them equal to `api/_pulse.js`'s real values or the studio's own
  *  "add a topic" cutoff drifts from what the server will actually accept. */
-export const PULSE_MAX_LABELS = 12;
-export const PULSE_LABEL_MAX_LEN = 32;
+export const PULSE_MAX_LABELS = 12; // mirror of api/_pulse.js#PULSE_MAX_LABELS
+export const PULSE_LABEL_MAX_LEN = 32; // mirror of api/_pulse.js#PULSE_LABEL_MAX_LEN
 
 export interface PulseTopic {
   topic_id: string;
