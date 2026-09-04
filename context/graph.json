@@ -7168,6 +7168,12 @@
       "kind": "measurement",
       "title": "verify-release: 19/20 on the untouched tree and 19/20 twice more after every change, the one failure always layout readability for an environmental reason (port collision or a CPU-contention timing flake on an untouched screen) that does not reproduce when check-layout.mjs runs uncontended",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-111-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 111 (settled_at, failure_reason, unique partial index on provider_payout_ref) applied live in one transaction of five statements at the WS-R56 merge; catalog read back; the two transitions, the unknown-ref lookup and the widened statement read all plan on an index (the new provider-ref index or the pkey).",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14370,6 +14376,11 @@
       "src": "ws-r56-verify-release-gate-2026-09-04",
       "rel": "caused_by",
       "dst": "ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04"
+    },
+    {
+      "src": "rooms-migration-111-live-verification-2026-09-04",
+      "rel": "measured_by",
+      "dst": "ws-r56-event-ledger-is-the-payout-row-not-a-second-table"
     }
   ]
 }

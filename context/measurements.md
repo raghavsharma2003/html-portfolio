@@ -9766,3 +9766,16 @@ one is the literal environmental EADDRINUSE `ws-common.md` already warns
 about, the other is a CPU-contention flake in a pre-existing, previously-
 measured timing-sensitive check, on a screen this workstream does not
 touch, that does not reproduce when the same check runs uncontended.
+
+## `rooms-migration-111-live-verification-2026-09-04`
+
+n = 1 migration (5 statements in one transaction), 4 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP after `describe_table_schema` showed `vy_creator_payout` at its migration-098 shape with neither column, then the catalog read back (`settled_at timestamptz`, `failure_reason text`, the `vy_creator_payout_failure_reason_shape` CHECK at 500 characters, the unique partial index `vy_creator_payout_provider_ref_ix` where `provider_payout_ref is not null`), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `applyPayoutWebhook` and the widened `payoutStatement` issue, with typed literals; date 2026-09-04, at the WS-R56 merge (351e851).
+
+| statement | plan |
+|---|---|
+| `sent`/`queued` -> `settled` UPDATE by provider ref | Index Scan on `vy_creator_payout_provider_ref_ix`, the leaving states as the filter, RETURNING three columns |
+| `sent`/`queued` -> `failed` UPDATE with the reason | Index Scan on `vy_creator_payout_provider_ref_ix`, same filter |
+| the unknown-ref lookup (`limit 1`) | Index Scan on `vy_creator_payout_provider_ref_ix` |
+| the widened statement read by payout id and owner | Index Scan on `vy_creator_payout_pkey`, owner as the filter |
+
+Not measured: no RazorpayX event has ever reached the door; the table has zero rows, so every plan is the planner's choice at zero rows; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
