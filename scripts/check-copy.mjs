@@ -85,15 +85,19 @@ const EXTRA_FILES = [
 
 /* `site/index.html` and `site/privacy.html` ARE the Meera product's pages, so
  * the codename rule cannot bind there — it would be flagging a product for
- * being named. It binds on the Vyakti surfaces, where the name is a leak. */
-const CODENAME_FILES = /^site\/vyakti\.html$/;
+ * being named. It binds on the Vyakti surfaces, where the name is a leak.
+ * WS-R48 adds `site/suites.html`: the same product's second landing page,
+ * telling the same Rooms story to a Suite buyer instead of a solo creator. */
+const CODENAME_FILES = /^site\/(vyakti|suites)\.html$/;
 
 /* The Rooms vocabulary rule (WS-R10, docs/gurukul's Rooms plan): "not clone,
  * in front of anyone." `site/` is `full` scope for everything else in it
  * (privacy pages, the delete-account pages), but the Rooms word bans apply
- * only to the landing page that tells the Rooms story, not to legal pages
- * that were not part of this rewrite. */
-const ROOMS_VOCAB_FILES = /^site\/vyakti\.html$/;
+ * only to the pages that tell the Rooms story, not to legal pages that were
+ * not part of this rewrite. WS-R48 adds `site/suites.html` alongside
+ * `site/vyakti.html`: a Suite is several Rooms under one bill, and this page
+ * describes what a Suite admin sees of them in the SAME vocabulary. */
+const ROOMS_VOCAB_FILES = /^site\/(vyakti|suites)\.html$/;
 
 /* Files whose entire purpose is copy. Every literal in them is on its way to a
  * screen, so the visible-prop heuristic is skipped and all of them are read. */

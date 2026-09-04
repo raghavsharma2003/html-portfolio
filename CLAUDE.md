@@ -101,7 +101,7 @@ citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
 `LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,
-`site/vyakti.html`, `studio.html` or `room.html`, with the only escape hatch
+`site/vyakti.html`, `site/suites.html`, `studio.html` or `room.html`, with the only escape hatch
 (`scripts/roomsVocabAllowlist.mjs`) scoped by name to two files carrying
 pre-existing legal text a person already consented to.
 

@@ -147,8 +147,8 @@ existing JS, never a schema change); 102 is the next free number.
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
-string across `src/studio/`, `src/room/`, `site/vyakti.html`, `studio.html`
-or `room.html`. The only escape hatch is `scripts/roomsVocabAllowlist.mjs`,
+string across `src/studio/`, `src/room/`, `site/vyakti.html`, `site/suites.html`,
+`studio.html` or `room.html`. The only escape hatch is `scripts/roomsVocabAllowlist.mjs`,
 scoped by name to the two files carrying legal text a person already
 consented to under the old vocabulary (`DisclosurePreview.tsx`'s two verbatim
 safety-floor quotes, four of `ModelConsentGate.tsx`'s `STATEMENTS`) — never a
