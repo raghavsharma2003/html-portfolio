@@ -27,13 +27,33 @@
  * text for exactly the same reason `RoomApp.tsx`'s real one does: the card's
  * bytes are locale-bound, so a fixture claiming `locale: "hi"` while still
  * showing the English card would measure a screen no follower ever sees.
+ *
+ * ── WS-R43: FOUR MORE SCREENS, AND A FETCH STUB ────────────────────────────
+ *
+ * "Hindi glyphs unverified" was open since WS-R24 for a mechanical reason:
+ * three of the Room's seven screens had no fixture path AT ALL and the layout
+ * gate can only measure what it can reach. `?screen=capped` forces the
+ * cap-reached state (WS-R30's own offer card riding under it, exactly as a
+ * real refusal leaves it); `?screen=receipt` forces the "gone" phase with a
+ * real-shaped `RoomForgetReceipt` (WS-R27 law 3's own point restated: there
+ * is nothing to look this up by later, so a fixture is the ONLY way this
+ * screen is ever measured again); `?screen=checkins` and `?screen=handoff`
+ * open the two dialogs `RoomApp.tsx` otherwise only opens from a real
+ * session. Both dialogs `load()` themselves on mount over `/api/checkins` and
+ * `/api/handoff` — `AccountPage.tsx`'s own `fixtureSettings` seam does not
+ * reach either component, so rather than adding a third fixture-prop path
+ * two components deep, `installFetchStub` below answers the exact three POST
+ * endpoints every Room screen ever calls (`/api/room`, `/api/checkins`,
+ * `/api/handoff`), dispatched by the `op` field every one of them already
+ * sends. Never reaches a network; nothing here is a credential.
  */
 import ReactDOM from "react-dom/client";
 import RoomApp from "./RoomApp";
 import "../studio/design/tokens.css";
 import "../studio/studio.css";
 import "./room.css";
-import type { RoomOpen, RoomSettings } from "./roomApi";
+import { ROOM_COPY_TABLE } from "./copy";
+import type { RoomOpen, RoomSettings, RoomForgetReceipt, RoomOffer } from "./roomApi";
 import type { RoomPaymentStatus } from "./roomPayApi";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", ""]);
@@ -138,6 +158,126 @@ const FIXTURE_PAYMENT: RoomPaymentStatus = {
   subscription: null,
 };
 
+/** WS-R30's cap-reached offer, at a real price — `RoomApp.tsx`'s own
+ *  `capped && capOffer` law: the card renders only once BOTH the refusal and
+ *  a recorded offer are true, so `?screen=capped` supplies both together
+ *  rather than the capped screen alone, which no follower who actually hit
+ *  the cap and got the offer would ever see on its own. */
+const FIXTURE_CAP_OFFER: RoomOffer = { reason: "cap_reached", price_inr: 299, currency: "INR" };
+
+/** Byte-shaped like `RoomForgetReceipt` (`roomApi.ts`) — `receipt_id` and
+ *  `person_hash` are both content-free by construction (never a person id,
+ *  api/memory.js's own `roomForgetReceiptHash`), so a fixture value here
+ *  measures the same thing the receipt itself is designed to be safe to
+ *  show: a proof of counts, not a record of who. */
+const FIXTURE_RECEIPT: RoomForgetReceipt = {
+  receipt_id: "layout-fixture-receipt-0001",
+  room: "anjali",
+  person_hash: "f3a1c9de-fixture-hash-not-a-real-person",
+  policy_version: 3,
+  counts: { messages: 42, threads: 2, checkins: 1 },
+  issued_at: "2026-08-30T09:15:00.000Z",
+};
+
+/** WS-R43: every string `CheckinsPanel.tsx`/`HandoffPanel.tsx`/`AccountPage.tsx`
+ *  can render, dispatched by `(pathname, op)` exactly as the real handlers
+ *  read it — `api/_checkins.js`/`api/_handoff.js`/`api/_room-surface.js`'s
+ *  own op vocabulary, not reinvented here. One design with a `cadence_hint`
+ *  and one already-active check-in with a "Stop" control, one answered
+ *  handoff with a reply, so the panels render every block they own rather
+ *  than the emptiest possible screen — `layoutFixture.tsx`'s own
+ *  `FIXTURE_TURNS` precedent: a fixture of the shortest possible state tells
+ *  the gate nothing about the state a follower actually sees. `push_public_key`
+ *  stays `null` deliberately: the push control needs `Notification`/
+ *  `PushManager`/a service worker this harness does not register, and an
+ *  absent key is what makes that control render nothing rather than
+ *  something this fixture cannot honestly drive.
+ */
+function installFetchStub() {
+  const CHECKIN_DESIGNS = [
+    { design_id: "d1", title: "How is the exam prep going?", cadence_hint: "weekly" },
+    { design_id: "d2", title: "Quick check on the assignment", cadence_hint: "" },
+  ];
+  const MY_CHECKINS = [
+    {
+      checkin_id: "c1",
+      design_id: "d1",
+      title: "How is the exam prep going?",
+      days_of_week: [1, 3, 5],
+      local_time: "09:00",
+      timezone: "Asia/Kolkata",
+      quiet_from: null,
+      quiet_to: null,
+      next_due_at: null,
+      state: "active" as const,
+    },
+  ];
+  const MY_HANDOFFS = [
+    {
+      handoff_id: "h1",
+      thread_id: null,
+      state: "answered" as const,
+      payload_text: "Could you look at question 4 from today's set? I keep getting a negative area.",
+      sent_at: "2026-08-20T10:00:00.000Z",
+      answered_at: "2026-08-21T07:00:00.000Z",
+      reply_text: "You dropped a sign taking the square root on the second line. Check that step again.",
+      created_at: "2026-08-20T10:00:00.000Z",
+    },
+  ];
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const path = new URL(raw, window.location.origin).pathname;
+    let op = "";
+    try {
+      op = JSON.parse(String(init?.body ?? "{}"))?.op ?? "";
+    } catch {
+      op = "";
+    }
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    if (path === "/api/checkins") {
+      if (op === "designs") return json({ designs: CHECKIN_DESIGNS, push_public_key: null });
+      if (op === "list_mine") return json({ checkins: MY_CHECKINS });
+      if (op === "telegram_status") return json({ connected: false, checkins_enabled: false, stopped: false });
+      return json({});
+    }
+    if (path === "/api/handoff") {
+      if (op === "mine") return json({ handoffs: MY_HANDOFFS });
+      return json({});
+    }
+    if (path === "/api/room") {
+      if (op === "push_status") return json({ subscribed: false });
+      if (op === "whatsapp_status") return json({ available: false, subscribed: false, phone_masked: null });
+      return json({});
+    }
+    return json({});
+  };
+}
+
+/** WS-R43. Every Hindi string this Room's chrome can show, flattened from
+ *  the REAL `ROOM_COPY_TABLE.hi` export (never a hand-copied list, so this
+ *  cannot drift the moment a key is added) into `[key, value]` pairs — the
+ *  key so a failing glyph measurement can name exactly which string broke,
+ *  `scripts/check-layout.mjs`'s own law. Exposed on `window` rather than
+ *  computed in Node, because the measurement itself (`document.fonts.check`,
+ *  a canvas `measureText`) can only mean anything run against a REAL browser
+ *  font stack — this just gets the real, live copy table to that browser. */
+function flattenHiStrings(node: unknown, prefix: string, out: [string, string][]): void {
+  if (typeof node === "string") {
+    out.push([prefix, node]);
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => flattenHiStrings(v, `${prefix}[${i}]`, out));
+  } else if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) flattenHiStrings(v, prefix ? `${prefix}.${k}` : k, out);
+  }
+}
+
+declare global {
+  interface Window {
+    __ROOM_HI_STRINGS__?: [string, string][];
+  }
+}
+
 function render() {
   const params = new URLSearchParams(window.location.search);
   const screen = params.get("screen") || "talk";
@@ -156,11 +296,24 @@ function render() {
       fixtureAccountOpen={screen === "account"}
       fixtureSettings={hindi ? FIXTURE_SETTINGS_HI : FIXTURE_SETTINGS}
       fixturePayment={FIXTURE_PAYMENT}
+      // WS-R43: the three screens no fixture reached before.
+      fixtureCapped={screen === "capped"}
+      fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}
+      fixturePhase={screen === "receipt" ? "gone" : undefined}
+      fixtureForgetReceipt={screen === "receipt" ? FIXTURE_RECEIPT : null}
+      fixtureCheckinsOpen={screen === "checkins"}
+      fixtureHandoffOpen={screen === "handoff"}
     />,
   );
+  window.__ROOM_HI_STRINGS__ = (() => {
+    const out: [string, string][] = [];
+    flattenHiStrings(ROOM_COPY_TABLE.hi, "", out);
+    return out;
+  })();
 }
 
 if (LOOPBACK.has(window.location.hostname)) {
+  installFetchStub();
   render();
 } else {
   // Not an error page and not a redirect: a blank, honest refusal. This file is

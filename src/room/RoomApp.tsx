@@ -120,6 +120,17 @@ interface Props {
   fixtureAccountOpen?: boolean;
   fixtureSettings?: RoomSettings;
   fixturePayment?: RoomPaymentStatus;
+  /** WS-R43. The Room's own layout battery: three screens no fixture reached
+   *  before ("Hindi glyphs unverified" since WS-R24 — no session had ever
+   *  rendered the cap-reached card, the forget receipt, or either dialog in a
+   *  real browser). Same seam as every fixture prop above: state supplied
+   *  directly, no network, no real forget/cap flow run. */
+  fixtureCapped?: boolean;
+  fixtureCapOffer?: RoomOffer | null;
+  fixturePhase?: Phase;
+  fixtureForgetReceipt?: RoomForgetReceipt | null;
+  fixtureCheckinsOpen?: boolean;
+  fixtureHandoffOpen?: boolean;
 }
 
 export default function RoomApp({
@@ -128,9 +139,17 @@ export default function RoomApp({
   fixtureAccountOpen,
   fixtureSettings,
   fixturePayment,
+  fixtureCapped,
+  fixtureCapOffer,
+  fixturePhase,
+  fixtureForgetReceipt,
+  fixtureCheckinsOpen,
+  fixtureHandoffOpen,
 }: Props) {
   const slug = useMemo(() => (fixtureOpen ? fixtureOpen.room.slug : slugFromPath()), [fixtureOpen]);
-  const [phase, setPhase] = useState<Phase>(fixtureOpen ? (fixtureOpen.joined ? "talking" : "join") : "loading");
+  const [phase, setPhase] = useState<Phase>(
+    fixturePhase ?? (fixtureOpen ? (fixtureOpen.joined ? "talking" : "join") : "loading"),
+  );
   const [room, setRoom] = useState<RoomOpen | null>(fixtureOpen ?? null);
   const [auth, setAuth] = useState<StudioSession | null>(null);
   const [session, setSession] = useState<string | null>(fixtureOpen?.session ?? null);
@@ -139,7 +158,7 @@ export default function RoomApp({
   const [thread, setThread] = useState<string | null>(null);
   const [quota, setQuota] = useState<RoomQuota | null>(null);
   const [upgrade, setUpgrade] = useState(false);
-  const [capped, setCapped] = useState(false);
+  const [capped, setCapped] = useState(fixtureCapped ?? false);
   // WS-R30 (migration 093). Independent of `upgrade` above: that flag is a
   // fact about the quota (few messages left this month), this one is a fact
   // about the session that just happened. Both can be true on the same turn;
@@ -149,7 +168,7 @@ export default function RoomApp({
   // WS-R27: the forget receipt, shown once on the "gone" screen and nowhere
   // else - there is nothing to look it up by later (law 3), so this is the
   // only copy this session will ever hold.
-  const [forgetReceipt, setForgetReceipt] = useState<RoomForgetReceipt | null>(null);
+  const [forgetReceipt, setForgetReceipt] = useState<RoomForgetReceipt | null>(fixtureForgetReceipt ?? null);
   // "Let this count" (WS-R17), per scope (a thread id, or "" for the whole
   // Room). Local-only, optimistic on a successful toggle: the server never
   // told this client whether an old opt-in already existed for a scope, and
@@ -164,13 +183,13 @@ export default function RoomApp({
   const [error, setError] = useState("");
   const [cite, setCite] = useState<RoomCitations | null>(null);
   const [menu, setMenu] = useState(false);
-  const [checkinsOpen, setCheckinsOpen] = useState(false);
+  const [checkinsOpen, setCheckinsOpen] = useState(fixtureCheckinsOpen ?? false);
   // WS-R37: the follower's own subscription panel - shown whenever there is
   // a paid tier to manage, `canCheckin`'s own gate one line below minus the
   // memory requirement (managing a subscription needs no standing memory
   // consent).
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
-  const [handoffOpen, setHandoffOpen] = useState(false);
+  const [handoffOpen, setHandoffOpen] = useState(fixtureHandoffOpen ?? false);
   // WS-R39: the follower's own page, and the memory-consent toggle that lives
   // there. `memoryBusy` is its own flag rather than reusing `localeBusy` —
   // the two writes go through different ops (`join` versus `roomSetLocale`)
@@ -183,7 +202,7 @@ export default function RoomApp({
   // when the server confirms an offer was actually recorded — the workstream
   // brief's own law ("renders only when both the refusal and the offer row
   // exist").
-  const [capOffer, setCapOffer] = useState<RoomOffer | null>(null);
+  const [capOffer, setCapOffer] = useState<RoomOffer | null>(fixtureCapOffer ?? null);
   const foot = useRef<HTMLDivElement | null>(null);
   // WS-R50: whether the scroll-to-bottom effect below has already run once.
   // See that effect's own comment for why this exists.
@@ -720,9 +739,12 @@ export default function RoomApp({
             </button>
           </div>
         </div>
-        {/* ONE statistic, and only if a real count came back. */}
+        {/* ONE statistic, and only if a real count came back. WS-R43:
+            `room-num` (room.css) is the Room's own numeric-figure marker —
+            tabular digits, so a count changing on a live poll never
+            reflows its neighbours. */}
         {typeof talkedToday === "number" && talkedToday > 0 && (
-          <p className="room-stat">
+          <p className="room-stat room-num">
             {talkedToday === 1
               ? copy.stats.talkedTodayOne
               : withCount(copy.stats.talkedToday, talkedToday)}
@@ -735,7 +757,7 @@ export default function RoomApp({
             into `room.follower`, so the sentence disappears without a
             reload). */}
         {settingsReminderDue && (
-          <p className="room-stat">
+          <p className="room-stat room-num">
             {copy.settingsReminder.note.split("{date}").join(settingsReminderDate)}{" "}
             <button type="button" className="room-menu-open" onClick={() => setAccountOpen(true)}>
               {copy.settingsReminder.review}
@@ -857,7 +879,7 @@ export default function RoomApp({
         {/* THE END OF A SESSION THAT WORKED. Under the last reply, never across
             one, and it states a fact rather than making one up. */}
         {upgrade && quota && quota.messages_left !== null && !capped && (
-          <p className="room-upgrade">
+          <p className="room-upgrade room-num">
             {quota.messages_left === 0
               ? copy.quota.lastOne
               : withIncluded(copy.quota.left, quota.messages_left, quota.messages_included)}
@@ -899,7 +921,7 @@ export default function RoomApp({
         {capped && capOffer && (
           <section className="room-cap" role="note">
             <h2>{copy.capOffer.title}</h2>
-            <p className="room-lede">
+            <p className="room-lede room-num">
               {capOffer.price_inr != null
                 ? withName(withPrice(copy.capOffer.body, `Rs ${capOffer.price_inr}`), name)
                 : withName(copy.capOffer.bodyNoPrice, name)}
@@ -931,7 +953,7 @@ export default function RoomApp({
         {offerCard && offerCard.reason === "session_worked" && !capped && (
           <section className="room-cap" role="note">
             <h2>{copy.offer.title}</h2>
-            <p className="room-lede">
+            <p className="room-lede room-num">
               {offerCard.price_inr != null
                 ? withName(withPrice(copy.offer.body, `Rs ${offerCard.price_inr}`), name)
                 : withName(copy.offer.bodyNoPrice, name)}
@@ -1387,7 +1409,7 @@ function DataMenu({
           follower's own copy of these fields is always 0 by construction
           (`clientFollower`), so there is nothing honest to show them here. */}
       {ROOM_VOICE_UI && follower?.tier === "paid" && (
-        <p className="room-fine">
+        <p className="room-fine room-num">
           {copy.voice.minutesLeft
             .replace("{used}", String(Math.round(follower.voice_seconds_used / 60)))
             .replace("{included}", String(Math.round(follower.voice_seconds_included / 60)))}
