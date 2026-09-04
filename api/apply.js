@@ -1,7 +1,12 @@
 // Creator applications - the HTTP half of WS-R23 (migration 086).
 //
 //   PUBLIC (no auth)
-//     POST {op:"submit", name, archive_link, audience, contact}
+//     POST {op:"submit", name, archive_link, audience, contact, intent?}
+//       intent: "creator" (default) or "suite" (WS-R48, migration 107) -
+//       "someone who wants to talk first" on the Suites landing page uses
+//       this SAME op, never a second endpoint. api/_apply.js's own
+//       `normalizeIntent` is the one place an unknown value is decided, so
+//       an unrecognised string here is not a second copy of that judgment.
 //
 //   OPERATOR (bearer token, OPS_OWNER_USER_IDS)
 //     POST {op:"list",  status?, limit?}
