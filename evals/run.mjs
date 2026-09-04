@@ -1724,6 +1724,24 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no Telegram call, no
   // model call.
   "room-telegram-checkins": "room-telegram-checkins/run.mjs",
+  // WS-R33, migration 095 (`vy_creator_subscription`, `vy_payment_event`'s
+  // widened Suite lane). The Suite's own money end to end through
+  // api/_payments.js's provider seam (`startOrgSubscription`,
+  // `updateOrgSeats`), the coalesced seat cap `api/_org.js`'s `attachRoom`
+  // now reads (an active subscription raises or lowers it, a
+  // never-authenticated one does not raise it, a lapsed one drops it to
+  // zero without detaching a single already-published Room), the creator
+  // tier charge and `seatCoversCreatorTier`'s (WS-R28) one caller, and
+  // `applyWebhook`'s widened three-lane resolution (follower/org/creator,
+  // one signature-verify-then-apply door for all three). THREE NEGATIVE
+  // CONTROLS: (a) an unsigned webhook writes nothing to any billing table;
+  // (b) a Suite subscription in state 'created' does not raise the seat
+  // cap; (c) a creator charge started while a seat covers them is refused
+  // before the provider is ever reached (the only db call made is the
+  // exemption's own read).
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
+  "org-billing": "org-billing/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

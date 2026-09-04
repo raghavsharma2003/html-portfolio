@@ -30,6 +30,22 @@ export interface RoomRevenue {
   latest_payout: RoomPayout | null;
 }
 
+/** WS-R33. "covered_by_suite" | "free" | a plan name ("room" | "studio"). */
+export interface CreatorTierStatus {
+  tier: "covered_by_suite" | "free" | "room" | "studio";
+  covered_by_suite: boolean;
+  subscription: {
+    subscription_id: string;
+    plan: "room" | "studio";
+    price_inr: number;
+    currency: string;
+    state: "created" | "authenticated" | "active" | "paused" | "cancelled" | "expired";
+    provider: string;
+    current_period_start: string | null;
+    current_period_end: string | null;
+  } | null;
+}
+
 export class PaymentsApiError extends Error {
   status: number;
   code: string;
@@ -51,9 +67,9 @@ async function call<T>(token: string, body: Record<string, unknown>): Promise<T>
 export async function readRoomPayments(
   token: string,
   replicaId: string,
-): Promise<{ price: RoomPrice | null; revenue: RoomRevenue } | null> {
+): Promise<{ price: RoomPrice | null; revenue: RoomRevenue; creator_tier: CreatorTierStatus } | null> {
   try {
-    return await replicaRequest<{ price: RoomPrice | null; revenue: RoomRevenue }>(
+    return await replicaRequest<{ price: RoomPrice | null; revenue: RoomRevenue; creator_tier: CreatorTierStatus }>(
       token,
       `/api/payments?replica_id=${encodeURIComponent(replicaId)}`,
     );
@@ -66,4 +82,17 @@ export async function readRoomPayments(
 export async function setRoomPriceInr(token: string, replicaId: string, priceInr: number): Promise<RoomPrice> {
   const data = await call<{ price: RoomPrice }>(token, { op: "set_price", replica_id: replicaId, price_inr: priceInr });
   return data.price;
+}
+
+export async function startCreatorTierSubscription(
+  token: string,
+  replicaId: string,
+  plan: "room" | "studio",
+): Promise<CreatorTierStatus["subscription"]> {
+  const data = await call<{ subscription: NonNullable<CreatorTierStatus["subscription"]> }>(token, {
+    op: "start_creator_subscription",
+    replica_id: replicaId,
+    plan,
+  });
+  return data.subscription;
 }

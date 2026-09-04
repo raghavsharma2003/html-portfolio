@@ -6136,6 +6136,66 @@
       "kind": "measurement",
       "title": "Migration 096 applied live after the channel CHECK's name was read back; the Telegram eligibility predicate and the toggle plan on the pointer table's follower index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r33-suite-billing",
+      "kind": "component",
+      "at": "2026-09-04",
+      "title": "Suite billing end to end (migration 095): vy_creator_subscription, vy_payment_event widened with a Suite lane. api/_payments.js gains startOrgSubscription/updateOrgSeats/startCreatorSubscription and applyWebhook's three-lane resolution; api/_org.js's attachRoom/orgBoard/listMyOrgs read the coalesced seat cap; api/_creator-tier.js is the pure tier read. seatCoversCreatorTier (WS-R28) gets its one caller."
+    },
+    {
+      "id": "ws-r33-payment-event-two-mutually-exclusive-lanes",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "vy_payment_event widened with a CHECK making the follower lane (room_id/subscription_id) and the Suite lane (org_id/org_subscription_id) mutually exclusive, rather than a second ledger table."
+    },
+    {
+      "id": "ws-r33-creator-tier-charge-has-no-ledger-row",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "A creator tier webhook event flips vy_creator_subscription.state directly and writes no vy_payment_event row - a creator's own subscription has no second party to split revenue with."
+    },
+    {
+      "id": "ws-r33-suite-seat-revenue-not-distributed-to-creators",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "A Suite's seat charge lands as platform_take_inr = amount_inr, creator_share_inr = 0 in v0 - no formula exists yet to distribute a Suite's aggregate charge across its attached creators, so none is invented."
+    },
+    {
+      "id": "ws-r33-coalesced-seat-cap-three-way-not-boolean",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "The attach predicate's seat cap resolves three ways: an active subscription's own seats (raises or lowers), a never-authenticated subscription falls through to seat_limit unchanged, a lapsed subscription drops the cap to zero."
+    },
+    {
+      "id": "ws-r33-creator-subscription-owner-lane",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "vy_creator_subscription is owner lane (reached by name in api/_replica-full-erasure.js), never listed in PERSON_TABLES - it records what the owner pays for capacity, not a relationship with a person."
+    },
+    {
+      "id": "ws-r33-provider-seam-generalized-to-label-ref",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "The provider seam's createSubscription input widened from {priceInr, roomSlug, followerId} to {priceInr, label, ref} so one seam serves the follower, Suite and creator-tier lanes without a second provider client."
+    },
+    {
+      "id": "ws-r33-widening-subscription-id-fk-instead-of-a-new-column",
+      "kind": "rejection",
+      "at": "2026-09-04",
+      "title": "Considered dropping vy_payment_event.subscription_id's existing FK to widen it across two target tables; rejected because Postgres cannot express a conditional FK target and three prior workstreams depend on that cascade. Fixed with a new org_subscription_id column and a real FK instead."
+    },
+    {
+      "id": "ws-r33-org-billing-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "at": "2026-09-04",
+      "title": "evals/org-billing/run.mjs: 40/40 offline - the seam twins, the coalesced seat cap at its exact boundary, the lapse behaviour, the exemption refusing a creator charge before any provider call, the three-lane webhook resolution, the take arithmetic; three required negative controls all proven to fire."
+    },
+    {
+      "id": "rooms-migration-095-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 095 applied live; the three-way coalesced seat cap is visible inside attachRoom's One-Time Filter, webhook lanes resolve on the partial provider-ref indexes, the creator subscription reads plan on its live and owner indexes",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12358,6 +12418,66 @@
       "src": "ws-r34-stopped-code-nullable-text-not-a-second-boolean",
       "rel": "measured_by",
       "dst": "rooms-migration-096-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r33-payment-event-two-mutually-exclusive-lanes",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-creator-tier-charge-has-no-ledger-row",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-suite-seat-revenue-not-distributed-to-creators",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-coalesced-seat-cap-three-way-not-boolean",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-creator-subscription-owner-lane",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-provider-seam-generalized-to-label-ref",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-widening-subscription-id-fk-instead-of-a-new-column",
+      "rel": "caused_by",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r33-suite-billing",
+      "rel": "measured_by",
+      "dst": "ws-r33-org-billing-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r33-suite-billing",
+      "rel": "part_of",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r33-coalesced-seat-cap-three-way-not-boolean",
+      "rel": "measured_by",
+      "dst": "rooms-migration-095-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r33-payment-event-two-mutually-exclusive-lanes",
+      "rel": "measured_by",
+      "dst": "rooms-migration-095-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r33-creator-subscription-owner-lane",
+      "rel": "measured_by",
+      "dst": "rooms-migration-095-live-verification-2026-09-04"
     }
   ]
 }

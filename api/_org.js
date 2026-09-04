@@ -92,6 +92,38 @@ function assertUuid(value, code) {
   return String(value).toLowerCase();
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R33 (migration 095, law 3): the coalesced seat cap. A Suite's own
+// subscription becomes the authoritative cap once it is ACTIVE (may raise OR
+// lower it below `seat_limit`); a subscription that never authenticated
+// (`created`/`authenticated`) does NOT raise the cap - it falls through to
+// `seat_limit` exactly as if no subscription existed, the workstream brief's
+// own required negative control; a subscription that WAS started and has
+// since LAPSED (`paused`/`cancelled`/`expired`) drops the cap to ZERO rather
+// than falling back to `seat_limit` - "a Suite whose subscription lapses
+// keeps its Rooms attached but the attach predicate stops admitting new
+// ones... nothing a creator published should vanish because an institute's
+// card expired," this workstream's own law 5. One fragment, substituted
+// wherever the cap is read, so the write (`attachRoom`) and every read
+// (`orgBoard`, `listMyOrgs`) can never disagree about what the cap is -
+// `api/_payments.js`'s "the tier flip is a predicate, never a branch above
+// the write" applied to a seat count instead of a tier column.
+// ─────────────────────────────────────────────────────────────────────────
+function seatCapSql(orgIdRef) {
+  return `coalesce(
+        (select case
+           when os.state = 'active' then os.seats
+           when os.state in ('paused','cancelled','expired') then 0
+           else null
+         end
+           from vy_org_subscription os
+          where os.org_id = ${orgIdRef}
+          order by os.created_at desc
+          limit 1),
+        (select seat_limit from vy_org o2 where o2.org_id = ${orgIdRef})
+      )`;
+}
+
 function clientOrg(row) {
   if (!row) return null;
   return {
@@ -224,7 +256,7 @@ export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
            where m2.org_id = ($2)::uuid and m2.owner_user_id = r.owner_user_id and m2.role = 'creator'
         )
         and (select count(*) from vy_room r2 where r2.org_id = ($2)::uuid)
-          < (select seat_limit from vy_org o where o.org_id = ($2)::uuid)
+          < ${seatCapSql("($2)::uuid")}
       returning r.room_id, r.org_id, r.slug`,
     [room, org, admin],
   );
@@ -245,7 +277,7 @@ export async function attachRoom(db, adminOwnerUserId, orgId, roomId) {
            where m2.org_id = ($2)::uuid and m2.owner_user_id = r.owner_user_id and m2.role = 'creator'
         ) as creator_member,
         (select count(*) from vy_room where org_id = ($2)::uuid)::int as seats_used,
-        (select seat_limit from vy_org where org_id = ($2)::uuid) as seat_limit`,
+        ${seatCapSql("($2)::uuid")} as seat_limit`,
     [room, org, admin],
   );
   const d = diag[0] || {};
@@ -312,7 +344,8 @@ export async function orgBoard(db, orgId, adminUserId, now = Date.now()) {
   const admin = assertUuid(adminUserId, "org_owner_identity_invalid");
 
   const orgRows = await db(
-    `select o.org_id, o.name, o.slug, o.plan, o.seat_limit, o.created_at
+    `select o.org_id, o.name, o.slug, o.plan, o.seat_limit, o.created_at,
+            ${seatCapSql("o.org_id")} as seats_paid
        from vy_org o
        join vy_org_member m on m.org_id = o.org_id and m.owner_user_id = ($2)::uuid and m.role = 'admin'
       where o.org_id = ($1)::uuid
@@ -339,11 +372,18 @@ export async function orgBoard(db, orgId, adminUserId, now = Date.now()) {
   }
 
   const org2 = orgRows[0];
+  // WS-R33: `seats_paid` is the COALESCED cap (an active subscription's own
+  // seats, or 0 once one has lapsed, or `seat_limit` when none was ever
+  // started - `seatCapSql`'s own header) - this is what `seats_free` is
+  // computed against, never the raw `seat_limit` alone, so this board can
+  // never disagree with what `attachRoom` actually enforces.
+  const seatsPaid = Number(org2.seats_paid);
   return {
     generated_at: new Date(now).toISOString(),
     org: clientOrg(org2),
     seats_used: rooms.length,
-    seats_free: Math.max(0, Number(org2.seat_limit) - rooms.length),
+    seats_paid: seatsPaid,
+    seats_free: Math.max(0, seatsPaid - rooms.length),
     rooms: roomsOut,
   };
 }
@@ -396,14 +436,15 @@ export async function listMyOrgs(db, ownerUserId) {
   const owner = assertUuid(ownerUserId, "org_owner_identity_invalid");
   const rows = await db(
     `select o.org_id, o.name, o.slug, o.plan, o.seat_limit, o.created_at, m.role,
-            (select count(*)::int from vy_room r2 where r2.org_id = o.org_id) as seats_used
+            (select count(*)::int from vy_room r2 where r2.org_id = o.org_id) as seats_used,
+            ${seatCapSql("o.org_id")} as seats_paid
        from vy_org_member m
        join vy_org o on o.org_id = m.org_id
       where m.owner_user_id = ($1)::uuid
       order by o.created_at asc`,
     [owner],
   );
-  return rows.map((r) => ({ ...clientOrg(r), role: r.role, seats_used: Number(r.seats_used) }));
+  return rows.map((r) => ({ ...clientOrg(r), role: r.role, seats_used: Number(r.seats_used), seats_paid: Number(r.seats_paid) }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────

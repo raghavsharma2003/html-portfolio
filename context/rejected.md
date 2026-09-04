@@ -7647,3 +7647,39 @@ statement and not once per parameter - a parameter reused inside a `CASE`
 expression, a second WHERE clause, or a second SET target is a second site
 sqlcast checks independently, and a cast on the first occurrence does not
 carry over to the second.
+
+## `ws-r33-widening-subscription-id-fk-instead-of-a-new-column` (2026-09-04, WS-R33)
+
+**What was tried.** Before adding `vy_payment_event.org_id`/
+`org_subscription_id` as new columns, the first design considered simply
+DROPPING the existing FK on `subscription_id` (`references
+vy_room_subscription(subscription_id) on delete cascade`) and letting the
+column point at either `vy_room_subscription` or `vy_org_subscription`
+depending on which lane a row belonged to - one column, no schema growth,
+"a Suite event's `subscription_id` just means something different."
+
+**What specifically broke, before a single line was written.** Postgres
+cannot express "this FK points at table A when column X is null, table B
+when column Y is null" - a single FK constraint has exactly one target
+table. Dropping the constraint entirely would have meant `subscription_id`
+degrading to the 009 owner/person convention (a WHERE-clause binding,
+checked at read time by the application, never by Postgres) for a column
+THREE PRIOR WORKSTREAMS (WS-R11's ledger, WS-R19's fair-use math, WS-R30's
+offer-outcome CTE) already depend on being a real, cascade-enforced
+reference to `vy_room_subscription` - `applyWebhook`'s own follower-lane
+CTE chain (`sub_update`/`follower_update`/`offer_update`) joins through it
+assuming referential integrity that a widened, unconstrained column would
+silently stop guaranteeing for every ROW, not only the new Suite ones.
+"Relying on a cascade means relying on an FK nobody re-checks" (071's own
+words, restated at every migration since) cuts the other way here too:
+REMOVING a working cascade nobody asked to remove is the same class of
+silent regression the phrase warns against.
+
+**The fix.** A new nullable `org_subscription_id` column with its OWN real
+FK (`references vy_org_subscription(subscription_id) on delete cascade`),
+alongside making the existing `room_id`/`subscription_id` nullable rather
+than widening what they point at. The mutual-exclusion CHECK
+(`vy_payment_event_one_lane`, `context/decisions.md#ws-r33-payment-event-
+two-mutually-exclusive-lanes`) is what makes "a row that names neither, or
+both, lanes" unrepresentable, at the schema level, with every existing FK
+left exactly as strict as it was before this workstream touched anything.
