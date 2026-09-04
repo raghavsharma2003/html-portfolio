@@ -1569,6 +1569,17 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   handoff: "handoff/run.mjs",
+
+  // WS-R24, migration 087: the Room in Hindi. Every ROOM_COPY_TABLE key
+  // present in both locales; the disclosure card's three facts present in
+  // both languages; setLocale scoped to the caller's own session (B cannot
+  // set A's locale); the Telegram language_code -> locale mapping; three
+  // NEGATIVE CONTROLS: (a) a Hindi string with an em dash fails
+  // scripts/check-copy.mjs's dash rule, (b) a Hindi string containing क्लोन
+  // fails its rooms-vocabulary rule, (c) the AI's own reply text is
+  // byte-identical whatever the follower's chrome locale is (only chrome
+  // moves, never the model's own words). Offline, deterministic, $0.
+  "room-locale": "room-locale/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
