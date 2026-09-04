@@ -7778,3 +7778,48 @@ n = 1 migration (13 statements in one transaction), 8 API statements; method = a
 | latest draft genome version | Seq Scan on `vy_replica_voice_genome`, a one-page table whose primary key already leads on replica_id; the planner's choice at this size, not a missing index |
 
 `vy_room_voice_usage` has no erasure line by name: `room_id` and `follower_id` both cascade, so the erasure chain's room and follower deletes take it. Both counters are predicates on the write: a 501st paid message and a clip that would cross the voice ceiling fail the UPDATE's own WHERE, never a JS check. Not measured: no voice clip has been synthesized (`ROOM_VOICE` is unset everywhere; the synth seam was faked in the eval); no paid follower exists live.
+
+## `ws-r21-ops-board-gate-results-2026-09-04` (WS-R21)
+
+**What was measured.** `node scripts/verify-release.mjs` on the untouched
+tree (`ecc8a78`) and again after this workstream's full changeset, both runs
+to completion, no `NEON_URL` in this environment.
+
+| run | result |
+|---|---|
+| untouched tree | 15/15 (14 static gates plus the room leak battery, no relational gates - skipped) |
+| after this workstream | 15/15, identical gate set |
+
+`node evals/ops/run.mjs` standalone: **62/62** offline assertions, five
+sections (the platform-operator allowlist, the schedule table read from
+`vercel.json`, `withSweepRun`'s heartbeat and content-free digest,
+`opsOverview`'s real counts over two Rooms, and the four required negative
+controls a-d), $0, no DB, no network, ~1s.
+
+`node evals/room-leak/run.mjs` standalone, before this workstream: 62/62
+(16,080 retrieval checks, 441 boundary checks per the merge note this
+workstream started from). After admitting `api/_ops.js` to the
+`AGGREGATE_ONLY` class: **67/67** (16,080 retrieval checks unchanged, 446
+boundary checks - the +5 are this workstream's own new assertions inside
+`§1c`: the real followers statement passes, and negative control (c) proves
+a mutated copy with `person_id` or `message_text` appended to the select
+list fails the same parser).
+
+`node scripts/context.mjs --check`: clean both before and after this
+workstream's own append (888 nodes / 1092 edges before this session's
+entries).
+
+**Method.** `verify-release.mjs`'s own printed summary line, read directly
+(not inferred); `evals/ops/run.mjs` and `evals/room-leak/run.mjs` run
+standalone via `node <path>`, their own `pass`/`fail` counters read from
+stdout. Date: 2026-09-04.
+
+**Not measured.** No statement `api/_ops.js` or `api/_sweep-run.js` issues
+has ever run against a live Postgres server (no `NEON_URL` in this
+environment) - every number above is proven against a fake `db`, not
+`EXPLAIN`ed. No real `vy_sweep_run` row has ever been written outside a fake
+`db`. No cron in `vercel.json` has fired against a live deployment carrying
+`withSweepRun` - `CRON_SECRET` is unconfigured in this environment, so every
+wired handler still answers 401 to an unauthenticated probe exactly as
+before this change (unchanged auth path, confirmed by reading each edited
+handler rather than by a live call).
