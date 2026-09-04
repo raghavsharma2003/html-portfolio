@@ -9299,3 +9299,20 @@ n = 30 assertions in `evals/payments-reconcile/run.mjs`, 0 failed; method = `nod
 Also run and unaffected by this workstream's changes, same date: `evals/payments/run.mjs` 62/62; `evals/org-billing/run.mjs` 40/40; `evals/payouts/run.mjs` 50/50; `evals/renewals/run.mjs` 54/54; `evals/ops/run.mjs` 68/68; `evals/room-doors/run.mjs` 109/109; `evals/sqlcast.mjs`: 168 tables (was 167, +1 for `vy_creator_charge_event`), 0 conflicts, 0 uncast sites; `evals/persontables.mjs`: 135 person-keyed tables (was 134, +1), 75 owner-lane (was 74, +1 - `vy_creator_charge_event` auto-classified owner-lane by its own `owner_user_id`-with-no-person-column shape, no manifest edit needed).
 
 **NOT PROVEN.** No statement in migration 104 has ever executed against a live Postgres (no `NEON_URL` in this environment; every new SQL statement is listed verbatim in this workstream's final report for the main loop to `EXPLAIN`). No real `vy_creator_charge_event` row exists outside a fake `db`. `reconcilePeriod`'s four SELECTs (the follower-lane join, the creator-charge scan, the Suite-attachment join, the payout-row read) have never executed against a live database either. `scripts/relcheck.mjs` did not run (no `NEON_URL`).
+
+## `rooms-migration-104-live-verification-2026-09-04`
+
+n = 1 migration (12 statements in one transaction), 8 API statements plus the erasure delete; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (the table did not exist), the catalog read back (the pkey, the subscription FK with `on delete cascade`, four CHECKs including `signature_verified = true` and the 64-hex payload hash, the unique `(provider, provider_charge_ref)` index, the owner and received-at indexes), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_payments.js` added or changed, parameters substituted with typed literals; date 2026-09-04, at the WS-R42 merge over the WS-R48 tip e7b6a6d.
+
+| statement | plan |
+|---|---|
+| `applyWebhook`'s creator lane (the `sub_update` then `charge_insert` CTE) | the subscription UPDATE on `vy_creator_subscription_pkey`; the charge INSERT fed from the CTE with `vy_creator_charge_event_provider_ref_ix` as the conflict arbiter (`DO NOTHING`, the replay defence); the final Left Join over the two CTE scans |
+| the lane-resolution read | Index Scan on `vy_creator_subscription_provider_ref_ix` on both columns, `limit 1` |
+| `reconcilePeriod`: follower-lane ledger rows | Bitmap on `vy_payment_event_subscription_ix` by the period bounds, `room_id is not null` as the filter, then `vy_room_pkey` |
+| `reconcilePeriod`: creator charges | Bitmap on `vy_creator_charge_event_received_ix` by the period bounds |
+| `reconcilePeriod`: Suite attachment | Bitmap on `vy_org_subscription_org_live_ix` (state filter) then `vy_room_org_ix` |
+| `reconcilePeriod`: the period's payouts | Index Scan on `vy_creator_payout_period_ix` on both bounds |
+| `reconciliationOverview` (distinct periods, `limit 24`) | Seq Scan of `vy_creator_payout` under a hashed Aggregate then Sort (bounded by the payout rows, operator-only, once per board load; the period index exists and the planner declines it at zero rows) |
+| erasure delete of charge events | Bitmap on `vy_creator_charge_event_owner_ix` by owner, replica as the filter |
+
+Not measured: no creator charge has ever landed; no reconciliation has run over a real period; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).

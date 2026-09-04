@@ -6898,6 +6898,12 @@
       "kind": "measurement",
       "title": "evals/payments-reconcile/run.mjs: 30/30 offline - the consistent three-Room/one-Suite/one-creator-tier-charge fixture (zero mismatches), four required negative controls (a removed ledger row names the Room and the paise difference; an unattached Room's suite_share_inr is a finding; a seat-covered creator writes structurally zero charge rows; check-mirrors catches a one-off fixture mismatch), and the new applyWebhook SQL path (a landed charge writes one row, idempotent on replay, a non-charge kind writes none).",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-104-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 104 applied live and read back; the creator-charge CTE plans with the unique provider-ref index as its replay arbiter, every reconcile read on an index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13855,6 +13861,21 @@
       "src": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
       "rel": "measured_by",
       "dst": "ws-r42-payments-reconcile-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
+      "rel": "measured_by",
+      "dst": "rooms-migration-104-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r42-suite-reconcile-recomputes-the-builder-formula",
+      "rel": "measured_by",
+      "dst": "rooms-migration-104-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r42-reconcile-suite-lane-uses-current-attachment",
+      "rel": "measured_by",
+      "dst": "rooms-migration-104-live-verification-2026-09-04"
     }
   ]
 }
