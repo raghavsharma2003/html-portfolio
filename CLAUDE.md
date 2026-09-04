@@ -91,10 +91,12 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of wave six (2026-09-04) it is **16
+repo (see the next section). As of WS-R38 (2026-09-04) it is **17
 checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
-and the room export completeness battery, `evals/room-export/run.mjs`, each
-added as a named gate) and **18 with it** (adding the zero-orphan sweep and
+the room export completeness battery, `evals/room-export/run.mjs`, and the
+room door battery, `evals/room-doors/run.mjs` — every way into a Room
+attacked offline through the real decision modules the thin HTTP doors call,
+each added as a named gate) and **19 with it** (adding the zero-orphan sweep and
 citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
