@@ -9281,3 +9281,92 @@ n = 1 migration (4 statements in one transaction, plus 2 indexes added at the me
 | `suitesFunnelThisWeek`: Suites started; seats attached | Seq Scan on `vy_org (created_at)` and on `vy_room (org_attached_at)` as written, neither column indexed; `vy_org_created_ix` and the partial `vy_room_org_attached_ix` were added to 107 and the schema mirror and applied live at the merge (the planner still declines them at zero rows, which is the expected choice for an empty table) |
 
 Not measured: no Suite has been started through the page, no application carries `intent = 'suite'`, nobody has seen `/suites` in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r44-door-battery-case-counts-2026-09-04`
+
+**Supersedes `ws-r38-door-battery-case-counts-2026-09-04`** (a `supersedes`
+edge is added at the graph level). Method unchanged from that entry:
+`node evals/room-doors/run.mjs`, offline, deterministic, $0, run against
+the WS-R44 tree (two commits on `ws-r44-door-battery-ops`, `b816103` and
+`49a8995`, both on top of the merged tip `e7b6a6d`). n = every `ok`/`FAIL`
+line the suite itself prints, counted per `── §N: ... ──` section by a
+small script over the suite's own stdout (not a second in-process tally),
+cross-checked against the suite's own printed total.
+
+**Before this workstream** (the untouched tree, `e7b6a6d`): 109 assertions,
+15 doors, 8 named attack classes plus §0 (door-list completeness) and §9
+(static wiring), 0 failed, ~1.26s standalone / 1208ms inside `verify-
+release.mjs`.
+
+**After this workstream:** 297 assertions (+188), 15 doors (unchanged - no
+new door; three GET-only doors are excluded outright per `decisions.md#
+ws-r44-get-doors-do-not-belong-in-the-door-list`), the same 8 named attack
+classes, plus six new dynamic sections (§9-§14, one per newly-cased op
+group), a §15 (renamed from §9, extended with two more static wiring
+checks per fn/file), and a new §16 (the computed op list). 0 failed. ~1.32s
+standalone / 1441ms inside `verify-release.mjs` - both comfortably under
+the workstream's own 3s ceiling.
+
+Section-by-section counts (`ok`, all sections 0 `FAIL`):
+
+| § | what | before | after |
+|---|---|---|---|
+| §0 | door-list completeness | 1 | 1 |
+| §1 | forged/stale session | 35 | 35 |
+| §2 | cross-Room session | 9 | 9 |
+| §3 | body-supplied ids | 9 | 9 |
+| §4 | webhook replay/signature | 13 | 13 |
+| §5 | owner bearer, another owner's replica/org | 10 | 10 |
+| §6 | rate-key malformation | 10 | 10 |
+| §7 | invite code guessing | 4 | 4 |
+| §8 | OTP verify brute force | 4 | 4 |
+| §9 | `room.js` `settings`/`settings_reviewed` (NEW) | - | 9 |
+| §10 | `room-pay.js` `cancel` (NEW) | - | 8 |
+| §11 | `payments.js` payout ops + `cancel_creator_subscription` (NEW) | - | 13 |
+| §12 | `org.js` `cancel_subscription` (NEW) | - | 3 |
+| §13 | `room-publish.js` `list`/`unlist`/`set_bio` (NEW) | - | 8 |
+| §14 | `invites.js` `mine_issue`/`mine_list` (NEW) | - | 4 |
+| §15 (was §9) | static wiring proofs | 14 | 24 |
+| §16 | the computed op list (NEW) | - | 133 |
+| **total** | 15 doors | **109 ok, 0 failed** | **297 ok, 0 failed** |
+
+The `okClass()`-tagged refusal-only sub-count (the tighter per-class,
+per-door tally the suite itself also prints as "case counts per attack
+class, per door" — a subset of the section totals above, per the prior
+entry's own note on why the two counts differ by design), AFTER this
+workstream: a-forged-session 41 (was 30), b-cross-room 12 (was 9),
+c-body-ids 7 (was 5), d-webhook-replay 13 (unchanged), e-owner-bearer 30
+(was 10), f-rate-key 9 (unchanged), g-invite-guess 3 (unchanged),
+h-otp-brute-force 4 (unchanged) — sum 119 (was 83).
+
+**Per-door op coverage, computed (§16, new this workstream)** — every op
+in seven doors is CASED (a real class above) or EXCLUDED with a named,
+honest reason:
+
+| door | ops (computed) | cased | excluded: no session/bearer | excluded: preexisting-uncased |
+|---|---|---|---|---|
+| `room.js` | 22 | 19 | 3 (`open`, `join`, `stats`) | 0 |
+| `room-pay.js` | 3 | 3 | 0 | 0 |
+| `payments.js` | 7 | 5 | 0 | 2 (`set_price`, `start_creator_subscription`) |
+| `org.js` | 13 | 4 | 0 | 9 |
+| `room-publish.js` | 12 | 3 | 0 | 9 |
+| `invites.js` | 6 | 2 | 0 | 4 |
+| `apply.js` | 3 | 0 | 1 (`submit`) | 2 (`list`, `erase`) |
+| **total** | **66** | **36** | **4** | **27** (a real, honest finding — see `decisions.md#ws-r44-computed-op-list-scoped-to-six-named-doors`) |
+
+**Findings requiring a fix in a door or a decision module: 0.** Every new
+case passed against the real, unmodified `api/` source on first correct
+fixture setup. Three bugs were found and fixed, all in this workstream's
+own new test/fixture code, none in shipped product code —
+`rejected.md#ws-r44-threw-helper-swallows-a-success-value` (two call
+sites) and `rejected.md#ws-r44-new-payout-and-directory-cases-needed-
+fixture-sql-this-workstream-had-not-yet-added` (four call sites).
+
+NOT PROVEN, stated plainly: nothing in this workstream touched a live
+database (no `NEON_URL` in this environment, and none of its new SQL
+patterns are new PRODUCT statements — every one is a fake-db match against
+SQL text that already shipped and, where cited, has already been
+`EXPLAIN`ed live by the workstream that added it); the 27
+"preexisting-uncased" ops and the ops on the five doors outside this
+workstream's `OP_COVERAGE` mechanism remain genuinely unattacked by this
+battery, named rather than hidden.

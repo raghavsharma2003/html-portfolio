@@ -6844,6 +6844,36 @@
       "kind": "rejection",
       "title": "Keeping both sides of a both-added hunk broke a block comment and left a function unclosed, and the syntax loop's failures scrolled past unseen; the loop now names its failures and runs alone",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r44-computed-op-list-scoped-to-six-named-doors",
+      "kind": "decision",
+      "title": "The door battery's computed op-list-vs-case-table mechanism (law 1) is built for room.js/room-pay.js/payments.js/org.js/room-publish.js/invites.js plus apply.js only; the other 8 EXPECTED_DOORS keep their existing hand-picked cases, and 27 preexisting owner-bearer ops across the 7 scoped doors are named preexisting-uncased rather than cased or silently passed.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r44-get-doors-do-not-belong-in-the-door-list",
+      "kind": "decision",
+      "title": "api/room-embed.js, api/creators.js and api/sitemap.js are excluded from the door battery's door list on the same rule (a) that already excludes room-cohorts.js: none reads a request body, consumes a session, or accepts a bearer, so none of the battery's 8 attack classes apply.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r44-threw-helper-swallows-a-success-value",
+      "kind": "rejection",
+      "title": "Two new positive-control cases (room-pay.js cancel, payments.js retry_failed_payout) wrapped a call expected to SUCCEED in the file's own threw() helper, which returns the caught error or null - the opposite of the return value the assertion needed - and both cases failed until fixed to await the real function directly.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r44-new-payout-and-directory-cases-needed-fixture-sql-this-workstream-had-not-yet-added",
+      "kind": "rejection",
+      "title": "register_fund_account, retry_failed_payout, and room-publish.js's list/unlist/set_bio cases were written before the matching fake-db SQL patterns existed in evals/room-doors/fixtures.mjs; fixed by porting the working patterns from evals/payouts/run.mjs and evals/creator-directory/run.mjs verbatim rather than re-deriving them.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r44-door-battery-case-counts-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-doors/run.mjs: 297 assertions (was 109), 15 doors (unchanged), 8 named attack classes plus door-list completeness (§0), 6 new dynamic sections (§9-§14) and a computed op-list section (§16), 0 failures, offline, ~1.32s standalone / 1441ms inside verify-release.mjs (was ~1.26s / 1208ms). 0 findings required a fix in a door or decision module; 2 test-harness bugs found and fixed in this workstream's own new code. Gate: 19/19 before and after.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13726,6 +13756,31 @@
       "src": "ws-r48-merge-both-added-hunks-broke-two-files-and-the-syntax-loop-was-silenced",
       "rel": "supersedes",
       "dst": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it"
+    },
+    {
+      "src": "ws-r44-door-battery-case-counts-2026-09-04",
+      "rel": "supersedes",
+      "dst": "ws-r38-door-battery-case-counts-2026-09-04"
+    },
+    {
+      "src": "ws-r44-computed-op-list-scoped-to-six-named-doors",
+      "rel": "measured_by",
+      "dst": "ws-r44-door-battery-case-counts-2026-09-04"
+    },
+    {
+      "src": "ws-r44-get-doors-do-not-belong-in-the-door-list",
+      "rel": "measured_by",
+      "dst": "ws-r44-door-battery-case-counts-2026-09-04"
+    },
+    {
+      "src": "ws-r44-door-battery-case-counts-2026-09-04",
+      "rel": "caused_by",
+      "dst": "ws-r44-threw-helper-swallows-a-success-value"
+    },
+    {
+      "src": "ws-r44-door-battery-case-counts-2026-09-04",
+      "rel": "caused_by",
+      "dst": "ws-r44-new-payout-and-directory-cases-needed-fixture-sql-this-workstream-had-not-yet-added"
     }
   ]
 }

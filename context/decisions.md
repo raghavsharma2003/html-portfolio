@@ -12060,3 +12060,105 @@ widen the CHECK's set rather than inventing a second column - the same
 drop-then-add pattern this migration itself used (migration 096's own
 precedent) keeps it a one-column, one-CHECK design rather than a column per
 intent.
+
+## `ws-r44-computed-op-list-scoped-to-six-named-doors` (2026-09-04, WS-R44)
+
+**Decision.** `evals/room-doors/run.mjs`'s new §16 (the computed op list -
+every `op === "<name>"` literal read by regex off a door's own source,
+asserted against a hand-maintained `OP_COVERAGE` table so a new op fails
+the gate the day it ships without an entry) is built for exactly SEVEN
+doors: `room.js`, `room-pay.js`, `payments.js`, `org.js`,
+`room-publish.js`, `invites.js` (the six this workstream's own brief names
+as carrying ops that merged in beside WS-R38's door battery without a case
+of their own) plus `apply.js` (named explicitly in the common brief for
+its WS-R48 `intent` widening). The other eight `EXPECTED_DOORS`
+(`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`, `account.js`, and
+the three webhook doors) keep their EXISTING hand-picked cases, unaudited
+by this new mechanism.
+
+**Rationale.** Auditing every op in every door surfaced a genuinely large
+number of pre-existing, uncased owner-bearer ops the moment the computed
+list was built for the seven scoped doors alone: 27 of them (`set_price`,
+`start_creator_subscription` on `payments.js`; nine of `org.js`'s thirteen
+ops; nine of `room-publish.js`'s twelve; four of `invites.js`'s six; two
+of `apply.js`'s three). Extending the SAME mechanism to `checkins.js`
+(six more ops: `design_create`/`design_list`/`design_pause`/`designs`/
+`telegram_status`/`telegram_set`), `handoff.js` (five: `config_get`/
+`config_set`/`queue`/`answer`/`send`), `pulse.js` (`set_topics`),
+`replica.js` (`revoke`/`erasure_status`/`funnel_mark`) and `account.js`
+(nine more session-adjacent ops) would roughly double the "preexisting-
+uncased" count for a single workstream whose own brief names a specific,
+bounded list of ops to case - `docs/gurukul/SPEC-GURUKUL.md`'s reweight
+and this repo's own pattern of scoping a workstream to what it was asked
+to build (WS-R39's `#ws-r39-account-page-additive-not-consolidating-
+scattered-controls`, WS-R45's own creators.html-vite-entry decision) both
+argue for a bounded, honestly-labelled scope over an unbounded one that
+would either balloon this workstream's runtime past what a single session
+can responsibly commit, or produce dozens of new dynamic cases against
+code nobody asked this workstream to re-audit.
+
+**What this is NOT.** The 27 "preexisting-uncased" entries in `OP_COVERAGE`
+(and the un-computed ops in the five doors outside this mechanism
+entirely) are not a safety claim. They are this workstream's own honest
+finding: real ops, on real owner-bearer or session-consuming doors, that
+this battery has never attacked, stated in the coverage table and this
+workstream's final report rather than hidden behind a passing gate.
+
+**Reversal condition.** The day a future workstream adds a REAL dynamic
+case for one of the 27 "preexisting-uncased" ops, flip its `OP_COVERAGE`
+entry from `excluded: "preexisting-uncased..."` to real `classes`. The day
+a future workstream needs the SAME computed-list guarantee for one of the
+eight doors outside this mechanism (a new op merges into `checkins.js`
+without a case, say, and nobody notices for a wave or two - the exact
+failure mode this decision accepts as a live risk), add that door's
+`OP_COVERAGE` table and its own `computedOps()` call rather than
+re-deriving the mechanism a second time.
+
+## `ws-r44-get-doors-do-not-belong-in-the-door-list` (2026-09-04, WS-R44)
+
+**Decision.** `api/room-embed.js`, `api/creators.js` and `api/sitemap.js`
+(all three added after WS-R38) are excluded from `evals/room-doors/
+run.mjs`'s door list entirely - not merely uncased, but never enumerated,
+never imported, never given a `EXPECTED_DOORS` entry - on the SAME rule
+(a) that already excludes `api/room-cohorts.js`: none reads `req.body`
+(all three are GET-only, reading a slug or a cursor off `req.query`), so
+law 1's own criterion ("reads a request body") never admits them.
+
+**Rationale.** All three are PUBLIC AND UNAUTHENTICATED by their own file
+headers' own words: no bearer token is checked, no Room session is minted
+or consumed. Working through this file's own eight attack classes: (a)
+forged session - there is no session to forge; (b) cross-Room session -
+there is no session to present cross-Room; (c) body-supplied ids - there
+is no body, only a query string, and the one id each door DOES read (a
+slug or a cursor) is resolved through `resolveRoom`'s own WHERE, which
+already collapses "does not exist" and "not published" into the identical
+answer for anyone - the same guarantee `api/room.js`'s own `open`/`stats`
+ops already have and this file's own header already documents; (d)
+webhook replay - none of the three is a webhook; (e) owner bearer on
+another owner's resource - there is no bearer, so no owner identity to
+steal; (f)/(g)/(h) do not apply to a GET door's own identity boundary
+(rate-key malformation is a cross-cutting law, not door-specific, and
+already covered for public IP-keyed limiters at §6). There is no
+applicable class left to write a case for - extending the door list to
+admit them would add assertion count with no attack surface behind it,
+which is the mirror image of the actual defect this repo has already
+named once (`rejected.md#ws-r10-check-copy-apostrophe-parity`'s own
+caution against a check that LOOKS thorough without being so).
+
+**Evidence the public answer is actually safe**, not merely assumed: both
+`api/room-embed.js`'s `?slug=` read and `api/creators.js`'s `?cursor=`
+read are proven follower-blind and aggregate-only by their own dedicated
+batteries (`evals/room-embed/run.mjs`'s "the JSON builder is proven pure
+and follower-blind" negative control, `evals/creator-directory/run.mjs`'s
+static scan proving neither read module names a follower table or runs a
+SQL aggregate) - this decision does not ask either battery to be re-proven
+here, only confirms neither belongs in a DIFFERENT battery built around a
+credential this door never asks for.
+
+**Reversal condition.** If any of these three doors is ever widened to
+accept a body, a bearer, or a session (an authenticated per-creator embed
+preview, say, or a rate-limited write op added to `api/creators.js`), it
+immediately satisfies rule (a) or gains a credential worth attacking, and
+belongs in `DOOR_MODULES`/`EXPECTED_DOORS` and this file's own attack
+classes from that commit onward - not retrofitted later once the gap has
+had time to matter.
