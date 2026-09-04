@@ -83,6 +83,7 @@ import { loadTeacherAgent } from "./_teachersheet.js";
 import { surfaceDeviceId, dmRecall } from "./_room.js";
 import { openOrExtendEpisode } from "./episodes.js";
 import { activePersonTables, keysOf, ownerEq, wipeWhereSql, wipeParams, tableApplied } from "./memory.js";
+import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -107,6 +108,13 @@ export const ROOM_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
  *  `vy_room.free_monthly_messages` and the predicate reads the column, never
  *  this constant - a cap that lives in a deployed constant moves by deploy. */
 export const ROOM_FREE_MONTHLY_MESSAGES = 20;
+/** The paid allowance, as the DEFAULT for a new room — WS-R19. Same law as
+ *  the free constant above: the live number is `vy_room.paid_monthly_messages`
+ *  and the predicate reads the column, this is a fixture/fallback only. */
+export const ROOM_PAID_MONTHLY_MESSAGES = 500;
+/** The paid voice minutes allowance in SECONDS, as the DEFAULT for a new
+ *  room. The live number is `vy_room.paid_monthly_voice_seconds`. */
+export const ROOM_PAID_MONTHLY_VOICE_SECONDS = 1800;
 /** How many of the creator's own material names a citation answer may name. */
 export const ROOM_CITATION_SOURCES = 4;
 /** The consent ledger `kind` values this surface writes. New VALUES rather
@@ -275,7 +283,8 @@ export async function roomBySlug(db, slug) {
   if (!s) return null;
   const rows = await db(
     `select r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id,
-            r.display_name, r.free_monthly_messages, r.published_at, a.slug as agent_slug
+            r.display_name, r.free_monthly_messages, r.paid_monthly_messages,
+            r.paid_monthly_voice_seconds, r.published_at, a.slug as agent_slug
        from vy_room r
        join vy_agent a on a.agent_id = r.agent_id
       where lower(r.slug) = $1
@@ -399,7 +408,7 @@ export async function followerRow(db, roomId, personId, agentId) {
   const rows = await db(
     `select f.follower_id, f.room_id, f.person_id, f.agent_id, f.joined_at,
             f.age_attested_at, f.memory_consent_at, f.tier,
-            f.month_key, f.month_message_count, f.last_seen_at
+            f.month_key, f.month_message_count, f.voice_seconds_month, f.voice_month_key, f.last_seen_at
        from vy_room_follower f
       where f.room_id = ($1)::uuid
         and f.person_id = ($2)::uuid
@@ -424,16 +433,36 @@ export const dayKeyOf = (at = Date.now()) => new Date(at).toISOString().slice(0,
  *  follower's anything, and never the creator's consent state. */
 export function clientFollower(row, room, at = Date.now()) {
   if (!row) return null;
-  const cap = Number(room?.free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES);
+  const paid = row.tier === "paid";
+  // WS-R19: the paid tier's own ceiling, same shape as the free one, never a
+  // deployed constant — the live number is `vy_room.paid_monthly_messages`.
+  const cap = paid
+    ? Number(room?.paid_monthly_messages ?? ROOM_PAID_MONTHLY_MESSAGES)
+    : Number(room?.free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES);
   const key = monthKeyOf(at);
   const used = row.month_key === key ? Number(row.month_message_count || 0) : 0;
+  // The voice ceiling exists for every follower (so a free follower's panel
+  // can render "voice is a paid feature" against a real number rather than a
+  // blank), but only a paid follower's SPEND is ever real — a free follower's
+  // `voice_seconds_month` column is always 0, by construction (`roomSpeak`
+  // refuses a free follower before it is ever read for a write).
+  const voiceCap = Number(room?.paid_monthly_voice_seconds ?? ROOM_PAID_MONTHLY_VOICE_SECONDS);
+  // `voice_month_key`, NOT `month_key` — a follower's own separate rollover
+  // key for the voice meter (migration 081's own header explains why sharing
+  // `month_key` with the message counter is a real defect: whichever of
+  // `roomSay`/`roomSpeak` runs first in a new month would claim the rollover
+  // for itself and strand the other counter unreset).
+  const voiceUsed = row.voice_month_key === key ? Number(row.voice_seconds_month || 0) : 0;
   return {
     joined_at: row.joined_at ?? null,
-    tier: row.tier === "paid" ? "paid" : "free",
+    tier: paid ? "paid" : "free",
     remembers: row.memory_consent_at != null,
     messages_used: used,
     messages_included: cap,
-    messages_left: row.tier === "paid" ? null : Math.max(0, cap - used),
+    messages_left: Math.max(0, cap - used),
+    voice_seconds_used: paid ? voiceUsed : 0,
+    voice_seconds_included: paid ? voiceCap : 0,
+    voice_seconds_left: paid ? Math.max(0, voiceCap - voiceUsed) : 0,
   };
 }
 
@@ -875,6 +904,16 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // this file. Zero rows back means the predicate refused: either the cap is
   // spent or the attestation is gone, and the read above has already separated
   // those, so this can name the reason honestly.
+  //
+  // WS-R19: a paid follower now spends against `r.paid_monthly_messages`
+  // rather than being waved through unconditionally — WS-R11's own report
+  // named this exact gap ("the paid tier's fair-use ceiling ... is not
+  // enforced anywhere in this workstream"). ONE CASE inside the WHERE, on
+  // `f.tier`, rather than a second statement: the free and paid ceilings are
+  // the same predicate shape spending the same `month_key`, and a second
+  // statement would be a second place the two definitions of "a turn" could
+  // drift apart, exactly the failure 077's own cohort-count comment warns
+  // against for a different pair of writers.
   const spent = await db(
     `update vy_room_follower f
         set month_key = $4,
@@ -888,10 +927,11 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
         and f.person_id = ($2)::uuid
         and f.agent_id = ($3)::uuid
         and f.age_attested_at is not null
-        and (f.tier <> 'free'
-             or f.month_key <> $4
-             or f.month_message_count < r.free_monthly_messages)
-     returning f.month_key, f.month_message_count, f.tier, r.free_monthly_messages`,
+        and (f.month_key <> $4
+             or f.month_message_count <
+                case when f.tier = 'paid' then r.paid_monthly_messages else r.free_monthly_messages end)
+     returning f.month_key, f.month_message_count, f.tier,
+               r.free_monthly_messages, r.paid_monthly_messages`,
     [
       String(resolved.room.room_id),
       String(payload.p),
@@ -902,13 +942,28 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   if (!spent[0]) {
     // The ONE place a turn does not happen for a money reason, and it happens
     // at the door with a named code, before any model call. Never mid-sentence.
-    throw new RoomError("room_free_cap_reached", 402, {
-      messages_included: Number(resolved.room.free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES),
+    //
+    // WHICH CEILING WAS HIT: read off `follower.tier` (loaded above, before
+    // this statement ran), never re-derived from the empty result — an empty
+    // `spent` array carries no tier of its own to read. A stale-attestation
+    // refusal is already impossible here (the earlier `followerRow` check
+    // would have thrown `room_join_required` first), so a follower reaching
+    // this line was refused for money, and the app-voiced capped card can
+    // now say the right thing to a paid follower instead of the free line.
+    const paidCeiling = follower.tier === "paid";
+    throw new RoomError(paidCeiling ? "room_paid_cap_reached" : "room_free_cap_reached", 402, {
+      messages_included: Number(
+        paidCeiling
+          ? resolved.room.paid_monthly_messages ?? ROOM_PAID_MONTHLY_MESSAGES
+          : resolved.room.free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES,
+      ),
     });
   }
   const used = Number(spent[0].month_message_count || 0);
-  const included = Number(spent[0].free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES);
   const paid = spent[0].tier === "paid";
+  const included = paid
+    ? Number(spent[0].paid_monthly_messages ?? ROOM_PAID_MONTHLY_MESSAGES)
+    : Number(spent[0].free_monthly_messages ?? ROOM_FREE_MONTHLY_MESSAGES);
 
   // WS-R12 (migration 077): the cohort instrument. Bumped HERE, at the same
   // point the free cap is spent and for the identical reason - the cap UPDATE
@@ -1024,7 +1079,11 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   }
 
   const nextTurns = said ? [...turns, { role: "assistant", content: said }] : turns;
-  const left = paid ? null : Math.max(0, included - used);
+  // WS-R19: paid now carries a REAL `left`, its own ceiling rather than the
+  // free one — a paid follower who is about to hit their (much higher) cap
+  // deserves the same honest countdown a free follower gets, never a `null`
+  // that reads as "unlimited" when it is merely "unenforced".
+  const left = Math.max(0, included - used);
   return {
     bubbles: sent,
     reply: said,
@@ -1035,15 +1094,262 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
     // on the last few messages of a free month, so it is a fact about where
     // they are rather than a nudge that fires whenever there is money to be
     // made. NEVER MANIPULATE is the floor and manufactured urgency is the
-    // named failure.
-    upgrade_prompt: !paid && left !== null && left <= 3,
+    // named failure. Paid never sees this line — `!paid` guards it exactly as
+    // before — a follower who already pays is never shown an upgrade pitch.
+    upgrade_prompt: !paid && left <= 3,
     session: mintRoomSession(
-      { ...payload, td: remembers ? transcriptDigest([]) : transcriptDigest(nextTurns), n: (payload.n | 0) + 1 },
+      {
+        ...payload,
+        td: remembers ? transcriptDigest([]) : transcriptDigest(nextTurns),
+        n: (payload.n | 0) + 1,
+        // THE REPLY BINDING (WS-R19): the hash of the reply this turn just
+        // delivered through the one door, so `roomSpeak` can prove ANY clip
+        // it is ever asked to synthesise is a rendering of a reply that
+        // already passed `gatedReply` and reached this follower's screen -
+        // never a second way to make this AI say something. Carried forward
+        // unchanged on a silent turn (`said` empty), so a stale voice request
+        // for the LAST real reply still resolves correctly.
+        lr: said ? sha(said) : payload.lr ?? null,
+      },
       deps.env,
     ),
     // Counts only, never the strings - `gateReply`'s rule, and the whole point
     // of the event is that what it caught must not travel.
     gate: { applied: gatedOut.gated, findings: gatedOut.findings.length },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: speak - the paid tier's voice reply (WS-R19)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// `roomSpeak` is NEVER a second reply assembler. It takes no message, has no
+// `reply` dependency, and calls `gatedReply` nowhere in this file - the text
+// it may ever synthesise is text `roomSay` ALREADY produced, spoken through a
+// door that already ran, keyed by the hash `roomSay` mints into the session
+// on every turn (`lr`, above). Voice is a RENDERING of a reply, never a
+// second way to make this AI say something.
+//
+// The order below is `roomSay`'s own discipline, restated for money and audio
+// rather than text: VERIFY the session, RESOLVE the room, RE-DERIVE the
+// disclosure, LOAD the follower, REFUSE a free tier before any hash is
+// checked, VERIFY the reply binding, SPEND the voice cap in one conditional
+// UPDATE before any synthesis, THEN authorize + synthesise + protect, and
+// only once the watermarked bytes exist does anything leave this function.
+export async function roomSpeak(deps, session, replyRef) {
+  const db = deps?.db;
+  if (typeof db !== "function") throw new RoomError("room_db_required", 500);
+  const payload = readRoomSession(session, deps.env);
+  const now = deps.now ?? Date.now();
+  if (!Number.isFinite(payload.iat) || now - payload.iat > ROOM_SESSION_TTL_MS) {
+    throw new RoomError("room_session_expired", 401);
+  }
+
+  const resolved = await resolveRoom(db, payload.r, deps);
+  if (String(resolved.room.room_id) !== String(payload.i) ||
+      String(resolved.agentId) !== String(payload.a)) {
+    throw roomUnavailable();
+  }
+
+  // THE DISCLOSURE PREDICATE, `roomSay`'s own clause: a session opened
+  // against an older card is refused rather than allowed to buy audio under a
+  // disclosure the follower never saw.
+  const name = roomNameFor(resolved.sheet);
+  const disclosure = roomDisclosureCard(name);
+  if (payload.dd !== sha(disclosure)) throw new RoomError("room_disclosure_stale", 409);
+
+  const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
+  if (!follower || follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
+
+  // PAID ONLY, as a predicate at the door - law 3: a free follower "never
+  // receives audio bytes and never sees a play control that works". This is
+  // the server half of that law; the client half is the flag simply not
+  // rendering a play control for a free follower's own bubbles. Checked
+  // BEFORE the reply binding and BEFORE the cap, so a free follower's request
+  // costs this function nothing beyond one row read, win or lose.
+  if (follower.tier !== "paid") {
+    throw new RoomError("room_voice_paid_only", 402);
+  }
+
+  const text = String(replyRef?.text ?? "").trim();
+  if (!text) throw new RoomError("room_voice_text_required", 400);
+  if (text.length > ROOM_TEXT_LIMIT) throw new RoomError("room_voice_text_too_long", 413);
+
+  // THE REPLY BINDING. `payload.lr` is the hash `roomSay` minted into this
+  // exact session after the LAST reply it delivered through `gatedReply`. A
+  // caller asking to speak anything else - edited, invented, or simply never
+  // sent - is refused here, structurally, before a single second of the
+  // voice cap is touched. This is what makes "an unwatermarked clip must be
+  // structurally impossible" also true one layer up: there is no code path
+  // in this function that can reach synthesis with text this session did not
+  // already prove it was told.
+  if (!payload.lr || sha(text) !== payload.lr) {
+    throw new RoomError("room_voice_reply_mismatch", 409);
+  }
+
+  const clipSeconds = estimateClipSeconds(text);
+
+  // THE VOICE CAP, as one statement - `roomSay`'s cap law restated for the
+  // second number the plan promises. Rolls the month over and spends
+  // `clipSeconds` in the same UPDATE, so two tabs cannot both read 1798 and
+  // both write 1810; the allowance is read from the ROOM's column, never a
+  // constant. Charged BEFORE synthesis (`roomSay`'s own reason, restated):
+  // a crash between the spend and the delivered clip costs a follower some
+  // seconds on a genuine platform failure, which is the error the platform
+  // can afford to be wrong about, never the reverse.
+  //
+  // `voice_month_key`, NOT `month_key` - migration 081's own header names the
+  // defect a shared key causes: `roomSay` and `roomSpeak` are two independent
+  // statements, either of which can run first in a new month, and a SHARED
+  // rollover key lets whichever one runs first silently strand the other
+  // counter unreset (`context/rejected.md#ws-r19-shared-month-key-cross-
+  // counter-rollover`, caught by this workstream's own offline eval).
+  const spentVoice = await db(
+    `update vy_room_follower f
+        set voice_month_key = $4,
+            voice_seconds_month =
+              case when f.voice_month_key = $4 then f.voice_seconds_month + ($5)::int4 else ($5)::int4 end,
+            last_seen_at = now(),
+            updated_at = now()
+       from vy_room r
+      where r.room_id = f.room_id
+        and f.room_id = ($1)::uuid
+        and f.person_id = ($2)::uuid
+        and f.agent_id = ($3)::uuid
+        and f.age_attested_at is not null
+        and f.tier = 'paid'
+        and (f.voice_month_key <> $4
+             or f.voice_seconds_month + ($5)::int4 <= r.paid_monthly_voice_seconds)
+     returning f.voice_month_key, f.voice_seconds_month, r.paid_monthly_voice_seconds`,
+    [
+      String(resolved.room.room_id),
+      String(payload.p),
+      String(resolved.agentId),
+      monthKeyOf(now),
+      clipSeconds,
+    ],
+  );
+  if (!spentVoice[0]) {
+    throw new RoomError("room_voice_cap_reached", 402, {
+      voice_seconds_included: Number(
+        resolved.room.paid_monthly_voice_seconds ?? ROOM_PAID_MONTHLY_VOICE_SECONDS,
+      ),
+    });
+  }
+
+  // AUTHORIZE, through the EXISTING voice-preview fence, reused rather than
+  // re-derived - api/_room-voice.js's own header states why this is the only
+  // schema-compatible choice. `deps.authorize` is injectable so the offline
+  // eval can drive every refusal shape with no database behind it; the real
+  // wiring (api/room.js) supplies the real function, unmodified.
+  const authorize = deps.authorize ?? ((input) => authorizeRoomVoice(db, resolved.room.owner_user_id, input));
+  let authorized;
+  try {
+    authorized = await authorize({ replicaId: resolved.room.replica_id, text, traceId: deps.traceId });
+  } catch (error) {
+    throw new RoomError(String(error?.code || "room_voice_unavailable"), Number(error?.status) || 503, {
+      blocker: error?.details?.blocker || error?.blockerClass || "us",
+    });
+  }
+
+  // SYNTHESISE + PROTECT, both REQUIRED injections with no default - a call
+  // to this function that supplies neither throws rather than silently
+  // no-opping, `plausible-return-hides-a-dead-pipeline`'s law applied to a
+  // seam rather than a return value. `deps.synth` is handed the WHOLE
+  // `authorized` result (not a hand-picked subset) because reading the
+  // reference audio object, choosing seed/style and calling the provider are
+  // ALL the real wiring's own composition - `api/voice-preview.js`'s exact
+  // sequence (`readObject` then `provider.synthesizePreview`), reused as one
+  // seam rather than split into two so this file need not know its shape.
+  // The real wiring passes the SAME provider and the SAME
+  // `protectReplicaStream` the studio preview panel already uses; this
+  // workstream never constructs that wiring's default in any path this
+  // session executes (`api/_room-voice.js`'s header, "NO GPU WAKES").
+  if (typeof deps.synth !== "function" || typeof deps.protect !== "function") {
+    throw new RoomError("room_voice_unconfigured", 503);
+  }
+  let synthesized;
+  try {
+    synthesized = await deps.synth({ authorized, text });
+  } catch (error) {
+    throw new RoomError("room_voice_synthesis_failed", 503, {
+      reason: error?.code || String(error?.message || "unknown"),
+    });
+  }
+
+  let protectedAudio;
+  try {
+    protectedAudio = await deps.protect({
+      authorization: authorized.authorizationInput,
+      sourceStream: synthesized.stream,
+      format: synthesized.format,
+      disclosureEvidence: { renderedText: synthesized.renderedText, renderer: synthesized.renderer || "" },
+      disclosureText: synthesized.disclosureText,
+    });
+  } catch (error) {
+    throw new RoomError("room_voice_protection_failed", 503, {
+      reason: error?.code || String(error?.message || "unknown"),
+    });
+  }
+
+  // NEVER RAW SYNTH OUTPUT. Every byte collected below comes from
+  // `protectedAudio.stream` - the watermark-embedded, disclosure-prefixed
+  // output of `deps.protect` - and `synthesized` (the provider's raw PCM) is
+  // never read again past this line. That is structural, not a habit: no
+  // variable declared below this comment is bound to `synthesized`, so there
+  // is nothing downstream a future edit could point at to ship an
+  // unwatermarked clip by accident.
+  const chunks = [];
+  for await (const chunk of protectedAudio.stream) chunks.push(Buffer.from(chunk));
+  const receipt = await protectedAudio.completion;
+  const audio = Buffer.concat(chunks);
+  if (!audio.length) throw new RoomError("room_voice_audio_empty", 503);
+
+  // THE ROOM'S OWN USAGE ROW (migration 081) - content-free, day-granular,
+  // `vy_room_follower_day`'s own shape one column deeper. Written AFTER a
+  // clip has actually left the protection pipeline, so this row's `clips`
+  // count is never higher than the number of clips a follower actually
+  // received.
+  await db(
+    `insert into vy_room_voice_usage (room_id, person_id, follower_id, day, seconds, clips)
+     values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::date, ($5)::int4, 1)
+     on conflict (room_id, person_id, day) do update
+        set seconds = vy_room_voice_usage.seconds + ($5)::int4,
+            clips = vy_room_voice_usage.clips + 1`,
+    [
+      String(resolved.room.room_id),
+      String(payload.p),
+      String(follower.follower_id),
+      dayKeyOf(now),
+      clipSeconds,
+    ],
+  );
+
+  const voiceUsed = Number(spentVoice[0].voice_seconds_month || 0);
+  const voiceIncluded = Number(
+    spentVoice[0].paid_monthly_voice_seconds ?? ROOM_PAID_MONTHLY_VOICE_SECONDS,
+  );
+  return {
+    // Law 5: "12 of 30 voice minutes used this month" from the row, never
+    // estimated - `voiceUsed` is what the UPDATE above actually wrote back,
+    // not a client-side recomputation of the estimate.
+    audio: audio.toString("base64"),
+    format: synthesized.format,
+    generation_id: authorized.generation.generation_id,
+    watermark_algorithm: receipt.watermark_algorithm,
+    disclosure_scheme: receipt.disclosure_scheme,
+    voice: {
+      seconds_used: voiceUsed,
+      seconds_included: voiceIncluded,
+      seconds_left: Math.max(0, voiceIncluded - voiceUsed),
+    },
+    // Passed through UNCHANGED, never re-minted: nothing in this function
+    // advances a turn or touches `lr`/`td`/`n`, so the session the caller
+    // already holds is still exactly as valid for the NEXT `say` or `speak`
+    // as it was before this call. A caller that always threads `.session`
+    // through, `roomSay`'s own contract, keeps working without a branch that
+    // asks which op it just called.
+    session,
   };
 }
 
@@ -1317,6 +1623,21 @@ export async function roomForget(db, { session }, deps = {}) {
       [who.roomId, who.personId],
     );
     deleted.vy_room_pulse_optin = pulseRows.length;
+  }
+
+  // WS-R19 (migration 081): the voice usage day-counts, this Room only.
+  // Identical reasoning and identical gate as `vy_room_follower_day`
+  // immediately above, one migration over: no `agent_id` column, ships in
+  // this same change, so the gate is what keeps an out-of-order deploy from
+  // 500ing every follower's forget.
+  if (await isTableAppliedFor(deps)("vy_room_voice_usage")) {
+    const voiceRows = await db(
+      `delete from vy_room_voice_usage
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_voice_usage = voiceRows.length;
   }
 
   // THE WITHDRAWAL, appended rather than deleted. 016's content law and its

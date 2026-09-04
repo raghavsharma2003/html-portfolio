@@ -538,6 +538,18 @@ const FATE = {
   // name instead; `entry.lane === "relational"` is still what makes the
   // check below true of it.
   vy_room_follower_day: "forget-only",
+  // ── the Room's voice usage (WS-R19; migration 081) ──
+  //
+  // "How many seconds of voice this follower spent, on this day" - an id, a
+  // date, two counts, no term a scoped "forget priya" could ever match, the
+  // cohort day-count's own reasoning restated rather than re-derived. Only
+  // the stronger door may take it: the account-level whole wipe (lane
+  // "relational", proven below) or the Room's own "op":"forget"
+  // (`roomForget`'s explicit room_id+person_id delete, api/_room-surface.js).
+  // NO `agent` flag, like its 077 sibling - this table carries no `agent_id`
+  // column, so it is reached by name rather than through
+  // `roomScopedTables()`'s generic per-agent loop.
+  vy_room_voice_usage: "forget-only",
   // ── WS-R11: the Room's money, person side (migration 078) ──
   // A subscription is not memory, so a SCOPED "forget priya" has no term that
   // could ever name it (a provider reference and a state, no words). Only the

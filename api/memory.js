@@ -2828,6 +2828,18 @@ export const PERSON_TABLES = [
   // room_id+person_id delete, added there in the same change as this entry.
   { table: "vy_room_checkin", key: "person_id", lane: "relational" },
   { table: "vy_room_checkin_delivery", key: "person_id", lane: "relational" },
+  // ── WS-R19: the Room's voice usage, PERSON side (migration 081) ──────────
+  //
+  // "How many seconds of voice this follower spent, on this day" is a record
+  // OF them exactly as the turn day-count above is - an id, a date, two
+  // counts, never a byte of what was said or how it sounded. Same reasoning
+  // as `vy_room_follower_day` one migration over, restated rather than
+  // re-derived: NO `agent: true` (this table carries no `agent_id` column
+  // either), so it is invisible to `roomScopedTables()`'s generic per-agent
+  // loop and reached instead by the account-wide whole wipe below (lane
+  // "relational", no agent filter, keyed on person_id alone) and
+  // `roomForget`'s own explicit room_id+person_id delete, one statement over.
+  { table: "vy_room_voice_usage", key: "person_id", lane: "relational" },
   // ── WS-R11: the Room's money, PERSON side (migration 078) ────────────────
   //
   // A follower's subscription genuinely is a record OF that person - it is
@@ -3042,6 +3054,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_pulse_optin",
   // Arrives with 082 (WS-R18), on the identical reasoning.
   "vy_room_follower_channel",
+  // Arrives with 081 (WS-R19), on the identical reasoning.
+  "vy_room_voice_usage",
 ];
 
 // tables and columns that migration 008 introduces

@@ -33,6 +33,7 @@ import {
   pauseOwnedRoom,
   resumeOwnedRoom,
   setOwnedRoomFreeCap,
+  setOwnedRoomPaidCeilings,
   readOwnedRoomStats,
   roomLink,
   RoomPublishApiError,
@@ -83,6 +84,14 @@ function formatCohortDate(iso: string | null): string {
 }
 
 const FREE_CAP_PRESETS = [10, 20, 50, 100] as const;
+// WS-R19: mirrors migration 081's own CHECKs (100-2000 messages, 0-3600
+// voice seconds) - the bound the studio offers and the bound Postgres holds
+// must be the same numbers or the field would lie about what "editable"
+// means.
+const PAID_MESSAGES_MIN = 100;
+const PAID_MESSAGES_MAX = 2000;
+const PAID_VOICE_SECONDS_MIN = 0;
+const PAID_VOICE_SECONDS_MAX = 3600;
 // The follower price band - migration 078's own CHECK, mirrored so a bad
 // value reads as a disabled Save button rather than a round trip to find out.
 const PRICE_MIN_INR = 299;
@@ -149,13 +158,15 @@ export default function RoomStudio({
   const [pulseError, setPulseError] = useState(false);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const [capDraft, setCapDraft] = useState(20);
   const [priceDraft, setPriceDraft] = useState(PRICE_MIN_INR);
+  const [paidMessagesDraft, setPaidMessagesDraft] = useState(500);
+  const [paidVoiceDraft, setPaidVoiceDraft] = useState(1800);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fail = useCallback(
@@ -185,6 +196,8 @@ export default function RoomStudio({
       setBlockers(state?.blockers ?? null);
       setSlugDraft(state?.room?.slug ?? "");
       setCapDraft(state?.room?.free_monthly_messages ?? 20);
+      setPaidMessagesDraft(state?.room?.paid_monthly_messages ?? 500);
+      setPaidVoiceDraft(state?.room?.paid_monthly_voice_seconds ?? 1800);
       setError("");
       onStatusChange?.(Boolean(state?.room?.published));
       if (state?.room) {
@@ -251,6 +264,8 @@ export default function RoomStudio({
       setReason(null);
       setSlugDraft(next.slug);
       setCapDraft(next.free_monthly_messages);
+      setPaidMessagesDraft(next.paid_monthly_messages);
+      setPaidVoiceDraft(next.paid_monthly_voice_seconds);
       setNotice("Your Room is set up. Publish it when you are ready.");
       onStatusChange?.(next.published);
     } catch (e) {
@@ -321,6 +336,28 @@ export default function RoomStudio({
         setRoom(updated);
         setCapDraft(updated.free_monthly_messages);
         setNotice(`Free followers now get ${updated.free_monthly_messages} messages a month.`);
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
+  const savePaidCeilings = useCallback(
+    async (messages: number, voiceSeconds: number) => {
+      setBusy("paid_ceilings");
+      setError("");
+      try {
+        const updated = await setOwnedRoomPaidCeilings(token, replicaId, messages, voiceSeconds);
+        setRoom(updated);
+        setPaidMessagesDraft(updated.paid_monthly_messages);
+        setPaidVoiceDraft(updated.paid_monthly_voice_seconds);
+        setNotice(
+          `Paid followers now get ${updated.paid_monthly_messages} messages and ` +
+            `${Math.round(updated.paid_monthly_voice_seconds / 60)} voice minutes a month.`,
+        );
       } catch (e) {
         fail(e);
       } finally {
@@ -579,6 +616,55 @@ export default function RoomStudio({
             onPointerDown={() => void saveCap(capDraft)}
           >
             {busy === "cap" ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </article>
+
+      <article className="teacher-sheet-card vy-room__cap-card">
+        <h3>Paid followers</h3>
+        <p className="field-note">
+          Unlimited-feeling chat under a fair-use ceiling, plus voice replies when {" "}
+          <code>ROOM_VOICE</code> is on. Both numbers are yours to set, within the plan's bounds.
+        </p>
+        <label className="field-label" htmlFor="room-paid-messages">Messages a month</label>
+        <div className="vy-room__cap-row" role="group" aria-label="Paid monthly messages">
+          <input
+            id="room-paid-messages"
+            className="field vy-room__cap-field"
+            type="number"
+            min={PAID_MESSAGES_MIN}
+            max={PAID_MESSAGES_MAX}
+            value={paidMessagesDraft}
+            onChange={(event) => setPaidMessagesDraft(Number(event.target.value))}
+          />
+          <span className="field-note">{PAID_MESSAGES_MIN}-{PAID_MESSAGES_MAX}</span>
+        </div>
+        <label className="field-label" htmlFor="room-paid-voice">Voice minutes a month</label>
+        <div className="vy-room__cap-row" role="group" aria-label="Paid monthly voice minutes">
+          <input
+            id="room-paid-voice"
+            className="field vy-room__cap-field"
+            type="number"
+            min={Math.ceil(PAID_VOICE_SECONDS_MIN / 60)}
+            max={Math.floor(PAID_VOICE_SECONDS_MAX / 60)}
+            value={Math.round(paidVoiceDraft / 60)}
+            onChange={(event) => setPaidVoiceDraft(Math.round(Number(event.target.value)) * 60)}
+          />
+          <span className="field-note">
+            0-{Math.floor(PAID_VOICE_SECONDS_MAX / 60)}
+          </span>
+          <button
+            className="button secondary-button"
+            type="button"
+            disabled={
+              busy === "paid_ceilings" ||
+              !Number.isFinite(paidMessagesDraft) ||
+              !Number.isFinite(paidVoiceDraft) ||
+              (paidMessagesDraft === room.paid_monthly_messages && paidVoiceDraft === room.paid_monthly_voice_seconds)
+            }
+            onPointerDown={() => void savePaidCeilings(paidMessagesDraft, paidVoiceDraft)}
+          >
+            {busy === "paid_ceilings" ? "Saving..." : "Save"}
           </button>
         </div>
       </article>

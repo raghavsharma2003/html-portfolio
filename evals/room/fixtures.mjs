@@ -71,6 +71,12 @@ export function freshState() {
         owner_user_id: OWNER,
         display_name: "Anjali",
         free_monthly_messages: 20,
+        // WS-R19 (migration 081): the paid tier's own two ceilings, the plan's
+        // own defaults - present on every room fixture from here on so a cap
+        // UPDATE for a paid follower always has a real column to read rather
+        // than `undefined`.
+        paid_monthly_messages: 500,
+        paid_monthly_voice_seconds: 1800,
         published_at: "2026-09-01T00:00:00.000Z",
         paused_at: null,
       },
@@ -242,15 +248,28 @@ export function fakeDb(state) {
         tier: "free",
         month_key: String(monthKey),
         month_message_count: 0,
+        // WS-R19 (migration 081): the paid tier's own spend counter and its
+        // OWN rollover key, always present from here on. A SEPARATE key from
+        // `month_key` on purpose - see migration 081's own header for the
+        // real cross-counter rollover defect a shared key causes. `''`
+        // mirrors the column's own DB default (`joinRoom`'s INSERT never
+        // names either voice column), not the join month - the first
+        // `roomSpeak` call still rolls it over exactly like any other month.
+        voice_seconds_month: 0,
+        voice_month_key: "",
         last_seen_at: new Date().toISOString(),
       };
       state.followers.push(row);
       return [{ ...row }];
     }
 
-    // THE CAP. The predicate is read off the shipping SQL rather than restated,
-    // so a strike lands here too.
-    if (has("update vy_room_follower f") && has("month_message_count")) {
+    // THE CAP. The predicate is read off the shipping SQL rather than
+    // restated, so a strike lands here too. WS-R19: the free/paid CASE is
+    // matched by its two branch columns rather than by the whole expression
+    // text, so this fake keeps working whichever way the CASE is formatted -
+    // what a negative control strikes is one of these two column names, not
+    // whitespace.
+    if (has("update vy_room_follower f") && has("month_message_count") && !has("voice_seconds_month")) {
       const [roomId, personId, agentId, monthKey] = params.map(String);
       const f = state.followers.find(
         (x) => x.room_id === roomId && x.person_id === personId && x.agent_id === agentId,
@@ -258,11 +277,14 @@ export function fakeDb(state) {
       if (!f) return [];
       if (has("f.age_attested_at is not null") && f.age_attested_at == null) return [];
       const r = state.rooms.find((x) => x.room_id === roomId);
+      const paidCase = has("r.paid_monthly_messages") && has("r.free_monthly_messages");
+      const ceiling = paidCase
+        ? (f.tier === "paid" ? r.paid_monthly_messages : r.free_monthly_messages)
+        : r.free_monthly_messages;
       const capped =
-        has("f.month_message_count < r.free_monthly_messages") &&
-        f.tier === "free" &&
+        (paidCase || f.tier === "free") &&
         f.month_key === monthKey &&
-        f.month_message_count >= r.free_monthly_messages;
+        f.month_message_count >= ceiling;
       if (capped) return [];
       f.month_message_count = f.month_key === monthKey ? f.month_message_count + 1 : 1;
       f.month_key = monthKey;
@@ -273,6 +295,37 @@ export function fakeDb(state) {
           month_message_count: f.month_message_count,
           tier: f.tier,
           free_monthly_messages: r.free_monthly_messages,
+          paid_monthly_messages: r.paid_monthly_messages,
+        },
+      ];
+    }
+
+    // WS-R19's voice cap - the identical shape one column over. `roomSpeak`
+    // spends `voice_seconds_month` against `r.paid_monthly_voice_seconds`,
+    // paid tier only, rolled over on its OWN `voice_month_key` (migration
+    // 081's header: a key shared with the message counter would let
+    // whichever op runs first in a new month strand the other unreset).
+    if (has("update vy_room_follower f") && has("voice_seconds_month") && has("set voice_month_key")) {
+      const [roomId, personId, agentId, monthKey, clipSeconds] = params;
+      const [rId, pId, aId, mKey] = [roomId, personId, agentId, monthKey].map(String);
+      const seconds = Number(clipSeconds);
+      const f = state.followers.find(
+        (x) => x.room_id === rId && x.person_id === pId && x.agent_id === aId,
+      );
+      if (!f) return [];
+      if (has("f.age_attested_at is not null") && f.age_attested_at == null) return [];
+      if (has("f.tier = 'paid'") && f.tier !== "paid") return [];
+      const r = state.rooms.find((x) => x.room_id === rId);
+      const nextSeconds = f.voice_month_key === mKey ? f.voice_seconds_month + seconds : seconds;
+      if (f.voice_month_key === mKey && nextSeconds > r.paid_monthly_voice_seconds) return [];
+      f.voice_seconds_month = nextSeconds;
+      f.voice_month_key = mKey;
+      f.last_seen_at = new Date().toISOString();
+      return [
+        {
+          voice_month_key: f.voice_month_key,
+          voice_seconds_month: f.voice_seconds_month,
+          paid_monthly_voice_seconds: r.paid_monthly_voice_seconds,
         },
       ];
     }

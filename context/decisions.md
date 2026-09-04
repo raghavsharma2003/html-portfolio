@@ -9010,3 +9010,94 @@ short TTL, matching the web session's 12-hour window) - at which point
 `api/_room-telegram.js`'s ordinary-message handler reads and writes it instead
 of always minting an empty transcript, and this limitation is retired rather
 than worked around.
+
+## `ws-r19-voice-reuses-the-preview-ledger-shape` (2026-09-03, WS-R19)
+
+**Decision.** A Room voice reply (`roomSpeak`, `api/_room-surface.js`)
+authorizes its generation through the EXISTING `beginOwnedVoicePreview`
+(`api/_replica-voice-preview.js`), reused via a thin glue module
+(`api/_room-voice.js`) rather than a new authorization path, a widened
+`vy_replica_generation.channel`/`purpose` CHECK, or a Room-specific ledger
+table. The written row therefore carries `purpose='voice_preview'`,
+`channel='studio_preview'` - the identical two literals the studio's own
+"Preview my voice" panel writes.
+
+**Rationale.** Two hard constraints, not merely a preference for reuse.
+First, migration 045's `vy_replica_generation_preview_shape` CHECK forbids a
+`private_conversation`/`private_chat` row from ever carrying a
+`preview_model_commitment` at all (`preview_model=''` in that branch), and
+`api/_drift-watch.js`'s `GENERATION_COMMITMENTS_SQL` - the swap detector -
+reads commitments ONLY from `purpose='voice_preview' and
+channel='studio_preview'`. So "a Room voice reply must write the same ledger
+row shape the preview lane writes, so a swap in the Room is noticed by the
+same sweep" (this workstream's own brief) is not achievable any other way
+under the current schema. Second, `context/rejected.md#mirror-call-channel-
+in-the-generation-ledger` already establishes the precedent: WS-AC considered
+and REJECTED widening 019's `channel` CHECK to add a `mirror_call` value,
+choosing instead to reuse the identical `voice_preview`/`studio_preview`
+corridor and record the mirror-call-specific meaning on `vy_mirror_turn`'s
+own `generation_id` column. This decision is the identical choice one voice
+lane over, for the identical reason: "the one rule this workstream was given
+is not to fork that path."
+
+`beginOwnedVoicePreview`'s own fifteen-precondition CTE (consent scopes,
+identity/liveness, a draft VoiceGenome, a selected reference artifact) is
+also the CORRECT test of "can this creator's AI actually speak in a
+consented, built voice" - reusing it rather than writing a second, weaker
+version is not merely less code, it is the honest gate. `resolved.room
+.owner_user_id` (never a follower-supplied field) is passed as the
+authorizing owner, matching `api/_voice/preview-panel.js`'s own trust shape:
+the "owner" of a generation is whoever's voice is speaking, not whoever
+triggered the request.
+
+**What was checked and found NOT to apply**: this workstream's brief named
+`api/_clonechannel.js`'s `voiceEngine` as a place to look for the existing
+voice lane. Grepped, not assumed: no such symbol exists in that file (or
+anywhere in `api/`) - the closest real thing is `VoiceEngine` in
+`src/engine/compiler.ts`, Meera's call-cascade speech style, unrelated to TTS
+synthesis. The pointer was wrong; `beginOwnedVoicePreview` and
+`protectReplicaStream` (`api/_provenance/delivery.js`) are the real existing
+lane, found by reading `api/_voice/preview-panel.js` and
+`api/voice-preview.js` instead.
+
+**Reverses if.** A future workstream needs Room voice replies to be visibly
+distinguishable from studio previews in the ledger itself (an audit or
+billing reason to tell them apart at the row level, not just via
+`vy_room_voice_usage`'s own room-scoped counter) - at which point this
+decision's constraint (1) forces a real schema change: either 045's CHECK
+grows a third shape for a genuinely Room-scoped purpose/channel pair with its
+own commitment column, or drift watch's sweep widens its own filter to a
+second lane. Either is a bigger change than this workstream was asked to
+make, and should be a decision of its own rather than an incidental
+side effect of adding an audit column.
+
+## `ws-r19-shared-month-key-cross-counter-rollover` (2026-09-03, WS-R19, found by this workstream's own offline eval)
+
+**Decision.** `vy_room_follower` carries TWO independent month-rollover keys
+- `month_key` (071, the message counter) and the new `voice_month_key`
+(081, the voice-seconds counter) - rather than one shared `month_key`
+gating both counters.
+
+**Rationale.** This is a defect this workstream's own offline eval
+(`evals/room-paid-tier/run.mjs`, section 3) caught by construction, not a
+design taste. `roomSay` and `roomSpeak` are two INDEPENDENT UPDATE
+statements, either of which can run first in a new month. With one shared
+`month_key`: whichever op runs first rolls it forward and correctly resets
+ITS OWN counter; the SECOND op to run that month then finds `month_key`
+ALREADY equal to the current month (because the first op just wrote it) and
+therefore believes ITS counter needs no reset either - even though it was
+never actually rolled over. Concretely: a paid follower who sends one text
+message on the 1st of a new month, then asks for their first voice reply of
+that month, would have that voice request refused against whatever voice
+seconds they had spent the PREVIOUS month, having spent zero new voice
+seconds this one. Caught at the FIRST attempt to write a realistic
+cross-boundary test, not by reasoning about the SQL in the abstract - the
+exact value an offline eval with a real negative-control discipline is
+supposed to have.
+
+**Reversal condition.** None expected: two independently-resettable monthly
+meters need two independent rollover keys as a structural matter, not a
+judgment call that new evidence could revise. This would only reverse if the
+product ever collapses the two ceilings into one combined "usage" number
+with one shared reset moment, at which point the two keys would correctly
+merge back into one by the same logic that split them.

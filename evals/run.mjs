@@ -1491,6 +1491,17 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   pulse: "pulse/run.mjs",
+  // WS-R19. The paid tier's fair-use ceilings as predicates, plus voice
+  // minutes metered (migration 081). A paid follower's message spend against
+  // `paid_monthly_messages` in the SAME conditional-UPDATE shape the free cap
+  // already uses; `roomSpeak`'s voice cap, spent before any synthesis;
+  // negative controls proving a free follower gets a named refusal and zero
+  // audio bytes, that a copy with the watermark read struck is caught, and
+  // that the ledger row `roomSpeak` writes matches the shape drift watch's
+  // sweep reads.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-paid-tier": "room-paid-tier/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

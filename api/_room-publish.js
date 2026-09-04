@@ -66,6 +66,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const ROOM_FREE_CAP_MIN = 0;
 export const ROOM_FREE_CAP_MAX = 100_000;
 
+/** The paid tier's editable bounds (WS-R19), mirroring migration 081's own
+ *  CHECKs (`paid_monthly_messages` 100-2000, `paid_monthly_voice_seconds`
+ *  0-3600) for the identical reason the free bound above is mirrored here:
+ *  a bad value returns a NAMED reason rather than a raw constraint-violation
+ *  500. */
+export const ROOM_PAID_MESSAGES_MIN = 100;
+export const ROOM_PAID_MESSAGES_MAX = 2000;
+export const ROOM_PAID_VOICE_SECONDS_MIN = 0;
+export const ROOM_PAID_VOICE_SECONDS_MAX = 3600;
+
 export class RoomPublishError extends Error {
   constructor(code, status = 400, details) {
     super(code);
@@ -120,7 +130,8 @@ async function ownedReplica(db, ownerUserId, replicaId) {
 async function ownedRoomRow(db, ownerUserId, replicaId) {
   const rows = await db(
     `select room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-            free_monthly_messages, published_at, paused_at, created_at, updated_at
+            free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                published_at, paused_at, created_at, updated_at
        from vy_room
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       limit 1`,
@@ -205,6 +216,8 @@ export function clientRoom(row, { now = Date.now(), env = process.env } = {}) {
     slug: row.slug,
     display_name: row.display_name || "",
     free_monthly_messages: Number(row.free_monthly_messages ?? 20),
+    paid_monthly_messages: Number(row.paid_monthly_messages ?? 500),
+    paid_monthly_voice_seconds: Number(row.paid_monthly_voice_seconds ?? 1800),
     published: row.published_at != null,
     paused: row.paused_at != null,
     published_at: row.published_at ?? null,
@@ -279,7 +292,8 @@ export async function createRoom(db, ownerUserId, replicaId, { slug } = {}) {
          (room_id, slug, replica_id, agent_id, owner_user_id, display_name)
        values (($1)::uuid, $2, ($3)::uuid, ($4)::uuid, ($5)::uuid, $6)
        returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                 free_monthly_messages, published_at, paused_at, created_at, updated_at`,
+                 free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                published_at, paused_at, created_at, updated_at`,
       [
         randomUUID(),
         proposed,
@@ -319,7 +333,8 @@ export async function renameRoom(db, ownerUserId, replicaId, slug) {
           set slug = $3, updated_at = now()
         where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
         returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                  free_monthly_messages, published_at, paused_at, created_at, updated_at`,
+                  free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                published_at, paused_at, created_at, updated_at`,
       [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), normalized],
     );
     if (!rows[0]) return null;
@@ -389,7 +404,8 @@ export async function publishRoom(db, ownerUserId, replicaId) {
             updated_at = now()
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
-                r.free_monthly_messages, r.published_at, r.paused_at, r.created_at, r.updated_at`,
+                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds,
+                r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
   const next = rows[0];
@@ -493,7 +509,8 @@ export async function pauseRoom(db, ownerUserId, replicaId) {
         set paused_at = now(), updated_at = now()
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                free_monthly_messages, published_at, paused_at, created_at, updated_at`,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
   );
   return rows[0] ? clientRoom(rows[0]) : null;
@@ -516,7 +533,8 @@ export async function resumeRoom(db, ownerUserId, replicaId) {
             updated_at = now()
       where r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
       returning r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id, r.display_name,
-                r.free_monthly_messages, r.published_at, r.paused_at, r.created_at, r.updated_at`,
+                r.free_monthly_messages, r.paid_monthly_messages, r.paid_monthly_voice_seconds,
+                r.published_at, r.paused_at, r.created_at, r.updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), READINESS_OVERALL_FLOOR, READINESS_PART_FLOOR],
   );
   const next = rows[0];
@@ -543,8 +561,45 @@ export async function setRoomFreeCap(db, ownerUserId, replicaId, cap) {
         set free_monthly_messages = ($3)::int4, updated_at = now()
       where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
       returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
-                free_monthly_messages, published_at, paused_at, created_at, updated_at`,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                published_at, paused_at, created_at, updated_at`,
     [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), n],
+  );
+  return rows[0] ? clientRoom(rows[0]) : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: set_paid_ceilings (WS-R19) — the paid tier's editable fair-use numbers
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Both ceilings in ONE statement, `setRoomFreeCap`'s own shape: a single
+ *  UPDATE, both bounds validated here first for a named 400 rather than a
+ *  raw constraint-violation 500, migration 081's CHECKs as the backstop
+ *  rather than the first line of defence. */
+export async function setRoomPaidCeilings(db, ownerUserId, replicaId, { messages, voiceSeconds }) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const m = Number(messages);
+  if (!Number.isFinite(m) || !Number.isInteger(m) || m < ROOM_PAID_MESSAGES_MIN || m > ROOM_PAID_MESSAGES_MAX) {
+    throw new RoomPublishError("room_paid_messages_invalid", 400, {
+      min: ROOM_PAID_MESSAGES_MIN, max: ROOM_PAID_MESSAGES_MAX,
+    });
+  }
+  const v = Number(voiceSeconds);
+  if (!Number.isFinite(v) || !Number.isInteger(v) || v < ROOM_PAID_VOICE_SECONDS_MIN || v > ROOM_PAID_VOICE_SECONDS_MAX) {
+    throw new RoomPublishError("room_paid_voice_seconds_invalid", 400, {
+      min: ROOM_PAID_VOICE_SECONDS_MIN, max: ROOM_PAID_VOICE_SECONDS_MAX,
+    });
+  }
+  const rows = await db(
+    `update vy_room
+        set paid_monthly_messages = ($3)::int4,
+            paid_monthly_voice_seconds = ($4)::int4,
+            updated_at = now()
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      returning room_id, slug, replica_id, agent_id, owner_user_id, display_name,
+                free_monthly_messages, paid_monthly_messages, paid_monthly_voice_seconds,
+                published_at, paused_at, created_at, updated_at`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), m, v],
   );
   return rows[0] ? clientRoom(rows[0]) : null;
 }

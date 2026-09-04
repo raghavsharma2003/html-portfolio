@@ -54,8 +54,10 @@ import {
   revokePulseOptIn,
   sayInRoom,
   setPulseOptIn,
+  speakInRoom,
   slugFromPath,
   type RoomCitations,
+  type RoomFollower,
   type RoomOpen,
   type RoomQuota,
   type RoomThread,
@@ -64,6 +66,13 @@ import { RoomPayApiError, startSubscription } from "./roomPayApi";
 
 type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean };
 type Phase = "loading" | "unavailable" | "join" | "talking" | "gone";
+
+/** WS-R19: the play control never renders for a free follower, whatever this
+ *  says - `import.meta.env.VITE_ROOM_VOICE` only decides whether the FLAG
+ *  itself is on for this deployment. `voiceIdentityChallengeUiEnabled`'s own
+ *  shape, one flag over: a stray non-"1" value (empty, "0", "false") reads as
+ *  off rather than throwing. */
+export const ROOM_VOICE_UI = String(import.meta.env.VITE_ROOM_VOICE ?? "") === "1";
 
 interface Props {
   /** The layout fixture passes both so the gate can see the signed-in screens
@@ -101,6 +110,12 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [menu, setMenu] = useState(false);
   const [checkinsOpen, setCheckinsOpen] = useState(false);
   const foot = useRef<HTMLDivElement | null>(null);
+  // WS-R19: which bubble is being fetched/played, and the one <audio> both
+  // share (one clip at a time - a second tap stops the first rather than
+  // layering two voices).
+  const [voiceBusy, setVoiceBusy] = useState<number | null>(null);
+  const [voicePlaying, setVoicePlaying] = useState<number | null>(null);
+  const audioEl = useRef<HTMLAudioElement | null>(null);
 
   const name = room?.room.name || room?.room.display_name || "";
   const remembers = room?.follower?.remembers === true;
@@ -109,6 +124,40 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   // than present-and-disabled, `context/rejected.md`'s standing rule that a
   // control still shown for a state it cannot act on reads as a bug.
   const canCheckin = room?.follower?.tier === "paid" && remembers;
+  // The tier this session actually knows right now: `quota` (set after the
+  // first turn) if present, the join/open response otherwise. Both are real
+  // server state - this line picks between two true answers, never guesses.
+  const tier = quota?.tier ?? room?.follower?.tier ?? "free";
+
+  const playReply = useCallback(
+    async (index: number, text: string) => {
+      if (!session) return;
+      if (voicePlaying === index) {
+        audioEl.current?.pause();
+        setVoicePlaying(null);
+        return;
+      }
+      setVoiceBusy(index);
+      setError("");
+      try {
+        const spoken = await speakInRoom(session, text);
+        const audio = new Audio(`data:audio/wav;base64,${spoken.audio}`);
+        audioEl.current = audio;
+        audio.onended = () => setVoicePlaying((current) => (current === index ? null : current));
+        setVoicePlaying(index);
+        await audio.play();
+      } catch (e) {
+        setError(
+          e instanceof RoomApiError && e.code === "room_voice_paid_only"
+            ? ROOM_COPY.voice.freeOnly
+            : ROOM_COPY.voice.unavailable,
+        );
+      } finally {
+        setVoiceBusy((current) => (current === index ? null : current));
+      }
+    },
+    [session, voicePlaying],
+  );
 
   /* The address resolves once, and it resolves BEFORE any sign-in: a follower
    * arriving from a bio link must see the room, not a login wall. */
@@ -394,6 +443,22 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
             }`}
           >
             {turn.content}
+            {/* WS-R19: paid only, flag only. A free follower's bubble never
+                grows this control - law 3 restated at the render, not just
+                at the door: `roomSpeak` refuses a free follower's request
+                regardless, but a control that renders and then always fails
+                would still read as a broken feature rather than an absent
+                one. */}
+            {ROOM_VOICE_UI && turn.role === "assistant" && tier === "paid" && session && (
+              <button
+                type="button"
+                className="room-bubble-voice"
+                disabled={voiceBusy === i}
+                onClick={() => void playReply(i, turn.content)}
+              >
+                {voicePlaying === i ? ROOM_COPY.voice.playing : ROOM_COPY.voice.play}
+              </button>
+            )}
           </div>
         ))}
 
@@ -497,6 +562,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           name={name}
           session={session}
           auth={auth}
+          follower={room?.follower ?? null}
           onClose={() => setMenu(false)}
           onForgotten={() => {
             setMenu(false);
@@ -759,12 +825,14 @@ function DataMenu({
   name,
   session,
   auth,
+  follower,
   onClose,
   onForgotten,
 }: {
   name: string;
   session: string;
   auth: StudioSession | null;
+  follower: RoomFollower | null;
   onClose: () => void;
   onForgotten: () => void;
 }) {
@@ -775,6 +843,17 @@ function DataMenu({
   return (
     <section className="room-menu" role="dialog" aria-label={ROOM_COPY.menu.title}>
       <h2>{ROOM_COPY.menu.title}</h2>
+      {/* WS-R19: real numbers from the follower's own row, never estimated -
+          law 5. Renders only for a paid follower with the flag on; a free
+          follower's own copy of these fields is always 0 by construction
+          (`clientFollower`), so there is nothing honest to show them here. */}
+      {ROOM_VOICE_UI && follower?.tier === "paid" && (
+        <p className="room-fine">
+          {ROOM_COPY.voice.minutesLeft
+            .replace("{used}", String(Math.round(follower.voice_seconds_used / 60)))
+            .replace("{included}", String(Math.round(follower.voice_seconds_included / 60)))}
+        </p>
+      )}
       {error && <p className="room-error">{error}</p>}
       <div className="room-actions">
         <button

@@ -3423,3 +3423,46 @@ create index if not exists vy_room_follower_channel_person_ix
   on vy_room_follower_channel (person_id, channel);
 create index if not exists vy_room_follower_channel_follower_ix
   on vy_room_follower_channel (follower_id);
+-- Migration 081 - the paid tier's fair-use ceilings and voice minutes
+-- (WS-R19). vy_room_follower gets the paid twin of its own free-tier month
+-- counter; vy_room gets the two creator-editable ceilings; vy_room_voice_usage
+-- is the PERSON-lane day-count sibling of 077's vy_room_follower_day, one
+-- column deeper (a real FK to vy_room_follower, 078's own precedent).
+alter table vy_room_follower
+  add column if not exists voice_seconds_month integer not null default 0;
+alter table vy_room_follower
+  drop constraint if exists vy_room_follower_voice_seconds_nonneg,
+  add constraint vy_room_follower_voice_seconds_nonneg check (voice_seconds_month >= 0);
+-- The voice meter's OWN rollover key, independent of `month_key` (071) - a
+-- shared key lets whichever of roomSay/roomSpeak runs first in a new month
+-- silently strand the other's counter unreset (context/rejected.md#ws-r19-
+-- shared-month-key-cross-counter-rollover).
+alter table vy_room_follower
+  add column if not exists voice_month_key text not null default '';
+
+alter table vy_room
+  add column if not exists paid_monthly_messages integer not null default 500;
+alter table vy_room
+  drop constraint if exists vy_room_paid_monthly_messages_band,
+  add constraint vy_room_paid_monthly_messages_band
+  check (paid_monthly_messages >= 100 and paid_monthly_messages <= 2000);
+alter table vy_room
+  add column if not exists paid_monthly_voice_seconds integer not null default 1800;
+alter table vy_room
+  drop constraint if exists vy_room_paid_monthly_voice_seconds_band,
+  add constraint vy_room_paid_monthly_voice_seconds_band
+  check (paid_monthly_voice_seconds >= 0 and paid_monthly_voice_seconds <= 3600);
+
+create table if not exists vy_room_voice_usage (
+  room_id     uuid not null references vy_room(room_id) on delete cascade,
+  person_id   uuid not null,
+  follower_id uuid not null references vy_room_follower(follower_id) on delete cascade,
+  day         date not null,
+  seconds     integer not null default 0 check (seconds >= 0),
+  clips       integer not null default 0 check (clips >= 0),
+  primary key (room_id, person_id, day)
+);
+create index if not exists vy_room_voice_usage_scope_ix
+  on vy_room_voice_usage (room_id, person_id, day);
+create index if not exists vy_room_voice_usage_follower_ix
+  on vy_room_voice_usage (follower_id);

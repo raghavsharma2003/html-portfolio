@@ -7755,3 +7755,26 @@ n = 1 migration (4 statements in one transaction), 3 API statements; method = ap
 | `/stop` (unbind) | Delete via `vy_room_follower_channel_ref_ix` |
 
 `api/_room-telegram.js` issues no SQL of its own: every read and write goes through `api/_room-surface.js`'s existing functions (a transport, never a tenant), so the three statements above are the whole new surface. The table has no erasure line by name because `follower_id` cascades from `vy_room_follower`, which `roomForget` and the erasure chain already delete. Not measured: no chat has been bound; `ROOM_TELEGRAM_BOT_TOKEN` and `ROOM_TELEGRAM_WEBHOOK_SECRET` are unset on every deployment, so the webhook answers 503 by name.
+
+## `ws-r19-paid-tier-offline-eval-2026-09-03` (WS-R19)
+
+n = 38 assertions, `node evals/room-paid-tier/run.mjs`, offline/deterministic/$0/no DB/no network/no model/no GPU, 2026-09-03. Six sections: the message cap at both tiers' exact boundary (paid 500/501, free 20/21, both refusals named and carrying the real ceiling that applied); the voice cap spent before any synthesis (a clip landing exactly at 1800 seconds succeeds, one crossing it is refused with zero synth calls); month rollover resetting both counters independently; negative control (a) a free follower's `roomSpeak` refused `room_voice_paid_only` with zero synth/protect calls; negative control (b) a source-level strike of the audio-collection line, run as a real dynamic-imported copy, proven to leak raw unwatermarked bytes that the real module's own passing assertion would have caught; negative control (c) a static text proof that `api/_room-voice.js` calls (not merely imports) `beginOwnedVoicePreview`, that its INSERT and `api/_drift-watch.js`'s `GENERATION_COMMITMENTS_SQL` both name the identical two literals (`'voice_preview'`, `'studio_preview'`), and that a diverged copy of that literal is caught by the same check. Regression-checked against the two suites sharing `evals/room/fixtures.mjs`: `evals/room/run.mjs` 54/54, `evals/room-leak/run.mjs` 62/62 (16,080 retrieval checks, 441 boundary checks) - both re-verified AFTER the fixture's cap-matching fix (`context/rejected.md#ws-r19-paid-cap-case-broke-the-shared-room-fixture`), not merely before.
+
+**Not measured, stated rather than implied**: no statement in migration 081, `api/_room-surface.js`'s two new UPDATEs, or `api/_room-voice.js`'s `LATEST_DRAFT_GENOME_SQL` has ever run against a live Postgres (no `NEON_URL` in this environment - `offline-mocks-cannot-type-check-sql`). `beginOwnedVoicePreview`'s own fifteen-precondition CTE is exercised nowhere in this workstream's eval - `deps.authorize` is faked throughout `evals/room-paid-tier/run.mjs`, and negative control (c) is a STATIC text proof of the ledger-shape claim, not a behavioural one. No real voice clip has ever been synthesised, watermarked, or heard by a human; `ROOM_VOICE` is not set on any deployment.
+
+## `rooms-migration-081-live-verification-2026-09-04`
+
+n = 1 migration (13 statements in one transaction), 8 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement WS-R19 added or changed in `api/_room-surface.js`, `api/_room-publish.js` and `api/_room-voice.js`, parameters substituted with typed literals; date 2026-09-04, at the WS-R19 merge.
+
+| statement | plan |
+|---|---|
+| resolveRoom (select list gains the paid ceilings) | Index Scan `vy_room_slug_ix` on lower(slug), agent by pkey |
+| followerRow (select list gains the voice counters) | Index Scan `vy_room_follower_scope_ix` (person_id, agent_id) |
+| the message cap UPDATE, now a CASE on tier inside the WHERE | Index Scan `vy_room_follower_scope_ix` joined to `vy_room_pkey`; the ceiling is the join filter, the tier CASE inside it |
+| the voice cap UPDATE (paid only, spends seconds before any audio) | same shape; `tier = 'paid'` and `voice_seconds_month + clip <= paid_monthly_voice_seconds` as the filters |
+| voice usage day upsert | Insert, conflict UPDATE, arbiter `vy_room_voice_usage_pkey` |
+| roomForget voice usage delete | Index Scan `vy_room_voice_usage_scope_ix` |
+| owner sets the paid ceilings | Update via `vy_room_owner_ix` |
+| latest draft genome version | Seq Scan on `vy_replica_voice_genome`, a one-page table whose primary key already leads on replica_id; the planner's choice at this size, not a missing index |
+
+`vy_room_voice_usage` has no erasure line by name: `room_id` and `follower_id` both cascade, so the erasure chain's room and follower deletes take it. Both counters are predicates on the write: a 501st paid message and a clip that would cross the voice ceiling fail the UPDATE's own WHERE, never a JS check. Not measured: no voice clip has been synthesized (`ROOM_VOICE` is unset everywhere; the synth seam was faked in the eval); no paid follower exists live.

@@ -125,6 +125,17 @@ export const ROOM_COPY = {
     },
   },
 
+  /** WS-R19, the paid tier's voice reply. `play`/`playing` label the control
+   *  on a reply bubble; `minutesLeft` is the panel's own line, real numbers
+   *  from the row, never estimated. */
+  voice: {
+    play: "Play",
+    playing: "Playing",
+    minutesLeft: "{used} of {included} voice minutes used this month.",
+    freeOnly: "Voice replies are a paid feature.",
+    unavailable: "This room's voice is not ready yet.",
+  },
+
   /** The upgrade moment's own action. Every string here is a stated fact
    *  about what is or is not possible right now, never a nudge - the tap
    *  either opens the provider's own payment page or says exactly why it

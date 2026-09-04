@@ -6798,3 +6798,92 @@ Postgres, never a fact about a fake that stands in for it - every cascade a
 handler's correctness depends on needs its own line in the fake, named as
 what it is standing in for, or the offline suite proves a schema promise
 rather than the code that promise depends on.
+
+## `ws-r19-paid-cap-case-broke-the-shared-room-fixture` (2026-09-03, WS-R19)
+
+**Tried.** Extending `roomSay`'s free-cap UPDATE to a CASE-on-tier
+(`f.month_message_count < case when f.tier='paid' then r.paid_monthly_messages
+else r.free_monthly_messages end`) without touching `evals/room/fixtures.mjs`.
+
+**What broke.** `evals/room/fixtures.mjs`'s shared fake `db` - read by THREE
+suites (`evals/room/run.mjs`, `evals/room-leak/run.mjs`, and this
+workstream's own) - matched the cap UPDATE by checking for the literal
+substring `f.month_message_count < r.free_monthly_messages` in the SQL text.
+The rewritten statement no longer contains that exact substring (it now
+reads `f.month_message_count < case when ... end`), so the fake's `capped`
+computation silently became `false` unconditionally: the fixture stopped
+enforcing ANY cap at all, for EVERY caller, the moment the real SQL's shape
+changed. `evals/room/run.mjs`'s "message 21 is refused" assertion and
+`evals/room-leak/run.mjs`'s whole retrieval sweep would have kept passing on
+a fixture that no longer modelled the real predicate - `sound-gate-proved-
+by-silence` one door over: a shared fixture whose match broke silently is a
+fixture nobody would know had stopped checking anything until a much later,
+unrelated failure.
+
+**Fix.** Read the predicate's two branch COLUMN NAMES
+(`r.paid_monthly_messages`, `r.free_monthly_messages`) rather than the whole
+expression text, so the fixture keeps working across a reformatted CASE the
+same way `evals/room-leak/run.mjs`'s own header already argues for reading
+shipping SQL text over reimplementing it. Rule from here: a shared fixture
+that matches SQL by substring must be re-verified (not merely re-read) the
+moment ANY suite changes the shape of a statement that fixture recognizes -
+the failure mode is not a loud error, it is every dependent suite quietly
+passing for the wrong reason. Both `evals/room/run.mjs` (54/54) and
+`evals/room-leak/run.mjs` (62/62, 16,080 retrieval checks) were re-run after
+the fix and hold.
+
+## `ws-r19-single-use-fake-stream-hid-the-negative-control` (2026-09-03, WS-R19)
+
+**Tried.** A negative control (strike the line that reads
+`protectedAudio.stream` so a struck copy of `roomSpeak` reads
+`synthesized.stream` - raw, unwatermarked bytes - instead) built against a
+fake `deps.synth` whose `stream` field was a single, already-invoked async
+generator (`(async function* () { yield raw; })()`).
+
+**What broke.** `deps.protect`'s own fake internally consumes `sourceStream`
+(`= synthesized.stream`) once, draining the single-use generator, before the
+struck code got a chance to read it a second time. The struck copy's second
+`for await` therefore saw an EXHAUSTED iterator (zero chunks, `done`
+immediately) and threw `room_voice_audio_empty` rather than returning raw
+bytes - a real error, but the WRONG one: it proved a stream had been read
+twice, not that raw audio could leave the function. The negative control
+would have reported "control did not fire" even though the underlying code
+path (reading the wrong stream) was genuinely struck.
+
+**Fix.** Gave the fake streams a `[Symbol.asyncIterator]` that mints a FRESH
+cursor on every `for await` (a small re-iterable wrapper,
+`repeatableStream()`), rather than a plain async generator instance. Rule
+from here: a fixture stream handed to code the eval intends to exercise
+TWICE (the real path once, a struck copy once, both driven by fresh
+`voiceSeam()` instances but each internally read by both `protect` and,
+in the struck copy, the collection loop) must be re-iterable, or a
+single-use JS async generator will silently turn a real leak into an
+unrelated "empty stream" error and the negative control proves nothing.
+
+## `ws-r19-clonechannel-voiceengine-does-not-exist` (2026-09-03, WS-R19)
+
+**Tried.** Looking for the Room voice reply's "existing voice lane" starting
+from the exact pointer this workstream's own brief named:
+`api/_clonechannel.js`'s `voiceEngine`.
+
+**What broke.** Nothing broke; the symbol simply is not there. Grepped
+`voiceEngine` across `api/` and `src/`: every hit is either
+`VoiceEngine`/`voiceEngine` in `src/engine/compiler.ts` and
+`src/components/useCallEngine.ts` (Meera's call-cascade speech STYLE
+selector - `"device"|"gemini"|"live"`, a prompt-shaping input, unrelated to
+TTS synthesis) or the literal string `"none"` passed as `voiceEngine` into
+`compile()` from every text-only surface including `api/_room-surface.js`
+itself. `api/_clonechannel.js` has no export, symbol, or comment named
+`voiceEngine` at all. AGENTS.md's law ("grep for a CALLER, not a
+definition") applies exactly as hard to a brief's own pointer as to a claim
+in this repo's code - a plausible-sounding lead is not evidence until
+grepped. The real existing voice lane was found instead by reading
+`api/_voice/preview-panel.js` (imported by `api/voice-preview.js`) and
+tracing its `deps.authorize` to `api/_replica-voice-preview.js`'s
+`beginOwnedVoicePreview`.
+
+**Fix.** None needed in code; recorded here so the next agent who reads this
+workstream's own brief does not spend the same twenty minutes re-grepping a
+dead lead. If `api/_clonechannel.js` ever DOES grow a `voiceEngine` export,
+this entry's claim becomes stale and should be superseded rather than
+trusted.
