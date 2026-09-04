@@ -39,6 +39,27 @@
 // kind, so law 1's own criterion ("reads a request body") correctly never
 // admits it.
 //
+// WS-R44: three more GET-only doors joined `api/` after WS-R38 and are
+// excluded on the SAME rule (a), named rather than silently dropped —
+// `decisions.md#ws-r44-get-doors-do-not-belong-in-the-door-list`:
+// `api/room-embed.js` (`?slug=`), `api/creators.js` (`?cursor=`) and
+// `api/sitemap.js` (no query identity at all). None reads `req.body`, none
+// mints or consumes a Room session, and none accepts a bearer — every one is
+// PUBLIC BY DESIGN (their own file headers say so in as many words), so
+// there is no forged credential for class (a) to tamper with, no session to
+// cross a Room boundary with for class (b), and no owner identity for class
+// (e) to steal. `api/room-embed.js`'s own `?slug=` read and
+// `api/creators.js`'s own `?cursor=` read both go through `resolveRoom`/
+// the SAME "does not exist" and "not published" collapse this file's own
+// header already names for `stats`/`open` — an unknown slug and a paused one
+// answer byte-identically, which is the ENTIRE guarantee a public GET door
+// needs and already has, proven by `evals/room-embed/run.mjs` and
+// `evals/creator-directory/run.mjs` respectively. Extending law 1's rule (a)
+// to admit a bodyless GET would not add a real attack surface; it would add
+// three doors' worth of assertions with no applicable class under this
+// file's own attack-class taxonomy (a)-(h) above — dead weight a future
+// reader would have to prove is dead weight all over again.
+//
 // ── ATTACK CLASSES, AND WHERE EACH APPLIES ──────────────────────────────────
 //
 //   (a) forged session      — every session-consuming door
@@ -149,7 +170,7 @@ const {
   mintRoomSession, mintFollowerSession, readRoomSession, RoomError,
   openRoom, joinRoom, roomSay, roomSetLocale, followerHistory, createFollowerThread,
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
-  roomDisclosureCard,
+  roomDisclosureCard, roomSettings, roomSettingsReviewed,
 } = RS;
 const HANDOFF = await import(pathToFileURL(join(API, "_handoff.js")).href);
 const { draftHandoffPayload, sendHandoffRequest, withdrawHandoffRequest, myHandoffs, HandoffError } = HANDOFF;
@@ -162,6 +183,7 @@ const { setOptIn, revoke: revokePulseOptIn, PulseError } = PULSE;
 const PAYMENTS = await import(pathToFileURL(join(API, "_payments.js")).href);
 const {
   applyWebhook, startFollowerSubscription, followerSubscriptionStatus, setRoomPrice, PaymentsError,
+  payoutStatement, payoutStatements, registerFundAccount, retryFailedPayout,
 } = PAYMENTS;
 const FAKE_PROVIDER = await import(pathToFileURL(join(API, "_payments/providers/fake.js")).href);
 const ORG = await import(pathToFileURL(join(API, "_org.js")).href);
@@ -169,10 +191,14 @@ const { listOrgMembers, attachRoom, OrgError } = ORG;
 const REPLICA = await import(pathToFileURL(join(API, "_replica.js")).href);
 const { getOwnedReplica, createSelfReplica } = REPLICA;
 const ROOM_PUBLISH = await import(pathToFileURL(join(API, "_room-publish.js")).href);
-const { getOwnedRoom, RoomPublishError } = ROOM_PUBLISH;
+const { getOwnedRoom, listRoom, unlistRoom, setRoomBio, RoomPublishError } = ROOM_PUBLISH;
 const INVITES = await import(pathToFileURL(join(API, "_invites.js")).href);
-const { issueInvite, requireOperator, InvitesError, hashInviteCode } = INVITES;
+const { issueInvite, requireOperator, InvitesError, hashInviteCode, issueCreatorInvite, myInvites } = INVITES;
 const APPLY = await import(pathToFileURL(join(API, "_apply.js")).href);
+const RENEWALS = await import(pathToFileURL(join(API, "_renewals.js")).href);
+const { cancelFollowerRenewal, cancelCreatorRenewal, cancelOrgRenewal } = RENEWALS;
+const OPS = await import(pathToFileURL(join(API, "_ops.js")).href);
+const { isOpsOwner } = OPS;
 const RATE = await import(pathToFileURL(join(API, "_rate-limit.js")).href);
 const { consume } = RATE;
 const RATELIMIT = await import(pathToFileURL(join(API, "_ratelimit.js")).href);
@@ -807,12 +833,266 @@ console.log("\n── §8: OTP verify brute force (re-asserting WS-R32) ──")
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// §9. STATIC WIRING PROOFS — the fixes this workstream made are proven
+// §9. WS-R44 — room.js's "settings" / "settings_reviewed" (WS-R39), covered
+// only through the shared scope resolver before this workstream, never by a
+// case of their own. Both go through `selfScope`, the identical gate
+// export/forget/offer_dismiss/citations already run through above — same
+// classes, same shape, no body-supplied id for either op.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9: room.js settings / settings_reviewed (WS-R44) ──");
+{
+  const { db, session } = await setupFollower();
+  await assertForgeryRefused("room.js", "settings", () => session);
+  const expired = mintRoomSession({ ...reencodeWithSameSig(session).payload, iat: NOW - (13 * 60 * 60 * 1000) }, ENV);
+  const settingsErr = await threw(() => roomSettings(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "settings: a stale session is refused (WS-R44 — this op had no case before)", settingsErr?.code === "room_session_expired");
+  const reviewedErr = await threw(() => roomSettingsReviewed(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "settings_reviewed: a stale session is refused (WS-R44)", reviewedErr?.code === "room_session_expired");
+
+  const ok1 = await threw(() => roomSettings(db, { session }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "settings: a fresh, valid session is NOT refused (the fixture itself is sound)", !(ok1 instanceof RoomError));
+}
+{
+  const state = withSecondRoom(freshDoorsState());
+  const db = doorsDb(state);
+  const loadAgentTwoRooms = async (slug) => {
+    if (slug === SLUG) return loadAgent(slug);
+    if (slug === "kabir") return { module: {}, sheet: { name: "Kabir", slug: "kabir" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
+  const { payload: payloadA } = reencodeWithSameSig(joinedA.session);
+  const crossToken = mintRoomSession({ ...payloadA, r: "kabir" }, ENV);
+  const settingsErr = await threw(() => roomSettings(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "settings: cross-room session refused room_unavailable", settingsErr?.code === "room_unavailable");
+  const reviewedErr = await threw(() => roomSettingsReviewed(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "settings_reviewed: cross-room session refused room_unavailable", reviewedErr?.code === "room_unavailable");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §10. WS-R44 — room-pay.js's "cancel" (WS-R37), the third op this workstream
+// was built to case: `cancelFollowerRenewal` runs through `paidSessionScope`,
+// the SAME resolver `subscribe`/`status` already prove forgery-refused above
+// — this is that op's own case, not a re-derivation of the resolver's own
+// check.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §10: room-pay.js cancel (WS-R44) ──");
+{
+  const { db, session } = await setupFollower({ tier: "paid" });
+  await setRoomPrice(db, OWNER, REPLICA_ID, 299);
+  const started = await startFollowerSubscription(db, { session }, { loadAgent, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" } });
+  ok("[c-body-ids/room-pay.js] fixture: a real subscription exists to cancel", Boolean(started.subscription_id));
+
+  await assertForgeryRefused("room-pay.js", "cancel", () => session);
+  const expired = mintRoomSession({ ...reencodeWithSameSig(session).payload, iat: NOW - (13 * 60 * 60 * 1000) }, ENV);
+  const cancelErr = await threw(() => cancelFollowerRenewal(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room-pay.js", "cancel: a stale session is refused (WS-R44 — this op had no case before)", cancelErr?.code === "room_session_expired");
+
+  const cancelled = await cancelFollowerRenewal(db, { session }, {
+    loadAgent, now: NOW, env: { ...ENV, PAYMENTS_PROVIDER: "fake" },
+    secrets: { keyId: "fake_key_id", keySecret: "fake_key_secret", webhookSecret: "wh" },
+  });
+  okClass("a-forged-session", "room-pay.js", "cancel: a fresh, valid session actually flips cancel_at_period_end (the fixture is sound)", cancelled?.cancel_at_period_end === true);
+}
+{
+  const state = withSecondRoom(freshDoorsState());
+  const db = doorsDb(state);
+  const loadAgentTwoRooms = async (slug) => {
+    if (slug === SLUG) return loadAgent(slug);
+    if (slug === "kabir") return { module: {}, sheet: { name: "Kabir", slug: "kabir" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
+  const { payload } = reencodeWithSameSig(joined.session);
+  const crossToken = mintRoomSession({ ...payload, r: "kabir" }, ENV);
+  const err = await threw(() => cancelFollowerRenewal(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room-pay.js", "cancel: cross-room session refused room_unavailable", err?.code === "room_unavailable");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §11. WS-R44 — api/payments.js's five owner-bearer ops this workstream was
+// built to case: `payout_statements`, `payout_statement`, `register_fund_
+// account`, `retry_failed_payout` (WS-R36) and `cancel_creator_subscription`
+// (WS-R37).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §11: payments.js payout / cancel_creator_subscription ops (WS-R44) ──");
+
+{
+  // payout_statements — class e: a different owner's bearer sees only their
+  // OWN list, never another owner's payouts, through the plain WHERE
+  // `payoutStatements`'s own SELECT names.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  state.payouts.push(
+    { payout_id: "f0000001-0000-4000-8000-000000000001", owner_user_id: OWNER, period_start: "2026-08-01T00:00:00Z", period_end: "2026-09-01T00:00:00Z", gross_inr: 1000, take_inr: 100, net_inr: 800, tds_inr: 100, suite_share_inr: 0, provider_payout_ref: null, state: "built", created_at: "2026-09-01T00:00:00Z" },
+  );
+  const mine = await payoutStatements(db, OWNER);
+  okClass("e-owner-bearer", "payments.js", "payout_statements: the real owner sees their own payout", mine.length === 1 && mine[0].payout_id === state.payouts[0].payout_id);
+  const stolen = await payoutStatements(db, OWNER_B);
+  okClass("e-owner-bearer", "payments.js", "payout_statements: a DIFFERENT owner's bearer sees an empty list, never another owner's payout", Array.isArray(stolen) && stolen.length === 0);
+}
+{
+  // payout_statement — class c: a body-supplied payout_id belonging to
+  // someone else is refused by name (null -> the door's own payout_not_found),
+  // never another owner's statement — `payoutStatement`'s own WHERE names
+  // BOTH payout_id and owner_user_id together.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const payoutId = "f0000002-0000-4000-8000-000000000002";
+  state.payouts.push({ payout_id: payoutId, owner_user_id: OWNER, period_start: "2026-08-01T00:00:00Z", period_end: "2026-09-01T00:00:00Z", gross_inr: 1000, take_inr: 100, net_inr: 800, tds_inr: 100, suite_share_inr: 0, provider_payout_ref: null, state: "built", created_at: "2026-09-01T00:00:00Z" });
+  const mine = await payoutStatement(db, OWNER, payoutId);
+  okClass("c-body-ids", "payments.js", "payout_statement: the real owner reads their own statement", mine?.payout_id === payoutId);
+  const stolen = await payoutStatement(db, OWNER_B, payoutId);
+  okClass("c-body-ids", "payments.js", "payout_statement: OWNER_B naming OWNER's own payout_id in the body gets null, never OWNER's statement", stolen == null);
+}
+{
+  // register_fund_account — class e: two owners' fund-account rows never
+  // cross, `on conflict (owner_user_id, provider)` scoped by the bearer's own
+  // id, never a body-supplied one.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const fakeSecrets = { keyId: "fake_key_id", keySecret: "fake_key_secret", webhookSecret: "wh" };
+  const a = await registerFundAccount(db, { ownerUserId: OWNER, fundAccountRef: "fa_owner_a" }, { env: { PAYMENTS_PROVIDER: "fake" }, secrets: fakeSecrets });
+  const b = await registerFundAccount(db, { ownerUserId: OWNER_B, fundAccountRef: "fa_owner_b" }, { env: { PAYMENTS_PROVIDER: "fake" }, secrets: fakeSecrets });
+  okClass("e-owner-bearer", "payments.js", "register_fund_account: each owner's own reference is stored under their OWN id", a.owner_user_id === OWNER && a.fund_account_ref === "fa_owner_a");
+  okClass("e-owner-bearer", "payments.js", "register_fund_account: a second owner's registration never overwrites the first owner's row", b.owner_user_id === OWNER_B && state.payoutAccounts.find((x) => x.owner_user_id === OWNER)?.fund_account_ref === "fa_owner_a");
+}
+{
+  // retry_failed_payout — law 2(c)'s own words: "the operator gate 404s a
+  // non-operator." The function itself (by its own header comment) never
+  // checks ownerUserId — an operator may retry ANY creator's payout by
+  // design, so the security boundary is entirely the door's `isOpsOwner`
+  // check, proven both dynamically (the primitive itself) and statically
+  // (the door calls it BEFORE `retryFailedPayout`, evals/rate-limit/run.mjs's
+  // own §7 method).
+  const OPS_ENV = { OPS_OWNER_USER_IDS: "op-uid-r44" };
+  okClass("e-owner-bearer", "payments.js", "retry_failed_payout: isOpsOwner admits the configured operator", isOpsOwner("op-uid-r44", OPS_ENV) === true);
+  okClass("e-owner-bearer", "payments.js", "retry_failed_payout: isOpsOwner refuses a non-operator bearer (404, never 403, decided at the door)", isOpsOwner(OWNER_B, OPS_ENV) === false);
+
+  const src = readFileSync(join(API, "payments.js"), "utf8");
+  const block = src.slice(src.indexOf('if (op === "retry_failed_payout")'));
+  ok(
+    '[wiring/payments.js] "retry_failed_payout" checks isOpsOwner BEFORE calling retryFailedPayout, never after',
+    block.indexOf("isOpsOwner(user.id)") !== -1 &&
+      block.indexOf("isOpsOwner(user.id)") < block.indexOf("retryFailedPayout("),
+  );
+
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const payoutId = "f0000003-0000-4000-8000-000000000003";
+  state.payouts.push({ payout_id: payoutId, owner_user_id: OWNER, period_start: "2026-08-01T00:00:00Z", period_end: "2026-09-01T00:00:00Z", gross_inr: 1000, take_inr: 100, net_inr: 800, tds_inr: 100, suite_share_inr: 0, provider_payout_ref: null, state: "failed", created_at: "2026-09-01T00:00:00Z" });
+  const retryOutcome = await threw(() => retryFailedPayout(db, { payoutId }, { env: { PAYMENTS_PROVIDER: "fake" } }));
+  okClass("e-owner-bearer", "payments.js", "retry_failed_payout: the real operator's retry actually moves the payout off 'failed' (the fixture is sound)", !(retryOutcome instanceof PaymentsError) && state.payouts[0].state !== "failed");
+}
+{
+  // cancel_creator_subscription — class e: owner bearer on ANOTHER owner's
+  // replica is refused, never touches OWNER's own subscription — the SAME
+  // shape §5 already proves for getOwnedReplica/getOwnedRoom/listDesigns,
+  // one payments op over.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  state.creatorSubscriptions.push({
+    subscription_id: "f0000004-0000-4000-8000-000000000004", owner_user_id: OWNER, replica_id: REPLICA_ID,
+    provider: "fake", provider_subscription_ref: null, state: "active", cancel_at_period_end: false, current_period_end: "2026-10-01T00:00:00Z",
+  });
+  const stolen = await threw(() => cancelCreatorRenewal(db, { ownerUserId: OWNER_B, replicaId: REPLICA_ID }, {}));
+  okClass("e-owner-bearer", "payments.js", "cancel_creator_subscription: a DIFFERENT owner's bearer against OWNER's own replica_id is refused, never touches OWNER's subscription", stolen instanceof PaymentsError && stolen.code === "payments_subscription_not_started");
+  ok("[e-owner-bearer/payments.js] cancel_creator_subscription: OWNER's own subscription is UNCHANGED by OWNER_B's attempt", state.creatorSubscriptions[0].cancel_at_period_end === false);
+  const mine = await cancelCreatorRenewal(db, { ownerUserId: OWNER, replicaId: REPLICA_ID }, {});
+  okClass("e-owner-bearer", "payments.js", "cancel_creator_subscription: the real owner's own cancel actually flips cancel_at_period_end (the fixture is sound)", mine.cancel_at_period_end === true);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §12. WS-R44 — org.js's "cancel_subscription" (WS-R37), the sixth named op.
+// `cancelOrgRenewal` runs through `orgAdminOrThrow`, byte-identical to the
+// admin check §5 already proves refuses a non-member org_not_found — this is
+// that predicate reached through the renewals cancel lane instead of
+// `listOrgMembers`/`attachRoom`.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §12: org.js cancel_subscription (WS-R44) ──");
+{
+  const state = freshDoorsState();
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  state.orgSubscriptions.push({
+    subscription_id: "f0000005-0000-4000-8000-000000000005", org_id: ORG_A,
+    provider: "fake", provider_subscription_ref: null, state: "active", cancel_at_period_end: false, current_period_end: "2026-10-01T00:00:00Z",
+  });
+  const db = doorsDb(state);
+  const stolen = await threw(() => cancelOrgRenewal(db, { ownerUserId: OWNER_B, orgId: ORG_A }, {}));
+  okClass("e-owner-bearer", "org.js", "cancel_subscription: a NON-member's bearer is refused org_not_found (404, never a 403 that would confirm the org exists)", stolen instanceof PaymentsError && stolen.code === "org_not_found");
+  ok("[e-owner-bearer/org.js] cancel_subscription: the org's own subscription is UNCHANGED by the non-member's attempt", state.orgSubscriptions[0].cancel_at_period_end === false);
+  const mine = await cancelOrgRenewal(db, { ownerUserId: OWNER, orgId: ORG_A }, {});
+  okClass("e-owner-bearer", "org.js", "cancel_subscription: the real admin's own cancel actually flips cancel_at_period_end (the fixture is sound)", mine.cancel_at_period_end === true);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §13. WS-R44 — api/room-publish.js's "list" / "unlist" / "set_bio" (WS-R45,
+// migration 105). All three run through `assertOwnerScope` + the SAME
+// owner_user_id+replica_id WHERE §5 already proves refuses a different
+// owner's bearer (null, never another owner's room) for getOwnedRoom.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §13: room-publish.js list / unlist / set_bio (WS-R44) ──");
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolenList = await listRoom(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "list: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never OWNER's room", stolenList == null);
+  const mineList = await listRoom(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "list: the real owner's own list succeeds (the room is already published in this fixture — the fixture is sound)", mineList?.listed_at != null);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  await listRoom(db, OWNER, REPLICA_ID);
+  const stolenUnlist = await unlistRoom(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "unlist: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never touches OWNER's own listing", stolenUnlist == null);
+  ok("[e-owner-bearer/room-publish.js] unlist: OWNER's own listing is UNCHANGED by OWNER_B's attempt", state.rooms[0].listed_at != null);
+  const mineUnlist = await unlistRoom(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "unlist: the real owner's own unlist actually clears listed_at (the fixture is sound)", mineUnlist?.listed_at == null);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolenBio = await setRoomBio(db, OWNER_B, REPLICA_ID, "a stranger's bio");
+  okClass("e-owner-bearer", "room-publish.js", "set_bio: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's bio", stolenBio == null);
+  ok("[e-owner-bearer/room-publish.js] set_bio: OWNER's own bio is UNCHANGED by OWNER_B's attempt", !state.rooms[0].one_line_bio);
+  const mineBio = await setRoomBio(db, OWNER, REPLICA_ID, "JEE physics, one topic a day.");
+  okClass("e-owner-bearer", "room-publish.js", "set_bio: the real owner's own bio write succeeds (the fixture is sound)", mineBio?.one_line_bio === "JEE physics, one topic a day.");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §14. WS-R44 — api/invites.js's "mine_issue" / "mine_list" (WS-R47,
+// migration 106). Both are scoped ENTIRELY off the verified bearer's own id
+// (`issued_by_user_id`) — there is no body-supplied id for a caller to name
+// someone else's account with, so the applicable class is (e): each
+// creator's own quota and list never cross another creator's.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §14: invites.js mine_issue / mine_list (WS-R44) ──");
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const issued = await issueCreatorInvite(db, OWNER, { contact: "friend@example.com" });
+  ok("[e-owner-bearer/invites.js] fixture: the real published owner can issue their own invite", Boolean(issued?.code));
+
+  const mine = await myInvites(db, OWNER, { now: NOW });
+  okClass("e-owner-bearer", "invites.js", "mine_list: the real owner sees their own issued invite", mine.invites.length === 1 && mine.quota.used === 1);
+  const others = await myInvites(db, OWNER_B, { now: NOW });
+  okClass("e-owner-bearer", "invites.js", "mine_list: a DIFFERENT creator's bearer sees an empty list and a fresh quota, never OWNER's invite", others.invites.length === 0 && others.quota.used === 0);
+
+  // OWNER_B has never published a Room in this fixture (only OWNER has), so
+  // their own issue is refused by the SAME quota_ok predicate's second
+  // clause — never a cross-owner leak, a different, honest refusal reason.
+  const refused = await threw(() => issueCreatorInvite(db, OWNER_B, { contact: "x@example.com" }));
+  okClass("e-owner-bearer", "invites.js", "mine_issue: an unpublished creator's own issue is refused by their OWN standing, never by another creator's quota", refused instanceof InvitesError && refused.code === "creator_invite_unavailable");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §15. STATIC WIRING PROOFS — the fixes this workstream made are proven
 // dynamically above against the DECISION module directly; these confirm the
 // real HTTP door actually CALLS that module rather than a bare primitive
 // that skips the checks. evals/rate-limit/run.mjs's own §7 method.
 // ═════════════════════════════════════════════════════════════════════════
-console.log("\n── §9: static wiring — the real door calls the fixed function, not a bypass ──");
+console.log("\n── §15: static wiring — the real door calls the fixed function, not a bypass ──");
 {
   const room = readFileSync(join(API, "room.js"), "utf8");
   ok(
@@ -828,6 +1108,12 @@ console.log("\n── §9: static wiring — the real door calls the fixed funct
     const start = src.indexOf(`export async function ${fn}(`);
     const body = src.slice(start, src.indexOf("\n}\n", start));
     ok(`[wiring/_room-surface.js] ${fn} calls assertSessionFresh (not a re-derived copy of the same three lines)`, /assertSessionFresh\(/.test(body));
+    // WS-R44: room.js's "locale" and "speak" ops (roomSetLocale/roomSpeak)
+    // have no DYNAMIC cross-room case in §2 — this is their class-b coverage,
+    // the same room_id-vs-payload.i match §2 already exercises dynamically
+    // for say/history/export/citations, confirmed present in EVERY one of
+    // these five functions rather than re-derived per function.
+    ok(`[wiring/_room-surface.js] ${fn} checks resolved.room.room_id against the session's own claim before doing anything else (class b, room.js's "locale"/"speak" own coverage — WS-R44)`, /String\(resolved\.room\.room_id\) !== String\(payload\.i\)/.test(body));
   }
   const selfScopeStart = src.indexOf("async function selfScope(");
   const selfScopeBody = src.slice(selfScopeStart, src.indexOf("\n}\n", selfScopeStart));
@@ -835,12 +1121,165 @@ console.log("\n── §9: static wiring — the real door calls the fixed funct
   ok("[wiring/_room-surface.js] selfScope also requires age_attested_at, not only a follower row's existence", /follower\.age_attested_at == null/.test(selfScopeBody));
 }
 {
+  // WS-R44: room.js's "pulse_optin"/"pulse_revoke" (via _pulse.js), "push_
+  // subscribe"/"push_unsubscribe"/"push_status" (via _room-push.js) and
+  // "whatsapp_optin"/"whatsapp_stop"/"whatsapp_status" (via _room-whatsapp.js)
+  // have no case of their own in this file: each door's own `followerScope`
+  // is the SAME assertSessionFresh-plus-room-id-match shape `selfScope`
+  // above and §2's dynamic cross-room cases already prove — this extends the
+  // existing class-a proof (assertSessionFresh) with the matching class-b
+  // proof (the room-id match) so BOTH halves of every one of these ops'
+  // coverage are on record, not only the half WS-R38 originally checked.
   for (const [file, count] of [["_handoff.js", 1], ["_checkins.js", 1], ["_room-push.js", 1], ["_room-whatsapp.js", 1], ["_pulse.js", 1]]) {
     const src = readFileSync(join(API, file), "utf8");
     const hits = (src.match(/assertSessionFresh\(/g) || []).length;
     ok(`[wiring/${file}] its own followerScope calls assertSessionFresh exactly once (imported, not re-derived inline)`, hits === count);
+    const scopeStart = src.indexOf("async function followerScope(");
+    const scopeBody = scopeStart === -1 ? "" : src.slice(scopeStart, src.indexOf("\n}\n", scopeStart));
+    ok(`[wiring/${file}] its own followerScope checks resolved.room.room_id against the session's own claim (class b — WS-R44)`, /String\(resolved\.room\.room_id\) !== String\(payload\.i\)/.test(scopeBody));
   }
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// §16. THE COMPUTED OP LIST — law 1: every `op === "<name>"` literal in a
+// door's own source is read off that source (never hand-typed twice) and
+// asserted against this file's own coverage table, so a new op fails the
+// gate the day it is written without an entry here — the mechanism this
+// whole workstream exists to build, applied to the six doors its own brief
+// names as carrying ops that merged in "beside" the WS-R38 door battery
+// without a case of their own (`room.js`, `room-pay.js`, `payments.js`,
+// `org.js`, `room-publish.js`, `invites.js`), plus `apply.js`, named
+// explicitly for its WS-R48 `intent` widening. The other EXPECTED_DOORS
+// (`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`, `account.js`, the
+// three webhook doors) keep their EXISTING hand-picked cases above,
+// unaudited by this mechanism — a deliberate scope decision, not an
+// oversight (`decisions.md#ws-r44-computed-op-list-scoped-to-six-named-doors`).
+//
+// Every op below is either CASED (a real class from this file's own attack
+// taxonomy, exercised above) or EXCLUDED with a named reason — and an
+// exclusion is honest about WHICH of two different things it is naming:
+// "no session and no bearer" (law 1's own criterion — there is no
+// credential-scoped boundary for any class here to test) is a SAFE
+// exclusion; "preexisting-uncased" is NOT a safety claim, it is this
+// workstream's own finding, said plainly rather than hidden behind a
+// passing gate — an owner-bearer op that predates WS-R38, that this
+// workstream's own brief does not name, and that this run therefore leaves
+// genuinely unattacked. See the final report for the full list and the
+// reversal condition that retires each one.
+console.log("\n── §16: the computed op list — every op is cased or named ──");
+
+function computedOps(file) {
+  const src = readFileSync(join(API, file), "utf8");
+  const names = new Set();
+  for (const m of src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)) names.add(m[1]);
+  return [...names].sort();
+}
+
+// door -> op -> { classes: [...] } (cased, exercised above) | { excluded: "reason" }
+const OP_COVERAGE = {
+  "room.js": {
+    open: { excluded: "no session and no bearer — the bearer it optionally reads is looked up only for the caller's OWN account continuity, never another follower's; no cross-identity input for classes b/c/e" },
+    join: { excluded: "no session (none exists yet — join MINTS one) and no cross-person id in the body; the follower row created is always the bearer's own (evals/room/run.mjs's own join suite covers the happy path)" },
+    say: { classes: ["a", "b"] },
+    speak: { classes: ["a", "b"] },
+    history: { classes: ["a", "b"] },
+    thread: { classes: ["a", "b"] },
+    locale: { classes: ["a", "b"] },
+    pulse_optin: { classes: ["a", "b"] },
+    pulse_revoke: { classes: ["a", "b"] },
+    push_subscribe: { classes: ["a", "b"] },
+    push_unsubscribe: { classes: ["a", "b"] },
+    push_status: { classes: ["a", "b"] },
+    whatsapp_optin: { classes: ["a", "b"] },
+    whatsapp_stop: { classes: ["a", "b"] },
+    whatsapp_status: { classes: ["a", "b"] },
+    offer_dismiss: { classes: ["a"] },
+    settings: { classes: ["a", "b"] },
+    settings_reviewed: { classes: ["a", "b"] },
+    citations: { classes: ["a", "b"] },
+    stats: { excluded: "no session and no bearer — a public read by slug; resolveRoom's own WHERE already collapses paused/unpublished/unknown into the same answer" },
+    export: { classes: ["a", "b", "c"] },
+    forget: { classes: ["a", "c"] },
+  },
+  "room-pay.js": {
+    subscribe: { classes: ["a"] },
+    status: { classes: ["a"] },
+    cancel: { classes: ["a", "b"] },
+  },
+  "payments.js": {
+    set_price: { excluded: "preexisting-uncased — owner-bearer op unchanged since before WS-R38, not named by this workstream's own brief" },
+    start_creator_subscription: { excluded: "preexisting-uncased, same reason as set_price" },
+    payout_statements: { classes: ["e"] },
+    payout_statement: { classes: ["c"] },
+    register_fund_account: { classes: ["e"] },
+    retry_failed_payout: { classes: ["e"] },
+    cancel_creator_subscription: { classes: ["e"] },
+  },
+  "org.js": {
+    create: { excluded: "preexisting-uncased" },
+    invite: { excluded: "preexisting-uncased" },
+    accept: { excluded: "preexisting-uncased" },
+    attach_room: { classes: ["c"] },
+    detach_room: { excluded: "preexisting-uncased" },
+    board: { excluded: "preexisting-uncased" },
+    subscription: { excluded: "preexisting-uncased" },
+    start_subscription: { excluded: "preexisting-uncased" },
+    update_seats: { excluded: "preexisting-uncased" },
+    cancel_subscription: { classes: ["e"] },
+    list_mine: { excluded: "preexisting-uncased" },
+    members: { classes: ["e"] },
+    room_status: { excluded: "preexisting-uncased" },
+  },
+  "room-publish.js": {
+    create: { excluded: "preexisting-uncased" },
+    rename: { excluded: "preexisting-uncased" },
+    publish: { excluded: "preexisting-uncased" },
+    pause: { excluded: "preexisting-uncased" },
+    resume: { excluded: "preexisting-uncased" },
+    set_free_cap: { excluded: "preexisting-uncased" },
+    set_paid_ceilings: { excluded: "preexisting-uncased" },
+    set_default_locale: { excluded: "preexisting-uncased" },
+    set_bio: { classes: ["e"] },
+    list: { classes: ["e"] },
+    unlist: { classes: ["e"] },
+    stats: { excluded: "preexisting-uncased" },
+  },
+  "invites.js": {
+    issue: { excluded: "preexisting-uncased" },
+    list: { excluded: "preexisting-uncased" },
+    revoke: { excluded: "preexisting-uncased" },
+    erase: { excluded: "preexisting-uncased" },
+    mine_issue: { classes: ["e"] },
+    mine_list: { classes: ["e"] },
+  },
+  "apply.js": {
+    submit: { excluded: "no session and no bearer — public, unauthenticated (the WS-R48 intent field widens this op's BODY, never its identity boundary)" },
+    list: { excluded: "preexisting-uncased, operator-only, unchanged by WS-R48" },
+    erase: { excluded: "preexisting-uncased, operator-only, unchanged by WS-R48" },
+  },
+};
+
+let uncasedOps = 0;
+let preexistingGaps = 0;
+for (const [file, coverage] of Object.entries(OP_COVERAGE)) {
+  const ops = computedOps(file);
+  for (const opName of ops) {
+    const entry = coverage[opName];
+    const known = Boolean(entry && (entry.excluded || (Array.isArray(entry.classes) && entry.classes.length > 0)));
+    if (!known) uncasedOps++;
+    if (entry?.excluded?.startsWith("preexisting-uncased")) preexistingGaps++;
+    ok(`[computed-op-list/${file}] "${opName}" is either cased or named excluded`, known, known ? "" : "— UNCASED OP, no entry in OP_COVERAGE at all");
+  }
+  // The reverse direction: a stale OP_COVERAGE entry for an op the door's
+  // own source no longer defines (renamed or removed) must not stand in
+  // silently for coverage that no longer means anything.
+  for (const opName of Object.keys(coverage)) {
+    ok(`[computed-op-list/${file}] OP_COVERAGE's "${opName}" entry still names a real op in ${file}'s own source`, ops.includes(opName));
+  }
+  console.log(`  ${file.padEnd(18)} ops (${ops.length}): ${ops.join(", ")}`);
+}
+ok("the computed op list found ZERO ops with no OP_COVERAGE entry at all (every op is cased or named excluded)", uncasedOps === 0);
+console.log(`  ${preexistingGaps} op(s) across these seven doors are named "preexisting-uncased" — a real, honest finding, not a silent pass (see the final report)`);
 
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── case counts per attack class, per door ──");
