@@ -52,11 +52,13 @@ import {
   roomSay,
   roomExport,
   roomForget,
+  roomSetLocale,
   followerRow,
   mintFollowerSession,
   bindTelegramChannel,
   telegramChannelRoom,
   unbindTelegramChannel,
+  normalizeLocale,
 } from "./_room-surface.js";
 import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
 import { activeProviderName } from "./_payments.js";
@@ -69,27 +71,60 @@ export const ROOM_TG_TEXT_LIMIT = 4096;
 // ─────────────────────────────────────────────────────────────────────────
 // THE APP-VOICED CARDS - deterministic strings, never model text
 // ─────────────────────────────────────────────────────────────────────────
+//
+// WS-R24: every card below takes a `locale` (default `"en"`, so no existing
+// caller changes shape) and is picked with `normalizeLocale`'s own fallback
+// rule - an unrecognised or absent value reads as English, never a thrown
+// error mid-conversation. Before a follower row exists (the welcome, the age
+// question, the memory question, a refusal) the caller reads the locale off
+// Telegram's own `language_code` on the incoming update; once joined, it
+// reads the follower's own stored `locale` - `resolveActiveFollower`'s job,
+// never re-derived here.
 
-export function welcomeNoSlugCard() {
-  return "Open a creator's Room with the link they shared with you - it looks like " +
-    "t.me/<bot>?start=<their room>.";
+export function welcomeNoSlugCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "किसी क्रिएटर का रूम उस लिंक से खोलें जो उन्होंने आपको भेजा है। यह इस तरह दिखता है: " +
+      "t.me/<bot>?start=<उनका-रूम>."
+    : "Open a creator's Room with the link they shared with you - it looks like " +
+      "t.me/<bot>?start=<their room>.";
 }
 
-export function adultGateCard() {
-  return "Before your first message: this Room is for adults. Are you 18 or older?";
+export function adultGateCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "आपके पहले संदेश से पहले: यह रूम वयस्कों के लिए है। क्या आपकी उम्र 18 साल या उससे ज़्यादा है?"
+    : "Before your first message: this Room is for adults. Are you 18 or older?";
 }
 
-export function memoryGateCard() {
-  return "One more question. Should this Room remember you between messages, or start fresh every time?";
+export function memoryGateCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "एक और सवाल। क्या यह रूम संदेशों के बीच आपको याद रखे, या हर बार नई शुरुआत करे?"
+    : "One more question. Should this Room remember you between messages, or start fresh every time?";
 }
 
-export function adultRefusedCard() {
-  return "This Room is for adults only. You are welcome back if that changes.";
+export function adultRefusedCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "यह रूम सिर्फ वयस्कों के लिए है। अगर यह बदलता है तो आपका फिर से स्वागत है।"
+    : "This Room is for adults only. You are welcome back if that changes.";
 }
 
-export function joinedCard(follower) {
-  const lines = ["You're in. Send a message any time."];
+export function joinedCard(follower, locale = "en") {
   const included = follower?.messages_included;
+  if (normalizeLocale(locale) === "hi") {
+    const lines = ["आप जुड़ गए हैं। कभी भी संदेश भेजें।"];
+    if (Number.isFinite(included)) {
+      lines.push(
+        follower?.remembers
+          ? `यह रूम संदेशों के बीच आपको याद रखेगा। इस महीने आपके पास ${included} मुफ़्त संदेश हैं।`
+          : `यह रूम संदेशों के बीच आपको याद नहीं रखेगा। इस महीने आपके पास ${included} मुफ़्त संदेश हैं।`,
+      );
+    }
+    lines.push(
+      "यहां के कमांड: /forget इस रूम के साथ आपका इतिहास मिटाता है, /export आपको एक कॉपी भेजता है, " +
+        "/stop रूम छोड़ देता है, /english या /hindi भाषा बदलता है।",
+    );
+    return lines.join("\n");
+  }
+  const lines = ["You're in. Send a message any time."];
   if (Number.isFinite(included)) {
     lines.push(
       follower?.remembers
@@ -97,20 +132,36 @@ export function joinedCard(follower) {
         : `This Room will not remember you between messages. You have ${included} free messages this month.`,
     );
   }
-  lines.push("Commands here: /forget deletes your history with this Room, /export sends you a copy, /stop leaves the Room.");
+  lines.push(
+    "Commands here: /forget deletes your history with this Room, /export sends you a copy, " +
+      "/stop leaves the Room, /hindi or /english changes the language.",
+  );
   return lines.join("\n");
 }
 
-export function joinFirstCard() {
-  return "Open a Room first. Use the link a creator shared with you, then answer the two questions here.";
+export function joinFirstCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "पहले एक रूम खोलें। किसी क्रिएटर का भेजा लिंक इस्तेमाल करें, फिर यहां दो सवालों के जवाब दें।"
+    : "Open a Room first. Use the link a creator shared with you, then answer the two questions here.";
 }
 
-export function roomUnavailableCard() {
-  return "This Room is not available right now.";
+export function roomUnavailableCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "यह रूम अभी उपलब्ध नहीं है।"
+    : "This Room is not available right now.";
 }
 
-export function cappedCard(details, providerConfigured) {
+export function cappedCard(details, providerConfigured, locale = "en") {
   const included = details?.messages_included;
+  if (normalizeLocale(locale) === "hi") {
+    const base = Number.isFinite(included)
+      ? `इस महीने आपके ${included} मुफ़्त संदेश इस्तेमाल हो चुके हैं।`
+      : "इस महीने आपके मुफ़्त संदेश इस्तेमाल हो चुके हैं।";
+    const line = providerConfigured
+      ? "अगर आप अगले महीने का इंतज़ार किए बिना बात जारी रखना चाहते हैं, तो वेब रूम पर एक पेड प्लान उपलब्ध है।"
+      : "पेड प्लान अभी सेट नहीं हैं। अगले महीने और मुफ़्त संदेश मिलेंगे।";
+    return `${base} ${line}`;
+  }
   const base = Number.isFinite(included)
     ? `You have used your ${included} free messages this month.`
     : "You have used your free messages this month.";
@@ -120,12 +171,32 @@ export function cappedCard(details, providerConfigured) {
   return `${base} ${line}`;
 }
 
-export function forgottenCard(result) {
-  return String(result?.note || "Your conversation with this Room is deleted.");
+/** `result.note` is `roomForget`'s OWN app-voiced string, already localized
+ *  server side against the follower's locale before their row was deleted -
+ *  this falls back to a locale-matched default only when that field is
+ *  somehow absent, never overrides a note the server already localized. */
+export function forgottenCard(result, locale = "en") {
+  return String(
+    result?.note ||
+      (normalizeLocale(locale) === "hi"
+        ? "इस रूम के साथ आपकी बातचीत मिटा दी गई है।"
+        : "Your conversation with this Room is deleted."),
+  );
 }
 
-export function stoppedCard() {
-  return "You left this Room. Nothing was deleted - your history stays as it was. Open the Room's link again any time to come back.";
+export function stoppedCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "आपने यह रूम छोड़ दिया। कुछ भी मिटाया नहीं गया, आपका इतिहास वैसा ही रहेगा। वापस आने के लिए रूम का लिंक फिर से खोलें।"
+    : "You left this Room. Nothing was deleted - your history stays as it was. Open the Room's link again any time to come back.";
+}
+
+/** The confirmation after `/hindi` or `/english`, spoken in the LANGUAGE
+ *  JUST CHOSEN - never the old one, since a follower who just asked for
+ *  English wants to read the confirmation in English. */
+export function languageChangedCard(locale) {
+  return normalizeLocale(locale) === "hi"
+    ? "भाषा हिन्दी में बदल दी गई है।"
+    : "Language changed to English.";
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -153,6 +224,10 @@ export function classifyRoomTelegramUpdate(update) {
       handle: displayName(cq.from),
       data: String(cq.data || ""),
       callbackQueryId: String(cq.id || ""),
+      // WS-R24: Telegram's own `language_code` on the user object, e.g. "hi"
+      // or "en". Raw here, `normalizeLocale`'s job at the point of use - this
+      // file never decides what counts as Hindi, `_room-surface.js` does.
+      languageCode: String(cq.from.language_code || ""),
     };
   }
   const m = update?.message;
@@ -167,6 +242,7 @@ export function classifyRoomTelegramUpdate(update) {
     handle: displayName(m.from),
     text: String(m.text || ""),
     messageId: m.message_id ?? null,
+    languageCode: String(m.from.language_code || ""),
   };
 }
 
@@ -182,9 +258,10 @@ export function parseStartCommand(text) {
   return m[1] ? m[1].toLowerCase() : null;
 }
 
-/** `/forget`, `/export`, `/stop`. One command each, plain words - the law. */
+/** `/forget`, `/export`, `/stop`, and (WS-R24) `/hindi`/`/english`. One
+ *  command each, plain words - the law. */
 export function parseRoomCommand(text) {
-  const m = /^\/(forget|export|stop)(?:@[\w_]+)?\s*$/.exec(String(text || "").trim());
+  const m = /^\/(forget|export|stop|hindi|english)(?:@[\w_]+)?\s*$/.exec(String(text || "").trim());
   return m ? m[1] : null;
 }
 
@@ -300,7 +377,10 @@ async function resolveActiveFollower(db, ev, ctx) {
   }
   const follower = await followerRow(db, resolved.room.room_id, identity.person_id, resolved.agentId);
   if (!follower || follower.age_attested_at == null) return { error: "not_joined" };
-  return { identity, resolved, follower };
+  // WS-R24: the follower's OWN stored locale, never Telegram's per-message
+  // `language_code` - a follower who set their phone to English after
+  // choosing Hindi here must not have this Room silently follow their phone.
+  return { identity, resolved, follower, locale: normalizeLocale(follower.locale) };
 }
 
 async function handleStart(db, tg, ev, slug, ctx) {
@@ -308,13 +388,17 @@ async function handleStart(db, tg, ev, slug, ctx) {
   try {
     resolved = await resolveRoom(db, slug, ctx.roomDeps);
   } catch {
-    await tg.sendMessage(ev.chatId, roomUnavailableCard());
+    // No follower row exists yet - Telegram's own `language_code` is the
+    // only signal there is, `resolveActiveFollower`'s header explains why
+    // that changes the moment a follower row exists.
+    await tg.sendMessage(ev.chatId, roomUnavailableCard(normalizeLocale(ev.languageCode)));
     return { ok: true, unavailable: true };
   }
+  const locale = normalizeLocale(ev.languageCode);
   // Law 1: the disclosure line, BEFORE the first reply, sent once. Then the
   // age question - the first of the two answers `joinRoom` requires together.
-  await tg.sendMessage(ev.chatId, roomDisclosureCard(roomNameFor(resolved.sheet)));
-  await tg.sendMessage(ev.chatId, adultGateCard(), { reply_markup: ageKeyboard(slug) });
+  await tg.sendMessage(ev.chatId, roomDisclosureCard(roomNameFor(resolved.sheet), locale));
+  await tg.sendMessage(ev.chatId, adultGateCard(locale), { reply_markup: ageKeyboard(slug) });
   return { ok: true, gate: "age", slug };
 }
 
@@ -325,14 +409,18 @@ async function handleCallback(db, tg, ev, ctx) {
     return { ok: true, skipped: "bad callback" };
   }
   await tg.answerCallbackQuery(ev.callbackQueryId);
+  // No follower row exists across any of these three steps until the very
+  // last one commits it, so every card here reads Telegram's own
+  // `language_code` - the same value on every update from the same user.
+  const locale = normalizeLocale(ev.languageCode);
 
   if (parsed.step === "a0") {
-    await tg.sendMessage(ev.chatId, adultRefusedCard());
+    await tg.sendMessage(ev.chatId, adultRefusedCard(locale));
     return { ok: true, declined: "age" };
   }
 
   if (parsed.step === "a1") {
-    await tg.sendMessage(ev.chatId, memoryGateCard(), { reply_markup: memoryKeyboard(parsed.slug) });
+    await tg.sendMessage(ev.chatId, memoryGateCard(locale), { reply_markup: memoryKeyboard(parsed.slug) });
     return { ok: true, gate: "memory" };
   }
 
@@ -343,7 +431,7 @@ async function handleCallback(db, tg, ev, ctx) {
   try {
     resolved = await resolveRoom(db, parsed.slug, ctx.roomDeps);
   } catch {
-    await tg.sendMessage(ev.chatId, roomUnavailableCard());
+    await tg.sendMessage(ev.chatId, roomUnavailableCard(locale));
     return { ok: true, unavailable: true };
   }
 
@@ -353,7 +441,7 @@ async function handleCallback(db, tg, ev, ctx) {
   // the age question - a caller must not be able to tell "declined" from
   // "already known to be a minor" apart, which would be an oracle.
   if (!identity) {
-    await tg.sendMessage(ev.chatId, adultRefusedCard());
+    await tg.sendMessage(ev.chatId, adultRefusedCard(locale));
     return { ok: true, refused: "minor" };
   }
 
@@ -361,12 +449,21 @@ async function handleCallback(db, tg, ev, ctx) {
   try {
     joined = await joinRoom(
       db,
-      { slug: parsed.slug, personId: identity.personId, ageAttested: true, memoryConsent: parsed.step === "m1" },
+      {
+        slug: parsed.slug,
+        personId: identity.personId,
+        ageAttested: true,
+        memoryConsent: parsed.step === "m1",
+        // WS-R24: the exact locale the disclosure/age/memory cards above were
+        // just sent in, so the new follower row's starting locale can never
+        // disagree with what this Telegram chat actually read.
+        locale,
+      },
       ctx.roomDeps,
     );
   } catch (e) {
     if (e instanceof RoomError) {
-      await tg.sendMessage(ev.chatId, roomUnavailableCard());
+      await tg.sendMessage(ev.chatId, roomUnavailableCard(locale));
       return { ok: true, unavailable: true };
     }
     throw e;
@@ -386,24 +483,45 @@ async function handleCallback(db, tg, ev, ctx) {
     });
   }
 
-  await tg.sendMessage(ev.chatId, joinedCard(joined.follower));
+  await tg.sendMessage(ev.chatId, joinedCard(joined.follower, joined.locale ?? locale));
   return { ok: true, joined: true, slug: parsed.slug };
 }
 
 async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
   const scope = await resolveActiveFollower(db, ev, ctx);
   if (scope.error) {
+    // No follower row (or none joined) - Telegram's `language_code` is the
+    // only signal there is, `resolveActiveFollower`'s own header.
+    const hint = normalizeLocale(ev.languageCode);
     await tg.sendMessage(
       ev.chatId,
-      scope.error === "unavailable" ? roomUnavailableCard() : joinFirstCard(),
+      scope.error === "unavailable" ? roomUnavailableCard(hint) : joinFirstCard(hint),
     );
     return { ok: true, skipped: scope.error };
   }
-  const session = mintFollowerSession(scope.resolved, scope.identity.person_id, { now, env });
+
+  // WS-R24: `/hindi` and `/english` are answered here, before a session is
+  // even minted - they need no `roomSay`/`roomExport`/`roomForget` call, only
+  // the SAME session-scoped write the web Room's language switch uses
+  // (`roomSetLocale`), reusing `mintFollowerSession`'s pattern for the
+  // one-shot session this file mints on every message.
+  if (cmd === "hindi" || cmd === "english") {
+    const want = cmd === "hindi" ? "hi" : "en";
+    const session = mintFollowerSession(scope.resolved, scope.identity.person_id, { now, env, locale: scope.locale });
+    const result = await roomSetLocale(db, { session, locale: want }, ctx.roomDeps);
+    await tg.sendMessage(ev.chatId, languageChangedCard(result.locale));
+    return { ok: true, localeChanged: result.locale };
+  }
+
+  const session = mintFollowerSession(scope.resolved, scope.identity.person_id, {
+    now,
+    env,
+    locale: scope.locale,
+  });
 
   if (cmd === "forget") {
     const result = await roomForget(db, { session }, ctx.roomDeps);
-    await tg.sendMessage(ev.chatId, forgottenCard(result));
+    await tg.sendMessage(ev.chatId, forgottenCard(result, scope.locale));
     return { ok: true, forgotten: true };
   }
   if (cmd === "export") {
@@ -416,7 +534,7 @@ async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
   // membership, the memory, the consent ledger are all untouched. Reopening
   // the same slug's deep link re-binds the pointer and answers again.
   await unbindTelegramChannel(db, ev.chatId);
-  await tg.sendMessage(ev.chatId, stoppedCard());
+  await tg.sendMessage(ev.chatId, stoppedCard(scope.locale));
   return { ok: true, stopped: true };
 }
 
@@ -426,16 +544,21 @@ async function handleOrdinaryMessage(db, tg, now, env, ev, ctx) {
     // Law 4: a chat that has not joined gets the app-voiced card and NEVER a
     // creator-voiced reply. `roomSay` (and therefore `gatedReply`) is simply
     // never reached on this branch.
+    const hint = normalizeLocale(ev.languageCode);
     await tg.sendMessage(
       ev.chatId,
-      scope.error === "unavailable" ? roomUnavailableCard() : joinFirstCard(),
+      scope.error === "unavailable" ? roomUnavailableCard(hint) : joinFirstCard(hint),
     );
     return { ok: true, skipped: scope.error };
   }
   const text = String(ev.text || "").trim();
   if (!text) return { ok: true, skipped: "empty" };
 
-  const session = mintFollowerSession(scope.resolved, scope.identity.person_id, { now, env });
+  const session = mintFollowerSession(scope.resolved, scope.identity.person_id, {
+    now,
+    env,
+    locale: scope.locale,
+  });
   let turn;
   try {
     turn = await roomSay(db, { session, message: text, transcript: [] }, ctx.roomDeps);
@@ -443,14 +566,14 @@ async function handleOrdinaryMessage(db, tg, now, env, ev, ctx) {
     if (e instanceof RoomError) {
       if (e.code === "room_free_cap_reached") {
         const providerConfigured = activeProviderName(env) !== "none";
-        await tg.sendMessage(ev.chatId, cappedCard(e.details, providerConfigured));
+        await tg.sendMessage(ev.chatId, cappedCard(e.details, providerConfigured, scope.locale));
         return { ok: true, capped: true };
       }
       if (e.code === "room_join_required" || e.code === "room_session_expired" || e.code === "room_disclosure_stale") {
-        await tg.sendMessage(ev.chatId, joinFirstCard());
+        await tg.sendMessage(ev.chatId, joinFirstCard(scope.locale));
         return { ok: true, skipped: "not joined" };
       }
-      await tg.sendMessage(ev.chatId, roomUnavailableCard());
+      await tg.sendMessage(ev.chatId, roomUnavailableCard(scope.locale));
       return { ok: true, unavailable: true };
     }
     throw e;
@@ -495,7 +618,7 @@ export async function handleRoomTelegramUpdate(update, deps = {}) {
   const startSlug = parseStartCommand(ev.text);
   if (startSlug !== undefined) {
     if (startSlug === null) {
-      await tg.sendMessage(ev.chatId, welcomeNoSlugCard());
+      await tg.sendMessage(ev.chatId, welcomeNoSlugCard(normalizeLocale(ev.languageCode)));
       return { ok: true, started: false };
     }
     return await handleStart(db, tg, ev, startSlug, ctx);
