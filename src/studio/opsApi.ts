@@ -64,11 +64,53 @@ export interface OpsFunnel {
   stalled_at: OpsFunnelStall[];
 }
 
+// WS-R30 (migration 093). `api/_phase-gate.js`'s own `phaseGate` shape, typed
+// here unchanged - this file computes nothing, `opsApi.ts`'s own header rule.
+export type OpsGateState = "below" | "at_or_above" | "not_enough_data";
+
+export interface OpsConversion {
+  pct: number | null;
+  n: number;
+  eligible: number;
+  paying: number;
+  threshold_pct: number;
+  state: OpsGateState;
+  funnel: Record<string, { shown: number; started: number; paid: number }>;
+}
+
+export interface OpsRetention {
+  pct: number | null;
+  n: number;
+  joined: number;
+  returned: number;
+  threshold_pct: number;
+  state: OpsGateState;
+}
+
+export interface OpsRenewedUnasked {
+  count: number;
+  n: number;
+  creators_total: number;
+  threshold: number;
+  state: OpsGateState;
+  note: string;
+}
+
+export interface OpsPhaseGate {
+  generated_at: string;
+  conversion: OpsConversion;
+  retention: OpsRetention;
+  renewed_unasked: OpsRenewedUnasked;
+  phase2_may_start: boolean;
+  summary: string;
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
   sweeps: OpsSweep[];
   funnel: OpsFunnel;
+  phase_gate: OpsPhaseGate;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

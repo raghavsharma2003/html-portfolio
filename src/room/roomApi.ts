@@ -85,6 +85,17 @@ export interface RoomOpen {
   locale: "en" | "hi";
 }
 
+/** WS-R30 (migration 093). `cap_reached` is written to the ledger but never
+ *  rendered as its own card client-side - the capped card (below) already
+ *  covers that moment; this type exists so `session_worked` has somewhere to
+ *  land. `price_inr`/`currency` are null when the creator has not set a
+ *  price yet, the honest `pay.priceNotSet` state one screen over. */
+export interface RoomOffer {
+  reason: "session_worked" | "cap_reached";
+  price_inr: number | null;
+  currency: string | null;
+}
+
 export interface RoomTurn {
   bubbles: string[];
   reply: string;
@@ -92,6 +103,7 @@ export interface RoomTurn {
   thread_id: string | null;
   quota: RoomQuota;
   upgrade_prompt: boolean;
+  offer: RoomOffer | null;
   session: string;
 }
 
@@ -208,6 +220,11 @@ export const setPulseOptIn = (session: string, threadId: string | null) =>
 
 export const revokePulseOptIn = (session: string, threadId: string | null) =>
   post<PulseOptIn>({ op: "pulse_revoke", session, thread: threadId });
+
+/** "Continue free" (WS-R30). No offer id in the request - scope comes off
+ *  the session, `api/_room-surface.js`'s `roomDismissOffer` own header. */
+export const dismissOffer = (session: string) =>
+  post<{ dismissed: boolean }>({ op: "offer_dismiss", session });
 
 export const roomCitations = (session: string) =>
   post<RoomCitations>({ op: "citations", session });

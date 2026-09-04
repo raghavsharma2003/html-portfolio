@@ -19,7 +19,16 @@ import { useCallback, useEffect, useState } from "react";
 import { restoreSession, writeStoredSession } from "./session";
 import { googleSignIn, isStudioAuthDead } from "./studioAuth";
 import { ReplicaApiError } from "./replicaApi";
-import { readOpsOverview, type OpsOverview, type OpsRoom, type OpsSweep, type OpsFunnel, type SweepStaleness } from "./opsApi";
+import {
+  readOpsOverview,
+  type OpsOverview,
+  type OpsRoom,
+  type OpsSweep,
+  type OpsFunnel,
+  type OpsPhaseGate,
+  type OpsGateState,
+  type SweepStaleness,
+} from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
 
@@ -52,6 +61,87 @@ function badgeClassForDrift(state: OpsRoom["drift_state"]): string {
   if (state === "steady") return "ops-board__badge ops-board__badge--done";
   if (state === "moved") return "ops-board__badge ops-board__badge--waiting";
   return "ops-board__badge ops-board__badge--running"; // not_measured / no_report
+}
+
+// WS-R30. `below`/`at_or_above` never map to "done"/"stopped" the way a
+// sweep outcome does - the sweeps strip is a health check, this card is a
+// gate, and "below" is a normal, expected state for a young platform, never
+// a failure.
+function badgeClassForGateState(state: OpsGateState): string {
+  if (state === "at_or_above") return "ops-board__badge ops-board__badge--done";
+  if (state === "below") return "ops-board__badge ops-board__badge--waiting";
+  return "ops-board__badge ops-board__badge--running"; // not_enough_data
+}
+
+function badgeLabelForGateState(state: OpsGateState): string {
+  if (state === "at_or_above") return "at or above";
+  if (state === "below") return "below";
+  return "not enough data yet";
+}
+
+const pct1 = (v: number | null): string => (v == null ? "not measured" : `${v.toFixed(1)}%`);
+
+function PhaseGateCard({ gate }: { gate: OpsPhaseGate }) {
+  const funnelReasons = Object.keys(gate.conversion.funnel).sort();
+  return (
+    <div className="ops-board__panel">
+      <h2>Phase 2 gate</h2>
+      <p className="ops-board__slug">{gate.summary}</p>
+      <div className="ops-board__stats">
+        <div>
+          <span className={badgeClassForGateState(gate.conversion.state)}>
+            {badgeLabelForGateState(gate.conversion.state)}
+          </span>
+          <Stat label={`paid conversion (target ${gate.conversion.threshold_pct}%)`} value={pct1(gate.conversion.pct)} />
+          <span className="ops-board__slug">
+            n = {gate.conversion.n} ({gate.conversion.paying} paying of {gate.conversion.eligible} eligible)
+          </span>
+        </div>
+        <div>
+          <span className={badgeClassForGateState(gate.retention.state)}>
+            {badgeLabelForGateState(gate.retention.state)}
+          </span>
+          <Stat label={`week-six retention (target ${gate.retention.threshold_pct}%)`} value={pct1(gate.retention.pct)} />
+          <span className="ops-board__slug">
+            n = {gate.retention.n} ({gate.retention.returned} returned of {gate.retention.joined} joined)
+          </span>
+        </div>
+        <div>
+          <span className={badgeClassForGateState(gate.renewed_unasked.state)}>
+            {badgeLabelForGateState(gate.renewed_unasked.state)}
+          </span>
+          <Stat label={`creators renewing unasked (target ${gate.renewed_unasked.threshold})`} value={gate.renewed_unasked.count} />
+          <span className="ops-board__slug">
+            n = {gate.renewed_unasked.n} creators. {gate.renewed_unasked.note}.
+          </span>
+        </div>
+      </div>
+      {funnelReasons.length > 0 && (
+        <div style={{ overflowX: "auto", marginTop: "var(--space-row)" }}>
+          <table className="ops-board__table">
+            <thead>
+              <tr>
+                <th>offer reason</th>
+                <th>shown</th>
+                <th>started</th>
+                <th>paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {funnelReasons.map((reason) => (
+                <tr key={reason}>
+                  <td>{reason.replace(/_/g, " ")}</td>
+                  <td>{gate.conversion.funnel[reason].shown}</td>
+                  <td>{gate.conversion.funnel[reason].started}</td>
+                  <td>{gate.conversion.funnel[reason].paid}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatAgo(iso: string | null): string {
@@ -311,6 +401,7 @@ export default function OpsBoard() {
               )}
             </div>
             <FunnelCard funnel={overview.funnel} />
+            <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />
           </>
         )}

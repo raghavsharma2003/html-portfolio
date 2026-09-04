@@ -31,6 +31,11 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
 import { opsFunnel } from "./_funnel.js";
+// WS-R30 (migration 093). `phaseGate`'s own header names the same rule this
+// file already keeps: aggregate-only, one room at a time, imported rather
+// than re-derived so the board's Phase gate card can never disagree with the
+// function that actually decided the numbers.
+import { phaseGate } from "./_phase-gate.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -260,5 +265,7 @@ export async function opsOverview(db, now = Date.now()) {
     // WS-R25. "Minutes to first Room" and "where creators stop" -
     // `opsFunnel`'s own read, one extra call on the board's one endpoint.
     funnel: await opsFunnel(db, now),
+    // WS-R30. The three Phase 2 numbers, one sentence.
+    phase_gate: await phaseGate(db, now),
   };
 }
