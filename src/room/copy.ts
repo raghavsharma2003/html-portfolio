@@ -138,6 +138,17 @@ export const ROOM_COPY = {
     failed: "Could not start that just now. Try again in a moment.",
   },
 
+  /** "Let this count" - a follower's own toggle (WS-R17). One plain sentence
+   *  of what it means and that it is revocable, never a nudge to turn it on. */
+  pulse: {
+    on: "Let this count",
+    off: "Counted",
+    working: "One moment",
+    explain:
+      "If you turn this on, this topic can be counted toward what {name} sees people asking about, only after " +
+      "five other followers do too, and never your own words. You can turn it back off any time.",
+  },
+
   /** ONE number, and only when it is real. A zero renders nothing rather than
    *  a measurement of nothing. */
   stats: {

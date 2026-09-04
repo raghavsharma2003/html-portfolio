@@ -5254,6 +5254,48 @@
       "kind": "rejection",
       "title": "The payments eval froze the session iat but let the module read Date.now(); green for twelve hours, red on the next merge",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r17-pulse-v0",
+      "kind": "component",
+      "title": "Pulse v0: migration 080 (vy_room_pulse_optin, vy_room_pulse_topic, vy_room_pulse_snapshot), api/_pulse.js, api/pulse.js, api/pulse-sweep.js, the RoomStudio Pulse card, the follower's Let this count toggle",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r17-pulse-topic-source-is-creator-declared-not-mined",
+      "kind": "decision",
+      "title": "Pulse v0 bucket labels are creator-typed (vy_room_pulse_topic), not mined from any existing creator-topic pipeline; neither _context-mining.js nor vy_replica_claim is a discourse-topic source",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r17-pulse-optin-select-then-write-not-on-conflict-expression",
+      "kind": "decision",
+      "title": "setOptIn/revoke use a select-then-write pair rather than an expression-arbiter ON CONFLICT, because no live database was reachable to EXPLAIN the arbiter match before merge",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r17-pulse-toggle-is-local-optimistic-no-prefetch",
+      "kind": "decision",
+      "title": "the follower's Let this count toggle tracks local-only optimistic state rather than fetching prior opt-in status on load, so it starts OFF for everyone and costs no extra round trip",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r17-count-distinct-person-id-fails-the-select-list-text-scan",
+      "kind": "rejection",
+      "title": "count(distinct t.person_id) in topicFollowerCount's select list failed evals/room-leak's AGGREGATE_ONLY text scan (person_id is a substring of that select list regardless of the aggregate wrapper); replaced with a derived-table distinct projection counted as count(*)",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r17-pulse-gate-results-2026-09-03",
+      "kind": "measurement",
+      "title": "verify-release 15/15 before and after; evals/pulse 19/19 offline; room-leak 62 -> 67 after adding _pulse.js to AGGREGATE_ONLY and one Pulse leak-scan section (446 boundary checks, up from 441; 16,080 retrieval checks unchanged); the AGGREGATE_ONLY admission and the aggregate-only SQL shape both proven load-bearing by reverting each and rerunning",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-080-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 080 applied live; every Pulse statement, the forget delete and the erasure deletes EXPLAIN on their indexes; the n>=5 floor is a CHECK on the snapshot table",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -10551,6 +10593,56 @@
       "src": "frozen-session-iat-against-a-wall-clock-expiry",
       "rel": "caused_by",
       "dst": "plausible-return-hides-a-dead-pipeline"
+    },
+    {
+      "src": "ws-r17-pulse-topic-source-is-creator-declared-not-mined",
+      "rel": "part_of",
+      "dst": "ws-r17-pulse-v0"
+    },
+    {
+      "src": "ws-r17-pulse-optin-select-then-write-not-on-conflict-expression",
+      "rel": "part_of",
+      "dst": "ws-r17-pulse-v0"
+    },
+    {
+      "src": "ws-r17-pulse-toggle-is-local-optimistic-no-prefetch",
+      "rel": "part_of",
+      "dst": "ws-r17-pulse-v0"
+    },
+    {
+      "src": "ws-r17-count-distinct-person-id-fails-the-select-list-text-scan",
+      "rel": "constrains",
+      "dst": "ws-r17-pulse-v0"
+    },
+    {
+      "src": "ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser",
+      "rel": "constrains",
+      "dst": "ws-r17-count-distinct-person-id-fails-the-select-list-text-scan"
+    },
+    {
+      "src": "ws-r17-pulse-v0",
+      "rel": "measured_by",
+      "dst": "ws-r17-pulse-gate-results-2026-09-03"
+    },
+    {
+      "src": "ws-r17-pulse-v0",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r17-pulse-topic-source-is-creator-declared-not-mined",
+      "rel": "measured_by",
+      "dst": "rooms-migration-080-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r17-pulse-optin-select-then-write-not-on-conflict-expression",
+      "rel": "measured_by",
+      "dst": "rooms-migration-080-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r17-pulse-toggle-is-local-optimistic-no-prefetch",
+      "rel": "measured_by",
+      "dst": "rooms-migration-080-live-verification-2026-09-04"
     }
   ]
 }

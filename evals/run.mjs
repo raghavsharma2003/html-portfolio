@@ -1462,6 +1462,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   checkins: "checkins/run.mjs",
+  // WS-R17. Pulse v0: counts over the opt-in shared subgraph, n>=5, never
+  // verbatim. Drives the real `api/_pulse.js` through a fake `db`
+  // (`evals/pulse/fixtures.mjs`) and a small world generator: (a) 4
+  // opted-in followers yields zero rows (room-total floor), (b) 5 yields
+  // one row with 5, (c) a non-opted-in follower with matching text
+  // contributes nothing, (d) revocation drops a bucket back below the
+  // floor on recompute (recomputed, never patched), a NEGATIVE CONTROL
+  // that calls the raw unguarded per-topic count directly and proves it
+  // DOES show a leaky 4 while `computeSnapshot`'s own floor refuses to
+  // emit it, a static check that the snapshot table's INSERT names only
+  // its six content-free columns, and `readPulse`'s two honest empty
+  // states (not enough opt-ins vs. no topic at floor).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  pulse: "pulse/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

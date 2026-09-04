@@ -55,6 +55,7 @@ import {
   type RoomPrice,
   type RoomRevenue,
 } from "./paymentsApi";
+import { readPulse, setPulseTopics, PulseApiError, type PulseReport } from "./pulseApi";
 import "./roomStudio.css";
 
 /** Plain-words sentence for the verdict line - WS-R12's own card. Never a
@@ -128,7 +129,9 @@ export default function RoomStudio({
 }: {
   token: string;
   replicaId: string;
-  onAuthError?: (error: ReplicaApiError | RoomPublishApiError | RoomCohortsApiError | PaymentsApiError) => void;
+  onAuthError?: (
+    error: ReplicaApiError | RoomPublishApiError | RoomCohortsApiError | PaymentsApiError | PulseApiError,
+  ) => void;
   onGoStep: (next: StepId) => void;
   /** Fed up so the wizard rail's Deploy readiness can read it without a
    *  second fetch of the same endpoint. */
@@ -142,8 +145,11 @@ export default function RoomStudio({
   const [cohortError, setCohortError] = useState(false);
   const [price, setPrice] = useState<RoomPrice | null>(null);
   const [revenue, setRevenue] = useState<RoomRevenue | null>(null);
+  const [pulse, setPulse] = useState<PulseReport | null>(null);
+  const [pulseError, setPulseError] = useState(false);
+  const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
@@ -155,7 +161,8 @@ export default function RoomStudio({
   const fail = useCallback(
     (e: unknown) => {
       if (
-        (e instanceof ReplicaApiError || e instanceof RoomPublishApiError || e instanceof PaymentsApiError) &&
+        (e instanceof ReplicaApiError || e instanceof RoomPublishApiError || e instanceof PaymentsApiError ||
+          e instanceof PulseApiError) &&
         (e.status === 401 || e.status === 403)
       ) {
         onAuthError?.(e);
@@ -196,6 +203,16 @@ export default function RoomStudio({
         setPrice(payments?.price ?? null);
         setRevenue(payments?.revenue ?? null);
         setPriceDraft(payments?.price?.follower_price_inr ?? PRICE_MIN_INR);
+        try {
+          setPulse(await readPulse(token, replicaId));
+          setPulseError(false);
+        } catch (e) {
+          if (e instanceof PulseApiError && (e.status === 401 || e.status === 403)) {
+            onAuthError?.(e);
+          } else {
+            setPulseError(true);
+          }
+        }
       }
     } catch (e) {
       fail(e);
@@ -329,6 +346,42 @@ export default function RoomStudio({
       }
     },
     [token, replicaId, fail],
+  );
+
+  const saveTopics = useCallback(
+    async (next: string[]) => {
+      setBusy("topics");
+      setError("");
+      try {
+        const topics = await setPulseTopics(token, replicaId, next);
+        setPulse((prev) => (prev ? { ...prev, topics } : prev));
+        setTopicDraft("");
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
+  const addTopic = useCallback(() => {
+    const label = topicDraft.trim();
+    if (!label) return;
+    const current = (pulse?.topics ?? []).map((t) => t.label);
+    if (current.some((l) => l.toLowerCase() === label.toLowerCase())) {
+      setTopicDraft("");
+      return;
+    }
+    void saveTopics([...current, label]);
+  }, [topicDraft, pulse, saveTopics]);
+
+  const removeTopic = useCallback(
+    (label: string) => {
+      const current = (pulse?.topics ?? []).map((t) => t.label).filter((l) => l !== label);
+      void saveTopics(current);
+    },
+    [pulse, saveTopics],
   );
 
   const copyLink = useCallback(() => {
@@ -658,6 +711,72 @@ export default function RoomStudio({
       </article>
 
       <CheckinsCard token={token} replicaId={replicaId} />
+      <article className="teacher-sheet-card vy-room__pulse-card">
+        <h3>Pulse</h3>
+        <p className="field-note">
+          What your followers are talking about, as counts only, and only from conversations a follower chose to let
+          count. Never a message, never a name, and never shown until at least five different followers are behind a
+          number.
+        </p>
+        <div className="vy-room__cap-row" role="group" aria-label="Pulse topics">
+          {(pulse?.topics ?? []).map((t) => (
+            <span key={t.topic_id} className="vy-room__cap-pill vy-room__cap-pill--selected">
+              {t.label}
+              <button
+                type="button"
+                className="vy-room__pulse-topic-remove"
+                aria-label={`Remove topic ${t.label}`}
+                disabled={busy === "topics"}
+                onPointerDown={() => removeTopic(t.label)}
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+          {(pulse?.topics?.length ?? 0) < 8 && (
+            <>
+              <input
+                className="field vy-room__cap-field"
+                type="text"
+                maxLength={60}
+                placeholder="Add a topic, e.g. exam stress"
+                value={topicDraft}
+                onChange={(event) => setTopicDraft(event.target.value)}
+              />
+              <button
+                className="button secondary-button"
+                type="button"
+                disabled={busy === "topics" || !topicDraft.trim()}
+                onPointerDown={addTopic}
+              >
+                {busy === "topics" ? "Saving..." : "Add"}
+              </button>
+            </>
+          )}
+        </div>
+        {pulse ? (
+          pulse.status === "ready" ? (
+            <div className="vy-room__stats-grid">
+              {pulse.buckets.map((b) => (
+                <div key={b.topic_id} className="vy-room__stat">
+                  <span className="vy-room__stat-value">{b.follower_count}</span>
+                  <span className="vy-room__stat-label">{b.label}</span>
+                </div>
+              ))}
+            </div>
+          ) : pulse.status === "not_enough_optins" ? (
+            <p className="field-note">Not enough people have opted in yet.</p>
+          ) : (
+            <p className="field-note">
+              Enough followers have opted in, but no topic has five behind it yet.
+            </p>
+          )
+        ) : pulseError ? (
+          <p className="field-note">Could not load this just now. It will show the next time this loads.</p>
+        ) : (
+          <p className="field-note" role="status">Loading.</p>
+        )}
+      </article>
 
       {error && <p className="inline-error" role="alert">{error}</p>}
       {notice && <p className="field-note" role="status">{notice}</p>}

@@ -7620,3 +7620,66 @@ n = 1 migration (9 statements in one transaction), 11 API statements, 2 forget d
 | erasure deletes | `vy_room_owner_ix` then `_delivery_scope_ix`, `_checkin_scope_ix`, `_design_owner_ix` |
 
 The two sweep selects prove the brief's structural law on the live planner: a row with a null schedule cannot be selected because `next_due_at IS NOT NULL` is an index condition of the partial due index, not a JS check. Not measured: no design, check-in or delivery row exists; the 15-minute cron has no deployment from this branch yet.
+
+## ws-r17-pulse-gate-results-2026-09-03
+
+**n / method.** `node scripts/verify-release.mjs`, this repo's release gate,
+run on the untouched tree (post `git reset --hard 844d9d5`) and again after
+this workstream's changes, both in the same container, no `NEON_URL` set.
+Untouched: **15/15** (paste of the run: typecheck, prompt budget, workflow
+lint, motion lint, board legibility, chrome copy, enrollment sample rate,
+enrollment bandwidth, engine bundle fresh, stuck-turn endpoint, one voice, web
+build, layout readability, eval suite, room leak battery - all `ok`, two
+relational DB gates skipped for the same reason). `node evals/pulse/run.mjs`
+standalone: **19/19**, offline, deterministic, $0, no DB, no network, no model
+call, covering the six cases the workstream brief named (a-f) plus two
+`readPulse` honest-empty-state checks. `node evals/room-leak/run.mjs`
+standalone, before this workstream's layer-5 addition: **62 passed** (the
+number `context/rejected.md#ws-r12-retention-exists-in-select-broke-the-leak-
+batterys-parser` and the WS-R11 merge log both cite); after adding the five
+new Pulse assertions (one snapshot-shape check, three token-absence scans,
+one non-vacuity check): **67 passed, 0 failed**, boundary checks **446** (up
+from the previously logged 441 by exactly the five new `boundaryChecks++`
+calls), retrieval row-scenario checks unchanged at **16,080** (this
+workstream's addition touches no code the N-follower retrieval sweep drives).
+
+**What was proven, and how.** `_pulse.js` was added to
+`evals/room-leak/run.mjs`'s AGGREGATE_ONLY set and the admission was proven
+load-bearing three separate ways, all on this date: (1) removing `_pulse.js`
+from the set and rerunning reproduces `FAIL no file outside the allowed set
+reads the Room's follower/thread tables   _pulse.js` - the file genuinely
+needs the admission, it is not a no-op; (2) rewriting `topicFollowerCount`'s
+statement to `count(distinct op.person_id)` (a one-line `python3` edit, not
+committed) and rerunning reproduces `FAIL ... _pulse.js:non-aggregate-read` -
+the checker genuinely inspects this file's SQL rather than trusting the
+filename; (3) the unmodified file passes cleanly with the admission in place.
+All three runs' full output was read, not merely their exit codes.
+
+**Not measured / not proven.** No statement in migration 080 or `api/_pulse.js`
+has ever executed against a live Postgres server; nothing here was
+`EXPLAIN`ed (no `NEON_URL` in this environment - `offline-mocks-cannot-
+type-check-sql`, AGENTS.md); no real `vy_room_pulse_optin`/`vy_room_pulse_topic`/
+`vy_room_pulse_snapshot` row has ever been inserted anywhere outside a fake
+`db` in an offline eval; `api/pulse-sweep.js`'s cron has never fired (no
+Vercel deploy, no `CRON_SECRET` in this environment); the studio Pulse card
+and the follower's "Let this count" toggle have been proven by the layout
+gate to RENDER correctly at real viewport widths (both fixtures pass with the
+new markup in place) but have never been clicked against a real backend.
+
+## `rooms-migration-080-live-verification-2026-09-04`
+
+n = 1 migration (11 statements in one transaction), 15 distinct API statements, 1 forget delete, 3 erasure deletes; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_pulse.js` issues plus the `roomForget` and erasure-chain deletes, parameters substituted with typed literals; date 2026-09-04, at the WS-R17 merge.
+
+| statement | plan |
+|---|---|
+| opt-in lookup / revoke | Index Scan `vy_room_pulse_optin_person_ix` / `_active_ix` (partial on unrevoked), the thread coalesce as a filter |
+| opt-in insert / re-grant | Insert; Update via `vy_room_pulse_optin_pkey` |
+| topic list / insert / rename / delete | Bitmap Index Scan `vy_room_pulse_topic_label_ix` on room_id; pkey for the writes |
+| per-topic distinct follower count (the bucket) | Unique over an Index Only Scan of `vy_room_pulse_optin_active_ix`, semi-joined to `vy_room_thread_scope_ix` (person_id, room_id) with the title pattern as a filter, semi-joined to `vy_room_pulse_optin_thread_ix` |
+| room-total opt-in count | Aggregate over an Index Only Scan of `vy_room_pulse_optin_active_ix` |
+| snapshot delete / insert / latest week / owner read | `vy_room_pulse_snapshot_owner_read_ix` (room_id, week_start), `_week_ix` for the read joined to topics by pkey |
+| weekly sweep's room list | Seq Scan on `vy_room` with published and unpaused filters, ordered by published_at, limited; accepted, the sweep is a bounded weekly pass over every published Room and `vy_room` has one row per creator |
+| roomForget delete | Index Scan `vy_room_pulse_optin_person_ix` |
+| erasure deletes | `vy_room_owner_ix` then `_snapshot_owner_read_ix`, `_topic_owner_ix`, `_optin_scope_ix` |
+
+The floor is a database constraint (`follower_count >= 5`) and the bucket count is a `count(distinct person_id)`, so neither a JS bug nor a future reader can emit a row below five. Not measured: no opt-in, topic or snapshot row exists; the weekly cron runs only once this branch deploys.

@@ -2858,6 +2858,23 @@ export const PERSON_TABLES = [
   // wired into the wipe) is Phase 1 work, not this migration's.
   { table: "vy_room_subscription", key: "person_id", lane: "relational",
     wipeWhere: "state in ('cancelled','expired')" },
+  // ── WS-R17: Pulse's own toggle (migration 080) ────────────────────────────
+  //
+  // A follower's own opt-in decision - content-free (no column here could
+  // ever hold what they said, migration 080's own header), but it is a
+  // record OF that person, exactly this manifest's own bar. No `wipeWhere`:
+  // unlike `vy_room_subscription` immediately above, a stale opt-in poses no
+  // live-mandate-shaped risk a whole-account wipe should spare, so a full
+  // delete regardless of `revoked_at` is the honest answer.
+  //
+  // NOT `agent: true`: this table carries no `agent_id` column (071's
+  // convention was already scoping room_id/person_id; 080 followed it and
+  // added nothing new, the identical reasoning `vy_room_follower_day` states
+  // two entries up). Reached instead by two OTHER, explicit paths: the
+  // account-wide whole wipe below (lane "relational", no agent filter, keyed
+  // on person_id alone) and `roomForget`'s own explicit room_id+person_id
+  // delete, `vy_room_follower_day`'s pattern one statement over.
+  { table: "vy_room_pulse_optin", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -3007,6 +3024,8 @@ export const REPLICA_PERSON_TABLES = [
   // Arrive with 079 (WS-R16), on the identical reasoning.
   "vy_room_checkin",
   "vy_room_checkin_delivery",
+  // Arrives with 080 (WS-R17), on the identical reasoning.
+  "vy_room_pulse_optin",
 ];
 
 // tables and columns that migration 008 introduces

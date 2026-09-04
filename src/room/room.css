@@ -111,6 +111,50 @@
     color: var(--panel-solid);
   }
 
+  /* ── pulse: "let this count" (WS-R17) ────────────────────────────────── */
+
+  .room-pulse {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0 var(--space-item) var(--space-tight);
+  }
+
+  .room-pulse-toggle {
+    align-self: flex-start;
+    min-height: 34px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    transition: transform var(--motion-instant) var(--ease-standard),
+                background var(--motion-quick) var(--ease-standard),
+                color var(--motion-quick) var(--ease-standard);
+  }
+
+  .room-pulse-toggle:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .room-pulse-toggle[aria-pressed="true"] {
+    border-color: var(--forest);
+    background: var(--forest);
+    color: var(--panel-solid);
+  }
+
+  .room-pulse-explain {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
   /* ── the conversation ────────────────────────────────────────────────── */
 
   .room-thread {
@@ -188,6 +232,9 @@
     .room-typing i {
       animation: none;
       opacity: 0.7;
+    }
+    .room-pulse-toggle {
+      transition: none;
     }
   }
 

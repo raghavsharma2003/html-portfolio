@@ -5,6 +5,8 @@
 //   POST /api/room {op:"say",    session, message, thread, transcript}
 //   POST /api/room {op:"history",session, thread}
 //   POST /api/room {op:"thread", session, title}
+//   POST /api/room {op:"pulse_optin",  session, thread}   -> "let this count"
+//   POST /api/room {op:"pulse_revoke", session, thread}   -> turn it back off
 //   POST /api/room {op:"citations", session}
 //   POST /api/room {op:"stats",  room:"<slug>"}
 //   POST /api/room {op:"export", session}
@@ -70,6 +72,7 @@ import {
   personForAccount,
   readRoomSession,
 } from "./_room-surface.js";
+import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -169,6 +172,16 @@ export default async function handler(req, res) {
       return res.status(200).json(created);
     }
 
+    if (op === "pulse_optin" || op === "pulse_revoke") {
+      // Scope comes off the session exactly as "thread" does above; `thread`
+      // here is optional and, when present, is checked against the caller's
+      // OWN threads inside api/_pulse.js before anything is written.
+      const optin = op === "pulse_optin"
+        ? await setOptIn(q, { session: body.session, threadId: body.thread || null })
+        : await revokePulseOptIn(q, { session: body.session, threadId: body.thread || null });
+      return res.status(200).json(optin);
+    }
+
     if (op === "citations") {
       return res.status(200).json(await roomCitations(q, { session: body.session }));
     }
@@ -211,6 +224,9 @@ export default async function handler(req, res) {
         payload.messages_included = error.details.messages_included;
       }
       return res.status(error.status).json(payload);
+    }
+    if (error instanceof PulseError) {
+      return res.status(error.status).json({ error: error.code });
     }
     if (error instanceof AuthError) {
       return res.status(error.status || 401).json({ error: error.code });

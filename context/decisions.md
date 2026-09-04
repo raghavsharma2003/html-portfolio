@@ -8805,3 +8805,87 @@ every OWNER-KEYED table with no FK to `vy_replica` (treating them as
 additional cascade roots) - at which point the explicit deletes here become
 provably redundant rather than load-bearing, and could be removed with the
 walk itself as the proof they are safe to.
+
+## ws-r17-pulse-topic-source-is-creator-declared-not-mined (2026-09-03, WS-R17)
+
+**Decision.** Pulse v0's bucket labels come from a short list the creator
+types in the studio (`vy_room_pulse_topic`), matched against opted-in
+follower threads by an ILIKE predicate inside SQL, rather than from any
+existing creator-topic extraction pipeline.
+
+**Why.** The workstream brief named two candidate sources to check before
+building the fallback: `api/_context-mining.js` and `vy_replica_claim`
+(migration 015/026). Both were read. Neither is a discourse-topic source:
+`_context-mining.js`'s `mineContextItem` produces STYLE evidence (phrase-bank
+candidates for `boardVerbalisms`/`exSlangRepeat`, cited spans, corpus stats)
+from the creator's own material, never a list of subjects people ask about;
+`vy_replica_claim` holds persona claims (`domain` in identity/biography/
+event/relationship/preference/value/boundary/habit/language/delivery/
+visual, `key`/`body`) - closer in shape, but every row there is a fact ABOUT
+the creator, not a topic FOLLOWERS discuss, and repurposing `key`/`body` as
+Pulse labels would require a second interpretation of a table another
+workstream owns for a different purpose. The brief's own text names this
+exact fallback ("if nothing usable exists, v0 buckets are creator-declared
+topics"), so this is the brief's own escape hatch taken deliberately, not a
+shortcut around missing research.
+
+**Reverses if.** A creator-side discourse-topic extraction pipeline is ever
+built (the natural next step being a small classifier or keyword-cluster over
+the creator's OWN published material, still never a follower's words). If it
+lands, only `topicFollowerCount`'s matching predicate changes - the opt-in
+table, the floor, the snapshot table's CHECK and the AGGREGATE_ONLY discipline
+are all independent of where a topic's match terms come from.
+
+## ws-r17-pulse-optin-select-then-write-not-on-conflict-expression (2026-09-03, WS-R17)
+
+**Decision.** `setOptIn`/`revoke` scope a follower's toggle with a plain
+`select ... where coalesce(thread_id, <nil>) = coalesce($n, <nil>)` followed
+by an explicit UPDATE or INSERT, rather than one `insert ... on conflict
+(room_id, person_id, coalesce(thread_id, <nil>)) do update ...` statement
+against `vy_room_pulse_optin_scope_ix`'s own expression.
+
+**Why.** Postgres does support an expression-based `on conflict` arbiter when
+the target list matches an existing expression index exactly, and one
+statement would have been simpler than two. But `offline-mocks-cannot-
+type-check-sql` (AGENTS.md) is the standing law for exactly this shape of
+risk: there is no `NEON_URL` in this environment, so nothing this session
+wrote could be `EXPLAIN`ed or even syntax-checked against a real Postgres
+server before merge, and an arbiter-matching subtlety (the exact expression
+text, cast placement, whether the migration's index has landed by the time
+this code deploys) is precisely the kind of defect a fake `db` cannot catch.
+The two-statement shape is the SAME technique `api/_room-surface.js`'s own
+`followerRow`-then-insert already uses for `vy_room_follower`, so it costs
+nothing in code-shape consistency for the extra round trip it spends.
+
+**Reverses if.** The main loop `EXPLAIN`s the ON CONFLICT form against the
+live database after migration 080 lands and confirms the arbiter matches;
+at that point collapsing to one statement is a pure performance win with no
+new risk, and should be logged as its own follow-up decision rather than
+folded into this one.
+
+## ws-r17-pulse-toggle-is-local-optimistic-no-prefetch (2026-09-03, WS-R17)
+
+**Decision.** The follower-facing "Let this count" toggle (`RoomApp.tsx`)
+tracks its own on/off state purely client-side, keyed by scope (a thread id,
+or `""` for the whole Room), rather than fetching the follower's existing
+opt-in state from the server on load.
+
+**Why.** `open`/`join` do not currently return a follower's opt-in state for
+any thread, and adding that would mean either a new field on every thread row
+(a second round trip's worth of joins on the one screen a follower reaches
+before ever sending a message) or a separate fetch on mount - which the
+layout gate's fixture-mode render (`fixtureOpen`/`fixtureTurns`, `RoomApp.tsx`'s
+own header) would then need to skip explicitly, `roomStats`'s and
+`loadHistory`'s existing `if (fixtureOpen) return` pattern one call site over.
+A toggle that starts OFF for everyone by construction (opt-IN, never
+opt-out) and answers with the server's own true state on every tap costs a
+follower nothing they would notice, since the true failure mode this avoids
+(a stale "on" showing after a page reload when it is actually off) is the
+SAFER direction to be wrong in, not the leaky one.
+
+**Reverses if.** A follower reports finding a re-toggle-per-session
+confusing, or a future Pulse UI needs to SHOW which of a follower's threads
+are currently opted in (not just let them toggle blind) - at which point
+`open`'s response gains a `pulse_optin` field per thread, sourced from a
+single aggregate-free, person-scoped read (this follower's own rows, which is
+not a leak the way a creator-facing read would be).

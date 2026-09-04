@@ -3350,3 +3350,56 @@ create index if not exists vy_room_checkin_delivery_scope_ix
   on vy_room_checkin_delivery (person_id, room_id, due_at desc);
 create index if not exists vy_room_checkin_delivery_checkin_ix
   on vy_room_checkin_delivery (checkin_id, due_at desc);
+-- Migration 080 - Pulse v0 (WS-R17): counts over the opt-in shared subgraph,
+-- n>=5, never verbatim. Three lanes: vy_room_pulse_optin is PERSON (a
+-- follower's own revocable toggle, content-free); vy_room_pulse_topic is
+-- OWNER (creator-typed labels only, never a follower's words);
+-- vy_room_pulse_snapshot is content-free and derived, with follower_count's
+-- own CHECK (>=5) refusing to let a bucket below the floor exist at all.
+create table if not exists vy_room_pulse_optin (
+  optin_id       uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  person_id      uuid not null,
+  thread_id      uuid references vy_room_thread(thread_id) on delete cascade,
+  policy_version integer not null default 1 check (policy_version > 0),
+  granted_at     timestamptz not null default now(),
+  revoked_at     timestamptz,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_optin_scope_ix
+  on vy_room_pulse_optin (room_id, person_id, coalesce(thread_id, '00000000-0000-0000-0000-000000000000'::uuid));
+create index if not exists vy_room_pulse_optin_active_ix
+  on vy_room_pulse_optin (room_id, person_id)
+  where revoked_at is null;
+create index if not exists vy_room_pulse_optin_thread_ix
+  on vy_room_pulse_optin (thread_id)
+  where revoked_at is null and thread_id is not null;
+create index if not exists vy_room_pulse_optin_person_ix
+  on vy_room_pulse_optin (person_id, room_id);
+
+create table if not exists vy_room_pulse_topic (
+  topic_id      uuid primary key,
+  room_id       uuid not null references vy_room(room_id) on delete cascade,
+  owner_user_id uuid not null,
+  label         text not null check (length(label) between 1 and 60),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_topic_label_ix
+  on vy_room_pulse_topic (room_id, lower(label));
+create index if not exists vy_room_pulse_topic_owner_ix
+  on vy_room_pulse_topic (owner_user_id, room_id);
+
+create table if not exists vy_room_pulse_snapshot (
+  snapshot_id    uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  week_start     date not null,
+  topic_id       uuid not null references vy_room_pulse_topic(topic_id) on delete cascade,
+  follower_count integer not null check (follower_count >= 5),
+  computed_at    timestamptz not null default now()
+);
+create unique index if not exists vy_room_pulse_snapshot_week_ix
+  on vy_room_pulse_snapshot (room_id, week_start, topic_id);
+create index if not exists vy_room_pulse_snapshot_owner_read_ix
+  on vy_room_pulse_snapshot (room_id, week_start desc);

@@ -546,6 +546,14 @@ const FATE = {
   // row for why a LIVE mandate survives a whole-account wipe rather than
   // being silently orphaned.
   vy_room_subscription: "forget-only",
+  // ── the Room's Pulse opt-in (WS-R17; migration 080) ──
+  // A follower's own toggle - content-free, no term a scoped "forget priya"
+  // could ever match (a UUID, a boolean-shaped pair of timestamps and a
+  // policy version, no words). Only the stronger door may take it: the
+  // account-level whole wipe (lane "relational", proven below) or the Room's
+  // own "op":"forget" (`roomForget`'s explicit room_id+person_id delete,
+  // api/_room-surface.js), `vy_room_follower_day`'s pattern one row above.
+  vy_room_pulse_optin: "forget-only",
 
   // ── check-ins (WS-R16; migration 079) ──
   // A follower's own schedule (days, a local time, a timezone) has no term a
