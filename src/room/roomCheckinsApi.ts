@@ -90,6 +90,24 @@ export const browserTimezone = (): string => {
   }
 };
 
+// ── check-ins on Telegram (WS-R34, migration 096) ──────────────────────────
+// `connected` is server-driven: true only when this follower's Room pointer
+// (migration 082) is a Telegram chat — the opt-in already exists
+// structurally (workstream law #1), so there is no destination to collect
+// here, only a toggle. `RoomWhatsappStatus`'s own shape (roomApi.ts) one
+// channel over.
+export interface RoomTelegramCheckinsStatus {
+  connected: boolean;
+  checkins_enabled: boolean;
+  stopped: boolean;
+}
+
+export const telegramCheckinsStatus = (session: string) =>
+  post<RoomTelegramCheckinsStatus>({ op: "telegram_status", session });
+
+export const setTelegramCheckins = (session: string, enabled: boolean) =>
+  post<{ checkins_enabled: boolean }>({ op: "telegram_set", session, enabled });
+
 export const WEEKDAY_LABELS: { value: number; label: string }[] = [
   { value: 1, label: "Mon" },
   { value: 2, label: "Tue" },

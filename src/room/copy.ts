@@ -304,6 +304,16 @@ const EN = {
     waOffCopy: "Add a number and a due check-in reaches you on WhatsApp too.",
     waError: "That did not go through. Check the number and try again.",
     waPhoneInvalid: "Enter the number with a country code, like +91XXXXXXXXXX.",
+    // WS-R34 (migration 096). Shown only when the panel already knows this
+    // follower joined via Telegram — there is no destination to type in,
+    // only a toggle.
+    tgTitle: "Check-ins on Telegram",
+    tgOnCopy: "Check-ins reach you on Telegram, right where you already talk.",
+    tgOffCopy: "Turn this on and a due check-in reaches you on Telegram too.",
+    tgStoppedCopy: "Telegram stopped accepting messages from this bot. Turn it back on once that is fixed.",
+    tgEnable: "Turn on",
+    tgDisable: "Turn off",
+    tgError: "That did not go through. Try again.",
   },
 
   handoff: {
@@ -495,6 +505,13 @@ const HI: typeof EN = {
     waOffCopy: "एक नंबर जोड़ें, बकाया चेक-इन व्हाट्सएप पर भी पहुंचेगा।",
     waError: "वह नहीं भेजा जा सका। नंबर जांचें और फिर कोशिश करें।",
     waPhoneInvalid: "देश कोड सहित नंबर डालें, जैसे +91XXXXXXXXXX।",
+    tgTitle: "टेलीग्राम पर चेक-इन",
+    tgOnCopy: "चेक-इन टेलीग्राम पर वहीं पहुंचते हैं जहां आप पहले से बात करते हैं।",
+    tgOffCopy: "इसे चालू करें, बकाया चेक-इन टेलीग्राम पर भी पहुंचेगा।",
+    tgStoppedCopy: "टेलीग्राम ने इस बॉट से संदेश लेना बंद कर दिया। ठीक होने पर इसे फिर चालू करें।",
+    tgEnable: "चालू करें",
+    tgDisable: "बंद करें",
+    tgError: "वह नहीं भेजा जा सका। फिर कोशिश करें।",
   },
 
   handoff: {

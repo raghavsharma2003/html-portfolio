@@ -10,6 +10,8 @@
 //     POST {op:"opt_in",   session, design_id, days_of_week, local_time, timezone}
 //     POST {op:"stop",     session, checkin_id}
 //     POST {op:"list_mine",session}
+//     POST {op:"telegram_status", session} -> {connected, checkins_enabled, stopped}  (WS-R34)
+//     POST {op:"telegram_set",    session, enabled} -> {checkins_enabled}
 //
 // Thin by construction: cors, rate limit, auth, dispatch, error shape. Every
 // decision lives in api/_checkins.js, where a fake `db` can reach it -
@@ -27,6 +29,8 @@ import {
   optIn,
   stop,
   listMine,
+  telegramCheckinsStatus,
+  setTelegramCheckins,
 } from "./_checkins.js";
 
 function cors(res) {
@@ -102,6 +106,16 @@ export default async function handler(req, res) {
 
     if (op === "list_mine") {
       return res.status(200).json({ checkins: await listMine(q, { session: body.session }) });
+    }
+
+    // WS-R34 (migration 096): the Room panel's own control for check-ins
+    // over Telegram - `connected:false` (no Telegram pointer) is not an
+    // error, so the panel simply renders nothing.
+    if (op === "telegram_status") {
+      return res.status(200).json(await telegramCheckinsStatus(q, { session: body.session }));
+    }
+    if (op === "telegram_set") {
+      return res.status(200).json(await setTelegramCheckins(q, { session: body.session, enabled: body.enabled }));
     }
 
     return res.status(400).json({ error: "unknown_op" });

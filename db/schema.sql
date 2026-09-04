@@ -3800,3 +3800,16 @@ create index if not exists vy_room_upgrade_offer_room_shown_ix
 -- index scan.
 create index if not exists vy_room_forget_receipt_person_hash_ix
   on vy_room_forget_receipt (person_hash);
+
+-- Migration 096 - check-ins over Telegram (WS-R34). See
+-- db/migrations/096_checkin_telegram.sql for the full argument; mirrored
+-- here per this file's own convention. The channel CHECK widens to admit
+-- 'telegram'; vy_room_follower_channel gains checkins_enabled (default-on,
+-- the pointer itself is the opt-in) and stopped_code (null = sendable, set
+-- on a 403/400 from Telegram).
+alter table vy_room_checkin_delivery drop constraint if exists vy_room_checkin_delivery_channel_check;
+alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_channel_check
+  check (channel in ('in_app','whatsapp_template','web_push','telegram'));
+
+alter table vy_room_follower_channel add column if not exists checkins_enabled boolean not null default true;
+alter table vy_room_follower_channel add column if not exists stopped_code text;

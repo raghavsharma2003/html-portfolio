@@ -12,6 +12,8 @@ import {
   browserTimezone,
   WEEKDAY_LABELS,
   RoomCheckinsApiError,
+  telegramCheckinsStatus,
+  setTelegramCheckins,
   type RoomCheckinDesign,
   type RoomCheckin,
 } from "./roomCheckinsApi";
@@ -79,6 +81,15 @@ export default function CheckinsPanel({
   const [waPhone, setWaPhone] = useState("");
   const [waBusy, setWaBusy] = useState(false);
   const [waError, setWaError] = useState("");
+  // WS-R34 (migration 096). `tgConnected` is server-driven: true only when
+  // this follower's Room pointer is a Telegram chat — there is no phone or
+  // endpoint to collect, only a toggle over the pointer that already exists
+  // (workstream law #1).
+  const [tgConnected, setTgConnected] = useState(false);
+  const [tgOn, setTgOn] = useState(false);
+  const [tgStopped, setTgStopped] = useState(false);
+  const [tgBusy, setTgBusy] = useState(false);
+  const [tgError, setTgError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -96,6 +107,13 @@ export default function CheckinsPanel({
           setWaAvailable(s.available);
           setWaOn(s.subscribed);
           setWaPhoneMasked(s.phone_masked);
+        })
+        .catch(() => {});
+      telegramCheckinsStatus(session)
+        .then((s) => {
+          setTgConnected(s.connected);
+          setTgOn(s.checkins_enabled);
+          setTgStopped(s.stopped);
         })
         .catch(() => {});
     } catch {
@@ -188,6 +206,20 @@ export default function CheckinsPanel({
       setWaBusy(false);
     }
   }, [session]);
+
+  const toggleTelegram = useCallback(async () => {
+    setTgBusy(true);
+    setTgError("");
+    try {
+      const result = await setTelegramCheckins(session, !tgOn);
+      setTgOn(result.checkins_enabled);
+      if (result.checkins_enabled) setTgStopped(false);
+    } catch {
+      setTgError(copy.checkins.tgError);
+    } finally {
+      setTgBusy(false);
+    }
+  }, [session, tgOn]);
 
   const activeCheckinsByDesign = new Set(mine.filter((c) => c.state === "active").map((c) => c.design_id));
 
@@ -364,6 +396,19 @@ export default function CheckinsPanel({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {tgConnected && (
+        <div className="room-checkins-push room-checkins-tg">
+          <h3 className="room-checkins-subhead">{copy.checkins.tgTitle}</h3>
+          <p className="room-fine">
+            {tgStopped ? copy.checkins.tgStoppedCopy : tgOn ? copy.checkins.tgOnCopy : copy.checkins.tgOffCopy}
+          </p>
+          {tgError && <p className="room-error">{tgError}</p>}
+          <button type="button" className="room-btn" disabled={tgBusy} onClick={() => void toggleTelegram()}>
+            {tgBusy ? "..." : tgOn ? copy.checkins.tgDisable : copy.checkins.tgEnable}
+          </button>
         </div>
       )}
 

@@ -6094,6 +6094,48 @@
       "kind": "measurement",
       "title": "Migration 094 applied live; the whole wipe's receipt delete probes the new person_hash index and its Room walk is bounded by the Room count, the OTP scopes ride the same rate upsert",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in",
+      "kind": "decision",
+      "title": "vy_room_follower_channel.checkins_enabled (migration 096) defaults to true - a Telegram Room join is already a two-question gate, so the channel pointer itself is the check-ins opt-in, no separate consent step.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r34-checkin-thread-mapping-defaults-to-null",
+      "kind": "decision",
+      "title": "resolveReplyThreadId is a real injectable seam but ships resolving every reply-to-message to null (the Room's default thread), because vy_room_checkin carries no thread_id column yet.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r34-stopped-code-nullable-text-not-a-second-boolean",
+      "kind": "decision",
+      "title": "vy_room_follower_channel.stopped_code is nullable text, not a not-null-default-empty column plus a second boolean - null doubles as the sendable predicate without two columns that could disagree.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r34-room-telegram-checkins-offline-suite-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-telegram-checkins/run.mjs: 64/64 offline, seven sections, driving the real _room-surface.js/_room-telegram.js/_checkins.js check-ins-over-Telegram code through a fake db.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r34-checkins-telegram-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 15/16 on the first full run this session made (sqlcast caught an uncast boolean parameter), 16/16 after the fix; no separate untouched-tree baseline captured before edits began.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r34-boolean-parameter-reused-in-a-case-expression-without-a-cast",
+      "kind": "rejection",
+      "title": "A boolean $2 parameter used both in a direct SET and inside a bare CASE WHEN tripped evals/sqlcast.mjs twice for the same line - every appearance of a parameter on the strict surface needs its own explicit cast, not one per statement.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-096-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 096 applied live after the channel CHECK's name was read back; the Telegram eligibility predicate and the toggle plan on the pointer table's follower index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12271,6 +12313,51 @@
       "src": "ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms",
       "rel": "measured_by",
       "dst": "rooms-migration-094-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r34-checkin-thread-mapping-defaults-to-null",
+      "rel": "constrains",
+      "dst": "ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in"
+    },
+    {
+      "src": "ws-r34-room-telegram-checkins-offline-suite-2026-09-04",
+      "rel": "measured_by",
+      "dst": "ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in"
+    },
+    {
+      "src": "ws-r34-checkins-telegram-gate-results-2026-09-04",
+      "rel": "caused_by",
+      "dst": "ws-r34-boolean-parameter-reused-in-a-case-expression-without-a-cast"
+    },
+    {
+      "src": "ws-r34-boolean-parameter-reused-in-a-case-expression-without-a-cast",
+      "rel": "caused_by",
+      "dst": "ws-r34-stopped-code-nullable-text-not-a-second-boolean"
+    },
+    {
+      "src": "ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r34-stopped-code-nullable-text-not-a-second-boolean",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r34-checkin-thread-mapping-defaults-to-null",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in",
+      "rel": "measured_by",
+      "dst": "rooms-migration-096-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r34-stopped-code-nullable-text-not-a-second-boolean",
+      "rel": "measured_by",
+      "dst": "rooms-migration-096-live-verification-2026-09-04"
     }
   ]
 }

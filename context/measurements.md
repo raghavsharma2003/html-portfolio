@@ -8297,3 +8297,58 @@ n = 1 migration (1 statement), 3 API statements; method = applied to the live Ne
 | `consume` under `otp_verify_dest` (limit 10) | the same plan WS-R26's upsert had: `Conflict Resolution: UPDATE`, arbiter `vy_public_rate_pkey`, `Conflict Filter: (count < 10)` |
 
 Not measured: no OTP door has written a counter row; no receipt has been deleted by the new sweep; the four OTP limits are judgments until real sign-in traffic exists (retunable through `RATE_LIMITS_JSON` without a deploy).
+
+## `ws-r34-room-telegram-checkins-offline-suite-2026-09-04`
+
+n = 64 assertions, `node evals/room-telegram-checkins/run.mjs`, all passing;
+method = offline, deterministic, $0, no DB, no network, no Telegram call, no
+model call, driving the real `api/_room-surface.js` (the four new
+`follower_id`-scoped SQL functions), `api/_room-telegram.js`
+(`/checkins on|off` through the real `handleRoomTelegramUpdate` pipeline,
+`resolveReplyThreadId`) and `api/_checkins.js` (`deliverers.telegram`,
+`telegramCheckinsStatus`/`setTelegramCheckins`) through a hand-rolled fake
+`db` wrapping the shared `evals/room/fixtures.mjs` (never editing it,
+`evals/checkins/run.mjs`'s own `withCheckins` precedent restated). Seven
+sections (parsing and the thread-mapping seam; the toggle's SQL predicate
+with two negative controls; `/checkins on|off` end to end; the send with two
+more negative controls and the 403/429/5xx branches; a static-plus-
+behavioural proof that the deliverer can reach no model call and carries the
+caller's own `said` byte for byte; the Room panel's session-scoped toggle
+with a B-cannot-touch-A check; static wiring across five files); date
+2026-09-04.
+
+## `ws-r34-checkins-telegram-gate-results-2026-09-04`
+
+n = 1 full `node scripts/verify-release.mjs` run recorded as the "before"
+this session, and one as "after" (no separate untouched-tree baseline was
+captured before this session's edits began - the same honest gap
+`ws-r18-room-telegram-gate-results-2026-09-03` and
+`ws-r22-web-push-gate-results-2026-09-04` both name for the identical
+reason: work started before the baseline step was run); method = the exact
+command the release gate runs, read from its own printed summary line, no
+`NEON_URL` in this environment (so 16, not 18, checks run). First full run
+(with the untested `setTelegramCheckinsEnabledForFollower` statement still
+missing its `::bool` cast): **15/16**, `eval suite` FAILED with `sqlcast: 2
+FAILED` naming `api/_room-surface.js:661` twice (the same statement's SET
+clause and its CASE both reading the untyped `$2`). Fixed by casting both
+occurrences to `($2)::bool`; `node evals/sqlcast.mjs` alone: **0 uncast
+sites** after the fix, confirmed by re-running `node evals/room-telegram-
+checkins/run.mjs` (64/64), `node evals/checkins/run.mjs` (37/37) and `node
+evals/room-telegram/run.mjs` (51/51) unchanged. Second full run: **16/16**.
+Regression-checked unchanged by direct runs during this session: `room-leak`
+78/78, `recall` 266 assertions, `persontables` 56 manifest entries,
+`room-whatsapp` 63/63, `room-push` 43/43, `room` 54/54, `room-export` ok,
+`room-locale` 44/44, `check-copy` 6 scopes clean/21 negative controls,
+`context.mjs --check` clean (998 nodes/1228 edges before this session's own
+additions), `tsc --noEmit` clean.
+
+## `rooms-migration-096-live-verification-2026-09-04`
+
+n = 1 migration (4 statements in one transaction), 4 API statements; method = the channel CHECK's name read back from `pg_constraint` BEFORE applying (it was `vy_room_checkin_delivery_channel_check`, the name migration 085 left), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, catalog read back (the CHECK now admits `telegram`; `vy_room_follower_channel.checkins_enabled boolean default true` and `stopped_code text null` present), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of the four statements WS-R34 added to `api/_room-surface.js`, parameters substituted with typed literals; date 2026-09-04, at the WS-R34 merge over the WS-R32 tip.
+
+| statement | plan |
+|---|---|
+| the sweep's eligibility read (`checkins_enabled = true and stopped_code is null`, in SQL) | Bitmap on `vy_room_follower_channel_follower_ix`, channel and both predicates as the filter |
+| mark stopped (403 or 400 from Telegram); the panel's status read; the panel's toggle UPDATE | each a Bitmap on the same follower index with `channel = 'telegram'` filtered |
+
+The delivery ledger insert for channel `telegram` is the same statement every other channel uses (arbiter `vy_room_checkin_delivery_once`, planned at the WS-R29 merge). Not measured: no check-in has reached Telegram; `sendRoomCheckinMessage`'s status and `retry_after` parsing has only met a hand-built response shape; nobody has seen the "Check-ins on Telegram" control in a browser.

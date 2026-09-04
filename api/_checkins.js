@@ -58,6 +58,10 @@ import {
   followerRow,
   roomThreadDevice,
   bindThreadDevice,
+  activeTelegramChannelFor,
+  markTelegramChannelStopped,
+  telegramCheckinsStatusFor,
+  setTelegramCheckinsEnabledForFollower,
 } from "./_room-surface.js";
 import { activeSubscriptionsFor, revokeSubscriptionById, touchSubscription } from "./_room-push.js";
 import { send as webPushSend, checkinPushPayload } from "./_push/webpush.js";
@@ -69,6 +73,7 @@ import {
   buildTemplatePayload,
   sendTemplate,
 } from "./_room-whatsapp.js";
+import { sendRoomCheckinMessage } from "./_room-telegram.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -315,6 +320,33 @@ export async function optIn(
   );
   if (!rows[0]) throw new CheckinsError("checkin_design_not_found", 404);
   return rows[0];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CHECK-INS ON TELEGRAM (WS-R34) - the Room panel's own control. `/checkins
+// on|off` (api/_room-telegram.js) is the SAME toggle over the SAME follower
+// row, resolved off a Telegram chat instead of a session - two doors onto
+// one column, never two definitions of it.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The panel's "already on" read. `connected:false` (no Telegram pointer for
+ *  this follower at all) is not an error - there is simply nothing to
+ *  toggle, and the panel renders no control, `waAvailable`'s own shape one
+ *  channel over. */
+export async function telegramCheckinsStatus(db, { session }, deps = {}) {
+  const who = await followerScope(db, session, deps);
+  return telegramCheckinsStatusFor(db, who.followerId);
+}
+
+/** The panel's toggle. No-op (never an error) when this follower has no
+ *  Telegram pointer - `setTelegramCheckinsEnabledForFollower`'s own header,
+ *  restated here rather than re-checked, since there is nothing this
+ *  follower-scoped door could add beyond confirming a pointer they already
+ *  know they do not have. */
+export async function setTelegramCheckins(db, { session, enabled }, deps = {}) {
+  const who = await followerScope(db, session, deps);
+  const row = await setTelegramCheckinsEnabledForFollower(db, who.followerId, Boolean(enabled));
+  return { checkins_enabled: row ? row.checkins_enabled === true : false };
 }
 
 export async function stop(db, { session, checkinId }, deps = {}) {
@@ -662,6 +694,96 @@ export const deliverers = {
       ? insertLedger("delivered", "", deps.now ?? Date.now())
       : insertLedger("failed", "no active subscription accepted the push");
   },
+
+  /**
+   * WS-R34 (migration 096): the channel that already works, carrying the
+   * thing itself. Called from `deliverOne` with the SAME `said` text the
+   * in-app delivery already produced through `gatedReply` - workstream law
+   * #2, "never a second assembler." Unlike `webPush`/`whatsappTemplate`
+   * (both content-free by law), this deliverer sends the real reply, because
+   * a Telegram DM the follower already has open is not a notification
+   * surface with the privacy and length limits those two are built around -
+   * it is the same conversational wire `api/_room-telegram.js`'s
+   * `handleOrdinaryMessage` already answers on.
+   *
+   * ELIGIBILITY IS A SQL PREDICATE (`activeTelegramChannelFor`), never a JS
+   * check after a broader read - workstream law #2 restated for this
+   * channel: a pointer with `checkins_enabled = false` or a non-null
+   * `stopped_code` is structurally never returned, so NEGATIVE CONTROLS (a)
+   * and (b) hold by construction, not by a branch this function could get
+   * wrong.
+   *
+   * States: `not_configured` (no `ROOM_TELEGRAM_BOT_TOKEN`, no DB read at
+   * all); `skipped_stopped` (no eligible pointer - opted out, stopped, or
+   * never joined via Telegram); `delivered` (a 2xx from Telegram);
+   * `failed` (a 403 bot-blocked or a 400 naming a dead chat - ALSO marks
+   * the pointer stopped, workstream law #3, so no further check-in reaches
+   * this follower on this channel until they clear it); no ledger row at
+   * all for a 429/5xx (transient - left for the next sweep, honouring
+   * Telegram's own `retry_after` by logging it rather than hammering again
+   * this same tick, `deliverers.whatsappTemplate`'s own precedent for a
+   * status this function does not itself have a scheduler to delay).
+   */
+  async telegram(db, row, said, deps = {}) {
+    const env = deps.env || process.env;
+    const insertLedger = async (state, reason, deliveredAt = null) => {
+      const rows = await db(
+        `insert into vy_room_checkin_delivery
+           (delivery_id, checkin_id, room_id, person_id, due_at, delivered_at, channel, state, reason)
+         values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::timestamptz, ($6)::timestamptz, 'telegram', $7, $8)
+         on conflict (checkin_id, due_at, channel) do nothing
+         returning delivery_id`,
+        [
+          randomUUID(),
+          row.checkin_id,
+          row.room_id,
+          row.person_id,
+          new Date(row.due_at).toISOString(),
+          deliveredAt ? new Date(deliveredAt).toISOString() : null,
+          state,
+          reason,
+        ],
+      );
+      return rows[0] || null;
+    };
+
+    const token = String(env.ROOM_TELEGRAM_BOT_TOKEN || "");
+    if (!token) return insertLedger("not_configured", "ROOM_TELEGRAM_BOT_TOKEN not set");
+
+    const followerId = row.follower_id;
+    const pointer = followerId ? await activeTelegramChannelFor(db, followerId) : null;
+    if (!pointer) {
+      // NEGATIVE CONTROLS (a)/(b): a disabled or stopped pointer (or none at
+      // all) is never sent to. No network call above this line.
+      return insertLedger("skipped_stopped", "no active Telegram check-ins pointer for this follower");
+    }
+
+    const text = String(said || "").trim();
+    if (!text) return insertLedger("failed", "no reply text to deliver");
+
+    const result = await sendRoomCheckinMessage(pointer.channel_ref, text, { token, fetch: deps.fetch });
+
+    if (result.ok) {
+      return insertLedger("delivered", "", deps.now ?? Date.now());
+    }
+    if (result.status === 403 || result.status === 400) {
+      // Revoke on failure (workstream law #3) - a blocked bot or a dead chat
+      // stops every future send to this follower on this channel until they
+      // clear it (`/checkins on`, or the Room panel's own toggle).
+      await markTelegramChannelStopped(db, followerId, result.errorCode || String(result.status)).catch(() => {});
+      return insertLedger("failed", `telegram error ${result.errorCode || result.status}`);
+    }
+    // 429/5xx/network - transient, `deliverers.whatsappTemplate`'s own
+    // precedent: no ledger row here, so this occurrence is left rather than
+    // recorded as a false terminal failure. `retry_after`, when Telegram
+    // sends one, is honoured by not sending again THIS tick (there is
+    // nothing else to do about it inside a single cron pass with no
+    // per-follower cooldown state) and logged so an operator can see it.
+    if (result.status === 429 && result.retryAfter) {
+      console.error(`[checkins telegram] rate limited, retry_after=${result.retryAfter}s`);
+    }
+    return null;
+  },
 };
 
 /** One row's outcome, written and `next_due_at` advanced in ONE statement -
@@ -764,6 +886,11 @@ async function deliverOne(db, row, deps) {
     // either writes its own ledger row or, for a transient failure,
     // deliberately writes nothing).
     if (claimed) await deliverers.whatsappTemplate(db, row, deps);
+    // WS-R34: the channel that already works, carrying the SAME `said` this
+    // scope already produced through `gatedReply` - never a second model
+    // call, workstream law #2 (negative control (c)). Same "only after the
+    // claim" rule as the two deliverers above.
+    if (claimed) await deliverers.telegram(db, row, said, deps);
     return { claimed, delivered: claimed };
   }
   // The gate suppressed everything a turn could have said. Still a completed

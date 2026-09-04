@@ -10505,3 +10505,72 @@ gone.
 whole `select room_id from vy_room` per wipe stops being cheap and this
 walk needs a different key (a room index keyed some other way, or batching
 the room walk) - that is the moment to revisit, not before.
+
+## `ws-r34-checkins-enabled-default-true-the-pointer-is-the-opt-in` (2026-09-04, WS-R34)
+
+**Decision.** `vy_room_follower_channel.checkins_enabled` (migration 096)
+defaults to `true`, so a follower whose Room pointer is a Telegram chat gets
+check-ins on that channel automatically, with no separate opt-in step and no
+new person table.
+
+**Rationale.** Joining a Room on Telegram at all is already a deliberate,
+two-question gate (`/start` -> age -> memory, migration 082's own header) -
+the channel pointer this migration widens is created only after a human
+answered both questions. Requiring a THIRD, separate "yes, also send
+check-ins here" step would be asking the same person to consent twice to
+being reachable on a wire they just proved they are already reachable on,
+`vy_room_push_subscription`'s and `vy_room_follower_whatsapp`'s own
+default-off shape is different on purpose: a browser subscription and a
+phone number are NEW destinations the follower has to actively hand over,
+while a Telegram chat is the destination they are already typing into.
+
+**Reversal condition.** If a real deployment shows followers surprised by an
+unrequested check-in arriving on Telegram (measured via the `/checkins off`
+rate in the first week after this ships, or direct feedback), flip the
+column default to `false` and add the opt-in prompt this decision currently
+argues against - the toggle (`/checkins on|off`, the Room panel's control)
+already exists either way, so the reversal is a one-line default change and
+a copy addition, not a schema change.
+
+## `ws-r34-checkin-thread-mapping-defaults-to-null` (2026-09-04, WS-R34)
+
+**Decision.** `resolveReplyThreadId` (api/_room-telegram.js) is a real,
+injectable seam - `deps.threadForReply`, when present, is trusted - but
+ships with nothing injected, so a check-in reply on Telegram always lands in
+the Room's default thread, identically to an ordinary (non-reply) message.
+
+**Rationale.** `vy_room_checkin` (migration 079) carries no `thread_id`
+column, and this workstream's own brief does not ask for one - every
+check-in this platform can design today is bound to the Room's default
+thread, so a persisted message-id-to-thread mapping would be machinery with
+nothing yet to map TO. Building the seam as a real function (rather than
+hard-coding `null` at the call site) means the day a check-in CAN name a
+thread, the wiring in `api/_room-telegram.js`'s `handleOrdinaryMessage`
+needs no change - only `deps.threadForReply`'s implementation does.
+
+**Reversal condition.** The day `vy_room_checkin` gains a `thread_id`
+column (a future workstream's own migration), add a real
+`threadForReply(replyToMessageId)` backed by a persisted
+Telegram-message-id-to-thread-id mapping (its own small table, keyed by
+`(chat_id, tg_message_id)`) and pass it as `deps.threadForReply` from
+`handleRoomTelegramUpdate`. Nothing in `resolveReplyThreadId`'s own
+signature or `handleOrdinaryMessage`'s call site needs to change for that.
+
+## `ws-r34-stopped-code-nullable-text-not-a-second-boolean` (2026-09-04, WS-R34)
+
+**Decision.** `vy_room_follower_channel.stopped_code` (migration 096) is
+`text null`, not `text not null default ''` the way
+`vy_room_follower_whatsapp.last_failure_code` is - and it is deliberately
+NULLABLE because it does double duty as the "is this pointer stopped at
+all" predicate (`stopped_code is null` means sendable). A not-null
+default-empty-string column cannot represent "never stopped" without a
+second boolean column next to it, which would be two columns able to
+disagree with each other (a non-empty code with the boolean unset, or the
+reverse) for no reason a real state needs.
+
+**Reversal condition.** If a later workstream needs to keep a STOPPED
+pointer's failure code on record after clearing it (a "why did this stop,
+historically" audit trail `/checkins on` currently erases), split it into
+`stopped_code text null` (the live predicate, cleared on re-enable) and a
+separate append-only history table - never reuse this one column for both
+purposes, which is exactly the ambiguity this decision avoids today.

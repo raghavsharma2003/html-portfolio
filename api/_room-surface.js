@@ -578,6 +578,98 @@ export async function unbindTelegramChannel(db, channelRef) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// CHECK-INS ON TELEGRAM (WS-R34, migration 096) - the channel pointer above
+// IS the opt-in. Every function here is scoped by `follower_id`, never by
+// `channel_ref`: the sweep already has a due row's own `follower_id` (the
+// due-select's own join, api/_checkins.js), and so does the Telegram bot's
+// command handler (`resolveActiveFollower`'s own follower row) - re-deriving
+// a channel_ref-scoped lookup a second time would be a second definition of
+// "this follower's Telegram pointer" next to the one that already exists.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The sweep's own read (api/_checkins.js's `deliverers.telegram`) - a SQL
+ *  predicate, not a JS filter after a broader select, `activeWhatsappFollower`'s
+ *  own shape (api/_room-whatsapp.js) restated for this table: a pointer with
+ *  `checkins_enabled = false` (the follower's own choice) or a non-null
+ *  `stopped_code` (a prior 403/400) is structurally never returned, so there
+ *  is no code path - correct or buggy - between "no eligible pointer" and a
+ *  network call to Telegram. */
+export async function activeTelegramChannelFor(db, followerId) {
+  const rows = await db(
+    `select channel_ref from vy_room_follower_channel
+      where follower_id = ($1)::uuid and channel = 'telegram'
+        and checkins_enabled = true and stopped_code is null
+      limit 1`,
+    [String(followerId)],
+  );
+  return rows[0] || null;
+}
+
+/** Revoke on failure (workstream law #3) - a 403 (bot blocked) or a 400
+ *  naming a dead chat marks the pointer stopped, `markFollowerWhatsappFailed`'s
+ *  own shape (api/_room-whatsapp.js) one channel over. This does NOT unbind
+ *  the pointer (`unbindTelegramChannel` above is the follower's own `/stop`,
+ *  a different act) - it only stops further CHECK-IN sends until the
+ *  follower's own `/checkins on` or the Room panel's own toggle clears it. */
+export async function markTelegramChannelStopped(db, followerId, code) {
+  await db(
+    `update vy_room_follower_channel
+        set stopped_code = $2, updated_at = now()
+      where follower_id = ($1)::uuid and channel = 'telegram'`,
+    [String(followerId), String(code || "").slice(0, 120)],
+  );
+}
+
+/** The follower's own read - the Room panel's "already on" state and the
+ *  `/checkins` bot command's own status line, `subscriptionStatus`'s shape
+ *  (api/_room-push.js) restated: `connected` is false (no query result at
+ *  all is impossible to distinguish from "never joined via Telegram" and
+ *  that is intentional - there is nothing to toggle when there is no
+ *  pointer) when this follower has never bound a Telegram chat to this Room. */
+export async function telegramCheckinsStatusFor(db, followerId) {
+  const rows = await db(
+    `select checkins_enabled, stopped_code from vy_room_follower_channel
+      where follower_id = ($1)::uuid and channel = 'telegram'
+      limit 1`,
+    [String(followerId)],
+  );
+  const row = rows[0];
+  if (!row) return { connected: false, checkins_enabled: false, stopped: false };
+  return {
+    connected: true,
+    checkins_enabled: row.checkins_enabled === true,
+    stopped: row.stopped_code != null,
+  };
+}
+
+/** The follower's own toggle - `/checkins on|off` (api/_room-telegram.js) AND
+ *  the Room panel's control (api/_checkins.js's `telegramCheckinsStatus`/
+ *  `setTelegramCheckins`) both call this, scoped by the SAME `follower_id`
+ *  each caller already resolved off its own session or its own follower row
+ *  - never a second definition of "this follower". Turning ON also clears a
+ *  prior `stopped_code`: a follower issuing this command or tapping this
+ *  control is, by construction, currently able to reach the bot (they are
+ *  either mid-conversation with it or authenticated into the Room), so a
+ *  stale "the bot was blocked" code from before is no longer the truth -
+ *  `optIn`'s own "re-subscribing clears the failure code"
+ *  (api/_room-whatsapp.js) restated for a boolean instead of a phone number.
+ *  No row to update (never joined via Telegram) is silently a no-op, never a
+ *  thrown error - there is nothing for either caller to do about a pointer
+ *  that does not exist. */
+export async function setTelegramCheckinsEnabledForFollower(db, followerId, enabled) {
+  const rows = await db(
+    `update vy_room_follower_channel
+        set checkins_enabled = ($2)::bool,
+            stopped_code = case when ($2)::bool then null else stopped_code end,
+            updated_at = now()
+      where follower_id = ($1)::uuid and channel = 'telegram'
+      returning checkins_enabled`,
+    [String(followerId), Boolean(enabled)],
+  );
+  return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // OP: open
 // ─────────────────────────────────────────────────────────────────────────
 

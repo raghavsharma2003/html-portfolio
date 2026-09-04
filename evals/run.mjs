@@ -1707,6 +1707,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "phase-gate": "phase-gate/run.mjs",
+  // WS-R34, migration 096. Check-ins over Telegram: the channel that already
+  // works (WS-R18's one-Room-per-chat pointer, `vy_room_follower_channel`)
+  // carries the thing itself, since the pointer IS the opt-in — no new
+  // person table. `/checkins on|off`, the toggle's own SQL predicate
+  // (`activeTelegramChannelFor` et al.), the reply-to-thread mapping
+  // (`resolveReplyThreadId`, an honest seam that resolves to the Room's
+  // default thread today because `vy_room_checkin` names no thread of its
+  // own), `deliverers.telegram` (not_configured/delivered/failed+revoke on
+  // 403 or 400/transient-on-429-or-5xx), the Room panel's own toggle, and a
+  // NEGATIVE CONTROL proving `deliverers.telegram` can reach no model call
+  // and carries the SAME `said` the in-app delivery already produced —
+  // never a second assembler. Two more NEGATIVE CONTROLS: (a) checkins_
+  // enabled:false never sends, (b) a stopped pointer never sends.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Telegram call, no
+  // model call.
+  "room-telegram-checkins": "room-telegram-checkins/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

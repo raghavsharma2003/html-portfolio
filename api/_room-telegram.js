@@ -59,6 +59,8 @@ import {
   telegramChannelRoom,
   unbindTelegramChannel,
   normalizeLocale,
+  telegramCheckinsStatusFor,
+  setTelegramCheckinsEnabledForFollower,
 } from "./_room-surface.js";
 import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
 import { activeProviderName } from "./_payments.js";
@@ -199,6 +201,26 @@ export function languageChangedCard(locale) {
     : "Language changed to English.";
 }
 
+/** `/checkins on` (WS-R34). Also the confirmation the Telegram lane never
+ *  itself renders for the Room panel's own toggle - that control reads its
+ *  own copy from src/room/copy.ts, `languageChangedCard`'s own split between
+ *  a server-rendered card here and a client-rendered string there. */
+export function checkinsOnCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "टेलीग्राम पर चेक-इन चालू हैं। जब कोई बकाया हो, यह यहीं पहुंचेगा।"
+    : "Check-ins on Telegram are on. A due one will reach you right here.";
+}
+
+/** `/checkins off`. Never deletes anything - the schedule itself is
+ *  untouched, only THIS channel stops carrying it, `stoppedCard`'s own
+ *  "leaves, no deletion" restated for a toggle instead of the whole
+ *  pointer. */
+export function checkinsOffCard(locale = "en") {
+  return normalizeLocale(locale) === "hi"
+    ? "टेलीग्राम पर चेक-इन बंद हैं। किसी भी समय /checkins on से वापस चालू करें।"
+    : "Check-ins on Telegram are off. Turn them back on any time with /checkins on.";
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // PARSING - one Telegram update -> zero or one classified event
 // ─────────────────────────────────────────────────────────────────────────
@@ -242,6 +264,11 @@ export function classifyRoomTelegramUpdate(update) {
     handle: displayName(m.from),
     text: String(m.text || ""),
     messageId: m.message_id ?? null,
+    // WS-R34, law 5: Telegram's own "reply to a specific message" gesture -
+    // present only when the follower actually tapped Reply on an earlier
+    // message in this chat (theirs or the bot's). `null` for an ordinary,
+    // unthreaded message - the overwhelmingly common case.
+    replyToMessageId: m.reply_to_message?.message_id != null ? String(m.reply_to_message.message_id) : null,
     languageCode: String(m.from.language_code || ""),
   };
 }
@@ -262,6 +289,18 @@ export function parseStartCommand(text) {
  *  command each, plain words - the law. */
 export function parseRoomCommand(text) {
   const m = /^\/(forget|export|stop|hindi|english)(?:@[\w_]+)?\s*$/.exec(String(text || "").trim());
+  return m ? m[1] : null;
+}
+
+/** `/checkins on|off` (WS-R34). A separate parser rather than folded into
+ *  `parseRoomCommand` above - that one is "no argument, one word each", and
+ *  this is the first Room command in this file that takes one, so it stays
+ *  its own function rather than growing the regex a case it does not share
+ *  the shape of. Returns "on"/"off", or null for anything else (including a
+ *  bare `/checkins`, an unrecognised argument, or not this command at all -
+ *  the caller treats all three identically: nothing to do). */
+export function parseCheckinsCommand(text) {
+  const m = /^\/checkins(?:@[\w_]+)?\s+(on|off)\s*$/.exec(String(text || "").trim());
   return m ? m[1] : null;
 }
 
@@ -315,6 +354,65 @@ async function tgSendDocument(token, chatId, buffer, filename, caption) {
   if (!r) return { ok: false, error: "network" };
   const j = await r.json().catch(() => ({}));
   return { ok: j?.ok === true, result: j?.result };
+}
+
+/**
+ * The check-in sweep's own send (WS-R34, api/_checkins.js's
+ * `deliverers.telegram`) - deliberately SEPARATE from `tgCall`/
+ * `defaultRoomTelegramClient` above, which is the bot's reply wire and never
+ * exposes an HTTP status or Telegram's own `retry_after`. The sweep needs
+ * both: workstream law #3 tells "stop trying" (403 bot-blocked, 400 naming a
+ * dead chat) apart from "try again later" (429, 5xx, honouring
+ * `parameters.retry_after` when Telegram sends one) by the status code, not
+ * by Telegram's own `ok` boolean alone. `deps.fetch` is REQUIRED -
+ * `api/_room-whatsapp.js`'s `sendTemplate` own law, restated: no fallback to
+ * a global `fetch`, so an eval that forgets to inject one gets a loud error
+ * rather than a silent real HTTP request. Never called from an offline eval
+ * without an injected `fetch` - this file's own "no calls to Telegram from
+ * any eval" list, restated for a second exit rather than assumed to cover it
+ * by name alone.
+ */
+export async function sendRoomCheckinMessage(chatId, text, deps = {}) {
+  const token = deps.token ?? "";
+  if (!token) return { ok: false, status: 0, errorCode: "not_configured" };
+  if (typeof deps.fetch !== "function") throw new Error("room_telegram_checkin_send_fetch_required");
+  const r = await deps
+    .fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    .catch(() => null);
+  if (!r) return { ok: false, status: 0, errorCode: "network" };
+  const j = await r.json().catch(() => ({}));
+  return {
+    ok: j?.ok === true,
+    status: Number(r.status) || 0,
+    errorCode: j?.ok ? "" : String(j?.error_code ?? r.status ?? ""),
+    retryAfter: Number(j?.parameters?.retry_after) || 0,
+  };
+}
+
+/** Law 5's "reads it from the reply-to message when present, else the
+ *  Room's default thread." Today a check-in never binds to anything BUT the
+ *  Room's default thread - `vy_room_checkin` (migration 079) carries no
+ *  `thread_id` column, and this workstream does not add one, so BOTH halves
+ *  of that sentence resolve to the identical value today
+ *  (`decisions.md#ws-r34-checkin-thread-mapping-defaults-to-null`). Built as
+ *  a real seam rather than a hand-wave so the day a check-in CAN name a
+ *  thread this function is where that wiring lands: `deps.threadForReply`,
+ *  when injected, is asked to resolve a reply-to message id to a thread id
+ *  and its answer is trusted; with nothing injected (the shipping default -
+ *  no persisted message-id-to-thread mapping exists yet) it is never even
+ *  called, and the result is always `null`, `roomSay`'s own "no thread
+ *  named" meaning. */
+export function resolveReplyThreadId(replyToMessageId, deps = {}) {
+  if (replyToMessageId && typeof deps.threadForReply === "function") {
+    const mapped = deps.threadForReply(replyToMessageId);
+    if (mapped) return mapped;
+  }
+  return null;
 }
 
 /** The shipping client. `send()` is never called from an offline eval - the
@@ -519,6 +617,16 @@ async function handleRoomCommand(db, tg, now, env, ev, cmd, ctx) {
     locale: scope.locale,
   });
 
+  // WS-R34: `/checkins on|off`. No `roomSay`/`roomForget` call needed - this
+  // toggles ONE column on the same channel pointer `resolveActiveFollower`
+  // already resolved, `api/_room-surface.js`'s `setTelegramCheckinsEnabledForFollower`.
+  if (cmd === "checkins_on" || cmd === "checkins_off") {
+    const enabled = cmd === "checkins_on";
+    await setTelegramCheckinsEnabledForFollower(db, scope.follower.follower_id, enabled);
+    await tg.sendMessage(ev.chatId, enabled ? checkinsOnCard(scope.locale) : checkinsOffCard(scope.locale));
+    return { ok: true, checkinsEnabled: enabled };
+  }
+
   if (cmd === "forget") {
     const result = await roomForget(db, { session }, ctx.roomDeps);
     await tg.sendMessage(ev.chatId, forgottenCard(result, scope.locale));
@@ -559,9 +667,14 @@ async function handleOrdinaryMessage(db, tg, now, env, ev, ctx) {
     env,
     locale: scope.locale,
   });
+  // WS-R34, law 5: a reply-to-message id resolves to a thread id when a
+  // mapping is injected (`resolveReplyThreadId`'s own header on why none is,
+  // today) - `null` either way lands in the Room's default thread, exactly
+  // where an ordinary (non-reply) message already lands.
+  const threadId = resolveReplyThreadId(ev.replyToMessageId, ctx.roomDeps);
   let turn;
   try {
-    turn = await roomSay(db, { session, message: text, transcript: [] }, ctx.roomDeps);
+    turn = await roomSay(db, { session, message: text, threadId, transcript: [] }, ctx.roomDeps);
   } catch (e) {
     if (e instanceof RoomError) {
       if (e.code === "room_free_cap_reached") {
@@ -622,6 +735,13 @@ export async function handleRoomTelegramUpdate(update, deps = {}) {
       return { ok: true, started: false };
     }
     return await handleStart(db, tg, ev, startSlug, ctx);
+  }
+
+  // WS-R34: checked before the no-argument command table above, since
+  // `/checkins` is the first command in this file that takes one.
+  const checkinsToggle = parseCheckinsCommand(ev.text);
+  if (checkinsToggle) {
+    return await handleRoomCommand(db, tg, now, env, ev, checkinsToggle === "on" ? "checkins_on" : "checkins_off", ctx);
   }
 
   const cmd = parseRoomCommand(ev.text);
