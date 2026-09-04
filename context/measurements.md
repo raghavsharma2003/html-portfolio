@@ -8873,3 +8873,40 @@ worktree's own gate run and was reconfirmed passing standalone both times
 after the port freed. `node evals/run.mjs`: every suite including the new
 `room-doors`, 0 failures. `node scripts/check-copy.mjs`: 6 scopes clean, 21
 negative controls. `node scripts/context.mjs --check`: clean.
+
+## `ws-r46-embed-script-size-2026-09-04`
+
+n = 1 (the one shipped script, the `ROOM_EMBED_JS` string exported from
+`api/_room-embed.js`). Method: `Buffer.byteLength(ROOM_EMBED_JS, "utf8")`
+for the raw source, and `npx esbuild --minify --loader=js` fed the same
+string over stdin — the identical tool `evals/run.mjs` already shells out
+to on every gate run, so no new dependency was added to measure this.
+Both are computed and printed on every run of `evals/room-embed/run.mjs`
+§1, not a one-off number typed into this file. Result: **2,539 raw bytes,
+1,677 minified bytes**, well under the brief's 6,144-byte (6 KB) cap.
+Date: 2026-09-04.
+
+## `ws-r46-gate-results-2026-09-04`
+
+Method: `node scripts/verify-release.mjs` (no `NEON_URL` in this
+environment, so the two relational DB gates are skipped by design, as
+they have been for every workstream this wave). BEFORE any file in this
+workstream was written: confirmed on the untouched tree at commit
+`321a0fd` via a `git reset --hard 321a0fd` round trip (never `git stash`,
+per the shared brief's own law — a WIP commit was made first and the
+tree was restored from it with `git checkout <wip> -- <paths>` afterward,
+so no work was lost) — **17/17**. AFTER every file in this workstream:
+**17/17**, unchanged count (no new named gate; this workstream registers
+a new SUITE inside the existing "eval suite" check, `evals/room-embed/
+run.mjs`, rather than a new top-level gate). Full per-check timings for
+both runs are in this workstream's final report. `node evals/room-embed/
+run.mjs` standalone: **51/51** (11 sections, 3 required negative
+controls, each proven to bite by first showing it catches a corrupted
+input). `node scripts/check-copy.mjs`: 6 scopes clean, 21 negative
+controls (unchanged — this workstream's new copy lives in the existing
+`src/studio/` scope). `node evals/sqlcast.mjs`: 0 conflicts, 0 uncast
+sites, 829 statements scanned (unchanged — this workstream added no raw
+SQL of its own; its one database read is a call-through to the existing
+`resolveRoom`). `node scripts/context.mjs --check`: clean before (1074
+nodes, 1313 edges) and clean after this workstream's own additions (1080
+nodes, 1320 edges).

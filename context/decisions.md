@@ -11399,3 +11399,110 @@ a dual-stack routing quirk observed in production logs), or if a future
 door ever accepts an address from a request-controlled field rather than a
 platform header, canonicalize before hashing and log the incident that
 proved the path.
+
+## `ws-r46-no-iframe-v0` (2026-09-04, WS-R46)
+
+**Decision.** The Room's own-site embed (`/room-embed.js`) never frames the
+Room. Clicking the rendered button opens `/r/<slug>?via=embed` in a new
+tab, at this platform's own origin. Nothing renders the Room's app shell
+inside an `<iframe>` on a creator's page, and no `Content-Security-Policy:
+frame-ancestors` allow-list exists anywhere in this change.
+
+**Rationale.** Framing the Room inside a creator's own page needs a
+per-creator allowed-origin table (which creator's iframe may embed which
+Room) and the CSP header that enforces it — a new table and a new write
+surface this workstream was not asked to build. Getting that table wrong
+is a real leak in either direction: a missing entry refuses a legitimate
+creator's embed, and a wrong or over-broad one lets ANY page frame ANY
+Room. A new tab needs none of that risk — the Room's own origin already
+decides its own framing policy for everyone, completely unchanged by this
+workstream.
+
+**Reversal condition.** The first creator who asks for the Room to sit
+INSIDE their page rather than open beside it (an iframe request, not a
+preference for how the button looks) is the signal to build the
+per-creator allowed-origin table and the `frame-ancestors` header that
+names it — not a redesign of the button, an entirely new gate.
+
+## `ws-r46-embed-read-reuses-resolveroom-not-ownedroomrow` (2026-09-04, WS-R46)
+
+**Decision.** The embed JSON's one database read
+(`api/_room-embed.js`'s `readRoomEmbed`) calls `resolveRoom` from
+`api/_room-surface.js` — the exact function every follower's own first
+screen already goes through — rather than `api/_room-publish.js`'s
+`ownedRoomRow` (the brief's own named precedent, "`api/_room-publish.js`'s
+existing published-room read").
+
+**Rationale.** The only published-room read `api/_room-publish.js` holds
+is `ownedRoomRow`, and it is owner-scoped by construction (its WHERE
+clause binds `owner_user_id` to a caller's own bearer token) — it cannot
+answer an anonymous stranger's request on a creator's own site at all.
+`api/_room-surface.js`'s `resolveRoom`/`roomBySlug` is the actual
+anonymous, slug-keyed, published-and-unpaused read every follower already
+goes through, and `api/_room-publish.js`'s own publish-lock predicate is
+deliberately built to agree with it (`publishRoom`'s own header: the three
+publish conditions exist so `published_at` can never say "open" while
+`resolveRoom` refuses everyone). Reusing it here means the embed script's
+"is this Room reachable" can never drift from the Room's own answer to the
+identical question. A second, parallel published-room query written for
+this one surface would be exactly the second, competing definition of
+"published" this repo's own disclosure law (`api/_disclosure.js`'s header)
+warns against for a different kind of duplication.
+
+**Reversal condition.** If `resolveRoom`'s cost (it loads and compiles the
+agent's persona module via `loadTeacherAgent`) is ever measured to matter
+at this endpoint's real traffic despite the 5-minute public cache, split a
+cheaper `display_name`/`default_locale`-only read off `roomBySlug` for the
+embed JSON and keep `resolveRoom` only for the disclosure's creator name.
+
+## `ws-r46-disclosure-is-the-full-card-not-a-shortened-sentence` (2026-09-04, WS-R46)
+
+**Decision.** The embed JSON's `disclosure` field is `roomDisclosureCard`'s
+full three-line output, verbatim — the same text every other transport
+(the Room itself, the Telegram bot via `api/_room-telegram.js`) already
+renders as "the disclosure" — never a shortened, one-line summary
+invented for this one surface.
+
+**Rationale.** `api/_room-telegram.js` already sends this exact same
+three-line text as a single chat message over a narrower transport, so
+there is a real, working precedent for treating the whole card as one
+unit rather than expecting every new surface to author its own cut of it.
+A second, shorter disclosure string invented here would be a second
+disclosure — exactly what `api/_disclosure.js`'s header and
+`api/embed.js`'s own header ("the disclosure is rendered because it is
+RETURNED, not because we ask") both argue against: every surface renders
+what the server actually decided to say, never its own paraphrase.
+
+**Reversal condition.** If a UX review of the rendered widget finds the
+three-line card visually overwhelms a small embed and a shorter first
+line reads better there, add a SECOND exported string next to
+`roomDisclosureCard` in `api/_room-surface.js` itself (e.g.
+`roomDisclosureHeadline`), so every surface that wants the short form
+reads the same one rather than each inventing its own truncation.
+
+## `ws-r46-share-tab-copy-stays-english` (2026-09-04, WS-R46)
+
+**Decision.** The Share tab's new "On your own site" card (its two field
+notes, its button label) is written in English only, matching every other
+card `RoomStudio.tsx` already renders. The brief's own line ("the
+snippet, a copy control, one sentence saying what the button shows and
+that it opens the Room in a new tab, both locales") is read as being
+about the WIDGET's own rendered text — the button label and disclosure,
+which already carry the Room's `default_locale` end to end via
+`buildRoomEmbedJson` — rather than as a demand for a second, Hindi copy
+of the STUDIO's own chrome.
+
+**Rationale.** The studio has no locale-switching mechanism anywhere
+else. Every existing `RoomStudio.tsx` card is English-only creator-facing
+chrome, INCLUDING the "Room language" card that lets a creator set the
+FOLLOWER's own default language. Building bilingual creator-chrome for
+one new card while the surrounding thirty-plus do not have it would be an
+inconsistent one-off, not a real feature. The actual bilingual promise
+("your visitors see this in whichever language your Room shows first") is
+both stated in the card's own sentence and true by construction, since
+the button and disclosure text the widget renders ship through
+`default_locale`.
+
+**Reversal condition.** If the studio ever gains real creator-facing i18n
+(a locale switch on the studio's OWN chrome, distinct from the Room's),
+revisit this card alongside every other one rather than ahead of them.
