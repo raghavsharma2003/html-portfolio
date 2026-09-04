@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ROOM_COPY } from "./copy";
 import {
-  listCheckinDesigns,
+  listCheckinDesignsAndPushKey,
   listMyCheckins,
   optInToCheckin,
   stopCheckin,
@@ -15,6 +15,25 @@ import {
   type RoomCheckinDesign,
   type RoomCheckin,
 } from "./roomCheckinsApi";
+import { pushSubscribe, pushUnsubscribe, pushStatus } from "./roomApi";
+
+/** RFC 4648 base64url, both directions — the only encoding every field in a
+ *  browser `PushSubscription` and the VAPID public key share. */
+function b64uToUint8Array(b64u: string): Uint8Array<ArrayBuffer> {
+  const pad = "=".repeat((4 - (b64u.length % 4)) % 4);
+  const base64 = (b64u + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function bufToB64u(buf: ArrayBuffer | null): string {
+  if (!buf) return "";
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 export default function CheckinsPanel({ session, onClose }: { session: string; onClose: () => void }) {
   const [designs, setDesigns] = useState<RoomCheckinDesign[]>([]);
@@ -25,12 +44,27 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7]);
   const [time, setTime] = useState("09:00");
   const [zone] = useState(browserTimezone());
+  const [quietFrom, setQuietFrom] = useState("");
+  const [quietTo, setQuietTo] = useState("");
+  // WS-R22: the phone, without Meta. `pushKey` is null on a deployment that
+  // has not configured `ROOM_PUSH_VAPID_PUBLIC` — the whole control below is
+  // absent in that case (workstream law #3), never shown-and-disabled.
+  const [pushKey, setPushKey] = useState<string | null>(null);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [d, m] = await Promise.all([listCheckinDesigns(session), listMyCheckins(session)]);
-      setDesigns(d);
+      const [dp, m] = await Promise.all([listCheckinDesignsAndPushKey(session), listMyCheckins(session)]);
+      setDesigns(dp.designs);
       setMine(m);
+      setPushKey(dp.push_public_key);
+      if (dp.push_public_key) {
+        pushStatus(session)
+          .then((s) => setPushOn(s.subscribed))
+          .catch(() => {});
+      }
     } catch {
       setError(ROOM_COPY.errors.generic);
     }
@@ -39,6 +73,55 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
   useEffect(() => {
     void load();
   }, [load]);
+
+  const enablePush = useCallback(async () => {
+    if (!pushKey) return;
+    setPushBusy(true);
+    setPushError("");
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        throw new Error("push_unsupported");
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("push_denied");
+      const registration = await navigator.serviceWorker.register("/room-sw.js");
+      await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      const subscription =
+        existing ??
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: b64uToUint8Array(pushKey),
+        }));
+      const endpoint = subscription.endpoint;
+      const p256dh = bufToB64u(subscription.getKey("p256dh"));
+      const auth = bufToB64u(subscription.getKey("auth"));
+      await pushSubscribe(session, endpoint, p256dh, auth);
+      setPushOn(true);
+    } catch {
+      setPushError(ROOM_COPY.checkins.pushError);
+    } finally {
+      setPushBusy(false);
+    }
+  }, [pushKey, session]);
+
+  const disablePush = useCallback(async () => {
+    setPushBusy(true);
+    setPushError("");
+    try {
+      const registration = await navigator.serviceWorker.getRegistration("/room-sw.js");
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) {
+        await pushUnsubscribe(session, subscription.endpoint);
+        await subscription.unsubscribe();
+      }
+      setPushOn(false);
+    } catch {
+      setPushError(ROOM_COPY.checkins.pushError);
+    } finally {
+      setPushBusy(false);
+    }
+  }, [session]);
 
   const activeCheckinsByDesign = new Set(mine.filter((c) => c.state === "active").map((c) => c.design_id));
 
@@ -51,7 +134,13 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
       setBusy(designId);
       setError("");
       try {
-        await optInToCheckin(session, designId, { daysOfWeek: days, localTime: time, timezone: zone });
+        await optInToCheckin(session, designId, {
+          daysOfWeek: days,
+          localTime: time,
+          timezone: zone,
+          quietFrom: quietFrom || null,
+          quietTo: quietTo || null,
+        });
         setPicking(null);
         await load();
       } catch (e) {
@@ -60,7 +149,7 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
         setBusy(null);
       }
     },
-    [session, days, time, zone, load],
+    [session, days, time, zone, quietFrom, quietTo, load],
   );
 
   const stop = useCallback(
@@ -135,6 +224,17 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
                       {ROOM_COPY.checkins.timeLabel}
                       <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
                     </label>
+                    <div className="room-checkins-quiet">
+                      <span className="room-fine">{ROOM_COPY.checkins.quietLabel}</span>
+                      <label className="room-fine">
+                        {ROOM_COPY.checkins.quietFromLabel}
+                        <input type="time" value={quietFrom} onChange={(e) => setQuietFrom(e.target.value)} />
+                      </label>
+                      <label className="room-fine">
+                        {ROOM_COPY.checkins.quietToLabel}
+                        <input type="time" value={quietTo} onChange={(e) => setQuietTo(e.target.value)} />
+                      </label>
+                    </div>
                     <button
                       type="button"
                       className="room-btn"
@@ -152,6 +252,21 @@ export default function CheckinsPanel({ session, onClose }: { session: string; o
               </li>
             ))}
         </ul>
+      )}
+
+      {pushKey && (
+        <div className="room-checkins-push">
+          <p className="room-fine">{pushOn ? ROOM_COPY.checkins.pushOnCopy : ROOM_COPY.checkins.pushOffCopy}</p>
+          {pushError && <p className="room-error">{pushError}</p>}
+          <button
+            type="button"
+            className="room-btn"
+            disabled={pushBusy}
+            onClick={() => void (pushOn ? disablePush() : enablePush())}
+          >
+            {pushBusy ? "..." : pushOn ? ROOM_COPY.checkins.pushDisable : ROOM_COPY.checkins.pushEnable}
+          </button>
+        </div>
       )}
 
       <button type="button" className="room-btn" onClick={onClose}>

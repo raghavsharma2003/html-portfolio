@@ -67,7 +67,18 @@ export default async function handler(req, res) {
     }
 
     if (op === "designs") {
-      return res.status(200).json({ designs: await listRoomCheckinDesigns(q, { session: body.session }) });
+      // `push_public_key` rides along on the SAME round trip the panel
+      // already makes on mount, rather than a second request — server-driven
+      // and always in sync with the deployment's own `ROOM_PUSH_VAPID_
+      // PUBLIC` (WS-R22): unset means null, and the client's whole "Allow
+      // check-ins on this phone" control renders nothing for a null key
+      // (workstream law #3, "the Room hides the enable control"). The
+      // PUBLIC VAPID key is not a secret — it is the value every subscriber's
+      // browser is handed to mint a subscription against — so this is a
+      // plain read, not a config leak.
+      const designs = await listRoomCheckinDesigns(q, { session: body.session });
+      const pushPublicKey = String(process.env.ROOM_PUSH_VAPID_PUBLIC || "") || null;
+      return res.status(200).json({ designs, push_public_key: pushPublicKey });
     }
 
     if (op === "opt_in") {
@@ -77,6 +88,8 @@ export default async function handler(req, res) {
         daysOfWeek: body.days_of_week,
         localTime: body.local_time,
         timezone: body.timezone,
+        quietFrom: body.quiet_from ?? null,
+        quietTo: body.quiet_to ?? null,
       });
       return res.status(200).json(created);
     }

@@ -9228,3 +9228,152 @@ the code), that would justify moving the write inside the kill branch too -
 but it should be done by the person who owns that kill switch, with the
 "nothing written" comment updated in the same change, not as an incidental
 side effect of an ops-board workstream.
+
+## `ws-r22-hand-rolled-webpush-crypto` (2026-09-04, WS-R22)
+
+**Decision.** Implement Web Push (RFC 8291 aes128gcm encryption + RFC 8292
+VAPID ES256 JWT) directly over `node:crypto` (`api/_push/webpush.js`) rather
+than pulling in the `web-push` npm package.
+
+**Rationale.** The workstream brief's own instruction: "no new dependency if
+you can avoid it, and if hand-rolling is more than a day, `web-push` is
+acceptable, pinned." ECDH (P-256), HKDF (built on `createHmac`), AES-128-GCM
+and ES256 signing (`crypto.sign` with `dsaEncoding: "ieee-p1363"` for the raw
+r||s form JWT needs, no manual DER parsing) are all already in `node:crypto`,
+and the whole implementation is under 300 lines. Proven by round-tripping the
+encoder's output through an INDEPENDENTLY WRITTEN decoder (the receiver's own
+math, not a mirror of the sender's) against a freshly generated real P-256
+keypair — 43 assertions, `evals/room-push/run.mjs`.
+
+**What is explicitly NOT proven, and why not fabricated.** RFC 8291 Appendix
+A publishes a known-answer test vector (fixed keys, fixed salt, fixed
+expected ciphertext). This session tried transcribing it from memory as a
+hard-coded assertion and the transcribed public key failed to parse as a
+valid P-256 point (`ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY`) — see
+`rejected.md#ws-r22-rfc-8291-known-answer-vector-from-memory`. Rather than
+either shipping a broken assertion or silently adjusting the implementation
+to match a possibly-mistranscribed constant, the vector was dropped entirely
+in favour of round-trip self-consistency with freshly generated keys. This
+means real-browser and real-push-service interop is UNPROVEN — this
+environment has no network route to test against Chrome/FCM or Firefox's
+autopush, and the exact RFC 8291 byte vector was never independently
+reproduced here.
+
+**Reversal condition.** If a real deployment's push sends are rejected by a
+real browser's push service with a decryption or signature error the offline
+suite did not catch, replace this file's crypto with the pinned `web-push`
+package rather than debugging the hand-rolled version blind — a
+conformance bug in a from-scratch RFC implementation with no live
+interop test is exactly the failure mode "no new dependency if you can avoid
+it" trades against, and the brief's own escape hatch exists for this case.
+
+## `ws-r22-quiet-hours-shift-not-skip` (2026-09-04, WS-R22)
+
+**Decision.** A follower's quiet-hours window (`vy_room_checkin.quiet_from`/
+`quiet_to`, migration 085) SHIFTS a due occurrence that falls inside it to
+the instant the window ends, rather than skipping that occurrence entirely
+and waiting for the next scheduled day.
+
+**Rationale.** A follower who picks a check-in time that happens to fall
+inside their own quiet window (or narrows their quiet window after already
+opting in) asked for a daily/weekly check-in, not for it to silently stop
+firing on the days their two settings collide. Shifting preserves "it still
+happens, just not while I asked not to be interrupted"; skipping would
+silently halve the delivered frequency of a schedule with no error and no
+signal to the follower. `computeNextDue`'s own math (`api/_checkins.js`)
+implements the shift by advancing the exit instant to the SAME calendar day
+the occurrence would have landed on, or the day after for a window that
+wraps midnight — proven for both shapes in `evals/room-push/run.mjs` §3.
+
+**Reversal condition.** If the owner decides quiet hours should instead skip
+the occurrence and let the FOLLOWING week's/day's occurrence stand (i.e. "not
+now, not later today either"), `computeNextDue`'s `quietExit` helper is the
+one place that changes — advance to the next candidate `offset` in the loop
+rather than shifting the clock time within the same day.
+
+## `ws-r22-push-key-served-from-designs-op-not-build-time-env` (2026-09-04, WS-R22)
+
+**Decision.** The Room's client learns whether web push is configured (and
+the VAPID public key itself) from a field on `api/checkins.js`'s existing
+`designs` response (`push_public_key`), read server-side from
+`process.env.ROOM_PUSH_VAPID_PUBLIC` on every request — NOT from a Vite
+build-time env var (the `ROOM_VOICE`/`VITE_ROOM_VOICE` pattern this repo
+otherwise uses for a feature flag).
+
+**Rationale.** The VAPID PUBLIC key is not a secret (it is handed to every
+subscriber's browser to mint a subscription against), but it must be
+BYTE-IDENTICAL to the server's own private key's public half or every
+subscription a follower creates fails to decrypt. A `VITE_` build-time copy
+is a second place the same value has to be pasted and kept in sync with the
+server's `ROOM_PUSH_VAPID_PUBLIC` — a config-drift class of bug this
+decision avoids by construction: there is exactly one place this value is
+ever set, and the client always reads the live server's own value on every
+load rather than a value baked in at the last build.
+
+**Reversal condition.** If the `designs` round trip turns out to be too slow
+or too rarely hit for the push control to feel responsive (e.g. a future
+redesign that offers "allow notifications" before a follower ever opens the
+check-ins panel), move the key onto `openRoom`'s own response instead — still
+server-driven, never a build-time var, same reasoning.
+
+## `ws-r22-dynamic-manifest-blob-url-per-room` (2026-09-04, WS-R22)
+
+**Decision.** `public/room.webmanifest` is a static file with a placeholder
+`start_url` (`/r/`), which does not resolve to a real room. `RoomApp.tsx`
+swaps the page's `<link rel="manifest">` to an in-memory `Blob` URL carrying
+the CURRENT room's own `start_url` (`/r/<slug>`) once it knows the slug and
+the creator's public name — the standard "dynamic web app manifest"
+technique, client-side only, no new server route.
+
+**Rationale.** The Room is multi-tenant (`/r/<slug>` for every creator) but
+a web app manifest is one static file per origin; there is no `slug` a
+static file at `/room.webmanifest` could ever know. A server-rendered
+per-slug manifest endpoint (e.g. `/api/room-manifest?room=<slug>`) would
+also work and is arguably more robust against a browser that reads the
+manifest before JS runs, but was heavier than this workstream's scope
+justified for a v1 whose PWA icon set is itself minimal (see the open item
+below) — the blob-URL swap is a few lines, needs no new API route, and fixes
+the concrete defect (installing from any room would otherwise reopen a dead
+generic URL) with the same effect for any browser that runs the page's JS
+before a person taps "install."
+
+**What is unproven.** No real "Add to Home Screen" flow has been exercised
+in this environment (no real mobile browser, no network to a real device).
+Whether every browser's install picker re-reads a swapped `<link
+rel="manifest">` href at the moment of installation (rather than caching the
+one present at first paint) is asserted from general PWA practice, not
+measured against a real Chrome/Safari install here.
+
+**Reversal condition.** If a real install is later exercised and the swap is
+found not to take effect reliably (a browser installs against the static
+fallback's `start_url` regardless of the swap), replace this with a real
+per-slug server route (`api/room-manifest.js`) serving the correct
+`start_url` from the very first response instead of patching it in after
+mount.
+
+## `ws-r22-web-push-ledger-one-row-per-occurrence` (2026-09-04, WS-R22)
+
+**Decision.** `deliverers.webPush` writes exactly ONE `vy_room_checkin_
+delivery` row per due occurrence (`state` is `delivered` if AT LEAST ONE of
+the follower's active subscriptions accepted the push, `failed` otherwise),
+never one row per subscription/device.
+
+**Rationale.** Migration 079's own `unique (checkin_id, due_at, channel)`
+constraint allows no more than one `'web_push'` row per occurrence — the
+ledger's shape was fixed before this workstream and reused rather than
+altered, `deliverers.whatsappTemplate`'s own precedent of writing exactly one
+row regardless of how many numbers a template could theoretically reach. A
+follower with two devices whose push both succeed, both fail, or one of
+each is summarised as one honest outcome ("did this check-in reach the
+phone at all") rather than per-device detail the product has no current use
+for; per-subscription detail (which endpoint got touched, which got
+revoked) still lands on `vy_room_push_subscription` itself, which the audit
+trail this decision gives up is not lost, only not duplicated into the
+delivery ledger.
+
+**Reversal condition.** If a future workstream needs per-device delivery
+auditing (e.g. "notify support this follower's phone push is failing but
+their tablet's is fine"), the fix is a schema change — either a new
+`subscription_id` column joining `vy_room_checkin_delivery` to `vy_room_
+push_subscription` under a widened unique key, or a separate per-send ledger
+table — not a workaround inside this function.

@@ -59,6 +59,8 @@ import {
   roomThreadDevice,
   bindThreadDevice,
 } from "./_room-surface.js";
+import { activeSubscriptionsFor, revokeSubscriptionById, touchSubscription } from "./_room-push.js";
+import { send as webPushSend, checkinPushPayload } from "./_push/webpush.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -202,7 +204,7 @@ export async function listMine(db, { session }, deps = {}) {
   const who = await followerScope(db, session, deps);
   return db(
     `select c.checkin_id, c.design_id, d.title, c.days_of_week, c.local_time,
-            c.timezone, c.next_due_at, c.state
+            c.timezone, c.quiet_from, c.quiet_to, c.next_due_at, c.state
        from vy_room_checkin c
        join vy_room_checkin_design d on d.design_id = c.design_id
       where c.room_id = ($1)::uuid and c.person_id = ($2)::uuid and c.follower_id = ($3)::uuid
@@ -211,7 +213,21 @@ export async function listMine(db, { session }, deps = {}) {
   );
 }
 
-function validateSchedule({ daysOfWeek, localTime, timezone }) {
+/** `null`/`null` is the shipping default (migration 085) and means "no
+ *  window" — a follower who never opens the quiet-hours control gets exactly
+ *  today's behaviour. Both-or-neither: a half-set window has no meaning to
+ *  `computeNextDue`'s own math below. */
+function validateQuietWindow({ quietFrom, quietTo }) {
+  const from = quietFrom == null || quietFrom === "" ? null : String(quietFrom);
+  const to = quietTo == null || quietTo === "" ? null : String(quietTo);
+  if (from == null && to == null) return { quietFrom: null, quietTo: null };
+  if (from == null || to == null) throw new CheckinsError("checkin_quiet_hours_invalid", 400);
+  if (!TIME_RE.test(from) || !TIME_RE.test(to)) throw new CheckinsError("checkin_quiet_hours_invalid", 400);
+  if (from === to) throw new CheckinsError("checkin_quiet_hours_invalid", 400); // a zero-width window is not a window
+  return { quietFrom: from, quietTo: to };
+}
+
+function validateSchedule({ daysOfWeek, localTime, timezone, quietFrom, quietTo }) {
   const days = Array.isArray(daysOfWeek) ? [...new Set(daysOfWeek.map(Number))] : [];
   if (!days.length || days.length > 7 || days.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) {
     throw new CheckinsError("checkin_days_invalid", 400);
@@ -228,10 +244,15 @@ function validateSchedule({ daysOfWeek, localTime, timezone }) {
   } catch {
     throw new CheckinsError("checkin_timezone_invalid", 400);
   }
-  return { days: days.sort((a, b) => a - b), time, tz };
+  const quiet = validateQuietWindow({ quietFrom, quietTo });
+  return { days: days.sort((a, b) => a - b), time, tz, ...quiet };
 }
 
-export async function optIn(db, { session, designId, daysOfWeek, localTime, timezone }, deps = {}) {
+export async function optIn(
+  db,
+  { session, designId, daysOfWeek, localTime, timezone, quietFrom = null, quietTo = null },
+  deps = {},
+) {
   const who = await followerScope(db, session, deps);
   if (who.follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
   // WORKSTREAM LAW #2, at the door a follower can act on: a free follower is
@@ -242,27 +263,47 @@ export async function optIn(db, { session, designId, daysOfWeek, localTime, time
   // proactive message to land.
   if (who.follower.memory_consent_at == null) throw new CheckinsError("room_checkin_memory_required", 409);
   if (!UUID.test(String(designId || ""))) throw new CheckinsError("checkin_design_id_invalid", 400);
-  const { days, time, tz } = validateSchedule({ daysOfWeek, localTime, timezone });
+  const { days, time, tz, quietFrom: qf, quietTo: qt } = validateSchedule({
+    daysOfWeek,
+    localTime,
+    timezone,
+    quietFrom,
+    quietTo,
+  });
   const now = deps.now ?? Date.now();
-  const nextDueAt = computeNextDue(now, days, time, tz);
+  const nextDueAt = computeNextDue(now, days, time, tz, { quietFrom: qf, quietTo: qt });
   if (!nextDueAt) throw new CheckinsError("checkin_schedule_unresolvable", 400);
 
   const rows = await db(
     `insert into vy_room_checkin
        (checkin_id, room_id, person_id, follower_id, design_id,
-        days_of_week, local_time, timezone, next_due_at, state)
+        days_of_week, local_time, timezone, quiet_from, quiet_to, next_due_at, state)
      select ($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, d.design_id,
-            ($6)::int[], ($7)::time, $8, ($9)::timestamptz, 'active'
+            ($6)::int[], ($7)::time, $8, ($10)::time, ($11)::time, ($9)::timestamptz, 'active'
        from vy_room_checkin_design d
       where d.design_id = ($5)::uuid and d.room_id = ($2)::uuid and d.state = 'active'
      on conflict (follower_id, design_id) where state = 'active' do update
         set days_of_week = excluded.days_of_week,
             local_time = excluded.local_time,
             timezone = excluded.timezone,
+            quiet_from = excluded.quiet_from,
+            quiet_to = excluded.quiet_to,
             next_due_at = excluded.next_due_at,
             updated_at = now()
-     returning checkin_id, design_id, days_of_week, local_time, timezone, next_due_at, state`,
-    [randomUUID(), who.roomId, who.personId, who.followerId, designId, days, time, tz, new Date(nextDueAt).toISOString()],
+     returning checkin_id, design_id, days_of_week, local_time, timezone, quiet_from, quiet_to, next_due_at, state`,
+    [
+      randomUUID(),
+      who.roomId,
+      who.personId,
+      who.followerId,
+      designId,
+      days,
+      time,
+      tz,
+      new Date(nextDueAt).toISOString(),
+      qf,
+      qt,
+    ],
   );
   if (!rows[0]) throw new CheckinsError("checkin_design_not_found", 404);
   return rows[0];
@@ -332,10 +373,37 @@ function isoWeekday(y, m, d) {
   return day || 7;
 }
 
+/** Whether `localTime` (HH:MM) falls inside the follower's own `[quietFrom,
+ *  quietTo)` window, and if so, the clock time and day-offset (0 or 1) that
+ *  window's END lands on. `localTime` never varies by day in this schedule
+ *  model (one time-of-day applied across the chosen weekdays), so this is a
+ *  static classification computed once rather than re-derived per candidate
+ *  day. A window that WRAPS midnight (`quietFrom > quietTo`, e.g. 22:00 to
+ *  07:00) can end on the day AFTER the one the occurrence itself falls on —
+ *  that is the `+1` case below, and it is the reason this returns a day
+ *  offset rather than only a clock time. */
+function quietExit(localTime, quietFrom, quietTo) {
+  if (!quietFrom || !quietTo) return null;
+  const wraps = quietFrom > quietTo;
+  const inside = wraps ? localTime >= quietFrom || localTime < quietTo : localTime >= quietFrom && localTime < quietTo;
+  if (!inside) return null;
+  const dayOffset = wraps && localTime >= quietFrom ? 1 : 0;
+  const [eh, em] = quietTo.split(":").map(Number);
+  return { hh: eh, mm: em, dayOffset };
+}
+
 /**
  * The next UTC instant, strictly after `now`, at which the follower's local
  * `HH:MM` next falls on one of `days` (ISO 1-7) in `tz`. Pure: no clock read
  * beyond the `now` argument, so a test can hold time still.
+ *
+ * `quiet` (`{quietFrom, quietTo}`, both HH:MM or both null/absent — migration
+ * 085) is the follower's own "not between" window (workstream law #5). When
+ * the picked `localTime` falls inside it, EVERY occurrence of this schedule
+ * is shifted to the moment the window ends (`quietExit` above) rather than
+ * skipped — a follower who asked for 3am and also asked for quiet hours
+ * covering 3am gets their check-in at the end of their own quiet window, not
+ * a check-in that silently never fires.
  *
  * Returns null for an empty `days` - the caller (`optIn`) never persists a
  * null result, and the sweep never has a row to find with one, which is
@@ -343,10 +411,12 @@ function isoWeekday(y, m, d) {
  * value this function can return for "no schedule" that a later `<= now()`
  * comparison could ever match.
  */
-export function computeNextDue(now, days, localTime, tz) {
+export function computeNextDue(now, days, localTime, tz, quiet = {}) {
   const wanted = new Set((days || []).map(Number));
   if (!wanted.size) return null;
-  const [hh, mm] = String(localTime || "00:00").split(":").map(Number);
+  const time = String(localTime || "00:00");
+  const [hh, mm] = time.split(":").map(Number);
+  const exit = quietExit(time, quiet?.quietFrom ?? null, quiet?.quietTo ?? null);
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
   }).formatToParts(new Date(now));
@@ -357,7 +427,9 @@ export function computeNextDue(now, days, localTime, tz) {
     const cursor = new Date(base + offset * 86_400_000);
     const y = cursor.getUTCFullYear(), m = cursor.getUTCMonth() + 1, d = cursor.getUTCDate();
     if (!wanted.has(isoWeekday(y, m, d))) continue;
-    const candidate = zonedTimeToUtcMs(y, m, d, hh, mm, tz);
+    const at2 = exit ? new Date(cursor.getTime() + exit.dayOffset * 86_400_000) : cursor;
+    const y2 = at2.getUTCFullYear(), m2 = at2.getUTCMonth() + 1, d2 = at2.getUTCDate();
+    const candidate = exit ? zonedTimeToUtcMs(y2, m2, d2, exit.hh, exit.mm, tz) : zonedTimeToUtcMs(y, m, d, hh, mm, tz);
     if (candidate > now) return candidate;
   }
   return null;
@@ -432,6 +504,93 @@ export const deliverers = {
       [randomUUID(), row.checkin_id, row.room_id, row.person_id, new Date(row.due_at).toISOString(), state, reason],
     );
     return rows[0] || null;
+  },
+
+  /**
+   * WS-R22 (migration 085): the phone, without Meta. Called from `deliverOne`
+   * ONLY after the in-app delivery has already claimed the row — a losing
+   * racer (`writeOutcome`'s own idempotency guard) never reaches here, so
+   * this function never sends a duplicate push for one occurrence.
+   *
+   * Unset VAPID config writes ONE ledger row, `state='not_configured'`, no
+   * network call — `whatsappTemplate`'s own shape one function up
+   * (workstream law #3). Configured, it pushes to EVERY active subscription
+   * this follower has (more than one device is ordinary) and writes exactly
+   * ONE ledger row for the occurrence — migration 079's own `(checkin_id,
+   * due_at, channel)` uniqueness allows no more — `'delivered'` if at least
+   * one subscription accepted the push, `'failed'` otherwise. A 404/410 from
+   * a subscription revokes THAT subscription (`revokeSubscriptionById`,
+   * workstream law #2); a subscriber that succeeds gets its
+   * `last_used_at` touched. Neither ever throws out of this function: a
+   * per-send failure is caught, logged (never the subscription's own
+   * endpoint/keys — AGENTS.md's secrets rule), and treated as that one
+   * subscription not accepting the push, exactly like any other non-2xx.
+   */
+  async webPush(db, row, deps = {}) {
+    const env = deps.env || process.env;
+    const vapidPublic = String(env.ROOM_PUSH_VAPID_PUBLIC || "");
+    const vapidPrivate = String(env.ROOM_PUSH_VAPID_PRIVATE || "");
+    const vapidSubject = String(env.ROOM_PUSH_VAPID_SUBJECT || "");
+
+    const insertLedger = async (state, reason, deliveredAt = null) => {
+      const rows = await db(
+        `insert into vy_room_checkin_delivery
+           (delivery_id, checkin_id, room_id, person_id, due_at, delivered_at, channel, state, reason)
+         values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::timestamptz, ($6)::timestamptz, 'web_push', $7, $8)
+         on conflict (checkin_id, due_at, channel) do nothing
+         returning delivery_id`,
+        [
+          randomUUID(),
+          row.checkin_id,
+          row.room_id,
+          row.person_id,
+          new Date(row.due_at).toISOString(),
+          deliveredAt ? new Date(deliveredAt).toISOString() : null,
+          state,
+          reason,
+        ],
+      );
+      return rows[0] || null;
+    };
+
+    if (!vapidPublic || !vapidPrivate || !vapidSubject) {
+      return insertLedger("not_configured", "ROOM_PUSH_VAPID_PUBLIC/ROOM_PUSH_VAPID_PRIVATE/ROOM_PUSH_VAPID_SUBJECT not set");
+    }
+    const followerId = row.follower_id;
+    if (!followerId) return insertLedger("failed", "no follower_id available for this occurrence");
+
+    const subscriptions = await activeSubscriptionsFor(db, followerId);
+    if (!subscriptions.length) return insertLedger("failed", "no active push subscription for this follower");
+
+    // LAW #1: the payload builder's own parameter list is the enforcement -
+    // it never receives `row.prompt_shape`, `row.title`, or the reply text
+    // `said` held one scope up in `deliverOne`. Only the room slug, its
+    // PUBLIC display name and a thread id (null - check-ins land in the
+    // follower's default room-wide thread, workstream law #1's own note).
+    const payload = checkinPushPayload(row.slug, row.display_name, null);
+    let anyOk = false;
+    for (const sub of subscriptions) {
+      try {
+        const result = await webPushSend(sub, payload, {
+          fetch: deps.fetch,
+          vapidPublic,
+          vapidPrivate,
+          vapidSubject,
+          now: deps.now,
+        });
+        if (result.ok) {
+          anyOk = true;
+          await touchSubscription(db, sub.subscription_id).catch(() => {});
+        } else if (result.status === 404 || result.status === 410) {
+          await revokeSubscriptionById(db, sub.subscription_id).catch(() => {});
+        }
+      } catch (error) {
+        console.error("[checkins webPush] send failure for one subscription:", error?.message || "unknown");
+      }
+    }
+    return anyOk
+      ? insertLedger("delivered", "", deps.now ?? Date.now())
+      : insertLedger("failed", "no active subscription accepted the push");
   },
 };
 
@@ -509,7 +668,9 @@ async function deliverOne(db, row, deps) {
     label: "cron/checkin",
   });
   const said = gatedOut.text;
-  const nextDueAt = computeNextDue(deps.now ?? Date.now(), row.days_of_week, row.local_time, row.timezone);
+  const nextDueAt = computeNextDue(deps.now ?? Date.now(), row.days_of_week, row.local_time, row.timezone, {
+    quietFrom: row.quiet_from, quietTo: row.quiet_to,
+  });
   if (said) {
     await memory.logTurn({ device, person: row.person_id, role: "her", content: said, agentId: row.agent_id });
     await countDelivery(deps);
@@ -519,6 +680,14 @@ async function deliverOne(db, row, deps) {
       state: "delivered",
       reason: "",
     });
+    // WS-R22: the phone, without Meta — ONLY after the in-app delivery above
+    // actually claimed the row (a losing racer here has nothing to push
+    // about) and ONLY the room slug/name/thread id ever cross into the
+    // payload (`checkinPushPayload`'s own law). Never awaited into the
+    // caller's own success/failure — a push failing is not an in-app
+    // delivery failing, and `deliverers.webPush` never throws (it logs its
+    // own ledger row and swallows a per-subscription send error).
+    if (claimed) await deliverers.webPush(db, row, deps);
     return { claimed, delivered: claimed };
   }
   // The gate suppressed everything a turn could have said. Still a completed
@@ -532,6 +701,31 @@ async function deliverOne(db, row, deps) {
   });
   return { claimed, delivered: false };
 }
+
+/**
+ * Migration 085, workstream law #5: "a due row inside the quiet window is
+ * not selected until the window ends." `$1` is the same `now` cutoff both
+ * due-select queries already bind, converted into the follower's own
+ * `timezone` wall-clock reading and compared against `quiet_from`/
+ * `quiet_to` — a plain window when `quiet_from <= quiet_to`, a wraparound
+ * one (e.g. 22:00 to 07:00) otherwise. Either `quiet_from`/`quiet_to` null
+ * (the shipping default, migration 085's own column default) short-circuits
+ * to "always selectable" before either comparison runs. Applied identically
+ * to BOTH the delivery query and the skip-log query — a defense-in-depth
+ * check alongside `computeNextDue`'s own scheduling-time avoidance below, so
+ * a `next_due_at` computed before a follower narrowed their quiet window
+ * still cannot fire inside it.
+ */
+const QUIET_HOURS_SQL = `(
+  c.quiet_from is null or c.quiet_to is null or not (
+    case when c.quiet_from <= c.quiet_to
+      then (($1)::timestamptz at time zone c.timezone)::time >= c.quiet_from
+           and (($1)::timestamptz at time zone c.timezone)::time < c.quiet_to
+      else (($1)::timestamptz at time zone c.timezone)::time >= c.quiet_from
+           or (($1)::timestamptz at time zone c.timezone)::time < c.quiet_to
+    end
+  )
+)`;
 
 /**
  * The scheduled half. Two SQL statements over the due rows - the delivery
@@ -548,9 +742,9 @@ export async function sweep(deps, now = Date.now()) {
   const summary = { seen: 0, delivered: 0, skippedFreeTier: 0, failed: 0, errors: 0 };
 
   const dueForDelivery = await db(
-    `select c.checkin_id, c.room_id, c.person_id, c.next_due_at as due_at,
-            c.days_of_week, c.local_time, c.timezone,
-            r.agent_id, r.slug, d.prompt_shape, d.title
+    `select c.checkin_id, c.room_id, c.person_id, c.follower_id, c.next_due_at as due_at,
+            c.days_of_week, c.local_time, c.timezone, c.quiet_from, c.quiet_to,
+            r.agent_id, r.slug, r.display_name, d.prompt_shape, d.title
        from vy_room_checkin c
        join vy_room_checkin_design d on d.design_id = c.design_id and d.state = 'active'
        join vy_room r on r.room_id = c.room_id and r.published_at is not null
@@ -558,6 +752,7 @@ export async function sweep(deps, now = Date.now()) {
                                and f.follower_id = c.follower_id and f.tier = 'paid'
                                and f.memory_consent_at is not null
       where c.state = 'active' and c.next_due_at is not null and c.next_due_at <= ($1)::timestamptz
+        and ${QUIET_HOURS_SQL}
       order by c.next_due_at asc
       limit $2`,
     [new Date(now).toISOString(), limit],
@@ -579,7 +774,7 @@ export async function sweep(deps, now = Date.now()) {
 
   const dueForSkip = await db(
     `select c.checkin_id, c.room_id, c.person_id, c.next_due_at as due_at,
-            c.days_of_week, c.local_time, c.timezone
+            c.days_of_week, c.local_time, c.timezone, c.quiet_from, c.quiet_to
        from vy_room_checkin c
        join vy_room_checkin_design d on d.design_id = c.design_id and d.state = 'active'
        join vy_room r on r.room_id = c.room_id and r.published_at is not null
@@ -587,6 +782,7 @@ export async function sweep(deps, now = Date.now()) {
                                and f.follower_id = c.follower_id
       where c.state = 'active' and c.next_due_at is not null and c.next_due_at <= ($1)::timestamptz
         and (f.tier <> 'paid' or f.memory_consent_at is null)
+        and ${QUIET_HOURS_SQL}
       order by c.next_due_at asc
       limit $2`,
     [new Date(now).toISOString(), limit],
@@ -594,7 +790,9 @@ export async function sweep(deps, now = Date.now()) {
   for (const row of dueForSkip) {
     summary.seen++;
     try {
-      const nextDueAt = computeNextDue(now, row.days_of_week, row.local_time, row.timezone);
+      const nextDueAt = computeNextDue(now, row.days_of_week, row.local_time, row.timezone, {
+        quietFrom: row.quiet_from, quietTo: row.quiet_to,
+      });
       const claimed = await writeOutcome(db, row, {
         nextDueAt,
         deliveredAt: null,

@@ -5458,6 +5458,66 @@
       "kind": "measurement",
       "title": "Migration 084 applied live; every ops board statement is a scoped count or sum on an index; the heartbeat table has no pruning yet",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-web-push-component",
+      "kind": "component",
+      "title": "Web push for check-ins and the installable Room (api/_push/webpush.js, api/_room-push.js, migration 085, vy_room_push_subscription)",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-hand-rolled-webpush-crypto",
+      "kind": "decision",
+      "title": "RFC 8291 aes128gcm + RFC 8292 VAPID implemented directly over node:crypto rather than the web-push npm package",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-quiet-hours-shift-not-skip",
+      "kind": "decision",
+      "title": "A quiet-hours window shifts a due check-in to the window's end rather than skipping the occurrence",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-push-key-served-from-designs-op-not-build-time-env",
+      "kind": "decision",
+      "title": "The VAPID public key is served server-side on api/checkins.js's designs op, never baked into a client build-time env var",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-dynamic-manifest-blob-url-per-room",
+      "kind": "decision",
+      "title": "RoomApp.tsx swaps the manifest link to a per-room Blob URL client-side, since the Room is multi-tenant and one static manifest cannot name a slug",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-web-push-ledger-one-row-per-occurrence",
+      "kind": "decision",
+      "title": "deliverers.webPush writes one delivery-ledger row per occurrence, not one per subscription/device, matching migration 079's own unique constraint",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-rfc-8291-known-answer-vector-from-memory",
+      "kind": "rejection",
+      "title": "A memorized RFC 8291 Appendix A test vector failed to parse as a valid P-256 point; replaced with round-trip self-consistency against a freshly generated real keypair",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-room-push-offline-suite-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-push/run.mjs: 43/43 offline - crypto round-trip, VAPID JWT shape, quiet-hours math, subscribe/unsubscribe scoping, the delivery ledger's four states, negative controls (b) 410 revokes and stays revoked, (c) world check, (a) static payload-builder scan",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r22-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs: three MODULE_NOT_FOUND failures traced to this worktree's own node_modules never being npm-installed (a real missing path, not contention); fixed by npm install, then 15/15 clean",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-085-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 085 applied live after the channel CHECK name was read back; push subscription statements plan on the partial active index; the quiet-hours predicate is a row filter under the due index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -10975,6 +11035,71 @@
       "src": "ws-r21-sanitize-counts-drops-content-never-stringifies",
       "rel": "measured_by",
       "dst": "rooms-migration-084-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r22-web-push-component",
+      "rel": "part_of",
+      "dst": "ws-r16-checkins-component"
+    },
+    {
+      "src": "ws-r22-hand-rolled-webpush-crypto",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r22-quiet-hours-shift-not-skip",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r22-push-key-served-from-designs-op-not-build-time-env",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r22-dynamic-manifest-blob-url-per-room",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r22-web-push-ledger-one-row-per-occurrence",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r22-hand-rolled-webpush-crypto",
+      "rel": "caused_by",
+      "dst": "ws-r22-rfc-8291-known-answer-vector-from-memory"
+    },
+    {
+      "src": "ws-r22-hand-rolled-webpush-crypto",
+      "rel": "measured_by",
+      "dst": "ws-r22-room-push-offline-suite-2026-09-04"
+    },
+    {
+      "src": "ws-r22-quiet-hours-shift-not-skip",
+      "rel": "measured_by",
+      "dst": "ws-r22-room-push-offline-suite-2026-09-04"
+    },
+    {
+      "src": "ws-r22-web-push-component",
+      "rel": "measured_by",
+      "dst": "ws-r22-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r22-hand-rolled-webpush-crypto",
+      "rel": "measured_by",
+      "dst": "rooms-migration-085-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r22-quiet-hours-shift-not-skip",
+      "rel": "measured_by",
+      "dst": "rooms-migration-085-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r22-push-key-served-from-designs-op-not-build-time-env",
+      "rel": "measured_by",
+      "dst": "rooms-migration-085-live-verification-2026-09-04"
     }
   ]
 }

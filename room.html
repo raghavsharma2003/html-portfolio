@@ -6,6 +6,14 @@
     <meta name="theme-color" content="#f4f1e9" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <!--
+      WS-R22: the installable Room. This static file is the fallback every
+      visitor gets before any JS runs; `RoomApp.tsx` swaps this link's `href`
+      to a per-room Blob URL once it knows which creator's Room this tab is
+      on, so "Add to Home Screen" opens back to THIS room rather than the
+      unrouted `/r/` this static manifest's own `start_url` names.
+    -->
+    <link rel="manifest" href="/room.webmanifest" />
+    <!--
       THE CASCADE LAYER ORDER, DECLARED WHERE A MINIFIER CANNOT REMOVE IT.
 
       Identical to studio.html's, and it has to be here too or this page renders

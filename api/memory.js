@@ -2901,6 +2901,20 @@ export const PERSON_TABLES = [
   // Reached by the account-wide whole wipe through the "relational" lane
   // alone, the same door `vy_room_subscription` goes through.
   { table: "vy_room_follower_channel", key: "person_id", lane: "relational" },
+  // ── WS-R22: a follower's own web push subscription (migration 085) ───────
+  //
+  // An endpoint URL and two keys - a browser's own address for this device,
+  // not a word the follower said. NOT `agent: true`: the table carries no
+  // `agent_id` column (`vy_room_follower_channel`'s own precedent one row
+  // above), so it is invisible to `roomScopedTables()`'s generic per-agent
+  // loop on purpose. It still cannot outlive a follower's own "leave this
+  // Room": `follower_id references vy_room_follower(follower_id) on delete
+  // cascade` means `roomForget`'s existing delete of the follower row already
+  // takes every subscription with it, with no code here or there needing to
+  // know this table's name - `vy_room_follower_channel`'s exact proof that
+  // shape works, restated rather than re-derived. Reached by the
+  // account-wide whole wipe through the "relational" lane alone.
+  { table: "vy_room_push_subscription", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -3056,6 +3070,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_follower_channel",
   // Arrives with 081 (WS-R19), on the identical reasoning.
   "vy_room_voice_usage",
+  // Arrives with 085 (WS-R22), on the identical reasoning.
+  "vy_room_push_subscription",
 ];
 
 // tables and columns that migration 008 introduces

@@ -3496,3 +3496,39 @@ alter table vy_sweep_run add constraint vy_sweep_run_finished_matches_outcome
   );
 create index if not exists vy_sweep_run_sweep_started_ix
   on vy_sweep_run (sweep, started_at desc);
+-- Migration 085 - web push for check-ins, the installable Room (WS-R22).
+-- vy_room_push_subscription is the PERSON lane (PERSON_TABLES, "forget-only",
+-- no agent_id column - reached purely through follower_id's own FK cascade,
+-- vy_room_follower_channel's precedent one migration family over, so
+-- roomForget needs no new explicit statement). The channel CHECK on
+-- vy_room_checkin_delivery widens to admit 'web_push'; vy_room_checkin gains
+-- its own quiet-hours window.
+create table if not exists vy_room_push_subscription (
+  subscription_id uuid primary key,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  follower_id     uuid not null references vy_room_follower(follower_id) on delete cascade,
+  endpoint        text not null,
+  p256dh          text not null,
+  auth            text not null,
+  user_agent_hash text not null default '',
+  created_at      timestamptz not null default now(),
+  last_used_at    timestamptz,
+  revoked_at      timestamptz
+);
+create unique index if not exists vy_room_push_subscription_endpoint_ix
+  on vy_room_push_subscription (endpoint);
+create index if not exists vy_room_push_subscription_follower_ix
+  on vy_room_push_subscription (follower_id);
+create index if not exists vy_room_push_subscription_scope_ix
+  on vy_room_push_subscription (person_id, room_id);
+create index if not exists vy_room_push_subscription_active_ix
+  on vy_room_push_subscription (follower_id)
+  where revoked_at is null;
+
+alter table vy_room_checkin_delivery drop constraint if exists vy_room_checkin_delivery_channel_check;
+alter table vy_room_checkin_delivery add constraint vy_room_checkin_delivery_channel_check
+  check (channel in ('in_app','whatsapp_template','web_push'));
+
+alter table vy_room_checkin add column if not exists quiet_from time;
+alter table vy_room_checkin add column if not exists quiet_to time;

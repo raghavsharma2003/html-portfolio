@@ -1519,6 +1519,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   ops: "ops/run.mjs",
+  // WS-R22. Web push for check-ins (migration 085): RFC 8291 aes128gcm
+  // encryption round-tripped against an independently-written decoder (real
+  // key material, not RFC 8291 Appendix A's own — see api/_push/webpush.js's
+  // header for exactly why), the VAPID JWT's ES256 header/claims/signature
+  // shape, subscribe/unsubscribe session scoping, the delivery ledger's
+  // states (delivered/failed/not_configured), and quiet-hours math (a plain
+  // window, a wraparound one, and the "no window" default). Three NEGATIVE
+  // CONTROLS: (a) a static source scan of `checkinPushPayload` refuses any
+  // check-in-text identifier in its own body; (b) a 410 from a fake push
+  // service revokes the subscription and a second sweep sends nothing to it;
+  // (c) a world check — another follower's active subscription never
+  // receives this follower's check-in payload.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-push": "room-push/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

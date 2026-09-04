@@ -23,6 +23,8 @@ export interface RoomCheckin {
   days_of_week: number[];
   local_time: string;
   timezone: string;
+  quiet_from: string | null;
+  quiet_to: string | null;
   next_due_at: string | null;
   state: "active" | "stopped";
 }
@@ -39,13 +41,27 @@ async function post<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+/** `push_public_key` rides along on the SAME `designs` round trip
+ *  (api/checkins.js, WS-R22) rather than a second request — null when
+ *  `ROOM_PUSH_VAPID_PUBLIC` is unset on this deployment, which is what makes
+ *  `CheckinsPanel`'s push control absent by default rather than shown-and-
+ *  broken. */
+export const listCheckinDesignsAndPushKey = (session: string) =>
+  post<{ designs: RoomCheckinDesign[]; push_public_key: string | null }>({ op: "designs", session });
+
 export const listCheckinDesigns = (session: string) =>
-  post<{ designs: RoomCheckinDesign[] }>({ op: "designs", session }).then((r) => r.designs);
+  listCheckinDesignsAndPushKey(session).then((r) => r.designs);
 
 export const optInToCheckin = (
   session: string,
   designId: string,
-  schedule: { daysOfWeek: number[]; localTime: string; timezone: string },
+  schedule: {
+    daysOfWeek: number[];
+    localTime: string;
+    timezone: string;
+    quietFrom?: string | null;
+    quietTo?: string | null;
+  },
 ) =>
   post<RoomCheckin>({
     op: "opt_in",
@@ -54,6 +70,8 @@ export const optInToCheckin = (
     days_of_week: schedule.daysOfWeek,
     local_time: schedule.localTime,
     timezone: schedule.timezone,
+    quiet_from: schedule.quietFrom ?? null,
+    quiet_to: schedule.quietTo ?? null,
   });
 
 export const stopCheckin = (session: string, checkinId: string) =>

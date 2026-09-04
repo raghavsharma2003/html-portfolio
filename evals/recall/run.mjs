@@ -591,6 +591,14 @@ const FATE = {
   // "relational", proven below) or the Room's own "op":"forget", reached
   // through the follower_id -> vy_room_follower cascade rather than by name.
   vy_room_follower_channel: "forget-only",
+  // ── WS-R22: a follower's own web push subscription (migration 085) ──
+  // An endpoint URL and two keys - a browser's own address for this device,
+  // no words in it a scoped "forget priya" could ever match, its 082 sibling's
+  // reason exactly. Only the stronger door may take it: the account-level
+  // whole wipe (lane "relational", proven below) or the Room's own
+  // "op":"forget", reached through the follower_id -> vy_room_follower
+  // cascade rather than by name.
+  vy_room_push_subscription: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

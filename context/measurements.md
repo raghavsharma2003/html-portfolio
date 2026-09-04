@@ -7841,3 +7841,95 @@ n = 1 migration (10 statements in one transaction), 11 API statements; method = 
 | the Room list | Seq Scan on `vy_room` ordered by created_at; one row per creator, the board's outer loop |
 
 Every select list is counts and sums scoped to one `room_id`; `api/_ops.js` is admitted to the leak battery's aggregate-only class and its parser passes (room-leak 67/67). Not measured: no heartbeat row exists yet; the crons write their first rows when this branch deploys; `OPS_OWNER_USER_IDS` is unset everywhere so the board answers 404.
+
+## `ws-r22-room-push-offline-suite-2026-09-04`
+
+n = 43 assertions, `node evals/room-push/run.mjs`, offline/deterministic/$0/
+no DB/no network/no model/no GPU, 2026-09-04. Six sections: the aes128gcm
+crypto round-tripped against a freshly generated real P-256 keypair through
+an independently-written decoder (7 checks, including a wrong-key AEAD
+authentication failure and a malformed-subscription-key refusal); the VAPID
+JWT's header/claims/signature shape verified by node's own `crypto.verify`
+(9 checks); quiet-hours math over a plain window, a wraparound window, and
+the no-window default (4 checks); subscribe/unsubscribe scoped to the
+caller's own follower row through a real Room session, including B
+attempting (and failing) to revoke A's subscription by naming A's endpoint
+(10 checks); the delivery ledger's four states over a fake push service —
+not_configured, failed (no active subscription), delivered (a real 2xx),
+and the two required negative controls: (b) a 410 revokes the subscription
+and a second attempt sends nothing to it, (c) a world check proving a push
+aimed at follower A's check-in never reaches follower B's endpoint and never
+touches B's subscription row (10 checks); and the static negative control
+(a) — a source scan of `checkinPushPayload`'s own body for every check-in-
+text identifier, proven capable of flagging a poisoned version first (3
+checks). Regression-checked against the sibling suites sharing
+`evals/room/fixtures.mjs` and `api/_checkins.js`: `evals/checkins/run.mjs`
+35/35 unchanged, `evals/room/run.mjs` 54/54 unchanged, `evals/room-leak/
+run.mjs` 67/67 unchanged, `evals/persontables.mjs` 53 manifest entries (up
+from 52), `evals/recall/run.mjs` 257 assertions (up from 251).
+
+**Not measured, stated rather than implied**: no statement in migration 085
+has ever run against a live Postgres (no `NEON_URL` in this environment); no
+real `vy_room_push_subscription` row exists outside a fake `db`; the exact
+RFC 8291 Appendix A ciphertext was never independently reproduced here (see
+`rejected.md#ws-r22-rfc-8291-known-answer-vector-from-memory`); no real push
+has ever reached a real browser or a real push service (Chrome/FCM, Firefox
+autopush) — this environment has no network route to either; no real "Add to
+Home Screen" install flow has been exercised for the dynamic manifest swap
+(`decisions.md#ws-r22-dynamic-manifest-blob-url-per-room`).
+
+## `ws-r22-gate-results-2026-09-04`
+
+method: `node scripts/verify-release.mjs`, no `NEON_URL` in this
+environment, ws-r22-web-push worktree, 2026-09-04. First two runs: 11-12 of
+15 checks passed; `typecheck`, `stuck-turn endpoint` and `web build` each
+failed with a bare `MODULE_NOT_FOUND` at Node's CJS resolver with an EMPTY
+require stack, and `layout readability` separately failed once on
+`EADDRINUSE:127.0.0.1:8931` (a concurrent sibling session's own gate, the
+documented port collision — `git log`/`ps aux` at the time showed several
+other worktrees' own `verify-release.mjs`/`npx tsc`/`npx esbuild` processes
+running at the same timestamps, load average 4.6-4.7 on a 4-core machine).
+Root cause of the three `MODULE_NOT_FOUND` failures, found by inspection
+rather than assumed as contention: this worktree's OWN `npm install` was
+never run this session (an omission — the common brief's own first setup
+step) so its local `node_modules/` held only three scratch directories
+(`.prompt-budget`/`.tmp`/`.vite-temp`, no real packages at all). `npx tsc -b`
+run directly still succeeded because `npx`'s own resolution walks UP to the
+shared `/home/user/html-portfolio/node_modules` (which a sibling worktree's
+earlier `npm install` had already populated) — but `scripts/verify-release.
+mjs` and `evals/echosim/build.mjs` both invoke `tsc`/`vite` by an EXPLICIT
+`path.join(<this worktree's own root>, "node_modules", ...)`, which does NOT
+walk up and fails outright when that literal path does not exist, regardless
+of CPU contention. Confirmed by direct reproduction: `node evals/echosim/
+build.mjs` failed with `Cannot find module '.../ws-r22-web-push/node_modules/
+typescript/bin/tsc'` — a real, permanent path, not an intermittent race.
+Fixed by running `npm install --no-audit --no-fund` in this worktree (455
+packages, populating its own local `node_modules/typescript`, `node_modules/
+vite`, etc.) and regenerating the config stub. After the fix: **15 of 15
+checks passed** on a clean full run (`typecheck` 14.7s, `board legibility`
+25.7s, `stuck-turn endpoint` 3.4s, `one voice` 24.3s, `web build` 2.5s,
+`layout readability` 29.4s, `eval suite` 149.9s, `room leak battery` 6.0s).
+`node scripts/check-copy.mjs` and `node scripts/context.mjs --check` both
+clean on the same tree. NOT independently reproduced: whether the SAME three
+gates would have passed on the untouched tree BEFORE this session's `npm
+install` — every direct probe of the untouched tree this session ran
+(`npx tsc -b`, `npx vite build`, `node scripts/check-layout.mjs`) was run
+AFTER discovering the missing install, so all of them benefited from it too;
+the honest claim is that this session's own setup omission, not this
+workstream's diff, was the cause, established by reading the literal error
+(a real missing path) rather than by inference from timing alone.
+
+## `rooms-migration-085-live-verification-2026-09-04`
+
+n = 1 migration (9 statements in one transaction), 10 API statements; method = the constraint name `vy_room_checkin_delivery_channel_check` read back from `pg_constraint` BEFORE applying (the migration's drop-then-add relies on Postgres's default naming, which WS-R22 flagged as unconfirmed; it matched), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_room-push.js` issues and every statement WS-R22 changed in `api/_checkins.js`, parameters substituted with typed literals and the quiet-hours predicate expanded inline; date 2026-09-04, at the WS-R22 merge.
+
+| statement | plan |
+|---|---|
+| subscription upsert | Insert, conflict UPDATE, arbiter `vy_room_push_subscription_endpoint_ix` |
+| follower-scoped revoke; status count; active subscriptions | Index Scan / Index Only Scan on the partial `vy_room_push_subscription_active_ix` (follower_id where unrevoked) |
+| revoke by id; touch last_used_at | Update via pkey |
+| opt-in upsert (now with quiet hours) | arbiter `vy_room_checkin_follower_design_ix`, design by pkey |
+| web_push delivery ledger insert | arbiter `vy_room_checkin_delivery_once` |
+| both sweep selects with the quiet-hours predicate | unchanged shape: Index Scan `vy_room_checkin_due_ix` with `next_due_at IS NOT NULL AND <= now` as index conditions and the quiet-hours CASE as a row filter (evaluated per due row, never widening the scan) |
+
+The channel CHECK now admits `web_push` live. Not measured: no subscription row exists; no push has reached a real browser (the VAPID keys are unset everywhere, so the seam records `not_configured`); the RFC 8291 appendix vector was not reproduced (logged by WS-R22 as a rejection).

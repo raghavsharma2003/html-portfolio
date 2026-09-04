@@ -669,6 +669,22 @@
     font: inherit;
   }
 
+  /* ── quiet hours (WS-R22) — a "not between" pair beside the picked time ── */
+  .room-checkins-quiet {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-tight);
+  }
+
+  /* ── web push (WS-R22): absent entirely on a deployment with no VAPID key,
+   *  so this only ever renders alongside its own copy and button. ────────── */
+  .room-checkins-push {
+    margin-top: var(--space-item);
+    padding-top: var(--space-item);
+    border-top: var(--hairline) solid var(--line);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .room-checkins-day { transition: none; }
   }
