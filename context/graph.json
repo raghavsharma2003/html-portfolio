@@ -5824,6 +5824,48 @@
       "kind": "open",
       "title": "api/account.js's send_sms and verify_sms (the OTP sign-in the Room uses) are not behind vy_public_rate; they keep Meera's in-memory per-destination throttle, which resets on every cold start and is per-instance. WS-R26 left them out as shared infrastructure; a follow-up puts otp_send_ip and otp_send_dest scopes on the same predicate.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-studio-shell",
+      "kind": "component",
+      "title": "the Feed/Meet/Share collapse: StudioShell.tsx (tabs, headline, primary control), studioShellModel.ts (pure headline/primary-control logic), evals/studio-shell/run.mjs, a new studio:shell layout-gate target",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-tabs-are-a-new-presentation-over-the-same-panel-tree-not-a-fork",
+      "kind": "decision",
+      "title": "StudioShell reuses the exported ReplicaWorkspace verbatim for tab content rather than forking a second render tree, so no gate can move by construction",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-studio-shell-unset-is-on",
+      "kind": "decision",
+      "title": "VITE_STUDIO_SHELL defaults ON (unset or any value but the literal \"0\"); the rollback lever is the in-shell All panels link, not the flag",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-primary-control-routes-through-wizards-top-not-a-second-blocker-meta-lookup",
+      "kind": "decision",
+      "title": "Each tabs primary control is wizard.steps[i].top, not a second BLOCKER_META lookup, since wizardModel already inherits that vocabulary verbatim from QuickStartPath",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-a-bare-string-literal-is-invisible-to-check-copy",
+      "kind": "rejection",
+      "title": "A negative control using a bare const s = \"...\" fixture false-passed check-copy.mjs, because isVisibleLiteral only treats a labelled key (label:, title:, ...) or a dedicated copy file as visible copy",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-studio-shell-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "64/64 assertions offline: 30 orphan checks, 22 headline/primary-control property checks, 3 negative controls, all proven to fail before their fix",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r31-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs 16/16 on the untouched tree; 15/16 on first pass (18 contrast findings, all one CSS mistake repeated); 16/16 confirmed after the CSS fix, including the new studio:shell layout-gate target (638 prose blocks)",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11731,6 +11773,46 @@
       "src": "ws-r26-otp-doors-not-behind-vy-public-rate",
       "rel": "constrains",
       "dst": "ws-r26-write-is-the-check-not-read-then-write"
+    },
+    {
+      "src": "ws-r31-studio-shell",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "ws-r31-tabs-are-a-new-presentation-over-the-same-panel-tree-not-a-fork",
+      "rel": "part_of",
+      "dst": "ws-r31-studio-shell"
+    },
+    {
+      "src": "ws-r31-studio-shell-unset-is-on",
+      "rel": "part_of",
+      "dst": "ws-r31-studio-shell"
+    },
+    {
+      "src": "ws-r31-primary-control-routes-through-wizards-top-not-a-second-blocker-meta-lookup",
+      "rel": "part_of",
+      "dst": "ws-r31-studio-shell"
+    },
+    {
+      "src": "ws-r31-a-bare-string-literal-is-invisible-to-check-copy",
+      "rel": "caused_by",
+      "dst": "ws-r31-studio-shell"
+    },
+    {
+      "src": "ws-r31-primary-control-routes-through-wizards-top-not-a-second-blocker-meta-lookup",
+      "rel": "measured_by",
+      "dst": "ws-r31-studio-shell-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r31-studio-shell",
+      "rel": "measured_by",
+      "dst": "ws-r31-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r31-tabs-are-a-new-presentation-over-the-same-panel-tree-not-a-fork",
+      "rel": "constrains",
+      "dst": "ws-r31-studio-shell-unset-is-on"
     }
   ]
 }

@@ -25,7 +25,11 @@ const REQUIRED_SOURCE_SCOPES = ["capture", "transcription", "storage"] as const;
 
 type Owner = "you" | "platform";
 
-const BLOCKER_META: Record<string, { label: string; owner: Owner; note: string; anchor: string }> = {
+// WS-R31: exported so `StudioShell.tsx` can build its own "still locked, and
+// who it is waiting on" list on the Meet tab from the SAME mapping rather
+// than a copy that could drift from this one. Nothing here changes for this
+// component; `export` is additive.
+export const BLOCKER_META: Record<string, { label: string; owner: Owner; note: string; anchor: string }> = {
   self_identity_not_bound: { label: "Verified account-to-person binding", owner: "you", note: "Complete identity proofing below.", anchor: "#identity-proofing" },
   adult_verification_required: { label: "Living-adult verification", owner: "you", note: "Complete the liveness check below.", anchor: "#liveness-capture" },
   identity_verification_required: { label: "Identity verification", owner: "you", note: "Complete identity proofing below.", anchor: "#identity-proofing" },

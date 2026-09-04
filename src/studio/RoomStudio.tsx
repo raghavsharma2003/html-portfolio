@@ -37,6 +37,7 @@ import {
   setOwnedRoomDefaultLocale,
   readOwnedRoomStats,
   roomLink,
+  firstRoomBlocker,
   RoomPublishApiError,
   type OwnedRoom,
   type RoomBlocker,
@@ -138,6 +139,7 @@ export default function RoomStudio({
   onAuthError,
   onGoStep,
   onStatusChange,
+  onRoomState,
 }: {
   token: string;
   replicaId: string;
@@ -148,6 +150,16 @@ export default function RoomStudio({
   /** Fed up so the wizard rail's Deploy readiness can read it without a
    *  second fetch of the same endpoint. */
   onStatusChange?: (published: boolean) => void;
+  /** WS-R31. The richer read `StudioShell`'s Share tab needs (draft / paused
+   *  / published, the follower count, the first open blocker) and the plain
+   *  boolean above does not carry. Additive: existing callers that only pass
+   *  `onStatusChange` are unaffected. Fed the same `room`/`stats`/first
+   *  blocker this component already holds in state, never a second fetch. */
+  onRoomState?: (
+    room: OwnedRoom | null,
+    stats: RoomStats | null,
+    blocker: { label: string; anchor: string; cls: "you" | "us" } | null,
+  ) => void;
 }) {
   const [room, setRoom] = useState<OwnedRoom | null>(null);
   const [reason, setReason] = useState<string | null>(null);
@@ -203,8 +215,10 @@ export default function RoomStudio({
       setPaidVoiceDraft(state?.room?.paid_monthly_voice_seconds ?? 1800);
       setError("");
       onStatusChange?.(Boolean(state?.room?.published));
+      let loadedStats: RoomStats | null = null;
       if (state?.room) {
-        setStats(await readOwnedRoomStats(token, replicaId).catch(() => null));
+        loadedStats = await readOwnedRoomStats(token, replicaId).catch(() => null);
+        setStats(loadedStats);
         try {
           setCohortReport(await readOwnedRoomCohorts(token, replicaId));
           setCohortError(false);
@@ -230,12 +244,13 @@ export default function RoomStudio({
           }
         }
       }
+      onRoomState?.(state?.room ?? null, loadedStats, firstRoomBlocker(state?.blockers ?? null));
     } catch (e) {
       fail(e);
     } finally {
       setLoading(false);
     }
-  }, [token, replicaId, fail, onAuthError, onStatusChange]);
+  }, [token, replicaId, fail, onAuthError, onStatusChange, onRoomState]);
 
   useEffect(() => {
     void load();
@@ -271,12 +286,13 @@ export default function RoomStudio({
       setPaidVoiceDraft(next.paid_monthly_voice_seconds);
       setNotice("Your Room is set up. Publish it when you are ready.");
       onStatusChange?.(next.published);
+      onRoomState?.(next, null, null);
     } catch (e) {
       fail(e);
     } finally {
       setBusy(null);
     }
-  }, [token, replicaId, fail, onStatusChange]);
+  }, [token, replicaId, fail, onStatusChange, onRoomState]);
 
   const saveSlug = useCallback(async () => {
     setBusy("slug");
@@ -310,14 +326,16 @@ export default function RoomStudio({
       setBlockers({ waiting_on_you: [], waiting_on_us: [] });
       setNotice("Your Room is live.");
       onStatusChange?.(next.published);
-      setStats(await readOwnedRoomStats(token, replicaId).catch(() => null));
+      const freshStats = await readOwnedRoomStats(token, replicaId).catch(() => null);
+      setStats(freshStats);
       setCohortReport(await readOwnedRoomCohorts(token, replicaId).catch(() => null));
+      onRoomState?.(next, freshStats, null);
     } catch (e) {
       fail(e);
     } finally {
       setBusy(null);
     }
-  }, [token, replicaId, fail, onStatusChange]);
+  }, [token, replicaId, fail, onStatusChange, onRoomState]);
 
   const togglePause = useCallback(async () => {
     if (!room) return;
@@ -329,12 +347,13 @@ export default function RoomStudio({
       setRoom(next);
       setNotice(next.paused ? "Paused. Nobody can reach your Room until you resume it." : "Resumed. Your Room is live again.");
       onStatusChange?.(next.published);
+      onRoomState?.(next, stats, null);
     } catch (e) {
       fail(e);
     } finally {
       setBusy(null);
     }
-  }, [token, replicaId, room, fail, onStatusChange]);
+  }, [token, replicaId, room, fail, onStatusChange, onRoomState, stats]);
 
   const saveCap = useCallback(
     async (next: number) => {

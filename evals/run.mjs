@@ -1632,6 +1632,19 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "rate-limit": "rate-limit/run.mjs",
+  // WS-R31. The studio collapsed to Feed/Meet/Share: bundles the REAL
+  // `src/studio/studioShellModel.ts` (`evals/mirrorcall.mjs`'s pattern) and
+  // asserts every existing panel is reachable from `StudioShell.tsx` or
+  // `StudioApp.tsx`'s "All panels" view (a static text scan against the
+  // real `src/studio/` listing), the headline state for each tab under
+  // empty / partial / complete fixtures, and that the primary control always
+  // equals the blocker list's own next thing. THREE NEGATIVE CONTROLS: (a) a
+  // panel struck from both files' text is caught as orphaned; (b) a
+  // hand-built headline with two primary controls is refused; (c) a string
+  // with "train"/"model" fails scripts/check-copy.mjs's own scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no browser, no model call.
+  "studio-shell": "studio-shell/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

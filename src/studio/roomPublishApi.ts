@@ -159,3 +159,17 @@ export async function readOwnedRoomStats(token: string, replicaId: string): Prom
 export function roomLink(slug: string, origin = window.location.origin): string {
   return `${origin}/r/${slug}`;
 }
+
+// WS-R31. The one derived fact `StudioShell.tsx`'s Share tab needs from a
+// `RoomBlockers` read: the single next thing, waiting-on-you first, else
+// waiting-on-us, matching `RoomStudio.tsx`'s own "name the top one" rule
+// (`WizardRail.tsx`'s `StepBlockers`, one surface over). Lives here rather
+// than in `RoomStudio.tsx` so it can be bundled by `evals/studio-shell/run.mjs`
+// without pulling in React or a CSS import: this file already has neither.
+export function firstRoomBlocker(blockers: RoomBlockers | null): { label: string; anchor: string; cls: "you" | "us" } | null {
+  const you = blockers?.waiting_on_you?.[0];
+  if (you) return { label: you.headline, anchor: you.anchor, cls: "you" };
+  const us = blockers?.waiting_on_us?.[0];
+  if (us) return { label: us.headline, anchor: us.anchor, cls: "us" };
+  return null;
+}
