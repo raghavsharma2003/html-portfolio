@@ -1880,6 +1880,28 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
   "suites-self-serve": "suites-self-serve/run.mjs",
+  // WS-R42, migration 104. "The money reconciles": `reconcile` (a pure
+  // function over rows - follower-lane ledger sum vs. payout gross minus
+  // suite share; the Suite lane recomputes `runPayoutRollup`'s OWN flat
+  // per-seat formula from `suiteRows` rather than comparing against an
+  // org-lane ledger sum, which is not the invariant that actually holds -
+  // see api/_payments.js's own header on `reconcile` for why; the creator
+  // lane is reported, never compared), the creator-tier charge ledger
+  // (`vy_creator_charge_event`, written inside `applyWebhook`'s creator lane
+  // in the SAME statement as the state flip, idempotent on `(provider,
+  // provider_charge_ref)`, only for a landed charge kind with a positive
+  // amount), and `scripts/check-mirrors.mjs` (every `// mirror of
+  // api/<file>.js#<NAME>` marker parsed on both sides). FOUR NEGATIVE
+  // CONTROLS: (a) one ledger row removed produces exactly one finding
+  // naming the Room and the difference in paise; (b) a payout's
+  // `suite_share_inr` for a Room not attached at period end is a finding;
+  // (c) the creator-tier charge for a seat-covered creator writes zero
+  // ledger rows, proven structurally (zero `vy_creator_subscription` rows,
+  // and the ledger's own FK makes a charge row impossible without one);
+  // (d) `check-mirrors` fails on a fixture pair that differs by exactly one.
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider.
+  "payments-reconcile": "payments-reconcile/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
