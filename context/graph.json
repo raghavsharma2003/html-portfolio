@@ -6658,6 +6658,12 @@
       "kind": "measurement",
       "title": "verify-release 16/17 before (sole failure: layout readability EADDRINUSE, environmental), 17/17 after. evals/creator-invites/run.mjs new suite: 46 checks, 0 failed. Sibling suites reconfirmed unchanged: invites 57/57, funnel 49/49, ops 68/68, room-leak 78/78, room-doors 109/109, studio-shell 64/64 (after the allowlist fix), check-copy 6 scopes/21 controls.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-106-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 106 applied live and read back; the creator-issued invite quota INSERT plans as a one-time filter over two init plans on the new index and the Room owner index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13345,6 +13351,21 @@
       "src": "ws-r47-creator-invites-component",
       "rel": "part_of",
       "dst": "ws-r23-component"
+    },
+    {
+      "src": "ws-r47-creator-invite-quota-is-three",
+      "rel": "measured_by",
+      "dst": "rooms-migration-106-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r47-funnel-arrival-line-hides-count-below-floor",
+      "rel": "measured_by",
+      "dst": "rooms-migration-106-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r47-invites-required-semantics-untouched-by-design",
+      "rel": "measured_by",
+      "dst": "rooms-migration-106-live-verification-2026-09-04"
     }
   ]
 }

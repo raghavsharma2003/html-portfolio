@@ -9018,3 +9018,15 @@ scanner directly, not as new entries in `check-copy.mjs`'s own fixture
 list). `node scripts/verify-release.mjs`'s typecheck gate (`tsc -b`)
 clean with no new errors after `inviteApi.ts` and `InviteCreatorCard.tsx`
 were added.
+
+## `rooms-migration-106-live-verification-2026-09-04`
+
+n = 1 migration (2 statements in one transaction), 3 API statements; method = the live `vy_creator_invite` catalog read first (0 rows; the 086 CHECKs, the unique code-hash index, the issued and redeemed indexes present), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, the column (`text default 'operator'`), its CHECK and the `(issued_by_user_id, issued_kind)` index read back, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_invites.js` and `api/_funnel.js` added, parameters substituted with typed literals; date 2026-09-04, at the WS-R47 merge over the WS-R50 tip e36002d.
+
+| statement | plan |
+|---|---|
+| `issueCreatorInvite` (the quota INSERT) | Insert over a Result whose `One-Time Filter` is `(InitPlan 2) AND (InitPlan 1 < 3)`: the creator's count as an Index Only Scan on `vy_creator_invite_issued_kind_ix`, the published-Room standing as an Index Scan on `vy_room_owner_ix` with `published_at is not null` as the filter; the quota and the standing are decided inside the statement, never by a JS branch |
+| `myInvites` | Index Scan on `vy_creator_invite_issued_kind_ix` on both columns, Sort on `created_at desc`, `limit 50` |
+| `creatorInviteArrivalsThisWeek` | Aggregate over a Left Join: Bitmap on `vy_creator_invite_issued_kind_ix` by `issued_kind = 'creator'` alone (bounded by the creator-issued rows), `vy_creator_application_pkey` for the application arm, the week window as the join filter |
+
+Not measured: no creator-issued code exists; no code has been redeemed; nobody has seen the "Invite a creator" card in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
