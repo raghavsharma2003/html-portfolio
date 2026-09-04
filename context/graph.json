@@ -5824,6 +5824,78 @@
       "kind": "open",
       "title": "api/account.js's send_sms and verify_sms (the OTP sign-in the Room uses) are not behind vy_public_rate; they keep Meera's in-memory per-destination throttle, which resets on every cold start and is per-instance. WS-R26 left them out as shared infrastructure; a follow-up puts otp_send_ip and otp_send_dest scopes on the same predicate.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-conversion-moment",
+      "kind": "component",
+      "title": "The conversion moment (migration 093, vy_room_upgrade_offer). api/_phase-gate.js: sessionWorked (the session-that-worked predicate), recordOffer (14-day cooldown as the write), markOfferOutcome, conversionReport, renewedUnasked, phaseGate (the three Phase 2 numbers). Wired into api/_room-surface.js's roomSay (offer chrome on the reply, cap_reached recorded on refusal) and api/room.js's offer_dismiss op; api/_payments.js's applyWebhook marks outcome=paid inline; api/_ops.js/OpsBoard.tsx show the Phase gate card; src/room/copy.ts and RoomApp.tsx render the offer card.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-session-worked-one-statement-follower-scope-first",
+      "kind": "decision",
+      "title": "sessionWorked is one SQL statement (six CTEs) with the vy_room_follower-touching follower_scope CTE placed FIRST so the leak battery's own first-select-from parser judges the correct, aggregate-only segment, citing rejected.md#ws-r12-retention-exists-in-select-broke-the-leak-batterys-parser.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-hit-cap-before-uses-current-ceiling",
+      "kind": "decision",
+      "title": "The has-hit-the-cap-before clause compares a past month's summed turns against the room's CURRENT free_monthly_messages, not the ceiling that applied then - a documented approximation with a stated reversal condition.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-webhook-offer-update-inlined-not-called",
+      "kind": "decision",
+      "title": "api/_payments.js's applyWebhook inlines an offer_update CTE (mirroring markOfferOutcome's own predicate) rather than calling that function, because the 'paid' outcome must land in the SAME statement as the subscription's own state flip.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-renewed-unasked-honest-zero",
+      "kind": "decision",
+      "title": "renewedUnasked counts real creators but returns a hardcoded renewed_unasked:0 with an always-attached note, since no creator-tier subscription table or reminder mechanism exists anywhere in this database (api/_payments.js's own header: Phase 2 concern, no table here).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-phase-gate-loops-rooms-like-ops-and-funnel",
+      "kind": "decision",
+      "title": "phaseGate sums conversionReport/roomFollowerCohorts per room in a JS loop rather than one grouped cross-room statement, api/_ops.js and api/_funnel.js's own precedent restated for a third metric family.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-offer-card-separate-from-existing-upgrade-prompt",
+      "kind": "decision",
+      "title": "The new session-worked offer card renders alongside the existing upgrade_prompt/quota nudge rather than replacing it - two independent predicates, both visible on qualifying turns.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-phase-gate-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "49/49 assertions, node evals/phase-gate/run.mjs, offline/deterministic/$0. verify-release.mjs 16/16 before and after; room-leak 78/78; room-export 33/33; persontables 55 manifest entries; recall 263/263; sqlcast 386 statements on the strict surface, 0 uncast sites after one real catch fixed.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-phase-gate-not-registered-in-leak-battery",
+      "kind": "rejection",
+      "title": "api/_phase-gate.js's SQL was written aggregate-only but the file was never added to evals/room-leak/run.mjs's AGGREGATE_ONLY Set, so the gate correctly failed it as an unclassified offender until registered by name.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-third-synthetic-user-id-fails-strict-uuid-validation",
+      "kind": "rejection",
+      "title": "A third invented auth id in evals/phase-gate/run.mjs fell through evals/room/fixtures.mjs's USER_A/USER_B-only clean-hex mapping into the pp<slice> fallback shape, which correctly failed recordOffer's strict UUID validation; fixed by reusing USER_A in a fresh isolated state.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-git-stash-run-once-by-accident-mid-session",
+      "kind": "rejection",
+      "title": "This session issued git stash once, against the explicit cross-worktree prohibition, and reversed it immediately with git stash pop in the same turn before any other command ran; every file was confirmed intact. Restated rule: never type git stash at all, use the WIP-commit-and-reset round trip instead.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r30-cap-reached-ledger-only-no-dedicated-card",
+      "kind": "open",
+      "title": "The cap_reached offer reason is written to vy_room_upgrade_offer for funnel measurement but has no dedicated client-side card - the follower still only ever sees the existing capped screen at that moment. Fine for v1 (the ledger is what Phase 2 needs); a future workstream could add reason-specific chrome if the funnel shows it matters.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11731,6 +11803,61 @@
       "src": "ws-r26-otp-doors-not-behind-vy-public-rate",
       "rel": "constrains",
       "dst": "ws-r26-write-is-the-check-not-read-then-write"
+    },
+    {
+      "src": "ws-r30-session-worked-one-statement-follower-scope-first",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-hit-cap-before-uses-current-ceiling",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-webhook-offer-update-inlined-not-called",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-renewed-unasked-honest-zero",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-phase-gate-loops-rooms-like-ops-and-funnel",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-offer-card-separate-from-existing-upgrade-prompt",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-conversion-moment",
+      "rel": "measured_by",
+      "dst": "ws-r30-phase-gate-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r30-session-worked-one-statement-follower-scope-first",
+      "rel": "measured_by",
+      "dst": "ws-r30-phase-gate-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r30-phase-gate-not-registered-in-leak-battery",
+      "rel": "caused_by",
+      "dst": "ws-r30-conversion-moment"
+    },
+    {
+      "src": "ws-r30-third-synthetic-user-id-fails-strict-uuid-validation",
+      "rel": "caused_by",
+      "dst": "ws-r30-phase-gate-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r30-cap-reached-ledger-only-no-dedicated-card",
+      "rel": "part_of",
+      "dst": "ws-r30-conversion-moment"
     }
   ]
 }

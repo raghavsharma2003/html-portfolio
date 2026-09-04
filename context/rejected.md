@@ -7329,3 +7329,94 @@ file - search for the CALL SITE's surrounding syntax (the assignment, the
 argument list it is passed inside, or enough of the statement around it)
 instead, and verify by reading the file rather than trusting the search
 string looks unambiguous.
+
+## `ws-r30-phase-gate-not-registered-in-leak-battery` (2026-09-04, WS-R30)
+
+**Tried.** `api/_phase-gate.js` was written with two SQL statements
+(`sessionWorked`'s `follower_scope` CTE, `conversionReport`'s eligible/paying
+read) deliberately shaped to be aggregate-only over `vy_room_follower` -
+correct by construction, matching `api/_funnel.js`'s `min(joined_at)`
+precedent. The workstream brief said in words to admit this file to
+`evals/room-leak/run.mjs`'s `AGGREGATE_ONLY` class; the code was written to
+satisfy that class's rules, but the file was never actually added to the
+`AGGREGATE_ONLY` `Set` in that battery.
+
+**What specifically broke.** `node scripts/verify-release.mjs` failed at the
+"room leak battery" gate: `FAIL no file outside the allowed set reads the
+Room's follower/thread tables   _phase-gate.js` - the battery's own
+file-level check (`if (!AGGREGATE_ONLY.has(f)) { offenders.push(f); continue;
+}`) treats an unclassified file that names `vy_room_follower`/`vy_room_thread`
+as an unconditional offender, regardless of how safe its actual statements
+are. Correct SQL shape is necessary but not sufficient - the battery has to
+be TOLD which class a new file belongs to, in writing, by name.
+
+**Rule.** Writing a statement to satisfy a checker's rules and registering
+the file with that checker are two separate steps, and the second one is
+easy to forget precisely because the first one made everything else pass
+locally (the file's own suite, `evals/phase-gate/run.mjs`, had no reason to
+fail - it never runs the leak battery). Whenever a new module is meant to
+join an existing AGGREGATE_ONLY/ALLOWED/TIER_WRITE_ONLY class, grep for the
+class's own `Set(...)` definition and add the filename in the SAME commit
+that writes the SQL, not after the gate says so.
+
+## `ws-r30-third-synthetic-user-id-fails-strict-uuid-validation` (2026-09-04, WS-R30)
+
+**Tried.** `evals/phase-gate/run.mjs`'s §7 needed three independent
+followers in three independent fixture worlds (a session-worked path, a
+paid-follower negative control, a cap-reached path). The first two reused
+`evals/room/fixtures.mjs`'s `USER_A`/`USER_B` auth ids; the third invented a
+new one, `"33333333-3333-4333-8333-333333333333"`, following the same visual
+pattern.
+
+**What specifically broke.** `api/_phase-gate.js`'s `recordOffer` (correctly)
+refused to write, and the assertion "the refusal ALSO recorded a cap_reached
+offer" failed. `evals/room/fixtures.mjs`'s `personIdFor`-shaped join logic
+(`unknownUserFallback`'s own header) only maps `USER_A`/`USER_B` to clean hex
+person ids (`PERSON_A`/`PERSON_B`); any OTHER auth id falls back to
+`` `pp${uid.slice(2)}` `` - a shape that deliberately exercises "N > 2
+followers through the identical fake" (WS-R8's own reason for the fallback)
+but is NOT a valid hex UUID (`pp333333-...` contains letters outside
+`[0-9a-f]`). `recordOffer`'s strict UUID validation - correct, and the same
+validation every other function in this file uses - refused the write
+before ever reaching the database layer, silently (from the test's point of
+view) rather than with an exception, because it was called from inside
+`roomSay`'s own best-effort `.catch(() => {})` wrapper around the
+cap-reached recording.
+
+**Rule.** When a suite needs a THIRD (or Nth) independent fixture "person" in
+a file built on `evals/room/fixtures.mjs`, reuse `USER_A`/`USER_B` in a
+FRESH, isolated `state` object rather than inventing a new auth id - the
+fixture's clean-hex mapping is a two-entry allowlist, not a general pattern,
+and a new id that merely LOOKS like a UUID will silently take the
+`unknownUserFallback` branch instead.
+
+## `ws-r30-git-stash-run-once-by-accident-mid-session` (2026-09-04, WS-R30)
+
+**What happened.** While verifying a measurement (a persontables/recall
+count delta before doing a WIP-commit-and-reset check), this session issued
+`git stash -u` once, directly against `ws-common.md`'s own explicit
+prohibition (`rejected.md#ws-r21-git-stash-is-shared-across-concurrent-
+worktree-sessions`) - a leftover command pasted from an abandoned plan
+rather than the WIP-commit approach this same session had already used
+correctly once earlier in the session. It was noticed in the same turn,
+before any other command ran, and reversed immediately with `git stash pop`
+(the stash held exactly the entries this session had just pushed, nothing
+else, and `git stash list` was empty both before the pop and after -
+consistent with no other worktree's stash entry having landed on top of or
+underneath this one in the brief window it existed). Every file was
+confirmed present and byte-identical to before by content check after the
+pop. No further stash command was issued for the remainder of the session;
+every other worktree-set-aside used the WIP-commit-and-`git reset --hard`/
+`--soft` shape ws-common.md prescribes.
+
+**Rule, restated because it was nearly broken rather than because it is
+new.** There is no such thing as a "quick" `git stash` in this clone - the
+stash stack is shared across every concurrent worktree, and the danger is
+not "does MY pop bring back MY changes" (it did, here) but "does something
+else land in or read from the stash in the window it exists." The fix that
+actually holds is procedural, not technical: never type `git stash` at all,
+including experimentally, including for a few seconds - the WIP-commit +
+`git reset --hard <sha>` (to measure a baseline) or `git reset --soft
+HEAD~1` (to keep working) round trip this same session used correctly
+elsewhere in it is the only sanctioned way to set work aside, and it has no
+shared-state window at all.
