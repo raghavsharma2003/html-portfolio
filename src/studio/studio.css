@@ -222,6 +222,22 @@
     --ink: #171915;
     --ink-soft: #52564e;
     --ink-faint: #7a7e74;
+    /* WCAG 1.4.3 (text contrast) — WS-R50. `--ink-faint` measures 3.47:1 to
+     * 4.1:1 against the backgrounds it is actually painted on in this file
+     * (`--paper`, `--forest-soft`, `--panel-solid`), all below the 4.5:1
+     * floor for normal-size text. `--ink-faint` itself is used in 50+ places
+     * across this file and this workstream's own targets (the studio shell's
+     * three tabs) proved only three of them; darkening the shared token here
+     * would recolour dozens of spots this gate never measured, which is
+     * reasoning where this repo asks for measurement. So this is a SECOND,
+     * AA-safe token, reserved for the exact selectors this gate's axe scan
+     * actually caught failing on the studio shell's three tabs
+     * (`#hear-voice-counter` via `.voice-preview-script small`,
+     * `.hear-voice-state.idle`, `.mirror-note`, `.mirror-fidelity-legend`)
+     * — see `context/rejected.md#ws-r50-ink-faint-token-wide-recolour` for
+     * the wider `--ink-faint` sweep this deliberately did not do, and why.
+     * 5.15:1 to 7.0:1 against the backgrounds axe measured them on. */
+    --ink-faint-aa: #565a4f;
     --line: rgba(28, 32, 26, 0.12);
     --line-strong: rgba(28, 32, 26, 0.22);
     --forest: #17493b;
@@ -2570,7 +2586,7 @@
 .voice-preview-script { display: block; margin-bottom: 22px; }
 .voice-preview-script textarea { width: 100%; min-height: 132px; resize: vertical; padding: 15px 16px; border: 1px solid var(--line); border-radius: 13px; outline: 0; color: var(--ink); background: rgba(255, 255, 255, 0.72); font: 500 14px/1.65 var(--sans); }
 .voice-preview-script textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(47, 91, 64, 0.12); }
-.voice-preview-script small { display: block; margin-top: 7px; color: var(--ink-faint); font-size: 10px; }
+.voice-preview-script small { display: block; margin-top: 7px; color: var(--ink-faint-aa); font-size: 10px; }
 .voice-preview-styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .voice-preview-styles legend { grid-column: 1 / -1; }
 .voice-preview-styles button { min-height: 94px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink-soft); background: rgba(255, 255, 255, 0.42); text-align: left; cursor: pointer; }
@@ -2814,7 +2830,7 @@
 .hear-voice-state.ready { color: var(--forest-deep); }
 .hear-voice-state.warming, .hear-voice-state.working { color: var(--ink-soft); }
 .hear-voice-state.failed { color: var(--danger); }
-.hear-voice-state.idle { color: var(--ink-faint); }
+.hear-voice-state.idle { color: var(--ink-faint-aa); }
 .hear-voice-stage-ready .hear-voice-state.ready { color: rgba(255, 255, 255, 0.65); }
 .hear-voice-message { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
 .hear-voice-stage small { color: var(--ink-faint); font-size: 11px; line-height: 1.55; }
@@ -3016,7 +3032,7 @@
 .mirror-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 22px; }
 .mirror-stage { display: grid; gap: 16px; align-content: start; }
 .mirror-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.mirror-note { color: var(--ink-faint); font-size: 12px; line-height: 1.5; }
+.mirror-note { color: var(--ink-faint-aa); font-size: 12px; line-height: 1.5; }
 
 .mirror-warming {
   display: flex; gap: 14px; padding: 16px 18px;
@@ -3075,15 +3091,15 @@
   transform-origin: left center; transform: scaleX(0);
   transition: transform 280ms ease-out;
 }
-.mirror-fidelity-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--ink-faint); font-size: 11px; }
+.mirror-fidelity-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--ink-faint-aa); font-size: 11px; }
 .mirror-fidelity-honesty { margin: 12px 0 4px; color: var(--ink); font-size: 12px; line-height: 1.55; }
 .mirror-fidelity-caveat { margin: 0 0 8px; color: var(--danger); font-size: 12px; line-height: 1.55; }
 .mirror-fidelity small { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
 .mirror-dropped-count { color: #8a3a17; }
 
 .mirror-rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.mirror-rail-head small { color: var(--ink-faint); font-size: 11px; text-align: right; }
-.mirror-rail-empty { margin: 0; color: var(--ink-faint); font-size: 12px; line-height: 1.55; }
+.mirror-rail-head small { color: var(--ink-faint-aa); font-size: 11px; text-align: right; }
+.mirror-rail-empty { margin: 0; color: var(--ink-faint-aa); font-size: 12px; line-height: 1.55; }
 
 .mirror-chip {
   margin-bottom: 10px; padding: 13px 14px; border: 1px solid var(--line-strong);
