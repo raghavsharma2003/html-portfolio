@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 16 checks; 14 without NEON_URL
+node scripts/verify-release.mjs      # 16 checks without NEON_URL; 18 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -99,7 +99,7 @@ Notes that will otherwise cost you an hour:
 Idempotent, one statement per request (Neon SQL-over-HTTP allows only one),
 no DO blocks, explicit `::uuid` casts on every comparison, mirrored into
 `db/schema.sql`, and wired into the erasure cascade AND `scripts/relcheck.mjs`'s
-owner-lane reach walk. **015 through 065 and 071 through 075 are applied live.
+owner-lane reach walk. **015 through 065 and 071 through 093 are applied live.
 066-070 are deliberately unused** — another agent applied migrations under
 those numbers live without pushing the files, so the live database already
 carries six tables (`vy_replica_voice_preview_intent`,
@@ -108,10 +108,10 @@ carries six tables (`vy_replica_voice_preview_intent`,
 `vy_replica_expression_observation`) that no file in this tree creates, and
 leaving the range free is what lets that tree merge later without a
 renumbering collision (`context/decisions.md#rooms-migrations-applied-live-in-the-union-order`).
-**076 (`vy_replica_drift_report`) is confirmed applied live: the table and its
-three indexes were read back from the live database on 2026-09-03
-(`context/decisions.md#rooms-migration-076-confirmed-live`). 077 is the next
-free number.** Five legacy tables key `device_id` as TEXT, so
+**Every migration from 076 to 093 was read back from the live catalog at its
+merge; `context/measurements.md` carries a `rooms-migration-0NN-live-verification`
+entry for each. 094 through 097 are reserved by wave eight's worktrees; 098
+is the next free number.** Five legacy tables key `device_id` as TEXT, so
 never assume a cast.
 
 ## Vyakti Rooms v1 — the adopted product definition (2026-09-02)
