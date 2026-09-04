@@ -94,6 +94,34 @@ export const PLATFORM_TAKE_BP_DEFAULT = 2500;
  *  withholding rate nobody has decided, which is a worse thing to invent than
  *  almost any other number in this file. */
 export const TDS_RATE_BP_DEFAULT = 0;
+/** The operator's own guess at which section of India's Income Tax Act
+ *  applies to a creator's Room earnings on this platform - 194J (fees for
+ *  professional or technical services) reads closest, but this is NOT a tax
+ *  opinion anyone here is authorized to give (WS-R36's own law 2). The rate
+ *  actually withheld stays `TDS_RATE_BP_DEFAULT` (0) regardless of what this
+ *  sentence says; the sentence exists so a creator reading their own
+ *  statement sees the identical caveat the code carries, never a rate
+ *  presented as settled when nobody has confirmed it. The owner must confirm
+ *  the section and the rate with an accountant before the first real payout. */
+export const TDS_DISCLOSURE_SENTENCE =
+  "TDS reflects the rate the platform operator has configured. Right now that rate is 0%, so nothing is withheld. " +
+  "The operator believes Section 194J of India's Income Tax Act applies to a creator's Room earnings, but an accountant has not confirmed this, and the rate may change before any real payout is sent.";
+/** A creator whose Room sits in a paying Suite receives this share of that
+ *  Suite's own per-seat price, for every period the Room was attached at
+ *  build time (`vy_room.org_id`, read fresh, never stored anywhere else).
+ *  Migration 095 shipped a Suite's own seat revenue as 100% platform take
+ *  with the distribution question named, not answered
+ *  (`context/decisions.md#ws-r33-suite-seat-revenue-not-distributed-to-creators`).
+ *  This is that answer for v0: a FLAT share of the Suite's own per-seat
+ *  PRICE, never a re-derivation of what the Suite's ledger rows actually
+ *  COLLECTED - a Suite pays one subscription for N seats, so there is no
+ *  per-Room amount collected to divide, only a flat per-seat price known
+ *  ahead of any billing event. 50% is the operator's own placeholder, not a
+ *  measured or negotiated number - `context/rejected.md`'s no-fake-numbers
+ *  law applied to a revenue split nobody has agreed to yet. Reverses the day
+ *  a Suite wants a different split: this becomes a per-org column rather
+ *  than one platform-wide basis-point figure. */
+export const SUITE_SEAT_SHARE_BP = 5000;
 
 /** The creator tier's own two priced plans, from the Rooms plan itself
  *  (api/_payments.js's original header: "creator pays for capacity...
@@ -1025,46 +1053,379 @@ export async function ownerRevenue(db, ownerUserId, replicaId, { now = Date.now(
 
 /**
  * Roll up every `vy_payment_event` in `[periodStart, periodEnd)` into one
- * `vy_creator_payout` row per owner. Idempotent on `(owner, period)` -
- * re-running the sweep for a period it already rolled up is a no-op.
+ * `vy_creator_payout` row per owner, PLUS every owner whose Room sits in a
+ * paying Suite this moment even if that Room earned nothing from a follower
+ * this period (WS-R36) - the Suite share is a reason to see a payout row on
+ * its own, not only a bonus line on top of follower revenue. Idempotent on
+ * `(owner, period)` - re-running the sweep for a period it already rolled up
+ * is a no-op. Every row is created in state `built` (migration 098's new
+ * default), never sent anywhere by this function - `sendPayout` is the next,
+ * separate step, this file's own "a decision in a handler is a decision no
+ * offline eval can reach" restated for build-then-send instead of
+ * verify-then-apply.
  *
- * `tdsRateBp` defaults to 0 - see `TDS_RATE_BP_DEFAULT`'s own header. The
- * arithmetic (`gross = take + tds + net`) is enforced twice: once here, once
- * by migration 078's `vy_creator_payout_sums` CHECK, so a bug in this query
- * fails loudly against a real database rather than shipping a payout row
- * nobody can reconcile against what followers actually paid.
+ * `tdsRateBp` defaults to 0 - see `TDS_RATE_BP_DEFAULT`'s own header.
+ * `suiteShareBp` defaults to `SUITE_SEAT_SHARE_BP` - see that constant's own
+ * header. Both are parameters, not only constants, so an offline eval (and a
+ * future owner-set rate) can drive this function without editing its source.
+ *
+ * THE ALGEBRA THAT MAKES THE ARITHMETIC GUARANTEE HOLD, spelled out because
+ * migration 078's `vy_creator_payout_sums` CHECK (`gross = take + tds + net`)
+ * is enforced twice and this is the second time: for every follower event,
+ * `platform_take_inr + creator_share_inr = amount_inr` (078's own CHECK), so
+ * summed across a period, `take_inr + creator_gross_inr = follower_gross_inr`.
+ * `gross_inr` here is `follower_gross_inr + suite_share_inr`; `net_inr` is
+ * `(creator_gross_inr + suite_share_inr) - tds_inr`. So
+ * `take_inr + tds_inr + net_inr = take_inr + creator_gross_inr + suite_share_inr
+ * = follower_gross_inr + suite_share_inr = gross_inr` - the CHECK holds by
+ * construction, not by luck, whether or not this owner has a Suite at all.
  */
-export async function runPayoutRollup(db, { periodStart, periodEnd, tdsRateBp = TDS_RATE_BP_DEFAULT } = {}) {
+export async function runPayoutRollup(
+  db,
+  { periodStart, periodEnd, tdsRateBp = TDS_RATE_BP_DEFAULT, suiteShareBp = SUITE_SEAT_SHARE_BP } = {},
+) {
   const start = new Date(periodStart);
   const end = new Date(periodEnd);
   if (!(start instanceof Date) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
     throw new PaymentsError("payout_period_invalid", 400);
   }
-  const bp = Number(tdsRateBp);
-  if (!Number.isFinite(bp) || bp < 0 || bp > 10000) throw new PaymentsError("payout_tds_rate_invalid", 400);
+  const tdsBp = Number(tdsRateBp);
+  if (!Number.isFinite(tdsBp) || tdsBp < 0 || tdsBp > 10000) throw new PaymentsError("payout_tds_rate_invalid", 400);
+  const shareBp = Number(suiteShareBp);
+  if (!Number.isFinite(shareBp) || shareBp < 0 || shareBp > 10000) throw new PaymentsError("payout_suite_share_rate_invalid", 400);
 
   const rows = await db(
     `with per_owner as (
        select r.owner_user_id,
-              coalesce(sum(e.amount_inr), 0)::int as gross_inr,
+              coalesce(sum(e.amount_inr), 0)::int as follower_gross_inr,
               coalesce(sum(e.platform_take_inr), 0)::int as take_inr,
               coalesce(sum(e.creator_share_inr), 0)::int as creator_gross_inr
          from vy_payment_event e
          join vy_room r on r.room_id = e.room_id
         where e.received_at >= ($1)::timestamptz and e.received_at < ($2)::timestamptz
         group by r.owner_user_id
+     ), suite_share as (
+       select r.owner_user_id,
+              coalesce(sum((os.price_per_seat_inr * ($4)::int4) / 10000), 0)::int as suite_share_inr
+         from vy_room r
+         join vy_org_subscription os on os.org_id = r.org_id and os.state = 'active'
+        where r.org_id is not null
+        group by r.owner_user_id
+     ), combined as (
+       select coalesce(po.owner_user_id, ss.owner_user_id) as owner_user_id,
+              coalesce(po.follower_gross_inr, 0) as follower_gross_inr,
+              coalesce(po.take_inr, 0) as take_inr,
+              coalesce(po.creator_gross_inr, 0) as creator_gross_inr,
+              coalesce(ss.suite_share_inr, 0) as suite_share_inr
+         from per_owner po
+         full outer join suite_share ss on ss.owner_user_id = po.owner_user_id
      ), split_tds as (
-       select owner_user_id, gross_inr, take_inr,
-              (creator_gross_inr * ($3)::int / 10000)::int as tds_inr,
-              creator_gross_inr - (creator_gross_inr * ($3)::int / 10000)::int as net_inr
-         from per_owner
+       select owner_user_id, take_inr, suite_share_inr,
+              (follower_gross_inr + suite_share_inr)::int as gross_inr,
+              (((creator_gross_inr + suite_share_inr) * ($3)::int4) / 10000)::int as tds_inr,
+              ((creator_gross_inr + suite_share_inr)
+                 - (((creator_gross_inr + suite_share_inr) * ($3)::int4) / 10000))::int as net_inr
+         from combined
      )
-     insert into vy_creator_payout (owner_user_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr)
-     select owner_user_id, ($1)::timestamptz, ($2)::timestamptz, gross_inr, take_inr, net_inr, tds_inr
+     insert into vy_creator_payout
+       (owner_user_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr, suite_share_inr)
+     select owner_user_id, ($1)::timestamptz, ($2)::timestamptz, gross_inr, take_inr, net_inr, tds_inr, suite_share_inr
        from split_tds
      on conflict (owner_user_id, period_start, period_end) do nothing
-     returning payout_id, owner_user_id, gross_inr, take_inr, net_inr, tds_inr, state`,
-    [start.toISOString(), end.toISOString(), bp],
+     returning payout_id, owner_user_id, gross_inr, take_inr, net_inr, tds_inr, suite_share_inr, state`,
+    [start.toISOString(), end.toISOString(), tdsBp, shareBp],
   );
   return rows;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE PAYOUT STATE MACHINE (WS-R36) - a closed set, one transition each:
+// built -> pending_account | queued -> sent -> settled | failed. Every
+// function below is exactly ONE UPDATE whose WHERE names the state(s) it
+// leaves - `applyWebhook`'s tier-flip precedent, restated for a payout.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * built (or a previously stalled pending_account) -> pending_account | queued.
+ *
+ * NEGATIVE CONTROL (a), by construction: the fund-account lookup runs BEFORE
+ * the provider is ever resolved for a real call, and a payout with no
+ * verified fund account is flipped straight to `pending_account` with ZERO
+ * provider calls - the same "refuse before any provider call" shape
+ * `startCreatorSubscription`'s exemption check uses one section up.
+ *
+ * `pending_account` is treated as re-attemptable from THIS same function
+ * (its own WHERE accepts both `built` and `pending_account`), not a separate
+ * operator-only unlock: the fix for it (registering a fund account) is a
+ * different write than sending money and needs no operator, so simply
+ * calling this function again after `registerFundAccount` succeeds is the
+ * whole retry mechanism for this one state.
+ */
+export async function sendPayout(db, { ownerUserId, payoutId }, deps = {}) {
+  const env = deps.env ?? process.env;
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(payoutId || ""))) {
+    throw new PaymentsError("payout_identity_invalid", 400);
+  }
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+
+  const rows = await db(
+    `select payout_id, owner_user_id, net_inr, state
+       from vy_creator_payout
+      where payout_id = ($1)::uuid and owner_user_id = ($2)::uuid
+        and state in ('built','pending_account')
+      limit 1`,
+    [String(payoutId), String(ownerUserId)],
+  );
+  const payout = rows[0];
+  if (!payout) throw new PaymentsError("payout_not_sendable", 409);
+
+  const accountRows = await db(
+    `select fund_account_ref from vy_creator_payout_account
+      where owner_user_id = ($1)::uuid and provider = $2 and verified_at is not null
+      limit 1`,
+    [String(ownerUserId), providerName],
+  );
+  const account = accountRows[0];
+  if (!account) {
+    const updated = await db(
+      `update vy_creator_payout
+          set state = 'pending_account'
+        where payout_id = ($1)::uuid and state in ('built','pending_account')
+       returning state`,
+      [String(payoutId)],
+    );
+    return { payout_id: payoutId, state: updated[0]?.state ?? "pending_account", provider_payout_ref: null };
+  }
+
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+  let sent;
+  try {
+    sent = await provider.sendPayout(
+      { fundAccountRef: account.fund_account_ref, amountInr: Number(payout.net_inr), ref: String(payoutId) },
+      secrets,
+    );
+  } catch (e) {
+    // built|pending_account -> failed. A provider that refused or errored is
+    // recorded rather than left silently stuck at `built` - `failed` is the
+    // one state this product retries only through an operator op, never a
+    // sweep, so leaving no trace of the failure would make that op unusable.
+    await db(
+      `update vy_creator_payout set state = 'failed'
+        where payout_id = ($1)::uuid and state in ('built','pending_account')`,
+      [String(payoutId)],
+    );
+    throw e instanceof PaymentsError ? e : new PaymentsError("payments_provider_payout_failed", 502);
+  }
+  const providerRef = String(sent.provider_payout_ref || "");
+  if (!providerRef) throw new PaymentsError("payments_provider_payout_failed", 502);
+
+  const updated = await db(
+    `update vy_creator_payout
+        set state = 'queued', provider_payout_ref = $2
+      where payout_id = ($1)::uuid and state in ('built','pending_account')
+     returning state, provider_payout_ref`,
+    [String(payoutId), providerRef],
+  );
+  return {
+    payout_id: payoutId,
+    state: updated[0]?.state ?? "queued",
+    provider_payout_ref: updated[0]?.provider_payout_ref ?? providerRef,
+  };
+}
+
+/**
+ * queued -> sent. No live trigger calls this in this workstream - a
+ * RazorpayX payout-status webhook or poll would, and building that receiver
+ * is Phase 2 work, named here rather than silently missing (this file's own
+ * posture for every seam it ships proven-but-unwired, `seatCoversCreatorTier`'s
+ * own precedent one file over). Proven by `evals/payouts/run.mjs` directly.
+ */
+export async function markPayoutSent(db, { payoutId }) {
+  if (!UUID.test(String(payoutId || ""))) throw new PaymentsError("payout_identity_invalid", 400);
+  const rows = await db(
+    `update vy_creator_payout set state = 'sent' where payout_id = ($1)::uuid and state = 'queued' returning state`,
+    [String(payoutId)],
+  );
+  if (!rows[0]) throw new PaymentsError("payout_not_queued", 409);
+  return { payout_id: payoutId, state: rows[0].state };
+}
+
+/** sent -> settled. Same "no live trigger this workstream" note as
+ *  `markPayoutSent` immediately above. */
+export async function markPayoutSettled(db, { payoutId }) {
+  if (!UUID.test(String(payoutId || ""))) throw new PaymentsError("payout_identity_invalid", 400);
+  const rows = await db(
+    `update vy_creator_payout set state = 'settled' where payout_id = ($1)::uuid and state = 'sent' returning state`,
+    [String(payoutId)],
+  );
+  if (!rows[0]) throw new PaymentsError("payout_not_sent", 409);
+  return { payout_id: payoutId, state: rows[0].state };
+}
+
+/**
+ * failed -> built, then the SAME built|pending_account -> pending_account|
+ * queued logic `sendPayout` uses (called, not duplicated) - "a failed payout
+ * is retried by an operator op, never a sweep" (WS-R36's own law 5). Never
+ * checks `ownerUserId` - an operator retries any creator's payout - the
+ * 404-by-name / `OPS_OWNER_USER_IDS` gate lives in api/payments.js,
+ * api/_ops.js's own precedent for where an operator check belongs (the
+ * board's own door, never the board's own function).
+ */
+export async function retryFailedPayout(db, { payoutId }, deps = {}) {
+  if (!UUID.test(String(payoutId || ""))) throw new PaymentsError("payout_identity_invalid", 400);
+  const rows = await db(
+    `update vy_creator_payout set state = 'built'
+      where payout_id = ($1)::uuid and state = 'failed'
+     returning owner_user_id, state`,
+    [String(payoutId)],
+  );
+  const row = rows[0];
+  if (!row) throw new PaymentsError("payout_not_failed", 409);
+  return sendPayout(db, { ownerUserId: row.owner_user_id, payoutId }, deps);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE FUND ACCOUNT - a reference the provider issued, never a bank detail
+// (WS-R36's own law 4).
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Register (really: VERIFY and store) a fund account reference the owner
+ * brought back from the provider's own onboarding flow. This platform never
+ * collects a bank account number or a UPI VPA through its own form - the
+ * only thing it ever asks for is the reference string the provider already
+ * issued after that exchange happened on the provider's own side.
+ */
+export async function registerFundAccount(db, { ownerUserId, fundAccountRef }, deps = {}) {
+  const env = deps.env ?? process.env;
+  if (!UUID.test(String(ownerUserId || ""))) throw new PaymentsError("org_owner_identity_invalid", 400);
+  const ref = String(fundAccountRef || "").trim();
+  if (!ref || ref.length > 200) throw new PaymentsError("payout_fund_account_ref_invalid", 400);
+
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+  const result = await provider.registerFundAccount(ref, secrets);
+  if (!result?.verified) throw new PaymentsError("payout_fund_account_unverified", 502);
+
+  const rows = await db(
+    `insert into vy_creator_payout_account (owner_user_id, provider, fund_account_ref, verified_at)
+     values (($1)::uuid, $2, $3, now())
+     on conflict (owner_user_id, provider) do update
+        set fund_account_ref = excluded.fund_account_ref, verified_at = excluded.verified_at, updated_at = now()
+     returning owner_user_id, provider, fund_account_ref, verified_at`,
+    [String(ownerUserId), providerName, ref],
+  );
+  return rows[0];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE STATEMENT - one number a creator can check against a bank line
+// (WS-R36's own law 1). Nothing per follower, ever.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Pure: turns already-fetched rows into the exact shape law 1 requires - the
+ * four numbers, the period, the follower subscription count, the Suite line,
+ * the TDS sentence, and the payout's own state and date. No database access,
+ * so `evals/payouts/run.mjs` proves this function's own shape without a fake
+ * `db` at all - `cohortRow`'s own pure/impure split in api/_room-cohorts.js,
+ * restated here for a payout instead of a retention cohort.
+ */
+export function payoutStatementFromRows(payoutRow, { followerSubscriptions = 0, suiteName = null } = {}) {
+  if (!payoutRow) return null;
+  const suiteShareInr = Number(payoutRow.suite_share_inr || 0);
+  return {
+    payout_id: payoutRow.payout_id,
+    period_start: payoutRow.period_start,
+    period_end: payoutRow.period_end,
+    currency: "INR",
+    gross_inr: Number(payoutRow.gross_inr),
+    take_inr: Number(payoutRow.take_inr),
+    tds_inr: Number(payoutRow.tds_inr),
+    net_inr: Number(payoutRow.net_inr),
+    suite_share_inr: suiteShareInr,
+    suite_name: suiteShareInr > 0 ? suiteName : null,
+    follower_subscriptions: Number(followerSubscriptions),
+    state: payoutRow.state,
+    provider_payout_ref: payoutRow.provider_payout_ref ?? null,
+    created_at: payoutRow.created_at,
+    tds_note: TDS_DISCLOSURE_SENTENCE,
+  };
+}
+
+/**
+ * The owner's own read of one statement. NEGATIVE CONTROL (b), by
+ * construction: no select list anywhere in this function (or in
+ * `payoutStatementFromRows` above) names `person_id`, `follower_id`, or
+ * anything a follower said - `follower_subscriptions` is a `count(distinct
+ * ...)` over subscription ids, the same aggregate-only shape
+ * `api/_room-cohorts.js` and `api/_ops.js` already prove out, never a list a
+ * follower could be picked out of.
+ */
+export async function payoutStatement(db, ownerUserId, payoutId) {
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(payoutId || ""))) {
+    throw new PaymentsError("payout_identity_invalid", 400);
+  }
+  const rows = await db(
+    `select payout_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr,
+            suite_share_inr, state, provider_payout_ref, created_at
+       from vy_creator_payout
+      where payout_id = ($1)::uuid and owner_user_id = ($2)::uuid
+      limit 1`,
+    [String(payoutId), String(ownerUserId)],
+  );
+  const payout = rows[0];
+  if (!payout) return null;
+
+  const countRows = await db(
+    `select count(distinct e.subscription_id)::int as follower_subscriptions
+       from vy_payment_event e
+       join vy_room r on r.room_id = e.room_id
+      where r.owner_user_id = ($1)::uuid
+        and e.received_at >= ($2)::timestamptz and e.received_at < ($3)::timestamptz`,
+    [String(ownerUserId), payout.period_start, payout.period_end],
+  );
+
+  let suiteName = null;
+  if (Number(payout.suite_share_inr) > 0) {
+    const suiteRows = await db(
+      `select o.name
+         from vy_room r
+         join vy_org o on o.org_id = r.org_id
+        where r.owner_user_id = ($1)::uuid and r.org_id is not null
+        limit 1`,
+      [String(ownerUserId)],
+    );
+    suiteName = suiteRows[0]?.name ?? null;
+  }
+
+  return payoutStatementFromRows(payout, {
+    followerSubscriptions: countRows[0]?.follower_subscriptions ?? 0,
+    suiteName,
+  });
+}
+
+/** The owner's own list: every period, newest first, for the studio's own
+ *  "one statement open at a time" panel - real rows only, `ownerRevenue`'s
+ *  own "real zeros, never a placeholder" precedent restated for a list. */
+export async function payoutStatements(db, ownerUserId) {
+  if (!UUID.test(String(ownerUserId || ""))) throw new PaymentsError("org_owner_identity_invalid", 400);
+  const rows = await db(
+    `select payout_id, period_start, period_end, gross_inr, net_inr, state, created_at
+       from vy_creator_payout
+      where owner_user_id = ($1)::uuid
+      order by period_start desc`,
+    [String(ownerUserId)],
+  );
+  return rows.map((r) => ({
+    payout_id: r.payout_id,
+    period_start: r.period_start,
+    period_end: r.period_end,
+    gross_inr: Number(r.gross_inr),
+    net_inr: Number(r.net_inr),
+    state: r.state,
+    created_at: r.created_at,
+  }));
 }

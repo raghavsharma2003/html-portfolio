@@ -75,7 +75,9 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // of what moved are a different kind of record than a memory or a
       // consent grant, and a receipt that did not name them would understate
       // what was held. Additive; the eval asserts membership, never the exact
-      // list.
+      // list. 098 (WS-R36) folded the provider's own fund account reference
+      // into this SAME class rather than a new one - it is a detail of the
+      // Room's money, not a different kind of record.
       "owner_room_payments",
       // 079 (WS-R16). Check-in designs, follower schedules and the delivery
       // ledger are their own class rather than folded into `agent_relational_memory`:
@@ -566,6 +568,13 @@ export async function completeReplicaErasure(db, lease, receipt) {
          and x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      creator_payouts as (delete from vy_creator_payout x using target t
+       where x.owner_user_id=t.owner_user_id),
+     -- 098 (WS-R36). The provider's own fund account reference - never a
+     -- bank detail, see that migration's own header. Same owner-wide scope
+     -- as vy_creator_payout immediately above and the same reasoning: no
+     -- column on this table can express a narrower one without changing
+     -- what it means (one row per owner+provider, not per replica).
+     creator_payout_accounts as (delete from vy_creator_payout_account x using target t
        where x.owner_user_id=t.owner_user_id),
      -- 095 (WS-R33), the creator's own tier subscription. Owner lane, NOT
      -- person lane (this migration's own header restates the argument):

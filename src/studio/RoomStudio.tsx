@@ -53,6 +53,7 @@ import {
 import CheckinsCard from "./CheckinsCard";
 import HandoffCard from "./HandoffCard";
 import SuiteCard from "./SuiteCard";
+import PayoutsCard from "./PayoutsCard";
 import { roomSuite, type SuiteRoomStatus } from "./orgApi";
 import {
   readRoomPayments,
@@ -971,6 +972,7 @@ export default function RoomStudio({
         }}
       />
       <CheckinsCard token={token} replicaId={replicaId} />
+      <PayoutsCard token={token} />
       <HandoffCard token={token} replicaId={replicaId} />
       <article className="teacher-sheet-card vy-room__pulse-card">
         <h3>Pulse</h3>

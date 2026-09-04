@@ -10,6 +10,10 @@ export interface RoomPrice {
   updated_at: string | null;
 }
 
+/** WS-R36. The closed payout state machine: built -> pending_account | queued
+ *  -> sent -> settled | failed. */
+export type PayoutState = "built" | "pending_account" | "queued" | "sent" | "settled" | "failed";
+
 export interface RoomPayout {
   payout_id: string;
   period_start: string;
@@ -18,7 +22,49 @@ export interface RoomPayout {
   take_inr: number;
   net_inr: number;
   tds_inr: number;
-  state: "pending" | "paid";
+  state: PayoutState;
+}
+
+/** WS-R36. `payoutStatements` list entry - the owner's own list, real rows
+ *  only. */
+export interface PayoutListEntry {
+  payout_id: string;
+  period_start: string;
+  period_end: string;
+  gross_inr: number;
+  net_inr: number;
+  state: PayoutState;
+  created_at: string;
+}
+
+/** WS-R36. `payoutStatement` - the four numbers, the period, the follower
+ *  subscription count, the Suite line, and the TDS disclosure sentence.
+ *  Nothing per follower. */
+export interface PayoutStatement {
+  payout_id: string;
+  period_start: string;
+  period_end: string;
+  currency: "INR";
+  gross_inr: number;
+  take_inr: number;
+  tds_inr: number;
+  net_inr: number;
+  suite_share_inr: number;
+  suite_name: string | null;
+  follower_subscriptions: number;
+  state: PayoutState;
+  provider_payout_ref: string | null;
+  created_at: string;
+  tds_note: string;
+}
+
+/** WS-R36. The provider's own reference to a creator's bank account - never
+ *  the bank detail itself. */
+export interface PayoutAccount {
+  owner_user_id: string;
+  provider: string;
+  fund_account_ref: string;
+  verified_at: string | null;
 }
 
 export interface RoomRevenue {
@@ -95,4 +141,25 @@ export async function startCreatorTierSubscription(
     plan,
   });
   return data.subscription;
+}
+
+/** WS-R36. Every payout for this owner, newest period first. */
+export async function listPayoutStatements(token: string): Promise<PayoutListEntry[]> {
+  const data = await call<{ payouts: PayoutListEntry[] }>(token, { op: "payout_statements" });
+  return data.payouts;
+}
+
+/** WS-R36. One statement, the shape the download controls build the JSON and
+ *  plain-text files from. */
+export async function readPayoutStatement(token: string, payoutId: string): Promise<PayoutStatement> {
+  const data = await call<{ statement: PayoutStatement }>(token, { op: "payout_statement", payout_id: payoutId });
+  return data.statement;
+}
+
+/** WS-R36. Register (really: verify and store) a fund account reference the
+ *  owner brought back from the provider's own onboarding flow - never a bank
+ *  detail typed into this platform's own form. */
+export async function registerPayoutFundAccount(token: string, fundAccountRef: string): Promise<PayoutAccount> {
+  const data = await call<{ account: PayoutAccount }>(token, { op: "register_fund_account", fund_account_ref: fundAccountRef });
+  return data.account;
 }
