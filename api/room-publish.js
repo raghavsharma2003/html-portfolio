@@ -11,6 +11,13 @@
 //                                                    numbers (WS-R19)
 //   POST /api/room-publish {op:"set_default_locale"} the Room's default
 //                                                    CHROME language (WS-R24)
+//   POST /api/room-publish {op:"set_bio"}        the directory's one-line
+//                                                    bio (WS-R45)
+//   POST /api/room-publish {op:"list"}           opt in to the creator
+//                                                    directory, refused
+//                                                    unless published (WS-R45)
+//   POST /api/room-publish {op:"unlist"}         opt out, unconditional
+//                                                    (WS-R45)
 //   POST /api/room-publish {op:"stats"}          real counts, never invented
 //
 // Thin by construction, `api/clone-channel.js`'s own shape: cors, rate limit,
@@ -31,6 +38,9 @@ import {
   setRoomFreeCap,
   setRoomPaidCeilings,
   setRoomDefaultLocale,
+  setRoomBio,
+  listRoom,
+  unlistRoom,
   ownerRoomStats,
 } from "./_room-publish.js";
 
@@ -125,6 +135,27 @@ export default async function handler(req, res) {
       const room = await setRoomDefaultLocale(q, user.id, replicaId, body.locale);
       if (!room) return notFound(res);
       obsBestEffort("room_publish.set_default_locale", { locale: room.default_locale });
+      return res.status(200).json({ room });
+    }
+
+    if (op === "set_bio") {
+      const room = await setRoomBio(q, user.id, replicaId, body.bio);
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.set_bio", {});
+      return res.status(200).json({ room });
+    }
+
+    if (op === "list") {
+      const room = await listRoom(q, user.id, replicaId);
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.list", { slug: room.slug });
+      return res.status(200).json({ room });
+    }
+
+    if (op === "unlist") {
+      const room = await unlistRoom(q, user.id, replicaId);
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.unlist", { slug: room.slug });
       return res.status(200).json({ room });
     }
 

@@ -35,6 +35,9 @@ import {
   setOwnedRoomFreeCap,
   setOwnedRoomPaidCeilings,
   setOwnedRoomDefaultLocale,
+  setOwnedRoomBio,
+  listOwnedRoom,
+  unlistOwnedRoom,
   readOwnedRoomStats,
   roomLink,
   firstRoomBlocker,
@@ -188,11 +191,12 @@ export default function RoomStudio({
   const [suiteStatus, setSuiteStatus] = useState<SuiteRoomStatus | null>(null);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | "bio" | "listed" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
   const [copied, setCopied] = useState(false);
+  const [bioDraft, setBioDraft] = useState("");
   const [capDraft, setCapDraft] = useState(20);
   const [priceDraft, setPriceDraft] = useState(PRICE_MIN_INR);
   const [paidMessagesDraft, setPaidMessagesDraft] = useState(500);
@@ -225,6 +229,7 @@ export default function RoomStudio({
       setReason(state?.reason ?? null);
       setBlockers(state?.blockers ?? null);
       setSlugDraft(state?.room?.slug ?? "");
+      setBioDraft(state?.room?.one_line_bio ?? "");
       setCapDraft(state?.room?.free_monthly_messages ?? 20);
       setPaidMessagesDraft(state?.room?.paid_monthly_messages ?? 500);
       setPaidVoiceDraft(state?.room?.paid_monthly_voice_seconds ?? 1800);
@@ -301,6 +306,7 @@ export default function RoomStudio({
       setRoom(next);
       setReason(null);
       setSlugDraft(next.slug);
+      setBioDraft(next.one_line_bio);
       setCapDraft(next.free_monthly_messages);
       setPaidMessagesDraft(next.paid_monthly_messages);
       setPaidVoiceDraft(next.paid_monthly_voice_seconds);
@@ -413,6 +419,44 @@ export default function RoomStudio({
     },
     [token, replicaId, fail],
   );
+
+  const saveBio = useCallback(
+    async (next: string) => {
+      setBusy("bio");
+      setError("");
+      try {
+        const updated = await setOwnedRoomBio(token, replicaId, next);
+        setRoom(updated);
+        setBioDraft(updated.one_line_bio);
+        setNotice("Your one-line description is saved.");
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
+  const toggleListed = useCallback(async () => {
+    if (!room) return;
+    setBusy("listed");
+    setError("");
+    setNotice("");
+    try {
+      const next = room.listed ? await unlistOwnedRoom(token, replicaId) : await listOwnedRoom(token, replicaId);
+      setRoom(next);
+      setNotice(
+        next.listed
+          ? "Listed. Your Room now appears in the creator directory."
+          : "Unlisted. Your Room is off the directory; the link above still works."
+      );
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(null);
+    }
+  }, [token, replicaId, room, fail]);
 
   const savePaidCeilings = useCallback(
     async (messages: number, voiceSeconds: number) => {
@@ -740,6 +784,46 @@ export default function RoomStudio({
         {room.paused && (
           <p className="field-note">Paused. Nobody can reach your Room until you resume it.</p>
         )}
+      </article>
+
+      <article className="teacher-sheet-card vy-room__cap-card">
+        <h3>List my Room</h3>
+        <p className="field-note">
+          Listing shows your Room on the creator directory: your name, the one-line description below, and the
+          language your Room's screens speak. It never shows how many followers you have.
+        </p>
+        <label className="field-label" htmlFor="room-bio">One-line description</label>
+        <div className="vy-room__slug-row">
+          <input
+            id="room-bio"
+            className="field"
+            value={bioDraft}
+            maxLength={140}
+            placeholder="What you talk about, in one line"
+            onChange={(event) => setBioDraft(event.target.value)}
+          />
+          <button
+            className="button secondary-button"
+            type="button"
+            disabled={busy === "bio" || bioDraft === room.one_line_bio}
+            onPointerDown={() => void saveBio(bioDraft)}
+          >
+            {busy === "bio" ? "Saving..." : "Save"}
+          </button>
+        </div>
+        <p className="field-note">
+          {room.published
+            ? (room.listed ? "Listed. Anyone browsing the directory can find your Room." : "Not listed. Your Room still works for anyone with the link.")
+            : "Publish your Room first, then you can list it."}
+        </p>
+        <button
+          className="button secondary-button"
+          type="button"
+          disabled={busy === "listed" || !room.published}
+          onPointerDown={() => void toggleListed()}
+        >
+          {busy === "listed" ? "Working..." : room.listed ? "Remove from directory" : "List my Room"}
+        </button>
       </article>
 
       <article className="teacher-sheet-card vy-room__cap-card">
