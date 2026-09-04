@@ -736,6 +736,16 @@ export const KIND_TO_STATE = Object.freeze({
   "payment.failed": "",
 });
 
+/** WS-R42, migration 104. Which creator-tier webhook kinds represent a
+ *  LANDED CHARGE - the two kinds `KIND_TO_STATE` already maps to `active`
+ *  that also carry a real payment (as opposed to `subscription.authenticated`,
+ *  which activates a mandate with no charge yet). `applyWebhook`'s creator
+ *  lane writes a `vy_creator_charge_event` row only for these, and only when
+ *  the parsed amount is positive - never for `subscription.pending`/
+ *  `payment.failed`/a pause/a cancellation, which still flip
+ *  `vy_creator_subscription.state` exactly as before but write no charge row. */
+export const CREATOR_CHARGE_KINDS = new Set(["subscription.charged", "subscription.activated"]);
+
 /** Razorpay's own webhook envelope (Webhooks, fetched 2026-09-03):
  *  `{event, payload:{subscription:{entity},payment:{entity}}}`. The fake
  *  provider's test fixtures use the IDENTICAL shape on purpose - this parser
@@ -843,7 +853,8 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
       ctx = orgCtxRows[0];
     } else {
       const creatorCtxRows = await db(
-        `select subscription_id from vy_creator_subscription where provider = $1 and provider_subscription_ref = $2 limit 1`,
+        `select subscription_id, owner_user_id, replica_id
+           from vy_creator_subscription where provider = $1 and provider_subscription_ref = $2 limit 1`,
         [providerName, parsed.providerSubscriptionRef],
       );
       if (creatorCtxRows[0]) {
@@ -857,34 +868,65 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
   const nextState = KIND_TO_STATE[parsed.kind];
   const payloadHash = sha256Hex(bodyBuf);
 
-  // ── THE CREATOR TIER LANE: a plain state flip, no ledger row. See
-  //    db/migrations/095_creator_and_org_billing.sql's own header for why:
-  //    a creator's own subscription to the platform has no second party to
-  //    split revenue with, so there is nothing for `vy_payment_event`'s
-  //    take/share columns to represent. Idempotency is the state machine's
-  //    own: setting the same state twice is a no-op by construction, so no
-  //    `(provider, event)` dedup is needed here the way the other two lanes
-  //    need it for money math. ──────────────────────────────────────────
+  // ── THE CREATOR TIER LANE (WS-R42, migration 104): the state flip is
+  //    UNCHANGED from WS-R33 - still the state machine's own idempotency,
+  //    still no split columns, `db/migrations/095_creator_and_org_billing.sql`'s
+  //    own header (a creator's own subscription to the platform has no
+  //    second party to split revenue with). What is NEW is a SECOND write in
+  //    the SAME statement, ONLY when this event is a landed charge
+  //    (`CREATOR_CHARGE_KINDS`, positive amount): a `vy_creator_charge_event`
+  //    row, idempotent on `(provider, provider_charge_ref)` via that table's
+  //    own unique index - `on conflict ... do nothing`, the follower/org
+  //    lanes' own dedup shape restated for a dedicated table instead of a
+  //    shared one. A non-charge event (a pause, a cancellation, the first
+  //    `authenticated`) still flips state exactly as before and writes
+  //    nothing here - law 1's "a creator whose seat covers them writes
+  //    nothing" holds by construction one level up: `startCreatorSubscription`
+  //    refuses before any provider call, so no subscription and no webhook
+  //    can ever exist for a covered creator, and this branch is never
+  //    reached for them at all. ─────────────────────────────────────────
   if (lane === "creator") {
+    const isCreatorCharge = CREATOR_CHARGE_KINDS.has(parsed.kind) && parsed.amountInr > 0;
     const rows = await db(
-      `update vy_creator_subscription s
-          set state = case when $2 = '' then s.state else $2 end,
-              current_period_start = coalesce($3::timestamptz, s.current_period_start),
-              current_period_end = coalesce($4::timestamptz, s.current_period_end),
-              updated_at = now()
-        where s.subscription_id = ($1)::uuid
-       returning s.subscription_id, s.state`,
-      [ctx.subscription_id, nextState, parsed.periodStart, parsed.periodEnd],
+      `with sub_update as (
+         update vy_creator_subscription s
+            set state = case when $2 = '' then s.state else $2 end,
+                current_period_start = coalesce($3::timestamptz, s.current_period_start),
+                current_period_end = coalesce($4::timestamptz, s.current_period_end),
+                updated_at = now()
+          where s.subscription_id = ($1)::uuid
+         returning s.subscription_id, s.state, s.owner_user_id, s.replica_id
+       ), charge_insert as (
+         insert into vy_creator_charge_event
+           (owner_user_id, replica_id, subscription_id, provider, provider_charge_ref, amount_inr, signature_verified, payload_hash)
+         select su.owner_user_id, su.replica_id, su.subscription_id, $5, $6, ($7)::int4, true, $8
+           from sub_update su
+          where ($9)::boolean
+         on conflict (provider, provider_charge_ref) do nothing
+         returning charge_id
+       )
+       select su.subscription_id, su.state, ci.charge_id
+         from sub_update su
+         left join charge_insert ci on true`,
+      [ctx.subscription_id, nextState, parsed.periodStart, parsed.periodEnd,
+        providerName, ref, parsed.amountInr, payloadHash, isCreatorCharge],
     );
     const result = rows[0];
+    // A replay is only a meaningful concept for a chargeable event - the
+    // ledger's own unique index is the ONLY dedup this lane has ever needed
+    // for money math (095's own header), so `replay` reports whether a
+    // charge-eligible event's own insert deduped, never a general "was this
+    // webhook seen before" claim this lane's state flip does not need.
+    const replay = isCreatorCharge && !result?.charge_id;
     return {
       applied: true,
-      replay: false,
+      replay,
       lane,
       subscription_id: result?.subscription_id ?? ctx.subscription_id,
       state: result?.state ?? null,
       tier: null,
       offer_marked_paid: null,
+      charge_id: result?.charge_id ?? null,
     };
   }
 
@@ -1157,6 +1199,244 @@ export async function runPayoutRollup(
     [start.toISOString(), end.toISOString(), tdsBp, shareBp],
   );
   return rows;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE MONEY RECONCILES (WS-R42, migration 104) - a pure function over rows,
+// never a query. `evals/payments-reconcile/run.mjs` drives it directly, no
+// fake `db` required; `reconcilePeriod` below is the thin DB-backed wrapper
+// that fetches what it needs for one period and hands rows to this function,
+// `payoutStatementFromRows`/`payoutStatement`'s own pure/impure split
+// restated for reconciliation instead of a statement.
+//
+// ── THE THREE INVARIANTS, AND WHY THE SUITE ONE IS NOT A LEDGER COMPARISON ──
+//
+// FOLLOWER: `gross_inr - suite_share_inr` on a period's payout row must equal
+// the sum of that owner's follower-lane `vy_payment_event` rows in the same
+// period - `runPayoutRollup`'s own algebra (this file's own header, "for
+// every follower event, platform_take_inr + creator_share_inr = amount_inr...
+// gross_inr here is follower_gross_inr + suite_share_inr") checked from the
+// OUTSIDE, against real rows, rather than trusted because the SQL says so.
+//
+// SUITE: the brief that shipped this file first read as "Suite-lane ledger
+// sum times SUITE_SEAT_SHARE_BP, equals the sum of suite_share_inr" - and
+// that is NOT the invariant `runPayoutRollup` actually holds.
+// `context/decisions.md#ws-r36-suite-share-flat-per-seat-not-ledger-derived`
+// is explicit: `suite_share_inr` is a FLAT share of the Suite's own CURRENT
+// `price_per_seat_inr`, for every Room attached at build time, "never as a
+// fan-out of what that Suite's own `vy_payment_event` org-lane rows actually
+// collected." A Suite pays ONE subscription for N seats; comparing its own
+// ledger total against a PER-ROOM share only coincides when seats-billed
+// equals rooms-attached, which is not guaranteed and not what the builder
+// checks. So this function recomputes the BUILDER'S OWN FORMULA from
+// `suiteRows` (the identical `vy_room join vy_org_subscription` shape
+// `runPayoutRollup`'s own `suite_share` CTE reads) and compares THAT against
+// the recorded `suite_share_inr` - proving the payout row was not corrupted
+// or drifted from what the formula would produce today, which is the
+// reconciliation this product's data shape actually supports. Logged with
+// its reversal condition: `context/decisions.md#ws-r42-suite-reconcile-recomputes-the-builder-formula`.
+//
+// CREATOR: `vy_creator_charge_event` (104) has no payout counterpart at all
+// (095's own header: 100% platform revenue, nothing to distribute) - summed
+// and reported as its own number, never compared against anything.
+//
+// ── ROUNDING (law 4) ────────────────────────────────────────────────────
+// Both `vy_payment_event.amount_inr` and every `vy_creator_payout` money
+// column are WHOLE RUPEES - migration 078's own header says so in as many
+// words ("amount_inr is whole rupees... the provider's own amounts are paise
+// and are divided by 100 the moment a webhook is parsed, never stored as
+// paise here"), confirmed by reading the column, not assumed from either
+// column's name. So there is no unit CONVERSION anywhere in this function -
+// the brief's own assumption of a paise/rupee split between the two tables
+// does not hold, logged as `context/decisions.md#ws-r42-ledger-and-payout-are-both-whole-rupees`.
+// A difference is still reported in PAISE (the brief's own unit, and the
+// smaller unit is the more precise one to name a mismatch in): the rupee
+// difference times 100, always an exact multiple of 100 while neither table
+// stores a fraction of a rupee. The one real rounding this function performs
+// is the Suite share recomputation, and it uses `Math.trunc` on a positive
+// product/10000 - Postgres integer division truncates toward zero for
+// non-negative operands, `runPayoutRollup`'s own SQL (`(os.price_per_seat_inr
+// * ($4)::int4) / 10000`), so this function's copy MUST match it exactly or
+// it manufactures a mismatch that is not a real bug - law 4's "the reconcile
+// follows the builder" applied here.
+function reconcileFollowerLane(ledgerRows, payoutRows, inPeriod) {
+  const sumByOwner = new Map();
+  const roomsByOwner = new Map();
+  for (const r of ledgerRows) {
+    if (r.lane !== "follower" || !inPeriod(r.received_at)) continue;
+    const owner = String(r.owner_user_id);
+    sumByOwner.set(owner, (sumByOwner.get(owner) || 0) + Number(r.amount_inr || 0));
+    if (!roomsByOwner.has(owner)) roomsByOwner.set(owner, new Set());
+    if (r.room_id != null) roomsByOwner.get(owner).add(String(r.room_id));
+  }
+  const findings = [];
+  for (const p of payoutRows) {
+    const owner = String(p.owner_user_id);
+    const expectedInr = sumByOwner.get(owner) || 0;
+    const actualInr = Number(p.gross_inr || 0) - Number(p.suite_share_inr || 0);
+    if (expectedInr !== actualInr) {
+      findings.push({
+        type: "follower_gross_mismatch",
+        owner_user_id: owner,
+        room_ids: [...(roomsByOwner.get(owner) || [])],
+        expected_inr: expectedInr,
+        actual_inr: actualInr,
+        difference_paise: (actualInr - expectedInr) * 100,
+      });
+    }
+  }
+  return findings;
+}
+
+function reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp) {
+  const expectedByOwner = new Map();
+  const roomsByOwner = new Map();
+  for (const s of suiteRows) {
+    const owner = String(s.owner_user_id);
+    const share = Math.trunc((Number(s.price_per_seat_inr) * Number(suiteShareBp)) / 10000);
+    expectedByOwner.set(owner, (expectedByOwner.get(owner) || 0) + share);
+    if (!roomsByOwner.has(owner)) roomsByOwner.set(owner, new Set());
+    if (s.room_id != null) roomsByOwner.get(owner).add(String(s.room_id));
+  }
+  const owners = new Set([
+    ...expectedByOwner.keys(),
+    ...payoutRows.filter((p) => Number(p.suite_share_inr || 0) > 0).map((p) => String(p.owner_user_id)),
+  ]);
+  const findings = [];
+  for (const owner of owners) {
+    const expectedInr = expectedByOwner.get(owner) || 0;
+    const payout = payoutRows.find((p) => String(p.owner_user_id) === owner);
+    const actualInr = payout ? Number(payout.suite_share_inr || 0) : 0;
+    if (expectedInr !== actualInr) {
+      findings.push({
+        type: "suite_share_mismatch",
+        owner_user_id: owner,
+        room_ids: [...(roomsByOwner.get(owner) || [])],
+        expected_inr: expectedInr,
+        actual_inr: actualInr,
+        difference_paise: (actualInr - expectedInr) * 100,
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * Pure. `ledgerRows`: normalized entries `{lane: "follower"|"creator",
+ * owner_user_id, room_id?, replica_id?, amount_inr, received_at}` - the org
+ * lane is deliberately absent (see this section's own header: the Suite
+ * check never sums org-lane ledger rows). `payoutRows`: `vy_creator_payout`
+ * rows for exactly this period. `suiteRows`: `{owner_user_id, room_id,
+ * org_id, price_per_seat_inr}`, one row per Room attached to an org with an
+ * ACTIVE subscription right now - `runPayoutRollup`'s own `suite_share` CTE
+ * join, restated for a JS array. `period`: `{start, end}`, ISO strings or
+ * anything `Date` parses; only used to filter `ledgerRows` by `received_at`.
+ * Never touches a database.
+ */
+export function reconcile(ledgerRows, payoutRows, suiteRows, period, { suiteShareBp = SUITE_SEAT_SHARE_BP } = {}) {
+  const start = new Date(period?.start).getTime();
+  const end = new Date(period?.end).getTime();
+  const inPeriod = (receivedAt) => {
+    const t = new Date(receivedAt).getTime();
+    return Number.isFinite(t) && t >= start && t < end;
+  };
+
+  const findings = [
+    ...reconcileFollowerLane(ledgerRows, payoutRows, inPeriod),
+    ...reconcileSuiteLane(payoutRows, suiteRows, suiteShareBp),
+  ];
+
+  let creatorLaneTotalInr = 0;
+  for (const r of ledgerRows) {
+    if (r.lane === "creator" && inPeriod(r.received_at)) creatorLaneTotalInr += Number(r.amount_inr || 0);
+  }
+
+  return {
+    period: { start: period?.start ?? null, end: period?.end ?? null },
+    findings,
+    ok: findings.length === 0,
+    // The creator lane's own number, reported never compared - this
+    // section's own header, "no payout counterpart... reported as its own
+    // number."
+    creator_lane_total_inr: creatorLaneTotalInr,
+  };
+}
+
+/**
+ * DB-backed. Fetches exactly the rows `reconcile` needs for one period and
+ * runs it - `readCreatorTier`'s own "the decision lives where a fake db can
+ * reach it, the wrapper is what a handler calls" restated. `suiteRows` reads
+ * CURRENT `vy_org_subscription`/`vy_room` state, not a historical snapshot of
+ * who was attached at THIS period's own end - this product keeps no such
+ * snapshot (same limitation `runPayoutRollup` itself already has: "read
+ * fresh, never stored anywhere else"). Reconciling a period other than the
+ * most recently built one can therefore report a false Suite finding if
+ * attachment changed since - logged with its reversal condition:
+ * `context/decisions.md#ws-r42-reconcile-suite-lane-uses-current-attachment`.
+ */
+export async function reconcilePeriod(db, { periodStart, periodEnd }) {
+  const start = new Date(periodStart);
+  const end = new Date(periodEnd);
+  if (!(start instanceof Date) || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || !(end > start)) {
+    throw new PaymentsError("reconcile_period_invalid", 400);
+  }
+  const followerRows = await db(
+    `select r.owner_user_id, e.room_id, e.amount_inr, e.received_at
+       from vy_payment_event e
+       join vy_room r on r.room_id = e.room_id
+      where e.room_id is not null
+        and e.received_at >= ($1)::timestamptz and e.received_at < ($2)::timestamptz`,
+    [start.toISOString(), end.toISOString()],
+  );
+  const creatorRows = await db(
+    `select owner_user_id, replica_id, amount_inr, received_at
+       from vy_creator_charge_event
+      where received_at >= ($1)::timestamptz and received_at < ($2)::timestamptz`,
+    [start.toISOString(), end.toISOString()],
+  );
+  const suiteRows = await db(
+    `select r.owner_user_id, r.room_id, r.org_id, os.price_per_seat_inr
+       from vy_room r
+       join vy_org_subscription os on os.org_id = r.org_id and os.state = 'active'
+      where r.org_id is not null`,
+    [],
+  );
+  const payoutRows = await db(
+    `select owner_user_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr, suite_share_inr
+       from vy_creator_payout
+      where period_start = ($1)::timestamptz and period_end = ($2)::timestamptz`,
+    [start.toISOString(), end.toISOString()],
+  );
+  const ledgerRows = [
+    ...followerRows.map((r) => ({
+      lane: "follower", owner_user_id: r.owner_user_id, room_id: r.room_id,
+      amount_inr: Number(r.amount_inr), received_at: r.received_at,
+    })),
+    ...creatorRows.map((r) => ({
+      lane: "creator", owner_user_id: r.owner_user_id, replica_id: r.replica_id,
+      amount_inr: Number(r.amount_inr), received_at: r.received_at,
+    })),
+  ];
+  return reconcile(ledgerRows, payoutRows, suiteRows, { start: start.toISOString(), end: end.toISOString() });
+}
+
+/** The ops board's own line (WS-R42): "the count of periods with findings" -
+ *  every distinct period this product has ever built a payout for, reconciled
+ *  fresh, never cached. `whatsappSpendThisMonth`'s own aggregate-only shape
+ *  (api/_ops.js): a count, never a list of which owner or which Room. Capped
+ *  at 24 periods (two years of monthly payouts) so this stays a sub-second
+ *  board read rather than an unbounded scan as the product ages. */
+export async function reconciliationOverview(db, now = Date.now()) {
+  const periodRows = await db(
+    `select distinct period_start, period_end from vy_creator_payout order by period_start desc limit 24`,
+    [],
+  );
+  let periodsWithFindings = 0;
+  for (const p of periodRows) {
+    const result = await reconcilePeriod(db, { periodStart: p.period_start, periodEnd: p.period_end });
+    if (!result.ok) periodsWithFindings += 1;
+  }
+  return { periods_checked: periodRows.length, periods_with_findings: periodsWithFindings, generated_at: new Date(now).toISOString() };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
