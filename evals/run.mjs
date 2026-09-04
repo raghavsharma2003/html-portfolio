@@ -1569,6 +1569,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   handoff: "handoff/run.mjs",
+  // WS-R27. Forget receipts (migration 090, `vy_room_forget_receipt`) and the
+  // export completeness battery: STATIC (every PERSON_TABLES entry carrying
+  // both room_id and person_id in the checked-in DDL is named by
+  // `roomExportManifest()`) and DYNAMIC (one follower through the real
+  // follower lane touches every surface - thread, check-in, opt-in,
+  // subscription, push subscription, handoff, voice usage, the Telegram
+  // pointer - `roomExport` carries a row/count from each, `roomForget` leaves
+  // zero, and the receipt's counts equal what was deleted). Two NEGATIVE
+  // CONTROLS: (a) a fake person-lane table added to a COPY of the manifest is
+  // caught as uncovered by the static check; (b) a struck copy of
+  // `roomForget` with one delete removed is caught by the same survivor scan
+  // the real run passes. See evals/room-export/run.mjs's own header.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-export": "room-export/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

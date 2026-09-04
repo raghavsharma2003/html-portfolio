@@ -154,6 +154,15 @@ await gate("eval suite", NODE, ["evals/run.mjs"]);
 // leaks, two negative controls that must fail. See evals/room-leak/run.mjs's
 // header for what it does and does not prove.
 await gate("room leak battery", NODE, ["evals/room-leak/run.mjs"]);
+// WS-R27. Export/forget completeness for the Room: a follower's "forget me"
+// now writes a content-free receipt (migration 090,
+// `vy_room_forget_receipt`), and this proves the other half nothing checked
+// before — that `roomExport` names every person-lane Room table and
+// `roomForget` clears every one of them, static (DDL scan against
+// `roomExportManifest()`) plus dynamic (a real world through the real
+// follower lane), with two negative controls that must fail. See
+// evals/room-export/run.mjs's header for what it does and does not prove.
+await gate("room export completeness", NODE, ["evals/room-export/run.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the
