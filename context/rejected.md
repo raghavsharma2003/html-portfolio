@@ -8733,3 +8733,100 @@ DIFFERENT eval. After adding such a call, grep the target function's real
 SQL statement out with the exact scanner regex
 (`` `[^`]*<table_name>[^`]*` ``) and confirm it captures the real query text,
 not a mid-comment fragment - the way this rejection's own fix was verified.
+
+## `ws-r43-document-fonts-check-always-true-in-headless-chromium` (2026-09-04, WS-R43)
+
+**Tried:** the brief's own law 1 names two assertions per Hindi string -
+`document.fonts.check` resolving true for the Devanagari face, AND a
+canvas `measureText` width differing from tofu boxes by more than 10%.
+Built both, expecting `document.fonts.check` to be the primary signal and
+the width diff to be corroborating.
+
+**What broke:** `document.fonts.check` returns `true` in this container's
+headless Chromium for EVERY font family string tested, including a
+deliberately bogus one (`document.fonts.check('16px "TotallyBogusFontNameXYZ123"',
+"अ")` returns `true`, as does the same call with an emoji or plain Latin
+text). This is not this repo's bug: for a family never registered via
+`@font-face` (every "system font" reference in this codebase, since it
+loads no web fonts anywhere - `grep -rl "fonts.google" .` finds nothing),
+Chromium's `FontFaceSet.check()` has nothing "loading" to report against
+and appears to resolve unconditionally true rather than probing whether the
+named family actually exists on the host. Measured directly with a
+throwaway script before writing the gate (`/opt/pw-browsers/chromium-1194`),
+not assumed.
+
+**What shipped instead:** both assertions are still run, exactly as the
+brief names them - `document.fonts.check` because the brief is explicit
+and a call that always passes here is still cheap and could catch a real
+regression on a different Chromium build - but the width-diff test is
+documented as the one actually doing the work, and its own negative
+control (`context/measurements.md#ws-r43-glyph-measurement-180-hindi-strings-2026-09-04`,
+`MIN_GLYPH_DIFF_PCT` forced to 200) is what proves this gate is armed, not
+`document.fonts.check`'s own true/false.
+
+**The law:** a browser API whose name promises "is this font available"
+can mean something narrower ("is this font still LOADING") in a headless,
+no-network-fonts environment, and the only way to know which is to try
+lying to it. A gate that trusts the API's name without measuring what it
+actually returns for a false case would have shipped an assertion that
+can never fail.
+
+## `ws-r43-viewport-only-screenshot-missed-in-flow-dialogs` (2026-09-04, WS-R43)
+
+**Tried:** `page.screenshot({ path })` (viewport-only, the default) right
+after each room/room-hi phone screen's checks, to satisfy the brief's law
+6.
+
+**What broke:** `.room-menu`/`.room-cap`/`.room-gone` (`room.css`) are
+plain in-flow blocks, not a fixed or centered overlay - `CheckinsPanel`,
+`HandoffPanel` and the cap-reached card all render as ordinary DOM
+siblings AFTER `.room-composer` inside `.room-shell`. On the fixture's
+"talk" conversation (four turns), that puts every one of them below the
+390x844 viewport's fold. The first screenshots for `checkins`/`handoff`/
+`capped` were near byte-identical to `talk`'s own screenshot - all three
+showed the unopened conversation, with the actual panel this workstream
+built to test entirely off-screen. The fake db and every offline eval had
+already exercised these panels' STATE correctly (`checkinsOpen: true`
+really does mount `<CheckinsPanel>`); nothing offline could have caught
+that a real viewport never scrolls to it.
+
+**What shipped instead:** `page.screenshot({ fullPage: true })`. That
+surfaced a second, smaller artifact: `.room-composer` is `position: sticky;
+bottom: 0` (real, deliberate CSS for normal scrolling), and Playwright's
+full-page capture stitches several viewport-height sections together, so a
+sticky element re-pins itself in EACH section and can appear baked into
+the middle of the composite image. Fixed by injecting a temporary
+`.room-composer { position: static !important; }` style tag immediately
+before the screenshot and removing it immediately after - never touching
+the page the actual checks (`audit`, the tap-target/clipped/tabular-nums
+assertions) had already run against moments earlier.
+
+**The law:** a state proven correct through a fake `db` is a claim about
+DATA, not about where a real viewport happens to be scrolled to when that
+data renders. Only a real browser at a real viewport size can catch "the
+follower tapped Check-ins and nothing visibly changed."
+
+## `ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view` (2026-09-04, WS-R43, found not fixed)
+
+**Found, not fixed - flagged for whoever owns `RoomApp.tsx`/`CheckinsPanel.tsx`/
+`HandoffPanel.tsx` next.** The same shape the entry above names, stated as
+its own product finding rather than a test-methodology fix: when a follower
+taps "Check-ins", "Ask `<Name>` directly", "Your data" or "Your settings"
+from the Room's header, the opened dialog is inserted as a plain in-flow
+block AFTER the conversation and the composer - never scrolled into view,
+never a fixed overlay, no `.focus()` call on the panel itself. On any
+conversation with more than a screen's worth of messages, tapping one of
+these buttons on a real phone produces NO visible change until the
+follower manually scrolls down past the (still-visible, still-interactive)
+composer. This was invisible to every existing gate: the leak/door/export
+batteries drive `api/_room-surface.js`/`api/_checkins.js`/`api/_handoff.js`
+directly and render nothing; the accessibility gate's keyboard walk tabs
+through DOM order, which does reach the dialog eventually, so it never
+measured what a POINTER user sees first. Out of scope for this browser-
+BATTERY workstream to fix (it is a layout/behaviour change to the dialogs
+themselves, not an assertion), so left as found: the fix is most likely
+either `role="dialog"` positioning (`position: fixed`, centered, `room-menu`'s
+own existing `box-shadow`/`border-radius` already reads as a card that
+WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
+matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
+further.

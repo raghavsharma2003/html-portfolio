@@ -426,11 +426,13 @@ export default function AccountPage({
 
       <h3 className="room-checkins-subhead">{copy.account.subscriptionTitle}</h3>
       <p className="room-fine">{subscriptionSentence}</p>
+      {/* WS-R43: `room-num` (room.css) marks a figure a follower actually
+          reads as a number — a price, a date — so its digits stay tabular. */}
       {priceLabel && (
-        <p className="room-fine">{withPrice(copy.account.subscriptionPrice, priceLabel)}</p>
+        <p className="room-fine room-num">{withPrice(copy.account.subscriptionPrice, priceLabel)}</p>
       )}
       {payment?.subscription?.current_period_end && (
-        <p className="room-fine">
+        <p className="room-fine room-num">
           {copy.account.subscriptionRenews.split("{date}").join(formatDate(payment.subscription.current_period_end, locale))}
         </p>
       )}

@@ -12537,3 +12537,119 @@ its predicate needs to differ from this one (e.g. it SHOULD require
 rather than duplicating the WHERE clause a third time - two callers with
 the identical predicate is a coincidence worth naming once; three is a
 pattern.
+
+## `ws-r43-tap-target-floor-44px-across-room-controls` (2026-09-04, WS-R43)
+
+**Decision.** Six `room.css` selectors (`.room-rail button`, `.room-pulse-toggle`,
+`.room-menu-open`, `.room-lang-btn`, `.room-checkins-day`, `.room-cite`) are
+raised to a 44x44 css px minimum, WCAG 2.5.8's Minimum criterion widened to
+2.5.5's AAA figure rather than the SC's own 24px floor. `.room-cite` (an
+underlined, chrome-less citation link) is NOT given a WCAG-inline-text
+exception; it is measured as a real control instead, because it sits on its
+own line rather than inside a sentence, which is what that exception
+actually asks for, and it is the only way to reach the citation answer.
+
+**Rationale.** The layout gate rendered the Room in Chromium for the first
+time at real interactive-element granularity and measured 118 findings
+across roughly 18 distinct controls, all between 30 and 41px on at least
+one axis - every button a follower actually taps in a normal conversation
+(the thread rail, "let this count", every header dialog opener, the
+language switch, the check-in weekday picker). None of this was visible to
+any prior gate: the leak battery, the door battery and the export battery
+all drive `api/_room-surface.js` directly and never render a pixel: `44` is
+the number this brief's own law 2 named, and the CSS-only fix (min-height,
+sometimes min-width) changes no markup, no copy, and no decision logic.
+
+**Reversal condition.** If a future design pass deliberately wants a denser
+touch target for a specific control class (a dense list of many rows, say),
+narrow the exception per-selector with its own comment naming the WCAG
+provision it relies on - never widen this decision's floor down globally,
+which is how the original 30-34px sizes were reached in the first place
+(no comment anywhere named a floor at all).
+
+## `ws-r43-room-num-tabular-figure-marker` (2026-09-04, WS-R43)
+
+**Decision.** `.room-num` (`room.css`) is a new, Room-scoped class marking
+an element whose text a follower reads as a NUMBER (a message count, a
+price, a date, minutes used) rather than a label that merely contains a
+digit; it sets `font-variant-numeric: tabular-nums` and is applied to the
+whole sentence-bearing element (`.room-stat`, `.room-upgrade`, the
+capOffer/offerCard price lines, the account page's price/renewal lines, the
+paid-voice minutes line), never to a carved-out `<span>` around just the
+digits, because the property only changes how digit GLYPHS are drawn and is
+harmless on the surrounding words.
+
+**Rationale.** `tokens.css` names no shared numeric-figure token or class
+anywhere in this repo - `grep -rn "tabular-nums"` finds a dozen ad-hoc
+per-selector declarations in `studio.css` and nothing shared - so the
+layout gate's own law 4 ("every element the design tokens mark as numeric")
+had nothing to point at. Rather than invent a bespoke selector list inside
+the gate itself (which drifts the moment a new numeric line is added to a
+component and nobody remembers to update the gate too), the marker is a
+class the COMPONENT authors, so a new numeric line opts in at the JSX site
+where it is written, and the gate stays a one-line selector query.
+
+**Reversal condition.** If a wider numeric-figure convention is ever
+adopted across the studio and the Room (a shared token in `tokens.css`
+rather than a Room-local class), migrate `.room-num`'s call sites to it and
+delete the Room-local rule - the class exists to fill a real gap, not to
+compete with a future shared answer to the same question.
+
+## `ws-r43-glyph-width-test-needs-3-devanagari-chars` (2026-09-04, WS-R43)
+
+**Decision.** The layout gate's glyph-width test (real glyphs must measure
+differently from tofu boxes of the same length by more than 10%) is only
+ENFORCED on a Hindi string with 3 or more Devanagari codepoints (U+0900-
+U+097F). Every string in `ROOM_COPY_TABLE.hi` is still measured and
+`document.fonts.check`-ed regardless; strings under the floor are counted
+and reported (`n` vs `testableN` in the gate's own summary line) but never
+fail the build on the width test alone.
+
+**Rationale.** The width-diff test's premise is "a run of REAL glyphs is
+not uniform width the way tofu boxes are" - a premise that needs a real RUN
+to say anything. Three of `ROOM_COPY_TABLE.hi`'s 180 strings are ASCII
+placeholders with zero Devanagari codepoints at all (`join.phonePlaceholder`
+"+91", `checkins.waPhonePlaceholder` "+91XXXXXXXXXX") and one is a
+two-character word (`checkins.quietToLabel` "तक") where "percent different
+from uniform" is mostly sampling noise on a 2-glyph sample. Enforcing the
+10% floor on these produced three findings on the FIRST real run of this
+gate, none of which were a tofu risk (an ASCII string cannot render as a
+missing-glyph box; nobody would ever see one). The threshold of 3 is the
+floor, not tuned to make these three pass: it excludes exactly this class
+of string while a genuine tofu run (measured elsewhere in this same run at
+36-41% diff on real sentences, and at 100% of testable strings once this
+threshold was temporarily forced to an impossible 200% as a negative
+control) clears 10% with wide margin regardless of length.
+
+**Reversal condition.** If a future Hindi string is added that is short (1
+or 2 Devanagari characters) AND commonly rendered ALONE rather than beside
+other chrome (so a real tofu box there would actually be visible and
+matter), lower the floor for that specific string's context or add a
+by-string override - never lower the global floor as a blanket fix, which
+would re-admit the "+91"-shaped noise this decision exists to exclude.
+
+## `ws-r43-new-room-screens-tested-at-phone-viewport-only` (2026-09-04, WS-R43)
+
+**Decision.** The four screens this workstream's fixtures reached for the
+first time (`?screen=checkins`, `handoff`, `capped`, `receipt`, English and
+Hindi) run in `scripts/check-layout.mjs`'s `room:more`/`room-hi:more`
+targets at the 390x844 phone viewport ONLY, via a new `onlyViewport` field
+on a target - not at all three of this file's shared viewports (390/834/
+1355) the way `room`/`room-hi`'s original three screens (join/talk/account)
+do.
+
+**Rationale.** The brief's own law 2 names 390x844 specifically for the tap-
+target/clipped-text/tabular-nums checks this workstream added, and this
+whole battery's runtime is a named, measured budget (two minutes on this
+machine, `context/measurements.md#ws-r43-layout-gate-runtime-before-after`).
+Running four more screens at three viewports instead of one would have
+roughly tripled their added cost (24 extra page loads at about 2s of fixed
+settle time each versus 8) for tablet/desktop coverage the brief never
+asked for and this file makes no assertion about.
+
+**Reversal condition.** If a desktop or tablet rendering defect is ever
+suspected or reported on one of these four screens specifically (a
+collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
+to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
+runtime budget is a reason to scope narrowly by default, not a reason to
+stay narrow once there is a real defect to catch.

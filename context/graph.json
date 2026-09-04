@@ -7042,6 +7042,66 @@
       "kind": "measurement",
       "title": "Migration 102 applied live and read back; the arrival upsert arbitrates on its composite pkey, the crawler read on the slug index, the weekly share count on the via-day index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-tap-target-floor-44px-across-room-controls",
+      "kind": "decision",
+      "title": "Six room.css control classes raised to a 44x44 css px tap-target floor (WCAG 2.5.8/2.5.5), .room-cite measured as a real control rather than exempted as inline text",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-room-num-tabular-figure-marker",
+      "kind": "decision",
+      "title": "New .room-num class (room.css) marks a figure a follower reads as a NUMBER with font-variant-numeric: tabular-nums, since no shared numeric-figure token or class existed anywhere in this repo",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-glyph-width-test-needs-3-devanagari-chars",
+      "kind": "decision",
+      "title": "The layout gate's glyph width-diff test only fails a Hindi string with 3+ Devanagari codepoints; ASCII placeholders and 1-2 character strings are measured and fonts.check-ed but never fail the build on width alone",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-new-room-screens-tested-at-phone-viewport-only",
+      "kind": "decision",
+      "title": "The four newly-reached Room screens (checkins/handoff/capped/receipt, both locales) run at 390x844 only via a new onlyViewport target field, not at all three shared viewports, to hold the two-minute runtime budget",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-glyph-measurement-180-hindi-strings-2026-09-04",
+      "kind": "measurement",
+      "title": "180 Hindi strings glyph-checked in real Chromium (176 width-tested, 4 ASCII/too-short); 0 failures on the fixed tree; negative control at an impossible 200% threshold reproduced exactly 176 findings",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-layout-gate-runtime-before-after-2026-09-04",
+      "kind": "measurement",
+      "title": "check-layout.mjs full run: 89.852s before this workstream, 113.7-115.9s after across four runs, all under the two-minute budget",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04",
+      "kind": "measurement",
+      "title": "Tap-target 118 to 0 findings across two CSS fix passes; pointerdown-feedback 10-12 to 0 after adding .room-menu-open:active and a 120ms transition-settle wait; tabular-nums 0-to-4-to-0 via a deliberate negative control; all with negative controls proven",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-document-fonts-check-always-true-in-headless-chromium",
+      "kind": "rejection",
+      "title": "document.fonts.check() returns true for every family string tested in this container's headless Chromium, including a bogus nonexistent one - not a reliable tofu signal on its own; the canvas measureText width-diff test is what actually proves anything",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-viewport-only-screenshot-missed-in-flow-dialogs",
+      "kind": "rejection",
+      "title": "A viewport-only screenshot of checkins/handoff/capped showed the unopened talk screen underneath, because those panels render in-flow below the fold; fixed with fullPage plus a temporary style override for the sticky composer",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view",
+      "kind": "rejection",
+      "title": "Found, not fixed: opening Check-ins/Handoff/Data/Settings from the Room header produces no visible change on a real phone with a conversation taller than one screen, because the dialog is a plain in-flow block with no scroll-into-view or focus call",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14159,6 +14219,36 @@
       "src": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session",
       "rel": "measured_by",
       "dst": "rooms-migration-102-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r43-tap-target-floor-44px-across-room-controls",
+      "rel": "measured_by",
+      "dst": "ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04"
+    },
+    {
+      "src": "ws-r43-glyph-width-test-needs-3-devanagari-chars",
+      "rel": "measured_by",
+      "dst": "ws-r43-glyph-measurement-180-hindi-strings-2026-09-04"
+    },
+    {
+      "src": "ws-r43-new-room-screens-tested-at-phone-viewport-only",
+      "rel": "measured_by",
+      "dst": "ws-r43-layout-gate-runtime-before-after-2026-09-04"
+    },
+    {
+      "src": "ws-r43-room-num-tabular-figure-marker",
+      "rel": "measured_by",
+      "dst": "ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04"
+    },
+    {
+      "src": "ws-r43-document-fonts-check-always-true-in-headless-chromium",
+      "rel": "constrains",
+      "dst": "ws-r43-glyph-width-test-needs-3-devanagari-chars"
+    },
+    {
+      "src": "ws-r43-viewport-only-screenshot-missed-in-flow-dialogs",
+      "rel": "caused_by",
+      "dst": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view"
     }
   ]
 }

@@ -38,6 +38,21 @@
     font-family: "Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif;
   }
 
+  /* WS-R43. A figure a follower actually reads as a NUMBER — a message
+   * count, a price, a date, minutes used — rather than a label that merely
+   * contains a digit. `tokens.css` names no such marker anywhere in this
+   * repo (`grep -rn "tabular-nums"` finds a dozen ad-hoc selectors in
+   * studio.css and nothing shared): the layout gate's own law 4 needed a
+   * class to point at, so this is it, applied at the CONTAINING element
+   * (the whole sentence, not a carved-out span) — `font-variant-numeric`
+   * only changes how digit glyphs are drawn, so it is harmless on the
+   * surrounding words and does not require restructuring a copy template
+   * that already splices a number into running prose.
+   */
+  .room-num {
+    font-variant-numeric: tabular-nums;
+  }
+
   .room-shell {
     display: flex;
     flex-direction: column;
@@ -106,7 +121,11 @@
 
   .room-rail button {
     flex: 0 0 auto;
-    min-height: 34px;
+    /* WS-R43. Measured at 34px by the layout gate's own tap-target check
+     * (WCAG 2.5.8, 44x44 css px) — a thread pill a follower actually taps to
+     * switch topics, not label text, so it gets the real floor rather than
+     * an exception. */
+    min-height: 44px;
     border: var(--hairline) solid var(--line-strong);
     border-radius: var(--radius-pill);
     padding: 0 14px;
@@ -141,7 +160,8 @@
 
   .room-pulse-toggle {
     align-self: flex-start;
-    min-height: 34px;
+    /* WS-R43: same 44px floor, same reason — a real toggle, not a label. */
+    min-height: 44px;
     border: var(--hairline) solid var(--line-strong);
     border-radius: var(--radius-pill);
     padding: 0 14px;
@@ -315,8 +335,17 @@
   }
 
   .room-cite {
+    /* WS-R43: 44px, same floor as every other control in this file. It reads
+     * as a text link (underline, no chrome) but it is still the ONLY way to
+     * reach the citation answer, so it is measured as a real control rather
+     * than assumed exempt as "inline text" — it sits on its own line, not
+     * inside a sentence, which is what that WCAG exception actually asks for.
+     * `inline-flex` + `align-items: center` keeps the underline tight to the
+     * glyphs while the invisible box around it grows to the floor. */
+    display: inline-flex;
+    align-items: center;
     align-self: flex-start;
-    min-height: 32px;
+    min-height: 44px;
     border: none;
     border-radius: var(--radius-pill);
     padding: 0;
@@ -595,7 +624,9 @@
   }
 
   .room-menu-open {
-    min-height: 34px;
+    /* WS-R43: same 44px floor — every one of these is a real header action
+     * (check-ins, handoff, data, settings), never decoration. */
+    min-height: 44px;
     border: var(--hairline) solid var(--line-strong);
     border-radius: var(--radius-pill);
     padding: 0 14px;
@@ -606,6 +637,16 @@
     color: var(--ink);
     font: inherit;
     font-size: var(--text-small);
+    /* WS-R43: this button had NO pressed feedback at all — the layout gate's
+     * real `page.mouse.down()`/`up()` pass measured no transform change on
+     * these five header controls (check-ins, handoff, data, "your settings"),
+     * DESIGN-LAW's own "feedback on pointerdown" law unmet since whichever
+     * workstream first wrote this rule. `.room-btn`'s own pattern, this file. */
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-menu-open:active {
+    transform: scale(0.97);
   }
 
   /* Two header buttons instead of one (WS-R16), now as many as five
@@ -636,7 +677,15 @@
   }
 
   .room-lang-btn {
-    min-height: 30px;
+    /* WS-R43: 44px, same floor — the language switch is reachable on every
+     * screen and is exactly the kind of control a follower with limited
+     * dexterity relies on, so it does not get a smaller-because-it's-small
+     * exception. */
+    min-height: 44px;
+    /* "हिन्दी" alone measured 41px wide — narrower than "English", not
+     * padding gone missing. `min-width` gives the shorter label the same
+     * floor rather than tuning padding around one string's advance width. */
+    min-width: 44px;
     border: none;
     border-radius: var(--radius-pill);
     padding: 0 10px;
@@ -753,7 +802,9 @@
   }
 
   .room-checkins-day {
-    min-height: 34px;
+    /* WS-R43: 44px on both axes — WCAG 2.5.8 asks for BOTH, and this one
+     * only had the width half. */
+    min-height: 44px;
     min-width: 44px;
     border: var(--hairline) solid var(--line-strong);
     border-radius: var(--radius-pill);

@@ -9552,3 +9552,112 @@ n = 1 migration (2 statements in one transaction), 4 API statements; method = ap
 | erasure delete of a replica's arrivals | `vy_room_owner_ix` for the Rooms, then Bitmap on the arrival pkey by room |
 
 Not measured: no crawler has fetched `/r/<slug>`; no arrival row exists; Vercel's `has` user-agent match is proven only against the suite's own regex re-implementation, never a live edge request; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r43-glyph-measurement-180-hindi-strings-2026-09-04`
+
+n = 180 (every string leaf in `ROOM_COPY_TABLE.hi`, `src/room/copy.ts`,
+flattened by key path - `evaluate`-side `flattenHiStrings` in
+`src/room/layoutFixture.tsx`, exposed as `window.__ROOM_HI_STRINGS__`,
+never a hand-typed list). 176 clear the 3-Devanagari-codepoint floor
+(`context/decisions.md#ws-r43-glyph-width-test-needs-3-devanagari-chars`)
+and are width-tested; 4 are ASCII or too short and are `document.fonts.check`-ed
+only. Method: real Chromium (`/opt/pw-browsers/chromium-1194`), the page's
+OWN computed `font-family` for `.room-shell:lang(hi)` (read from the live
+DOM via `getComputedStyle`, never hardcoded - `"Noto Sans Devanagari",
+"Noto Sans", "Nirmala UI", "Mangal", sans-serif`, which this container
+resolves through its Devanagari-capable system faces, FreeSans/FreeSerif/
+Unifont, confirmed by `fc-list` showing Devanagari glyph names inside
+FreeSans's/FreeSerif's own style metadata), one canvas 2D context, 16px
+probe size. Result on the fixed tree, 2026-09-04: 0 failures - every
+testable string's real-glyph width differs from an equal-length run of
+U+25A1 tofu boxes by more than 10%, with real margin: the shortest
+measured passing diffs were in the 30-40% range on ordinary sentences
+("रूम खुल रहा है" at 39.1%, `loading`). NEGATIVE CONTROL: `MIN_GLYPH_DIFF_PCT`
+forced to an impossible 200 reproduced exactly 176 findings - every
+testable string, and only the testable ones - then reverted; see
+`context/rejected.md#ws-r43-document-fonts-check-always-true-in-headless-chromium`
+for why the `document.fonts.check` half of this law is a weak signal on
+its own in this environment and the width-diff half is the one actually
+proving anything.
+
+## `ws-r43-layout-gate-runtime-before-after-2026-09-04`
+
+n = 1 untouched-tree baseline run, 4 post-change full runs (`node
+scripts/check-layout.mjs`, no `--only`, real wall-clock `time`, this
+machine, 2026-09-04), plus 5 `--only room` runs used only to iterate
+faster during development (not the brief's own before/after pair, recorded
+here for anyone re-running just this surface later). Method: foreground
+`time node scripts/check-layout.mjs` (or `--only room`), waiting out
+`EADDRINUSE` on 127.0.0.1:8931 with the loop `ws-common.md` names before
+each run - a real collision with a sibling worktree's own gate run fired at
+least twice during this session and is the reason two runs recorded below
+show a large gap between their queued start and their own internal timing.
+
+- **Before (untouched tree, all targets):** 1m29.852s (89.852s).
+- **After (all targets, this workstream's tree):** 1m54.873s, 1m55.309s
+  (inside a `verify-release.mjs` run that then hit a real port collision on
+  the NEXT gate, `performance budgets`, unrelated to this file), 1m55.835s,
+  1m53.743s - a tight band around 114-116s, all under the brief's two-minute
+  budget, with 4-6s of margin.
+- **`--only room` alone** (not part of the brief's pair, diagnostic only):
+  54.735s before the tap-target/pointerdown CSS fixes below were made (this
+  run's OWN findings are what drove those fixes), then 58.348-59.768s
+  across four post-fix runs once the additional `:active` transition and
+  120ms settle waits (`context/measurements.md#ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04`)
+  were added.
+
+The added cost of this workstream (about 24-26s on the full run) is: 8 new
+`room:more`/`room-hi:more` phone-only page loads (~16s), one dedicated
+glyph pass (one navigation, one `evaluate` over 180 strings, well under
+1s), 14 full-page screenshots (a few seconds total), and per-screen
+reduced-motion/pointerdown checks added to the 14 already-loaded room/room-hi
+phone screens (no extra navigation, ~250ms each). No studio/creators/suites
+target's own per-screen cost changed - `roomChecks` gates every new
+in-page assertion to `target.name.startsWith("room")`, confirmed by the
+full `verify-release.mjs` run's own `layout readability` line staying
+within the same 114-116s band across four separate invocations.
+
+## `ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04`
+
+n = 1 first real run on the untouched-fixture tree, 1 after each of two
+fix passes, 1 negative control per check, `--only room`, 2026-09-04.
+
+**Tap target (WCAG 2.5.8, 44x44 css px at 390x844).** First run: 118
+findings collapsing to 18 distinct controls, all 30-41px on at least one
+axis - `.room-rail button` (34px), `.room-pulse-toggle` (34px),
+`.room-menu-open` (34px), `.room-lang-btn` (30px, and 41px wide for
+"हिन्दी" specifically), `.room-checkins-day` (34px tall despite already
+being 44px wide), `.room-cite` (32px). After raising all six selectors'
+`min-height` (and `.room-lang-btn`/`.room-checkins-day`'s `min-width`) to
+44px: 14 findings, all `.room-lang-btn`'s "हिन्दी" label alone (41px wide -
+narrower text, not a missing height fix). After adding `min-width: 44px` to
+`.room-lang-btn`: 0. NEGATIVE CONTROL: `MIN_TAP_PX` forced to an impossible
+100 on the fixed tree reproduced 158 findings; reverted to 44, back to 0.
+
+**Pointerdown feedback (real `page.mouse.down()`/`up()`, DESIGN-LAW's
+"feedback on pointerdown").** First run: 10-12 findings (varied by which
+control each screen's `.room-send:not([disabled]), .room-btn:not([disabled]),
+.room-menu-open` selector picked). Two distinct causes, both real: (1)
+`.room-menu-open` (five header controls - check-ins, handoff, data,
+language, "your settings") had NO `:active` CSS rule at all, in this file
+since whichever workstream first wrote it; (2) the test itself read
+`getComputedStyle(el).transform` immediately after `mouse.up()`, mid a
+real 90ms (`--motion-instant`) CSS transition back to rest, so an
+intermediate matrix value was compared against the identity rest value and
+never matched even where the CSS was correct. Fixed both: `.room-menu-open:active
+{ transform: scale(0.97) }` added (matching every sibling `.room-*` control's
+own pattern in this file), and a 120ms settle wait added after both
+`mouse.down()` and `mouse.up()` before either transform is read. After both
+fixes: 0 findings across all 14 room/room-hi phone screens.
+
+**Tabular figures (`.room-num`, `font-variant-numeric: tabular-nums`).**
+Never failed in anger during development (the class and its CSS rule were
+authored together), so proven by a deliberate negative control instead:
+`.room-num`'s CSS rule temporarily emptied reproduced exactly 4 findings -
+every `.room-num` element the current fixtures actually render (the
+account page's price and one Hindi mirror, the cap-reached offer's price
+and one Hindi mirror) - then restored, back to 0. NOT all `.room-num` call
+sites are exercised by the current fixtures: `.room-stat` (talked-today
+count) needs `talked_today > 0`, `.room-upgrade` needs `upgrade_prompt`
+true, neither of which this workstream's static fixtures set - stated
+plainly rather than implying wider coverage than this run actually proves.
