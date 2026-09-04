@@ -5188,6 +5188,72 @@
       "kind": "rejection",
       "title": "Stripping markers on a both-added hunk that starts mid-statement dropped a shared import opener; the web build caught it, an unread tsc exit code did not",
       "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-checkins-component",
+      "kind": "component",
+      "title": "Check-ins: follower-scheduled, task-bound proactive messages (migration 079, api/_checkins.js, api/checkins.js, api/checkins-sweep.js)",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-memory-consent-required-at-optin",
+      "kind": "decision",
+      "title": "optIn refuses a follower with no memory consent (room_checkin_memory_required) rather than letting the sweep silently skip them forever",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-checkin-dst-transition-instant",
+      "kind": "decision",
+      "title": "computeNextDue is not corrected for a local time inside a DST spring-forward's skipped hour; a daily 09:00 schedule is measured correct on both sides of the same transition",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-checkins-owner-lane-explicit-not-cascade",
+      "kind": "decision",
+      "title": "The three check-in tables are deleted by name in the erasure job even though they carry real FK cascade from vy_room, because relcheck's walk only follows cascades starting at vy_replica",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-sql-comment-backticks-terminate-the-template-literal",
+      "kind": "rejection",
+      "title": "A SQL comment inside the erasure job's template literal quoted an identifier in backticks and closed the JS string early; node --check caught it",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-checkins-skip-log-partition-not-a-js-branch",
+      "kind": "rejection",
+      "title": "Rejected before writing it: one due-select query plus a JS tier branch, in favour of two SQL statements whose WHERE clauses partition paid from free",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-checkins-offline-suite-2026-09-03",
+      "kind": "measurement",
+      "title": "evals/checkins/run.mjs: 35/35 assertions, offline, real bundled engine, negative controls proven with runtime throw-if-called assertions",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-computeNextDue-dst-2026-09-03",
+      "kind": "measurement",
+      "title": "computeNextDue measured across a DST-free IST fixture and a real America/New_York spring-forward, both sides of the transition, plus the one gap it does not cover",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "ws-r16-checkins-open-gaps",
+      "kind": "open",
+      "title": "No real vy_room_checkin_design/vy_room_checkin/vy_room_checkin_delivery row exists outside a fake db; migration 079 not applied anywhere; no EXPLAIN run against a live database; no cron tick has ever executed; the WhatsApp seam is untested against a real Meta credential by design",
+      "at": "2026-09-03"
+    },
+    {
+      "id": "rooms-migration-079-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 079 applied live; all check-in statements, forget deletes and erasure deletes EXPLAIN on their indexes; the null-schedule law holds as an index condition",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "frozen-session-iat-against-a-wall-clock-expiry",
+      "kind": "rejection",
+      "title": "The payments eval froze the session iat but let the module read Date.now(); green for twelve hours, red on the next merge",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -10435,6 +10501,56 @@
       "src": "both-added-hunk-resolved-by-stripping-markers",
       "rel": "caused_by",
       "dst": "context-union-by-concatenation"
+    },
+    {
+      "src": "ws-r16-memory-consent-required-at-optin",
+      "rel": "measured_by",
+      "dst": "ws-r16-checkins-offline-suite-2026-09-03"
+    },
+    {
+      "src": "ws-r16-checkin-dst-transition-instant",
+      "rel": "measured_by",
+      "dst": "ws-r16-computeNextDue-dst-2026-09-03"
+    },
+    {
+      "src": "ws-r16-checkins-owner-lane-explicit-not-cascade",
+      "rel": "caused_by",
+      "dst": "ws-r16-checkins-component"
+    },
+    {
+      "src": "ws-r16-checkins-component",
+      "rel": "constrains",
+      "dst": "ws-r16-checkins-open-gaps"
+    },
+    {
+      "src": "ws-r16-checkins-skip-log-partition-not-a-js-branch",
+      "rel": "caused_by",
+      "dst": "ws-r16-checkins-component"
+    },
+    {
+      "src": "ws-r16-sql-comment-backticks-terminate-the-template-literal",
+      "rel": "caused_by",
+      "dst": "ws-r2-sql-comment-backticks-terminate-the-template-literal"
+    },
+    {
+      "src": "ws-r16-memory-consent-required-at-optin",
+      "rel": "measured_by",
+      "dst": "rooms-migration-079-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r16-checkin-dst-transition-instant",
+      "rel": "measured_by",
+      "dst": "rooms-migration-079-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r16-checkins-owner-lane-explicit-not-cascade",
+      "rel": "measured_by",
+      "dst": "rooms-migration-079-live-verification-2026-09-04"
+    },
+    {
+      "src": "frozen-session-iat-against-a-wall-clock-expiry",
+      "rel": "caused_by",
+      "dst": "plausible-return-hides-a-dead-pipeline"
     }
   ]
 }

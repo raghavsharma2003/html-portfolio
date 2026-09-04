@@ -1,0 +1,612 @@
+// Check-ins - the follower's second reason to pay (WS-R16, migration 079).
+//
+// A creator designs a check-in shape ("Did you finish today's revision
+// block?"); a follower opts in and picks their OWN schedule; it fires on
+// that schedule and never on silence. `proactive-reason-contingent`
+// (context/decisions.md, 2026-08-21) is the law this whole file is built
+// around: she may open a conversation because something HAPPENED - a call
+// ended, a time HE named arrived - and never because he went quiet. A
+// schedule the follower set is exactly that kind of event; "he has not
+// talked in six days" is exactly the shape that decision forbids, and this
+// file has no field anywhere that could hold it. `next_due_at` is the ONLY
+// column the sweep's WHERE clause reads to decide "is this due" (migration
+// 079's own header), so a row with no schedule (`next_due_at` null) cannot
+// be selected by any query in this file, correct or buggy.
+//
+// Every decision lives here rather than in api/checkins.js or
+// api/checkins-sweep.js, so a fake `db` can reach it - `api/_room-cohorts.js`
+// is the pattern for the owner-scoped reads, `api/_room-surface.js`'s
+// `roomSay`/`roomForget` the pattern for the follower-scoped ops and the ONE
+// reply door (`gatedReply`, api/_surface.js).
+//
+// ── the free cap is a PREDICATE, never a JS check (workstream law #2) ──────
+//
+// The sweep issues two separate SQL statements over the same due rows: one
+// whose WHERE clause requires `f.tier = 'paid'` and drives real delivery,
+// and one whose WHERE clause requires the COMPLEMENT and drives a skip-log
+// entry plus a reschedule. There is no code path between "a row is due" and
+// "gatedReply is called" that could accidentally admit a free follower's
+// row, because the delivery query's own SQL text is the only place that
+// decision is made.
+//
+// ── memory consent is required at OPT-IN, not filtered at sweep time ───────
+//
+// A due check-in becomes a message in the follower's own private thread
+// (workstream law #4), which means it needs a server-side episode to land
+// in - there is no live HTTP response for a cron tick to hand a
+// transcript digest to the way `roomSay`'s memory-declined path does. So
+// `optIn` refuses a follower who has not consented to memory
+// (`room_checkin_memory_required`), and no check-in row this file ever
+// writes can exist without one. The sweep's skip-log query still checks
+// `memory_consent_at` defensively (a follower can withdraw memory inside
+// this same Room after opting in, `roomForget`'s own withdrawal path;
+// checked in room-surface tests), so a design that changes later is caught
+// rather than silently mis-delivered.
+import { randomUUID } from "node:crypto";
+import {
+  gatedReply,
+  makeCtx,
+  loadEngine,
+  think,
+  logDmTurn,
+} from "./_surface.js";
+import {
+  RoomError,
+  roomUnavailable,
+  readRoomSession,
+  resolveRoom,
+  followerRow,
+  roomThreadDevice,
+  bindThreadDevice,
+} from "./_room-surface.js";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** Same recall window `api/_room-surface.js`'s `ROOM_RECALL_TURNS` uses - a
+ *  check-in message is a DM in every respect this file cares about, so it is
+ *  compiled with the same amount of prior context. */
+export const CHECKIN_RECALL_TURNS = 30;
+/** Batch size a single cron tick will process, mirroring
+ *  `api/drift-watch-sweep.js`'s own default. */
+export const CHECKIN_SWEEP_DEFAULT_LIMIT = 50;
+export const CHECKIN_TITLE_MAX = 120;
+export const CHECKIN_PROMPT_SHAPE_MAX = 2000;
+export const CHECKIN_CADENCE_HINT_MAX = 200;
+
+export class CheckinsError extends Error {
+  constructor(code, status = 400, details) {
+    super(code);
+    this.code = code;
+    this.status = status;
+    if (details) this.details = details;
+  }
+}
+
+function assertOwnerScope(ownerUserId, replicaId) {
+  if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(replicaId || ""))) {
+    throw new CheckinsError("checkins_identity_invalid", 400);
+  }
+}
+
+/** The owner-scoped room handle. `api/_room-cohorts.js`'s `ownedRoomHandle`
+ *  one file over, re-derived rather than imported for its own stated reason:
+ *  this module stays reachable with only a fake `db`. */
+async function ownedRoomHandle(db, ownerUserId, replicaId) {
+  const rows = await db(
+    `select room_id, owner_user_id from vy_room
+      where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+      limit 1`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
+  );
+  return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OWNER OPS - designing a check-in
+// ─────────────────────────────────────────────────────────────────────────
+
+export async function createDesign(db, ownerUserId, replicaId, { title, promptShape, cadenceHint } = {}) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const room = await ownedRoomHandle(db, ownerUserId, replicaId);
+  if (!room) throw new CheckinsError("room_not_found", 404);
+  const t = String(title ?? "").trim().slice(0, CHECKIN_TITLE_MAX);
+  const shape = String(promptShape ?? "").trim().slice(0, CHECKIN_PROMPT_SHAPE_MAX);
+  const cadence = String(cadenceHint ?? "").trim().slice(0, CHECKIN_CADENCE_HINT_MAX);
+  if (!t) throw new CheckinsError("checkin_title_required", 400);
+  if (!shape) throw new CheckinsError("checkin_prompt_shape_required", 400);
+  const rows = await db(
+    `insert into vy_room_checkin_design
+       (design_id, room_id, owner_user_id, title, prompt_shape, cadence_hint, state)
+     values (($1)::uuid, ($2)::uuid, ($3)::uuid, $4, $5, $6, 'active')
+     returning design_id, room_id, title, prompt_shape, cadence_hint, state, created_at, updated_at`,
+    [randomUUID(), room.room_id, ownerUserId, t, shape, cadence],
+  );
+  return rows[0];
+}
+
+export async function listDesigns(db, ownerUserId, replicaId) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const room = await ownedRoomHandle(db, ownerUserId, replicaId);
+  if (!room) return null;
+  return db(
+    `select design_id, title, prompt_shape, cadence_hint, state, created_at, updated_at
+       from vy_room_checkin_design
+      where room_id = ($1)::uuid and owner_user_id = ($2)::uuid
+      order by created_at desc`,
+    [room.room_id, ownerUserId],
+  );
+}
+
+/** Toggle active/paused. A paused design's existing follower rows are
+ *  untouched - `optIn` is the only writer of `vy_room_checkin`, and the
+ *  sweep's own WHERE clause already requires the design to be 'active', so
+ *  pausing a design is enough on its own to stop every scheduled follower's
+ *  next occurrence without deleting anything a resume would need back. */
+export async function pauseDesign(db, ownerUserId, replicaId, designId, { state } = {}) {
+  assertOwnerScope(ownerUserId, replicaId);
+  if (!UUID.test(String(designId || ""))) throw new CheckinsError("checkin_design_id_invalid", 400);
+  const next = state === "active" ? "active" : "paused";
+  const room = await ownedRoomHandle(db, ownerUserId, replicaId);
+  if (!room) throw new CheckinsError("room_not_found", 404);
+  const rows = await db(
+    `update vy_room_checkin_design
+        set state = $4, updated_at = now()
+      where design_id = ($1)::uuid and room_id = ($2)::uuid and owner_user_id = ($3)::uuid
+      returning design_id, title, prompt_shape, cadence_hint, state, created_at, updated_at`,
+    [designId, room.room_id, ownerUserId, next],
+  );
+  if (!rows[0]) throw new CheckinsError("checkin_design_not_found", 404);
+  return rows[0];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// FOLLOWER OPS - opting in, listing, stopping
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The only way this file names a person: from the caller's OWN signed
+ *  session, never from a request field - `api/_room-surface.js`'s
+ *  `selfScope` re-derived here for its own stated reason (that function is
+ *  not exported, and "re-derived rather than imported" is already this
+ *  house's convention, `_room-cohorts.js`'s `ownedRoomHandle`). */
+async function followerScope(db, session, deps) {
+  const payload = readRoomSession(session, deps.env);
+  const resolved = await resolveRoom(db, payload.r, deps);
+  if (String(resolved.room.room_id) !== String(payload.i)) throw roomUnavailable();
+  const follower = await followerRow(db, resolved.room.room_id, payload.p, resolved.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  return {
+    personId: String(payload.p),
+    agentId: String(resolved.agentId),
+    roomId: String(resolved.room.room_id),
+    followerId: String(follower.follower_id),
+    follower,
+  };
+}
+
+/** Follower-facing list of the designs available to opt into - title and
+ *  cadence hint only. `prompt_shape` is the creator's own note to their AI,
+ *  never customer-facing copy, and never leaves this file. */
+export async function listRoomCheckinDesigns(db, { session }, deps = {}) {
+  const who = await followerScope(db, session, deps);
+  return db(
+    `select design_id, title, cadence_hint
+       from vy_room_checkin_design
+      where room_id = ($1)::uuid and state = 'active'
+      order by created_at asc`,
+    [who.roomId],
+  );
+}
+
+export async function listMine(db, { session }, deps = {}) {
+  const who = await followerScope(db, session, deps);
+  return db(
+    `select c.checkin_id, c.design_id, d.title, c.days_of_week, c.local_time,
+            c.timezone, c.next_due_at, c.state
+       from vy_room_checkin c
+       join vy_room_checkin_design d on d.design_id = c.design_id
+      where c.room_id = ($1)::uuid and c.person_id = ($2)::uuid and c.follower_id = ($3)::uuid
+      order by c.created_at desc`,
+    [who.roomId, who.personId, who.followerId],
+  );
+}
+
+function validateSchedule({ daysOfWeek, localTime, timezone }) {
+  const days = Array.isArray(daysOfWeek) ? [...new Set(daysOfWeek.map(Number))] : [];
+  if (!days.length || days.length > 7 || days.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) {
+    throw new CheckinsError("checkin_days_invalid", 400);
+  }
+  const time = String(localTime || "");
+  if (!TIME_RE.test(time)) throw new CheckinsError("checkin_local_time_invalid", 400);
+  const tz = String(timezone || "").trim();
+  if (!tz) throw new CheckinsError("checkin_timezone_invalid", 400);
+  try {
+    // The one live probe this file makes of a caller-supplied value: an
+    // unrecognised IANA zone name throws here rather than silently landing
+    // on UTC three layers down inside `computeNextDue`.
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+  } catch {
+    throw new CheckinsError("checkin_timezone_invalid", 400);
+  }
+  return { days: days.sort((a, b) => a - b), time, tz };
+}
+
+export async function optIn(db, { session, designId, daysOfWeek, localTime, timezone }, deps = {}) {
+  const who = await followerScope(db, session, deps);
+  if (who.follower.age_attested_at == null) throw new RoomError("room_join_required", 403);
+  // WORKSTREAM LAW #2, at the door a follower can act on: a free follower is
+  // told why rather than being allowed to schedule something the sweep's own
+  // predicate will silently never deliver.
+  if (who.follower.tier !== "paid") throw new CheckinsError("room_checkin_paid_only", 402);
+  // The module header's own reasoning: no server-side episode, nowhere for a
+  // proactive message to land.
+  if (who.follower.memory_consent_at == null) throw new CheckinsError("room_checkin_memory_required", 409);
+  if (!UUID.test(String(designId || ""))) throw new CheckinsError("checkin_design_id_invalid", 400);
+  const { days, time, tz } = validateSchedule({ daysOfWeek, localTime, timezone });
+  const now = deps.now ?? Date.now();
+  const nextDueAt = computeNextDue(now, days, time, tz);
+  if (!nextDueAt) throw new CheckinsError("checkin_schedule_unresolvable", 400);
+
+  const rows = await db(
+    `insert into vy_room_checkin
+       (checkin_id, room_id, person_id, follower_id, design_id,
+        days_of_week, local_time, timezone, next_due_at, state)
+     select ($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, d.design_id,
+            ($6)::int[], ($7)::time, $8, ($9)::timestamptz, 'active'
+       from vy_room_checkin_design d
+      where d.design_id = ($5)::uuid and d.room_id = ($2)::uuid and d.state = 'active'
+     on conflict (follower_id, design_id) where state = 'active' do update
+        set days_of_week = excluded.days_of_week,
+            local_time = excluded.local_time,
+            timezone = excluded.timezone,
+            next_due_at = excluded.next_due_at,
+            updated_at = now()
+     returning checkin_id, design_id, days_of_week, local_time, timezone, next_due_at, state`,
+    [randomUUID(), who.roomId, who.personId, who.followerId, designId, days, time, tz, new Date(nextDueAt).toISOString()],
+  );
+  if (!rows[0]) throw new CheckinsError("checkin_design_not_found", 404);
+  return rows[0];
+}
+
+export async function stop(db, { session, checkinId }, deps = {}) {
+  const who = await followerScope(db, session, deps);
+  if (!UUID.test(String(checkinId || ""))) throw new CheckinsError("checkin_id_invalid", 400);
+  const rows = await db(
+    `update vy_room_checkin
+        set state = 'stopped', updated_at = now()
+      where checkin_id = ($1)::uuid and room_id = ($2)::uuid
+        and person_id = ($3)::uuid and follower_id = ($4)::uuid
+      returning checkin_id, state`,
+    [checkinId, who.roomId, who.personId, who.followerId],
+  );
+  if (!rows[0]) throw new CheckinsError("checkin_not_found", 404);
+  return rows[0];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE MATH - a pure function, tested across a DST-free zone and a DST one
+// ─────────────────────────────────────────────────────────────────────────
+
+/** The offset (minutes, tz-local minus UTC) in effect for `tz` at instant
+ *  `ms`. Node 22 carries the IANA database through `Intl`, so this needs no
+ *  dependency and no network - the same guarantee `isoWeekStart`
+ *  (api/_room-cohorts.js) gets from `Date.UTC` for a fixed UTC offset, one
+ *  layer up for a NAMED zone. */
+function tzOffsetMinutes(ms, tz) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(ms));
+  const at = Object.fromEntries(parts.filter((p) => p.type !== "literal").map((p) => [p.type, p.value]));
+  const asIfUtc = Date.UTC(+at.year, +at.month - 1, +at.day, +at.hour, +at.minute, +at.second);
+  return (asIfUtc - ms) / 60000;
+}
+
+/** A wall-clock date and time IN `tz` -> the UTC instant it names. Converges
+ *  in at most two passes for every real IANA zone: the offset only changes
+ *  between passes across a DST transition whose own window is much shorter
+ *  than the loop's own second guess, so a third pass is never needed by any
+ *  zone this repo ships to a user in. Documented rather than proven for the
+ *  DST-transition INSTANT itself (a local time that is skipped or repeated
+ *  by the transition) - `checkin-dst-transition-instant` in
+ *  context/decisions.md names this as the v1 trade with its reversal
+ *  condition, `tzOffsetMinutes`'s own reasoning for why it is a small one. */
+function zonedTimeToUtcMs(y, m, d, hh, mm, tz) {
+  let guess = Date.UTC(y, m - 1, d, hh, mm, 0);
+  for (let i = 0; i < 2; i++) {
+    const offset = tzOffsetMinutes(guess, tz);
+    guess = Date.UTC(y, m - 1, d, hh, mm, 0) - offset * 60000;
+  }
+  return guess;
+}
+
+/** ISO weekday (1=Monday..7=Sunday, `api/_room-cohorts.js`'s own convention,
+ *  restated in migration 079's header so the two never disagree) of the
+ *  UTC-normalised calendar date (y, m, d). Date-only arithmetic, so this is
+ *  timezone-agnostic once the caller has already resolved y/m/d in the right
+ *  zone. */
+function isoWeekday(y, m, d) {
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return day || 7;
+}
+
+/**
+ * The next UTC instant, strictly after `now`, at which the follower's local
+ * `HH:MM` next falls on one of `days` (ISO 1-7) in `tz`. Pure: no clock read
+ * beyond the `now` argument, so a test can hold time still.
+ *
+ * Returns null for an empty `days` - the caller (`optIn`) never persists a
+ * null result, and the sweep never has a row to find with one, which is
+ * migration 079's own structural argument restated in code: there is no
+ * value this function can return for "no schedule" that a later `<= now()`
+ * comparison could ever match.
+ */
+export function computeNextDue(now, days, localTime, tz) {
+  const wanted = new Set((days || []).map(Number));
+  if (!wanted.size) return null;
+  const [hh, mm] = String(localTime || "00:00").split(":").map(Number);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(now));
+  const at = Object.fromEntries(parts.filter((p) => p.type !== "literal").map((p) => [p.type, p.value]));
+  const y0 = +at.year, m0 = +at.month, d0 = +at.day;
+  const base = Date.UTC(y0, m0 - 1, d0);
+  for (let offset = 0; offset <= 7; offset++) {
+    const cursor = new Date(base + offset * 86_400_000);
+    const y = cursor.getUTCFullYear(), m = cursor.getUTCMonth() + 1, d = cursor.getUTCDate();
+    if (!wanted.has(isoWeekday(y, m, d))) continue;
+    const candidate = zonedTimeToUtcMs(y, m, d, hh, mm, tz);
+    if (candidate > now) return candidate;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DELIVERY - the ONE reply door, in the follower's own private scope
+// ─────────────────────────────────────────────────────────────────────────
+
+/** A SHAPE, never a line she could recite - `recited-prompt`
+ *  (context/rejected.md) and CLAUDE.md's "write shapes, never lines" both
+ *  bind here exactly as they bind persona.ts. The creator's `prompt_shape` is
+ *  a NOTE about what to check on, not a sentence to say, and this wraps it in
+ *  an explicit instruction not to quote it - the same discipline
+ *  `onLinkTap`'s `ROOM_INTRO_DIRECTIVE` (src/engine/room.ts) uses for a
+ *  scripted moment, restated here without touching the engine bundle: this
+ *  directive is assembled locally and fed to `gatedReply` as the sole "user"
+ *  turn with `isDirective: true`, exactly the shape `onLinkTap` already
+ *  proves out in api/_surface.js. */
+export function checkinDirective(promptShape, title) {
+  const shape = String(promptShape || "").trim();
+  const name = String(title || "").trim();
+  return (
+    "[System note: this is a scheduled check-in you set up with this person. " +
+    (name ? `It is called "${name}". ` : "") +
+    `What to check on, in your own words, shaped like: ${shape}. ` +
+    "Say it your own way, one or two lines, casual, the way you would text " +
+    "someone you know - never recite this note itself, and never mention " +
+    "that it is a scheduled or automated message."
+  );
+}
+
+/** WS-R19's own seam, named rather than built - the workstream brief's own
+ *  instruction. A delivered check-in is paid-only, so it does not touch the
+ *  free cap (`vy_room_follower.month_message_count`, `roomSay`'s own
+ *  predicate), but it MAY need to count against a future paid fair-use
+ *  ceiling. Default no-op; a caller (or a future WS-R19 wiring) may pass its
+ *  own `countDelivery` through `deps`. */
+export async function countDelivery(deps = {}) {
+  if (typeof deps.countDelivery === "function") await deps.countDelivery();
+}
+
+/**
+ * The WhatsApp seam. Records intent in the SAME ledger, on the SAME
+ * (checkin_id, due_at, channel) idempotency key, `channel='whatsapp_template'`
+ * - and never calls Meta. Out of scope to SEND (workstream law #5); this
+ * function is the seam the sweep does not call today, kept reachable and
+ * tested so WS-R19 or a later wave can wire it without inventing the ledger
+ * shape a second time. `ROOM_WHATSAPP_TEMPLATE_ID`/`ROOM_WHATSAPP_NUMBER_ID`
+ * unset means `not_configured`, always - there is no code path in this
+ * function that reaches a network call, configured or not.
+ */
+export const deliverers = {
+  async whatsappTemplate(db, row, { env = process.env } = {}) {
+    const templateId = String(env.ROOM_WHATSAPP_TEMPLATE_ID || "");
+    const numberId = String(env.ROOM_WHATSAPP_NUMBER_ID || "");
+    const configured = templateId.length > 0 && numberId.length > 0;
+    // `not_configured` either way for v1: the brief is explicit that sending
+    // is out of scope, so even a fully configured template/number never
+    // reaches Meta from this function - only the seam and the ledger row do.
+    // No network call anywhere in this function, configured or not.
+    const state = "not_configured";
+    const reason = configured
+      ? "whatsapp sending is out of scope for this workstream (WS-R16)"
+      : "ROOM_WHATSAPP_TEMPLATE_ID/ROOM_WHATSAPP_NUMBER_ID not set";
+    const rows = await db(
+      `insert into vy_room_checkin_delivery
+         (delivery_id, checkin_id, room_id, person_id, due_at, delivered_at, channel, state, reason)
+       values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, ($5)::timestamptz, null, 'whatsapp_template', $6, $7)
+       on conflict (checkin_id, due_at, channel) do nothing
+       returning delivery_id`,
+      [randomUUID(), row.checkin_id, row.room_id, row.person_id, new Date(row.due_at).toISOString(), state, reason],
+    );
+    return rows[0] || null;
+  },
+};
+
+/** One row's outcome, written and `next_due_at` advanced in ONE statement -
+ *  the workstream brief's own phrase. The `where next_due_at = ($3)` guard is
+ *  the whole idempotency mechanism: a second processor racing the same row
+ *  (an overlapping cron tick) finds `next_due_at` already moved and this
+ *  UPDATE returns zero rows, so the CTE's INSERT has nothing to insert from
+ *  and the whole statement is a no-op for the loser - no separate lock, no
+ *  separate transaction, one statement per row, Neon's SQL-over-HTTP law. */
+async function writeOutcome(db, row, { nextDueAt, deliveredAt, state, reason }) {
+  const rows = await db(
+    `with advanced as (
+       update vy_room_checkin
+          set next_due_at = ($1)::timestamptz, updated_at = now()
+        where checkin_id = ($2)::uuid and next_due_at = ($3)::timestamptz
+       returning checkin_id, room_id, person_id
+     )
+     insert into vy_room_checkin_delivery
+       (delivery_id, checkin_id, room_id, person_id, due_at, delivered_at, channel, state, reason)
+     select ($4)::uuid, a.checkin_id, a.room_id, a.person_id, ($3)::timestamptz, ($5)::timestamptz, 'in_app', $6, $7
+       from advanced a
+     on conflict (checkin_id, due_at, channel) do nothing
+     returning delivery_id`,
+    [
+      nextDueAt ? new Date(nextDueAt).toISOString() : null,
+      row.checkin_id,
+      new Date(row.due_at).toISOString(),
+      randomUUID(),
+      deliveredAt ? new Date(deliveredAt).toISOString() : null,
+      state,
+      reason || "",
+    ],
+  );
+  return Boolean(rows[0]);
+}
+
+/** One due row, delivered through `gatedReply` in the follower's own private
+ *  scope - `roomSay`'s own reply mechanics, minus the inbound message. */
+async function deliverOne(db, row, deps) {
+  const memory = { ...deps.memory };
+  const device = roomThreadDevice(row.room_id, row.person_id, null);
+  await bindThreadDevice(db, device, row.person_id);
+  const history = await memory.history(device, row.agent_id, CHECKIN_RECALL_TURNS);
+  const facts = await memory.recall(row.person_id, row.agent_id);
+
+  const engine = deps.engine !== undefined ? deps.engine : await loadEngine();
+  if (!engine) throw new CheckinsError("checkin_engine_unavailable", 503);
+
+  const ctx = makeCtx(deps.adapter || { surface: "cron", send: async () => ({ ok: true }) }, {
+    engine,
+    agent: row.agent_module,
+    agentId: row.agent_id,
+    reply: deps.reply || ((compiled, turns) => think(engine, compiled, turns)),
+  });
+  const compiled = engine.compile({
+    agent: row.agent_module,
+    user: { name: "", vibe: [], facts: {} },
+    messageCount: history.length,
+    medium: "text",
+    mode: "chat",
+    voiceEngine: "none",
+    isDirective: true,
+    watching: false,
+    innerThread: "",
+    innerWants: "",
+    memories: facts.map((f) => `- ${f.body}`).join("\n"),
+    herLife: "",
+    cultureNoteText: "",
+    latestUserText: "",
+  });
+  const directive = checkinDirective(row.prompt_shape, row.title);
+  const gatedOut = await gatedReply(ctx, compiled, [...history, { role: "user", content: directive }], {
+    record: facts.map((f) => f.body),
+    label: "cron/checkin",
+  });
+  const said = gatedOut.text;
+  const nextDueAt = computeNextDue(deps.now ?? Date.now(), row.days_of_week, row.local_time, row.timezone);
+  if (said) {
+    await memory.logTurn({ device, person: row.person_id, role: "her", content: said, agentId: row.agent_id });
+    await countDelivery(deps);
+    const claimed = await writeOutcome(db, row, {
+      nextDueAt,
+      deliveredAt: deps.now ?? Date.now(),
+      state: "delivered",
+      reason: "",
+    });
+    return { claimed, delivered: claimed };
+  }
+  // The gate suppressed everything a turn could have said. Still a completed
+  // attempt, still advanced - a due date that fires into a `[]` gate result
+  // every 15 minutes forever is worse than one that moves on.
+  const claimed = await writeOutcome(db, row, {
+    nextDueAt,
+    deliveredAt: null,
+    state: "failed",
+    reason: "gate suppressed the reply",
+  });
+  return { claimed, delivered: false };
+}
+
+/**
+ * The scheduled half. Two SQL statements over the due rows - the delivery
+ * query, whose WHERE clause names `f.tier = 'paid'` (workstream law #2), and
+ * the skip-log query, whose WHERE clause names the complement - so which
+ * follower ever reaches `gatedReply` is decided entirely by the delivery
+ * query's own text, never by a branch in this function.
+ */
+export async function sweep(deps, now = Date.now()) {
+  const db = deps.db;
+  if (typeof db !== "function") throw new Error("checkins sweep database required");
+  const limit = Math.max(1, Math.min(200, Number(deps.limit) || CHECKIN_SWEEP_DEFAULT_LIMIT));
+  const loadAgent = deps.loadAgent;
+  const summary = { seen: 0, delivered: 0, skippedFreeTier: 0, failed: 0, errors: 0 };
+
+  const dueForDelivery = await db(
+    `select c.checkin_id, c.room_id, c.person_id, c.next_due_at as due_at,
+            c.days_of_week, c.local_time, c.timezone,
+            r.agent_id, r.slug, d.prompt_shape, d.title
+       from vy_room_checkin c
+       join vy_room_checkin_design d on d.design_id = c.design_id and d.state = 'active'
+       join vy_room r on r.room_id = c.room_id and r.published_at is not null
+       join vy_room_follower f on f.room_id = c.room_id and f.person_id = c.person_id
+                               and f.follower_id = c.follower_id and f.tier = 'paid'
+                               and f.memory_consent_at is not null
+      where c.state = 'active' and c.next_due_at is not null and c.next_due_at <= ($1)::timestamptz
+      order by c.next_due_at asc
+      limit $2`,
+    [new Date(now).toISOString(), limit],
+  );
+  for (const row of dueForDelivery) {
+    summary.seen++;
+    try {
+      const agent_module = loadAgent ? (await loadAgent(row.slug))?.module : undefined;
+      const outcome = await deliverOne(db, { ...row, agent_module }, { ...deps, now });
+      if (outcome.claimed) {
+        if (outcome.delivered) summary.delivered++;
+        else summary.failed++;
+      }
+    } catch (error) {
+      summary.errors++;
+      console.error("[checkins sweep] delivery failure:", error?.message || "unknown");
+    }
+  }
+
+  const dueForSkip = await db(
+    `select c.checkin_id, c.room_id, c.person_id, c.next_due_at as due_at,
+            c.days_of_week, c.local_time, c.timezone
+       from vy_room_checkin c
+       join vy_room_checkin_design d on d.design_id = c.design_id and d.state = 'active'
+       join vy_room r on r.room_id = c.room_id and r.published_at is not null
+       join vy_room_follower f on f.room_id = c.room_id and f.person_id = c.person_id
+                               and f.follower_id = c.follower_id
+      where c.state = 'active' and c.next_due_at is not null and c.next_due_at <= ($1)::timestamptz
+        and (f.tier <> 'paid' or f.memory_consent_at is null)
+      order by c.next_due_at asc
+      limit $2`,
+    [new Date(now).toISOString(), limit],
+  );
+  for (const row of dueForSkip) {
+    summary.seen++;
+    try {
+      const nextDueAt = computeNextDue(now, row.days_of_week, row.local_time, row.timezone);
+      const claimed = await writeOutcome(db, row, {
+        nextDueAt,
+        deliveredAt: null,
+        state: "skipped_free_tier",
+        reason: "follower is not on the paid tier, or has withdrawn memory consent",
+      });
+      if (claimed) summary.skippedFreeTier++;
+    } catch (error) {
+      summary.errors++;
+      console.error("[checkins sweep] skip-log failure:", error?.message || "unknown");
+    }
+  }
+
+  return summary;
+}

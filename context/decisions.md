@@ -8727,3 +8727,81 @@ behind a plausible-looking rate nobody chose.
 **Reverses if.** The owner (or, in a real deployment, a tax advisor) sets an
 actual rate - at which point `runPayoutRollup`'s caller passes it, and this
 default stops mattering for any row computed after that.
+
+## `ws-r16-memory-consent-required-at-optin` (2026-09-03, WS-R16)
+
+**Decision.** `optIn` (api/_checkins.js) refuses a follower whose
+`memory_consent_at` is null (`room_checkin_memory_required`, 409). No
+check-in row this file ever writes can exist for a memory-declined follower.
+
+**Rationale.** A due check-in becomes a message in the follower's own
+private thread (the workstream brief's own law #4), which requires a
+server-side episode for the sweep to write into. `roomSay`'s memory-declined
+path works around the same absence by carrying the transcript on the
+CLIENT and binding it with a signed digest - a mechanism that exists
+because there is a live HTTP response to hand the new digest back on. A cron
+tick has no live response and no client to hand anything to, so that
+mechanism has no analogue here. Refusing at opt-in (a clear, immediate,
+named error) was chosen over silently accepting the row and having the
+sweep's skip-log query catch it forever at delivery time, which would be a
+control that looks like it works and never fires the intended action -
+`context/rejected.md`'s `sound-gate-proved-by-silence` shape one product
+surface over.
+
+**Reverses if.** A future workstream gives the sweep its own durable,
+ephemeral transcript store independent of `vy_episode` (so a memory-declined
+follower's check-in replies could exist without ever being retained past
+delivery) - at which point this refusal narrows to "no persistent record",
+not "no check-in at all", and `optIn`'s predicate changes with it.
+
+## `ws-r16-checkin-dst-transition-instant` (2026-09-03, WS-R16)
+
+**Decision.** `computeNextDue`'s two-pass offset resolution
+(`zonedTimeToUtcMs`, api/_checkins.js) is not corrected for a local time that
+falls inside a DST spring-forward's skipped hour (e.g. 02:30 local on the
+day America/New_York jumps from 01:59:59 to 03:00:00). Verified by direct
+measurement: a daily 02:30 schedule crossing that exact transition resolves
+to 01:30 EST (an hour early) rather than throwing or rolling forward to
+03:30 EDT.
+
+**Rationale.** The two-pass convergence assumes the local wall-clock time
+named by the schedule actually exists on the candidate date, which is true
+for both of a DST fall-back's TWO occurrences of an ambiguous hour (it just
+picks one, which is a smaller and more defensible gap) but false for a
+spring-forward's ONE skipped hour, which has no UTC instant to resolve to at
+all. A daily 09:00 schedule (never near either transition boundary for any
+zone this product ships to) was measured correct on both sides of the same
+2027-03-14 transition (`evals/checkins/run.mjs` §1), so this is a narrow,
+named gap rather than a general DST failure.
+
+**Reverses if.** A creator or follower ever picks a `local_time` that lands
+in a real transition's skipped hour for their `timezone` and this is
+observed to matter (a wrong delivery hour once a year, at most, for the
+handful of zones and schedules where this is even possible) - at which
+point `zonedTimeToUtcMs` gets an explicit check (does the candidate y/m/d/hh/mm
+round-trip through the zone unchanged?) and rolls forward to the first
+existing instant rather than silently returning a wrong one.
+
+## `ws-r16-checkins-owner-lane-explicit-not-cascade` (2026-09-03, WS-R16)
+
+**Decision.** `vy_room_checkin_design`, `vy_room_checkin` and
+`vy_room_checkin_delivery` are all deleted BY NAME in
+`api/_replica-full-erasure.js`, even though all three carry a real
+`references vy_room(room_id) on delete cascade` that would remove them for
+free the moment `vy_room` itself is deleted in the same job.
+
+**Rationale.** `scripts/relcheck.mjs`'s owner-lane erasure-reach walk only
+follows `ON DELETE CASCADE` edges starting from `vy_replica` itself; `vy_room`
+has no real FK to `vy_replica` (009's convention: owner/replica columns are
+FK-shaped but never FK-constrained), so nothing cascading from `vy_room`
+is "reached" by that walk at all - it is `vy_room`'s own precedent restated
+a third time (071's `vy_room_thread`/`vy_room_follower`, 078's three money
+tables), and the walk's own header names exactly this as the reason it
+exists: three real tables were once reachable by neither cascade nor name
+and survived a live erasure job.
+
+**Reverses if.** `relcheck.mjs`'s walk is ever widened to also start from
+every OWNER-KEYED table with no FK to `vy_replica` (treating them as
+additional cascade roots) - at which point the explicit deletes here become
+provably redundant rather than load-bearing, and could be removed with the
+walk itself as the proof they are safe to.

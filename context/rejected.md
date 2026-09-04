@@ -6567,3 +6567,84 @@ both-added hunks that are whole statements (registry entries, manifest rows,
 `case` arms); for a hunk that starts mid-statement, look at the line above
 the first marker and reconstruct each side's statement in full. Read the
 exit code of every check, not its stdout.
+
+## `ws-r16-sql-comment-backticks-terminate-the-template-literal` (2026-09-03, WS-R16)
+
+**Tried.** Writing a SQL comment inside `api/_replica-full-erasure.js`'s big
+backtick-delimited CTE template literal that referred to another CTE name
+in backticks, prose-style: `` payment_events`'s own reasoning ``, matching
+how this repo's `.md` files and `//` comments elsewhere quote an
+identifier.
+
+**What broke.** The comment sits INSIDE a JS template literal (the whole
+multi-statement erasure query is one big `` `...` `` string), so a literal
+backtick character there does not open a markdown code span, it CLOSES the
+template literal early. `node --check api/_replica-full-erasure.js` failed
+with `SyntaxError: missing ) after argument list` pointing at the literal's
+own opening line, thirty lines away from the actual defect - the same shape
+`ws-r2-sql-comment-backticks-terminate-the-template-literal` (2026-09-03,
+WS-R2) already named for a different file, and re-derived here rather than
+found by memory, which is exactly the cost that entry existing was supposed
+to avoid. `node evals/run.mjs` (via `evals/replica-erasure/run.mjs`, which
+imports the file) failed identically, an import-time `SyntaxError` rather
+than a test failure, which is how it was actually caught this time.
+
+**Fix.** Quote identifiers in a SQL comment inside a JS template literal
+with nothing (plain text) or single quotes, never backticks - `check
+scripts/verify-release.mjs` (which runs `node --check` equivalent via the
+build/typecheck gates) or, faster, `node --check <file>` directly before
+trusting an edit to a file with a large embedded SQL string. Two
+workstreams now, two different files, same defect shape: worth a repo-wide
+`node --check api/*.js` pass added to the gate rather than relying on each
+session rediscovering it, logged here as a candidate rather than done
+unasked.
+
+## `ws-r16-checkins-skip-log-partition-not-a-js-branch` (2026-09-03, WS-R16)
+
+**Tried, and rejected before writing any code.** The obvious first shape for
+"free followers get no check-ins, and the ledger should still say why a due
+row was skipped" was ONE due-select query (state active, next_due_at due,
+design active, room published - no tier predicate) followed by a JS
+`if (follower.tier !== "paid")` branch deciding whether to call `gatedReply`
+or write a skip row.
+
+**What was wrong with it, on inspection rather than by running it.** The
+workstream brief's law #2 is explicit and testable: "This is a predicate in
+the SQL that selects due rows... not a JS check." A single query with a JS
+branch downstream of it means the ONLY thing standing between a free
+follower and a real model call is a conditional a future edit could delete
+or invert with no test failing until someone thought to write one for that
+specific line - `gate0-structural`'s whole argument (a sentence in a brief
+is a preference, a predicate on the write is a guarantee), restated for a
+read this time rather than a write.
+
+**What shipped instead.** Two separate SQL statements: the delivery
+due-select whose WHERE clause names `f.tier = 'paid'`, and the skip-log
+due-select whose WHERE clause names the complement. Which follower ever
+reaches `gatedReply` is decided by which query's TEXT matched, not by a
+branch in the calling function - `evals/checkins/run.mjs`'s negative control
+(a) proves this at runtime by making the injected `reply` function throw if
+it is ever called for a free-tier due row, and it never fires.
+
+## `frozen-session-iat-against-a-wall-clock-expiry` (2026-09-04)
+
+**Tried.** `evals/payments/run.mjs` minted every follower session with a
+frozen `iat` (`NOW = 2026-09-03T12:00Z`) so the fixture would be
+deterministic, but called `startFollowerSubscription` and
+`followerSubscriptionStatus` with `deps` that carried no `now`, so
+`paidSessionScope` compared that frozen `iat` against `Date.now()`.
+
+**What broke.** The suite was green for exactly `ROOM_SESSION_TTL_MS`
+(twelve hours) after it was written, then every session read as
+`room_session_expired` and the release gate went red on the next morning's
+first merge (WS-R16), which had not touched payments at all. A
+time-dependent eval is a gate that expires: it passes the author's own run
+and fails the next session's, and the failure points at whoever merges
+next. Found by the gate on the merged tree; reproduced standalone by
+running the suite alone.
+
+**Fix.** Every call passes `now: NOW`, the same clock the fixture mints
+with. Rule from here: an eval that freezes a timestamp must hand the SAME
+clock to every module it drives (`deps.now`), and a module that reads a
+clock must accept one from `deps` (this one already did). Grep for
+`Date.now()` inside `api/` modules driven by any eval that fixes `NOW`.

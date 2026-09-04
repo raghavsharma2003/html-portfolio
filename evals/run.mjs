@@ -1449,6 +1449,19 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "room-cohorts": "room-cohorts/run.mjs",
+  // WS-R16. Check-ins: follower-scheduled, task-bound, migration 079. Five
+  // sections: THE MATH (computeNextDue, pure, across a DST-free IST fixture
+  // and one real DST zone), THE HAPPY PATH (a paid follower's due row
+  // delivered once through gatedReply, next_due_at advanced, a `delivered`
+  // ledger row written), IDEMPOTENCY (the same due timestamp swept twice
+  // yields one delivery, the unique constraint doing the work), and three
+  // NEGATIVE CONTROLS: a free follower's due row is skipped and the ledger
+  // says so; a stopped check-in is never selected (no delivery, no ledger
+  // row); and a static proof that the sweep's own SQL never names another
+  // follower's person_id — modelled on evals/room-leak's import-graph layer.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  checkins: "checkins/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

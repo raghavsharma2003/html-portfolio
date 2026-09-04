@@ -7521,3 +7521,102 @@ n = 1 migration (43 statements in one transaction, then 1 index added at the mer
 | erasure: prices, payouts | `vy_room_price_owner_ix`; `vy_creator_payout_period_ix` on owner_user_id |
 
 One defect found by EXPLAIN and fixed in the same pass: `followerSubscriptionStatus` reads the latest row for a follower in any state, which the partial live-state index cannot serve, so it sequential-scanned; `vy_room_subscription_follower_ix (follower_id, created_at desc)` was appended to 078, mirrored into `db/schema.sql`, and applied live. Not measured: no real price, subscription, ledger row or payout exists; `PAYMENTS_PROVIDER` is unset on every deployment, so every write refuses by name.
+
+## `ws-r16-checkins-offline-suite-2026-09-03`
+
+n = 35 assertions (`evals/checkins/run.mjs`), 0 failed; method = offline,
+deterministic, driven with a fake `db` composed over `evals/room/fixtures.mjs`'s
+shared Room fixture plus one file-local wrapper for the three new tables
+(`withCheckins`), the REAL bundled engine (`loadFixtureAgent`, re-bundled from
+source on every run per `evals/room/fixtures.mjs`'s own header) with an
+injected `reply` function standing in for the model call, and `Date.now()`
+held fixed by passing `now` explicitly everywhere `computeNextDue` and
+`sweep` read it; date 2026-09-03. Five sections: THE MATH (5 checks:
+`computeNextDue` over one DST-free IST fixture, one empty-schedule case, and
+one real DST spring-forward measured from both sides - see the DST
+measurement below), THE HAPPY PATH (a paid, memory-consenting follower's due
+row delivered exactly once through the real `gatedReply`, one `delivered`
+ledger row, `next_due_at` advanced, one `her`-role memory write and zero
+`me`-role writes), IDEMPOTENCY (the identical `now` swept twice yields one
+delivery, proven by `next_due_at` having already moved rather than by any
+lock), three NEGATIVE CONTROLS each proven with a runtime assertion rather
+than only a data check (a free-tier due row's injected `reply` THROWS if
+ever called, and never fires; a stopped check-in likewise; a null-`next_due_at`
+row is absent from both due-select mirrors and from a full sweep at an
+arbitrary future instant), one STATIC control modelled on
+`evals/room-leak/run.mjs`'s import-graph layer (regex assertions against the
+real `api/_checkins.js` source: both due-select statements bind
+`room_id`/`person_id` together, the combined write's optimistic-concurrency
+guard names `checkin_id` and the exact `next_due_at`, delivery derives its
+device from `row.person_id` rather than a constant, and the file contains no
+`fetch(` call anywhere), and THE SEAMS (`deliverers.whatsappTemplate` writes
+`not_configured` whether or not `ROOM_WHATSAPP_TEMPLATE_ID`/
+`ROOM_WHATSAPP_NUMBER_ID` are set, `countDelivery` is a no-op with nothing
+injected and calls an injected callback when one is given).
+
+**Also run and passing**: `evals/persontables.mjs` (49 manifest entries,
+including this migration's two person-lane tables), `evals/recall/run.mjs`
+(245 assertions, including two new FATE-table verdicts), `evals/room-leak/run.mjs`
+(62 assertions, unaffected by admitting `_checkins.js` into its ALLOWED
+reader set), `evals/replica-erasure/run.mjs` (20 assertions), and the full
+`node scripts/verify-release.mjs` — 15/15, before and after this workstream's
+changes (the "before" run confirmed the untouched tree's own baseline, per
+the common brief's own instruction).
+
+**Not measured, stated rather than implied**: no real `vy_room_checkin_design`,
+`vy_room_checkin` or `vy_room_checkin_delivery` row has ever been inserted
+anywhere outside a fake `db`; migration 079 has not been applied to any
+database, live or otherwise; no `EXPLAIN` has been run against a real
+Postgres server for any statement this workstream's code issues (the eight
+listed in the final report are for the main loop to run); no cron tick of
+`api/checkins-sweep.js` has ever executed against a live Vercel deployment;
+`CRON_SECRET` is unset in this environment and the endpoint's auth path is
+therefore unexercised beyond `timingSafeEqual`'s own unit shape;
+`ROOM_WHATSAPP_TEMPLATE_ID`/`ROOM_WHATSAPP_NUMBER_ID` have never been set to
+a real value in this session, so `deliverers.whatsappTemplate`'s `configured`
+branch is exercised only by explicitly setting both env vars locally inside
+the eval, never against a real Meta credential (and it still never sends,
+by construction — the whole point of the seam).
+
+## `ws-r16-computeNextDue-dst-2026-09-03`
+
+n = 5 fixture cases; method = calling the real, exported `computeNextDue`
+(api/_checkins.js) directly with `now` held fixed, no mock, no fake clock
+library - `Date.UTC`/`Intl.DateTimeFormat` only, the same technique
+`api/_room-cohorts.js`'s own `isoWeekStart` already uses one layer up; date
+2026-09-03. Asia/Kolkata (UTC+05:30 year-round, no DST): a Mon/Wed/Fri 07:00
+schedule from a Thursday afternoon resolves to Friday 01:30 UTC exactly; the
+same schedule queried after 07:00 IST has already passed on the matching day
+rolls to the NEXT matching day (Monday) rather than repeating; an empty
+`days` array returns `null`. America/New_York (spring-forward, 2027-03-14,
+02:00 local -> 03:00 local, EST UTC-5 -> EDT UTC-4): a daily 09:00 schedule
+resolves to 13:00 UTC (09:00 EDT) whether queried from BEFORE the transition
+(2027-03-13T20:00Z, 15:00 EST) or from the transition day itself, AFTER
+09:00 has already passed (2027-03-14T20:00Z, 16:00 EDT) - both land on
+09:00 EDT the day the offset actually applies, not the offset in effect at
+`now`. One known gap found by the SAME measurement technique and NOT fixed
+this session: a schedule whose local time falls inside the spring-forward's
+own skipped hour (02:00-02:59:59 on the transition day) resolves an hour
+early (01:30 EST rather than throwing or rolling to 03:30 EDT) - logged as
+`context/decisions.md#ws-r16-checkin-dst-transition-instant` with its own
+reversal condition rather than silently shipped.
+
+## `rooms-migration-079-live-verification-2026-09-04`
+
+n = 1 migration (9 statements in one transaction), 11 API statements, 2 forget deletes, 3 erasure deletes; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_checkins.js` issues plus the `roomForget` and erasure-chain deletes, parameters substituted with typed literals; date 2026-09-04, at the WS-R16 merge.
+
+| statement | plan |
+|---|---|
+| design insert / list / pause | Insert; Index Scan `vy_room_checkin_design_owner_ix` (owner_user_id, room_id) for both reads and the update |
+| follower's active designs | Bitmap Index Scan `vy_room_checkin_design_owner_ix` on room_id, state filtered |
+| follower's own check-ins | Index Scan `vy_room_checkin_scope_ix` (person_id, room_id), design by pkey |
+| opt-in upsert | Insert, conflict UPDATE, arbiter `vy_room_checkin_follower_design_ix` (partial on active), design read by pkey with room and state filtered |
+| stop | Update via `vy_room_checkin_scope_ix` |
+| delivery ledger insert (not_configured) | Insert, conflict NOTHING, arbiter `vy_room_checkin_delivery_once` |
+| deliver-and-advance CTE | Update via `vy_room_checkin_pkey` with next_due_at as filter (the idempotency guard), Insert with arbiter `vy_room_checkin_delivery_once` |
+| sweep: due rows for paid, consented followers | Index Scan `vy_room_checkin_due_ix` (partial on active) with `next_due_at IS NOT NULL AND <= now` as index conditions, design by pkey, room by pkey with published filter, follower via `vy_room_follower_room_seen_ix` with tier and consent filtered |
+| sweep: due rows to skip (free or unconsented) | same shape; follower via `vy_room_follower_person_ix` |
+| roomForget deletes | Index Scan `vy_room_checkin_scope_ix` / `vy_room_checkin_delivery_scope_ix` |
+| erasure deletes | `vy_room_owner_ix` then `_delivery_scope_ix`, `_checkin_scope_ix`, `_design_owner_ix` |
+
+The two sweep selects prove the brief's structural law on the live planner: a row with a null schedule cannot be selected because `next_due_at IS NOT NULL` is an index condition of the partial due index, not a JS check. Not measured: no design, check-in or delivery row exists; the 15-minute cron has no deployment from this branch yet.

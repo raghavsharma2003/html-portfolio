@@ -170,6 +170,33 @@
   .vy-room__cohort-value--pending { font-weight: var(--weight-medium); color: var(--ink-soft); }
   .vy-room__cohort-verdict { margin-top: var(--space-tight); font-weight: var(--weight-medium); color: var(--ink); }
 
+  /* Check-ins (WS-R16). Same list/row shape as the cohort table above,
+     `.vy-room__cohort-list`/`-row`'s own tokens, so the two read as one
+     system rather than two hand-tuned lists. */
+  .vy-room__checkins-list {
+    list-style: none;
+    margin: var(--space-tight) 0 var(--space-item);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  .vy-room__checkins-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  @media (min-width: 480px) {
+    .vy-room__checkins-row { flex-direction: row; align-items: center; justify-content: space-between; gap: var(--space-tight); }
+  }
+  .vy-room__checkins-title { font-weight: var(--weight-strong); color: var(--ink); }
+  .vy-room__checkins-cadence { font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__checkins-card textarea.field { resize: vertical; min-height: 4.5em; }
+
   @media (prefers-reduced-motion: reduce) {
     .vy-room__cap-pill { transition: none; }
   }

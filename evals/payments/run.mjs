@@ -294,7 +294,7 @@ console.log("\n§2 PAYMENTS_PROVIDER=none REFUSES, NEVER INVENTS A SUBSCRIPTION"
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
   const db = makeDb(state);
   const noneEnv = { ...ENV, PAYMENTS_PROVIDER: "none" };
-  const err = await startFollowerSubscription(db, { session: session() }, { env: noneEnv, loadAgent }).then(() => null, (e) => e);
+  const err = await startFollowerSubscription(db, { session: session() }, { env: noneEnv, loadAgent, now: NOW }).then(() => null, (e) => e);
   ok("no provider configured: refused, named", err instanceof PaymentsError && err.code === "payments_not_configured");
   ok("and nothing was written", state.subscriptions.length === 0);
   const webhookErr = await applyWebhook(db, { rawBody: "{}", signatureHeader: "x", eventRef: "evt_1" }, { env: noneEnv }).then(() => null, (e) => e);
@@ -308,21 +308,21 @@ let SUB_REF;
 {
   const state = freshState();
   const db = makeDb(state);
-  const noPrice = await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent }).then(() => null, (e) => e);
+  const noPrice = await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW }).then(() => null, (e) => e);
   ok("no price set yet: refused, named, nothing invented", noPrice instanceof PaymentsError && noPrice.code === "room_price_not_set");
   ok("still no subscription row", state.subscriptions.length === 0);
 
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
-  const started = await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  const started = await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   ok("a subscription row exists, state 'created' then referenced", state.subscriptions.length === 1);
   ok("the provider ref is the fake provider's deterministic id", /^fake_sub_[0-9a-f]{24}$/.test(started.provider_subscription_ref));
   ok("a checkout url comes back", typeof started.checkout_url === "string" && started.checkout_url.length > 0);
   SUB_REF = started.provider_subscription_ref;
 
-  const again = await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  const again = await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   ok("idempotent on the follower: the SAME ref, no second row", again.provider_subscription_ref === SUB_REF && state.subscriptions.length === 1);
 
-  const status = await followerSubscriptionStatus(db, { session: session() }, { env: ENV, loadAgent });
+  const status = await followerSubscriptionStatus(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   ok("status reads the follower's own tier, still free (not yet authenticated)", status.tier === "free");
   ok("status reads the subscription's current state", status.subscription?.state === "created");
 }
@@ -334,7 +334,7 @@ console.log("\n§4 THE WEBHOOK — verify, then apply, never the other order");
   const state = freshState();
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
   const db = makeDb(state);
-  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   const ref = state.subscriptions[0].provider_subscription_ref;
 
   const body = RAZORPAY_EVENT("subscription.authenticated", ref);
@@ -370,7 +370,7 @@ console.log("\n§5 THE STATE MACHINE AND THE TIER FLIP");
   const state = freshState();
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
   const db = makeDb(state);
-  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   const ref = state.subscriptions[0].provider_subscription_ref;
   const follower = state.followers[0];
 
@@ -412,7 +412,7 @@ console.log("\n§6 THE 25% SPLIT — computed once, and it always sums");
   const state = freshState();
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
   const db = makeDb(state);
-  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   const ref = state.subscriptions[0].provider_subscription_ref;
   const body = RAZORPAY_CHARGED(ref, 39900, 1690000000, 1692600000); // Rs 399.00
   const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
@@ -432,7 +432,7 @@ console.log("\n§7 UNKNOWN INPUTS ARE REFUSED, NEVER GUESSED AT");
   const state = freshState();
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
   const db = makeDb(state);
-  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   const ref = state.subscriptions[0].provider_subscription_ref;
 
   const unknownKindBody = JSON.stringify({ event: "subscription.teleported", payload: { subscription: { entity: { id: ref } } } });
@@ -463,7 +463,7 @@ console.log("\n§8 THE MONTHLY PAYOUT ROLL-UP");
   const state = freshState();
   state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
   const db = makeDb(state);
-  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent });
+  await startFollowerSubscription(db, { session: session() }, { env: ENV, loadAgent, now: NOW });
   const ref = state.subscriptions[0].provider_subscription_ref;
 
   for (const [n, ts] of [[1, "2026-08-05T00:00:00.000Z"], [2, "2026-08-20T00:00:00.000Z"], [3, "2026-09-05T00:00:00.000Z"]]) {
