@@ -1,4 +1,5 @@
-// Creator invites - the HTTP half of WS-R23 (migration 086).
+// Creator invites - the HTTP half of WS-R23 (migration 086) and WS-R47
+// (migration 106).
 //
 //   OPERATOR ONLY (bearer token, OPS_OWNER_USER_IDS)
 //     POST {op:"issue",  contact?, application_id?, ttl_days?}
@@ -6,11 +7,25 @@
 //     POST {op:"revoke", invite_id}
 //     POST {op:"erase",  invite_id}
 //
-// Nothing here is public: creating a code is an operator action from the
-// first line of the workstream brief, and redeeming one happens inside
-// api/replica.js's own create path, never through this file. Thin by
-// construction: cors, rate limit, auth, dispatch, error shape. Every
-// decision lives in api/_invites.js, where a fake `db` can reach it.
+//   ANY SIGNED-IN CREATOR (bearer token, no allowlist - WS-R47)
+//     POST {op:"mine_issue", contact?, ttl_days?}
+//     POST {op:"mine_list"}
+//
+// Nothing here is public: creating a code is either an operator action or a
+// creator acting on their own account, never an anonymous one, and redeeming
+// one happens inside api/replica.js's own create path, never through this
+// file. Thin by construction: cors, rate limit, auth, dispatch, error shape.
+// Every decision lives in api/_invites.js, where a fake `db` can reach it.
+//
+// The owner ops are dispatched BEFORE `requireOperator` runs, on purpose:
+// they are not an operator capability at all, and gating them behind an
+// operator check first would make every creator without OPS_OWNER_USER_IDS
+// membership see `operator_only` before ever reaching their own two ops.
+// `user.id` - the verified bearer's own id, never an `issued_by_user_id`
+// field the client could put in the request body - is the only identity
+// either owner op ever passes down, the same "identity comes only from the
+// verified token" law `requireOperator`'s own doc comment states for the
+// operator path.
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { requireUser, AuthError } from "./_auth.js";
@@ -21,7 +36,11 @@ import {
   listInvites,
   revokeInvite,
   eraseInvite,
+  issueCreatorInvite,
+  myInvites,
 } from "./_invites.js";
+
+const OWNER_OPS = new Set(["mine_issue", "mine_list"]);
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -41,6 +60,22 @@ export default async function handler(req, res) {
 
   try {
     const user = await requireUser(req);
+
+    if (OWNER_OPS.has(op)) {
+      if (!allow(user.id, "invites_owner", 30)) return res.status(429).json({ error: "slow_down" });
+      if (op === "mine_issue") {
+        const result = await issueCreatorInvite(q, user.id, {
+          contact: body.contact,
+          ttlDays: body.ttl_days,
+        });
+        // Same law as the operator issue response below: the one moment the
+        // plaintext code exists outside the creator's own clipboard.
+        return res.status(201).json(result);
+      }
+      // op === "mine_list"
+      return res.status(200).json(await myInvites(q, user.id));
+    }
+
     requireOperator(user.id);
     if (!allow(user.id, "invites_operator", 60)) return res.status(429).json({ error: "slow_down" });
 
