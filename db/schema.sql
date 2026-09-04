@@ -4007,3 +4007,15 @@ alter table vy_creator_subscription add column if not exists cancel_at_period_en
 -- reached by roomForget's own vy_room_follower delete).
 alter table vy_room_follower
   add column if not exists settings_reviewed_at timestamptz null;
+
+-- Migration 106 - creator-issued invites (WS-R47). See
+-- db/migrations/106_creator_issued_invites.sql for the full argument: one
+-- column on the table 086 already put on the owner lane, defaulted to
+-- 'operator' because every row this table has ever held was issued that way;
+-- no new PERSON_TABLES/relcheck wiring needed since the table's shape (and
+-- its owner-lane column, redeemed_by_user_id) does not change.
+alter table vy_creator_invite
+  add column if not exists issued_kind text not null default 'operator'
+    check (issued_kind in ('operator', 'creator'));
+create index if not exists vy_creator_invite_issued_kind_ix
+  on vy_creator_invite (issued_by_user_id, issued_kind);
