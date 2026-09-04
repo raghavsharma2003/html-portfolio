@@ -40,6 +40,13 @@ import { WHATSAPP_TEMPLATE_UNIT_COST_INR } from "./_room-whatsapp.js";
 // than re-derived so the board's Phase gate card can never disagree with the
 // function that actually decided the numbers.
 import { phaseGate } from "./_phase-gate.js";
+// WS-R48 (migration 107). Suites sell themselves: `suitesFunnelThisWeek`
+// (api/_funnel.js) owns the two Suite-growth counts, `suiteIntentApplicationsThisWeek`
+// (api/_apply.js) owns the "someone who wants to talk first" count - both
+// imported rather than re-derived, this file's own established pattern one
+// import list up.
+import { suitesFunnelThisWeek } from "./_funnel.js";
+import { suiteIntentApplicationsThisWeek } from "./_apply.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -308,5 +315,11 @@ export async function opsOverview(db, now = Date.now()) {
     whatsapp: await whatsappSpendThisMonth(db, now),
     // WS-R30. The three Phase 2 numbers, one sentence.
     phase_gate: await phaseGate(db, now),
+    // WS-R48. Suites sell themselves: two growth counts plus the "talk
+    // first" apply-intent count, all rolling-7-day, none a follower.
+    suites: {
+      ...(await suitesFunnelThisWeek(db, now)),
+      intent_applications_this_week: await suiteIntentApplicationsThisWeek(db, now),
+    },
   };
 }
