@@ -25,6 +25,7 @@ import {
   type OpsRoom,
   type OpsSweep,
   type OpsFunnel,
+  type OpsShareArrivals,
   type OpsPhaseGate,
   type OpsGateState,
   type SweepStaleness,
@@ -180,7 +181,7 @@ function funnelStepLabel(step: string): string {
   return FUNNEL_STEP_LABELS[step] || step.replace(/_/g, " ");
 }
 
-function FunnelCard({ funnel }: { funnel: OpsFunnel }) {
+function FunnelCard({ funnel, shareArrivals }: { funnel: OpsFunnel; shareArrivals: OpsShareArrivals }) {
   const { median, p90, n } = funnel.minutes_to_first_room;
   return (
     <div className="ops-board__panel">
@@ -217,6 +218,12 @@ function FunnelCard({ funnel }: { funnel: OpsFunnel }) {
           </table>
         </div>
       )}
+      {/* WS-R40 (migration 102). One line: the share loop's own growth
+          count, floored at n>=5 the same way `creator_invite_arrivals`
+          elsewhere on this board already is - `shareArrivals.note` renders
+          the honest floor sentence below that, never a small real number. */}
+      <h2 style={{ marginTop: "var(--space-section)" }}>Growth</h2>
+      <p className="ops-board__empty">{shareArrivals.note}</p>
     </div>
   );
 }
@@ -400,7 +407,7 @@ export default function OpsBoard() {
                 overview.rooms.map((room) => <RoomCard key={room.room_id} room={room} />)
               )}
             </div>
-            <FunnelCard funnel={overview.funnel} />
+            <FunnelCard funnel={overview.funnel} shareArrivals={overview.share_arrivals_this_week} />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />
           </>
