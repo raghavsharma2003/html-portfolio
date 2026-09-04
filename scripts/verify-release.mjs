@@ -211,6 +211,27 @@ await gate("room door battery", NODE, ["evals/room-doors/run.mjs"]);
 // `scripts/check-accessibility.mjs`'s own header for what it does and does
 // not prove.
 await gate("accessibility", NODE, ["scripts/check-accessibility.mjs"]);
+// WS-R57. Named gate 21. `vercel.json` carried no `headers` block at all
+// before this workstream: a Room that keeps years of a follower's own words
+// shipped with no Content-Security-Policy, no HSTS, no frame protection, and
+// no proof the dependency tree `npm install` pulls is the one `package-
+// lock.json` says it is. This gate is two checks riding one file because
+// both share the same posture every gate above it does: prove it against the
+// real artifact, never a description of one. §1 loads the six real built
+// pages the brief named (the Room and the studio via the same layout-fixture
+// technique `check-layout.mjs`/`check-accessibility.mjs` already use for the
+// identical "needs a secret to render for real" wall, plus `/`, `/vyakti`,
+// `/suites`, `/creators`) in real Chromium on 127.0.0.1:8934 (never
+// 8931-8933), applies `vercel.json`'s own headers exactly as Vercel would,
+// and fails on any CSP violation, any missing header per route class, or a
+// CSP looser than this workstream's own law. §2 runs `npm ci --dry-run`
+// (lockfile integrity), `npm audit --omit=dev --audit-level=high` (a
+// registry call that FAILS, never passes silently, if the registry is
+// unreachable), and a scan for any dependency that runs an install script
+// without being on the named, justified allowlist in `scripts/
+// installScriptAllowlist.mjs`. See `scripts/check-headers.mjs`'s own header
+// for the full route table and what each failure kind means.
+await gate("security headers", NODE, ["scripts/check-headers.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the
