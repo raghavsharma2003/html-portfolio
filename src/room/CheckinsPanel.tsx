@@ -125,6 +125,18 @@ export default function CheckinsPanel({
     void load();
   }, [load]);
 
+  // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
+  // (`RoomApp.tsx`), one file over: Escape closes this dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const enablePush = useCallback(async () => {
     if (!pushKey) return;
     setPushBusy(true);
@@ -267,7 +279,7 @@ export default function CheckinsPanel({
   );
 
   return (
-    <section className="room-menu room-checkins" role="dialog" aria-label={copy.checkins.title}>
+    <section className="room-menu room-checkins" role="dialog" aria-modal="true" aria-label={copy.checkins.title}>
       <h2>{copy.checkins.title}</h2>
       <p className="room-fine">{copy.checkins.intro}</p>
       {error && <p className="room-error">{error}</p>}
