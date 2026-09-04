@@ -6766,6 +6766,12 @@
       "kind": "measurement",
       "title": "verify-release.mjs 17/17 on the untouched tree and 17/17 after every commit in this workstream (no NEON_URL); evals/creator-directory/run.mjs 55/55 offline; check-copy.mjs 6 scopes/21 controls unchanged; the layout gate hit EADDRINUSE four times from sibling worktrees before passing on the fifth attempt.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-105-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 105 applied live and read back; the directory read plans on the partial listed index with an incremental sort, the listing writes on the owner index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13558,6 +13564,21 @@
       "src": "ws-r45-bio-copy-gate-reused-not-reimplemented",
       "rel": "constrains",
       "dst": "ws-r45-one-line-bio-added-in-migration-105"
+    },
+    {
+      "src": "ws-r45-one-line-bio-added-in-migration-105",
+      "rel": "measured_by",
+      "dst": "rooms-migration-105-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r45-bio-copy-gate-reused-not-reimplemented",
+      "rel": "measured_by",
+      "dst": "rooms-migration-105-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r45-creators-html-vite-entry-for-gate-only",
+      "rel": "measured_by",
+      "dst": "rooms-migration-105-live-verification-2026-09-04"
     }
   ]
 }

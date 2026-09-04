@@ -9167,3 +9167,16 @@ every other WS-R workstream's own report.
   retry inside the script), confirming the existing convention — wait a
   fixed interval and rerun the whole gate — is still the right workaround
   rather than something this workstream needed to fix.
+
+## `rooms-migration-105-live-verification-2026-09-04`
+
+n = 1 migration (5 statements in one transaction), 5 API statements; method = the live `vy_room` read first (0 rows, neither column present), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, the two columns, the 140-character CHECK and the partial `vy_room_listed_ix` read back, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_room-publish.js`, `api/_creators.js` and `api/_sitemap.js` added, parameters substituted with typed literals (the cursor both as `null` and as a real pair); date 2026-09-04, at the WS-R45 merge over the WS-R49 tip 75fdf07.
+
+| statement | plan |
+|---|---|
+| `listRoom` (the CASE UPDATE), `unlistRoom`, `setRoomBio` | Index Scan on `vy_room_owner_ix` by owner and replica, one row; the listing CASE is evaluated in the scan's own output |
+| the directory read, first page (null cursor) | Index Scan on `vy_room_listed_ix` (the partial index carries the listed-and-published predicate), Incremental Sort on `(listed_at desc, room_id desc)` presorted on `listed_at`, `limit 24` |
+| the directory read, later page (a cursor pair) | the same with `listed_at <=` as the index condition and the row comparison as the filter |
+| the sitemap read | Seq Scan filtered listed-and-published then Sort, `limit 5000` (the planner declines the partial index at zero rows; the read is every listed Room by design, bounded by the listed set, once per crawl, cached 300 s) |
+
+Not measured: no Room is listed; nobody has opened `/creators`, `/sitemap.xml` or `/robots.txt` on a deployment; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
