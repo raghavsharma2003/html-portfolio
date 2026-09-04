@@ -91,9 +91,10 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of the Rooms merge (2026-09-03) it is **15
+repo (see the next section). As of wave six (2026-09-04) it is **16
 checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
-added as a named gate) and **17 with it** (adding the zero-orphan sweep and
+and the room export completeness battery, `evals/room-export/run.mjs`, each
+added as a named gate) and **18 with it** (adding the zero-orphan sweep and
 citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
@@ -116,9 +117,11 @@ verbatim). The Room lives at `/r/<slug>`; `AGENTS.md` and `docs/gurukul/`
 carry the full detail, `context/STATE.md` the current LIVE state, and this
 file's rules (gates, `context/`, the copy ban, never claiming what you did not
 run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
-065 and 071 through 076 are applied live; 066-070 are deliberately left
+065 and 071 through 090 are applied live; 066-070 are deliberately left
 unused** (another agent's unpushed tree already occupies those numbers live);
-**077 is next.**
+**091 through 093 are reserved by wave seven's worktrees; 094 is the next
+free number.** `context/STATE.md`'s session log carries the live-verification
+entry for each.
 
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an
 assembled prompt exceeds the cap `api/chat.js` slices it at. This exists because

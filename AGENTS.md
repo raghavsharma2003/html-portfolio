@@ -135,10 +135,12 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **15 checks** as of the Rooms merge
-(2026-09-03) without `NEON_URL` — up from 14 with the addition of the room
-leak battery as a named gate — and 17 with it, adding the zero-orphan sweep
-and citation discipline. `scripts/check-copy.mjs` also gates a **Rooms
+`node scripts/verify-release.mjs` is **16 checks** as of wave six
+(2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
+leak battery and the room export completeness battery as named gates — and
+18 with it, adding the zero-orphan sweep and citation discipline. Migrations
+071 through 090 are applied live; 091 to 093 are reserved by wave seven; 094
+is the next free number. `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
 string across `src/studio/`, `src/room/`, `site/vyakti.html`, `studio.html`
