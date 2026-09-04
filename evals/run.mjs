@@ -1828,6 +1828,27 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "room-embed": "room-embed/run.mjs",
+  // WS-R47, migration 106: creators invite creators. Extends WS-R23's own
+  // front door (evals/invites/run.mjs) with a fresh, narrowly-scoped fake db
+  // rather than editing that file's own: `issueCreatorInvite`'s quota INSERT
+  // (three codes issue, a fourth is zero rows, an unpublished or draft-Room
+  // creator is refused the same way), `myInvites` (owner-scoped, states
+  // only, no code text, quota computed off the same rows it returns),
+  // redemption proven unchanged (a creator-issued code redeems through
+  // `createSelfReplica`'s own CTE, which never references `issued_kind`),
+  // and the funnel's one aggregate line (the n>=5 floor never discloses a
+  // smaller true number, "application OR replica" both count, an operator-
+  // issued redemption never does, and a redemption from before this week
+  // does not). Three NEGATIVE CONTROLS: (a) a body-supplied
+  // `issued_by_user_id` is ignored — a static scan proves both owner ops
+  // pass only the verified bearer's own id; (b) the stored row never
+  // carries the plain code — a static scan of the INSERT's own column list
+  // plus a fixture read; (c) an em dash or the word "clone" in a
+  // Share-tab-shaped fixture fails `scripts/check-copy.mjs`'s real scanner
+  // under `src/studio/`'s own SCOPES options.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "creator-invites": "creator-invites/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -6610,6 +6610,54 @@
       "kind": "rejection",
       "title": "18 buttons across RoomApp.tsx (7) and AccountPage.tsx (11) fired their action on onPointerDown alone; native Enter/Space activation never dispatches a pointer event, so these were keyboard-unreachable. Fixed with an onKeyDown handler (activateOnKey) alongside the existing onPointerDown on every one.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-creator-invites-component",
+      "kind": "component",
+      "title": "Migration 106: vy_creator_invite gains issued_kind ('operator'|'creator', default 'operator'). api/_invites.js: issueCreatorInvite (quota INSERT, three per published creator), myInvites (owner-scoped list, states only, no code text). api/invites.js: mine_issue/mine_list owner ops. api/_funnel.js: creatorInviteArrivalsThisWeek (n>=5 floor). src/studio/InviteCreatorCard.tsx: the Share tab's Invite a creator card.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-creator-invite-quota-is-three",
+      "kind": "decision",
+      "title": "CREATOR_INVITE_QUOTA=3, enforced inside the quota INSERT's own WHERE (issued_by_user_id count plus a published-Room subselect on vy_room), never a JS check before or after a separate write.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-funnel-arrival-line-hides-count-below-floor",
+      "kind": "decision",
+      "title": "creatorInviteArrivalsThisWeek returns n:null below CREATOR_INVITE_ARRIVAL_FLOOR (5), matching Pulse's own PULSE_MIN_FOLLOWERS masking discipline, applied to a creator-facing count for consistency.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-invites-required-semantics-untouched-by-design",
+      "kind": "decision",
+      "title": "api/_replica.js's redemption CTE was not modified. 'Creator-issued codes work whether or not invites are required' is satisfied by the funnel query never reading INVITES_REQUIRED at all, not by changing redemption behavior when it is unset.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-studio-card-is-english-only-no-locale-mechanism-exists",
+      "kind": "decision",
+      "title": "InviteCreatorCard.tsx ships English only. src/studio/ has no locale mechanism at all (ROOM_LOCALES/ROOM_COPY_TABLE exist only for src/room/, the follower surface); every existing Studio card is English-only.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-new-card-mounted-inside-roomstudio-trips-orphan-check",
+      "kind": "rejection",
+      "title": "InviteCreatorCard.tsx, mounted only inside RoomStudio.tsx, was invisible to evals/studio-shell/run.mjs's orphan check until added to that suite's own NOT_A_STANDALONE_PANEL allowlist (the same fix PayoutsCard.tsx/SuiteCard.tsx already used).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-doc-comment-self-matched-its-own-negative-control-regex",
+      "kind": "rejection",
+      "title": "A negative-control static scan for 'body.issued_by_user_id' failed against api/invites.js because a doc comment explaining the same law spelled out the literal banned pattern in prose. Reworded the comment rather than the (already-correct) code.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r47-creator-invites-gate-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release 16/17 before (sole failure: layout readability EADDRINUSE, environmental), 17/17 after. evals/creator-invites/run.mjs new suite: 46 checks, 0 failed. Sibling suites reconfirmed unchanged: invites 57/57, funnel 49/49, ops 68/68, room-leak 78/78, room-doors 109/109, studio-shell 64/64 (after the allowlist fix), check-copy 6 scopes/21 controls.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13262,6 +13310,41 @@
       "src": "ws-r50-onpointerdown-only-breaks-keyboard-activation",
       "rel": "part_of",
       "dst": "ws-r50-accessibility-gate"
+    },
+    {
+      "src": "ws-r47-creator-invite-quota-is-three",
+      "rel": "part_of",
+      "dst": "ws-r47-creator-invites-component"
+    },
+    {
+      "src": "ws-r47-funnel-arrival-line-hides-count-below-floor",
+      "rel": "part_of",
+      "dst": "ws-r47-creator-invites-component"
+    },
+    {
+      "src": "ws-r47-invites-required-semantics-untouched-by-design",
+      "rel": "part_of",
+      "dst": "ws-r47-creator-invites-component"
+    },
+    {
+      "src": "ws-r47-studio-card-is-english-only-no-locale-mechanism-exists",
+      "rel": "part_of",
+      "dst": "ws-r47-creator-invites-component"
+    },
+    {
+      "src": "ws-r47-creator-invites-gate-2026-09-04",
+      "rel": "measured_by",
+      "dst": "ws-r47-creator-invites-component"
+    },
+    {
+      "src": "ws-r47-new-card-mounted-inside-roomstudio-trips-orphan-check",
+      "rel": "caused_by",
+      "dst": "ws-r47-creator-invites-component"
+    },
+    {
+      "src": "ws-r47-creator-invites-component",
+      "rel": "part_of",
+      "dst": "ws-r23-component"
     }
   ]
 }

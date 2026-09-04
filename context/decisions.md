@@ -11594,3 +11594,107 @@ reason specific to the studio, the Room's rule (same tokens, same
 selector shape) moves with it automatically; if the Room ever needs a
 DIFFERENT ring from the studio's for a reason of its own, split the token
 rather than the selector.
+
+## `ws-r47-creator-invite-quota-is-three` (2026-09-04, WS-R47)
+
+**Decision.** A published creator gets exactly three peer invites
+(`CREATOR_INVITE_QUOTA` in `api/_invites.js`), enforced entirely inside the
+quota INSERT's own WHERE clause (`quota_ok`, a CTE gating the INSERT's row
+source) rather than by a JS `if` after a separate `select count(*)`. A
+fourth attempt, or an attempt from an account with no published Room, is
+zero rows returned from one round trip, never a race two concurrent issues
+could slip a fourth code through.
+
+**Rationale.** Three is a name for "enough to reach the two or three peers
+a creator actually knows" without this becoming a second operator queue
+(086's own operator front door already exists for volume). Gating inside
+the statement, not around it, is this repo's own established shape for
+exactly this kind of predicate — `api/_replica.js`'s `invite_redeem`/`gate`
+CTEs and `api/_funnel.js`'s `markStep` (WS-R25) both already refuse before
+any write, never after one, and this decision is that same law applied to
+a count-based quota instead of an ownership check.
+
+**Reversal condition.** If a published creator's real peer network in
+Phase 0 turns out to routinely exceed three names — measured from real
+`myInvites` quota-exhaustion reports, not a guess — raise the named
+constant (and the studio card's copy, which reads the same number) rather
+than adding a second, larger cap beside it.
+
+## `ws-r47-funnel-arrival-line-hides-count-below-floor` (2026-09-04, WS-R47)
+
+**Decision.** `creatorInviteArrivalsThisWeek` (`api/_funnel.js`) returns
+`n: null` whenever the true count is below `CREATOR_INVITE_ARRIVAL_FLOOR`
+(5), disclosing only the fixed floor sentence — never a smaller true
+number, even to the platform operator's own ops board.
+
+**Rationale.** The workstream brief names "n>=5 floor as the funnel's other
+counts", and the closest established precedent in this codebase for a
+per-person-identifying count is `api/_pulse.js`'s `PULSE_MIN_FOLLOWERS`
+(followers, not creators): below five, `weeklyNote` states only that the
+floor was not reached, never "2" or "1" — because a small number over a
+short list of named creators is close to naming exactly which peer
+referred whom. This decision applies that same masking discipline to a
+creator-facing count for consistency, even though the underlying subjects
+(creators, not anonymous followers) are a weaker privacy case than
+Pulse's own.
+
+**Reversal condition.** If the product decides platform operators (who
+already see every creator by name on the ops board, unlike Pulse's
+follower-facing audience) should see the real small number on their own
+board specifically, split the function into a masked studio-facing read
+and an unmasked operator-facing one — never quietly unmask the single
+existing function, which would also change what a future studio card
+shows.
+
+## `ws-r47-invites-required-semantics-untouched-by-design` (2026-09-04, WS-R47)
+
+**Decision.** `api/_replica.js`'s redemption CTE was NOT modified. When
+`INVITES_REQUIRED` is unset, a supplied invite code — creator-issued or
+operator-issued — is still never redeemed (the CTE's `invite_redeem` UPDATE
+carries `and $5::boolean`, so it inserts zero effect when `invitesRequired`
+is false), exactly as it behaved before this workstream. The brief's own
+words, "creator-issued codes work whether or not invites are required", is
+satisfied instead by `creatorInviteArrivalsThisWeek` never reading
+`INVITES_REQUIRED` at all — it counts real `vy_creator_invite`/
+`vy_creator_application` state directly, so the funnel line is correct on
+any deployment regardless of that flag's setting.
+
+**Rationale.** The SAME brief sentence opens with "`INVITES_REQUIRED`
+semantics are untouched: unset keeps today's behaviour" — an explicit,
+higher-priority constraint that a change to the redemption CTE (making a
+code count as an "arrival" even when not required to gate anything) would
+have broken for every existing test account. Reading "work... whether or
+not required" as a statement about the FUNNEL QUERY's own independence
+from that env var, rather than a request to change redemption behavior,
+is the only reading that satisfies both halves of the same sentence at
+once, and it is the one this workstream built.
+
+**Reversal condition.** If a future session confirms (from the owner
+directly, not inferred) that a code presented with `INVITES_REQUIRED`
+unset should ALSO be marked redeemed for tracking purposes even though it
+gates nothing, that is a new, explicit product decision touching
+`api/_replica.js`'s own STRICT_SURFACE statement — it needs its own
+review and its own entry here, not a silent reinterpretation of this one.
+
+## `ws-r47-studio-card-is-english-only-no-locale-mechanism-exists` (2026-09-04, WS-R47)
+
+**Decision.** `InviteCreatorCard.tsx`'s copy is English only, matching
+every other card in `RoomStudio.tsx` (Pulse, Cohorts, Money, Payouts,
+Suite — none of them localized).
+
+**Rationale.** The brief's law 2 says the card ships "both locales", but
+`src/studio/` (the creator-facing Studio) has no locale mechanism at all —
+`ROOM_LOCALES`/`ROOM_COPY_TABLE` (`src/room/copy.ts`) exist only for
+`src/room/` (the FOLLOWER-facing Room, WS-R24). Grepping the whole
+`src/studio/` tree for any locale table, switch or `VITE_STUDIO_LOCALE`-
+shaped flag found nothing; every existing card renders one fixed English
+string set. Building a first, one-off bilingual mechanism for a single new
+card, when the entire surface it lives in ships English-only, would be
+inventing a pattern rather than following one — the wrong direction for a
+repo whose own law is "prefer measuring/following precedent to reasoning
+from scratch".
+
+**Reversal condition.** If a future workstream adds a real Studio-wide
+locale mechanism (the creator-facing analog of `src/room/copy.ts`), this
+card's strings move into it in the same change, rather than staying the
+one hardcoded English card in an otherwise-localized Studio.

@@ -8183,3 +8183,60 @@ explicit keyboard handler alongside a pointer one, when the pointer timing
 is a deliberate product choice) is not optional polish on top of
 `onPointerDown` — it is the only path a keyboard has to that control at
 all.
+
+## `ws-r47-new-card-mounted-inside-roomstudio-trips-orphan-check` (2026-09-04, WS-R47)
+
+**Tried:** adding `InviteCreatorCard.tsx` under `src/studio/`, imported and
+rendered inside `RoomStudio.tsx` (the same pattern `PayoutsCard.tsx`/
+`SuiteCard.tsx`/`CheckinsCard.tsx`/`HandoffCard.tsx` already use), without
+touching `evals/studio-shell/run.mjs`.
+
+**What broke:** that suite's own orphan check (WS-R31's Law 1: "nothing is
+deleted, no gate skipped") failed — `discoverDoors`-shaped logic there
+reads `StudioShell.tsx`/`StudioApp.tsx` off disk looking for a panel's own
+name, and a card mounted only inside `RoomStudio.tsx` (never directly in
+the shell tabs or the "All panels" view) is invisible to that scan by
+construction, the exact same shape `PayoutsCard.tsx` (WS-R36) and
+`SuiteCard.tsx` (WS-R28) already hit at their own merges per this file's
+existing entries. `evals/studio-shell/run.mjs: 64 passed, 1 failed`.
+
+**What closed it:** added `"InviteCreatorCard.tsx"` to that suite's own
+named `NOT_A_STANDALONE_PANEL` set, with a comment stating exactly why
+(mounted inside `RoomStudio.tsx`, never standalone) — the same fix WS-R28/
+WS-R36 both used, not a new pattern. `evals/studio-shell/run.mjs: 64/64`
+after.
+
+**The law, restated a fifth time:** any new file under `src/studio/`
+ending `.tsx` that is NOT mounted directly by the shell/App tree is a new
+entry this named allowlist needs in the SAME change that adds the file,
+or the orphan check (correctly) treats it as an unattacked new panel.
+Check this BEFORE writing a new card component, not after the gate fails.
+
+## `ws-r47-doc-comment-self-matched-its-own-negative-control-regex` (2026-09-04, WS-R47)
+
+**Tried:** a negative-control static scan in `evals/creator-invites/
+run.mjs` asserting `!/body\.issued_by_user_id/.test(src)` against
+`api/invites.js`'s own source, to prove the file never reads a
+body-supplied `issued_by_user_id`. A doc comment ABOVE the real code,
+written to explain the same law in prose ("never `body.issued_by_user_id`
+or any other client-supplied field"), used the exact literal dotted
+expression the regex was scanning for.
+
+**What broke:** the negative control failed on the very code it was meant
+to prove correct — not because the code was wrong, but because the PROSE
+explaining why it was right happened to spell out the banned pattern
+verbatim. `evals/creator-invites/run.mjs` reported `FAIL api/invites.js
+never reads a body-supplied issued_by_user_id anywhere` against a file
+that, in fact, never does.
+
+**What closed it:** reworded the comment to describe the hazard without
+using the literal dotted form (`an "issued_by_user_id" field the client
+could put in the request body`, rather than `body.issued_by_user_id`) —
+the code itself needed no change at all.
+
+**The law:** a static-scan negative control that greps a whole file's
+source (rather than a comment-stripped version of it) will match its own
+explanatory comments as readily as it matches the code it is meant to
+police. Either strip comments before scanning, or — cheaper, and what this
+workstream did — write the comment so it never spells out the literal
+banned pattern it is warning against.

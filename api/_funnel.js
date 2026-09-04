@@ -20,6 +20,11 @@
 // nothing but `min(joined_at)` - a follower's id, thread or words never leave
 // this file.
 import { replicaId as validReplicaId } from "./_replica.js";
+// WS-R47 (migration 106). `isoWeekStart` is this repo's one definition of
+// "this week" - `api/_pulse.js` and `api/_room-cohorts.js` both already
+// import it rather than each computing their own Monday, and the creator-
+// invite arrival line below reads the same week boundary they do.
+import { isoWeekStart } from "./_room-cohorts.js";
 
 const MARK_STEPS = Object.freeze(["studio_opened", "publish_clicked"]);
 
@@ -308,4 +313,68 @@ export async function opsFunnel(db, now = Date.now()) {
     if (funnel) rows.push(funnel);
   }
   return funnelSummary(rows, now);
+}
+
+// ── WS-R47: one aggregate line for peer growth (migration 106) ─────────────
+//
+// The same n>=5 anonymity floor this codebase already applies wherever a
+// count could point at one specific person (`api/_pulse.js`'s
+// PULSE_MIN_FOLLOWERS, `api/_room-cohorts.js`'s per-category floors): if
+// fewer than five creators arrived through a creator-issued invite this
+// week, showing "2" or "1" would as good as name which two peers a specific
+// creator brought in. Below the floor this returns `n: null` and only the
+// floor sentence; at or above it, the real number.
+export const CREATOR_INVITE_ARRIVAL_FLOOR = 5;
+
+/** Pure. Exported so the studio card (if it ever wants the exact wording
+ *  without a round trip) and `evals/creator-invites/run.mjs`'s floor-sentence
+ *  control both read the SAME function the live line renders. */
+export function creatorInviteArrivalNote(n) {
+  if (n < CREATOR_INVITE_ARRIVAL_FLOOR) {
+    return "Fewer than five creators arrived through a creator-issued invite this week.";
+  }
+  return `${n} creator${n === 1 ? "" : "s"} arrived through a creator-issued invite this week.`;
+}
+
+/**
+ * ONE statement, ONE count: a creator "arrived" through a creator-issued
+ * invite this week either because their REPLICA was created through one
+ * (the invite's own `redeemed_at`, set inside `api/_replica.js`'s
+ * `createSelfReplica` CTE at the exact moment the replica is created - never
+ * a second timestamp this file would have to keep in sync with that one) or
+ * because an APPLICATION already tied to that invite (`application_id`, 086's
+ * own nullable column - an operator, or a creator handing a code to someone
+ * who then applies through the public form) was itself submitted this week.
+ * The `left join` means an invite with no linked application still counts
+ * on its `redeemed_at` alone, and an invite that names no redemption yet
+ * still counts on the application side - `or`, not `and`, is the correct
+ * reading of "application OR replica" in the workstream's own words.
+ *
+ * AGGREGATE-ONLY in the sense this file's own header already keeps for
+ * `vy_room_follower`: this statement names neither that table nor
+ * `vy_room_thread`, so `evals/room-leak/run.mjs`'s scanner does not even
+ * look at it, but the select list is still nothing but one `count(*)`,
+ * on purpose, the same discipline restated one table over.
+ */
+export async function creatorInviteArrivalsThisWeek(db, now = Date.now()) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const weekStartIso = isoWeekStart(now).toISOString();
+  const [row] = await db(
+    `select count(*)::int as n
+       from vy_creator_invite ci
+       left join vy_creator_application ap on ap.application_id = ci.application_id
+      where ci.issued_kind = 'creator'
+        and (
+          (ci.redeemed_at is not null and ci.redeemed_at >= $1::timestamptz)
+          or (ap.application_id is not null and ap.created_at >= $1::timestamptz)
+        )`,
+    [weekStartIso],
+  );
+  const n = Number(row?.n || 0);
+  const belowFloor = n < CREATOR_INVITE_ARRIVAL_FLOOR;
+  return {
+    n: belowFloor ? null : n,
+    below_floor: belowFloor,
+    note: creatorInviteArrivalNote(n),
+  };
 }

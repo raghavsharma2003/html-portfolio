@@ -30,7 +30,7 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
-import { opsFunnel } from "./_funnel.js";
+import { opsFunnel, creatorInviteArrivalsThisWeek } from "./_funnel.js";
 // WS-R29 (migration 092). The unit cost is a named constant in the one file
 // that owns the send path - imported here rather than restated, so the
 // board's own number and the send path's own comment can never drift apart.
@@ -303,6 +303,10 @@ export async function opsOverview(db, now = Date.now()) {
     // WS-R25. "Minutes to first Room" and "where creators stop" -
     // `opsFunnel`'s own read, one extra call on the board's one endpoint.
     funnel: await opsFunnel(db, now),
+    // WS-R47 (migration 106). The same number the studio's own "Invite a
+    // creator" card computes, read here rather than re-derived so the two
+    // can never disagree - `_funnel.js`'s own aggregate-only line.
+    creator_invite_arrivals: await creatorInviteArrivalsThisWeek(db, now),
     // WS-R29. "The owner sees the bill before Meta does" - the workstream
     // brief's own words.
     whatsapp: await whatsappSpendThisMonth(db, now),

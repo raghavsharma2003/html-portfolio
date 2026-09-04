@@ -82,7 +82,12 @@ function generateCode() {
 }
 
 /** Whitelist by construction, `_replica.js`'s `clientReplica` own pattern:
- *  `code_hash` never leaves this function, in either direction. */
+ *  `code_hash` never leaves this function, in either direction.
+ *  `issued_kind` is included whenever the caller's own SELECT/RETURNING
+ *  fetched it (`row.issued_kind` is `undefined` on the older operator
+ *  queries below that never asked for it, and stays `undefined` here rather
+ *  than being defaulted, so this whitelist function never itself asserts a
+ *  fact its caller did not actually read). */
 function clientInvite(row) {
   if (!row) return null;
   return {
@@ -94,6 +99,7 @@ function clientInvite(row) {
     redeemed_at: row.redeemed_at,
     redeemed_by_user_id: row.redeemed_by_user_id,
     created_at: row.created_at,
+    ...(row.issued_kind !== undefined ? { issued_kind: row.issued_kind } : {}),
   };
 }
 
@@ -189,4 +195,132 @@ export async function eraseInvite(db, inviteId) {
     throw new InvitesError("invite_not_found", 404);
   }
   return { deleted: true };
+}
+
+// ── WS-R47: creators invite creators (migration 106) ───────────────────────
+//
+// Everything below is the CREATOR's own front door, never an operator's. An
+// operator issues on behalf of the platform, from an allowlist, with no cap;
+// a creator issues on behalf of themselves, capped, and only once they have
+// something real to show for it - a published Room. `requireOperator` is
+// never called on this path: the caller's OWN bearer id is both who is
+// asking and who the quota is checked against, so a body-supplied id can
+// never substitute for it (api/invites.js's own two new ops pass
+// `user.id`, never `body.issued_by_user_id`, into both functions below).
+
+/** Three, named, with the reason: a peer invite is a warm arrival, not a
+ *  growth channel to farm, and three is enough for a creator to reach the
+ *  two or three peers they actually know without this becoming a second
+ *  operator queue. Exported so the quota INSERT below, `myInvites`'s own
+ *  remaining-count arithmetic, and the studio card's copy read the SAME
+ *  number rather than three that could drift.
+ *  REVERSAL CONDITION: if a published creator's real peer network in Phase 0
+ *  turns out to routinely exceed three names, raise this constant (and the
+ *  studio copy that states it) rather than adding a second, larger cap
+ *  next to it - one number, one place, unchanged from 086's own reasoning
+ *  for `code_hash` being the only stored form of a code. */
+export const CREATOR_INVITE_QUOTA = 3;
+
+/**
+ * The quota INSERT. Both the count and the standing check live in the SAME
+ * statement's own WHERE (`quota_ok`, a CTE with nothing but a filtered
+ * `select 1`), gating the INSERT's own row source - the identical shape
+ * `api/_replica.js`'s `invite_redeem`/`gate` CTEs and `api/_funnel.js`'s
+ * `markStep` already use for "refused before any write, never after one".
+ * A fourth code, or a code from an account with no published Room, is
+ * therefore zero rows returned from a single round trip - never a prior
+ * `select count(*)` read followed by a JS `if`, which is exactly the shape
+ * two concurrent issues could race through to produce a fourth row.
+ *
+ * `application_id` is always null here: a creator-issued code has no
+ * operator application behind it by construction, so this path never takes
+ * the parameter 086's operator `issueInvite` does for one.
+ */
+export async function issueCreatorInvite(db, ownerUserId, options = {}) {
+  const contact = String(options.contact || "").trim().slice(0, 320);
+  const ttlDays = Math.min(MAX_TTL_DAYS, Math.max(1, Math.trunc(Number(options.ttlDays)) || DEFAULT_TTL_DAYS));
+  const code = generateCode();
+  const codeHash = hashInviteCode(code);
+  const inviteId = randomUUID();
+  const expiresAt = new Date(Date.now() + ttlDays * 86_400_000).toISOString();
+  const rows = await db(
+    `with quota_ok as (
+       select 1
+        where (
+          select count(*)::int from vy_creator_invite
+           where issued_by_user_id = $1::uuid and issued_kind = 'creator'
+        ) < $6::int
+          and exists (
+            select 1 from vy_room where owner_user_id = $1::uuid and published_at is not null
+          )
+     )
+     insert into vy_creator_invite
+       (invite_id, code_hash, issued_to_contact, issued_by_user_id, application_id, expires_at, issued_kind)
+     select $2::uuid, $3::text, $4::text, $1::uuid, null::uuid, $5::timestamptz, 'creator'::text
+       from quota_ok
+     returning invite_id, issued_to_contact, issued_by_user_id, application_id,
+       expires_at, redeemed_at, redeemed_by_user_id, created_at, issued_kind`,
+    [ownerUserId, inviteId, codeHash, contact, expiresAt, CREATOR_INVITE_QUOTA],
+  );
+  if (!rows[0]) {
+    // The SQL above does not, and by design cannot, say WHICH of the two
+    // predicates refused - `invite_invalid`'s own precedent (api/_replica.js)
+    // for not disclosing more than a front door should. Both reasons resolve
+    // to the same fix from the creator's own side: publish a Room, or wait
+    // for a redemption to free a slot back up (it does not - the quota counts
+    // every code ever issued, not just live ones, so the honest fix is
+    // "you have used your three").
+    throw new InvitesError("creator_invite_unavailable", 403);
+  }
+  return { invite: clientInvite(rows[0]), code };
+}
+
+/** unused | redeemed | expired - the brief's own three states, and the ONLY
+ *  three a card may show (never "pending", operator `listInvites`'s word for
+ *  the same condition - a creator reads their own three states in their own
+ *  vocabulary, not the operator console's). */
+export const CREATOR_INVITE_STATES = Object.freeze(["unused", "redeemed", "expired"]);
+
+function creatorInviteState(row, now) {
+  if (row.redeemed_at) return "redeemed";
+  if (new Date(row.expires_at).getTime() <= now) return "expired";
+  return "unused";
+}
+
+/**
+ * Owner-scoped list: every code THIS creator has issued, by state, with no
+ * code text - the SELECT below never names `code_hash` at all, so there is
+ * no column to accidentally whitelist back out (086's own "shown once"
+ * law, one query over). `used`/`remaining` are read off the SAME rows this
+ * call already fetched (a code once issued always counts toward the quota,
+ * per `issueCreatorInvite`'s own WHERE clause, whatever state it is in now),
+ * never a second query, so the two numbers can never disagree with each
+ * other inside one response.
+ */
+export async function myInvites(db, ownerUserId, { now = Date.now() } = {}) {
+  const rows = await db(
+    `select invite_id, issued_to_contact, expires_at, redeemed_at, created_at
+       from vy_creator_invite
+      where issued_by_user_id = $1::uuid and issued_kind = 'creator'
+      order by created_at desc
+      limit 50`,
+    [ownerUserId],
+  );
+  const invites = rows.map((row) => ({
+    invite_id: row.invite_id,
+    issued_to_contact: row.issued_to_contact,
+    state: creatorInviteState(row, now),
+    expires_at: row.expires_at,
+    redeemed_at: row.redeemed_at,
+    created_at: row.created_at,
+  }));
+  const used = invites.length;
+  return {
+    invites,
+    quota: {
+      max: CREATOR_INVITE_QUOTA,
+      used,
+      remaining: Math.max(0, CREATOR_INVITE_QUOTA - used),
+    },
+  };
 }
