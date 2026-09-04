@@ -145,6 +145,22 @@ const TARGETS = [
     // number and would fail a page that is correct.
     minPanels: 1,
   },
+  // WS-R24: the SAME two screens, with the chrome in Hindi (Devanagari, Noto
+  // Sans Devanagari) instead of English. A separate target rather than a
+  // third `step` on `room` above, because `MIN_CPL`/`MAX_CPL`/`MIN_FONT_PX`
+  // are typeface-and-script-sensitive and a collapsed Devanagari column is
+  // exactly the defect class this whole gate exists to catch - measuring only
+  // the English chrome would leave the follower-facing screen most likely to
+  // actually be read in Hindi unmeasured by this gate entirely.
+  {
+    name: "room-hi",
+    fixture: "room-layout-fixture.html",
+    query: (screen) => `screen=${screen}&lang=hi`,
+    steps: ["join", "talk"],
+    mounted: ".room-shell",
+    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
+    minPanels: 1,
+  },
 ];
 
 /** Every (viewport, target, screen) the run covers. Derived rather than
