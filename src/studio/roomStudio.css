@@ -224,6 +224,27 @@
   .vy-room__checkins-cadence { font-size: var(--text-small); color: var(--ink-soft); }
   .vy-room__checkins-card textarea.field { resize: vertical; min-height: 4.5em; }
 
+  /* Handoff (WS-R20). The one waiting request's own bubble - not a list, by
+     design (`api/_handoff.js`'s "one at a time" law): a bordered block that
+     reads as a quoted message rather than a form field, `.vy-room__checkins-
+     row`'s own tokens so it belongs to the same visual family. */
+  .vy-room__handoff-next {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    margin-top: var(--space-tight);
+  }
+  .vy-room__handoff-payload {
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .vy-room__handoff-card textarea.field { resize: vertical; min-height: 4.5em; }
+
   @media (prefers-reduced-motion: reduce) {
     .vy-room__cap-pill { transition: none; }
     .vy-room__pulse-topic-remove { transition: none; }

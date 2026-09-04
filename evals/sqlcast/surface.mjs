@@ -142,6 +142,15 @@ export const STRICT_SURFACE = [
   /^api\/apply\.js$/,
   /^api\/_invites\.js$/,
   /^api\/invites\.js$/,
+  // WS-R20, Handoff. On the strict list from its first commit, WS-R7's exact
+  // reasoning: the creator-facing queue read and the answer write are both
+  // gated on a hash-match predicate over a follower's own verbatim words, and
+  // a parameter Postgres could not type here does not fail a screen, it
+  // either shows the creator nothing (silently, forever) or lets an
+  // uncast comparison through that the CONSENTED_ONLY predicate depends on
+  // being exact.
+  /^api\/_handoff\.js$/,
+  /^api\/handoff\.js$/,
 ];
 
 export function isStrict(rel) {

@@ -63,7 +63,7 @@ export interface RoomThread {
 }
 
 export interface RoomOpen {
-  room: { slug: string; display_name: string; name: string };
+  room: { slug: string; display_name: string; name: string; handoff_enabled: boolean };
   disclosure: string;
   joined: boolean;
   follower: RoomFollower | null;

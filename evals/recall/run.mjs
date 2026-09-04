@@ -599,6 +599,19 @@ const FATE = {
   // "op":"forget", reached through the follower_id -> vy_room_follower
   // cascade rather than by name.
   vy_room_push_subscription: "forget-only",
+  // ── Handoff (WS-R20; migration 083) ──
+  // A follower's own verbatim ask and the creator's own verbatim reply -
+  // unlike every Room table above, this one DOES hold words (083's own
+  // header names it a deliberate, narrow exception to 071's "never a word"
+  // law). It is "forget-only" for the identical reason every Room table
+  // above is, not because it is content-free: `api/room.js` never calls
+  // `opForget` for ANY Room table (071's own entries state this once for the
+  // whole family), so a scoped "forget priya" has no path to any of them
+  // regardless of what they hold. Only the stronger door may take it: the
+  // account-level whole wipe (lane "relational", proven below) or the
+  // Room's own "op":"forget" (`roomForget`'s explicit room_id+person_id
+  // delete, added in the same change as this migration).
+  vy_room_handoff: "forget-only",
 
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the

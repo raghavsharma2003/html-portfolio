@@ -77,6 +77,12 @@ export function freshState() {
         // than `undefined`.
         paid_monthly_messages: 500,
         paid_monthly_voice_seconds: 1800,
+        // WS-R20 (migration 083): Handoff's own two switches, off by default
+        // exactly as production defaults them - present on every room
+        // fixture from here on so a predicate that reads either always has a
+        // real column rather than `undefined`.
+        handoff_enabled: false,
+        handoff_monthly_cap: 5,
         published_at: "2026-09-01T00:00:00.000Z",
         paused_at: null,
       },

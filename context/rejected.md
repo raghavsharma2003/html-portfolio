@@ -7031,3 +7031,69 @@ file's history is otherwise about (`meera_state`, `vy_disclosure_grant`):
 "the coverage check is only as wide as the thing it enumerates" applies one
 level down, inside a single file, to any function that re-derives its own
 notion of "owner-keyed" from a literal rather than importing the list.
+
+## `ws-r20-fixture-matcher-cannot-span-a-template-literal-linebreak` (2026-09-04, WS-R20)
+
+**What was tried.** `evals/handoff/fixtures.mjs`'s first draft matched
+`_handoff.js`'s owner-scoped room-handle query with a single `has(...)` call
+whose argument was the SELECT column list immediately followed by
+`"from vy_room"`, copied by eye from the real source: `has("select room_id,
+owner_user_id, handoff_enabled, handoff_monthly_cap from vy_room")`.
+
+**What specifically broke.** The real statement is a template literal
+written across several lines for readability, the house style every SQL
+statement in this repo uses:
+
+```js
+`select room_id, owner_user_id, handoff_enabled, handoff_monthly_cap
+   from vy_room
+  where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid
+  limit 1`
+```
+
+The characters between `handoff_monthly_cap` and `from vy_room` are not one
+space, they are a literal newline plus seven spaces of indentation - so the
+fixture's `sql.includes(...)` check, which needs its argument to be an exact
+contiguous substring, could never match the real SQL text no matter how
+faithfully the WORDS were copied. Every call this workstream's own eval made
+against `getHandoffConfig` threw `room_not_found`, which read as a plausible
+"the fixture has no matching room" bug rather than what it actually was - a
+string-matching bug in the fixture's OWN pattern, not in the module under
+test or in the world it was querying.
+
+**Fix.** Split the check into the SAME shape `evals/pulse/fixtures.mjs` and
+`evals/checkins/run.mjs`'s `withCheckins` already use throughout, and which
+this file's own OTHER matchers already followed correctly: several short
+`has(...)` calls ANDed together, each one a phrase guaranteed to sit on a
+single line of the real template literal (`has("handoff_enabled,
+handoff_monthly_cap")`, `has("from vy_room")`,
+`has("owner_user_id = ($1)::uuid and replica_id = ($2)::uuid")`), never one
+long string that assumes where the real source happens to wrap.
+
+**Rule.** A fixture's `sql.includes(needle)` check is only as reliable as
+the assumption that `needle` never crosses a line break in the REAL
+template literal - and multi-line SQL is this repo's own house style, not
+an edge case. Copy a SHORT phrase per `has()` call, one that is visibly
+contained within a single line of the real statement as written in the
+source file (open the source and look, do not retype from memory), and AND
+several of them together rather than pasting one long run of words that
+happens to read correctly to a human eye. `ws-r12-retention-exists-in-select
+-broke-the-leak-batterys-parser` and `ws-r17-count-distinct-person-id-fails-
+the-select-list-text-scan` are this same lesson's two siblings - a checker's
+or a fixture's text-matching assumptions about SQL are a THIRD parser this
+repo maintains beside Postgres's real one and JS's own, and all three can
+disagree about the same string in different ways.
+
+**Adjacent, smaller lesson from the same session, folded in here rather than
+given its own entry.** `evals/handoff/run.mjs`'s `codeOf()` helper initially
+recognised only `HandoffError` (`api/_handoff.js`'s own error class),
+because that is the class every OTHER assertion in the file was checking
+against. `ownedThread` (imported from `api/_room-surface.js`) throws
+`RoomError` instead, for a check this module reuses rather than
+reimplements (a thread that does not belong to the calling follower) - so a
+test asserting `"room_thread_unknown"` got back `"unexpected:room_thread_
+unknown"` and failed even though the REAL code's behaviour was exactly
+right. A shared test helper that classifies errors by `instanceof` has to
+know about every error class the module under test can actually throw,
+including ones imported from a file it calls into, not only the ones it
+defines itself.

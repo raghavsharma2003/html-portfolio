@@ -743,6 +743,154 @@ console.log("\n── layer 5: pulse (opt-in counts never carry a follower token
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// LAYER 6 — HANDOFF (WS-R20, migration 083). The one Room table that
+// deliberately holds a follower's own words (083's own header names the
+// exception). This layer proves the class the workstream brief names:
+// HANDOFF_CONSENTED_ONLY - the only creator-facing SELECT of a follower's
+// text joins on `payload_sha256 = encode(digest(payload_text,'sha256'),
+// 'hex')` and `state = 'sent'`, plus a world check that no unrequested
+// message ever appears in any creator read.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 6: handoff (consented-only creator read) ──");
+
+// (6a) STATIC. The owner-facing functions' own source, read off the file
+// rather than retyped, `(1b)`'s own technique one file over: a change to the
+// shipping predicate is a change this suite sees.
+{
+  const handoffSrc = fs.readFileSync(join(REPO, "api/_handoff.js"), "utf8");
+  const fnBody = (name) => {
+    const m = handoffSrc.match(new RegExp(`export async function ${name}\\([\\s\\S]*?\\n}\\n`));
+    return m ? m[0] : "";
+  };
+  const HASH_PREDICATE = "payload_sha256 = encode(digest(payload_text, 'sha256'), 'hex')";
+
+  const queueBody = fnBody("handoffQueue");
+  ok("handoffQueue is found in api/_handoff.js (not moved/renamed)", Boolean(queueBody));
+  ok("handoffQueue's read of payload_text carries the CONSENTED_ONLY predicate (hash-match AND state='sent')",
+    queueBody.includes(HASH_PREDICATE) && queueBody.includes("state = 'sent'"));
+
+  const answerBody = fnBody("answerHandoff");
+  ok("answerHandoff is found in api/_handoff.js (not moved/renamed)", Boolean(answerBody));
+  ok("answerHandoff's WRITE to a follower's request carries the SAME predicate as the read - not a weaker cousin of it",
+    answerBody.includes(HASH_PREDICATE) && answerBody.includes("state = 'sent'"));
+
+  // Repo-wide: no file outside Handoff's own lane (and the two places that
+  // touch this table only to DELETE it wholesale) ever names vy_room_handoff
+  // - a new creator-facing reader added later must fail this line the day it
+  // is written without also updating it, (1c)'s own ALLOWED-set shape.
+  const ALLOWED = new Set(["_handoff.js", "handoff.js"]);
+  const DELETE_ONLY = new Set(["_replica-full-erasure.js", "_room-surface.js", "memory.js"]);
+  const offenders = [];
+  for (const f of fs.readdirSync(join(REPO, "api"))) {
+    if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
+    const src = fs.readFileSync(join(REPO, "api", f), "utf8");
+    if (!src.includes("vy_room_handoff")) continue;
+    if (!DELETE_ONLY.has(f)) { offenders.push(f); continue; }
+    const lines = src.split("\n").filter((l) => l.includes("vy_room_handoff"));
+    // memory.js only ever names the table in a manifest ENTRY (an object
+    // literal, `{ table: "vy_room_handoff", ... }` or a bare string in
+    // REPLICA_PERSON_TABLES) or a comment. _room-surface.js's `roomForget`
+    // only ever names it in the migration-applied GUARD around its own
+    // delete, the count it assigns off that delete's result, or a comment -
+    // never a SELECT and never anything that could return `payload_text` or
+    // `reply_text`.
+    const SAFE_LINE = new RegExp(
+      "delete from|table:\\s*\"vy_room_handoff\"|^\\s*\"vy_room_handoff\",?\\s*$|^\\s*//" +
+        "|isTableAppliedFor\\(deps\\)\\(\"vy_room_handoff\"\\)|deleted\\.vy_room_handoff\\s*=",
+    );
+    const badLines = lines.filter((l) => !SAFE_LINE.test(l.trim()));
+    if (badLines.length) offenders.push(`${f}:${badLines.join("|")}`);
+  }
+  ok("no file outside Handoff's own lane reads or writes vy_room_handoff (delete-only or manifest-entry-only elsewhere)",
+    offenders.length === 0, offenders.join(","));
+}
+
+// (6b) WORLD CHECK. A real multi-follower world through the REAL handoff
+// module and its own fixture (evals/handoff/fixtures.mjs, wrapping THIS
+// suite's own fakeDb) - every legitimately sent request is admitted, a
+// tampered one is refused by the SAME predicate the static check just read,
+// and a follower's ordinary chat message that was never submitted through
+// send() is proven absent from every creator-facing read, `leakedTokens`
+// (this file's own scanner, not a second one built to pass).
+{
+  process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "r".repeat(48);
+  const { freshHandoffState, handoffDb } = await import(pathToFileURL(join(REPO, "evals/handoff/fixtures.mjs")).href);
+  const { setHandoffConfig, sendHandoffRequest, handoffQueue, answerHandoff } = await import(
+    pathToFileURL(join(REPO, "api/_handoff.js")).href
+  );
+  const { createHash } = await import("node:crypto");
+  const sha256Hex = (s) => createHash("sha256").update(String(s), "utf8").digest("hex");
+
+  const state = freshHandoffState(freshState());
+  const db = handoffDb(state, fakeDb(state));
+  const N = 4;
+  const hUid = (i) => `50000000-0000-4000-a000-${String(i).padStart(12, "0")}`;
+  const askToken = (i) => `TOKHANDOFF_${i}_${"z".repeat(8)}`;
+  const chatToken = (i) => `TOKHANDOFFCHAT_${i}_${"v".repeat(8)}`;
+
+  await setHandoffConfig(db, OWNER, REPLICA_ID, { enabled: true, monthlyCap: 10 });
+  const sessions = [];
+  for (let i = 0; i < N; i++) {
+    const joined = await joinRoom(db, { slug: SLUG, authUserId: hUid(i), ageAttested: true, memoryConsent: true }, { loadAgent });
+    sessions.push(joined.session);
+  }
+  const sent = [];
+  for (let i = 0; i < N; i++) {
+    sent.push(await sendHandoffRequest(
+      db, { session: sessions[i], payloadText: askToken(i), payloadSha256: sha256Hex(askToken(i)) }, { loadAgent },
+    ));
+  }
+  // An UNREQUESTED chat token per follower - never touches vy_room_handoff at
+  // all. Seeded into the fixture's own `state` directly, standing in for an
+  // ordinary DM turn the way layer 2/3's own `msgToken` does.
+  state.unrequestedChat = Array.from({ length: N }, (_, i) => chatToken(i));
+
+  // Tamper follower 1's stored text without touching its hash - the offline
+  // suite's own negative control (a), re-proven here through the room-leak
+  // battery's own scanner rather than a second one built just to pass.
+  const tampered = state.roomHandoffs.find((h) => h.handoff_id === sent[1].handoff_id);
+  tampered.payload_text = "an attacker's substituted words, never consented to";
+
+  // Drain the queue exactly as the owner's client would: read `next`, answer
+  // it, repeat - proving every LEGITIMATE token surfaces exactly once and the
+  // tampered one never does, across the WHOLE creator-facing surface rather
+  // than one snapshot read.
+  const seenInQueue = [];
+  for (let guard = 0; guard < N + 2; guard++) {
+    const q = await handoffQueue(db, OWNER, REPLICA_ID);
+    if (!q.next) break;
+    seenInQueue.push(q.next.payload_text);
+    await answerHandoff(db, OWNER, REPLICA_ID, q.next.handoff_id, { replyText: `answered: ${q.next.payload_text.slice(0, 20)}` });
+  }
+  boundaryChecks++;
+  ok("handoff: every LEGITIMATE follower's ask surfaced in the queue exactly once (3 of 4 - follower 1's is tampered)",
+    seenInQueue.length === N - 1 &&
+      [0, 2, 3].every((i) => seenInQueue.includes(askToken(i))));
+  boundaryChecks++;
+  ok("handoff: the tampered follower's ask NEVER surfaced in the queue, drained or not",
+    !seenInQueue.includes(askToken(1)));
+
+  const finalQueue = await handoffQueue(db, OWNER, REPLICA_ID);
+  boundaryChecks++;
+  ok("handoff: after draining, the tampered row is STILL the only one left unanswerable (queue empty, not stuck open)",
+    finalQueue.next === null);
+
+  const allTokensRaw = [...Array.from({ length: N }, (_, i) => askToken(i)), ...state.unrequestedChat];
+  const creatorSurface = JSON.stringify({ finalQueue, seenInQueue, roomHandoffs: state.roomHandoffs });
+  boundaryChecks++;
+  ok("handoff: no UNREQUESTED chat token ever reaches any creator-facing surface, including the raw table",
+    leakedTokens(creatorSurface, state.unrequestedChat).length === 0);
+  boundaryChecks++;
+  ok("handoff: the scan above is not vacuous - the unrequested tokens really do exist somewhere in this world",
+    leakedTokens(JSON.stringify(state.unrequestedChat), state.unrequestedChat).length === N);
+  boundaryChecks++;
+  ok("handoff: the tampered follower's SUBSTITUTED text never reached the queue's own output either",
+    leakedTokens(JSON.stringify(seenInQueue), ["substituted words"]).length === 0);
+
+  rowChecks += allTokensRaw.length * 2;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log(`\n── verdict ──`);
 for (const w of worldSummaries) {
   console.log(`  N=${String(w.followers).padEnd(3)} followers  ${String(w.turns).padEnd(4)} turns  ${w.checks} retrieval checks`);

@@ -9457,3 +9457,110 @@ argument restated for a simpler predicate.
 **Reversal condition.** None expected: this is a DDL constraint, not a
 judgment call. Would only change if Postgres itself changes what counts as
 IMMUTABLE for a timestamptz-to-date cast, which is not a live prospect.
+
+## `ws-r20-handoff-act-is-inline-not-in-meera-consent` (2026-09-04, WS-R20)
+
+**Decision.** Handoff's disclosure act ("a follower saw exactly this payload
+and said yes to sending it") is recorded INLINE on `vy_room_handoff` itself
+(`sent_at` plus `policy_version`), never as a new row in `meera_consent`.
+
+**Rationale.** `meera_consent` is a boolean ledger by design - migration 016
+and `api/_room-surface.js`'s own `recordRoomConsent` state it directly: "NO
+CONTENT COLUMN and there must never be one." Handoff's whole mechanism is the
+opposite of that: the thing consented to IS the exact content, and a ledger
+that structurally cannot hold it cannot record the act that matters here.
+Bolting a `payload_text` column onto `meera_consent` to make it fit would
+weaken a law written for a reason (a boolean ledger is trivially reasoned
+about; a content-bearing one is not) to serve one caller. The row itself -
+`state='sent'`, `sent_at`, `policy_version` - already IS a timestamped,
+versioned record of the act, addressed by the same primary key the payload
+lives under, so nothing is gained by splitting it across two tables that
+would then need to agree with each other.
+
+**Reversal condition.** If a second Room feature needs the SAME
+"saw-this-exact-content-and-agreed" shape (not merely a boolean grant), that
+is the point to extract a proper CONTENT-BEARING consent primitive rather
+than growing `meera_consent` a second, content-holding shape awkwardly beside
+its boolean one - two callers is the signal that the abstraction is real, one
+is not.
+
+## `ws-r20-creator-reply-never-touches-meera-log` (2026-09-04, WS-R20)
+
+**Decision.** A creator's Handoff reply lives ONLY in
+`vy_room_handoff.reply_text`. It is never inserted into `meera_log` (the
+table `api/_surface.js`'s `logDmTurn`/`dmHistory` and every Room lane's
+`memory.history` read from), under any `role` value.
+
+**Rationale.** `dmHistory`'s mapping is a strict binary: `role === "her" ?
+"assistant" : "user"`. There is no third bucket. A creator's reply written
+with `role='her'` would be read back on the follower's NEXT compiled turn as
+the AI's own prior utterance - exactly the harm the workstream brief names
+("never fed to the model as if the AI said it"). Written with any OTHER role
+value, it would be read back as `"user"` - the FOLLOWER's own prior turn, a
+different but equally real harm the brief does not name but the same binary
+mapping produces. Because `dmHistory` is shared by every DM and Room lane in
+this repo (not something WS-R20 could safely narrow without touching code
+several other workstreams depend on), the only response that does not risk
+either harm is to never let a creator's reply reach that table at all. The
+follower's OWN read of it (`myHandoffs`) is a completely separate query
+against `vy_room_handoff`, so "lands in the follower's private thread" is
+true as a claim about what the follower's CLIENT renders (merged with the
+AI's turns for display), never as a claim about the model's own compile
+context.
+
+**What this deliberately leaves undone.** The brief's own permission ("The
+AI's later replies may cite it as 'what `<Name>` told you' only within that
+follower's scope") is NOT built. Doing so honestly needs its own retrieval
+wiring - a fact or episode row scoped to this one follower, gated through
+`api/_disclosure.js` exactly as every other retrieval in this repo is - not
+a shortcut through `meera_log`'s existing binary. Out of scope for a v0
+whose brief explicitly calls it "the kernel's one law ported as a predicate
+rather than the kernel itself."
+
+**Reversal condition.** The day a workstream deliberately builds that
+retrieval wiring, this decision is superseded by whatever it decides — this
+entry should gain a `supersedes` edge rather than being edited in place.
+
+## `ws-r20-handoff-not-tier-gated` (2026-09-04, WS-R20)
+
+**Decision.** Handoff carries no `tier === 'paid'` predicate anywhere in
+`api/_handoff.js`. Availability is exactly two things: `vy_room.
+handoff_enabled` (the creator's own per-Room choice, default off) and
+`vy_room.handoff_monthly_cap` (a per-follower ceiling, default 5).
+
+**Rationale.** Stated directly in the workstream brief ("Paid only? No") and
+kept as a predicate rather than a comment: `sendHandoffRequest`'s INSERT
+never names `vy_room_follower.tier` at all, so there is no line to
+accidentally delete that would silently re-gate this by money. Unlike
+check-ins (WS-R16, migration 079), which IS paid-only by the plan's own
+design and encodes it as two separate due-select statements rather than a
+JS branch, Handoff has no such split because there is no such gate to split.
+
+**Reversal condition.** If a future owner directive makes Handoff a paid
+perk, the fix is the identical shape check-ins already uses: a `tier`
+predicate inside `sendHandoffRequest`'s own INSERT SELECT (never a JS
+`if` downstream of it), following `context/rejected.md
+#ws-r16-checkins-skip-log-partition-not-a-js-branch`'s own lesson.
+
+## `ws-r20-drafted-state-unused-in-v0` (2026-09-04, WS-R20)
+
+**Decision.** `vy_room_handoff.state`'s CHECK allows `'drafted'`, but no code
+in this workstream ever writes a row in that state. `draftHandoffPayload` is
+PURE (computes text and a hash, writes nothing); `sendHandoffRequest` is the
+only writer and it inserts directly at `state='sent'`.
+
+**Rationale.** The workstream brief describes `draft` as building "the
+verbatim payload" and returning "the exact text and its hash" - a
+computation, not a persisted intermediate. Persisting a `'drafted'` row on
+every payload preview (including ones a follower never sends) would create
+rows this product has no reason to keep and no reader that distinguishes
+them from a real request; the schema still allows the value because a
+future v1 (closer to the GroupAI kernel this ports one predicate of) may
+want a durable draft a follower can return to across sessions, and the CHECK
+constraint should not need a migration on the day that is built.
+
+**Reversal condition.** The day a durable draft is actually needed (a
+follower building a long payload across multiple visits, say), `draft`
+becomes a writer instead of a pure function, and `withdrawHandoffRequest`'s
+existing `state in ('drafted','sent')` clause already accepts the new shape
+with no change.

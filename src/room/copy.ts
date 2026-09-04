@@ -209,4 +209,21 @@ export const ROOM_COPY = {
     pushOffCopy: "Turn on notifications so a due check-in reaches this phone even when the room is closed.",
     pushError: "Could not turn that on. Check your browser's notification permission and try again.",
   },
+
+  handoff: {
+    title: "Ask {name} directly",
+    intro: "You choose exactly what gets sent, you see it before it goes, and only {name} sees your reply.",
+    pickIntro: "Pick one or more of your own messages, or write something new below.",
+    noteLabel: "Or write something new",
+    next: "Review what will be sent",
+    confirmIntro: "This is exactly what will be sent, word for word.",
+    confirmExplain: "{name} will read this and reply here, in this thread, marked as {name}.",
+    send: "Send this",
+    back: "Back",
+    sentConfirm: "Sent. You will see the reply here when it comes.",
+    withdraw: "Take it back",
+    sentStatus: "Sent, waiting on a reply.",
+    withdrawnStatus: "You took this back.",
+    answeredFrom: "From {name}:",
+  },
 } as const;
