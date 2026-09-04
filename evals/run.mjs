@@ -1502,6 +1502,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-paid-tier": "room-paid-tier/run.mjs",
+  // WS-R21. The ops board: `api/_ops.js` (per-Room aggregate counts, never a
+  // follower's words, admitted to evals/room-leak's AGGREGATE_ONLY class),
+  // `api/_sweep-run.js` (the heartbeat every cron in vercel.json now writes,
+  // migration 084's `vy_sweep_run`) and `api/_sweep-schedule.js` (the
+  // staleness math, read from vercel.json's own schedule table rather than
+  // guessed). Five sections: the platform-operator allowlist (pure, no db);
+  // the schedule table against every real cron in this repo; withSweepRun's
+  // start/finish heartbeat and its content-free digest; opsOverview's real
+  // counts and honest empty states over two Rooms (one populated, one
+  // empty); and NEGATIVE CONTROLS (a) a non-allowlisted user is refused
+  // before any db read, (b) an unset allowlist refuses everyone, (c) a
+  // select list with a follower text column appended fails the SAME
+  // aggregate-only parser evals/room-leak/run.mjs runs, (d) a sweep whose
+  // function throws still writes finished_at with outcome 'failed'.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  ops: "ops/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

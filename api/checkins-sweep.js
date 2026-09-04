@@ -10,6 +10,7 @@ import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { sweep } from "./_checkins.js";
 import { loadTeacherAgent } from "./_teachersheet.js";
+import { withSweepRun } from "./_sweep-run.js";
 
 // A model call per due row, so this needs more headroom than drift watch's
 // pure-SQL sweep - bounded well under Vercel's own hard ceiling.
@@ -27,7 +28,8 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
   try {
     const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 50));
-    const summary = await sweep({ db: q, limit, loadAgent: loadTeacherAgent }, Date.now());
+    // WS-R21: the ops board's heartbeat (migration 084).
+    const summary = await withSweepRun(q, "checkins", () => sweep({ db: q, limit, loadAgent: loadTeacherAgent }, Date.now()));
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;

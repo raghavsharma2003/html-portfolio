@@ -5404,6 +5404,60 @@
       "kind": "measurement",
       "title": "Migration 081 applied live; both fair-use ceilings EXPLAIN as join filters on the follower scope index; the voice usage upsert arbitrates on its pkey",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-ops-board-component",
+      "kind": "component",
+      "title": "The platform-operator ops board (api/_ops.js overview + auth gate, api/ops.js thin handler, api/_sweep-run.js heartbeat wrapper, api/_sweep-schedule.js reading vercel.json's own schedule table, migration 084 vy_sweep_run, src/studio/OpsBoard.tsx at /studio?mode=ops) - aggregate-only counts per Room plus a sweeps freshness strip, gated by OPS_OWNER_USER_IDS",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-heartbeat-write-at-start-and-finish",
+      "kind": "decision",
+      "title": "withSweepRun writes vy_sweep_run at start (outcome running) and updates the same row at finish, so a hard-killed invocation is visible as stuck-running rather than absent",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-platform-operator-404-not-403",
+      "kind": "decision",
+      "title": "api/ops.js answers 404, never 403, for both an unset allowlist and a non-allowlisted signed-in user - the board's existence is never disclosed to anyone it is not for",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-sanitize-counts-drops-content-never-stringifies",
+      "kind": "decision",
+      "title": "vy_sweep_run.counts keeps only number/boolean fields (arrays collapse to length); every string and nested object is dropped, never JSON-stringified, so a sweep summary carrying a room_id or an error message can never leak into the heartbeat row",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-per-room-scoped-queries-not-grouped-across-rooms",
+      "kind": "decision",
+      "title": "Every api/_ops.js follower-table read is scoped to one room_id at a time (a loop, not a grouped query) so its select list can be pure count()/sum() and pass evals/room-leak's AGGREGATE_ONLY parser, api/_room-cohorts.js's own precedent and trade",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-consolidate-kill-switch-writes-no-heartbeat",
+      "kind": "decision",
+      "title": "api/consolidate-sweep.js's CONSOLIDATE_KILL early return is not wrapped by withSweepRun, honoring that switch's own already-shipped 'nothing written' comment literally",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-ops-board-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs 15/15 before and after; evals/ops/run.mjs 62/62 offline; evals/room-leak/run.mjs 67/67 after admitting api/_ops.js to AGGREGATE_ONLY (up from 62/62, +5 assertions); context.mjs --check clean",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions",
+      "kind": "rejection",
+      "title": "git stash to get a clean baseline broke: refs/stash is shared across every worktree of the same clone, and a concurrent sibling session's own stash push/pop raced this one, applying WS-R23's uncommitted work into this session's directory instead of this session's own; recovered via git show --stat on the dropped hash plus git reset --hard, no data lost (WS-R23's object stays reachable at 4a486699da59fefe6b8debbc93ac62f301430e76)",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-084-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 084 applied live; every ops board statement is a scoped count or sum on an index; the heartbeat table has no pruning yet",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -10866,6 +10920,61 @@
       "src": "ws-r19-shared-month-key-cross-counter-rollover",
       "rel": "measured_by",
       "dst": "rooms-migration-081-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r21-heartbeat-write-at-start-and-finish",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r21-platform-operator-404-not-403",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r21-sanitize-counts-drops-content-never-stringifies",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r21-per-room-scoped-queries-not-grouped-across-rooms",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r21-consolidate-kill-switch-writes-no-heartbeat",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r21-ops-board-component",
+      "rel": "measured_by",
+      "dst": "ws-r21-ops-board-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r21-per-room-scoped-queries-not-grouped-across-rooms",
+      "rel": "measured_by",
+      "dst": "ws-r21-ops-board-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions",
+      "rel": "caused_by",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r21-heartbeat-write-at-start-and-finish",
+      "rel": "measured_by",
+      "dst": "rooms-migration-084-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r21-platform-operator-404-not-403",
+      "rel": "measured_by",
+      "dst": "rooms-migration-084-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r21-sanitize-counts-drops-content-never-stringifies",
+      "rel": "measured_by",
+      "dst": "rooms-migration-084-live-verification-2026-09-04"
     }
   ]
 }

@@ -9101,3 +9101,130 @@ judgment call that new evidence could revise. This would only reverse if the
 product ever collapses the two ceilings into one combined "usage" number
 with one shared reset moment, at which point the two keys would correctly
 merge back into one by the same logic that split them.
+
+## `ws-r21-heartbeat-write-at-start-and-finish` (2026-09-04, WS-R21)
+
+**Decision.** `withSweepRun` (`api/_sweep-run.js`) INSERTs a `vy_sweep_run`
+row the moment a sweep begins (`outcome='running'`, `finished_at` null) and
+UPDATEs that SAME row when it ends, rather than writing one row once at the
+end from a `finally` block.
+
+**Rationale.** A serverless invocation that runs past its own `maxDuration`
+is hard-killed by the platform; no code of ours runs again, including a
+`finally` block. Write-once-at-the-end would leave NO row at all for a
+hard-killed sweep, which is indistinguishable from "never fired" and is
+exactly the `sound-gate-proved-by-silence` shape this table exists to avoid
+(the ops board's whole reason to exist is that a silently-stopped cron looks
+identical to a working one from the outside). Write-at-start-then-update
+instead leaves a row PERMANENTLY stuck at `outcome='running'` for a
+hard-killed invocation, which is itself the honest signal: the board can
+show "started, never finished" rather than nothing.
+
+**Reversal condition.** None expected under the current platform. This would
+only reverse if Vercel ever exposed a reliable pre-kill hook (a
+`waitUntil`-shaped guarantee that user code runs even on a timeout), at
+which point a single durable write from that hook would carry the same
+information with one less database round trip per sweep.
+
+## `ws-r21-platform-operator-404-not-403` (2026-09-04, WS-R21)
+
+**Decision.** `api/ops.js` answers 404 both when `OPS_OWNER_USER_IDS` is
+unset and when a signed-in caller's id is not on it. Never 403, never a
+different status for the two cases.
+
+**Rationale.** The workstream brief states the law directly: "unset means
+the endpoint answers 404 by name (not 403: the board does not exist for
+anyone else)." A 403 discloses that a protected resource EXISTS; this board
+watches 100 followers and their revenue, and its existence is not something
+a non-operator should be able to infer by the shape of the refusal. `api/
+_ops.js`'s `opsBoardConfigured`/`isOpsOwner` are checked in that order,
+before any database read, so a stranger and a signed-in non-operator get the
+byte-identical answer a probe of a nonexistent route would also get.
+
+**Reversal condition.** This would reverse if the product ever needs
+multiple operator tiers (e.g. a creator's own limited ops view alongside the
+platform operator's full one) where a wrong-tier operator should learn the
+page exists but is not theirs. Until then, one allowlist and one refusal
+shape is the whole mechanism, and adding a second status code without a
+second real use for it would just be a second way to leak the same fact.
+
+## `ws-r21-sanitize-counts-drops-content-never-stringifies` (2026-09-04, WS-R21)
+
+**Decision.** `vy_sweep_run.counts` keeps only top-level number and boolean
+fields off a sweep's own return value; an array collapses to its length;
+every string and nested object is DROPPED, never JSON-stringified into the
+column.
+
+**Rationale.** Several sweeps already shipped in this repo return summaries
+carrying free text (`api/_pulse.js`'s `runPulseSweep` returns
+`error_details: [{room_id, message}]`; `api/consolidate-sweep.js`'s dry-run
+report carries `candidates: [{person_id, ...}]`). A "keep everything, just
+stringify it" digest would have silently written a follower's `room_id` or a
+raw error message carrying interpolated content into a table this migration's
+own header calls content-free by construction, the day one of those sweeps'
+summaries grew a field nobody reviewed for that risk. Dropping non-numeric,
+non-boolean fields makes the leak class structurally absent rather than
+merely un-audited; a dropped field is a visible gap on the board (a count
+that reads 0 or is simply missing), which is a safer failure mode than a
+present-but-wrong value.
+
+**Reversal condition.** If a specific field is ever proven safe and useful
+enough to show on the board (e.g. a closed enum like a sweep's own named
+outcome code), it should be added as an explicit allowed-key list inside
+`sanitizeCounts`, never by switching the default from "drop" to "stringify."
+Evidence that would justify it: a real board user asking for a specific named
+field this digest currently drops, with that field's value space proven
+closed (an enum, not free text) before it is added.
+
+## `ws-r21-per-room-scoped-queries-not-grouped-across-rooms` (2026-09-04, WS-R21)
+
+**Decision.** Every `api/_ops.js` statement that reads `vy_room_follower` (or
+its day-count sibling `vy_room_follower_day`) is scoped to ONE room via
+`where room_id = ($1)::uuid`, issued once per Room in a loop, rather than one
+`group by room_id` statement covering every Room at once.
+
+**Rationale.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser (`§1c`)
+requires every item in a statement's select list to be a bare
+`count(...)`/`sum(...)` expression; a grouped query would need to SELECT the
+grouping key (`room_id`) alongside the aggregates, which is not itself a
+`count()`/`sum()` call and would fail that check even though a room id is
+not follower content. `api/_room-cohorts.js` already made and documented
+this exact trade for the identical reason (its own header names the cost:
+several statements per Room read rather than one). Phase 0 is one creator
+and 100 followers, i.e. one Room, so the N+1 round trips this costs are
+immaterial today.
+
+**Reversal condition.** `api/_room-cohorts.js`'s own header states this
+precisely and it applies here unchanged: if the Room count ever grows enough
+that per-Room round trips make this board slow to matter, replace the loop
+with one grouped query and re-derive the AGGREGATE_ONLY proof for it (the
+parser would need a second, narrower rule permitting exactly one non-aggregate
+grouping-key column, which does not exist today and should not be added
+speculatively).
+
+## `ws-r21-consolidate-kill-switch-writes-no-heartbeat` (2026-09-04, WS-R21)
+
+**Decision.** `api/consolidate-sweep.js`'s `CONSOLIDATE_KILL` early return is
+NOT wrapped by `withSweepRun`; a killed invocation writes no `vy_sweep_run`
+row at all. Every other cron's own disabled/feature-flagged-off branch WAS
+moved inside the heartbeat wrapper (reported as `{disabled:true}`, outcome
+`'ok'`).
+
+**Rationale.** `CONSOLIDATE_KILL`'s own file header states the invariant
+verbatim: "no lag query, no lease, no model call, nothing written." Writing
+a `vy_sweep_run` row would not violate the SPIRIT of that line (a heartbeat
+carries no consolidation content), but it would violate the LETTER of an
+explicit, already-shipped comment promising an emergency kill switch touches
+the database not at all - the safest reading of "nothing written" during an
+active incident is "nothing," not "nothing except an audit row we are
+confident is harmless." The other ten crons' disabled branches (an unset
+feature flag, an unconfigured provider) are a normal, expected, everyday
+state worth a heartbeat; `CONSOLIDATE_KILL` is an emergency lever pulled
+during an incident, a different situation.
+
+**Reversal condition.** If an operator incident ever needed to confirm
+`CONSOLIDATE_KILL` was actually respected on every tick (rather than trusting
+the code), that would justify moving the write inside the kill branch too -
+but it should be done by the person who owns that kill switch, with the
+"nothing written" comment updated in the same change, not as an incidental
+side effect of an ops-board workstream.

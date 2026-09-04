@@ -7778,3 +7778,66 @@ n = 1 migration (13 statements in one transaction), 8 API statements; method = a
 | latest draft genome version | Seq Scan on `vy_replica_voice_genome`, a one-page table whose primary key already leads on replica_id; the planner's choice at this size, not a missing index |
 
 `vy_room_voice_usage` has no erasure line by name: `room_id` and `follower_id` both cascade, so the erasure chain's room and follower deletes take it. Both counters are predicates on the write: a 501st paid message and a clip that would cross the voice ceiling fail the UPDATE's own WHERE, never a JS check. Not measured: no voice clip has been synthesized (`ROOM_VOICE` is unset everywhere; the synth seam was faked in the eval); no paid follower exists live.
+
+## `ws-r21-ops-board-gate-results-2026-09-04` (WS-R21)
+
+**What was measured.** `node scripts/verify-release.mjs` on the untouched
+tree (`ecc8a78`) and again after this workstream's full changeset, both runs
+to completion, no `NEON_URL` in this environment.
+
+| run | result |
+|---|---|
+| untouched tree | 15/15 (14 static gates plus the room leak battery, no relational gates - skipped) |
+| after this workstream | 15/15, identical gate set |
+
+`node evals/ops/run.mjs` standalone: **62/62** offline assertions, five
+sections (the platform-operator allowlist, the schedule table read from
+`vercel.json`, `withSweepRun`'s heartbeat and content-free digest,
+`opsOverview`'s real counts over two Rooms, and the four required negative
+controls a-d), $0, no DB, no network, ~1s.
+
+`node evals/room-leak/run.mjs` standalone, before this workstream: 62/62
+(16,080 retrieval checks, 441 boundary checks per the merge note this
+workstream started from). After admitting `api/_ops.js` to the
+`AGGREGATE_ONLY` class: **67/67** (16,080 retrieval checks unchanged, 446
+boundary checks - the +5 are this workstream's own new assertions inside
+`§1c`: the real followers statement passes, and negative control (c) proves
+a mutated copy with `person_id` or `message_text` appended to the select
+list fails the same parser).
+
+`node scripts/context.mjs --check`: clean both before and after this
+workstream's own append (888 nodes / 1092 edges before this session's
+entries).
+
+**Method.** `verify-release.mjs`'s own printed summary line, read directly
+(not inferred); `evals/ops/run.mjs` and `evals/room-leak/run.mjs` run
+standalone via `node <path>`, their own `pass`/`fail` counters read from
+stdout. Date: 2026-09-04.
+
+**Not measured.** No statement `api/_ops.js` or `api/_sweep-run.js` issues
+has ever run against a live Postgres server (no `NEON_URL` in this
+environment) - every number above is proven against a fake `db`, not
+`EXPLAIN`ed. No real `vy_sweep_run` row has ever been written outside a fake
+`db`. No cron in `vercel.json` has fired against a live deployment carrying
+`withSweepRun` - `CRON_SECRET` is unconfigured in this environment, so every
+wired handler still answers 401 to an unauthenticated probe exactly as
+before this change (unchanged auth path, confirmed by reading each edited
+handler rather than by a live call).
+
+## `rooms-migration-084-live-verification-2026-09-04`
+
+n = 1 migration (10 statements in one transaction), 11 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_sweep-run.js` and `api/_ops.js` issue, parameters substituted with typed literals; date 2026-09-04, at the WS-R21 merge.
+
+| statement | plan |
+|---|---|
+| heartbeat insert / finish update | Insert; Update via `vy_sweep_run_pkey` |
+| latest run per sweep (`distinct on`) | Seq Scan + Sort on `vy_sweep_run` at zero rows; the index `(sweep, started_at desc)` exists and the planner will prefer it once the table has statistics. Open item: the table has no pruning, at eleven sweeps (one every 15 minutes) it grows by roughly 150 rows a day; a retention delete belongs in the helper before Phase 1 |
+| per-Room follower aggregate (total, paid, joined 7d, at cap, voice seconds) | Bitmap Index Scan `vy_room_follower_room_seen_ix` |
+| messages last 24h | Bitmap Index Scan `vy_room_follower_day_scope_ix` with the day bound as an index condition |
+| active check-ins | Bitmap Index Scan on the partial `vy_room_checkin_follower_design_ix` (state = active) with room_id filtered; bounded per Room |
+| deliveries by state, 24h | Bitmap Index Scan `vy_room_checkin_delivery_scope_ix` |
+| subscriptions by state; revenue this month | `vy_room_subscription_room_person_ix`; `vy_payment_event_room_ix` |
+| latest drift state | Index Scan `vy_replica_drift_report_latest_ix` |
+| the Room list | Seq Scan on `vy_room` ordered by created_at; one row per creator, the board's outer loop |
+
+Every select list is counts and sums scoped to one `room_id`; `api/_ops.js` is admitted to the leak battery's aggregate-only class and its parser passes (room-leak 67/67). Not measured: no heartbeat row exists yet; the crons write their first rows when this branch deploys; `OPS_OWNER_USER_IDS` is unset everywhere so the board answers 404.

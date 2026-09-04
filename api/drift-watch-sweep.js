@@ -16,6 +16,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { runDriftWatchSweep } from "./_drift-watch.js";
+import { withSweepRun } from "./_sweep-run.js";
 
 export const config = { maxDuration: 60 };
 
@@ -31,7 +32,10 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
   try {
     const limit = Math.max(1, Math.min(200, Number(req.query?.limit) || 50));
-    const summary = await runDriftWatchSweep({ db: q, limit });
+    // WS-R21: the ops board's heartbeat (migration 084). Wraps the call, not
+    // the response - `summary` is returned to the caller byte-identical to
+    // before this change.
+    const summary = await withSweepRun(q, "drift-watch", () => runDriftWatchSweep({ db: q, limit }));
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;

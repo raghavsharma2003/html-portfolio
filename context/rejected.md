@@ -6887,3 +6887,55 @@ workstream's own brief does not spend the same twenty minutes re-grepping a
 dead lead. If `api/_clonechannel.js` ever DOES grow a `voiceEngine` export,
 this entry's claim becomes stale and should be superseded rather than
 trusted.
+
+## `ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions` (2026-09-04, WS-R21)
+
+**What was tried.** To get a clean untouched-tree baseline for
+`verify-release.mjs` (the common brief's own instructed step) without a
+second checkout, this session ran `git stash -u` in its worktree
+(`.claude/worktrees/ws-r21-ops-board`) to set aside its own uncommitted
+changes, ran the gate, then ran `git stash pop` to bring them back.
+
+**What broke.** `git stash pop` restored a COMPLETELY DIFFERENT changeset:
+files this session never touched (`api/_replica.js`, `api/replica.js`,
+`site/vyakti.html`, `src/studio/StudioApp.tsx`, `src/studio/replicaApi.ts`)
+plus new files belonging to a "creator invites" feature
+(`api/_invites.js`, `db/migrations/086_creator_invites.sql`,
+`src/studio/InviteGate.tsx`). `git show --stat` on the hash `git stash pop`
+printed as dropped identified it directly: a merge commit titled
+"On ws-r23-creator-invites: ws-r23 wip". Root cause: `git worktree`s of the
+same clone share ONE underlying `.git` directory, and `refs/stash` is a
+single ref in that shared directory - it is NOT per-worktree the way the
+working tree and index are. Sometime between this session's `stash -u` and
+its `stash pop`, another concurrent agent session (working WS-R23 in ITS OWN
+worktree) ran its own `git stash`, which pushed onto the SAME shared stack
+and became `stash@{0}`, silently demoting this session's own stash to
+`stash@{1}`. `git stash pop` always pops the top of the stack, so it applied
+and dropped WS-R23's entry into THIS session's working directory instead of
+this session's own. This session's real stash was still safely sitting one
+position down; it had not been lost, only shadowed for one command.
+
+**What was done.** Recovered without touching WS-R23's data: `git show
+--stat <the-dropped-hash>` confirmed what had actually been applied; `git
+reset --hard ecc8a78` plus `git clean -fd` on the specific leaked
+paths discarded WS-R23's uncommitted work from THIS working directory only
+(never committed anywhere, so nothing of theirs was lost - the object stays
+reachable by hash: `4a486699da59fefe6b8debbc93ac62f301430e76`, an ordinary
+git object, not garbage-collected merely by no longer being listed in `git
+stash list`); `git stash pop` a second time then correctly restored this
+session's OWN changes (the stash stack's only remaining entry).
+
+**The rule.** Never use `git stash` to get a clean baseline in this
+environment - concurrent sibling sessions share the stash stack of the same
+repository clone across every worktree, and a stash push/pop race can apply
+one session's uncommitted work into another's directory with no error and no
+warning, distinguishable only by manually diffing the file list against what
+you expect. To get an untouched-tree baseline instead: check out the target
+commit into a genuinely separate directory (a fresh `git worktree add` at a
+temp path, or a plain `git clone`), never a stash inside a worktree another
+session might also be using. If a stash mistake like this ever happens
+again: `git show --stat <hash>` on whatever `stash pop`/`stash drop` prints
+identifies whose work it actually was before doing anything else with it,
+and the commit stays recoverable by that hash even after `git stash drop`
+removes it from `git stash list` (it survives at least as long as no `git
+gc --prune` runs).
