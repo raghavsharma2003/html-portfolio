@@ -292,8 +292,15 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // SAME follower's own phone number - never a creator-facing read, never a
   // scan across followers, `api/_checkins.js`'s own admission one row below
   // for the identical shape of reason.
+  // WS-R37 (at the merge): `api/_renewals.js`'s follower due-select joins
+  // `vy_room_follower` for ONE column, that follower's own `locale`, so the
+  // renewal notice is worded in the language they chose - the live EXPLAIN
+  // refused the workstream's `r.locale` (no such column on `vy_room`; the
+  // fake db could not know). The row is delivered back to THAT SAME follower
+  // and to nobody else, `_checkins.js`'s own admission shape above.
   const ALLOWED = new Set([
     "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
+    "_renewals.js",
   ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention

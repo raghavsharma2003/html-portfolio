@@ -8778,3 +8778,23 @@ is what makes the signature widening (`opts` inserted as the second
 positional argument) a pure addition rather than a behaviour change for
 any existing caller - see
 `context/decisions.md#ws-r37-cancelSubscription-widened-in-place`.
+
+## `rooms-migration-099-live-verification-2026-09-04`
+
+n = 1 migration (16 statements in one transaction, plus 1 unique index added at the merge), 13 API statements plus the two erasure deletes; method = the three subscription tables' columns read first (`state`, `current_period_start`, `current_period_end` present on all three, `cancel_at_period_end` on none), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, the catalog read back (the composite primary key, the subject-kind and channel CHECKs, the three-lane CHECK, three FKs with `on delete cascade`, three partial indexes on the reminder table, one `(state, current_period_end)` partial index per subscription table, `cancel_at_period_end boolean default false` on all three), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_renewals.js` runs and every read `api/_payments.js`, `api/_creator-tier.js`, `api/_org.js` widened, parameters substituted with typed literals; date 2026-09-04, at the WS-R37 merge over the WS-R36 tip 072cd26.
+
+| statement | plan |
+|---|---|
+| follower due-select as written by WS-R37 | refused: `column r.locale does not exist` (`rejected.md#ws-r37-room-locale-does-not-exist-the-fake-db-passed-it`) |
+| follower due-select after the fix (`join vy_room_follower f`, `f.locale`) | Anti Join over `vy_room_subscription_due_ix` (state and the 7-day window as the index condition, `not cancel_at_period_end` as the filter), `vy_room_pkey`, `vy_room_follower_pkey`, `vy_room_price_room_ix`, the NOT EXISTS as an Index Only Scan on `vy_renewal_reminder_pkey` |
+| creator and org due-selects | the same Anti Join shape over `vy_creator_subscription_due_ix` / `vy_org_subscription_due_ix` (+ `vy_org_pkey`) |
+| reminder insert | Insert with `vy_renewal_reminder_pkey` as the conflict arbiter, `DO NOTHING` |
+| `sent_at` and `reason` updates by `reminder_id` | Seq Scan as written (the composite pkey cannot serve it); Index Scan on `vy_renewal_reminder_id_ix` after the index added at the merge |
+| cancel update per subscription table | pkey, one row |
+| cancel lookups (live subscription by follower / owner+replica / org) | `vy_room_subscription_follower_ix`, `vy_creator_subscription_owner_replica_ix`, the org index, state as the filter, `limit 1` |
+| `renewedUnaskedCount` | Aggregate over a Left Join: Bitmap on `vy_creator_subscription_replica_live_ix` with the renewed predicate as the filter, the reminder by `vy_renewal_reminder_pkey` on `(subject_kind, ...)` with `channel = 'in_app'` in the index condition |
+| widened status reads | the follower, owner-replica and org indexes as before, one added column each |
+| `roomForget`'s reminder delete | Index Scan on `vy_renewal_reminder_room_person_ix` |
+| erasure delete (follower lane by room, creator lane by owner+replica) | BitmapOr of the pkey's `subject_kind` prefix and `vy_renewal_reminder_owner_replica_ix`, the Room list as a hashed SubPlan on `vy_room_owner_ix` |
+
+Not measured: no reminder row exists; the daily sweep has never fired live (`vercel.json` cron `0 */24 * * *`); no renewal notice has reached a real Telegram chat or push subscription; Razorpay's `cancel_at_cycle_end` has never been called (WS-R41); nobody has seen the subscription panel or the studio's cancel controls in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).

@@ -499,8 +499,21 @@ console.log("\n── §7: NEGATIVE CONTROL (c) — a follower's reminder carrie
   // there is no follower-authored text anywhere in this file's own scope.
   ok("api/_renewals.js never reads meera_log (no conversation content in scope)", !src.includes("meera_log"));
   ok("api/_renewals.js never reads vy_room_thread (no thread titles in scope)", !src.includes("vy_room_thread"));
-  ok("api/_renewals.js never reads vy_room_follower (no cross-follower table in scope - this is also why it needs no room-leak allowlist entry)",
-    !src.includes("vy_room_follower"));
+  // At the merge (2026-09-04) the live EXPLAIN refused the follower
+  // due-select's `r.locale` (no such column on `vy_room`; a follower's
+  // locale lives on `vy_room_follower`, WS-R24). So this file now names
+  // `vy_room_follower` EXACTLY ONCE: a join by the follower's own
+  // `follower_id` that selects `f.locale` and nothing else - one column of
+  // one row, delivered back to that same follower. The room-leak battery
+  // admits `_renewals.js` to ALLOWED for that shape (`_checkins.js`'s own
+  // reason). A second reference, or a select list reaching any other `f.`
+  // column, fails here.
+  const followerRefs = src.match(/vy_room_follower\b/g) || [];
+  ok("api/_renewals.js names vy_room_follower exactly once (the locale join, nothing else)", followerRefs.length === 1);
+  ok("the one vy_room_follower reference is a join by the follower's own follower_id",
+    /join vy_room_follower f on f\.follower_id = s\.follower_id/.test(src));
+  const fCols = [...src.matchAll(/\bf\.([a-z_]+)/g)].map((m) => m[1]).filter((c) => c !== "follower_id");
+  ok("the only follower column the due-select reads is locale", fCols.length === 1 && fCols[0] === "locale");
   const webpushSrc = readFileSync(join(REPO, "api/_push/webpush.js"), "utf8");
   const renewalPayloadFn = webpushSrc.slice(webpushSrc.indexOf("export function renewalPushPayload"));
   ok("renewalPushPayload's own body never mentions a date, an amount or a message", !/date|amount|message|body/i.test(renewalPayloadFn.slice(0, 400)));

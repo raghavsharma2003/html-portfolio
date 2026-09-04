@@ -3986,6 +3986,8 @@ create index if not exists vy_renewal_reminder_owner_replica_ix
   on vy_renewal_reminder (owner_user_id, replica_id) where owner_user_id is not null;
 create index if not exists vy_renewal_reminder_org_ix
   on vy_renewal_reminder (org_id) where org_id is not null;
+create unique index if not exists vy_renewal_reminder_id_ix
+  on vy_renewal_reminder (reminder_id);
 
 create index if not exists vy_room_subscription_due_ix
   on vy_room_subscription (state, current_period_end) where current_period_end is not null;

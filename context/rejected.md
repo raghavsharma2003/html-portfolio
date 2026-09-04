@@ -7885,3 +7885,11 @@ literally - the scanner cannot tell documentation from a query, on
 purpose (that is the whole point of scanning source text rather than a
 parsed AST), and neither should the person writing the comment assume it
 can.
+
+## `ws-r37-room-locale-does-not-exist-the-fake-db-passed-it` (2026-09-04, at the WS-R37 merge)
+
+**Tried:** `dueReminders`' follower select joined `vy_room r` and read `r.locale` so the renewal notice could be worded in the follower's language, deliberately keeping `vy_room_follower` out of `api/_renewals.js` so the file needed no room-leak admission (its own negative control asserted the absence). The offline suite passed 52/52 because `evals/renewals/run.mjs`'s fake db fabricates the row from a `rooms` fixture that carries a `locale`.
+
+**What broke:** the first live `EXPLAIN` at the merge refused the statement with `column r.locale does not exist`. A locale is a follower's choice (WS-R24, migration 086) and lives on `vy_room_follower`; `vy_room` never had one. The fifth shipped instance of `offline-mocks-cannot-type-check-sql`: the fixture mirrored the author's belief about the schema, not the schema.
+
+**Fix:** the select joins `vy_room_follower f on f.follower_id = s.follower_id` and reads `f.locale` alone; `api/_renewals.js` is admitted to the leak battery's ALLOWED set for that one-row-back-to-its-own-follower shape (`_checkins.js`'s reason), and the workstream's negative control was replaced by three tighter ones (the table is named exactly once, the reference is that join by the follower's own id, the only `f.` column read is `locale`). A second finding from the same EXPLAIN pass: `recordAndSend`'s two updates by `reminder_id` seq-scanned because the primary key is the composite `(subject_kind, subject_id, period_end, channel)`; a unique index on `reminder_id` was added to 099 and the schema mirror and applied live. Rule: a column a fixture returns is a claim, and only the live EXPLAIN checks it.

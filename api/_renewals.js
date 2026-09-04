@@ -162,10 +162,11 @@ export async function dueReminders(db, now = Date.now()) {
   const followerRows = await db(
     `select s.follower_id as subject_id, s.room_id, s.person_id,
             s.current_period_end as period_end,
-            r.slug, r.display_name, r.locale,
+            r.slug, r.display_name, f.locale,
             p.follower_price_inr as amount_inr, coalesce(p.currency, 'INR') as currency
        from vy_room_subscription s
        join vy_room r on r.room_id = s.room_id
+       join vy_room_follower f on f.follower_id = s.follower_id
        left join vy_room_price p on p.room_id = s.room_id
       where s.state = 'active'
         and s.cancel_at_period_end = false

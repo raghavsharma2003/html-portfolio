@@ -146,6 +146,11 @@ create index if not exists vy_renewal_reminder_owner_replica_ix
 create index if not exists vy_renewal_reminder_org_ix
   on vy_renewal_reminder (org_id)
   where org_id is not null;
+-- Added at the merge (2026-09-04): `recordAndSend` marks `sent_at` and
+-- `reason` by `reminder_id` alone, and the composite primary key cannot
+-- serve that lookup (the live EXPLAIN showed a sequential scan).
+create unique index if not exists vy_renewal_reminder_id_ix
+  on vy_renewal_reminder (reminder_id);
 
 -- ── the due-select's own index need ────────────────────────────────────────
 --

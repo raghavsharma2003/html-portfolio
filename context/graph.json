@@ -6460,6 +6460,18 @@
       "kind": "rejection",
       "title": "api/_renewals.js's own header comment named vy_room_follower/vy_room_thread in prose while explaining it never touches them, and the leak battery's file-level scan (prose, not only SQL) flagged it. Reworded to describe the tables without spelling either literal name.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-099-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 099 applied live and read back; the three due-selects plan as anti joins on the new due indexes, the follower one only after the locale moved to the follower row, and the reminder updates only after a reminder_id index",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-room-locale-does-not-exist-the-fake-db-passed-it",
+      "kind": "rejection",
+      "title": "The follower due-select read r.locale from vy_room, which has no locale; the fake db fabricated the column and the live EXPLAIN refused it",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12967,6 +12979,31 @@
       "src": "ws-r37-renewed-unasked-n-is-renewed-total",
       "rel": "supersedes",
       "dst": "ws-r30-renewed-unasked-honest-zero"
+    },
+    {
+      "src": "ws-r37-due-select-is-per-subject-not-per-channel",
+      "rel": "measured_by",
+      "dst": "rooms-migration-099-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r37-cancel-is-a-flag-separate-from-state",
+      "rel": "measured_by",
+      "dst": "rooms-migration-099-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r37-renewed-unasked-n-is-renewed-total",
+      "rel": "measured_by",
+      "dst": "rooms-migration-099-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r37-room-locale-does-not-exist-the-fake-db-passed-it",
+      "rel": "measured_by",
+      "dst": "rooms-migration-099-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r37-room-locale-does-not-exist-the-fake-db-passed-it",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
     }
   ]
 }
