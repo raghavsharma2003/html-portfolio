@@ -185,6 +185,33 @@ const TARGETS = [
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
     minPanels: 1,
   },
+  // WS-R48. Suites' own B2B front door. Unlike every target above, this page
+  // needs no signed-in fixture at all: it is a public, static page (no
+  // React, no /api stub) that only redirects to /studio, which is already
+  // measured elsewhere in this file. So its fixture is served straight from
+  // `site/`, not `dist/` — the ONE target in this file with `dir: "site"` —
+  // rather than adding it as a vite build entry for a page that ships no
+  // build step by design (site/suites.html's own header names that rule).
+  // `steps` is the locale, not a screen: "en" and "hi" are the SAME page at
+  // `?lang=hi`, site/suites.html's own toggle, `room-hi`'s own pattern one
+  // target up.
+  {
+    name: "suites",
+    dir: "site",
+    fixture: "suites.html",
+    query: (locale) => (locale === "hi" ? "lang=hi" : ""),
+    steps: ["en", "hi"],
+    // Scoped to the ACTIVE locale wrapper only (`.locale:not([hidden])`),
+    // never the bare `.hero, section` selector: both locale blocks sit in
+    // the DOM at once (the toggle sets `[hidden]`, never removes a node),
+    // so an unscoped count would read the same total on `en` and `hi`
+    // regardless of whether the Hindi block actually un-hid — exactly the
+    // "a check that saw nothing must not report OK" failure this gate's own
+    // header names, one layer down from a collapsed column.
+    mounted: ".locale:not([hidden])",
+    panels: ".locale:not([hidden]) .hero, .locale:not([hidden]) section",
+    minPanels: 2,
+  },
 ];
 
 /** Every (viewport, target, screen) the run covers. Derived rather than
@@ -206,6 +233,22 @@ function serveDist() {
     try {
       const body = await readFile(path);
       res.writeHead(200, { "content-type": MIME[extname(path)] || "application/octet-stream" });
+      res.end(body);
+      return;
+    } catch {
+      // fall through to the `site/` fallback below
+    }
+    // WS-R48: `site/suites.html` (and, by the same rule, any future page in
+    // this file's `dir: "site"` shape) is a plain static file `npx vite
+    // build` never writes to `dist/` — it is copied there only by
+    // `scripts/vercel-build.sh`, which this gate does not run. Serving it
+    // straight from `site/` on a `dist/` miss lets the ONE static-page
+    // target in this file work without adding a fake vite entry for a page
+    // that ships no build step on purpose.
+    try {
+      const sitePath = join(ROOT, "site", url.pathname === "/" ? "index.html" : url.pathname.slice(1));
+      const body = await readFile(sitePath);
+      res.writeHead(200, { "content-type": MIME[extname(sitePath)] || "application/octet-stream" });
       res.end(body);
     } catch {
       res.writeHead(404).end("not found");
@@ -425,16 +468,20 @@ async function main() {
     console.log("  skip  layout readability: dist/ absent, run `npx vite build` first");
     return 0;
   }
-  // Not a skip, for EITHER target. A fixture is a build input; if one is
-  // missing, the gate has been silently disabled for that surface, and
-  // silently disabled is how the first version of this gate failed.
-  const absent = TARGETS.filter((t) => !existsSync(join(DIST, t.fixture)));
+  // Not a skip, for ANY target. A fixture is a build input (or, for a
+  // `dir: "site"` target, a plain static file this gate serves straight
+  // from `site/` — see serveDist()'s own comment); if one is missing, the
+  // gate has been silently disabled for that surface, and silently disabled
+  // is how the first version of this gate failed.
+  const fixtureRoot = (t) => (t.dir === "site" ? join(ROOT, "site") : DIST);
+  const absent = TARGETS.filter((t) => !existsSync(join(fixtureRoot(t), t.fixture)));
   if (absent.length) {
     console.log(
-      `FAIL  layout readability: ${absent.map((t) => `dist/${t.fixture}`).join(", ")} missing.`,
+      `FAIL  layout readability: ${absent.map((t) => `${t.dir === "site" ? "site" : "dist"}/${t.fixture}`).join(", ")} missing.`,
     );
-    console.log("        They are vite inputs in vite.config.ts and the only way this gate can");
-    console.log("        see the signed-in screens. Restore them rather than skipping the check.");
+    console.log("        They are vite inputs in vite.config.ts (or, for site/, a checked-in static");
+    console.log("        page) and the only way this gate can see these screens. Restore them rather");
+    console.log("        than skipping the check.");
     return 1;
   }
   let chromium;
