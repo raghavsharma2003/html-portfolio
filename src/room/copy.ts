@@ -221,6 +221,20 @@ const EN = {
     subscribe: "Subscribe",
   },
 
+  /** WS-R30 (migration 093), the OTHER moment the offer belongs: under the
+   *  existing capped screen, never replacing its sentence. Same facts as
+   *  `offer` above, different button because the state is different: a
+   *  capped follower is not choosing to keep a conversation going, they are
+   *  choosing whether to wait for next month or not. No countdown, no
+   *  scarcity - `offer`'s own rule above, restated for this moment. */
+  capOffer: {
+    title: "Skip the wait",
+    body: "Subscribe and keep talking to {name} AI right now, {price} a month.",
+    bodyNoPrice: "Subscribe and keep talking to {name} AI right now.",
+    continue: "Continue next month",
+    subscribe: "Subscribe",
+  },
+
   /** "Let this count" - a follower's own toggle (WS-R17). One plain sentence
    *  of what it means and that it is revocable, never a nudge to turn it on. */
   pulse: {
@@ -269,6 +283,51 @@ const EN = {
     // `withRetry` fills in `{minutes}`/`{s}` from the server's own
     // `retry_after_seconds`.
     rateLimited: "Too many attempts from this connection. Try again in {minutes} minute{s}.",
+  },
+
+  /** WS-R39 (migration 101). One screen: everything a follower can decide
+   *  about themselves. Every string here describes something this file's
+   *  siblings already do (memory consent is `join`'s own answer, changed
+   *  again; channels are the same three controls `checkins` above already
+   *  names; the receipt sentence is `menu`'s own, not repeated here). */
+  account: {
+    open: "Your settings",
+    title: "Your settings",
+    disclosureTitle: "What this room is",
+    memoryTitle: "Memory",
+    memoryOn: "It remembers you.",
+    memoryOff: "It does not remember you.",
+    memoryEnable: "Remember me",
+    memoryDisable: "Stop remembering me",
+    localeTitle: "Language",
+    channelsTitle: "Check-ins",
+    channelsNote: "Where a due check-in can reach you.",
+    subscriptionTitle: "Subscription",
+    subscriptionFree: "You are on the free plan.",
+    subscriptionPrice: "{price} a month.",
+    subscriptionRenews: "Renews {date}.",
+    // WS-R37's cancel op is not always in this tree. Shown only when there is
+    // no way to act on the subscription from here - never a claim that one is
+    // coming.
+    subscriptionNoCancel: "Cancelling from here is not available yet. Contact the creator to cancel.",
+    subscriptionStates: {
+      created: "Your subscription has not been confirmed yet.",
+      authenticated: "Your subscription is being set up.",
+      active: "You are a paid follower.",
+      paused: "Your subscription is paused.",
+      cancelled: "Your subscription has ended.",
+      expired: "Your subscription has ended.",
+    },
+    dataTitle: "Your data",
+    close: "Close",
+  },
+
+  /** WS-R39: the Room's own quarterly nudge - a plain sentence, never a nag,
+   *  shown only once `{date}` is 90 days old or more (`AccountPage.tsx`'s own
+   *  pure function decides when, this file only holds the words). */
+  settingsReminder: {
+    note: "You have not looked at your settings since {date}.",
+    review: "Review your settings",
   },
 
   checkins: {
@@ -436,6 +495,14 @@ const HI: typeof EN = {
     subscribe: "सब्सक्राइब करें",
   },
 
+  capOffer: {
+    title: "इंतज़ार छोड़ें",
+    body: "सब्सक्राइब करें और अभी {name} AI से बात जारी रखें, {price} प्रति महीना।",
+    bodyNoPrice: "सब्सक्राइब करें और अभी {name} AI से बात जारी रखें।",
+    continue: "अगले महीने जारी रखें",
+    subscribe: "सब्सक्राइब करें",
+  },
+
   pulse: {
     on: "इसे गिनने दें",
     off: "गिना गया",
@@ -473,6 +540,40 @@ const HI: typeof EN = {
     tooLong: "यह एक संदेश में जितना हो सकता है उससे ज़्यादा लंबा है।",
     // WS-R26, Hindi: same fact, minutes as a digit; Hindi needs no plural marker, so {s} is absent.
     rateLimited: "इस कनेक्शन से बहुत ज़्यादा कोशिशें हुईं। {minutes} मिनट बाद फिर कोशिश करें।",
+  },
+
+  account: {
+    open: "आपकी सेटिंग्स",
+    title: "आपकी सेटिंग्स",
+    disclosureTitle: "यह रूम क्या है",
+    memoryTitle: "याददाश्त",
+    memoryOn: "यह आपको याद रखता है।",
+    memoryOff: "यह आपको याद नहीं रखता।",
+    memoryEnable: "मुझे याद रखें",
+    memoryDisable: "मुझे याद रखना बंद करें",
+    localeTitle: "भाषा",
+    channelsTitle: "चेक-इन",
+    channelsNote: "बकाया चेक-इन आप तक कहां पहुंच सकता है।",
+    subscriptionTitle: "सब्सक्रिप्शन",
+    subscriptionFree: "आप मुफ़्त प्लान पर हैं।",
+    subscriptionPrice: "{price} प्रति महीना।",
+    subscriptionRenews: "{date} को नवीनीकरण होगा।",
+    subscriptionNoCancel: "यहां से रद्द करना अभी उपलब्ध नहीं है। रद्द करने के लिए क्रिएटर से संपर्क करें।",
+    subscriptionStates: {
+      created: "आपका सब्सक्रिप्शन अभी पुष्ट नहीं हुआ है।",
+      authenticated: "आपका सब्सक्रिप्शन सेट हो रहा है।",
+      active: "आप एक पेड फॉलोअर हैं।",
+      paused: "आपका सब्सक्रिप्शन रोका गया है।",
+      cancelled: "आपका सब्सक्रिप्शन खत्म हो गया है।",
+      expired: "आपका सब्सक्रिप्शन खत्म हो गया है।",
+    },
+    dataTitle: "आपका डेटा",
+    close: "बंद करें",
+  },
+
+  settingsReminder: {
+    note: "आपने {date} से अपनी सेटिंग्स नहीं देखीं।",
+    review: "अपनी सेटिंग्स देखें",
   },
 
   checkins: {

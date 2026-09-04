@@ -54,6 +54,9 @@ export interface RoomFollower {
   voice_seconds_used: number;
   voice_seconds_included: number;
   voice_seconds_left: number;
+  // WS-R39 (migration 101). `null` for a follower who has never opened
+  // their own settings page.
+  settings_reviewed_at: string | null;
 }
 
 export interface RoomSpoken {
@@ -287,3 +290,55 @@ export const whatsappOptIn = (session: string, phone: string) =>
 
 export const whatsappStop = (session: string) =>
   post<{ subscribed: boolean; state: string }>({ op: "whatsapp_stop", session });
+
+// ── the follower's own page (WS-R39, migration 101) ────────────────────────
+// One composed read for the account page: memory consent (via `follower`,
+// already on this type), the three check-in channels' status, the room's
+// price, any open cap-reached offer, and when this page was last reviewed.
+// Subscription STATE is deliberately not part of this shape — the page reads
+// it through the EXISTING `paymentStatus` op (roomPayApi.ts) instead, `api/
+// _room-surface.js`'s own header explains why.
+export interface RoomSettingsChannelPush {
+  subscribed: boolean;
+}
+export interface RoomSettingsChannelWhatsapp {
+  available: boolean;
+  subscribed: boolean;
+  state: "active" | "stopped" | "failed" | null;
+  phone_masked: string | null;
+}
+export interface RoomSettingsChannelTelegram {
+  connected: boolean;
+  checkins_enabled: boolean;
+  stopped: boolean;
+}
+export interface RoomSettingsOffer {
+  reason: "cap_reached";
+  shown_at: string;
+}
+export interface RoomSettingsPrice {
+  price_inr: number;
+  currency: string;
+}
+export interface RoomSettings {
+  room: { slug: string; name: string; display_name: string };
+  disclosure: string;
+  locale: "en" | "hi";
+  follower: RoomFollower;
+  settings_reviewed_at: string | null;
+  channels: {
+    push: RoomSettingsChannelPush;
+    whatsapp: RoomSettingsChannelWhatsapp;
+    telegram: RoomSettingsChannelTelegram;
+  };
+  price: RoomSettingsPrice | null;
+  /** The one OPEN `cap_reached` offer, if any — `null` otherwise. A
+   *  `session_worked` offer never appears here; it already reached the
+   *  client on the turn that earned it (`RoomTurn.offer`). */
+  offer: RoomSettingsOffer | null;
+}
+
+export const roomSettings = (session: string) => post<RoomSettings>({ op: "settings", session });
+
+export const markSettingsReviewed = (session: string) =>
+  post<{ settings_reviewed_at: string | null }>({ op: "settings_reviewed", session });
