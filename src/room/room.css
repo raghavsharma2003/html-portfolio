@@ -409,11 +409,24 @@
     line-height: var(--leading-tight);
   }
 
-  .room-join h3 {
+  .room-join h3,
+  .room-receipt h3 {
     margin: var(--space-block) 0 var(--space-tight);
     font-size: var(--text-title);
     font-weight: var(--weight-strong);
     letter-spacing: var(--tracking-heading);
+  }
+
+  /* WS-R27: the forget receipt, an inset panel inside the "gone" screen -
+     one level quieter than the outer .room-gone panel it sits in, since it
+     is a supporting artifact of that screen rather than a second one. */
+  .room-receipt {
+    box-sizing: border-box;
+    margin: var(--space-block) 0 0;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    padding: var(--space-pad);
+    background: var(--panel);
   }
 
   .room-lede,

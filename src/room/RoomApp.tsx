@@ -59,6 +59,7 @@ import {
   slugFromPath,
   type RoomCitations,
   type RoomFollower,
+  type RoomForgetReceipt,
   type RoomOpen,
   type RoomQuota,
   type RoomThread,
@@ -95,6 +96,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [upgrade, setUpgrade] = useState(false);
   const [capped, setCapped] = useState(false);
   const [talkedToday, setTalkedToday] = useState<number | null>(null);
+  // WS-R27: the forget receipt, shown once on the "gone" screen and nowhere
+  // else - there is nothing to look it up by later (law 3), so this is the
+  // only copy this session will ever hold.
+  const [forgetReceipt, setForgetReceipt] = useState<RoomForgetReceipt | null>(null);
   // "Let this count" (WS-R17), per scope (a thread id, or "" for the whole
   // Room). Local-only, optimistic on a successful toggle: the server never
   // told this client whether an old opt-in already existed for a scope, and
@@ -395,6 +400,31 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         <section className="room-gone">
           <h2>{ROOM_COPY.menu.forgetDone}</h2>
           <p className="room-lede">{withName(ROOM_COPY.menu.forgetNote, name)}</p>
+          {/* WS-R27: the receipt, shown here and ONLY here (law 3 - there is
+              nothing to look it up by later). `null` only on a database that
+              has not applied migration 090 yet; the screen above still holds
+              without it. */}
+          {forgetReceipt && (
+            <div className="room-receipt">
+              <h3>{ROOM_COPY.menu.receiptTitle}</h3>
+              <p className="room-fine">{ROOM_COPY.menu.receiptBody}</p>
+              <button
+                type="button"
+                className="room-btn"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(forgetReceipt, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "forget-receipt.json";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                {ROOM_COPY.menu.receiptSave}
+              </button>
+            </div>
+          )}
         </section>
       </main>
     );
@@ -622,7 +652,8 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
           auth={auth}
           follower={room?.follower ?? null}
           onClose={() => setMenu(false)}
-          onForgotten={() => {
+          onForgotten={(receipt) => {
+            setForgetReceipt(receipt);
             setMenu(false);
             setPhase("gone");
           }}
@@ -901,7 +932,7 @@ function DataMenu({
   auth: StudioSession | null;
   follower: RoomFollower | null;
   onClose: () => void;
-  onForgotten: () => void;
+  onForgotten: (receipt: RoomForgetReceipt | null) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -965,8 +996,8 @@ function DataMenu({
                 if (!auth) return;
                 setBusy(true);
                 try {
-                  await forgetRoomData(session, auth.accessToken);
-                  onForgotten();
+                  const result = await forgetRoomData(session, auth.accessToken);
+                  onForgotten(result.receipt ?? null);
                 } catch {
                   setError(ROOM_COPY.errors.generic);
                 } finally {
