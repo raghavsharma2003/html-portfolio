@@ -1880,6 +1880,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
   "suites-self-serve": "suites-self-serve/run.mjs",
+  // WS-R40, migration 102. Share and arrival: the crawler-only unfurl at
+  // /r/<slug> (`api/_room-page.js` over `api/_room-publish.js`'s new
+  // `publicRoomBySlug`), the Room header's share control (a static scan of
+  // `RoomApp.tsx`'s own url builder), the arrival upsert
+  // (`recordRoomArrival`/`resolveArrivalVia`, `api/_room-surface.js`), and
+  // the creator funnel's own n>=5 floored growth line
+  // (`shareArrivalsThisWeek`, `api/_funnel.js`). Also proves `vercel.json`'s
+  // bot rewrite sits ABOVE the existing static one and its `has` regex
+  // matches every named unfurl bot and not an ordinary phone browser. FOUR
+  // NEGATIVE CONTROLS: (a) the share url builder names no follower id,
+  // session, or token, static; (b) a `via` shaped like SQL becomes 'direct'
+  // before it ever reaches SQL; (c) the funnel line below the floor is the
+  // fixed sentence, never a number; (d) a Hindi string with an em dash fails
+  // the real `scripts/check-copy.mjs` scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-share": "room-share/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
