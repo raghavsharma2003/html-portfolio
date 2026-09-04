@@ -8549,3 +8549,66 @@ n = 1 migration (12 statements in one transaction, plus 2 `validate constraint` 
 | erasure delete of combos (and weeks, same shape) | `vy_room_owner_ix` then Bitmap on the combo's room index |
 
 Cost note: the publish plans at a few thousand units per candidate set at zero rows, and it runs per label pair per Room once a week inside the sweep; the title LIKE is a filter under the thread scope index, bounded by one follower's threads per probe. Not measured: no Pulse row exists; no combination has ever been published or suppressed on the live database; nobody has seen the combo card or the weekly note.
+
+## `ws-r37-renewals-gate-results-2026-09-04`
+
+`node scripts/verify-release.mjs`: **16/16 on the untouched tree**
+(confirmed first, via a WIP-commit-and-`git reset --hard`/`--soft` round
+trip, before any file in this workstream's own report was written) and
+**16/16 after** every file in this report, both without `NEON_URL`.
+`node ./node_modules/typescript/bin/tsc -b` (the exact command the
+`typecheck` gate runs): clean, both before and after. `node
+scripts/context.mjs --check`: clean before this session's own append
+(1032 nodes, 1269 edges, 4 documents). `node scripts/check-copy.mjs`: 6
+scopes clean, 21 negative controls, unchanged. `node evals/sqlcast.mjs`:
+166 tables, 811 statements scanned (418 on the strict surface, up from 408
+before `api/_renewals.js`/`api/renewals-sweep.js` were added to it), 0
+conflicts, 0 uncast sites. `node evals/persontables.mjs`: 57 manifest
+entries (up from 56), 133 person-keyed tables in the DDL. `node
+evals/room-leak/run.mjs`: 78/78 (unchanged from the WS-R35 merge's own
+count) - `api/_renewals.js` needed no `AGGREGATE_ONLY`/`ALLOWED` admission
+at all, confirmed by the battery's own static scan finding neither guarded
+table name anywhere in its source (a real defect was found and fixed
+along the way: this workstream's own explanatory comments, in both
+`api/_renewals.js` and the new CTE in `api/_replica-full-erasure.js`,
+originally named the two guarded tables in PROSE and tripped the battery's
+prose-not-only-SQL scan - `rejected.md#ws-r37-explanatory-comments-named-
+the-guarded-tables-and-tripped-the-leak-battery`). `node
+evals/room-export/run.mjs`: 44/44 - the STATIC layer 1 completeness check
+(every `PERSON_TABLES` entry carrying both `room_id` and `person_id` must
+be named by `roomExportManifest()`) covers `vy_renewal_reminder` by
+construction; the DYNAMIC layer 2 world was not extended to seed this
+table (named, not silently skipped - see the final report's "did not
+build" section). `node evals/renewals/run.mjs` (new suite): **52/52**, 7
+sections, 3 negative controls (a second same-day sweep inserts and sends
+nothing; a cancelled or cancel-at-period-end subscription is excluded from
+the due-select; the module's own source and the push payload builder carry
+no follower-authored text, by static scan). `node evals/org/run.mjs`:
+54/54 unchanged (the `orgSubscriptionStatus` SELECT widened by one
+column). `node evals/org-billing/run.mjs`: 40/40 unchanged. `node
+evals/payments/run.mjs`: 62/62 unchanged (`followerSubscriptionStatus`
+widened by one column and a new `vy_room_price` read; the existing
+fixture's generic matchers already covered both). `node evals/phase-gate/
+run.mjs`: unchanged assertion COUNT after this workstream's own edits
+(the §5/§6 sections were rewritten to inject `{tableApplied: async () =>
+false}` so they keep testing the exact pre-wiring honest-zero behaviour
+without this offline suite ever calling the real `tableApplied`, which
+reaches the real database). Total wall time for one full
+`verify-release.mjs` run on this machine: approximately 4.5 minutes, both
+times. One environmental collision hit and resolved during this session,
+not a defect: the `layout readability` gate's `EADDRINUSE:8931` fired on
+the first full-gate run after these changes (a concurrent sibling
+worktree's own gate holding the port); waited for the port to free and
+reran the full gate, which then passed clean.
+
+## `ws-r37-cancelSubscription-caller-count-2026-09-04`
+
+n = 0. Method: `grep -rn "cancelSubscription" .` across the whole
+worktree before widening the provider seam's `cancelSubscription`
+function; the only matches were its own two definitions
+(`api/_payments/providers/{fake,razorpay}.js`) and one mention inside
+`context/decisions.md` prose from a prior session. Date 2026-09-04. This
+is what makes the signature widening (`opts` inserted as the second
+positional argument) a pure addition rather than a behaviour change for
+any existing caller - see
+`context/decisions.md#ws-r37-cancelSubscription-widened-in-place`.

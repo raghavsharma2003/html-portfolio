@@ -10897,3 +10897,156 @@ introduce new withdrawal logic.
 DIFFERENT predicate than v0 (e.g. a grace period before revocation takes
 effect), this decision reverses and withdrawal needs its own tested logic
 rather than borrowed correctness.
+
+## `ws-r37-cancel-is-a-flag-separate-from-state` (2026-09-04, WS-R37)
+
+**Decision.** `cancel_at_period_end` is a NEW, LOCAL boolean column on all
+three subscription tables (migration 099), deliberately separate from
+`state`. Cancelling never writes `state` directly; `state` continues to
+mean exactly what `api/_payments.js`'s own header already says it means -
+"a fact the PROVIDER confirmed" - and only a webhook (`applyWebhook`)
+ever changes it.
+
+**Rationale.** The workstream brief's law 5 requires two things that
+conflict if `state` is the only signal: "the subscription moves to
+cancelled... through the seam" (so a human reading the row should see the
+cancellation is in motion) AND "the Room or seat keeps working until
+period_end" (so nothing may flip `f.tier`/access away early - the follower
+tier-flip predicate in `applyWebhook` fires on `state`, and a provider's
+own cancel-at-cycle-end call does not send a `subscription.cancelled`
+webhook until the period actually ends). A single boolean that is BOTH "is
+this in a state that keeps access" and "will this renew" cannot answer
+both questions at once without either cutting access early or hiding the
+cancellation. Two independent facts get two independent columns.
+
+**Reversal condition.** If a future workstream needs `state` itself to
+carry a distinct "cancelling" value (e.g. because a provider's real
+sandbox turns out to fire an intermediate webhook state for
+cancel-at-cycle-end that this repo has never observed), fold
+`cancel_at_period_end` into `state`'s own vocabulary and update the
+tier-flip predicate to treat it identically to `active` until the period
+ends - do not do this speculatively; it needs a real provider account to
+confirm the intermediate state actually exists.
+
+## `ws-r37-renewed-unasked-n-is-renewed-total` (2026-09-04, WS-R37)
+
+**Decision.** `renewedUnaskedCount`'s `n` (what `MIN_CREATORS_FOR_DATA`
+compares against) is the count of creator subscriptions that have renewed
+at least once (`current_period_start > created_at`), not the count of all
+creators (`creators_total`, still returned as a separate field). The old,
+unwired `renewedUnasked` used `creators_total` as `n` because it had
+nothing else to count.
+
+**Rationale.** "Renewed unasked" is a fact about a RENEWAL, and a creator
+who signed up yesterday has not had one yet - counting them toward `n`
+would let the card claim "enough data" from three brand-new creators who
+have never reached a second billing period, which is exactly the kind of
+denominator mismatch `context/rejected.md`'s no-fake-numbers law warns
+against one level up (a real number, wrongly scoped, reads as more honest
+than a stated `not_enough_data`).
+
+**Reversal condition.** If the product wants "three creators exist at all"
+to be sufficient for the card to render a number (accepting that an
+all-zero `renewed_unasked` from three never-renewed creators is a
+meaningful early signal rather than noise), revert `n` to `creators_total`
+and drop the `created_at < current_period_start` filter from the
+denominator.
+
+## `ws-r37-due-select-is-per-subject-not-per-channel` (2026-09-04, WS-R37)
+
+**Decision.** `dueReminders`' `NOT EXISTS` checks for ANY `vy_renewal_reminder`
+row for `(subject_kind, subject_id, period_end)`, regardless of `channel`.
+Once a subject has been visited once for a period (even if only the
+`in_app` channel succeeded and web push/Telegram were never reached, e.g.
+because no pointer existed at that moment), the sweep never revisits that
+subject for that period again.
+
+**Rationale.** The workstream brief's own words: "the sweep that sends
+reads subscriptions... and have no reminder row, in one select" - a
+per-subject visit, not a per-channel one. This also has to be true for
+`recordAndSend`'s idempotency to compose cleanly with a daily cron: a
+subject visited once a day, on every applicable channel that day, is a
+simpler and more auditable guarantee than "the sweep may return to the
+same subject on a later day to try a channel it skipped," which would
+need its own separate tracking of "channels attempted" distinct from
+"channels succeeded."
+
+**Reversal condition.** If a follower connects Telegram AFTER the sweep
+already visited them (in_app only) for this period, they will not get a
+Telegram reminder for that period - a real, accepted gap. If this proves
+to matter (measured complaint volume, or a product decision that a
+newly-connected channel should be backfilled), change the due-select to
+per-`(subject, period, channel)` and add a channel-availability predicate
+to each - a larger change than this workstream's scope, named here rather
+than built speculatively.
+
+## `ws-r37-renewal-telegram-text-is-not-shared-with-copy-ts` (2026-09-04, WS-R37)
+
+**Decision.** The follower's Telegram renewal message
+(`followerRenewalTelegramText`, `api/_renewals.js`) is its own plain-JS,
+two-locale string builder, not an import from `src/room/copy.ts`. The Room
+panel's own copy (`copy.ts`'s new `subscription` block) states the same
+facts independently.
+
+**Rationale.** `api/` and `src/` are two different runtimes (`api/` ships
+as plain Node serverless functions; `src/` is Vite-bundled TypeScript for
+the browser), and no file in `api/` imports from `src/` anywhere in this
+tree (checked by grep before writing this file). `api/_room-telegram.js`'s
+own cards (`joinedCard`, `adultGateCard`, etc.) are this repo's own
+precedent for exactly this situation: Telegram-shaped copy lives beside
+the Telegram-shaped sender, in plain JS, deliberately not sharing a module
+with the Room's own React copy table.
+
+**Reversal condition.** If this repo ever adds a build step that lets
+`api/` import compiled output from `src/` (or moves shared copy into a
+`.json`/plain-`.js` file both sides can import unbundled), converge the
+two copies through that shared source rather than keeping them
+independently maintained - until then, a change to one must be checked
+against the other by hand, which is a real, accepted cost of the current
+split.
+
+## `ws-r37-cancelSubscription-widened-in-place` (2026-09-04, WS-R37)
+
+**Decision.** `api/_payments/providers/{fake,razorpay}.js`'s existing
+`cancelSubscription(providerSubscriptionRef, secrets)` was widened to
+`cancelSubscription(providerSubscriptionRef, opts, secrets)` (an
+`atCycleEnd` option) rather than adding a second, differently-named
+function for the cycle-end case.
+
+**Rationale.** Grepped before changing it: `cancelSubscription` had ZERO
+callers anywhere in this tree (WS-R11 built it but nothing ever called it -
+"an abandoned mandate-collection flow has no path to re-fetch a fresh
+checkout link" is the only gap that workstream's own final report names,
+and cancellation is a second, separate gap it left unbuilt). Widening a
+function with no existing caller is a pure addition: `opts = {}` defaults
+`atCycleEnd` to `false`, reproducing the exact `cancel_at_cycle_end: 0`
+request body this function has always sent, so no future caller's
+behaviour changes by this workstream's edit.
+
+**Reversal condition.** If a future caller needs BOTH an immediate cancel
+and a cycle-end cancel from different call sites at the same time (this
+workstream only ever calls it with `{atCycleEnd: true}`), that caller
+already has what it needs (`opts.atCycleEnd: false` is the untouched
+original behaviour) - no reversal is anticipated, this is recorded so the
+next reader does not mistake the widened signature for a breaking change.
+
+## `ws-r37-follower-cancel-op-lives-on-room-pay-not-room` (2026-09-04, WS-R37)
+
+**Decision.** The follower's `cancel` op was added to `api/room-pay.js`
+(alongside its existing `subscribe`/`status` ops), not `api/room.js`, even
+though this workstream's own brief names `api/room.js` in its Build list.
+
+**Rationale.** `api/room-pay.js` is where `startFollowerSubscription`/
+`followerSubscriptionStatus` already live, and its own header states why:
+"a different decision module gets a different wire, docs/SURFACES.md's own
+rule for why api/room.js and api/_room.js never merged." Adding `cancel`
+to `api/room.js` instead would put one subscription op on a different HTTP
+door than its two siblings for no reason a caller could be told.
+
+**Reversal condition.** None anticipated; recorded so a future reader
+comparing this workstream's report against its own brief does not read the
+file-list mismatch as an omission rather than a considered substitution -
+`api/payments.js` (creator) and `api/org.js` (Suite) DO carry their own
+`cancel_creator_subscription`/`cancel_subscription` ops exactly as the
+brief named, since those are each the one existing door for their own
+subject kind.

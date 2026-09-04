@@ -6268,6 +6268,72 @@
       "kind": "rejection",
       "title": "publishCombo wrapped uuid constants in min(...) and the fake db passed it; Postgres has no min(uuid) and the live EXPLAIN at the merge refused the statement. Fixed as min(($n)::text)::uuid; a min-wrapped literal is safe only for types Postgres aggregates, and only the live EXPLAIN knows which.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-renewals",
+      "kind": "component",
+      "title": "The renewal reminder ledger (migration 099, vy_renewal_reminder) and the daily sweep (api/renewals-sweep.js): a reminder is a row before it is a message, across three subject kinds (follower/creator/org), with cancel-at-period-end as a first-class op per kind through the payments provider seam, and the phase gate's renewed-unasked number wired to it.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-cancel-is-a-flag-separate-from-state",
+      "kind": "decision",
+      "title": "cancel_at_period_end is a new, local boolean on all three subscription tables, deliberately separate from state, so cancelling never flips access early and state keeps meaning only what the provider confirmed.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-renewed-unasked-n-is-renewed-total",
+      "kind": "decision",
+      "title": "renewedUnaskedCount's n is creators who have renewed at least once, not all creators - a creator who has never reached a second billing period should not count toward enough-data.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-due-select-is-per-subject-not-per-channel",
+      "kind": "decision",
+      "title": "dueReminders' NOT EXISTS checks any reminder row for a subject+period, regardless of channel - one visit per subject per period, never a per-channel revisit.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-renewal-telegram-text-is-not-shared-with-copy-ts",
+      "kind": "decision",
+      "title": "The follower's Telegram renewal message is its own plain-JS two-locale builder in api/_renewals.js, not imported from src/room/copy.ts - api/ and src/ are two different runtimes, api/_room-telegram.js's own cards are the precedent.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-cancelSubscription-widened-in-place",
+      "kind": "decision",
+      "title": "api/_payments/providers/{fake,razorpay}.js's cancelSubscription widened with an atCycleEnd option rather than a second function - it had zero existing callers, confirmed by grep.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-follower-cancel-op-lives-on-room-pay-not-room",
+      "kind": "decision",
+      "title": "The follower cancel op was added to api/room-pay.js (with subscribe/status), not api/room.js as the brief's file list named - docs/SURFACES.md's rule that a different decision module gets a different wire.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-renewals-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 16/16 on the untouched tree and 16/16 after; evals/renewals/run.mjs (new): 52/52; room-leak 78/78 unchanged with no allowlist admission needed; room-export 44/44; sqlcast 0 uncast on 418 strict statements; persontables 57 manifest entries.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-cancelSubscription-caller-count-2026-09-04",
+      "kind": "measurement",
+      "title": "n = 0 callers of cancelSubscription anywhere in the tree before this workstream widened its signature, confirmed by grep.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-sql-comment-backticks-terminate-the-template-literal-a-third-time",
+      "kind": "rejection",
+      "title": "A backtick-quoted identifier inside a SQL comment inside a JS template literal in api/_replica-full-erasure.js closed the JS string early - the third recorded instance of this exact defect shape (WS-R16, WS-R24, now WS-R37). Caught by node --check before any suite ran.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r37-explanatory-comments-named-the-guarded-tables-and-tripped-the-leak-battery",
+      "kind": "rejection",
+      "title": "api/_renewals.js's own header comment named vy_room_follower/vy_room_thread in prose while explaining it never touches them, and the leak battery's file-level scan (prose, not only SQL) flagged it. Reworded to describe the tables without spelling either literal name.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12615,6 +12681,61 @@
       "src": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it",
       "rel": "constrains",
       "dst": "ws-r35-pairwise-check-is-set-vs-single-label"
+    },
+    {
+      "src": "ws-r37-cancel-is-a-flag-separate-from-state",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-renewed-unasked-n-is-renewed-total",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-due-select-is-per-subject-not-per-channel",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-renewal-telegram-text-is-not-shared-with-copy-ts",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-cancelSubscription-widened-in-place",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-follower-cancel-op-lives-on-room-pay-not-room",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-sql-comment-backticks-terminate-the-template-literal-a-third-time",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-explanatory-comments-named-the-guarded-tables-and-tripped-the-leak-battery",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r37-renewals",
+      "rel": "measured_by",
+      "dst": "ws-r37-renewals-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r37-cancelSubscription-widened-in-place",
+      "rel": "measured_by",
+      "dst": "ws-r37-cancelSubscription-caller-count-2026-09-04"
+    },
+    {
+      "src": "ws-r37-renewed-unasked-n-is-renewed-total",
+      "rel": "supersedes",
+      "dst": "ws-r30-renewed-unasked-honest-zero"
     }
   ]
 }
