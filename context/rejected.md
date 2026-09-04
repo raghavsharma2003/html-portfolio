@@ -7329,3 +7329,88 @@ file - search for the CALL SITE's surrounding syntax (the assignment, the
 argument list it is passed inside, or enough of the statement around it)
 instead, and verify by reading the file rather than trusting the search
 string looks unambiguous.
+
+## `ws-r29-429-treated-as-a-generic-4xx-would-have-revoked-a-good-number` (2026-09-04, WS-R29)
+
+**Tried:** the first version of `deliverers.whatsappTemplate`'s outcome
+branching was `if (result.status >= 400 && result.status < 500) { revoke }`,
+the obvious reading of "Meta returned an error, stop sending" without
+singling 429 out.
+
+**What broke:** `evals/room-whatsapp/run.mjs`'s §3 transient-failure test (a
+fake Cloud API returning 429 `rate_limited`) caught it immediately - the
+follower's perfectly valid opt-in was marked `'failed'` and every future
+check-in for them silently stopped, over Meta's own rate limiting rather
+than anything wrong with their number. 429 is numerically inside `[400,500)`
+and reads exactly like "the number is bad" to a range check that does not
+special-case it.
+
+**Now:** 429 is excluded from the revoke range and folded in with 5xx/network
+- no ledger row is written at all, the opt-in is untouched, and the
+occurrence is left for a later attempt. `decisions.md#ws-r29-429-excluded-
+from-the-4xx-revoke-bucket` records the reversal condition.
+
+**The law:** an HTTP status range check written for "client error" is not the
+same question as "this specific input was invalid" - 429 is a client-error
+status about the CALLER'S BEHAVIOUR (too many requests), not the request's
+own content, and folding it into a bucket meant for the latter revokes real
+opt-ins on ordinary rate limiting.
+
+## `ws-r29-meta-wire-phone-format-vs-stored-e164-mismatch` (2026-09-04, WS-R29)
+
+**Tried:** `replyWithRoomLink`'s lookup compared `vy_room_follower_
+whatsapp.phone_e164` (stored WITH a leading "+", migration 092's own CHECK
+constraint) directly against Meta's inbound `messages[].from`, which per
+Meta's Cloud API is digits only - no "+" - the exact convention `api/
+whatsapp.js`'s own `chatKey` already uses everywhere on that wire.
+
+**What broke:** the comparison would NEVER match in a real deployment - a
+follower replying to a check-in template would get silence instead of the
+one deterministic auto-reply line, always, on every real inbound message,
+while every OFFLINE test that seeded its fixture phone number with a "+"
+already baked in (matching itself) would pass regardless. This is exactly
+the shape `offline-mocks-cannot-type-check-sql` warns about one layer up
+from SQL: a fixture that mirrors the bug it should catch proves nothing.
+Caught only because `evals/room-whatsapp/run.mjs`'s §4 deliberately modelled
+the payload's `from` field on Meta's REAL documented shape (digits only)
+rather than reusing the "+"-prefixed constant already in scope from §1.
+
+**Now:** the inbound phone is normalised to "+"-prefixed before the lookup
+(`replyWithRoomLink`), and the STORED "+"-prefixed number has its "+"
+stripped before it becomes an outbound `to` field (`sendTemplate`) - the
+storage format (E.164, unambiguous) and Meta's own wire format (digits only)
+are bridged at exactly the two seams that cross between them, never
+conflated into one.
+
+**The law:** a test fixture that constructs its OWN input to already match
+the code under test is not exercising the code, it is restating it - always
+build the negative case (here: Meta's real, differently-shaped wire value)
+FROM the external system's own documented format, not from a constant
+already sitting in scope.
+
+## `ws-r29-duplicate-fixture-row-for-a-primary-keyed-table-hid-a-stale-find` (2026-09-04, WS-R29)
+
+**Tried:** simulating "a follower's opt-in comes back after a 4xx revoke" in
+`evals/room-whatsapp/run.mjs`'s §3 by PUSHING a second row into the fixture's
+`waOptins` array for the same `follower_id`, rather than mutating the
+existing one.
+
+**What broke:** `vy_room_follower_whatsapp` has `PRIMARY KEY (follower_id)`
+in the real schema - there is never more than one row per follower - and the
+fixture's own `.find()` lookups (both the production code's `activeWhatsapp
+Follower` matcher AND this suite's own assertion) return the FIRST array
+match. With two rows sharing both `follower_id` AND the same `phone_e164`,
+the assertion's own `.find()` silently returned the STALE ('failed') row
+instead of the freshly revived one, and the test failed for a reason that
+had nothing to do with the code under test - the fixture had drifted from
+the schema's own uniqueness constraint it exists to stand in for.
+
+**Now:** re-activation mutates the SAME row object in place (`row.state =
+"active"`), the fixture's own honest mirror of the real table's `on conflict
+(follower_id) do update` - `optIn`'s own upsert shape, restated in the test
+double rather than only in the production code.
+
+**The law:** a fixture for a table with a real uniqueness constraint must
+enforce that constraint itself (one row per key, ever) - a fixture that
+allows what the schema forbids does not merely fail to catch a bug, it can
+manufacture a false failure that looks like one.
