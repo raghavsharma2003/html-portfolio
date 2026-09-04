@@ -96,6 +96,7 @@ const NOT_A_STANDALONE_PANEL = new Set([
   "HandoffCard.tsx",   // mounted INSIDE RoomStudio.tsx, same as CheckinsCard above
   "SuiteCard.tsx",     // WS-R28: mounted INSIDE RoomStudio.tsx (`import SuiteCard from "./SuiteCard"`), same as the two above; the orphan check caught it at the wave-seven merge, which is the check working
   "PayoutsCard.tsx",   // WS-R36: mounted INSIDE RoomStudio.tsx (`import PayoutsCard from "./PayoutsCard"`), same as the three above; the orphan check caught it while this workstream still had it uncommitted, which is the check working.
+  "InviteCreatorCard.tsx", // WS-R47: mounted INSIDE RoomStudio.tsx (`import InviteCreatorCard from "./InviteCreatorCard"`), same as the four above; the orphan check caught it while this workstream still had it uncommitted, which is the check working.
 ]);
 
 // `main.tsx` is the Vite entry point, not a component: `.tsx` extension only
