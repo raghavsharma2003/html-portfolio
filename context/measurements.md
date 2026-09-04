@@ -8873,3 +8873,91 @@ worktree's own gate run and was reconfirmed passing standalone both times
 after the port freed. `node evals/run.mjs`: every suite including the new
 `room-doors`, 0 failures. `node scripts/check-copy.mjs`: 6 scopes clean, 21
 negative controls. `node scripts/context.mjs --check`: clean.
+
+## `ws-r48-gate-results-2026-09-04`
+
+**What.** `node scripts/verify-release.mjs`, WS-R48 (Suites sell
+themselves), run twice: once on the untouched tree at commit `321a0fd` (an
+isolated `git worktree add --detach` clone, never this session's own
+working tree, so nothing this workstream wrote could contaminate the
+baseline) and once on the full tree after every file in this workstream's
+final report.
+
+**Method.** Baseline: `npm install --no-audit --no-fund`, `CI=1 node
+scripts/write-config.mjs --stub`, `node evals/echosim/build.mjs`, `node
+scripts/verify-release.mjs`. The layout readability check lost the port
+race to a concurrent sibling worktree's own gate run (`EADDRINUSE:8931`,
+this machine runs many workstreams' gates at once) both times; each time it
+was reconfirmed by polling until the port freed, then running `node
+scripts/check-layout.mjs` alone.
+
+**Result.**
+- Untouched tree (321a0fd, isolated worktree): 16/16 of the non-layout
+  checks passed; `check-layout.mjs` run standalone once the port freed
+  passed at 698 prose blocks across `studio:feed/meet/deploy`,
+  `studio:shell:feed/meet/deploy`, `room:join/talk/account`,
+  `room-hi:join/talk/account` - **17/17 confirmed**.
+- This workstream's tree: 16/16 of the non-layout checks passed on the
+  first full run; `check-layout.mjs` alone (after the port freed) found 28
+  findings on the FIRST run against `site/suites.html` (24 grid-track
+  waste findings on `.for-list`/`.floor` list items whose trailing text had
+  no wrapping element for a 2-column grid to place a second item into, 4
+  `LONG` findings on `.hero p.fine` exceeding 115 characters-per-line at
+  tablet width with no `max-width`), both fixed (wrap each list item's
+  trailing content in a `<span>`; add `max-width: 46ch` to `.hero p.fine`),
+  then reconfirmed clean at **812 prose blocks** across the same four
+  targets plus the new `suites:en/hi` target - **17/17 confirmed**.
+- `node evals/run.mjs` (every registered suite, including the new
+  `suites-self-serve`): 0 failures on the second run. The FIRST run found
+  one real regression this workstream's own comment caused: `room-leak
+  battery` at 77/78, `api/_apply.js` failing "no file outside the allowed
+  set reads the Room's follower/thread tables" because a new header comment
+  named `vy_room_follower`/`vy_room_thread` IN PROSE while explaining that
+  the file touches neither - the exact defect shape logged three times
+  before this session (`context/rejected.md#ws-r28-leak-battery-scanner-
+  matches-prose-not-only-sql` and its later repeats); fixed by paraphrasing
+  around the literal names, reconfirmed at 78/78.
+
+**n.** One baseline run, one final run, both full-tree; `suites-self-serve`
+itself ran standalone repeatedly during development (final state: 60/60).
+
+## `ws-r48-suites-self-serve-offline-eval-2026-09-04`
+
+**What.** `node evals/suites-self-serve/run.mjs` — the price/seat-bound
+mirror between `site/suites.html` and `api/_org.js` (parsed from both real
+files), the self-serve flow through the REAL `createOrg` +
+`startOrgSubscription` with the fake payments seam, the apply-intent
+(`submitApplication`/`suiteIntentApplicationsThisWeek`),
+`suitesFunnelThisWeek`'s rolling-7-day window, three required negative
+controls, and a static wiring proof over `main.tsx`/`SuiteCard.tsx`/
+`vercel.json`/`scripts/vercel-build.sh`/`api/_ops.js`.
+
+**Method.** Offline, deterministic, $0, no database, no network, no real
+payment provider, no GPU, no model call. Drives the real `api/_org.js`,
+`api/_payments.js`, `api/_apply.js`, `api/_funnel.js` and
+`api/_payments/providers/fake.js` through hand-written fake `db` functions
+matching on real SQL statement text (never a re-implementation of the
+decision logic); `src/studio/startSuiteDraft.ts`'s pure
+`sanitizeStartSuiteDraft` is bundled with `esbuild` from the real source
+(the `evals/room-account/run.mjs` bundling recipe) and driven directly.
+
+**Result.** 60 assertions, 60 passed, 0 failed, on this workstream's final
+tree. Includes: the fake provider's own deterministic reference recomputed
+independently to prove the EXACT price (`seats * SUITE_SEAT_PRICE_STARTER_INR`)
+that reached the seam; a static source-order proof that `providerFor(...)`
+(which throws for the `none` default) runs strictly before the only
+`provider.createSubscription(...)` call in `startOrgSubscription`'s own
+body; the CHECK bounds on `vy_org.seat_limit`/`vy_org_subscription.seats`
+extracted from `db/schema.sql` by regex (never re-typed) and enforced by a
+standalone fake-db CHECK emulator, independent of `createOrg`'s own JS
+guard.
+
+**n.** One run recorded here; run repeatedly during development, always
+converging on 60/60 after each fix.
+
+**NOT PROVEN.** No statement in migration 107 has ever executed against a
+live Postgres (no `NEON_URL` in this environment). No real
+`vy_creator_application.intent` value or `vy_room.org_attached_at` value
+exists outside a fake `db`. No human has ever seen `site/suites.html`
+render in a real browser, clicked "Start a Suite", or completed a sign-in
+round trip through it. `scripts/relcheck.mjs` did not run (no `NEON_URL`).

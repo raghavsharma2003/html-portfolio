@@ -11399,3 +11399,156 @@ a dual-stack routing quirk observed in production logs), or if a future
 door ever accepts an address from a request-controlled field rather than a
 platform header, canonicalize before hashing and log the incident that
 proved the path.
+
+## `ws-r48-suite-price-mirrored-with-a-marker-comment-not-imported` (2026-09-04, WS-R48)
+
+**Decision.** `site/suites.html` (Suites' own B2B landing page) states two
+per-seat prices and three seat-count bounds. Neither is typed as a fresh
+literal: each sits next to an HTML comment naming the exact `api/_org.js`
+export it mirrors (`// mirror of api/_org.js#SUITE_SEAT_PRICE_STARTER_INR`,
+the workstream brief's own required marker), and the page's own JS
+price-estimate block repeats the same comment beside each constant a second
+time. `evals/suites-self-serve/run.mjs` §1 parses BOTH files (a regex over
+`export const NAME = ...` in `api/_org.js`, a regex over the marker comment
+plus the rendered figure in `site/suites.html`) and fails if the two ever
+disagree, rather than trusting either source to stay honest on its own.
+
+**Rationale.** `site/vyakti.html`'s own header already states the reason
+this page cannot `import` from `api/_org.js`: it ships no build step
+(self-contained, `<style>`/`<script>` inline, no bundler), so the ONLY way
+its own numbers can agree with the server's is a text convention a test can
+verify, never a runtime import. WS-R42 (a sibling workstream, running at
+the same time) is building a repo-wide mirrored-constant gate around
+exactly this marker shape; this page's comments are written to that
+convention from the first commit rather than needing a follow-up rewrite.
+
+**Reversal condition.** If `site/suites.html` (or any future static Vyakti
+page) ever gains a real build step (a bundler, a template compiler) that
+can import a JS module directly, replace the mirror with a real import and
+delete the comment convention for that page - the marker exists only
+because no import is possible here, not because a comment is preferred to
+one.
+
+## `ws-r48-self-serve-writes-through-existing-suitecard-never-a-new-door` (2026-09-04, WS-R48)
+
+**Decision.** "Start a Suite" adds NO new HTTP endpoint, NO new op on
+`api/org.js`, and NO new function in `api/_org.js`/`api/_payments.js`. The
+self-serve flow calls the SAME `createSuite`/`startSuiteSubscription`
+(`src/studio/orgApi.ts`) the existing manual "Create Suite" / "Start Suite
+subscription" controls in `SuiteCard.tsx` already call, from a new
+`useEffect` in that same file that fires once with a stored draft instead
+of a click.
+
+**Rationale.** The brief's own words: "reuse SuiteCard.tsx and orgApi.ts;
+one new entry route" - the entry route is a FRONT-END problem (getting a
+name and a seat count from a marketing page, across a sign-in redirect,
+into a place that already knows how to act on them), not a backend one.
+WS-R28's `createOrg` and WS-R33's `startOrgSubscription` already carry
+every predicate this flow needs (seat bounds, admin-is-the-creator, the
+provider seam, the "none" refusal); a second write path would be a second
+place those predicates could drift from the first, the exact risk
+`api/_ops.js`'s own "aggregate-only" reuse-not-rederive convention exists
+to avoid one layer over.
+
+**Reversal condition.** If the self-serve flow ever needs a step the manual
+Suite card does not (payment method collection before creation, a
+multi-step wizard state machine), build that as a genuine new capability
+with its own door and its own offline eval - do not stretch this effect
+into carrying logic `SuiteCard.tsx`'s manual path was never designed to
+share.
+
+## `ws-r48-start-suite-draft-in-localstorage-not-carried-through-oauth` (2026-09-04, WS-R48)
+
+**Decision.** `src/studio/startSuiteDraft.ts`'s `restoreStartSuiteDraft()`
+captures `?start_suite=1&suite_name=...` into `localStorage` and strips it
+from the URL, called once in `main.tsx` BEFORE React mounts - never passed
+through a Google OAuth redirect's own query string, and never read back
+from the URL by `SuiteCard.tsx` either (it reads storage via
+`takeStartSuiteDraft()`).
+
+**Rationale.** `src/studio/studioAuth.ts`'s `restoreStudioMode()` already
+proved, in this exact codebase, that a value which must survive a sign-in
+redirect cannot rely on that redirect: "that would work only if the value
+survives the provider's redirect allow list, which is configured outside
+this repo... a fix whose correctness lives in someone else's dashboard is
+not a fix." A Suite's name and seat count are the identical shape of
+problem one field over, so this workstream reused the identical fix rather
+than re-deriving (and possibly re-breaking) it.
+
+**Reversal condition.** If Supabase's OAuth redirect is ever confirmed (by
+a real test against the live provider) to preserve arbitrary extra query
+parameters end to end, the localStorage round trip becomes unnecessary
+convenience rather than a requirement - but `restoreStudioMode()`'s own
+finding says this has already been tested once and failed, so removing it
+needs a fresh confirmation, not an assumption that this time is different.
+
+## `ws-r48-org-attached-at-is-a-new-column-not-vy-room-updated-at` (2026-09-04, WS-R48, migration 107)
+
+**Decision.** "Suite seats attached this week" (the ops board's own new
+line, `api/_funnel.js`'s `suitesFunnelThisWeek`) reads a new, dedicated
+`vy_room.org_attached_at` column, written only by `attachRoom`'s own UPDATE
+and cleared only by `detachRoom`'s - never `vy_room.updated_at`, which
+`api/_room-publish.js`'s publish/pause/price-change writers and
+`api/_org.js`'s own `detachRoom` all also touch.
+
+**Rationale.** A weekly count built on `updated_at` would over-count: a Room
+attached to a Suite months ago that gets published, paused or re-priced
+THIS week would read as "attached this week" even though its Suite
+membership is unrelated and much older. The workstream brief permitted
+migration 107 "only if needed"; this is the case that needed it - no
+existing column can answer the question honestly.
+
+**Reversal condition.** If a future migration adds a general per-Room audit
+log (an events table recording every state transition with its own
+timestamp), `org_attached_at` becomes a redundant projection of that log
+and could be derived from it instead of stored directly - but until such a
+log exists, this is the cheapest honest signal available.
+
+## `ws-r48-no-n-gte-5-floor-on-suite-or-application-counts` (2026-09-04, WS-R48)
+
+**Decision.** `suitesFunnelThisWeek`'s two numbers (Suites started, seats
+attached) and `suiteIntentApplicationsThisWeek`'s one number carry NO n>=5
+floor, unlike Pulse's follower-topic counts (WS-R17/WS-R35).
+
+**Rationale.** The n>=5 floor exists to stop a Suite ADMIN from re-deriving
+one specific FOLLOWER out of a small shared bucket of that follower's own
+words or behaviour (`context/decisions.md`'s own Pulse entries). None of
+these three counts describes a follower: one counts organisations
+(`vy_org` rows), one counts Rooms joining an organisation
+(`vy_room.org_attached_at`), and one counts applications from prospective
+CREATORS (`vy_creator_application`, a platform-lane table with no person
+column at all, migration 086's own header). This is the identical shape
+`api/_ops.js`'s pre-existing `whatsappSpendThisMonth` and
+`api/_funnel.js`'s own `stalled_at` counts already carry with no floor -
+both count deliveries and replicas, never a follower, and both are shown to
+the PLATFORM OPERATOR alone (`OPS_OWNER_USER_IDS`-gated), never to a Suite
+admin or a creator.
+
+**Reversal condition.** If a future version of this line is ever exposed to
+a narrower audience than the platform operator (a Suite admin's own board,
+say), and the resulting bucket could realistically be small enough to name
+a specific organisation or applicant a viewer should not be able to single
+out, add the same floor Pulse uses and log the reversal here.
+
+## `ws-r48-apply-intent-is-a-new-column-not-the-audience-field` (2026-09-04, WS-R48, migration 107)
+
+**Decision.** "Someone who wants to talk first" about a Suite sets
+`intent:"suite"` in a NEW `vy_creator_application.intent` column (`not null
+default 'creator'`, `check (intent in ('creator','suite'))`), not the
+existing free-text `audience` field.
+
+**Rationale.** `audience` already means "who is your audience" on the
+existing creator application form (WS-R23); repurposing it to also carry
+"why are you applying" would make it lossy for every future reader of this
+table (the operator's own `list` op, `api/_ops.js`'s eventual application
+board) on BOTH questions at once. A real column with a closed set of two
+values is unambiguous and directly countable
+(`suiteIntentApplicationsThisWeek`'s own `where intent = 'suite'`), which a
+substring search over free text would not be.
+
+**Reversal condition.** If a third application "intent" is ever needed
+(an agency enquiry distinct from both a solo creator and a Suite, say),
+widen the CHECK's set rather than inventing a second column - the same
+drop-then-add pattern this migration itself used (migration 096's own
+precedent) keeps it a one-column, one-CHECK design rather than a column per
+intent.
