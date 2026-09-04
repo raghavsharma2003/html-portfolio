@@ -316,7 +316,19 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // proves out, one aggregate function wider (see the `min` addition to the
   // parser just below). A future edit that selected a follower's own column
   // here fails this line the same way it would in any other admitted file.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js"]);
+  // WS-R30's conversion moment (`api/_phase-gate.js`, migration 093) reads
+  // `vy_room_follower`/`vy_room`/`vy_room_thread` two ways: `sessionWorked`'s
+  // `follower_scope`/`thread_scope` CTEs read ONE follower's own row via
+  // `where f.room_id = ($1)::uuid and f.person_id = ($2)::uuid` (never
+  // grouped), with every selected value wrapped in `min(...)` - a WHERE-
+  // scoped single row's own value read back through an aggregate function is
+  // exactly WS-R25's `min(joined_at)` precedent, applied to `tier` and
+  // `month_message_count` instead of `joined_at`; `conversionReport`'s
+  // eligible/paying read is scoped the same `where room_id = ($1)::uuid` way
+  // every sibling above already proves out. A future edit that selected a
+  // follower's own column unwrapped, or grouped across rooms, fails this
+  // line the same way it would in any other admitted file.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js", "_phase-gate.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
