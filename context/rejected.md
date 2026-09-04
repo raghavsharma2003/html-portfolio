@@ -8438,3 +8438,125 @@ columns encode a MEANING (a split, in this case) that the new case does not
 share, widening the CHECK is available mechanically while still being the
 wrong design, and the fix is a new table shaped by the SAME reasoning,
 never a forced fit into the old one.
+
+## `ws-r41-webpush-decoder-required-rs-equal-record-length`
+
+**What was tried.** `decryptPayload` (`api/_push/webpush.js`) required the
+`aes128gcm` header's declared `rs` field to equal `record.length` exactly
+(`if (record.length !== rs) throw ...`), and `evals/room-push/run.mjs`'s §1
+round trip always drove that exact-match case (both `encryptPayload` and
+`decryptPayload` used this file's own single default, `rs = record.length`,
+so the check never disagreed with itself).
+
+**What broke.** Feeding the decoder RFC 8291 Appendix A's own published
+vector — `rs = 4096`, an actual (single, last) record of 58 bytes — as
+`evals/room-push/run.mjs` §7 (WS-R41) now does, threw
+`webpush_record_length_mismatch` on a byte-perfect, correctly-derived
+ciphertext. `datatracker.ietf.org/doc/html/rfc8291` §4 (fetched
+2026-09-04): "rs... MUST... be... greater than the sum of the lengths of
+the plaintext, the padding delimiter (1 octet), any padding, and the
+authentication tag" — `rs` is a documented CEILING, and Appendix A's own
+worked example deliberately exercises the case where the actual record is
+far smaller than it (a fixed, round `rs` regardless of message size is the
+near-universal real-world convention this file had never been tested
+against). The decoder's exact-match requirement would reject any real
+encoder using that convention even when every cryptographic byte was
+correct — a correctness bug hiding behind a security-shaped error code.
+
+**What closed it.** `decryptPayload` now accepts `record.length <= rs`
+(still refusing `record.length > rs`, which is the genuine "declared fewer
+bytes than the wire actually carries" attack the original check was
+protecting against) and `encryptPayload` gained `opts.recordSize` so a
+caller can choose a ceiling above the exact default, reproducing RFC 8291
+Appendix A's own `rs = 4096` byte-for-byte. See
+`context/decisions.md#ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-
+not-exact-length` for the full reasoning and the negative controls that
+prove the widened check still refuses a genuinely too-small `rs`.
+
+**The law.** A round-trip eval that drives both the encoder's and the
+decoder's SAME default settings can prove the two sides agree with each
+other without proving either side agrees with the standard both claim to
+implement — `evals/room-push/run.mjs`'s own §1 vs. §7 is now the concrete
+example of the difference this repo's `context/` has cited abstractly since
+`ws-r22-rfc-8291-known-answer-vector-from-memory`.
+
+## `ws-r41-tg-reply-to-message-id-is-pre-bot-api-7-0`
+
+**What was tried.** Nothing new was tried; this was found reading the
+existing `api/tg.js` under this workstream's brief (verify every seam
+against the provider's own document). `tgExtra()` built
+`{reply_to_message_id: msg.replyTo}` for every threaded reply this file
+sends, and had done so since the file was first written.
+
+**What broke.** `core.telegram.org/bots/api-changelog`, fetched 2026-09-04:
+Bot API 7.0, shipped 2023-12-29, "Added the class ReplyParameters and
+replaced parameters reply_to_message_id and allow_sending_without_reply"
+across `sendMessage` and every other send method; `core.telegram.org/bots
+/api#replyparameters` confirms the replacement's own shape
+(`message_id` nested inside a `reply_parameters` object). No current Bot
+API reference page this session could reach lists `reply_to_message_id` as
+a valid `sendMessage` parameter any more. Because `api/tg.js`'s own header
+already documented "NOT exercised, and it cannot be from here: every
+send() path — no outbound Bot API call has ever been made," no offline eval
+could have caught this: `evals/mp/tgbot.mjs` asserts on the SHAPE this file
+builds (`sent.some((s) => s.extra?.reply_to_message_id)`), which passed
+because it was checking the wiring against itself, not against Telegram's
+own current contract.
+
+**What closed it.** `tgExtra()` now sends `reply_parameters: {message_id}`;
+`evals/mp/tgbot.mjs`'s own assertion updated to match (that eval needs a
+live Postgres this session does not have, so the updated assertion is
+unrun here — flagged in the final report rather than claimed proven).
+
+**The law.** A field name copied once into working code and never
+exercised against the real API can go stale for YEARS without any local
+signal — the offline eval that "proves" the shape is only proving
+self-consistency with a copy of the same assumption. Where a provider
+publishes a changelog (Telegram's is unusually explicit: "replaced
+parameter X with Y"), reading it once per workstream that touches the seam
+is cheaper than carrying a silently-dead field indefinitely.
+
+## `ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways`
+
+**What was tried.** Verifying three more marks against their providers'
+own documents: `api/tg.js`'s `setMessageReaction` body shape against
+`core.telegram.org/bots/api`, and `api/_payments/providers/razorpay.js`'s
+`updateSubscriptionQuantity`/`registerFundAccount`/`sendPayout` OPERATION
+pages (method + path + request-parameter table, as opposed to the entity/
+schema pages that WERE reachable) against `razorpay.com/docs`.
+
+**What broke, two different ways.** Telegram's entire Bot API reference —
+every type and every method — lives on ONE page. Every fetch of
+`#setmessagereaction` or `#reactiontypeemoji` (four attempts, differently
+worded prompts) returned content truncated inside "Available types",
+before the "Available methods" section that would carry `setMessageReaction`
+even begins; the URL fragment does not change what this session's fetch
+tool retrieves, only where the summarizing pass is told to look inside
+whatever it already has, which was never far enough in. Razorpay's docs
+site behaves oppositely: every guessed operation URL and URL+fragment
+combination for "update a subscription" or "fetch/create a fund account/
+payout" (seven distinct attempts:
+`/docs/api/payments/subscriptions/` with four different fragments,
+`/docs/api/payments/subscriptions/update`, `/docs/us/api/payments/
+subscriptions`, `/docs/api/x/fund-accounts/fetch-by-id/`) either 404s or
+silently resolves to the SAME small "Plans Entity" reference page
+regardless of the requested slug — the signature of a client-routed SPA
+whose real content this tool's plain fetch cannot reach past whatever
+static shell or fallback route the server returns first.
+
+**What closed it.** Nothing did, honestly — both marks stay open, per law
+5, with the specific attempts and the specific reason named in the code
+comment next to each (`api/tg.js`'s header, `api/_payments/providers/
+razorpay.js`'s `updateSubscriptionQuantity`/`registerFundAccount`/
+`sendPayout` headers), rather than either flipped without evidence or left
+with a stale "no fetch was performed" note next to work that in fact was.
+
+**The law.** "Fetch the provider's page" is not always a single tool call
+that either succeeds or 404s cleanly — a very large single-page reference
+(Telegram's) and a client-rendered documentation SPA (Razorpay's) both
+degrade SILENTLY into content that looks like an answer (a truncated
+excerpt; an unrelated-but-real page) rather than an obvious failure. The
+defence used here was cross-checking: multiple differently-worded fetches
+of the same nominal target, and for Telegram in particular, treating a
+consistent truncation point across four attempts as evidence of a tool
+limit rather than retrying a fifth time expecting a different result.

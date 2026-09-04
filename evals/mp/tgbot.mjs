@@ -453,8 +453,11 @@ ok("reply-to-her routes to speak", replied.action === "speak", replied.reason);
 const atMention = await drive(turn(TG.anjali, `${TAG}@MeeraBot kya scene hai`));
 ok("@bot mention routes to speak", atMention.action === "speak", atMention.reason);
 ok(
+  // WS-R41 (2026-09-04): api/tg.js's tgExtra() now sends `reply_parameters:
+  // {message_id}`, not the pre-Bot-API-7.0 `reply_to_message_id` — see that
+  // function's own header for the doc citation.
   "she replies in the room, threaded to the message she answered",
-  sent.some((s) => s.extra?.reply_to_message_id),
+  sent.some((s) => s.extra?.reply_parameters?.message_id != null),
 );
 ok("her own reply is logged with role='her' and NO speaker person", true);
 const [herRow] = await q(

@@ -12186,3 +12186,138 @@ own `period_end` from it instead, and this decision is superseded. Until
 then, reconciling an OLD period can report a false Suite finding if
 attachment changed since - stated plainly as NOT PROVEN for any period but
 the most recent one.
+
+## `ws-r41-whatsapp-cloud-api-shapes-verified-bind-mark-stays-open` (2026-09-04, WS-R41)
+
+**Decision.** `api/whatsapp.js`'s request/response SHAPE claims (the GET
+handshake, the `X-Hub-Signature-256` HMAC scheme, the text and reaction
+message bodies, the 24-hour customer-service window) are flipped from
+self-consistent-but-unverified to verified against Meta's own documents.
+`bindWhatsappClone`'s own NOT VERIFIED mark is left standing, reworded to
+say precisely why no document can settle it.
+
+**Rationale.** `developers.facebook.com/docs/graph-api/webhooks/getting-
+started`, `.../whatsapp/cloud-api/reference/messages`, `.../whatsapp/cloud-
+api/messages/reaction-messages` and `.../whatsapp/pricing` (all fetched
+2026-09-04) match this file's implementation field for field, including one
+place a first, more general doc page's own auto-summary was WRONG (it
+showed a reaction's `message_id` nested under a `context` object; the
+dedicated reaction-messages page showed it nested under `reaction`, which
+is what the code already does) — cross-checking two independent pages
+before trusting either is what caught that. `bindWhatsappClone` is a
+different kind of claim entirely: whether THIS platform's own channel-
+secret store, once configured with real Azure credentials and a connected
+WABA, actually authorizes a send. No page Meta publishes can speak to this
+platform's own operational state, so the mark cannot be honestly flipped —
+only made more precise about what would settle it.
+
+**Reversal condition.** If a future fetch of any of the four cited pages
+shows different field names or a different signature scheme, or if Meta
+ships a Bot-API-7.0-style breaking change the way Telegram did (see the
+Telegram entry below), re-open the SHAPE half of this decision and re-check
+`send()`/`verify()`/`parse()` against the new text.
+
+## `ws-r41-telegram-bot-api-reply-shape-fixed-bind-mark-stays-open` (2026-09-04, WS-R41)
+
+**Decision.** `api/tg.js`'s `tgExtra()` is changed from sending a top-level
+`reply_to_message_id` to `reply_parameters: {message_id}`. The request/
+response envelope shape (`bot<token>/METHOD`, `{ok,result,description}`)
+and the webhook secret_token header/charset are flipped to verified.
+`setMessageReaction`'s own body shape stays explicitly unverified.
+`bindTelegramClone`'s own NOT VERIFIED mark is left standing, reworded for
+the same reason as WhatsApp's above.
+
+**Rationale.** `core.telegram.org/bots/api-changelog`, fetched 2026-09-04:
+Bot API 7.0 (2023-12-29) "replaced parameters reply_to_message_id and
+allow_sending_without_reply" with the `ReplyParameters` class, across
+`sendMessage` and every other send method; `core.telegram.org/bots/api
+#replyparameters` confirms the replacement's own field (`message_id`). This
+file had never made a real Bot API call (its own header already said so),
+so the stale field name was never caught by any offline eval — every
+threaded reply this file has ever built would have reached a current Bot
+API server as an unthreaded message, the field simply going unrecognised.
+`setMessageReaction` stays open rather than guessed-verified: repeated
+fetches of `#setmessagereaction` and `#reactiontypeemoji` all truncated at
+the same point in "Available types", before reaching "Available methods" —
+this session's fetch tool cannot retrieve that specific table from a
+single-page document this large, which is a tool limitation, not a document
+saying something different than expected.
+
+**Reversal condition.** If a future session's fetch tool can retrieve
+`setMessageReaction`'s own parameter table, verify it and flip the mark (or
+fix the code, per law 1b, if the table disagrees). If Telegram ever
+reintroduces a top-level `reply_to_message_id` (Bot API changelogs are
+append-only in practice, so unlikely but not impossible), re-check before
+assuming this fix is still current.
+
+## `ws-r41-razorpay-payouts-and-fund-accounts-shapes-partially-verified` (2026-09-04, WS-R41)
+
+**Decision.** `registerFundAccount`'s response shape and `sendPayout`'s
+request field names/enum values are flipped to PARTIALLY verified (the
+entity/schema-level facts a fetch actually reached), while the exact
+operation pages (HTTP method + URL path + request-parameter table) for all
+three RazorpayX/Subscriptions marks named in this workstream's brief stay
+open. `reference_id`'s undocumented-but-now-documented 40-character ceiling
+is enforced with `.slice(0, 40)`.
+
+**Rationale.** `razorpay.com/docs/api/x/payouts/` and `.../fund-accounts/`,
+fetched 2026-09-04, are reachable and their own Entity sample JSON confirms
+`fund_account_id`, `amount` (paise), `currency`, `mode` (IMPS is a
+documented value), `purpose` (`"payout"` is one of the doc's own default
+classifications, not an invented string), `reference_id` (max 40
+characters) and the fund-account response shape (`id`, `contact_id`,
+`account_type`, `active`). What those same fetches could NOT reach, despite
+several distinct URL and fragment guesses, is the operation-level page for
+creating a payout, updating a subscription's quantity, or fetching a fund
+account by id — every guess either 404s or resolves to the same small
+Entity/schema reference page regardless of the specific slug requested,
+which is the signature of a client-routed SPA a plain fetch cannot deep-
+link into. This is different from Telegram's failure mode (a huge single
+page truncated by this tool) and is logged separately in `rejected.md` for
+that reason.
+
+**Reversal condition.** If a future session's fetch tool (or a person with
+a browser) can reach the actual operation pages, verify
+`updateSubscriptionQuantity`'s PATCH shape, `registerFundAccount`'s GET
+path, and `sendPayout`'s POST path and `account_number` request field name
+(only the response field `debit_account_number` was confirmed, never a
+request-parameter table), and flip or fix per law 1b. A Razorpay sandbox
+account would settle all three directly.
+
+## `ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length` (2026-09-04, WS-R41)
+
+**Decision.** `api/_push/webpush.js`'s `encryptPayload` gains an
+`opts.recordSize` seam (default: `record.length`, byte-identical to prior
+behaviour) and `decryptPayload`'s `rs` check is widened from
+`record.length === rs` to `record.length <= rs`. `evals/room-push/run.mjs`
+section 7 feeds RFC 8291 Appendix A's own published salt, sender keypair
+and `rs = 4096` into the real encoder and asserts the exact published
+request body comes out, then feeds that published body into the real
+decoder and asserts the exact published plaintext comes out.
+
+**Rationale.** `datatracker.ietf.org/doc/html/rfc8291` §4, fetched
+2026-09-04: "An application server MUST set the 'rs' parameter in the
+'aes128gcm' content coding header to a size that is greater than the sum of
+the lengths of the plaintext, the padding delimiter (1 octet), any padding,
+and the authentication tag (16 octets)" — `rs` is a ceiling, and Appendix
+A's own worked example fixes `rs = 4096` against a 58-byte actual record,
+which the PRIOR decoder (`record.length !== rs` refused) would have
+rejected as `webpush_record_length_mismatch`. This means the prior decoder
+would have refused a payload from any real encoder following that same,
+extremely common convention (a fixed round `rs` regardless of actual
+payload size) even though every byte of the actual encryption was correct —
+a false negative on the wire, not a security gap (the check the decoder
+LOST is "reject a body claiming more record bytes than are present," which
+the widened `<=` check still performs; only the tautological equality with
+this file's own single-record default was removed). The round-trip eval
+(§1) never caught this because it always drives BOTH sides of this same
+file's own default (`rs = record.length` on both ends, trivially equal),
+which is exactly why law 2's demand for the RFC's own published vector,
+not just a self-consistent round trip, is the more valuable check.
+
+**Reversal condition.** If this file is ever extended to multi-record
+`aes128gcm` streams, `decryptPayload`'s single-record assumption (documented
+in its own header) needs revisiting together with this `rs` handling — a
+multi-record stream's non-final records DO need `record.length === rs`
+exactly per RFC 8188 §2, which this file structurally cannot produce or
+consume today.

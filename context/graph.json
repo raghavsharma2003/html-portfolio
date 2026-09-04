@@ -6904,6 +6904,54 @@
       "kind": "measurement",
       "title": "Migration 104 applied live and read back; the creator-charge CTE plans with the unique provider-ref index as its replay arbiter, every reconcile read on an index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-whatsapp-cloud-api-shapes-verified-bind-mark-stays-open",
+      "kind": "decision",
+      "title": "WhatsApp Cloud API request/response shapes verified against Meta's own docs; bindWhatsappClone's mark stays open, reworded to say no document can settle it",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-telegram-bot-api-reply-shape-fixed-bind-mark-stays-open",
+      "kind": "decision",
+      "title": "tg.js's reply_to_message_id fixed to reply_parameters (Bot API 7.0); bindTelegramClone's mark stays open for the same reason as WhatsApp's",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-razorpay-payouts-and-fund-accounts-shapes-partially-verified",
+      "kind": "decision",
+      "title": "RazorpayX payout/fund-account entity shapes partially verified; operation-page method/path stays open; reference_id's 40-char ceiling now enforced",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length",
+      "kind": "decision",
+      "title": "RFC 8291 Appendix A's own vector reproduced byte-for-byte; webpush decoder's rs check widened from exact-match to ceiling per RFC 8291 §4's MUST",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-webpush-decoder-required-rs-equal-record-length",
+      "kind": "rejection",
+      "title": "decryptPayload's exact rs===record.length check rejected RFC 8291 Appendix A's own published vector (rs=4096, 58-byte record); widened to a ceiling",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-tg-reply-to-message-id-is-pre-bot-api-7-0",
+      "kind": "rejection",
+      "title": "tg.js sent the pre-Bot-API-7.0 reply_to_message_id field; every threaded reply would have reached a current server unthreaded",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways",
+      "kind": "rejection",
+      "title": "Telegram's one giant reference page truncates before Available Methods; Razorpay's docs SPA resolves every guessed operation URL to the same entity page",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r41-provider-contract-marks-2026-09-04",
+      "kind": "measurement",
+      "title": "7 in-scope NOT VERIFIED marks: 2 verified, 3 fixed, 2 partially verified, 4 still open (named precisely) - one measurement per mark's outcome",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13876,6 +13924,46 @@
       "src": "ws-r42-reconcile-suite-lane-uses-current-attachment",
       "rel": "measured_by",
       "dst": "rooms-migration-104-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r41-whatsapp-cloud-api-shapes-verified-bind-mark-stays-open",
+      "rel": "measured_by",
+      "dst": "ws-r41-provider-contract-marks-2026-09-04"
+    },
+    {
+      "src": "ws-r41-telegram-bot-api-reply-shape-fixed-bind-mark-stays-open",
+      "rel": "measured_by",
+      "dst": "ws-r41-provider-contract-marks-2026-09-04"
+    },
+    {
+      "src": "ws-r41-razorpay-payouts-and-fund-accounts-shapes-partially-verified",
+      "rel": "measured_by",
+      "dst": "ws-r41-provider-contract-marks-2026-09-04"
+    },
+    {
+      "src": "ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length",
+      "rel": "measured_by",
+      "dst": "ws-r41-provider-contract-marks-2026-09-04"
+    },
+    {
+      "src": "ws-r41-rfc8291-appendix-a-reproduced-rs-is-a-ceiling-not-exact-length",
+      "rel": "caused_by",
+      "dst": "ws-r41-webpush-decoder-required-rs-equal-record-length"
+    },
+    {
+      "src": "ws-r41-telegram-bot-api-reply-shape-fixed-bind-mark-stays-open",
+      "rel": "caused_by",
+      "dst": "ws-r41-tg-reply-to-message-id-is-pre-bot-api-7-0"
+    },
+    {
+      "src": "ws-r41-razorpay-payouts-and-fund-accounts-shapes-partially-verified",
+      "rel": "constrains",
+      "dst": "ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways"
+    },
+    {
+      "src": "ws-r41-telegram-bot-api-reply-shape-fixed-bind-mark-stays-open",
+      "rel": "constrains",
+      "dst": "ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways"
     }
   ]
 }

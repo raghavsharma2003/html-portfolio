@@ -4,10 +4,41 @@
 // and tests only. What is verified offline: the four functions, the HMAC over
 // a locally-signed body, the GET hub.challenge handshake, the fail-closed
 // paths, and the 24-hour window refusal. What is NOT verified: anything
-// requiring a real WABA — whether Meta's actual payload nesting matches the
-// shape parsed here for every message type, template approval, and the real
-// behaviour of the window on Meta's side. Named in docs/SURFACES.md rather
-// than implied to work.
+// requiring a real WABA — template approval time and the real behaviour of
+// the window on Meta's side (both are sandbox/account behaviours no public
+// document settles; see the two functions' own comments below for what would
+// settle them). Named in docs/SURFACES.md rather than implied to work.
+//
+// WS-R41 (2026-09-04): the SHAPE claims above — the send()/verify()/parse()
+// contract this file makes with Meta's own API — are now verified against
+// Meta's own documents, not merely offline-consistent with themselves:
+//   - GET handshake and X-Hub-Signature-256 (mode/token/challenge query
+//     params; "sha256=" + HMAC-SHA256 of the raw payload under the App
+//     Secret): developers.facebook.com/docs/graph-api/webhooks/getting-
+//     started, fetched 2026-09-04 — "Verify that the hub.verify_token value
+//     matches..."/"Respond with the hub.challenge value"; "We sign all Event
+//     Notification payloads with a SHA256 signature and include the
+//     signature in the request's X-Hub-Signature-256 header, preceded with
+//     sha256=". Matches `verify()`/`signatureOk()` exactly.
+//   - POST https://graph.facebook.com/<version>/<phone_number_id>/messages,
+//     {messaging_product:"whatsapp", recipient_type, to, type, text:{body}}:
+//     developers.facebook.com/docs/whatsapp/cloud-api/reference/messages,
+//     fetched 2026-09-04. Matches `post()`/`send()`'s text-message body.
+//   - Reaction shape, {type:"reaction", reaction:{message_id, emoji}} —
+//     message_id nests INSIDE `reaction`, never in a separate `context`:
+//     developers.facebook.com/docs/whatsapp/cloud-api/messages/reaction-
+//     messages, fetched 2026-09-04, whose own worked example is exactly this
+//     shape. Matches `send()`'s reaction body exactly (this was cross-
+//     checked against a second, more general Cloud API reference page first,
+//     whose own auto-summarized reaction example wrongly showed message_id
+//     under `context` — the dedicated reaction-messages page is what settled
+//     it, which is why a single doc fetch is not the same as verification).
+//   - The 24-hour customer-service window: developers.facebook.com/docs/
+//     whatsapp/pricing, fetched 2026-09-04 — "A 24 hour customer service
+//     window is opened" on an inbound message, "24 hours have passed since
+//     the user last messaged you" closes it, and outside it "you can no
+//     longer send non-template messages". Matches `noteInbound()`/
+//     `windowOpen()`/`send()`'s refusal exactly.
 //
 // ── the constraint that belongs HERE and nowhere else ─────────────────────
 //
@@ -367,11 +398,17 @@ export async function handleEvents(payload, deps = {}) {
  * secret store holds exactly one string per channel and there is nothing to
  * keep in step.
  *
- * NOT VERIFIED: no WhatsApp channel has ever been connected and no secret has
- * ever been written — the default secret backend is `none` and refuses, so
- * this path currently ends in a null and a dropped event. That is the honest
- * state and it is named here rather than implied to work, in the same words
- * this file's header uses about everything else Meta-side.
+ * NOT VERIFIED, AND NO PUBLIC DOCUMENT CAN SETTLE IT (WS-R41): whether a
+ * connected channel's access token actually authorizes sends is this
+ * platform's own operational state, not a fact Meta's docs publish — no
+ * WhatsApp channel has ever been connected and no secret has ever been
+ * written, so the default secret backend `none` refuses and this path
+ * currently ends in a null and a dropped event. What WOULD settle it: an
+ * owner completing the studio's connect flow against a real WABA with
+ * `CHANNEL_SECRET_BACKEND=azure-keyvault` configured, then a single inbound
+ * message exercising this function end to end. That is the honest state and
+ * it is named here rather than implied to work, in the same words this
+ * file's header uses about everything else Meta-side.
  */
 export async function bindWhatsappClone(ev, deps = {}) {
   const ref = String(ev?.channelRef || "");

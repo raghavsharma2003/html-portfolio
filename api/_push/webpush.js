@@ -28,15 +28,29 @@
 // the key derivation, using real published key bytes rather than fixture
 // junk.
 //
+// verified against https://datatracker.ietf.org/doc/html/rfc8291 (Appendix A
+// and Section 5, fetched 2026-09-04, WS-R41): Appendix A's own published
+// vector is now REPRODUCED, not read — `evals/room-push/run.mjs` §7 feeds
+// `encryptPayload` the RFC's own salt, sender keypair and `rs` (via
+// `opts.salt`/`opts.senderKeypair`/`opts.recordSize`, below) and asserts the
+// output equals the RFC's own published request body byte-for-byte, and
+// `decryptPayload` over that same published body recovers the RFC's own
+// published plaintext, "When I grow up, I want to be a watermelon". The
+// transcription risk `rejected.md#ws-r22-rfc-8291-known-answer-vector-from-
+// memory` named is closed differently this time: the vector was fetched from
+// the RFC itself (not typed from memory) and its header bytes and ciphertext
+// bytes were checked against the RFC's own Section 5 body — concatenate,
+// re-encode, compare — before either was trusted in the eval.
+//
 // It does NOT prove interop with a real browser or push service: this
-// environment has no network access to one, and the exact ciphertext bytes
-// RFC 8291 Appendix A publishes are not reproduced here from memory as a
-// hard-coded "expected" value — a mis-transcribed constant would either fail
-// a correct implementation or, worse, get "fixed" by bending the
-// implementation to match a wrong number, which is a strictly worse outcome
-// than not having the check at all. Real-browser interop is UNPROVEN and
-// stays that way until a real subscription is exercised against this code,
-// which needs a live deployment this workstream does not have.
+// environment has no network access to one. Real-browser interop is
+// UNPROVEN and stays that way until a real subscription is exercised
+// against this code, which needs a live deployment this workstream does
+// not have.
+//
+// FINDING (WS-R41, fixed): reproducing the vector surfaced a real bug, not
+// merely a coverage gap — see `decryptPayload`'s own header below and
+// `context/rejected.md#ws-r41-webpush-decoder-required-rs-equal-record-length`.
 import {
   createECDH,
   createHmac,
@@ -151,9 +165,22 @@ function deriveRecordKeys(ikm, salt) {
  * its content — see `checkinPushPayload` below for the one caller in this
  * repo that builds it, and its own law about what it may never carry.
  *
- * `opts.salt`/`opts.senderKeypair` exist ONLY for the round-trip eval (a
- * fixed salt and a fixed ephemeral keypair make the ciphertext
- * deterministic and diffable); a real send always takes the random default.
+ * `opts.salt`/`opts.senderKeypair`/`opts.recordSize` exist ONLY for the
+ * round-trip eval (a fixed salt and a fixed ephemeral keypair make the
+ * ciphertext deterministic and diffable) and for reproducing RFC 8291
+ * Appendix A's own published vector byte-for-byte (`evals/room-push/run.mjs`
+ * §7) — a real send always takes the random salt/keypair and the record-
+ * length default for `rs`. RFC 8291 §4 (fetched 2026-09-04): "An application
+ * server MUST set the 'rs' parameter in the 'aes128gcm' content coding
+ * header to a size that is greater than the sum of the lengths of the
+ * plaintext, the padding delimiter (1 octet), any padding, and the
+ * authentication tag (16 octets)" — `rs` is a CEILING this record must fit
+ * under, not a length it must equal. This file's own default writes
+ * `rs = record.length` exactly, which satisfies that MUST (a record always
+ * fits under its own length) but is a different choice from RFC 8291
+ * Appendix A's own worked example, which fixes `rs = 4096` regardless of the
+ * 58-byte actual record — `opts.recordSize` lets a caller reproduce that
+ * specific choice; production callers never pass it.
  */
 export function encryptPayload(subscription, payload, opts = {}) {
   const p256dhRaw = subscription.p256dh ?? subscription.keys?.p256dh;
@@ -182,11 +209,19 @@ export function encryptPayload(subscription, payload, opts = {}) {
   const tag = cipher.getAuthTag();
   const record = Buffer.concat([ciphertext, tag]);
 
-  // RFC 8188 §2.1 header: salt(16) || rs(4, big-endian, this record's own
-  // length INCLUDING its tag) || idlen(1) || keyid(idlen) — keyid here is the
-  // sender's own ephemeral public key, an uncompressed P-256 point.
+  // RFC 8188 §2.1 header: salt(16) || rs(4, big-endian) || idlen(1) ||
+  // keyid(idlen) — keyid here is the sender's own ephemeral public key, an
+  // uncompressed P-256 point. `rs` defaults to this (single, last) record's
+  // own length INCLUDING its tag — the smallest value RFC 8291 §4's MUST
+  // permits (see `encryptPayload`'s own header above); `opts.recordSize`,
+  // when given, can only choose something LARGER, e.g. RFC 8291 Appendix A's
+  // own `rs = 4096`, never a value this record would not fit inside.
+  const recordSize = opts.recordSize != null ? Number(opts.recordSize) : record.length;
+  if (!Number.isInteger(recordSize) || recordSize < record.length || recordSize < 18) {
+    throw new Error("webpush_record_size_invalid");
+  }
   const rs = Buffer.alloc(4);
-  rs.writeUInt32BE(record.length, 0);
+  rs.writeUInt32BE(recordSize, 0);
   const header = Buffer.concat([salt, rs, Buffer.from([asPublic.length]), asPublic]);
 
   return { body: Buffer.concat([header, record]), salt, senderPublicKey: asPublic };
@@ -199,6 +234,17 @@ export function encryptPayload(subscription, payload, opts = {}) {
  * subscriber's raw 32-byte private scalar and `authSecret` its raw 16-byte
  * `auth` value; a real browser holds these, this repo never does outside a
  * test fixture using RFC 8291 Appendix A's own published numbers.
+ *
+ * SINGLE-RECORD ONLY by this file's own design (no multi-record chunking is
+ * ever produced or expected), so everything after the header is taken as the
+ * one, last record, and `rs` is read the way RFC 8291 §4 actually defines
+ * it: a CEILING the record must fit under, not a length it must equal.
+ * FINDING (2026-09-04, WS-R41): the prior code required
+ * `record.length === rs` exactly, which rejects RFC 8291 Appendix A's own
+ * published vector (`rs = 4096`, the actual record is 58 bytes) and would
+ * reject any real encoder following that same, near-universal convention (a
+ * fixed round `rs` regardless of actual payload size) — see
+ * `context/rejected.md#ws-r41-webpush-decoder-required-rs-equal-record-length`.
  */
 export function decryptPayload(body, { uaPrivate, authSecret }) {
   if (!Buffer.isBuffer(body) || body.length < 21) throw new Error("webpush_body_too_short");
@@ -207,8 +253,12 @@ export function decryptPayload(body, { uaPrivate, authSecret }) {
   const idlen = body[20];
   const asPublic = body.subarray(21, 21 + idlen);
   assertUncompressedPoint(asPublic, "sender_key");
-  const record = body.subarray(21 + idlen, 21 + idlen + rs);
-  if (record.length !== rs) throw new Error("webpush_record_length_mismatch");
+  // Everything after the header is the one (last, and only) record. `rs` is
+  // a declared CEILING (RFC 8291 §4's MUST, quoted on `encryptPayload`
+  // above), so the actual bytes present must fit under it, never exceed it —
+  // but need not equal it.
+  const record = body.subarray(21 + idlen);
+  if (record.length < TAG_LEN + 1 || record.length > rs) throw new Error("webpush_record_length_mismatch");
   const ciphertext = record.subarray(0, record.length - TAG_LEN);
   const tag = record.subarray(record.length - TAG_LEN);
 

@@ -421,6 +421,27 @@ console.log("\n── §4: THE WEBHOOK ──");
   const tamperedReq = { method: "POST", headers: { "x-hub-signature-256": "sha256=" + "0".repeat(64) }, rawBody: Buffer.from(messagePayload, "utf8") };
   const authTampered = await verifyRoomWhatsappWebhook(tamperedReq);
   ok("a tampered signature is refused too, not merely a missing one", authTampered.ok === false);
+
+  // WS-R41 (2026-09-04): law 3's own signature reproduction, against the
+  // REAL api/whatsapp.js `signatureOk` this webhook door calls (not a copy).
+  // developers.facebook.com/docs/graph-api/webhooks/getting-started, fetched
+  // 2026-09-04: "X-Hub-Signature-256 header, preceded with sha256=" and
+  // "Generate a SHA256 signature using the payload and your app's App
+  // Secret" — HMAC-SHA256 over the raw body, exactly what `signatureOk`
+  // implements.
+  const { signatureOk } = await import(pathToFileURL(join(REPO, "api/whatsapp.js")).href);
+  const wrongLenReq = { method: "POST", headers: { "x-hub-signature-256": "sha256=" + "ab" }, rawBody: Buffer.from(messagePayload, "utf8") };
+  const authWrongLen = await verifyRoomWhatsappWebhook(wrongLenReq);
+  ok("a header of the wrong byte length is refused, not thrown past a length check", authWrongLen.ok === false);
+  ok("...and signatureOk itself agrees, called directly", signatureOk("s3cr3t", Buffer.from(messagePayload, "utf8"), "sha256=ab") === false);
+  const validSig = "sha256=" + createHmac("sha256", "s3cr3t").update(messagePayload).digest("hex");
+  ok("signatureOk itself accepts a genuinely valid signature (not just verify()'s own wrapper)",
+    signatureOk("s3cr3t", Buffer.from(messagePayload, "utf8"), validSig) === true);
+  const srcWA = fs.readFileSync(join(REPO, "api/whatsapp.js"), "utf8");
+  ok("signatureOk's own source compares in constant time (timingSafeEqual), not ===",
+    /timingSafeEqual\(got, want\)/.test(srcWA));
+  ok("...and refuses a length mismatch BEFORE calling it, never inside a try that could still leak timing",
+    /if \(got\.length !== want\.length\) return false;\s*\n\s*return timingSafeEqual/.test(srcWA));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

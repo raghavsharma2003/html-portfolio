@@ -782,6 +782,19 @@ export function parseWebhookPayload(json) {
  * absence refuses the whole request rather than falling back to a hash of
  * the body, which would make every RETRY of the same event look like a new
  * one the instant the provider changes even one timestamp in it.
+ *
+ * WS-R41 (2026-09-04): law 4 asks this claim be re-checked against the
+ * document, not merely trusted from the prior date. This session tried -
+ * razorpay.com/docs/webhooks/ (the general concepts page) does not mention
+ * `x-razorpay-event-id` or retry behaviour at all, and
+ * razorpay.com/docs/webhooks/validate/, the guessed sibling most likely to
+ * carry it, 404s - the same SPA-routing limit named in
+ * api/_payments/providers/razorpay.js's comments this session. Nothing
+ * contradicts the 2026-09-03 citation above; nothing independently
+ * reconfirms it either, and this decision stands on the earlier date's
+ * evidence rather than today's. `evals/payments/run.mjs`'s own §4 and §9
+ * (idempotent replay, event-id required) exercise this function's behaviour
+ * regardless of which date's fetch is trusted.
  */
 export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, deps = {}) {
   const env = deps.env ?? process.env;
