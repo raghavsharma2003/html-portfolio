@@ -45,7 +45,13 @@ export default async function handler(req, res) {
 
     const body = req.body || {};
     if (body.op === "create") {
-      const replica = await createSelfReplica(q, user.id, body.display_name);
+      // WS-R23 (migration 086): INVITES_REQUIRED is read here, the HTTP
+      // layer, and passed down as an explicit option so createSelfReplica
+      // stays reachable with a fake db and no env mutation in its evals.
+      const replica = await createSelfReplica(q, user.id, body.display_name, {
+        invitesRequired: process.env.INVITES_REQUIRED === "1",
+        inviteCode: body.invite_code,
+      });
       return res.status(201).json({ replica });
     }
     if (body.op === "revoke") {

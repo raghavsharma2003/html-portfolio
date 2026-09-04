@@ -1,6 +1,8 @@
 // Database operations for the owner-only self-replica control plane.
 // Every read and mutation includes owner_user_id in SQL. Callers must pass the
 // id returned by requireUser(), never any identifier from request JSON.
+import { hashInviteCode } from "./_invites.js";
+
 export const REPLICA_POLICY_VERSION = "replica-self-v1";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -54,8 +56,37 @@ export function clientReplica(row) {
 const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_version,
   age_verified_at, identity_verified_at, liveness_verified_at, identity_expires_at, created_at, updated_at`;
 
-export async function createSelfReplica(db, ownerUserId, displayName) {
+/**
+ * `options.invitesRequired` (`INVITES_REQUIRED=1`, read by the HTTP layer,
+ * api/replica.js, never here - the thin-handler law) and `options.inviteCode`
+ * (raw, hashed below before it ever reaches SQL) implement WS-R23's front
+ * door: replica creation requires a valid, unredeemed, unexpired invite for
+ * the signing-in account, OR an account that already owns a replica. The
+ * predicate lives INSIDE the same statement that creates the replica, as a
+ * CTE that redeems the invite (an UPDATE, guarded so a redeemed or expired
+ * code matches zero rows) and only then permits the INSERT to run - not a JS
+ * check before or after it, which is exactly the shape a race could slip
+ * through. When `invitesRequired` is false the gate CTE is unconditionally
+ * true and every statement below runs byte-identically to before this
+ * workstream, so an existing test account with `INVITES_REQUIRED` unset is
+ * unaffected.
+ */
+export async function createSelfReplica(db, ownerUserId, displayName, options = {}) {
   const name = replicaDisplayName(displayName);
+  const invitesRequired = Boolean(options.invitesRequired);
+  const rawCode = typeof options.inviteCode === "string" ? options.inviteCode.trim() : "";
+  if (invitesRequired && !rawCode) {
+    // A fast, distinctly-named refusal before touching the invite table at
+    // all - "you gave me nothing" reads differently on screen than "what you
+    // gave me did not work" (invite_invalid, below). This is a courtesy, not
+    // the gate: an account that already owns a replica is still allowed
+    // through with no code at all, which only the CTE below can decide, so
+    // this check only ever narrows to the one case both agree on (no code,
+    // no existing replica).
+    const owned = await db(`select 1 from vy_replica where owner_user_id = $1::uuid limit 1`, [ownerUserId]);
+    if (!owned.length) throw Object.assign(new Error("invite_required"), { status: 403, code: "invite_required" });
+  }
+  const codeHash = rawCode ? hashInviteCode(rawCode) : null;
   const rows = await db(
     `with owner_lock as (
        select pg_advisory_xact_lock(hashtextextended($1::text, 0))
@@ -79,11 +110,30 @@ export async function createSelfReplica(db, ownerUserId, displayName) {
        on conflict (auth_user_id) do update
          set auth_user_id = excluded.auth_user_id
        returning person_id
+     ), already_owns as (
+       select 1 as x from vy_replica, owner_lock where owner_user_id = $1::uuid limit 1
+     ), invite_redeem as (
+       update vy_creator_invite
+          set redeemed_at = now(), redeemed_by_user_id = $1::uuid
+        where code_hash = $4::text
+          and redeemed_at is null
+          and expires_at > now()
+          and $5::boolean
+          and not exists (select 1 from already_owns)
+       returning invite_id
+     ), gate as (
+       select case
+         when not $5::boolean then true
+         when exists (select 1 from already_owns) then true
+         when exists (select 1 from invite_redeem) then true
+         else false
+       end as ok
      ), replica as (
        insert into vy_replica
          (owner_user_id, subject_person_id, display_name, subject_mode, lifecycle, policy_version)
        select $1::uuid, person_id, $2, 'self', 'consent_pending', $3
-         from account_bridge
+         from account_bridge, gate
+        where gate.ok
        returning ${RETURNING}
      ), audit as (
        insert into vy_replica_audit
@@ -92,8 +142,17 @@ export async function createSelfReplica(db, ownerUserId, displayName) {
          from replica
      )
      select * from replica`,
-    [ownerUserId, name, REPLICA_POLICY_VERSION],
+    [ownerUserId, name, REPLICA_POLICY_VERSION, codeHash, invitesRequired],
   );
+  if (!rows[0]) {
+    // Reached only when invitesRequired and the gate refused: a code was
+    // offered (or the pre-check above would already have thrown
+    // invite_required) and it did not redeem - wrong, already spent, or
+    // expired. The CTE does not distinguish those from each other, on
+    // purpose: telling a stranger WHY a specific code failed is more
+    // information than a front door should hand back.
+    throw Object.assign(new Error("invite_invalid"), { status: 403, code: "invite_invalid" });
+  }
   return clientReplica(rows[0]);
 }
 

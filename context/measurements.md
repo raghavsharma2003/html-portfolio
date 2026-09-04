@@ -7778,3 +7778,64 @@ n = 1 migration (13 statements in one transaction), 8 API statements; method = a
 | latest draft genome version | Seq Scan on `vy_replica_voice_genome`, a one-page table whose primary key already leads on replica_id; the planner's choice at this size, not a missing index |
 
 `vy_room_voice_usage` has no erasure line by name: `room_id` and `follower_id` both cascade, so the erasure chain's room and follower deletes take it. Both counters are predicates on the write: a 501st paid message and a clip that would cross the voice ceiling fail the UPDATE's own WHERE, never a JS check. Not measured: no voice clip has been synthesized (`ROOM_VOICE` is unset everywhere; the synth seam was faked in the eval); no paid follower exists live.
+
+## `ws-r23-invites-offline-eval-2026-09-04` (WS-R23)
+
+n = 57 assertions, `node evals/invites/run.mjs`, offline/deterministic/$0/no
+DB/no network/no model/no GPU, 2026-09-04. Four sections against a
+from-scratch fake db (no shared Room fixture - this workstream touches no
+Room table): applications (the happy path, the daily-per-contact refusal
+proven against a fake `ON CONFLICT DO NOTHING` unique index, the SAME
+contact clearing the next day, a missing-name/missing-contact refusal each
+by name, list, and the operator's case-insensitive erase-by-contact);
+invites (issue returns the code exactly once and the stored/returned object
+never carries it or its hash, canonicalization proven punctuation- and
+case-insensitive, list's three status filters, revoke and erase both
+refusing an already-redeemed invite by name); the replica-create predicate
+itself (`api/_replica.js`'s real `createSelfReplica`, invoked through the
+fake db, not re-implemented) with three NEGATIVE CONTROLS: (a) the same code
+redeemed by two different accounts one after another - one replica created,
+the second call refused `invite_invalid`, the invite naming only the first
+owner; (b) an expired code refuses `invite_invalid` by name and is left
+unredeemed rather than silently consumed; (c) with `invitesRequired: false`
+and zero rows in the fake invite table and no code offered, creation still
+succeeds - proving the predicate is structurally absent rather than merely
+unmet when `INVITES_REQUIRED` is unset, so an existing test account is
+unaffected. A fourth section is a STATIC proof (regex over the real source
+text of `api/_replica.js` and `api/replica.js`) that the gate is inside the
+INSERT: the replica INSERT's own WHERE reads `gate.ok`, `gate.ok` itself
+depends on `invite_redeem`'s output in the SAME statement, and a raw invite
+code is hashed before it ever reaches a bound SQL parameter.
+
+Also reconfirmed clean on the touched tree: `node evals/replica/run.mjs`
+(36 assertions, unchanged behaviour - `createSelfReplica`'s call shape
+`createSelfReplica(q, user.id, ...)` still matches its own regex check
+after gaining a fourth argument); `node evals/persontables.mjs` (125
+person-keyed tables, 70 owner lane, 4 exempt in writing including the new
+`vy_creator_invite` entry, 51 listed, 2 negative controls caught);
+`node scripts/check-copy.mjs` (6 scopes clean, 17 negative controls bit,
+covering the new `src/studio/InviteGate.tsx` and the rewritten
+`site/vyakti.html` apply form under the Rooms vocabulary and dash rules).
+
+**Not measured, stated rather than implied**: no statement in migration
+086, `createSelfReplica`'s widened CTE, or any statement in `api/_apply.js`/
+`api/_invites.js` has ever run against a live Postgres (no `NEON_URL` in
+this environment - `offline-mocks-cannot-type-check-sql`). No real
+`vy_creator_application` or `vy_creator_invite` row has ever been written
+outside a fake `db`. No HTTP request has ever reached `api/apply.js` or
+`api/invites.js` in a deployed environment; the apply form's inline script
+on `site/vyakti.html` has never been exercised in a real browser against a
+real deployment. `INVITES_REQUIRED` and `OPS_OWNER_USER_IDS` are unset on
+every deployment, so today's behaviour (no invite gate, no operator surface
+reachable) is unchanged in production regardless of any of the above.
+
+## `ws-r23-gate-2026-09-04` (WS-R23)
+
+`node scripts/verify-release.mjs`: **15/15 on the untouched tree** (baseline
+captured by committing a WIP stash, running the gate, then recovering via
+`git checkout <stash-commit> -- <paths>` after a sibling worktree's
+concurrent `git stash pop` consumed the stash entry from under this session
+- see `context/rejected.md#stash-in-a-shared-git-dir`, already logged by
+WS-AE and reconfirmed live by this workstream rather than re-derived) and
+**15/15 after** this workstream's full change set. `node scripts/context.mjs
+--check`: clean before this entry, 888 nodes / 1092 edges.

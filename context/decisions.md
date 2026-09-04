@@ -9101,3 +9101,83 @@ judgment call that new evidence could revise. This would only reverse if the
 product ever collapses the two ceilings into one combined "usage" number
 with one shared reset moment, at which point the two keys would correctly
 merge back into one by the same logic that split them.
+
+## `ws-r23-invite-predicate-inside-the-insert` (2026-09-04, WS-R23)
+
+**Decision.** Replica creation's invite gate (migration 086) is a single CTE
+statement that redeems the invite (an UPDATE guarded by `redeemed_at is null
+and expires_at > now()`) and only then permits the `vy_replica` INSERT to run
+(`select ... from account_bridge, gate where gate.ok`), rather than a JS
+check that reads an invite row, decides, and then issues a separate INSERT.
+`gate.ok` itself depends on `exists (select 1 from invite_redeem)`, so
+Postgres must execute the redemption before evaluating the gate in the same
+statement.
+
+**Rationale.** A check-then-insert shape is a race: two concurrent requests
+with the same code could both read "unredeemed" before either commits its
+own redemption, and both then insert a replica. The workstream brief's own
+law #3 names this exactly ("the predicate lives INSIDE the INSERT that
+creates the replica"). The atomic form also makes the "already owns a
+replica needs no code" exemption free: `already_owns` is read once, inside
+the same lock (`pg_advisory_xact_lock`) `createSelfReplica` already took for
+the person-bridge upsert, so no second round trip and no second window for
+a race between "do they already own one" and "create the row" opens up.
+
+**Reversal condition.** If a future product need requires telling a caller
+WHY a code failed (wrong vs. expired vs. already redeemed) rather than one
+undifferentiated `invite_invalid`, the gate CTE would need to return which
+branch it took rather than only `ok`/not `ok`, which is a real schema/query
+change, not a copy change - reverse this decision only if that product need
+is stated explicitly, not by default, since telling a stranger why a
+specific code failed is more information than a front door should hand back
+(see `api/_replica.js`'s own comment on this exact point).
+
+## `ws-r23-invite-code-canonicalized-not-stored-raw` (2026-09-04, WS-R23)
+
+**Decision.** An invite code is generated from a 28-character no-ambiguity
+alphabet (excludes 0/O/1/I/L), shown to the operator exactly once in the
+issue response, and never stored in any form except `sha256(canonical(code))`
+(`api/_invites.js`'s `hashInviteCode`/`canonicalizeInviteCode`). Canonical
+form strips everything but A-Z0-9 and uppercases, so "AB3D-9F2K-QR7T",
+"ab3d 9f2k qr7t" and "ab3d9f2kqr7t" all hash identically.
+
+**Rationale.** Mirrors the workstream brief's own law #2 ("the code itself is
+shown once and never stored") and the platform's existing password/secret
+discipline (never commit or print a secret, `AGENTS.md`). Canonicalizing
+before hashing exists because a code is retyped by hand as often as it is
+pasted, and refusing a real code over punctuation or case a person did not
+reproduce exactly would make every issued invite fragile in a way that has
+nothing to do with whether it is valid.
+
+**Reversal condition.** None expected under the current invite-only Phase 0
+plan. Would reverse only if invites move to a self-serve, non-operator-issued
+flow where a resend/lookup-by-code operation becomes a real product need -
+at which point storing the raw code would have to be argued for on its own,
+not assumed.
+
+## `ws-r23-application-rate-limit-is-a-plain-column-not-a-functional-index` (2026-09-04, WS-R23)
+
+**Decision.** `vy_creator_application`'s one-per-contact-per-day predicate is
+a genuine unique index over two ordinary columns (`contact_key`, a
+lowercased/trimmed copy of `contact`; `applied_on`, a `date` computed in JS
+via `api/_room-surface.js`'s existing `dayKeyOf`), used as an `ON CONFLICT
+(contact_key, applied_on) DO NOTHING` target - not a functional/expression
+index on `lower(contact)`/`created_at::date`, which is what the workstream
+brief's own words describe.
+
+**Rationale.** Postgres requires an index expression to be IMMUTABLE, and
+casting a `timestamptz` to `date` is not (the result depends on the
+session's `TimeZone` setting), so `create unique index ... on
+(lower(contact), (created_at::date))` is rejected at DDL time. Computing both
+values in JS once, on the write side, and reusing the identical function
+(`contactKey`) on every read/erase call is what keeps a stored value and a
+query value from ever disagreeing about what "the same contact" means -
+the same guarantee the brief asked for, reached without a DDL feature this
+migration cannot use. `ON CONFLICT DO NOTHING` (rather than a
+check-then-insert) is what makes the refusal atomic under a concurrent
+double-submit, `ws-r23-invite-predicate-inside-the-insert`'s identical
+argument restated for a simpler predicate.
+
+**Reversal condition.** None expected: this is a DDL constraint, not a
+judgment call. Would only change if Postgres itself changes what counts as
+IMMUTABLE for a timestamptz-to-date cast, which is not a live prospect.

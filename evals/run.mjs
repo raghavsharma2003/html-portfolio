@@ -1502,6 +1502,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-paid-tier": "room-paid-tier/run.mjs",
+  // WS-R23. Creator applications and invites, migration 086: the front door
+  // that has a lock in SQL. Applications (the happy path, the daily
+  // per-contact refusal proven against a fake unique index, the next-day
+  // clear, the operator's list/erase-by-contact), invites (issue returns
+  // the code exactly once, list's three status filters, revoke and erase's
+  // refusal on an already-redeemed invite), and the replica-create
+  // predicate itself: `createSelfReplica`'s own CTE, exercised through a
+  // fake db, with three negative controls (a redeemed code cannot be
+  // redeemed twice, an expired code refuses by name, and with
+  // INVITES_REQUIRED unset the predicate is structurally absent) plus a
+  // static proof that the gate lives inside the INSERT rather than a JS
+  // check around it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  invites: "invites/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

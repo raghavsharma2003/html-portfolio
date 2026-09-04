@@ -532,6 +532,21 @@ export async function completeReplicaErasure(db, lease, receipt) {
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      creator_payouts as (delete from vy_creator_payout x using target t
        where x.owner_user_id=t.owner_user_id),
+     -- 086 (WS-R23), creator invites. vy_creator_invite has no room_id and no
+     -- replica_id of its own - an invite is redeemed once, before any room
+     -- exists, so it is scoped by owner_user_id alone, creator_payouts' own
+     -- reasoning one line up. redeemed_by_user_id IS the owner's id once a
+     -- code is spent, which is what makes this table OWNER lane rather than
+     -- person lane (086's own migration header, restated in
+     -- scripts/relcheck.mjs's widened PERSON_COLUMNS): the row is reached
+     -- HERE, by name, never through api/memory.js's PERSON_TABLES manifest,
+     -- and never through vy_creator_application's operator-only
+     -- eraseApplicationsByContact, which is a different table on a different
+     -- (pre-signup) lane entirely. An invite this owner never redeemed is
+     -- untouched, on purpose: it still belongs to whoever issued it and may
+     -- yet be redeemed by someone else.
+     creator_invites as (delete from vy_creator_invite x using target t
+       where x.redeemed_by_user_id=t.owner_user_id),
      -- 079 (WS-R16), check-ins. All three are reached from THIS side by
      -- room_id, payment_events's own reasoning three lines up: none of them
      -- carries an agent binding, and a room has exactly one agent

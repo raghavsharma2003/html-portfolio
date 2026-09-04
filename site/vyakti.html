@@ -254,6 +254,29 @@
     .limits ul { margin: 24px 0 0; padding-left: 20px; display: grid; gap: 14px; max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
     .limits strong { color: var(--ink); }
 
+    /* ── the apply form (WS-R23): plain markup, no framework, this file's
+       own no-build-step rule. Same tokens and control radius the studio
+       uses (docs/gurukul/DESIGN-SYSTEM.md), restated here rather than
+       imported. ── */
+    .apply-form { margin-top: 32px; max-width: var(--measure); display: grid; gap: 18px; }
+    .apply-field { display: grid; gap: 6px; }
+    .apply-field label { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .apply-field input, .apply-field textarea {
+      font: inherit;
+      font-size: 15px;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .apply-field textarea { resize: vertical; min-height: 72px; }
+    .apply-form button { cursor: pointer; justify-self: start; }
+    .apply-form button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .apply-note { min-height: 1em; font-size: 13px; color: var(--ink-faint); }
+    .apply-note[data-state="error"] { color: var(--ink); font-weight: 700; }
+    .apply-note[data-state="ok"] { color: var(--forest-deep); font-weight: 700; }
+
     /* ── close: centred, one column ─────────────────────────────────────── */
     .close { text-align: center; }
     .close h2 { font-size: clamp(30px, 4.4vw, 46px); max-width: 100%; margin-inline: auto; }
@@ -289,7 +312,7 @@
         <p class="lede">
           Here, they talk to all of them, and none of them can hear each other.
         </p>
-        <a class="btn" href="mailto:hello@vyakti.ai?subject=Applying%20for%20a%20Room&amp;body=Three%20questions%2C%20and%20that%20is%20the%20whole%20application.%0A%0AWhere%20does%20your%20audience%20already%20live%20%28YouTube%2C%20a%20newsletter%2C%20Instagram%2C%20a%20podcast%2C%20a%20course%29%3F%0A%0AHow%20many%20people%20already%20pay%20you%20for%20something%2C%20even%20a%20little%3F%0A%0AA%20link%20to%20the%20longest%20thing%20you%20have%20published%20%28a%20talk%2C%20a%20course%2C%20a%20long%20video%2C%20a%20book%29.">Apply for one of the first Rooms</a>
+        <a class="btn" href="#apply">Apply for one of the first Rooms</a>
         <p class="fine">Free to build. You set what your followers pay. Our share is one number, shown before you publish.</p>
       </div>
     </header>
@@ -379,16 +402,19 @@
       </div>
     </section>
 
-    <!-- ══ 5. what happens after you apply. The page's one eyebrow. ═════ -->
-    <section aria-labelledby="apply-title">
+    <!-- ══ 5. what happens after you apply, and the real form (WS-R23). ═══
+         Posts to api/apply.js (op:"submit"), api/_apply.js's one predicate:
+         at most one application per contact per day. No framework on this
+         page (this file's own header note), so a small inline script. ══ -->
+    <section aria-labelledby="apply-title" id="apply">
       <div class="wrap">
         <div class="limits">
           <p class="eyebrow">Read this before you apply</p>
           <h2 id="apply-title">This is not a self-serve signup yet.</h2>
           <ul>
             <li>
-              <strong>A person reads every application.</strong> The email goes to a person, not a queue with
-              an automatic reply. Send the three answers and expect a real one back.
+              <strong>A person reads every application.</strong> It goes to a person, not a queue with an
+              automatic reply. Send the form below and expect a real answer back.
             </li>
             <li>
               <strong>We are opening the first Rooms in small batches.</strong> No date is promised here
@@ -399,6 +425,36 @@
               publishes anything you have not reviewed, and revocation is available from the day you start.
             </li>
           </ul>
+
+          <form class="apply-form" id="apply-form" novalidate>
+            <div class="apply-field">
+              <label for="apply-name">Your name</label>
+              <input id="apply-name" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive">A link to your archive</label>
+              <input
+                id="apply-archive" name="archive_link" type="text" maxlength="2000" required
+                placeholder="A channel, a course, a feed, anything long"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience">Who is your audience</label>
+              <textarea
+                id="apply-audience" name="audience" maxlength="2000"
+                placeholder="Where they already find you, and roughly how many"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact">Contact</label>
+              <input
+                id="apply-contact" name="contact" type="text" maxlength="320" required
+                placeholder="An email or a phone number" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit">Submit application</button>
+            <p class="apply-note" id="apply-status" role="status" aria-live="polite"></p>
+          </form>
         </div>
       </div>
     </section>
@@ -410,8 +466,8 @@
         <p>
           Free to build. You set what your followers pay. Our share is one number, shown before you publish.
         </p>
-        <a class="btn" href="mailto:hello@vyakti.ai?subject=Applying%20for%20a%20Room&amp;body=Three%20questions%2C%20and%20that%20is%20the%20whole%20application.%0A%0AWhere%20does%20your%20audience%20already%20live%20%28YouTube%2C%20a%20newsletter%2C%20Instagram%2C%20a%20podcast%2C%20a%20course%29%3F%0A%0AHow%20many%20people%20already%20pay%20you%20for%20something%2C%20even%20a%20little%3F%0A%0AA%20link%20to%20the%20longest%20thing%20you%20have%20published%20%28a%20talk%2C%20a%20course%2C%20a%20long%20video%2C%20a%20book%29.">Apply for one of the first Rooms</a>
-        <p class="fine">Three questions by email. A person reads it. No automatic decision.</p>
+        <a class="btn" href="#apply">Apply for one of the first Rooms</a>
+        <p class="fine">A short form, four fields. A person reads it. No automatic decision.</p>
       </div>
     </section>
 
@@ -425,6 +481,72 @@
       <a href="/privacy">Privacy and Terms</a>
     </div>
   </footer>
+
+  <!-- WS-R23: the apply form's own small inline script, this file's no-build-
+       step rule. Posts to api/apply.js; the one predicate that can refuse it
+       (one application per contact per day) is api/_apply.js's, never
+       re-implemented here - this script only reports whatever the server
+       already decided. -->
+  <script>
+    (function () {
+      var form = document.getElementById("apply-form");
+      var status = document.getElementById("apply-status");
+      var submit = document.getElementById("apply-submit");
+      if (!form || !status || !submit) return;
+
+      function setStatus(state, text) {
+        status.setAttribute("data-state", state);
+        status.textContent = text;
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var name = document.getElementById("apply-name").value.trim();
+        var archiveLink = document.getElementById("apply-archive").value.trim();
+        var audience = document.getElementById("apply-audience").value.trim();
+        var contact = document.getElementById("apply-contact").value.trim();
+        if (!name || !archiveLink || !contact) {
+          setStatus("error", "Your name, an archive link and a contact are all required.");
+          return;
+        }
+        submit.disabled = true;
+        setStatus("", "Sending.");
+        fetch("/api/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            op: "submit",
+            name: name,
+            archive_link: archiveLink,
+            audience: audience,
+            contact: contact,
+          }),
+        })
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+              return { ok: response.ok, status: response.status, data: data };
+            });
+          })
+          .then(function (result) {
+            submit.disabled = false;
+            if (result.ok) {
+              form.reset();
+              setStatus("ok", "Sent. A person will read this and reach out.");
+              return;
+            }
+            if (result.status === 429) {
+              setStatus("error", "One application per contact per day. Please try again tomorrow.");
+              return;
+            }
+            setStatus("error", "That did not go through. Check the form and try again.");
+          })
+          .catch(function () {
+            submit.disabled = false;
+            setStatus("error", "That did not reach the server. Check your connection and try again.");
+          });
+      });
+    })();
+  </script>
 
 </body>
 </html>
