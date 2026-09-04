@@ -45,6 +45,8 @@ const {
   payoutStatementFromRows,
   payoutStatement,
   payoutStatements,
+  applyPayoutWebhook,
+  PayoutWebhookError,
 } = payments;
 const fake = await import(pathToFileURL(join(REPO, "api/_payments/providers/fake.js")).href);
 
@@ -150,6 +152,33 @@ function makeDb(state) {
       const [ownerUserId, provider] = params;
       const row = state.payoutAccounts.find((a) => a.owner_user_id === ownerUserId && a.provider === provider && a.verified_at);
       return row ? [{ fund_account_ref: row.fund_account_ref }] : [];
+    }
+    // ── WS-R56, migration 111: applyPayoutWebhook, keyed by
+    //    provider_payout_ref, never payout_id - checked BEFORE every
+    //    generic payout_id-keyed `set state = ...` pattern below (a
+    //    substring collision on "set state = 'settled'"/"set state =
+    //    'failed'" otherwise, since both this UPDATE's text and the
+    //    generic ones below share it). ──────────────────────────────────
+    if (has("where provider_payout_ref = $1") && has("set state = 'settled'")) {
+      const [providerRef] = params;
+      const row = state.payouts.find((p) => p.provider_payout_ref === providerRef && ["queued", "sent"].includes(p.state));
+      if (!row) return [];
+      row.state = "settled";
+      row.settled_at = new Date(NOW).toISOString();
+      return [{ payout_id: row.payout_id, owner_user_id: row.owner_user_id, state: row.state }];
+    }
+    if (has("where provider_payout_ref = $1") && has("state = 'failed', failure_reason")) {
+      const [providerRef, reason] = params;
+      const row = state.payouts.find((p) => p.provider_payout_ref === providerRef && ["queued", "sent"].includes(p.state));
+      if (!row) return [];
+      row.state = "failed";
+      row.failure_reason = reason ?? null;
+      return [{ payout_id: row.payout_id, owner_user_id: row.owner_user_id, state: row.state }];
+    }
+    if (has("select payout_id from vy_creator_payout where provider_payout_ref = $1")) {
+      const [providerRef] = params;
+      const row = state.payouts.find((p) => p.provider_payout_ref === providerRef);
+      return row ? [{ payout_id: row.payout_id }] : [];
     }
     // ── sendPayout: built|pending_account -> pending_account ──
     if (has("set state = 'pending_account'")) {
@@ -432,6 +461,89 @@ console.log("\n§4 THE STATEMENT — four numbers, the period, the follower coun
   );
   ok("a zero Suite share never shows a Suite name, even if one were passed in", pure.suite_share_inr === 0 && pure.suite_name === null);
   ok("payoutStatementFromRows returns null for a null row (an owner asking about a payout that is not theirs)", payoutStatementFromRows(null) === null);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§5 THE PAYOUT STATUS WEBHOOK (WS-R56, migration 111) — provider-ref-keyed, leaving state in the WHERE");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const WH_SECRET = "test-payout-webhook-secret-r56";
+  const WH_ENV = { PAYMENTS_PROVIDER: "fake", PAYMENTS_FAKE_WEBHOOK_SECRET: WH_SECRET };
+
+  const state = freshState();
+  const payoutId = nextPayoutId();
+  const providerRef = "fake_payout_wh_001";
+  state.payouts.push({
+    payout_id: payoutId, owner_user_id: OWNER_FOLLOWER_ONLY, period_start: "p", period_end: "p2",
+    gross_inr: 300, take_inr: 75, net_inr: 225, tds_inr: 0, suite_share_inr: 0,
+    provider_payout_ref: providerRef, state: "queued", created_at: new Date(NOW).toISOString(),
+  });
+  const db = makeDb(state);
+
+  const body = Buffer.from(JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: providerRef } } } }));
+  const goodSig = fake.signWebhookForTest(body, WH_SECRET);
+
+  const applied = await applyPayoutWebhook(db, { rawBody: body, headers: { "x-razorpay-signature": goodSig } }, { env: WH_ENV });
+  ok("a validly signed 'processed' event settles a still-QUEUED payout (no 'sent' step ever ran - law 2's own WHERE spans both)", applied.applied === true && applied.state === "settled");
+  ok("the row itself carries settled_at now", state.payouts[0].state === "settled" && Boolean(state.payouts[0].settled_at));
+
+  // NEGATIVE CONTROL: a replayed processed event that moves the state twice fails.
+  const replay = await applyPayoutWebhook(db, { rawBody: body, headers: { "x-razorpay-signature": goodSig } }, { env: WH_ENV });
+  ok("NEGATIVE CONTROL: a replayed processed event does NOT move the state a second time - the WHERE (state in queued/sent) no longer matches an already-settled row", replay.applied === false && state.payouts[0].state === "settled");
+
+  // NEGATIVE CONTROL: a tampered signature admitted fails.
+  const tamperedBody = Buffer.from(JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: providerRef, x: 1 } } } }));
+  const tamperedErr = await applyPayoutWebhook(db, { rawBody: tamperedBody, headers: { "x-razorpay-signature": goodSig } }, { env: WH_ENV }).then(() => null, (e) => e);
+  ok("NEGATIVE CONTROL: a tampered signature (body changed, signature not recomputed) is refused, never applied", tamperedErr instanceof PayoutWebhookError && tamperedErr.code === "payout_webhook_signature_invalid");
+  ok("PayoutWebhookError is a PaymentsError - the door's existing catch (error instanceof PaymentsError) still handles it", tamperedErr instanceof PaymentsError);
+
+  // NEGATIVE CONTROL: a failed event without the leaving-state WHERE (i.e.
+  // the payout has ALREADY left queued/sent - it is settled) fails.
+  const failAfterSettled = Buffer.from(JSON.stringify({ event: "payout.failed", payload: { payout: { entity: { id: providerRef, failure_reason: "too_late" } } } }));
+  const failSig = fake.signWebhookForTest(failAfterSettled, WH_SECRET);
+  const failedNoop = await applyPayoutWebhook(db, { rawBody: failAfterSettled, headers: { "x-razorpay-signature": failSig } }, { env: WH_ENV });
+  ok("NEGATIVE CONTROL: a failed event without the leaving-state WHERE matching (the payout already settled) fails - applied:false, state and failure_reason untouched", failedNoop.applied === false && state.payouts[0].state === "settled" && !state.payouts[0].failure_reason);
+
+  // The real failure path, on a fresh queued payout: reason is recorded.
+  const payoutId2 = nextPayoutId();
+  const providerRef2 = "fake_payout_wh_002";
+  state.payouts.push({
+    payout_id: payoutId2, owner_user_id: OWNER_FOLLOWER_ONLY, period_start: "p3", period_end: "p4",
+    gross_inr: 200, take_inr: 50, net_inr: 150, tds_inr: 0, suite_share_inr: 0,
+    provider_payout_ref: providerRef2, state: "sent", created_at: new Date(NOW).toISOString(),
+  });
+  const failBody2 = Buffer.from(JSON.stringify({ event: "payout.reversed", payload: { payout: { entity: { id: providerRef2, status_details: { reason: "account_closed" } } } } }));
+  const failSig2 = fake.signWebhookForTest(failBody2, WH_SECRET);
+  const failedApplied = await applyPayoutWebhook(db, { rawBody: failBody2, headers: { "x-razorpay-signature": failSig2 } }, { env: WH_ENV });
+  ok("'reversed' collapses to 'failed' exactly like 'failed' does (law 2: 'on failed or reversed')", failedApplied.applied === true && failedApplied.state === "failed" && failedApplied.kind === "reversed");
+  ok("sent -> failed, with the provider's own reason (read from status_details.reason when failure_reason is absent) recorded", state.payouts[1].state === "failed" && state.payouts[1].failure_reason === "account_closed");
+
+  // Unknown ref: never thrown, distinguishable from a replay.
+  const unknownBody = Buffer.from(JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: "fake_payout_never_existed" } } } }));
+  const unknownSig = fake.signWebhookForTest(unknownBody, WH_SECRET);
+  const unknown = await applyPayoutWebhook(db, { rawBody: unknownBody, headers: { "x-razorpay-signature": unknownSig } }, { env: WH_ENV });
+  ok("an event for an unknown provider ref is logged as a content-free count, never thrown (law 2)", unknown.applied === false && unknown.replay === false);
+
+  // An event kind this platform never treats as a transition: a no-op.
+  const ignoredBody = Buffer.from(JSON.stringify({ event: "payout.queued", payload: { payout: { entity: { id: providerRef2 } } } }));
+  const ignoredSig = fake.signWebhookForTest(ignoredBody, WH_SECRET);
+  const ignored = await applyPayoutWebhook(db, { rawBody: ignoredBody, headers: { "x-razorpay-signature": ignoredSig } }, { env: WH_ENV });
+  ok("an event kind outside {processed,failed,reversed} (e.g. queued/initiated) changes nothing", ignored.applied === false && ignored.kind === "" && state.payouts[1].state === "failed");
+
+  // The statement now shows settled_at/failure_reason through the EXISTING read.
+  const settledStatement = await payoutStatement(db, OWNER_FOLLOWER_ONLY, payoutId);
+  ok("law 4: the statement shows the settled date through the existing read", settledStatement.state === "settled" && Boolean(settledStatement.settled_at));
+  const failedStatement = await payoutStatement(db, OWNER_FOLLOWER_ONLY, payoutId2);
+  ok("law 4: the statement shows the failure reason through the existing read", failedStatement.state === "failed" && failedStatement.failure_reason === "account_closed");
+
+  // The fake and real twins share the identical signature algorithm - the
+  // workstream's own law 1: "the door battery's class-d cases apply unchanged."
+  const razorpaySrc = readFileSync(join(REPO, "api/_payments/providers/razorpay.js"), "utf8");
+  ok("razorpay.js's verifyPayoutWebhook delegates to the SAME verifyWebhookSignature algorithm, never a second implementation", /verifyPayoutWebhook[\s\S]{0,200}verifyWebhookSignature\(/.test(razorpaySrc));
+  ok(
+    "razorpay.js's verifyPayoutWebhook and parsePayoutEvent are both marked NOT VERIFIED",
+    razorpaySrc.includes("NOT VERIFIED (WS-R56") && (razorpaySrc.match(/NOT VERIFIED \(WS-R56/g) || []).length === 2,
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -7102,6 +7102,36 @@
       "kind": "rejection",
       "title": "Found, not fixed: opening Check-ins/Handoff/Data/Settings from the Room header produces no visible change on a real phone with a conversation taller than one screen, because the dialog is a plain in-flow block with no scroll-into-view or focus call",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r56-payout-webhook-where-spans-queued-and-sent",
+      "kind": "decision",
+      "title": "applyPayoutWebhook's WHERE spans both queued and sent as leaving states, because markPayoutSent has no caller and a real payout is left sitting at queued forever",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r56-event-ledger-is-the-payout-row-not-a-second-table",
+      "kind": "decision",
+      "title": "Migration 111 adds settled_at/failure_reason as columns on vy_creator_payout, never a second per-event table - a payout is terminal after at most one outcome",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r56-payout-webhook-reuses-payments-webhook-ip-rate-scope",
+      "kind": "decision",
+      "title": "applyPayoutWebhook's abuse gate reuses the existing payments_webhook_ip rate scope rather than minting a new one - api/_rate-limit.js stays untouched",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r56-payout-webhook-eval-results-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/payouts: 64 assertions (up from 50); evals/room-doors d-webhook-replay class: 21 ok across four webhook doors including the new payout-webhook.js; every named negative control (replay, tamper, missing leaving-state WHERE) passes",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r56-verify-release-gate-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release: 19/20 on the untouched tree and 19/20 twice more after every change, the one failure always layout readability for an environmental reason (port collision or a CPU-contention timing flake on an untouched screen) that does not reproduce when check-layout.mjs runs uncontended",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14249,6 +14279,26 @@
       "src": "ws-r43-viewport-only-screenshot-missed-in-flow-dialogs",
       "rel": "caused_by",
       "dst": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view"
+    },
+    {
+      "src": "ws-r56-payout-webhook-where-spans-queued-and-sent",
+      "rel": "measured_by",
+      "dst": "ws-r56-payout-webhook-eval-results-2026-09-04"
+    },
+    {
+      "src": "ws-r56-event-ledger-is-the-payout-row-not-a-second-table",
+      "rel": "measured_by",
+      "dst": "ws-r56-payout-webhook-eval-results-2026-09-04"
+    },
+    {
+      "src": "ws-r56-payout-webhook-reuses-payments-webhook-ip-rate-scope",
+      "rel": "measured_by",
+      "dst": "ws-r56-payout-webhook-eval-results-2026-09-04"
+    },
+    {
+      "src": "ws-r56-verify-release-gate-2026-09-04",
+      "rel": "caused_by",
+      "dst": "ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04"
     }
   ]
 }

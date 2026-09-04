@@ -89,6 +89,54 @@ export async function sendPayout(input) {
   return { provider_payout_ref: ref, status: "queued" };
 }
 
+/**
+ * Verify a PAYOUT status webhook (WS-R56). Byte-identical algorithm to
+ * `verifyWebhookSignature` above - the workstream brief's own law 1: "the
+ * fake twin signs with the same HMAC shape the payments webhook already
+ * uses so the door battery's class-d cases (replay, tamper) apply
+ * unchanged." `headers` is the request's own header bag (an object, not a
+ * single string) because the real provider may sign a DIFFERENT header name
+ * for this product than the Subscriptions webhook does - RazorpayX's own
+ * header name for a payout webhook has never been confirmed against a live
+ * document (see razorpay.js's own NOT VERIFIED note); this twin reads
+ * `x-razorpay-signature` on the SAME assumption `parsePayoutEvent`'s own
+ * envelope shape makes, named rather than silently baked in.
+ */
+export function verifyPayoutWebhook(rawBody, headers, secret) {
+  const sig = headers?.["x-razorpay-signature"];
+  return verifyWebhookSignature(rawBody, sig, secret);
+}
+
+/**
+ * Parse a payout status webhook body (WS-R56) -> `{providerRef, kind, reason}`.
+ * `kind` is one of `'processed' | 'failed' | 'reversed'`, or `''` for any
+ * OTHER RazorpayX payout event (`payout.queued`, `payout.initiated`,
+ * `payout.updated`, ...) this platform does not treat as a state
+ * transition - `api/_payments.js`'s own `KIND_TO_STATE` empty-string
+ * precedent, restated for a payout instead of a subscription: "log the
+ * event, change nothing."  Envelope shape assumed identical in SKELETON to
+ * the Subscriptions webhook's own `{event, payload:{X:{entity}}}` (razorpay.js's
+ * own header cites this for `payload.subscription.entity`/
+ * `payload.payment.entity`) with `payout` as the entity key - NOT VERIFIED
+ * against a live RazorpayX document by this workstream (no network beyond
+ * 127.0.0.1 was in scope; see ENV-MANIFEST.md's own mark for this function).
+ */
+export function parsePayoutEvent(json) {
+  const event = String(json?.event || "");
+  const entity = json?.payload?.payout?.entity || null;
+  const providerRef = String(entity?.id || "");
+  const reason = entity?.failure_reason
+    ? String(entity.failure_reason)
+    : entity?.status_details?.reason
+      ? String(entity.status_details.reason)
+      : null;
+  let kind = "";
+  if (event === "payout.processed") kind = "processed";
+  else if (event === "payout.reversed") kind = "reversed";
+  else if (event === "payout.failed" || event === "payout.rejected") kind = "failed";
+  return { providerRef, kind, reason };
+}
+
 /** Test-only helper: sign a raw body the way a real provider's webhook
  *  sender would, so evals/payments/run.mjs can construct a genuinely valid
  *  signature and then, for the negative control, corrupt exactly one byte of

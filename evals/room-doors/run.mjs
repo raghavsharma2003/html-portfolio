@@ -66,7 +66,7 @@
 //   (b) cross-Room session  — every door that resolves a room off a session
 //   (c) body-supplied ids   — every door that takes a body id alongside a
 //                              session or an owner bearer
-//   (d) webhook replay      — payments-webhook.js, room-tg.js, room-wa.js
+//   (d) webhook replay      — payments-webhook.js, payout-webhook.js, room-tg.js, room-wa.js
 //   (e) owner bearer on another owner's replica/org — org.js, replica.js,
 //       room-publish.js, checkins.js, handoff.js (owner ops)
 //   (f) rate-key malformation — api/_rate-limit.js's consume(), cross-cutting
@@ -127,7 +127,7 @@ const DOOR_MODULES = [
 ];
 const EXPECTED_DOORS = [
   "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "org.js",
-  "payments-webhook.js", "payments.js", "pulse.js", "replica.js", "room-pay.js",
+  "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "replica.js", "room-pay.js",
   "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
 ].sort();
 
@@ -184,6 +184,7 @@ const PAYMENTS = await import(pathToFileURL(join(API, "_payments.js")).href);
 const {
   applyWebhook, startFollowerSubscription, followerSubscriptionStatus, setRoomPrice, PaymentsError,
   payoutStatement, payoutStatements, registerFundAccount, retryFailedPayout,
+  applyPayoutWebhook,
 } = PAYMENTS;
 const FAKE_PROVIDER = await import(pathToFileURL(join(API, "_payments/providers/fake.js")).href);
 const ORG = await import(pathToFileURL(join(API, "_org.js")).href);
@@ -606,6 +607,76 @@ console.log("\n── §4: webhook replay and tampered signatures ──");
   const wrongSecretSig = FAKE_PROVIDER.signWebhookForTest(body, "not-the-real-secret");
   const wrongSecretErr = await threw(() => applyWebhook(db, { rawBody: body, signatureHeader: wrongSecretSig, eventRef: "evt_wrong_secret" }, { env: PAY_ENV }));
   okClass("d-webhook-replay", "payments-webhook.js", "a signature made with the wrong secret is refused", wrongSecretErr?.code === "payment_webhook_signature_invalid");
+}
+
+// payout-webhook.js / api/_payments.js's applyPayoutWebhook (WS-R56,
+// migration 111) — keyed by the PROVIDER's own ref, never our `payout_id`,
+// with the leaving state(s) named in the WHERE.
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const PAYOUT_WH_SECRET = "payout-wh-secret-r56";
+  const PAYOUT_ENV = { PAYMENTS_PROVIDER: "fake", PAYMENTS_FAKE_WEBHOOK_SECRET: PAYOUT_WH_SECRET };
+
+  const payoutId = "f1000000-0000-4000-8000-000000000001";
+  const providerRef = "fake_payout_r56_001";
+  state.payouts.push({
+    payout_id: payoutId, owner_user_id: OWNER, period_start: "2026-08-01T00:00:00Z", period_end: "2026-09-01T00:00:00Z",
+    gross_inr: 1000, take_inr: 100, net_inr: 800, tds_inr: 100, suite_share_inr: 0,
+    provider_payout_ref: providerRef, state: "queued", created_at: "2026-09-01T00:00:00Z",
+  });
+
+  const body = Buffer.from(JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: providerRef } } } }));
+  const goodSig = FAKE_PROVIDER.signWebhookForTest(body, PAYOUT_WH_SECRET);
+
+  const first = await applyPayoutWebhook(db, { rawBody: body, headers: { "x-razorpay-signature": goodSig } }, { env: PAYOUT_ENV });
+  okClass("d-webhook-replay", "payout-webhook.js", "a validly signed 'processed' event settles a still-queued payout (no 'sent' step ever ran)", first.applied === true && first.state === "settled" && state.payouts[0].state === "settled");
+
+  const second = await applyPayoutWebhook(db, { rawBody: body, headers: { "x-razorpay-signature": goodSig } }, { env: PAYOUT_ENV });
+  okClass("d-webhook-replay", "payout-webhook.js", "NEGATIVE CONTROL: the SAME processed event replayed against an already-settled payout is refused by the WHERE — applied:false, never a second settled_at write", second.applied === false && state.payouts[0].state === "settled");
+
+  // signature over a MODIFIED body — flip a byte, keep the signature computed over the ORIGINAL bytes.
+  const tamperedBody = Buffer.from(JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: providerRef, note: "tampered" } } } }));
+  const tamperedErr = await threw(() => applyPayoutWebhook(db, { rawBody: tamperedBody, headers: { "x-razorpay-signature": goodSig } }, { env: PAYOUT_ENV }));
+  okClass("d-webhook-replay", "payout-webhook.js", "NEGATIVE CONTROL: a tampered signature admitted — refused, never applied", tamperedErr?.code === "payout_webhook_signature_invalid");
+
+  // wrong secret entirely.
+  const wrongSecretSig = FAKE_PROVIDER.signWebhookForTest(body, "not-the-real-secret");
+  const wrongSecretErr = await threw(() => applyPayoutWebhook(db, { rawBody: body, headers: { "x-razorpay-signature": wrongSecretSig } }, { env: PAYOUT_ENV }));
+  okClass("d-webhook-replay", "payout-webhook.js", "a signature made with the wrong secret is refused", wrongSecretErr?.code === "payout_webhook_signature_invalid");
+
+  // 'failed' on a second, still-queued payout — the reason is recorded.
+  const payoutId2 = "f1000000-0000-4000-8000-000000000002";
+  const providerRef2 = "fake_payout_r56_002";
+  state.payouts.push({
+    payout_id: payoutId2, owner_user_id: OWNER, period_start: "2026-08-01T00:00:00Z", period_end: "2026-09-01T00:00:00Z",
+    gross_inr: 500, take_inr: 50, net_inr: 400, tds_inr: 50, suite_share_inr: 0,
+    provider_payout_ref: providerRef2, state: "queued", created_at: "2026-09-01T00:00:00Z",
+  });
+  const failBody = Buffer.from(JSON.stringify({ event: "payout.failed", payload: { payout: { entity: { id: providerRef2, failure_reason: "insufficient_balance" } } } }));
+  const failSig = FAKE_PROVIDER.signWebhookForTest(failBody, PAYOUT_WH_SECRET);
+  const failed = await applyPayoutWebhook(db, { rawBody: failBody, headers: { "x-razorpay-signature": failSig } }, { env: PAYOUT_ENV });
+  okClass("d-webhook-replay", "payout-webhook.js", "'failed' moves a still-queued payout to failed with the provider's own reason recorded", failed.applied === true && state.payouts[1].state === "failed" && state.payouts[1].failure_reason === "insufficient_balance");
+
+  // NEGATIVE CONTROL (law 2's own case, named in this workstream's brief):
+  // a failed event replayed against an ALREADY-failed payout — the leaving
+  // state ('queued'/'sent') no longer matches, so the WHERE misses and this
+  // must be refused (a no-op), never re-applied or the reason overwritten.
+  const replayFailed = await applyPayoutWebhook(db, { rawBody: failBody, headers: { "x-razorpay-signature": failSig } }, { env: PAYOUT_ENV });
+  okClass("d-webhook-replay", "payout-webhook.js", "NEGATIVE CONTROL: a failed event without the leaving-state WHERE matching (already failed) is refused, applied:false", replayFailed.applied === false);
+
+  // an event for an UNKNOWN provider ref — logged, never thrown, so the
+  // door still answers 200 (law 2: the provider stops retrying).
+  const unknownBody = Buffer.from(JSON.stringify({ event: "payout.processed", payload: { payout: { entity: { id: "fake_payout_does_not_exist" } } } }));
+  const unknownSig = FAKE_PROVIDER.signWebhookForTest(unknownBody, PAYOUT_WH_SECRET);
+  const unknownResult = await applyPayoutWebhook(db, { rawBody: unknownBody, headers: { "x-razorpay-signature": unknownSig } }, { env: PAYOUT_ENV });
+  okClass("d-webhook-replay", "payout-webhook.js", "an event for an unknown provider ref is a content-free no-op, never a throw", unknownResult.applied === false && unknownResult.replay === false);
+
+  // an event kind this platform does not treat as a transition.
+  const ignoredBody = Buffer.from(JSON.stringify({ event: "payout.queued", payload: { payout: { entity: { id: providerRef } } } }));
+  const ignoredSig = FAKE_PROVIDER.signWebhookForTest(ignoredBody, PAYOUT_WH_SECRET);
+  const ignoredResult = await applyPayoutWebhook(db, { rawBody: ignoredBody, headers: { "x-razorpay-signature": ignoredSig } }, { env: PAYOUT_ENV });
+  okClass("d-webhook-replay", "payout-webhook.js", "an ignored event kind (e.g. queued/initiated) changes nothing", ignoredResult.applied === false && ignoredResult.kind === "" && state.payouts[0].state === "settled");
 }
 
 // room-tg.js's verifyRoomTelegramWebhook — a header secret, not a body HMAC

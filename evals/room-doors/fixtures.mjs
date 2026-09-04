@@ -487,6 +487,39 @@ function doorsPatterns(state) {
       );
       return row ? [{ ...row }] : [];
     }
+    // ── WS-R56: the payout status webhook's own lookup+transition
+    //    (api/_payments.js's `applyPayoutWebhook`, migration 111) — keyed
+    //    by `provider_payout_ref`, never `payout_id`, so these MUST be
+    //    checked before the generic `set state = 'failed'`/payout_id-keyed
+    //    patterns below (a substring collision on "set state = 'failed'"
+    //    otherwise, since `sendPayout`'s own failure path shares that
+    //    text). ─────────────────────────────────────────────────────────
+    if (has("where provider_payout_ref = $1") && has("set state = 'settled'")) {
+      const [providerRef] = params.map(String);
+      const row = state.payouts.find(
+        (p) => p.provider_payout_ref === providerRef && ["queued", "sent"].includes(p.state),
+      );
+      if (!row) return [];
+      row.state = "settled";
+      row.settled_at = new Date().toISOString();
+      return [{ payout_id: row.payout_id, owner_user_id: row.owner_user_id, state: row.state }];
+    }
+    if (has("where provider_payout_ref = $1") && has("state = 'failed', failure_reason")) {
+      const [providerRef, reason] = params;
+      const row = state.payouts.find(
+        (p) => p.provider_payout_ref === String(providerRef) && ["queued", "sent"].includes(p.state),
+      );
+      if (!row) return [];
+      row.state = "failed";
+      row.failure_reason = reason ?? null;
+      return [{ payout_id: row.payout_id, owner_user_id: row.owner_user_id, state: row.state }];
+    }
+    if (has("select payout_id from vy_creator_payout where provider_payout_ref = $1")) {
+      const [providerRef] = params.map(String);
+      const row = state.payouts.find((p) => p.provider_payout_ref === providerRef);
+      return row ? [{ payout_id: row.payout_id }] : [];
+    }
+
     if (has("select fund_account_ref from vy_creator_payout_account")) {
       const [ownerUserId, provider] = params.map(String);
       const row = state.payoutAccounts.find((a) => a.owner_user_id === ownerUserId && a.provider === provider && a.verified_at);

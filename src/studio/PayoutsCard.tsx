@@ -56,6 +56,8 @@ function statementAsPlainText(s: PayoutStatement): string {
   }
   lines.push("", s.tds_note, "", `State: ${STATE_LABEL[s.state]}`);
   if (s.provider_payout_ref) lines.push(`Provider reference: ${s.provider_payout_ref}`);
+  if (s.settled_at) lines.push(`Settled: ${new Date(s.settled_at).toLocaleString()}`);
+  if (s.failure_reason) lines.push(`Failure reason: ${s.failure_reason}`);
   lines.push(`Built: ${new Date(s.created_at).toLocaleString()}`);
   return lines.join("\n");
 }
@@ -210,6 +212,8 @@ export default function PayoutsCard({ token }: { token: string }) {
                       <p className="field-note">
                         State: {STATE_LABEL[statement.state]}
                         {statement.provider_payout_ref ? `, provider reference ${statement.provider_payout_ref}` : ""}.
+                        {statement.settled_at ? ` Settled ${new Date(statement.settled_at).toLocaleString()}.` : ""}
+                        {statement.failure_reason ? ` Reason: ${statement.failure_reason}.` : ""}
                       </p>
                       <div className="vy-room__suite-actions">
                         <button
