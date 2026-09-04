@@ -91,13 +91,19 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of WS-R38 (2026-09-04) it is **17
+repo (see the next section). As of WS-R49 (2026-09-04) it is **18
 checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
-the room export completeness battery, `evals/room-export/run.mjs`, and the
+the room export completeness battery, `evals/room-export/run.mjs`, the
 room door battery, `evals/room-doors/run.mjs` — every way into a Room
-attacked offline through the real decision modules the thin HTTP doors call,
-each added as a named gate) and **19 with it** (adding the zero-orphan sweep and
-citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
+attacked offline through the real decision modules the thin HTTP doors call
+— and the performance budget gate, `scripts/check-performance.mjs`, which
+renders the four public entry points in real Chromium under CDP throttling
+shaped like a bad Indian 4G day and fails on a named target and metric,
+each added as a named gate) and **20 with it** (adding the zero-orphan sweep and
+citation discipline). Two sibling workstreams (WS-R42, WS-R50) are adding a
+gate each in the same wave; this count is what WS-R49 observed on its own
+worktree plus its own gate, and the main loop reconciles the final number
+at the merge. `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
 `LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,

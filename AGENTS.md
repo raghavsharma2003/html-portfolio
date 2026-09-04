@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 17 checks without NEON_URL; 19 with it
+node scripts/verify-release.mjs      # 18 checks without NEON_URL; 20 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -135,15 +135,22 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **17 checks** as of WS-R38
+`node scripts/verify-release.mjs` is **18 checks** as of WS-R49
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
-leak battery, the room export completeness battery, and the room door
+leak battery, the room export completeness battery, the room door
 battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
-through the real decision modules the thin HTTP doors call) as named gates —
-and 19 with it, adding the zero-orphan sweep and citation discipline.
+through the real decision modules the thin HTTP doors call), and the
+performance budget gate (`scripts/check-performance.mjs`, the four public
+entry points measured in real Chromium under CDP throttling shaped like a
+bad Indian 4G day, failing on a named target and metric) as named gates —
+and 20 with it, adding the zero-orphan sweep and citation discipline. Two
+sibling workstreams in the same wave (WS-R42, WS-R50) are adding a gate
+each; this is what WS-R49 observed plus its own gate, and the main loop
+reconciles the true final count at the merge.
 Migrations 071 through 099 and 101 are applied live; 100 is unused (WS-R38
 needed no new migration, every finding it fixed was a missing check in
-existing JS, never a schema change); 102 is the next free number.
+existing JS, never a schema change); 102 is the next free number (WS-R49
+needed none).
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible

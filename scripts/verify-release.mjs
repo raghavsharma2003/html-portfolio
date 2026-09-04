@@ -140,6 +140,20 @@ await gate("web build", NODE, [fileURLToPath(VITE), "build"]);
 // run in CI. Its negative control is written down in its header: reintroduce
 // the 58px rail and it fails naming the element; restore it and it passes.
 await gate("layout readability", NODE, ["scripts/check-layout.mjs"]);
+// WS-R49. CAN A PERSON ON A BAD CONNECTION AFFORD TO WAIT. Nothing before this
+// gate measured what a follower on a Rs 12,000 Android phone on a busy cell
+// actually waits for — "India-first" was a stated law with no check behind
+// it. It renders the built /, /vyakti, /r/<slug> (via room-layout-fixture.html,
+// the same signed-in-without-a-secret technique the layout gate above uses)
+// and /studio (signed out) in real Chromium at 390x844 under CDP throttling
+// shaped like a bad Indian 4G day (CPU 4x, 1.6Mbps/750Kbps/150ms — the
+// long-standing Chrome DevTools/Lighthouse "Fast 3G" preset; see the file's
+// own header for why that number rather than a clean "4G" one), three
+// cold-cache runs each, against a named budget table (LCP, CLS, TBT, JS and
+// font transfer bytes, no render-blocking third-party request). A miss names
+// the target and the metric. See context/decisions.md#ws-r49-performance-
+// budgets-are-a-throttled-simulation-not-a-device for the reversal condition.
+await gate("performance budgets", NODE, ["scripts/check-performance.mjs"]);
 // The eval suite: parser cases, the persona invariants (crisis helplines,
 // never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
 // integrity checks. run.mjs re-bundles from the REAL source on every run, so
