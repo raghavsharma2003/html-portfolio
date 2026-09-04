@@ -303,5 +303,57 @@ function fakeRateDb(state) {
   ok("the migration's own primary key matches consume()'s ON CONFLICT target", /primary key \(scope, key_hash, window_start\)/.test(migration));
 }
 
+// ── §8 WS-R32: the OTP doors (closes ws-r26-otp-doors-not-behind-vy-public-
+//    rate). Four new scopes, a brute-force negative control, and the static
+//    proof that api/account.js's send_sms/verify_sms wire through them. ────
+{
+  ok("the four OTP scopes are defined", ["otp_send_ip", "otp_send_dest", "otp_verify_ip", "otp_verify_dest"].every((s) => s in DEFAULT_LIMITS));
+  ok("otp_verify_dest is the stated brute-force floor: 10 a minute", DEFAULT_LIMITS.otp_verify_dest.limit === 10 && DEFAULT_LIMITS.otp_verify_dest.windowMs === 60_000);
+
+  // NEGATIVE CONTROL (d): 11 verify attempts against ONE destination - the
+  // 11th is refused, driven through the REAL consume() against a scope this
+  // module actually defines (never a hand-rolled counter).
+  const state = freshRateState();
+  const db = fakeRateDb(state);
+  const now = Date.UTC(2026, 8, 4, 8, 0, 0);
+  const results = [];
+  for (let i = 0; i < 11; i++) {
+    results.push(await consume(db, { scope: "otp_verify_dest", key: "+919900011122", now: now + i * 1000 }));
+  }
+  ok("attempts 1 through 10 against one destination are all admitted", results.slice(0, 10).every((r) => r.ok === true));
+  ok("the 11th verify attempt against the SAME destination in the same window is refused", results[10].ok === false && results[10].code === "rate_limited");
+
+  // A DIFFERENT destination is unaffected - same posture as §2.
+  const other = await consume(db, { scope: "otp_verify_dest", key: "+919900099999", now });
+  ok("a different destination has its own, unspent counter", other.ok === true);
+
+  // STATIC: the module really is wired at both doors, at the position the
+  // workstream requires (validation before the gate, so a malformed
+  // destination never touches the counter - the NEGATIVE half of this
+  // control, proven the same way §7 proves ordering elsewhere in this file).
+  const account = readFileSync(join(ROOT, "api/account.js"), "utf8");
+  ok("api/account.js imports consume from _rate-limit.js", /import \{ consume \} from ".\/_rate-limit\.js"/.test(account));
+
+  const sendBlock = account.slice(account.indexOf('if (op === "send_sms")'), account.indexOf('if (op === "verify_sms")'));
+  ok("send_sms validates the phone before any rate gate", /phone\.length < 8[\s\S]{0,60}return res\.status\(400\)/.test(sendBlock));
+  ok("send_sms gates on otp_send_ip", /refused\(res, "otp_send_ip", ipOf\(req\)\)/.test(sendBlock));
+  ok("send_sms gates on otp_send_dest, keyed by the phone itself", /refused\(res, "otp_send_dest", phone\)/.test(sendBlock));
+  ok("send_sms validates BEFORE either persistent gate runs", sendBlock.indexOf("phone.length < 8") < sendBlock.indexOf('refused(res, "otp_send_ip"'));
+
+  const verifyBlock = account.slice(account.indexOf('if (op === "verify_sms")'), account.indexOf('if (op === "google_url")'));
+  ok("verify_sms validates the phone before any rate gate", /phone\.length < 8[\s\S]{0,60}return res\.status\(400\)/.test(verifyBlock));
+  ok("verify_sms gates on otp_verify_ip", /refused\(res, "otp_verify_ip", ipOf\(req\)\)/.test(verifyBlock));
+  ok("verify_sms gates on otp_verify_dest, keyed by the phone itself", /refused\(res, "otp_verify_dest", phone\)/.test(verifyBlock));
+  ok("LAW: verify_sms validates BEFORE otp_verify_dest runs - a malformed destination never touches the counter",
+    verifyBlock.indexOf("phone.length < 8") < verifyBlock.indexOf('refused(res, "otp_verify_dest"'));
+  ok("verify_sms validates BEFORE otp_verify_ip runs too", verifyBlock.indexOf("phone.length < 8") < verifyBlock.indexOf('refused(res, "otp_verify_ip"'));
+
+  ok("every OTP scope api/account.js uses is one this module actually defines a limit for",
+    ["otp_send_ip", "otp_send_dest", "otp_verify_ip", "otp_verify_dest"].every((s) => s in DEFAULT_LIMITS));
+
+  // The existing in-memory layer stays - api/account.js's own header says why.
+  ok("send_sms keeps the fast in-memory per-destination layer too", /allow\(phone, "otp_dest", 3\)/.test(sendBlock));
+}
+
 console.log(`\n${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);

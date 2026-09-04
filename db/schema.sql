@@ -3790,3 +3790,13 @@ create index if not exists vy_room_upgrade_offer_follower_ix
   on vy_room_upgrade_offer (follower_id, shown_at desc);
 create index if not exists vy_room_upgrade_offer_room_shown_ix
   on vy_room_upgrade_offer (room_id, shown_at desc);
+-- Migration 094 - an index on vy_room_forget_receipt.person_hash (WS-R32).
+-- See db/migrations/094_receipt_hash_index.sql for the full argument;
+-- mirrored here per this file's own convention. Closes ws-r27-whole-wipe-
+-- receipt-read-capped-at-10000: the account-wide whole wipe now deletes
+-- `where person_hash = any($1)` against a walk of every vy_room row times
+-- every receipt policy version, rather than reading the receipt table
+-- itself with a `limit 10000` - this index is what makes that delete an
+-- index scan.
+create index if not exists vy_room_forget_receipt_person_hash_ix
+  on vy_room_forget_receipt (person_hash);

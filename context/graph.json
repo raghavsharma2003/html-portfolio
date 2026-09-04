@@ -6064,6 +6064,36 @@
       "kind": "measurement",
       "title": "Migration 093 applied live; the 14-day cooldown is visible as the offer INSERT's One-Time Filter over the follower index, the session predicate reads one follower's lane through the agent-device index before any aggregate",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r32-otp-doors-behind-vy-public-rate",
+      "kind": "decision",
+      "title": "api/account.js send_sms/verify_sms now consume from vy_public_rate at otp_send_ip/otp_send_dest/otp_verify_ip/otp_verify_dest, on top of the existing in-memory per-destination throttle which stays as a fast first layer.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms",
+      "kind": "decision",
+      "title": "purgeRoomForgetReceipts walks every vy_room row times every receipt policy version and deletes vy_room_forget_receipt where person_hash = any(...) under a new index, replacing the old limit-10000 read off the receipt table itself.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r32-rate-limit-and-room-export-offline-batteries-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/rate-limit/run.mjs 80/80 (up from 63, four OTP scopes plus an 11-attempt brute-force negative control) and evals/room-export/run.mjs 44/44 (up from 33, the receipt-survivor layer) both offline/deterministic/$0/no DB, 2026-09-04.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r32-static-check-matched-its-own-explanatory-comment",
+      "kind": "rejection",
+      "title": "A static check for the removed limit-10000 read matched purgeRoomForgetReceipts own header comment quoting that old shape for context, failing on a tree where the bug was already fixed; fixed by rewording the comment to prose rather than narrowing the regex.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-094-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 094 applied live; the whole wipe's receipt delete probes the new person_hash index and its Room walk is bounded by the Room count, the OTP scopes ride the same rate upsert",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12206,6 +12236,41 @@
       "src": "ws-r30-conversion-moment",
       "rel": "measured_by",
       "dst": "rooms-migration-093-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r32-otp-doors-behind-vy-public-rate",
+      "rel": "supersedes",
+      "dst": "ws-r26-otp-doors-not-behind-vy-public-rate"
+    },
+    {
+      "src": "ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms",
+      "rel": "supersedes",
+      "dst": "ws-r27-whole-wipe-receipt-read-capped-at-10000"
+    },
+    {
+      "src": "ws-r32-otp-doors-behind-vy-public-rate",
+      "rel": "measured_by",
+      "dst": "ws-r32-rate-limit-and-room-export-offline-batteries-2026-09-04"
+    },
+    {
+      "src": "ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms",
+      "rel": "measured_by",
+      "dst": "ws-r32-rate-limit-and-room-export-offline-batteries-2026-09-04"
+    },
+    {
+      "src": "ws-r32-static-check-matched-its-own-explanatory-comment",
+      "rel": "constrains",
+      "dst": "ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms"
+    },
+    {
+      "src": "ws-r32-otp-doors-behind-vy-public-rate",
+      "rel": "measured_by",
+      "dst": "rooms-migration-094-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms",
+      "rel": "measured_by",
+      "dst": "rooms-migration-094-live-verification-2026-09-04"
     }
   ]
 }

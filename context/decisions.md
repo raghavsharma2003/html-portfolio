@@ -10435,3 +10435,73 @@ one screen reads as noisy or as double-asking, fold `upgrade_prompt`'s
 render into the SAME card component (still two independent predicates
 underneath) rather than removing either signal - the funnel this
 workstream now measures depends on both existing.
+
+## `ws-r32-otp-doors-behind-vy-public-rate` (2026-09-04, WS-R32)
+
+**Decision.** `api/account.js`'s `send_sms` and `verify_sms` - the OTP
+sign-in the Room uses - now consume from `vy_public_rate` (WS-R26,
+`api/_rate-limit.js`) at two scopes each: by IP (`otp_send_ip`,
+`otp_verify_ip`) and by destination hash (`otp_send_dest`,
+`otp_verify_dest`). The existing in-memory `otp_dest` throttle
+(`api/_ratelimit.js`) stays, unchanged in shape, as a fast first layer with
+no database round trip; send_sms's own copy of it is bumped from 2 to 3 a
+minute to match the stated send-side budget, and verify_sms - which had NO
+in-memory throttle at all before this - gets its whole defence from the new
+persistent layer.
+
+**Rationale.** Closes `ws-r26-otp-doors-not-behind-vy-public-rate`, left
+open at the WS-R26 merge: the in-memory layer is per WARM LAMBDA INSTANCE,
+so it resets on every cold start and is invisible to every other instance
+or region a determined caller can land on next - a caller only has to
+arrive on a fresh instance to reset their own budget. This mattered most
+for `verify_sms`, which guards a 6-digit code (1,000,000 possible values)
+with no throttle of any kind before this change; `otp_verify_dest`'s 10-a-
+minute persistent ceiling is now the actual brute-force floor, not a
+supplement to one. Every door validates its destination BEFORE gating
+(`res.status(400)` on a malformed phone), so a malformed destination never
+touches the counter - `evals/rate-limit/run.mjs`'s own static proof of this
+ordering.
+
+**Reversal condition.** If real OTP traffic shows the persistent layer's
+numbers (10/hr per destination + 30/hr per IP for send; 10/min per
+destination + 30/hr per IP for verify) too tight or too loose against
+genuine sign-in patterns, retune first via `RATE_LIMITS_JSON` (no deploy
+needed) before touching the code constants - the same posture WS-R26
+already established for every other scope in this module.
+
+## `ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms` (2026-09-04, WS-R32)
+
+**Decision.** The account-wide whole wipe's own door onto
+`vy_room_forget_receipt` is now `api/memory.js`'s exported
+`purgeRoomForgetReceipts(db, personId)`: it reads every `room_id` off
+`vy_room` (no `limit`), computes `roomForgetReceiptHash(room_id, personId,
+v)` for every policy version from 1 to `ROOM_FORGET_RECEIPT_POLICY_VERSION`,
+and deletes `vy_room_forget_receipt` in one statement,
+`where person_hash = any($1)`, under migration 094's new index on
+`person_hash`. This replaces the old `select ... from
+vy_room_forget_receipt` read, which capped itself at ten thousand rows.
+
+**Rationale.** Closes `ws-r27-whole-wipe-receipt-read-capped-at-10000`: the
+old read was bounded by RECEIPTS, so a whole wipe silently stopped reaching
+older receipts once that table passed 10,000 rows - and it was the wrong
+axis to bound on regardless of the cap's size, because a receipt names no
+person (`roomForgetReceiptHash`'s own header) and the only way to find
+"every receipt this person produced" is to compute the candidate hash for
+every (room, version) pair and ask the indexed table which of those hashes
+exist. `vy_room` is owner-keyed and does not grow with wipes the way the
+receipt table does (hundreds of rows at most in Phase 1, one per creator's
+Room), so walking it whole is the bound that actually matches how this
+product scales, and it also reaches the case the old read's own filter
+predicate could never have reached correctly even unbounded: a person whose
+follower row is already gone (they forgot that Room earlier, leaving only
+the receipt) is still found, because the walk is over EVERY room this
+database has, never over the person's own (possibly already-deleted)
+follower rows. `evals/room-export/run.mjs`'s layer 4 proves exactly this
+case: forget Room A, join Room B (a DIFFERENT room, so the person's only
+CURRENT follower row points at B), whole-wipe, and Room A's receipt is
+gone.
+
+**Reversal condition.** When Rooms themselves number in the ~10,000s, a
+whole `select room_id from vy_room` per wipe stops being cheap and this
+walk needs a different key (a room index keyed some other way, or batching
+the room walk) - that is the moment to revisit, not before.

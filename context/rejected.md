@@ -7576,3 +7576,40 @@ including experimentally, including for a few seconds - the WIP-commit +
 HEAD~1` (to keep working) round trip this same session used correctly
 elsewhere in it is the only sanctioned way to set work aside, and it has no
 shared-state window at all.
+
+## `ws-r32-static-check-matched-its-own-explanatory-comment` (2026-09-04, WS-R32)
+
+**What was tried.** `evals/room-export/run.mjs`'s new layer-4 static proof
+("api/memory.js no longer reads vy_room_forget_receipt with a limit 10000")
+searched the real `api/memory.js` source text with a regex looking for the
+OLD read's shape near `vy_room_forget_receipt` - `/vy_room_forget_receipt
+[\s\S]{0,120}limit 10000/`.
+
+**What specifically broke.** The check FAILED on the tree where the bug was
+already fixed. `purgeRoomForgetReceipts`'s own header comment, written to
+explain what it replaced, quoted the literal old shape for context: "The OLD
+read was `select ... from vy_room_forget_receipt limit 10000`". The regex
+matched that COMMENT, not the SQL text it was meant to catch a regression
+in - a check aimed at the code ended up grading its own explanation of the
+code's history.
+
+**What replaced it.** The comment was reworded to describe the old read in
+prose ("capped at ten thousand rows") rather than quoting the literal old
+SQL fragment, so nothing in the fixed file contains the string under test.
+The check itself was left as-is; the fix belonged in the comment, not the
+regex, since narrowing the regex to dodge one specific wording would only
+move the collision to the next comment that tried to be equally honest
+about what it replaced.
+
+**Rule.** The identical shape as
+`ws-r26-static-order-proof-indexof-matched-the-definition-not-the-call`, one
+level over: there a search for a bare name matched the function's own
+DEFINITION instead of its call site; here a search for a literal SQL
+fragment matched a COMMENT describing that fragment's own removal, instead
+of the fragment itself. Generalises the same way - a static text check is a
+THIRD parser this repo maintains beside Postgres's and JS's real ones, and
+prose that explains a fix by quoting the bug it fixed is exactly the kind of
+text a naive substring or regex check cannot tell apart from the bug itself
+still being there. When documenting what code used to do, prefer describing
+the shape in words over pasting the literal pattern a nearby test might
+later search for.
