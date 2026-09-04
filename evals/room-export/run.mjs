@@ -31,7 +31,9 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadSchema } from "../sqlcast/schema.mjs";
-import { PERSON_TABLES, roomForgetReceiptHash, ROOM_FORGET_RECEIPT_POLICY_VERSION } from "../../api/memory.js";
+import {
+  PERSON_TABLES, roomForgetReceiptHash, ROOM_FORGET_RECEIPT_POLICY_VERSION, purgeRoomForgetReceipts,
+} from "../../api/memory.js";
 import { freshExportState, exportDb, ROOM_ID } from "./fixtures.mjs";
 import { loadFixtureAgent, SLUG } from "../room/fixtures.mjs";
 
@@ -308,6 +310,87 @@ console.log("\n── layer 3: negative control (b) — a struck copy of roomFor
   } finally {
     rmSync(struckPath, { force: true });
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 4 — RECEIPT SURVIVOR (WS-R32, closes ws-r27-whole-wipe-receipt-
+// read-capped-at-10000). A person forgets Room A (a receipt is written,
+// Room A's own follower row is deleted), then joins Room B - a DIFFERENT
+// room, so the person's only CURRENT follower row now points at B, not A -
+// then the account-wide whole wipe's own receipt door runs, and Room A's
+// receipt must be gone even though no follower row names Room A any more.
+// This is the exact case a walk over "the rooms this person currently
+// follows" would silently miss, and the exact case `purgeRoomForgetReceipts`
+// exists to reach instead, by walking every `vy_room` row this database has.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 4: receipt survivor (WS-R32) ──");
+{
+  const UID2 = "60000000-0000-4000-a000-000000000002";
+  const state = freshExportState();
+  const db = exportDb(state);
+
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: UID2, ageAttested: true, memoryConsent: true }, { loadAgent });
+  const payloadA = readRoomSession(joinedA.session);
+  const roomIdA = String(payloadA.i);
+  const personId = String(payloadA.p);
+
+  const forgetA = await roomForget(db, { session: joinedA.session }, FULL_DEPS);
+  ok("Room A's forget wrote a receipt", Boolean(forgetA.receipt));
+  ok("Room A's follower row is really gone after the forget",
+    !state.followers.some((f) => f.room_id === roomIdA && f.person_id === personId));
+
+  // Room B - a second, DIFFERENT room the same person now follows. The same
+  // demo sheet is reused (this scenario is not about modelling a second
+  // creator) - only the room_id and slug differ, and `loadAgentAnySlug`
+  // sidesteps `loadFixtureAgent`'s own single-slug check by always handing
+  // back the one demo sheet regardless of which slug asked for it.
+  const ROOM_ID_B = "d0000000-0000-4000-8000-00000000000b";
+  const roomA = state.rooms.find((r) => r.room_id === roomIdA);
+  state.rooms.push({ ...roomA, room_id: ROOM_ID_B, slug: "anjali-b" });
+  const loadAgentAnySlug = async () => loadAgent(SLUG);
+  const joinedB = await joinRoom(db, { slug: "anjali-b", authUserId: UID2, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentAnySlug });
+  const payloadB = readRoomSession(joinedB.session);
+  ok("Room B's join produced a follower row for the SAME person", String(payloadB.p) === personId);
+  ok("the person's only CURRENT follower row is in Room B, not Room A",
+    state.followers.some((f) => f.person_id === personId && f.room_id === String(payloadB.i)) &&
+      !state.followers.some((f) => f.person_id === personId && f.room_id === roomIdA));
+
+  // The whole wipe's own door.
+  const removed = await purgeRoomForgetReceipts(db, personId);
+  ok("the whole wipe removed exactly one receipt - Room A's", removed === 1, `got ${removed}`);
+  ok("Room A's receipt is gone from the table even though no follower row named Room A any more",
+    !state.forgetReceipts.some((r) => r.room_id === roomIdA));
+
+  // NEGATIVE CONTROL: a stray receipt hashed for a DIFFERENT person, in a
+  // THIRD room this person never touched, must be left standing - a room
+  // this person was never in cannot produce a hash collision with theirs.
+  const ROOM_ID_C = "d0000000-0000-4000-8000-00000000000c";
+  state.rooms.push({ ...roomA, room_id: ROOM_ID_C, slug: "third-room" });
+  const strayHash = roomForgetReceiptHash(ROOM_ID_C, "someone-else-entirely", ROOM_FORGET_RECEIPT_POLICY_VERSION);
+  state.forgetReceipts.push({
+    receipt_id: "d0000000-0000-4000-8000-0000000000fc",
+    room_id: ROOM_ID_C,
+    person_hash: strayHash,
+    policy_version: ROOM_FORGET_RECEIPT_POLICY_VERSION,
+    counts: {},
+    issued_at: new Date().toISOString(),
+  });
+  const removedAgain = await purgeRoomForgetReceipts(db, personId);
+  ok("NEGATIVE CONTROL: a stray receipt hashed for a DIFFERENT person is untouched", removedAgain === 0, `got ${removedAgain}`);
+  ok("...and it is still in the table", state.forgetReceipts.some((r) => r.receipt_id === "d0000000-0000-4000-8000-0000000000fc"));
+
+  // STATIC: the old bounded-by-receipts read is really gone, and the whole
+  // wipe really calls through the new bounded-by-Rooms function.
+  const src = fs.readFileSync(join(REPO, "api/memory.js"), "utf8");
+  ok("api/memory.js no longer reads vy_room_forget_receipt with a limit 10000",
+    !/vy_room_forget_receipt[\s\S]{0,120}limit 10000/.test(src));
+  ok("purgeRelational's scope \"all\" branch calls purgeRoomForgetReceipts(q, person)",
+    /purgeRoomForgetReceipts\(q, person\)/.test(src));
+  ok("the migration for the new index exists and mirrors into schema.sql",
+    fs.readFileSync(join(REPO, "db/migrations/094_receipt_hash_index.sql"), "utf8")
+      .includes("create index if not exists vy_room_forget_receipt_person_hash_ix") &&
+    fs.readFileSync(join(REPO, "db/schema.sql"), "utf8")
+      .includes("create index if not exists vy_room_forget_receipt_person_hash_ix"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

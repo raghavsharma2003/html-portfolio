@@ -2618,6 +2618,56 @@ export function roomForgetReceiptHash(roomId, personId, policyVersion) {
   );
 }
 
+// ── WS-R32: the whole wipe's own door onto vy_room_forget_receipt ───────────
+// (closes ws-r27-whole-wipe-receipt-read-capped-at-10000)
+//
+// The OLD read selected straight off the receipt table itself, capped at ten
+// thousand rows - bounded by RECEIPTS, so once that table passed that size a
+// whole wipe silently stopped reaching older ones. It was also the wrong
+// axis to bound
+// on: a receipt names no person (`roomForgetReceiptHash`'s own header), so
+// the only way to find "every receipt this person produced" is to compute
+// what their hash WOULD be for every (room, policy version) pair and ask the
+// table which of those hashes exist - which means the walk should be bounded
+// by ROOMS, not by receipts. `vy_room` is owner-keyed (hundreds of rows at
+// most in Phase 1, one per creator's Room) and does not grow with wipes the
+// way the receipt table does, so walking it whole and letting the receipt
+// table answer one indexed `= any($1)` delete is the bound that actually
+// matches how this product scales. Reversal condition: once Rooms
+// themselves number in the ~10,000s, THIS walk needs a different key (see
+// `context/decisions.md#ws-r32-whole-wipe-receipt-sweep-bounded-by-rooms`).
+//
+// A person whose follower row is already gone - they forgot that Room
+// earlier, leaving only the receipt - is still reached, because the walk is
+// over EVERY room this database has, never over the person's own (now
+// possibly deleted) follower rows. Walking "the rooms this person currently
+// follows" instead would silently miss exactly this case.
+//
+// Extracted as its OWN function, taking an injectable `db`, for one reason:
+// `purgeRelational` below calls `q` directly with no injection seam at all
+// (this file is not the "thin handler over an injectable db" shape
+// api/_room-surface.js is - see this function's own call site) - so nothing
+// in this codebase could otherwise drive this ONE piece of logic through a
+// fake db. Every other statement in `purgeRelational` keeps calling `q`
+// exactly as it always has; this is the one piece that needed a seam,
+// because it is the one piece a test needs to prove (evals/room-export/
+// run.mjs's receipt-survivor scenario).
+export async function purgeRoomForgetReceipts(db, personId) {
+  const rooms = await db(`select room_id from vy_room`, []);
+  const hashes = [];
+  for (const { room_id } of rooms) {
+    for (let v = 1; v <= ROOM_FORGET_RECEIPT_POLICY_VERSION; v++) {
+      hashes.push(roomForgetReceiptHash(room_id, personId, v));
+    }
+  }
+  if (!hashes.length) return 0;
+  const gone = await db(
+    `delete from vy_room_forget_receipt where person_hash = any($1::text[]) returning 1 as x`,
+    [hashes],
+  );
+  return gone.length;
+}
+
 export const PERSON_TABLES = [
   { table: "meera_log",         key: "device_id", lane: "legacy", agent: true,
     keys: ["device_id", "speaker_person_id"] },
@@ -3540,38 +3590,20 @@ async function purgeRelational(devices, scope, { logIds = [], rx = null, from = 
       );
       if (gone.length) out[t.table] = gone.length;
     }
-    // WS-R27 (migration 090): every Room forget receipt this person's own
-    // past "forget me in this room" requests ever produced, across every
-    // Room. `vy_room_forget_receipt` is deliberately NOT a PERSON_TABLES
-    // entry (it carries no person_id column - `roomForgetReceiptHash`'s own
-    // header states why), so the generic manifest loop above cannot see it
-    // and this is its one explicit door. There is no person-keyed WHERE to
-    // issue: the table is read whole (bounded, since this is not a table
-    // anything writes to except one row per completed Room forget) and each
-    // row's OWN room_id/policy_version is used to recompute what THIS
-    // person's hash would be for it; a match is a receipt this person
-    // produced and a whole wipe must take it, unmatched rows belong to other
-    // people and are left standing. Gated on the table existing at all
-    // (090's own migration), the same guard `meera_consent` gets for 016 -
-    // a manifest naming a table this database has not got yet must never
-    // turn "forget everything" into a 500.
+    // WS-R32 (migration 094, closing ws-r27-whole-wipe-receipt-read-capped-
+    // at-10000): every Room forget receipt this person's own past "forget me
+    // in this room" requests ever produced, across every Room. `vy_room_
+    // forget_receipt` is deliberately NOT a PERSON_TABLES entry (it carries
+    // no person_id column - `roomForgetReceiptHash`'s own header states
+    // why), so the generic manifest loop above cannot see it and this is its
+    // one explicit door - see `purgeRoomForgetReceipts`'s own header for the
+    // bounded-by-Rooms-not-receipts argument. Gated on the table existing at
+    // all (090's own migration), the same guard `meera_consent` gets for
+    // 016 - a manifest naming a table this database has not got yet must
+    // never turn "forget everything" into a 500.
     if (await tableApplied("vy_room_forget_receipt")) {
-      const receiptCandidates = await q(
-        `select receipt_id, room_id, policy_version, person_hash
-           from vy_room_forget_receipt
-          limit 10000`,
-        [],
-      );
-      const deadReceiptIds = receiptCandidates
-        .filter((r) => roomForgetReceiptHash(r.room_id, person, r.policy_version) === r.person_hash)
-        .map((r) => r.receipt_id);
-      if (deadReceiptIds.length) {
-        const goneReceipts = await q(
-          `delete from vy_room_forget_receipt where receipt_id = any($1::uuid[]) returning 1 as x`,
-          [deadReceiptIds],
-        );
-        out.vy_room_forget_receipt = goneReceipts.length;
-      }
+      const goneReceipts = await purgeRoomForgetReceipts(q, person);
+      if (goneReceipts) out.vy_room_forget_receipt = goneReceipts;
     }
     // the mapping and (if no other device shares it) the person row itself:
     // a full wipe that kept the identity row would keep a record of them

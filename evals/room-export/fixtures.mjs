@@ -251,6 +251,23 @@ export function exportDb(state) {
       return [];
     }
 
+    // ── WS-R32: `purgeRoomForgetReceipts` (api/memory.js) - the whole
+    //    wipe's OWN door, bounded by Rooms rather than by receipts. Two
+    //    statements: read every room_id this database has, then delete every
+    //    receipt whose person_hash is among a caller-supplied array. ────────
+    if (has("select room_id from vy_room")) {
+      return state.rooms.map((r) => ({ room_id: r.room_id }));
+    }
+    if (has("delete from vy_room_forget_receipt") && has("person_hash = any(")) {
+      const [hashes] = params;
+      const set = new Set((hashes || []).map(String));
+      state.forgetReceipts = state.forgetReceipts || [];
+      const before = state.forgetReceipts.length;
+      state.forgetReceipts = state.forgetReceipts.filter((r) => !set.has(r.person_hash));
+      const removed = before - state.forgetReceipts.length;
+      return Array.from({ length: removed }, () => ({ x: 1 }));
+    }
+
     return base(sql, params);
   };
 }
