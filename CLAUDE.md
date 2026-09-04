@@ -91,7 +91,7 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of WS-R49 and WS-R50 (2026-09-04) it is **19
+repo (see the next section). As of WS-R42 (2026-09-04) it is **20
 checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
 the room export completeness battery, `evals/room-export/run.mjs`, the
 room door battery, `evals/room-doors/run.mjs` — every way into a Room
@@ -101,10 +101,11 @@ hand-written keyboard walk over every follower and creator screen in both
 locales, zero `serious`/`critical` findings — and `performance budgets`,
 `scripts/check-performance.mjs` — the four public entry points rendered in
 real Chromium under CDP throttling shaped like a bad Indian 4G day, failing
-on a named target and metric — each added as a named gate) and **21 with
-it** (adding the zero-orphan sweep and citation discipline). WS-R42's
-mirrored-constant gate, still in flight, will move both numbers by one
-again. `scripts/check-copy.mjs` — the same em-dash ban this
+on a named target and metric — and `mirrored constants`,
+`scripts/check-mirrors.mjs` — every `// mirror of api/<file>.js#<NAME>`
+marker in `src/` and `site/suites.html` parsed on both sides and asserted
+equal — each added as a named gate) and **22 with
+it** (adding the zero-orphan sweep and citation discipline). `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
 `LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,
@@ -126,11 +127,12 @@ verbatim). The Room lives at `/r/<slug>`; `AGENTS.md` and `docs/gurukul/`
 carry the full detail, `context/STATE.md` the current LIVE state, and this
 file's rules (gates, `context/`, the copy ban, never claiming what you did not
 run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
-065, 071 through 099 and 101 are applied live; 066-070 are deliberately left
-unused** (another agent's unpushed tree already occupies those numbers live)
-**and 100 is unused (WS-R38 needed no schema change); 102 is the next free
-number.** `context/STATE.md`'s session log carries the live-verification
-entry for each.
+065, 071 through 099, 101 and 105 through 107 are applied live; 066-070 are
+deliberately left unused** (another agent's unpushed tree already occupies
+those numbers live) **and 100 is unused (WS-R38 needed no schema change);
+102-103 remain free; 104** (the creator-tier charge ledger, WS-R42) **is
+written and offline-proven but not yet applied live.**
+`context/STATE.md`'s session log carries the live-verification entry for each.
 
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an
 assembled prompt exceeds the cap `api/chat.js` slices it at. This exists because

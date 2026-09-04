@@ -77,6 +77,14 @@ await gate("board legibility", NODE, ["scripts/check-contrast.mjs"]);
 // The em-dash ban, on the half of the app it never bound: product chrome.
 // She has stripTextingDashes on every bubble; the humans had nothing.
 await gate("chrome copy", NODE, ["scripts/check-copy.mjs"]);
+// WS-R42, "the money reconciles," law 3. A mirrored constant (the front end
+// cannot import a server module, so a handful of numbers are kept in two
+// files on purpose, `// mirror of api/<file>.js#<NAME>` marking each pair)
+// is a place two numbers can silently drift apart — the enrollment
+// sample-rate mirror three lines up already did this once for real. This
+// gate parses the literal on both sides of every marker in src/ and
+// site/suites.html and fails the moment they disagree. Offline, $0, a few ms.
+await gate("mirrored constants", NODE, ["scripts/check-mirrors.mjs"]);
 // The rate `services/voice-evidence/app.py`'s enhance stage EMITS and the rate
 // `api/_audio/wav.js`'s probeEnrollmentWav DEMANDS are two numbers with no
 // shared import (Node/Python, three deploy boundaries) that already drifted

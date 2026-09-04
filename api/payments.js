@@ -41,6 +41,7 @@ import {
   payoutStatement,
   registerFundAccount,
   retryFailedPayout,
+  reconcilePeriod,
 } from "./_payments.js";
 import { readCreatorTier } from "./_creator-tier.js";
 import { OrgError } from "./_org.js";
@@ -121,6 +122,28 @@ export default async function handler(req, res) {
       if (!isOpsOwner(user.id)) return res.status(404).json({ error: "not_found" });
       const payout = await retryFailedPayout(q, { payoutId: body.payout_id });
       return res.status(200).json({ payout });
+    }
+    // WS-R42, migration 104. Operator only, 404 by name - `retry_failed_payout`'s
+    // own gate, restated. Runs the real reconciliation over one period (the
+    // live period: the body's own period_start/period_end when given, else
+    // the most recent period this owner-less, platform-wide op can see - the
+    // caller's own most recent built payout period, since a period with no
+    // payout row yet has nothing to reconcile against).
+    if (op === "reconcile") {
+      if (!isOpsOwner(user.id)) return res.status(404).json({ error: "not_found" });
+      let periodStart = body.period_start;
+      let periodEnd = body.period_end;
+      if (!periodStart || !periodEnd) {
+        const latest = await q(
+          `select period_start, period_end from vy_creator_payout order by period_start desc limit 1`,
+          [],
+        );
+        if (!latest[0]) return res.status(404).json({ error: "reconcile_no_period" });
+        periodStart = latest[0].period_start;
+        periodEnd = latest[0].period_end;
+      }
+      const result = await reconcilePeriod(q, { periodStart, periodEnd });
+      return res.status(200).json({ reconcile: result });
     }
     // WS-R37: cancel at period end, `_renewals.js`'s own seam-through-cancel.
     if (op === "cancel_creator_subscription") {

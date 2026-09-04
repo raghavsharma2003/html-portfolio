@@ -4056,3 +4056,32 @@ create index if not exists vy_room_org_attached_ix
   where org_attached_at is not null;
 create index if not exists vy_org_created_ix
   on vy_org (created_at desc);
+
+-- Migration 104 (WS-R42). The creator-tier charge ledger, the dedicated
+-- table migration 095's own header and
+-- context/decisions.md#ws-r33-creator-tier-charge-has-no-ledger-row both
+-- named as the reversal condition, rather than a third disjunct on
+-- vy_payment_event_one_lane. Owner lane (deleted by name in
+-- api/_replica-full-erasure.js, folded into the existing
+-- owner_creator_tier_subscription receipt class; never in api/memory.js's
+-- PERSON_TABLES), scoped by owner_user_id/replica_id, no split columns - the
+-- whole amount is platform revenue. See
+-- db/migrations/104_creator_charge_event.sql for the full argument.
+create table if not exists vy_creator_charge_event (
+  charge_id             uuid primary key default gen_random_uuid(),
+  owner_user_id          uuid not null,
+  replica_id              uuid not null,
+  subscription_id         uuid not null references vy_creator_subscription(subscription_id) on delete cascade,
+  provider                text not null check (provider in ('razorpay','fake')),
+  provider_charge_ref     text not null,
+  amount_inr              integer not null default 0 check (amount_inr >= 0),
+  received_at             timestamptz not null default now(),
+  signature_verified      boolean not null check (signature_verified = true),
+  payload_hash             text not null check (payload_hash ~ '^[0-9a-f]{64}$')
+);
+create unique index if not exists vy_creator_charge_event_provider_ref_ix
+  on vy_creator_charge_event (provider, provider_charge_ref);
+create index if not exists vy_creator_charge_event_owner_ix
+  on vy_creator_charge_event (owner_user_id, received_at desc);
+create index if not exists vy_creator_charge_event_received_ix
+  on vy_creator_charge_event (received_at);

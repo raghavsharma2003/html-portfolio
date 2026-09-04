@@ -47,6 +47,10 @@ import { phaseGate } from "./_phase-gate.js";
 // import list up.
 import { suitesFunnelThisWeek } from "./_funnel.js";
 import { suiteIntentApplicationsThisWeek } from "./_apply.js";
+// WS-R42 (migration 104). "The money reconciles" - `reconciliationOverview`
+// (api/_payments.js) owns the count, imported rather than re-derived, this
+// file's own established pattern one import list up.
+import { reconciliationOverview } from "./_payments.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -325,5 +329,9 @@ export async function opsOverview(db, now = Date.now()) {
       ...(await suitesFunnelThisWeek(db, now)),
       intent_applications_this_week: await suiteIntentApplicationsThisWeek(db, now),
     },
+    // WS-R42. "The money reconciles" - a count of periods, never a Room or a
+    // rupee figure, `whatsappSpendThisMonth`'s own aggregate-only shape one
+    // section up.
+    reconciliation: await reconciliationOverview(db, now),
   };
 }

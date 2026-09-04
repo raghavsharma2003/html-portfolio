@@ -8398,3 +8398,43 @@ it again the same way this workstream just did.
 **What broke:** every eval importing the copy scanner or the funnel module crashed; the first gate run on the merge failed four checks.
 
 **Fix:** one comment per constant naming both workstreams; the two missing lines closing R47's function; the syntax loop now prints a named `SYNTAX FAIL` per file and runs before anything else. Rule restated: a both-added hunk is kept whole only when both sides are whole statements; a hunk that begins inside a comment or a function needs its opener or closer supplied by hand, and `node --check` on every api file must run as its own step whose output is read before the commit, never as one line among twenty.
+
+## `ws-r42-third-lane-widening-rejected-on-paper` (2026-09-04, WS-R42, before any code was written)
+
+**Tried:** reading this workstream's own brief literally - "the creator-tier
+charge writes its ledger row in the owner lane under migration 095's
+two-lane CHECK" - as an instruction to widen `vy_payment_event_one_lane`
+(migration 095) from two disjuncts to three: `owner_user_id`/`replica_id`
+columns added to `vy_payment_event` itself, alongside `room_id`/
+`subscription_id` (follower) and `org_id`/`org_subscription_id` (Suite).
+
+**What broke, before a line of SQL was written:** the CHECK could be
+widened mechanically, but `platform_take_inr`/`creator_share_inr` could
+not - those columns exist to record a revenue SPLIT, and a creator's own
+subscription to the platform has no second party to split revenue with
+(100% is platform revenue, migration 095's own header). Every row in the
+new third lane would have had to carry SOME value in both split columns
+that means nothing, or the columns would have to become nullable in a way
+that makes `vy_payment_event_sums`-shaped CHECKs (078's own
+`platform_take_inr + creator_share_inr = amount_inr`) either inapplicable
+to a third of the table's own rows or actively wrong for them. Migration
+095's own header and `context/decisions.md#ws-r33-creator-tier-charge-has-no-ledger-row`'s
+own reversal condition had already named the correct alternative in the
+same words, before this workstream existed: a dedicated table, never a
+third disjunct. An interrupted first attempt at this workstream (branch
+`ws-r42-money-reconciles-wip`) had independently reached the identical
+conclusion and built the dedicated-table migration this workstream reused
+as a reference.
+
+**Fix:** built `vy_creator_charge_event` (migration 104) as a new,
+dedicated, owner-lane table instead - no split columns, since none apply.
+See `context/decisions.md#ws-r42-third-lane-rejected-dedicated-table-built-instead`
+for the full argument and its own reversal condition.
+
+**Rule, for whoever reads a brief's "under migration N's CHECK" next:**
+that phrase can mean "the reasoning migration N established," not
+literally "widen migration N's own constraint" - when a table's existing
+columns encode a MEANING (a split, in this case) that the new case does not
+share, widening the CHECK is available mechanically while still being the
+wrong design, and the fix is a new table shaped by the SAME reasoning,
+never a forced fit into the old one.

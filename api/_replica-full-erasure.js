@@ -119,6 +119,12 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // than the one asked. Additive; the eval asserts membership, never
       // the exact list.
       "owner_creator_tier_subscription",
+      // 104 (WS-R42). The creator-tier charge ledger (vy_creator_charge_event)
+      // is billing HISTORY for the SAME subscription the class immediately
+      // above already names - folded in rather than minting a new class,
+      // owner_room_pulse's own "a combo-bucket folds into the header's own
+      // class" precedent restated. Deleted by name, see the delete's own
+      // comment where it is scoped.
       // 099 (WS-R37). A follower's own renewal-reminder history on this
       // owner's Rooms (`owner_room_payments`'s own reach, one table over)
       // and this owner's own creator-tier reminder history
@@ -597,6 +603,15 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- exact rather than the owner-wide imprecision that table's own header
      -- names: erasing one replica erases only that replica's own tier
      -- subscription, never a sibling replica's.
+     -- 104 (WS-R42). The creator-tier charge ledger. Deleted CHILD-BEFORE-
+     -- PARENT, ahead of creator_subscriptions immediately below, even though
+     -- the FK on subscription_id would cascade it anyway - "relying on a
+     -- cascade means relying on an FK nobody re-checks" (071's own words,
+     -- restated for the Nth time). Scoped by BOTH replica_id and
+     -- owner_user_id directly, creator_subscriptions' own precedent one line
+     -- down: exact, not the owner-wide imprecision vy_creator_payout carries.
+     creator_charge_events as (delete from vy_creator_charge_event x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      creator_subscriptions as (delete from vy_creator_subscription x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 099 (WS-R37), the renewal reminder ledger. TWO lanes reached from

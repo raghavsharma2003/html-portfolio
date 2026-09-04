@@ -6844,6 +6844,60 @@
       "kind": "rejection",
       "title": "Keeping both sides of a both-added hunk broke a block comment and left a function unclosed, and the syntax loop's failures scrolled past unseen; the loop now names its failures and runs alone",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-money-reconciles",
+      "kind": "component",
+      "title": "The money reconciles (WS-R42, migration 104): a new vy_creator_charge_event ledger for the creator-tier charge (written inside applyWebhook's creator lane, idempotent on provider_charge_ref, only for a landed-charge kind with a positive amount), reconcile() (a pure function checking follower-lane ledger sum against payout gross minus suite share, and the Suite lane against runPayoutRollup's own flat per-seat formula recomputed from suiteRows, never an org-lane ledger sum), an operator op (api/payments.js) and an ops-board count of periods with findings (api/_ops.js), and scripts/check-mirrors.mjs (every `// mirror of api/<file>.js#<NAME>` marker parsed on both sides, wired as the 20th release gate).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-mirror-gate",
+      "kind": "component",
+      "title": "scripts/check-mirrors.mjs: scans src/studio/, src/room/, src/gurukul/, src/replica/, src/components/, site/, studio.html and room.html for a same-line trailing comment `// mirror of api/<file>.js#<NAME>`, parses the literal on that line and the named export const in the api file, and fails on any disagreement. Deliberately does not parse the HTML doc-comments in site/suites.html that document rendered price text (no single JS literal on that line to compare) - only the JS-literal-adjacent markers, which is what WS-R48 already built anticipating this gate by name.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
+      "kind": "decision",
+      "title": "The creator-tier charge ledger is a new, dedicated, owner-lane table (vy_creator_charge_event, migration 104) rather than a third disjunct on vy_payment_event_one_lane (095) - fulfilling ws-r33-creator-tier-charge-has-no-ledger-row's own reversal condition in its own words, rather than the literal-but-wrong reading of this workstream's own brief.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-suite-reconcile-recomputes-the-builder-formula",
+      "kind": "decision",
+      "title": "reconcile()'s Suite-lane check recomputes runPayoutRollup's own flat per-seat formula from suiteRows and compares it against the recorded suite_share_inr, never by summing org-lane vy_payment_event rows and multiplying by the share basis-points - the literal reading of this workstream's brief is not the invariant ws-r36-suite-share-flat-per-seat-not-ledger-derived says the builder actually holds.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-ledger-and-payout-are-both-whole-rupees",
+      "kind": "measurement",
+      "title": "vy_payment_event.amount_inr and every vy_creator_payout money column are both whole rupees (migration 078's own header, verbatim) - not a paise/rupee split as this workstream's own brief assumed. reconcile() performs no unit conversion; a mismatch's difference_paise is the rupee difference times 100.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-reconcile-suite-lane-uses-current-attachment",
+      "kind": "decision",
+      "title": "reconcilePeriod reads Suite attachment (which Rooms sit in a paying Suite) as of NOW, never a historical snapshot of the period's own end - this product keeps no such snapshot, and runPayoutRollup itself has the identical limitation. Reconciling anything but the most recently built period can report a false Suite finding if attachment changed since.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-third-lane-widening-rejected-on-paper",
+      "kind": "rejection",
+      "title": "Widening vy_payment_event_one_lane (095) to a third disjunct for the creator-tier charge - the literal reading of this workstream's own brief - was rejected before a line of SQL was written: platform_take_inr/creator_share_inr exist to record a split, and a creator's own subscription to the platform has no second party to split revenue with. Built vy_creator_charge_event (104) as a dedicated table instead.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 19/19 on the untouched tree (two EADDRINUSE collisions from a sibling worktree, both confirmed environmental standalone) and 20/20 after every file in this workstream's report (one EADDRINUSE collision, confirmed environmental standalone). The new mirrored-constants gate runs in 54ms and reports 7 markers checked across 177 files, 0 disagree.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r42-payments-reconcile-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/payments-reconcile/run.mjs: 30/30 offline - the consistent three-Room/one-Suite/one-creator-tier-charge fixture (zero mismatches), four required negative controls (a removed ledger row names the Room and the paise difference; an unattached Room's suite_share_inr is a finding; a seat-covered creator writes structurally zero charge rows; check-mirrors catches a one-off fixture mismatch), and the new applyWebhook SQL path (a landed charge writes one row, idempotent on replay, a non-charge kind writes none).",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13726,6 +13780,81 @@
       "src": "ws-r48-merge-both-added-hunks-broke-two-files-and-the-syntax-loop-was-silenced",
       "rel": "supersedes",
       "dst": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it"
+    },
+    {
+      "src": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
+      "rel": "caused_by",
+      "dst": "ws-r33-creator-tier-charge-has-no-ledger-row"
+    },
+    {
+      "src": "ws-r42-third-lane-widening-rejected-on-paper",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r42-third-lane-widening-rejected-on-paper",
+      "rel": "caused_by",
+      "dst": "ws-r33-payment-event-two-mutually-exclusive-lanes"
+    },
+    {
+      "src": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
+      "rel": "supersedes",
+      "dst": "ws-r42-third-lane-widening-rejected-on-paper"
+    },
+    {
+      "src": "ws-r42-suite-reconcile-recomputes-the-builder-formula",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r42-suite-reconcile-recomputes-the-builder-formula",
+      "rel": "caused_by",
+      "dst": "ws-r36-suite-share-flat-per-seat-not-ledger-derived"
+    },
+    {
+      "src": "ws-r42-ledger-and-payout-are-both-whole-rupees",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r42-reconcile-suite-lane-uses-current-attachment",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r42-mirror-gate",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r42-money-reconciles",
+      "rel": "part_of",
+      "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r42-money-reconciles",
+      "rel": "measured_by",
+      "dst": "ws-r42-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r42-money-reconciles",
+      "rel": "measured_by",
+      "dst": "ws-r42-payments-reconcile-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r42-suite-reconcile-recomputes-the-builder-formula",
+      "rel": "measured_by",
+      "dst": "ws-r42-payments-reconcile-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r42-third-lane-rejected-dedicated-table-built-instead",
+      "rel": "measured_by",
+      "dst": "ws-r42-payments-reconcile-offline-eval-2026-09-04"
     }
   ]
 }

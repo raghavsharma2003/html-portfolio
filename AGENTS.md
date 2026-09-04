@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 19 checks without NEON_URL; 21 with it
+node scripts/verify-release.mjs      # 20 checks without NEON_URL; 22 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -135,23 +135,28 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **19 checks** as of WS-R49 and WS-R50
+`node scripts/verify-release.mjs` is **20 checks** as of WS-R42
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
 leak battery, the room export completeness battery, the room door
 battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
 through the real decision modules the thin HTTP doors call), the
 accessibility gate (`scripts/check-accessibility.mjs`, axe-core WCAG 2.1 A/AA
 plus a keyboard walk over every follower and creator screen in both locales,
-on 127.0.0.1:8933) and the performance budget gate
+on 127.0.0.1:8933), the performance budget gate
 (`scripts/check-performance.mjs`, the four public entry points measured in
 real Chromium under CDP throttling shaped like a bad Indian 4G day on
-127.0.0.1:8932, failing on a named target and metric) as named gates — and
-21 with it, adding the zero-orphan sweep and citation discipline. WS-R42's
-mirrored-constant gate, still in flight, moves both numbers by one again.
-Migrations 071 through 099 and 101 are applied live; 100 is unused (WS-R38
-needed no new migration, every finding it fixed was a missing check in
-existing JS, never a schema change); 102 is the next free number (WS-R49
-needed none).
+127.0.0.1:8932, failing on a named target and metric) and the mirrored-
+constant gate (`scripts/check-mirrors.mjs`, WS-R42: every `// mirror of
+api/<file>.js#<NAME>` marker in `src/` and `site/suites.html` parsed on both
+sides and asserted equal) as named gates — and 22 with it, adding the
+zero-orphan sweep and citation discipline.
+Migrations 071 through 099, 101 and 105 through 107 are applied live; 100 is
+unused (WS-R38 needed no new migration, every finding it fixed was a missing
+check in existing JS, never a schema change); 102-103 remain the next free
+numbers WS-R49/WS-R45/WS-R48 did not need; **104** (the creator-tier charge
+ledger, WS-R42) is written and offline-proven but NOT YET applied live — this
+workstream does not touch the live database, see `context/STATE.md`'s session
+log for the live-verification entry once the main loop applies it.
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
