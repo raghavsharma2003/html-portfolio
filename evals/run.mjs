@@ -1569,6 +1569,25 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   handoff: "handoff/run.mjs",
+  // WS-R26. Abuse limits on the public doors, migration 089
+  // (`vy_public_rate`): the upsert's own boundary (under the limit admits,
+  // AT the limit returns zero rows - never a read then a separate write),
+  // the fixed-window rollover, Retry-After math against a clock, the key
+  // being a sha256 hash rather than a raw IP/contact, `limitsFor()`'s
+  // `RATE_LIMITS_JSON` operator override, and the retention sweep. THREE
+  // NEGATIVE CONTROLS: (a) an unknown scope is refused before any database
+  // write; (b) driven through the REAL api/_payments.js `applyWebhook`, five
+  // unsigned webhook attempts write zero rows to the rate table, proving the
+  // HMAC check really does run before the counter; (c) two different IPs
+  // never hash to the same key or share a counter. §7 is a static proof
+  // (evals/invites/run.mjs's own shape) that every named door - api/room.js's
+  // open/join/say/push_subscribe, api/apply.js's submit, api/room-tg.js and
+  // api/_payments.js's webhooks - really calls through this module, with the
+  // Telegram/payment signature checks proven to run strictly before the
+  // gate.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "rate-limit": "rate-limit/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

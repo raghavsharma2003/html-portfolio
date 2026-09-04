@@ -7097,3 +7097,44 @@ right. A shared test helper that classifies errors by `instanceof` has to
 know about every error class the module under test can actually throw,
 including ones imported from a file it calls into, not only the ones it
 defines itself.
+
+## `ws-r26-static-order-proof-indexof-matched-the-definition-not-the-call` (2026-09-04, WS-R26)
+
+**What was tried.** `evals/rate-limit/run.mjs`'s §7 proves the workstream's
+law #5 ("the HMAC check runs strictly before the rate gate") by reading
+`api/_payments.js`'s real source text and comparing `String.indexOf`
+positions: the signature check's position should come before the rate
+gate's, which should come before the point where the body is parsed for its
+event kind. The first draft searched for the bare function name
+`"parseWebhookPayload(json)"` to find "where the kind gets parsed" - and the
+assertion failed, reporting the rate gate ran AFTER the kind was parsed,
+which was false.
+
+**What broke.** `api/_payments.js` both DEFINES `parseWebhookPayload`
+(`export function parseWebhookPayload(json) {`) and CALLS it
+(`const parsed = parseWebhookPayload(json);`) inside `applyWebhook`, several
+hundred lines apart, and the function's own DEFINITION happens to appear
+EARLIER in the file than the signature-check code the gate is being ordered
+against. `indexOf` found the definition, not the call, and "the definition
+of a function used later in the file sits above every caller" is not a
+coincidence limited to this one file - it is how every named function in
+this codebase is written, so a static order-proof built on a bare function
+name will find the wrong occurrence whenever that name is ALSO how the
+function announces itself.
+
+**Fix.** Search for a phrase that can only be the call site: the surrounding
+assignment (`"const parsed = parseWebhookPayload(json);"`), not the bare
+call. The same discipline `ws-r20-fixture-matcher-cannot-span-a-template-
+literal-linebreak`'s entry states for a fixture's `sql.includes()` matcher
+applies one level over here: a text-position check is a THIRD parser this
+repo maintains beside Postgres's and JS's real ones, and it needs a needle
+specific enough to name the ONE occurrence the check is actually about, not
+merely a substring that happens to appear near it.
+
+**Rule.** When proving "A runs before B" by comparing `indexOf` positions in
+real source text, never search for a name alone if that name is also how a
+function, class or export announces its own definition elsewhere in the same
+file - search for the CALL SITE's surrounding syntax (the assignment, the
+argument list it is passed inside, or enough of the statement around it)
+instead, and verify by reading the file rather than trusting the search
+string looks unambiguous.

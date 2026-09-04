@@ -68,6 +68,7 @@
 // unreachable applies. `room_unavailable` is one code for all of them.
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import { obsBestEffort } from "./_obs.js";
 import { AuthError, bearerToken, userFromToken } from "./_auth.js";
 import {
@@ -101,6 +102,17 @@ function cors(res) {
   res.setHeader("Cache-Control", "no-store");
 }
 
+/** WS-R26: the one call every door below makes into api/_rate-limit.js. An
+ *  honest 429 - named reason, `Retry-After` in seconds - never a silent drop.
+ *  Returns true when the caller should stop (the response is already sent). */
+async function refused(res, scope, key) {
+  const gate = await consume(q, { scope, key });
+  if (gate.ok) return false;
+  res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+  res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  return true;
+}
+
 /** The signed-in human, or null. Never throws for an absent token: `open` is
  *  legitimately anonymous, and a missing credential is a state rather than an
  *  error. An INVALID one is still null, which lands the caller in the signed
@@ -131,6 +143,10 @@ export default async function handler(req, res) {
 
   try {
     if (op === "open") {
+      // The door a bio link points at, wholly anonymous - before a follower
+      // ROW exists (WS-R26). Persistent across cold starts, unlike the
+      // in-memory `room_ip` gate above.
+      if (await refused(res, "room_open_ip", ipOf(req))) return;
       const authUserId = await optionalUser(req);
       const opened = await openRoom(q, { slug: body.room, authUserId });
       obsBestEffort("room.open", { joined: opened.joined });
@@ -138,6 +154,11 @@ export default async function handler(req, res) {
     }
 
     if (op === "join") {
+      // The moment a follower ROW is created - this repo's abuse-limit gap
+      // named by WS-R26. IP-keyed, so it bounds how many follower rows one
+      // connection can mint even by rotating accounts, on top of the
+      // existing per-user in-memory gate just below.
+      if (await refused(res, "room_join_ip", ipOf(req))) return;
       const authUserId = await requiredUser(req);
       if (!allow(authUserId, "room_join_user", 10)) {
         return res.status(429).json({ error: "slow_down" });
@@ -157,6 +178,14 @@ export default async function handler(req, res) {
     }
 
     if (op === "say") {
+      // The burst limit ABOVE the monthly cap (WS-R26): decoding the session
+      // here costs no extra round trip (it is a pure HMAC check, the same one
+      // roomSay itself runs) and keyed on the follower's own person id, so a
+      // stolen or invalid session token is refused by the SAME
+      // `room_session_invalid` path it always was, before this gate ever
+      // runs - garbage sessions never consume the counter.
+      const sayPayload = readRoomSession(body.session);
+      if (await refused(res, "room_say_follower", sayPayload.p)) return;
       const turn = await roomSay(q, {
         session: body.session,
         message: body.message,
@@ -278,6 +307,9 @@ export default async function handler(req, res) {
       // WS-R22. Scope comes off the session exactly as "thread"/"pulse_optin"
       // do above; the endpoint/keys are a browser's own PushSubscription,
       // never trusted for identity — only for where to send.
+      // WS-R26: a follower-keyed burst limit, same shape as "say" above.
+      const subPayload = readRoomSession(body.session);
+      if (await refused(res, "room_push_follower", subPayload.p)) return;
       const subscribed = await setSubscription(q, {
         session: body.session,
         endpoint: body.endpoint,

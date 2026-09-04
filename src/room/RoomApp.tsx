@@ -39,7 +39,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StudioSession } from "../studio/types";
 import { readStoredSession, restoreSession, writeStoredSession } from "../studio/session";
 import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../studio/studioAuth";
-import { ROOM_COPY, withName } from "./copy";
+import { ROOM_COPY, withName, withRetry } from "./copy";
 import CheckinsPanel from "./CheckinsPanel";
 import HandoffPanel from "./HandoffPanel";
 import {
@@ -303,6 +303,13 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
         setError(ROOM_COPY.errors.stale);
       } else if (cause instanceof RoomApiError && cause.code === "room_message_too_long") {
         setError(ROOM_COPY.errors.tooLong);
+      } else if (cause instanceof RoomApiError && cause.code === "rate_limited") {
+        // WS-R26 (api/_rate-limit.js). The message is handed back, same
+        // posture as the free-cap branch above: a follower who was refused
+        // for going too fast, not for what they said, keeps their draft.
+        setError(withRetry(ROOM_COPY.errors.rateLimited, cause.retryAfterSeconds ?? 60));
+        setDraft(text);
+        setTurns((prev) => prev.slice(0, -1));
       } else {
         setError(ROOM_COPY.errors.generic);
         setTurns((prev) => prev.slice(0, -1));

@@ -15,13 +15,23 @@ export class RoomApiError extends Error {
   /** `room_voice_cap_reached` carries this one instead (WS-R19): the voice
    *  seconds allowance that was hit. */
   voiceSecondsIncluded?: number;
+  /** `rate_limited` (WS-R26, api/_rate-limit.js) carries this one: how many
+   *  seconds until the same connection is admitted again. */
+  retryAfterSeconds?: number;
 
-  constructor(code: string, status: number, messagesIncluded?: number, voiceSecondsIncluded?: number) {
+  constructor(
+    code: string,
+    status: number,
+    messagesIncluded?: number,
+    voiceSecondsIncluded?: number,
+    retryAfterSeconds?: number,
+  ) {
     super(code);
     this.code = code;
     this.status = status;
     if (typeof messagesIncluded === "number") this.messagesIncluded = messagesIncluded;
     if (typeof voiceSecondsIncluded === "number") this.voiceSecondsIncluded = voiceSecondsIncluded;
+    if (typeof retryAfterSeconds === "number") this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -109,6 +119,7 @@ async function post<T>(body: Record<string, unknown>, accessToken?: string | nul
       response.status,
       typeof data?.messages_included === "number" ? data.messages_included : undefined,
       typeof data?.voice_seconds_included === "number" ? data.voice_seconds_included : undefined,
+      typeof data?.retry_after_seconds === "number" ? data.retry_after_seconds : undefined,
     );
   }
   return data as T;

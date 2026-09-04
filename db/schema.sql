@@ -3622,3 +3622,17 @@ create index if not exists vy_room_handoff_person_ix
   on vy_room_handoff (person_id, room_id);
 create index if not exists vy_room_handoff_cap_ix
   on vy_room_handoff (follower_id, month_key, state);
+-- Migration 089 - abuse limits on the public doors (WS-R26). No
+-- person/device/owner column by construction - a sha256 hash of a caller's
+-- key salted per day, never the raw IP or contact; see that migration's own
+-- header for why it needs no PERSON_TABLES entry and no relcheck exemption.
+create table if not exists vy_public_rate (
+  scope        text not null check (length(scope) > 0 and length(scope) <= 64),
+  key_hash     text not null check (length(key_hash) = 64),
+  window_start timestamptz not null,
+  count        integer not null default 0 check (count >= 0),
+  updated_at   timestamptz not null default now(),
+  primary key (scope, key_hash, window_start)
+);
+create index if not exists vy_public_rate_window_ix
+  on vy_public_rate (window_start);

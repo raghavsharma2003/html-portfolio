@@ -47,6 +47,7 @@
 // "paid" can never mean anything other than "a subscription row this
 // database can see is active right now."
 import { sha256Hex } from "./_provenance/contracts.js";
+import { consume } from "./_rate-limit.js";
 import { getChannelSecret, ChannelSecretError } from "./_channel-secrets.js";
 import {
   readRoomSession,
@@ -433,6 +434,17 @@ export async function applyWebhook(db, { rawBody, signatureHeader, eventRef }, d
 
   const verified = provider.verifyWebhookSignature(bodyBuf, String(signatureHeader || ""), secrets.webhookSecret);
   if (!verified) throw new PaymentsError("payment_webhook_signature_invalid", 401);
+
+  // WS-R26: the persistent abuse gate, kept HERE rather than in the thin
+  // handler (api/payments-webhook.js) so a fake `db` can reach the decision -
+  // this file's own header, restated. The HMAC check above runs FIRST (law
+  // #5): an unsigned flood never reaches this line and never consumes the
+  // counter. `deps.ip` is optional so a caller with no request in hand (a
+  // future internal retry) is never forced to invent one.
+  if (deps.ip) {
+    const gate = await consume(db, { scope: "payments_webhook_ip", key: deps.ip, env });
+    if (!gate.ok) throw new PaymentsError(gate.code, 429, { retry_after_seconds: gate.retryAfterSeconds });
+  }
 
   const ref = String(eventRef || "").trim();
   if (!ref) throw new PaymentsError("payment_webhook_event_id_required", 400);

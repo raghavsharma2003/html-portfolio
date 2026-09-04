@@ -40,6 +40,20 @@
  *  at each call site, so the name lands in the same place every time. */
 export const withName = (template: string, name: string) => template.split("{name}").join(name);
 
+/** WS-R26 (api/_rate-limit.js's `retryAfterSeconds`). Rounded up to whole
+ *  minutes (never "in 45 seconds" for a one-minute window - a number small
+ *  enough to look like it should have worked reads as a bug report, not an
+ *  explanation) and correctly singular at exactly one minute, the one case a
+ *  bare `{minutes}` substitution would otherwise read "in 1 minutes". */
+export const withRetry = (template: string, retryAfterSeconds: number) => {
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  return template
+    .split("{minutes}")
+    .join(String(minutes))
+    .split("{s}")
+    .join(minutes === 1 ? "" : "s");
+};
+
 export const ROOM_COPY = {
   /** While the address is resolving. Not a spinner's label: it says what is
    *  happening rather than that something is. */
@@ -185,6 +199,10 @@ export const ROOM_COPY = {
     signIn: "Sign in first.",
     stale: "This room was updated. Reload to see what changed.",
     tooLong: "That is longer than one message can be.",
+    // WS-R26. Honest, not a captcha, not a silent drop - workstream law #4.
+    // `withRetry` fills in `{minutes}`/`{s}` from the server's own
+    // `retry_after_seconds`.
+    rateLimited: "Too many attempts from this connection. Try again in {minutes} minute{s}.",
   },
 
   checkins: {

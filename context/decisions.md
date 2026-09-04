@@ -9564,3 +9564,108 @@ follower building a long payload across multiple visits, say), `draft`
 becomes a writer instead of a pure function, and `withdrawHandoffRequest`'s
 existing `state in ('drafted','sent')` clause already accepts the new shape
 with no change.
+
+## `ws-r26-write-is-the-check-not-read-then-write` (2026-09-04, WS-R26)
+
+**Decision.** `api/_rate-limit.js`'s `consume()` never reads a count and then
+decides whether to write. It runs exactly one statement -
+`insert into vy_public_rate ... on conflict (...) do update set count =
+count + 1 where count < $limit returning count` - and the WHERE clause on
+the UPDATE arm IS the whole predicate: a caller under the limit gets a row
+back, a caller AT the limit gets zero rows, full stop.
+
+**Rationale.** A read-then-write (`select count; if count < limit then
+insert/update`) has a race two concurrent callers at the limit both lose:
+both can read "under the limit" as true before either one's write lands, so
+both get admitted and the counter ends up one over. Postgres's own MVCC
+serializes the second writer's UPDATE against the first writer's
+already-committed row, so the SAME statement that records a call is the
+statement that refuses it - there is no window between "decide" and
+"record" for a second caller to land in. The workstream brief states this as
+law #1; this entry exists so the reason survives past the brief.
+
+**Reversal condition.** If a future profiling pass finds this upsert too
+slow under real load (unlikely at this table's size - one row per
+scope/key/window, purged daily) and a read-through cache is added in front
+of it, the cache still has to fall back to this exact upsert on a miss or
+the race reopens; a decision to relax that would need its own entry, not a
+silent edit here.
+
+## `ws-r26-key-is-hashed-with-a-daily-salt` (2026-09-04, WS-R26)
+
+**Decision.** `vy_public_rate.key_hash` is `sha256(scope, the caller's raw
+key, a salt, the UTC day)`, never the raw IP, follower id or contact string.
+The salt comes from env `RATE_SALT`; unset falls back to a fixed per-deploy
+constant (`FALLBACK_SALT` in `api/_rate-limit.js`) rather than throwing, so
+a database with no salt configured yet still enforces limits.
+
+**Rationale.** The workstream brief's law #2 requires this directly. The
+practical effect: `vy_public_rate` cannot be read back as "which IPs hit
+this door" even by someone with full database access, only "the same
+caller hit this door N times today" - a table this repo's own
+`evals/persontables.mjs` correctly does not flag as person-identifying
+(checked directly against that file's `PERSON_COLUMNS` list before writing
+migration 089's header, and confirmed by running the suite: 0 new exemption
+needed). Rotating the salt daily (via `dayKeyOf`, migration 086's own
+convention reused rather than reinvented) means even a leaked salt only
+deanonymizes one day's rows, not the table's whole history.
+
+**Reversal condition.** If a future need arises to correlate a rate-limit
+hit back to a specific IP for abuse investigation (a human asking "who was
+this"), the fix is a SEPARATE, explicitly-consented, short-retention log at
+the point of refusal - never reversing this hash, which is one-way by
+construction (sha256, not a reversible cipher) and cannot be un-hashed
+retroactively even by the platform.
+
+## `ws-r26-limits-are-code-constants-not-a-database-table` (2026-09-04, WS-R26)
+
+**Decision.** The per-scope limits (`DEFAULT_LIMITS` in `api/_rate-limit.js`)
+are named JS constants, each with a comment stating its reason, overridable
+only via the env var `RATE_LIMITS_JSON` and only for a scope this module
+already defines - an override naming an unknown scope is silently dropped,
+never minting a new one at runtime.
+
+**Rationale.** The workstream brief's law #3 asks for named constants with
+reasons, overridable by an operator env var, with an unknown scope failing
+closed. A database-configured limits table was considered and rejected for
+v1: it would let a compromised or buggy caller widen its own ceiling by
+writing to the same table `consume()` reads from, which is exactly the kind
+of self-widening surface a rate limiter must not have. `RATE_LIMITS_JSON`
+lives in the same gitignored/Vercel-env lane as every other operator knob
+this repo already trusts (`OPS_OWNER_USER_IDS`, `INVITES_REQUIRED`), not in
+a table any application code path can write to.
+
+**Reversal condition.** If a future product need is per-Room (not
+per-deployment) limits - a creator wanting their own Room's `say` burst
+ceiling raised - that is a different shape entirely (a `vy_room` column,
+read at the call site, never a caller-writable limits table) and deserves
+its own decision rather than a loosened version of this one.
+
+## `ws-r26-webhook-429-is-a-second-exit-from-always-200` (2026-09-04, WS-R26)
+
+**Decision.** `api/room-tg.js`'s own header previously stated "Always 200
+once the update is AUTHENTICATED" without qualification. This workstream
+adds one more pre-processing exit capable of a non-200 after that point: the
+persistent rate gate, which can return 429 to an authenticated Telegram
+sender. The header comment was rewritten in the same commit to name this
+exception rather than leaving a law that is now false in one case.
+`api/_payments.js`'s `applyWebhook` gets the identical shape: the rate gate
+sits after signature verification and can throw `PaymentsError("rate_
+limited", 429, ...)` for an authenticated sender.
+
+**Rationale.** The workstream brief's law #5 is explicit: "their refusal is
+a 429 the sender will retry, and their HMAC check still runs FIRST." The
+original "always 200" law was about PROCESSING failures - a 500 from
+`handleRoomTelegramUpdate` churning Telegram's retry into an infinite loop
+of re-run side effects. A 429 from the rate gate is a different kind of
+exit: it happens BEFORE any write of ours, so redelivery costs nothing to
+replay, and it is the intended shape (an honest "slow down"), not a bug
+being papered over. The two are not the same law and should not have shared
+one sentence.
+
+**Reversal condition.** If Telegram's or the payment provider's own retry
+behavior on 429 is ever measured to make things WORSE (a redelivery storm
+tighter than their documented backoff), the fix is to make the rate gate's
+refusal here a 200 with a `handled:false` marker instead - matching the
+processing-failure posture - and this entry should gain a `supersedes`
+edge rather than being edited in place.
