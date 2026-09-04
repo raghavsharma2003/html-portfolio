@@ -29,6 +29,17 @@
 //   §6 NEGATIVE CONTROL (a), STATIC. `checkinPushPayload`'s own source is
 //      scanned for every check-in-text identifier and must carry none — and
 //      the scanner is proven capable of catching a bad one first.
+//   §7 RFC 8291 APPENDIX A, REPRODUCED (WS-R41). Not the round-trip §1
+//      already proves (encoder vs. its own independent decoder over a
+//      freshly generated keypair) — this section feeds the RFC's OWN
+//      published salt and sender keypair into the REAL `encryptPayload` and
+//      asserts its output equals the RFC's own published request body
+//      byte-for-byte, then feeds that same published body into the REAL
+//      `decryptPayload` and asserts it recovers the RFC's own published
+//      plaintext. See api/_push/webpush.js's header for the doc url/date
+//      and the decoder bug this section's own first run surfaced and this
+//      workstream fixed (rejected.md#ws-r41-webpush-decoder-required-rs-
+//      equal-record-length).
 import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -366,6 +377,99 @@ console.log("\n── §6: NEGATIVE CONTROL (a), STATIC — the payload builder 
   const poisoned = `export function checkinPushPayload(slug, promptShape, threadId) {\n  return JSON.stringify({ r: slug, shape: promptShape });\n}`;
   ok("NEGATIVE CONTROL: the same scan DOES flag a poisoned version that carries promptShape",
     bannedRegex.test(poisoned));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7: RFC 8291 APPENDIX A, REPRODUCED (WS-R41) ──");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // Every value below was fetched from https://datatracker.ietf.org/doc/
+  // html/rfc8291 (Appendix A and the Section 5 worked example), 2026-09-04 —
+  // not typed from memory. Two independently-published fragments — the
+  // header's own bytes and the AES-GCM ciphertext's own bytes — are checked
+  // against EACH OTHER (concatenate, re-encode as base64url, compare to the
+  // RFC's own Section 5 body) before this file trusts either, which is what
+  // makes this a check on THIS MODULE rather than a check on whether one
+  // string was typed correctly.
+  const AS_PUBLIC = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
+  const AS_PRIVATE = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw";
+  const UA_PUBLIC = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
+  const UA_PRIVATE = "q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94";
+  const SALT_B64U = "DGv6ra1nlYgDCS1FRnbzlw";
+  const AUTH_SECRET_B64U = "BTBZMqHH6r4Tts7J_aSIgg";
+  const PLAINTEXT_B64U = "V2hlbiBJIGdyb3cgdXAsIEkgd2FudCB0byBiZSBhIHdhdGVybWVsb24";
+  const PLAINTEXT_UTF8 = "When I grow up, I want to be a watermelon";
+  // The RFC's own Section 5 request body — header (86 octets: salt || rs=4096
+  // || idlen=65 || as_public) followed directly by the 58-octet AES-GCM
+  // record (41 plaintext octets + 1 delimiter + 16-octet tag) — re-encoded as
+  // ONE base64url string exactly as the RFC prints it.
+  const BODY_B64U = "DGv6ra1nlYgDCS1FRnbzlwAAEABBBP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A_yl95bQpu6cVPTpK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN";
+
+  const bodyBytes = b64uDecode(BODY_B64U);
+  ok("(self-check) the RFC's own §5 body decodes to 144 octets (86-octet header + 58-octet record)",
+    bodyBytes.length === 144, `got=${bodyBytes.length}`);
+  ok("(self-check) the header's own declared idlen is 65 (an uncompressed P-256 point)", bodyBytes[20] === 65);
+  ok("(self-check) the header's own declared rs is 4096, not the record's actual length",
+    bodyBytes.readUInt32BE(16) === 4096);
+
+  // ── the encoder, fed the RFC's exact inputs with injected randomness ──
+  const sub = { p256dh: UA_PUBLIC, auth: AUTH_SECRET_B64U };
+  const salt = b64uDecode(SALT_B64U);
+  const senderKeypair = { privateKey: b64uDecode(AS_PRIVATE), publicKey: b64uDecode(AS_PUBLIC) };
+  const plaintext = b64uDecode(PLAINTEXT_B64U);
+  ok("the RFC's own plaintext decodes to the ASCII string it names", plaintext.toString("utf8") === PLAINTEXT_UTF8);
+
+  const { body: ourBody } = encryptPayload(sub, plaintext, { salt, senderKeypair, recordSize: 4096 });
+  ok(
+    "encryptPayload, given the RFC's own salt/keypair/rs=4096, produces the EXACT published request body",
+    ourBody.equals(bodyBytes),
+    ourBody.equals(bodyBytes) ? "" : `got=${b64uEncode(ourBody)} want=${BODY_B64U}`,
+  );
+
+  // ── the decoder, fed the RFC's own published body ──
+  const decoded = decryptPayload(bodyBytes, { uaPrivate: b64uDecode(UA_PRIVATE), authSecret: b64uDecode(AUTH_SECRET_B64U) });
+  ok(
+    "decryptPayload, over the RFC's own published body, yields the exact published plaintext",
+    decoded.toString("utf8") === PLAINTEXT_UTF8,
+    decoded.toString("utf8"),
+  );
+
+  // NEGATIVE CONTROL: RFC 8291 §4's MUST — `rs` may never be smaller than
+  // the record it has to hold.
+  let refused = false;
+  try {
+    encryptPayload(sub, plaintext, { salt, senderKeypair, recordSize: 10 });
+  } catch (e) {
+    refused = e.message === "webpush_record_size_invalid";
+  }
+  ok("NEGATIVE CONTROL: a recordSize smaller than the actual record is refused, not silently truncated", refused);
+
+  // NEGATIVE CONTROL: production's own default (no `recordSize` override,
+  // `rs === record.length`) must still round-trip through the SAME decoder
+  // this section just proved against the RFC — widening `rs` from an exact-
+  // match requirement to a ceiling must not have broken the case the decoder
+  // always handled.
+  const { body: prodBody } = encryptPayload(sub, plaintext);
+  const prodDecoded = decryptPayload(prodBody, { uaPrivate: b64uDecode(UA_PRIVATE), authSecret: b64uDecode(AUTH_SECRET_B64U) });
+  ok(
+    "production's own default (rs === record.length, no override) still round-trips through the same decoder",
+    prodDecoded.toString("utf8") === PLAINTEXT_UTF8,
+  );
+
+  // NEGATIVE CONTROL: a body whose declared rs is smaller than the bytes
+  // actually present after the header — malformed on the wire, or a multi-
+  // record stream this single-record decoder does not support — is still
+  // refused. The fix widened "rs" from "must equal" to "must be at least
+  // this many bytes", never removed the check.
+  const truncatedRs = Buffer.from(bodyBytes);
+  truncatedRs.writeUInt32BE(30, 16); // rs=30, but 58 octets of record data follow
+  let tooSmallRefused = false;
+  try {
+    decryptPayload(truncatedRs, { uaPrivate: b64uDecode(UA_PRIVATE), authSecret: b64uDecode(AUTH_SECRET_B64U) });
+  } catch (e) {
+    tooSmallRefused = e.message === "webpush_record_length_mismatch";
+  }
+  ok("a declared rs smaller than the actual record's bytes is still refused, not silently accepted", tooSmallRefused);
 }
 
 console.log(`\nroom-push: ${pass} ok, ${fail} failed`);
