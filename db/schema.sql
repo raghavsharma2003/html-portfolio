@@ -4056,3 +4056,19 @@ create index if not exists vy_room_org_attached_ix
   where org_attached_at is not null;
 create index if not exists vy_org_created_ix
   on vy_org (created_at desc);
+
+-- Migration 102 - counting how a Room was arrived at, without a person
+-- (WS-R40, share and arrival). See db/migrations/102_room_arrival.sql for
+-- the full argument: no person column, no owner_user_id, real FK CASCADE
+-- from vy_room plus a delete-by-name in api/_replica-full-erasure.js, one
+-- upsert per open, via decided off a closed allowlist before this table is
+-- ever touched.
+create table if not exists vy_room_arrival (
+  room_id uuid not null references vy_room(room_id) on delete cascade,
+  day     date not null,
+  via     text not null check (via in ('share', 'direct', 'embed', 'search')),
+  count   integer not null default 0 check (count >= 0),
+  primary key (room_id, day, via)
+);
+create index if not exists vy_room_arrival_via_day_ix
+  on vy_room_arrival (via, day);

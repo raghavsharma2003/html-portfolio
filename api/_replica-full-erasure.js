@@ -697,6 +697,25 @@ export async function completeReplicaErasure(db, lease, receipt) {
      handoffs as (delete from vy_room_handoff x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 102 (WS-R40), arrival counts. Reached by room_id via the SAME
+     -- vy_room subquery every block above uses, for the identical reason:
+     -- no agent binding of its own. Carries a real FK CASCADE from vy_room
+     -- (migration 102's own header), so this delete is a backstop rather
+     -- than the only mechanism - "relying on a cascade means relying on an
+     -- FK nobody re-checks," restated again. No new entry in the
+     -- deletedClasses list below: like vy_replica_funnel_mark (WS-R25) and
+     -- vy_replica_drift_report (WS-R9) elsewhere in this file, this table
+     -- holds a content-free daily count with no person or follower
+     -- reference at all - not a different KIND of record from anything a
+     -- receipt already names, so a new class here would not answer a
+     -- question the existing ones leave open. (No backtick-quoting in this
+     -- comment on purpose: this whole statement is ONE JS template literal,
+     -- and a literal backtick anywhere inside it - even in a SQL comment -
+     -- closes the string early and corrupts every byte after it. See
+     -- context/rejected.md for the exact parse failure this caused once.)
+     room_arrivals as (delete from vy_room_arrival x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 091 (WS-R28), Suites v0. Reached by owner_user_id ALONE, creator_
