@@ -1809,6 +1809,25 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
   "room-doors": "room-doors/run.mjs",
+  // WS-R46. The Room on a creator's own site — one script tag, one button.
+  // `api/embed.js` is Meera's precedent; this is the Room's own version,
+  // narrowed by one law that widget never carried: v0 never frames the
+  // Room, so a follower who clicks through always lands ON the Room, in a
+  // new tab, never inside a creator's page.
+  //
+  // The script is executed for real, with `new Function` against a
+  // hand-rolled DOM fake (no jsdom): a published Room renders the button,
+  // the SERVER's own disclosure text and the "?via=embed" link; a missing
+  // `data-room`, an unpublished Room and an unknown slug all remove the
+  // script's own tag rather than leaving a dead button behind, and the
+  // last two answer through the REAL `resolveRoom` with the IDENTICAL
+  // `{room:null}` shape — a page must never learn whether a slug exists.
+  // Three negative controls prove the checks bite rather than being
+  // vacuous: a second fetch target, a follower-table reference, and an em
+  // dash caught by the real `scripts/check-copy.mjs` scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "room-embed": "room-embed/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

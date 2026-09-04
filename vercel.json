@@ -8,7 +8,8 @@
     { "source": "/r/:slug", "destination": "/room.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },
-    { "source": "/embed.js", "destination": "/api/embed.js" }
+    { "source": "/embed.js", "destination": "/api/embed.js" },
+    { "source": "/room-embed.js", "destination": "/api/room-embed.js" }
   ],
   "crons": [
     { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },
