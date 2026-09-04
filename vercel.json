@@ -5,6 +5,17 @@
   "rewrites": [
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/studio", "destination": "/studio.html" },
+    {
+      "source": "/r/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Googlebot).*"
+        }
+      ],
+      "destination": "/api/room-page?slug=:slug"
+    },
     { "source": "/r/:slug", "destination": "/room.html" },
     { "source": "/suites", "destination": "/suites.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
