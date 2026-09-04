@@ -7792,3 +7792,34 @@ being safely uncast there says nothing about a `timestamptz` column two
 lines below it, and the strict-surface gate is what catches the gap between
 "looks like the same shape" and "is the same type" before a live database
 ever has to.
+
+## `ws-r36-new-self-contained-card-tripped-the-studio-shell-orphan-check` (2026-09-04, WS-R36)
+
+**Tried.** `PayoutsCard.tsx` was built and mounted inside `RoomStudio.tsx`
+exactly the way `CheckinsCard.tsx`/`HandoffCard.tsx`/`SuiteCard.tsx` already
+are (a plain `import PayoutsCard from "./PayoutsCard"` plus a JSX element),
+on the explicit precedent those three files set.
+
+**What broke.** `node scripts/verify-release.mjs`'s `eval suite` gate failed
+on `evals/studio-shell/run.mjs`'s orphan check: `FAIL orphan check:
+PayoutsCard is mounted somewhere (shell tabs or the All panels view)`. That
+check (WS-R31) reads every `.tsx` file under `src/studio/` and demands each
+one's name appear as an import inside `StudioShell.tsx` or `StudioApp.tsx`
+specifically - the Feed/Meet/Share shell's own tab system and its "All
+panels" fallback - which is a DIFFERENT pair of files than `RoomStudio.tsx`,
+the one this card, and its three siblings, are actually mounted inside. The
+check has a named exclusion set (`NOT_A_STANDALONE_PANEL`) for exactly this
+shape, and its own comments name `CheckinsCard.tsx`/`HandoffCard.tsx`/
+`SuiteCard.tsx` as prior instances of the identical gap - WS-R28's own
+session log even says finding `SuiteCard.tsx` there "is the check working."
+A new card built on that same precedent inherits the same gap by
+construction, and nothing about writing the card itself would have surfaced
+it without running the full gate.
+
+**Fix.** `PayoutsCard.tsx` added to `NOT_A_STANDALONE_PANEL` alongside the
+three siblings, with a comment naming why (mounted inside `RoomStudio.tsx`,
+never standalone). Rule for the next self-contained `RoomStudio.tsx` card: a
+plain `import`+mount is not enough by itself to pass this repo's own eval
+suite; `evals/studio-shell/run.mjs`'s exclusion set needs the same one-line
+addition every time, and the gate is what catches a missed one, not a
+memory of this rule.

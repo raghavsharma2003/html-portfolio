@@ -238,8 +238,13 @@ function makeDb(state) {
       return row ? [{ ...row }] : [];
     }
 
-    // ── runPayoutRollup ──
-    if (has("with per_owner as") && has("insert into vy_creator_payout")) {
+    // ── runPayoutRollup (widened WS-R36: a Suite share term, migration 098's
+    //    default state 'built'). This fixture world seeds no
+    //    `vy_org_subscription` rows, so the Suite-share CTE always
+    //    contributes zero here - evals/payouts/run.mjs is where the Suite
+    //    share itself is proven; this suite only needs its own follower-lane
+    //    numbers to stay byte-identical to before. ──
+    if (has("with per_owner as") && has("suite_share as")) {
       const [start, end, tdsRateBp] = params;
       const byOwner = new Map();
       for (const e of state.events) {
@@ -257,7 +262,10 @@ function makeDb(state) {
         if (state.payouts.some((p) => p.owner_user_id === owner && p.period_start === start && p.period_end === end)) continue; // ON CONFLICT DO NOTHING
         const tds = Math.trunc((acc.creatorGross * tdsRateBp) / 10000);
         const net = acc.creatorGross - tds;
-        const row = { payout_id: `p${state.payouts.length + 1}`, owner_user_id: owner, period_start: start, period_end: end, gross_inr: acc.gross, take_inr: acc.take, net_inr: net, tds_inr: tds, state: "pending" };
+        const row = {
+          payout_id: `p${state.payouts.length + 1}`, owner_user_id: owner, period_start: start, period_end: end,
+          gross_inr: acc.gross, take_inr: acc.take, net_inr: net, tds_inr: tds, suite_share_inr: 0, state: "built",
+        };
         state.payouts.push(row);
         out.push(row);
       }

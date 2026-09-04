@@ -1,4 +1,5 @@
-// The Room's money, owner side (WS-R11; the creator tier read/write, WS-R33).
+// The Room's money, owner side (WS-R11; the creator tier read/write, WS-R33;
+// the payout statement, fund account and state machine, WS-R36).
 //
 //   GET  /api/payments?replica_id=…                     this room's price,
 //                                                        revenue and the
@@ -7,17 +8,43 @@
 //   POST /api/payments {op:"set_price", price_inr}       set the follower price
 //   POST /api/payments {op:"start_creator_subscription",
 //                        plan}                           WS-R33
+//   POST /api/payments {op:"payout_statements"}          this owner's own
+//                                                        payout list        WS-R36
+//   POST /api/payments {op:"payout_statement",
+//                        payout_id}                      one statement      WS-R36
+//   POST /api/payments {op:"register_fund_account",
+//                        fund_account_ref}                a provider-issued
+//                                                        reference, never a
+//                                                        bank detail        WS-R36
+//   POST /api/payments {op:"retry_failed_payout",
+//                        payout_id}                      OPERATOR ONLY,
+//                                                        404 by name unless
+//                                                        OPS_OWNER_USER_IDS  WS-R36
 //
 // Thin by construction, api/room-publish.js's own shape: cors, rate limit,
 // auth, dispatch, error shape. Every decision lives in api/_payments.js and
-// api/_creator-tier.js, where a fake `db` can reach it.
+// api/_creator-tier.js, where a fake `db` can reach it. The operator gate for
+// `retry_failed_payout` is checked HERE, in the door, never inside
+// `retryFailedPayout` itself - api/_ops.js's own "the check belongs at the
+// board's own door, never the board's own function" precedent.
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
-import { PaymentsError, getRoomPrice, setRoomPrice, ownerRevenue, startCreatorSubscription } from "./_payments.js";
+import {
+  PaymentsError,
+  getRoomPrice,
+  setRoomPrice,
+  ownerRevenue,
+  startCreatorSubscription,
+  payoutStatements,
+  payoutStatement,
+  registerFundAccount,
+  retryFailedPayout,
+} from "./_payments.js";
 import { readCreatorTier } from "./_creator-tier.js";
 import { OrgError } from "./_org.js";
+import { isOpsOwner } from "./_ops.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -72,6 +99,27 @@ export default async function handler(req, res) {
       const subscription = await startCreatorSubscription(q, { ownerUserId: user.id, replicaId, plan: body.plan });
       obsBestEffort("payments.start_creator_subscription", { plan: body.plan });
       return res.status(200).json({ subscription });
+    }
+    if (op === "payout_statements") {
+      return res.status(200).json({ payouts: await payoutStatements(q, user.id) });
+    }
+    if (op === "payout_statement") {
+      const statement = await payoutStatement(q, user.id, body.payout_id);
+      if (!statement) return res.status(404).json({ error: "payout_not_found" });
+      return res.status(200).json({ statement });
+    }
+    if (op === "register_fund_account") {
+      const account = await registerFundAccount(q, { ownerUserId: user.id, fundAccountRef: body.fund_account_ref });
+      obsBestEffort("payments.register_fund_account", {});
+      return res.status(200).json({ account });
+    }
+    if (op === "retry_failed_payout") {
+      // Operator only. 404, never 403, for anyone else - the existence of
+      // this op is never disclosed to a caller it is not for, api/ops.js's
+      // own law 1 restated for one payment op instead of a whole board.
+      if (!isOpsOwner(user.id)) return res.status(404).json({ error: "not_found" });
+      const payout = await retryFailedPayout(q, { payoutId: body.payout_id });
+      return res.status(200).json({ payout });
     }
 
     return res.status(400).json({ error: "unknown_op" });

@@ -179,6 +179,78 @@ export async function cancelSubscription(providerSubscriptionRef, secrets) {
 }
 
 /**
+ * Verify a fund account reference (WS-R36). RazorpayX is a SEPARATE product
+ * from the Subscriptions API every function above talks to - it is the
+ * payouts side of the same Razorpay account, with its own Fund Accounts and
+ * Payouts APIs. NOT VERIFIED, named per this file's own header: no fresh doc
+ * fetch was performed for the exact response shape below, unlike every
+ * dated endpoint above it, and nothing here has ever made a real request.
+ *   GET https://api.razorpay.com/v1/fund_accounts/:id
+ *     -> { id, contact_id, account_type, active: boolean, ... }
+ * This platform NEVER sends a bank account number or a UPI VPA to mint a
+ * fund account - the id it verifies here is the only thing it is ever handed,
+ * after the creator's own bank-detail exchange happened entirely on
+ * Razorpay's side (a hosted onboarding link, out of scope for this file).
+ */
+export async function registerFundAccount(fundAccountRef, secrets) {
+  if (!secrets?.keyId || !secrets?.keySecret) {
+    throw Object.assign(new Error("payments_provider_credentials_missing"), { code: "payments_provider_credentials_missing", status: 503 });
+  }
+  const r = await fetch(`${API}/fund_accounts/${encodeURIComponent(fundAccountRef)}`, {
+    method: "GET",
+    headers: { Authorization: basicAuthHeader(secrets.keyId, secrets.keySecret) },
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!r || !r.ok) return { verified: false };
+  const body = await r.json().catch(() => ({}));
+  return { verified: body?.active === true };
+}
+
+/**
+ * Send a payout (WS-R36). RazorpayX Payouts API, NOT VERIFIED per this
+ * file's own header (no fresh doc fetch performed this session):
+ *   POST https://api.razorpay.com/v1/payouts
+ *     { account_number, fund_account_id, amount (paise), currency: "INR",
+ *       mode: "IMPS", purpose: "payout", queue_if_low_balance: true,
+ *       reference_id }
+ *     -> { id: "pout_...", status: "queued" | "processing" | ... }
+ * `account_number` is the PLATFORM's own RazorpayX current account number
+ * (`secrets.accountNumber`, read from the same channel-secret blob as
+ * `keyId`/`keySecret` - never a creator's own account, which this file never
+ * receives at all, only a `fund_account_id` reference to it).
+ */
+export async function sendPayout(input, secrets) {
+  if (!secrets?.keyId || !secrets?.keySecret) {
+    throw Object.assign(new Error("payments_provider_credentials_missing"), { code: "payments_provider_credentials_missing", status: 503 });
+  }
+  if (!secrets?.accountNumber) {
+    throw Object.assign(new Error("payments_provider_account_number_missing"), { code: "payments_provider_account_number_missing", status: 503 });
+  }
+  const r = await fetch(`${API}/payouts`, {
+    method: "POST",
+    headers: {
+      Authorization: basicAuthHeader(secrets.keyId, secrets.keySecret),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      account_number: secrets.accountNumber,
+      fund_account_id: input.fundAccountRef,
+      amount: Math.round(Number(input.amountInr || 0)) * 100,
+      currency: "INR",
+      mode: "IMPS",
+      purpose: "payout",
+      queue_if_low_balance: true,
+      reference_id: String(input.ref || ""),
+    }),
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!r || !r.ok) throw Object.assign(new Error("payments_provider_payout_failed"), { code: "payments_provider_payout_failed", status: 502 });
+  const body = await r.json().catch(() => ({}));
+  if (!body?.id) throw Object.assign(new Error("payments_provider_payout_failed"), { code: "payments_provider_payout_failed", status: 502 });
+  return { provider_payout_ref: body.id, status: body.status || "queued" };
+}
+
+/**
  * HMAC-SHA256 over the RAW body, constant-time compared. `rawBody` must be
  * the untouched bytes Razorpay signed - see api/payments-webhook.js's
  * `bodyParser: false`, api/discord.js's own rule for why a re-serialization

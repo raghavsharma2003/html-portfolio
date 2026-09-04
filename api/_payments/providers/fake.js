@@ -59,6 +59,29 @@ export function verifyWebhookSignature(rawBody, signatureHeader, secret) {
   }
 }
 
+/**
+ * Verify a fund account reference (WS-R36). Deterministic: any non-empty ref
+ * verifies, the same "just works" posture `createSubscription` above already
+ * has - what is proven with this twin is the CALL SHAPE and the caller's own
+ * handling of the response, never a real bank detail (this platform never
+ * sends one; see razorpay.js's own header).
+ */
+export async function registerFundAccount(fundAccountRef) {
+  return { verified: Boolean(String(fundAccountRef || "").trim()) };
+}
+
+/**
+ * Send a payout to an already-registered fund account. Deterministic
+ * `provider_payout_ref` from `(fundAccountRef, ref, amountInr)`, zero
+ * network - `createSubscription`'s own determinism restated for money
+ * leaving instead of a mandate starting.
+ */
+export async function sendPayout(input) {
+  const seed = `${input.fundAccountRef || ""}:${input.ref || ""}:${input.amountInr || 0}`;
+  const ref = `fake_payout_${createHash("sha256").update(seed).digest("hex").slice(0, 24)}`;
+  return { provider_payout_ref: ref, status: "queued" };
+}
+
 /** Test-only helper: sign a raw body the way a real provider's webhook
  *  sender would, so evals/payments/run.mjs can construct a genuinely valid
  *  signature and then, for the negative control, corrupt exactly one byte of

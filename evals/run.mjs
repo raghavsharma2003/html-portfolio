@@ -1759,6 +1759,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "room-account": "room-account/run.mjs",
+  // WS-R36, migration 098. Creator payouts as a product: the Suite share
+  // folded into `runPayoutRollup`'s own arithmetic (a FLAT share of the
+  // Suite's own per-seat price, `SUITE_SEAT_SHARE_BP`, never a re-derivation
+  // of what the Suite's ledger actually collected), the closed payout state
+  // machine (built -> pending_account | queued -> sent -> settled | failed,
+  // one transition each), the `sendPayout`/`registerFundAccount` seam twins
+  // (never a bank detail, only the reference the provider issued), and the
+  // statement (`payoutStatementFromRows`/`payoutStatement`) - the four
+  // numbers, the period, the follower subscription count, the Suite line,
+  // the TDS disclosure sentence, the state, and nothing per follower.
+  // THREE NEGATIVE CONTROLS: (a) a payout with no fund account never reaches
+  // the provider (zero calls); (b) a statement never contains a follower
+  // identifier (static scan of the builder); (c) a second `sent` transition
+  // on the same payout is refused by the WHERE.
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider.
+  payouts: "payouts/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
