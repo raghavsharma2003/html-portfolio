@@ -8036,3 +8036,77 @@ n = 1 migration (8 statements in one transaction), 9 API statements, 1 forget de
 | erasure delete | `vy_room_owner_ix` then `vy_room_handoff_queue_ix` on room_id |
 
 Not measured: no handoff row exists; `handoff_enabled` defaults false on every Room, so the surface answers nothing until a creator turns it on. The leak battery now runs 78 checks with the consented-only class.
+
+## `ws-r25-funnel-gate-results-2026-09-04` (n=1 tree, method: `node scripts/verify-release.mjs` / `node evals/*/run.mjs` / `node scripts/check-copy.mjs` / `node scripts/context.mjs --check`, date 2026-09-04)
+
+Untouched tree (this workstream's own worktree, before any edit):
+`node scripts/verify-release.mjs` **15/15** without `NEON_URL` (relational DB
+gates skipped, printed as such). `node evals/room-leak/run.mjs` standalone
+**78/78** (unchanged from the WS-R20 merge baseline recorded in this file's
+own prior entry).
+
+After this workstream's changes (migration 088, `api/_funnel.js`,
+`api/_sweep-run.js`'s retention delete, `api/_ops.js`/`api/replica.js`
+wiring, the studio pieces):
+- `node scripts/verify-release.mjs`: **15/15** (unchanged count - this
+  workstream added no new named gate).
+- `node evals/funnel/run.mjs` (new suite): **49/49**, $0, offline,
+  deterministic, no network, no real Postgres.
+- `node evals/room-leak/run.mjs` standalone: **78/78** (unchanged - this
+  workstream widened the existing AGGREGATE_ONLY parser and admitted one new
+  file rather than adding a new assertion layer).
+- `node evals/replica-erasure/run.mjs`: **20/20** (unchanged - confirms the
+  new `funnel_marks` erasure CTE did not disturb the existing 20 checks;
+  no check in that suite asserts membership of every erasure class by name,
+  so this is evidence the addition did not BREAK anything, not a direct
+  measurement of the new CTE's own correctness, which is unproven against a
+  live database - see below).
+- `node evals/persontables.mjs`: **71 owner-lane tables** (up from 70 before
+  this session - `vy_replica_funnel_mark` is picked up automatically by its
+  plain `owner_user_id` column with no person-shaped sibling, needing no new
+  `EXEMPT` entry, exactly as `vy_replica_readiness`'s own 073-era precedent
+  predicted), 53 listed in `PERSON_TABLES` (unchanged - this table is
+  correctly NOT in that manifest), 4 exempt in writing (unchanged).
+- `node evals/recall/run.mjs`: **260 assertions**, unchanged pass state (this
+  table needed no FATE entry - it is owner lane, not person lane).
+- `node evals/sqlcast.mjs`: **155 tables** (up from 154), **371 statements on
+  the strict surface** (up to include `api/_funnel.js`'s 11 new statements),
+  **0 uncast sites, 0 conflicts, 0 unparseable shapes**.
+- `node scripts/check-copy.mjs`: **6 scopes clean, 17 negative controls bit**
+  (unchanged - none of this workstream's new user-visible strings tripped
+  the em-dash rule or the Rooms vocabulary rule; verified directly, not
+  assumed, since `OpsBoard.tsx` is inside the scanned `src/studio/` scope).
+- `node scripts/context.mjs --check`: **923 nodes, 1139 edges** before this
+  session's own context append (the number this session's own append starts
+  from).
+
+NOT PROVEN, stated plainly: migration 088 has never executed against a live
+Postgres (no `NEON_URL` in this environment); no statement in `api/_funnel.js`
+or the new lines in `api/_sweep-run.js`/`api/_replica-full-erasure.js` has
+ever been `EXPLAIN`ed; `scripts/relcheck.mjs` did not run (no `NEON_URL`); no
+real `vy_replica_funnel_mark` row exists outside a fake `db`; every
+"minutes to first Room" and "where creators stop" number this session ever
+produced came from a fixture built to match the brief's own two examples
+(23 minutes, stalled at readiness), never from an observed creator; the
+front-end mark calls (`studio_opened` on mount, `publish_clicked` on click)
+have never been exercised in a real browser against a real deployment.
+
+## `rooms-migration-088-live-verification-2026-09-04`
+
+n = 1 migration (4 statements in one transaction), 12 API statements, 1 retention delete, 1 erasure delete; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, catalog read back (`pg_constraint` shows the pkey on `(replica_id, step)` and the two-value step CHECK; `pg_indexes` shows `vy_replica_funnel_mark_owner_ix (owner_user_id, replica_id)`), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_funnel.js` issues plus `api/_sweep-run.js`'s retention delete and `api/_replica-full-erasure.js`'s `funnel_marks` CTE run standalone over a literal `target`, parameters substituted with typed literals; date 2026-09-04, at the WS-R25 merge. This closes the live half of `ws-r25-migration-088-not-proven-live`; the browser half (the two studio mark calls reaching a real deployment) stays open.
+
+| statement | plan |
+|---|---|
+| `markStep` (ownership SELECT, INSERT, read-back in one CTE) | Insert with `Conflict Resolution: NOTHING`, arbiter `vy_replica_funnel_mark_pkey`; the read-back is an Index Scan on `vy_replica_funnel_mark_owner_ix` with `step` filtered; the ownership CTE is a Seq Scan on `vy_replica` (35 rows) |
+| replica base row; `opsFunnel`'s replica list | Seq Scan on `vy_replica` (35 rows, `lifecycle <> 'purging'` filtered, sorted on `created_at`); bounded by the table |
+| first source `min(created_at)` | Seq Scan on `vy_replica_source` at 13 rows; `vy_replica_source_owner_ix (owner_user_id, replica_id, created_at desc)` exists and takes over as the table grows |
+| processing finished (`voice_quality`, `complete`) | Index Scan `vy_replica_processing_source_ix` on replica_id, owner and step and state filtered |
+| first preview sealed | Index Scan `vy_replica_generation_owner_ix` on (owner_user_id, replica_id), purpose and channel and state filtered |
+| readiness first measured; readiness passed the lock | both an InitPlan `Limit 1` over an Index (Only) Scan Backward of `vy_replica_readiness_latest_ix`, the lock (`overall >= 70 and min_part >= 55`) as the row filter |
+| disclosure approved | Index Scan `vy_teacher_sheet_one_published_ix` on agent_id |
+| the two marks; the Room's first row | `vy_replica_funnel_mark_owner_ix`; `vy_room_owner_ix` then a one-row sort on `created_at` |
+| first follower joined | Bitmap Index Scan `vy_room_follower_room_seen_ix` on room_id, aggregated to `min(joined_at)` |
+| `vy_sweep_run` retention delete | Index Scan `vy_sweep_run_sweep_started_ix` with both `sweep = $1` and `started_at < now() - 30 days` as Index Cond: the delete is bounded by the sweep and the age at the index, never a scan of another sweep's rows |
+| erasure `funnel_marks` CTE | Nested Loop: `vy_replica_funnel_mark_owner_ix` on (owner_user_id, replica_id), then the `target` row |
+
+Not measured: no `vy_replica_funnel_mark` row exists; no creator has opened the new studio build, so the ops board's "Minutes to first Room" card has no number to show and says so.

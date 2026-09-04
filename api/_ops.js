@@ -26,6 +26,11 @@
 import { monthKeyOf } from "./_room-surface.js";
 import { readPulse } from "./_pulse.js";
 import { sweepSchedules } from "./_sweep-schedule.js";
+// WS-R25 (migration 088). "Minutes to first Room" and "where creators stop" -
+// `opsFunnel` is its own aggregate-only function in `api/_funnel.js` (that
+// file's own header names the rule this file already keeps), imported here
+// rather than re-derived so the board's one call stays the board's one call.
+import { opsFunnel } from "./_funnel.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -248,5 +253,12 @@ export async function opsOverview(db, now = Date.now()) {
   for (const room of rooms) {
     roomsOut.push(await roomOverview(db, room, monthKey, now));
   }
-  return { generated_at: new Date(now).toISOString(), rooms: roomsOut, sweeps: await sweepsOverview(db, now) };
+  return {
+    generated_at: new Date(now).toISOString(),
+    rooms: roomsOut,
+    sweeps: await sweepsOverview(db, now),
+    // WS-R25. "Minutes to first Room" and "where creators stop" -
+    // `opsFunnel`'s own read, one extra call on the board's one endpoint.
+    funnel: await opsFunnel(db, now),
+  };
 }

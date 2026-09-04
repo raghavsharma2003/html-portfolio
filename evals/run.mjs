@@ -1569,6 +1569,24 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   handoff: "handoff/run.mjs",
+  // WS-R25. The creator funnel (migration 088): "minutes to first Room" and
+  // "where creators stop", plus the sweep heartbeat's own retention delete
+  // (closing WS-R21's own open item). Drives `api/_funnel.js` through a
+  // dedicated fake db - two replicas (one published in 23 minutes, one
+  // stalled at readiness, 10 days old), `markStep`'s first-write-wins and
+  // ownership gate, `replicaFunnel`'s full ordered read, `funnelSummary`'s
+  // pure median/p90/stall math, and `opsFunnel`'s own board read - plus
+  // `api/_sweep-run.js`'s new bounded retention delete. Three NEGATIVE
+  // CONTROLS: (a) a mark from another owner is refused before any write,
+  // proven both by the thrown error and by the marks table being untouched;
+  // (b) evals/room-leak/run.mjs's own aggregate-only parser (copied, that
+  // file has no exported entry point, by design) catches a mutated select
+  // list carrying a bare follower column; (c) the retention delete removes
+  // an old row for the sweep that just finished while leaving an equally
+  // old row belonging to a DIFFERENT sweep untouched.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  funnel: "funnel/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

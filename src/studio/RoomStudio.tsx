@@ -58,6 +58,7 @@ import {
   type RoomRevenue,
 } from "./paymentsApi";
 import { readPulse, setPulseTopics, PulseApiError, type PulseReport } from "./pulseApi";
+import { markFunnelStep } from "./funnelApi";
 import "./roomStudio.css";
 
 /** Plain-words sentence for the verdict line - WS-R12's own card. Never a
@@ -296,6 +297,12 @@ export default function RoomStudio({
     setBusy("publish");
     setError("");
     setNotice("");
+    // WS-R25 (migration 088). The click site, distinct from the write below
+    // succeeding: `publishOwnedRoom` can still refuse on the readiness lock,
+    // and this mark is meant to record the attempt either way. Fire and
+    // forget - a failed mark must never block or surface an error on the
+    // actual publish flow.
+    void markFunnelStep(token, replicaId, "publish_clicked").catch(() => {});
     try {
       const next = await publishOwnedRoom(token, replicaId);
       setRoom(next);

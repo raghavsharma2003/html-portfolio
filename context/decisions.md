@@ -9564,3 +9564,97 @@ follower building a long payload across multiple visits, say), `draft`
 becomes a writer instead of a pure function, and `withdrawHandoffRequest`'s
 existing `state in ('drafted','sent')` clause already accepts the new shape
 with no change.
+
+## `ws-r25-processing-finished-is-voice-quality-terminal-step` (2026-09-04, WS-R25)
+
+**Decision.** "Processing finished" in the funnel reads
+`min(vy_replica_processing_job.updated_at)` filtered to
+`step='voice_quality' and state='complete'`, never
+`vy_replica_source.state='ready'`.
+
+**Rationale.** `voice_quality` is the audio DAG's own terminal step
+(`api/_replica-processing/pipeline.js`'s `NEXT` map: `NEXT.voice_quality ===
+null`, the only step with no successor). `vy_replica_source.state` can also
+reach `'ready'` by paths this workstream did not want to depend on staying
+in step with the DAG's own definition of "done" (a future source kind with a
+different terminal step, say), whereas the DAG's own module already names
+the terminal step as data, not as a comment. Reading from
+`vy_replica_processing_job` also keeps the funnel honest about a source that
+was marked `ready` by a path other than the audio pipeline finishing (there
+is no such path today, but the funnel's own law #1 - "read from the table
+that already knows" - argues for the narrower, more truthful source even
+before one exists).
+
+**Reversal condition.** If `AUDIO_PROCESSING_DAG`/`NEXT` ever grow a second
+terminal step (a video-only DAG with its own last step, say), this read
+needs to become "whichever step has no successor for THIS source's kind"
+rather than the literal string `'voice_quality'` - the day that DAG exists,
+this entry should gain a `supersedes` edge.
+
+## `ws-r25-aggregate-only-parser-widened-to-admit-min` (2026-09-04, WS-R25)
+
+**Decision.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser (WS-R21's own
+addition) now accepts `min(...)` alongside `count(...)`/`sum(...)` as a
+legitimate aggregate in a follower-table select list, and `api/_funnel.js` is
+added to the AGGREGATE_ONLY set.
+
+**Rationale.** `api/_funnel.js`'s one follower-table read is `select
+min(joined_at) as at from vy_room_follower where room_id = ($1)::uuid` - the
+same "scoped to one room, aggregate-only select list" shape every other
+AGGREGATE_ONLY file already proves out, one real SQL aggregate function
+wider. Widening the regex rather than reshaping the query to fake a
+`count`/`sum` (e.g. `count(*) filter (where joined_at = (select
+min(joined_at) ...))`) keeps the statement legible and keeps the parser
+honest about what "aggregate-only" was always supposed to mean, rather than
+an accident of which two functions happened to be needed first.
+
+**Reversal condition.** If a future statement uses `min`/`max` to smuggle a
+non-aggregate value out (there is no such shape today - `min`/`max` over a
+single scalar column can only ever return that same column's own type, never
+a row's other fields), narrow the regex back and give the offending file its
+own named exception instead.
+
+## `ws-r25-funnel-mark-ownership-predicate-inside-insert` (2026-09-04, WS-R25)
+
+**Decision.** `markStep`'s INSERT sources its rows from a CTE
+(`with owned as (select ... from vy_replica where replica_id=$1 and
+owner_user_id=$2)`) rather than a JS ownership check before a separate
+INSERT. A mark for a replica the caller does not own therefore inserts ZERO
+rows in the SAME statement that would have written it.
+
+**Rationale.** `api/_replica.js`'s invite gate and `api/_room-publish.js`'s
+publish lock both already put the deciding predicate inside the write
+statement rather than beside it, for the reason `gate0-structural` states
+generally: a predicate the database enforces is a guarantee, a predicate in
+application code beside a write is a race waiting for a second call path.
+The workstream brief asks for this by name ("a mark from another owner is
+refused before any write"), and this shape is the only one that makes
+"before any write" true by construction rather than by ordering two
+statements correctly today and hoping a future edit keeps them in order.
+
+**Reversal condition.** None expected; this is the same pattern every
+owner-scoped write in this codebase already uses. If a future Neon
+SQL-over-HTTP change ever disallowed a CTE feeding an INSERT's row source,
+this would need to fall back to two statements with the ownership check
+inside a transaction - not available today (Neon's HTTP endpoint takes one
+statement per request), so this is not a live option, only a note for
+whoever hits that wall.
+
+## `ws-r25-stall-window-is-seven-days-since-account-created` (2026-09-04, WS-R25)
+
+**Decision.** `funnelSummary` counts a replica as "stalled" only when it has
+NOT published AND its `account_created` is at least 7 days in the past. A
+replica younger than 7 days with no Room yet is not counted anywhere in
+`stalled_at`.
+
+**Rationale.** The workstream brief's own words: "counts per last-reached
+step over replicas that have not published in 7 days." A creator on day two
+of a multi-week archive upload is not a defect the platform should report to
+its own operator as a stall; counting them would make the board cry wolf on
+day one of every real creator's onboarding and teach whoever reads it to
+ignore the list.
+
+**Reversal condition.** If Phase 1 sets a different target ("a Room in
+minutes" implies the window should eventually be much shorter than 7 days),
+change `STALL_WINDOW_MS` in `api/_funnel.js` - it is the one constant the
+whole stall computation depends on, not a value duplicated anywhere else.

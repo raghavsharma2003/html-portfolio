@@ -3622,3 +3622,22 @@ create index if not exists vy_room_handoff_person_ix
   on vy_room_handoff (person_id, room_id);
 create index if not exists vy_room_handoff_cap_ix
   on vy_room_handoff (follower_id, month_key, state);
+
+-- Migration 088 - the creator funnel marks (WS-R25). See
+-- db/migrations/088_replica_funnel.sql for the full rationale: the two
+-- moments no other table knows (studio wizard mount, Publish click), never a
+-- message, first write wins, deleted by name in
+-- api/_replica-full-erasure.js, no foreign key on 009's owner-lane
+-- convention.
+create table if not exists vy_replica_funnel_mark (
+  replica_id     uuid not null,
+  owner_user_id  uuid not null,
+  step           text not null,
+  at             timestamptz not null default now(),
+  primary key (replica_id, step)
+);
+alter table vy_replica_funnel_mark drop constraint if exists vy_replica_funnel_mark_step_check;
+alter table vy_replica_funnel_mark add constraint vy_replica_funnel_mark_step_check
+  check (step in ('studio_opened', 'publish_clicked'));
+create index if not exists vy_replica_funnel_mark_owner_ix
+  on vy_replica_funnel_mark (owner_user_id, replica_id);

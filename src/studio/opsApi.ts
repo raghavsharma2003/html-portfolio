@@ -48,10 +48,27 @@ export interface OpsSweep {
   staleness: SweepStaleness;
 }
 
+// WS-R25 (migration 088). "Minutes to first Room" and "where creators stop" -
+// `api/_funnel.js`'s own `funnelSummary` shape, typed here unchanged.
+export interface OpsFunnelStall {
+  step: string;
+  count: number;
+}
+
+export interface OpsFunnel {
+  minutes_to_first_room: {
+    median: number | null;
+    p90: number | null;
+    n: number;
+  };
+  stalled_at: OpsFunnelStall[];
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
   sweeps: OpsSweep[];
+  funnel: OpsFunnel;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

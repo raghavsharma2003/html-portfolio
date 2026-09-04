@@ -80,6 +80,31 @@ async function finish(db, runId, outcome, counts, errorCode) {
   );
 }
 
+// WS-R25 (migration 088's own workstream, closing WS-R21's own open item:
+// "the heartbeat table needs a retention delete before Phase 1"). 30 days,
+// one bounded DELETE per finishing sweep, planned on the same
+// `vy_sweep_run_sweep_started_ix (sweep, started_at desc)` index the board's
+// own "latest run per sweep" read already uses - no new index, no
+// migration.
+export const SWEEP_RUN_RETENTION_DAYS = 30;
+
+/**
+ * Bounded by BOTH the sweep that just finished AND an age cutoff - never a
+ * bare `delete from vy_sweep_run where started_at < ...`, which would prune
+ * every OTHER sweep's history the moment any one sweep happened to run.
+ * Best-effort (`.catch(() => {})`), the same posture every write in this
+ * file already takes: a retention hiccup must never turn a sweep that
+ * otherwise succeeded into a 500.
+ */
+async function pruneOldRuns(db, sweep) {
+  await db(
+    `delete from vy_sweep_run
+      where sweep = $1
+        and started_at < now() - ($2::int * interval '1 day')`,
+    [sweep, SWEEP_RUN_RETENTION_DAYS],
+  ).catch(() => {});
+}
+
 /**
  * Wrap one sweep invocation with a start/finish heartbeat row.
  *
@@ -100,6 +125,11 @@ async function finish(db, runId, outcome, counts, errorCode) {
  * Neon hiccup on the WRITE must never turn a sweep that otherwise succeeded
  * into a 500, the same posture `api/consolidate-sweep.js`'s own lease
  * release takes.
+ *
+ * After every finish (success OR failure), this sweep's own rows older than
+ * `SWEEP_RUN_RETENTION_DAYS` are pruned - one bounded DELETE, scoped to THIS
+ * sweep name, so a heartbeat table with 11 crons on it does not grow
+ * forever while nobody is watching (WS-R21's own open item, closed here).
  */
 export async function withSweepRun(db, sweep, fn) {
   if (typeof db !== "function") throw new Error("withSweepRun: db required");
@@ -111,9 +141,11 @@ export async function withSweepRun(db, sweep, fn) {
     result = await fn();
   } catch (err) {
     await finish(db, runId, "failed", {}, errorCodeOf(err)).catch(() => {});
+    await pruneOldRuns(db, sweep);
     throw err;
   }
   const counts = sanitizeCounts(result);
   await finish(db, runId, classifyOutcome(counts), counts, "").catch(() => {});
+  await pruneOldRuns(db, sweep);
   return result;
 }

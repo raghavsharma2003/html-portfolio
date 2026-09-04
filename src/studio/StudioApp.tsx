@@ -16,6 +16,7 @@ import {
 } from "./replicaApi";
 import { restoreSession, writeStoredSession } from "./session";
 import { friendlyError } from "./errorCopy";
+import { markFunnelStep } from "./funnelApi";
 import type {
   ConsentReceipt,
   LivenessChallenge,
@@ -1656,6 +1657,12 @@ export default function StudioApp() {
     void (async () => {
       try {
         const fresh = await refreshForRequest(session);
+        // WS-R25 (migration 088). This effect fires exactly once per
+        // replica selection - the studio wizard's own mount for THIS
+        // replica - so this is the one call site for "studio_opened".
+        // Fire and forget: a failed mark must never block or surface an
+        // error on the wizard itself.
+        void markFunnelStep(fresh.accessToken, replicaId, "studio_opened").catch(() => {});
         const [
           consentResult,
           sourceResult,

@@ -5614,6 +5614,54 @@
       "kind": "measurement",
       "title": "Migration 083 applied live after pgcrypto was confirmed; the hash-matched consented-only predicate parses and plans on the queue index; the cap is an InitPlan over the cap index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-creator-funnel-component",
+      "kind": "component",
+      "title": "api/_funnel.js: markStep (owner op, first-write-wins), replicaFunnel (ordered timestamps per replica), funnelSummary (pure median/p90/stall math), opsFunnel (the board's own read). Migration 088, vy_replica_funnel_mark.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-processing-finished-is-voice-quality-terminal-step",
+      "kind": "decision",
+      "title": "The funnel's 'processing finished' step reads vy_replica_processing_job where step='voice_quality' and state='complete' (the audio DAG's own terminal step per pipeline.js's NEXT map), never vy_replica_source.state='ready'.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-aggregate-only-parser-widened-to-admit-min",
+      "kind": "decision",
+      "title": "evals/room-leak/run.mjs's AGGREGATE_ONLY parser now admits min(...) alongside count(...)/sum(...); api/_funnel.js added to the AGGREGATE_ONLY set for its one min(joined_at) read of vy_room_follower, scoped to one room.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-funnel-mark-ownership-predicate-inside-insert",
+      "kind": "decision",
+      "title": "markStep's INSERT sources its rows from a CTE gated on replica_id/owner_user_id match, so a mark from a non-owner inserts zero rows in the SAME statement rather than being checked by JS before or after a separate write.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-stall-window-is-seven-days-since-account-created",
+      "kind": "decision",
+      "title": "funnelSummary counts a replica as stalled only when unpublished AND account_created is >= 7 days old; a younger unpublished replica is in progress, never counted as a defect.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-funnel-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release 15/15 before and after; evals/funnel/run.mjs new suite 49/49; room-leak 78/78 unchanged; replica-erasure 20/20 unchanged; persontables 71 owner-lane (up from 70), 53 listed unchanged; recall 260 unchanged; sqlcast 155 tables/371 strict statements/0 violations; check-copy 6 scopes/17 controls unchanged; context.mjs 923 nodes/1139 edges baseline. Method: direct invocation of each script/eval in the worktree, 2026-09-04.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r25-migration-088-not-proven-live",
+      "kind": "open",
+      "title": "Migration 088 (vy_replica_funnel_mark) has never executed against a live Postgres; no statement in api/_funnel.js, api/_sweep-run.js's retention delete, or api/_replica-full-erasure.js's new funnel_marks CTE has ever been EXPLAINed; no real row exists outside a fake db; the studio_opened/publish_clicked mark calls have never reached a real browser against a real deployment.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-088-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 088 applied live; markStep's ownership predicate and first-write-wins plan as one CTE with the pkey as conflict arbiter, every funnel read and the sweep retention delete plan on their indexes",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11311,6 +11359,56 @@
       "src": "ws-r20-handoff-not-tier-gated",
       "rel": "measured_by",
       "dst": "rooms-migration-083-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r25-creator-funnel-component",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r25-processing-finished-is-voice-quality-terminal-step",
+      "rel": "measured_by",
+      "dst": "ws-r25-funnel-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r25-aggregate-only-parser-widened-to-admit-min",
+      "rel": "measured_by",
+      "dst": "ws-r25-funnel-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r25-funnel-mark-ownership-predicate-inside-insert",
+      "rel": "measured_by",
+      "dst": "ws-r25-funnel-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r25-stall-window-is-seven-days-since-account-created",
+      "rel": "measured_by",
+      "dst": "ws-r25-funnel-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r25-migration-088-not-proven-live",
+      "rel": "constrains",
+      "dst": "ws-r25-creator-funnel-component"
+    },
+    {
+      "src": "ws-r25-creator-funnel-component",
+      "rel": "caused_by",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r25-funnel-mark-ownership-predicate-inside-insert",
+      "rel": "measured_by",
+      "dst": "rooms-migration-088-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r25-processing-finished-is-voice-quality-terminal-step",
+      "rel": "measured_by",
+      "dst": "rooms-migration-088-live-verification-2026-09-04"
+    },
+    {
+      "src": "rooms-migration-088-live-verification-2026-09-04",
+      "rel": "supersedes",
+      "dst": "ws-r25-migration-088-not-proven-live"
     }
   ]
 }
