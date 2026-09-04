@@ -8058,3 +8058,128 @@ unverified in the time this workstream had.
 **What broke:** Vercel refused to deploy the merged branch on both projects: `Error while validating your Cron Jobs expressions: Invalid value found 24 (0 */24 * * *)`. A step value for the hour field must be 1..23; `*/24` is not a cron expression, and the first thing to reject it was the deployment, after the push.
 
 **Fix:** the schedule is `0 0 * * *`, and the parser gained the one daily slot shape (`0 H * * *` is 24 hours) so the ops board still reads it; `evals/ops/run.mjs` asserts the daily shapes, the renewals entry, and that every hour step in `vercel.json` is within 1..23, so the next invalid step fails offline. Rule: a schedule the parser can read is not the same as a schedule the platform will run; when the two disagree, extend the parser, never bend the schedule.
+
+## `ws-r50-pulse-toggle-aria-pressed-false-positive` (2026-09-04, WS-R50)
+
+**Tried:** the keyboard walk's first form of "Enter or Space activates the
+primary control" (`scripts/check-accessibility.mjs`'s brief-mandated law 2)
+pressed Space on `.room-pulse-toggle` and asserted its `aria-pressed`
+attribute actually flipped, before and after. This looked like exactly the
+right test: `.room-pulse-toggle` was the one control this workstream had
+just found wired to `onPointerDown` alone (unreachable from a keyboard),
+so a passing assertion here would have been the direct proof the fix
+worked.
+
+**What broke:** the assertion still failed AFTER the fix (`onKeyDown`
+wired, matching `activateOnKey`, correctly dispatching on Space). Debugged
+directly: `room-layout-fixture.html` stubs no `/api/*` route at all (unlike
+`studio-layout-fixture.html`'s `installStubFetch`, WS-R31's own precedent)
+— it only supplies `fixtureOpen`/`fixtureTurns` as component props, which
+covers every effect `RoomApp.tsx` itself guards with `if (fixtureOpen)
+return`, but `togglePulse`'s real `fetch()` to `/api/room-pulse` is a
+user-INITIATED action nobody anticipated blocking for a fixture. Proven
+with a plain Playwright `page.click(".room-pulse-toggle")` (mouse, not
+keyboard) on the SAME fixture: the request 404s and `aria-pressed` never
+changes either. A test that fails identically for a fully keyboard-operable
+control and a keyboard-dead one is not discriminating the thing it exists
+to catch.
+
+**What replaced it:** the assertion no longer reads `aria-pressed`. It
+attaches a real `keydown` listener on `document` (bubble phase, so it fires
+AFTER React's own root-delegated handler has had its turn — a listener
+attached directly to the button itself would read `defaultPrevented` in the
+AT_TARGET phase, before React's bubble-phase handler even runs, and would
+have been ANOTHER false negative of the identical shape) and checks
+`e.defaultPrevented` after pressing Space. This proves the handler is
+WIRED AND REACHED without depending on what it does afterward, which the
+offline fixture cannot support for any network-mutating control regardless
+of input method. Confirmed with both directions of the negative control:
+reverting the fix reintroduces the finding, reapplying it clears it (see
+this workstream's commits and `measurements.md#ws-r50-accessibility-before-after`).
+
+**The law:** an assertion that reads a state TWO steps downstream of the
+thing being tested (keyboard reachability, proven via a network round trip
+an offline fixture cannot complete) will fail for reasons that have nothing
+to do with what it claims to test. Read the state as close to the
+mechanism as the mechanism allows — here, whether the event handler ran at
+all — and let a SEPARATE, purely client-side check (the data-menu open/
+close round trip, already in the same file) carry the full-effect proof.
+
+## `ws-r50-ink-faint-token-wide-recolour` (2026-09-04, WS-R50)
+
+**Tried, then deliberately did not do:** `--ink-faint` (#7a7e74,
+`src/studio/studio.css`) is the color axe's `color-contrast` rule flagged,
+and it is used in 50+ places across that file — not six. The obvious fix,
+briefly considered, was darkening `--ink-faint` itself so every caller
+inherits the correction in one change, the same shape as `--focus-ring`'s
+own earlier fix for `.studio-shell`'s focus ring
+(`tokens.css`'s own comment on that ring, "under WCAG 2.2's 3:1").
+
+**What stopped it:** this workstream's own targets (`studio:shell`'s three
+tabs, the default empty scenario) only ever RENDER and therefore only ever
+PROVE six of those 50+ usages failing. The other 44+ sit behind conditional
+branches (`?scenario=voice-ready`, `review-pending`, `processing`, and
+states this gate's fixture never reaches at all — the review queue, the
+context locker, dozens of panels this workstream never pointed a browser
+at). Recoloring the shared token would have changed every one of them
+sight-unseen, on the strength of six measured failures generalized to a
+population never measured — exactly the reasoning-over-measurement failure
+`CLAUDE.md` and this file's own header both name as the thing this repo
+gets wrong when it is gotten wrong.
+
+**What shipped instead:** a second token, `--ink-faint-aa`, defined once
+beside `--ink-faint` in `studio.css`'s own `:root`, and applied ONLY to the
+six selectors this gate's axe scan actually caught failing. See
+`studio.css`'s own comment at the token's definition for the exact
+selectors and the reversal note.
+
+**The law:** a shared token failing in six PROVEN places is evidence about
+those six places, not about the other forty-some this gate cannot see. Fix
+what was measured; name what was not, so the next agent with a wider
+fixture (or the patience to drive every `?scenario=`) knows exactly what is
+still unweighed rather than assuming this workstream already weighed it.
+`context/STATE.md`'s session log for this workstream carries a pointer to
+this entry as the scoped-out remainder.
+
+## `ws-r50-onpointerdown-only-breaks-keyboard-activation` (2026-09-04, WS-R50)
+
+**Tried (by earlier workstreams, not this one; found and fixed here):**
+eighteen buttons across `src/room/RoomApp.tsx` (7 — the pulse toggle and
+every subscribe/dismiss control on the upgrade, capped, cap-offer and
+session-worked-offer cards) and `src/room/AccountPage.tsx` (11 — every
+control on the whole page: memory, push, WhatsApp, Telegram, subscribe,
+export, forget, close) fire their action from `onPointerDown` alone, with
+no `onClick` at all. DESIGN-LAW's "feedback on pointerdown" law is about a
+CSS `:active` transform (`room.css` already gives every `.room-btn` this
+for free); these controls went further and put the ACTION itself on
+`onPointerDown`, presumably for the small perceived-latency win of not
+waiting for the full pointerup/click cycle on a touchscreen.
+
+**What broke:** a native `<button>` turns keyboard Enter/Space into a
+synthetic CLICK event, never a pointer event — `onPointerDown`-only is
+therefore invisible to a keyboard entirely, not merely slower. Measured on
+the pulse toggle first (see `ws-r50-pulse-toggle-aria-pressed-false-positive`
+for how the PROOF had to be built once the fixture's own lack of an `/api/*`
+stub made the obvious test unusable), then confirmed by direct code review
+that `CheckinsPanel.tsx`, `SubscriptionPanel.tsx` and `HandoffPanel.tsx` —
+the three sibling Room dialogs — all use `onClick` throughout and never
+built this pattern at all: `AccountPage.tsx` (WS-R39, the newest of the
+five dialogs) is the one file that drifted from the convention its own
+older siblings already established.
+
+**What closed it:** every one of the eighteen kept its `onPointerDown` (the
+press-feedback timing is real and worth keeping) and gained a matching
+`onKeyDown={activateOnKey(sameAction)}` — `RoomApp.tsx`'s own exported
+`activateOnKey` helper, firing on Enter or Space, `preventDefault()`-ing so
+the browser's own synthetic click (which nothing listens for on these
+particular buttons) never has anything to conflict with. Proven both
+directions: a negative control (removing `onKeyDown` from the account
+page's own "Close" button) reproduced the keyboard-walk finding; restoring
+it cleared it — see `measurements.md#ws-r50-accessibility-before-after`.
+
+**The law:** a control that answers to a POINTER event and nothing else is
+not "faster", it is unreachable for anyone without one. `onClick` (or an
+explicit keyboard handler alongside a pointer one, when the pointer timing
+is a deliberate product choice) is not optional polish on top of
+`onPointerDown` — it is the only path a keyboard has to that control at
+all.

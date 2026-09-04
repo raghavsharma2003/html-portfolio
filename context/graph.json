@@ -6520,6 +6520,54 @@
       "kind": "rejection",
       "title": "A daily sweep scheduled as 0 */24 * * * so the ops board could read it; Vercel refused the deployment because an hour step must be 1..23; the parser learned the daily slot instead",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-accessibility-gate",
+      "kind": "component",
+      "title": "scripts/check-accessibility.mjs: axe-core (WCAG 2.1 A/AA) plus a hand-written keyboard walk (Tab reachability, Enter/Space activation, Escape, focus-visible) over every room:*/room-hi:*/studio:shell target, / and /vyakti, on 127.0.0.1:8933. Named gate in verify-release.mjs.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-accessibility-impact-threshold",
+      "kind": "decision",
+      "title": "The accessibility gate fails on any serious/critical axe finding or any keyboard-walk finding; moderate/minor axe findings are reported only.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-accessibility-before-after",
+      "kind": "measurement",
+      "title": "Before: 1 serious axe violation (color-contrast, 6 selectors on studio:shell:meet) + 5 keyboard findings (Tab order, 2x Escape, 1 activation false positive). After: 0/0/0/0 axe, 0 keyboard findings, across 13 pages, ~27-30s runtime.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-scroll-to-bottom-skips-the-first-mount",
+      "kind": "decision",
+      "title": "RoomApp.tsx's scroll-to-bottom effect skips its first firing after mount (scrolledOnce ref), fixing a Tab-order defect caused by the page auto-scrolling before any interaction.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-room-focus-ring-contrast",
+      "kind": "decision",
+      "title": "The Room's :focus-visible ring fell through to studio.css's weak base-layer rule (rgba(23,73,59,.28), ~1.9:1) because it shares that layer but has no .studio-shell class; fixed with the same opaque --forest ring .studio-shell already uses.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-pulse-toggle-aria-pressed-false-positive",
+      "kind": "rejection",
+      "title": "Testing keyboard activation by reading aria-pressed after Space failed identically whether or not the control was keyboard-reachable, because room-layout-fixture.html has no /api/* stub and the toggle's own action is a real fetch. Replaced with a document-level defaultPrevented check.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-ink-faint-token-wide-recolour",
+      "kind": "rejection",
+      "title": "Considered darkening the shared --ink-faint token repo-wide to fix the measured contrast failures in one change; rejected because this workstream's targets only prove 6 of --ink-faint's 50+ usages failing. Shipped a second, scoped token (--ink-faint-aa) instead.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r50-onpointerdown-only-breaks-keyboard-activation",
+      "kind": "rejection",
+      "title": "18 buttons across RoomApp.tsx (7) and AccountPage.tsx (11) fired their action on onPointerDown alone; native Enter/Space activation never dispatches a pointer event, so these were keyboard-unreachable. Fixed with an onKeyDown handler (activateOnKey) alongside the existing onPointerDown on every one.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13087,6 +13135,51 @@
       "src": "ws-r37-cron-step-of-24-hours-is-not-a-cron",
       "rel": "part_of",
       "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r50-accessibility-gate",
+      "rel": "measured_by",
+      "dst": "ws-r50-accessibility-before-after"
+    },
+    {
+      "src": "ws-r50-accessibility-gate",
+      "rel": "constrains",
+      "dst": "ws-r50-accessibility-impact-threshold"
+    },
+    {
+      "src": "ws-r50-accessibility-before-after",
+      "rel": "caused_by",
+      "dst": "ws-r50-scroll-to-bottom-skips-the-first-mount"
+    },
+    {
+      "src": "ws-r50-accessibility-before-after",
+      "rel": "caused_by",
+      "dst": "ws-r50-room-focus-ring-contrast"
+    },
+    {
+      "src": "ws-r50-accessibility-before-after",
+      "rel": "caused_by",
+      "dst": "ws-r50-onpointerdown-only-breaks-keyboard-activation"
+    },
+    {
+      "src": "ws-r50-accessibility-gate",
+      "rel": "caused_by",
+      "dst": "ws-r50-pulse-toggle-aria-pressed-false-positive"
+    },
+    {
+      "src": "ws-r50-room-focus-ring-contrast",
+      "rel": "part_of",
+      "dst": "ws-r50-accessibility-gate"
+    },
+    {
+      "src": "ws-r50-ink-faint-token-wide-recolour",
+      "rel": "part_of",
+      "dst": "ws-r50-accessibility-gate"
+    },
+    {
+      "src": "ws-r50-onpointerdown-only-breaks-keyboard-activation",
+      "rel": "part_of",
+      "dst": "ws-r50-accessibility-gate"
     }
   ]
 }

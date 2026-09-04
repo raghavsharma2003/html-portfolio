@@ -11399,3 +11399,91 @@ a dual-stack routing quirk observed in production logs), or if a future
 door ever accepts an address from a request-controlled field rather than a
 platform header, canonicalize before hashing and log the incident that
 proved the path.
+
+## `ws-r50-accessibility-impact-threshold` (2026-09-04, WS-R50)
+
+**Decision.** `scripts/check-accessibility.mjs` fails the build on any
+`serious` or `critical` axe-core violation (WCAG 2.1 A/AA tags), summed
+across every target, and on any finding from its own hand-written keyboard
+walk (Tab reachability, Enter/Space activation, Escape closing an open
+panel, a visible `:focus-visible` indicator). `moderate` and `minor` axe
+findings are reported with counts but do not fail the gate.
+
+**Rationale.** `serious`/`critical` in axe-core's own taxonomy are the
+impact bands that stop a person from completing the task at all (no
+accessible name, insufficient text contrast, a control unreachable by
+keyboard) rather than bands that make the task merely less pleasant
+(`moderate`/`minor` are mostly redundant-ARIA and best-practice rules with
+no WCAG success criterion behind a meaningful fraction of them). A gate
+that blocks a release on every `minor` finding trains people to stop
+reading its output — the same failure mode `check-layout.mjs`'s own header
+warns about for a check that fails a correct page. The keyboard walk has no
+impact tiers of its own because everything it asserts (reachability,
+activation, escape, visibility) is binary and already scoped tightly by
+this workstream's brief to two screens.
+
+**Reversal condition.** If a `moderate`-tagged axe rule is ever shown to
+correspond to a real, measured task failure for an assistive-technology
+user on one of this gate's targets (not a theoretical best-practice
+deviation), promote that specific rule id to blocking rather than widening
+the whole `moderate` band — see `evals/room-doors/run.mjs`'s own posture on
+narrow, evidence-driven rule changes for the same reasoning applied
+elsewhere in this repo.
+
+## `ws-r50-scroll-to-bottom-skips-the-first-mount` (2026-09-04, WS-R50)
+
+**Decision.** `RoomApp.tsx`'s scroll-to-bottom effect (`foot.current
+?.scrollIntoView(...)`) no longer runs on the very first time it fires
+after mount; a `scrolledOnce` ref swallows exactly that one call. Every
+scroll after a real new turn (the follower's own message, an async
+`loadHistory` load, an assistant reply) is unchanged.
+
+**Rationale.** Measured directly: with a follower's history already present
+at mount (true of every fixture with `fixtureTurns`, and true in production
+moments after mount for any returning follower with `remembers: true`, once
+`loadHistory` resolves), the effect fired before the page had settled and
+carried the viewport 81px down to the composer. A keyboard user's first Tab
+press with nothing focused then landed on the composer at the FOOT of the
+screen instead of the language switch at the TOP — Chromium's "focus
+nothing, Tab" heuristic starts from what is on screen, not from the top of
+the DOM, and a page that scrolls itself before anyone has done anything is
+its own, independent disorientation risk for a screen-reader user regardless
+of that specific browser behaviour. `scripts/check-accessibility.mjs`'s
+keyboard walk measured this directly (`room:talk`/`room:account` both
+reported 11 of ~12 Tab presses moving focus BACKWARD in DOM order — see
+`context/measurements.md#ws-r50-accessibility-before-after`) and 0 after
+this change, on both screens, with the legitimate "reveal a new reply"
+scroll unaffected by construction (it is the SECOND firing of the effect,
+never the first).
+
+**Reversal condition.** If a real returning-follower session is ever shown
+to need the FIRST-mount scroll specifically (their history is long enough
+that the top of the page, not the bottom, is the confusing state to land
+on), the fix would need to become conditional on `turns.length` at mount
+rather than an unconditional first-call skip — no such case is measured
+today.
+
+## `ws-r50-room-focus-ring-contrast` (2026-09-04, WS-R50)
+
+**Decision.** `room.css` now declares its own `.room-shell :is(button, a,
+input, select, textarea, summary):focus-visible` rule, using the same
+`--focus-ring`/`--focus-width`/`--focus-offset` tokens `.studio-shell`'s own
+rule already uses (`tokens.css`, an opaque `--forest`, ~8.6:1 on paper).
+
+**Rationale.** Measured directly, the same method `studio.css`'s own
+comment on that ring already used: `studio.css`'s BASE-layer
+`:focus-visible` rule (`outline: 3px solid rgba(23, 73, 59, 0.28)`) is
+unscoped and applies everywhere that layer is loaded — including the Room,
+since `src/room/main.tsx` imports `studio.css` for its palette. That rule
+is the one `studio.css`'s own comment already measured "about 1.9:1 on
+paper" and fixed for `.studio-shell` specifically; the Room shares the base
+layer but has no `.studio-shell` class, so it kept the weak ring and never
+got the fix. Computed here against the Room's own backgrounds: 1.87:1 over
+`--paper` (#f4f1e9), 1.94:1 over `--panel-solid` (#fffef9) — both under the
+3:1 a focus indicator needs.
+
+**Reversal condition.** If `--focus-ring`'s own value ever changes for a
+reason specific to the studio, the Room's rule (same tokens, same
+selector shape) moves with it automatically; if the Room ever needs a
+DIFFERENT ring from the studio's for a reason of its own, split the token
+rather than the selector.

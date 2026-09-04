@@ -8873,3 +8873,52 @@ worktree's own gate run and was reconfirmed passing standalone both times
 after the port freed. `node evals/run.mjs`: every suite including the new
 `room-doors`, 0 failures. `node scripts/check-copy.mjs`: 6 scopes clean, 21
 negative controls. `node scripts/context.mjs --check`: clean.
+
+## `ws-r50-accessibility-before-after` (2026-09-04, WS-R50)
+
+**Method.** `node scripts/check-accessibility.mjs [--json <path>]`,
+Chromium (`/opt/pw-browsers/chromium`), 390x844 viewport, WCAG 2.1 A/AA axe
+tags, against the built `dist/` on `127.0.0.1:8933`. 13 pages per run:
+`room` and `room-hi` at `join`/`talk`/`account` (6), `studio:shell` at
+`feed`/`meet`/`deploy` (3), `/` and `/vyakti` (2), plus `room:talk` once
+each under `reducedMotion: "reduce"` and `forcedColors: "active"` (2). The
+keyboard walk (Tab reachability + focus visibility, Enter/Space activation,
+Escape) runs separately against `room:talk` and `room:account`. BEFORE was
+captured on the untouched tree (this workstream's first commit had not yet
+landed); AFTER is the final state, both same-day.
+
+**BEFORE** (axe): 0 critical, **1 serious** (`color-contrast`, on
+`studio:shell:meet` only), 0 moderate, 0 minor. The one violation's element
+count was under-reported at first (the gate itself capped a rule's node
+list at 3 with nothing marking the list as truncated — fixed in this same
+workstream, see `nodesTotal` in `scripts/check-accessibility.mjs`); the
+real total, found by fixing forward across three iterations until a full,
+untruncated scan came back clean, was **6 CSS selectors** all painting
+`--ink-faint` (#7a7e74) text at 10-12px against `--paper`/`--forest-soft`/
+`--panel-solid`: `.voice-preview-script small` (`#hear-voice-counter`),
+`.hear-voice-state.idle`, `.mirror-note`, `.mirror-fidelity-legend`,
+`.mirror-rail-head small`, `.mirror-rail-empty` — measured ratios 3.47:1 to
+4.11:1 against a 4.5:1 floor. **BEFORE** (keyboard): **5 findings** — Tab
+order moved backward 11 of ~12 presses on both `room:talk` and
+`room:account` (root cause: the scroll-to-bottom effect firing on first
+mount, see `decisions.md#ws-r50-scroll-to-bottom-skips-the-first-mount`);
+Escape did not close the data-menu dialog (`room:talk`) or the account page
+(`room:account`) — neither had an Escape handler at all; one activation
+finding on the pulse toggle that was ITSELF a false positive in the
+keyboard walk's first form (see `rejected.md#ws-r50-pulse-toggle-aria-pressed-false-positive`)
+and was rewritten before being counted as fixed. Runtime: 27123ms.
+
+**AFTER**: 0 critical, 0 serious, 0 moderate, 0 minor axe violations across
+all 13 pages; 0 keyboard findings on either screen, including a NEW
+activation assertion this workstream added specifically for the account
+page ("Close", proven with a working negative control — see this
+workstream's commits). Runtime: 29909ms (three consecutive full runs at the
+final commit measured 27551ms / 29909ms / 30129ms — call it ~30s, comfortably
+under the brief's 3-minute ceiling; the self-test alone, timed separately,
+adds under 500ms).
+
+Method for the color-contrast ratios cited above and in `room.css`'s own
+comment: a small Node script computing WCAG relative luminance and contrast
+ratio directly from the sRGB triples (the same formula `check-layout.mjs`'s
+own `luminance`/`ratio` pair uses), run once against the exact foreground/
+background pairs axe reported.
