@@ -21,6 +21,23 @@
  */
 
 @layer components {
+  /* WS-R24: Devanagari coverage for a Hindi-chrome Room. `lang={locale}` on
+   * every `.room-shell` (RoomApp.tsx) is what makes `:lang(hi)` match here -
+   * `tokens.css`'s base stack (Inter, ui-sans-serif, ...) has no Devanagari
+   * glyphs at all, so without this rule Hindi copy would fall through to
+   * whatever the OS happens to substitute, with no product-chosen face and no
+   * guarantee two followers' phones agree on how it looks. No font file is
+   * bundled or fetched here - this repo loads no web fonts anywhere
+   * (`grep -rl "fonts.google" .` finds nothing), so this names the SYSTEM
+   * face by name, exactly as the base stack above already does for Latin. A
+   * platform that ships its own Noto Sans Devanagari (Android, most Linux
+   * desktops, and Windows/macOS's own Devanagari-capable system fonts) uses
+   * it; one that ships none still renders via its own Unicode fallback, which
+   * is the same honest floor the base stack already accepts for Latin. */
+  .room-shell:lang(hi) {
+    font-family: "Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif;
+  }
+
   .room-shell {
     display: flex;
     flex-direction: column;
@@ -585,6 +602,40 @@
     display: flex;
     align-items: center;
     gap: var(--space-hair);
+  }
+
+  /* ── the language switch (WS-R24) ────────────────────────────────────── */
+
+  .room-lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 2px;
+  }
+
+  .room-lang-btn {
+    min-height: 30px;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0 10px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+    font-size: var(--text-small);
+  }
+
+  /* The current locale, not disabled - a screen reader still announces it as
+   * the pressed state rather than an unreachable control. */
+  .room-lang-btn[aria-pressed="true"] {
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: var(--weight-strong);
+  }
+
+  .room-lang-btn[disabled] {
+    opacity: 0.6;
   }
 
   /* ── check-ins (WS-R16) ──────────────────────────────────────────────── */

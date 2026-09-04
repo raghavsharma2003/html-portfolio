@@ -9,7 +9,7 @@
 // only button that sends anything - a follower must see the EXACT bytes
 // that will reach the creator, never a paraphrase this component invented.
 import { useCallback, useEffect, useState } from "react";
-import { ROOM_COPY, withName } from "./copy";
+import { withName, type RoomCopy } from "./copy";
 import {
   draftHandoff,
   sendHandoff,
@@ -22,10 +22,10 @@ import {
 type Turn = { role: "user" | "assistant"; content: string };
 type Stage = "mine" | "pick" | "confirm" | "sent";
 
-function statusLine(h: HandoffMine, name: string): string {
-  if (h.state === "answered") return `${withName(ROOM_COPY.handoff.answeredFrom, name)}`;
-  if (h.state === "withdrawn") return ROOM_COPY.handoff.withdrawnStatus;
-  return ROOM_COPY.handoff.sentStatus;
+function statusLine(h: HandoffMine, name: string, copy: RoomCopy): string {
+  if (h.state === "answered") return `${withName(copy.handoff.answeredFrom, name)}`;
+  if (h.state === "withdrawn") return copy.handoff.withdrawnStatus;
+  return copy.handoff.sentStatus;
 }
 
 export default function HandoffPanel({
@@ -33,12 +33,14 @@ export default function HandoffPanel({
   turns,
   threadId,
   creatorName,
+  copy,
   onClose,
 }: {
   session: string;
   turns: Turn[];
   threadId: string | null;
   creatorName: string;
+  copy: RoomCopy;
   onClose: () => void;
 }) {
   const [stage, setStage] = useState<Stage>("mine");
@@ -55,7 +57,7 @@ export default function HandoffPanel({
     try {
       setMine(await myHandoffs(session));
     } catch {
-      setError(ROOM_COPY.errors.generic);
+      setError(copy.errors.generic);
     }
   }, [session]);
 
@@ -78,7 +80,7 @@ export default function HandoffPanel({
       setDraft(d);
       setStage("confirm");
     } catch (e) {
-      setError(e instanceof RoomHandoffApiError ? e.code.replaceAll("_", " ") : ROOM_COPY.errors.generic);
+      setError(e instanceof RoomHandoffApiError ? e.code.replaceAll("_", " ") : copy.errors.generic);
     } finally {
       setBusy(false);
     }
@@ -96,7 +98,7 @@ export default function HandoffPanel({
       setStage("sent");
       await load();
     } catch (e) {
-      setError(e instanceof RoomHandoffApiError ? e.code.replaceAll("_", " ") : ROOM_COPY.errors.generic);
+      setError(e instanceof RoomHandoffApiError ? e.code.replaceAll("_", " ") : copy.errors.generic);
     } finally {
       setBusy(false);
     }
@@ -110,7 +112,7 @@ export default function HandoffPanel({
         await withdrawHandoff(session, handoffId);
         await load();
       } catch {
-        setError(ROOM_COPY.errors.generic);
+        setError(copy.errors.generic);
       } finally {
         setBusy(false);
       }
@@ -119,25 +121,25 @@ export default function HandoffPanel({
   );
 
   return (
-    <section className="room-menu room-handoff" role="dialog" aria-label={withName(ROOM_COPY.handoff.title, creatorName)}>
-      <h2>{withName(ROOM_COPY.handoff.title, creatorName)}</h2>
+    <section className="room-menu room-handoff" role="dialog" aria-label={withName(copy.handoff.title, creatorName)}>
+      <h2>{withName(copy.handoff.title, creatorName)}</h2>
       {error && <p className="room-error">{error}</p>}
 
       {stage === "mine" && (
         <>
-          <p className="room-fine">{ROOM_COPY.handoff.intro}</p>
+          <p className="room-fine">{copy.handoff.intro}</p>
           {mine.length > 0 && (
             <ul className="room-checkins-list">
               {mine.map((h) => (
                 <li key={h.handoff_id} className="room-checkins-row">
                   <div>
                     <span>{h.payload_text.slice(0, 60)}</span>
-                    <p className="room-fine">{statusLine(h, creatorName)}</p>
+                    <p className="room-fine">{statusLine(h, creatorName, copy)}</p>
                     {h.state === "answered" && h.reply_text && <p className="room-handoff-reply">{h.reply_text}</p>}
                   </div>
                   {h.state === "sent" && (
                     <button type="button" className="room-btn" disabled={busy} onClick={() => void withdraw(h.handoff_id)}>
-                      {ROOM_COPY.handoff.withdraw}
+                      {copy.handoff.withdraw}
                     </button>
                   )}
                 </li>
@@ -145,17 +147,17 @@ export default function HandoffPanel({
             </ul>
           )}
           <button type="button" className="room-btn" onClick={() => setStage("pick")}>
-            {withName(ROOM_COPY.handoff.title, creatorName)}
+            {withName(copy.handoff.title, creatorName)}
           </button>
           <button type="button" className="room-btn" onClick={onClose}>
-            {ROOM_COPY.checkins.close}
+            {copy.checkins.close}
           </button>
         </>
       )}
 
       {stage === "pick" && (
         <>
-          <p className="room-fine">{ROOM_COPY.handoff.pickIntro}</p>
+          <p className="room-fine">{copy.handoff.pickIntro}</p>
           {ownTurns.length > 0 && (
             <ul className="room-checkins-list">
               {ownTurns.map((t, i) => (
@@ -169,7 +171,7 @@ export default function HandoffPanel({
             </ul>
           )}
           <label className="room-fine">
-            {ROOM_COPY.handoff.noteLabel}
+            {copy.handoff.noteLabel}
             <textarea
               rows={3}
               value={note}
@@ -183,33 +185,33 @@ export default function HandoffPanel({
             disabled={busy || (!picked.length && !note.trim())}
             onClick={() => void goDraft()}
           >
-            {busy ? "..." : ROOM_COPY.handoff.next}
+            {busy ? "..." : copy.handoff.next}
           </button>
           <button type="button" className="room-btn" onClick={() => setStage("mine")}>
-            {ROOM_COPY.checkins.close}
+            {copy.checkins.close}
           </button>
         </>
       )}
 
       {stage === "confirm" && draft && (
         <>
-          <p className="room-fine">{ROOM_COPY.handoff.confirmIntro}</p>
+          <p className="room-fine">{copy.handoff.confirmIntro}</p>
           <pre className="room-handoff-payload">{draft.payload_text}</pre>
-          <p className="room-fine">{withName(ROOM_COPY.handoff.confirmExplain, creatorName)}</p>
+          <p className="room-fine">{withName(copy.handoff.confirmExplain, creatorName)}</p>
           <button type="button" className="room-btn" disabled={busy} onClick={() => void send()}>
-            {busy ? "..." : ROOM_COPY.handoff.send}
+            {busy ? "..." : copy.handoff.send}
           </button>
           <button type="button" className="room-btn" disabled={busy} onClick={() => setStage("pick")}>
-            {ROOM_COPY.handoff.back}
+            {copy.handoff.back}
           </button>
         </>
       )}
 
       {stage === "sent" && (
         <>
-          <p className="room-fine">{ROOM_COPY.handoff.sentConfirm}</p>
+          <p className="room-fine">{copy.handoff.sentConfirm}</p>
           <button type="button" className="room-btn" onClick={() => setStage("mine")}>
-            {ROOM_COPY.checkins.close}
+            {copy.checkins.close}
           </button>
         </>
       )}

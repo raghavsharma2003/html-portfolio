@@ -1,10 +1,26 @@
-// EVERY WORD THE ROOM SAYS, IN ONE PLACE.
+// EVERY WORD THE ROOM SAYS, IN ONE PLACE, IN EVERY LANGUAGE IT SAYS IT (WS-R24).
 //
 // src/components/MemoryConsent.tsx's rule, and the reason transfers exactly:
 // three surfaces showing one question in three files is how two of them end up
 // describing something the third does not do. It is a designated copy module,
 // so `scripts/check-copy.mjs` reads every literal in it rather than guessing
 // which ones render.
+//
+// ── WHAT CHANGED, AND WHAT DID NOT ──────────────────────────────────────────
+//
+// India first, and the Room's chrome must speak the follower's own script — but
+// the AI's own replies are not this file's business and never were: they are
+// the creator's material and the engine's register (`context/rejected.md` has
+// the register measurements for why a written taste is not a spoken line), and
+// nothing here reaches `src/engine/persona.ts`. This file only ever held APP
+// copy — the questions the app asks, the buttons, the menu — and that is
+// exactly the copy a follower who reads Hindi needs in Hindi. So the shape
+// below is what changed: one object became a TABLE of that same object, keyed
+// by locale, with every key required to exist in every locale
+// (`evals/room-locale/run.mjs` checks this against the real export, not a
+// hand-counted list). `withName` is unchanged — it splices a name into
+// whichever locale's template it is given, and a name is not a word either
+// locale translates.
 //
 // ── WHY THIS IS NOT MemoryConsent.tsx's COPY, REUSED ──────────────────────
 //
@@ -29,18 +45,41 @@
 // So the shape is inherited and the sentences are rewritten, and this comment
 // is the record of that decision rather than a drift nobody noticed.
 //
-// ── the copy rules this file is held to ───────────────────────────────────
+// ── the copy rules this file is held to, in EVERY locale ───────────────────
 //
 // Product chrome, never the AI's voice: an app asks for permissions, a person
-// does not. No em-dash or en-dash. Never the word "clone": a follower reads
+// does not. No em-dash or en-dash, in either script. Never the word "clone",
+// nor its Hindi equivalents (क्लोन/मॉडल/प्रतिकृति) — a follower reads
 // "<Name> AI". Every clause checkable against this repo rather than
-// aspirational. A read-aloud test: if it sounds like a brochure, it is wrong.
+// aspirational. A read-aloud test in the reader's own language: if it sounds
+// like a brochure, it is wrong. Hindi copy here is plain, functional Hindi —
+// no Sanskritised register, no Hinglish written in Latin script, numerals as
+// digits (`scripts/check-layout.mjs`'s `room:hi` target measures it set in the
+// real Devanagari face, `docs/gurukul/DESIGN-LAW.md`'s read-aloud test applied
+// in Hindi rather than skipped for it).
 
 /** Name goes in, a sentence comes out. A template rather than a concatenation
- *  at each call site, so the name lands in the same place every time. */
+ *  at each call site, so the name lands in the same place every time — and the
+ *  same function works for every locale, because a name is not translated. */
 export const withName = (template: string, name: string) => template.split("{name}").join(name);
 
-export const ROOM_COPY = {
+/** v1: English and Hindi (Devanagari). Adding a third locale means adding a
+ *  third key to `ROOM_COPY_TABLE` below with every key the other two have —
+ *  `evals/room-locale/run.mjs` fails the build otherwise, by design. */
+export const ROOM_LOCALES = ["en", "hi"] as const;
+export type RoomLocale = (typeof ROOM_LOCALES)[number];
+
+/** The language switch itself is not translated: a person who reads only
+ *  Hindi still has to be able to find "English" on the way to it, and a person
+ *  who reads only English still has to be able to find "हिन्दी". Both words are
+ *  shown together, in both locales, for exactly that reason — never a single
+ *  word that only names the language you cannot currently read. */
+export const ROOM_LANGUAGE_LABELS: Record<RoomLocale, string> = {
+  en: "English",
+  hi: "हिन्दी",
+};
+
+const EN = {
   /** While the address is resolving. Not a spinner's label: it says what is
    *  happening rather than that something is. */
   loading: "Opening the room",
@@ -226,4 +265,191 @@ export const ROOM_COPY = {
     withdrawnStatus: "You took this back.",
     answeredFrom: "From {name}:",
   },
-} as const;
+};
+
+/** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
+ *  as shapes and notes were, not lines a brochure would say: short sentences,
+ *  digits for numbers, no Sanskritised register and no Latin-script Hinglish
+ *  in the chrome (`CLAUDE.md`'s own rule for the OTHER product's persona
+ *  applies to app copy for a different reason here — a follower who reads
+ *  Hindi is reading a menu, not a companion, and a menu that performs warmth
+ *  in a register nobody speaks reads as a translation rather than a product). */
+const HI: typeof EN = {
+  loading: "रूम खुल रहा है",
+
+  unavailable: {
+    title: "यह रूम अभी उपलब्ध नहीं है",
+    body: "लिंक पुराना हो सकता है, या क्रिएटर ने इसे रोक दिया हो। और कुछ गलत नहीं हुआ।",
+  },
+
+  join: {
+    title: "{name} AI से जुड़ें",
+    lede: "पहले दो सवाल। हर एक में बस एक टैप लगेगा, और दोबारा नहीं पूछा जाएगा।",
+    signIn: "साइन इन करें ताकि अगली बार भी यह आप ही हों।",
+    phoneLabel: "फ़ोन नंबर",
+    phonePlaceholder: "+91",
+    codeLabel: "6 अंकों का कोड",
+    sendCode: "मुझे कोड भेजें",
+    verify: "जारी रखें",
+    google: "Google से जारी रखें",
+    resend: "फिर से भेजें",
+    age: "मेरी उम्र 18 साल या उससे ज़्यादा है।",
+    ageWhy: "यह रूम वयस्कों के लिए है। सही सुरक्षा वाला छात्र ऐप एक अलग उत्पाद है।",
+    submit: "बात शुरू करें",
+    working: "एक पल",
+  },
+
+  memory: {
+    title: "क्या यह आपको याद रखे?",
+    lede: "इसका मतलब है कि यह वहीं से बात शुरू करे जहां आपने छोड़ी थी। इसके लिए इसे कुछ बातें याद रखनी होंगी।",
+    keeps: [
+      "आप दोनों ने क्या बात की, ताकि आपको दोबारा शुरुआत न करनी पड़े।",
+      "आप अपने बारे में क्या बताते हैं: आपके लक्ष्य, आपकी सीमाएं, छोटी बातें भी।",
+      "आपने कौन से विषय खोल रखे हैं, ताकि तीन हफ्ते बाद का सवाल भी सही जगह पहुंचे।",
+    ],
+    only: "यह सिर्फ इसलिए रखा जाता है ताकि यह आपको याद रख सके, और किसी और काम के लिए नहीं। यह कभी बेचा नहीं जाता और विज्ञापन के लिए इस्तेमाल नहीं होता।",
+    private: "{name} इसे नहीं पढ़ते। {name} AI से बात करने वाला कोई और इसमें से कुछ भी नहीं देख सकता।",
+    undo: "आप इसे बाद में, इसी रूम से, कभी भी वापस ले सकते हैं।",
+    yes: "हां, मुझे याद रखें",
+    no: "अभी नहीं",
+    noMeans:
+      "यह फिर भी आपसे बात करेगा। कुछ भी सेव नहीं होगा, इसलिए हर बार आने पर यह नई शुरुआत होगी, और टैब बंद करते ही यह बातचीत खत्म हो जाएगी।",
+  },
+
+  conversation: {
+    placeholder: "कुछ भी पूछें",
+    send: "भेजें",
+    thinking: "लिख रहे हैं",
+    whereFrom: "यह जानकारी कहां से आई?",
+    citedFrom: "यह {name} की अपनी सामग्री से है।",
+    citedNone: "यह {name} की अपनी सामग्री से है।",
+    notRemembering: "यह रूम आपको याद नहीं रख रहा। इसे मेन्यू से कभी भी चालू करें।",
+  },
+
+  threads: {
+    title: "विषय",
+    all: "सभी",
+    create: "नया विषय",
+    namePlaceholder: "नाम दें",
+    nameHelp: "फिटनेस, पोषण, जो भी आप कहना चाहें। यह सिर्फ आपको दिखता है।",
+    save: "जोड़ें",
+  },
+
+  quota: {
+    left: "इस महीने आपके {included} में से {n} मुफ़्त संदेश बचे हैं।",
+    lastOne: "यह इस महीने का आपका आख़िरी मुफ़्त संदेश था।",
+    capped: {
+      title: "आपके इस महीने के मुफ़्त संदेश खत्म हो गए",
+      body: "यह अगले महीने की शुरुआत में फिर मिलेंगे। आपने जो भी कहा है वह अभी भी यहां है।",
+    },
+  },
+
+  voice: {
+    play: "चलाएं",
+    playing: "चल रहा है",
+    minutesLeft: "इस महीने {included} में से {used} वॉइस मिनट इस्तेमाल हुए।",
+    freeOnly: "वॉइस जवाब एक पेड सुविधा है।",
+    unavailable: "इस रूम की वॉइस अभी तैयार नहीं है।",
+  },
+
+  pay: {
+    cta: "अपग्रेड करें",
+    working: "एक पल",
+    notConfigured: "इस रूम के लिए पेड सपोर्ट अभी चालू नहीं है।",
+    priceNotSet: "क्रिएटर ने इस रूम के लिए अभी कीमत तय नहीं की है।",
+    noLink: "एक शुरुआत पहले से दर्ज है, पर अभी खोलने के लिए कोई पेमेंट लिंक नहीं है।",
+    failed: "अभी शुरू नहीं हो सका। एक पल बाद फिर कोशिश करें।",
+  },
+
+  pulse: {
+    on: "इसे गिनने दें",
+    off: "गिना गया",
+    working: "एक पल",
+    explain:
+      "अगर आप इसे चालू करते हैं, तो यह विषय गिना जा सकता है कि लोग {name} से क्या पूछ रहे हैं, पर सिर्फ तब जब कम से कम पांच और फॉलोअर भी ऐसा करें, और कभी भी आपके अपने शब्द नहीं। आप इसे कभी भी वापस बंद कर सकते हैं।",
+  },
+
+  stats: {
+    talkedToday: "आज यहां {n} लोगों ने बात की",
+    talkedTodayOne: "आज यहां 1 व्यक्ति ने बात की",
+  },
+
+  menu: {
+    title: "आपका डेटा",
+    download: "इसके पास आपके बारे में जो कुछ है वह डाउनलोड करें",
+    downloadNote: "एक फ़ाइल जिसमें इस रूम में आपका हिस्सा है, किसी और का कुछ नहीं।",
+    forget: "इसे मुझे भुला दें",
+    forgetNote: "{name} AI के साथ आपकी बातचीत मिटा देता है। आपका अकाउंट और आप जिस किसी और रूम में हैं वह अछूता रहता है।",
+    forgetConfirm: "हां, मुझे भुला दें",
+    forgetCancel: "रहने दें",
+    forgetDone: "हो गया। अब यह आपको नहीं जानता।",
+    close: "बंद करें",
+  },
+
+  errors: {
+    generic: "वह नहीं भेजा जा सका। फिर कोशिश करें।",
+    signIn: "पहले साइन इन करें।",
+    stale: "यह रूम अपडेट हो गया है। बदलाव देखने के लिए फिर लोड करें।",
+    tooLong: "यह एक संदेश में जितना हो सकता है उससे ज़्यादा लंबा है।",
+  },
+
+  checkins: {
+    title: "चेक-इन",
+    intro: "एक चेक-इन और एक समय चुनें। यह इसी रूम में, आपके चुने समय पर फॉलो-अप करेगा।",
+    empty: "इस क्रिएटर ने अभी कोई चेक-इन सेट नहीं किया है।",
+    daysLabel: "कौन से दिन",
+    timeLabel: "कौन सा समय",
+    zoneLabel: "आपका टाइमज़ोन",
+    quietLabel: "इसके बीच नहीं",
+    quietFromLabel: "से",
+    quietToLabel: "तक",
+    add: "यह चेक-इन शुरू करें",
+    mineTitle: "आपके चेक-इन",
+    mineEmpty: "अभी कोई नहीं।",
+    stop: "रोकें",
+    stopped: "रुक गया",
+    close: "बंद करें",
+    pushEnable: "इस फ़ोन पर चेक-इन की अनुमति दें",
+    pushDisable: "बंद करें",
+    pushOnCopy: "रूम बंद होने पर भी एक बकाया चेक-इन इस फ़ोन तक पहुंचेगा।",
+    pushOffCopy: "नोटिफ़िकेशन चालू करें ताकि रूम बंद होने पर भी बकाया चेक-इन इस फ़ोन तक पहुंचे।",
+    pushError: "वह चालू नहीं हो सका। अपने ब्राउज़र की नोटिफ़िकेशन अनुमति जांचें और फिर कोशिश करें।",
+  },
+
+  handoff: {
+    title: "{name} से सीधे पूछें",
+    intro: "आप तय करते हैं कि क्या भेजा जाए, भेजने से पहले आप उसे देखते हैं, और सिर्फ {name} आपका जवाब देखते हैं।",
+    pickIntro: "अपने कुछ संदेश चुनें, या नीचे कुछ नया लिखें।",
+    noteLabel: "या कुछ नया लिखें",
+    next: "क्या भेजा जाएगा देखें",
+    confirmIntro: "यह बिल्कुल वही है जो भेजा जाएगा, शब्द दर शब्द।",
+    confirmExplain: "{name} इसे पढ़ेंगे और यहीं, इसी थ्रेड में, {name} के नाम से जवाब देंगे।",
+    send: "यह भेजें",
+    back: "वापस",
+    sentConfirm: "भेज दिया। जवाब आने पर आप उसे यहीं देखेंगे।",
+    withdraw: "वापस ले लें",
+    sentStatus: "भेजा गया, जवाब का इंतज़ार है।",
+    withdrawnStatus: "आपने इसे वापस ले लिया।",
+    answeredFrom: "{name} की ओर से:",
+  },
+};
+
+/** The one export components read from. `evals/room-locale/run.mjs` asserts
+ *  `Object.keys(ROOM_COPY_TABLE.en)` deep-equals `Object.keys(ROOM_COPY_TABLE.hi)`
+ *  at every level, against this REAL export — not a hand-maintained list that
+ *  could drift the moment a key is added to one locale and not the other. */
+export const ROOM_COPY_TABLE: Record<RoomLocale, typeof EN> = { en: EN, hi: HI };
+
+export type RoomCopy = typeof EN;
+
+/** Anything that is not exactly `"hi"` reads as `"en"` — a Telegram
+ *  `language_code` of `"en-US"`, `"mr"`, `"fr"`, an absent value, or garbage
+ *  all fall back to the locale this product already ships, never to a thrown
+ *  error on someone's very first message. `"hi"`, `"hi-IN"` and any `hi-*`
+ *  variant read as Hindi; nothing else does, because a browser or Telegram
+ *  reporting a DIFFERENT Indian language (`"mr"`, `"ta"`, ...) has not asked
+ *  for Hindi and must not be guessed into it. */
+export function normalizeLocale(input: string | null | undefined): RoomLocale {
+  const s = String(input || "").trim().toLowerCase();
+  return s === "hi" || s.startsWith("hi-") ? "hi" : "en";
+}
