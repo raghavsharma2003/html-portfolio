@@ -7036,6 +7036,12 @@
       "kind": "rejection",
       "title": "A double-quoted tableApplied(\"vy_room_arrival\") call sitting between two unrelated backtick-quoted JSDoc mentions and the real query's own opening backtick fooled evals/room-leak/run.mjs's naive backtick-pairing scanner into silently reporting no-statement-found for a real, correct query - fixed by naming the string as a constant declared away from any backtick.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-102-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 102 applied live and read back; the arrival upsert arbitrates on its composite pkey, the crawler read on the slug index, the weekly share count on the via-day index",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14138,6 +14144,21 @@
       "src": "ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner",
       "rel": "caused_by",
       "dst": "ws-r40-share-and-arrival"
+    },
+    {
+      "src": "ws-r40-unfurl-is-a-function-only-for-crawlers",
+      "rel": "measured_by",
+      "dst": "rooms-migration-102-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r40-share-url-carries-no-sender-identity",
+      "rel": "measured_by",
+      "dst": "rooms-migration-102-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session",
+      "rel": "measured_by",
+      "dst": "rooms-migration-102-live-verification-2026-09-04"
     }
   ]
 }

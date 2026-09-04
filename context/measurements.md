@@ -9539,3 +9539,16 @@ than every iteration.
 Not measured: the two relational DB gates (`zero-orphan sweep`, `citation
 discipline`) - both skip without `NEON_URL`, which this environment does
 not have.
+
+## `rooms-migration-102-live-verification-2026-09-04`
+
+n = 1 migration (2 statements in one transaction), 4 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (the table did not exist), the catalog read back (the composite `(room_id, day, via)` primary key, the `via` and `count` CHECKs, the Room FK with `on delete cascade`, the `(via, day)` index), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement WS-R40 added, parameters substituted with typed literals; date 2026-09-04, at the WS-R40 merge over the WS-R44 tip 5e141b1.
+
+| statement | plan |
+|---|---|
+| `recordRoomArrival` (the one upsert) | Insert with `vy_room_arrival_pkey` as the conflict arbiter, `ON CONFLICT DO UPDATE` adding one |
+| `publicRoomBySlug` (the crawler's read) | Index Scan on `vy_room_slug_ix` (`lower(slug)`), published and unpaused as the filter, `limit 1` |
+| `shareArrivalsThisWeek` | Aggregate over a Bitmap on `vy_room_arrival_via_day_ix` by `via = 'share'` and the day bound |
+| erasure delete of a replica's arrivals | `vy_room_owner_ix` for the Rooms, then Bitmap on the arrival pkey by room |
+
+Not measured: no crawler has fetched `/r/<slug>`; no arrival row exists; Vercel's `has` user-agent match is proven only against the suite's own regex re-implementation, never a live edge request; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
