@@ -3622,3 +3622,19 @@ create index if not exists vy_room_handoff_person_ix
   on vy_room_handoff (person_id, room_id);
 create index if not exists vy_room_handoff_cap_ix
   on vy_room_handoff (follower_id, month_key, state);
+-- Migration 090 - the forget receipt (WS-R27): the one row that survives a
+-- follower's "forget me" in a creator's Room. See
+-- db/migrations/090_room_forget_receipt.sql for the full argument; mirrored
+-- here per this file's own convention. No person_id column, deliberately -
+-- `person_hash` is a one-way SHA-256 of (room_id, person_id, policy_version),
+-- recomputed (never looked up) by the account-wide whole wipe.
+create table if not exists vy_room_forget_receipt (
+  receipt_id     uuid primary key,
+  room_id        uuid not null references vy_room(room_id) on delete cascade,
+  person_hash    text not null check (person_hash ~ '^[0-9a-f]{64}$'),
+  policy_version integer not null default 1 check (policy_version > 0),
+  counts         jsonb not null default '{}'::jsonb,
+  issued_at      timestamptz not null default now()
+);
+create index if not exists vy_room_forget_receipt_room_issued_ix
+  on vy_room_forget_receipt (room_id, issued_at desc);
