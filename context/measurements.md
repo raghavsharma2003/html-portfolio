@@ -8624,3 +8624,17 @@ directly, by name, after this workstream's own changes, and every one
 passed with the SAME count its own most recent session log entry names -
 the honest substitute for a from-scratch untouched-tree number this session
 did not separately capture for the whole gate.
+
+## `rooms-migration-101-live-verification-2026-09-04`
+
+n = 1 migration (1 statement), 5 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, the column read back from `information_schema.columns` (`timestamp with time zone`, nullable), then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_room-surface.js`'s `roomSettings` and `roomSettingsReviewed` run, parameters substituted with typed literals (`::uuid`, `::timestamptz`); date 2026-09-04, at the WS-R39 merge over the wave-eight tip 170cb1e (first of wave nine).
+
+| statement | plan |
+|---|---|
+| push status count | Aggregate over an Index Only Scan on `vy_room_push_subscription_active_ix` by follower |
+| WhatsApp status | Index Scan on `vy_room_follower_whatsapp_pkey` by follower, `limit 1` |
+| Room price | Index Scan on `vy_room_price_room_ix` by room, `limit 1` |
+| open `cap_reached` offer | Bitmap on `vy_room_upgrade_offer_follower_ix` by follower, the `outcome is null and reason = 'cap_reached'` as a heap filter, Sort on `shown_at desc`, `limit 1` (bounded by one follower's offers) |
+| `roomSettingsReviewed` UPDATE | Index Scan on `vy_room_follower_room_seen_ix` by room with person and agent as the filter, one row, `returning settings_reviewed_at` |
+
+No sequential scan. Not measured: no live row carries a `settings_reviewed_at` yet; no follower has opened the account page or seen the cap-reached card in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).

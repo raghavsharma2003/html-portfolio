@@ -6334,6 +6334,12 @@
       "kind": "measurement",
       "title": "node scripts/verify-release.mjs: 16/16 after every file in this workstream's report, without NEON_URL. No full untouched-tree verify-release run was captured at session start; a narrower, direct untouched-tree check-layout.mjs run (638 blocks, 0 findings, via git checkout -- . with no git stash) confirmed the one regression found was this workstream's own. Every other suite named in the final report was re-run by name after this workstream's changes and matched its own most recent session-log count.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-101-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 101 applied live and read back; every statement of the follower's settings read and the reviewed write plans on an index, no sequential scan",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12716,6 +12722,21 @@
       "src": "ws-r39-subscription-status-read-through-existing-op-not-duplicated",
       "rel": "constrains",
       "dst": "ws-r39-room-settings-reused-raw-sql-not-imports"
+    },
+    {
+      "src": "ws-r39-room-settings-reused-raw-sql-not-imports",
+      "rel": "measured_by",
+      "dst": "rooms-migration-101-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r39-cap-reached-offer-needs-a-second-read",
+      "rel": "measured_by",
+      "dst": "rooms-migration-101-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r39-settings-reviewed-at-uncast-timestamp-param",
+      "rel": "measured_by",
+      "dst": "rooms-migration-101-live-verification-2026-09-04"
     }
   ]
 }
