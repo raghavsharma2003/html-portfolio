@@ -8830,3 +8830,82 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r60-razorpay-operation-pages-found-by-search-not-guessed-slugs` (2026-09-04, WS-R60)
+
+**What was tried, and what changed from WS-R41.**
+`ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways`
+recorded seven guessed URL/fragment combinations for Razorpay's
+subscription-PATCH, fund-account and payout OPERATION pages, all of which
+either 404d or silently resolved to the same "Plans Entity" schema page —
+read at the time as a client-routed SPA this session's plain fetch tool
+could not deep-link into. This pass tried a DIFFERENT method instead of
+more guesses: `WebSearch` for the operation's own plain-English title
+("razorpay 'Update a Subscription' PATCH quantity", "razorpay 'Create a
+Payout' api/x/payouts account_number") rather than constructing a slug by
+pattern-matching the sibling endpoints already confirmed. Every guess
+WS-R41 made was a REASONABLE slug shape and every one was wrong; the real
+slugs (`/subscriptions/update-subscription/`, `/payouts/create/bank-
+account/`, `/fund-accounts/fetch-with-id/`) follow no pattern a human or a
+model would predict from the neighbouring confirmed URLs.
+
+**What broke, a second way, found in the same pass.** Even the CORRECT
+slug, found by search, sometimes 404s on `razorpay.com` for a direct
+unauthenticated `WebFetch` GET (`razorpay.com/docs/webhooks/payloads/x/`,
+`razorpay.com/docs/x/webhooks/`, `razorpay.com/docs/webhooks/payloads/
+payouts/` all 404d, even though `razorpay.com/docs/api/payments/
+subscriptions/update-subscription/` and two other exact-slug pages on the
+SAME site resolved fine) — the SPA-routing diagnosis from WS-R41 is
+probably still right for SOME of these (client-side-only routes with no
+server-rendered fallback for a bare GET), but not provably the same cause
+for all three, since the pattern of which pages 404 and which resolve does
+not track "webhooks" vs "API reference" cleanly. What DID work: Razorpay
+serves at least some of the same documentation content from its own CDN
+distribution, `d6xcmfyh68wv8.cloudfront.net`, at the identical path
+structure (found via a WebSearch result that happened to surface the
+mirrored URL directly, not by guessing the CDN hostname) — every payload
+and webhook-event page this pass needed resolved there when the
+`razorpay.com` equivalent 404d.
+
+**The law.** Two independent fixes to the SAME class of failure
+(`rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways`'s
+own law: "a client-rendered documentation SPA... degrades SILENTLY into
+content that looks like an answer... rather than an obvious failure" — a
+404 here is actually the LESS silent failure mode, easy to notice and act
+on): search for the operation's own name before guessing its slug from a
+sibling's shape, and when the primary domain 404s a real, correctly-slugged
+page, try the SAME path on the site's own asset CDN before concluding the
+content is unreachable — a modern doc site's client-routed shell and its
+underlying static/pre-rendered content are not always served from the same
+hostname, and a 404 on one is not evidence the other lacks the page.
+
+## `ws-r60-telegram-single-page-truncation-confirmed-tool-side-not-page-side` (2026-09-04, WS-R60)
+
+**What was tried.** `ws-r41-provider-docs-sites-resist-a-single-page-fetch-
+tool-two-ways` treated a consistent truncation point across four fetches of
+`core.telegram.org/bots/api` as evidence of a tool limit rather than a page
+quirk, but had only ONE page to test that theory against. This pass fetched
+`core.telegram.org/bots/api` again (truncates at the identical point,
+"InputChecklist", still inside "Available types", never reaching
+`setMessageReaction`) AND a completely different page serving overlapping
+content in a different format: `raw.githubusercontent.com/PaulSonOfLars/
+telegram-bot-api-spec/main/api.json`, a third-party JSON extraction of the
+same reference, alphabetically ordered by method/type name.
+
+**What broke, confirming the theory rather than contradicting it.** The
+JSON spec ALSO truncates, at `sendVenue` — alphabetically the method
+immediately before `setMessageReaction`. Two unrelated documents, different
+sites, different formats (HTML prose vs. JSON), authored by different
+parties, both cut off at the point immediately before the SAME target
+method. The odds of two independent authors both choosing to stop exactly
+before `setMessageReaction` are effectively zero; the shared factor is this
+session's fetch tool's own size/token ceiling on what it hands the
+summarizing pass, applied at a roughly consistent BYTE offset regardless of
+which large document it is handed.
+
+**The law.** When a fetch truncates a large single-page document at a
+consistent point, testing whether a SECOND, differently-structured document
+truncates at an analogous point (not just re-fetching the same page again)
+is what turns "probably a tool limit" into "confirmed a tool limit" —
+worth the one extra fetch before writing a mark down as unreachable rather
+than a strong reproduction limit inherited from the same suspicion twice.
