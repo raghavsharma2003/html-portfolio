@@ -131,6 +131,10 @@ const FIXTURE_SETTINGS_HI: RoomSettings = {
 
 const FIXTURE_PAYMENT: RoomPaymentStatus = {
   tier: "free",
+  // WS-R37 widened the status with the Room's current price (null until the
+  // creator sets one); the fixture states the same honest null.
+  price_inr: null,
+  currency: null,
   subscription: null,
 };
 
