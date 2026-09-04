@@ -28,6 +28,7 @@ import "./design/mobile.css";
 // layout that only exists as a diff inside it loses a merge.
 import "./design/review-queue.css";
 import { restoreStudioMode } from "./studioAuth";
+import { restoreStartSuiteDraft } from "./startSuiteDraft";
 
 // WS-R21. `?mode=ops` is the platform-operator ops board, a SEPARATE
 // product from the teacher/generic studio `StudioApp` renders - checked
@@ -60,6 +61,14 @@ if (opsMode) {
   // here and not in the OAuth redirect. The hash is preserved, so the OAuth
   // token still reaches `consumeStudioOAuthCallback()` afterwards.
   restoreStudioMode();
+  // WS-R48. site/suites.html's "Start a Suite" button lands here with
+  // `?start_suite=1&...`; capture it into localStorage and strip it from the
+  // URL BEFORE render, restoreStudioMode()'s own contract one line up, for
+  // the identical reason: the value must survive a sign-in redirect this
+  // file does not control. SuiteCard.tsx reads the stored draft itself once
+  // it mounts - this call's only job is making sure something is there to
+  // read by then.
+  restoreStartSuiteDraft();
 
   ReactDOM.createRoot(document.getElementById("studio-root")!).render(
     <React.StrictMode>
