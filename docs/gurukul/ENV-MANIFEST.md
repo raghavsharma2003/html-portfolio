@@ -476,6 +476,12 @@ it is the value an owner pastes into their own `setWebhook` call, and it is
 compared in constant time on every update regardless of which clone the `?ch=`
 resolves to. A missing configured secret refuses every request, unchanged.
 
+**Verified (WS-R41, 2026-09-04)** against `core.telegram.org/bots/api#setwebhook`:
+the header is `X-Telegram-Bot-Api-Secret-Token`, 1-256 characters,
+`[A-Za-z0-9_-]` only — matches `api/tg.js`'s own `secretOk()` exactly. See
+that file's own header for what else this pass verified and fixed (a stale
+`reply_to_message_id` field, replaced by `reply_parameters` per Bot API 7.0).
+
 ### WhatsApp, per clone
 
 The existing `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` remain
@@ -484,6 +490,13 @@ per-teacher. `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` remain the
 fallback pair for a single-tenant lane; a bound clone gets its own
 `phone_number_id` from `vy_clone_channel.external_ref` and its own access token
 from the secret store, and never touches either variable.
+
+**Verified (WS-R41, 2026-09-04)** against
+`developers.facebook.com/docs/graph-api/webhooks/getting-started`: the
+signature header is `X-Hub-Signature-256`, `sha256=` + HMAC-SHA256 of the raw
+payload under the App Secret — matches `api/whatsapp.js`'s own
+`signatureOk()` exactly. See that file's own header for the full set of
+shapes this pass checked against Meta's own documents.
 
 See `docs/gurukul/INSTAGRAM-DM-GAP.md` §3 for why WhatsApp is not yet
 self-serve (Tech Provider enrolment + Embedded Signup) and §1–2 for why
