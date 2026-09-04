@@ -216,6 +216,14 @@ const EN = {
     forgetConfirm: "Yes, forget me",
     forgetCancel: "Keep it",
     forgetDone: "Done. It does not know you any more.",
+    // WS-R27 (migration 090). Shown once, on this same screen, and never
+    // again: there is nothing to look a receipt up by later, so this is the
+    // only chance to keep a copy. Plain sentence, no claim beyond what the
+    // receipt actually is and is not.
+    receiptTitle: "Your receipt",
+    receiptBody:
+      "This proves the forget happened, with a count for everything that was deleted. It does not name you, and it cannot be looked up later, by anyone, including us.",
+    receiptSave: "Save receipt",
     close: "Close",
   },
 
@@ -380,6 +388,11 @@ const HI: typeof EN = {
     downloadNote: "एक फ़ाइल जिसमें इस रूम में आपका हिस्सा है, किसी और का कुछ नहीं।",
     forget: "इसे मुझे भुला दें",
     forgetNote: "{name} AI के साथ आपकी बातचीत मिटा देता है। आपका अकाउंट और आप जिस किसी और रूम में हैं वह अछूता रहता है।",
+    // WS-R27 (migration 090), Hindi: the same three sentences, same facts.
+    receiptTitle: "आपकी रसीद",
+    receiptBody:
+      "यह इस बात का प्रमाण है कि भूलना पूरा हुआ, और जो कुछ मिटाया गया उसकी गिनती इसमें है। इसमें आपका नाम नहीं है, और इसे बाद में कोई भी नहीं खोज सकता, हम भी नहीं।",
+    receiptSave: "रसीद सहेजें",
     forgetConfirm: "हां, मुझे भुला दें",
     forgetCancel: "रहने दें",
     forgetDone: "हो गया। अब यह आपको नहीं जानता।",

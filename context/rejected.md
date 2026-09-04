@@ -7188,3 +7188,103 @@ a JS template literal, in this repo, ever — write the identifier or
 function name unquoted, or use single quotes, but never a backtick, and
 treat `node --check` on every touched `.js` file as a cheap, fast, mandatory
 step before trusting any gate result on it.
+
+## `ws-r27-child-before-parent-ordering-bug-in-roomforget-and-persontables` (2026-09-04, WS-R27)
+
+**What was tried.** Building `evals/room-export/run.mjs`'s dynamic
+completeness law ("the receipt's counts must equal what was deleted") and
+running it against `roomForget` (`api/_room-surface.js`) exactly as shipped,
+expecting every one of the nine extra Room tables' explicit delete counts to
+be real.
+
+**What specifically broke.** Four of them — `vy_room_checkin`,
+`vy_room_checkin_delivery`, `vy_room_voice_usage`, `vy_room_handoff` — read
+zero every time, regardless of how many rows had genuinely just been
+deleted. Root cause: `roomForget` deleted `vy_room_thread` and
+`vy_room_follower` FIRST, and every one of those four tables carries
+`follower_id references vy_room_follower(follower_id) on delete cascade`
+(`vy_room_checkin_delivery` additionally carries `checkin_id references
+vy_room_checkin(checkin_id) on delete cascade`, and `vy_room_handoff` ALSO
+carries a nullable `thread_id references vy_room_thread(thread_id) on
+delete cascade`). By the time each table's own explicit `delete ... returning
+1 as gone` ran, Postgres's own cascade had already removed every row — the
+END STATE was correct (the rows really were gone) but the COUNT was a lie
+every single time, not merely on a bad day. `api/memory.js`'s `PERSON_TABLES`
+array had the IDENTICAL bug for the account-wide whole wipe
+(`purgeRelational`, scope `"all"`): the array listed `vy_room_thread`/
+`vy_room_follower` FIRST among the Room's relational-lane entries, ahead of
+every child a later workstream (077 through 085) added, so the same manifest
+loop's `out[t.table] = gone.length` was silently wrong for the identical set
+of tables on that path too. This is the exact species of bug the replica
+lane's own comment already named for a DIFFERENT three-table chain
+(`vy_replica_runtime_capability` -> `vy_replica_runtime_session` ->
+`vy_replica_dialogue_turn`, "Child before parent... deleting the capability
+first would make the two deletes below it report zero for rows they really
+did remove") — the Room lane simply never got the same discipline applied to
+it, because no earlier suite ever checked a COUNT for these specific tables
+closely enough to notice.
+
+**What replaced it.** Both `roomForget` and `PERSON_TABLES` were reordered
+so every child table's own statement runs BEFORE the parent
+(`vy_room_thread`/`vy_room_follower`) it would otherwise be cascaded away by
+— a pure reordering, no entry's own fields or SQL text changed. Three
+tables that had ONLY ever been reached by the cascade (never an explicit,
+by-name statement at all) — `vy_room_subscription`, `vy_room_follower_channel`,
+`vy_room_push_subscription` — gained their own explicit, ordered delete in
+the same change, so their receipt counts are real for the first time rather
+than always-zero-but-harmless.
+
+**The rule.** A `references ... on delete cascade` FK is a fact about
+Postgres that a manifest-driven or hand-ordered delete SEQUENCE must respect
+by CONSTRUCTION (array/statement order), not by accident of when each table
+happened to land — and a receipt or count object built from `.length` on
+each statement's own `returning` clause is only as honest as that ordering.
+Every table added to either `PERSON_TABLES` or a hand-written forget
+function from here on must be checked against every FK it carries TO another
+table already in the same sequence, and placed before it if the FK is
+`on delete cascade` — the offline fixture (a JS object model with no FK
+engine, `ws-r18-fake-db-does-not-simulate-postgres-fk-cascade`'s own point)
+will not catch a wrong order on its own; only a completeness assertion that
+checks COUNTS, not merely end state, will.
+
+## `ws-r27-unaliased-generic-export-select-untested-by-every-prior-suite` (2026-09-04, WS-R27)
+
+**What was tried.** Assuming `roomExport`'s existing generic, agent-scoped
+loop (`select * from ${t.table} where ${ownershipSql(t)} and agent_id =
+(...)::uuid`) would already work, unmodified, against `evals/room/
+fixtures.mjs`'s shared fake `db` once this workstream's battery passed the
+REAL `PERSON_TABLES` manifest through it (needed to test completeness
+honestly, rather than a stripped fixture).
+
+**What specifically broke.** `vy_room_thread` and `vy_room_follower` (both
+`agent: true`, so both flow through this exact loop) came back with zero
+rows every time, even though the fixture's own state held real matching
+rows. The base fixture's OWN read matchers for both tables
+(`has("from vy_room_thread t")`, `has("from vy_room_follower f") &&
+has("select f.follower_id")`) assume the ALIASED shape every OTHER reader of
+these tables in this codebase uses (`listThreads`, `followerRow`); `roomExport`'s
+generic loop interpolates the bare table name with no alias at all
+(`select * from vy_room_thread where (person_id = $1) and agent_id =
+($2)::uuid limit 5000`), a statement shape nothing in the fixture recognised.
+This is not a production bug — the real Postgres statement is perfectly
+valid SQL either way — it is a genuine gap in test COVERAGE: every existing
+suite that calls `roomExport` (`evals/room/run.mjs`, `evals/room-leak/
+run.mjs`) hands it a `personTables` override that OMITS `vy_room_thread`/
+`vy_room_follower` entirely (`evals/room/run.mjs`'s own comment, about a
+DIFFERENT table: "present and NOT agent-scoped... a person-intrinsic table
+is not this creator's to delete" — the manifest those suites pass in simply
+never includes either table), so nothing before this workstream ever drove
+the real manifest's own two Room entries through this code path at all.
+
+**What replaced it.** `evals/room-export/fixtures.mjs`'s own wrapper adds
+two matchers for the un-aliased shape, reading directly from `state.threads`/
+`state.followers`, placed before the fallthrough to the base fixture.
+Nothing in `api/_room-surface.js` changed — the gap was in the test's own
+coverage, not the shipping code.
+
+**Generalises to:** a fake `db`'s matcher set is only as complete as the set
+of REAL call sites some suite has actually driven through it — a fixture
+that has "always worked" may simply never have been asked the one question
+a new, wider-coverage suite is the first to ask, and that gap is invisible
+until something drives the REAL manifest (not a hand-picked stand-in for
+it) through the code under test.

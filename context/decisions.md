@@ -9818,3 +9818,80 @@ ASCII content.
 Latin letters of its own (unlikely for the two-locale v1 this workstream
 ships), the same class widens again rather than being special-cased per
 script.
+
+## `ws-r27-forget-receipt-hash-recomputed-not-looked-up` (2026-09-04, WS-R27)
+
+**Decision.** `vy_room_forget_receipt` (migration 090) carries `person_hash`,
+never `person_id`, and `roomForgetReceiptHash(roomId, personId, policyVersion)`
+(api/memory.js) is a PLAIN SHA-256, never an HMAC with a per-deploy secret
+key the way `api/_replica-full-erasure.js`'s own deletion receipt hashes
+(`REPLICA_ERASURE_RECEIPT_KEY_B64`). The account-wide whole wipe deletes a
+person's own past receipts by reading the (small) receipt table's own
+`room_id`/`policy_version` — both plain text on the row — and RECOMPUTING
+this same function for the person being wiped, rather than by looking a
+receipt up by any stored key.
+
+**Rationale.** The workstream brief asked the question directly ("keyed on
+the hash? No: keyed by person_id would recreate the record"), and the
+answer follows from law 3: a Room forget receipt is shown to the follower
+exactly once and is never looked up again by anyone — there is nothing to
+look it up BY, on purpose. `api/_replica-full-erasure.js`'s receipt needs
+the HMAC treatment because an OPERATOR looks it up later, by a request id
+(`getReplicaErasureStatus`); paying for that guarantee here would cost a new
+env var (`REPLICA_ERASURE_RECEIPT_KEY_B64`'s own sibling) for a property
+this receipt's own law explicitly refuses to have, and the workstream brief
+says not to add one. A plain hash is exactly as strong as this receipt needs
+to be: nothing besides the wiping person's own forget request ever supplies
+the `person_id` half of the input, so nobody who does not already know who
+they are wiping can produce a matching hash to search for.
+
+**Reversal condition.** The day ANY consumer other than "the follower who
+just forgot, on the one response that carries it" needs to look a receipt up
+— a support tool searching by room and a suspected person, an operator
+audit — this hash needs the HMAC treatment `_replica-full-erasure.js`
+already has (a secret key, a nonce stored per receipt), because a plain
+SHA-256 of three values two of which (`room_id`, a small integer
+`policy_version`) are close to public is only as strong as `person_id` being
+hard to guess, which stops being true the moment a second caller supplies
+candidate person ids to search against.
+
+## `ws-r27-subscription-cascade-still-reaches-a-live-row` (2026-09-04, WS-R27)
+
+**Decision.** Left `vy_room_subscription.follower_id references
+vy_room_follower(follower_id) on delete cascade` (migration 078) exactly as
+it is, rather than changing it to `restrict`/`set null` in migration 090,
+even though this workstream found that it defeats the ONE protection
+`vy_room_subscription`'s own `wipeWhere` (`state in ('cancelled','expired')`)
+exists to provide: the moment ANYTHING deletes a `vy_room_follower` row —
+including `roomForget`'s own statement, unconditionally, on every "forget me
+in this room" — Postgres removes every subscription row for that follower BY
+CASCADE regardless of `state`, live one included. Both the Room-level forget
+and the account-wide whole wipe now issue their OWN explicit,
+`wipeWhere`-restricted delete first (this workstream's own addition for the
+Room-level path), so the deliberate, safe half of the deletion is honestly
+counted — but neither can stop the schema's own cascade from ALSO removing a
+still-active mandate's row two statements later.
+
+**Rationale.** Found while building the export completeness battery, not
+designed in: `api/memory.js`'s own `PERSON_TABLES` comment for this table
+already stated the intent ("a whole-account wipe may only ever remove a
+subscription that has ALREADY reached a terminal state... Closing this [an
+automatic provider-cancel] is Phase 1 work, not this migration's"), which is
+a real fact about the RESTRICTED STATEMENT and a false one about the TABLE'S
+FULL BEHAVIOUR once the FK is accounted for. Changing the FK
+(`on delete cascade` to `restrict`, which would make a follower's own
+`vy_room_follower` row un-deletable while a live subscription still points
+at it, forcing a provider-cancel step first) is exactly the kind of payment-
+safety schema change this workstream's brief did not ask for and should not
+make unilaterally — it changes what "leave this room" DOES for a paying
+follower, which is a product decision, not a receipt-and-export one.
+
+**Reversal condition.** The day a live subscription is actually stranded
+this way in production (a follower forgets a Room mid-mandate and the
+platform loses its only local record that the mandate may still be
+charging them), change `vy_room_subscription.follower_id`'s FK from
+`on delete cascade` to `restrict` (forcing an explicit provider-cancel
+step, wired into `roomForget`, before the follower row itself can be
+deleted) or to `set null` (keeping the row, unlinked from the now-gone
+follower, as the one honest local record). Either fix is a migration plus a
+change to `roomForget`'s own ordering; neither is this migration's.

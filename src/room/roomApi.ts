@@ -207,8 +207,25 @@ export const roomStats = (slug: string) =>
 export const exportRoomData = (session: string, accessToken: string) =>
   post<Record<string, unknown>>({ op: "export", session }, accessToken);
 
+/** WS-R27 (migration 090): the one row that survives a follower's forget in
+ *  this Room. Content-free by construction (`person_hash`, never a person id)
+ *  - see api/memory.js's `roomForgetReceiptHash` for why. `null` only when the
+ *  database has not yet applied migration 090, never because the write
+ *  failed (a failed write fails the whole `forget` request). */
+export interface RoomForgetReceipt {
+  receipt_id: string;
+  room: string;
+  person_hash: string;
+  policy_version: number;
+  counts: Record<string, number>;
+  issued_at: string;
+}
+
 export const forgetRoomData = (session: string, accessToken: string) =>
-  post<{ forgotten: boolean; deleted: Record<string, number> }>({ op: "forget", session }, accessToken);
+  post<{ forgotten: boolean; deleted: Record<string, number>; receipt: RoomForgetReceipt | null }>(
+    { op: "forget", session },
+    accessToken,
+  );
 
 // ── web push (WS-R22, migration 085) ───────────────────────────────────────
 // The endpoint/keys are the browser's OWN `PushSubscription`, never
