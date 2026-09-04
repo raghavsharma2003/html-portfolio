@@ -8,7 +8,9 @@
     { "source": "/r/:slug", "destination": "/room.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },
-    { "source": "/embed.js", "destination": "/api/embed.js" }
+    { "source": "/embed.js", "destination": "/api/embed.js" },
+    { "source": "/creators", "destination": "/creators.html" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" }
   ],
   "crons": [
     { "path": "/api/consolidate-sweep", "schedule": "0 * * * *" },
