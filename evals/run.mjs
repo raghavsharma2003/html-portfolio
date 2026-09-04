@@ -1809,6 +1809,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
   "room-doors": "room-doors/run.mjs",
+  // WS-R48. SUITES SELL THEMSELVES — site/suites.html (the B2B front door,
+  // both locales), the self-serve "Start a Suite" flow (a name and a seat
+  // count survive a sign-in redirect through startSuiteDraft.ts's own
+  // localStorage pattern, `studioAuth.ts`'s `restoreStudioMode()` restated,
+  // and land in the EXISTING SuiteCard.tsx/orgApi.ts, never a new write
+  // path), the apply form's `intent:"suite"` (migration 107), and two ops
+  // board lines (`suitesFunnelThisWeek`). THREE NEGATIVE CONTROLS: (a) every
+  // currency-adjacent digit run on the page is one of api/_org.js's own two
+  // real per-seat prices, a static scan; (b) a seat count outside
+  // vy_org/vy_org_subscription's own CHECK (extracted from db/schema.sql) is
+  // refused by a fake db enforcing that CHECK standalone, not only by the
+  // JS bound that also happens to refuse it; (c) a poisoned copy fixture
+  // fails scripts/check-copy.mjs's real scanner in this file's own shape,
+  // and the real page scans clean under it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no real provider, no GPU.
+  "suites-self-serve": "suites-self-serve/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
