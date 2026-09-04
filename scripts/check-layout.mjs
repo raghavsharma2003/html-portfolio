@@ -40,7 +40,7 @@
 // you change the checks, re-run that. A gate whose negative control does not
 // fire is not a gate.
 
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, win32 } from "node:path";
@@ -68,6 +68,19 @@ assertPortableRootResolution();
 const ROOT = rootFromModuleUrl(import.meta.url);
 const DIST = join(ROOT, "dist");
 const PORT = 8931;
+// WS-R43. Screenshots of every room:*/room-hi:* screen, so the main loop can
+// look at what the browser actually rendered rather than trust a pass/fail
+// line. Gitignored (see .gitignore) and NEVER committed — this directory is
+// evidence for a human reading the report, not a build artifact.
+const SHOTS_DIR = join(ROOT, "evals", "room-browser", "shots");
+
+// WS-R43. `--only room` runs the Room's own battery alone (matches any
+// target name STARTING WITH the given prefix, so it also picks up
+// `room-hi`, `room:more` and `room-hi:more` below) — useful while iterating
+// on just this surface without paying for the studio/creators/suites
+// targets' own page loads every time.
+const CLI_ARGS = process.argv.slice(2);
+const ONLY = CLI_ARGS.includes("--only") ? CLI_ARGS[CLI_ARGS.indexOf("--only") + 1] : null;
 
 // Prose is judged in CHARACTERS PER LINE rather than pixels. An absolute pixel
 // floor cannot be right at two viewport widths at once: 219px is a cramped
@@ -102,6 +115,25 @@ const MIN_TOTAL_BLOCKS = 150;
 // WCAG AA for body-sized text. Disabled controls are exempt by the standard and
 // are skipped, but they still have to clear the readability checks above.
 const MIN_CONTRAST = 4.5;
+
+// WS-R43. WCAG 2.5.8 (Target Size, Minimum): 24x24 CSS px is the SPEC floor,
+// but the brief's own law 2 asks for 44 — the older 2.5.5 AAA figure, and the
+// one a thumb on a real phone actually needs. Native, author-unmodified
+// controls (a bare checkbox/radio) are exempt by the standard itself and are
+// skipped below, never counted toward this floor.
+const MIN_TAP_PX = 44;
+// A figure this test measures as "the same number of glyphs" against tofu
+// boxes of the same length has to differ by more than random advance-width
+// noise before it means anything. The measured catastrophes this gate's own
+// history describes were never marginal (a tofu run is EXACTLY uniform), so
+// 10 is a floor with real margin under it, not a threshold tuned to the data.
+const MIN_GLYPH_DIFF_PCT = 10;
+// The font size the glyph probe renders at. Not "the real size on screen" for
+// every one of 180 strings (this file's own strings render from 12 to 20px
+// across the product) - one representative body size, applied identically to
+// every string and to its own tofu control, so the comparison is apples to
+// apples rather than a claim about any one screen's exact type scale.
+const GLYPH_PROBE_PX = 16;
 
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 844 },
@@ -164,7 +196,7 @@ const TARGETS = [
     // several short blocks rather than one long one.
     steps: ["join", "talk", "account"],
     mounted: ".room-shell",
-    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
+    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
     // A Room screen is one shell with one card in it; two is the studio's
     // number and would fail a page that is correct.
     minPanels: 1,
@@ -182,8 +214,38 @@ const TARGETS = [
     query: (screen) => `screen=${screen}&lang=hi`,
     steps: ["join", "talk", "account"],
     mounted: ".room-shell",
-    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu",
+    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
     minPanels: 1,
+  },
+  // WS-R43. Four screens no fixture reached before ("Hindi glyphs
+  // unverified" open since WS-R24 for a mechanical reason: three of the
+  // Room's seven screens had no fixture path at all). A SEPARATE target
+  // from `room` above, restricted to the phone viewport only via
+  // `onlyViewport` (the brief's own law 2 scopes tap-target/overflow/clip
+  // checks to 390x844 specifically) — folding these into `room`'s `steps`
+  // would run all four at every one of the three shared VIEWPORTS for
+  // coverage the brief never asked for, tripling their cost against the
+  // two-minute runtime budget for no assertion this file makes anywhere.
+  // `--only room` still reaches this target (name STARTS WITH "room").
+  {
+    name: "room:more",
+    fixture: "room-layout-fixture.html",
+    query: (screen) => `screen=${screen}`,
+    steps: ["checkins", "handoff", "capped", "receipt"],
+    mounted: ".room-shell",
+    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
+    minPanels: 1,
+    onlyViewport: "phone",
+  },
+  {
+    name: "room-hi:more",
+    fixture: "room-layout-fixture.html",
+    query: (screen) => `screen=${screen}&lang=hi`,
+    steps: ["checkins", "handoff", "capped", "receipt"],
+    mounted: ".room-shell",
+    panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
+    minPanels: 1,
+    onlyViewport: "phone",
   },
   // WS-R45: the creator directory, `site/creators.html`. Unlike `studio` and
   // `room` this page needs no signed-in fixture at all - it is PUBLIC and
@@ -247,10 +309,22 @@ const TARGETS = [
   },
 ];
 
+// WS-R43: `--only <prefix>` runs just the targets whose name starts with
+// that prefix (`room` reaches `room`, `room-hi`, `room:more` and
+// `room-hi:more` — every one of this workstream's targets, none of the
+// studio/creators/suites ones) — everything below reads ACTIVE_TARGETS, not
+// TARGETS, so a filtered run is not just faster but reports its own true
+// coverage rather than a count that still names pages it never opened.
+const ACTIVE_TARGETS = ONLY ? TARGETS.filter((t) => t.name.startsWith(ONLY)) : TARGETS;
+
 /** Every (viewport, target, screen) the run covers. Derived rather than
- *  written down, so adding a target cannot leave the coverage line lying. */
-const SCREEN_COUNT = VIEWPORTS.length * TARGETS.reduce((n, t) => n + t.steps.length, 0);
-const SCREEN_NAMES = TARGETS.map((t) => `${t.name}:${t.steps.join("/")}`).join(", ");
+ *  written down, so adding a target cannot leave the coverage line lying.
+ *  `onlyViewport` (WS-R43) targets run at ONE viewport, not every one. */
+const SCREEN_COUNT = ACTIVE_TARGETS.reduce(
+  (n, t) => n + t.steps.length * (t.onlyViewport ? 1 : VIEWPORTS.length),
+  0,
+);
+const SCREEN_NAMES = ACTIVE_TARGETS.map((t) => `${t.name}:${t.steps.join("/")}`).join(", ");
 
 const MIME = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
@@ -460,6 +534,66 @@ function audit(limits) {
     }
   }
 
+  // ── 6. WS-R43 law 2: tap target size, clipped text, tabular figures ──────
+  // Scoped by `limits.roomChecks` (Node passes it true only for a `room*`
+  // target at the 390px viewport) rather than by a selector, because the
+  // brief's own law names 390x844 specifically and this file already has a
+  // clean seam for "only at this one viewport" in the per-target loop below
+  // - repeating the width test in-page would be the same rule stated twice,
+  // which is how the two disagree the day only one of them is edited.
+  if (limits.roomChecks) {
+    // WCAG 2.5.8 (Target Size, Minimum) exempts a control at its native,
+    // author-unmodified size (a bare checkbox or radio) and an inline link
+    // inside a run of text - both are skipped rather than flagged, because
+    // neither is a defect this product introduced.
+    for (const el of document.querySelectorAll(
+      'a[href], button, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select, textarea, [role="button"], [tabindex]:not([tabindex="-1"])',
+    )) {
+      if (!vis(el)) continue;
+      if (el.disabled === true || el.getAttribute("aria-disabled") === "true") continue;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && (r.width < limits.minTap || r.height < limits.minTap)) {
+        add("tap-target", {
+          el: name(el),
+          n: `${Math.round(r.width)}x${Math.round(r.height)}`,
+          unit: "px",
+          px: Math.round(Math.min(r.width, r.height)),
+          text: (el.textContent || el.getAttribute("aria-label") || el.placeholder || "").trim().slice(0, 44),
+        });
+      }
+    }
+
+    // Text never clipped: the element's own scrollable content must fit its
+    // own box. A container the author deliberately made horizontally
+    // scrollable (`.room-rail`'s thread list) is excluded - that is a
+    // feature, not the defect this check exists to catch.
+    for (const el of document.querySelectorAll("p, h1, h2, h3, h4, span, div, label, li, dd, button, a")) {
+      if (!vis(el)) continue;
+      if (!ownText(el)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.overflowX === "auto" || cs.overflowX === "scroll") continue;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        add("clipped", {
+          el: name(el),
+          n: el.scrollWidth - el.clientWidth,
+          unit: "px overflow",
+          px: el.clientWidth,
+          text: ownText(el).slice(0, 44),
+        });
+      }
+    }
+
+    // Every figure `room.css`'s `.room-num` marks as a number a follower
+    // actually reads (a price, a date, a count) renders with tabular digits.
+    for (const el of document.querySelectorAll(".room-num")) {
+      if (!vis(el)) continue;
+      const fv = getComputedStyle(el).fontVariantNumeric;
+      if (!fv.includes("tabular-nums")) {
+        add("not-tabular", { el: name(el), n: fv || "(none)", unit: "", text: ownText(el).slice(0, 44) });
+      }
+    }
+  }
+
   // COVERAGE, asked structurally rather than by counting paragraphs. A phone
   // screen legitimately carries less prose than a desktop one, because the
   // bands start collapsed there, so a prose-count floor per screen either
@@ -494,7 +628,99 @@ const EXPLAIN = {
   coverage: "the gate could not see the panels it exists to judge. Do not 'fix' this by\n        lowering the threshold; fix what stopped the fixture rendering.",
   overflow: "the document scrolls sideways.",
   "pager-returned": "the sticky forward-nav pager is back. Owner directive, 2026-08-26: delete it,\n        do not shrink or reword it. See context/rejected.md#the-sticky-pager-was-deleted-not-shrunk.",
+  "tap-target": "an interactive control is smaller than 44x44 css px (WCAG 2.5.8) at 390x844.\n        A thumb, not a mouse, is this product's real pointer.",
+  clipped: "an element's own text does not fit its own box (scrollWidth > clientWidth).\n        Usually a fixed width or a missing wrap set against real copy, not the short\n        placeholder a component was built against.",
+  "not-tabular": "a `.room-num` figure does not render with tabular digits (room.css). A count\n        or a price whose digits are proportional reflows its own neighbours as it changes.",
+  "motion-not-reduced": "with prefers-reduced-motion: reduce active, an element still has a\n        transition-duration or animation-duration above 0s. tokens.css's own\n        reduced-motion block should have zeroed every --motion-* token; something\n        here is not reading from it.",
+  "pointerdown-feedback": "DESIGN-LAW's press feedback did not fire: a real mouse down/up over an\n        enabled control produced no visible transform change, or it did not clear on release.",
+  glyph: "a Hindi string measured no differently from the same number of tofu boxes\n        (U+25A1) in the page's own font stack - the glyph likely rendered as boxes,\n        not letters. Names the copy.ts key that failed.",
 };
+
+/** WS-R43 law 3, the reduced-motion half. Runs INSIDE the page, after
+ *  `page.emulateMedia({ reducedMotion: "reduce" })` has been set on the
+ *  ALREADY-LOADED page — a media query change repaints the existing DOM with
+ *  no navigation needed, which is what keeps this whole extra pass cheap. A
+ *  tiny standalone `name()` rather than sharing `audit()`'s: `page.evaluate`
+ *  serialises each function independently, so nothing here can import a
+ *  helper defined in another one. */
+function motionAudit() {
+  const name = (el) => {
+    const cls = typeof el.className === "string" && el.className.trim()
+      ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
+      : "";
+    return el.tagName.toLowerCase() + cls;
+  };
+  const parseDur = (s) => {
+    let max = 0;
+    for (const part of String(s).split(",")) {
+      const m = part.trim().match(/^([\d.]+)(ms|s)$/);
+      if (!m) continue;
+      const ms = m[2] === "s" ? parseFloat(m[1]) * 1000 : parseFloat(m[1]);
+      if (ms > max) max = ms;
+    }
+    return max;
+  };
+  const bad = [];
+  for (const el of document.querySelectorAll("*")) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;
+    const cs = getComputedStyle(el);
+    const td = parseDur(cs.transitionDuration);
+    const ad = parseDur(cs.animationDuration);
+    // A one-frame tolerance (16ms): some engines report a rounded 0.001s
+    // rather than an exact 0s for a token that DID collapse.
+    if (td > 16 || ad > 16) bad.push({ el: name(el), td: Math.round(td), ad: Math.round(ad) });
+    if (bad.length >= 12) break;
+  }
+  return bad;
+}
+
+/** WS-R43 law 1, run inside the page against the REAL, live `ROOM_COPY_TABLE`
+ *  (`window.__ROOM_HI_STRINGS__`, set by `layoutFixture.tsx` from the actual
+ *  import — never a list re-typed in this file, which is exactly the kind of
+ *  copy that goes stale the day a string is added to one side and not the
+ *  other). `fontStack` is read from the page's own computed style, not
+ *  hardcoded, so this cannot silently stop meaning anything the day
+ *  `room.css`'s `.room-shell:lang(hi)` rule changes. */
+function glyphAudit({ fontStack, px, minDiffPct }) {
+  const pairs = window.__ROOM_HI_STRINGS__ || [];
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  // Devanagari block, U+0900-U+097F. The width-diff test's whole premise is
+  // "a run of REAL glyphs is not uniform width the way a run of identical
+  // tofu boxes is" - a premise that needs a real RUN to say anything. A
+  // string like "+91" or "+91XXXXXXXXXX" (both ASCII, zero Devanagari
+  // codepoints) or "तक" (two) is either not a Devanagari-rendering risk at
+  // all, or too short for "percent different from uniform" to mean more than
+  // sampling noise. Three is the floor: enough that a genuine tofu run (which
+  // is EXACTLY uniform, this file's own measured catastrophes) still clears
+  // the 10% bar with margin, low enough that it excludes only the numeral-
+  // and-placeholder strings this repo's own copy actually contains.
+  const MIN_DEVANAGARI_CHARS = 3;
+  const devanagariCount = (s) => (s.match(/[ऀ-ॿ]/g) || []).length;
+  const out = [];
+  for (const [key, s] of pairs) {
+    if (!s) continue;
+    const fontSpec = `${px}px ${fontStack}`;
+    const fontsCheck = document.fonts.check(fontSpec, s);
+    ctx.font = fontSpec;
+    const real = ctx.measureText(s).width;
+    const boxes = "□".repeat(s.length);
+    ctx.font = fontSpec;
+    const tofu = ctx.measureText(boxes).width;
+    const diffPct = tofu > 0 ? (Math.abs(real - tofu) / tofu) * 100 : 0;
+    const testable = devanagariCount(s) >= MIN_DEVANAGARI_CHARS;
+    out.push({
+      key, s, fontsCheck, testable,
+      real: Math.round(real), tofu: Math.round(tofu), diffPct: Math.round(diffPct * 10) / 10,
+    });
+  }
+  return {
+    n: pairs.length,
+    testableN: out.filter((r) => r.testable).length,
+    results: out.filter((r) => !r.fontsCheck || (r.testable && r.diffPct <= minDiffPct)),
+  };
+}
 
 async function main() {
   if (!existsSync(DIST)) {
@@ -507,7 +733,7 @@ async function main() {
   // gate has been silently disabled for that surface, and silently disabled
   // is how the first version of this gate failed.
   const fixtureRoot = (t) => (t.dir === "site" ? join(ROOT, "site") : DIST);
-  const absent = TARGETS.filter((t) => !existsSync(join(fixtureRoot(t), t.fixture)));
+  const absent = ACTIVE_TARGETS.filter((t) => !existsSync(join(fixtureRoot(t), t.fixture)));
   if (absent.length) {
     console.log(
       `FAIL  layout readability: ${absent.map((t) => `${t.dir === "site" ? "site" : "dist"}/${t.fixture}`).join(", ")} missing.`,
@@ -542,10 +768,18 @@ async function main() {
   const limits = {
     chars: MIN_CHARS_TO_JUDGE, minCpl: MIN_CPL, maxCpl: MAX_CPL,
     minCplDisplay: MIN_CPL_DISPLAY, displayFrom: DISPLAY_FROM_PX,
-    minFont: MIN_FONT_PX, minContrast: MIN_CONTRAST,
+    minFont: MIN_FONT_PX, minContrast: MIN_CONTRAST, minTap: MIN_TAP_PX,
   };
   const findings = [];
   let totalJudged = 0;
+  // WS-R43: strings measured by the glyph probe, filled in by the dedicated
+  // pass after this loop so the summary line can report a real n.
+  let glyphN = 0;
+  let glyphTestableN = 0;
+  let shotsWritten = 0;
+  if (ACTIVE_TARGETS.some((t) => t.name.startsWith("room"))) {
+    mkdirSync(SHOTS_DIR, { recursive: true });
+  }
 
   for (const vp of VIEWPORTS) {
     const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
@@ -553,11 +787,17 @@ async function main() {
     const crashed = [];
     page.on("pageerror", (e) => crashed.push(e.message.slice(0, 120)));
 
-    for (const target of TARGETS) {
+    for (const target of ACTIVE_TARGETS) {
+      // WS-R43: `onlyViewport` targets (the four new Room screens) run at ONE
+      // viewport, per that target's own comment in TARGETS above.
+      if (target.onlyViewport && target.onlyViewport !== vp.name) continue;
+      // WS-R43 law 2 is scoped to the Room at 390x844 specifically.
+      const roomChecks = target.name.startsWith("room") && vp.name === "phone";
       const perTarget = {
         ...limits,
         mountedSelector: target.mounted,
         panelSelector: target.panels,
+        roomChecks,
       };
       for (const step of target.steps) {
         const where = `${vp.name}/${target.name}:${step}`;
@@ -584,7 +824,110 @@ async function main() {
           findings.push({ where, kind: "overflow", el: "document", n: overflow, unit: "px", text: "sideways scroll" });
         }
         for (const f of got) findings.push({ where, ...f });
+
+        // WS-R43 laws 3 and 6: screenshots, reduced motion, pointerdown
+        // feedback — all on the SAME already-loaded page, so none of this
+        // costs a second navigation. Room only, phone only (law 2's scope).
+        if (roomChecks) {
+          const shotName = `${target.name.replace(":", "-")}-${step}.png`;
+          // `fullPage: true`: `.room-menu`/`.room-cap`/`.room-gone` are plain
+          // in-flow blocks (room.css), not a fixed overlay, so a dialog
+          // opened from the header renders BELOW the fold on a real phone.
+          // A viewport-only screenshot of "checkins" or "handoff" would show
+          // the unopened talk screen underneath it and nothing this
+          // workstream built. `.room-composer` is `position: sticky` (real,
+          // deliberate CSS for normal scrolling) - Playwright's full-page
+          // capture stitches the page in viewport-height sections and a
+          // sticky element re-pins itself in EACH one, so it can appear
+          // baked into the middle of the composite image. A temporary style
+          // override for the screenshot ALONE (never touching the page the
+          // checks above already measured) avoids that artifact; nothing
+          // here changes what law 2's assertions saw.
+          await page.addStyleTag({ content: ".room-composer { position: static !important; }" }).catch(() => {});
+          await page.screenshot({ path: join(SHOTS_DIR, shotName), fullPage: true }).catch(() => {});
+          await page
+            .evaluate(() => document.querySelectorAll("style").forEach((s) => {
+              if (s.textContent?.includes("room-composer { position: static")) s.remove();
+            }))
+            .catch(() => {});
+          shotsWritten++;
+
+          // Pointerdown feedback, BEFORE emulating reduced motion (the law
+          // 3 brief's own two halves: this half needs the transition ON).
+          const control = await page
+            .locator('.room-send:not([disabled]), .room-btn:not([disabled]), .room-menu-open')
+            .first();
+          if (await control.count().catch(() => 0)) {
+            const box = await control.boundingBox().catch(() => null);
+            if (box) {
+              // A 120ms settle after each event: `--motion-instant` (tokens.css)
+              // is 90ms, and reading `transform` mid-transition returns a real
+              // but MOVING matrix that equals neither endpoint - a false
+              // positive in both directions this margin exists to avoid.
+              const rest = await control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+              await page.mouse.down();
+              await page.waitForTimeout(120);
+              const down = await control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              await page.mouse.up();
+              await page.waitForTimeout(120);
+              const up = await control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              if (rest !== null && down !== null && rest === down) {
+                findings.push({ where, kind: "pointerdown-feedback", el: "control", n: 0, unit: "",
+                  text: "transform did not change on page.mouse.down()" });
+              } else if (up !== null && rest !== null && up !== rest) {
+                findings.push({ where, kind: "pointerdown-feedback", el: "control", n: 0, unit: "",
+                  text: "transform did not clear on page.mouse.up()" });
+              }
+            }
+          }
+
+          // Reduced motion, same loaded DOM, no navigation.
+          await page.emulateMedia({ reducedMotion: "reduce" });
+          const motionBad = await page.evaluate(motionAudit);
+          await page.emulateMedia({ reducedMotion: "no-preference" });
+          for (const m of motionBad) {
+            findings.push({ where, kind: "motion-not-reduced", el: m.el, n: `t${m.td}/a${m.ad}`, unit: "ms",
+              text: "transition/animation duration above 0 under reduced motion" });
+          }
+        }
       }
+    }
+    await ctx.close();
+  }
+
+  // WS-R43 law 1: the glyph probe, one dedicated pass, only when a room-hi
+  // family target is actually in scope for this run. Reuses no page from the
+  // loop above (contexts are already closed) — a fresh, cheap phone-viewport
+  // context, one navigation, one evaluate call for all ~180 strings at once.
+  if (ACTIVE_TARGETS.some((t) => t.name.startsWith("room-hi"))) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${PORT}/room-layout-fixture.html?screen=join&lang=hi`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForTimeout(800);
+    const fontStack = await page
+      .locator(".room-shell")
+      .first()
+      .evaluate((el) => getComputedStyle(el).fontFamily)
+      .catch(() => '"Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif');
+    const { n, testableN, results } = await page.evaluate(glyphAudit, {
+      fontStack,
+      px: GLYPH_PROBE_PX,
+      minDiffPct: MIN_GLYPH_DIFF_PCT,
+    });
+    glyphN = n;
+    glyphTestableN = testableN;
+    for (const r of results) {
+      findings.push({
+        where: "room-hi:glyph",
+        kind: "glyph",
+        el: r.key,
+        n: r.fontsCheck ? `${r.diffPct}%` : "fonts.check=false",
+        unit: "",
+        text: r.s.slice(0, 44),
+      });
     }
     await ctx.close();
   }
@@ -592,8 +935,13 @@ async function main() {
   await browser.close();
   server.close();
 
-  // The run-wide half of the coverage assertion.
-  if (totalJudged < MIN_TOTAL_BLOCKS) {
+  // The run-wide half of the coverage assertion. Skipped under `--only`: a
+  // filtered run is an explicit request for a PARTIAL run, and its own
+  // summary line already states exactly what it covered - the same
+  // "vacuously true" trap this gate's own header warns about, on the other
+  // side: a fixed floor tuned for the full run would fail every honest
+  // partial one.
+  if (!ONLY && totalJudged < MIN_TOTAL_BLOCKS) {
     findings.push({ where: "whole run", kind: "coverage", el: "document",
       n: totalJudged, unit: " blocks",
       text: `only ${totalJudged} prose blocks across all ${SCREEN_COUNT} screens` });
@@ -606,7 +954,7 @@ async function main() {
       if (!byKind.has(f.kind)) byKind.set(f.kind, []);
       byKind.get(f.kind).push(f);
     }
-    console.log(`FAIL  layout readability: ${findings.length} finding(s) across ${VIEWPORTS.length} widths x ${SCREEN_COUNT / VIEWPORTS.length} screens`);
+    console.log(`FAIL  layout readability: ${findings.length} finding(s) across ${SCREEN_COUNT} screen loads (${SCREEN_NAMES})`);
     for (const [kind, list] of byKind) {
       console.log(`\n      ${kind.toUpperCase()} (${list.length})`);
       const seen = new Set();
@@ -621,7 +969,13 @@ async function main() {
     }
     return 1;
   }
-  console.log(`  ok    layout readability: ${totalJudged} prose blocks judged across ${VIEWPORTS.map((v) => v.width).join(", ")}px x ${SCREEN_NAMES}`);
+  const glyphNote = glyphN
+    ? `; ${glyphN} Hindi strings glyph-checked (${glyphTestableN} width-tested, ${glyphN - glyphTestableN} ASCII/too-short for the width test)`
+    : "";
+  const shotsNote = shotsWritten ? `; ${shotsWritten} screenshots in ${join("evals", "room-browser", "shots")}` : "";
+  console.log(
+    `  ok    layout readability: ${totalJudged} prose blocks judged across ${VIEWPORTS.map((v) => v.width).join(", ")}px x ${SCREEN_NAMES}${glyphNote}${shotsNote}`,
+  );
   return 0;
 }
 
