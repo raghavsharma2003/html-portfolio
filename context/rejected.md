@@ -8390,3 +8390,11 @@ exactly as a real query would. This has now been hit often enough that a
 future session writing a new aggregate-only function should assume the
 rule applies and paraphrase from the first draft, rather than discovering
 it again the same way this workstream just did.
+
+## `ws-r48-merge-both-added-hunks-broke-two-files-and-the-syntax-loop-was-silenced` (2026-09-04, at the WS-R48 merge)
+
+**Tried:** the WS-R48 merge over the WS-R45 tip met both-added hunks in five files and resolved each by keeping both sides, the rule every merge since wave six has used. In `scripts/check-copy.mjs` both sides had extended the same block comment above a constant, so keeping both bodies left R48's comment lines outside any comment; in `api/_funnel.js` the hunk began inside R47's `creatorInviteArrivalsThisWeek` return statement, so keeping both put R48's block inside R47's unclosed function (the same shape as the R30 merge's unclosed handler, `STATE.md` 2026-09-04). Both were committed before either was seen because the `for f in api/*.js; do node --check` loop and the eval runs sat in the same shell command as the copy-gate check that failed first, and their failures scrolled past as bare `Node.js v22.22.2` lines.
+
+**What broke:** every eval importing the copy scanner or the funnel module crashed; the first gate run on the merge failed four checks.
+
+**Fix:** one comment per constant naming both workstreams; the two missing lines closing R47's function; the syntax loop now prints a named `SYNTAX FAIL` per file and runs before anything else. Rule restated: a both-added hunk is kept whole only when both sides are whole statements; a hunk that begins inside a comment or a function needs its opener or closer supplied by hand, and `node --check` on every api file must run as its own step whose output is read before the commit, never as one line among twenty.

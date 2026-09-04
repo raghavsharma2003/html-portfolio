@@ -6832,6 +6832,18 @@
       "kind": "rejection",
       "title": "A new header comment in api/_apply.js named vy_room_follower/vy_room_thread in prose to say the file avoids them, tripping evals/room-leak/run.mjs's own blunt substring scanner - the same defect shape logged three times before this session.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "rooms-migration-107-live-verification-2026-09-04",
+      "kind": "measurement",
+      "title": "Migration 107 applied live and read back; the widened attach keeps WS-R33's one-time-filter shape, and the two weekly Suite counts gained indexes at the merge",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r48-merge-both-added-hunks-broke-two-files-and-the-syntax-loop-was-silenced",
+      "kind": "rejection",
+      "title": "Keeping both sides of a both-added hunk broke a block comment and left a function unclosed, and the syntax loop's failures scrolled past unseen; the loop now names its failures and runs alone",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -13694,6 +13706,26 @@
       "src": "ws-r48-org-attached-at-is-a-new-column-not-vy-room-updated-at",
       "rel": "part_of",
       "dst": "ws-r33-suite-billing"
+    },
+    {
+      "src": "ws-r48-suite-price-mirrored-with-a-marker-comment-not-imported",
+      "rel": "measured_by",
+      "dst": "rooms-migration-107-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r48-self-serve-writes-through-existing-suitecard-never-a-new-door",
+      "rel": "measured_by",
+      "dst": "rooms-migration-107-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r48-start-suite-draft-in-localstorage-not-carried-through-oauth",
+      "rel": "measured_by",
+      "dst": "rooms-migration-107-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r48-merge-both-added-hunks-broke-two-files-and-the-syntax-loop-was-silenced",
+      "rel": "supersedes",
+      "dst": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it"
     }
   ]
 }

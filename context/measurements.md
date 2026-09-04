@@ -9268,3 +9268,16 @@ live Postgres (no `NEON_URL` in this environment). No real
 exists outside a fake `db`. No human has ever seen `site/suites.html`
 render in a real browser, clicked "Start a Suite", or completed a sign-in
 round trip through it. `scripts/relcheck.mjs` did not run (no `NEON_URL`).
+
+## `rooms-migration-107-live-verification-2026-09-04`
+
+n = 1 migration (4 statements in one transaction, plus 2 indexes added at the merge), 6 API statements; method = the live `vy_creator_application` catalog read first (0 rows, the 086 CHECKs present), then applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, `intent` with its CHECK and `vy_room.org_attached_at` read back, then `EXPLAIN` (never `EXPLAIN ANALYZE`) of every statement `api/_org.js`, `api/_apply.js` and `api/_funnel.js` added or widened, parameters substituted with typed literals; date 2026-09-04, at the WS-R48 merge over the WS-R45 tip 93a0bcb.
+
+| statement | plan |
+|---|---|
+| `attachRoom` (widened with `org_attached_at`) | Update over a Result whose `One-Time Filter` is the admin EXISTS (`vy_org_member_org_role_ix`) AND the seat count (Index Only Scan on `vy_room_org_ix`) below the three-way coalesce (the subscription by `vy_org_subscription_org_ix`, the static limit by `vy_org_pkey`), the creator membership as a Nested Loop on the same member index, the Room by pkey with `org_id is null` as the filter: WS-R28's and WS-R33's predicate shape unchanged, one column added to the SET |
+| `submitApplication` (widened with `intent`) | Insert with `vy_creator_application_contact_day_ix` as the conflict arbiter, `DO NOTHING` |
+| `suiteIntentApplicationsThisWeek` | Seq Scan filtered on `intent` and `created_at` (0 rows; `vy_creator_application_created_ix` from 086 exists and serves the window at scale) |
+| `suitesFunnelThisWeek`: Suites started; seats attached | Seq Scan on `vy_org (created_at)` and on `vy_room (org_attached_at)` as written, neither column indexed; `vy_org_created_ix` and the partial `vy_room_org_attached_ix` were added to 107 and the schema mirror and applied live at the merge (the planner still declines them at zero rows, which is the expected choice for an empty table) |
+
+Not measured: no Suite has been started through the page, no application carries `intent = 'suite'`, nobody has seen `/suites` in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
