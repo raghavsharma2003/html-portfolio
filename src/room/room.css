@@ -658,6 +658,52 @@
     opacity: 0.6;
   }
 
+  /* ── the share control (WS-R40) ──────────────────────────────────────── */
+
+  .room-share {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  /* 44px on both axes - a deliberately larger target than `.room-menu-open`'s
+   * 34px siblings, because this is the one header control meant to be tapped
+   * fast, one-thumb, mid-conversation, on exactly the phone this whole file
+   * is written for. */
+  .room-share-btn {
+    min-height: 44px;
+    min-width: 44px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 0 16px;
+    background: var(--forest);
+    color: var(--panel-solid);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: var(--weight-strong);
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+
+  .room-share-btn:active {
+    transform: scale(0.96);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .room-share-btn {
+      transition: none;
+    }
+  }
+
+  /* The "Link copied" confirmation. Text, not a toast that pops over other
+   * content - DESIGN-LAW's own rule against motion that steals attention
+   * from a conversation. Empty and inert until `copied` is true. */
+  .room-share-toast {
+    min-height: 1em;
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+
   /* ── check-ins (WS-R16) ──────────────────────────────────────────────── */
 
   .room-checkins-subhead {

@@ -153,12 +153,29 @@ export function slugFromPath(pathname = window.location.pathname): string {
   return match ? match[1].toLowerCase() : "";
 }
 
+/** WS-R40: the growth counter's own hint, read off the URL a bio link
+ *  (no `via`), a shared link (`?via=share`), or an embed (`?via=embed`)
+ *  carries. The server allowlists it (`api/_room-surface.js`'s
+ *  `resolveArrivalVia`) before it ever reaches SQL, so this reads the raw
+ *  query string verbatim rather than re-deriving the allowlist client
+ *  side — anything the server does not recognise counts as 'direct'
+ *  there, never here. */
+export function viaFromLocation(search = window.location.search): string {
+  return new URLSearchParams(search).get("via") || "";
+}
+
 /** `locale` is a HINT, read only when there is no follower row yet to answer
  *  the question instead - `api/_room-surface.js`'s `openRoom` ignores it the
  *  moment a follower already exists. Omit it and the server falls back to the
- *  creator's own `default_locale`. */
-export const openRoom = (slug: string, accessToken?: string | null, locale?: string | null) =>
-  post<RoomOpen>({ op: "open", room: slug, locale: locale || undefined }, accessToken);
+ *  creator's own `default_locale`. `via` (WS-R40) is passed through unchanged
+ *  on every call this client makes, `api/_room-surface.js`'s own header on
+ *  why: counted once per call, never deduplicated across a session. */
+export const openRoom = (
+  slug: string,
+  accessToken?: string | null,
+  locale?: string | null,
+  via?: string | null,
+) => post<RoomOpen>({ op: "open", room: slug, locale: locale || undefined, via: via || undefined }, accessToken);
 
 export const joinRoom = (
   slug: string,
