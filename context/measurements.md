@@ -8036,3 +8036,57 @@ n = 1 migration (8 statements in one transaction), 9 API statements, 1 forget de
 | erasure delete | `vy_room_owner_ix` then `vy_room_handoff_queue_ix` on room_id |
 
 Not measured: no handoff row exists; `handoff_enabled` defaults false on every Room, so the surface answers nothing until a creator turns it on. The leak battery now runs 78 checks with the consented-only class.
+
+## `ws-r25-funnel-gate-results-2026-09-04` (n=1 tree, method: `node scripts/verify-release.mjs` / `node evals/*/run.mjs` / `node scripts/check-copy.mjs` / `node scripts/context.mjs --check`, date 2026-09-04)
+
+Untouched tree (this workstream's own worktree, before any edit):
+`node scripts/verify-release.mjs` **15/15** without `NEON_URL` (relational DB
+gates skipped, printed as such). `node evals/room-leak/run.mjs` standalone
+**78/78** (unchanged from the WS-R20 merge baseline recorded in this file's
+own prior entry).
+
+After this workstream's changes (migration 088, `api/_funnel.js`,
+`api/_sweep-run.js`'s retention delete, `api/_ops.js`/`api/replica.js`
+wiring, the studio pieces):
+- `node scripts/verify-release.mjs`: **15/15** (unchanged count - this
+  workstream added no new named gate).
+- `node evals/funnel/run.mjs` (new suite): **49/49**, $0, offline,
+  deterministic, no network, no real Postgres.
+- `node evals/room-leak/run.mjs` standalone: **78/78** (unchanged - this
+  workstream widened the existing AGGREGATE_ONLY parser and admitted one new
+  file rather than adding a new assertion layer).
+- `node evals/replica-erasure/run.mjs`: **20/20** (unchanged - confirms the
+  new `funnel_marks` erasure CTE did not disturb the existing 20 checks;
+  no check in that suite asserts membership of every erasure class by name,
+  so this is evidence the addition did not BREAK anything, not a direct
+  measurement of the new CTE's own correctness, which is unproven against a
+  live database - see below).
+- `node evals/persontables.mjs`: **71 owner-lane tables** (up from 70 before
+  this session - `vy_replica_funnel_mark` is picked up automatically by its
+  plain `owner_user_id` column with no person-shaped sibling, needing no new
+  `EXEMPT` entry, exactly as `vy_replica_readiness`'s own 073-era precedent
+  predicted), 53 listed in `PERSON_TABLES` (unchanged - this table is
+  correctly NOT in that manifest), 4 exempt in writing (unchanged).
+- `node evals/recall/run.mjs`: **260 assertions**, unchanged pass state (this
+  table needed no FATE entry - it is owner lane, not person lane).
+- `node evals/sqlcast.mjs`: **155 tables** (up from 154), **371 statements on
+  the strict surface** (up to include `api/_funnel.js`'s 11 new statements),
+  **0 uncast sites, 0 conflicts, 0 unparseable shapes**.
+- `node scripts/check-copy.mjs`: **6 scopes clean, 17 negative controls bit**
+  (unchanged - none of this workstream's new user-visible strings tripped
+  the em-dash rule or the Rooms vocabulary rule; verified directly, not
+  assumed, since `OpsBoard.tsx` is inside the scanned `src/studio/` scope).
+- `node scripts/context.mjs --check`: **923 nodes, 1139 edges** before this
+  session's own context append (the number this session's own append starts
+  from).
+
+NOT PROVEN, stated plainly: migration 088 has never executed against a live
+Postgres (no `NEON_URL` in this environment); no statement in `api/_funnel.js`
+or the new lines in `api/_sweep-run.js`/`api/_replica-full-erasure.js` has
+ever been `EXPLAIN`ed; `scripts/relcheck.mjs` did not run (no `NEON_URL`); no
+real `vy_replica_funnel_mark` row exists outside a fake `db`; every
+"minutes to first Room" and "where creators stop" number this session ever
+produced came from a fixture built to match the brief's own two examples
+(23 minutes, stalled at readiness), never from an observed creator; the
+front-end mark calls (`studio_opened` on mount, `publish_clicked` on click)
+have never been exercised in a real browser against a real deployment.
