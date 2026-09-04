@@ -10088,3 +10088,120 @@ does not surface on any step, if such a code is ever added), that is the
 moment to add a direct `BLOCKER_META` lookup for that ONE code — not to
 replace `top` as the general mechanism, which every fixture in
 `evals/studio-shell/run.mjs`'s property tests continues to hold correct.
+
+## `ws-r28-vy-org-creator-column-is-not-named-owner-user-id` (2026-09-04, WS-R28)
+
+**Decision.** `vy_org.created_by_user_id` (the id of the person who created
+a Suite) is deliberately NOT named `owner_user_id`, even though it names a
+natural person exactly the way every other owner-lane `owner_user_id` column
+in this schema does. `vy_org_member.owner_user_id` (a Suite's admin or
+creator member) IS named `owner_user_id`, the normal convention, because its
+rows ARE deleted by name in `api/_replica-full-erasure.js` on that owner's
+erasure.
+
+**Rationale.** The workstream brief's own law 1 states the product rule in
+one sentence: "an org with no admin is a state the ops board names, never
+deleted by a person's wipe." `scripts/relcheck.mjs`'s owner-lane erasure-
+reach check is a blunt TEXT search over `api/_replica-full-erasure.js` for a
+literal `delete from vy_org` statement (word-bounded: `\bdelete from
+vy_org\b` does not match `delete from vy_org_member`, verified in
+`evals/org/run.mjs`'s own §8). Every table carrying a literal `owner_user_id`
+column is REQUIRED by that walk to be reached by cascade from `vy_replica` or
+by exactly that kind of named delete. There is no third option between
+"prove reach with a delete this table must never run" (dishonest - the org
+must survive) and "do not give the column the name that check watches for."
+`vy_creator_invite.issued_by_user_id` (086) is the precedent: a differently-
+named column holding a real person's id, deliberately excluded from
+`OWNER_KEYS`/`PERSON_COLUMNS` because its row is reached some other way.
+
+**What would reverse it.** If a future law changes so that an admin-less,
+member-less Suite SHOULD be deleted by that admin's own erasure (rather than
+left for the ops board to name), rename the column to `owner_user_id`, add a
+narrowly-scoped conditional delete in `api/_replica-full-erasure.js` (fire
+only when the org has zero remaining `vy_org_member` rows of ANY role after
+the erased owner's own membership is removed), and update this decision with
+a `supersedes` edge rather than editing it in place.
+
+## `ws-r28-room-org-fk-on-delete-set-null-not-cascade` (2026-09-04, WS-R28)
+
+**Decision.** `vy_room.org_id references vy_org(org_id) on delete set null`,
+not `on delete cascade`. This is a deliberate deviation from the workstream
+brief's own literal wording ("FK on org_id to vy_org cascade is fine since
+vy_org is not a person/agent/replica table").
+
+**Rationale.** No function this workstream builds ever deletes a `vy_org`
+row (see the entry above - the org survives every person's own erasure by
+design), so a manual `delete from vy_org` is the ONLY path that would ever
+fire this FK's ON DELETE action, and it would be a rare, deliberate ops
+action, not a person's own request. Read as CASCADE, that single manual
+delete would silently take every Room attached to the Suite with it - a
+creator's published address, its followers, its subscriptions, its revenue
+ledger - as a side effect of removing the SUITE's own row. A Room is a real,
+independently valuable object that already outlives everything except its
+OWN owner's erasure (071's `vy_room` row survives a Suite's disappearance
+under this decision, the same way it survives a channel's or a payout's).
+`context/rejected.md`'s no-fake-numbers law has a structural cousin here:
+never let a rare admin action destroy a follower relationship as an
+unlabelled side effect. The brief's own word ("cascade") most likely meant
+"a real FK constraint is fine here" (the general point the sentence is
+making, contrasted with the "no FK on owner columns" rule), not necessarily
+the literal `ON DELETE CASCADE` action - but this entry states the deviation
+explicitly rather than assuming the reading, so the main loop can override it
+in one line if the literal reading was intended.
+
+**What would reverse it.** An explicit instruction from the owner or the main
+loop that a Suite's own deletion SHOULD take its Rooms with it, stated as a
+product decision rather than inferred from one word in a brief.
+
+## `ws-r28-suite-membership-is-always-the-members-own-write` (2026-09-04, WS-R28)
+
+**Decision.** `api/_org.js` has no function that lets an admin write a
+`role='creator'` row naming somebody else's `owner_user_id`. `inviteMember`
+performs NO database write at all - it validates the caller is an admin and
+returns the Suite's own name/slug/id for them to hand to a prospective
+member out of band. `acceptMembership` is the only writer of a `role`
+row for anyone other than the Suite's own creating admin (`createOrg` writes
+that one row, about the caller themselves, in the same statement as the org
+row), and it always writes the CALLER's own `owner_user_id` - authenticated
+as themselves, never an id an admin supplied.
+
+**Rationale.** v0 has no Supabase email lookup (the workstream brief's own
+words), so an admin cannot even validate that a pasted id belongs to a real,
+willing person. Rather than trust an unverifiable paste, membership is
+structured so it is IMPOSSIBLE for anyone but the member themselves to grant
+it - "consent is a SQL predicate, never a prompt instruction" (AGENTS.md),
+applied to a membership row instead of a disclosure grant. This also means
+`attachRoom`'s law-2 "creator has accepted" predicate is never checking a
+row an admin could have faked into existing.
+
+**What would reverse it.** If Vyakti ever ships a real invite mechanism
+(email lookup, a signed deep link, a `vy_org_invite` table with a token and
+expiry), an admin-initiated write becomes possible without this problem -
+build it as a new, explicitly-consented flow alongside this one rather than
+replacing self-service acceptance, since a member who never received (or
+never wanted) an email invite should still be able to accept a Suite id an
+admin gave them by voice or chat, which is the real-world case v0 exists for.
+
+## `ws-r28-seat-covers-creator-tier-predicate-built-unwired` (2026-09-04, WS-R28)
+
+**Decision.** `api/_org.js`'s `seatCoversCreatorTier(db, ownerUserId,
+replicaId)` is built, exported, and proven by `evals/org/run.mjs` §7, but
+nothing in this codebase calls it. No creator tier charge exists anywhere in
+this tree (`api/_payments.js`'s own header: "creator pays for capacity...
+a Phase 2 concern, no table here"), so there is no tier READ for this
+predicate to be consulted BY yet.
+
+**Rationale.** The workstream brief's law 4 states the predicate as a
+requirement independent of whether the charge it exempts exists yet: "write
+this as a predicate the tier read consults, not as a branch in the UI." A
+predicate built and proven now, ahead of its caller, is the honest version of
+"build the seam" - the alternative (waiting until Phase 2 needs it) would
+mean writing the predicate under time pressure, in the same commit as the
+first real tier charge, which is exactly the condition that produces a branch
+in the UI instead of a predicate on the read.
+
+**What would reverse it.** Nothing to reverse; the open half is forward
+work, not a mistake. When Phase 2 builds a creator tier charge, its own tier
+read should call `seatCoversCreatorTier` before applying any charge, and that
+commit should log a `measured_by`-style edge back to this one rather than
+re-deriving the exemption logic.

@@ -1645,6 +1645,29 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no browser, no model call.
   "studio-shell": "studio-shell/run.mjs",
+  // WS-R28. Suites v0 (migration 091, `vy_org`/`vy_org_member`/
+  // `vy_org_subscription`): createOrg's atomic admin-membership CTE,
+  // inviteMember's own no-write refusal and acceptMembership's self-consent
+  // write, attachRoom's law-2 single-predicate UPDATE (every named refusal -
+  // not_admin, no_seat at the exact boundary, creator_not_member - plus the
+  // two structural ones), detachRoom's owner-or-admin self-service exit,
+  // orgBoard's law-3 aggregate-only per-Suite board (imports and reuses
+  // api/_ops.js's own proven `roomOverview`, never re-derives it),
+  // orgSubscriptionStatus/listMyOrgs/listOrgMembers/roomSuiteStatus, and
+  // seatCoversCreatorTier (law 4's exemption predicate - built and proven
+  // even though nothing calls it yet, since no creator tier charge exists
+  // anywhere in this codebase). THREE NEGATIVE CONTROLS: (a) a non-admin
+  // attach writes nothing (the room's org_id is proven still null after);
+  // (b) the same aggregate-only parser evals/room-leak/run.mjs runs would
+  // catch a follower-leaking select list, copied inline exactly as
+  // evals/funnel/run.mjs's own §5 does; (c) a Room attached to org A is
+  // proven invisible to org B's board, and the reverse. §8 statically
+  // confirms the erasure job deletes the MEMBERSHIP row by name and never
+  // the Suite itself (the org survives its last admin's own erasure, by
+  // migration 091's own law).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  org: "org/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

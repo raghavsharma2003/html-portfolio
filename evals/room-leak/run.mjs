@@ -316,7 +316,18 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // proves out, one aggregate function wider (see the `min` addition to the
   // parser just below). A future edit that selected a follower's own column
   // here fails this line the same way it would in any other admitted file.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js"]);
+  // WS-R28's Suite board (`api/_org.js`, migration 091) reads NO follower or
+  // thread table directly - `orgBoard` loops the Suite's own Rooms and calls
+  // `api/_ops.js`'s own `roomOverview` per Room (exported for exactly this
+  // reuse), so `_org.js`'s own source carries no statement naming either
+  // table today. Admitted here anyway as a forward guard: the scanner below
+  // skips a file entirely unless its RAW SOURCE TEXT contains one of these
+  // two table names (see the `if (!(src.includes(...)))` line just below),
+  // so this entry is currently INERT - it starts mattering the day a future
+  // edit adds a direct query naming either table to this file rather than
+  // going through `roomOverview`, at which point that edit's own select list
+  // is held to the same rule every sibling here already is.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js", "_org.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
