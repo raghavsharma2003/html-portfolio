@@ -41,6 +41,7 @@ import { readStoredSession, restoreSession, writeStoredSession } from "../studio
 import { googleSignIn, sendPhoneOtp, verifyPhoneOtp } from "../studio/studioAuth";
 import { ROOM_COPY, withName } from "./copy";
 import CheckinsPanel from "./CheckinsPanel";
+import HandoffPanel from "./HandoffPanel";
 import {
   RoomApiError,
   exportRoomData,
@@ -109,6 +110,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [cite, setCite] = useState<RoomCitations | null>(null);
   const [menu, setMenu] = useState(false);
   const [checkinsOpen, setCheckinsOpen] = useState(false);
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const foot = useRef<HTMLDivElement | null>(null);
   // WS-R19: which bubble is being fetched/played, and the one <audio> both
   // share (one clip at a time - a second tap stops the first rather than
@@ -124,6 +126,10 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   // than present-and-disabled, `context/rejected.md`'s standing rule that a
   // control still shown for a state it cannot act on reads as a bug.
   const canCheckin = room?.follower?.tier === "paid" && remembers;
+  // WS-R20: no tier gate, by the workstream's own law - Handoff is the
+  // creator's choice per Room, never money's. `room.handoff_enabled` is the
+  // SAME column `sendHandoffRequest`'s predicate reads, never a client guess.
+  const canHandoff = room?.room.handoff_enabled === true;
   // The tier this session actually knows right now: `quota` (set after the
   // first turn) if present, the join/open response otherwise. Both are real
   // server state - this line picks between two true answers, never guesses.
@@ -378,6 +384,11 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
                 {ROOM_COPY.checkins.title}
               </button>
             )}
+            {canHandoff && (
+              <button type="button" className="room-menu-open" onClick={() => setHandoffOpen(true)}>
+                {withName(ROOM_COPY.handoff.title, name || room?.room.display_name || "")}
+              </button>
+            )}
             <button type="button" className="room-menu-open" onClick={() => setMenu(true)}>
               {ROOM_COPY.menu.title}
             </button>
@@ -572,6 +583,15 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       )}
       {checkinsOpen && session && (
         <CheckinsPanel session={session} onClose={() => setCheckinsOpen(false)} />
+      )}
+      {handoffOpen && session && (
+        <HandoffPanel
+          session={session}
+          turns={turns}
+          threadId={thread}
+          creatorName={name || room?.room.display_name || ""}
+          onClose={() => setHandoffOpen(false)}
+        />
       )}
     </main>
   );

@@ -5404,6 +5404,48 @@
       "kind": "measurement",
       "title": "Migration 081 applied live; both fair-use ceilings EXPLAIN as join filters on the follower scope index; the voice usage upsert arbitrates on its pkey",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-handoff-v0",
+      "kind": "component",
+      "title": "Handoff v0 (migration 083): a follower asks for the human. api/_handoff.js + api/handoff.js, follower-scoped draft/send/withdraw/mine, owner-scoped config/queue/answer, gated on vy_room.handoff_enabled and vy_room.handoff_monthly_cap.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-handoff-act-is-inline-not-in-meera-consent",
+      "kind": "decision",
+      "title": "The disclosure act (a follower saw exactly this payload and said yes) is recorded inline on vy_room_handoff (sent_at, policy_version), never as a new meera_consent row, because that ledger has no content column by design and must never gain one.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-creator-reply-never-touches-meera-log",
+      "kind": "decision",
+      "title": "A creator Handoff reply lives only in vy_room_handoff.reply_text and is never written into meera_log under any role value, because dmHistory maps every non-her row to user with no third bucket - either role choice would misattribute the reply to the wrong speaker on the next compiled turn.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-handoff-not-tier-gated",
+      "kind": "decision",
+      "title": "Handoff carries no tier===paid predicate anywhere; availability is exactly vy_room.handoff_enabled and vy_room.handoff_monthly_cap, per the workstream brief (Paid only? No).",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-drafted-state-unused-in-v0",
+      "kind": "decision",
+      "title": "vy_room_handoff.state allows 'drafted' but draftHandoffPayload is pure (no write); sendHandoffRequest is the only writer and inserts directly at state='sent'. The value is reserved for a future durable-draft feature, not used by v0.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-fixture-matcher-cannot-span-a-template-literal-linebreak",
+      "kind": "rejection",
+      "title": "A fixture's sql.includes() matcher assumed a needle spanning a real multi-line template literal's line break, so it never matched; fixed by splitting into several single-line has() calls ANDed together, evals/pulse and evals/checkins own established shape.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r20-handoff-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "30/30 assertions, node evals/handoff/run.mjs, offline/deterministic/$0; room-leak layer 6 (HANDOFF_CONSENTED_ONLY) brings room-leak to 78/78 total; verify-release.mjs 15/15 without NEON_URL on the full modified tree.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -10866,6 +10908,41 @@
       "src": "ws-r19-shared-month-key-cross-counter-rollover",
       "rel": "measured_by",
       "dst": "rooms-migration-081-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r20-handoff-v0",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r20-handoff-act-is-inline-not-in-meera-consent",
+      "rel": "constrains",
+      "dst": "ws-r20-handoff-v0"
+    },
+    {
+      "src": "ws-r20-creator-reply-never-touches-meera-log",
+      "rel": "constrains",
+      "dst": "ws-r20-handoff-v0"
+    },
+    {
+      "src": "ws-r20-handoff-not-tier-gated",
+      "rel": "constrains",
+      "dst": "ws-r20-handoff-v0"
+    },
+    {
+      "src": "ws-r20-drafted-state-unused-in-v0",
+      "rel": "constrains",
+      "dst": "ws-r20-handoff-v0"
+    },
+    {
+      "src": "ws-r20-handoff-v0",
+      "rel": "measured_by",
+      "dst": "ws-r20-handoff-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r20-fixture-matcher-cannot-span-a-template-literal-linebreak",
+      "rel": "caused_by",
+      "dst": "ws-r20-handoff-v0"
     }
   ]
 }

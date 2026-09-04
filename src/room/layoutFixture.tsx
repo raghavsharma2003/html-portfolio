@@ -42,7 +42,7 @@ const CARD = [
 ].join("\n");
 
 const FIXTURE_OPEN: RoomOpen = {
-  room: { slug: "anjali", display_name: "Anjali", name: "Anjali" },
+  room: { slug: "anjali", display_name: "Anjali", name: "Anjali", handoff_enabled: true },
   disclosure: CARD,
   joined: true,
   follower: {

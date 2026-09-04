@@ -672,6 +672,47 @@
   @media (prefers-reduced-motion: reduce) {
     .room-checkins-day { transition: none; }
   }
+
+  /* Handoff (WS-R20). The verbatim payload block reads as a quoted message,
+   * not a form field - `.room-checkins-row`'s own tokens so it belongs to
+   * the same visual family the rest of this dialog already uses. */
+  .room-handoff-payload {
+    max-width: var(--measure);
+    margin: 0 0 var(--space-item);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) var(--space-row);
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .room-handoff-reply {
+    max-width: var(--measure);
+    margin: var(--space-hair) 0 0;
+    color: var(--ink);
+    font-size: var(--text-small);
+    line-height: var(--leading-body);
+  }
+
+  .room-handoff textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 5em;
+    margin-top: var(--space-hair);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: var(--space-tight) 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    resize: vertical;
+  }
 }
 
 @layer responsive {

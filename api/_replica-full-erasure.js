@@ -91,6 +91,13 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // than the one asked. Additive; the eval asserts membership, never the
       // exact list.
       "owner_room_pulse",
+      // 083 (WS-R20). Handoff's own class: a follower's verbatim ask and the
+      // creator's verbatim reply to it are a different kind of record than
+      // any of the above - the one Room table that deliberately holds
+      // words at all (083's own header names the exception) - and a
+      // receipt that did not name it would understate what was held.
+      // Additive; the eval asserts membership, never the exact list.
+      "owner_room_handoff",
     ]),
   });
 }
@@ -572,6 +579,16 @@ export async function completeReplicaErasure(db, lease, receipt) {
          and x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      pulse_optins as (delete from vy_room_pulse_optin x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 083 (WS-R20), Handoff. Reached by room_id, the payment_events/
+     -- checkins/pulse blocks' own reasoning restated a fourth time: this
+     -- table carries no agent binding, and a room has exactly one agent
+     -- (vy_room_replica_ix), so the join through vy_room is exact. Carries a
+     -- real FK CASCADE from vy_room, so this delete is a backstop rather
+     -- than the only mechanism - "relying on a cascade means relying on an
+     -- FK nobody re-checks," 071's own words, restated a fourth time.
+     handoffs as (delete from vy_room_handoff x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t

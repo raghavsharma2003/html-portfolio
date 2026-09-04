@@ -2901,6 +2901,21 @@ export const PERSON_TABLES = [
   // Reached by the account-wide whole wipe through the "relational" lane
   // alone, the same door `vy_room_subscription` goes through.
   { table: "vy_room_follower_channel", key: "person_id", lane: "relational" },
+  // ── Handoff (WS-R20; migration 083) ──
+  //
+  // A follower's own verbatim ask and the creator's own verbatim reply to
+  // it - unlike every Room table above, this one DOES hold words, and 083's
+  // own header names that as a deliberate, narrow exception to 071's "never
+  // a word" law rather than a violation of it. It is still reached the
+  // identical way its content-free siblings are: NOT `agent: true` (no
+  // `agent_id` column - agent context is joined from vy_room, the sweep's
+  // own reasoning restated a sixth time), the account-wide whole wipe below
+  // (lane "relational") and `roomForget`'s own explicit room_id+person_id
+  // delete (added in the same change as this migration) are the only two
+  // doors. `follower_id references vy_room_follower(follower_id) on delete
+  // cascade` means a follower who leaves this Room takes their handoff rows
+  // with them even before either door runs.
+  { table: "vy_room_handoff", key: "person_id", lane: "relational" },
   { table: "vy_person_device",  key: "device_id", lane: "person" },
   { table: "vy_person",         key: "person_id", lane: "person" },
 ];
@@ -3056,6 +3071,8 @@ export const REPLICA_PERSON_TABLES = [
   "vy_room_follower_channel",
   // Arrives with 081 (WS-R19), on the identical reasoning.
   "vy_room_voice_usage",
+  // Arrives with 083 (WS-R20), on the identical reasoning.
+  "vy_room_handoff",
 ];
 
 // tables and columns that migration 008 introduces

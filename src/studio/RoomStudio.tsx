@@ -49,6 +49,7 @@ import {
   type RoomCohortVerdictLine,
 } from "./roomCohortsApi";
 import CheckinsCard from "./CheckinsCard";
+import HandoffCard from "./HandoffCard";
 import {
   readRoomPayments,
   setRoomPriceInr,
@@ -814,6 +815,7 @@ export default function RoomStudio({
       </article>
 
       <CheckinsCard token={token} replicaId={replicaId} />
+      <HandoffCard token={token} replicaId={replicaId} />
       <article className="teacher-sheet-card vy-room__pulse-card">
         <h3>Pulse</h3>
         <p className="field-note">

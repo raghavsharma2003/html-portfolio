@@ -1502,6 +1502,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-paid-tier": "room-paid-tier/run.mjs",
+  // WS-R20. Handoff v0 (migration 083): a follower asks for the human, and
+  // nothing moves without a verbatim payload screen. Drives the real
+  // api/_handoff.js through a fake `db` (evals/handoff/fixtures.mjs, wrapping
+  // evals/room/fixtures.mjs's own fakeDb): draft returns the exact bytes and
+  // a hash that matches them, both from a fresh note and from the follower's
+  // own picked messages (never the AI's); send is refused by name when the
+  // Room has handoff off, when a follower is over their monthly cap, when the
+  // stored hash does not match the submitted text, and when a thread_id
+  // belongs to a different follower; the owner's queue returns counts first
+  // and then only the oldest hash-matched 'sent' row, one at a time; answer
+  // lands once, only in the answering follower's own read, never another
+  // follower's; withdraw frees the follower's own row and does not count
+  // against their cap. Two NEGATIVE CONTROLS: (a) a copy of a sent row with
+  // its text tampered (hash untouched) is refused by the SAME predicate on
+  // both the queue read and the answer write; (b) a chat message a follower
+  // never submitted through send() is proven absent from every creator-facing
+  // read, evals/room-leak's own leakedTokens technique applied to this table.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  handoff: "handoff/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

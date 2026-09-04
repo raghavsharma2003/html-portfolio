@@ -3466,3 +3466,48 @@ create index if not exists vy_room_voice_usage_scope_ix
   on vy_room_voice_usage (room_id, person_id, day);
 create index if not exists vy_room_voice_usage_follower_ix
   on vy_room_voice_usage (follower_id);
+-- Migration 083 - Handoff v0 (WS-R20): a follower asks for the human. See
+-- db/migrations/083_room_handoff.sql for the full argument; mirrored here
+-- per this file's own convention. `vy_room_handoff` is the one PERSON-lane
+-- exception to 071's "never a word" law, deliberately: the creator's read is
+-- gated on a SQL predicate that recomputes payload_sha256 over payload_text
+-- on every read, never a value the app asserts once and trusts thereafter.
+alter table vy_room
+  add column if not exists handoff_enabled boolean not null default false;
+alter table vy_room
+  add column if not exists handoff_monthly_cap integer not null default 5;
+alter table vy_room
+  drop constraint if exists vy_room_handoff_monthly_cap_band,
+  add constraint vy_room_handoff_monthly_cap_band
+  check (handoff_monthly_cap >= 0 and handoff_monthly_cap <= 50);
+
+create table if not exists vy_room_handoff (
+  handoff_id      uuid primary key,
+  room_id         uuid not null references vy_room(room_id) on delete cascade,
+  person_id       uuid not null,
+  follower_id     uuid not null references vy_room_follower(follower_id) on delete cascade,
+  thread_id       uuid references vy_room_thread(thread_id) on delete cascade,
+  payload_text    text not null check (length(payload_text) between 1 and 4000),
+  payload_sha256  text not null check (payload_sha256 ~ '^[0-9a-f]{64}$'),
+  policy_version  integer not null default 1,
+  state           text not null default 'drafted'
+    check (state in ('drafted','sent','answered','withdrawn')),
+  reply_text      text not null default '' check (length(reply_text) <= 4000),
+  month_key       text not null default '',
+  sent_at         timestamptz,
+  answered_at     timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  constraint vy_room_handoff_sent_shape check (
+    (state in ('sent','answered','withdrawn')) = (sent_at is not null)
+  ),
+  constraint vy_room_handoff_answered_shape check (
+    (state = 'answered') = (answered_at is not null)
+  )
+);
+create index if not exists vy_room_handoff_queue_ix
+  on vy_room_handoff (room_id, state, sent_at);
+create index if not exists vy_room_handoff_person_ix
+  on vy_room_handoff (person_id, room_id);
+create index if not exists vy_room_handoff_cap_ix
+  on vy_room_handoff (follower_id, month_key, state);
