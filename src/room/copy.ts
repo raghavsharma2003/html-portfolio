@@ -99,6 +99,11 @@ export const withRetry = (template: string, retryAfterSeconds: number) => {
  *  runs in. `priceLabel` is already formatted ("₹299") by the caller. */
 export const withPrice = (template: string, priceLabel: string) => template.split("{price}").join(priceLabel);
 
+/** WS-R37. `subscription.renewsOn`'s `{date}` placeholder - `withPrice`'s own
+ *  shape, composable with it and with `withName`. `dateLabel` is already
+ *  formatted ("12 Sep 2026") by the caller. */
+export const withDate = (template: string, dateLabel: string) => template.split("{date}").join(dateLabel);
+
 const EN = {
   /** While the address is resolving. Not a spinner's label: it says what is
    *  happening rather than that something is. */
@@ -206,6 +211,31 @@ const EN = {
     priceNotSet: "The creator has not set a price for this room yet.",
     noLink: "A start is already on file, but there is no payment link to open right now.",
     failed: "Could not start that just now. Try again in a moment.",
+  },
+
+  /** WS-R37 (migration 099). The subscription panel: what the state is, one
+   *  control. `renewsOn`/`renewsOnNoPrice` fill `{date}`/`{price}` with
+   *  `withDate`/`withPrice` - one stated fact, never a countdown or a
+   *  discount (`docs/gurukul/DESIGN-LAW.md`). `willNotRenew` is shown
+   *  instead the moment `cancel_at_period_end` is true - access continues
+   *  until `{date}`, so this is a fact about what happens NEXT, not a
+   *  warning. */
+  subscription: {
+    title: "Your subscription",
+    open: "Manage",
+    tierFree: "You are on the free plan.",
+    tierPaid: "You are a paid follower.",
+    renewsOn: "Renews on {date} for {price}.",
+    renewsOnNoPrice: "Renews on {date}.",
+    willNotRenew: "Will not renew after {date}. You can keep talking until then.",
+    cancel: "Cancel",
+    cancelConfirm: "Stop the renewal? You can keep talking until the date above.",
+    cancelYes: "Yes, stop it",
+    cancelNo: "Keep it",
+    cancelWorking: "One moment",
+    cancelDone: "Done. It will not renew.",
+    cancelFailed: "Could not do that just now. Try again in a moment.",
+    close: "Close",
   },
 
   /** WS-R30 (migration 093). Shown under the last reply of a session that
@@ -426,6 +456,24 @@ const HI: typeof EN = {
     priceNotSet: "क्रिएटर ने इस रूम के लिए अभी कीमत तय नहीं की है।",
     noLink: "एक शुरुआत पहले से दर्ज है, पर अभी खोलने के लिए कोई पेमेंट लिंक नहीं है।",
     failed: "अभी शुरू नहीं हो सका। एक पल बाद फिर कोशिश करें।",
+  },
+
+  subscription: {
+    title: "आपकी सदस्यता",
+    open: "मैनेज करें",
+    tierFree: "आप मुफ़्त प्लान पर हैं।",
+    tierPaid: "आप एक पेड फॉलोअर हैं।",
+    renewsOn: "{date} को {price} में नवीनीकृत होगी।",
+    renewsOnNoPrice: "{date} को नवीनीकृत होगी।",
+    willNotRenew: "{date} के बाद नवीनीकृत नहीं होगी। तब तक बात जारी रख सकते हैं।",
+    cancel: "रद्द करें",
+    cancelConfirm: "नवीनीकरण रोकें? ऊपर दी गई तारीख तक बात जारी रख सकते हैं।",
+    cancelYes: "हां, रोक दें",
+    cancelNo: "रहने दें",
+    cancelWorking: "एक पल",
+    cancelDone: "हो गया। यह नवीनीकृत नहीं होगी।",
+    cancelFailed: "अभी नहीं हो सका। एक पल बाद फिर कोशिश करें।",
+    close: "बंद करें",
   },
 
   offer: {

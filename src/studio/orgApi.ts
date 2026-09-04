@@ -31,6 +31,8 @@ export interface SuiteSubscription {
   provider: string;
   current_period_start: string | null;
   current_period_end: string | null;
+  // WS-R37: distinct from `state` - api/_renewals.js's own header.
+  cancel_at_period_end: boolean;
 }
 
 export interface SuiteMember {
@@ -119,3 +121,8 @@ export const startSuiteSubscription = (token: string, orgId: string, plan: "star
 
 export const updateSuiteSeats = (token: string, orgId: string, seats: number) =>
   post<{ subscription: SuiteSubscription }>(token, { op: "update_seats", org_id: orgId, seats }).then((r) => r.subscription);
+
+// WS-R37. Cancel at period end - the seat subscription keeps working until
+// `current_period_end`; only `cancel_at_period_end` changes.
+export const cancelSuiteSubscription = (token: string, orgId: string) =>
+  post<{ subscription: SuiteSubscription }>(token, { op: "cancel_subscription", org_id: orgId }).then((r) => r.subscription);

@@ -51,6 +51,7 @@ import {
   type RoomLocale,
 } from "./copy";
 import CheckinsPanel from "./CheckinsPanel";
+import SubscriptionPanel from "./SubscriptionPanel";
 import HandoffPanel from "./HandoffPanel";
 import {
   RoomApiError,
@@ -133,6 +134,11 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   const [cite, setCite] = useState<RoomCitations | null>(null);
   const [menu, setMenu] = useState(false);
   const [checkinsOpen, setCheckinsOpen] = useState(false);
+  // WS-R37: the follower's own subscription panel - shown whenever there is
+  // a paid tier to manage, `canCheckin`'s own gate one line below minus the
+  // memory requirement (managing a subscription needs no standing memory
+  // consent).
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
   const foot = useRef<HTMLDivElement | null>(null);
   // WS-R19: which bubble is being fetched/played, and the one <audio> both
@@ -157,6 +163,7 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
   // than present-and-disabled, `context/rejected.md`'s standing rule that a
   // control still shown for a state it cannot act on reads as a bug.
   const canCheckin = room?.follower?.tier === "paid" && remembers;
+  const canManageSubscription = room?.follower?.tier === "paid";
   // WS-R20: no tier gate, by the workstream's own law - Handoff is the
   // creator's choice per Room, never money's. `room.handoff_enabled` is the
   // SAME column `sendHandoffRequest`'s predicate reads, never a client guess.
@@ -565,6 +572,11 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
                 {withName(copy.handoff.title, name || room?.room.display_name || "")}
               </button>
             )}
+            {canManageSubscription && (
+              <button type="button" className="room-menu-open" onClick={() => setSubscriptionOpen(true)}>
+                {copy.subscription.title}
+              </button>
+            )}
             <button type="button" className="room-menu-open" onClick={() => setMenu(true)}>
               {copy.menu.title}
             </button>
@@ -784,6 +796,9 @@ export default function RoomApp({ fixtureOpen, fixtureTurns }: Props) {
       )}
       {checkinsOpen && session && (
         <CheckinsPanel session={session} copy={copy} onClose={() => setCheckinsOpen(false)} />
+      )}
+      {subscriptionOpen && session && (
+        <SubscriptionPanel session={session} copy={copy} onClose={() => setSubscriptionOpen(false)} />
       )}
       {handoffOpen && session && (
         <HandoffPanel
