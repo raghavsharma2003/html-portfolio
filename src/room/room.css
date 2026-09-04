@@ -830,6 +830,25 @@
     font-size: var(--text-body);
     resize: vertical;
   }
+
+  /* WCAG 2.1 SC 1.4.11 (non-text contrast) — WS-R50. Without this the Room's
+   * keyboard focus ring falls through to `studio.css`'s BASE-layer
+   * `:focus-visible` rule (`outline: 3px solid rgba(23, 73, 59, 0.28)`),
+   * which that file's own comment already measured at "about 1.9:1 on
+   * paper" and fixed for `.studio-shell` specifically — the Room shares the
+   * same base layer (`main.tsx` imports `studio.css` for the palette) but
+   * has no `.studio-shell` class, so it never got the fix and stayed on the
+   * weak ring. Measured here the same way: rgba(23,73,59,.28) over
+   * `--paper` (#f4f1e9) is 1.87:1; over `--panel-solid` (#fffef9) it is
+   * 1.94:1. Both fail the 3:1 floor a focus indicator needs. This mirrors
+   * `.studio-shell :is(...):focus-visible` verbatim, using the SAME opaque
+   * `--forest` ring (`--focus-ring`, ~8.6:1) tokens.css already defines for
+   * exactly this purpose, so a keyboard user sees one consistent ring
+   * across both surfaces of the product rather than two different ones. */
+  .room-shell :is(button, a, input, select, textarea, summary):focus-visible {
+    outline: var(--focus-width) solid var(--focus-ring);
+    outline-offset: var(--focus-offset);
+  }
 }
 
 @layer responsive {
