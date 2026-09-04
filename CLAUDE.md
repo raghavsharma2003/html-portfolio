@@ -91,19 +91,20 @@ may import nothing beyond `./level` and `../engine/diag`.
 `tsc` is separate and why CI runs both.
 
 **This same script also gates Vyakti**, the second product built in this
-repo (see the next section). As of WS-R50 (2026-09-04) it is **18
+repo (see the next section). As of WS-R49 and WS-R50 (2026-09-04) it is **19
 checks without `NEON_URL`** (14 plus the room leak battery, `evals/room-leak/run.mjs`,
 the room export completeness battery, `evals/room-export/run.mjs`, the
 room door battery, `evals/room-doors/run.mjs` — every way into a Room
 attacked offline through the real decision modules the thin HTTP doors call
 — and `accessibility`, `scripts/check-accessibility.mjs` — axe-core plus a
 hand-written keyboard walk over every follower and creator screen in both
-locales, zero `serious`/`critical` findings, each added as a named gate)
-and **20 with it** (adding the zero-orphan sweep and citation discipline).
-Two sibling workstreams (WS-R42, WS-R49) were adding a gate each at the same
-time this count was taken; the number above is what this workstream observed
-plus its own gate, and the main loop reconciles the final count at the
-merge. `scripts/check-copy.mjs` — the same em-dash ban this
+locales, zero `serious`/`critical` findings — and `performance budgets`,
+`scripts/check-performance.mjs` — the four public entry points rendered in
+real Chromium under CDP throttling shaped like a bad Indian 4G day, failing
+on a named target and metric — each added as a named gate) and **21 with
+it** (adding the zero-orphan sweep and citation discipline). WS-R42's
+mirrored-constant gate, still in flight, will move both numbers by one
+again. `scripts/check-copy.mjs` — the same em-dash ban this
 file already names — also enforces a **Rooms vocabulary rule**: no `clone`,
 `replica`, `model`, `fine-tune`/`train`/`training`, `weights`, `embedding`,
 `LoRA` or `genome` in any user-visible string in `src/studio/`, `src/room/`,

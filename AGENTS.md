@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 18 checks without NEON_URL; 20 with it
+node scripts/verify-release.mjs      # 19 checks without NEON_URL; 21 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
@@ -135,18 +135,23 @@ never ships broken.
 
 ## The gate count and the vocabulary rule that ships with it
 
-`node scripts/verify-release.mjs` is **18 checks** as of WS-R50
+`node scripts/verify-release.mjs` is **19 checks** as of WS-R49 and WS-R50
 (2026-09-04) without `NEON_URL` — up from 14 with the addition of the room
 leak battery, the room export completeness battery, the room door
 battery (`evals/room-doors/run.mjs`, every way into a Room attacked offline
-through the real decision modules the thin HTTP doors call) and the
+through the real decision modules the thin HTTP doors call), the
 accessibility gate (`scripts/check-accessibility.mjs`, axe-core WCAG 2.1 A/AA
 plus a keyboard walk over every follower and creator screen in both locales,
-on 127.0.0.1:8933) as named gates — and 20 with it, adding the zero-orphan
-sweep and citation discipline.
+on 127.0.0.1:8933) and the performance budget gate
+(`scripts/check-performance.mjs`, the four public entry points measured in
+real Chromium under CDP throttling shaped like a bad Indian 4G day on
+127.0.0.1:8932, failing on a named target and metric) as named gates — and
+21 with it, adding the zero-orphan sweep and citation discipline. WS-R42's
+mirrored-constant gate, still in flight, moves both numbers by one again.
 Migrations 071 through 099 and 101 are applied live; 100 is unused (WS-R38
 needed no new migration, every finding it fixed was a missing check in
-existing JS, never a schema change); 102 is the next free number.
+existing JS, never a schema change); 102 is the next free number (WS-R49
+needed none).
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible

@@ -11698,3 +11698,116 @@ from scratch".
 locale mechanism (the creator-facing analog of `src/room/copy.ts`), this
 card's strings move into it in the same change, rather than staying the
 one hardcoded English card in an otherwise-localized Studio.
+
+## `ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device` (2026-09-04, WS-R49)
+
+**Decision.** `scripts/check-performance.mjs` budgets four public entry
+points (`/`, `/vyakti`, `/r/<slug>` via `room-layout-fixture.html`,
+`/studio` signed out) at LCP <= 2500ms, CLS <= 0.1, TBT <= 300ms, JS
+transfer <= 180KB, font transfer <= 120KB, no render-blocking third-party
+request — measured in real Chromium at 390x844 under CDP throttling (CPU
+4x, 1.6Mbps down / 750Kbps up / 150ms RTT), three cold-cache runs per
+target, median reported. Wired as a named gate in
+`scripts/verify-release.mjs`.
+
+**Rationale.** The brief's own law: "India-first means a Rs 12,000 phone on
+a busy cell. Nothing in this repo measures what a follower waits for."
+1.6/0.75Mbps/150ms is the long-standing Chrome DevTools / Lighthouse "Fast
+3G" simulated-throttling preset (not invented for this gate), reused by
+WebPageTest and web.dev as the standard stand-in for a busy, contended
+Indian 4G connection — achieved 4G throughput on a crowded tower regularly
+falls into "fast 3G" territory, so this is the honest choice over a clean
+"4G" number that would understate a real bad day. The five numeric budgets
+are round, notice-a-slow-page thresholds (2.5s LCP is the well-known "good"
+Core Web Vitals boundary; 180KB JS is roughly a second of transfer at this
+throttle's own download rate), not derived from a per-product SLA this repo
+has stated anywhere else.
+
+**Reversal condition.** A measurement taken on a REAL mid-range Android
+device on a real Indian mobile network that disagrees with this simulation
+— either direction: a budget this gate passes that a real device visibly
+fails, or a budget this gate fails that a real device clears comfortably —
+should move the number, cited against the real-device measurement's own n
+and method, not against more simulation. Nothing in this workstream ran on
+real hardware; that is the gate's own stated limitation, in its header.
+
+## `ws-r49-room-fixture-screen-is-join-not-talk` (2026-09-04, WS-R49)
+
+**Decision.** The `/r/<slug>` performance target renders
+`room-layout-fixture.html?screen=join` (the disclosure card, the age line,
+the whole memory question), not the fixture's own default of `screen=talk`
+(an ongoing conversation).
+
+**Rationale.** This gate models "cold cache", which stands in for a
+first-ever visit. A follower's actual first visit is the join screen, not a
+conversation that presupposes one already happened — measuring `talk`
+would budget a screen nobody's FIRST 1.6Mbps load ever has to pay for.
+
+**Reversal condition.** If a future Room screen (e.g., a returning
+follower's default landing) becomes the more common first-load path than
+`join`, add it as a fifth measured screen rather than replacing `join` —
+both are real cold-cache paths, and the brief's four named targets
+map to specific screens the product actually serves cold.
+
+## `ws-r49-studio-panels-lazy-loaded-not-manualchunks` (2026-09-04, WS-R49)
+
+**Decision.** ReviewQueue plus eight more studio panels (EnrollmentWorkspace,
+RoomStudio, MirrorCallStudio, VoicePreviewLab, LivenessCapture,
+VoiceIdentityChallengeBand, VoicePreviewPanel, VoiceExperimentPanel) were
+converted from static `import X from "./X"` to `const X = lazy(() =>
+import("./X"))` with a `Suspense` boundary at each usage site, rather than
+carving them out via `vite.config.ts`'s `build.rollupOptions.output.
+manualChunks`.
+
+**Rationale.** The actual boundary that matters is a RUNTIME condition
+(`replica &&` plus a wizard `step === "..."` check), not a source-tree
+grouping a `manualChunks` function would have to re-derive and keep in
+sync by hand. `React.lazy` ties the chunk boundary to the exact JSX
+conditional that already decides whether the component renders, so the
+two can never drift apart the way a parallel `manualChunks` allowlist
+could. It is also the same pattern this repo's own precedent
+(`context/rejected.md`'s recurring "a static check must recognize the
+real shape of the code" lesson) favors over a second, hand-maintained
+list describing the first.
+
+**Reversal condition.** If a future measurement shows Vite/Rolldown's
+automatic chunk-splitting under many small dynamic imports produces WORSE
+network behavior (too many small round trips under high-latency 4G) than
+one hand-tuned `manualChunks` bundle would, group the lazy panels into a
+named chunk instead — the fix stays dynamic-import-shaped either way; only
+the chunk boundary would move.
+
+## `ws-r49-room-css-palette-import-not-restructured` (2026-09-04, WS-R49)
+
+**Decision.** `src/room/main.tsx` still imports the whole of
+`src/studio/studio.css` (4,209 lines) for its palette and base layer,
+exactly as before this workstream, even though the Room's own JSX uses
+none of the other ~3,950 lines (verified: no `.mark`, `.eyebrow`, `.button`
+or any other `studio.css`-only class appears in any `src/room/*.tsx`
+file). This inflates the Room's CSS transfer by roughly 27.9KB gzip
+(`studio-BS1SRtFH.css`'s own reported gzip size) beyond what the Room's
+own components render.
+
+**Rationale.** No CSS budget exists in `scripts/check-performance.mjs`'s
+table (the brief specifies LCP/CLS/TBT/JS/font, not CSS), and with the
+gzip-serving fix in place `/r/<slug>`'s LCP (1188ms median) and every
+other budgeted metric already pass comfortably — nothing measured DEMANDS
+this fix. Splitting the palette out of `studio.css` into its own imported
+file would touch the single most contended file in this repo (its own
+header: "studio.css is being edited concurrently by other workstreams")
+and repeats the exact class of defect this repo has already shipped twice
+(`studio.html`'s own header comment: a stripped `@layer` statement once
+put `button { color: inherit }` ahead of the primary CTA's own color at
+1.73:1 contrast). The existing `main.tsx` comment already weighed
+duplicating the palette against importing the whole file and chose the
+whole file specifically to avoid a "guaranteed divergence" — this
+workstream did not find new evidence against that call, only a byte cost
+nothing here budgets.
+
+**Reversal condition.** If a future workstream adds a CSS transfer budget
+to `scripts/check-performance.mjs`, or a real-device measurement shows the
+Room's CSS weight moving its LCP close to the 2500ms budget, extract the
+palette+base block (`studio.css` lines ~210-266, verified as exactly what
+`room.css`'s own header claims it needs) into its own file that both
+`studio.css` and `room.css` import, so there remains one canonical
+declaration rather than a duplicate.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ensureStudioSession,
   googleSignIn,
@@ -29,12 +29,8 @@ import type {
   StudioSession,
   VoiceIdentityChallenge,
 } from "./types";
-import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import IdentityProofing from "./IdentityProofing";
-import LivenessCapture from "./LivenessCapture";
-import VoiceIdentityChallengeBand from "./VoiceIdentityChallenge";
 import ProcessingReview from "./ProcessingReview";
-import ReviewQueue from "./ReviewQueue";
 import PersonModelStudio from "./PersonModelStudio";
 import CalibrationStudio from "./CalibrationStudio";
 import RuntimeGate from "./RuntimeGate";
@@ -42,16 +38,11 @@ import ReplicaDialogueLab from "./ReplicaDialogueLab";
 import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
-import VoicePreviewLab from "./VoicePreviewLab";
-import VoicePreviewPanel from "./VoicePreviewPanel";
-import VoiceExperimentPanel from "./VoiceExperimentPanel";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
-import RoomStudio from "./RoomStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
 import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
-import MirrorCallStudio from "./MirrorCallStudio";
 import VideoEnrollPanel from "./VideoEnrollPanel";
 import ActivityPanel from "./ActivityPanel";
 import ReadinessPanel from "./ReadinessPanel";
@@ -117,6 +108,31 @@ import {
   voiceIdentityChallengeUiEnabled,
   voiceIdentityStatus,
 } from "./voiceIdentityApi";
+
+// WS-R49: lazy, not a top-level import, for the eight heaviest panels that
+// never render on a signed-out /studio visit. Every one of these sits behind
+// `replica &&` and a wizard `step === "..."` gate deep inside StudioApp's own
+// render tree (see each usage site below), so a signed-out phone downloaded
+// and parsed all of them before ever showing a sign-in form — a static import
+// puts a component's bytes in the SAME dependency graph as the screen before
+// the gate that renders it, regardless of what actually mounts. Picked by
+// source size (`wc -c src/studio/*.tsx`), largest first, and each converted
+// component keeps its own Suspense boundary at its own usage site rather than
+// one boundary for all eight, so a slow panel never blanks its siblings.
+// Measured effect on /studio's JS transfer budget (scripts/check-
+// performance.mjs, n=3, cold cache): context/measurements.md#ws-r49-studio-
+// lazy-panels-2026-09-04.
+const EnrollmentWorkspace = lazy(() => import("./EnrollmentWorkspace"));
+const RoomStudio = lazy(() => import("./RoomStudio"));
+const MirrorCallStudio = lazy(() => import("./MirrorCallStudio"));
+const VoicePreviewLab = lazy(() => import("./VoicePreviewLab"));
+const LivenessCapture = lazy(() => import("./LivenessCapture"));
+const VoiceIdentityChallengeBand = lazy(() => import("./VoiceIdentityChallenge"));
+const VoicePreviewPanel = lazy(() => import("./VoicePreviewPanel"));
+const VoiceExperimentPanel = lazy(() => import("./VoiceExperimentPanel"));
+// ReviewQueue: same reasoning, its own commit — see the WS-R49 note at its
+// usage site in the "Meet" step's "Check it and correct it" band.
+const ReviewQueue = lazy(() => import("./ReviewQueue"));
 
 type AuthStep = "email" | "code";
 type LoadState = "booting" | "loading" | "ready" | "error";
@@ -945,20 +961,22 @@ export function ReplicaWorkspace({
                 title={testEnvironment ? "Add source files" : "Permission, then your material"}
                 blurb={testEnvironment ? "Upload audio, video, documents, or screenshots. Multiple files can be added in one pass." : "Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."}
               >
-                <EnrollmentWorkspace
-                  key={`enrollment-${replica.replica_id}`}
-                  replicaId={replica.replica_id}
-                  testEnvironment={testEnvironment}
-                  consents={consents}
-                  sources={sources}
-                  loading={enrollmentLoading}
-                  onGrantConsent={onGrantConsent}
-                  onRevokeConsent={onRevokeConsent}
-                  onCreateUpload={onCreateUpload}
-                  onRetryUpload={onRetryUpload}
-                  onFinalizeUpload={onFinalizeUpload}
-                  onDeleteSource={onDeleteSource}
-                />
+                <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading your material</div>}>
+                  <EnrollmentWorkspace
+                    key={`enrollment-${replica.replica_id}`}
+                    replicaId={replica.replica_id}
+                    testEnvironment={testEnvironment}
+                    consents={consents}
+                    sources={sources}
+                    loading={enrollmentLoading}
+                    onGrantConsent={onGrantConsent}
+                    onRevokeConsent={onRevokeConsent}
+                    onCreateUpload={onCreateUpload}
+                    onRetryUpload={onRetryUpload}
+                    onFinalizeUpload={onFinalizeUpload}
+                    onDeleteSource={onDeleteSource}
+                  />
+                </Suspense>
               </Band>
 
               <Band
@@ -1034,27 +1052,33 @@ export function ReplicaWorkspace({
                 title="Hear it, then talk to it"
                 blurb="This is the whole point of the product. The preview is private, and the call is where your AI learns from you while you watch."
               >
-                <VoicePreviewPanel
-                  key={`hear-voice-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  wizardInput={previewWizardInput}
-                  testEnvironment={testEnvironment}
-                  onAuthError={onReviewAuthError}
-                />
-                <VoiceExperimentPanel
-                  key={`voice-experiment-${replica.replica_id}`}
-                  replicaId={replica.replica_id}
-                />
+                <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading her voice</div>}>
+                  <VoicePreviewPanel
+                    key={`hear-voice-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    wizardInput={previewWizardInput}
+                    testEnvironment={testEnvironment}
+                    onAuthError={onReviewAuthError}
+                  />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <VoiceExperimentPanel
+                    key={`voice-experiment-${replica.replica_id}`}
+                    replicaId={replica.replica_id}
+                  />
+                </Suspense>
                 {!testEnvironment && <VoiceUnlockNotice replica={replica} />}
-                <MirrorCallStudio
-                  key={`mirror-call-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  stopped={stopped}
-                  onAuthError={onReviewAuthError}
-                  onInterviewPreview={onInterviewPreview}
-                />
+                <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading the call</div>}>
+                  <MirrorCallStudio
+                    key={`mirror-call-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    stopped={stopped}
+                    onAuthError={onReviewAuthError}
+                    onInterviewPreview={onInterviewPreview}
+                  />
+                </Suspense>
               </Band>
 
               <Band
@@ -1066,12 +1090,16 @@ export function ReplicaWorkspace({
                 {/* WS-R4. FIRST in this band, and open, because it is the one
                     thing on the Meet step that is thirty seconds long and moves
                     the number. Everything below it is a lab. */}
-                {!testEnvironment && <ReviewQueue
-                  key={`review-queue-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  onAuthError={onReviewAuthError}
-                />}
+                {!testEnvironment && (
+                  <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading the review queue</div>}>
+                    <ReviewQueue
+                      key={`review-queue-${replica.replica_id}`}
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      onAuthError={onReviewAuthError}
+                    />
+                  </Suspense>
+                )}
                 {!testEnvironment && mode === "teacher" && (
                   <TeacherSheetStudio
                     key={`sheet-${replica.replica_id}-${sheetProvenance}`}
@@ -1124,16 +1152,18 @@ export function ReplicaWorkspace({
                     is off by default, so this renders exactly what it renders
                     today until the main loop turns it on. */}
                 {VOICE_IDENTITY_UI ? (
-                  <VoiceIdentityChallengeBand
-                    consentActive={hasSourceConsent(consents)}
-                    challenge={voiceChallenge}
-                    loading={livenessLoading}
-                    onIssue={onIssueVoiceChallenge}
-                    onCancel={onCancelVoiceChallenge}
-                    onCreateUpload={onCreateVoiceIdentityUpload}
-                    onFinalize={onFinalizeVoiceIdentity}
-                    onRefresh={onRefreshVoiceChallenge}
-                  />
+                  <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading identity checks</div>}>
+                    <VoiceIdentityChallengeBand
+                      consentActive={hasSourceConsent(consents)}
+                      challenge={voiceChallenge}
+                      loading={livenessLoading}
+                      onIssue={onIssueVoiceChallenge}
+                      onCancel={onCancelVoiceChallenge}
+                      onCreateUpload={onCreateVoiceIdentityUpload}
+                      onFinalize={onFinalizeVoiceIdentity}
+                      onRefresh={onRefreshVoiceChallenge}
+                    />
+                  </Suspense>
                 ) : (
                   <>
                     <IdentityProofing
@@ -1143,18 +1173,20 @@ export function ReplicaWorkspace({
                       onChanged={onIdentityChanged}
                       onAuthError={onReviewAuthError}
                     />
-                    <LivenessCapture
-                      consentActive={hasSourceConsent(consents) && replica.age_verified}
-                      challenge={challenge}
-                      loading={livenessLoading}
-                      onIssue={onIssueChallenge}
-                      onStartFace={onStartFaceSession}
-                      onPollFace={onPollFaceSession}
-                      onCancel={onCancelChallenge}
-                      onCreateUpload={onCreateLivenessUpload}
-                      onRetryUpload={onRetryUpload}
-                      onFinalize={onFinalizeLiveness}
-                    />
+                    <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading identity checks</div>}>
+                      <LivenessCapture
+                        consentActive={hasSourceConsent(consents) && replica.age_verified}
+                        challenge={challenge}
+                        loading={livenessLoading}
+                        onIssue={onIssueChallenge}
+                        onStartFace={onStartFaceSession}
+                        onPollFace={onPollFaceSession}
+                        onCancel={onCancelChallenge}
+                        onCreateUpload={onCreateLivenessUpload}
+                        onRetryUpload={onRetryUpload}
+                        onFinalize={onFinalizeLiveness}
+                      />
+                    </Suspense>
                   </>
                 )}
                 <ModelConsentGate
@@ -1178,12 +1210,14 @@ export function ReplicaWorkspace({
                 title="Advanced tuning, all optional"
                 blurb="Four labs for people who want to go further. Nothing in here is required to activate your AI, and skipping all of it costs you nothing."
               >
-                <VoicePreviewLab
-                  key={`voice-preview-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  onAuthError={onReviewAuthError}
-                />
+                <Suspense fallback={null}>
+                  <VoicePreviewLab
+                    key={`voice-preview-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    onAuthError={onReviewAuthError}
+                  />
+                </Suspense>
                 <CalibrationStudio
                   token={accessToken}
                   replicaId={replica.replica_id}
@@ -1276,15 +1310,17 @@ export function ReplicaWorkspace({
                   title="Your Room"
                   blurb="A private, continuing address for every follower. This is where publishing actually happens."
                 >
-                  <RoomStudio
-                    key={`room-${replica.replica_id}`}
-                    token={accessToken}
-                    replicaId={replica.replica_id}
-                    onAuthError={onReviewAuthError}
-                    onGoStep={onGoStep}
-                    onStatusChange={onRoomPublished}
-                    onRoomState={onRoomState}
-                  />
+                  <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />Loading your Room</div>}>
+                    <RoomStudio
+                      key={`room-${replica.replica_id}`}
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      onAuthError={onReviewAuthError}
+                      onGoStep={onGoStep}
+                      onStatusChange={onRoomPublished}
+                      onRoomState={onRoomState}
+                    />
+                  </Suspense>
                 </Band>
               )}
 

@@ -6664,6 +6664,72 @@
       "kind": "measurement",
       "title": "Migration 106 applied live and read back; the creator-issued invite quota INSERT plans as a one-time filter over two init plans on the new index and the Room owner index",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r49-performance-budget-gate",
+      "kind": "component",
+      "at": "2026-09-04",
+      "title": "scripts/check-performance.mjs: renders /, /vyakti, /r/<slug> (room-layout-fixture.html) and /studio (signed out) in real Chromium under CDP throttling (CPU 4x, 1.6Mbps/750Kbps/150ms), median of 3 cold-cache runs against a named LCP/CLS/TBT/JS/font budget table, wired into verify-release"
+    },
+    {
+      "id": "ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "Performance budgets (2500ms LCP, 0.1 CLS, 300ms TBT, 180KB JS, 120KB font, no third-party render-blocking) measured under CDP-simulated Fast-3G-shaped throttling, not a real device; reversal condition is a real-device measurement that disagrees"
+    },
+    {
+      "id": "ws-r49-room-fixture-screen-is-join-not-talk",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "The /r/<slug> perf target measures room-layout-fixture.html?screen=join, not the fixture's default talk, because cold cache models a follower's first-ever visit"
+    },
+    {
+      "id": "ws-r49-studio-panels-lazy-loaded-not-manualchunks",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "Nine StudioApp.tsx panels converted to React.lazy + Suspense at their real usage sites rather than a vite manualChunks grouping, so the chunk boundary can never drift from the runtime replica/step condition that actually gates rendering"
+    },
+    {
+      "id": "ws-r49-room-css-palette-import-not-restructured",
+      "kind": "decision",
+      "at": "2026-09-04",
+      "title": "Room's main.tsx still imports the whole 4,209-line studio.css for ~27.9KB gzip of unused palette-adjacent weight; not restructured because no CSS budget exists and the fix touches the repo's most contended, cascade-layer-bug-prone file"
+    },
+    {
+      "id": "ws-r49-performance-gate-served-uncompressed-bytes",
+      "kind": "rejection",
+      "at": "2026-09-04",
+      "title": "The gate's first draft served raw bytes with no gzip, budgeting transfer sizes no real Vercel deployment produces; fixed by gzipping compressible responses and reading CDP's encodedDataLength"
+    },
+    {
+      "id": "ws-r49-studio-shell-orphan-check-dynamic-import-gap",
+      "kind": "rejection",
+      "at": "2026-09-04",
+      "title": "evals/studio-shell/run.mjs's orphan check regex only matched a static import and reported nine genuinely-mounted lazy panels as orphaned; widened to also match import(\"./NAME\") rather than adding real panels to the exclusion set"
+    },
+    {
+      "id": "ws-r49-baseline-raw-bytes-2026-09-04",
+      "kind": "measurement",
+      "at": "2026-09-04",
+      "title": "Untouched-tree baseline on the gate's first (buggy, uncompressed) server: /r/<slug> LCP 2716ms/JS 262.5KB (both FAIL), /studio LCP 4848ms/JS 675.9KB (both FAIL), n=3"
+    },
+    {
+      "id": "ws-r49-room-gzip-methodology-2026-09-04",
+      "kind": "measurement",
+      "at": "2026-09-04",
+      "title": "Same untouched Room/site code, gzip-correct server: /r/<slug> LCP 2716ms->1192ms, JS 262.5KB->79.7KB, all budgets now pass with zero product code changed, n=3"
+    },
+    {
+      "id": "ws-r49-studio-lazy-panels-2026-09-04",
+      "kind": "measurement",
+      "at": "2026-09-04",
+      "title": "/studio JS transfer isolated before/after the nine-panel lazy-load fix, gzip methodology held constant: 195.2KB -> 137.5KB (29.6% reduction), moving from over the 180KB budget to comfortably under it, n=3"
+    },
+    {
+      "id": "ws-r49-full-gate-2026-09-04",
+      "kind": "measurement",
+      "at": "2026-09-04",
+      "title": "node scripts/verify-release.mjs: 17/17 confirmed on the untouched tree (one EADDRINUSE:8931 collision reconfirmed standalone), 18/18 after this workstream's commits; performance budgets gate itself 45.6s, under the 3-minute ceiling"
     }
   ],
   "edges": [
@@ -13366,6 +13432,61 @@
       "src": "ws-r47-invites-required-semantics-untouched-by-design",
       "rel": "measured_by",
       "dst": "rooms-migration-106-live-verification-2026-09-04"
+    },
+    {
+      "src": "ws-r49-performance-budget-gate",
+      "rel": "part_of",
+      "dst": "layout-readability-gate"
+    },
+    {
+      "src": "ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device",
+      "rel": "part_of",
+      "dst": "ws-r49-performance-budget-gate"
+    },
+    {
+      "src": "ws-r49-performance-budgets-are-a-throttled-simulation-not-a-device",
+      "rel": "measured_by",
+      "dst": "ws-r49-baseline-raw-bytes-2026-09-04"
+    },
+    {
+      "src": "ws-r49-room-fixture-screen-is-join-not-talk",
+      "rel": "part_of",
+      "dst": "ws-r49-performance-budget-gate"
+    },
+    {
+      "src": "ws-r49-studio-panels-lazy-loaded-not-manualchunks",
+      "rel": "part_of",
+      "dst": "studio-wizard-shell"
+    },
+    {
+      "src": "ws-r49-studio-panels-lazy-loaded-not-manualchunks",
+      "rel": "measured_by",
+      "dst": "ws-r49-studio-lazy-panels-2026-09-04"
+    },
+    {
+      "src": "ws-r49-room-css-palette-import-not-restructured",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r49-performance-gate-served-uncompressed-bytes",
+      "rel": "caused_by",
+      "dst": "ws-r49-baseline-raw-bytes-2026-09-04"
+    },
+    {
+      "src": "ws-r49-room-gzip-methodology-2026-09-04",
+      "rel": "caused_by",
+      "dst": "ws-r49-performance-gate-served-uncompressed-bytes"
+    },
+    {
+      "src": "ws-r49-studio-shell-orphan-check-dynamic-import-gap",
+      "rel": "caused_by",
+      "dst": "ws-r49-studio-panels-lazy-loaded-not-manualchunks"
+    },
+    {
+      "src": "ws-r49-performance-budget-gate",
+      "rel": "measured_by",
+      "dst": "ws-r49-full-gate-2026-09-04"
     }
   ]
 }

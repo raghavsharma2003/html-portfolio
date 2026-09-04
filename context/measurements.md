@@ -9030,3 +9030,93 @@ n = 1 migration (2 statements in one transaction), 3 API statements; method = th
 | `creatorInviteArrivalsThisWeek` | Aggregate over a Left Join: Bitmap on `vy_creator_invite_issued_kind_ix` by `issued_kind = 'creator'` alone (bounded by the creator-issued rows), `vy_creator_application_pkey` for the application arm, the week window as the join filter |
 
 Not measured: no creator-issued code exists; no code has been redeemed; nobody has seen the "Invite a creator" card in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r49-baseline-raw-bytes-2026-09-04` (WS-R49, 2026-09-04)
+
+**Method.** `node scripts/check-performance.mjs`, first version, on the
+untouched tree (321a0fd): real Chromium (`/opt/pw-browsers/chromium-1194`)
+at 390x844, CPU 4x + 1.6Mbps/750Kbps/150ms CDP throttling, a plain Node
+static server with NO compression (this version's own bug — see
+`rejected.md#ws-r49-performance-gate-served-uncompressed-bytes`), n=3
+fresh-context runs per target, median reported.
+
+**Numbers (median of 3).** `/`: LCP 1220ms, CSS 34.6KB, no JS. `/vyakti`:
+LCP 292ms, negligible. `/r/<slug>` (room-layout-fixture.html?screen=join):
+LCP 2716ms (FAIL, budget 2500ms), JS 262.5KB (FAIL, budget 180KB), CSS
+165.0KB. `/studio` (signed out): LCP 4848ms (FAIL), JS 675.9KB (FAIL), CSS
+197.1KB. Font transfer 0KB on every target (this repo loads no web font
+anywhere — see the gate's own header for the grep that confirmed it).
+
+**What this measurement is NOT.** These four "FAIL" numbers are an
+artifact of the gate's own uncompressed serving, not a real product defect
+in the Room — see `ws-r49-room-gzip-methodology-2026-09-04` below for the
+corrected number, which passes on unchanged Room code.
+
+## `ws-r49-room-gzip-methodology-2026-09-04` (WS-R49, 2026-09-04)
+
+**Method.** Same as above, gate's static server now gzips text responses
+(matching Vercel's own production behavior), Room/site code UNCHANGED from
+the raw-byte baseline. n=3, cold cache, 2026-09-04.
+
+**Numbers (median of 3), before -> after (gate fix only, no product code
+changed).** `/r/<slug>`: LCP 2716ms -> 1192ms; JS transfer 262.5KB ->
+79.7KB; CSS transfer 165.0KB -> 29.7KB — every budget now passes.
+`/`: LCP 1220ms -> 988ms; CSS 34.6KB -> 10.7KB. `/vyakti`: LCP 292ms ->
+372ms (within run-to-run noise, both far under budget).
+
+**Conclusion.** The Room needed zero product code changes to meet its
+budget; the failure this workstream first saw was entirely a measurement
+bug in `scripts/check-performance.mjs`'s own first draft.
+
+## `ws-r49-studio-lazy-panels-2026-09-04` (WS-R49, 2026-09-04)
+
+**Method.** `node scripts/check-performance.mjs --target /studio`, real
+Chromium, 390x844, CPU 4x + 1.6/0.75Mbps/150ms, gzip-correct server, n=3
+cold-cache runs, median. Three points, isolating the gzip-methodology fix
+from the product code fix:
+
+1. **Raw bytes, untouched product code** (the first, buggy gate):
+   LCP 4848ms, JS 675.9KB, CSS 197.1KB.
+2. **Gzip-correct server, untouched product code** (isolated via `cp
+   src/studio/StudioApp.tsx <scratch>`, `git checkout -- src/studio/
+   StudioApp.tsx`, rebuild, measure, then restore — the same
+   revert-and-rerun technique WS-R38/WS-R39 used for their own before/after
+   proofs): LCP 1860ms, JS 195.2KB (95,229 -> stated as 195229 bytes,
+   over the 180KB budget), CSS 35.4KB.
+3. **Gzip-correct server, nine panels lazy-loaded** (this workstream's
+   product fix, `context/decisions.md#ws-r49-studio-panels-lazy-loaded-
+   not-manualchunks`): LCP 1460ms, JS 137.5KB, CSS 34.5KB.
+
+**The real, isolated effect of the code-splitting fix (point 2 -> point
+3, gate methodology held constant):** JS transfer 195.2KB -> 137.5KB, a
+57.7KB (29.6%) reduction, moving `/studio` from over the 180KB budget to
+comfortably under it. LCP 1860ms -> 1460ms as a side effect (both already
+under the 2500ms budget).
+
+**Build-level corroboration** (`npx vite build` output, not itself a
+budget number but the same direction): the shared chunk StudioApp.tsx's
+render tree bundles into shrank from 452.0KB minified / 118.1KB gzip to
+230.7KB minified / 61.4KB gzip once the nine panels' own bytes moved to
+separate, lazily-fetched chunks.
+
+## `ws-r49-full-gate-2026-09-04` (WS-R49, 2026-09-04)
+
+**Method.** `node scripts/verify-release.mjs`, no `NEON_URL` (skipped, this
+environment), timed with the shell's own `time`.
+
+**Before (untouched tree, 321a0fd).** 16 of 17 checks passed standalone;
+`layout readability` hit `EADDRINUSE:8931` from a concurrent sibling
+worktree (the documented collision class,
+`rejected.md#the-layout-readability-gate-collided-on-127-0-0-1-8931`) and
+was reconfirmed passing alone (698 blocks judged) — so 17/17 confirmed on
+the untouched tree. Full run wall time 4m14s (the collision run); standalone
+layout gate 34s.
+
+**After (every commit in this workstream).** 18/18 checks passed in one run
+(no port collision this time), full wall time 6m38s. The new `performance
+budgets` gate itself: 45.6s standalone (`node scripts/check-performance.mjs`
+alone, cold, 4 targets x 3 runs), 45.6s inside the full run — both well
+under the brief's 3-minute ceiling for the gate's own runtime.
+
+**`node scripts/context.mjs --check`**: run after this session's context
+edits, see this workstream's final report for the pass/fail line.
