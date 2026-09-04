@@ -1632,6 +1632,28 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "rate-limit": "rate-limit/run.mjs",
+  // WS-R29. Check-ins over WhatsApp utility templates, migration 092
+  // (`vy_room_follower_whatsapp`). Opt-in/stop/status scoped to the
+  // caller's own follower row, paid-tier gated, structurally absent when
+  // `ROOM_WHATSAPP_TEMPLATE_APPROVED` is unset; `buildTemplatePayload`'s
+  // own source scanned for any message-table identifier;
+  // `deliverers.whatsappTemplate` (api/_checkins.js) driven through every
+  // real outcome (not_configured, skipped_stopped, delivered, a 4xx revoke,
+  // a 429 that writes no row at all); the webhook door (api/room-wa.js +
+  // api/_room-whatsapp.js) reusing api/whatsapp.js's own HMAC/GET-handshake
+  // verify() rather than a second implementation, a signed status callback
+  // writing nothing, a signed inbound message producing exactly one
+  // deterministic app-voiced reply and persisting nothing, and an unsigned
+  // request refused before either. Export/forget for this table: a count,
+  // a state and a MASKED number, never the number in full. THREE NEGATIVE
+  // CONTROLS named in the workstream brief, each proven to actually bite:
+  // (a) a poisoned payload builder reading a message identifier IS caught
+  // by the same static scan that passes the real one; (b) an unsigned
+  // webhook request is refused before the handler is ever called, so it
+  // sends and writes nothing; (c) a stopped opt-in is never sent to.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Meta, no model call.
+  "room-whatsapp": "room-whatsapp/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

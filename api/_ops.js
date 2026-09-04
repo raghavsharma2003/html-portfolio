@@ -31,6 +31,10 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
 import { opsFunnel } from "./_funnel.js";
+// WS-R29 (migration 092). The unit cost is a named constant in the one file
+// that owns the send path - imported here rather than restated, so the
+// board's own number and the send path's own comment can never drift apart.
+import { WHATSAPP_TEMPLATE_UNIT_COST_INR } from "./_room-whatsapp.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -201,6 +205,33 @@ export function sweepStaleness(last, schedule, now) {
   return now - lastAt > 2 * interval ? "stale" : "fresh";
 }
 
+/**
+ * WS-R29 (workstream law #5): "the owner sees the bill before Meta does."
+ * Platform-wide (not per-room) - a creator's own room card already shows
+ * `deliveries_last_24h` broken out by state; this is the OWNER's monthly
+ * spend across every Room, the number `_payments.js`'s `revenue_this_month_
+ * inr` sits beside. `count(*)` alone, ungrouped by room, is still
+ * aggregate-only in the sense `evals/room-leak/run.mjs`'s check names (this
+ * table is not `vy_room_follower`/`vy_room_thread`, so that check does not
+ * scan it at all) - named here rather than silently assumed.
+ */
+async function whatsappSpendThisMonth(db, now) {
+  const [row] = await db(
+    `select count(*)::int as n
+       from vy_room_checkin_delivery
+      where channel = 'whatsapp_template' and state = 'delivered'
+        and created_at >= ($1)::timestamptz`,
+    [monthStartIso(now)],
+  );
+  const count = Number(row?.n || 0);
+  return {
+    template_sends_this_month: count,
+    // Rounded to paise (2 decimals) - a currency figure with float noise
+    // past that is a number nobody asked for.
+    cost_this_month_inr: Math.round(count * WHATSAPP_TEMPLATE_UNIT_COST_INR * 100) / 100,
+  };
+}
+
 /** The latest `vy_sweep_run` row per sweep, joined against `vercel.json`'s
  *  own schedule table (read at build time by `_sweep-schedule.js`, not
  *  guessed). A sweep named in `vercel.json` with no row at all reports
@@ -260,5 +291,8 @@ export async function opsOverview(db, now = Date.now()) {
     // WS-R25. "Minutes to first Room" and "where creators stop" -
     // `opsFunnel`'s own read, one extra call on the board's one endpoint.
     funnel: await opsFunnel(db, now),
+    // WS-R29. "The owner sees the bill before Meta does" - the workstream
+    // brief's own words.
+    whatsapp: await whatsappSpendThisMonth(db, now),
   };
 }

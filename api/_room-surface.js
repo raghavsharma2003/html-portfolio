@@ -1726,7 +1726,33 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   { table: "vy_room_voice_usage", shape: "count",
     reason: "a day-count ledger (seconds and clips per day) - same reasoning as " +
       "vy_room_follower_day above" },
+  // WS-R29 (migration 092). Neither a full row dump nor a bare count: the
+  // follower's own phone number is theirs to confirm ("is this still the
+  // right number") but not theirs to have handed BACK in full over an
+  // export payload that could sit in a downloaded file indefinitely - the
+  // workstream brief's own words, "counts and the masked number".
+  { table: "vy_room_follower_whatsapp", shape: "masked_phone",
+    reason: "the follower's own WhatsApp opt-in - a masked number and its state, " +
+      "never the number in full" },
 ]);
+
+/** `api/_room-whatsapp.js`'s own function, re-derived here rather than
+ *  imported - this house's standing convention (`api/_room-push.js`'s
+ *  `followerScope`, `api/_checkins.js`'s own copy of the same) so this file
+ *  never has to import a sibling that itself imports THIS file (`_room-
+ *  whatsapp.js` imports `resolveRoom`/`followerRow`/`readRoomSession` from
+ *  here), which would make the two modules' load order matter for no reason
+ *  a one-line pure function is worth risking. */
+function maskPhoneForExport(phone) {
+  const p = String(phone || "");
+  const m = p.match(/^\+(\d{6,15})$/);
+  if (!m) return "";
+  const digits = m[1];
+  const head = digits.slice(0, 2);
+  const tail = digits.slice(-2);
+  const middleLen = digits.length - head.length - tail.length;
+  return `+${head} ${"•".repeat(Math.max(0, middleLen))}${tail}`;
+}
 
 export async function roomExport(db, { session }, deps = {}) {
   const who = await selfScope(db, session, deps);
@@ -1759,6 +1785,17 @@ export async function roomExport(db, { session }, deps = {}) {
         [who.roomId, who.personId],
       ).catch(() => []);
       if (rows.length) tables[e.table] = rows;
+    } else if (e.shape === "masked_phone") {
+      // MASKED_PHONE shape (WS-R29): a count, a state, and the number with
+      // its middle digits replaced - never the number in full, `e.reason`
+      // states why. At most one row (migration 092's own primary key).
+      const rows = await db(
+        `select phone_e164, state from ${e.table} where room_id = ($1)::uuid and person_id = ($2)::uuid limit 1`,
+        [who.roomId, who.personId],
+      ).catch(() => []);
+      if (rows.length) {
+        tables[e.table] = { count: rows.length, state: rows[0].state, phone_masked: maskPhoneForExport(rows[0].phone_e164) };
+      }
     } else {
       // COUNT shape: one number, never the rows themselves - `e.reason`
       // states why for this table.
@@ -1960,6 +1997,21 @@ export async function roomForget(db, { session }, deps = {}) {
       [who.roomId, who.personId],
     );
     deleted.vy_room_push_subscription = pushRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_follower_whatsapp")) {
+    // WS-R29 (migration 092): a follower's own WhatsApp check-in opt-in,
+    // this Room only. `vy_room_push_subscription`'s exact reasoning restated
+    // one channel over - carries `follower_id references vy_room_follower
+    // (follower_id) on delete cascade`, so it runs before the follower
+    // delete below; named explicitly rather than left to the cascade alone.
+    const waRows = await db(
+      `delete from vy_room_follower_whatsapp
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_whatsapp = waRows.length;
   }
 
   if (await isTableAppliedFor(deps)("vy_room_handoff")) {

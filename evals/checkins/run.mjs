@@ -27,9 +27,12 @@
 //          layer: the sweep's own due-select SQL text binds every follower
 //          join by `room_id`/`person_id`/`follower_id` together, so no
 //          statement in this file can cross a follower boundary.
-//   §5 THE SEAMS. `deliverers.whatsappTemplate` never calls Meta and always
-//      writes `not_configured`, and `countDelivery` is a no-op unless a
-//      caller supplies one.
+//   §5 THE SEAMS. `deliverers.whatsappTemplate` is wired for real (WS-R29,
+//      migration 092) but stays `not_configured` on this repo's shipping
+//      default (`ROOM_WHATSAPP_TEMPLATE_APPROVED` unset everywhere); the
+//      deep battery lives in evals/room-whatsapp/run.mjs, `evals/room-push/
+//      run.mjs`'s exact relationship to `deliverers.webPush`. `countDelivery`
+//      is a no-op unless a caller supplies one.
 import fs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -198,18 +201,32 @@ function withCheckins(baseDb, state) {
       return [{ delivery_id: row.delivery_id }];
     }
     if (/insert into vy_room_checkin_delivery\b/.test(sql) && sql.includes("'whatsapp_template'")) {
-      const [deliveryId, checkinId, roomId, personId, dueAtIso, st, reason] = params;
+      // WS-R29: eight params now (a `deliveredAt` joined the seven the
+      // never-wired seam wrote) - `insertLedger`'s own shape inside
+      // `deliverers.whatsappTemplate`, matching `deliverers.webPush`'s.
+      const [deliveryId, checkinId, roomId, personId, dueAtIso, deliveredAtIso, st, reason] = params;
       const exists = state.checkinDeliveries.some(
         (x) => x.checkin_id === String(checkinId) && x.due_at === dueAtIso && x.channel === "whatsapp_template",
       );
       if (exists) return [];
       const row = {
         delivery_id: String(deliveryId), checkin_id: String(checkinId), room_id: String(roomId),
-        person_id: String(personId), due_at: dueAtIso, delivered_at: null,
+        person_id: String(personId), due_at: dueAtIso, delivered_at: deliveredAtIso,
         channel: "whatsapp_template", state: st, reason,
       };
       state.checkinDeliveries.push(row);
       return [{ delivery_id: row.delivery_id }];
+    }
+    if (sql.includes("select phone_e164, state from vy_room_follower_whatsapp")) {
+      const [followerId] = params.map(String);
+      const row = (state.waOptins || []).find((w) => w.follower_id === followerId && w.state === "active");
+      return row ? [{ phone_e164: row.phone_e164, state: row.state }] : [];
+    }
+    if (sql.includes("update vy_room_follower_whatsapp") && sql.includes("set state = 'failed'")) {
+      const [followerId, code] = params.map(String);
+      const row = (state.waOptins || []).find((w) => w.follower_id === followerId && w.state === "active");
+      if (row) { row.state = "failed"; row.last_failure_code = code; }
+      return [];
     }
     if (sql.includes("delete from vy_room_checkin\n")) {
       const [roomId, personId] = params.map(String);
@@ -254,9 +271,9 @@ function dueCheckins(state, now, mode) {
       const r = state.rooms.find((x) => x.room_id === c.room_id);
       const d = state.checkinDesigns.find((x) => x.design_id === c.design_id);
       return {
-        checkin_id: c.checkin_id, room_id: c.room_id, person_id: c.person_id,
+        checkin_id: c.checkin_id, room_id: c.room_id, person_id: c.person_id, follower_id: c.follower_id,
         due_at: c.next_due_at, days_of_week: c.days_of_week, local_time: c.local_time, timezone: c.timezone,
-        agent_id: r.agent_id, slug: r.slug, prompt_shape: d.prompt_shape, title: d.title,
+        agent_id: r.agent_id, slug: r.slug, display_name: r.display_name, prompt_shape: d.prompt_shape, title: d.title,
       };
     });
 }
@@ -346,9 +363,17 @@ console.log("\n── §2: THE HAPPY PATH — one delivery through gatedReply, o
   const reply = async () => "hey! did you get your walk in today? no worries either way, just checking in.";
   const summary = await sweep({ db, engine, reply, loadAgent, memory: fakeMemory(memLog), now: dueAt }, dueAt);
   ok("exactly one delivery on the due tick", summary.delivered === 1, JSON.stringify(summary));
-  const ledgerRows = state.checkinDeliveries.filter((d) => d.checkin_id === created.checkin_id);
-  ok("exactly one ledger row, state 'delivered'",
+  // WS-R29: `deliverOne` now ALSO writes a whatsapp_template ledger row for
+  // the same occurrence (channel='whatsapp_template', state='not_configured'
+  // on this repo's shipping default) — scoped to 'in_app' here, exactly as
+  // `deliverers.webPush`'s own row is not asserted on by this file either
+  // (evals/room-push/run.mjs's own job).
+  const ledgerRows = state.checkinDeliveries.filter((d) => d.checkin_id === created.checkin_id && d.channel === "in_app");
+  ok("exactly one in_app ledger row, state 'delivered'",
     ledgerRows.length === 1 && ledgerRows[0].state === "delivered", JSON.stringify(ledgerRows));
+  const waLedgerRows = state.checkinDeliveries.filter((d) => d.checkin_id === created.checkin_id && d.channel === "whatsapp_template");
+  ok("...and exactly one whatsapp_template row too, wired but not_configured on this repo's default",
+    waLedgerRows.length === 1 && waLedgerRows[0].state === "not_configured", JSON.stringify(waLedgerRows));
   const advanced = state.checkins.find((c) => c.checkin_id === created.checkin_id);
   ok("next_due_at advanced past the due instant",
     new Date(advanced.next_due_at).getTime() > dueAt, advanced.next_due_at);
@@ -361,8 +386,10 @@ console.log("\n── §2: THE HAPPY PATH — one delivery through gatedReply, o
   const again = await sweep({ db, engine, reply, loadAgent, memory: fakeMemory(memLog), now: dueAt }, dueAt);
   ok("§3 idempotency: sweeping the same instant again delivers nothing more",
     again.delivered === 0, JSON.stringify(again));
-  ok("§3 idempotency: still exactly one ledger row for this check-in",
-    state.checkinDeliveries.filter((d) => d.checkin_id === created.checkin_id).length === 1);
+  ok("§3 idempotency: still exactly one in_app ledger row for this check-in",
+    state.checkinDeliveries.filter((d) => d.checkin_id === created.checkin_id && d.channel === "in_app").length === 1);
+  ok("§3 idempotency: still exactly one whatsapp_template ledger row too — the second sweep never re-delivered it",
+    state.checkinDeliveries.filter((d) => d.checkin_id === created.checkin_id && d.channel === "whatsapp_template").length === 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -452,37 +479,43 @@ console.log("\n── §4: NEGATIVE CONTROLS ──");
     /where checkin_id = \(\$2\)::uuid and next_due_at = \(\$3\)::timestamptz/.test(src));
   ok("(d) delivery targets the follower's OWN device — derived from row.person_id, never a constant or a request field",
     /roomThreadDevice\(row\.room_id, row\.person_id, null\)/.test(src));
-  ok("(d) this file never imports a network client — the WhatsApp seam has nothing to call Meta with",
+  ok("(d) this file never imports a network client itself — WS-R29's real send lives in api/_room-whatsapp.js's sendTemplate, one layer down, exactly `deliverers.webPush`'s own indirection through api/_push/webpush.js's send",
     !/\bfetch\s*\(/.test(src) && !/require\(["']https?["']\)/.test(src));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-console.log("\n── §5: THE SEAMS — whatsappTemplate never calls Meta, countDelivery defaults to a no-op ──");
+console.log("\n── §5: THE SEAMS — whatsappTemplate is wired but off by default; countDelivery ──");
 // ═════════════════════════════════════════════════════════════════════════
+// WS-R29 (migration 092): `deliverers.whatsappTemplate` is now a REAL send
+// path — the deep battery (configured/delivered/4xx-revoke/429-retry/
+// skipped_stopped, the payload's own static scan, the HMAC webhook door) is
+// evals/room-whatsapp/run.mjs's own suite, `evals/room-push/run.mjs`'s exact
+// relationship to `deliverers.webPush` (untested here, fully tested one
+// channel over). This file only proves the SHIPPING DEFAULT (the flag unset
+// everywhere in this repo today) stays `not_configured`, and that the sweep
+// now calls this seam at all.
 {
   const { state, db } = await setup({ tier: "paid", memoryConsent: true });
   const f = state.followers.find((x) => x.person_id === PERSON_A);
   const row = {
     checkin_id: "cc000000-0000-4000-8000-0000000000aa", room_id: ROOM_ID, person_id: PERSON_A,
-    due_at: new Date("2026-09-04T01:30:00.000Z").toISOString(),
+    follower_id: f.follower_id, due_at: new Date("2026-09-04T01:30:00.000Z").toISOString(),
+    slug: SLUG, display_name: "Anjali", title: "Daily check-in",
   };
-  delete process.env.ROOM_WHATSAPP_TEMPLATE_ID;
-  delete process.env.ROOM_WHATSAPP_NUMBER_ID;
+  delete process.env.ROOM_WHATSAPP_TEMPLATE_APPROVED;
   const written = await deliverers.whatsappTemplate(db, row, { env: process.env });
   ok("whatsappTemplate writes a ledger row and returns its id", Boolean(written?.delivery_id));
   const waRow = state.checkinDeliveries.find((d) => d.delivery_id === written?.delivery_id);
-  ok("the ledger row is channel=whatsapp_template, state=not_configured, with no template/number set",
+  ok("the shipping default (flag unset) is state=not_configured, with no read of the opt-in table",
     waRow?.channel === "whatsapp_template" && waRow?.state === "not_configured", JSON.stringify(waRow));
 
-  process.env.ROOM_WHATSAPP_TEMPLATE_ID = "tmpl_123";
-  process.env.ROOM_WHATSAPP_NUMBER_ID = "num_456";
+  process.env.ROOM_WHATSAPP_TEMPLATE_APPROVED = "1";
   const row2 = { ...row, checkin_id: "cc000000-0000-4000-8000-0000000000bb" };
   const written2 = await deliverers.whatsappTemplate(db, row2, { env: process.env });
   const waRow2 = state.checkinDeliveries.find((d) => d.delivery_id === written2?.delivery_id);
-  ok("even fully configured, the seam still never sends — state stays not_configured",
+  ok("flag on but no WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID — still not_configured",
     waRow2?.state === "not_configured");
-  delete process.env.ROOM_WHATSAPP_TEMPLATE_ID;
-  delete process.env.ROOM_WHATSAPP_NUMBER_ID;
+  delete process.env.ROOM_WHATSAPP_TEMPLATE_APPROVED;
 }
 {
   const log = [];

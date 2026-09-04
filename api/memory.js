@@ -2998,6 +2998,20 @@ export const PERSON_TABLES = [
   // over. Reached by the account-wide whole wipe through the "relational"
   // lane alone.
   { table: "vy_room_push_subscription", key: "person_id", lane: "relational" },
+  // ── WS-R29: check-ins over WhatsApp utility templates (migration 092) ────
+  //
+  // A destination (a phone number) and a state, never a word the follower
+  // said - `vy_room_push_subscription`'s exact reasoning restated for a
+  // phone number instead of a push endpoint. NOT `agent: true`: no
+  // `agent_id` column (agent context is joined from `vy_room`, the sweep's
+  // own reasoning restated a further time in this same block). Carries
+  // `follower_id references vy_room_follower(follower_id) on delete
+  // cascade`, so it is listed before `vy_room_follower`; `api/_room-
+  // surface.js`'s `roomForget` gives it its own explicit, BY-NAME delete too
+  // (WS-R27's own lesson applied on arrival rather than found later: a row
+  // reached only by cascade is a row deleted but never counted). Reached by
+  // the account-wide whole wipe through the "relational" lane alone.
+  { table: "vy_room_follower_whatsapp", key: "person_id", lane: "relational" },
   // ── Handoff (WS-R20; migration 083) ──
   //
   // A follower's own verbatim ask and the creator's own verbatim reply to

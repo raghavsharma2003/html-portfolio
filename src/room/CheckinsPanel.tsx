@@ -15,7 +15,15 @@ import {
   type RoomCheckinDesign,
   type RoomCheckin,
 } from "./roomCheckinsApi";
-import { pushSubscribe, pushUnsubscribe, pushStatus } from "./roomApi";
+import {
+  pushSubscribe,
+  pushUnsubscribe,
+  pushStatus,
+  whatsappStatus,
+  whatsappOptIn,
+  whatsappStop,
+  RoomApiError,
+} from "./roomApi";
 
 /** RFC 4648 base64url, both directions — the only encoding every field in a
  *  browser `PushSubscription` and the VAPID public key share. */
@@ -61,6 +69,16 @@ export default function CheckinsPanel({
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState("");
+  // WS-R29 (migration 092). `waAvailable` is server-driven exactly as
+  // `pushKey` is above — null/false means ROOM_WHATSAPP_TEMPLATE_APPROVED is
+  // unset on this deployment, and the whole control renders nothing
+  // (workstream law #3).
+  const [waAvailable, setWaAvailable] = useState(false);
+  const [waOn, setWaOn] = useState(false);
+  const [waPhoneMasked, setWaPhoneMasked] = useState<string | null>(null);
+  const [waPhone, setWaPhone] = useState("");
+  const [waBusy, setWaBusy] = useState(false);
+  const [waError, setWaError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -73,6 +91,13 @@ export default function CheckinsPanel({
           .then((s) => setPushOn(s.subscribed))
           .catch(() => {});
       }
+      whatsappStatus(session)
+        .then((s) => {
+          setWaAvailable(s.available);
+          setWaOn(s.subscribed);
+          setWaPhoneMasked(s.phone_masked);
+        })
+        .catch(() => {});
     } catch {
       setError(copy.errors.generic);
     }
@@ -128,6 +153,39 @@ export default function CheckinsPanel({
       setPushError(copy.checkins.pushError);
     } finally {
       setPushBusy(false);
+    }
+  }, [session]);
+
+  const saveWa = useCallback(async () => {
+    setWaBusy(true);
+    setWaError("");
+    try {
+      const result = await whatsappOptIn(session, waPhone.trim());
+      setWaOn(true);
+      setWaPhoneMasked(result.phone_masked);
+      setWaPhone("");
+    } catch (e) {
+      setWaError(
+        e instanceof RoomApiError && e.code === "room_whatsapp_phone_invalid"
+          ? copy.checkins.waPhoneInvalid
+          : copy.checkins.waError,
+      );
+    } finally {
+      setWaBusy(false);
+    }
+  }, [session, waPhone]);
+
+  const disableWa = useCallback(async () => {
+    setWaBusy(true);
+    setWaError("");
+    try {
+      await whatsappStop(session);
+      setWaOn(false);
+      setWaPhoneMasked(null);
+    } catch {
+      setWaError(copy.checkins.waError);
+    } finally {
+      setWaBusy(false);
     }
   }, [session]);
 
@@ -274,6 +332,38 @@ export default function CheckinsPanel({
           >
             {pushBusy ? "..." : pushOn ? copy.checkins.pushDisable : copy.checkins.pushEnable}
           </button>
+        </div>
+      )}
+
+      {waAvailable && (
+        <div className="room-checkins-push room-checkins-wa">
+          <h3 className="room-checkins-subhead">{copy.checkins.waTitle}</h3>
+          <p className="room-fine">
+            {waOn && waPhoneMasked
+              ? copy.checkins.waOnCopy.replace("{phone}", waPhoneMasked)
+              : copy.checkins.waOffCopy}
+          </p>
+          {waError && <p className="room-error">{waError}</p>}
+          {waOn ? (
+            <button type="button" className="room-btn" disabled={waBusy} onClick={() => void disableWa()}>
+              {waBusy ? "..." : copy.checkins.waDisable}
+            </button>
+          ) : (
+            <div className="room-checkins-wa-form">
+              <label className="room-fine">
+                {copy.checkins.waPhoneLabel}
+                <input
+                  type="tel"
+                  value={waPhone}
+                  placeholder={copy.checkins.waPhonePlaceholder}
+                  onChange={(e) => setWaPhone(e.target.value)}
+                />
+              </label>
+              <button type="button" className="room-btn" disabled={waBusy || !waPhone.trim()} onClick={() => void saveWa()}>
+                {waBusy ? "..." : copy.checkins.waSave}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
