@@ -106,11 +106,17 @@ export default function MirrorCallStudio({
   replicaId,
   stopped,
   onAuthError,
+  onInterviewPreview,
 }: {
   token: string;
   replicaId: string;
   stopped: boolean;
   onAuthError: (cause: unknown) => void;
+  /** WS-R31. Fed up so `StudioShell`'s Meet tab can name the interview's next
+   *  topic without a second fetch of the same preview. Additive: `undefined`
+   *  means "not looked yet" and `null` means "not offered on this
+   *  deployment", the same two-absence rule `preview`'s own state carries. */
+  onInterviewPreview?: (preview: InterviewPreview | null | undefined) => void;
 }) {
   const [state, dispatch] = useReducer(callReducer, INITIAL_CALL_STATE);
   const [tab, setTab] = useState<TabKey>("call");
@@ -201,6 +207,11 @@ export default function MirrorCallStudio({
     })();
     return () => { live = false; };
   }, [preview, replicaId, state.phase, token]);
+
+  // WS-R31. Fire and forget, same rule as every other fed-up callback in this
+  // file: a host that does not pass one is unaffected, and a call here never
+  // blocks the panel it reports on.
+  useEffect(() => { onInterviewPreview?.(preview); }, [onInterviewPreview, preview]);
 
   // The interview's own clock. One tick a second while an interview is live,
   // and nothing at all otherwise, so a calibration call does not re-render for

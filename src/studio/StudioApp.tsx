@@ -55,6 +55,10 @@ import MirrorCallStudio from "./MirrorCallStudio";
 import VideoEnrollPanel from "./VideoEnrollPanel";
 import ActivityPanel from "./ActivityPanel";
 import ReadinessPanel from "./ReadinessPanel";
+import type { Readiness } from "./readinessApi";
+import type { InterviewPreview } from "./mirrorCallApi";
+import type { OwnedRoom, RoomStats } from "./roomPublishApi";
+import StudioShell from "./StudioShell";
 import DriftWatchCard from "./DriftWatchCard";
 import {
   AdvancedArea,
@@ -141,6 +145,18 @@ const VOICE_IDENTITY_UI = voiceIdentityChallengeUiEnabled(import.meta.env.VITE_V
 // `replicas.length === 0`), matching the server's "or an account already
 // owning a replica" exemption exactly.
 const INVITES_REQUIRED_UI = import.meta.env.VITE_INVITES_REQUIRED === "1";
+
+// WS-R31. A presentation change, not a capability: every panel below the top
+// of the studio is the SAME component, reading the SAME data, gated by the
+// SAME blockers whether this is on or off. What flips is only which
+// navigation renders above them: the three-tab shell (`StudioShell.tsx`) or
+// the old wizard rail. UNSET = ON, unlike every other flag in this file,
+// because that default IS the workstream's whole point
+// (`docs/gurukul/ENV-MANIFEST.md` says why): a build that forgot to set it
+// should still ship the shorter path, and the one-line "All panels" link
+// inside the shell (never a rebuild) is the rollback if a real defect turns
+// up in production. Setting it to the literal string "0" is the only way off.
+const STUDIO_SHELL_UI = import.meta.env.VITE_STUDIO_SHELL !== "0";
 
 // The teacher mode seam. Read ONCE, at mount, from `?mode=teacher` — see
 // `readStudioMode()` below. Generic mode ("replica") is the untouched
@@ -612,7 +628,12 @@ function VoiceUnlockNotice({ replica }: { replica: Replica }) {
   );
 }
 
-function ReplicaWorkspace({
+// WS-R31. Exported so `StudioShell.tsx` (the Feed/Meet/Share collapse) can
+// mount the EXACT same panel tree the old wizard rail mounts, rather than a
+// second copy of ~700 lines of JSX that could drift from this one. This is a
+// pure addition of the `export` keyword: the function, its props and every
+// panel inside it are byte-identical to before.
+export function ReplicaWorkspace({
   replica,
   testEnvironment,
   mode,
@@ -660,6 +681,9 @@ function ReplicaWorkspace({
   compact,
   onActivityView,
   onActivityAct,
+  onReadiness,
+  onInterviewPreview,
+  onRoomState,
 }: {
   replica: Replica;
   testEnvironment: boolean;
@@ -736,6 +760,14 @@ function ReplicaWorkspace({
    *  "Look at the build" tap and anything like it). See `handleActivityAct`'s
    *  own comment for the dead-click defect this closes. */
   onActivityAct: (job: ActivityJob) => void;
+  // WS-R31. Three purely additive, fed-up reads: `StudioShell`'s tab
+  // headlines need Readiness's own number, the interview's next topic and
+  // the Room's own state, and every one of them is already computed inside a
+  // panel this tree already mounts. Optional so the untouched old rail view
+  // (which passes none of them) renders byte-identically to before.
+  onReadiness?: (readiness: Readiness) => void;
+  onInterviewPreview?: (preview: InterviewPreview | null | undefined) => void;
+  onRoomState?: (room: OwnedRoom | null, stats: RoomStats | null, blocker: { label: string; anchor: string; cls: "you" | "us" } | null) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
@@ -866,6 +898,7 @@ function ReplicaWorkspace({
             replicaId={replica.replica_id}
             onAuthError={onReviewAuthError}
             onGoStep={onGoStep}
+            onReadiness={onReadiness}
           />}
 
           {/* WS-R9. "It notices drift" — the Rooms plan's own line, and the
@@ -1020,6 +1053,7 @@ function ReplicaWorkspace({
                   replicaId={replica.replica_id}
                   stopped={stopped}
                   onAuthError={onReviewAuthError}
+                  onInterviewPreview={onInterviewPreview}
                 />
               </Band>
 
@@ -1249,6 +1283,7 @@ function ReplicaWorkspace({
                     onAuthError={onReviewAuthError}
                     onGoStep={onGoStep}
                     onStatusChange={onRoomPublished}
+                    onRoomState={onRoomState}
                   />
                 </Band>
               )}
@@ -1366,6 +1401,12 @@ export default function StudioApp() {
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  // WS-R31. Runtime-only, never persisted: the "All panels" link inside
+  // `StudioShell` sets this true; the old rail view's own link back sets it
+  // false. `STUDIO_SHELL_UI` decides whether the shell exists AT ALL for this
+  // build; this decides which view a signed-in person is looking at RIGHT
+  // NOW inside a build that has it.
+  const [showAllPanels, setShowAllPanels] = useState(false);
   // WS-R23 (086). `inviteConfirmed` gates CreateReplicaCard behind
   // InviteGate for a brand new account; `inviteCode` is what the eventual
   // create call sends. Neither is read at all unless INVITES_REQUIRED_UI is
@@ -2206,13 +2247,19 @@ export default function StudioApp() {
             question people ask again halfway down a long form. Different DOM
             rather than the same DOM hidden, so a phone does not carry a desktop
             rail it never shows. */}
+        {/* WS-R31. `StudioShell` carries its own tab bar (the collapse's
+            whole point), so the wizard rail and its phone twin render only
+            when the shell is off for this build, or when this person tapped
+            "All panels" to reach the full bench. The replica switcher stays
+            in both cases: switching workspace is orthogonal to which
+            navigation is on screen. */}
         {compact ? (
-          selected && !showCreate ? (
+          selected && !showCreate && !(STUDIO_SHELL_UI && !showAllPanels) ? (
             <CompactRail steps={wizard.steps} current={activeStep} onGo={goStep} />
           ) : null
         ) : (
         <div className="studio-rail">
-          {selected && !showCreate && (
+          {selected && !showCreate && !(STUDIO_SHELL_UI && !showAllPanels) && (
             <WizardRail steps={wizard.steps} current={activeStep} onGo={goStep} label={STUDIO_SELF_TEST_UI ? "Your test flow" : undefined} />
           )}
           <ReplicaList
@@ -2261,55 +2308,70 @@ export default function StudioApp() {
               <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
             )
           ) : selected && sheet ? (
-            <ReplicaWorkspace
-              replica={selected}
-              testEnvironment={STUDIO_SELF_TEST_UI}
-              mode={mode}
-              copy={copy}
-              step={activeStep}
-              wizard={wizard}
-              wizardInput={wizardInput}
-              onGoStep={goStep}
-              sheet={sheet}
-              sheetProvenance={sheetProvenance}
-              runtimeStatus={runtimeStatus}
-              onRuntimeStatus={setRuntimeStatus}
-              onRoomPublished={setRoomPublished}
-              onContextCount={setContextItemCount}
-              erasureStatus={erasureStatus}
-              consents={consents}
-              sources={sources}
-              enrollmentLoading={enrollmentLoading}
-              challenge={challenge}
-              livenessLoading={livenessLoading}
-              onGrantConsent={handleGrantConsent}
-              onRevokeConsent={handleRevokeConsent}
-              onCreateUpload={handleCreateUpload}
-              onRetryUpload={handleRetryUpload}
-              onFinalizeUpload={handleFinalizeUpload}
-              onDeleteSource={handleDeleteSource}
-              onIssueChallenge={handleIssueChallenge}
-              onStartFaceSession={handleStartFaceSession}
-              onPollFaceSession={handlePollFaceSession}
-              onCancelChallenge={handleCancelChallenge}
-              onCreateLivenessUpload={handleCreateLivenessUpload}
-              onFinalizeLiveness={handleFinalizeLiveness}
-              voiceChallenge={voiceChallenge}
-              onIssueVoiceChallenge={handleIssueVoiceChallenge}
-              onCancelVoiceChallenge={handleCancelVoiceChallenge}
-              onCreateVoiceIdentityUpload={handleCreateVoiceIdentityUpload}
-              onFinalizeVoiceIdentity={handleFinalizeVoiceIdentity}
-              onRefreshVoiceChallenge={handleRefreshVoiceChallenge}
-              onIdentityChanged={handleIdentityChanged}
-              onVerifiedConsentChanged={handleVerifiedConsentChanged}
-              onRevoke={handleRevoke}
-              revoking={revoking}
-              accessToken={session.accessToken}
-              onReviewAuthError={handleReviewAuthError}
-              compact={compact}
-              onActivityView={handleActivityView}
-              onActivityAct={handleActivityAct}
-            />
+            <>
+              {/* WS-R31. The one-line way back, symmetric with the shell's
+                  own "All panels" link: visible only when this build HAS a
+                  shell to return to and this person explicitly left it. */}
+              {STUDIO_SHELL_UI && showAllPanels && (
+                <button type="button" className="text-button studio-back-to-shell-link" onClick={() => setShowAllPanels(false)}>
+                  Back to Feed / Meet / Share
+                </button>
+              )}
+              {(() => {
+                const workspaceProps = {
+                  replica: selected,
+                  testEnvironment: STUDIO_SELF_TEST_UI,
+                  mode,
+                  copy,
+                  step: activeStep,
+                  wizard,
+                  wizardInput,
+                  onGoStep: goStep,
+                  sheet,
+                  sheetProvenance,
+                  runtimeStatus,
+                  onRuntimeStatus: setRuntimeStatus,
+                  onRoomPublished: setRoomPublished,
+                  onContextCount: setContextItemCount,
+                  erasureStatus,
+                  consents,
+                  sources,
+                  enrollmentLoading,
+                  challenge,
+                  livenessLoading,
+                  onGrantConsent: handleGrantConsent,
+                  onRevokeConsent: handleRevokeConsent,
+                  onCreateUpload: handleCreateUpload,
+                  onRetryUpload: handleRetryUpload,
+                  onFinalizeUpload: handleFinalizeUpload,
+                  onDeleteSource: handleDeleteSource,
+                  onIssueChallenge: handleIssueChallenge,
+                  onStartFaceSession: handleStartFaceSession,
+                  onPollFaceSession: handlePollFaceSession,
+                  onCancelChallenge: handleCancelChallenge,
+                  onCreateLivenessUpload: handleCreateLivenessUpload,
+                  onFinalizeLiveness: handleFinalizeLiveness,
+                  voiceChallenge,
+                  onIssueVoiceChallenge: handleIssueVoiceChallenge,
+                  onCancelVoiceChallenge: handleCancelVoiceChallenge,
+                  onCreateVoiceIdentityUpload: handleCreateVoiceIdentityUpload,
+                  onFinalizeVoiceIdentity: handleFinalizeVoiceIdentity,
+                  onRefreshVoiceChallenge: handleRefreshVoiceChallenge,
+                  onIdentityChanged: handleIdentityChanged,
+                  onVerifiedConsentChanged: handleVerifiedConsentChanged,
+                  onRevoke: handleRevoke,
+                  revoking,
+                  accessToken: session.accessToken,
+                  onReviewAuthError: handleReviewAuthError,
+                  compact,
+                  onActivityView: handleActivityView,
+                  onActivityAct: handleActivityAct,
+                } as const;
+                return STUDIO_SHELL_UI && !showAllPanels
+                  ? <StudioShell {...workspaceProps} onShowAllPanels={() => setShowAllPanels(true)} />
+                  : <ReplicaWorkspace {...workspaceProps} />;
+              })()}
+            </>
           ) : null}
 
           {/* The workspace switcher, on a phone, lives at the FOOT of the page

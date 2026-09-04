@@ -7329,3 +7329,41 @@ file - search for the CALL SITE's surrounding syntax (the assignment, the
 argument list it is passed inside, or enough of the statement around it)
 instead, and verify by reading the file rather than trusting the search
 string looks unambiguous.
+
+## `ws-r31-a-bare-string-literal-is-invisible-to-check-copy` (2026-09-04, WS-R31)
+
+**What was tried.** `evals/studio-shell/run.mjs`'s negative control (c) - "a
+string with 'train'/'model' fails `scripts/check-copy.mjs`" - was first
+written as `scanSource("src/studio/StudioShell.tsx", 'const s = "we will
+train your model this week";', { rules: "full", codename: true, roomsVocab:
+true })`, expecting a non-empty result.
+
+**What broke.** Zero hits. The control PASSED against a string it should
+have failed against, which is a worse outcome than a control that fails
+loudly: a negative control that cannot fail is not a control
+(`rejected.md#a-negative-control-must-run-through-the-same-detector-the-
+main-battery-uses` names the same shape one file over). Reading
+`scanSource`'s own PASS 2, `isVisibleLiteral()` refuses to treat a bare
+`const s = "..."` as copy at all unless the file itself is a dedicated copy
+file (`COPY_FILES`, matching `errorCopy|copy|strings|messages|labels\.tsx?$`)
+or the literal is immediately preceded by a recognised key - `label:`,
+`title:`, `placeholder:`, `heading:`, and about a dozen others
+(`VISIBLE_KEY`) - the same way a real offence in this codebase is always
+found sitting in a JSX attribute or an object literal a component actually
+renders, never a bare local variable a scanner cannot tell from an internal
+identifier string.
+
+**Fix.** Wrote the fixture as `const label = "we will train your model this
+week";` instead - the shape `scanSource` is built to recognise as visible
+copy, matching how every real string this workstream's own files write
+(`TAB_PROMISE`'s entries, `PrimaryControl.label`) is actually shaped. The
+control now fails before the fix (a bare `const s = ...` fixture) and passes
+after (a `const label = ...` fixture), both confirmed by running it.
+
+**Rule.** A `check-copy.mjs` negative control has to hand the scanner a
+string in a shape its own visibility heuristic recognises as copy, not
+merely a string containing a banned word. Before trusting a "this string
+should be caught" fixture, run it and confirm zero hits does NOT mean "no
+banned words were used" - it can mean "the scanner never looked at this
+string at all," which is the exact quiet-false-pass shape every negative
+control in this repo exists to rule out.

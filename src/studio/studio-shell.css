@@ -1,0 +1,161 @@
+/* studio-shell.css — WS-R31. The three-tab collapse.
+ *
+ * Tokens only (`design/tokens.css`), the existing palette (`studio.css`'s
+ * `@layer tokens` block: paper, ink, forest, danger), and the four-state
+ * vocabulary tokens.css already ships (`--state-done/-waiting/-running/-stopped`)
+ * so a "waiting on you" tab reads in the SAME colour as everywhere else in
+ * this product that means the same thing, never a new palette invented here.
+ *
+ * CONTAINER-DRIVEN, NOT VIEWPORT-DRIVEN (`context/rejected.md#viewport-media-
+ * queries-cannot-see-a-narrow-container`). The tab bar sits inside
+ * `.studio-main`, which is narrower than the viewport once the replica rail
+ * is showing, so `repeat(auto-fit, minmax(min(100%, Npx), 1fr))` asks the
+ * container rather than a breakpoint that would be wrong the moment the rail
+ * is hidden.
+ *
+ * MOTION (DESIGN-LAW §2). Press feedback on `:active`, transform only, capped
+ * by the shared `--motion-*` tokens; `prefers-reduced-motion` is honoured by
+ * tokens.css's own root override, so nothing here needs a second query.
+ */
+@layer components {
+  .studio-tabshell {
+    display: grid;
+    gap: var(--space-block);
+  }
+
+  .studio-tabbar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: var(--space-tight);
+  }
+
+  .studio-tab {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto auto;
+    column-gap: var(--space-hair);
+    align-items: center;
+    text-align: left;
+    padding: var(--space-item) var(--space-block);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+    cursor: pointer;
+    transition: transform var(--motion-instant) var(--ease-standard),
+      border-color var(--motion-quick) var(--ease-standard),
+      background var(--motion-quick) var(--ease-standard);
+  }
+  .studio-tab:active { transform: scale(0.98); }
+  .studio-tab.current {
+    border-color: var(--forest);
+    background: var(--forest-soft);
+    box-shadow: 0 0 0 var(--hairline) var(--forest) inset;
+  }
+
+  .studio-tab-title {
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    color: var(--ink);
+  }
+
+  /* The word IS the state (DESIGN-SYSTEM §5 rule 2: never a bare colour), so
+   * this dot is decorative reinforcement only and carries `aria-hidden`. */
+  .studio-tab-dot {
+    justify-self: end;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .studio-tab-empty .studio-tab-dot { background: var(--ink-faint); }
+  .studio-tab-working .studio-tab-dot { background: var(--state-running); }
+  .studio-tab-blocked_you .studio-tab-dot { background: var(--state-waiting); }
+  .studio-tab-blocked_us .studio-tab-dot { background: var(--state-running); }
+  .studio-tab-clear .studio-tab-dot { background: var(--state-done); }
+
+  .studio-tab-sentence {
+    grid-column: 1 / -1;
+    margin-top: var(--space-hair);
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    line-height: var(--leading-snug);
+  }
+
+  .studio-shell-headline {
+    display: grid;
+    gap: var(--space-hair);
+    padding: var(--space-panel);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--paper);
+  }
+  .studio-shell-promise {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+  }
+  /* The sentence stays `--ink` regardless of state: the tab dot and the
+   * primary control's own colour already carry the "you"/"us" distinction
+   * (DESIGN-SYSTEM §5 rule 2, the word is the state, colour is reinforcement
+   * only), and `--state-waiting` measures 4.37:1 on `--paper` at this text's
+   * size - under the 4.5:1 DESIGN-LAW §3 requires for normal-weight body
+   * text, so it is never the ONLY way this sentence's meaning is carried. */
+  .studio-shell-sentence {
+    margin: var(--space-hair) 0 var(--space-item);
+    color: var(--ink);
+    font-size: var(--text-lead);
+    line-height: var(--leading-snug);
+  }
+
+  .studio-shell-primary { justify-self: start; }
+  /* "you" keeps the product's ordinary primary-button treatment (already
+   * the accent colour, DESIGN-LAW §3's ONE accent); "us" is disabled-looking
+   * on purpose, matching `BlockerNotice`'s own rule that a platform-owned
+   * step never invites a tap that does nothing. */
+  .studio-shell-primary-us {
+    background: var(--state-running-soft);
+    color: var(--state-running);
+    border: var(--hairline) solid var(--state-running);
+  }
+
+  .studio-shell-locked { margin-top: var(--space-item); }
+  .studio-shell-locked summary {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-item);
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+  .studio-shell-locked-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: var(--space-block);
+    margin-top: var(--space-item);
+  }
+  .studio-shell-locked-owner {
+    margin: 0 0 var(--space-hair);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .studio-shell-locked ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-row); }
+  .studio-shell-locked li { display: grid; gap: 2px; }
+  .studio-shell-locked li span { color: var(--ink); font-size: var(--text-small); }
+  .studio-shell-locked li small { color: var(--ink-soft); font-size: var(--text-micro); }
+
+  /* `.text-button`'s own default colour (`--forest`) already clears WCAG AA;
+   * these two only need width and size overridden, never colour - a link
+   * styled with `--ink-faint` measured 3.67:1 on paper, under the 4.5:1
+   * DESIGN-LAW §3 requires, and is why this rule now overrides less than it
+   * did (`context/measurements.md#ws-r31-gate-results-2026-09-04`). */
+  .studio-all-panels-link,
+  .studio-back-to-shell-link {
+    width: auto;
+    justify-self: start;
+    font-size: var(--text-small);
+  }
+}

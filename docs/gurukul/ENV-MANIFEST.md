@@ -988,3 +988,43 @@ owner-gated: model keys on the studio Vercel project (its chat API answers
 completion call underneath the Room, the Mirror Call, and every channel, and
 without it none of them can produce a reply at all, regardless of how many
 Rooms-specific vars above are set correctly.
+
+## 26. The studio collapsed to Feed/Meet/Share (`vercel-app`, WS-R31, 2026-09-04)
+
+`src/studio/StudioShell.tsx` (`web build`), read at `src/studio/StudioApp.tsx`.
+**One new build-time flag, a presentation switch only** — every panel it
+fronts (`ReplicaWorkspace`, unchanged) is the same component reading the same
+data behind the same blockers whether this is on or off; nothing here is a
+new capability, a new gate, or a new SQL statement.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VITE_STUDIO_SHELL` | `src/studio/StudioApp.tsx` (`STUDIO_SHELL_UI`) | optional (switch) | **UNSET = ON**, the one flag in this file with that default; only the exact string `"0"` turns it off | unset or any value other than `"0"`: a signed-in creator sees the three-tab shell (Feed / Meet / Share) as the default view, with a plain "All panels" link one tap away to the old wizard rail (`StudioShell.tsx`'s own `onShowAllPanels`, a runtime view toggle, not a rebuild). Set to `"0"`: the studio renders exactly as it did before this workstream, and the shell component is never mounted. This is a Vite build-time env var (baked into the bundle by `npx vite build`, same caveat §25's `VITE_VOICE_IDENTITY_CHALLENGE` row already names): flipping it on Vercel needs a rebuild to take effect |
+
+**Why unset = on, against this file's own pattern of every other flag
+defaulting off.** Every prior flag in this manifest gates a NEW capability
+this codebase had not earned trust in yet (a spoken identity challenge, an
+invite wall) — defaulting off is the safe direction for something that might
+not work. This flag gates a REARRANGEMENT of capabilities that already exist
+and are already gated exactly as they were (`context/decisions.md#ws-r31-studio-shell-unset-is-on`):
+the whole point of WS-R31 is that a creator reaches the same panels sooner,
+so a deploy that forgot to set this var should still ship the shorter path,
+not silently keep the longer one. The rollback lever is the in-page "All
+panels" link, not this var — the var exists only so a real production defect
+in the shell can be switched off without a person's browser cache serving a
+stale bundle in between.
+
+**Where the shell gets its three headline reads**, none of them a new
+fetch: `src/studio/ReplicaWorkspace` (exported for the first time this
+workstream, unchanged otherwise) now accepts three additive, optional
+callback props — `onReadiness`, `onInterviewPreview`, `onRoomState` — wired
+to `ReadinessPanel`, `MirrorCallStudio` and `RoomStudio` respectively, each
+already computing the exact fact the shell needs on the exact read it was
+already making. `RoomStudio.tsx` and `MirrorCallStudio.tsx` gained the same
+kind of additive prop; no existing caller of either is affected, since both
+default to `undefined` and are called with the optional-chaining operator
+they were both already written with (`onStatusChange?.(...)`'s own pattern).
+
+**No new SQL. No new server-side env var.** Everything this workstream
+touches is `src/studio/`, `scripts/check-layout.mjs` (a new named layout
+target, `studio:shell`) and `evals/studio-shell/` (a new offline gate).

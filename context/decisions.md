@@ -10000,3 +10000,91 @@ tighter than their documented backoff), the fix is to make the rate gate's
 refusal here a 200 with a `handled:false` marker instead - matching the
 processing-failure posture - and this entry should gain a `supersedes`
 edge rather than being edited in place.
+
+## `ws-r31-tabs-are-a-new-presentation-over-the-same-panel-tree-not-a-fork` (2026-09-04, WS-R31)
+
+**Decision.** `StudioShell.tsx` does not re-mount, fork, or re-implement any
+existing studio panel. `src/studio/StudioApp.tsx`'s `ReplicaWorkspace`
+(everything from the step head down through every band, gate and the danger
+zone) was exported for the first time by this workstream and is otherwise
+byte-identical; the shell renders the SAME function with the SAME `step`
+prop the old wizard rail already drove, mapping its three tab ids onto the
+wizard's existing `"feed"` / `"meet"` / `"deploy"` step ids
+(`studioShellModel.ts`'s `TAB_STEP`, `"share"` -> `"deploy"`). What the shell
+replaces is only the NAVIGATION above that tree (the wizard rail / compact
+rail), plus a new headline block computed from real reads.
+
+**Rationale.** The workstream's own law 1 is "nothing is deleted, no gate
+moves, every panel keeps its component, its API and its blocker semantics."
+A parallel render tree inside `StudioShell.tsx` that re-mounted the same
+panels a second time was considered and rejected before being built: it is a
+second place for the same mount list to drift from the old rail's (the exact
+failure shape `rejected.md#a-panel-hardcoding-its-own-blocker-class-will-
+drift-from-the-rail` names one layer over), it would double the panels'
+fetch effects if both views could ever be visible at once, and it would mean
+auditing two JSX trees for every future panel change instead of one. Reusing
+`ReplicaWorkspace` verbatim makes "no gate moves" true by construction: there
+is only one render tree, so a step's blocker logic cannot diverge between
+the shell and the old rail because there is no second copy of it to diverge.
+
+**Reversal condition.** If a future redesign genuinely needs the three tabs
+to show DIFFERENT content per tab than the wizard's existing three steps
+(not merely a different top), the fix is to change what `ReplicaWorkspace`
+renders per `step` (which both the shell and the old rail already read from
+the one place), never to fork a second tree inside `StudioShell.tsx`.
+
+## `ws-r31-studio-shell-unset-is-on` (2026-09-04, WS-R31)
+
+**Decision.** `VITE_STUDIO_SHELL` defaults to ON (unset, or any value other
+than the exact string `"0"`, renders the three-tab shell); every other
+feature flag in this repo defaults OFF. The rollback lever is a one-tap
+runtime link inside the shell ("All panels"), not the env var.
+
+**Rationale.** Every other flag in `docs/gurukul/ENV-MANIFEST.md` gates a
+capability this codebase had not yet earned trust in (a spoken identity
+challenge with no different-speaker control, an invite wall). This flag
+gates a REARRANGEMENT of capabilities that already exist and are already
+gated exactly as before (`ws-r31-tabs-are-a-new-presentation-over-the-same-
+panel-tree-not-a-fork` above): the workstream's whole premise is that a
+creator reaches Readiness and the publish switch sooner, and a deploy that
+forgot to set an opt-in flag would silently keep the LONGER path, defeating
+the point of building it. The escape hatch was deliberately built as a
+runtime, in-page link rather than only an env var: a real defect discovered
+in production needs a person to be able to leave the shell without waiting
+for a redeploy, which `showAllPanels` (a plain `useState` in `StudioApp.tsx`)
+provides regardless of which way the build-time flag is set.
+
+**Reversal condition.** If a measured defect in the shell (a broken headline
+computation, a tab that hides a required gate) reaches production before it
+can be fixed forward, set `VITE_STUDIO_SHELL=0` on the Vercel project and
+redeploy; this reverts every signed-in creator to the pre-WS-R31 wizard rail
+with no other code change required, since `ReplicaWorkspace` never changed.
+
+## `ws-r31-primary-control-routes-through-wizards-top-not-a-second-blocker-meta-lookup` (2026-09-04, WS-R31)
+
+**Decision.** Each tab's single primary control is built from
+`wizard.steps[i].top` (`wizardModel.ts`'s `computeWizard()`, the exact "next
+thing" the rail already names) rather than from a second lookup against
+`QuickStartPath.tsx`'s `BLOCKER_META` keyed on raw `runtime.blockers` codes.
+`BLOCKER_META` is imported (never copied) and used directly for one thing
+`top` does not carry: the Meet tab's "still locked, and who it is waiting
+on" breakdown list, re-homed from the retired `QuickStartPath` screen.
+
+**Rationale.** `wizardModel.ts`'s own header states its blocker vocabulary is
+"inherited verbatim" from `QuickStartPath.tsx` — so `top` and a fresh
+`BLOCKER_META` lookup would compute the SAME fact from the SAME source,
+which is exactly the "second decision point" shape
+`rejected.md#a-panel-hardcoding-its-own-blocker-class-will-drift-from-the-
+rail` already names as a defect: two places computing one fact will disagree
+on exactly the input nobody tested first. Routing the primary control
+through `top` also means it is provably correct today, for free — `top` is
+already covered by `evals/studiowizard.mjs`'s own property suite over the
+whole input space, where a second lookup built fresh for this workstream
+would only be covered by `evals/studio-shell/run.mjs`'s handful of fixtures.
+
+**Reversal condition.** If a future gate needs a primary control for a
+blocker code that never reaches `wizard.steps[i].top` (one `computeWizard()`
+does not surface on any step, if such a code is ever added), that is the
+moment to add a direct `BLOCKER_META` lookup for that ONE code — not to
+replace `top` as the general mechanism, which every fixture in
+`evals/studio-shell/run.mjs`'s property tests continues to hold correct.

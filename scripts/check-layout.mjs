@@ -130,6 +130,26 @@ const TARGETS = [
     panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
     minPanels: 2,
   },
+  // WS-R31: the same fixture, now measuring the NEW top of the studio rather
+  // than the panels underneath it. `studio` above already exercises this
+  // page (the shell is `VITE_STUDIO_SHELL` unset = on, so it is what
+  // `studio-layout-fixture.html` renders by default), but its own selectors
+  // (`.wizard-band` and friends) match the OLD rail's panel tree and would
+  // stay green even if the tab bar or the headline sentence collapsed to a
+  // sliver. This target's selectors are scoped to the shell's own elements
+  // so a narrow tab, a truncated headline sentence or a low-contrast primary
+  // control fails here specifically, on all three tabs at every viewport
+  // this gate already covers (390 / 834 / 1355 - the shared `VIEWPORTS`
+  // array every target in this file uses).
+  {
+    name: "studio:shell",
+    fixture: "studio-layout-fixture.html",
+    query: (step) => `mode=teacher&step=${step}`,
+    steps: ["feed", "meet", "deploy"],
+    mounted: ".studio-tabshell",
+    panels: ".studio-tabbar, .studio-shell-headline, .studio-tab",
+    minPanels: 2,
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",
