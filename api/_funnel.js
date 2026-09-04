@@ -376,6 +376,9 @@ export async function creatorInviteArrivalsThisWeek(db, now = Date.now()) {
     n: belowFloor ? null : n,
     below_floor: belowFloor,
     note: creatorInviteArrivalNote(n),
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // WS-R48 (Suites sell themselves, migration 107). Two platform-wide lines
 // for the ops board's own self-serve section: how many Suites started, and
