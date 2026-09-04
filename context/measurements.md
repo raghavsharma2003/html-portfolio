@@ -9281,3 +9281,77 @@ n = 1 migration (4 statements in one transaction, plus 2 indexes added at the me
 | `suitesFunnelThisWeek`: Suites started; seats attached | Seq Scan on `vy_org (created_at)` and on `vy_room (org_attached_at)` as written, neither column indexed; `vy_org_created_ix` and the partial `vy_room_org_attached_ix` were added to 107 and the schema mirror and applied live at the merge (the planner still declines them at zero rows, which is the expected choice for an empty table) |
 
 Not measured: no Suite has been started through the page, no application carries `intent = 'suite'`, nobody has seen `/suites` in a browser; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r41-provider-contract-marks-2026-09-04`
+
+n = every `NOT VERIFIED`/`UNPROVEN`/`unverified` mark found by
+`grep -rn "NOT VERIFIED\|not verified\|UNPROVEN\|unverified" api/ src/ docs/gurukul/ENV-MANIFEST.md`
+on the untouched tree at e7b6a6d, filtered by hand to the ones this
+workstream's brief scopes (provider-contract claims about Razorpay,
+RazorpayX, WhatsApp Cloud API, Telegram Bot API and RFC 8291/8292 — the
+grep's other ~60 hits are the unrelated `age_tier` enum value `"unverified"`
+and the mirror-call/voice-conditioning `unverified` states, out of scope
+and untouched); method = one `WebFetch` per mark against the provider's own
+document (`razorpay.com/docs`, `developers.facebook.com/docs/whatsapp`,
+`developers.facebook.com/docs/graph-api/webhooks`, `core.telegram.org/bots
+/api` and its changelog, `datatracker.ietf.org/doc/html/rfc8291`), cross-
+checked against a second independent fetch wherever the first result looked
+surprising; date 2026-09-04.
+
+**Found: 6** marks in scope (file:line on the untouched tree):
+`api/whatsapp.js:1-10` (header, covering `verify`/`parse`/`send`),
+`api/whatsapp.js:370` (`bindWhatsappClone`), `api/tg.js:40-58` (header,
+covering every `send()` path), `api/tg.js:415` (`bindTelegramClone`),
+`api/_payments/providers/razorpay.js:139` (`updateSubscriptionQuantity`),
+`api/_payments/providers/razorpay.js:195` (`registerFundAccount`),
+`api/_payments/providers/razorpay.js:220` (`sendPayout`) — 7 marks by file:
+line count; the RFC 8291 Appendix A reproduction (workstream law 2) is an
+eighth item with no pre-existing mark of its own (it was a BUILD
+instruction, not a flip-this-mark instruction).
+
+**Verified (flipped to a cited, matching document): 2.** WhatsApp's header
+(GET handshake, `X-Hub-Signature-256` HMAC scheme, text/reaction body
+shapes, 24-hour window — 4 independent doc pages, all matching). Telegram's
+header, partially (the `bot<token>/METHOD` call shape, the
+`{ok,result,description}` envelope, and the webhook secret_token header/
+charset all matched; `setMessageReaction`'s own shape stays open, counted
+below).
+
+**Fixed (the document disagreed with the code, so the code changed): 3.**
+Telegram's `reply_to_message_id` → `reply_parameters:{message_id}` (Bot API
+7.0 changelog). Web Push's `decryptPayload` `rs` check, exact-match →
+ceiling (RFC 8291 §4's own MUST, reproduced byte-for-byte in
+`evals/room-push/run.mjs` §7 against Appendix A's published vector).
+Razorpay's `sendPayout` `reference_id`, unbounded → `.slice(0, 40)` (the
+doc's own "max 40 characters").
+
+**Partially verified (some fields confirmed, the operation-level page
+unreachable): 2.** `registerFundAccount` (response shape confirmed: `id`,
+`contact_id`, `account_type`, `active`; the `GET` method/path stays
+convention). `sendPayout` (request fields/enum values confirmed: `mode`
+IMPS, `purpose` "payout", `amount` in paise, `fund_account_id`,
+`reference_id`; the `POST` method/path and the request field name
+`account_number` stay convention — only the response field
+`debit_account_number` was ever confirmed for that concept).
+
+**Still open, precisely (no document could settle it, or this session's
+fetch tool could not reach the page): 4.** `bindWhatsappClone` and
+`bindTelegramClone` (this platform's own channel-secret operational state —
+no document Meta or Telegram publishes speaks to it; see
+`context/decisions.md`'s two WS-R41 entries for the human action that
+would). `setMessageReaction`'s body shape (Telegram's single giant
+reference page truncated before "Available methods" in every fetch
+attempted). `updateSubscriptionQuantity`'s PATCH method/path/body
+(razorpay.com's docs site would not resolve any guessed operation-page URL
+past its own "Plans Entity" schema page — see
+`context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-
+tool-two-ways` for every URL tried).
+
+**Not measured / not proven.** No live provider account of any kind exists
+in this environment (unchanged from every prior wave); nothing here made an
+authenticated or paid call. `evals/mp/tgbot.mjs`'s own updated assertion
+(matching the `reply_parameters` fix) needs a live Postgres (`NEON_URL`)
+this session does not have and was not run. The two `bindXClone` functions'
+own operational claims remain exactly as unproven as before this
+workstream — only their COMMENTS changed, to say precisely why no document
+can prove them.
