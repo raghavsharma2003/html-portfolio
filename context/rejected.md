@@ -7576,3 +7576,50 @@ including experimentally, including for a few seconds - the WIP-commit +
 HEAD~1` (to keep working) round trip this same session used correctly
 elsewhere in it is the only sanctioned way to set work aside, and it has no
 shared-state window at all.
+
+## `ws-r35-pulse-combo-sql-factored-through-a-helper-evaded-the-leak-batterys-static-scan` (2026-09-04, WS-R35)
+
+**What was tried.** A first draft of `comboFollowerCount`/`publishCombo`
+(`api/_pulse.js`) factored their shared "person matches every label in this
+array" SQL fragment into one small helper function, `matchesAllLabelsSql`,
+returning its own template-literal string, interpolated into each caller's
+own `db(\`...\`)` call via `${matchesAllLabelsSql(...)}` - ordinary DRY,
+and the kind of extraction this file's OWN comments elsewhere praise
+(`api/_room-surface.js`'s "one hand-written ownership check" argument).
+
+**What broke.** `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser (§1c) is a
+STATIC TEXT scan of this file's own source: it finds every backtick-
+delimited template literal containing the literal substring
+`vy_room_thread`/`vy_room_follower`, and grades THAT literal's own outer
+select list. Factoring the fragment into a helper broke this two different
+ways in the SAME change: the helper's own tiny literal (`select 1 from
+vy_room_thread ...`) was found and graded ON ITS OWN — a non-aggregate outer
+select ("1") — and failed outright; and, more dangerously, the CALLER's
+literal, having interpolated the helper's RETURN VALUE via `${...}` rather
+than containing the words `vy_room_thread` as source text, was no longer
+recognised as touching that table AT ALL and silently escaped the scan -
+the opposite of "aggregate-only," a statement the battery never even
+looked at. Caught by hand-running the parser's own regex against the file
+as a standalone script BEFORE the eval suite did (a five-line reproduction:
+extract every `` `[^\`]*vy_room_(?:follower|thread)[^\`]*` `` match, check
+its first select-to-from span is aggregate-only and person-free) — the
+same technique this session then kept as `evals/pulse/run.mjs`'s own
+negative control (vii), so the next session does not need to rediscover
+this failure mode by hand a second time.
+
+**Fix.** Every statement touching `vy_room_thread` (`comboFollowerCount`,
+and TWICE inside `publishCombo` - the candidate's own population and the
+pairwise-safety subquery) writes the full "matches every label" clause out
+inline, longhand, three times, rather than sharing it through a function.
+Verbosity traded for correctness: a parser that only understands literal
+source text cannot be satisfied by a factoring that hides the text it is
+looking for.
+
+**Generalises to.** Any future SQL-building helper in an AGGREGATE_ONLY file
+that would move `vy_room_thread`/`vy_room_follower` text out of the
+CALLING function's own template literal. The rule is not "avoid helper
+functions" - it is "never let a helper function be the only place the
+watched table name appears in source text." A helper that builds a WHERE
+fragment for a table OUTSIDE the leak battery's watch (e.g. this same file's
+`vy_room_pulse_topic`/`vy_room_pulse_optin`-only statements) has no such
+restriction.

@@ -8275,3 +8275,76 @@ n = 1 migration (3 statements in one transaction), 10 API statements; method = a
 | the price read for the offer card; `roomForget`'s delete | `vy_room_price_room_ix`; Bitmap on `vy_room_upgrade_offer_room_shown_ix` with person filtered |
 
 Not measured: no offer row exists; no follower has seen the offer card or the "Continue free" and "Subscribe" controls; the Phase gate card shows `not_enough_data` on every number until twenty followers and three creators exist, which is the honest state today.
+
+## `ws-r35-pulse-offline-eval-2026-09-04`
+
+n = 51 assertions (19 pre-existing v0 assertions, unchanged and still
+passing, plus 32 new WS-R35 assertions), `node evals/pulse/run.mjs`,
+offline/deterministic/$0/no DB/no network/no GPU, 2026-09-04. Method:
+`api/_pulse.js`'s real `comboFollowerCount`/`computeComboSnapshot`/
+`weeklyNote`/`setTopics` driven through `evals/pulse/fixtures.mjs`'s fake
+`db` (extended this session with two new in-memory tables,
+`state.pulseWeeks`/`state.pulseCombos`, and a `personsMatchingLabelSet`
+helper mirroring the real SQL's "for every label, some actively opted-in
+thread matches" predicate exactly), plus `evals/room-surface.js`'s real
+`joinRoom`/`createThread`/`setOptIn`/`revoke` for real follower worlds.
+(i) the intersection boundary: overlap=0 (two disjoint 5-follower labels)
+admits both singles and correctly never clears the pair's own floor;
+overlap=1 (the plan's own "visas"/"divorce" shape, one shared person)
+refuses BOTH singles, 3 of 3 candidates suppressed; overlap=5 (identical
+5-person populations) admits both singles AND the pair, suppressed=0. (ii)
+label bounds: 15 offered labels keep exactly `PULSE_MAX_LABELS`(12); a
+1-character label is dropped, a 2-character label is kept, a 40-character
+label truncates to `PULSE_LABEL_MAX_LEN`(32). (iii) renaming a label
+between two weeks leaves the FIRST week's stored `labels` text unchanged.
+(iv) revoking one follower's opt-in leaves week 1's already-published row
+untouched while week 2 (computed after the revocation) drops below the
+floor. (v) the weekly note: all 3 closed-list action codes produce distinct
+real sentences, an unrecognised code falls back to the default rather than
+throwing, a sub-floor row is silently excluded rather than printed, and two
+structurally-distinct-but-value-identical row arrays produce a
+byte-identical note. (vi) STATIC: the real source's two new INSERT column
+lists (`vy_room_pulse_combo`, `vy_room_pulse_week`) contain only their
+content-free columns, mirroring v0's own test (f) one migration later.
+(vii) NEGATIVE CONTROL: `evals/room-leak/run.mjs`'s own §1c
+AGGREGATE_ONLY algorithm, copied inline (that file is a script, never
+imported), passes the real min/count-wrapped shape and correctly REFUSES
+the same statement with a bare `person_id` or `thread_id` column added to
+its select list - the detector proven to fire, not just to stay silent
+(`sound-gate-proved-by-silence`).
+
+Also run standalone, before the eval suite, as a five-line reproduction of
+`evals/room-leak/run.mjs`'s own §1c regex against the real
+`api/_pulse.js` source: 3 statements found touching `vy_room_thread`
+(`topicFollowerCount` unchanged from v0, plus the two new v1 statements),
+0 offenders - this is what caught and fixed
+`context/rejected.md#ws-r35-pulse-combo-sql-factored-through-a-helper-
+evaded-the-leak-batterys-static-scan` before the real battery ran.
+
+`node evals/room-leak/run.mjs`: 78/78 unchanged (16,096 retrieval checks,
+452 boundary checks; `_pulse.js` still in the AGGREGATE_ONLY set by name,
+now proving out 3 statements instead of 1). `node scripts/check-copy.mjs`:
+6 scopes clean, 21 negative controls, unchanged. `node --check` run on
+every `api/` file this workstream touched (`api/_pulse.js`,
+`api/_replica-full-erasure.js`) - the second one caught a real syntax error
+this session introduced and fixed in the same turn: a markdown-style
+backtick pair (`` `on delete cascade` ``) written inside a `--` SQL comment
+that itself lives inside that file's giant JS template literal, terminating
+the string early. This is the SAME recurring mistake `context/rejected.md`
+already names twice (`ws-r1-backtick-inside-a-sql-comment-inside-a-js-
+template-literal`, `ws-r2-sql-comment-backticks-terminate-the-template-
+literal`) and WS-R28's own session log records hitting a third time - a
+fourth occurrence, not logged again as its own entry since the lesson is
+already written down twice over; caught by this workstream's own
+`node --check api/_replica-full-erasure.js` before any eval ran, fixed by
+writing "ON DELETE CASCADE" in plain caps instead.
+
+## `ws-r35-gate-2026-09-04`
+
+`node scripts/verify-release.mjs`: **16/16 on the untouched tree**
+(confirmed first, before any file in this workstream was written) and
+**16/16 after** every file in this report was written, both without
+`NEON_URL`. `npx tsc --noEmit -p .`: clean. Not measured with `--live`:
+no deployed URL exists for this branch, and no `NEON_URL` was available in
+this environment for the two relational DB gates (`relcheck`, citation
+discipline) - both skipped with a printed notice, as documented.
