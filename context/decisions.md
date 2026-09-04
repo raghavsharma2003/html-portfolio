@@ -12727,3 +12727,86 @@ via the Subscribed Apps API and Meta refuses, rejects, or silently drops
 one — supersede this entry and `ws-r29-whatsapp-credentials-reused-not-
 forked`'s open paragraph with what actually happened, and fall back to
 option (b) or (c) from the original decision.
+
+## `ws-r56-payout-webhook-where-spans-queued-and-sent` (2026-09-04, WS-R56)
+
+**Decision.** `api/_payments.js`'s new `applyPayoutWebhook` (migration 111)
+treats BOTH `queued` and `sent` as valid leaving states for a `processed`
+event (-> `settled`) and for a `failed`/`reversed` event (-> `failed`) - one
+UPDATE per outcome, WHERE `state in ('queued','sent')` - rather than the
+single-state WHERE `markPayoutSent`/`markPayoutSettled` (WS-R36) each use.
+
+**Rationale.** `markPayoutSent` (`queued -> sent`) has had no caller
+anywhere in this tree since WS-R36 built it, and this workstream's own
+brief does not add one (`parsePayoutEvent`'s `kind` enum is fixed to
+`'processed'|'failed'|'reversed'`, no fourth "processing"/"initiated" kind
+in scope). A real deployment's payout will therefore sit at `queued` for
+its entire life until a status webhook arrives - a strict `sent ->
+settled`/`sent -> failed` WHERE (the literal shape this workstream's own
+brief law 2 names as its worked example) would silently no-op on EVERY real
+`processed` event, because the row would never have reached `sent` first.
+Spanning both states in the WHERE keeps `markPayoutSent`/`markPayoutSettled`
+themselves byte-unchanged (available to whatever future poll or
+`payout.processing`-shaped event would want to call them) while making the
+two states the creator's own statement actually needs (`settled`, `failed`)
+reachable from the state a real payout is actually left sitting in today.
+
+**Reversal condition.** If a future workstream wires a caller for
+`markPayoutSent` (a `payout.processing`/`payout.initiated` webhook kind, or
+a poll), narrow `applyPayoutWebhook`'s own WHERE back to `state = 'sent'`
+only for both outcomes, matching the state machine's documented shape
+exactly (`db/migrations/098`'s own header) rather than the wider,
+provisional set this decision uses to route around the gap. Evidence that
+would force this sooner: a real webhook event observed for a payout this
+platform's own state machine says is still `queued` when the provider's own
+records say it was already in flight (i.e. `sent` genuinely means something
+mid-flight the current WHERE is masking) - nothing in this session's offline
+evals can produce that evidence; it needs a live provider account.
+
+## `ws-r56-event-ledger-is-the-payout-row-not-a-second-table` (2026-09-04, WS-R56)
+
+**Decision.** Migration 111 adds `settled_at`/`failure_reason` as two
+COLUMNS on `vy_creator_payout`, never a new `vy_payout_event`-shaped table.
+
+**Rationale.** This workstream's own brief law 3 asked the question
+directly: "if a row per event is needed, say why a column is not enough
+before writing a table." A payout's own state machine (migration 098) is
+closed and every one of its non-`built` states is a TERMINAL or
+single-step transition - a payout receives at most ONE `processed` and at
+most ONE `failed`/`reversed` outcome in its whole life, never a sequence
+the way `vy_payment_event` genuinely needs one row per follower charge
+(many charges, one subscription, over months). The row itself, widened
+with WHEN it settled and WHY it failed, already carries everything a
+one-event-per-payout ledger would; a second table would exist only to hold
+exactly one row per `vy_creator_payout` row, a shape SQL already has a
+name for - a column.
+
+**Reversal condition.** If RazorpayX is ever observed sending MULTIPLE
+distinct status events across a single payout's life that this platform
+needs to keep separately (e.g. a `processed` followed much later by an
+independent `reversed` on the SAME transfer, both worth showing on the
+statement rather than the second simply overwriting the first) - not
+proven or disproven by anything in this session, since no live provider
+account exists - split into a real `vy_creator_payout_event` table at that
+point, keyed the way `vy_payment_event` already is.
+
+## `ws-r56-payout-webhook-reuses-payments-webhook-ip-rate-scope` (2026-09-04, WS-R56)
+
+**Decision.** `applyPayoutWebhook`'s abuse gate reuses the EXISTING
+`payments_webhook_ip` scope (`api/_rate-limit.js`, WS-R26) rather than
+minting a new `payouts_webhook_ip` scope.
+
+**Rationale.** Both doors sit behind the same reasoning `api/_payments.js`'s
+own header already states for `payments_webhook_ip`: "the provider's own
+delivery IPs, not a person, and a throttled webhook is retried later per
+the provider's own policy." A payout webhook is a strict subset of the
+volume a Subscriptions webhook already sees (one event per payout attempt,
+versus one per follower charge), so sharing the ceiling costs nothing and
+keeps `api/_rate-limit.js` - a shared file this workstream's brief did not
+name - untouched.
+
+**Reversal condition.** If RazorpayX is ever observed sending payout status
+events at a volume that could starve the Subscriptions webhook's own share
+of the shared 240/min ceiling (unmeasurable without a live account), split
+a dedicated `payouts_webhook_ip` scope at that point rather than raising
+the shared ceiling, which would also raise it for the higher-volume door.

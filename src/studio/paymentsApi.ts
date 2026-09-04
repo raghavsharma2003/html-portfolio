@@ -55,6 +55,11 @@ export interface PayoutStatement {
   state: PayoutState;
   provider_payout_ref: string | null;
   created_at: string;
+  /** WS-R56, migration 111: when the payout status webhook moved this
+   *  payout to `settled`, or (on `failed`) what the provider gave as the
+   *  reason. Both null until the webhook (or `retryFailedPayout`) fires. */
+  settled_at: string | null;
+  failure_reason: string | null;
   tds_note: string;
 }
 

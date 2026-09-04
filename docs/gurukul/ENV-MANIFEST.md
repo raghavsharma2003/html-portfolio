@@ -1061,3 +1061,71 @@ they were both already written with (`onStatusChange?.(...)`'s own pattern).
 **No new SQL. No new server-side env var.** Everything this workstream
 touches is `src/studio/`, `scripts/check-layout.mjs` (a new named layout
 target, `studio:shell`) and `evals/studio-shell/` (a new offline gate).
+
+## 27. The payout status webhook (`vercel-app`, WS-R56, migration 111, 2026-09-04)
+
+`api/payout-webhook.js` (the door, `POST /api/payout-webhook`, auto-routed by
+Vercel's own file-based convention — **no `vercel.json` rewrite added**,
+matching `api/payments-webhook.js`/`api/_room-telegram.js`'s own webhook
+doors, none of which needed one either), `api/_payments.js`'s
+`applyPayoutWebhook`, and `api/_payments/providers/{fake,razorpay}.js`'s new
+`verifyPayoutWebhook`/`parsePayoutEvent` pair. Closes the open item
+`context/STATE.md` and this workstream's own brief both name: WS-R36 built
+`markPayoutSent`/`markPayoutSettled` with no caller anywhere in this tree;
+this workstream gives `settled`/`failed` a real caller (a `sent`-marking
+caller remains unbuilt — see `api/_payments.js`'s own comment on
+`applyPayoutWebhook` for why its WHERE spans `queued`/`sent` rather than
+assuming the missing step ran).
+
+The three PAYMENTS\_\* vars below existed before this workstream
+(`api/_payments.js`'s `providerSecrets`) and were never listed in this
+manifest — a pre-existing gap, out of this workstream's own scope to close
+in full; only the ONE var this workstream adds is a new row here.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `PAYMENTS_FAKE_PAYOUT_WEBHOOK_SECRET` | `api/_payments.js:providerSecrets` (the `fake` branch) | optional | unset falls back to the SAME value as `PAYMENTS_FAKE_WEBHOOK_SECRET` (pre-existing, also undocumented before this row) | nothing breaks — a deployment that never sets this one keeps signing/verifying the payout webhook with the identical secret the Subscriptions webhook already uses, which is the byte-for-byte fake-provider behaviour this workstream shipped with in `evals/payouts` and `evals/room-doors` |
+
+**The `razorpay` provider's own secret carries one new OPTIONAL field, not a
+new env var**: `providerSecrets`'s `razorpay` branch already returns
+whatever JSON keys live behind `PAYMENTS_SECRET_REF` unfiltered (§ this
+file never documented before — `accountNumber`, read by
+`api/_payments/providers/razorpay.js`'s `sendPayout`, is the existing
+precedent for an unvalidated optional field in that same blob).
+`applyPayoutWebhook` reads `secrets.payoutWebhookSecret`, falling back to
+`secrets.webhookSecret` when absent — an operator who configures RazorpayX's
+payout webhook with its own signing secret adds a `payoutWebhookSecret` key
+to that JSON blob; an operator who reuses one webhook secret for both
+products never has to.
+
+**NOT VERIFIED (named, not guessed — WS-R56, 2026-09-04).** This
+workstream's brief permitted no network beyond 127.0.0.1 and npm (only
+WS-R60 may fetch provider documentation this wave), so nothing about
+RazorpayX's own payout webhook was checked against a live document this
+session. Marked by name in `api/_payments/providers/razorpay.js`'s own
+comments on `verifyPayoutWebhook` and `parsePayoutEvent`:
+  - the header name `X-Razorpay-Signature` for a PAYOUT webhook specifically
+    (assumed identical to the Subscriptions webhook's own header, which WAS
+    fetched and cited, 2026-09-03 — see that file's `verifyWebhookSignature`);
+  - the envelope shape `{event, payload:{payout:{entity:{...}}}}` (assumed
+    from the SAME skeleton the Subscriptions/Payments webhooks use, per
+    `api/_payments.js`'s own `parseWebhookPayload`);
+  - the exact webhook EVENT NAMES `payout.processed`/`payout.reversed`/
+    `payout.failed`/`payout.rejected` (the Payouts Entity's own `status`
+    values were partially confirmed by WS-R41's `sendPayout` fetch,
+    2026-09-04; the WEBHOOK event names for the same outcomes were not
+    independently fetched);
+  - whether RazorpayX issues a SEPARATE signing secret for a payout webhook
+    at all (the reason `payoutWebhookSecret` exists as an optional field
+    rather than an assumed-shared one).
+
+Reversal condition for all four: whoever can next reach
+`razorpay.com`'s own RazorpayX payout-webhook page (or a sandbox account)
+confirms or corrects them — `context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways`
+names the exact URLs that resisted a single-page fetch tool for the
+adjacent Payouts API this session reused conventions from.
+
+**No other new env var.** The rate limit gate reuses the EXISTING
+`payments_webhook_ip` scope (`api/_rate-limit.js`) rather than minting a
+second one — both doors are the same provider's own delivery IPs, not a
+person — so `api/_rate-limit.js` is untouched by this workstream.

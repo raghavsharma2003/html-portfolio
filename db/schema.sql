@@ -3293,13 +3293,20 @@ create table if not exists vy_creator_payout (
   provider_payout_ref text,
   state               text not null default 'built',
   created_at          timestamptz not null default now(),
+  -- Migration 111 (WS-R56): the payout status webhook's own trace of WHY
+  -- the row left `sent`/`queued` - see that migration's own header for why
+  -- this is a column, not a second table.
+  settled_at          timestamptz,
+  failure_reason      text,
   constraint vy_creator_payout_state_check
     check (state in ('built','pending_account','queued','sent','settled','failed')),
   constraint vy_creator_payout_amounts_nonneg
     check (gross_inr >= 0 and take_inr >= 0 and net_inr >= 0 and tds_inr >= 0 and suite_share_inr >= 0),
   constraint vy_creator_payout_sums check (gross_inr = take_inr + tds_inr + net_inr),
   constraint vy_creator_payout_period_order check (period_end > period_start),
-  constraint vy_creator_payout_suite_share_bound check (suite_share_inr <= gross_inr)
+  constraint vy_creator_payout_suite_share_bound check (suite_share_inr <= gross_inr),
+  constraint vy_creator_payout_failure_reason_shape
+    check (failure_reason is null or length(failure_reason) <= 500)
 );
 create unique index if not exists vy_creator_payout_period_ix
   on vy_creator_payout (owner_user_id, period_start, period_end);
@@ -3307,6 +3314,9 @@ create index if not exists vy_creator_payout_failed_ix
   on vy_creator_payout (created_at) where state = 'failed';
 create index if not exists vy_creator_payout_owner_list_ix
   on vy_creator_payout (owner_user_id, period_start desc);
+-- Migration 111 (WS-R56): the payout status webhook's own lookup key.
+create unique index if not exists vy_creator_payout_provider_ref_ix
+  on vy_creator_payout (provider_payout_ref) where provider_payout_ref is not null;
 
 -- Migration 098 (WS-R36). The provider's own reference to a creator's bank
 -- account - never the bank detail itself, see that migration's own header.

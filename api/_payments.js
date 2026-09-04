@@ -189,6 +189,13 @@ export async function providerSecrets(providerName, env = process.env, backend) 
       keyId: String(env.PAYMENTS_FAKE_KEY_ID || "fake_key_id"),
       keySecret: String(env.PAYMENTS_FAKE_KEY_SECRET || "fake_key_secret"),
       webhookSecret,
+      // WS-R56: the payout status webhook's OWN secret, named separately
+      // because RazorpayX payouts are a different webhook URL/product line
+      // in the provider's own dashboard than Subscriptions, which may (or
+      // may not - NOT VERIFIED, ENV-MANIFEST.md §27) be issued a distinct
+      // signing secret. Optional and falls back to `webhookSecret` so a
+      // deployment that reuses one secret for both never breaks.
+      payoutWebhookSecret: String(env.PAYMENTS_FAKE_PAYOUT_WEBHOOK_SECRET || env.PAYMENTS_FAKE_WEBHOOK_SECRET || ""),
     };
   }
   let raw;
@@ -1577,6 +1584,144 @@ export async function markPayoutSettled(db, { payoutId }) {
   return { payout_id: payoutId, state: rows[0].state };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// THE PAYOUT STATUS WEBHOOK (WS-R56, migration 111) - RazorpayX tells us a
+// payout it already accepted was later processed (settled) or failed
+// (rejected before transfer, or reversed by the receiving bank after).
+// `markPayoutSent`/`markPayoutSettled` above are keyed by OUR OWN
+// `payout_id` and each accept exactly ONE leaving state - the right shape
+// for an operator or a future poll that already knows which payout it is
+// asking about. A WEBHOOK does not: RazorpayX names the payout by ITS OWN
+// `provider_payout_ref` (this workstream's law 2, "the provider ref as the
+// key"), and this platform's own `sent` transition has no caller anywhere
+// in this tree (`markPayoutSent`'s own header, unchanged by this
+// workstream) - so a real `processed`/`failed` webhook may arrive while the
+// row is still sitting at `queued`, never having passed through `sent` at
+// all. `applyPayoutWebhook` below is written for THAT reality: its own
+// WHERE names BOTH `queued` and `sent` as leaving states for EITHER
+// direction, rather than the single-state WHERE `markPayoutSent`/
+// `markPayoutSettled` each use - one UPDATE per outcome, still, and the
+// WHERE still NAMES every state it leaves (law 2's own requirement), just a
+// set of two instead of one, so a real deployment's payout can still reach
+// `settled` even though nothing in this codebase ever marks it `sent`
+// first. `markPayoutSent`/`markPayoutSettled` are UNCHANGED and remain
+// available for whatever future poll or a `payout.processing`-shaped event
+// (out of this workstream's `kind` enum, law 1) would want to call them.
+// ─────────────────────────────────────────────────────────────────────────
+
+export class PayoutWebhookError extends PaymentsError {}
+
+/**
+ * Verify, then parse, then apply - `applyWebhook`'s own order, restated:
+ * "the order is the whole function." A failed verification throws before a
+ * single database write is attempted.
+ *
+ * IDEMPOTENT BY THE WHERE, not by a second event ledger (this workstream's
+ * law 3: the row itself, widened with `settled_at`/`failure_reason`, IS the
+ * event's own trace - migration 111's own header). A REPLAYED `processed`
+ * event for a payout already `settled` matches no row (the WHERE's leaving
+ * states are `queued`/`sent`, never `settled` itself), so the UPDATE
+ * returns zero rows and this function reports `applied:false, replay:true`
+ * - a no-op, never a second `settled_at` write and never an error, the
+ * SAME shape `applyWebhook`'s own `on conflict ... do nothing` gives a
+ * replayed subscription event one section up.
+ *
+ * AN EVENT FOR AN UNKNOWN REF (law 2) - no row anywhere carries that
+ * `provider_payout_ref` - is logged as a content-free count via `obsBestEffort`
+ * in the door (api/payout-webhook.js), never an error: the caller (RazorpayX)
+ * gets 200 either way, so a payout this platform does not recognise (a stale
+ * webhook config pointed at the wrong account, a payout built after this
+ * webhook fired) does not go into the provider's own retry ladder forever.
+ */
+export async function applyPayoutWebhook(db, { rawBody, headers, ip } = {}, deps = {}) {
+  const env = deps.env ?? process.env;
+  const providerName = activeProviderName(env);
+  const provider = providerFor(providerName);
+
+  const bodyBuf = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody ?? ""), "utf8");
+  const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
+  const webhookSecret = secrets.payoutWebhookSecret || secrets.webhookSecret;
+
+  const verified = provider.verifyPayoutWebhook(bodyBuf, headers || {}, webhookSecret);
+  if (!verified) throw new PayoutWebhookError("payout_webhook_signature_invalid", 401);
+
+  // Same persistent abuse gate `applyWebhook` uses, same reasoning: the HMAC
+  // check above runs FIRST so an unsigned flood never consumes the counter.
+  // Reuses the `payments_webhook_ip` scope rather than minting a second one
+  // - both doors are the same provider's own delivery IPs, not a person.
+  if (ip) {
+    const gate = await consume(db, { scope: "payments_webhook_ip", key: ip, env });
+    if (!gate.ok) throw new PayoutWebhookError(gate.code, 429, { retry_after_seconds: gate.retryAfterSeconds });
+  }
+
+  let json;
+  try {
+    json = JSON.parse(bodyBuf.toString("utf8"));
+  } catch {
+    throw new PayoutWebhookError("payout_webhook_body_invalid", 400);
+  }
+  const parsed = provider.parsePayoutEvent(json);
+  if (!parsed.providerRef) throw new PayoutWebhookError("payout_webhook_ref_missing", 400);
+
+  if (!parsed.kind) {
+    // A RazorpayX payout event this platform does not treat as a state
+    // transition (`payout.queued`, `payout.initiated`, ...) -
+    // `KIND_TO_STATE`'s own empty-string precedent one section up: "log the
+    // event, change nothing."
+    return { applied: false, replay: false, kind: "", payout_id: null, state: null };
+  }
+
+  const reason = parsed.reason ? String(parsed.reason).slice(0, 500) : null;
+
+  if (parsed.kind === "processed") {
+    const rows = await db(
+      `update vy_creator_payout
+          set state = 'settled', settled_at = now()
+        where provider_payout_ref = $1
+          and state in ('queued','sent')
+       returning payout_id, owner_user_id, state`,
+      [parsed.providerRef],
+    );
+    const row = rows[0];
+    if (!row) {
+      const unknown = await payoutRefIsUnknown(db, parsed.providerRef);
+      return { applied: false, replay: !unknown, kind: parsed.kind, payout_id: null, state: null };
+    }
+    return { applied: true, replay: false, kind: parsed.kind, payout_id: row.payout_id, state: row.state };
+  }
+
+  // 'failed' or 'reversed' - both collapse to the SAME target state
+  // (`failed`), law 2's own "on failed or reversed."
+  const rows = await db(
+    `update vy_creator_payout
+        set state = 'failed', failure_reason = $2
+      where provider_payout_ref = $1
+        and state in ('queued','sent')
+     returning payout_id, owner_user_id, state`,
+    [parsed.providerRef, reason],
+  );
+  const row = rows[0];
+  if (!row) {
+    const unknown = await payoutRefIsUnknown(db, parsed.providerRef);
+    return { applied: false, replay: !unknown, kind: parsed.kind, payout_id: null, state: null };
+  }
+  return { applied: true, replay: false, kind: parsed.kind, payout_id: row.payout_id, state: row.state };
+}
+
+/** Distinguishes "this ref names a real payout, already past this webhook's
+ *  own leaving states" (a replay) from "no payout anywhere carries this ref"
+ *  (an unknown ref, law 2) - the door's own observability line names which
+ *  one happened rather than collapsing both into one silent no-op. Never
+ *  called on the SUCCESS path above (one extra read only when the UPDATE's
+ *  own WHERE already missed). */
+async function payoutRefIsUnknown(db, providerRef) {
+  const rows = await db(
+    `select payout_id from vy_creator_payout where provider_payout_ref = $1 limit 1`,
+    [providerRef],
+  );
+  return !rows[0];
+}
+
 /**
  * failed -> built, then the SAME built|pending_account -> pending_account|
  * queued logic `sendPayout` uses (called, not duplicated) - "a failed payout
@@ -1665,6 +1810,12 @@ export function payoutStatementFromRows(payoutRow, { followerSubscriptions = 0, 
     state: payoutRow.state,
     provider_payout_ref: payoutRow.provider_payout_ref ?? null,
     created_at: payoutRow.created_at,
+    // WS-R56, migration 111: when (and, on failure, why) the payout left
+    // `sent`/`queued` - the payout status webhook's own two new columns,
+    // read through unchanged (law 4: "the statement shows settled and
+    // failed with dates").
+    settled_at: payoutRow.settled_at ?? null,
+    failure_reason: payoutRow.failure_reason ?? null,
     tds_note: TDS_DISCLOSURE_SENTENCE,
   };
 }
@@ -1684,7 +1835,7 @@ export async function payoutStatement(db, ownerUserId, payoutId) {
   }
   const rows = await db(
     `select payout_id, period_start, period_end, gross_inr, take_inr, net_inr, tds_inr,
-            suite_share_inr, state, provider_payout_ref, created_at
+            suite_share_inr, state, provider_payout_ref, created_at, settled_at, failure_reason
        from vy_creator_payout
       where payout_id = ($1)::uuid and owner_user_id = ($2)::uuid
       limit 1`,

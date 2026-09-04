@@ -429,3 +429,82 @@ export function verifyWebhookSignature(rawBody, signatureHeader, secret) {
 // See context/measurements.md#ws-r60-open-provider-marks-2026-09-04 for the
 // full mark table and context/rejected.md for the two fetch paths WS-R41
 // found closed and the two more this pass tried instead.
+
+// ── Merge note (main loop, 2026-09-04) ────────────────────────────────────
+// WS-R56 wrote the two payout-webhook functions below while WS-R60 verified
+// the shapes above in parallel. The NOT VERIFIED posture in WS-R56's own
+// docblocks is superseded by WS-R60's addendum: the envelope
+// (`payload.payout.entity`), the event names (`payout.processed`,
+// `payout.failed`, `payout.reversed`, `payout.rejected` among eight) and the
+// signature (`X-Razorpay-Signature`, HMAC-SHA256 over the raw body) are
+// VERIFIED by document; whether a separate payout-webhook secret exists is
+// still an operator question. See measurements.md#ws-r60-open-provider-marks-2026-09-04.
+
+/**
+ * Verify a PAYOUT status webhook (WS-R56, migration 111).
+ *
+ * ── NOT VERIFIED (WS-R56, 2026-09-04) ──────────────────────────────────────
+ * This workstream's brief scoped it to no network beyond 127.0.0.1 and npm
+ * (only WS-R60 may fetch provider documentation this wave), so nothing below
+ * was checked against a live RazorpayX document. What this function assumes,
+ * named precisely so the next session that CAN fetch knows exactly what to
+ * confirm:
+ *   - the header name is `X-Razorpay-Signature`, the SAME header the
+ *     Subscriptions webhook uses (`verifyWebhookSignature`'s own citation,
+ *     fetched 2026-09-03) - Razorpay's dashboard configures one signing
+ *     secret per WEBHOOK URL, and every Razorpay product line (Payments,
+ *     Subscriptions, X/RazorpayX) that has ever been read in this repo uses
+ *     the identical HMAC-SHA256-over-the-raw-body scheme under that same
+ *     header name, so this is a reasoned convention, not a guess made from
+ *     nothing - but it is still NOT a quoted sentence from RazorpayX's own
+ *     payout-webhook page, which no session has reached.
+ *   - the algorithm itself (HMAC-SHA256, raw body, constant-time compare) is
+ *     reused byte-for-byte from `verifyWebhookSignature` above rather than a
+ *     second implementation - if the header name assumption above is wrong,
+ *     only the one line reading `headers[...]` needs to change, never this
+ *     algorithm.
+ */
+export function verifyPayoutWebhook(rawBody, headers, secret) {
+  const sig = headers?.["x-razorpay-signature"];
+  return verifyWebhookSignature(rawBody, sig, secret);
+}
+
+/**
+ * Parse a payout status webhook body (WS-R56, migration 111) ->
+ * `{providerRef, kind, reason}`. `kind` is `'processed' | 'failed' |
+ * 'reversed' | ''` - see fake.js's own header for the empty-string
+ * "log the event, change nothing" case shared verbatim between the twins.
+ *
+ * NOT VERIFIED (WS-R56, 2026-09-04), same posture as `verifyPayoutWebhook`
+ * immediately above: the envelope shape assumed here
+ * (`{event, payload:{payout:{entity:{id, failure_reason, status_details}}}}`)
+ * follows the SAME skeleton `parseWebhookPayload` in `../../_payments.js`
+ * already uses for `payload.subscription.entity`/`payload.payment.entity`
+ * (a shape WS-R41 confirmed, by document, for the Subscriptions product
+ * line only) with `payout` substituted as the entity key on the same "every
+ * Razorpay webhook envelope this repo has ever seen follows this skeleton"
+ * reasoning `verifyPayoutWebhook` states above - not confirmed against
+ * RazorpayX's own payout-webhook document by any session. The event NAMES
+ * (`payout.processed`, `payout.reversed`, `payout.failed`, `payout.rejected`)
+ * are RazorpayX's own documented terms for payout outcomes (Payouts Entity
+ * `status` values, partially confirmed by WS-R41's `sendPayout` fetch,
+ * 2026-09-04 - `"queued" | "processing" | ...`, per that function's own
+ * comment) rather than invented strings, but the WEBHOOK EVENT NAME for each
+ * (as opposed to the entity's own `status` field) was never independently
+ * fetched.
+ */
+export function parsePayoutEvent(json) {
+  const event = String(json?.event || "");
+  const entity = json?.payload?.payout?.entity || null;
+  const providerRef = String(entity?.id || "");
+  const reason = entity?.failure_reason
+    ? String(entity.failure_reason)
+    : entity?.status_details?.reason
+      ? String(entity.status_details.reason)
+      : null;
+  let kind = "";
+  if (event === "payout.processed") kind = "processed";
+  else if (event === "payout.reversed") kind = "reversed";
+  else if (event === "payout.failed" || event === "payout.rejected") kind = "failed";
+  return { providerRef, kind, reason };
+}

@@ -9706,3 +9706,63 @@ this environment. `evals/payouts/run.mjs` ran clean too once one addendum
 sentence was reworded (`rejected.md#ws-r60-quoted-provider-reason-code-tripped-a-negative-control`):
 50/50, up from 49/50 on the first (broken) draft, which had tripped its
 own WS-R36 negative control by quoting a RazorpayX reason code verbatim.
+
+## `ws-r56-payout-webhook-eval-results-2026-09-04`
+
+n = 64 assertions in `node evals/payouts/run.mjs` (up from 50 on the
+untouched tree - the workstream brief's own "evals/payouts (50) extended"),
+310 assertions in `node evals/room-doors/run.mjs` (0 failed, `d-webhook-
+replay` class alone: 21 ok across `payments-webhook.js`, `payout-
+webhook.js`, `room-tg.js`, `room-wa.js` - up from the untouched tree's
+count for that class before this workstream added `payout-webhook.js`'s
+own cases). Method: both are offline, deterministic, `$0`, no DB, no
+network, no real provider - `node evals/payouts/run.mjs` and `node
+evals/room-doors/run.mjs` run standalone, then again inside `node
+scripts/verify-release.mjs`'s own `eval suite`/`room door battery` gates.
+Date 2026-09-04, on this workstream's own tree (base commit `2d271f2`).
+Every NEGATIVE CONTROL the brief named by name passed: a replayed
+`processed` event that moves the state twice (refused by the WHERE,
+`applied:false`); a tampered signature admitted (refused,
+`payout_webhook_signature_invalid`); a `failed` event without the leaving-
+state WHERE matching (an already-settled or already-failed payout,
+refused, `applied:false`, no second write).
+
+## `ws-r56-verify-release-gate-2026-09-04`
+
+n = 3 full `node scripts/verify-release.mjs` runs on this workstream's own
+worktree, method = the release gate itself, date 2026-09-04. **Untouched
+tree (before any edit): 19/20 - the one failure is `layout readability`
+throwing `EADDRINUSE` on port 8931**, reproduced BEFORE this workstream
+changed anything (per `ws-common.md`'s own instruction to record this).
+**After every change in this workstream: 19/20 twice more, same single
+failure both times, `layout readability`, for two DIFFERENT environmental
+reasons** - the first of the two post-change runs reported one CONTENT
+finding, `POINTERDOWN-FEEDBACK` on `phone/room-hi:more:checkins`
+("transform did not clear on page.mouse.up()") - a screen this workstream
+never touches (`evals/room-doors`, `evals/payouts`, `api/_payments.js`,
+`api/payout-webhook.js`, the two provider files, `src/studio/PayoutsCard.tsx`/
+`paymentsApi.ts` - none of these render or gate `room-hi:more:checkins`).
+The second post-change run (started after the first had already finished)
+instead threw the identical `EADDRINUSE` on 8931 the untouched-tree baseline
+did.
+At every one of these three runs, `ps aux` showed 5-6 SIBLING worktree
+sessions (`ws-r57`, `ws-r58`, `ws-r60`, `ws-r52`, `ws-r54`, `ws-r55`,
+`ws-r51` at various points) also running `node scripts/verify-release.mjs`
+concurrently on the same machine, each spawning its own headless Chromium
+for `board legibility`/`check-layout`/`check-performance`/`check-
+accessibility` and binding the SAME 8931-8933 port range `ws-common.md`
+names. **`node scripts/check-layout.mjs` run in ISOLATION (no other gate
+running, ports 8931-8933 confirmed unbound by `ss -ltnp` immediately
+before) passed cleanly: 0 findings, 879 prose blocks judged, 182 Hindi
+strings glyph-checked, across all 14 targets including
+`room-hi:more:checkins`** - the exact target the contended run flagged.
+This is the same timing-sensitivity `context/measurements.md#ws-r43-tap-target-and-pointerdown-findings-before-after-2026-09-04`
+already measured and fixed with a 120ms settle wait after `mouse.down()`/
+`mouse.up()` before either transform is read; under 5+ concurrent
+Chromium instances competing for CPU, 120ms is evidently not always enough
+headroom for the event loop to actually run that settle wait on schedule.
+**Conclusion: neither failure is caused by this workstream's changes** -
+one is the literal environmental EADDRINUSE `ws-common.md` already warns
+about, the other is a CPU-contention flake in a pre-existing, previously-
+measured timing-sensitive check, on a screen this workstream does not
+touch, that does not reproduce when the same check runs uncontended.
