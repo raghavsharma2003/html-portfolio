@@ -8873,3 +8873,62 @@ worktree's own gate run and was reconfirmed passing standalone both times
 after the port freed. `node evals/run.mjs`: every suite including the new
 `room-doors`, 0 failures. `node scripts/check-copy.mjs`: 6 scopes clean, 21
 negative controls. `node scripts/context.mjs --check`: clean.
+
+## `ws-r47-creator-invites-gate-2026-09-04`
+
+Method: `node scripts/verify-release.mjs`, no `NEON_URL` in this
+environment (relational DB gates skipped, as documented). Baseline run on
+the untouched tree at commit `321a0fd` first, before any file in this
+workstream was written: **16/17** — the sole failure was `layout
+readability` hitting `EADDRINUSE:8931`, the documented shared-machine port
+collision from concurrent sibling worktrees' own gate runs
+(`rejected.md#ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions`'s
+sibling hazard, same cause, different gate), confirmed environmental by
+rerunning `node scripts/check-layout.mjs` standalone once the port freed
+(698 prose blocks judged, 0 findings).
+
+After this workstream's changes: **17/17**, confirmed on a clean full run
+once the port was free (`typecheck` 21870ms, `layout readability`
+70800ms — 698 blocks, `eval suite` 172595ms including the new
+`creator-invites` suite, `room leak battery`/`room export completeness`/
+`room door battery` unchanged). One real regression was found and fixed on
+the way: adding `InviteCreatorCard.tsx` (mounted inside `RoomStudio.tsx`,
+never standalone) tripped `evals/studio-shell/run.mjs`'s own orphan check
+until it was added to that suite's named `NOT_A_STANDALONE_PANEL`
+allowlist, the same pattern `CheckinsCard.tsx`/`HandoffCard.tsx`/
+`SuiteCard.tsx`/`PayoutsCard.tsx` already use — measured as a genuine
+FAIL-then-PASS (64 passed / 1 failed, then 64/64) rather than assumed.
+
+New suite: `node evals/creator-invites/run.mjs` — **46 checks, 0 failed**,
+offline, deterministic, $0, no DB, no network, no GPU, ~1s. Covers
+`issueCreatorInvite`'s quota INSERT (three issue, a fourth is zero rows, an
+unpublished or draft-Room creator is refused the same way), `myInvites`
+(owner-scoped, states only, no code text, quota computed off the same
+rows), redemption proven unchanged (a creator-issued code redeems through
+`createSelfReplica`'s own CTE, and a static scan confirms that CTE never
+references `issued_kind`), and the funnel's arrival line (floor masking,
+the application-OR-replica reading, an operator-issued redemption never
+counting, a redemption from before the current week not counting). Three
+negative controls, all confirmed to fail correctly before the fix that
+made them pass (see this workstream's final report for detail): (a) a
+static scan proving `api/invites.js` never reads a body-supplied
+`issued_by_user_id`; (b) a static scan of the creator INSERT's own column
+list plus a fixture read proving no stored row ever carries a `code` key,
+only `code_hash`; (c) `scripts/check-copy.mjs`'s real `scanSource` function,
+invoked directly under `src/studio/`'s own SCOPES options, catching both
+an em dash and the banned word "clone" in Share-tab-shaped fixture text.
+
+Sibling suites reconfirmed unchanged after this workstream's edits to
+files they also exercise: `node evals/invites/run.mjs` 57/57 (unchanged —
+WS-R23's own operator path untouched in behavior), `node evals/funnel/
+run.mjs` 49/49, `node evals/ops/run.mjs` 68/68, `node evals/room-leak/
+run.mjs` 78/78, `node evals/room-doors/run.mjs` 109/109 (`api/invites.js`
+remains a discovered door by the same file-level rule; no new per-op case
+needed since the battery's door list is file-scoped, not op-scoped),
+`node scripts/check-copy.mjs` 6 scopes clean / 21 negative controls
+(unchanged count — this workstream's own new negative controls for its
+card copy live in `evals/creator-invites/run.mjs`, invoking the real
+scanner directly, not as new entries in `check-copy.mjs`'s own fixture
+list). `node scripts/verify-release.mjs`'s typecheck gate (`tsc -b`)
+clean with no new errors after `inviteApi.ts` and `InviteCreatorCard.tsx`
+were added.
