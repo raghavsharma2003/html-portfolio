@@ -10897,3 +10897,122 @@ introduce new withdrawal logic.
 DIFFERENT predicate than v0 (e.g. a grace period before revocation takes
 effect), this decision reverses and withdrawal needs its own tested logic
 rather than borrowed correctness.
+
+## `ws-r36-suite-share-flat-per-seat-not-ledger-derived` (2026-09-04, WS-R36)
+
+**Decision.** `runPayoutRollup`'s Suite line (`suite_share_inr`) is computed
+as `SUITE_SEAT_SHARE_BP` of the Suite's own ACTIVE `price_per_seat_inr`, for
+every Room a creator has attached to a paying Suite at build time (read
+fresh from `vy_room.org_id`, never stored anywhere else) - never as a
+fan-out of what that Suite's own `vy_payment_event` org-lane rows actually
+collected.
+
+**Rationale.** `context/decisions.md#ws-r33-suite-seat-revenue-not-distributed-to-creators`'s
+own reversal condition names the ledger-derived alternative and why WS-R33
+did not build it: a Suite pays ONE subscription for N seats, so there is no
+per-Room AMOUNT COLLECTED to divide, only a formula nobody has agreed on
+(equally? by seat tenure? by follower count?). This workstream needed a real
+number to put on a real statement NOW, and a flat, known-ahead-of-time
+per-seat PRICE is available where a per-Room collected amount structurally
+is not. `SUITE_SEAT_SHARE_BP = 5000` (50%) is the operator's own
+placeholder, not a measured or negotiated split - `context/rejected.md`'s
+no-fake-numbers law applied to a revenue share nobody has agreed to.
+
+**Reversal condition.** The day the product defines a real formula for
+splitting a Suite's own COLLECTED seat revenue across its attached
+creators, replace this flat computation with that formula (which will also
+need to read `vy_payment_event`'s org-lane rows, reopening the join
+`context/decisions.md#ws-r33-suite-seat-revenue-not-distributed-to-creators`
+names), and `SUITE_SEAT_SHARE_BP`'s own 50% placeholder is superseded by
+whatever the real split turns out to be.
+
+## `ws-r36-tds-disclosure-sentence-duplicated-not-single-sourced-to-the-browser` (2026-09-04, WS-R36)
+
+**Decision.** The TDS disclosure sentence exists as a literal string in
+THREE places: a JS comment on `TDS_DISCLOSURE_SENTENCE` in
+`api/_payments.js`, the `tds_note` field on `payoutStatement`'s own JSON
+response, and a literal duplicate typed directly into `PayoutsCard.tsx`'s
+JSX - rather than the card rendering only `statement.tds_note` at runtime.
+
+**Rationale.** `scripts/check-copy.mjs`'s static scan only ever sees a
+literal string it can find in source text, never a runtime value from an
+API response, and `api/` itself is not in that gate's `SCOPES` list at all
+(only `src/studio/`, `src/room/`, `src/gurukul/`, `src/replica/`, `site/`,
+`src/components/`). The only way to prove the exact sentence a creator's own
+screen shows is copy-gate-clean, rather than merely assumed clean because
+its source lives somewhere the gate cannot see, is to also write it as a
+literal in the one file the gate actually reads. The downloadable JSON and
+plain-text statement still carry the API's own `tds_note`, so a future edit
+to the constant updates the download immediately; the on-screen copy is the
+piece that can silently drift if only one of the two copies is edited.
+
+**Reversal condition.** If `scripts/check-copy.mjs` is ever widened to scan
+rendered runtime text (not only static literals) or `api/` is added to
+`SCOPES`, delete the on-screen duplicate and render `{statement.tds_note}`
+directly - single-sourced from that point on, with nothing left to drift.
+
+## `ws-r36-pending-account-reattempted-via-sendpayout-not-a-second-operator-unlock` (2026-09-04, WS-R36)
+
+**Decision.** `pending_account` has no dedicated retry function of its own;
+`sendPayout`'s own WHERE clause accepts a payout in EITHER `built` or
+`pending_account`, so calling it again after `registerFundAccount` succeeds
+is the whole retry mechanism for this one state.
+
+**Rationale.** The workstream brief's own closed state set names `failed` as
+the one state retried by an OPERATOR op, never a sweep. `pending_account` is
+not `failed`, and its fix (an owner registering a fund account) is a
+different write than sending money, needing no operator judgement call - a
+second dedicated "retry from pending_account" op would duplicate
+`sendPayout`'s own built|pending_account logic for no product reason.
+
+**Reversal condition.** If a future UI needs to distinguish "this payout has
+never been attempted" from "this payout was attempted and specifically
+blocked on the fund account", split `built` and `pending_account` into a
+real two-function retry pair instead of one function accepting both
+departure states.
+
+## `ws-r36-fund-account-ref-verified-not-created-by-the-provider-seam` (2026-09-04, WS-R36)
+
+**Decision.** `registerFundAccount` VERIFIES a reference the owner already
+obtained from the provider's own onboarding flow (a `GET` call for
+`razorpay`, an always-true non-empty check for `fake`) - it never CREATES a
+fund account via a `POST` that would need a bank account number or a UPI
+VPA as an argument.
+
+**Rationale.** WS-R36's own law 4 ("the creator's bank details NEVER stored
+here") extends structurally to "never RECEIVED here, not merely never
+persisted": a create-a-fund-account call would require this platform's own
+backend to hold a bank detail in memory for the duration of one request even
+if it discarded it immediately after, which is a weaker guarantee than a
+verify-only call that structurally cannot receive one at all. A `GET
+/v1/fund_accounts/:id` cannot carry a bank account number in its own
+request; a `POST /v1/fund_accounts` could.
+
+**Reversal condition.** If a future workstream builds a hosted,
+provider-embedded onboarding widget this platform's own frontend never
+touches directly (an iframe or a redirect flow, never a form field on this
+domain), a create path could be added alongside verify without weakening
+this decision's own no-bank-detail-received guarantee - the two are not in
+tension, only sequenced.
+
+## `ws-r36-payout-account-folded-into-owner-room-payments-receipt-class` (2026-09-04, WS-R36)
+
+**Decision.** `vy_creator_payout_account` is deleted by name in
+`api/_replica-full-erasure.js` and folded into the EXISTING
+`owner_room_payments` deletion receipt class rather than given a new class
+of its own.
+
+**Rationale.** That class's own definition (078) is explicitly "additive;
+the eval asserts membership, never the exact list" - a provider-issued fund
+account reference is a detail of the Room's money, the same kind of record
+a price row or a subscription reference already is, not a different KIND of
+record the way a Mirror Call transcript is from a plain memory (the test
+`_replica-full-erasure.js`'s own header already applies to decide when a new
+class is warranted: does the receipt understate what was held if this stays
+folded in).
+
+**Reversal condition.** None anticipated today; would reverse only if a
+future audit needs to answer "which erasure classes touch a financial
+instrument specifically" as a question distinct from "which classes touch
+Room money at all" - at which point `owner_room_payments` itself would need
+splitting, not only this one table's membership in it.

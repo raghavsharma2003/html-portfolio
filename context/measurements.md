@@ -8549,3 +8549,62 @@ n = 1 migration (12 statements in one transaction, plus 2 `validate constraint` 
 | erasure delete of combos (and weeks, same shape) | `vy_room_owner_ix` then Bitmap on the combo's room index |
 
 Cost note: the publish plans at a few thousand units per candidate set at zero rows, and it runs per label pair per Room once a week inside the sweep; the title LIKE is a filter under the thread scope index, bounded by one follower's threads per probe. Not measured: no Pulse row exists; no combination has ever been published or suppressed on the live database; nobody has seen the combo card or the weekly note.
+
+## `ws-r36-payouts-offline-eval-2026-09-04`
+
+n=50 checks, `node evals/payouts/run.mjs`, offline against a fake `db`
+driving the real `api/_payments.js` and `api/_payments/providers/fake.js`,
+2026-09-04. Zero network, zero database, zero real provider. Four sections:
+§1 the arithmetic (13 checks: three owners' worth of Suite share and
+follower revenue combined into one payout row each, the invariant `gross =
+take + tds + net` holds for all three, idempotency, a 10% TDS rate applied
+over creator income including the Suite share); §2 the state machine (15
+checks: `built -> pending_account` with zero provider calls, `pending_account
+-> queued` once a fund account is registered, `queued -> sent -> settled`,
+`failed -> built -> queued` via the operator retry op, and two required
+negative controls - a second `sent` transition refused, `sendPayout` on an
+already-settled payout refused); §3 the seam twins (7 checks: `fake`'s own
+determinism, `razorpay.js`'s source marked NOT VERIFIED with no bank detail
+or UPI VPA anywhere in it); §4 the statement (13 checks: the four numbers,
+the period, a `count(distinct subscription_id)` follower count, the Suite
+line and name, the TDS note, wrong-owner returns null, and the required
+negative control - a static scan of `payoutStatementFromRows`'s and
+`payoutStatement`'s own source for a follower identifier, finding none). All
+50 passed. `evals/payments/run.mjs`'s own `runPayoutRollup` fixture updated
+for the widened SQL text and column set; re-run at 62/62, unchanged from
+before this workstream. `evals/org-billing/run.mjs`: 40/40, unchanged (this
+workstream touched no file that suite drives).
+
+## `ws-r36-gate-2026-09-04`
+
+`node scripts/verify-release.mjs`: **16/16 on the untouched tree** (recorded
+before any edit, by setting this workstream's own changes aside with `git
+diff`/`git checkout --` rather than `git stash`, per this repo's own
+stash-is-shared-across-worktrees law, then restoring them with `git apply`)
+and **16/16 after** every file in this workstream's own report. One real
+regression was found and fixed before the second run: `evals/studio-shell/run.mjs`'s
+orphan check (WS-R31) failed on `PayoutsCard.tsx` because it was mounted
+inside `RoomStudio.tsx` rather than the shell's own tab system - the exact
+shape `SuiteCard.tsx`/`CheckinsCard.tsx`/`HandoffCard.tsx` were already
+excluded for, so `PayoutsCard.tsx` was added to that same named exclusion
+set (`NOT_A_STANDALONE_PANEL`) rather than worked around. Two OTHER failures
+seen on an intermediate run (`layout readability` EADDRINUSE:8931, and
+`eval suite`'s `studio-shell` sub-suite failing for the SAME orphan-check
+reason before the fix landed) were confirmed transient/fixed respectively:
+the port collision cleared once a concurrent sibling's own gate released
+port 8931 (confirmed by running `node scripts/check-layout.mjs` alone after
+waiting), and the orphan check is the one listed above. `node
+scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls, unchanged.
+`node scripts/context.mjs --check`: clean, 1032 nodes / 1269 edges before
+this session's own append. `npx tsc --noEmit`: clean, zero errors. `node
+evals/room-leak/run.mjs`: 78/78 unchanged (this workstream's new SQL never
+names `vy_room_follower`/`vy_room_thread`). `node evals/replica-erasure/run.mjs`:
+20/20 unchanged. `node evals/persontables.mjs`: 133 person-keyed tables in
+the DDL (74 owner lane, up from 73 - `vy_creator_payout_account` joins it by
+carrying `owner_user_id` with no person column), 56 manifest entries
+unchanged (the new table is deliberately NOT in `PERSON_TABLES`, on
+`vy_creator_payout`'s own precedent). `node evals/sqlcast.mjs`: 166 tables
+(up from 165 on the untouched tree), 0 conflicts, 0 uncast sites on the
+strict surface (`api/_payments.js`, `api/_payments/`, `api/payments.js` were
+already strict before this workstream; every new parameter site in this
+workstream's own SQL carries an explicit cast).

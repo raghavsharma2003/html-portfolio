@@ -6268,6 +6268,54 @@
       "kind": "rejection",
       "title": "publishCombo wrapped uuid constants in min(...) and the fake db passed it; Postgres has no min(uuid) and the live EXPLAIN at the merge refused the statement. Fixed as min(($n)::text)::uuid; a min-wrapped literal is safe only for types Postgres aggregates, and only the live EXPLAIN knows which.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-suite-share-flat-per-seat-not-ledger-derived",
+      "kind": "decision",
+      "title": "Suite share on a payout is a flat SUITE_SEAT_SHARE_BP of the Suite own per-seat price at build time, never a fan-out of what the Suite ledger actually collected",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-tds-disclosure-sentence-duplicated-not-single-sourced-to-the-browser",
+      "kind": "decision",
+      "title": "The TDS disclosure sentence is duplicated (code comment, API tds_note field, literal JSX text) because api/ is outside check-copy.mjs SCOPES and only a literal in src/studio/ is gate-provable",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-pending-account-reattempted-via-sendpayout-not-a-second-operator-unlock",
+      "kind": "decision",
+      "title": "pending_account has no dedicated retry function; calling sendPayout again (its WHERE accepts built or pending_account) is the whole retry mechanism",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-fund-account-ref-verified-not-created-by-the-provider-seam",
+      "kind": "decision",
+      "title": "registerFundAccount verifies a reference the owner already obtained from the provider, never creates one via a call that would need a bank account number or UPI VPA as an argument",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-payout-account-folded-into-owner-room-payments-receipt-class",
+      "kind": "decision",
+      "title": "vy_creator_payout_account is deleted by name and folded into the existing owner_room_payments erasure receipt class rather than a new one",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-new-self-contained-card-tripped-the-studio-shell-orphan-check",
+      "kind": "rejection",
+      "title": "PayoutsCard.tsx mounted inside RoomStudio.tsx (CheckinsCard/HandoffCard/SuiteCard own precedent) failed evals/studio-shell/run.mjs own orphan check until added to its NOT_A_STANDALONE_PANEL exclusion set",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-payouts-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/payouts/run.mjs: 50/50 offline checks - the arithmetic with the Suite share, the closed state machine, the seam twins, the statement, three required negative controls",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r36-gate-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 16/16 on the untouched tree and 16/16 after every WS-R36 file; tsc --noEmit clean; sqlcast 166 tables 0 uncast; persontables 133 tables 74 owner lane 56 manifest entries",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -12615,6 +12663,41 @@
       "src": "ws-r35-min-uuid-does-not-exist-the-fake-db-passed-it",
       "rel": "constrains",
       "dst": "ws-r35-pairwise-check-is-set-vs-single-label"
+    },
+    {
+      "src": "ws-r36-suite-share-flat-per-seat-not-ledger-derived",
+      "rel": "constrains",
+      "dst": "ws-r33-suite-seat-revenue-not-distributed-to-creators"
+    },
+    {
+      "src": "ws-r36-suite-share-flat-per-seat-not-ledger-derived",
+      "rel": "measured_by",
+      "dst": "ws-r36-payouts-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r36-pending-account-reattempted-via-sendpayout-not-a-second-operator-unlock",
+      "rel": "measured_by",
+      "dst": "ws-r36-payouts-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r36-fund-account-ref-verified-not-created-by-the-provider-seam",
+      "rel": "measured_by",
+      "dst": "ws-r36-payouts-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r36-tds-disclosure-sentence-duplicated-not-single-sourced-to-the-browser",
+      "rel": "measured_by",
+      "dst": "ws-r36-gate-2026-09-04"
+    },
+    {
+      "src": "ws-r36-payout-account-folded-into-owner-room-payments-receipt-class",
+      "rel": "measured_by",
+      "dst": "ws-r36-gate-2026-09-04"
+    },
+    {
+      "src": "ws-r36-gate-2026-09-04",
+      "rel": "measured_by",
+      "dst": "ws-r36-payouts-offline-eval-2026-09-04"
     }
   ]
 }
