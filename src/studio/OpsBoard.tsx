@@ -19,7 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 import { restoreSession, writeStoredSession } from "./session";
 import { googleSignIn, isStudioAuthDead } from "./studioAuth";
 import { ReplicaApiError } from "./replicaApi";
-import { readOpsOverview, type OpsOverview, type OpsRoom, type OpsSweep, type SweepStaleness } from "./opsApi";
+import { readOpsOverview, type OpsOverview, type OpsRoom, type OpsSweep, type OpsFunnel, type SweepStaleness } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
 
@@ -68,6 +68,68 @@ function formatAgo(iso: string | null): string {
 }
 
 const inr = (paise: number) => `Rs ${paise.toLocaleString("en-IN")}`;
+
+// WS-R25. Plain-words labels for `api/_funnel.js`'s FUNNEL_STEPS - a stall
+// count on screen naming "readiness_passed_lock" reads as a bug report, not
+// an answer.
+const FUNNEL_STEP_LABELS: Record<string, string> = {
+  account_created: "creating an account",
+  studio_opened: "opening the studio",
+  first_source_uploaded: "uploading a first source",
+  processing_finished: "processing finishing",
+  first_preview_heard: "hearing a first preview",
+  readiness_first_measured: "readiness being measured",
+  readiness_passed_lock: "readiness passing the lock",
+  disclosure_approved: "the disclosure being approved",
+  room_created: "creating a Room",
+  publish_clicked: "clicking Publish",
+  room_published: "the Room actually publishing",
+};
+
+function funnelStepLabel(step: string): string {
+  return FUNNEL_STEP_LABELS[step] || step.replace(/_/g, " ");
+}
+
+function FunnelCard({ funnel }: { funnel: OpsFunnel }) {
+  const { median, p90, n } = funnel.minutes_to_first_room;
+  return (
+    <div className="ops-board__panel">
+      <h2>Minutes to first Room</h2>
+      {n === 0 ? (
+        <p className="ops-board__empty">No creator has published yet.</p>
+      ) : (
+        <div className="ops-board__stats">
+          <Stat label="median minutes" value={median ?? "not measured"} />
+          <Stat label="p90 minutes" value={p90 ?? "not measured"} />
+          <Stat label="published (n)" value={n} />
+        </div>
+      )}
+      <h2 style={{ marginTop: "var(--space-section)" }}>Where creators stop</h2>
+      {funnel.stalled_at.length === 0 ? (
+        <p className="ops-board__empty">No creator has stalled for 7 days or more.</p>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="ops-board__table">
+            <thead>
+              <tr>
+                <th>last reached</th>
+                <th>creators stalled here</th>
+              </tr>
+            </thead>
+            <tbody>
+              {funnel.stalled_at.map((s) => (
+                <tr key={s.step}>
+                  <td>{funnelStepLabel(s.step)}</td>
+                  <td>{s.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -120,6 +182,11 @@ function SweepsStrip({ sweeps }: { sweeps: OpsSweep[] }) {
   return (
     <div className="ops-board__panel">
       <h2>Sweeps</h2>
+      {/* WS-R25: closes WS-R21's own open item ("the heartbeat table needs a
+          retention delete before Phase 1") by saying the window out loud
+          rather than leaving the retention invisible on the one screen that
+          reads this table. */}
+      <p className="ops-board__slug">Runs older than 30 days are deleted automatically, per sweep.</p>
       <div style={{ overflowX: "auto" }}>
         <table className="ops-board__table">
           <thead>
@@ -243,6 +310,7 @@ export default function OpsBoard() {
                 overview.rooms.map((room) => <RoomCard key={room.room_id} room={room} />)
               )}
             </div>
+            <FunnelCard funnel={overview.funnel} />
             <SweepsStrip sweeps={overview.sweeps} />
           </>
         )}
