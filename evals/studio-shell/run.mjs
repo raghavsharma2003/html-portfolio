@@ -110,8 +110,20 @@ const shellSource = readFileSync(join(STUDIO_DIR, "StudioShell.tsx"), "utf8");
 const appSource = readFileSync(join(STUDIO_DIR, "StudioApp.tsx"), "utf8");
 
 function isMountedSomewhere(componentName, shellText, appText) {
-  const pattern = new RegExp(`from ["']\\./${componentName}["']`);
-  return pattern.test(shellText) || pattern.test(appText);
+  // WS-R49: a panel can be wired in two source shapes now — a static
+  // `import X from "./X"` (every panel until this workstream) or
+  // `lazy(() => import("./X"))` (nine panels StudioApp.tsx now code-splits,
+  // none reachable before sign-in and a replica). Both are a real mount; only
+  // the first has a `from` keyword, so the scan has to look for either rather
+  // than treating the dynamic form as absent, which is what this check did
+  // before this line and is exactly the class of gap named in this repo's own
+  // rejected.md#ws-r35-pulse-combo-sql-factored-through-a-helper-evaded-the-
+  // leak-batterys-static-scan: a static text scan blind to a new but
+  // equivalent shape.
+  const staticImport = new RegExp(`from ["']\\./${componentName}["']`);
+  const dynamicImport = new RegExp(`import\\(["']\\./${componentName}["']\\)`);
+  return staticImport.test(shellText) || staticImport.test(appText)
+    || dynamicImport.test(shellText) || dynamicImport.test(appText);
 }
 
 for (const file of panelFiles) {
