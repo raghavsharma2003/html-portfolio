@@ -51,6 +51,8 @@ import {
 } from "./roomCohortsApi";
 import CheckinsCard from "./CheckinsCard";
 import HandoffCard from "./HandoffCard";
+import SuiteCard from "./SuiteCard";
+import { roomSuite, type SuiteRoomStatus } from "./orgApi";
 import {
   readRoomPayments,
   setRoomPriceInr,
@@ -159,6 +161,7 @@ export default function RoomStudio({
   const [revenue, setRevenue] = useState<RoomRevenue | null>(null);
   const [pulse, setPulse] = useState<PulseReport | null>(null);
   const [pulseError, setPulseError] = useState(false);
+  const [suiteStatus, setSuiteStatus] = useState<SuiteRoomStatus | null>(null);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | null>(null);
@@ -219,6 +222,10 @@ export default function RoomStudio({
         setPrice(payments?.price ?? null);
         setRevenue(payments?.revenue ?? null);
         setPriceDraft(payments?.price?.follower_price_inr ?? PRICE_MIN_INR);
+        // WS-R28. Which Suite (if any) this Room belongs to - a card that
+        // cannot see this still lets the creator publish and run their Room,
+        // so a failed read degrades to "no Suite" rather than blocking load.
+        setSuiteStatus(await roomSuite(token, replicaId).catch(() => null));
         try {
           setPulse(await readPulse(token, replicaId));
           setPulseError(false);
@@ -537,6 +544,9 @@ export default function RoomStudio({
             {copied ? "Copied" : "Copy link"}
           </button>
         </div>
+        {suiteStatus && (
+          <p className="field-note vy-room__suite-note">Part of {suiteStatus.name}.</p>
+        )}
 
         <label className="field-label" htmlFor="room-slug">Change the address</label>
         <div className="vy-room__slug-row">
@@ -865,6 +875,18 @@ export default function RoomStudio({
         )}
       </article>
 
+      <SuiteCard
+        token={token}
+        roomId={room.room_id}
+        roomOrgId={suiteStatus?.org_id ?? null}
+        onRoomSuiteChange={(orgId) => {
+          if (!orgId) {
+            setSuiteStatus(null);
+          } else {
+            void roomSuite(token, replicaId).then(setSuiteStatus).catch(() => {});
+          }
+        }}
+      />
       <CheckinsCard token={token} replicaId={replicaId} />
       <HandoffCard token={token} replicaId={replicaId} />
       <article className="teacher-sheet-card vy-room__pulse-card">

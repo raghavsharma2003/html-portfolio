@@ -7329,3 +7329,36 @@ file - search for the CALL SITE's surrounding syntax (the assignment, the
 argument list it is passed inside, or enough of the statement around it)
 instead, and verify by reading the file rather than trusting the search
 string looks unambiguous.
+
+## `ws-r28-leak-battery-scanner-matches-prose-not-only-sql` (2026-09-04, WS-R28)
+
+**What was tried.** `api/_org.js`'s header comment explained, in prose, that
+`orgBoard` "never queries `vy_room_follower` or `vy_room_thread` itself" -
+naming the two tables to say the file does NOT touch them.
+
+**What broke.** `evals/room-leak/run.mjs`'s own scanner (the one this file's
+final report and `evals/org/run.mjs` §5b both rely on) decides whether a file
+is even IN SCOPE with one blunt check: `src.includes("vy_room_thread") ||
+src.includes("vy_room_follower")` over the RAW FILE TEXT, not over extracted
+SQL. A prose sentence explaining that the file avoids a table trips the same
+line a real query would. Once tripped, the file must either be listed in
+`ALLOWED` (a bare pass, wrong here since `_org.js` might legitimately gain a
+real query later) or in `AGGREGATE_ONLY` - and `AGGREGATE_ONLY` membership
+requires the scanner to find at least one backtick-delimited SQL statement
+naming the table (`stmts.length` checked, `"no-statement-found"` otherwise).
+A file that only MENTIONS a table in prose, with zero real statements, fails
+that second check even while doing nothing wrong.
+
+**Fix.** Reworded the comment to say "a follower or a thread table" instead
+of naming them - the substantive claim (this file reuses `api/_ops.js`'s
+`roomOverview` rather than querying either table itself) survives the edit
+intact; only the literal table names, which were incidental to a comment
+about NOT querying them, needed to go.
+
+**Rule.** A comment in any file under `api/` that discusses a Room's
+follower or thread table BY NAME - even to say a function avoids it - joins
+that file to `evals/room-leak/run.mjs`'s scanned set the same as a real
+query would. Before naming either table in a comment, either accept the
+file into `AGGREGATE_ONLY`/`ALLOWED` on purpose (and make sure it actually
+carries a matching statement if `AGGREGATE_ONLY`), or paraphrase around the
+literal name the way this fix does.

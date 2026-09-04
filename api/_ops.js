@@ -76,8 +76,15 @@ function parseJsonbMaybe(value) {
 
 /** One Room's numbers. Every statement below is scoped by `room_id = $1`
  *  alone - see this file's header for why that is what keeps every
- *  follower-table read inside AGGREGATE_ONLY. */
-async function roomOverview(db, room, monthKey, now) {
+ *  follower-table read inside AGGREGATE_ONLY.
+ *
+ *  Exported (WS-R28) so a Suite admin's own board (`api/_org.js`'s
+ *  `orgBoard`) can read the identical shape for a Room that belongs to their
+ *  organisation, rather than re-deriving the same aggregate query a second
+ *  time - `api/_funnel.js`'s `opsFunnel` reused-not-rederived precedent,
+ *  restated one file over: two aggregator surfaces reading one proven leaf
+ *  function can never disagree about what one Room's numbers are. */
+export async function roomOverview(db, room, monthKey, now) {
   const roomId = String(room.room_id);
   const freeCeiling = Number(room.free_monthly_messages ?? 20);
   const paidCeiling = Number(room.paid_monthly_messages ?? 500);

@@ -224,6 +224,41 @@
   .vy-room__checkins-cadence { font-size: var(--text-small); color: var(--ink-soft); }
   .vy-room__checkins-card textarea.field { resize: vertical; min-height: 4.5em; }
 
+  /* Suites (WS-R28). Same list/row shape as check-ins above, restated for a
+     Suite roster instead of a check-in list. */
+  .vy-room__suite-note { color: var(--ink-soft); }
+  .vy-room__suite-list {
+    list-style: none;
+    margin: var(--space-tight) 0 var(--space-item);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  .vy-room__suite-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+    border-radius: var(--radius-control);
+    border: var(--hairline) solid var(--line);
+    padding: var(--space-tight) var(--space-row);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  .vy-room__suite-row-head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+  @media (min-width: 480px) {
+    .vy-room__suite-row-head { flex-direction: row; align-items: baseline; justify-content: space-between; gap: var(--space-tight); }
+  }
+  .vy-room__suite-name { font-weight: var(--weight-strong); color: var(--ink); }
+  .vy-room__suite-seats { font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__suite-actions { display: flex; flex-wrap: wrap; gap: var(--space-hair); }
+  .vy-room__suite-members { list-style: none; margin: var(--space-hair) 0 0; padding: 0; font-size: var(--text-small); color: var(--ink-soft); }
+  .vy-room__suite-join { display: flex; flex-wrap: wrap; gap: var(--space-hair); align-items: center; }
+  .vy-room__suite-join .field { flex: 1 1 12em; }
+
   /* Handoff (WS-R20). The one waiting request's own bubble - not a list, by
      design (`api/_handoff.js`'s "one at a time" law): a bordered block that
      reads as a quoted message rather than a form field, `.vy-room__checkins-

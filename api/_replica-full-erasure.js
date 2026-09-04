@@ -98,6 +98,14 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // receipt that did not name it would understate what was held.
       // Additive; the eval asserts membership, never the exact list.
       "owner_room_handoff",
+      // 091 (WS-R28). A Suite membership is its own class rather than folded
+      // into anything above: it names an organisation this owner belonged to
+      // and the role they held in it, a different kind of record than a
+      // memory, a payment or a schedule, and a receipt that did not name it
+      // would understate what was held. The Suite row itself (`vy_org`)
+      // deliberately outlives this erasure - see migration 091's header -
+      // so this class names only the MEMBERSHIP, never the organisation.
+      "owner_org_membership",
     ]),
   });
 }
@@ -617,6 +625,20 @@ export async function completeReplicaErasure(db, lease, receipt) {
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 091 (WS-R28), Suites v0. Reached by owner_user_id ALONE, creator_
+     -- payouts' own reasoning three blocks up restated a second time: a
+     -- Suite membership is not this ONE replica's, it is this OWNER's, so it
+     -- is out of scope for the replica-keyed joins every block above uses
+     -- and is scoped the same imprecise way vy_creator_payout already is
+     -- (migration 078's own header, migration 091's own header, both log the
+     -- same tradeoff in context/decisions.md: an owner erasing ONE of
+     -- several replicas also clears their Suite memberships everywhere).
+     -- vy_org itself is deliberately NOT deleted here and carries no
+     -- owner_user_id column for exactly that reason - see migration 091's
+     -- header: an org survives its last admin's own erasure, on purpose, so
+     -- a roster's shared address is never taken down by one person's wipe.
+     org_memberships as (delete from vy_org_member x using target t
+       where x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,

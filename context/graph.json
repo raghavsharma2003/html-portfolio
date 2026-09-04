@@ -5824,6 +5824,60 @@
       "kind": "open",
       "title": "api/account.js's send_sms and verify_sms (the OTP sign-in the Room uses) are not behind vy_public_rate; they keep Meera's in-memory per-destination throttle, which resets on every cold start and is per-instance. WS-R26 left them out as shared infrastructure; a follow-up puts otp_send_ip and otp_send_dest scopes on the same predicate.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-suites-v0",
+      "kind": "component",
+      "title": "Suites v0 (WS-R28, migration 091): vy_org/vy_org_member/vy_org_subscription, api/_org.js, api/org.js. An organisation owns seats, one seat per creator Room; the admin sees only counts (reuses api/_ops.js roomOverview). No cross-Room disclosure - the GroupAI kernel port stays out of scope.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-vy-org-creator-column-is-not-named-owner-user-id",
+      "kind": "decision",
+      "title": "vy_org.created_by_user_id is deliberately not named owner_user_id, so relcheck.mjs owner-lane erasure-reach never asks for a delete this table must never run - the org survives its last admin's own erasure.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-room-org-fk-on-delete-set-null-not-cascade",
+      "kind": "decision",
+      "title": "vy_room.org_id is ON DELETE SET NULL, not CASCADE, deviating from the brief's literal word: a Suite going away must never silently delete a Room, its followers, or its revenue.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-suite-membership-is-always-the-members-own-write",
+      "kind": "decision",
+      "title": "inviteMember performs no write; acceptMembership always writes the caller's own owner_user_id. No function lets an admin write a membership row naming somebody else.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-seat-covers-creator-tier-predicate-built-unwired",
+      "kind": "decision",
+      "title": "seatCoversCreatorTier is built and proven but nothing calls it yet - no creator tier charge exists anywhere in this codebase. Built ahead of its caller so Phase 2 consults a predicate rather than inventing a branch.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-leak-battery-scanner-matches-prose-not-only-sql",
+      "kind": "rejection",
+      "title": "Naming vy_room_follower/vy_room_thread in api/_org.js's own prose comment tripped evals/room-leak/run.mjs's blunt whole-file substring scanner, which then required a real matching SQL statement that did not exist. Fixed by paraphrasing around the literal names.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-suites-offline-eval-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/org/run.mjs: 54/54 offline, three negative controls, driving the real api/_org.js and reusing api/_ops.js roomOverview for orgBoard.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-room-leak-baseline-single-failure-unexplained-2026-09-04",
+      "kind": "measurement",
+      "title": "The untouched-tree baseline gate showed room-leak at 77/78; the specific failing assertion was lost to tail-truncation and never reproduced across four subsequent standalone runs (78/78 every time). Logged open, not claimed fixed.",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r28-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs: 14/16 on the untouched tree (eval suite stale-bundle + room-leak's one-off, both environmental), 16/16 after this workstream's changes, without NEON_URL.",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -11731,6 +11785,51 @@
       "src": "ws-r26-otp-doors-not-behind-vy-public-rate",
       "rel": "constrains",
       "dst": "ws-r26-write-is-the-check-not-read-then-write"
+    },
+    {
+      "src": "ws-r28-vy-org-creator-column-is-not-named-owner-user-id",
+      "rel": "constrains",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r28-room-org-fk-on-delete-set-null-not-cascade",
+      "rel": "constrains",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r28-suite-membership-is-always-the-members-own-write",
+      "rel": "constrains",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r28-seat-covers-creator-tier-predicate-built-unwired",
+      "rel": "part_of",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r28-suites-v0",
+      "rel": "measured_by",
+      "dst": "ws-r28-suites-offline-eval-2026-09-04"
+    },
+    {
+      "src": "ws-r28-vy-org-creator-column-is-not-named-owner-user-id",
+      "rel": "caused_by",
+      "dst": "ws-r28-leak-battery-scanner-matches-prose-not-only-sql"
+    },
+    {
+      "src": "ws-r28-suites-v0",
+      "rel": "measured_by",
+      "dst": "ws-r28-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r28-gate-results-2026-09-04",
+      "rel": "constrains",
+      "dst": "ws-r28-room-leak-baseline-single-failure-unexplained-2026-09-04"
+    },
+    {
+      "src": "ws-r28-suites-v0",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
     }
   ]
 }

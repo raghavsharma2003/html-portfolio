@@ -3689,3 +3689,59 @@ create table if not exists vy_room_forget_receipt (
 );
 create index if not exists vy_room_forget_receipt_room_issued_ix
   on vy_room_forget_receipt (room_id, issued_at desc);
+-- Migration 091 - Suites v0, the B2B unit (WS-R28). See
+-- db/migrations/091_org_suites.sql for the full argument; mirrored here per
+-- this file's own convention. `vy_org.created_by_user_id` is deliberately
+-- NOT named `owner_user_id` - the org survives a creator's own erasure even
+-- as its last admin, so it must never be a table scripts/relcheck.mjs's
+-- owner-lane walk asks api/_replica-full-erasure.js to justify deleting.
+-- `vy_room.org_id` is ON DELETE SET NULL, not CASCADE, so a Suite going away
+-- never silently deletes a Room, its followers or its revenue.
+create table if not exists vy_org (
+  org_id             uuid primary key default gen_random_uuid(),
+  name               text not null check (length(name) > 0 and length(name) <= 120),
+  slug               text not null check (slug ~ '^[a-z0-9][a-z0-9-]{2,39}$'),
+  created_by_user_id uuid not null,
+  plan               text not null default 'starter' check (plan in ('starter', 'institute')),
+  seat_limit         integer not null default 1 check (seat_limit >= 1 and seat_limit <= 500),
+  created_at         timestamptz not null default now()
+);
+create unique index if not exists vy_org_slug_ix on vy_org (lower(slug));
+create index if not exists vy_org_created_by_ix on vy_org (created_by_user_id);
+
+create table if not exists vy_org_member (
+  org_id        uuid not null references vy_org(org_id) on delete cascade,
+  owner_user_id uuid not null,
+  role          text not null check (role in ('admin', 'creator')),
+  added_at      timestamptz not null default now(),
+  primary key (org_id, owner_user_id)
+);
+create index if not exists vy_org_member_owner_ix on vy_org_member (owner_user_id);
+create index if not exists vy_org_member_org_role_ix on vy_org_member (org_id, role);
+
+alter table vy_room add column if not exists org_id uuid references vy_org(org_id) on delete set null;
+create index if not exists vy_room_org_ix on vy_room (org_id) where org_id is not null;
+
+create table if not exists vy_org_subscription (
+  subscription_id            uuid primary key default gen_random_uuid(),
+  org_id                     uuid not null references vy_org(org_id) on delete cascade,
+  plan                       text not null check (plan in ('starter', 'institute')),
+  seats                      integer not null check (seats >= 1 and seats <= 500),
+  price_per_seat_inr         integer not null check (price_per_seat_inr > 0),
+  currency                   text not null default 'INR' check (currency = 'INR'),
+  state                      text not null default 'created'
+                             check (state in ('created', 'authenticated', 'active', 'paused', 'cancelled', 'expired')),
+  provider                   text not null check (provider in ('razorpay', 'fake')),
+  provider_subscription_ref  text,
+  current_period_start       timestamptz,
+  current_period_end         timestamptz,
+  created_at                 timestamptz not null default now(),
+  updated_at                 timestamptz not null default now()
+);
+create unique index if not exists vy_org_subscription_org_live_ix
+  on vy_org_subscription (org_id)
+  where state in ('created', 'authenticated', 'active', 'paused');
+create unique index if not exists vy_org_subscription_provider_ref_ix
+  on vy_org_subscription (provider, provider_subscription_ref)
+  where provider_subscription_ref is not null;
+create index if not exists vy_org_subscription_org_ix on vy_org_subscription (org_id, created_at desc);
