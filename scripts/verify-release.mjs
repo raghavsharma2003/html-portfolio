@@ -175,6 +175,20 @@ await gate("room export completeness", NODE, ["evals/room-export/run.mjs"]);
 // fixed (session-TTL enforcement was missing on most session-consuming
 // ops; a thread-creation door had no live-follower check at all).
 await gate("room door battery", NODE, ["evals/room-doors/run.mjs"]);
+// WS-R50. WCAG 2.1 A/AA over every follower and creator screen in both
+// locales: axe-core in a real Chromium against the built output on
+// 127.0.0.1:8933 (the layout gate owns 8931, WS-R49's performance gate
+// owns 8932), reusing `check-layout.mjs`'s own fixtures rather than a
+// third copy — plus a hand-written keyboard walk (axe cannot press a key),
+// asserting Tab reaches every control, Enter/Space activates it, Escape
+// closes an open panel, and focus is visibly marked. Zero `serious` or
+// `critical` findings of either kind fails the build; `moderate`/`minor`
+// axe findings are reported, not blocking — see
+// `context/decisions.md#ws-r50-accessibility-impact-threshold` for the
+// reversal condition. Runs in well under a minute; see
+// `scripts/check-accessibility.mjs`'s own header for what it does and does
+// not prove.
+await gate("accessibility", NODE, ["scripts/check-accessibility.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the

@@ -41,7 +41,7 @@ boundary.
 ## The gates. Everything must pass before anything ships
 
 ```
-node scripts/verify-release.mjs      # 17 checks without NEON_URL; 19 with it
+node scripts/verify-release.mjs      # 18 checks without NEON_URL; 20 with it
 node scripts/context.mjs --check     # the memory graph must stay consistent
 ```
 
