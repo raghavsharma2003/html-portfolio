@@ -57,6 +57,49 @@
 // a style choice: a second hand-written ownership check is a second place the
 // scope predicate could be gotten wrong, and this product has exactly one of
 // those it trusts (`api/_room-surface.js`'s own header).
+//
+// ── PULSE V1 (WS-R35, migration 097): NEVER A RARE-ATTRIBUTE COMBINATION ──
+//
+// v0's floor (law 3 above) protects a SINGLE label's own bucket. It does not
+// protect two buckets read TOGETHER: "5 asked about visas" and "5 asked
+// about divorce" can each individually clear the floor while the SAME one
+// person sits inside both — the plan's own worked example. v1 adds:
+//
+//   6. SUPPRESSION IS STRUCTURAL, NOT A JS DECISION. `publishCombo` is ONE
+//      `insert ... select ... having ...` statement per candidate label SET
+//      (1 or 2 labels this sweep ever generates, see `MAX_COMBO_SIZE`
+//      below); the row is written or it is not, decided entirely inside that
+//      one statement's `having` clause, never by JS reading a count back and
+//      branching on it. `count(*)` and every literal column are wrapped in
+//      `min(...)`/`count(...)` — a WHERE-scoped aggregate over exactly one
+//      candidate is `context/decisions.md#ws-r25-aggregate-only-parser-
+//      widened-to-admit-min`'s own technique, one file over — so the whole
+//      statement's outer SELECT LIST stays inside `evals/room-leak/run.mjs`'s
+//      AGGREGATE_ONLY parser without needing a second admitted-file rule.
+//   7. THE PAIRWISE PREDICATE. A candidate set S publishes only if its own
+//      count is >=5 AND, for every OTHER active label L not already in S,
+//      the population of S-with-L-added is either 0 or >=5. This is the
+//      brief's own k-anonymity rule made concrete: checking S against every
+//      single OTHER label (rather than against every other multi-label
+//      candidate too) is a deliberately narrower, tractable predicate that
+//      catches the plan's exact worked example; see
+//      `context/decisions.md#ws-r35-pairwise-check-is-set-vs-single-label`
+//      for the scope this leaves uncovered and what would widen it.
+//   8. LABELS ARE TEXT, CAPTURED AT PUBLISH TIME. `vy_room_pulse_combo.labels`
+//      is a sorted `text[]`, never a `topic_id` foreign key — a creator
+//      renaming a label after a week publishes must never reinterpret what
+//      that week already said, migration 097's own header.
+//   9. `suppressed` IS A COUNT, NEVER A LIST. `computeComboSnapshot` counts
+//      candidates it tried minus rows that landed; the number is written to
+//      `vy_room_pulse_week`, and nothing about WHICH candidates lost is ever
+//      persisted or returned.
+//  10. THE NOTE IS PURE. `weeklyNote` takes only this week's PUBLISHED rows
+//      (already floor- and pairwise-clean) and a closed action code; it
+//      never touches `db`, never sees a follower's words, and is therefore
+//      byte-identical for two weeks with the same published counts no matter
+//      what else changed (`evals/pulse/run.mjs`'s control (c)). Always
+//      English — the STUDIO's own locale, never the Room's `default_locale`,
+//      because a creator reads this, not a follower.
 import { randomUUID } from "node:crypto";
 import {
   RoomError,
@@ -85,8 +128,23 @@ export const PULSE_MIN_FOLLOWERS = 5;
 
 /** A creator declares a short list, not an open-ended one — the same
  *  reasoning `vy_room_thread.title`'s 80-character cap uses one column over:
- *  a label is a name, not a taxonomy. */
-export const PULSE_MAX_TOPICS = 8;
+ *  a label is a name, not a taxonomy. WS-R35 (Pulse v1, migration 097) moved
+ *  this from v0's placeholder 8 to the plan's own number, 12, and made the
+ *  bound structural (a `slot` column capped 1..12 by a CHECK, paired with a
+ *  unique index) rather than app-only — `setTopics`, below, is the only
+ *  writer of `slot` and is what keeps the two numbers from drifting.
+ *  `PULSE_MAX_LABELS` is the v1 name; `PULSE_MAX_TOPICS` stays exported,
+ *  same value, so nothing importing the v0 name silently breaks. */
+export const PULSE_MAX_LABELS = 12;
+export const PULSE_MAX_TOPICS = PULSE_MAX_LABELS;
+
+/** Law 2's character bounds — v0 shipped only a DB-level 1-60 with no
+ *  minimum; v1 (migration 097) adds a real minimum and a tighter maximum,
+ *  both mirrored as a `not valid` CHECK on `vy_room_pulse_topic.label` so a
+ *  bug here is not the only thing standing between a 1-character or a
+ *  90-character label and the database. */
+export const PULSE_LABEL_MIN_LEN = 2;
+export const PULSE_LABEL_MAX_LEN = 32;
 
 export class PulseError extends Error {
   constructor(code, status = 400) {
@@ -234,12 +292,21 @@ async function ownedRoomHandle(db, ownerUserId, replicaId) {
 
 /** OWNER, WRITE. Replaces the room's whole topic list — the studio card's own
  *  shape (a short list the creator edits as one unit, `RoomStudio.tsx`).
- *  Trimmed to `PULSE_MAX_TOPICS`, deduplicated case-insensitively (the
- *  migration's own unique index does the same on the database side; this is
- *  the honest client-visible half of that same rule). Every statement names
- *  only `vy_room_pulse_topic` — creator-authored text this file WRITES,
- *  never text it reads off a follower — so none of this is inside the leak
- *  battery's watch either. */
+ *  Trimmed to `PULSE_MAX_LABELS` and `PULSE_LABEL_MIN_LEN`/`_MAX_LEN`,
+ *  deduplicated case-insensitively (the migration's own indexes do the same
+ *  on the database side; this is the honest client-visible half of that same
+ *  rule). Every statement names only `vy_room_pulse_topic` — creator-authored
+ *  text this file WRITES, never text it reads off a follower — so none of
+ *  this is inside the leak battery's watch either.
+ *
+ *  WS-R35 (Pulse v1): also the only writer of `slot`, migration 097's
+ *  structural cap. Every call clears every row's slot for this room FIRST,
+ *  in its own statement, then assigns a fresh 1..N to the final list in
+ *  order — two rows briefly wanting the same slot mid-swap would collide
+ *  against `vy_room_pulse_topic_slot_ix` otherwise, since Neon SQL-over-HTTP
+ *  has no multi-statement transaction here (009's one-statement-per-request
+ *  law) and NULL is the only value that index lets more than one row hold at
+ *  once. */
 export async function setTopics(db, ownerUserId, replicaId, topics) {
   if (!UUID.test(String(ownerUserId || "")) || !UUID.test(String(replicaId || ""))) {
     throw new PulseError("pulse_identity_invalid", 400);
@@ -250,13 +317,13 @@ export async function setTopics(db, ownerUserId, replicaId, topics) {
   const clean = [];
   const seen = new Set();
   for (const raw of Array.isArray(topics) ? topics : []) {
-    const label = String(raw ?? "").trim().slice(0, 60);
-    if (!label) continue;
+    const label = String(raw ?? "").trim().slice(0, PULSE_LABEL_MAX_LEN);
+    if (label.length < PULSE_LABEL_MIN_LEN) continue; // law 2: 2-32 characters
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     clean.push(label);
-    if (clean.length >= PULSE_MAX_TOPICS) break;
+    if (clean.length >= PULSE_MAX_LABELS) break;
   }
 
   const existing = await db(
@@ -270,21 +337,25 @@ export async function setTopics(db, ownerUserId, replicaId, topics) {
     }
   }
 
+  await db(`update vy_room_pulse_topic set slot = null where room_id = ($1)::uuid`, [String(room.room_id)]);
+
   const out = [];
-  for (const label of clean) {
+  for (let i = 0; i < clean.length; i++) {
+    const label = clean[i];
+    const slot = i + 1;
     const already = existing.find((row) => String(row.label).toLowerCase() === label.toLowerCase());
     const rows = already
       ? await db(
-          `update vy_room_pulse_topic set label = $2, updated_at = now()
+          `update vy_room_pulse_topic set label = $2, slot = $3, updated_at = now()
             where topic_id = ($1)::uuid
             returning topic_id, label`,
-          [String(already.topic_id), label],
+          [String(already.topic_id), label, slot],
         )
       : await db(
-          `insert into vy_room_pulse_topic (topic_id, room_id, owner_user_id, label, updated_at)
-           values (($1)::uuid, ($2)::uuid, ($3)::uuid, $4, now())
+          `insert into vy_room_pulse_topic (topic_id, room_id, owner_user_id, label, slot, updated_at)
+           values (($1)::uuid, ($2)::uuid, ($3)::uuid, $4, $5, now())
            returning topic_id, label`,
-          [randomUUID(), String(room.room_id), String(ownerUserId).toLowerCase(), label],
+          [randomUUID(), String(room.room_id), String(ownerUserId).toLowerCase(), label, slot],
         );
     out.push(rows[0]);
   }
@@ -463,7 +534,340 @@ export async function readPulse(db, ownerUserId, replicaId) {
       ? "not_enough_optins"
       : "no_topic_at_floor";
 
-  return { week_start: weekStart, total_optin: totalOptin, status, buckets, topics };
+  // WS-R35, Pulse v1: the most recently PUBLISHED combo week, read the same
+  // "whatever the sweep actually wrote" way as v0's `weekStart` two blocks
+  // up — never a wall-clock guess.
+  const [latestCombo] = await db(
+    `select max(week_start)::text as week_start from vy_room_pulse_week where room_id = ($1)::uuid`,
+    [String(room.room_id)],
+  );
+  const comboWeekStart = latestCombo?.week_start || null;
+  let comboBuckets = [];
+  let suppressed = 0;
+  if (comboWeekStart) {
+    const [header] = await db(
+      `select suppressed from vy_room_pulse_week where room_id = ($1)::uuid and week_start = ($2)::date`,
+      [String(room.room_id), comboWeekStart],
+    );
+    suppressed = Number(header?.suppressed || 0);
+    const comboRows = await db(
+      `select labels, follower_count from vy_room_pulse_combo
+        where room_id = ($1)::uuid and week_start = ($2)::date
+        order by follower_count desc`,
+      [String(room.room_id), comboWeekStart],
+    );
+    comboBuckets = comboRows.map((r) => ({
+      labels: Array.isArray(r.labels) ? r.labels : [],
+      follower_count: Number(r.follower_count),
+    }));
+  }
+  const note = weeklyNote(comboBuckets);
+
+  return {
+    week_start: weekStart,
+    total_optin: totalOptin,
+    status,
+    buckets,
+    topics,
+    // WS-R35 additions, additive only — nothing above this line changed shape.
+    combo_week_start: comboWeekStart,
+    suppressed,
+    combo_buckets: comboBuckets,
+    note,
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// PULSE V1 — k-anonymous label combinations (WS-R35, migration 097).
+// ═════════════════════════════════════════════════════════════════════════
+
+/** Trims, dedupes case-insensitively, and sorts (law 8: "a sorted text[]",
+ *  so the same set typed in two orders is always the same stored row and the
+ *  same `vy_room_pulse_combo_ix` entry). Used for both a combo about to be
+ *  published and the raw negative-control read below. */
+function normalizeLabelSet(labels) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(labels) ? labels : []) {
+    const label = String(raw ?? "").trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out.sort((a, b) => a.localeCompare(b));
+}
+
+/** Every k-combination of `items`, order-preserving within each combination.
+ *  Pure JS combinatorics over LABEL TEXT (the creator's own taxonomy,
+ *  already shown to the creator by `readPulse`'s `topics` field) — no
+ *  follower data is anywhere near this function. */
+function combinationsOfSize(items, size) {
+  if (size <= 0) return [[]];
+  if (size > items.length) return [];
+  const out = [];
+  for (let i = 0; i <= items.length - size; i++) {
+    for (const rest of combinationsOfSize(items.slice(i + 1), size - 1)) {
+      out.push([items[i], ...rest]);
+    }
+  }
+  return out;
+}
+
+/**
+ * IMPORTANT — why this SQL is written out in full THREE times (here and
+ * twice more inside `publishCombo`) rather than shared through a helper
+ * function: `evals/room-leak/run.mjs`'s AGGREGATE_ONLY parser is a STATIC
+ * TEXT scan of this file's own backtick-delimited literals — it looks for
+ * the literal substring `vy_room_thread`/`vy_room_follower` inside each
+ * template literal and grades THAT literal's own outer select list. A
+ * factored-out helper returning its own small template string defeats this
+ * two different ways at once: the helper's OWN tiny literal (`select 1 from
+ * vy_room_thread ...`) gets found and graded on its own, non-aggregate outer
+ * select, and fails; and the CALLER's literal, having interpolated the
+ * helper's return value via `${...}` rather than containing the words
+ * `vy_room_thread` as source text, is no longer recognised as touching that
+ * table at all and silently escapes the scan entirely — the opposite of
+ * "aggregate-only," a statement the battery never even looks at. This was
+ * caught by hand-running the parser's own regex against a draft of this file
+ * before the eval suite did (`context/rejected.md#ws-r35-pulse-combo-sql-
+ * factored-through-a-helper-evaded-the-leak-batterys-static-scan`); the fix
+ * is the one below: every statement below writes its own "person matches
+ * every label in this array" clause out in full.
+ */
+
+/**
+ * The RAW, UNGUARDED count of distinct followers whose actively opted-in
+ * threads collectively match EVERY label in `labels` (1-3 of them). Exported
+ * for exactly one caller beyond `evals/pulse/run.mjs`'s negative control:
+ * nothing in this file's own publish path calls it (law 6: the publish
+ * decision lives inside `publishCombo`'s own statement, never a JS read-then-
+ * decide) — the same "exported so a negative control can prove the guard is
+ * load-bearing, never called by the guarded path itself" shape v0's
+ * `topicFollowerCount` uses one section up, tightened one step further.
+ *
+ * THE AGGREGATE-ONLY STATEMENT. Outer SELECT LIST is `count(*)` alone, the
+ * identical shape `topicFollowerCount` already proves out against
+ * `evals/room-leak/run.mjs`'s parser.
+ */
+export async function comboFollowerCount(db, roomId, labels) {
+  const clean = normalizeLabelSet(labels);
+  if (!clean.length) return 0;
+  const [row] = await db(
+    `select count(*)::int as follower_count
+       from (
+         select distinct o.person_id
+           from vy_room_pulse_optin o
+          where o.room_id = ($1)::uuid
+            and o.revoked_at is null
+       ) op
+      where not exists (
+        select 1 from unnest(($2)::text[]) as lbl(label)
+         where not exists (
+           select 1 from vy_room_thread t
+            where t.room_id = ($1)::uuid
+              and t.person_id = op.person_id
+              and t.archived_at is null
+              and lower(t.title) like ('%' || lower(lbl.label) || '%')
+              and exists (
+                select 1 from vy_room_pulse_optin ov
+                 where ov.thread_id = t.thread_id
+                   and ov.revoked_at is null
+              )
+         )
+      )`,
+    [String(roomId), clean],
+  );
+  return Number(row?.follower_count || 0);
+}
+
+/** v1 only ever GENERATES size-1 and size-2 candidates, even though migration
+ *  097's own CHECK allows a stored set of up to 3 (headroom, not a promise).
+ *  `context/decisions.md#ws-r35-combo-size-capped-at-two` names the reversal
+ *  condition. */
+const MAX_COMBO_SIZE = 2;
+
+/**
+ * Law 6/7 as ONE statement. Tries to publish the single candidate set
+ * `labels` for `weekId`/`roomId`/`weekStart`: the row is inserted if and
+ * only if (a) its own population is >=5 and (b) adding any ONE other active
+ * label never produces a population between 1 and 4 — both decided inside
+ * this statement's `having`, never by a value read back into JS and branched
+ * on. Every literal column is wrapped in `min(...)`; the one real aggregate,
+ * `count(*)`, is what the floor and the pairwise subquery's own inner count
+ * both key off — `context/decisions.md#ws-r25-aggregate-only-parser-widened-
+ * to-admit-min`'s technique, applied to a whole row rather than one column.
+ * Returns the published row (`{labels, follower_count}`) or `null` if the
+ * statement inserted nothing — `null` IS the refusal; there is no second
+ * code path that could publish a row this statement declined.
+ */
+async function publishCombo(db, weekId, roomId, weekStart, labels) {
+  const rows = await db(
+    `insert into vy_room_pulse_combo (combo_id, week_id, room_id, week_start, labels, follower_count, computed_at)
+     select min(($1)::uuid), min(($2)::uuid), min(($3)::uuid), min(($4)::date), min(($5)::text[]), count(*)::int, min(now())
+       from (
+         select distinct o.person_id
+           from vy_room_pulse_optin o
+          where o.room_id = ($3)::uuid
+            and o.revoked_at is null
+       ) op
+      where not exists (
+        select 1 from unnest(($5)::text[]) as lbl(label)
+         where not exists (
+           select 1 from vy_room_thread t
+            where t.room_id = ($3)::uuid
+              and t.person_id = op.person_id
+              and t.archived_at is null
+              and lower(t.title) like ('%' || lower(lbl.label) || '%')
+              and exists (
+                select 1 from vy_room_pulse_optin ov
+                 where ov.thread_id = t.thread_id
+                   and ov.revoked_at is null
+              )
+         )
+      )
+     having count(*) >= 5
+        and not exists (
+          select 1 from vy_room_pulse_topic other
+           where other.room_id = ($3)::uuid
+             and not exists (
+               select 1 from unnest(($5)::text[]) as already(label)
+                where lower(already.label) = lower(other.label)
+             )
+             and (
+               select count(*)::int
+                 from (
+                   select distinct o2.person_id
+                     from vy_room_pulse_optin o2
+                    where o2.room_id = ($3)::uuid
+                      and o2.revoked_at is null
+                 ) op2
+                where not exists (
+                  select 1 from unnest((($5)::text[] || array[other.label])) as lbl2(label)
+                   where not exists (
+                     select 1 from vy_room_thread t2
+                      where t2.room_id = ($3)::uuid
+                        and t2.person_id = op2.person_id
+                        and t2.archived_at is null
+                        and lower(t2.title) like ('%' || lower(lbl2.label) || '%')
+                        and exists (
+                          select 1 from vy_room_pulse_optin ov2
+                           where ov2.thread_id = t2.thread_id
+                             and ov2.revoked_at is null
+                        )
+                  )
+                )
+             ) between 1 and 4
+        )
+     returning labels, follower_count`,
+    [randomUUID(), String(weekId), String(roomId), weekStart, labels],
+  );
+  return rows[0] || null;
+}
+
+/**
+ * The k-anonymous publish, one Room, one ISO week. Deletes the week's
+ * existing combo rows and header FIRST (v0's own law 1, restated: recomputed,
+ * never patched), writes a placeholder header so `vy_room_pulse_combo`'s real
+ * FK to it has something to point at, tries EVERY size-1/2 combination of the
+ * Room's active labels via `publishCombo`, then corrects the header's
+ * `suppressed` count to candidates-tried minus rows-actually-published — a
+ * plain count of integers, never a label.
+ */
+export async function computeComboSnapshot(db, roomId, weekStart, deps = {}) {
+  const room = String(roomId);
+  const start = isoWeekStart(weekStart);
+  const startIso = start.toISOString().slice(0, 10);
+  void deps;
+
+  const topicRows = await db(
+    `select label from vy_room_pulse_topic where room_id = ($1)::uuid order by lower(label) asc`,
+    [room],
+  );
+  const activeLabels = normalizeLabelSet(topicRows.map((t) => t.label));
+
+  await db(
+    `delete from vy_room_pulse_combo where room_id = ($1)::uuid and week_start = ($2)::date`,
+    [room, startIso],
+  );
+  await db(
+    `delete from vy_room_pulse_week where room_id = ($1)::uuid and week_start = ($2)::date`,
+    [room, startIso],
+  );
+
+  const weekId = randomUUID();
+  await db(
+    `insert into vy_room_pulse_week (week_id, room_id, week_start, suppressed, computed_at)
+     values (($1)::uuid, ($2)::uuid, ($3)::date, 0, now())`,
+    [weekId, room, startIso],
+  );
+
+  let candidateCount = 0;
+  let publishedCount = 0;
+  const buckets = [];
+  for (let size = 1; size <= Math.min(MAX_COMBO_SIZE, activeLabels.length); size++) {
+    for (const combo of combinationsOfSize(activeLabels, size)) {
+      candidateCount += 1;
+      const published = await publishCombo(db, weekId, room, startIso, normalizeLabelSet(combo));
+      if (published) {
+        publishedCount += 1;
+        buckets.push({
+          labels: Array.isArray(published.labels) ? published.labels : combo,
+          follower_count: Number(published.follower_count),
+        });
+      }
+    }
+  }
+  const suppressed = candidateCount - publishedCount;
+  await db(`update vy_room_pulse_week set suppressed = $2 where week_id = ($1)::uuid`, [weekId, suppressed]);
+
+  return { room_id: room, week_start: startIso, suppressed, buckets };
+}
+
+/** The closed action list, law 4. Each entry is a shape, not a line a
+ *  creator or follower ever hears spoken (`AGENTS.md`'s "write shapes, never
+ *  lines" — this text is READ by a creator in the studio, never recited by
+ *  the agent, so the concern is narrower, but the same discipline of naming
+ *  the shape rather than polishing prose applies). */
+const PULSE_NOTE_ACTIONS = {
+  checkin: (label) => `Consider a check-in about ${label} for the followers behind it.`,
+  interview: (label) => `Add ${label} to the interview so there is a ready answer for it.`,
+  never_rule: (label) => `If ${label} is something you do not want answered, write a never-rule for it.`,
+};
+export const PULSE_NOTE_ACTION_CODES = Object.freeze(Object.keys(PULSE_NOTE_ACTIONS));
+
+/**
+ * Law 4/10. Pure: takes only this week's PUBLISHED combo rows and a closed
+ * action code, touches no database, and returns the same text for the same
+ * inputs every time (`evals/pulse/run.mjs`'s control (c) proves this against
+ * two worlds that differ only in follower verbatim text no `rows` here could
+ * ever carry). English always — the studio's own locale; the Room's
+ * `default_locale` never applies to this note because a creator reads it,
+ * never a follower.
+ */
+export function weeklyNote(rows, opts = {}) {
+  const clean = (Array.isArray(rows) ? rows : [])
+    .filter((r) => Array.isArray(r?.labels) && r.labels.length > 0 && Number(r.follower_count) >= PULSE_MIN_FOLLOWERS)
+    .slice()
+    .sort((a, b) => Number(b.follower_count) - Number(a.follower_count));
+
+  const whatItIs =
+    "Pulse counts what your followers talk about, only from conversations they chose to let count. " +
+    "It never shows a message or a name, and never a number below five.";
+
+  if (!clean.length) {
+    return `${whatItIs} Nothing reached five different followers this week.`;
+  }
+
+  const single = clean.find((r) => r.labels.length === 1);
+  const top = single ?? clean[0];
+  const topLabel = top.labels.join(" and ");
+  const actionCode = PULSE_NOTE_ACTION_CODES.includes(opts.action) ? opts.action : "checkin";
+  const actionSentence = PULSE_NOTE_ACTIONS[actionCode](topLabel);
+  const countPhrase = clean.length === 1 ? "One combination" : `${clean.length} combinations`;
+
+  return `${whatItIs} ${countPhrase} reached the floor this week. The top one was ${topLabel}. ${actionSentence}`;
 }
 
 /**
@@ -471,6 +875,14 @@ export async function readPulse(db, ownerUserId, replicaId) {
  * week, one `computeSnapshot` call each. `api/_drift-watch.js#runDriftWatchSweep`'s
  * own shape: cheap, side-effect-free beyond the guarded write, one error
  * isolates to one room rather than failing the whole sweep.
+ *
+ * WS-R35: the shape is UNCHANGED (the Build brief's own words) — one more
+ * call, `computeComboSnapshot`, inside the SAME try/catch as v0's
+ * `computeSnapshot`, so a room whose combo publish throws is still counted
+ * as one error rather than a second, uncounted failure mode. v0's per-topic
+ * snapshot keeps running unchanged; v1 is a strict addition on top of it,
+ * never a replacement — `context/decisions.md#ws-r35-v0-snapshot-kept-not-
+ * replaced`.
  */
 export async function runPulseSweep({ db, limit = 50, now = Date.now() } = {}) {
   if (typeof db !== "function") throw new PulseError("pulse_sweep_database_required", 500);
@@ -485,6 +897,7 @@ export async function runPulseSweep({ db, limit = 50, now = Date.now() } = {}) {
     summary.checked += 1;
     try {
       await computeSnapshot(db, row.room_id, weekStart);
+      await computeComboSnapshot(db, row.room_id, weekStart);
       summary.computed += 1;
     } catch (error) {
       summary.errors += 1;

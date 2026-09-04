@@ -20,7 +20,40 @@ import { OWNER, REPLICA_ID, ROOM_ID } from "../room/fixtures.mjs";
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 export function freshPulseState(base) {
-  return { ...base, pulseOptins: [], pulseTopics: [], pulseSnapshots: [] };
+  // WS-R35: `pulseWeeks`/`pulseCombos` mirror migration 097's two new
+  // tables, alongside v0's three (unchanged, still present, still written).
+  return { ...base, pulseOptins: [], pulseTopics: [], pulseSnapshots: [], pulseWeeks: [], pulseCombos: [] };
+}
+
+/**
+ * Mirrors `api/_pulse.js`'s SQL semantics exactly (room-scoped, actively
+ * opted-in persons, a person counts iff EVERY label in `labels` matches at
+ * least one of their own actively-opted-in threads) — the fixture's own
+ * version of the same "for all labels, some matching thread" double
+ * negation the real statements use, so a negative control that strikes a
+ * clause out of the real SQL is honoured here too (this file's own header).
+ */
+function personsMatchingLabelSet(state, roomId, labels) {
+  const room = String(roomId);
+  const needles = (Array.isArray(labels) ? labels : []).map((l) => String(l).toLowerCase());
+  const optedIn = new Set(
+    state.pulseOptins.filter((o) => o.room_id === room && o.revoked_at == null).map((o) => o.person_id),
+  );
+  const matched = new Set();
+  for (const personId of optedIn) {
+    const allMatch = needles.every((needle) =>
+      state.threads.some(
+        (t) =>
+          t.room_id === room &&
+          t.person_id === personId &&
+          t.archived_at == null &&
+          t.title.toLowerCase().includes(needle) &&
+          state.pulseOptins.some((o2) => o2.thread_id === t.thread_id && o2.revoked_at == null),
+      ),
+    );
+    if (allMatch) matched.add(personId);
+  }
+  return matched;
 }
 
 /**
@@ -31,6 +64,118 @@ export function pulseDb(state, base) {
   return async (sql, params = []) => {
     const has = (s) => sql.includes(s);
     const p = (params || []).map((v) => (v == null ? null : String(v)));
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // WS-R35 (Pulse v1, migration 097) — checked BEFORE every v0 branch
+    // below, because several v1 statements share a substring with a v0 one
+    // (both use `count(*)::int as follower_count`, both touch
+    // `vy_room_pulse_topic`/`select max(week_start)`) and the fixture must
+    // not let a v0 branch silently swallow a v1 statement with the wrong
+    // param shape.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ── setTopics' new "clear every slot" pass — the fixture does not model
+    //    `slot` at all (the 12-label cap is proved by migration 097's own
+    //    CHECK + unique index, not by this offline fixture), so this is a
+    //    deliberate, documented no-op rather than an accidental one.
+    if (has("update vy_room_pulse_topic set slot = null")) {
+      return [];
+    }
+
+    // ── computeComboSnapshot's own active-label read (label only, no
+    //    topic_id, ordered by lower(label)) — distinct from v0's two
+    //    `topic_id, label` reads below.
+    if (has("select label from vy_room_pulse_topic") && has("order by lower(label) asc")) {
+      const roomId = p[0];
+      return state.pulseTopics
+        .filter((t) => t.room_id === roomId)
+        .map((t) => ({ label: t.label }))
+        .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+    }
+
+    // ── the week header ───────────────────────────────────────────────────
+    if (has("delete from vy_room_pulse_combo")) {
+      const [roomId, weekStart] = p;
+      state.pulseCombos = state.pulseCombos.filter((c) => !(c.room_id === roomId && c.week_start === weekStart));
+      return [];
+    }
+    if (has("delete from vy_room_pulse_week")) {
+      const [roomId, weekStart] = p;
+      state.pulseWeeks = state.pulseWeeks.filter((w) => !(w.room_id === roomId && w.week_start === weekStart));
+      return [];
+    }
+    if (has("insert into vy_room_pulse_week")) {
+      const [weekId, roomId, weekStart, suppressed] = params;
+      state.pulseWeeks.push({
+        week_id: String(weekId),
+        room_id: String(roomId),
+        week_start: String(weekStart),
+        suppressed: Number(suppressed) || 0,
+      });
+      return [];
+    }
+    if (has("update vy_room_pulse_week") && has("set suppressed")) {
+      const [weekId, suppressed] = params;
+      const row = state.pulseWeeks.find((w) => w.week_id === String(weekId));
+      if (row) row.suppressed = Number(suppressed) || 0;
+      return [];
+    }
+    if (has("select suppressed from vy_room_pulse_week")) {
+      const [roomId, weekStart] = p;
+      const row = state.pulseWeeks.find((w) => w.room_id === roomId && w.week_start === weekStart);
+      return row ? [{ suppressed: row.suppressed }] : [];
+    }
+    if (has("select max(week_start)") && has("from vy_room_pulse_week")) {
+      const roomId = p[0];
+      const weeks = state.pulseWeeks.filter((w) => w.room_id === roomId).map((w) => w.week_start);
+      return [{ week_start: weeks.length ? weeks.sort().at(-1) : null }];
+    }
+
+    // ── the combo bucket: the k-anonymous PUBLISH — mirrors `publishCombo`'s
+    //    own `having` exactly: own population >=5, and no OTHER active label
+    //    (not already in this set) widens the population into 1-4. ─────────
+    if (has("insert into vy_room_pulse_combo") && has("min(($1)::uuid)")) {
+      const [comboId, weekId, roomId, weekStart, labels] = params;
+      const room = String(roomId);
+      const clean = Array.isArray(labels) ? labels : [];
+      const matched = personsMatchingLabelSet(state, room, clean);
+      if (matched.size < 5) return []; // law 6: own floor
+      const already = new Set(clean.map((l) => String(l).toLowerCase()));
+      const activeLabels = state.pulseTopics.filter((t) => t.room_id === room).map((t) => t.label);
+      for (const other of activeLabels) {
+        if (already.has(String(other).toLowerCase())) continue;
+        const widened = personsMatchingLabelSet(state, room, [...clean, other]);
+        if (widened.size >= 1 && widened.size <= 4) return []; // law 7: pairwise refusal
+      }
+      const row = {
+        combo_id: String(comboId),
+        week_id: String(weekId),
+        room_id: room,
+        week_start: String(weekStart),
+        labels: clean.slice(),
+        follower_count: matched.size,
+      };
+      state.pulseCombos.push(row);
+      return [{ labels: row.labels, follower_count: row.follower_count }];
+    }
+
+    // ── the RAW, unguarded combo count — `comboFollowerCount`'s own negative-
+    //    control read. `unnest(` distinguishes it from v0's `topicFollowerCount`
+    //    below, which never uses it. ────────────────────────────────────────
+    if (has("count(*)::int as follower_count") && has("unnest(")) {
+      const [roomId, labels] = params;
+      const matched = personsMatchingLabelSet(state, roomId, Array.isArray(labels) ? labels : []);
+      return [{ follower_count: matched.size }];
+    }
+
+    // ── the creator's own read of a published combo week ────────────────────
+    if (has("select labels, follower_count from vy_room_pulse_combo")) {
+      const [roomId, weekStart] = p;
+      return state.pulseCombos
+        .filter((c) => c.room_id === roomId && c.week_start === weekStart)
+        .map((c) => ({ labels: c.labels, follower_count: c.follower_count }))
+        .sort((a, b) => b.follower_count - a.follower_count);
+    }
 
     // ── owner-scoped room handle (readPulse / setTopics) ────────────────────
     if (has("from vy_room") && has("owner_user_id = ($1)::uuid and replica_id = ($2)::uuid")) {
