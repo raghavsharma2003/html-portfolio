@@ -6,6 +6,7 @@
     { "source": "/chat", "destination": "/chat.html" },
     { "source": "/studio", "destination": "/studio.html" },
     { "source": "/r/:slug", "destination": "/room.html" },
+    { "source": "/suites", "destination": "/suites.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },
     { "source": "/embed.js", "destination": "/api/embed.js" }

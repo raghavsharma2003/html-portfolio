@@ -63,6 +63,11 @@ if [ "${STUDIO_ROOT:-}" = "1" ] || [ "$PLATFORM_BRANCH" = "1" ]; then
   cp site/vyakti.html dist/index.html
   cp site/vyakti-privacy.html dist/privacy.html
   cp site/vyakti-delete-account.html dist/delete-account.html
+  # WS-R48. Suites' own B2B front door, same rewrite-to-clean-URL shape as
+  # /studio and /r/:slug above (vercel.json). Vyakti-only, same as the three
+  # lines above it: an institute, a collective or an agency is a Vyakti
+  # buyer, not a Meera one.
+  cp site/suites.html dist/suites.html
 else
   cp site/index.html dist/index.html
   cp site/privacy.html dist/privacy.html
