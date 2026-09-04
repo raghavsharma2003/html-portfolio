@@ -108,10 +108,11 @@ carries six tables (`vy_replica_voice_preview_intent`,
 `vy_replica_expression_observation`) that no file in this tree creates, and
 leaving the range free is what lets that tree merge later without a
 renumbering collision (`context/decisions.md#rooms-migrations-applied-live-in-the-union-order`).
-**Every migration from 076 to 099 and 101 was read back from the live catalog
-at its merge; `context/measurements.md` carries a `rooms-migration-0NN-live-verification`
-entry for each. 100 is deliberately unused (WS-R38's door battery needed no
-schema change); 102 is the next free number.** Five legacy tables key `device_id` as TEXT, so
+**Every migration from 076 to 107 except 100 and 103 was read back from the
+live catalog at its merge; `context/measurements.md` carries a
+`rooms-migration-0NN-live-verification` entry for each. 100 and 103 are
+deliberately unused (WS-R38's door battery and WS-R41's provider contracts
+needed no schema change); 108 is the next free number.** Five legacy tables key `device_id` as TEXT, so
 never assume a cast.
 
 ## Vyakti Rooms v1 — the adopted product definition (2026-09-02)
@@ -150,13 +151,12 @@ constant gate (`scripts/check-mirrors.mjs`, WS-R42: every `// mirror of
 api/<file>.js#<NAME>` marker in `src/` and `site/suites.html` parsed on both
 sides and asserted equal) as named gates — and 22 with it, adding the
 zero-orphan sweep and citation discipline.
-Migrations 071 through 099, 101 and 105 through 107 are applied live; 100 is
-unused (WS-R38 needed no new migration, every finding it fixed was a missing
-check in existing JS, never a schema change); 102-103 remain the next free
-numbers WS-R49/WS-R45/WS-R48 did not need; **104** (the creator-tier charge
-ledger, WS-R42) is written and offline-proven but NOT YET applied live — this
-workstream does not touch the live database, see `context/STATE.md`'s session
-log for the live-verification entry once the main loop applies it.
+Migrations 071 through 099 and 101 through 107 are applied live, except 100
+and 103, which are unused (WS-R38 needed no new migration, every finding it
+fixed was a missing check in existing JS, never a schema change; WS-R41's
+provider contracts needed none either); 102 (WS-R40, share arrival) and 104
+(the creator-tier charge ledger, WS-R42) were applied live at their merges
+and read back from the catalog. **108 is the next free number.**
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
