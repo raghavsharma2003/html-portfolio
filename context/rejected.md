@@ -11752,3 +11752,74 @@ battery) and beyond what closing the actual defect required. Left as a
 possible future strengthening, named in
 `decisions.md#ws-r93-owner-secret-doors-move-to-header`'s reversal
 condition rather than silently declined.
+
+## `ws-r99-post-gate-honesty-pipeline-mangles-a-giant-echoed-system-prompt` (2026-09-05, WS-R99)
+
+**What was tried.** An early draft of the adversarial battery's fake `reply`
+function returned the entire compiled prompt exactly as planned, but the
+per-entry structural assertions were written against `roomSay`'s own final
+return value (`turn.reply`, i.e. `gatedReply`'s post-gate `text`) as the
+PRIMARY proof surface, on the theory that "the reply" is literally what the
+workstream brief's own words name.
+
+**What specifically broke.** Reading `src/engine/brain.ts::parseBubbles`
+closely (before running anything, this time — the previous session's own
+`ws-r67-backtick-delimited-statement-extraction-is-not-a-statement-boundary`
+entry names the cost of not doing this) showed the function splits a raw
+reply on EVERY newline and then silently drops any resulting line that,
+trimmed, exactly matches a small set of formatting/protocol/response labels,
+and separately drops any dash-bulleted line over 40 characters containing one
+of a dozen style-related words. A compiled system prompt is built almost
+entirely out of exactly that shape — dozens of "- RULE: ..." bullets over 40
+characters each, several of them containing words like "style" or "format"
+somewhere in the sentence. Feeding a ~54,000-character compiled prompt
+through this pipeline (built for a companion's short chat reply, never
+audited against input this shape) would drop an unpredictable fraction of it
+before the battery ever got to scan for a foreign token — a scan of the
+result could give either a false pass (a leaked token happened to sit inside
+a dropped bullet) or a false fail (an entirely clean prompt reads as mostly
+absent), neither of which is evidence about the retrieval boundary under
+test.
+
+**The fix.** Scan the captured PRE-gate value instead — what the fake model's
+`reply` function actually received and returned, before `gateReply` touches
+it at all. See `context/decisions.md#ws-r99-adversarial-proof-scans-the-pre-gate-captured-prompt-not-the-delivered-reply`
+for the full reasoning and its own reversal condition. The post-gate text is
+still scanned as a secondary, informational surface in §1/§2, but no
+assertion in this suite depends on it being clean.
+
+**What would reverse it.** Nothing to reverse in this suite's own design, but
+the lesson generalises the way `ws-r64-op-quote-regex-matched-its-own-comment-prose`
+already did for a different scanner: a text-processing pipeline written and
+tuned against ONE shape of input (a companion's short reply) must be assumed
+unaudited against a structurally different shape (a multi-thousand-character
+system-prompt dump) until proven otherwise, and "proven otherwise" here would
+mean actually running the mangled output through a diff against the source
+and measuring what survives — not assumed from reading the regex alone.
+
+## `ws-r99-consecutive-roomsay-calls-corrupt-the-byte-diff-comparison` (2026-09-05, WS-R99)
+
+**What was tried.** The first draft of the law-1 "compiled prompt is
+byte-identical except the turn text" proof sent a hostile message and then,
+immediately after, a same-length benign message through the SAME follower
+session via two real `roomSay` calls, and diffed the two compiled prompts.
+
+**What specifically broke.** The two compiled prompts differed in more than
+the substituted text on every single pair. `roomSay`'s own monthly-cap UPDATE
+increments `month_message_count` on every accepted turn, and that count feeds
+`messageCount` on the very next `engine.compile()` call; history also grows
+by two entries (the previous turn's own text and reply) between the two
+calls. Both differences are real, correct, EXPECTED behaviour of `roomSay` —
+and both are also completely unrelated to whether the second message's text
+was hostile or benign, so a byte-diff built this way could never attribute a
+difference to the text itself, which is the entire question the law asks.
+
+**The fix.** Call `engine.compile()` directly, twice, with `agent`,
+`messageCount`, `memories`, `mode`, `medium` and every other field held
+bit-for-bit constant across the pair and only `latestUserText` swapped. See
+`context/decisions.md#ws-r99-byte-diff-uses-engine-compile-directly-not-two-roomsay-calls`.
+
+**What would reverse it.** A future `roomSay` mode that compiles without
+committing its own state mutation (a dry-run flag) would let this comparison
+run through the real function again, which would be the stronger proof
+whenever it exists.

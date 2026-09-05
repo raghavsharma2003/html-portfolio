@@ -9052,6 +9052,48 @@
       "kind": "rejection",
       "title": "Considered refactoring the three owner-secret doors to accept an injectable env (matching two of e-cron-secret's seven cron doors) for a dynamic proof; not built, since five of seven precedent cron doors already accept static-only coverage as sufficient.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-adversarial-proof-scans-the-pre-gate-captured-prompt-not-the-delivered-reply",
+      "kind": "decision",
+      "title": "The adversarial battery's structural assertions scan the compiled prompt captured inside the fake model's own reply seam (before gateReply's honesty pipeline touches it), never roomSay's/roomTaste's final post-gate reply text.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-byte-diff-uses-engine-compile-directly-not-two-roomsay-calls",
+      "kind": "decision",
+      "title": "The compiled-prompt byte-identical-except-turn-text proof calls engine.compile() directly twice with every field but latestUserText held constant, rather than sending two real consecutive roomSay turns.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-registered-as-its-own-gate-line-not-a-room-leak-layer",
+      "kind": "decision",
+      "title": "evals/room-adversarial/run.mjs is registered in evals/run.mjs as its own suite, not folded into room-leak/run.mjs as an inline layer 14.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-post-gate-honesty-pipeline-mangles-a-giant-echoed-system-prompt",
+      "kind": "rejection",
+      "title": "Scanning gatedReply's post-gate reply text as the primary proof surface was tried and rejected: parseBubbles/stripTextingDashes/guardReply are built for a short chat reply and silently drop format/protocol-labeled lines and long dash bullets, mangling a ~54,000-character echoed system prompt unpredictably.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-consecutive-roomsay-calls-corrupt-the-byte-diff-comparison",
+      "kind": "rejection",
+      "title": "Sending a hostile then a same-length benign turn through the same real roomSay session was tried and rejected for the byte-diff proof: the monthly-cap UPDATE and growing history change messageCount/memories between calls, so the two compiled prompts differ for reasons unrelated to the text.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-adversarial-corpus-battery-2026-09-05",
+      "kind": "measurement",
+      "title": "64 hostile inputs (English+Hindi) x 2 real lanes (roomSay, roomTaste) in the full world: 71,982 foreign-token checks, 0 leaks; 62/62 compiled prompts byte-identical to a same-length benign twin outside the substituted text; both structural edges (oversized, empty) refused before compile on both lanes; both required negative controls fired. 218/218 assertions passed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r99-room-never-rules-not-wired",
+      "kind": "open",
+      "title": "Neither roomSay (api/_room-surface.js) nor roomTaste (api/_room-taste.js) passes neverRules into gatedReply \u2014 a creator's \"Never say this\" rule (WS-R4 migration 074, WS-R67 migration 116) has zero effect on /r/<slug> today, only on the widget (_clonechat.js) and Mirror Call (_mirrorcall-reply.js). Found by WS-R99; out of that workstream's file scope to fix.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17739,6 +17781,31 @@
       "src": "ws-r93-release-gate-before-and-after-2026-09-05",
       "rel": "caused_by",
       "dst": "ws-r93-shared-scratchpad-log-path-cross-contaminated-by-sibling-agents"
+    },
+    {
+      "src": "ws-r99-adversarial-proof-scans-the-pre-gate-captured-prompt-not-the-delivered-reply",
+      "rel": "measured_by",
+      "dst": "ws-r99-adversarial-corpus-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r99-adversarial-proof-scans-the-pre-gate-captured-prompt-not-the-delivered-reply",
+      "rel": "caused_by",
+      "dst": "ws-r99-post-gate-honesty-pipeline-mangles-a-giant-echoed-system-prompt"
+    },
+    {
+      "src": "ws-r99-byte-diff-uses-engine-compile-directly-not-two-roomsay-calls",
+      "rel": "caused_by",
+      "dst": "ws-r99-consecutive-roomsay-calls-corrupt-the-byte-diff-comparison"
+    },
+    {
+      "src": "ws-r99-byte-diff-uses-engine-compile-directly-not-two-roomsay-calls",
+      "rel": "measured_by",
+      "dst": "ws-r99-adversarial-corpus-battery-2026-09-05"
+    },
+    {
+      "src": "ws-r99-registered-as-its-own-gate-line-not-a-room-leak-layer",
+      "rel": "measured_by",
+      "dst": "ws-r99-adversarial-corpus-battery-2026-09-05"
     }
   ]
 }

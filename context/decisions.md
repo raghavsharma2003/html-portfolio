@@ -16884,3 +16884,98 @@ per-request against something other than a single build-time
 injectable-env shape `replica-erasure-sweep.js` already uses, at which point
 the room-doors battery's static-only owner-secret class should also grow the
 same dynamic proof `e-cron-secret` already carries for those two doors.
+
+## `ws-r99-adversarial-proof-scans-the-pre-gate-captured-prompt-not-the-delivered-reply` (2026-09-05, WS-R99)
+
+**Decision.** The adversarial battery's structural assertions
+(`evals/room-adversarial/run.mjs` §1/§2) scan the `compiled` object the fake
+model actually receives and echoes — captured inside the injected `reply`
+seam, before `gateReply` (`api/_surface.js`) ever touches it — rather than
+`roomSay`/`roomTaste`'s own final, post-gate `reply` text. The fake's return
+value (`compiled.core + "\n\n" + compiled.tail`) IS what "a fake model that
+returns its ENTIRE prompt as the reply" means concretely, and the captured
+argument and the returned value are the same string by construction, so
+scanning the capture is scanning what the fake model actually said.
+
+**Rationale.** `gateReply` runs `parseBubbles`/`stripTextingDashes`/
+`guardReply` (`src/engine/brain.ts`, `src/engine/honesty.ts`) on whatever the
+model returns, and that pipeline is built and already gated
+(`evals/surface.mjs`) for an ORDINARY CHAT REPLY, not a multi-thousand-
+character system-prompt dump. Read closely: `parseBubbles` splits on every
+newline and silently drops any resulting line that, after trim, is EXACTLY a
+formatting/protocol/response label, and separately drops any dash-bulleted
+line over 40 characters whose words match short/sharp/charming/bubble/
+separator/style/format/reply/tone — both conditions a compiled system
+prompt's own rule bullets trip routinely (`languageVoiceRule` etc. in
+`src/engine/agents/characters/demoTeacher.ts` are literally
+"- ENGLISH-FIRST speech with..." shaped). Scanning the post-gate text risks
+BOTH a false pass (a real leak's substring sitting inside a line the gate
+happens to drop) and a confusing false fail (an entirely clean prompt gutted
+by a pipeline built for different material) — neither is evidence about the
+retrieval boundary this suite exists to test. See
+`context/rejected.md#ws-r99-post-gate-honesty-pipeline-mangles-a-giant-echoed-system-prompt`.
+
+**What would reverse it.** If `gateReply`'s pipeline is ever generalised to
+handle arbitrarily-shaped text safely (a length-gated bypass of
+`parseBubbles`/dash-stripping above some threshold, say), or if this
+workstream's own corpus starts including attacks whose entire THREAT lives in
+what survives the honesty gate specifically (an attack that only matters if
+delivered, not if merely compiled), re-scope this suite to scan the delivered
+`text` as well, with its own dedicated assertions rather than folded into
+`ok()` calls whose real subject is retrieval.
+
+## `ws-r99-byte-diff-uses-engine-compile-directly-not-two-roomsay-calls` (2026-09-05, WS-R99)
+
+**Decision.** The law-1 "compiled prompt is byte-identical between a hostile
+turn and a benign turn of the same length" proof (`evals/room-adversarial/
+run.mjs` §4) calls `engine.compile()` directly, twice, with every field held
+bit-for-bit constant except `latestUserText`, rather than sending two REAL
+`roomSay` turns (hostile, then benign) through the same session.
+
+**Rationale.** `roomSay` mutates state between calls: the monthly cap UPDATE
+increments `month_message_count`, which changes `messageCount` on the very
+next `engine.compile()` call, and history grows by two entries (the previous
+turn plus its reply). Two consecutive real turns would therefore differ in
+more than the substituted text for a reason that has nothing to do with
+hostility, defeating the whole point of the comparison — a real difference
+found that way could never be attributed to the TEXT rather than to the
+session having advanced. Calling `engine.compile()` directly with the same
+`agent`/`messageCount`/`memories`/mode/medium and only `latestUserText`
+swapped isolates the ONE variable the law is actually about. See
+`context/rejected.md#ws-r99-consecutive-roomsay-calls-corrupt-the-byte-diff-comparison`.
+
+**What would reverse it.** If `roomSay` ever grows a way to compile without
+also committing its own state mutation (a dry-run mode, say), prefer driving
+the comparison through the real function instead — this decision is a
+work-around for a real constraint, not a preference for bypassing `roomSay`.
+
+## `ws-r99-registered-as-its-own-gate-line-not-a-room-leak-layer` (2026-09-05, WS-R99)
+
+**Decision.** `evals/room-adversarial/run.mjs` is registered in
+`evals/run.mjs` as its own suite (`"room-adversarial"`), not folded into
+`evals/room-leak/run.mjs` as an inline "layer 14", even though the
+workstream's own brief offered both options ("becomes layer 14 of the leak
+battery's report line (or its own gate line inside the eval suite; say which
+and why)").
+
+**Rationale.** Three reasons, in order of weight. (1) The workstream's own
+Build section names two NEW files (`evals/room-adversarial/run.mjs`,
+`corpus.mjs`), not an edit to `room-leak/run.mjs`. (2) `room-leak/run.mjs` is
+2,100+ lines and, this same wave, under concurrent edit by most of the other
+wave-fifteen siblings (R91-R100) plus whatever wave sixteen starts before this
+merges — appending several hundred more lines to a file that many sessions
+are touching at once is the highest-conflict-surface change available this
+session, for no benefit `world.mjs`'s own already-exported `runFullWorld`/
+`ROOM_DEFS` do not already give a standalone consumer. (3) This suite's own
+method — a static corpus file, a fake-model ECHO harness, a direct
+`engine.compile()` byte-diff, and a never-rule wiring-gap finding — is a
+different shape of proof than the leak battery's thirteen token-scan layers,
+and documenting it inline would have meant either compressing its own
+reasoning to fit that file's existing comment density or bloating it further.
+
+**What would reverse it.** If a future merge session finds standalone Rooms
+suites accumulating faster than `evals/run.mjs`'s own suite count can stay
+legible, or if the leak battery is ever restructured so each layer is already
+its own file (a `evals/room-leak/layers/*.mjs` split, say), revisit this and
+fold `room-adversarial` in alongside the others rather than leaving it the
+one outlier for its own sake.

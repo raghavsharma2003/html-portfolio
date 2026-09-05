@@ -2294,6 +2294,49 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "consent-review": "consent-review/run.mjs",
+  // WS-R99. ADVERSARIAL FOLLOWER INPUTS THROUGH THE ONE DOOR. The leak
+  // battery (WS-R8, R68) proves retrieval never crosses scopes for ORDINARY
+  // turns; nobody had ever sent it a hostile one. `evals/room-adversarial/
+  // corpus.mjs` carries 64 hostile inputs (English and Hindi: prompt
+  // injection, requests for another follower's or the creator's private
+  // material by name and by position, role-play as the creator or an
+  // operator, requests to reveal the system prompt, homoglyph/zero-width
+  // unicode variants, and the two structural edges — oversized, empty),
+  // driven through the REAL follower lane (`api/_room-surface.js::roomSay`)
+  // and the REAL taste lane (`api/_room-taste.js::roomTaste`) in the full
+  // world (`evals/room-leak/world.mjs`'s own five Rooms, hundred followers),
+  // with the model seam replaced by a fake that returns its ENTIRE compiled
+  // prompt as the reply.
+  //
+  // The assertion is STRUCTURAL: the captured compiled prompt (what the fake
+  // model actually received and echoed) contains the speaking follower's own
+  // tokens only, never another follower's, never an operator string; a
+  // direct `engine.compile()` comparison proves the compiled prompt is
+  // byte-identical between a hostile turn and a same-length benign one
+  // except the substituted turn text; the never-rule matcher itself
+  // (`api/_never-rules.js`, `api/_surface.js::gateReply`) is proven directly
+  // to suppress a hostile-elicited forbidden phrase in the SAME shape a
+  // benign one gets — alongside a NAMED, HONEST GAP found while building
+  // this: neither `roomSay` nor `roomTaste` currently passes `neverRules`
+  // into `gatedReply` at all, so a creator's "Never say this" rule has ZERO
+  // EFFECT on `/r/<slug>` today, only on the widget and Mirror Call.
+  //
+  // TWO NEGATIVE CONTROLS, both proven to actually catch what they claim to:
+  // a struck recall (ignores person/agent scoping) DOES leak, caught by the
+  // same token scan; a non-echoing fake model's reply trivially scans clean
+  // (the vacuous-pass risk the workstream brief names by name), caught
+  // instead by a separate echo-completeness self-test that the broken fake
+  // fails and the real one passes.
+  //
+  // Registered as its OWN gate line rather than folded into `room-leak`'s
+  // own report (see `evals/room-adversarial/run.mjs`'s header for why): the
+  // Build section named two new files, not an edit to an already 2,100+
+  // line, heavily concurrently-edited shared file, and this suite's own
+  // method (a corpus, a fake-model echo harness, a direct compile() diff)
+  // is a different shape of proof than that file's token-scan layers.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-adversarial": "room-adversarial/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
