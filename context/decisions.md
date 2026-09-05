@@ -17821,3 +17821,117 @@ main chunk, not after it (wave sixteen, WS-R107). When it lands and three
 consecutive gate runs measure under 700 ms, the budget returns to 800; if
 the preload lands and the paint does not move, the parse and commit are
 the cost and the studio's signed-out shell needs its own smaller entry.
+
+## `ws-r102-optional-absent-is-a-separate-field-never-checks` (2026-09-05, WS-R102)
+
+**Decision.** `runSelfCheck` gains a THIRD, separate return field,
+`optional_absent: string[]` — the sorted names of every `OPTIONAL_ENV` entry
+not set — rather than the "small, mechanical" fix `context/rejected.md#ws-r96-self-check-optional-env-never-becomes-a-finding`
+names as the obvious next step ("push every `envPresence()` entry into
+`checks`, not only the required ones"). `optional_absent` is never read into
+`checks`/`failing_doors`/`failed`/`ok`, so an absent optional name can never
+turn `result.ok` false or add to `result.failed`.
+
+**Why not the mechanical fix.** This workstream's own brief states law 1
+verbatim: "an absent optional name is NOT a failing check" — WS-R76's
+original design, restated. Pushing every `envPresence()` entry into `checks`
+regardless of `entry.required` would do exactly what law 1 forbids: a
+platform that has simply never configured Telegram or FCM (both legitimately
+optional today) would start failing its own morning self-check, `result.ok`
+would flip false, and `sendSelfCheckTelegramAlert`'s failure-path alert would
+fire every single morning for a "gap" that was never a requirement. The
+separate-field shape keeps WS-R76's contract (`checks`/`failed`/`ok` mean
+"what the product cannot run without") intact while still surfacing the
+optional half by name, honestly, on its own terms.
+
+**Reversal condition.** If a future workstream decides some subset of
+`OPTIONAL_ENV` should actually GATE the self-check (e.g. Telegram becomes a
+required alerting channel), move that specific name from `OPTIONAL_ENV` to
+`REQUIRED_ENV` (mirrored in `scripts/write-config.mjs`) rather than teaching
+`optional_absent` to sometimes fail the check — the two lists' own meaning
+("cannot function without" vs "nice to have") is what should move, not the
+boundary between `checks` and `optional_absent`.
+
+## `ws-r102-optional-absent-incidents-reuse-self-check-kind-with-a-door-prefix` (2026-09-05, WS-R102)
+
+**Decision.** The optional-absent list reaches the ops board through
+`vy_incident`, kind always `self_check` (never a new kind), door always
+`optional_absent: <NAME>` (`api/_self-check.js#OPTIONAL_ABSENT_DOOR_PREFIX`).
+`api/_ops.js#selfCheckTodayDoors` reads the SAME `select distinct door from
+vy_incident where day = current_date and kind = 'self_check'` query
+`selfCheckFailingToday` already made (no new SQL statement) and partitions
+the results into `failing`/`optionalAbsent` by that one prefix.
+
+**Why not `vy_sweep_run`'s own `counts` column.** This workstream's brief
+told me to read `api/_sweep-run.js#sanitizeCounts` before choosing — it does:
+"Everything else (a string, a nested object) is DROPPED, never
+stringified... An array collapsed to its own length". A `string[]` of names
+put into a sweep's return value would survive as a bare integer (the
+LENGTH), never the names themselves — the ops board could show a COUNT this
+way but never "Optional, not set: NAME, NAME", which the workstream's own
+law 3 requires. `sanitizeCounts` cannot carry this list, full stop.
+
+**Why not a new incident kind (`env_optional_absent`).** Migration 109's own
+CHECK constraint is the closed list `INCIDENT_KINDS` mirrors
+(`api/_incidents.js`); adding a seventh kind needs a migration widening that
+CHECK, and this workstream's own brief is explicit: "No migration; no new
+env var." Reusing `self_check` (already on the list since migration 120,
+WS-R76) with a door-name encoding needs no schema change at all — the same
+choice migration 120's own header already made once, for a different half of
+this same file.
+
+**Why a door PREFIX rather than a second column.** `vy_incident`'s own
+`(day, kind, door, status)` shape has no room for a fifth "this row's
+sub-kind" column without a migration either; encoding it in `door` (which
+was always meant to be a human-readable label, per that column's own use
+elsewhere — `"env: NAME missing"`, `"migration NNN: TABLE missing"`,
+`"sweep NAME: stale"`) costs nothing and reads no differently to an operator
+looking at the raw table.
+
+**Reversal condition.** If a future workstream ever gets migration 127 (or
+later) allocated for `vy_incident`, and finds the door-prefix encoding
+awkward to query or extend, widen `INCIDENT_KINDS` with a real
+`env_optional_absent` kind in that migration and drop the prefix — the door
+strings this workstream writes (`optional_absent: NAME`) would need a
+one-time backfill or would simply age out (`INCIDENT_RETENTION_DAYS = 90`)
+rather than block that move.
+
+## `ws-r102-no-day-one-row-converts-from-manual` (2026-09-05, WS-R102)
+
+**Decision.** `docs/gurukul/DAY-ONE.md`'s gap 1 is marked closed for its
+`OPTIONAL_ENV` half (the reversal condition `context/decisions.md#ws-r96-day-one-runbook-parses-its-own-table`
+names), but ZERO rows in the shipped table are reclassified from `manual:`
+to `self-check:env:<NAME>`. `scripts/day-one.mjs#judgeStep`'s `self-check-env`
+branch is still widened to check `optional_absent` alongside
+`failing_checks` (proven directly in `evals/day-one/run.mjs` via a unit
+import of `judgeStep`, since no real runbook row exercises it), so the
+capability exists for the next row that needs it.
+
+**Why zero rows convert.** Audited every row against the now-widened check
+before touching the doc, rather than assuming WS-R96's own prediction ("if
+`api/_self-check.js` is ever changed... re-classify those rows") would apply
+automatically:
+- Step 8 is the ONLY row in the whole table naming any `OPTIONAL_ENV` member
+  (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`; its third var,
+  `REPLICA_STORAGE_BUCKET`, is not on `OPTIONAL_ENV` at all and has a working
+  default when unset). But step 8's own Proving Command was never blocked by
+  presence-checking alone — it asks for a real signed PUT
+  (`scripts/first-room.mjs`'s `upload` stage or `check-replica-env.mjs`)
+  because a key can be SET and still be WRONG, and only a real upload tells
+  the two apart. Converting it to `self-check:env:SUPABASE_URL` would make
+  the row read `done` the moment the var is merely present, overclaiming a
+  functional guarantee this instrument was never built to give.
+- Every other `manual:` row's env vars (`CRON_SECRET`, `OPENROUTER_API_KEY`,
+  every `AZURE_FOUNDRY_*`/`AZURE_OPEN_VOICE_*`/`AZURE_AUDIO_PROTECTION_*`/
+  `AZURE_VOICE_EVIDENCE_*`/`SARVAM_*`/`REPLICA_SELF_TEST_*`) are part of the
+  ~90 Rooms-specific names `OPTIONAL_ENV` was never widened to include — a
+  SEPARATE, much larger gap (widening `OPTIONAL_ENV`/`REQUIRED_ENV` and
+  `scripts/write-config.mjs` to cover Rooms-specific secrets) this
+  workstream's own brief explicitly excluded ("No migration; no new env
+  var").
+
+**Reversal condition.** If `OPTIONAL_ENV` is ever widened to include Rooms
+names (a future workstream, not this one), re-run this same audit — a row
+whose ONLY blocker was presence-checking (never a functional proof) at that
+point converts to `self-check:env:<NAME>`, and `DAY-ONE.md`'s residual note
+in gap 1 should be trimmed to match what is still uncovered.

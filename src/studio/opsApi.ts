@@ -149,6 +149,11 @@ export interface OpsPushConfig {
 // typed here unchanged - this file computes nothing, `opsApi.ts`'s own
 // header rule restated. `failing_checks` is a list of the check's own NAMES
 // (an env var's name, a table's name, a sweep's name) - never a value.
+// WS-R102. `optional_absent` is `api/_ops.js`'s own widened `selfCheckOverview`
+// shape - the sorted NAMES of every `OPTIONAL_ENV` entry not set today, never
+// a value. NEVER a failing check (workstream law 1): a name here is honest,
+// not red - `OpsSelfCheck.failing_checks` above is the only field that ever
+// drives a "stopped" badge.
 export interface OpsSelfCheck {
   last_started_at: string | null;
   last_outcome: SweepOutcome;
@@ -157,6 +162,7 @@ export interface OpsSelfCheck {
   passed: number;
   failed: number;
   failing_checks: string[];
+  optional_absent: string[];
 }
 
 // WS-R78 (migration 121). `api/_funnel.js`'s own `posterArrivalsThisWeek`

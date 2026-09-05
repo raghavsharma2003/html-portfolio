@@ -14,7 +14,7 @@
 // fake db and a fake env.
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
-import { runSelfCheck, recordSelfCheckIncidents, sendSelfCheckTelegramAlert } from "./_self-check.js";
+import { runSelfCheck, recordSelfCheckIncidents, recordOptionalAbsentIncidents, sendSelfCheckTelegramAlert } from "./_self-check.js";
 import { withSweepRun } from "./_sweep-run.js";
 
 // A handful of information_schema reads and, at most, a few dozen incident
@@ -44,6 +44,11 @@ export default async function handler(req, res) {
       const now = Date.now();
       const result = await runSelfCheck({ db: q, env: process.env, now });
       await recordSelfCheckIncidents(q, result);
+      // WS-R102, workstream law 2: the SAME morning tick also writes one
+      // content-free incident row per absent OPTIONAL_ENV name (never a
+      // failing check - see api/_self-check.js's own header on why this is
+      // a separate write from the one above).
+      await recordOptionalAbsentIncidents(q, result);
       // WS-R98, workstream law #2: the failure path's own Telegram alert,
       // best-effort, beside this cron's own incident-recording step above -
       // `api/checkins-sweep.js`'s own `fetch: globalThis.fetch` line,

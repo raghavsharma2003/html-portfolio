@@ -713,6 +713,10 @@ console.log("\n── §5b2: self_check (WS-R76) ──");
   state.incidents.push(
     { day: state.today, kind: "self_check", door: "env: NEON_URL missing", count: 1 },
     { day: state.today, kind: "self_check", door: "sweep checkins: stale", count: 1 },
+    // WS-R102: two optional-absent rows, seeded the SAME kind/day, must
+    // land on `optional_absent` alone and never on `failing_checks`.
+    { day: state.today, kind: "self_check", door: "optional_absent: AZURE_KEY", count: 1 },
+    { day: state.today, kind: "self_check", door: "optional_absent: SUPABASE_URL", count: 1 },
     // A stray OTHER kind, and a self_check row from a PRIOR day - neither
     // may leak into this board's own "today only" reading.
     { day: state.today, kind: "door_5xx", door: "room.js", count: 4 },
@@ -729,6 +733,13 @@ console.log("\n── §5b2: self_check (WS-R76) ──");
   ok("self_check.failing_checks never leaks a door_5xx-kind row seeded the same day", !sc.failing_checks.includes("room.js"));
   ok("self_check.failing_checks never leaks a self_check row from a PRIOR day",
     !sc.failing_checks.includes("db: select_1_failed"));
+  // WS-R102.
+  ok("self_check.optional_absent lists TODAY's own optional-absent doors, stripped of their prefix",
+    [...sc.optional_absent].sort().join("|") === ["AZURE_KEY", "SUPABASE_URL"].sort().join("|"));
+  ok("self_check.optional_absent NEVER leaks into failing_checks (law 1: not a failing check)",
+    !sc.failing_checks.some((d) => d.includes("AZURE_KEY") || d.includes("SUPABASE_URL") || d.includes("optional_absent")));
+  ok("self_check.failing_checks NEVER leaks into optional_absent either, both directions proven",
+    !sc.optional_absent.some((d) => d.includes("NEON_URL") || d.includes("checkins")));
 }
 {
   // NEGATIVE CONTROL / honest empty state: no self-check has ever run in
@@ -742,6 +753,8 @@ console.log("\n── §5b2: self_check (WS-R76) ──");
   ok("self_check with no run ever reports zero checked/passed/failed, never omitted fields",
     sc.checked === 0 && sc.passed === 0 && sc.failed === 0);
   ok("self_check with no failing rows reports an empty list, not omitted", Array.isArray(sc.failing_checks) && sc.failing_checks.length === 0);
+  ok("self_check with nothing seeded reports an empty optional_absent list too, not omitted (WS-R102)",
+    Array.isArray(sc.optional_absent) && sc.optional_absent.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

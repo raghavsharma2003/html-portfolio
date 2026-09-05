@@ -268,21 +268,28 @@ export async function checkSiblingSweeps(db, now, deps = {}) {
  * simply unreachable, `sweepStalenessLocal`'s own "not a finding, a
  * tautology" law restated for the whole section rather than one row.
  *
- * Returns `{checks, checked, passed, failed, ok, failing_doors}` — only
- * `failing_doors` (a list of the static, content-free door labels this file
- * builds — an env var's own name, a table's own name, a sweep's own name,
- * NEVER anything read off a value) is meant to leave this process, via
- * `recordSelfCheckIncidents`, below.
+ * Returns `{checks, checked, passed, failed, ok, failing_doors,
+ * optional_absent}` — `failing_doors` and `optional_absent` (both lists of
+ * content-free NAMES only, never anything read off a value) are meant to
+ * leave this process, via `recordSelfCheckIncidents`/
+ * `recordOptionalAbsentIncidents` respectively, below. `optional_absent` is
+ * NEVER folded into `checks`/`failing_doors`/`failed`/`ok` — workstream law
+ * 1 (WS-R102): an absent OPTIONAL name is not a failing check, it is a
+ * separate, honest "not set" list the ops board and digest surface on
+ * their own terms.
  */
 export async function runSelfCheck(deps = {}) {
   const db = deps.db;
   const env = deps.env || process.env;
   const now = deps.now ?? Date.now();
   const checks = [];
+  const optionalAbsent = [];
 
   for (const entry of envPresence(env)) {
     if (entry.required) checks.push({ door: `env: ${entry.name} missing`, ok: entry.present });
+    else if (!entry.present) optionalAbsent.push(entry.name);
   }
+  optionalAbsent.sort();
 
   const dbResult = await checkDatabase(db);
   checks.push({ door: dbResult.door || "db: select 1", ok: dbResult.ok });
@@ -302,6 +309,7 @@ export async function runSelfCheck(deps = {}) {
     failed: failing.length,
     ok: failing.length === 0,
     failing_doors: failing.map((c) => c.door),
+    optional_absent: optionalAbsent,
   };
 }
 
@@ -323,6 +331,53 @@ export async function runSelfCheck(deps = {}) {
 export async function recordSelfCheckIncidents(db, result) {
   for (const door of result.failing_doors) {
     await recordIncident(db, { kind: "self_check", door, status: 0 });
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// (a2) every OPTIONAL_ENV name absent, reaching the ops board (WS-R102)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// WS-R96 found this file computes `envPresence` for every `OPTIONAL_ENV`
+// name and then never reads the optional half again - the morning report
+// names exactly two vars in a runbook that catalogs about a hundred
+// (`docs/gurukul/DAY-ONE.md`'s own gap 1). `runSelfCheck`'s own
+// `optional_absent` field (below) is the fix for the READ side: the names,
+// sorted, of every `OPTIONAL_ENV` entry that is not set. Workstream law 1:
+// this is NEVER a failing check - it never enters `checks`/`failing_doors`,
+// so `result.ok` and `result.failed` are unchanged by an absent optional
+// name, exactly WS-R76's own design ("the self-check fails on what the
+// product cannot run without").
+//
+// Reaching the ops board is the WRITE side, and it cannot go through
+// `vy_sweep_run`'s own `counts` column: `sanitizeCounts` (api/_sweep-run.js)
+// DROPS a string field outright and collapses an array to its own length -
+// read that file before building this, workstream law 2's own instruction -
+// so a list of NAMES can never survive that trip. Adding a new incident
+// KIND (`env_optional_absent`) would need migration 109's own CHECK
+// widened, and this workstream carries no migration - so this reuses the
+// SAME `self_check` kind `recordSelfCheckIncidents` already writes, one
+// `recordIncident` row per absent optional name per day (the self-check
+// cron itself runs at most once a day, `vercel.json`'s own `30 2 * * *`, so
+// "per day" falls out of the cron's own schedule for free - no separate
+// dedup needed), with the door ENCODING which half of the self-check this
+// is: `OPTIONAL_ABSENT_DOOR_PREFIX + name`, never the bare name a real
+// failing check's door already uses. `api/_ops.js#selfCheckOverview` reads
+// this SAME `vy_incident` query `selfCheckTodayDoors` already makes and
+// partitions by this one prefix, so no second query is added there either.
+export const OPTIONAL_ABSENT_DOOR_PREFIX = "optional_absent: ";
+
+/**
+ * One `recordIncident` per name in `result.optional_absent` - a SEPARATE
+ * call from `recordSelfCheckIncidents` above, on a different field of the
+ * SAME result, so an optional gap can never be folded into "checks failed"
+ * by accident. NEVER throws (`recordIncident` itself never does); a caller
+ * that wants ordering awaits this, the same posture every other write in
+ * this file already takes.
+ */
+export async function recordOptionalAbsentIncidents(db, result) {
+  for (const name of result?.optional_absent || []) {
+    await recordIncident(db, { kind: "self_check", door: `${OPTIONAL_ABSENT_DOOR_PREFIX}${name}`, status: 0 });
   }
 }
 

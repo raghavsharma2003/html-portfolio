@@ -471,6 +471,9 @@ function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
           ))}
         </ul>
       )}
+      {selfCheck.optional_absent.length > 0 && (
+        <p className="ops-board__slug">Optional, not set: {selfCheck.optional_absent.join(", ")}</p>
+      )}
     </div>
   );
 }

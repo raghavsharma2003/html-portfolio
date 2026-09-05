@@ -98,6 +98,8 @@ function overviewWith(rooms, selfCheck, incidents) {
     c.rooms_published === 0 && c.followers_joined_7d === 0 && c.messages_last_24h === 0 && c.revenue_this_month_inr === 0);
   ok("digestCounts: zero followers platform-wide is BELOW the floor", c.followers_joined_below_floor === true);
   ok("digestCounts: no self-check has run reports self_check_ran = false", c.self_check_ran === false);
+  ok("WS-R102: a self_check with no optional_absent field at all reports optional_absent_count 0, never omitted or thrown",
+    c.optional_absent_count === 0);
 }
 {
   const rooms = [
@@ -105,7 +107,7 @@ function overviewWith(rooms, selfCheck, incidents) {
     { published: true, joined_last_7d: 2, messages_last_24h: 5, revenue_this_month_inr: 0, slug: "also-never", display_name: "also-never" },
     { published: false, joined_last_7d: 9, messages_last_24h: 0, revenue_this_month_inr: 0, slug: "unpub", display_name: "unpub" },
   ];
-  const c = digestCounts(overviewWith(rooms, { checked: 12, passed: 10, failed: 2, last_outcome: "partial" }, { by_kind_door: [{ kind: "door_5xx", door: "room.js", count: 3 }], new_kinds: ["door_5xx"] }));
+  const c = digestCounts(overviewWith(rooms, { checked: 12, passed: 10, failed: 2, last_outcome: "partial", optional_absent: ["AZURE_KEY", "SUPABASE_URL", "TELEGRAM_BOT_TOKEN"] }, { by_kind_door: [{ kind: "door_5xx", door: "room.js", count: 3 }], new_kinds: ["door_5xx"] }));
   ok("digestCounts: rooms_published counts only PUBLISHED rooms", c.rooms_published === 2);
   ok("digestCounts: followers_joined_7d sums joined_last_7d across EVERY room (published or not)", c.followers_joined_7d === 2 + 2 + 9);
   ok("digestCounts: 13 followers platform-wide clears the floor", c.followers_joined_below_floor === false);
@@ -115,6 +117,8 @@ function overviewWith(rooms, selfCheck, incidents) {
   ok("digestCounts: self_check_ran is true once last_outcome is not never_ran", c.self_check_ran === true);
   ok("digestCounts: incidents_today sums the by_kind_door counts", c.incidents_today === 3);
   ok("digestCounts: incidents_new_kinds is the length of new_kinds", c.incidents_new_kinds === 1);
+  ok("WS-R102: digestCounts.optional_absent_count is the LENGTH of overview.self_check.optional_absent, a plain number",
+    c.optional_absent_count === 3 && typeof c.optional_absent_count === "number");
 }
 {
   // Exactly at the floor: 5 clears it, never below.
@@ -132,6 +136,19 @@ function overviewWith(rooms, selfCheck, incidents) {
   const body = fnMatch ? fnMatch[0] : "";
   ok("NEGATIVE CONTROL (a): digestCounts' own source never reads .slug or .display_name off a room",
     !body.includes(".slug") && !body.includes(".display_name"));
+}
+{
+  // WS-R102, NEGATIVE CONTROL: operatorDigestPayload's own source never
+  // reads `.optional_absent` (the NAMES) at all - only the already-reduced
+  // `.optional_absent_count` a NUMBER `digestCounts` computed above ever
+  // reaches it, so there is no code path through this function that could
+  // put a name on the wire even by accident (workstream law 3: "never the
+  // names").
+  const src = fs.readFileSync(join(REPO, "api/_operator-digest.js"), "utf8");
+  const fnMatch = src.match(/export function operatorDigestPayload\([\s\S]*?\n}\n/);
+  const body = fnMatch ? fnMatch[0] : "";
+  ok("NEGATIVE CONTROL: operatorDigestPayload's own source never reads .optional_absent (only the _count reduction)",
+    !/\.optional_absent\b(?!_count)/.test(body));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -153,6 +170,35 @@ console.log("\n── §3: operatorDigestPayload ──");
   ok("operatorDigestPayload: body names the real counts", p.body.includes("3 Room") && p.body.includes("12 follower") && p.body.includes("240 message"));
   ok("operatorDigestPayload: a clean self-check reads N/N passing", p.body.includes("12/12 passing"));
   ok("operatorDigestPayload: zero incidents reports honestly", p.body.includes("no incidents today"));
+  ok("WS-R102: no optional_absent_count field at all says nothing about it, never a fabricated '0 optional not set'",
+    !p.body.includes("optional not set"));
+}
+{
+  // WS-R102: a non-zero optional_absent_count is named as a COUNT, never a
+  // name, and stays inside the 200-character body cap.
+  const counts = {
+    rooms_published: 3, followers_joined_7d: 12, followers_joined_below_floor: false,
+    messages_last_24h: 240, revenue_this_month_inr: 4500,
+    self_check_checked: 12, self_check_failed: 0, self_check_ran: true,
+    incidents_today: 0, incidents_new_kinds: 0, optional_absent_count: 4,
+  };
+  const p = operatorDigestPayload(counts);
+  ok("WS-R102: a non-zero optional_absent_count is named as a plain count", p.body.includes("4 optional not set"));
+  ok("WS-R102: body still under 200 characters with the optional-absent clause appended", p.body.length <= 200);
+  ok("WS-R102: the body never contains an env var's own NAME, only the count", !/[A-Z][A-Z0-9_]{3,}/.test(p.body));
+}
+{
+  // NEGATIVE CONTROL: optional_absent_count of exactly zero is silent, the
+  // same honest-empty posture "no incidents today" already models for a
+  // DIFFERENT field - proves this is not a stray always-on clause.
+  const counts = {
+    rooms_published: 1, followers_joined_7d: 6, followers_joined_below_floor: false,
+    messages_last_24h: 1, revenue_this_month_inr: 0,
+    self_check_checked: 1, self_check_failed: 0, self_check_ran: true,
+    incidents_today: 0, incidents_new_kinds: 0, optional_absent_count: 0,
+  };
+  const p = operatorDigestPayload(counts);
+  ok("NEGATIVE CONTROL: optional_absent_count 0 never appends the clause", !p.body.includes("optional not set"));
 }
 {
   const belowFloor = {

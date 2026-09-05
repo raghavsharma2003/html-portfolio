@@ -62,6 +62,13 @@ import { reconciliationOverview } from "./_payments.js";
 // rather than re-derived, this file's own established pattern one import
 // list up.
 import { INCIDENT_KINDS } from "./_incidents.js";
+// WS-R102. The one door name every optional-absent incident row is written
+// under - imported rather than restated, so this file's own partition of
+// today's self_check-kind doors can never drift from what api/_self-check.js
+// actually writes. Safe direction: api/_self-check.js never imports this
+// file (see that file's own header on why importing api/_ops.js back would
+// make a cycle one file over from api/_incidents.js's own precedent).
+import { OPTIONAL_ABSENT_DOOR_PREFIX } from "./_self-check.js";
 // WS-R88 (migration 125). The board's own "Last digest" read - the ONE
 // direction this import is safe: `api/_operator-digest.js` never imports
 // THIS file back (see that file's own header), so there is no
@@ -519,9 +526,28 @@ export async function revokeOperatorPushById(db, id) {
  * history a single stale finding would otherwise keep alive on this line
  * for six more days after it was already fixed.
  */
-async function selfCheckFailingToday(db) {
+/**
+ * WS-R102 widens this from "the failing checks' own names" to also
+ * partition out today's OPTIONAL_ENV absences - the SAME query,
+ * unchanged, since both shapes are written under the identical
+ * `kind = 'self_check'` (api/_self-check.js's own `recordSelfCheckIncidents`/
+ * `recordOptionalAbsentIncidents`, one file over) and differ only by
+ * whether the door starts with `OPTIONAL_ABSENT_DOOR_PREFIX`. No second
+ * round trip: a door is either a real failing check's own name or an
+ * optional-absent encoding, never both, so one pass over the same rows
+ * sorts every door into exactly one of the two lists this board shows.
+ */
+async function selfCheckTodayDoors(db) {
   const rows = await db(`select distinct door from vy_incident where day = current_date and kind = 'self_check' order by door`, []);
-  return rows.map((r) => r.door);
+  const failing = [];
+  const optionalAbsent = [];
+  for (const row of rows) {
+    const door = String(row.door || "");
+    if (door.startsWith(OPTIONAL_ABSENT_DOOR_PREFIX)) optionalAbsent.push(door.slice(OPTIONAL_ABSENT_DOOR_PREFIX.length));
+    else failing.push(door);
+  }
+  optionalAbsent.sort();
+  return { failing, optionalAbsent };
 }
 
 /**
@@ -554,7 +580,14 @@ function digestTelegramOverview(sweeps, env) {
   };
 }
 
-function selfCheckOverview(sweeps, failingToday) {
+/**
+ * `todayDoors` is `selfCheckTodayDoors`'s own `{failing, optionalAbsent}`
+ * shape, above. `optional_absent` (WS-R102) is exposed alongside
+ * `failing_checks`, never merged into it: a name here is honestly "not set,
+ * and that is fine" (workstream law 1), never a red badge the way a
+ * `failing_checks` entry is.
+ */
+function selfCheckOverview(sweeps, todayDoors) {
   const sweep = sweeps.find((s) => s.sweep === "self-check") || null;
   return {
     last_started_at: sweep?.last_started_at ?? null,
@@ -563,7 +596,8 @@ function selfCheckOverview(sweeps, failingToday) {
     checked: Number(sweep?.counts?.checked) || 0,
     passed: Number(sweep?.counts?.passed) || 0,
     failed: Number(sweep?.counts?.failed) || 0,
-    failing_checks: failingToday,
+    failing_checks: todayDoors.failing,
+    optional_absent: todayDoors.optionalAbsent,
   };
 }
 
@@ -599,7 +633,7 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // WS-R76 (migration 120). "Last run, checks passed, the names of the
     // failing ones" - derived from `sweeps` above plus today's own
     // `self_check`-kind incident rows, never a re-derivation of either.
-    self_check: selfCheckOverview(sweeps, await selfCheckFailingToday(db)),
+    self_check: selfCheckOverview(sweeps, await selfCheckTodayDoors(db)),
     // WS-R25. "Minutes to first Room" and "where creators stop" -
     // `opsFunnel`'s own read, one extra call on the board's one endpoint.
     funnel: await opsFunnel(db, now),

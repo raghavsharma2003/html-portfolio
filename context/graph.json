@@ -9448,6 +9448,36 @@
       "kind": "decision",
       "title": "The first-Hindi-paint budget is 1000 ms, set from measurement rather than copied from the chunk-wait budget; returns to 800 once the Hindi chunk is preloaded from the built page and three gate runs measure under 700 ms.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r102-self-check-optional-absent",
+      "kind": "component",
+      "title": "runSelfCheck (api/_self-check.js) gains a third, separate result field, optional_absent: string[] - the sorted names of every OPTIONAL_ENV entry not set - never folded into checks/failing_doors/failed/ok. api/self-check.js writes one vy_incident row per absent name (kind self_check, door OPTIONAL_ABSENT_DOOR_PREFIX + NAME, no new migration). api/_ops.js#selfCheckOverview exposes it alongside failing_checks; OpsBoard.tsx renders 'Optional, not set: NAME, NAME'; api/_operator-digest.js carries a COUNT only, never names.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r102-optional-absent-is-a-separate-field-never-checks",
+      "kind": "decision",
+      "title": "optional_absent is a separate field from checks/failing_doors, never merged in - an absent OPTIONAL_ENV name is never a failing check (workstream law 1), diverging from the mechanical fix ws-r96-self-check-optional-env-never-becomes-a-finding named as the obvious next step.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r102-optional-absent-incidents-reuse-self-check-kind-with-a-door-prefix",
+      "kind": "decision",
+      "title": "Optional-absent names reach the ops board via vy_incident, kind self_check (never a new kind), door OPTIONAL_ABSENT_DOOR_PREFIX + NAME - sanitizeCounts cannot carry a string[] (proven by reading api/_sweep-run.js first, per workstream law 2), and no migration was available to widen vy_incident_kind_check.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r102-no-day-one-row-converts-from-manual",
+      "kind": "decision",
+      "title": "Auditing every docs/gurukul/DAY-ONE.md row against the widened self-check found zero rows whose ONLY blocker was the OPTIONAL_ENV gap - step 8 needs a functional storage proof beyond presence, every other manual row names a Rooms-specific env var OPTIONAL_ENV was never widened to include. scripts/day-one.mjs#judgeStep is still widened (proven by direct unit import in evals/day-one/run.mjs) for the next row that needs it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r102-self-check-every-name-eval-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "self-check/ops/operator-digest/day-one eval suites, before (c2945f7, git archive baseline) vs after this workstream: 57->69, 143->147, 54->62, 39->45 passed, 0 failed throughout.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18440,6 +18470,41 @@
       "src": "first-hindi-paint-budget-set-from-measurement",
       "rel": "constrains",
       "dst": "ws-r91-authgate-reads-locale-before-sign-in"
+    },
+    {
+      "src": "ws-r102-self-check-optional-absent",
+      "rel": "part_of",
+      "dst": "ws-r76-self-check-cron-built"
+    },
+    {
+      "src": "ws-r102-optional-absent-is-a-separate-field-never-checks",
+      "rel": "constrains",
+      "dst": "ws-r102-self-check-optional-absent"
+    },
+    {
+      "src": "ws-r102-optional-absent-is-a-separate-field-never-checks",
+      "rel": "supersedes",
+      "dst": "ws-r96-self-check-optional-env-never-becomes-a-finding"
+    },
+    {
+      "src": "ws-r102-optional-absent-incidents-reuse-self-check-kind-with-a-door-prefix",
+      "rel": "constrains",
+      "dst": "ws-r102-self-check-optional-absent"
+    },
+    {
+      "src": "ws-r102-no-day-one-row-converts-from-manual",
+      "rel": "constrains",
+      "dst": "ws-r96-day-one-runbook"
+    },
+    {
+      "src": "ws-r102-no-day-one-row-converts-from-manual",
+      "rel": "caused_by",
+      "dst": "ws-r102-self-check-optional-absent"
+    },
+    {
+      "src": "ws-r102-self-check-optional-absent",
+      "rel": "measured_by",
+      "dst": "ws-r102-self-check-every-name-eval-counts-2026-09-05"
     }
   ]
 }

@@ -12407,3 +12407,24 @@ median sits near the budget even without it. The mechanism is structural:
 the Hindi table is a dynamic import issued only after the main chunk has
 parsed and run (`main.tsx`'s early `loadStudioCopy("hi")` is still
 downstream of that parse), then React commits it.
+
+## `ws-r102-self-check-every-name-eval-counts-2026-09-05`
+
+Method: each suite run directly and standalone, offline, deterministic, $0,
+no network beyond 127.0.0.1, 2026-09-05, on the wave-sixteen base (c2945f7)
+plus this workstream's own changes only.
+
+| suite | command | result before (c2945f7) | result after (this workstream) |
+|---|---|---|---|
+| self-check | `node evals/self-check/run.mjs` | 57 passed, 0 failed | 69 passed, 0 failed |
+| ops | `node evals/ops/run.mjs` | 143 passed, 0 failed | 147 passed, 0 failed |
+| operator-digest | `node evals/operator-digest/run.mjs` | 54 passed, 0 failed | 62 passed, 0 failed |
+| day-one | `node evals/day-one/run.mjs` | 39 passed, 0 failed | 45 passed, 0 failed |
+| check-copy | `node scripts/check-copy.mjs` | 6 scopes clean, 21 negative controls bit | unchanged |
+
+"Before" counts are `git archive c2945f7` extracted to a separate directory
+(`node_modules` symlinked in, a stub `api/_config.js` copied over — never
+`git stash`, per `ws-common.md`'s own law that the stash stack is shared
+across this clone's concurrent worktrees), then each suite run there
+unmodified. New checks added by this workstream: self-check +12, ops +4,
+operator-digest +8, day-one +6.

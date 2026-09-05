@@ -43,7 +43,7 @@ independent env var settings pointing at them.
 
 ## The two gaps this file exists to name loudly
 
-### 1. Self-check only ever reports two names, out of about a hundred
+### 1. Self-check only ever reports two names, out of about a hundred (the OPTIONAL_ENV half closed WS-R102, 2026-09-05)
 
 `api/_self-check.js` (WS-R76) is the deployment's own "which env values are
 missing, by name" instrument, read through the ops door
@@ -80,10 +80,38 @@ function. So `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`, `AZURE_KEY` and
 every other optional name can be completely unset and self-check reports
 exactly the same clean line it would with all of them set. A capability
 complete at both ends and still dead, per `AGENTS.md`'s own law, found here
-rather than assumed. **In practice self-check's env check is useful for
+rather than assumed. **In practice self-check's env check was useful for
 exactly two names in this whole runbook: `OPENROUTER_KEY` and `NEON_URL`.**
-Every other step below is `manual:` for this reason, not because nobody
-thought to wire it.
+
+**CLOSED, the `OPTIONAL_ENV` half only, 2026-09-05 (WS-R102):** `runSelfCheck`
+now returns a THIRD, separate field, `optional_absent` — the sorted names of
+every `OPTIONAL_ENV` entry not set, read alongside `checks`/`failing_doors`
+but never folded into either (an absent optional name is still not a failing
+check — `ok`/`failed` are unchanged, exactly WS-R76's original design). It
+reaches the ops board's `self_check.optional_absent` field (`api/_ops.js`),
+the board's own Self-check card ("Optional, not set: NAME, NAME"), and the
+operator digest as a COUNT only, never the names (`api/_operator-digest.js`).
+`scripts/day-one.mjs`'s `self-check:env:<NAME>` proving command now checks
+BOTH lists, so a future runbook row naming an `OPTIONAL_ENV` member can be
+proven the same way a `REQUIRED_ENV` row already is.
+
+**What this does NOT close, named honestly rather than implied fixed:**
+auditing every row in the table below against the now-widened check found
+**zero rows whose only blocker was this gap** — converting one from `manual:`
+to `self-check:env:<NAME>` would have overclaimed. Step 8 is the ONLY row in
+this whole table naming any `OPTIONAL_ENV` member at all (`SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`); its own Proving Command still asks for a real
+signed PUT, because presence alone was never the thing step 8 needed proof
+of — a key can be SET and still be wrong, and only a real upload tells the
+two apart. Every other `manual:` row's env vars (`CRON_SECRET`,
+`OPENROUTER_API_KEY`, every `AZURE_FOUNDRY_*`/`AZURE_OPEN_VOICE_*`/
+`AZURE_AUDIO_PROTECTION_*`/`AZURE_VOICE_EVIDENCE_*`/`SARVAM_*`/
+`REPLICA_SELF_TEST_*`/`REPLICA_STORAGE_BUCKET`, and more) are still among the
+~90 Rooms-specific names `OPTIONAL_ENV` itself was never widened to include —
+widening that list is a SEPARATE, much larger, still-open item this
+workstream did not attempt (its own brief: "No migration; no new env var").
+See `context/decisions.md#ws-r102-no-day-one-row-converts-from-manual` for
+the full accounting and what would reverse it.
 
 ### 2. The one name that IS checked was not the one the product actually called (closed at this runbook's merge, 2026-09-05)
 
