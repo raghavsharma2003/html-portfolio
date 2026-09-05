@@ -7102,6 +7102,66 @@
       "kind": "rejection",
       "title": "Found, not fixed: opening Check-ins/Handoff/Data/Settings from the Room header produces no visible change on a real phone with a conversation taller than one screen, because the dialog is a plain in-flow block with no scroll-into-view or focus call",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-incident-ledger",
+      "kind": "component",
+      "title": "vy_incident (migration 109): a content-free row for every 5xx a thin door sends and every provider failure the payments seam / Telegram / WhatsApp / web push already catches, an Incidents card on the ops board, and a check-ins-sweep new-kind web push, at most once per kind per day",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-withdoor-observes-status-never-rewrites-response",
+      "kind": "decision",
+      "title": "withDoor wraps a door's whole handler and watches res.status from the outside rather than editing eleven catch blocks by hand; it changes nothing about any door's own response",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-incident-kind-vocabulary-is-a-closed-five-value-list",
+      "kind": "decision",
+      "title": "vy_incident.kind is exactly five values (door_5xx plus one per named provider seam), never one kind per door and never free text, so the new-kind alert fires on a genuinely new failure shape rather than on ordinary door rotation",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-operator-push-subscription-store-does-not-exist",
+      "kind": "decision",
+      "title": "notifyNewIncidentKinds sends through the real webpush.js send() but resolves operator subscriptions through an injected deps.operatorSubscriptionsFor (default empty) rather than building a new store this workstream's file list does not name",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-notify-claim-only-marks-notified-with-a-configured-recipient",
+      "kind": "decision",
+      "title": "claimNewKindNotification only claims (sets notified_at) once VAPID and OPS_OWNER_USER_IDS are both configured, so a kind that appeared before configuration can still fire once configuration lands",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-incidents-suite-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/incidents/run.mjs: 34/34, offline, $0 - recordIncident upsert and 4 negative controls, withDoor's same-body-as-before proof, the at-most-once-per-kind-per-day claim with an injected fake subscription, pruneOldIncidents, and a static INSERT-column-list scan with 2 negative-control fixtures",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-ops-suite-incidents-card-extension-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/ops/run.mjs: 69/69 on the untouched tree, 77/77 after (+8: 1 honest-empty-state check, 7 in a new time-windowed Incidents-card block)",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-room-doors-unchanged-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/room-doors/run.mjs: 302/302 on the untouched tree AND 302/302 after wrapping eleven doors in withDoor - identical count, proving the wrapper changes no door's behaviour",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-gate-before-after-2026-09-04",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs: 18/20 before (untouched tree, isolated worktree at 2d271f2) and 18/20 then 19/20 after two attempts, with the two remaining misses (layout readability port collision, performance budgets TBT) reproduced identically on the untouched tree under the same shared-machine load",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r58-incidents-importing-opsownerids-from-ops-js-makes-a-cycle",
+      "kind": "rejection",
+      "title": "api/_incidents.js importing api/_ops.js's opsOwnerIds would make a cycle (api/_ops.js already imports api/_incidents.js's INCIDENT_KINDS for the board card); fixed by re-deriving the same small parse locally instead",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14249,6 +14309,56 @@
       "src": "ws-r43-viewport-only-screenshot-missed-in-flow-dialogs",
       "rel": "caused_by",
       "dst": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view"
+    },
+    {
+      "src": "ws-r58-withdoor-observes-status-never-rewrites-response",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r58-incident-kind-vocabulary-is-a-closed-five-value-list",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r58-operator-push-subscription-store-does-not-exist",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r58-notify-claim-only-marks-notified-with-a-configured-recipient",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r58-notify-claim-only-marks-notified-with-a-configured-recipient",
+      "rel": "constrains",
+      "dst": "ws-r58-operator-push-subscription-store-does-not-exist"
+    },
+    {
+      "src": "ws-r58-withdoor-observes-status-never-rewrites-response",
+      "rel": "measured_by",
+      "dst": "ws-r58-room-doors-unchanged-2026-09-04"
+    },
+    {
+      "src": "ws-r58-incident-kind-vocabulary-is-a-closed-five-value-list",
+      "rel": "measured_by",
+      "dst": "ws-r58-incidents-suite-2026-09-04"
+    },
+    {
+      "src": "ws-r58-incident-ledger",
+      "rel": "measured_by",
+      "dst": "ws-r58-ops-suite-incidents-card-extension-2026-09-04"
+    },
+    {
+      "src": "ws-r58-incident-ledger",
+      "rel": "measured_by",
+      "dst": "ws-r58-gate-before-after-2026-09-04"
+    },
+    {
+      "src": "ws-r58-incidents-importing-opsownerids-from-ops-js-makes-a-cycle",
+      "rel": "caused_by",
+      "dst": "ws-r58-incident-ledger"
     }
   ]
 }

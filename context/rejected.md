@@ -8830,3 +8830,31 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r58-incidents-importing-opsownerids-from-ops-js-makes-a-cycle` (2026-09-04, WS-R58)
+
+**Tried:** `api/_incidents.js`'s `notifyNewIncidentKinds` needs the same
+`OPS_OWNER_USER_IDS` allowlist `api/_ops.js` already parses for its own
+auth gate (`opsOwnerIds`), so the first draft exported that function from
+`api/_ops.js` and imported it into `api/_incidents.js` to avoid re-deriving
+the same three-step parse (split/trim/lowercase/filter) twice.
+
+**What broke:** `api/_ops.js` ALSO needs to import from `api/_incidents.js`
+- `incidentsOverview` reads `INCIDENT_KINDS` (the closed vocabulary, so the
+board never renders a kind label the reader has not already seen defined)
+for the board's own Incidents card. Two files each importing a symbol from
+the other is a cycle: `api/_ops.js -> api/_incidents.js -> api/_ops.js`.
+Node/esbuild ES module cycles do not always fail loudly (a function-only
+cycle where nothing is used at module-evaluation time can happen to work),
+but nothing in this repo's own house style takes that bet deliberately, and
+`evals/run.mjs`'s bundling step is exactly the kind of build tool where a
+cycle's behaviour can differ from plain `node --experimental-vm-modules`
+execution in a way that would only surface once, at the worst time.
+
+**Fixed:** `api/_incidents.js` re-derives the identical three-step parse
+locally (`opsOwnerIdsLocal`, four lines) instead of importing it, keeping
+the import edge one-directional (`api/_ops.js -> api/_incidents.js` only).
+The two parses are kept from silently drifting apart not by sharing a
+function but by both being small enough to read at a glance and by
+`api/_ops.js`'s own `opsOwnerIds` staying exported for any FUTURE caller
+that does not create a cycle importing it.

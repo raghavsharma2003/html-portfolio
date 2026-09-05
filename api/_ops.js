@@ -51,10 +51,20 @@ import { suiteIntentApplicationsThisWeek } from "./_apply.js";
 // (api/_payments.js) owns the count, imported rather than re-derived, this
 // file's own established pattern one import list up.
 import { reconciliationOverview } from "./_payments.js";
+// WS-R58 (migration 109). The incident ledger's own board read - reused
+// rather than re-derived, this file's own established pattern one import
+// list up.
+import { INCIDENT_KINDS } from "./_incidents.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
-function opsOwnerIds(env = process.env) {
+// Exported (WS-R58) for any future caller that needs the same allowlist
+// this board's own auth gate reads - `api/_incidents.js`'s own new-kind
+// push step re-derives the identical three-step parse locally instead of
+// importing it, since this file already imports `api/_incidents.js` for
+// the board's own Incidents card (`incidentsOverview`, below) and an import
+// the other way would make a cycle.
+export function opsOwnerIds(env = process.env) {
   return String(env[OPS_OWNER_ENV] || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
@@ -290,6 +300,44 @@ async function sweepsOverview(db, now) {
   return sweeps;
 }
 
+/**
+ * WS-R58 (migration 109). "Last 7 days by kind and door as counts" - the
+ * workstream brief's own words. Two reads: the rollup itself (grouped,
+ * summed across every `status` and every day in the window - the board
+ * shows a shape, not a status-code table), and which kinds are NEW against
+ * the 7 days before that window, for the card's own red badge. `kind` is
+ * always one of `INCIDENT_KINDS` (migration 109's CHECK, mirrored in
+ * `api/_incidents.js`), so this file never invents a label the reader has
+ * not already seen defined.
+ */
+export async function incidentsOverview(db, now = Date.now()) {
+  const byKindDoor = await db(
+    `select kind, door, coalesce(sum(count), 0)::int as n
+       from vy_incident
+      where day >= (current_date - 6)
+      group by kind, door
+      order by kind, door`,
+    [],
+  );
+  const recentKindRows = await db(
+    `select distinct kind from vy_incident where day >= (current_date - 6)`,
+    [],
+  );
+  const priorKindRows = await db(
+    `select distinct kind from vy_incident
+      where day >= (current_date - 13) and day < (current_date - 6)`,
+    [],
+  );
+  const priorKinds = new Set(priorKindRows.map((r) => r.kind));
+  const newKinds = [...new Set(recentKindRows.map((r) => r.kind))]
+    .filter((k) => !priorKinds.has(k) && INCIDENT_KINDS.includes(k))
+    .sort();
+  return {
+    by_kind_door: byKindDoor.map((r) => ({ kind: r.kind, door: r.door, count: Number(r.n) || 0 })),
+    new_kinds: newKinds,
+  };
+}
+
 /** The board's one call. `now` is a parameter (default `Date.now()`) so
  *  `evals/ops/run.mjs` can drive it at a fixed instant rather than racing a
  *  real clock. `deps` (WS-R40) exists for exactly one downstream seam today
@@ -341,5 +389,9 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // rupee figure, `whatsappSpendThisMonth`'s own aggregate-only shape one
     // section up.
     reconciliation: await reconciliationOverview(db, now),
+    // WS-R58 (migration 109). "Make failure a row" - last 7 days by kind and
+    // door, `none` an honest empty state, red only for a kind new since the
+    // 7 days before that.
+    incidents: await incidentsOverview(db, now),
   };
 }

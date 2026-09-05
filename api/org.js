@@ -34,6 +34,7 @@ import {
 } from "./_org.js";
 import { PaymentsError, startOrgSubscription, updateOrgSeats } from "./_payments.js";
 import { cancelOrgRenewal } from "./_renewals.js";
+import { withDoor } from "./_incidents.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -42,7 +43,7 @@ const cors = (res) => {
   res.setHeader("Cache-Control", "no-store");
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -123,3 +124,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "org_failure" });
   }
 }
+
+// WS-R58 (migration 109). See api/room.js's own comment for what this does.
+export default withDoor(q, "org.js", handler);

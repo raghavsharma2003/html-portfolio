@@ -35,6 +35,7 @@ const {
   opsBoardConfigured,
   isOpsOwner,
   sweepStaleness,
+  incidentsOverview,
 } = await import(pathToFileURL(join(REPO, "api/_ops.js")).href);
 const { withSweepRun, sanitizeCounts } = await import(pathToFileURL(join(REPO, "api/_sweep-run.js")).href);
 const { sweepSchedules, expectedIntervalMs, sweepNameFromPath } = await import(
@@ -74,7 +75,25 @@ function opsState() {
   state.paymentEvents = [];
   state.driftReports = [];
   state.sweepRuns = [];
+  // WS-R58 (migration 109). Rows are plain {day, kind, door, count} - `day`
+  // a "YYYY-MM-DD" string, compared lexicographically against the SAME
+  // anchor date §4's fixture already uses (2026-09-10) rather than the real
+  // wall clock, `opsState`'s own header rule ("a test whose fixture month
+  // depends on when it happens to run is a test that passes today and fails
+  // on its own next October") restated for a day instead of a month.
+  state.incidents = [];
+  // The fixture's own "current_date" - §4's own fixed `now` (2026-09-10),
+  // never the real wall clock. `incidentsOverview`'s SQL reads Postgres's
+  // own `current_date`, which this offline fixture has no server for, so
+  // the handlers below anchor on this field instead.
+  state.today = "2026-09-10";
   return state;
+}
+
+function addDaysIso(dateStr, n) {
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Layered on `pulseDb(state, fakeDb(state))`, `evals/room-leak/run.mjs`'s
@@ -214,6 +233,30 @@ function opsDb(state) {
         if (!prev || r.started_at > prev.started_at) bySweep.set(r.sweep, r);
       }
       return [...bySweep.values()];
+    }
+
+    // ── WS-R58 (migration 109): vy_incident, api/_ops.js's `incidentsOverview` ──
+    if (has("from vy_incident") && has("group by kind, door")) {
+      const floor = addDaysIso(state.today, -6);
+      const bucket = new Map();
+      for (const r of state.incidents) {
+        if (r.day < floor) continue;
+        const key = `${r.kind} ${r.door}`;
+        bucket.set(key, (bucket.get(key) || 0) + Number(r.count || 0));
+      }
+      return [...bucket.entries()]
+        .map(([key, n]) => { const [kind, door] = key.split(" "); return { kind, door, n }; })
+        .sort((a, b) => a.kind.localeCompare(b.kind) || a.door.localeCompare(b.door));
+    }
+    if (has("select distinct kind from vy_incident where day >= (current_date - 6)")) {
+      const floor = addDaysIso(state.today, -6);
+      return [...new Set(state.incidents.filter((r) => r.day >= floor).map((r) => r.kind))].map((kind) => ({ kind }));
+    }
+    if (has("select distinct kind from vy_incident") && has("current_date - 13") && has("current_date - 6")) {
+      const floor = addDaysIso(state.today, -13);
+      const ceil = addDaysIso(state.today, -6);
+      return [...new Set(state.incidents.filter((r) => r.day >= floor && r.day < ceil).map((r) => r.kind))]
+        .map((kind) => ({ kind }));
     }
 
     return base(sql, params);
@@ -508,6 +551,55 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
   ok("share_arrivals_this_week is the honest not-enough-data shape when migration 102 is unapplied",
     overview.share_arrivals_this_week.n === null && overview.share_arrivals_this_week.below_floor === true,
     JSON.stringify(overview.share_arrivals_this_week));
+
+  // WS-R58 (migration 109): no incident has been seeded in this fixture -
+  // law 3's own "none" honest empty state, not an omitted field.
+  ok("LAW 3, honest empty state: no incidents seeded means an empty by_kind_door and no new kinds",
+    Array.isArray(overview.incidents.by_kind_door) && overview.incidents.by_kind_door.length === 0 &&
+    Array.isArray(overview.incidents.new_kinds) && overview.incidents.new_kinds.length === 0,
+    JSON.stringify(overview.incidents));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §5b — WS-R58 (migration 109). The Incidents card: counts by kind and
+// door over the last 7 days, and "new since last week" against the 7 days
+// before that.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5b: incidentsOverview (the Incidents card) ──");
+
+{
+  const state = opsState();
+  // `state.today` is 2026-09-10 (opsState's own fixed anchor). Three shapes:
+  //   - a kind seen only in the last 7 days (2 rows, 2 doors) -> counted,
+  //     flagged new;
+  //   - a kind seen BOTH in the last 7 days and the 7 days before that ->
+  //     counted, NOT flagged new (it is not new, it is ongoing);
+  //   - a kind seen ONLY more than 13 days ago -> outside the window
+  //     entirely, must not appear at all.
+  state.incidents.push(
+    { day: "2026-09-09", kind: "door_5xx", door: "room.js", count: 3 },
+    { day: "2026-09-08", kind: "door_5xx", door: "payments.js", count: 1 },
+    { day: "2026-09-02", kind: "provider_telegram", door: "_checkins.js", count: 2 }, // 8 days before "today" - prior window
+    { day: "2026-09-07", kind: "provider_telegram", door: "_checkins.js", count: 5 }, // within the last 7 days too
+    { day: "2026-08-20", kind: "provider_payments", door: "_payments.js", count: 9 }, // >13 days ago - out of range entirely
+  );
+
+  const card = await incidentsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`));
+
+  const byKey = Object.fromEntries(card.by_kind_door.map((r) => [`${r.kind}:${r.door}`, r.count]));
+  ok("door_5xx/room.js is counted (within the 7-day window)", byKey["door_5xx:room.js"] === 3);
+  ok("door_5xx/payments.js is counted separately from room.js - grouped by (kind, door), not kind alone",
+    byKey["door_5xx:payments.js"] === 1);
+  ok("provider_telegram/_checkins.js counts only the row inside the last-7-day window (the 2026-09-02 row is 8 days back, outside it)",
+    byKey["provider_telegram:_checkins.js"] === 5);
+  ok("a row more than 13 days old never appears in the card at all",
+    !("provider_payments:_payments.js" in byKey));
+
+  ok("door_5xx is flagged new (nothing in the 7 days before this window)", card.new_kinds.includes("door_5xx"));
+  ok("provider_telegram is NOT flagged new - it was already present in the prior 7-day window",
+    !card.new_kinds.includes("provider_telegram"));
+  ok("provider_payments never appears in new_kinds either - it is outside the window entirely",
+    !card.new_kinds.includes("provider_payments"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

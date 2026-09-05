@@ -1519,6 +1519,20 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   ops: "ops/run.mjs",
+  // WS-R58. The incident ledger (migration 109): `recordIncident`'s upsert
+  // and its four negative controls (unrecognised kind, empty door,
+  // out-of-range/non-integer status, a db that throws); `withDoor`'s own
+  // proof that a thrown door still answers with the SAME body as before and
+  // that a masked-200 door (tg.js/whatsapp.js's own posture) records
+  // nothing; `claimNewKindNotification`/`notifyNewIncidentKinds`'s
+  // at-most-once-per-kind-per-day guarantee end to end with an injected
+  // fake subscription, plus the "kind seen in the previous 7 days is never
+  // new" control; `pruneOldIncidents`'s 90-day bound; and a static scan of
+  // this file's own INSERT column list with two negative-control fixtures
+  // that add a message-shaped column and correctly fail it.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  incidents: "incidents/run.mjs",
   // WS-R22. Web push for check-ins (migration 085): RFC 8291 aes128gcm
   // encryption round-tripped against an independently-written decoder (real
   // key material, not RFC 8291 Appendix A's own — see api/_push/webpush.js's

@@ -105,6 +105,7 @@ import { protectReplicaStream } from "./_provenance/delivery.js";
 import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-chatterbox-preview.js";
 import { createNeonVoicePreviewLedger } from "./_replica-voice-preview.js";
 import { readPrivateReplicaObject } from "./_replica-storage.js";
+import { withDoor } from "./_incidents.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -141,7 +142,7 @@ async function requiredUser(req) {
   return id;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -446,3 +447,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "room_failure" });
   }
 }
+
+// WS-R58 (migration 109): one incident row for any 5xx this door's own
+// catch-all above ends up sending - `api/_incidents.js`'s `withDoor` own
+// header for exactly what this does and does not change.
+export default withDoor(q, "room.js", handler);

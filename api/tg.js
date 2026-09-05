@@ -134,6 +134,7 @@ import { dispatch, loadEngine, makeCtx, splitForLimit, ROOM_CARD, withdrawReceip
 import { q } from "./_db.js";
 import { resolveInboundClone } from "./_clonechannel.js";
 import { getChannelSecret } from "./_channel-secrets.js";
+import { withDoor } from "./_incidents.js";
 
 // Re-exported because they are the product's promises, not this wire's, and
 // evals/mp/tgbot.mjs asserts the card this surface actually posts.
@@ -499,7 +500,7 @@ export async function bindTelegramClone(channelRef, deps = {}) {
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   // Telegram retries on non-2xx, so a rate-limited update must not be lost
   // forever — but an unauthenticated flood must not reach the database either.
@@ -524,3 +525,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, handled: false });
   }
 }
+
+// WS-R58 (migration 109). See api/room.js's own comment for what `withDoor`
+// does - here it is a pure observer: this handler deliberately masks an
+// internal failure as `res.status(200)` (Telegram retries forever on a
+// non-2xx), so nothing is recorded today, and that is the correct answer,
+// not a gap - the wrapper records exactly what a door actually sends, never
+// a guess about what it "really" meant.
+export default withDoor(q, "tg.js", handler);

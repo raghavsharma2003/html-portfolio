@@ -68,6 +68,7 @@ import { dispatch, loadEngine, makeCtx, splitForLimit } from "./_surface.js";
 import { q } from "./_db.js";
 import { resolveInboundClone } from "./_clonechannel.js";
 import { getChannelSecret } from "./_channel-secrets.js";
+import { withDoor } from "./_incidents.js";
 
 /** Raw bytes are required for the HMAC — see api/discord.js's property 1. */
 export const config = { api: { bodyParser: false } };
@@ -431,7 +432,7 @@ export async function bindWhatsappClone(ev, deps = {}) {
 
 // ── HTTP ──────────────────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST")
     return res.status(405).json({ error: "GET or POST only" });
   if (!allow(ipOf(req), "whatsapp", 120)) return res.status(429).json({ error: "slow down" });
@@ -455,3 +456,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 }
+
+// WS-R58 (migration 109). See api/tg.js's own comment one file over - the
+// identical masked-200 posture, so this wrapper is a pure observer here too.
+export default withDoor(q, "whatsapp.js", handler);

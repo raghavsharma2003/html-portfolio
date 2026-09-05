@@ -43,6 +43,7 @@ import {
   unlistRoom,
   ownerRoomStats,
 } from "./_room-publish.js";
+import { withDoor } from "./_incidents.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -53,7 +54,7 @@ function cors(res) {
 
 const notFound = (res) => res.status(404).json({ error: "replica_not_found" });
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "GET or POST only" });
@@ -175,3 +176,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "room_publish_failure" });
   }
 }
+
+// WS-R58 (migration 109). See api/room.js's own comment for what this does.
+export default withDoor(q, "room-publish.js", handler);

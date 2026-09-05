@@ -75,6 +75,7 @@ import {
   sendTemplate,
 } from "./_room-whatsapp.js";
 import { sendRoomCheckinMessage } from "./_room-telegram.js";
+import { recordIncident, notifyNewIncidentKinds, pruneOldIncidents } from "./_incidents.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -593,6 +594,11 @@ export const deliverers = {
     if (result.ok) {
       return insertLedger("delivered", "", deps.now ?? Date.now());
     }
+    // WS-R58 (migration 109). This deliverer already catches a provider
+    // failure (the branches below decide revoke-or-leave off `result.status`)
+    // - one content-free row per attempt, never awaited so a slow write
+    // cannot hold up the sweep tick.
+    recordIncident(db, { kind: "provider_whatsapp", door: "_checkins.js", status: Number(result.status) || 0 });
     // 429 is numerically a 4xx and DELIBERATELY excluded from the revoke
     // branch below (workstream law #4's own words: "a 429 or 5xx leaves the
     // row for the next sweep") — it means "too many requests", never
@@ -686,8 +692,14 @@ export const deliverers = {
         if (result.ok) {
           anyOk = true;
           await touchSubscription(db, sub.subscription_id).catch(() => {});
-        } else if (result.status === 404 || result.status === 410) {
-          await revokeSubscriptionById(db, sub.subscription_id).catch(() => {});
+        } else {
+          // WS-R58 (migration 109). This per-subscription branch already
+          // catches a provider failure (the 404/410 revoke below is one
+          // outcome of it) - one content-free row per attempt.
+          recordIncident(db, { kind: "provider_webpush", door: "_checkins.js", status: Number(result.status) || 0 });
+          if (result.status === 404 || result.status === 410) {
+            await revokeSubscriptionById(db, sub.subscription_id).catch(() => {});
+          }
         }
       } catch (error) {
         console.error("[checkins webPush] send failure for one subscription:", error?.message || "unknown");
@@ -769,6 +781,10 @@ export const deliverers = {
     if (result.ok) {
       return insertLedger("delivered", "", deps.now ?? Date.now());
     }
+    // WS-R58 (migration 109). This deliverer already catches a provider
+    // failure (the 403/400 stop-branch and the 429/5xx transient branch
+    // below are both outcomes of it) - one content-free row per attempt.
+    recordIncident(db, { kind: "provider_telegram", door: "_checkins.js", status: Number(result.status) || 0 });
     if (result.status === 403 || result.status === 400) {
       // Revoke on failure (workstream law #3) - a blocked bot or a dead chat
       // stops every future send to this follower on this channel until they
@@ -1021,6 +1037,24 @@ export async function sweep(deps, now = Date.now()) {
     summary.ratePurged = await purgeStalePublicRateWindows(db, now);
   } catch (error) {
     console.error("[checkins sweep] rate purge failure:", error?.message || "unknown");
+  }
+
+  // WS-R58 (migration 109). The incident ledger's own new-kind alert
+  // (workstream law #4) and its 90-day retention delete (law #5) - both
+  // best-effort, `purgeStalePublicRateWindows`'s own posture one block up
+  // restated twice: neither failure mode may ever turn an otherwise-
+  // successful check-ins sweep into one that reports `errors`.
+  try {
+    const notified = await notifyNewIncidentKinds(db, { env: deps.env || process.env, fetch: deps.fetch, now });
+    summary.incidentKindsChecked = notified.checked;
+    summary.incidentKindsNotified = notified.claimed;
+  } catch (error) {
+    console.error("[checkins sweep] incident notify failure:", error?.message || "unknown");
+  }
+  try {
+    summary.incidentsPruned = await pruneOldIncidents(db);
+  } catch (error) {
+    console.error("[checkins sweep] incident prune failure:", error?.message || "unknown");
   }
 
   return summary;

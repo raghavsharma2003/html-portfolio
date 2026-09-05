@@ -21,6 +21,7 @@ import { consume } from "./_rate-limit.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { ApplyError, submitApplication, listApplications, eraseApplicationsByContact } from "./_apply.js";
 import { InvitesError, requireOperator } from "./_invites.js";
+import { withDoor } from "./_incidents.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -29,7 +30,7 @@ function cors(res) {
   res.setHeader("Cache-Control", "no-store");
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -73,3 +74,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "apply_failure" });
   }
 }
+
+// WS-R58 (migration 109). See api/room.js's own comment for what this does.
+export default withDoor(q, "apply.js", handler);
