@@ -12990,3 +12990,45 @@ locales), the whole of what `StudioApp.tsx`'s move to Tier 1 needed.
 independently re-derives the 1641 figure and runs the real
 `scripts/check-copy.mjs` scanner against every one of the 1641 Hindi
 strings directly (not a sample) as its own check; both counts agree.
+
+## `rooms-migrations-127-128-live-verification-2026-09-05` — the recall run and the WhatsApp pointer, applied live at their merges
+
+**n = 5 statements applied (127: table + index; 128: table + two indexes),
+18 planned (method: Neon SQL-over-HTTP, one statement per request,
+`create ... if not exists` throughout; every new statement `EXPLAIN`ed
+with `analyze:false`, never `EXPLAIN ANALYZE`; date 2026-09-05, main loop,
+at merge commits `d5957e6` (127, WS-R101) and `8e99438` (128, WS-R104)).**
+
+Migration 127, `vy_recall_run`, no FK (009's owner-lane convention), index
+`(replica_id, owner_user_id, created_at desc)`. Seven statements planned:
+the guard-supersede-insert CTE (index-only scan with the one-hour bound,
+then an index scan for the supersede), the latest-run read, the creator
+export select and the erasure delete, all on `vy_recall_run_owner_ix`; the
+three source selects on `vy_review_card_owner_ix`,
+`vy_interview_answer_owner_ix` and, for the context items, the planner's
+sequential scan of a table estimated at one row joined to
+`vy_context_item_text_pkey`, bounded by the owner's own items and limited
+to 500, the same shape every other owner read on that table plans today.
+The interview select joins `vy_mirror_window` by its primary key; the
+planner chose a sequential scan on the one-row estimate.
+
+Migration 128, `vy_room_follower_whatsapp_chat`, FK on `room_id` with
+cascade (097's precedent), none on person or follower, `phone_hash` the
+primary key, indexes `(person_id, room_id)` and `(follower_id)`. Five
+statements planned, all on indexes: the pointer upsert (arbiter the
+primary key), the slug lookup and the stop update (primary key), the
+forget delete and the export select (`vy_room_follower_whatsapp_chat_person_ix`).
+
+WS-R103's three statements (no migration): the reconciliation count by
+`vy_payment_event_subscription_ix`'s received_at column with the anti-join
+on `vy_receipt_payment_event_ix`; the late-receipts sum by
+`vy_sweep_run_sweep_started_ix`; and the daily backfill select, a
+sequential scan of the payment ledger with the anti-join on the receipt
+index, accepted by name as a once-a-day sweep bounded by the ledger's own
+size. Reversal: a partial index on `(received_at) where room_id is not
+null and amount_inr > 0` once the ledger passes 100k rows or the live plan
+exceeds 50 ms.
+
+Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
+sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
+`vy_room_follower_whatsapp_chat` row exists yet.

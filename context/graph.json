@@ -9898,6 +9898,12 @@
       "kind": "measurement",
       "title": "studio-hi Hindi chunk wait measured 870ms then 879ms in isolation (ports confirmed free, load average 2.5-2.8), n=2 full check-performance.mjs runs each a 3-run median, both over the 800ms budget; hiCopy.ts grew 184309 to 206298 bytes (+11.9%) from this workstream's 135 new Hindi strings.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migrations-127-128-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migrations 127 (the recall run) and 128 (the WhatsApp pointer) applied live at their merges, five statements one per request; fifteen new statements planned, all on indexes except the backfill sweep's ledger scan and two one-row-estimate scans, each accepted by name.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19265,6 +19271,21 @@
       "src": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed",
       "rel": "measured_by",
       "dst": "ws-r106-studio-hindi-chunk-wait-measured-870-879ms-against-800-budget"
+    },
+    {
+      "src": "rooms-migrations-127-128-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r101-recall-run-writer"
+    },
+    {
+      "src": "rooms-migrations-127-128-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r104-whatsapp-chat-owns-its-own-table-sql"
+    },
+    {
+      "src": "rooms-migrations-127-128-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r103-backfill-sweep-closes-the-named-gap"
     }
   ]
 }
