@@ -481,3 +481,35 @@ export const roomSettings = (session: string) => post<RoomSettings>({ op: "setti
 
 export const markSettingsReviewed = (session: string) =>
   post<{ settings_reviewed_at: string | null }>({ op: "settings_reviewed", session });
+
+/** WS-R100 (migration 126). The follower's own receipts. `RoomReceiptRow`
+ *  is the list shape (`listReceipts`, the account page's own read);
+ *  `fetchReceiptHtml` is the ONE place this file does not reuse `post<T>`
+ *  above — the server's own `format:"html"` response is the printable page
+ *  itself, `text/html`, never a JSON envelope `response.json()` could
+ *  parse, so this reads `response.text()` instead. */
+export interface RoomReceiptRow {
+  payment_event_id: string;
+  receipt_no: number;
+  issued_at: string;
+  amount_inr: number;
+}
+
+export const listReceipts = (session: string) =>
+  post<{ receipts: RoomReceiptRow[] }>({ op: "receipts", session });
+
+export async function fetchReceiptHtml(session: string, paymentEventId: string): Promise<string> {
+  const response = await fetch("/api/room", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "receipt", session, payment_event_id: paymentEventId, format: "html" }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let code = `room_request_failed_${response.status}`;
+    try { code = String(JSON.parse(text)?.error || code); } catch { /* the error response is JSON; a non-JSON body here is unexpected but must not throw a parse error over a network error */ }
+    throw new RoomApiError(code, response.status);
+  }
+  return text;
+}

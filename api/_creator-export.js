@@ -45,6 +45,24 @@
 //     boundary reason and for an independent one: it carries no
 //     `owner_user_id`/`replica_id` column at all (schema-checked, not
 //     assumed) — see the note on `vy_payment_event` below.
+//   - `vy_receipt` (WS-R100, migration 126). A follower's own payment
+//     receipt names a `room_id` a creator's own owner-scoped query could
+//     join through - the identical shape that makes `vy_room_subscription`
+//     above look owner-lane if read only for its reach from
+//     api/_replica-full-erasure.js's WHERE clause. It carries `person_id`
+//     and is excluded here on that authority, `vy_room_subscription`'s own
+//     reasoning restated for a receipt instead of a mandate: a creator has
+//     authority to END a Room and everything in it (a full erasure DOES
+//     delete `vy_receipt` by name, child-before-parent ahead of
+//     `vy_payment_event`, folded into the SAME "owner_room_payments"
+//     receipt class as the fund-account reference), never to READ what a
+//     follower paid and when back to themselves. It is deliberately absent
+//     from `followerLaneTableNames()`'s own reach too (that function reads
+//     `PERSON_TABLES`, and `vy_receipt` is NOT a `PERSON_TABLES` entry -
+//     `context/decisions.md#ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete`)
+//     - named here, by hand, so this file's OWN boundary comment covers it
+//     regardless of which manifest a future reader expects to find it
+//     through.
 //   - The Room's per-day arrival-source counts. Content-free (no person or
 //     follower column exists on it at all) and genuinely owner-adjacent,
 //     but every existing reader of it (api/_funnel.js's own share-arrivals

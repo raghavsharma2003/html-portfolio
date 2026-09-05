@@ -598,6 +598,18 @@ console.log("\n── §8: the payments webhook — the inline offer_update CTE 
         return [{ event_id: randomUUID(), subscription_id: sub.subscription_id, state: sub.state, tier: follower.tier,
           ...(gated ? { offer_marked_paid: offerMarked } : {}) }];
       }
+      // WS-R100 (migration 126). `tableApplied: async () => true` above is
+      // blanket - it also admits "vy_receipt", so `applyWebhook`'s own new
+      // receipt-issuance call reaches this fixture too, even though this
+      // section's own subject is migration 093's offer gating, not
+      // receipts. This fixture has no `sub.person_id` at all (§8's own
+      // rows never needed one before this workstream), so a real receipt
+      // row cannot be modelled here without widening `subs`/`followers`
+      // for a fact this section's own assertions never read - returning no
+      // row is the SAME "not applied" shape `issueFollowerReceipt`'s own
+      // caller already handles honestly (`receipt_id: null`), and neither
+      // assertion below reads that field.
+      if (sql.includes("insert into vy_receipt_counter")) return [];
       throw new Error(`payments fixture: unrecognised statement: ${sql.slice(0, 80)}`);
     };
   }

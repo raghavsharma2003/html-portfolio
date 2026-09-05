@@ -3645,6 +3645,30 @@ async function purgeRelational(devices, scope, { logIds = [], rx = null, from = 
       const goneReceipts = await purgeRoomForgetReceipts(q, person);
       if (goneReceipts) out.vy_room_forget_receipt = goneReceipts;
     }
+    // WS-R100 (migration 126). `vy_receipt` — a follower's own payment
+    // receipts. Deliberately NOT a `PERSON_TABLES` entry above (this table's
+    // own migration header, and `scripts/relcheck.mjs`'s `EXEMPT` map, carry
+    // the written reason), so the generic manifest loop a few lines up
+    // cannot see it — this is its own explicit door, `vy_room_forget_
+    // receipt`'s own one line up restated for a table that must NOT be
+    // blind-deleted the way that loop deletes every `relational` lane
+    // entry. An UPDATE, never a DELETE: `person_id` is nulled, the row
+    // itself (its `receipt_no` and, through the still-intact
+    // `vy_payment_event` row, its amount) survives — a receipt is proof a
+    // real charge happened, and an account-wide "forget everything" may not
+    // also make an accountant's or a parent's copy of that proof
+    // retroactively inaccurate (`vy_room_subscription`'s own
+    // "forgetting what an AI remembers is a different request in kind from
+    // forgetting that you paid money" restated for a receipt instead of a
+    // mandate). Gated on the table existing at all, `vy_room_forget_
+    // receipt`'s own guard restated.
+    if (await tableApplied("vy_receipt")) {
+      const nulledReceipts = await q(
+        `update vy_receipt set person_id = null where person_id = $1 returning receipt_id`,
+        [person],
+      );
+      if (nulledReceipts.length) out.vy_receipt = nulledReceipts.length;
+    }
     // the mapping and (if no other device shares it) the person row itself:
     // a full wipe that kept the identity row would keep a record of them
     // EVERY mapping row, not just the asking device's. Leaving the others

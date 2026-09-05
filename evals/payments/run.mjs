@@ -74,6 +74,12 @@ function freshState() {
     subscriptions: [],
     events: [],
     payouts: [],
+    // WS-R100 (migration 126). Untouched by every test above this
+    // workstream's own section - `issueFollowerReceipt` is gated on
+    // `tableApplied("vy_receipt")`, which resolves false (the real,
+    // DB-less `tableApplied`) unless a case below explicitly overrides it.
+    receipts: [],
+    receiptCounters: [],
   };
 }
 
@@ -229,7 +235,7 @@ function makeDb(state) {
           tier = follower.tier;
         }
       }
-      return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, tier }];
+      return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, person_id: sub ? sub.person_id : null, tier }];
     }
 
     // ── ownerRevenue ──
@@ -283,6 +289,27 @@ function makeDb(state) {
         out.push(row);
       }
       return out;
+    }
+
+    // ── WS-R100 (migration 126): `issueFollowerReceipt`'s own single
+    //    statement. Only ever reached by a test in this workstream's own
+    //    section below - every test above never overrides `tableApplied`
+    //    to admit "vy_receipt", so this branch is unreachable for them,
+    //    `applyWebhook`'s own gate proving itself by construction. ──────
+    if (has("insert into vy_receipt_counter")) {
+      const [fy, eventId, roomId, personId, issuedAt] = params;
+      let counter = state.receiptCounters.find((c) => c.fy === fy);
+      if (!counter) { counter = { fy, next: 1 }; state.receiptCounters.push(counter); }
+      if (state.receipts.some((r) => r.payment_event_id === String(eventId))) return []; // bump's own not-exists guard
+      const claimed = counter.next;
+      counter.next += 1;
+      const row = {
+        receipt_id: `r${state.receipts.length + 1}`, receipt_no: claimed,
+        payment_event_id: String(eventId), room_id: String(roomId),
+        person_id: personId ? String(personId) : null, issued_at: issuedAt || new Date(NOW).toISOString(),
+      };
+      state.receipts.push(row);
+      return [{ receipt_id: row.receipt_id, receipt_no: row.receipt_no, issued_at: row.issued_at }];
     }
 
     throw new Error(`unmodelled statement: ${sql.slice(0, 90)}`);
@@ -925,6 +952,60 @@ console.log("\n§16 WS-R73: getSubscription — the READ updateOrgSeats calls be
     ok("setFakeSubscriptionMethod makes the fake twin report the method a test asks for",
       set.payment_method === "emandate");
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§10 WS-R100 (migration 126) — the follower's receipt, issued from THIS webhook");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // Every test above this line never overrides `tableApplied` - proving,
+  // by construction, that `issueFollowerReceipt` is never even attempted
+  // on a database that has not applied migration 126 yet (the throwing
+  // fake db above would have failed loudly the moment it was).
+  const state = freshState();
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+  const depsOn = { env: ENV, loadAgent, now: NOW, tableApplied: async (name) => name === "vy_receipt" };
+  await startFollowerSubscription(db, { session: session() }, depsOn);
+  const ref = state.subscriptions[0].provider_subscription_ref;
+
+  const body = RAZORPAY_CHARGED(ref, 39900, 1690000000, 1692600000);
+  const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+  const applied = await applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: "evt_r100_1" }, depsOn);
+  ok("§10 a landed charge on a migration-126 database returns a receipt_id", typeof applied.receipt_id === "string" && applied.receipt_id.length > 0);
+  ok("§10 exactly one vy_receipt row exists", state.receipts.length === 1);
+  ok("§10 the receipt names the ledger row it records", state.receipts[0].payment_event_id === state.events[0].event_id);
+  ok("§10 the receipt carries the follower's own person id", state.receipts[0].person_id === PERSON);
+  ok("§10 the receipt claimed number 1 (the first receipt in this financial year)", state.receipts[0].receipt_no === 1);
+
+  // IDEMPOTENT REPLAY, restated for the receipt: the SAME event replayed
+  // mints no second receipt (the ledger's own on-conflict-do-nothing means
+  // `!result` fires and `issueFollowerReceipt` is never even called again).
+  const replay = await applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: "evt_r100_1" }, depsOn);
+  ok("§10 a replayed webhook mints no second receipt", replay.replay === true && state.receipts.length === 1);
+
+  // NEGATIVE CONTROL (restated from evals/room-receipt/run.mjs, driven here
+  // end to end through the REAL webhook rather than a direct call): a
+  // non-charge kind (a pause) lands no receipt at all.
+  const pauseBody = RAZORPAY_CHARGED(ref, 0, 1690000000, 1692600000).replace('"subscription.charged"', '"subscription.paused"');
+  const pauseSig = fake.signWebhookForTest(pauseBody, WEBHOOK_SECRET);
+  await applyWebhook(db, { rawBody: pauseBody, signatureHeader: pauseSig, eventRef: "evt_r100_pause" }, depsOn);
+  ok("NEGATIVE CONTROL: a non-charge event (pause) mints no receipt", state.receipts.length === 1);
+
+  // NEGATIVE CONTROL: `tableApplied` false (the ordinary case for every
+  // database that has not applied 126 yet) never even attempts the claim,
+  // on a SECOND, otherwise-identical Room/follower so the ledger dedup
+  // above cannot mask the result.
+  const state2 = freshState();
+  state2.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db2 = makeDb(state2);
+  await startFollowerSubscription(db2, { session: session() }, { env: ENV, loadAgent, now: NOW });
+  const ref2 = state2.subscriptions[0].provider_subscription_ref;
+  const body2 = RAZORPAY_CHARGED(ref2, 39900, 1690000000, 1692600000);
+  const sig2 = fake.signWebhookForTest(body2, WEBHOOK_SECRET);
+  const applied2 = await applyWebhook(db2, { rawBody: body2, signatureHeader: sig2, eventRef: "evt_r100_2" }, { env: ENV });
+  ok("NEGATIVE CONTROL: migration 126 not applied - the SAME charge lands no receipt_id at all", applied2.receipt_id === null);
+  ok("NEGATIVE CONTROL: migration 126 not applied - no vy_receipt row was ever attempted", state2.receipts.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

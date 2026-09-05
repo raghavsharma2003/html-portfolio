@@ -590,6 +590,26 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- a roll-up across every room an owner has), so it is scoped by
      -- owner_user_id alone - the imprecision migration 078's own header names
      -- and context/decisions.md logs with its reversal condition.
+     --
+     -- 126 (WS-R100), the follower's receipt. Child of BOTH vy_payment_event
+     -- (payment_event_id) and vy_room (room_id), so deleted FIRST, ahead of
+     -- payment_events immediately below - child before parent, 071's own
+     -- ordering restated. Carries real FK CASCADE from both parents, so this
+     -- delete is a backstop rather than the only mechanism - "relying on a
+     -- cascade means relying on an FK nobody re-checks" (071's own words,
+     -- restated for the Nth time). Scoped by room_id, never person_id: a full
+     -- REPLICA erasure ends every receipt this Room's followers hold - their
+     -- money record dies with the Room's own ledger - never merely nulls the
+     -- person the way ONE follower's own account-wide "forget everything"
+     -- does (api/memory.js's explicit door); that gentler treatment is
+     -- reserved for a person ending their OWN relationship, not a creator
+     -- ending the whole Room. Folded into the "owner_room_payments" receipt
+     -- class below, 098's own precedent for the fund-account reference: a
+     -- follower's receipt is a detail of the Room's money, not a different
+     -- kind of record.
+     receipts as (delete from vy_receipt x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      payment_events as (delete from vy_payment_event x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),

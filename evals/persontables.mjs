@@ -126,6 +126,18 @@ const EXEMPT = {
     "redeemed_by_user_id is the owner lane under a different column name; " +
     "erased by name in api/_replica-full-erasure.js, checked by relcheck's " +
     "FK walk rather than this offline manifest",
+  // WS-R100 (migration 126). Mirrors scripts/relcheck.mjs's own EXEMPT
+  // entry, verbatim reasoning: an account-wide forget NULLS person_id on
+  // this table (api/memory.js's own explicit door) rather than deleting the
+  // row, so PERSON_TABLES membership (which means "wiped by the generic
+  // DELETE loop") would be the wrong mechanism for it. Reachable for forget
+  // (that explicit door) and export (api/_room-surface.js's
+  // ROOM_EXPORT_EXTRA) both, just not through this manifest.
+  vy_receipt:
+    "an account-wide forget NULLS person_id (api/memory.js's own explicit " +
+    "door) rather than deleting the row, so the number and the amount " +
+    "survive; PERSON_TABLES membership would mean the generic DELETE loop " +
+    "instead",
 };
 
 const listed = new Set(PERSON_TABLES.map((t) => t.table));

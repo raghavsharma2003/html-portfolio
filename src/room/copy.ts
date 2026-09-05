@@ -573,6 +573,19 @@ const EN = {
     copy: "Copy link",
     copied: "Copied",
   },
+
+  /** WS-R100 (migration 126). The follower's own receipts, on the account
+   *  page's subscription panel - a list of past payments, each one printable.
+   *  The rendered receipt itself (the number, the GST lines, the platform's
+   *  legal identity) is server text, api/_receipt.js's own header, never
+   *  duplicated here - this section is only the app CHROME around it: the
+   *  heading, the empty state, the print action. */
+  payReceipt: {
+    title: "Receipts",
+    empty: "No payments yet.",
+    print: "Print",
+    loadError: "Could not load your receipts. Try again.",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -902,6 +915,13 @@ const HI: typeof EN = {
     note: "यह लिंक शेयर करें। अगर कोई दोस्त इससे जुड़ता है, तो क्रिएटर को सिर्फ इतना पता चलता है कि एक दोस्त आया - कभी यह नहीं कि कौन।",
     copy: "लिंक कॉपी करें",
     copied: "कॉपी हो गया",
+  },
+
+  payReceipt: {
+    title: "रसीदें",
+    empty: "अभी तक कोई भुगतान नहीं।",
+    print: "प्रिंट करें",
+    loadError: "आपकी रसीदें लोड नहीं हो सकीं। फिर से कोशिश करें।",
   },
 };
 

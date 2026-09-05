@@ -29,6 +29,9 @@
 //   POST /api/room {op:"stats",  room:"<slug>"}
 //   POST /api/room {op:"export", session}
 //   POST /api/room {op:"forget", session}
+//   POST /api/room {op:"receipt",  session, payment_event_id, format?}
+//                                          -> HTML (format:"html") or JSON
+//   POST /api/room {op:"receipts", session}                    -> the list
 //
 // `speak` exists only behind `ROOM_VOICE=1` (WS-R19). Unset, it 404s exactly
 // like `unknown_op` - a follower asking for voice on a deployment that has
@@ -117,6 +120,8 @@ import {
   ROOM_TRANSCRIPT_BODY_CAP_BYTES,
   assertTasteOriginAllowed,
   roomReferralLink,
+  roomReceipt,
+  roomReceipts,
 } from "./_room-surface.js";
 import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
 import { setSubscription, removeSubscription, subscriptionStatus } from "./_room-push.js";
@@ -127,6 +132,7 @@ import { createOpenChatterboxPreviewProvider } from "./_voice/providers/open-cha
 import { createNeonVoicePreviewLedger } from "./_replica-voice-preview.js";
 import { readPrivateReplicaObject } from "./_replica-storage.js";
 import { withDoor } from "./_incidents.js";
+import { buildReceiptHtml } from "./_receipt.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -502,6 +508,28 @@ async function handler(req, res) {
 
     if (op === "citations") {
       return res.status(200).json(await roomCitations(q, { session: body.session }));
+    }
+
+    if (op === "receipt") {
+      // WS-R100 (migration 126). Session-scoped exactly as "citations"
+      // above - no bearer needed, `roomReceipt`'s own WHERE (room_id AND
+      // person_id, both off the verified session) is what makes a
+      // body-supplied payment_event_id belonging to another follower
+      // unreachable (evals/room-doors/run.mjs's own OP_COVERAGE entry names
+      // this). `format:"html"` returns the printable page as the response
+      // body itself, Content-Type text/html - `api/room-page.js`'s own
+      // precedent for an HTML response off this same handler shape; every
+      // other request shape gets the plain JSON context.
+      const ctx = await roomReceipt(q, { session: body.session, paymentEventId: body.payment_event_id });
+      if (body.format === "html") {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(buildReceiptHtml(ctx));
+      }
+      return res.status(200).json(ctx);
+    }
+
+    if (op === "receipts") {
+      return res.status(200).json(await roomReceipts(q, { session: body.session }));
     }
 
     if (op === "referral_link") {
