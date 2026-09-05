@@ -13680,3 +13680,45 @@ containing "NEGATIVE CONTROL"/"FAILS"/"FAIL CLOSED"/"-> FAIL").
 - `applyIngestRunDelta`'s new guard (api/_channel-ingest.js): outer `vy_ingest_run_owner_recent_ix`; the anti-join over `vy_context_item` (owner, status = 'refused') is a seq scan because `item_id::text` is compared to `split_part(video_ref, ':', 2)`. Accepted by name: one run per call over one owner's refused items; an index would need an expression or a typed column, logged as the reversal.
 
 No other wave-seventeen workstream added SQL: WS-R115, R116, R117, R118, R113, R114 change no statement; WS-R119 and R120 add fixture matchers only; WS-R111 touches the compiler and the honesty gate only.
+
+## `ws-r127-suite-admin-weekly-note-measurements-2026-09-05` — the Suite admin's weekly note, suite pass counts
+
+n = every assertion in each named suite, method = `node evals/<suite>/run.mjs`
+run directly on this worktree, 2026-09-05:
+
+- `evals/org-weekly-note/run.mjs` (new): 42/42 passed. Covers the per-Room
+  floor at construction (`orgWeeklyNoteRoomLine`, both sides of the n>=5
+  boundary), the payload builder (parameter-list-bounded, a static negative
+  control), the sweep's per-channel ledger idempotency (push and email claim
+  independently; a same-week resend on either channel is refused), the
+  email seam (no import at all, no network primitive in its own code with
+  comments stripped), the admin-only test-send op (a non-admin negative
+  control refused `org_not_found` before any push is attempted, and writes
+  no ledger row), and a static import scan of `api/_org-weekly-note.js`
+  proving exactly three imports, none follower-lane.
+- `evals/room-leak/run.mjs`: 264/264 passed (was 262/262 on the untouched
+  tree before this workstream's layer 16 and the two `AGGREGATE_ONLY`
+  additions it required). Layer 16 (9 assertions) proves the SAME floor and
+  static-scan guarantee as a leak-battery layer, plus a world check with a
+  seeded follower token that never reaches the outgoing payload, and a
+  negative control on a hand-built leaky note proving the scanner is not
+  vacuous.
+- `evals/room-doors/run.mjs`: 807/807 passed (was 799/799 on the untouched
+  tree). +8 assertions: `send_test_weekly_note`'s own OP_COVERAGE entry and
+  two dynamic class-e cases (the real admin's own test send succeeds; a
+  different owner's bearer is refused `org_not_found` before any push is
+  attempted), plus `org-weekly-note-sweep.js` joining the discovered
+  cron-door list (its own e-cron-secret cases already generic, no new case
+  needed there).
+- `evals/org/run.mjs`: 71/71 passed (was 68/68 on the untouched tree). +3
+  assertions on `listMyOrgs`'s new `weekly_note.last_sent_at` field: null
+  before any send, the real timestamp after one lands, and never mixed
+  across two different Suites' own admins.
+
+**Full eval registry** (`node evals/run.mjs`, no argument — required by
+ws-common.md's law after any new import between two `api/` files, here
+`api/org.js` -> `api/_org-weekly-note.js`): run to completion on this
+worktree, method = one full `node evals/run.mjs` invocation, n = every
+suite in the registry; result recorded in this session's own report rather
+than restated a second time here to avoid the two ever silently disagreeing
+about the same run.

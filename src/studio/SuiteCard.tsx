@@ -18,6 +18,7 @@ import {
   startSuiteSubscription,
   updateSuiteSeats,
   cancelSuiteSubscription,
+  sendTestSuiteWeeklyNote,
   OrgApiError,
   type MySuite,
   type Suite,
@@ -64,6 +65,7 @@ export default function SuiteCard({
   const { t } = useStudioLocale();
   const c = t.suite;
   const mandate = t.suiteSeatLock;
+  const noteCopy = t.suiteWeeklyNote;
   const [suites, setSuites] = useState<MySuite[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -82,6 +84,8 @@ export default function SuiteCard({
   // WS-R48. null: nothing to auto-start, or already finished. Otherwise the
   // two-step self-serve flow's own progress, shown while it runs.
   const [autoStart, setAutoStart] = useState<"creating" | "starting" | null>(null);
+  // WS-R127 (migration 132): the org_id currently sending its own test note.
+  const [sendingNote, setSendingNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -233,6 +237,25 @@ export default function SuiteCard({
       setBusy(null);
     }
   }, [token, roomId, load, onRoomSuiteChange, c.noticeDetached]);
+
+  // WS-R127 (migration 132). "Send a test note now" - the admin's own device
+  // only, no ledger row written (api/_org-weekly-note.js's own header).
+  const sendTestNote = useCallback(
+    async (orgId: string) => {
+      setSendingNote(orgId);
+      setError("");
+      setNotice("");
+      try {
+        await sendTestSuiteWeeklyNote(token, orgId);
+        setNotice(noteCopy.testSent);
+      } catch (e) {
+        setError(readableError(e, "could not send a test note"));
+      } finally {
+        setSendingNote(null);
+      }
+    },
+    [token, noteCopy.testSent],
+  );
 
   const toggleMembers = useCallback(
     async (orgId: string) => {
@@ -428,6 +451,29 @@ export default function SuiteCard({
                 ) : (
                   <p className="field-note" role="status">{c.loadingMembers}</p>
                 )
+              )}
+              {/* WS-R127 (migration 132). Admin-only, always visible (no
+                  toggle) - a Suite admin's whole reason to open this card is
+                  "did anyone use the seats I bought", and the whole point is
+                  lost if it is one more click behind a "Show" button. */}
+              {s.role === "admin" && (
+                <div className="vy-room__suite-money">
+                  <p className="field-note">
+                    <strong>{noteCopy.title}</strong>
+                    {" - "}
+                    {s.weekly_note.last_sent_at
+                      ? noteCopy.lastDelivery.split("{label}").join(new Date(s.weekly_note.last_sent_at).toLocaleString())
+                      : noteCopy.neverDelivered}
+                  </p>
+                  <button
+                    className="button secondary-button"
+                    type="button"
+                    disabled={sendingNote === s.org_id}
+                    onPointerDown={() => void sendTestNote(s.org_id)}
+                  >
+                    {sendingNote === s.org_id ? noteCopy.sending : noteCopy.sendTest}
+                  </button>
+                </div>
               )}
               {openMoney === s.org_id && (
                 subscription !== undefined ? (

@@ -4496,3 +4496,22 @@ create index if not exists vy_room_follower_whatsapp_chat_follower_ix
 alter table vy_review_card drop constraint if exists vy_review_card_kind_check;
 alter table vy_review_card add constraint vy_review_card_kind_check
   check (kind in ('question','claim','delta','follower_declined','instruction_shaped'));
+
+-- Migration 132 - the Suite admin's weekly note (WS-R127). See
+-- db/migrations/132_org_weekly_note.sql for the full argument; mirrored
+-- here per this file's own convention. Content-free (org_id, week_start,
+-- sent_at, channel), no FK on org_id (a send ledger outlives an org row the
+-- same way `vy_org` itself outlives a creator's own erasure), owner lane
+-- but outside PERSON_TABLES and outside scripts/relcheck.mjs's owner-lane
+-- reach walk (no owner_user_id/person column exists on it at all).
+create table if not exists vy_org_weekly_note (
+  note_id    uuid primary key,
+  org_id     uuid not null,
+  week_start date not null,
+  sent_at    timestamptz not null default now(),
+  channel    text not null check (channel in ('push', 'email'))
+);
+create unique index if not exists vy_org_weekly_note_org_week_channel_ix
+  on vy_org_weekly_note (org_id, week_start, channel);
+create index if not exists vy_org_weekly_note_org_sent_ix
+  on vy_org_weekly_note (org_id, sent_at desc);

@@ -350,6 +350,11 @@ const {
 const FAKE_PROVIDER = await import(pathToFileURL(join(API, "_payments/providers/fake.js")).href);
 const ORG = await import(pathToFileURL(join(API, "_org.js")).href);
 const { listOrgMembers, attachRoom, OrgError } = ORG;
+// WS-R127 (migration 132). "Send a test note now" — its own decision module,
+// never `_org.js` (that file's own header on why the two stay a one-way
+// dependency).
+const ORG_WEEKLY_NOTE = await import(pathToFileURL(join(API, "_org-weekly-note.js")).href);
+const { sendTestOrgWeeklyNote, OrgWeeklyNoteError } = ORG_WEEKLY_NOTE;
 const REPLICA = await import(pathToFileURL(join(API, "_replica.js")).href);
 const { getOwnedReplica, createSelfReplica } = REPLICA;
 const ROOM_PUBLISH = await import(pathToFileURL(join(API, "_room-publish.js")).href);
@@ -1773,6 +1778,46 @@ console.log("\n── §16: the 27 preexisting-uncased owner-bearer ops (WS-R51)
   const stolen = await ORG.roomSuiteStatus(db, OWNER_B, REPLICA_ID);
   okClass("e-owner-bearer", "org.js", "room_status: a DIFFERENT owner's bearer against the same replica_id gets null, never OWNER's Suite name", stolen == null);
 }
+{
+  // WS-R127 (migration 132): org.js's "send_test_weekly_note" — its own
+  // small, self-contained fake db (`sendTestOrgWeeklyNote` lives in
+  // api/_org-weekly-note.js, not api/_org.js, and runs SQL shapes `doorsDb`
+  // above has no matcher for) — the SAME "a fake db too small to share"
+  // reasoning §16's own review-queue.js cases give for their own
+  // `materialCardDb()`, restated for this op.
+  const orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin" }];
+  const orgs = [{ org_id: ORG_A, name: "Anjali's Suite" }];
+  function weeklyNoteTestDb() {
+    return async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      if (has("select 1 from vy_org_member where org_id = ($1)::uuid and owner_user_id = ($2)::uuid and role = 'admin' limit 1")) {
+        const [orgId, ownerId] = params.map(String);
+        return orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === ownerId && m.role === "admin") ? [{ "?column?": 1 }] : [];
+      }
+      if (has("select org_id, name from vy_org where org_id = ($1)::uuid limit 1")) {
+        const [orgId] = params.map(String);
+        const org = orgs.find((o) => o.org_id === orgId);
+        return org ? [{ ...org }] : [];
+      }
+      if (has("select room_id, display_name, published_at, paused_at") && has("from vy_room")) return [];
+      throw new Error(`send_test_weekly_note fake db: unmatched SQL: ${sql}`);
+    };
+  }
+  const db = weeklyNoteTestDb();
+  let pushAttempted = false;
+  const deps = {
+    env: { ROOM_PUSH_VAPID_PUBLIC: "pub", ROOM_PUSH_VAPID_PRIVATE: "priv", ROOM_PUSH_VAPID_SUBJECT: "mailto:x@example.test" },
+    sendPush: async () => { pushAttempted = true; return { ok: true, status: 201 }; },
+    creatorPushSubscriptionsFor: async () => [{ id: "s1", endpoint: "https://push.example.test/admin", p256dh: "x", auth: "y" }],
+    revokeCreatorPushSubscription: async () => {},
+  };
+  const mine = await sendTestOrgWeeklyNote(db, OWNER, ORG_A, deps);
+  okClass("e-owner-bearer", "org.js", "send_test_weekly_note: the real admin's own test send succeeds (the fixture is sound)", mine.pushed === 1);
+  pushAttempted = false;
+  const stolen = await threw(() => sendTestOrgWeeklyNote(db, OWNER_B, ORG_A, deps));
+  okClass("e-owner-bearer", "org.js", "send_test_weekly_note: a DIFFERENT owner's bearer against OWNER's own org_id is refused org_not_found (404, never a 403 that would confirm the Suite exists)", stolen instanceof OrgWeeklyNoteError && stolen.code === "org_not_found");
+  ok("[e-owner-bearer/org.js] send_test_weekly_note: no push was even attempted for the non-admin's call", pushAttempted === false);
+}
 
 // ── room-publish.js: create, rename, publish, pause, resume, set_free_cap,
 //    set_paid_ceilings, set_default_locale, stats ──────────────────────────
@@ -2732,6 +2777,9 @@ const OP_COVERAGE = {
     list_mine: { classes: ["e"] },
     members: { classes: ["e"] },
     room_status: { classes: ["e"] },
+    // WS-R127 (migration 132). "Send a test note now" — admin-only,
+    // writes no ledger row (api/_org-weekly-note.js's own header).
+    send_test_weekly_note: { classes: ["e"] },
   },
   "room-publish.js": {
     create: { classes: ["e"] },
@@ -3796,6 +3844,11 @@ const FROZEN_EXPECTED_CRON_DOORS_CONTROL = [
 ].sort();
 const EXPECTED_CRON_DOORS = [
   "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js", "operator-digest-sweep.js",
+  // WS-R127 (migration 132): org-weekly-note-sweep.js imports
+  // ./_creator-push.js directly (subscription reuse, this file's own
+  // header) — a CRON_ROOM_MODULES anchor one hop away, the same shape
+  // `creator-push-sweep.js` itself already sits at.
+  "org-weekly-note-sweep.js",
   "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
 ].sort();
 

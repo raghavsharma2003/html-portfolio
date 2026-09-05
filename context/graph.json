@@ -10312,6 +10312,48 @@
       "kind": "measurement",
       "title": "Migration 129 (the instruction-shaped review card kind) applied live at its merge after reading the constraint name back from pg_constraint; three new statements planned, on indexes except two one-row-estimate scans accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-org-weekly-note",
+      "kind": "component",
+      "title": "The Suite admin's weekly note: one content-free note per Suite per week (Rooms live, followers joined floored at n>=5 per Room, messages), delivered to every admin's own push subscription (WS-R74's table reused) and recorded on an inert email seam. Migration 132, api/_org-weekly-note.js, api/org-weekly-note-sweep.js, api/_email-seam.js.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-org-weekly-note-reuses-creator-push-subscription-table",
+      "kind": "decision",
+      "title": "The Suite admin's weekly note sends push through vy_creator_push_subscription (migration 118), never a new admin-specific subscription table - that table is already keyed on owner_user_id alone, and StudioApp.tsx's existing WeeklyPushCard is the one control an admin needs to receive it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-org-weekly-note-no-fk-outside-owner-lane-and-relcheck",
+      "kind": "decision",
+      "title": "vy_org_weekly_note carries no FK on org_id and no owner_user_id column at all - a send ledger deliberately outlives an org row the same way vy_org itself outlives a creator's own erasure, and it sits outside both PERSON_TABLES and OWNER_LANE_TABLES for the identical reason vy_org/vy_org_subscription already do.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-email-seam-hardcoded-false",
+      "kind": "decision",
+      "title": "api/_email-seam.js#emailSeamConfigured returns false unconditionally (no address column exists anywhere, no new env var) and makes no network call - a real seam awaiting a real sender and a real address source, not a fake readiness signal.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-weekly-note-last-sent-read-as-inline-subquery-not-cross-import",
+      "kind": "decision",
+      "title": "api/_org.js#listMyOrgs reads the Suite board's own 'last delivered' fact as a plain correlated subquery in its existing statement, never by importing api/_org-weekly-note.js#lastOrgWeeklyNote (kept for the eval alone) - one more SQL clause in an already-running statement, not a cross-module call.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-own-eval-static-scan-tripped-by-its-own-prose",
+      "kind": "rejection",
+      "title": "evals/org-weekly-note/run.mjs's own static controls initially scanned raw file text and were tripped by api/_email-seam.js's and api/_org-weekly-note.js's own header comments explaining what they do NOT do (containing the literal substrings 'SMTP' and 'select *') - the ws-r28 leak-battery prose-vs-code near-miss, found a second time in a bespoke eval; fixed with a stripComments() helper rather than reworded comments.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r127-suite-admin-weekly-note-measurements-2026-09-05",
+      "kind": "measurement",
+      "title": "WS-R127 suite pass counts on this worktree: evals/org-weekly-note (new) 42/42; evals/room-leak 264/264 (was 262/262, +layer 16's 9 assertions and two AGGREGATE_ONLY additions); evals/room-doors 807/807 (was 799/799, +8 assertions for send_test_weekly_note and its cron-door discovery); evals/org 71/71 (was 68/68, +3 assertions on listMyOrgs's weekly_note field).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20014,6 +20056,41 @@
       "src": "rooms-migration-129-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter"
+    },
+    {
+      "src": "ws-r127-org-weekly-note",
+      "rel": "part_of",
+      "dst": "ws-r28-suites-v0"
+    },
+    {
+      "src": "ws-r127-org-weekly-note-reuses-creator-push-subscription-table",
+      "rel": "constrains",
+      "dst": "ws-r127-org-weekly-note"
+    },
+    {
+      "src": "ws-r127-org-weekly-note-no-fk-outside-owner-lane-and-relcheck",
+      "rel": "constrains",
+      "dst": "ws-r127-org-weekly-note"
+    },
+    {
+      "src": "ws-r127-email-seam-hardcoded-false",
+      "rel": "constrains",
+      "dst": "ws-r127-org-weekly-note"
+    },
+    {
+      "src": "ws-r127-weekly-note-last-sent-read-as-inline-subquery-not-cross-import",
+      "rel": "constrains",
+      "dst": "ws-r127-org-weekly-note"
+    },
+    {
+      "src": "ws-r127-own-eval-static-scan-tripped-by-its-own-prose",
+      "rel": "caused_by",
+      "dst": "ws-r28-leak-battery-scanner-matches-prose-not-only-sql"
+    },
+    {
+      "src": "ws-r127-suite-admin-weekly-note-measurements-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r127-org-weekly-note"
     }
   ]
 }

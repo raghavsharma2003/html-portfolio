@@ -2693,6 +2693,35 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "suites-about": "suites-about/run.mjs",
+  // WS-R127 (migration 132). The Suite admin's weekly note
+  // (api/_org-weekly-note.js, over api/org.js's new "send_test_weekly_note"
+  // op and the Monday-morning cron, api/org-weekly-note-sweep.js) —
+  // api/_creator-push.js's own mechanism restated for the ADMIN lane
+  // instead of the creator lane, reusing that file's own push-subscription
+  // table (workstream brief: "WS-R74's table shape reused"). FLOOR: a Room
+  // under 5 followers this week is `followers_joined_7d: null` /
+  // `followers_joined_below_floor: true` in the very object
+  // `buildOrgWeeklyNote` returns — never a raw number below the floor
+  // anywhere downstream, at the floor boundary itself and one below it.
+  // PAYLOAD BUILDER: pure, parameter-list-bounded (takes only the
+  // already-floored note object), a static scan proves it names none of
+  // this repo's follower-facing content columns (evals/room-leak/run.mjs's
+  // own layer 16 restates the identical scan as a leak-battery layer).
+  // LEDGER: the unique (org_id, week_start, channel) index proven as the
+  // ONLY idempotency mechanism, per channel independently — a second sweep
+  // tick the same week sends zero further pushes on 'push', and claiming
+  // 'push' does not consume 'email' or vice versa. EMAIL SEAM
+  // (api/_email-seam.js): `emailSeamConfigured` is unconditionally false
+  // (no address, no provider, no new env var — this workstream's own
+  // brief), and `recordWouldSendOrgWeeklyNoteEmail` is proven to make no
+  // network call at all (a static import scan of api/_email-seam.js itself
+  // — no fetch, no transport library). ADMIN OP: "Send a test note now"
+  // sends to the CALLING admin's own subscriptions only and writes no
+  // ledger row, with a class-e NEGATIVE CONTROL (a non-admin's call is
+  // refused org_not_found, 404, before any push is attempted).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "org-weekly-note": "org-weekly-note/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

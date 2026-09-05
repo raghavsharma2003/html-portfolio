@@ -13984,3 +13984,37 @@ never assume the arithmetic backend or the byte path leaves it intact):
 prefer an honest, narrower shortfall (a WAV clip that may not render as a
 voice bubble) to a broader, unverifiable claim (a clip that renders
 correctly but might silently carry a dead or degraded watermark).
+
+## `ws-r127-own-eval-static-scan-tripped-by-its-own-prose` (2026-09-05, WS-R127)
+
+**What was tried.** `evals/org-weekly-note/run.mjs`'s own static controls
+for `api/_email-seam.js` ("contains no network primitive by name", a regex
+for `smtp|sendgrid|ses\.`) and for `api/_org-weekly-note.js` ("runs no
+`select *`") were written to scan each file's RAW SOURCE TEXT.
+
+**What broke.** Both files' own header comments explain, in prose, what the
+code does NOT do - `_email-seam.js`'s header says "no `fetch`, no SMTP
+client" (contains the literal substring "SMTP"), and `_org-weekly-note.js`'s
+header says the floor is applied at construction "never `select *`" (contains
+the literal substring "select *"). The eval's own regex matched its own
+documentation of the guarantee, not a violation of it - `context/rejected.md#ws-r28-leak-battery-scanner-matches-prose-not-only-sql`'s
+identical class, found a second time, in a battery this workstream wrote
+itself rather than one it merely ran against.
+
+**Fix.** Added a `stripComments()` helper (blanks `//` and `/* */` before
+matching) to `evals/org-weekly-note/run.mjs` and ran both static controls
+against the comment-stripped text, `scripts/check-copy.mjs`'s own
+comments-are-house-prose distinction applied to a bespoke eval instead of
+the repo-wide copy gate. Rewording the comments (WS-R28's own fix) was
+rejected here: unlike that entry's single incidental table-name mention,
+naming the exact things a "never a network call" guarantee excludes is the
+whole point of the header prose, and reworking it to dodge a regex would
+make the comment worse, not the code more correct.
+
+**The rule, restated a second time.** Any static scanner this repo writes
+- the shared leak battery or a one-off eval - must strip comments before
+pattern-matching CODE, or state explicitly why it need not (e.g., scanning
+only within an already-extracted function body that itself avoids
+documentation prose). A scanner that reads raw file text is one honest
+header comment away from a false positive, and the fix belongs in the
+scanner, not in avoiding the words a correct comment needs.

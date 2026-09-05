@@ -19996,3 +19996,126 @@ the standard this repo held WS-R110's OWN codec claim to) and explicitly
 covers the codec and bitrate a future session intends to ship at. Either
 would justify moving to option (b)/(c) from the original brief; short of
 one, the honest state is what this entry records.
+
+## `ws-r127-org-weekly-note-reuses-creator-push-subscription-table` (2026-09-05, WS-R127)
+
+**The choice.** The Suite admin's weekly note (migration 132) sends push
+through `vy_creator_push_subscription` (migration 118, `api/_creator-push.js`)
+- the SAME table WS-R74 built for a creator's own "This week on your phone"
+toggle - rather than a new `vy_org_admin_push_subscription` table. No new
+subscribe/unsubscribe UI either: `StudioApp.tsx`'s existing `WeeklyPushCard`
+(mounted for every signed-in owner regardless of whether they have a Room)
+is the ONE control an admin uses to receive both their own creator push (if
+any) and this Suite note, on the same device row.
+
+**Why.** That table's own unique index (`owner_user_id`, `endpoint`) and its
+read (`creatorPushSubscriptionsFor`) already say nothing about "subscribed
+AS A CREATOR" - they are keyed on `owner_user_id` alone. An admin who is
+also a creator already has exactly one row there; an admin who is not a
+creator at all gets the identical row through the identical control. A
+second table would duplicate the entire subscribe/revoke/404-recovery
+mechanism (endpoint/p256dh/auth validation, the upsert-by-conflict-key
+shape, the 404/410 revoke-on-send-failure path) for zero behavioural
+difference, and would need a second "This week on your phone"-shaped UI
+control an admin would have to discover separately from the one they may
+already be using.
+
+**Reversal condition.** If a future workstream needs to distinguish "this
+device wants creator pushes" from "this device wants admin/Suite pushes"
+independently (e.g., a creator who administers a Suite but wants ONLY the
+Suite note, not their own Room's), this reuse stops being correct and the
+table needs a role column or a split - reopen this decision rather than
+bolting a filter onto `creatorPushSubscriptionsFor` that would then be
+misnamed for both callers.
+
+## `ws-r127-org-weekly-note-no-fk-outside-owner-lane-and-relcheck` (2026-09-05, WS-R127)
+
+**The choice.** `vy_org_weekly_note` (migration 132) carries `org_id uuid
+not null` with NO foreign key to `vy_org(org_id)`, unlike its three Suite-
+scoped siblings (`vy_org_member`, `vy_org_subscription`, `vy_room_org_
+attachment`, migrations 091/095/108), which all carry `references
+vy_org(org_id) on delete cascade`. It also carries no `owner_user_id` or any
+other column `scripts/relcheck.mjs`'s `PERSON_COLUMNS`/`OWNER_KEYS` scan for,
+and no entry was added to `api/_creator-export.js`'s `OWNER_LANE_TABLES`.
+
+**Why.** `vy_org` itself is deliberately never deleted in this codebase
+today (migration 091's own header: "the org survives a creator's own
+erasure even as its last admin"), and Suites v0 has no org-deletion
+operation anywhere (`grep -rln "deleteOrg\|eraseOrg" api/*.js` finds
+nothing - checked, not assumed). A send LEDGER is a record of what the
+PLATFORM did for a Suite, not a possession of the Suite's that should
+vanish the instant an org row might someday be deleted - `vy_org_
+subscription`'s own reach-only-by-cascade shape was considered and
+rejected for this table specifically because cascading it would make an
+org's own send HISTORY disappear the moment the row it counted sends
+against did, which is backwards for an audit trail. `OWNER_LANE_TABLES`
+is skipped for the identical reason `vy_org`/`vy_org_subscription` are
+already absent from it: that manifest names exactly the owner-lane subset
+of what `api/_replica-full-erasure.js` reaches, and that file reaches
+neither table (no owner_user_id/replica_id column on any of the three) -
+adding this table to a manifest that mirrors a file which never touches
+it would be the manifest lying about what it lists, not documentation.
+
+**Reversal condition.** The day Suites v0 grows a real `eraseOrg`
+operation, add an explicit `delete from vy_org_weekly_note where org_id =
+$1` beside whatever else that operation deletes, by name - never retrofit
+an FK at that point, since a bare FK would also silently delete the
+ledger on ANY future `vy_org` row deletion path, including one this
+decision's own argument (audit trail should outlive the org) did not
+intend to authorize.
+
+## `ws-r127-email-seam-hardcoded-false` (2026-09-05, WS-R127)
+
+**The choice.** `api/_email-seam.js#emailSeamConfigured` returns `false`
+unconditionally - it does not read any env var, and none was added
+(workstream brief: "no new env var"). `recordWouldSendOrgWeeklyNoteEmail`
+makes no network call of any kind (no `fetch`, no transport import
+anywhere in the file - `evals/org-weekly-note/run.mjs`'s own static
+control asserts the file's import list is empty).
+
+**Why.** No table in this database carries an email address for a Suite
+admin or a creator - Supabase Auth holds it, outside this database, and
+nothing here reads it back (grepped, not assumed). A "configured" flag
+that could never actually resolve to a real destination would be a fake
+readiness signal, the exact `context/rejected.md` "no fake numbers" class
+applied to a boolean instead of a metric. The seam exists anyway, now, so
+migration 132's own `channel in ('push', 'email')` CHECK has real code
+behind the literal it names, and a future workstream that DOES have an
+address source and a provider has a function to fill in rather than a
+channel with nothing behind it at all.
+
+**Reversal condition.** The day a real address source (an admin's own
+email, read from wherever it ends up living) and a real provider both
+exist, replace the `false` and the log-only body with the real predicate
+and the real send - `sendOrgWeeklyNotes`'s own caller code does not
+change, since it already treats `emailSeamConfigured` as a boolean and
+`recordWouldSendOrgWeeklyNoteEmail` as "the one write for this channel".
+
+## `ws-r127-weekly-note-last-sent-read-as-inline-subquery-not-cross-import` (2026-09-05, WS-R127)
+
+**The choice.** `api/_org.js#listMyOrgs`'s "last delivered" read
+(`SuiteCard.tsx`'s "Your weekly note" line) is a plain correlated
+`(select max(sent_at) from vy_org_weekly_note where org_id = o.org_id)`
+subquery inside that function's own existing SQL statement, never a call
+to `api/_org-weekly-note.js#lastOrgWeeklyNote` (which exists anyway, for
+`evals/org-weekly-note/run.mjs` alone).
+
+**Why.** `api/_org-weekly-note.js`'s own header states it does not import
+`api/_org.js` (that file's `orgBoard`/`listMyOrgs` compute per-Room
+aggregates this feature needs none of, and calling them from a cron
+sweeping every Suite once a week would multiply a heavy read by every
+Room on the platform for numbers never shown). Importing `lastOrgWeeklyNote`
+the OTHER direction, from `_org.js` into `_org-weekly-note.js`'s sibling,
+would not itself be a cycle (the dependency is one-directional either way),
+but it would add a cross-module function call for a fact one more SQL
+clause in an ALREADY-RUNNING statement answers for free, in the same round
+trip `seats_used`/`seats_paid` already cost.
+
+**Reversal condition.** If a second caller ever needs "last delivered"
+outside a statement that can carry the subquery cheaply (a context where
+building the correlated SQL by hand each time is the actual duplication),
+switch that caller to `lastOrgWeeklyNote` and reconsider whether
+`listMyOrgs`/`orgBoard` should too, for one shared source of the query
+text - not before, since two working restatements of one five-word SQL
+subquery is cheaper to keep in sync by inspection than a cross-import
+neither side asked for.

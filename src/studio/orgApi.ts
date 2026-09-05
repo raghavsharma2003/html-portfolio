@@ -19,6 +19,9 @@ export interface MySuite extends Suite {
    *  attach predicate actually enforces; never the same as `seat_limit`
    *  once a subscription exists. */
   seats_paid: number;
+  /** WS-R127 (migration 132). The most recent weekly note this Suite has
+   *  received, on either channel - `null` if none has gone out yet. */
+  weekly_note: { last_sent_at: string | null };
 }
 
 export interface SuiteSubscription {
@@ -126,3 +129,11 @@ export const updateSuiteSeats = (token: string, orgId: string, seats: number) =>
 // `current_period_end`; only `cancel_at_period_end` changes.
 export const cancelSuiteSubscription = (token: string, orgId: string) =>
   post<{ subscription: SuiteSubscription }>(token, { op: "cancel_subscription", org_id: orgId }).then((r) => r.subscription);
+
+// ── WS-R127 (migration 132): the Suite admin's weekly note ─────────────────
+// Sends to the CALLING admin's own active push subscription only (the SAME
+// one "This week on your phone" - WeeklyPushCard.tsx - subscribes on this
+// device) and writes no ledger row. Admin-only at the door; a non-admin's
+// call is refused org_not_found (404), never a 403.
+export const sendTestSuiteWeeklyNote = (token: string, orgId: string) =>
+  post<{ result: { pushed: number } }>(token, { op: "send_test_weekly_note", org_id: orgId }).then((r) => r.result);

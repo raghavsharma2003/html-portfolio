@@ -36,6 +36,8 @@ import { PaymentsError, startOrgSubscription, updateOrgSeats } from "./_payments
 import { cancelOrgRenewal } from "./_renewals.js";
 import { withDoor } from "./_incidents.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
+// WS-R127 (migration 132). The Suite admin's own "Send a test note now".
+import { OrgWeeklyNoteError, sendTestOrgWeeklyNote } from "./_org-weekly-note.js";
 
 const cors = (res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -114,6 +116,12 @@ async function handler(req, res) {
       const status = await roomSuiteStatus(q, user.id, body.replica_id);
       return res.status(200).json({ org: status });
     }
+    // WS-R127 (migration 132). Admin-only; writes no ledger row (see
+    // api/_org-weekly-note.js's own header on why).
+    if (op === "send_test_weekly_note") {
+      const result = await sendTestOrgWeeklyNote(q, user.id, body.org_id);
+      return res.status(200).json({ result });
+    }
     return res.status(400).json({ error: "unknown_op" });
   } catch (error) {
     if (error instanceof OrgError) {
@@ -121,6 +129,9 @@ async function handler(req, res) {
     }
     if (error instanceof PaymentsError) {
       return res.status(error.status).json({ error: error.code, ...(error.details ? { details: error.details } : {}) });
+    }
+    if (error instanceof OrgWeeklyNoteError) {
+      return res.status(error.status).json({ error: error.code });
     }
     if (error instanceof AuthError) return res.status(error.status).json({ error: error.code });
     console.error("[org] failure:", error?.message || "unknown");

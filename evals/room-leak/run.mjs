@@ -399,7 +399,11 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // WS-R74 (migration 118): api/_creator-push.js's own "followers this
   // week" read - a bare `count(*)` over vy_room_follower, the identical
   // aggregate-only shape `_ops.js`'s own read here already passes.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js", "_org.js", "_phase-gate.js", "_creator-push.js"]);
+  // WS-R127 (migration 132): api/_org-weekly-note.js's own IDENTICAL "this
+  // Room's own followers this week" read, restated for the Suite admin lane
+  // rather than imported (that file's own header on why) - the same bare
+  // `count(*)`, admitted on the same shape.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js", "_org.js", "_phase-gate.js", "_creator-push.js", "_org-weekly-note.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
@@ -2469,6 +2473,120 @@ console.log("\n── layer 15: the material block (WS-R111) + Meera's byte iden
     ok("layer 15: 83/83 byte-identity fixtures still pass (Meera's compiled prompt did not move)",
       false, String(e.stdout || e.message || e).slice(-400));
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 16 (WS-R127, migration 132) — THE SUITE ADMIN'S WEEKLY NOTE. This
+// feature's own follower-facing input is a bare per-Room `count(*)` over
+// `vy_room_follower` and a bare `sum(turns)` over `vy_room_follower_day` —
+// never a row of either — floored at n>=5 (workstream law 1) BEFORE the
+// note object this layer inspects is even constructed
+// (`orgWeeklyNoteRoomLine`'s own null-below-the-floor, `api/_org-weekly-
+// note.js`'s own header). This layer proves `api/_org-weekly-note.js#
+// orgWeeklyNotePushPayload` (the one function whose OUTPUT crosses onto a
+// real device) can only ever carry a Suite name, per-Room display names and
+// already-floored aggregate counts — never a follower id or a raw message —
+// and that `api/_org-weekly-note.js` itself imports no follower-lane
+// module, `evals/org-weekly-note/run.mjs`'s own §6 restated here as a
+// leak-battery layer so a regression fails THIS gate too, not only that
+// suite alone.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 16: the Suite admin's weekly note (the per-Room floor can never widen into follower content) ──");
+{
+  const ORGNOTE = await import(pathToFileURL(join(REPO, "api/_org-weekly-note.js")).href);
+  const orgNoteSrc = fs.readFileSync(join(REPO, "api/_org-weekly-note.js"), "utf8");
+
+  // (a) STATIC. The payload builder's own source, read off the file rather
+  // than retyped — layer 11's own technique restated a ninth way.
+  ok("layer 16 static: ORG_WEEKLY_NOTE_FOLLOWER_CONTENT_NAMES_EXPORT is not vacuously empty",
+    ORGNOTE.ORG_WEEKLY_NOTE_FOLLOWER_CONTENT_NAMES_EXPORT.length >= 5);
+  const fnMatch16 = orgNoteSrc.match(/export function orgWeeklyNotePushPayload\([\s\S]*?\n}\n/);
+  ok("orgWeeklyNotePushPayload is found in api/_org-weekly-note.js (not moved/renamed)", Boolean(fnMatch16));
+  const fnBody16 = fnMatch16 ? fnMatch16[0] : "";
+  const nameHits16 = ORGNOTE.ORG_WEEKLY_NOTE_FOLLOWER_CONTENT_NAMES_EXPORT.filter((n) => fnBody16.includes(n));
+  ok("orgWeeklyNotePushPayload's own source names none of this repo's follower-facing content columns",
+    nameHits16.length === 0, nameHits16.join(","));
+
+  // (b) STATIC. The import surface itself — this file's own header names
+  // exactly which four modules it may import; none is follower-lane.
+  const imports16 = [...orgNoteSrc.matchAll(/^import\s+.*?\s+from\s+["'](\.\/[^"']+)["'];?$/gm)].map((m) => m[1]);
+  const FOLLOWER_LANE_MODULES_16 = [
+    "./memory.js", "./_room-surface.js", "./_handoff.js", "./_room-push.js",
+    "./_room-whatsapp.js", "./_room-whatsapp-chat.js", "./_checkins.js", "./_room-telegram.js",
+  ];
+  const laneHits16 = imports16.filter((i) => FOLLOWER_LANE_MODULES_16.includes(i));
+  ok("layer 16 static: api/_org-weekly-note.js imports NO follower-lane module",
+    laneHits16.length === 0, laneHits16.join(","));
+
+  // (c) WORLD CHECK. The REAL `buildOrgWeeklyNote` + `orgWeeklyNotePushPayload`,
+  // driven through a fixture with two Rooms — one clears the floor, one
+  // does not — and a follower roster carrying a FOLLOWER_TOKEN seeded on a
+  // column (`vy_room_follower.person_id`, unused by this feature's own
+  // bare-count query) this feature never selects. A leak here would be a
+  // byte-for-byte token match `leakedTokens` (this file's own scanner)
+  // would actually catch.
+  const FOLLOWER_TOKEN = "TOKFOLLOWERPERSON_orgweeklynote_leak_probe_zzzzzzzz";
+  const NOW16 = Date.parse("2026-09-08T04:00:00.000Z");
+  const ORG_ID_16 = "f1000000-0000-4000-8000-000000000001";
+  const ROOM_OVER_16 = "f2000000-0000-4000-8000-000000000001"; // clears the floor
+  const ROOM_UNDER_16 = "f2000000-0000-4000-8000-000000000002"; // stays below it
+  const roomRows16 = [
+    { room_id: ROOM_OVER_16, display_name: "Anjali", published_at: "2026-08-01T00:00:00.000Z", paused_at: null },
+    { room_id: ROOM_UNDER_16, display_name: "Rahul", published_at: "2026-08-01T00:00:00.000Z", paused_at: null },
+  ];
+  // A real follower row exists in this world (the token proves it), but
+  // every query this feature runs against vy_room_follower is a bare
+  // count(*) — the static control above already proves the payload
+  // builder's own parameter list has nowhere to carry it either.
+  const followerRows16 = [
+    { room_id: ROOM_UNDER_16, person_id: FOLLOWER_TOKEN, joined_at: "2026-09-05T00:00:00.000Z" },
+  ];
+  for (let i = 0; i < 6; i++) followerRows16.push({ room_id: ROOM_OVER_16, person_id: `p-extra-${i}`, joined_at: "2026-09-05T00:00:00.000Z" });
+  const db16 = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    if (has("select room_id, display_name, published_at, paused_at") && has("from vy_room")) {
+      return roomRows16.map((r) => ({ ...r }));
+    }
+    if (has("count(*)::int as n") && has("from vy_room_follower") && has("joined_at >=")) {
+      const [roomId, nowIso] = params.map(String);
+      const now = new Date(nowIso).getTime();
+      const weekAgo = now - 7 * 86_400_000;
+      const n = followerRows16.filter((f) => f.room_id === roomId
+        && new Date(f.joined_at).getTime() >= weekAgo && new Date(f.joined_at).getTime() < now).length;
+      return [{ n }];
+    }
+    if (has("sum(turns)") && has("from vy_room_follower_day")) return [{ n: 9 }];
+    throw new Error(`layer 16 fake db: unmatched SQL: ${sql}`);
+  };
+  const note16 = await ORGNOTE.buildOrgWeeklyNote(db16, { org_id: ORG_ID_16, name: "North Coaching" }, NOW16);
+  const under16 = note16.rooms.find((r) => r.room_id === ROOM_UNDER_16);
+  boundaryChecks++;
+  ok("layer 16: the under-floor Room's own object carries null, never the real 1", under16.followers_joined_7d === null && under16.followers_joined_below_floor === true);
+  const payload16 = JSON.stringify(ORGNOTE.orgWeeklyNotePushPayload(note16));
+  boundaryChecks++;
+  ok("layer 16: the follower's real token never reaches the outgoing payload, in any form",
+    leakedTokens(payload16, [FOLLOWER_TOKEN]).length === 0);
+  boundaryChecks++;
+  ok("layer 16: the scan above is not vacuous - the follower's token really does exist somewhere in this world",
+    leakedTokens(JSON.stringify(followerRows16), [FOLLOWER_TOKEN]).length > 0);
+  boundaryChecks++;
+  ok("layer 16: the under-floor Room is named \"fewer than five\" in the real outgoing payload, never a number",
+    payload16.includes("fewer than five") && !payload16.includes("Rahul: 0") && !payload16.includes("Rahul: 1"));
+
+  // NEGATIVE CONTROL — MUST FAIL. A hand-rolled "leaky" note object with a
+  // stray raw follower count left in a floored slot, proving `leakedTokens`
+  // and the floor-name assertion above are real, load-bearing checks rather
+  // than ones that would pass on anything. The REAL pipeline can never
+  // produce this shape (the static control (a) and the world check (c)
+  // above already prove `orgWeeklyNoteRoomLine` nulls the field itself).
+  const leakyNote = {
+    org_id: ORG_ID_16, org_name: "North Coaching", rooms_total: 1, rooms_published: 1,
+    rooms: [{ room_id: ROOM_UNDER_16, display_name: "Rahul", published: true, followers_joined_7d: 1, followers_joined_below_floor: false, messages_last_7d: 9 }],
+  };
+  const leakyPayload16 = JSON.stringify(ORGNOTE.orgWeeklyNotePushPayload(leakyNote));
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: a hand-built note with a stray raw count in a floored slot DOES leak a real number - proving the scanner above is not vacuous",
+    leakyPayload16.includes("1 follower"));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
