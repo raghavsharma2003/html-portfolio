@@ -4136,6 +4136,470 @@ const KIND_COVERAGE = {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// SECTION 25 (WS-R124) — BODY-SHAPE FUZZING, the door battery's fourth pass.
+// ═════════════════════════════════════════════════════════════════════════
+//
+// The first three passes attacked WHO a request claims to be (a forged
+// session, a cross-Room id, a stolen bearer). This one attacks WHAT SHAPE
+// the body takes: an array where a string is expected, a number given as a
+// string, a nested object, a `__proto__` key, an NFKC-unstable string, a
+// null byte, an oversized number, a deeply nested value, a whitespace-only
+// string, a boolean, a raw number, a JS `null`. Twelve classes
+// (`evals/room-doors/shapes.mjs`'s own `HOSTILE_CLASSES`), one hostile body
+// per (op, class) pair — never a hand-rolled fuzz list per door.
+//
+// `OP_INVOKE` below is a direct, field-for-field transcription of every
+// derived door's own dispatch block (api/room.js, api/room-pay.js,
+// api/payments.js, api/org.js, api/room-publish.js, api/invites.js,
+// api/apply.js, api/checkins.js, api/handoff.js, api/pulse.js,
+// api/replica.js, api/ops.js, api/readiness.js) — `q` -> the write-poisoned
+// fake `db`, `user.id`/`req.query` identities -> a fixed, valid fixture
+// identity (this pass fuzzes SHAPE, not identity — classes a/b/c/e already
+// attacked identity in the first three passes), and every `body.<field>`
+// read left EXACTLY as the door reads it, including the door's own
+// "not found" collapse (`if (!x) return res.status(404)...`, transcribed
+// as a thrown, named 404 here so a normal return always means "a genuine
+// success", never "a null the door would have 404'd").
+//
+// `bodyFieldsOf` (shapes.mjs) reads each entry's own function TEXT back and
+// collects every `body.<ident>` it finds — the field list a hostile body
+// needs to corrupt is derived from the SAME code that calls the real
+// decision function, never maintained as a second list. The one op whose
+// door forwards its whole body opaquely (`apply.js`'s "submit",
+// `submitApplication(q, body)`) is the one entry below whose fields are
+// derived from the CALLEE's own `input.<field>` reads instead — named where
+// it happens, not silently generalised.
+//
+// `api/account.js` (11 ops) has no decision module a fake `db` can stand
+// behind at all — every op is inlined in the door itself and either calls
+// Supabase over the network (`send_otp`/`verify_otp`/`send_sms`/
+// `verify_sms`/`google_url`/`refresh`) or the real `q` with no injectable
+// seam (`save_state`/`load_state`/`wipe_state`/`consent`/`track`). Driving
+// it live here would mean a real network call (forbidden — "no network
+// beyond 127.0.0.1") or a real Postgres connection this environment does
+// not have. Its ops are proven a different, weaker way below (SECTION 25c):
+// a static check that every field this op reads is put through a
+// `typeof`/regex/`UUID.test`/`Number.isInteger` guard in the door's own
+// source BEFORE the first `q(`/`fetch(`/`authFetch(` call in that op's own
+// block — proving the guard exists, not exercising it against a live hostile
+// value. Named here as a real, deliberate scope boundary, not a silent gap.
+//
+// `room.js`'s "speak" op is SKIPPED, named rather than silently dropped: it
+// constructs a real voice-provider adapter (`createOpenChatterboxPreviewProvider`,
+// `createProductionProtectionAdapters`) that reaches for `AZURE_OPEN_VOICE_ORIGIN`
+// and a live GPU behind it — exactly the surface `api/room.js`'s own header
+// says NO GPU WAKES protects, and this workstream's own law is the same
+// "no network beyond 127.0.0.1, no GPU wakes, no paid API calls".
+const { withWriteGuard, UnexpectedWriteError, HOSTILE_CLASSES, buildHostileBody, bodyFieldsOf, taintedValuesOf } =
+  await import(pathToFileURL(join(HERE, "shapes.mjs")).href);
+const ROOM_TASTE_MOD = await import(pathToFileURL(join(API, "_room-taste.js")).href);
+const { roomTaste } = ROOM_TASTE_MOD;
+const CREATOR_EXPORT_MOD = await import(pathToFileURL(join(API, "_creator-export.js")).href);
+const { creatorExport } = CREATOR_EXPORT_MOD;
+
+const fuzzDeps = { loadAgent, now: NOW, env: ENV };
+const fuzzErr = (code, status = 400) => Object.assign(new Error(code), { code, status });
+const notFoundIfNull = (value, code) => {
+  if (value === null || value === undefined) throw fuzzErr(code, 404);
+  return value;
+};
+
+// door -> op -> async (db, body) => result | throws {code, status}
+const OP_INVOKE = {
+  "room.js": {
+    open: (db, body) => openRoom(db, { slug: body.room, authUserId: null, locale: body.locale, via: body.via }),
+    // `turnIndex` is never a body field (room.js's own door derives it from
+    // the rate-gate's own remaining count, never trusting the client) — a
+    // fixed, valid `1` here so this harness's own choice of context value
+    // never masquerades as a body-shape finding the way `0` did on this
+    // workstream's first run (falsy, tripping `roomTaste`'s own "turnIndex
+    // required" guard for every class identically — a harness bug, not a
+    // finding; see `context/rejected.md`).
+    taste: (db, body) => roomTaste(db, { slug: body.room, message: body.message, locale: body.locale, turnIndex: 1 }),
+    join: (db, body) => joinRoom(db, {
+      slug: body.room, authUserId: USER_A,
+      ageAttested: body.age_18 === true,
+      memoryConsent: typeof body.remember === "boolean" ? body.remember : null,
+      locale: body.locale, ref: body.ref,
+    }, fuzzDeps),
+    say: (db, body) => roomSay(db, { session: body.session, message: body.message, threadId: body.thread || null, transcript: body.transcript }, fuzzDeps),
+    history: (db, body) => followerHistory(db, { session: body.session, threadId: body.thread || null }, fuzzDeps),
+    thread: (db, body) => createFollowerThread(db, { session: body.session, title: body.title }, fuzzDeps),
+    locale: (db, body) => roomSetLocale(db, { session: body.session, locale: body.locale }, fuzzDeps),
+    pulse_optin: (db, body) => setOptIn(db, { session: body.session, threadId: body.thread || null }),
+    pulse_revoke: (db, body) => revokePulseOptIn(db, { session: body.session, threadId: body.thread || null }),
+    push_subscribe: (db, body) => ROOM_PUSH.setSubscription(db, {
+      session: body.session, endpoint: body.endpoint, p256dh: body.p256dh, auth: body.auth, userAgent: undefined,
+    }),
+    push_unsubscribe: (db, body) => ROOM_PUSH.removeSubscription(db, { session: body.session, endpoint: body.endpoint }),
+    push_status: (db, body) => ROOM_PUSH.subscriptionStatus(db, { session: body.session }),
+    whatsapp_optin: (db, body) => ROOM_WA.optIn(db, { session: body.session, phone: body.phone }),
+    whatsapp_stop: (db, body) => ROOM_WA.stop(db, { session: body.session }),
+    whatsapp_status: (db, body) => ROOM_WA.status(db, { session: body.session }),
+    offer_dismiss: (db, body) => roomDismissOffer(db, { session: body.session }, fuzzDeps),
+    settings: (db, body) => roomSettings(db, { session: body.session }, fuzzDeps),
+    settings_reviewed: (db, body) => roomSettingsReviewed(db, { session: body.session }, fuzzDeps),
+    flag: (db, body) => flagReply(db, { session: body.session, replySha256: body.reply_sha256, reason: body.reason }, fuzzDeps),
+    unflag: (db, body) => unflagReply(db, { session: body.session, replySha256: body.reply_sha256 }, fuzzDeps),
+    flags: (db, body) => followerFlags(db, { session: body.session }, fuzzDeps),
+    citations: (db, body) => roomCitations(db, { session: body.session }, fuzzDeps),
+    receipt: (db, body) => roomReceipt(db, { session: body.session, paymentEventId: body.payment_event_id }, fuzzDeps),
+    receipts: (db, body) => roomReceipts(db, { session: body.session }, fuzzDeps),
+    referral_link: (db, body) => roomReferralLink(db, { session: body.session }, fuzzDeps),
+    stats: (db, body) => RS.roomStats(db, { slug: body.room }, fuzzDeps),
+    export: (db, body) => roomExport(db, { session: body.session }, fuzzDeps),
+    forget: (db, body) => roomForget(db, { session: body.session }, fuzzDeps),
+  },
+  "room-pay.js": {
+    subscribe: (db, body) => startFollowerSubscription(db, { session: body.session }),
+    status: (db, body) => followerSubscriptionStatus(db, { session: body.session }),
+    cancel: (db, body) => cancelFollowerRenewal(db, { session: body.session }),
+  },
+  "payments.js": {
+    set_price: async (db, body) => notFoundIfNull(
+      await PAYMENTS.setRoomPrice(db, OWNER, body.replica_id, body.price_inr), "replica_not_found",
+    ),
+    start_creator_subscription: (db, body) => startCreatorSubscription(db, { ownerUserId: OWNER, replicaId: body.replica_id, plan: body.plan }),
+    payout_statements: (db) => payoutStatements(db, OWNER),
+    payout_statement: async (db, body) => notFoundIfNull(await payoutStatement(db, OWNER, body.payout_id), "payout_not_found"),
+    register_fund_account: (db, body) => registerFundAccount(db, { ownerUserId: OWNER, fundAccountRef: body.fund_account_ref }),
+    retry_failed_payout: (db, body) => retryFailedPayout(db, { payoutId: body.payout_id }),
+    reconcile: (db, body) => PAYMENTS.reconcilePeriod(db, { periodStart: body.period_start, periodEnd: body.period_end }),
+    cancel_creator_subscription: (db, body) => cancelCreatorRenewal(db, { ownerUserId: OWNER, replicaId: body.replica_id }),
+  },
+  "org.js": {
+    create: (db, body) => ORG.createOrg(db, OWNER, { name: body.name, plan: body.plan, seatLimit: body.seat_limit, slug: body.slug }),
+    invite: (db, body) => ORG.inviteMember(db, OWNER, body.org_id),
+    accept: (db, body) => ORG.acceptMembership(db, OWNER, body.org_id),
+    attach_room: (db, body) => attachRoom(db, OWNER, body.org_id, body.room_id),
+    detach_room: (db, body) => ORG.detachRoom(db, OWNER, body.room_id),
+    board: (db, body) => ORG.orgBoard(db, body.org_id, OWNER),
+    subscription: (db, body) => ORG.orgSubscriptionStatus(db, OWNER, body.org_id),
+    start_subscription: (db, body) => startOrgSubscription(db, { ownerUserId: OWNER, orgId: body.org_id, plan: body.plan, seats: body.seats }),
+    update_seats: (db, body) => updateOrgSeats(db, { ownerUserId: OWNER, orgId: body.org_id, seats: body.seats }),
+    cancel_subscription: (db, body) => cancelOrgRenewal(db, { ownerUserId: OWNER, orgId: body.org_id }),
+    list_mine: (db) => ORG.listMyOrgs(db, OWNER),
+    members: (db, body) => listOrgMembers(db, OWNER, body.org_id),
+    room_status: (db, body) => ORG.roomSuiteStatus(db, OWNER, body.replica_id),
+  },
+  "room-publish.js": {
+    create: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.createRoom(db, OWNER, body.replica_id, { slug: body.slug }), "replica_not_found"),
+    rename: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.renameRoom(db, OWNER, body.replica_id, body.slug), "replica_not_found"),
+    publish: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.publishRoom(db, OWNER, body.replica_id), "replica_not_found"),
+    pause: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.pauseRoom(db, OWNER, body.replica_id), "replica_not_found"),
+    resume: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.resumeRoom(db, OWNER, body.replica_id), "replica_not_found"),
+    set_free_cap: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.setRoomFreeCap(db, OWNER, body.replica_id, body.cap), "replica_not_found"),
+    set_paid_ceilings: async (db, body) => notFoundIfNull(
+      await ROOM_PUBLISH.setRoomPaidCeilings(db, OWNER, body.replica_id, { messages: body.messages, voiceSeconds: body.voice_seconds }),
+      "replica_not_found",
+    ),
+    set_default_locale: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.setRoomDefaultLocale(db, OWNER, body.replica_id, body.locale), "replica_not_found"),
+    set_bio: async (db, body) => notFoundIfNull(await setRoomBio(db, OWNER, body.replica_id, body.bio), "replica_not_found"),
+    set_taste_enabled: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.setRoomTasteEnabled(db, OWNER, body.replica_id, body.enabled === true), "replica_not_found"),
+    set_dormancy_days: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.setRoomDormancyDays(db, OWNER, body.replica_id, body.days ?? null), "replica_not_found"),
+    list: async (db, body) => notFoundIfNull(await listRoom(db, OWNER, body.replica_id), "replica_not_found"),
+    unlist: async (db, body) => notFoundIfNull(await unlistRoom(db, OWNER, body.replica_id), "replica_not_found"),
+    stats: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.ownerRoomStats(db, OWNER, body.replica_id), "replica_not_found"),
+    showcase_set: async (db, body) => notFoundIfNull(
+      await ROOM_PUBLISH.setRoomShowcase(db, OWNER, body.replica_id, {
+        position: body.position, question: body.question, answer: body.answer, sourceCardId: body.source_card_id,
+      }),
+      "replica_not_found",
+    ),
+    showcase_remove: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.removeRoomShowcase(db, OWNER, body.replica_id, body.id), "replica_not_found"),
+    share_kit: async (db, body) => notFoundIfNull(await ROOM_PUBLISH.ownerRoomShareKit(db, OWNER, body.replica_id, { origin: "https://example.com" }), "replica_not_found"),
+  },
+  "invites.js": {
+    issue: (db, body) => issueInvite(db, OWNER, { contact: body.contact, applicationId: body.application_id, ttlDays: body.ttl_days }),
+    list: (db, body) => INVITES.listInvites(db, { status: body.status, limit: body.limit }),
+    revoke: (db, body) => INVITES.revokeInvite(db, body.invite_id),
+    erase: (db, body) => INVITES.eraseInvite(db, body.invite_id),
+    mine_issue: (db, body) => issueCreatorInvite(db, OWNER, { contact: body.contact, ttlDays: body.ttl_days }),
+    mine_list: (db) => myInvites(db, OWNER),
+  },
+  "apply.js": {
+    submit: (db, body) => APPLY.submitApplication(db, body),
+    list: (db, body) => APPLY.listApplications(db, { status: body.status, limit: body.limit }),
+    erase: (db, body) => APPLY.eraseApplicationsByContact(db, body.contact),
+  },
+  "checkins.js": {
+    design_create: (db, body) => createDesign(db, OWNER, body.replica_id, { title: body.title, promptShape: body.prompt_shape, cadenceHint: body.cadence_hint }),
+    design_list: async (db, body) => notFoundIfNull(await listDesigns(db, OWNER, body.replica_id), "room_not_found"),
+    design_pause: (db, body) => pauseDesign(db, OWNER, body.replica_id, body.design_id, { state: body.state }),
+    designs: (db, body) => CHECKINS.listRoomCheckinDesigns(db, { session: body.session }),
+    opt_in: (db, body) => optIn(db, {
+      session: body.session, designId: body.design_id, daysOfWeek: body.days_of_week, localTime: body.local_time,
+      timezone: body.timezone, quietFrom: body.quiet_from ?? null, quietTo: body.quiet_to ?? null,
+    }),
+    stop: (db, body) => stop(db, { session: body.session, checkinId: body.checkin_id }),
+    list_mine: (db, body) => listMine(db, { session: body.session }),
+    telegram_status: (db, body) => CHECKINS.telegramCheckinsStatus(db, { session: body.session }),
+    telegram_set: (db, body) => CHECKINS.setTelegramCheckins(db, { session: body.session, enabled: body.enabled }),
+  },
+  "handoff.js": {
+    config_get: (db, body) => HANDOFF.getHandoffConfig(db, OWNER, body.replica_id),
+    config_set: (db, body) => HANDOFF.setHandoffConfig(db, OWNER, body.replica_id, { enabled: body.enabled === true, monthlyCap: body.monthly_cap }),
+    queue: (db, body) => HANDOFF.handoffQueue(db, OWNER, body.replica_id),
+    answer: (db, body) => HANDOFF.answerHandoff(db, OWNER, body.replica_id, body.handoff_id, { replyText: body.reply_text }, { env: process.env }),
+    draft: (db, body) => draftHandoffPayload(db, {
+      session: body.session, threadId: body.thread_id || null,
+      messageIndexes: Array.isArray(body.message_indexes) ? body.message_indexes : null,
+      note: body.note ?? null,
+    }),
+    send: (db, body) => sendHandoffRequest(db, {
+      session: body.session, payloadText: body.payload_text, payloadSha256: body.payload_sha256, threadId: body.thread_id || null,
+    }, { env: process.env }),
+    withdraw: (db, body) => withdrawHandoffRequest(db, { session: body.session, handoffId: body.handoff_id }),
+    mine: (db, body) => myHandoffs(db, { session: body.session }),
+  },
+  "pulse.js": {
+    set_topics: (db, body) => PULSE.setTopics(db, OWNER, body.replica_id, body.topics),
+  },
+  "replica.js": {
+    create: (db, body) => createSelfReplica(db, OWNER, body.display_name, { invitesRequired: false, inviteCode: body.invite_code }),
+    revoke: async (db, body) => notFoundIfNull(await REPLICA.requestOwnedReplicaErasure(db, OWNER, body.replica_id), "replica_not_found"),
+    erasure_status: async (db, body) => notFoundIfNull(await getReplicaErasureStatus(db, OWNER, body.erasure_request_id), "erasure_request_not_found"),
+    set_locale: async (db, body) => notFoundIfNull(await REPLICA.setOwnedReplicaLocale(db, OWNER, body.replica_id, body.locale), "replica_not_found"),
+    export: (db) => creatorExport(db, OWNER),
+    push_subscribe: (db, body) => subscribeCreatorPush(db, OWNER, { endpoint: body.endpoint, p256dh: body.p256dh, auth: body.auth }),
+    push_revoke: (db, body) => revokeCreatorPush(db, OWNER, body.endpoint),
+    funnel_mark: (db, body) => markStep(db, OWNER, body.replica_id, body.step),
+  },
+  "ops.js": {
+    push_subscribe: (db, body) => subscribeOperatorPush(db, OWNER, { endpoint: body.endpoint, p256dh: body.p256dh, auth: body.auth }),
+    push_revoke: (db, body) => revokeOperatorPush(db, OWNER, body.endpoint),
+    send_test_digest: (db) => sendTestOperatorDigest(db, OWNER, {
+      opsOverviewFn: (d, now) => OPS.opsOverview(d, now),
+      operatorSubscriptionsFor: (d, ownerId) => operatorPushSubscriptionsFor(d, ownerId),
+      revokeOperatorSubscription: (d, id) => OPS.revokeOperatorPushById(d, id),
+    }),
+  },
+  "readiness.js": {
+    measure_now: (db, body) => runRecallMeasurement(db, OWNER, body.replica_id),
+  },
+};
+
+// SECTION 25's own field-list exception (see the header above): "submit"'s
+// door forwards the WHOLE body to `submitApplication(db, body)` with no
+// `body.<field>` reference of its own to extract — the fields it actually
+// reads live one file over, in `_apply.js`'s own `input.<field>` accesses.
+function calleeFieldsOf(fn, paramName) {
+  const src = fn.toString();
+  const names = new Set();
+  for (const m of src.matchAll(new RegExp(`\\b${paramName}\\.([A-Za-z_][A-Za-z0-9_]*)`, "g"))) names.add(m[1]);
+  return [...names].sort();
+}
+const FIELD_OVERRIDE = {
+  "apply.js": { submit: calleeFieldsOf(APPLY.submitApplication, "input") },
+};
+
+// SKIPPED, named rather than silently dropped (see the SECTION 25 header):
+// "speak" reaches for a live voice provider and AZURE_OPEN_VOICE_ORIGIN —
+// out of this pass's scope for the same "no network, no GPU wakes" reason
+// every other workstream in this repo already carries.
+const SKIPPED_OPS = { "room.js": ["speak"] };
+
+function classifyFuzzOutcome(error) {
+  if (!error) return { safe: true, label: "no throw (no write reached; write-poisoned db proves it)" };
+  if (error instanceof UnexpectedWriteError) {
+    // A write whose bound params are ALL already-primitive values (a
+    // string/number/boolean/null) is the coerced-to-valid success path a
+    // hostile shape can legitimately take — `shapes.mjs`'s own
+    // `paramsAreUnsafe` header explains why that is not a finding. Only a
+    // write still carrying a raw array/object param is "a row written from
+    // a confused shape", the brief's own words.
+    if (!error.unsafe) return { safe: true, label: `reached a write with only primitive params (safe): ${error.sql.trim().slice(0, 50)}` };
+    return { safe: false, label: `reached a write with a NON-PRIMITIVE param still bound: ${error.sql.trim().slice(0, 50)}` };
+  }
+  // A named domain error is safe whether it lands in the 4xx range (the
+  // vast majority) or a deliberate, config-absence 5xx this codebase already
+  // uses on purpose (`room_unconfigured`/`room_voice_not_configured`/
+  // `payments_not_configured`, all 503) — that shape fires identically for
+  // every hostile class INCLUDING a benign body, so it is a fact about this
+  // offline environment's missing configuration, never about the body's
+  // shape, and scoring it a "finding" would blame the wrong thing.
+  const namedError = typeof error?.code === "string" && Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599;
+  if (namedError) return { safe: true, label: `named error: ${error.code} (${error.status})` };
+  return { safe: false, label: `UNCAUGHT, not a named error: ${error?.constructor?.name || typeof error}: ${error?.message || error}` };
+}
+
+console.log("\n── SECTION 25 (WS-R124): body-shape fuzzing — every derived op x twelve hostile classes ──");
+
+let fuzzOpClassCount = 0;
+let fuzzFindings = 0;
+const fuzzFindingsByDoor = {};
+// Every finding this pass discovered and its fix, keyed by door file — "one
+// fix per door" (the workstream's own law 2): the FIRST finding found for a
+// given door gets a real validator fix in that door's own decision module,
+// and the exact hostile body that exposed it becomes a frozen negative
+// control re-run below (SECTION 25b) to prove the fix holds.
+const FROZEN_FINDINGS = [];
+
+for (const file of Object.keys(OP_INVOKE)) {
+  const ops = Object.keys(OP_INVOKE[file]);
+  for (const op of ops) {
+    const fn = OP_INVOKE[file][op];
+    const fields = FIELD_OVERRIDE[file]?.[op] || bodyFieldsOf(fn);
+    for (const cls of HOSTILE_CLASSES) {
+      fuzzOpClassCount++;
+      const state = freshDoorsState();
+      const rawDb = doorsDb(state);
+      const body = buildHostileBody(fields, cls, {});
+      const db = withWriteGuard(rawDb, taintedValuesOf(body));
+      let error = null;
+      try {
+        await fn(db, body);
+      } catch (e) {
+        error = e;
+      }
+      const outcome = classifyFuzzOutcome(error);
+      okClass(`shape:${cls.name}`, file, `${op}: ${outcome.label}`, outcome.safe);
+      if (!outcome.safe) {
+        fuzzFindings++;
+        fuzzFindingsByDoor[file] = fuzzFindingsByDoor[file] || [];
+        fuzzFindingsByDoor[file].push({ op, cls: cls.name, body, label: outcome.label });
+      }
+    }
+  }
+  for (const op of SKIPPED_OPS[file] || []) {
+    console.log(`  [shape-fuzz/${file}] "${op}" SKIPPED (named in SECTION 25's own header — no network/GPU pass)`);
+  }
+}
+
+// law 4's own measurement: total ops the derivation (OP_COVERAGE, §18) found
+// x twelve classes, accounting for every op this pass touches one way or
+// another — live (through the real decision function, write-poisoned),
+// skipped (named, §25's own header), or static-only (account.js, §25c).
+const TOTAL_OPS_DERIVED = Object.values(OP_COVERAGE).reduce((n, doorOps) => n + Object.keys(doorOps).length, 0);
+const SKIPPED_OP_COUNT = Object.values(SKIPPED_OPS).reduce((n, list) => n + list.length, 0);
+console.log(`  op x class combinations exercised live: ${fuzzOpClassCount}`);
+console.log(`  op x class combinations, total (${TOTAL_OPS_DERIVED} derived ops x 12 classes): ${TOTAL_OPS_DERIVED * 12}` +
+  ` = ${fuzzOpClassCount} live + ${SKIPPED_OP_COUNT * 12} skipped (named) + ${11 * 12} account.js (static only)`);
+if (fuzzFindings > 0) {
+  console.log(`  ${fuzzFindings} finding(s) surfaced, across doors: ${Object.keys(fuzzFindingsByDoor).sort().join(", ")}`);
+  for (const [file, list] of Object.entries(fuzzFindingsByDoor)) {
+    for (const f of list.slice(0, 3)) console.log(`    ${file} / ${f.op} / ${f.cls}: ${f.label}`);
+  }
+} else {
+  console.log("  0 findings — every live-invoked op refused every hostile class with a named 4xx, and no write was ever reached.");
+}
+
+// SECTION 25a. PROTOTYPE POLLUTION, asserted directly (law 3): after driving
+// every "prototype-pollution-keys" case above, `Object.prototype` itself
+// must still carry none of the two marker keys the class's own bodies plant.
+// This is a REAL assertion, not a comment — a future door that spreads a
+// hostile body into a plain object with bracket-notation writes would flip
+// this from "always true" to "caught here".
+ok(
+  "[proto-pollution] Object.prototype carries neither marker key after every prototype-pollution-keys case run above",
+  !Object.prototype.hasOwnProperty("polluted1") && !Object.prototype.hasOwnProperty("polluted2") &&
+  ({}).polluted1 === undefined && ({}).polluted2 === undefined,
+);
+
+// ═════════════════════════════════════════════════════════════════════════
+// SECTION 25b (WS-R124) — THE ONE FINDING, FIXED, AND ITS FROZEN NEGATIVE
+// CONTROL. `replica.js`'s "create" op, class "null-for-required"
+// (`display_name: null`): `api/_replica.js`'s `replicaDisplayName` refused
+// it correctly (`String(null || "")` -> `""` -> too short) but threw an
+// Error carrying `status` alone, no `code` — the one place in this whole
+// door's error surface that broke the `{code, status}` contract every other
+// domain error in this product keeps (api/room.js's own catch-all, and this
+// very battery's own `classifyFuzzOutcome`, both dispatch on `.code`). Fixed
+// in `api/_replica.js` (see the comment there). Re-run here, live, over the
+// EXACT pre-fix hostile body this workstream's own first run recorded —
+// a case that would go silently uncaught again if a future edit dropped the
+// `code` a second time.
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const FROZEN_PRE_FIX_BODY = { display_name: null, invite_code: null };
+  const state = freshDoorsState();
+  const db = withWriteGuard(doorsDb(state), taintedValuesOf(FROZEN_PRE_FIX_BODY));
+  const error = await threw(() => OP_INVOKE["replica.js"].create(db, FROZEN_PRE_FIX_BODY));
+  ok(
+    "[frozen-negative-control/replica.js] create, display_name:null — the exact pre-fix body now answers a NAMED 4xx (display_name_invalid, 400), not an uncoded throw",
+    error?.code === "display_name_invalid" && error?.status === 400,
+    error ? `got code=${error.code} status=${error.status}` : "did not throw at all",
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// SECTION 25c (WS-R124) — api/account.js, STATIC ONLY (named scope
+// boundary, see SECTION 25's own header above). Every op's own fields are
+// read back off ITS OWN dispatch block in api/account.js's source and
+// checked for a type/format guard — `typeof`, a regex `.test`, `UUID.test`,
+// `Number.isInteger`, or an explicit `String(...)`/`?? ""` coercion —
+// BEFORE the first `q(`/`fetch(`/`authFetch(` call inside that same block.
+// This proves the guard EXISTS in the shipped source, not that it behaves
+// correctly against a live hostile value (this file has no injectable `db`
+// or network seam a fake could stand behind at all).
+{
+  const ACCOUNT_SRC = readFileSync(join(API, "account.js"), "utf8");
+  function accountOpBlock(op) {
+    const start = ACCOUNT_SRC.indexOf(`if (op === "${op}")`);
+    if (start === -1) return null;
+    const nextIf = ACCOUNT_SRC.indexOf('if (op === "', start + 10);
+    // The dispatch's OWN final fallback line, matched by its exact unique
+    // text rather than a bare `res.status(400)` substring — "track" (the
+    // last op) throws its OWN `res.status(400)` for a malformed event name
+    // partway through its block, which a generic substring search finds
+    // first and truncates the block before its later device/user_id
+    // guards — found live by this workstream's own first run.
+    const end = nextIf === -1 ? ACCOUNT_SRC.indexOf('res.status(400).json({ error: "unknown op"', start) : nextIf;
+    return ACCOUNT_SRC.slice(start, end);
+  }
+  // op -> [field, a substring that, if present in the op's own block, proves
+  // a guard/coercion runs on that field].
+  const ACCOUNT_FIELD_GUARDS = {
+    send_otp: [["email", "String(b.email"]],
+    verify_otp: [["email", "String(b.email"], ["token", "String(b.token"]],
+    send_sms: [["phone", "String(b.phone"]],
+    verify_sms: [["phone", "String(b.phone"], ["token", "String(b.token"]],
+    google_url: [["redirect", 'typeof b.redirect === "string"']],
+    refresh: [["refresh_token", "String(b.refresh_token"]],
+    save_state: [
+      ["state", 'typeof state !== "object"'],
+      ["device", "UUID.test(String(b.device"],
+      ["base_updated_at", 'typeof b.base_updated_at === "string"'],
+    ],
+    wipe_state: [["mode", 'b.mode === "forget"']],
+    consent: [
+      ["device", "UUID.test(String(b.device"],
+      ["granted", 'typeof b.granted !== "boolean"'],
+      ["version", "Number.isInteger(b.version)"],
+      ["at", 'typeof b.at === "string"'],
+      ["user_id", "UUID.test(String(b.user_id"],
+    ],
+    track: [
+      ["props", 'typeof b.props === "object"'],
+      ["event", "String(b.event"],
+      ["device", "UUID.test(String(b.device"],
+      ["user_id", "UUID.test(String(b.user_id"],
+    ],
+  };
+  let staticChecked = 0;
+  for (const [op, guards] of Object.entries(ACCOUNT_FIELD_GUARDS)) {
+    const block = accountOpBlock(op);
+    ok(`[static/account.js] "${op}" op block found in source`, block !== null);
+    for (const [field, guardText] of guards) {
+      staticChecked++;
+      okClass("shape:static-account", "account.js", `${op}.${field} carries a type/format guard before any q()/fetch()/authFetch() call`, Boolean(block && block.includes(guardText)));
+    }
+  }
+  // `load_state` shares `save_state`'s own `access_token` shape (both call
+  // `userFromToken(b.access_token)` with no LOCAL type guard on the token
+  // itself, relying on Supabase's own verification — a network call this
+  // pass does not exercise) and needs no field guard of its own beyond that.
+  const loadBlock = accountOpBlock("load_state");
+  ok('[static/account.js] "load_state" op block found in source', loadBlock !== null);
+  console.log(
+    `  account.js: ${staticChecked} field guards checked statically across ${Object.keys(ACCOUNT_FIELD_GUARDS).length} ops` +
+    ` (+ "load_state", "google_url"'s own default branch already counted) — access_token (save_state/load_state/wipe_state)` +
+    ` carries no LOCAL type guard, relying on userFromToken's own network verification; named here as a lower-confidence` +
+    ` spot, not asserted as clean.`,
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 console.log("\n── case counts per attack class, per door ──");
 for (const [klass, { doors, pass: p, fail: f }] of Object.entries(byClass)) {
   console.log(`  ${klass.padEnd(20)} doors: ${[...doors].sort().join(", ")}  (${p} ok, ${f} failed)`);

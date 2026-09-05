@@ -29,7 +29,22 @@ export function replicaDisplayName(value) {
     })
     .join("")
     .trim();
-  if (!name || name.length > 80) throw Object.assign(new Error("display_name must be 1-80 characters"), { status: 400 });
+  // WS-R124 (body-shape fuzzing): this threw with `status` alone, no `code` —
+  // the one domain-error shape in this file that broke the `{code, status}`
+  // contract every other check here (`replicaId`, two lines up) and every
+  // other Room decision module in this repo already keeps. Harmless at
+  // api/replica.js's own catch-all today (it falls back to `error.message`
+  // for anything without a numeric `.status`), but a caller that matches
+  // errors by `.code` — exactly what `evals/room-doors/run.mjs`'s SECTION 25
+  // does, and what api/room.js's own catch-all does for every OTHER domain
+  // error in this product — could not tell this refusal apart from an
+  // unnamed crash. A `null`/non-string `display_name` (this file's own
+  // `evals/room-doors/run.mjs` negative control, class "null-for-required")
+  // is what surfaced it: `String(null || "")` -> `""` -> refused here, and
+  // the refusal now carries a name.
+  if (!name || name.length > 80) {
+    throw Object.assign(new Error("display_name must be 1-80 characters"), { status: 400, code: "display_name_invalid" });
+  }
   return name;
 }
 
