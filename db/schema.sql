@@ -4185,3 +4185,24 @@ alter table vy_replica
 alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
 alter table vy_room_arrival add constraint vy_room_arrival_via_check
   check (via in ('share', 'direct', 'embed', 'search', 'install'));
+
+-- Migration 115 - the creator's public page showcase (WS-R66). See
+-- db/migrations/115_room_showcase.sql for the full argument: up to five
+-- Q&A pairs a creator chooses to show a stranger on /c/<slug>, CREATOR
+-- material only (typed, edited, or copied from a 'sounds_right' review card
+-- whose kind is not 'follower_declined'), never a follower's words. No
+-- person column; FK CASCADE from vy_room; the partial unique index on
+-- (room_id, position) where removed_at is null is the five-slot ceiling
+-- itself, not a limit the application layer merely promises to respect.
+create table if not exists vy_room_showcase (
+  id         uuid primary key default gen_random_uuid(),
+  room_id    uuid not null references vy_room(room_id) on delete cascade,
+  question   text not null check (question <> '' and length(question) <= 200),
+  answer     text not null check (answer <> '' and length(answer) <= 1200),
+  position   integer not null check (position >= 1 and position <= 5),
+  created_at timestamptz not null default now(),
+  removed_at timestamptz
+);
+create unique index if not exists vy_room_showcase_position_ix
+  on vy_room_showcase (room_id, position)
+  where removed_at is null;

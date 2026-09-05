@@ -19,6 +19,11 @@
 //   POST /api/room-publish {op:"unlist"}         opt out, unconditional
 //                                                    (WS-R45)
 //   POST /api/room-publish {op:"stats"}          real counts, never invented
+//   POST /api/room-publish {op:"showcase_set"}   set one public-page Q&A slot
+//                                                    (1..5), typed text or a
+//                                                    source review card (WS-R66)
+//   POST /api/room-publish {op:"showcase_remove"} take one showcase item down,
+//                                                    unconditional (WS-R66)
 //
 // Thin by construction, `api/clone-channel.js`'s own shape: cors, rate limit,
 // auth, dispatch, error shape. Every decision lives in `api/_room-publish.js`,
@@ -42,6 +47,8 @@ import {
   listRoom,
   unlistRoom,
   ownerRoomStats,
+  setRoomShowcase,
+  removeRoomShowcase,
 } from "./_room-publish.js";
 import { withDoor } from "./_incidents.js";
 
@@ -164,6 +171,25 @@ async function handler(req, res) {
       const stats = await ownerRoomStats(q, user.id, replicaId);
       if (!stats) return notFound(res);
       return res.status(200).json({ stats });
+    }
+
+    if (op === "showcase_set") {
+      const result = await setRoomShowcase(q, user.id, replicaId, {
+        position: body.position,
+        question: body.question,
+        answer: body.answer,
+        sourceCardId: body.source_card_id,
+      });
+      if (!result) return notFound(res);
+      obsBestEffort("room_publish.showcase_set", { position: body.position });
+      return res.status(200).json({ showcase: result.showcase });
+    }
+
+    if (op === "showcase_remove") {
+      const result = await removeRoomShowcase(q, user.id, replicaId, body.id);
+      if (!result) return notFound(res);
+      obsBestEffort("room_publish.showcase_remove", {});
+      return res.status(200).json({ showcase: result.showcase });
     }
 
     return res.status(400).json({ error: "unknown_op" });

@@ -313,12 +313,20 @@ export async function getOwnedRoom(db, ownerUserId, replicaId) {
   if (!replica) return null;
   const room = await ownedRoomRow(db, ownerUserId, replicaId);
   if (!room) return { room: null, reason: "not_created" };
-  const blockers = await publishBlockers(db, ownerUserId, replicaId, room.agent_id);
+  const [blockers, showcase] = await Promise.all([
+    publishBlockers(db, ownerUserId, replicaId, room.agent_id),
+    // WS-R66. Fed alongside the room on the SAME read the Share tab already
+    // makes for `blockers` — no second round trip the studio has to remember
+    // to fire, `onRoomState`'s existing "fed up, never fetched twice" law one
+    // field over.
+    readRoomShowcase(db, room.room_id),
+  ]);
   return {
     room: clientRoom(room),
     reason: null,
     can_publish: blockers.waiting_on_you.length === 0 && blockers.waiting_on_us.length === 0,
     blockers,
+    showcase,
   };
 }
 
@@ -847,4 +855,175 @@ export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.no
     followers_active_24h: Number(row.followers_active_24h || 0),
     messages_this_month: Number(row.messages_this_month || 0),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: showcase_set / showcase_remove (WS-R66, migration 115) — the public
+// page's up-to-five Q&A pairs
+// ─────────────────────────────────────────────────────────────────────────
+//
+// CREATOR MATERIAL ONLY, never a follower's words. `question`/`answer` are
+// either typed or edited by the owner directly, or copied from a
+// `vy_review_card` the owner already marked "Sounds right" — and the read
+// below that does the copying is the ONE place this law is enforced, in the
+// WHERE clause, never applied after the row is already in hand
+// (`api/_disclosure.js`'s standing rule, restated for a write's source read).
+//
+// THE COLUMN THAT TELLS THEM APART: `kind`. Migration 074's own comment
+// names it — `'follower_declined'` is "a real follower question the AI
+// declined or answered with low confidence"; `'question'` is the pre-launch
+// synthetic set drawn from the replica's OWN sources, and `'claim'`/`'delta'`
+// are mined from the replica's own material or a Mirror Call the OWNER
+// themselves ran. So the eligible read below is
+// `kind <> 'follower_declined' and state = 'sounds_right'` — a card the
+// owner approved as-is, of a kind that was never a follower's own words in
+// the first place. A card does exist to tell the two apart; the fallback
+// this law's own phrasing names ("if none does, allow only typed text and
+// log why") does not apply here, and is not exercised.
+export const ROOM_SHOWCASE_SLOTS = 5;
+export const ROOM_SHOWCASE_QUESTION_MAX = 200;
+export const ROOM_SHOWCASE_ANSWER_MAX = 1200;
+
+function assertShowcasePosition(value) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > ROOM_SHOWCASE_SLOTS) {
+    throw new RoomPublishError("room_showcase_position_invalid", 400, { min: 1, max: ROOM_SHOWCASE_SLOTS });
+  }
+  return n;
+}
+
+/** `assertBioClean`'s exact shape, one field at a time: a stranger reads this
+ *  text on the public page before ever becoming anyone's follower, so it is
+ *  held to the same em-dash and Rooms-vocabulary law every other
+ *  stranger-facing string in this product is, via the REAL scanner rather
+ *  than a second, drifting reimplementation of its rules. */
+function assertShowcaseTextClean(text) {
+  if (!text) return;
+  const fixture = `const label = ${JSON.stringify(text)};`;
+  const offences = scanSource("room-showcase-input.tsx", fixture, { rules: "full", codename: true, roomsVocab: true });
+  if (offences.length) {
+    throw new RoomPublishError("room_showcase_copy_violation", 400, {
+      rules: [...new Set(offences.map((o) => o.rule))],
+    });
+  }
+}
+
+/** Every ACTIVE showcase row for one Room, in position order — the public
+ *  page's own read (`api/_creator-page.js`) and the studio Share tab's own
+ *  read (`getOwnedRoom` above) both call this rather than each holding a copy
+ *  of the predicate, `_creators.js`'s "one query, not a shared abstraction
+ *  worth a third file" reasoning applied the other way: here the query IS
+ *  worth sharing, because both callers need the identical five-in-
+ *  position-order shape and a hand-copied second version is exactly how one
+ *  of them silently stops matching migration 115's own partial index. */
+export async function readRoomShowcase(db, roomId) {
+  if (typeof db !== "function") throw new RoomPublishError("room_publish_db_required", 500);
+  const rows = await db(
+    `select id, question, answer, position, created_at
+       from vy_room_showcase
+      where room_id = ($1)::uuid and removed_at is null
+      order by position asc
+      limit ($2)::int`,
+    [String(roomId), ROOM_SHOWCASE_SLOTS],
+  );
+  return rows.map((r) => ({
+    id: String(r.id),
+    question: r.question,
+    answer: r.answer,
+    position: Number(r.position),
+  }));
+}
+
+/**
+ * Set one showcase slot (1..5), typed text or a source review card, and hand
+ * back the Room's full showcase afterward.
+ *
+ * `sourceCardId` is looked up SCOPED TO THIS OWNER AND REPLICA, and only a
+ * card that is `state = 'sounds_right'` and `kind <> 'follower_declined'`
+ * ever answers — the eligibility predicate is entirely inside this one SELECT,
+ * never a JS branch after a card is already in hand. An ineligible or
+ * missing card id is a NAMED refusal (`room_showcase_card_ineligible`), never
+ * a silent fallback to whatever typed text happened to be in the body.
+ *
+ * Retire-then-insert rather than one UPSERT: two plain statements Neon's
+ * SQL-over-HTTP endpoint can each run on their own, `009`'s "one statement
+ * per request" law applied to an application write exactly as it is to a
+ * migration. The retiring UPDATE is UNCONDITIONAL on whatever already held
+ * this position (soft delete, `removed_at = now()`) — a creator replacing
+ * slot 3 is not asked to first remove the old answer, `pauseRoom`'s "taking
+ * something down is never gated" restated for an overwrite instead of a
+ * take-down.
+ */
+export async function setRoomShowcase(db, ownerUserId, replicaId, { position, question, answer, sourceCardId } = {}) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const pos = assertShowcasePosition(position);
+  const room = await ownedRoomRow(db, ownerUserId, replicaId);
+  if (!room) return null;
+
+  let q = String(question ?? "").trim();
+  let a = String(answer ?? "").trim();
+
+  if (sourceCardId) {
+    const cardId = String(sourceCardId || "").trim().toLowerCase();
+    if (!UUID.test(cardId)) throw new RoomPublishError("room_showcase_card_invalid", 400);
+    const cardRows = await db(
+      `select prompt_text, answer_text
+         from vy_review_card
+        where card_id = ($1)::uuid and owner_user_id = ($2)::uuid and replica_id = ($3)::uuid
+          and state = 'sounds_right' and kind <> 'follower_declined'
+        limit 1`,
+      [cardId, String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase()],
+    );
+    if (!cardRows[0]) throw new RoomPublishError("room_showcase_card_ineligible", 409);
+    q = String(cardRows[0].prompt_text || "").trim();
+    a = String(cardRows[0].answer_text || "").trim();
+  }
+
+  if (!q || q.length > ROOM_SHOWCASE_QUESTION_MAX) {
+    throw new RoomPublishError("room_showcase_question_invalid", 400, { max: ROOM_SHOWCASE_QUESTION_MAX });
+  }
+  if (!a || a.length > ROOM_SHOWCASE_ANSWER_MAX) {
+    throw new RoomPublishError("room_showcase_answer_invalid", 400, { max: ROOM_SHOWCASE_ANSWER_MAX });
+  }
+  assertShowcaseTextClean(q);
+  assertShowcaseTextClean(a);
+
+  await db(
+    `update vy_room_showcase
+        set removed_at = now()
+      where room_id = ($1)::uuid and position = ($2)::int and removed_at is null`,
+    [String(room.room_id), pos],
+  );
+  await db(
+    `insert into vy_room_showcase (id, room_id, question, answer, position)
+     values (($1)::uuid, ($2)::uuid, $3, $4, ($5)::int)`,
+    [randomUUID(), String(room.room_id), q, a, pos],
+  );
+  return { room_id: String(room.room_id), showcase: await readRoomShowcase(db, room.room_id) };
+}
+
+/**
+ * Take one showcase item down. UNCONDITIONAL, `unlistRoom`'s own law: a
+ * creator changing their mind about showing an answer is not a decision this
+ * product second-guesses. Owner-scoped in the WRITE's own WHERE, via the same
+ * join-through-vy_room shape `_replica-full-erasure.js`'s room-scoped deletes
+ * use, never a separate ownership SELECT before the write.
+ */
+export async function removeRoomShowcase(db, ownerUserId, replicaId, showcaseId) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const id = String(showcaseId || "").trim().toLowerCase();
+  if (!UUID.test(id)) throw new RoomPublishError("room_showcase_item_invalid", 400);
+
+  const rows = await db(
+    `update vy_room_showcase s
+        set removed_at = now()
+       from vy_room r
+      where s.room_id = r.room_id
+        and r.owner_user_id = ($1)::uuid and r.replica_id = ($2)::uuid
+        and s.id = ($3)::uuid and s.removed_at is null
+      returning s.room_id`,
+    [String(ownerUserId).toLowerCase(), String(replicaId).toLowerCase(), id],
+  );
+  if (!rows[0]) return null;
+  return { room_id: String(rows[0].room_id), showcase: await readRoomShowcase(db, rows[0].room_id) };
 }

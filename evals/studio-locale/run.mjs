@@ -154,6 +154,10 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
     "BlockerNotice.tsx", "WizardRail.tsx", "StudioShell.tsx", "ReadinessPanel.tsx",
     "DriftWatchCard.tsx", "ReviewQueue.tsx", "PayoutsCard.tsx", "CheckinsCard.tsx",
     "HandoffCard.tsx", "InviteCreatorCard.tsx", "InviteGate.tsx", "SuiteCard.tsx",
+    // WS-R66: the "Show on your page" showcase card - `InviteCreatorCard.tsx`'s
+    // own self-contained shape, one file over, converted from its first
+    // commit rather than left in Tier 2.
+    "ShowcaseCard.tsx",
     // WS-R52's own new file: the locale context/provider. No literal English
     // text of its own (it renders nothing; it hands `t` to whatever mounts
     // under it), so it clears the scan the same way an empty file would, but

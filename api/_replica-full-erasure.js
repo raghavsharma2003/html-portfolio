@@ -136,6 +136,13 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // understate what was held. Additive; the eval asserts membership,
       // never the exact list.
       "owner_room_renewal_reminders",
+      // 115 (WS-R66). The creator's public-page showcase (`vy_room_showcase`)
+      // is its own class rather than folded into "rooms": it is up to five
+      // Q&A pairs the creator chose to show a stranger, real text a person
+      // outside this platform could have read, and a receipt that did not
+      // name it would understate what was held. Additive; the eval asserts
+      // membership, never the exact list.
+      "owner_room_showcase",
     ]),
   });
 }
@@ -743,6 +750,19 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- reference, not a different KIND of record from anything a receipt
      -- already names.
      room_org_attachments as (delete from vy_room_org_attachment x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 115 (WS-R66), the creator's public-page showcase. Reached by room_id
+     -- via the SAME vy_room subquery every block above uses. Carries a real
+     -- FK CASCADE from vy_room (migration 115's own header), so this delete
+     -- is a backstop rather than the only mechanism - "relying on a cascade
+     -- means relying on an FK nobody re-checks," restated again. Unlike the
+     -- two content-free room-scoped tables immediately above, this
+     -- table DOES get its own entry in the deletedClasses list below: it
+     -- holds real text a stranger could read on the creator's own public
+     -- page, not a content-free count, so a receipt that folded it silently
+     -- into "rooms" would understate what was held.
+     room_showcase as (delete from vy_room_showcase x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
