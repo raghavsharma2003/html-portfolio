@@ -128,6 +128,21 @@ import {
   mirrorReplyHistory,
 } from "./_mirrorcall-reply.js";
 import {
+  INTERVIEW_LENGTH_MS,
+  INTERVIEW_OPENING_GAPS,
+  buildInterviewGaps,
+  renderInterviewAsk,
+} from "./_interview-gaps.js";
+import {
+  endInterviewSession,
+  getInterviewByMirrorSession,
+  listInterviewAnswers,
+  markQuestionAsked,
+  openInterviewSession,
+  readInterviewInputs,
+  recordInterviewAnswer,
+} from "./_interview-store.js";
+import {
   decideMirrorDelta,
   endMirrorSession,
   getMirrorTurn,
@@ -379,9 +394,9 @@ function voiceRouteState() {
  * the fidelity numbers that same window earned. A failure here is a NAMED
  * absent reason on a 200, never a 500 that loses all four.
  */
-async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows) {
+async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows, askBlock = "") {
   const route = voiceRouteState();
-  const absent = (reason) => ({ turn: null, reason, canVoice: false, voiceAbsentReason: "" });
+  const absent = (reason) => ({ turn: null, reason, canVoice: false, voiceAbsentReason: "", asked: false });
   try {
     // Owner-scoped in SQL, both of them. A caller who does not own this replica
     // never reached here (`resolveMirrorSession` refused), and if the predicate
@@ -403,6 +418,10 @@ async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windo
       sheetRow,
       history,
       latestText: String(window.transcript || ""),
+      // Empty on a calibration call, which is why that lane's bytes do not
+      // move. On an interview it is the note about what to ask, spliced into
+      // the one prompt position the compiler leaves open.
+      askBlock,
     });
     if (!assembled.ok) return absent(assembled.reason);
 
@@ -426,6 +445,11 @@ async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windo
       reason: "",
       canVoice: route.canVoice,
       voiceAbsentReason: route.reason,
+      // A question counts as ASKED only when a turn carrying it actually landed
+      // as a row. Counting it when the block was built would count questions a
+      // failed assembly never asked, and `questions_asked` is a number the
+      // studio prints beside `answers_captured`.
+      asked: Boolean(askBlock) && Boolean(assembled.asked),
     };
   } catch {
     return absent("clone_reply_failed");
@@ -433,15 +457,139 @@ async function cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windo
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// THE INTERVIEW MODE — WS-R5
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A Mirror Call has two modes and they differ in ONE thing: whether the clone's
+// turn carries a note about what to ask. Everything else — the transport, the
+// consent freeze, the window table, the ASR lane, the mine, the chip rail, the
+// reply assembler, the synthesis path — is the same code running unchanged.
+// That is deliberate and it is the reason this section is short: a second call
+// lane would be `mirror-call-reply-is-the-one-door` reopened, and the interview
+// is the mode where it would matter most, because the owner is answering
+// questions ABOUT THEMSELVES and a second assembler would be collecting that
+// under rules nobody re-checked.
+//
+// ── THE CLONE STILL DOES NOT SPEAK FIRST ────────────────────────────────
+// The interview does not open by talking. The owner says something (anything),
+// and the clone's answer to that window carries the first question. This is not
+// a compromise for the sake of a state machine: `clone-initiative-record-has-no-
+// absence` is the law, a `WINDOW_RESULT` is the only event that can produce a
+// clone caption, and an interview that opened by speaking would be the one lane
+// in this product where the clone starts a conversation with a person.
+//
+// ── WHICH QUESTION IS OUTSTANDING, WITHOUT A COLUMN FOR IT ──────────────
+// Gaps are asked in rank order, so `gaps[answers_captured]` IS the outstanding
+// question and `questions_asked > answers_captured` IS "one is outstanding".
+// Two counters and an ordered list, rather than a `current_gap_id` column that
+// could disagree with them. A derived answer that cannot drift beats a stored
+// one that can — `last-message-wins-cross-tab`'s lesson, one field instead of
+// three.
+//
+// ── AND WHAT IT REFUSES TO CLAIM ────────────────────────────────────────
+// `mirror-reference-accumulation-was-inert`: interview answers grow the SOURCE
+// SET. They do not change the voice, they do not change the persona, and
+// nothing in this section writes a sheet field, selects a conditioning window
+// or queues a fine-tune. The whole output of an interview is consented sources
+// plus two honest counts.
+
+/** Has this interview run its twenty minutes? Computed from the row's own
+ *  `started_at` rather than from a client clock, for the reason every deadline
+ *  in this repo is server-side: a client that wants a longer interview should
+ *  not be able to have one by lying about the time. */
+function interviewExpired(interview, now = Date.now()) {
+  const started = Date.parse(String(interview?.started_at || ""));
+  if (!Number.isFinite(started)) return false;
+  return now - started >= INTERVIEW_LENGTH_MS;
+}
+
+/** `validityOverlaps`, from the engine bundle, exactly as `api/consolidate.js`
+ *  reaches it and for the same stated reason: a second definition of "do these
+ *  intervals overlap" is the mirrored-logic mistake that file already names.
+ *
+ *  A missing bundle returns null, `buildInterviewGaps` reports
+ *  `detectors.contradiction === false`, and the studio renders that. It does
+ *  NOT silently produce a gap list with no contradictions in it, which would be
+ *  indistinguishable from an archive that has none. */
+async function validityOverlapsFn() {
+  const mod = await import("./_engine.gen.js").catch(() => null);
+  return typeof mod?.validityOverlaps === "function" ? mod.validityOverlaps : null;
+}
+
+/** Read everything, rank the gaps. Owner-scoped in SQL by `readInterviewInputs`;
+ *  pure from there down. */
+async function gapsFor(db, ownerUserId, replicaId) {
+  const [inputs, overlaps] = await Promise.all([
+    readInterviewInputs(db, ownerUserId, replicaId),
+    validityOverlapsFn(),
+  ]);
+  return buildInterviewGaps(inputs, { overlaps });
+}
+
+/** What the wire carries about an interview. Counts and topics, never a
+ *  question: the question text does not exist as a stored object anywhere in
+ *  this feature, and a payload that carried one would be the first place it
+ *  could be copied out of (`recited-prompt`). */
+function wireInterview(interview, model = null) {
+  if (!interview) return null;
+  const gaps = Array.isArray(interview.gaps) ? interview.gaps : [];
+  return {
+    interview_id: interview.interview_id,
+    started_at: interview.started_at,
+    ended_at: interview.ended_at,
+    length_ms: INTERVIEW_LENGTH_MS,
+    expired: interviewExpired(interview),
+    questions_asked: interview.questions_asked,
+    answers_captured: interview.answers_captured,
+    // The gap list, with the shapes but without a rendered question. `topic`
+    // and `why` are what the studio shows; `shape` rides along for anyone
+    // reading the payload and is notes, not lines.
+    gaps: gaps.map((gap, index) => ({
+      gap_id: gap.gap_id,
+      kind: gap.kind,
+      topic: gap.topic,
+      evidence_count: gap.evidence_count,
+      why: gap.why,
+      shape: gap.shape,
+      shape_hash: gap.shape_hash,
+      rank: gap.rank ?? index + 1,
+      answered: index < Number(interview.answers_captured ?? 0),
+    })),
+    // WHICH DETECTORS COULD RUN. Present on every payload that carries a gap
+    // list, because a gap list is only readable next to what produced it.
+    detectors: model?.detectors ?? null,
+    inputs_present: model?.inputs_present ?? null,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // ops
 // ─────────────────────────────────────────────────────────────────────────
 
 async function opCreate(db, ownerUserId, body) {
+  // Two modes, one call. Anything that is not the interview is a calibration
+  // call, and an unknown value is NOT an error: a client from a future build
+  // asking for a mode this deployment does not have should get the call it can
+  // have, with `mode` on the response saying which it got.
+  const mode = String(body?.mode || "calibrate") === "interview" ? "interview" : "calibrate";
   const session = await openMirrorSession(db, ownerUserId, body.replica_id);
   // ONE answer for "not yours", "does not exist", "revoked" and "consent is not
   // on file" — api/_teachersheet.js's discipline. A caller that could tell them
   // apart could enumerate other people's replicas.
   if (!session) return { status: 409, body: { error: "mirror_session_unavailable" } };
+
+  // The gap list is built ONCE and frozen onto the interview row. See migration
+  // 075's header: an interview whose fourth question came from a different
+  // ranking than its first is an interview nobody can reproduce.
+  let interview = null;
+  let model = null;
+  if (mode === "interview") {
+    model = await gapsFor(db, ownerUserId, session.replica_id);
+    interview = await openInterviewSession(
+      db, ownerUserId, session.session_id, model.opening,
+    );
+  }
+
   const { fidelity } = await fidelityFor(db, ownerUserId, session.replica_id, session.session_id);
   const gpu = gpuState();
   return {
@@ -451,6 +599,11 @@ async function opCreate(db, ownerUserId, body) {
         session_id: session.session_id,
         replica_id: session.replica_id,
         contract: MIRROR_CALL_CONTRACT,
+        // The mode the server actually opened, never the one that was asked
+        // for. An interview whose gap model could not be built opens as a
+        // calibration call and says so rather than pretending to interview.
+        mode: interview ? "interview" : "calibrate",
+        interview: wireInterview(interview, model),
         // 'warming' unless this process has SEEN the broker answer. The studio
         // shows the honest 2–3 minute wait rather than a progress bar over a
         // number nobody measured.
@@ -559,6 +712,50 @@ async function opIngestWindow(db, ownerUserId, req) {
     ? await mineAndPropose(db, ownerUserId, replicaId, sessionId, session, windows)
     : { proposed: [], stats: null, guarded: [], corpus: null };
 
+  // ── THE INTERVIEW, IF THIS CALL IS ONE ─────────────────────────────────
+  //
+  // Ordered exactly like this on purpose: the owner's window ANSWERS the
+  // outstanding question BEFORE the next one is chosen. The other order would
+  // ask question n+1 while question n was still outstanding, and then the
+  // answer that arrived next would be filed against the wrong gap — an answer
+  // bound to a question the person was not answering, which is worse than no
+  // answer at all because it looks like data.
+  const interviewBefore = await getInterviewByMirrorSession(db, ownerUserId, sessionId).catch(() => null);
+  let interview = interviewBefore;
+  let askBlock = "";
+  let answer = null;
+  if (interview) {
+    const gaps = Array.isArray(interview.gaps) ? interview.gaps : [];
+    // Answer the outstanding question. `asr` null means the window dropped, and
+    // a dropped window is an ABSENCE, not an answer — filing one would be
+    // recording that the owner answered something they may never have said.
+    if (asr && interview.questions_asked > interview.answers_captured) {
+      const outstanding = gaps[interview.answers_captured];
+      if (outstanding) {
+        answer = await recordInterviewAnswer(db, ownerUserId, interview.interview_id, {
+          gapKind: outstanding.kind,
+          topic: outstanding.topic,
+          questionShapeHash: outstanding.shape_hash,
+          // The SAME source the window rode in on. There is no second capture
+          // and no second upload lane: the interview's answer audio IS the
+          // Mirror Call window's audio, stamped `purpose='interview'` so
+          // retrieval can prefer it for register.
+          sourceId: window.source_id || null,
+          windowId: window.window_id,
+        }).catch(() => null);
+        // Re-read rather than increment in JS. The write is idempotent (a
+        // retried window against an answered gap inserts nothing), so the
+        // counter after the write is the only number that is true.
+        interview = await getInterviewByMirrorSession(db, ownerUserId, sessionId).catch(() => interview);
+      }
+    }
+    // Choose the next question. Stops at twenty minutes and stops when the five
+    // gaps are done, and both stops are the interview ending itself rather than
+    // running until somebody gets bored.
+    const next = interviewExpired(interview) ? null : gaps[interview.answers_captured];
+    if (next) askBlock = renderInterviewAsk(next);
+  }
+
   // THE CLONE'S REPLY. Attempted only when the owner's window became words:
   // "the clone does not answer nothing" is WS-Y's own comment on the `turn`
   // field, and `clone-initiative-record-has-no-absence` is the law behind it —
@@ -566,8 +763,15 @@ async function opIngestWindow(db, ownerUserId, req) {
   // predicate has. A clone that answered a silence would be answering something
   // nobody said.
   const reply = asr
-    ? await cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows)
-    : { turn: null, reason: "owner_window_dropped", canVoice: false, voiceAbsentReason: "" };
+    ? await cloneTurnFor(db, ownerUserId, replicaId, sessionId, window, windows, askBlock)
+    : { turn: null, reason: "owner_window_dropped", canVoice: false, voiceAbsentReason: "", asked: false };
+
+  // Counted only after the turn carrying it actually landed as a row. A
+  // question counted at build time would be a question the studio prints as
+  // asked and the owner never heard.
+  if (interview && reply.asked) {
+    interview = await markQuestionAsked(db, ownerUserId, interview.interview_id).catch(() => interview);
+  }
 
   const { fidelity, pool } = await fidelityFor(db, ownerUserId, replicaId, sessionId);
   const coverage = mirrorCoverage(windows);
@@ -606,6 +810,20 @@ async function opIngestWindow(db, ownerUserId, req) {
             tokens: mined.stats.tokens,
             turns: mined.stats.totalTurns,
             code_switch_token_ratio: mined.stats.codeSwitch.tokenRatio,
+          }
+          : null,
+        // WS-R5, and null on every calibration call. `answer_captured` is the
+        // honest per-window fact: an interview window that answered nothing
+        // (because nothing was outstanding, or because the write conflicted
+        // with a retry) says so rather than leaving the studio to infer it from
+        // a count that did not move.
+        interview: interview
+          ? {
+            ...wireInterview(interview),
+            answer_captured: answer ? { topic: answer.topic, audio_kept: answer.audio_kept } : null,
+            // Whether THIS turn carried a question. The question itself is
+            // inside `turn.text` and nowhere else.
+            asked_this_turn: Boolean(reply.asked),
           }
           : null,
       },
@@ -692,6 +910,14 @@ async function opEnd(db, ownerUserId, body) {
   if (!session) return { status: 404, body: { error: "mirror_session_unavailable" } };
   const replicaId = session.replica_id;
   const sessionId = session.session_id;
+  // WS-R5. Closed BEFORE the mirror session, because the interview row is what
+  // the summary below is built from and an interview left open on an ended call
+  // is a row nothing will ever close.
+  const interviewOpen = await getInterviewByMirrorSession(db, ownerUserId, sessionId).catch(() => null);
+  const interviewEnded = interviewOpen
+    ? (await endInterviewSession(db, ownerUserId, interviewOpen.interview_id).catch(() => null)) || interviewOpen
+    : null;
+
   const ended = await endMirrorSession(db, ownerUserId, replicaId, sessionId);
   if (!ended) return { status: 409, body: { error: "mirror_session_not_open" } };
 
@@ -732,6 +958,80 @@ async function opEnd(db, ownerUserId, body) {
           jobs: Number(ended.reembedding_jobs ?? 0),
           queue: "vy_replica_processing_job step=voice_quality",
         },
+        // WS-R5. What the interview learned, and what the next one would ask.
+        // Null on a calibration call.
+        interview: interviewEnded
+          ? {
+            ...wireInterview(interviewEnded),
+            answers: await listInterviewAnswers(db, ownerUserId, interviewEnded.interview_id).catch(() => []),
+            // The topics that came back with audio, and the ones that did not.
+            // Two lists rather than one count, because "we asked and lost it"
+            // and "we never got there" are different things to tell an owner.
+            learned: (Array.isArray(interviewEnded.gaps) ? interviewEnded.gaps : [])
+              .slice(0, Number(interviewEnded.answers_captured ?? 0))
+              .map((gap) => ({ kind: gap.kind, topic: gap.topic })),
+            next_would_ask: (Array.isArray(interviewEnded.gaps) ? interviewEnded.gaps : [])
+              .slice(Number(interviewEnded.answers_captured ?? 0))
+              .map((gap) => ({ kind: gap.kind, topic: gap.topic, why: gap.why })),
+            // The one thing an owner must not be allowed to infer wrongly from
+            // a screen full of new material. `mirror-reference-accumulation-was-
+            // inert`: the answers grew the SOURCE set and nothing else moved.
+            effect: {
+              sources_added: Number(interviewEnded.answers_captured ?? 0),
+              voice_changed: false,
+              persona_changed: false,
+              note: "your answers were saved as new material. Nothing about your AI changed during this call.",
+            },
+          }
+          : null,
+      },
+    },
+  };
+}
+
+/**
+ * `interview_gaps` — the preview behind "Start the interview".
+ *
+ * A GET on a replica, not on a session: the studio has to be able to show what
+ * the interview would ask BEFORE anyone opens a call, and opening a call to
+ * find out would spend a consent freeze and an open-session slot on a preview.
+ *
+ * It is the same pure function the call uses, over the same reads, so the list
+ * the owner sees on the button is the list the interview opens with — unless
+ * the archive changed in between, which is exactly when it should differ.
+ */
+async function opInterviewGaps(db, ownerUserId, replicaIdValue) {
+  const rid = mirrorUuid(replicaIdValue, "mirror_replica_id_invalid");
+  const owned = await db(
+    `select r.replica_id from vy_replica r
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+        and r.lifecycle not in ('revoked','purging') limit 1`,
+    [rid, ownerUserId],
+  );
+  // ONE answer for "not yours", "gone" and "revoked".
+  if (!owned[0]) return { status: 404, body: { error: "mirror_session_unavailable" } };
+  const model = await gapsFor(db, ownerUserId, rid);
+  return {
+    status: 200,
+    body: {
+      interview: {
+        length_ms: INTERVIEW_LENGTH_MS,
+        opening_gaps: INTERVIEW_OPENING_GAPS,
+        gaps: model.opening.map((gap) => ({
+          gap_id: gap.gap_id,
+          kind: gap.kind,
+          topic: gap.topic,
+          evidence_count: gap.evidence_count,
+          why: gap.why,
+          rank: gap.rank,
+        })),
+        total_gaps: model.gaps.length,
+        skipped_answered: model.skipped_answered,
+        // Rendered beside the list, always. A short list because the archive is
+        // complete and a short list because a detector could not run are
+        // different facts and the studio has to be able to say which.
+        detectors: model.detectors,
+        inputs_present: model.inputs_present,
       },
     },
   };
@@ -972,6 +1272,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       if (op === "status") result = await opStatus(q, user.id, req.query?.session_id);
       else if (op === "deltas") result = await opDeltas(q, user.id, req.query?.session_id);
+      else if (op === "interview_gaps") result = await opInterviewGaps(q, user.id, req.query?.replica_id);
       else if (op === "turn_voice") {
         // A SECOND, TIGHTER BUCKET. The shared `mirror_call_user` allowance is
         // sized for windows and chip taps, which are cheap; a synthesis is GPU

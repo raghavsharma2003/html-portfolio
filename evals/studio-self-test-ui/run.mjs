@@ -60,6 +60,14 @@ const videoEnroll = readFileSync(join(ROOT, "src/studio/VideoEnrollPanel.tsx"), 
 const channelWatch = readFileSync(join(ROOT, "src/studio/IngestChannelStudio.tsx"), "utf8");
 const voiceExperiment = readFileSync(join(ROOT, "src/studio/VoiceExperimentPanel.tsx"), "utf8");
 const voiceExperimentContract = readFileSync(join(ROOT, "src/studio/voiceExperiment.ts"), "utf8");
+// WS-R71: VoiceExperimentPanel.tsx's own literal strings moved into
+// src/studio/copy.ts (`t.voiceExperimentPanel`); assertions below that check
+// for a literal ENGLISH SENTENCE (not JS/JSX structure) read this
+// concatenation instead of the component alone -- `evals/readiness/run.mjs`'s
+// own `panelWithCopy` shape (`ws-r52-existing-evals-updated-for-the-copy-ts-move`),
+// reused rather than re-derived.
+const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const voiceExperimentWithCopy = `${voiceExperiment}\n${copyTs}`;
 ok("the self-test presentation is gated by exact Vite mode and environment flags",
   /VITE_REPLICA_SELF_TEST_MODE/.test(studio)
   && /VITE_REPLICA_SELF_TEST_ENVIRONMENT/.test(studio)
@@ -82,8 +90,18 @@ ok("YouTube video and channel intake remain mounted in test mode",
   && !/!testEnvironment && <VideoEnrollPanel/.test(studio)
   && !/!testEnvironment && <IngestChannelStudio/.test(studio));
 ok("the test guide exposes the five source types without an item-count gate",
+  // WS-R106: the five labels moved from a literal `TEST_SOURCE_TYPES` array
+  // in `StudioApp.tsx` into `copy.ts#studioApp.testSourceGuide` (both
+  // locales) -- `TestSourceGuide`'s own component now names the five
+  // ANCHORS (`TEST_SOURCE_ANCHORS`, unchanged targets, never translated)
+  // while the labels it reads for each are locale-aware, `copyTs`'s own
+  // split from `studio` this file already draws one check up
+  // ("the Studio experiment... ENGLISH WORDING (now in copy.ts)"). The
+  // five ENGLISH words still live in `copy.ts`'s source text, just no
+  // longer in `StudioApp.tsx`'s.
   ["Audio or video file", "Screenshot, document, or text file", "Text or web link", "YouTube video", "YouTube channel"]
-    .every((label) => studio.includes(label))
+    .every((label) => copyTs.includes(label))
+  && /TEST_SOURCE_ANCHORS/.test(studio)
   && !/TEST_SOURCE_TARGET|testSourceCount|five-source target/i.test(studio));
 ok("testing removes the Context Locker acknowledgement click without blocking exports",
   /useState\(testEnvironment\)/.test(contextLocker)
@@ -109,34 +127,39 @@ ok("the Studio experiment keeps identities sealed until a seal-bound accepted re
 ok("the Studio experiment saves locally and keeps an explicit portable answer path",
   /saveVoiceExperimentBundle/.test(voiceExperiment)
   && /localStorage\.setItem\(progressKey/.test(voiceExperiment)
-  && /Export progress/.test(voiceExperiment)
-  && /Import progress/.test(voiceExperiment)
+  && /Export progress/.test(voiceExperimentWithCopy)
+  && /Import progress/.test(voiceExperimentWithCopy)
   && /import-studio-answers/.test(voiceExperiment));
 ok("the Studio experiment counts only completed playback and makes its final lock irreversible",
   /audio\.onended = \(\) => \{[\s\S]{0,180}setReferencePlayed\(true\)[\s\S]{0,180}setPlayedTrialId\(playedTrial\)/.test(voiceExperiment)
   && /audioRef\.current\.onended = null/.test(voiceExperiment)
   && !/await audio\.play\(\)[\s\S]{0,120}set(?:ReferencePlayed|PlayedTrialId)/.test(voiceExperiment)
   && /setLockedAt\(new Date\(\)\.toISOString\(\)\)/.test(voiceExperiment)
-  && /Locking is irreversible in Studio/.test(voiceExperiment)
+  && /Locking is irreversible in Studio/.test(voiceExperimentWithCopy)
   && !/Review ratings/.test(voiceExperiment));
 ok("the Studio experiment exposes progress and keyboard focus semantics",
   /role="progressbar"/.test(voiceExperiment)
   && /aria-valuemin=\{0\}/.test(voiceExperiment)
   && /aria-valuemax=\{total\}/.test(voiceExperiment)
   && /aria-valuenow=\{completed\}/.test(voiceExperiment)
-  && /aria-valuetext=\{`\$\{completed\} of \$\{total\} ratings complete`\}/.test(voiceExperiment));
+  // WS-R71: the aria-valuetext now composes the localized "{n} of {n2}
+  // ratings complete" template from copy.ts rather than a hardcoded English
+  // backtick literal -- checked as two halves: the code SHAPE (still in the
+  // component) and the ENGLISH WORDING (now in copy.ts).
+  && /aria-valuetext=\{c\.progressAriaValueText\.split\("\{n\}"\)\.join\(String\(completed\)\)\.split\("\{n2\}"\)\.join\(String\(total\)\)\}/.test(voiceExperiment)
+  && /progressAriaValueText: "\{n\} of \{n2\} ratings complete"/.test(copyTs));
 ok("the Studio experiment verifies an asymmetric private-pack signature before revealing identities",
   /crypto\.subtle\.verify/.test(voiceExperimentContract)
   && /RSASSA-PKCS1-v1_5/.test(voiceExperimentContract)
   && /await verifyVoiceExperimentReportAttestation/.test(voiceExperimentContract)
   && /await parseVoiceExperimentResult/.test(voiceExperiment)
-  && /Signature verified/.test(voiceExperiment)
-  && !/Seal matched/.test(voiceExperiment));
+  && /Signature verified/.test(voiceExperimentWithCopy)
+  && !/Seal matched/.test(voiceExperimentWithCopy));
 ok("the Studio experiment can replace or remove one bounded replica run",
   /deleteVoiceExperimentBundle\(replicaId, runId\)/.test(voiceExperiment)
   && /clearStoredRun\(replicaId, runId\)/.test(voiceExperiment)
-  && /Replace pack/.test(voiceExperiment)
-  && /Remove private experiment/.test(voiceExperiment)
+  && /Replace pack/.test(voiceExperimentWithCopy)
+  && /Remove private experiment/.test(voiceExperimentWithCopy)
   && /window\.confirm/.test(voiceExperiment)
   && /objectStore\(STORE_NAME\)\.delete\(`\$\{replicaId\}:\$\{runId\}`\)/.test(voiceExperimentContract));
 

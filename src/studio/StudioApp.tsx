@@ -1,21 +1,45 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ensureStudioSession,
-  googleSignIn,
-  isStudioAuthDead,
-  sendEmailOtp,
-  verifyEmailOtp,
-} from "./studioAuth";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { ensureStudioSession, isStudioAuthDead } from "./studioAuth";
 import {
   createReplica,
+  exportReplicaData,
   listReplicas,
+  readCreatorPushConfig,
   readErasureStatus,
   readReplica,
   ReplicaApiError,
   revokeReplica,
+  setReplicaLocale,
+  subscribeCreatorPush,
+  revokeCreatorPush,
+  type CreatorPushConfig,
 } from "./replicaApi";
+// WS-R52. `StudioLocale` (aliased: this file already has its own unrelated
+// `StudioCopy` interface -- src/studio/copy.ts's own `StudioCopy` never
+// enters this file, only the locale type and the provider do) plus the
+// provider StudioApp mounts once, at the top of the signed-in tree.
+// WS-R70 adds `STUDIO_COPY_TABLE` for the SAME reason, read directly by
+// `studioLocale` rather than through `useStudioLocale()` -- `handleExport`
+// below is a plain callback, not a component, so it cannot call a hook.
+import { loadStudioCopy, normalizeStudioLocale, STUDIO_COPY_TABLE, studioCopyReady, withLabel, type StudioLocale as StudioChromeLocale } from "./copy";
+import { StudioLocaleProvider, useStudioLocale } from "./localeContext";
+// WS-R91. The pre-sign-in half of the locale chain (?lang= / a remembered
+// local choice / "en"), pulled out as its own pure module so it can be
+// unit-tested directly -- see `studioLocalePreference.ts`'s own header.
+import {
+  readRememberedStudioLocale,
+  resolveStudioLocale,
+  writeRememberedStudioLocale,
+} from "./studioLocalePreference";
 import { restoreSession, writeStoredSession } from "./session";
+// WS-R91. AuthGate is its own file now (evals/studio-locale/run.mjs's own
+// TIER_1_FILES entry) -- see that file's header for why. `Mark`/`Spinner`
+// moved to `StudioChrome.tsx` alongside it, the shared leaf both this file
+// and AuthGate.tsx import rather than either importing from the other.
+import AuthGate, { type AuthGateVariant } from "./AuthGate";
+import { Mark, Spinner } from "./StudioChrome";
 import { friendlyError } from "./errorCopy";
+import { markFunnelStep } from "./funnelApi";
 import type {
   ConsentReceipt,
   LivenessChallenge,
@@ -26,10 +50,9 @@ import type {
   SignedUpload,
   SourceKind,
   StudioSession,
+  VoiceIdentityChallenge,
 } from "./types";
-import EnrollmentWorkspace from "./EnrollmentWorkspace";
 import IdentityProofing from "./IdentityProofing";
-import LivenessCapture from "./LivenessCapture";
 import ProcessingReview from "./ProcessingReview";
 import PersonModelStudio from "./PersonModelStudio";
 import CalibrationStudio from "./CalibrationStudio";
@@ -38,17 +61,20 @@ import ReplicaDialogueLab from "./ReplicaDialogueLab";
 import CandidateEvaluationLab from "./CandidateEvaluationLab";
 import VoiceEnrollmentLab from "./VoiceEnrollmentLab";
 import ModelConsentGate from "./ModelConsentGate";
-import VoicePreviewLab from "./VoicePreviewLab";
-import VoicePreviewPanel from "./VoicePreviewPanel";
-import VoiceExperimentPanel from "./VoiceExperimentPanel";
 import TeacherSheetStudio from "./TeacherSheetStudio";
 import ChannelsStudio from "./ChannelsStudio";
 import IngestChannelStudio from "./IngestChannelStudio";
 import ContextLockerPanel from "./ContextLockerPanel";
 import DisclosurePreview from "./DisclosurePreview";
-import MirrorCallStudio from "./MirrorCallStudio";
 import VideoEnrollPanel from "./VideoEnrollPanel";
 import ActivityPanel from "./ActivityPanel";
+import ReadinessPanel from "./ReadinessPanel";
+import type { Readiness } from "./readinessApi";
+import type { InterviewPreview } from "./mirrorCallApi";
+import type { OwnedRoom, RoomStats } from "./roomPublishApi";
+import StudioShell from "./StudioShell";
+import { Localized } from "./Localized";
+import DriftWatchCard from "./DriftWatchCard";
 import {
   AdvancedArea,
   Band,
@@ -61,6 +87,7 @@ import {
 } from "./WizardRail";
 import { useCompact } from "./useCompact";
 import { BlockerNotice } from "./BlockerNotice";
+import { InviteGate } from "./InviteGate";
 import { CLASS_COPY } from "./blockerClass";
 import type { ActivityJob, ActivityView } from "./activityApi";
 import {
@@ -97,14 +124,78 @@ import {
   pollOfficialFaceSession,
   startOfficialFaceSession,
 } from "./livenessApi";
+import {
+  cancelVoiceIdentityChallenge,
+  createVoiceIdentityUpload,
+  finalizeVoiceIdentityUpload,
+  issueVoiceIdentityChallenge,
+  voiceIdentityChallengeUiEnabled,
+  voiceIdentityStatus,
+} from "./voiceIdentityApi";
 
-type AuthStep = "email" | "code";
+// WS-R49: lazy, not a top-level import, for the eight heaviest panels that
+// never render on a signed-out /studio visit. Every one of these sits behind
+// `replica &&` and a wizard `step === "..."` gate deep inside StudioApp's own
+// render tree (see each usage site below), so a signed-out phone downloaded
+// and parsed all of them before ever showing a sign-in form — a static import
+// puts a component's bytes in the SAME dependency graph as the screen before
+// the gate that renders it, regardless of what actually mounts. Picked by
+// source size (`wc -c src/studio/*.tsx`), largest first, and each converted
+// component keeps its own Suspense boundary at its own usage site rather than
+// one boundary for all eight, so a slow panel never blanks its siblings.
+// Measured effect on /studio's JS transfer budget (scripts/check-
+// performance.mjs, n=3, cold cache): context/measurements.md#ws-r49-studio-
+// lazy-panels-2026-09-04.
+const EnrollmentWorkspace = lazy(() => import("./EnrollmentWorkspace"));
+const RoomStudio = lazy(() => import("./RoomStudio"));
+const MirrorCallStudio = lazy(() => import("./MirrorCallStudio"));
+const VoicePreviewLab = lazy(() => import("./VoicePreviewLab"));
+const LivenessCapture = lazy(() => import("./LivenessCapture"));
+const VoiceIdentityChallengeBand = lazy(() => import("./VoiceIdentityChallenge"));
+const VoicePreviewPanel = lazy(() => import("./VoicePreviewPanel"));
+const VoiceExperimentPanel = lazy(() => import("./VoiceExperimentPanel"));
+// ReviewQueue: same reasoning, its own commit — see the WS-R49 note at its
+// usage site in the "Meet" step's "Check it and correct it" band.
+const ReviewQueue = lazy(() => import("./ReviewQueue"));
+
 type LoadState = "booting" | "loading" | "ready" | "error";
 
 const STUDIO_SELF_TEST_UI = studioSelfTestUiEnabled(
   import.meta.env.VITE_REPLICA_SELF_TEST_MODE,
   import.meta.env.VITE_REPLICA_SELF_TEST_ENVIRONMENT,
 );
+
+// WS-R2. When this is on, the "Prove it is you" band shows the spoken
+// identity challenge instead of the Azure ID-document and face-liveness
+// cards. Default OFF and read once at module load, so a deployed build
+// without the variable renders byte-identically to today's studio. The server
+// half is gated separately by VOICE_IDENTITY_CHALLENGE, and BOTH have to be
+// set: a studio that offered the band against a 404 endpoint would be the
+// blame inversion AGENTS.md forbids.
+const VOICE_IDENTITY_UI = voiceIdentityChallengeUiEnabled(import.meta.env.VITE_VOICE_IDENTITY_CHALLENGE);
+
+// WS-R23 (086). When this is on, a brand new account (one with zero
+// workspaces) sees InviteGate before CreateReplicaCard. Default OFF and read
+// once at module load, `VOICE_IDENTITY_UI`'s own pattern: the server half is
+// gated separately by `INVITES_REQUIRED`, and the server predicate is what
+// actually decides — this flag only decides whether the studio ASKS first.
+// An account that already owns a workspace never sees this screen regardless
+// of this flag (StudioApp's own render condition also checks
+// `replicas.length === 0`), matching the server's "or an account already
+// owning a replica" exemption exactly.
+const INVITES_REQUIRED_UI = import.meta.env.VITE_INVITES_REQUIRED === "1";
+
+// WS-R31. A presentation change, not a capability: every panel below the top
+// of the studio is the SAME component, reading the SAME data, gated by the
+// SAME blockers whether this is on or off. What flips is only which
+// navigation renders above them: the three-tab shell (`StudioShell.tsx`) or
+// the old wizard rail. UNSET = ON, unlike every other flag in this file,
+// because that default IS the workstream's whole point
+// (`docs/gurukul/ENV-MANIFEST.md` says why): a build that forgot to set it
+// should still ship the shorter path, and the one-line "All panels" link
+// inside the shell (never a rebuild) is the rollback if a real defect turns
+// up in production. Setting it to the literal string "0" is the only way off.
+const STUDIO_SHELL_UI = import.meta.env.VITE_STUDIO_SHELL !== "0";
 
 // The teacher mode seam. Read ONCE, at mount, from `?mode=teacher` — see
 // `readStudioMode()` below. Generic mode ("replica") is the untouched
@@ -122,11 +213,17 @@ function readStudioMode(): StudioMode {
   }
 }
 
+// WS-R91. `brandTag`/`introEyebrow`/`introTitle`/`introBody` moved out of
+// this interface: they were the OLD AuthGate's own fields, now
+// `copy.ts#authGate.variant`'s job in both locales — see `AuthGate.tsx`.
+// Everything left here is `CreateReplicaCard`'s own copy shape.
+//
+// WS-R106. The three fixed English objects that used to live here
+// (`GENERIC_COPY`/`TEACHER_COPY`/`TEST_COPY`) moved into
+// `copy.ts#studioApp.createReplica` (both locales) -- this interface now
+// only names the SHAPE, read locale-aware where `copy` is assigned below.
+// See context/decisions.md#ws-r106-studioapp-tsx-converted-tier-1.
 interface StudioCopy {
-  brandTag: string;
-  introEyebrow: string;
-  introTitle: string;
-  introBody: string;
   workspaceNoun: string;
   firstEyebrow: string;
   firstTitle: string;
@@ -136,59 +233,6 @@ interface StudioCopy {
   fieldNote: string;
   createdNotice: string;
 }
-
-const GENERIC_COPY: StudioCopy = {
-  brandTag: "PRIVATE REPLICA LAB",
-  introEyebrow: "Private by construction",
-  introTitle: "A replica that begins with your permission.",
-  introBody:
-    "Build and control a consent-verified model of yourself. Every source stays private, every capability is separately approved, and revocation stops future use.",
-  workspaceNoun: "Self-replica",
-  firstEyebrow: "Your first replica",
-  firstTitle: "Begin with identity, not an upload.",
-  firstBody:
-    "Name your private workspace. Voice, memories, and behavior remain locked until consent and liveness services are connected.",
-  nameLabel: "Replica name",
-  namePlaceholder: "Your name",
-  fieldNote: "You may create a replica only of yourself. Verification comes next.",
-  // C4 (UX-QUEUE copy audit): the old line spent most of a first success on
-  // what does not work. The truth is unchanged and still stated on the panels
-  // that own each gate; what changes is that the first thing a person reads
-  // after their first action tells them what to do next.
-  createdNotice: "Your workspace is ready. Add one file or link on this step, and you can hear a private draft voice before any verification.",
-};
-
-const TEACHER_COPY: StudioCopy = {
-  brandTag: "GURUKUL TEACHER STUDIO",
-  introEyebrow: "Verified, consented, disclosed",
-  introTitle: "A teaching clone that begins with your permission, and is disclosed to every student.",
-  introBody:
-    "Build and control a consent-verified teaching clone of yourself. Every source stays private, every capability is separately approved, revocation stops future use, and students are told before every session that they are talking to an AI clone, not you.",
-  workspaceNoun: "Self-teaching-clone",
-  firstEyebrow: "Your first teaching clone",
-  firstTitle: "Begin with identity, not an upload.",
-  firstBody:
-    "Name your teaching clone. Voice, teaching style, and pedagogy remain locked until consent and liveness services are connected.",
-  nameLabel: "Teacher / clone name",
-  namePlaceholder: "Your name, as students will see it",
-  fieldNote: "You may create a teaching clone only of yourself. Verification comes next.",
-  createdNotice: "Your teaching clone has a workspace. Add one lecture or link on this step, and you can hear a private draft voice before any verification.",
-};
-
-const TEST_COPY: StudioCopy = {
-  brandTag: "INTERNAL TEST STUDIO",
-  introEyebrow: "",
-  introTitle: "Add your sources. Then test your clone.",
-  introBody: "Upload useful examples of your voice, writing, videos, and context. Then hear the draft, talk to it, and correct it.",
-  workspaceNoun: "Test clone",
-  firstEyebrow: "",
-  firstTitle: "Create a test workspace.",
-  firstBody: "Name the clone, add any useful sources, then hear it and talk to it.",
-  nameLabel: "Clone name",
-  namePlaceholder: "Your name",
-  fieldNote: "You can change the clone as you test it.",
-  createdNotice: "Test workspace ready. Add useful sources, or start talking to the clone now.",
-};
 
 const ERASURE_REQUEST_KEY = "vyakti.replica.erasure-request.v1";
 
@@ -245,38 +289,36 @@ function initials(name: string) {
   return value.toUpperCase() || "VR";
 }
 
-function Mark() {
-  return (
-    <span className="mark" aria-hidden="true">
-      <span />
-      <span />
-      <span />
-    </span>
-  );
-}
-
-function Spinner({ label }: { label: string }) {
-  return <span className="spinner" role="status" aria-label={label} />;
-}
-
-const TEST_SOURCE_TYPES = [
-  { label: "Audio or video file", anchor: "#enrollment-workspace" },
-  { label: "Screenshot, document, or text file", anchor: "#enrollment-workspace" },
-  { label: "Text or web link", anchor: "#context-locker" },
-  { label: "YouTube video", anchor: "#video-enroll-heading" },
-  { label: "YouTube channel", anchor: "#ingest-channel-title" },
+// WS-R106. Anchors are structural (never translated); labels come from
+// `t.studioApp.testSourceGuide` (both the button text and the `jumpTo`
+// announcement it feeds share the same translated string -- WizardRail.tsx's
+// own `announcedMoveText` composes the locale-aware "moved to {label}"
+// template around whatever this passes it, so passing the Hindi label here
+// is what keeps the screen-reader announcement in the reader's own language
+// too).
+const TEST_SOURCE_ANCHORS = [
+  { key: "audioOrVideoFile", anchor: "#enrollment-workspace" },
+  { key: "screenshotDocumentOrTextFile", anchor: "#enrollment-workspace" },
+  { key: "textOrWebLink", anchor: "#context-locker" },
+  { key: "youtubeVideo", anchor: "#video-enroll-heading" },
+  { key: "youtubeChannel", anchor: "#ingest-channel-title" },
 ] as const;
 
 function TestSourceGuide() {
+  const { t } = useStudioLocale();
+  const c = t.studioApp.testSourceGuide;
   return (
-    <nav className="test-source-guide" aria-label="Five source types">
-      <p>Add any source type. None is required to open the clone.</p>
+    <nav className="test-source-guide" aria-label={c.ariaLabel}>
+      <p>{c.intro}</p>
       <div>
-        {TEST_SOURCE_TYPES.map((source) => (
-          <button key={source.label} type="button" onClick={() => jumpTo(source.anchor, source.label)}>
-            {source.label}
-          </button>
-        ))}
+        {TEST_SOURCE_ANCHORS.map((source) => {
+          const label = c[source.key];
+          return (
+            <button key={source.key} type="button" onClick={() => jumpTo(source.anchor, label)}>
+              {label}
+            </button>
+          );
+        })}
       </div>
     </nav>
   );
@@ -301,169 +343,17 @@ function TestSourceGuide() {
 // section-numbering eyebrows outright, and deleting the numbers killed the
 // collision more permanently than renumbering it would have.
 
-function AuthGate({ onAuthed, copy, testEnvironment }: { onAuthed: (session: StudioSession) => void; copy: StudioCopy; testEnvironment: boolean }) {
-  const [step, setStep] = useState<AuthStep>("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const codeRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (step === "code") codeRef.current?.focus();
-  }, [step]);
-
-  async function sendCode() {
-    setError("");
-    setBusy(true);
-    try {
-      await sendEmailOtp(email.trim());
-      setStep("code");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message.replaceAll("_", " ") : "Could not send a code");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyCode() {
-    setError("");
-    setBusy(true);
-    try {
-      const session = await verifyEmailOtp(email.trim(), code.trim());
-      writeStoredSession(session);
-      onAuthed(session);
-    } catch {
-      setError("That code did not match. Check it and try again.");
-      setCode("");
-      requestAnimationFrame(() => codeRef.current?.focus());
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <main className="auth-page">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-      <header className="auth-brand">
-        <a href="/" aria-label="Vyakti home"><Mark /></a>
-        <span>VYAKTI</span>
-        <span className="brand-rule" />
-        <span>{copy.brandTag}</span>
-      </header>
-
-      <section className="auth-intro" aria-labelledby="studio-title">
-        {copy.introEyebrow && <p className="eyebrow">{copy.introEyebrow}</p>}
-        <h1 id="studio-title">{copy.introTitle}</h1>
-        <p>{copy.introBody}</p>
-        {!testEnvironment && <div className="trust-strip" aria-label="Studio safeguards">
-          <span><i />Self-replication only</span>
-          <span><i />No public voice library</span>
-          <span><i />Auditable deletion</span>
-        </div>}
-      </section>
-
-      <section className="auth-card" aria-labelledby="signin-title">
-        <div className="secure-chip"><span className="secure-dot" />Protected workspace</div>
-        <h2 id="signin-title">{step === "email" ? "Enter your studio" : "Check your inbox"}</h2>
-        <p className="card-copy">
-          {step === "email"
-            ? "Sign in with the email you want to manage this clone from. If you are already signed in on this device, we will recognise you."
-            : `We sent a six-digit code to ${email}.`}
-        </p>
-
-        {step === "email" ? (
-          <>
-            <button
-              className="button google-button"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setError("");
-                setBusy(true);
-                googleSignIn().catch(() => {
-                  setError("Google sign-in is unavailable. Use your email instead.");
-                  setBusy(false);
-                });
-              }}
-            >
-              <span className="google-g" aria-hidden="true">G</span>
-              Continue with Google
-            </button>
-            <div className="or"><span>or use email</span></div>
-            <label className="field-label" htmlFor="studio-email">Email address</label>
-            <input
-              id="studio-email"
-              className="field"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && email.includes("@") && !busy) void sendCode();
-              }}
-            />
-            <button
-              className="button primary-button"
-              type="button"
-              disabled={busy || !email.includes("@")}
-              onClick={() => void sendCode()}
-            >
-              {busy ? <><Spinner label="Sending sign-in code" />Sending code</> : "Continue securely"}
-            </button>
-          </>
-        ) : (
-          <>
-            <label className="field-label" htmlFor="studio-code">Six-digit code</label>
-            <input
-              ref={codeRef}
-              id="studio-code"
-              className="field code-field"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && code.length === 6 && !busy) void verifyCode();
-              }}
-            />
-            <button
-              className="button primary-button"
-              type="button"
-              disabled={busy || code.length !== 6}
-              onClick={() => void verifyCode()}
-            >
-              {busy ? <><Spinner label="Verifying code" />Verifying</> : "Verify and enter"}
-            </button>
-            <button
-              className="text-button"
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setStep("email");
-                setCode("");
-                setError("");
-              }}
-            >
-              Use a different email
-            </button>
-          </>
-        )}
-        {error && <p className="inline-error" role="alert">{error}</p>}
-        {!testEnvironment && <p className="legal-copy">
-          Access does not grant cloning permission. Separate, recorded consent is required before any biometric processing.
-        </p>}
-      </section>
-    </main>
-  );
-}
+// AuthGate moved to its own file, AuthGate.tsx (WS-R91) -- see that file's
+// header for why. `AuthStep` above is used only by it, so it moved too.
+// WS-R106: `copy` below now arrives locale-aware from `copy.ts#studioApp.
+// createReplica` (StudioApp's own selection, see the `const copy = ...`
+// assignment there) -- `CreateReplicaCard` itself stays a plain function of
+// its `copy` prop, unchanged in shape, since it has no other way to reach
+// `useStudioLocale()` (it renders both signed-in AND, transiently, while a
+// brand new account has zero workspaces).
 
 function CreateReplicaCard({ onCreate, busy, copy }: { onCreate: (name: string) => void; busy: boolean; copy: StudioCopy }) {
+  const { t } = useStudioLocale();
   const [name, setName] = useState("");
   return (
     <section className="empty-card" aria-labelledby="empty-title">
@@ -493,7 +383,7 @@ function CreateReplicaCard({ onCreate, busy, copy }: { onCreate: (name: string) 
               onChange={(event) => setName(event.target.value)}
             />
             <button className="button primary-button" disabled={busy || !name.trim()}>
-              {busy ? <Spinner label="Creating replica" /> : "Create workspace"}
+              {busy ? <Spinner label={t.studioApp.creatingAriaLabel} /> : t.studioApp.createButton}
             </button>
           </div>
           <p className="field-note">{copy.fieldNote}</p>
@@ -514,9 +404,11 @@ function ReplicaList({
   onSelect: (id: string) => void;
   onNew: () => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.studioApp.replicaList;
   return (
-    <aside className="replica-rail" aria-label="Your replicas">
-      <div className="rail-label">Your replicas</div>
+    <aside className="replica-rail" aria-label={c.yourAIsAriaLabel}>
+      <div className="rail-label">{c.yourAIsLabel}</div>
       <div className="replica-list">
         {replicas.map((replica) => (
           <button
@@ -535,7 +427,7 @@ function ReplicaList({
         ))}
       </div>
       <button className="new-replica" type="button" onClick={onNew}>
-        <span>+</span> New workspace
+        <span>+</span> {c.newWorkspace}
       </button>
     </aside>
   );
@@ -553,12 +445,20 @@ function ReplicaList({
  * that is what it says.
  */
 function VoiceUnlockNotice({ replica }: { replica: Replica }) {
+  const { t } = useStudioLocale();
+  const c = t.studioApp.voiceUnlockNotice;
   const identity = replica.identity_verified;
   const liveness = replica.liveness_verified;
   if (identity && liveness) return null;
-  const missing = !identity && !liveness
-    ? "identity and a live challenge"
-    : identity ? "a live challenge" : "identity";
+  // WS-R106: three complete sentences rather than one English sentence with
+  // a noun phrase interpolated mid-clause -- Hindi word order does not put
+  // the missing thing in the same place English does, so each branch is its
+  // own full, independently correct sentence in `copy.ts#studioApp.
+  // voiceUnlockNotice` rather than a template a translator would have to
+  // guess the grammar around.
+  const body = !identity && !liveness
+    ? c.bodyMissingBoth
+    : identity ? c.bodyMissingLiveness : c.bodyMissingIdentity;
   return (
     <aside className="voice-unlock" role="status">
       {/* Carries the class label like every other blocked state on the studio,
@@ -567,89 +467,153 @@ function VoiceUnlockNotice({ replica }: { replica: Replica }) {
           believable when it appears. A vocabulary that is only honest in the
           places where honesty is cheap is not a vocabulary. */}
       <p className="voice-unlock-class">{CLASS_COPY.you.label}</p>
-      <p>
-        The preview above is private and works right now. To let this voice speak to anyone else we need {missing},
-        because a voice is a person and this product only ever clones its own owner.
-      </p>
-      <a className="text-button" href="#identity-proofing">Verify below on this step</a>
+      <p>{body}</p>
+      <a className="text-button" href="#identity-proofing">{c.verifyLink}</a>
     </aside>
   );
 }
 
-/**
- * The four readiness cards, and their phone form.
- *
- * Same numbers, same derivation, two layouts. On a phone it is a `<details>`
- * whose summary carries the one number a person is actually tracking, because
- * a four-card grid above the first control is a dashboard where a task should
- * be. Nothing is hidden that is not still one tap away, and nothing here was
- * ever an action, which is what makes it eligible to collapse at all.
- */
-function ReadinessStrip({
-  compact,
-  verificationCount,
-  sourceCount,
-  runtimeStatus,
-}: {
-  compact: boolean;
-  verificationCount: number;
-  sourceCount: number;
-  runtimeStatus: ReplicaRuntimeStatus | null;
-}) {
-  const cards = (
-    <>
-      <article className="readiness-card readiness-primary">
-        <p className="eyebrow">Activation readiness</p>
-        <strong>{verificationCount}/3</strong>
-        <span>identity checks complete</span>
-        <div className="progress-track"><span style={{ transform: `scaleX(${verificationCount * 0.33333})` }} /></div>
-      </article>
-      <article className="readiness-card">
-        <span className="metric-label">Sources</span>
-        <strong>{sourceCount}</strong>
-        <span>{sourceCount ? "Private ledger entries" : "Nothing uploaded"}</span>
-      </article>
-      <article className="readiness-card">
-        <span className="metric-label">Voice versions</span>
-        <strong>{runtimeStatus ? (runtimeStatus.versions.voice_genome ?? 0) : "—"}{/* emdash-ok: the empty-value placeholder, not prose */}</strong>
-        {/* WS-AP, from a measured production defect: this read "0 / Not built
-            yet" while a real draft genome existed, because the count itself
-            used to be scoped to approved-only and the label assumed any
-            non-zero count meant approved. Both are fixed together: the count
-            is now the newest genome that EXISTS (any status,
-            `api/_replica-runtime.js`), and the label reads its own status
-            rather than inferring one from a number. */}
-        <span>
-          {!runtimeStatus || !runtimeStatus.versions.voice_genome
-            ? (!runtimeStatus ? "Checking" : "Not built yet")
-            : runtimeStatus.voice_genome_status === "approved"
-              ? "Approved voice model"
-              : "Draft, needs your approval"}
-        </span>
-      </article>
-      <article className="readiness-card trust-card">
-        <span className="metric-label">Public voice library</span>
-        <strong>Never</strong>
-        <span>Your voice is never listed or shared</span>
-      </article>
-    </>
-  );
+/** RFC 4648 base64url, both directions - `OpsBoard.tsx`'s own pair,
+ *  restated here rather than imported: that file is a standalone mount
+ *  this surface deliberately does not depend on, its own header's reason
+ *  restated. Two tiny pure functions duplicated a second time is a
+ *  smaller risk than a cross-file import neither side asked for. */
+function b64uToUint8Array(b64u: string): Uint8Array<ArrayBuffer> {
+  const pad = "=".repeat((4 - (b64u.length % 4)) % 4);
+  const base64 = (b64u + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function bufToB64u(buf: ArrayBuffer | null): string {
+  if (!buf) return "";
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
-  if (!compact) {
-    return <section className="readiness-grid" aria-label="Replica readiness">{cards}</section>;
-  }
+// WS-R74 (migration 118). "This week on your phone" - `OpsBoard.tsx`'s own
+// `PushAlertsCard` restated for the creator lane, self-contained per
+// `CheckinsCard.tsx`'s own precedent (owns its own fetch/subscribe state
+// rather than threading more useStates through `ReplicaWorkspace`'s already
+// large prop list). Reuses `/push-sw.js`, the SAME generic, already-
+// reviewed display worker every other account-wide push in this repo uses
+// (`api/_creator-push.js`'s own header on why this works unmodified) -
+// never a second service worker or a second display path.
+function WeeklyPushCard({ token }: { token: string }) {
+  const { t } = useStudioLocale();
+  const c = t.creatorPush;
+  const [config, setConfig] = useState<CreatorPushConfig | null>(null);
+  const [subscribed, setSubscribed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cfg: CreatorPushConfig | null = null;
+      try {
+        cfg = await readCreatorPushConfig(token);
+      } catch {
+        cfg = null;
+      }
+      if (!live) return;
+      setConfig(cfg);
+      if (!cfg?.configured) {
+        setChecked(true);
+        return;
+      }
+      try {
+        const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
+        const existing = await registration?.pushManager.getSubscription();
+        if (live) setSubscribed(Boolean(existing));
+      } catch {
+        // Unsupported browser (no serviceWorker/PushManager) - the control
+        // below renders its own honest "not configured" state, since
+        // `config` stayed whatever the read above returned; `checked`
+        // still flips so the button is not left permanently disabled.
+      } finally {
+        if (live) setChecked(true);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [token]);
+
+  const toggle = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      if (subscribed) {
+        const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
+        const existing = await registration?.pushManager.getSubscription();
+        if (existing) {
+          await revokeCreatorPush(token, existing.endpoint);
+          await existing.unsubscribe();
+        }
+        setSubscribed(false);
+      } else {
+        if (!config?.vapid_public) return;
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("push_unsupported");
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") throw new Error("push_denied");
+        const registration = await navigator.serviceWorker.register("/push-sw.js");
+        await navigator.serviceWorker.ready;
+        const existing = await registration.pushManager.getSubscription();
+        const subscription =
+          existing ??
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: b64uToUint8Array(config.vapid_public),
+          }));
+        const endpoint = subscription.endpoint;
+        const p256dh = bufToB64u(subscription.getKey("p256dh"));
+        const auth = bufToB64u(subscription.getKey("auth"));
+        await subscribeCreatorPush(token, endpoint, p256dh, auth);
+        setSubscribed(true);
+      }
+    } catch {
+      setError(c.error);
+    } finally {
+      setBusy(false);
+    }
+  }, [subscribed, config, token, c.error]);
+
   return (
-    <details className="readiness-compact">
-      <summary>
-        <span className="readiness-compact-count">{verificationCount} of 3</span>
-        <span className="readiness-compact-label">identity checks complete</span>
-      </summary>
-      <div className="readiness-grid" aria-label="Replica readiness">{cards}</div>
-    </details>
+    <section className="export-zone" aria-labelledby="weekly-push-title">
+      <div>
+        <h2 id="weekly-push-title">{c.title}</h2>
+        <p>{c.intro}</p>
+      </div>
+      {!config?.configured ? (
+        <p>{c.notConfigured}</p>
+      ) : (
+        <>
+          <button
+            className="button secondary-button"
+            type="button"
+            disabled={busy || !checked}
+            onPointerDown={() => void toggle()}
+          >
+            {subscribed ? c.turnOff : c.turnOn}
+          </button>
+          {error && <p className="inline-error" role="alert">{error}</p>}
+        </>
+      )}
+    </section>
   );
 }
 
-function ReplicaWorkspace({
+// WS-R31. Exported so `StudioShell.tsx` (the Feed/Meet/Share collapse) can
+// mount the EXACT same panel tree the old wizard rail mounts, rather than a
+// second copy of ~700 lines of JSX that could drift from this one. This is a
+// pure addition of the `export` keyword: the function, its props and every
+// panel inside it are byte-identical to before.
+export function ReplicaWorkspace({
   replica,
   testEnvironment,
   mode,
@@ -668,6 +632,7 @@ function ReplicaWorkspace({
   livenessLoading,
   runtimeStatus,
   onRuntimeStatus,
+  onRoomPublished,
   onContextCount,
   onGrantConsent,
   onRevokeConsent,
@@ -681,15 +646,26 @@ function ReplicaWorkspace({
   onCancelChallenge,
   onCreateLivenessUpload,
   onFinalizeLiveness,
+  voiceChallenge,
+  onIssueVoiceChallenge,
+  onCancelVoiceChallenge,
+  onCreateVoiceIdentityUpload,
+  onFinalizeVoiceIdentity,
+  onRefreshVoiceChallenge,
   onIdentityChanged,
   onVerifiedConsentChanged,
   onRevoke,
   revoking,
+  onExport,
+  exporting,
   accessToken,
   onReviewAuthError,
   compact,
   onActivityView,
   onActivityAct,
+  onReadiness,
+  onInterviewPreview,
+  onRoomState,
 }: {
   replica: Replica;
   testEnvironment: boolean;
@@ -709,6 +685,7 @@ function ReplicaWorkspace({
   livenessLoading: boolean;
   runtimeStatus: ReplicaRuntimeStatus | null;
   onRuntimeStatus: (status: ReplicaRuntimeStatus) => void;
+  onRoomPublished: (published: boolean) => void;
   onContextCount: (count: number) => void;
   onGrantConsent: () => Promise<void>;
   onRevokeConsent: () => Promise<void>;
@@ -738,10 +715,25 @@ function ReplicaWorkspace({
     sha256: string;
   }) => Promise<{ challenge: LivenessChallenge; source: ReplicaSource; upload: SignedUpload }>;
   onFinalizeLiveness: (challengeId: string, sourceId: string) => Promise<LivenessChallenge>;
+  voiceChallenge: VoiceIdentityChallenge | null;
+  onIssueVoiceChallenge: () => Promise<VoiceIdentityChallenge>;
+  onCancelVoiceChallenge: (challengeId: string) => Promise<VoiceIdentityChallenge>;
+  onCreateVoiceIdentityUpload: (input: {
+    challengeId: string;
+    role: "capture" | "transcript";
+    kind: "audio" | "video";
+    mime: string;
+    byteSize: number;
+    sha256: string;
+  }) => Promise<{ challenge: VoiceIdentityChallenge; source: ReplicaSource; upload: SignedUpload }>;
+  onFinalizeVoiceIdentity: (challengeId: string, sourceId: string) => Promise<VoiceIdentityChallenge>;
+  onRefreshVoiceChallenge: () => void;
   onIdentityChanged: () => Promise<void>;
   onVerifiedConsentChanged: () => Promise<void>;
   onRevoke: () => Promise<void>;
   revoking: boolean;
+  onExport: () => Promise<void>;
+  exporting: boolean;
   accessToken: string;
   onReviewAuthError: (cause: unknown) => void;
   /** Phone-sized viewport. Structural, not cosmetic. See `useCompact.ts`. */
@@ -752,12 +744,27 @@ function ReplicaWorkspace({
    *  "Look at the build" tap and anything like it). See `handleActivityAct`'s
    *  own comment for the dead-click defect this closes. */
   onActivityAct: (job: ActivityJob) => void;
+  // WS-R31. Three purely additive, fed-up reads: `StudioShell`'s tab
+  // headlines need Readiness's own number, the interview's next topic and
+  // the Room's own state, and every one of them is already computed inside a
+  // panel this tree already mounts. Optional so the untouched old rail view
+  // (which passes none of them) renders byte-identically to before.
+  onReadiness?: (readiness: Readiness) => void;
+  onInterviewPreview?: (preview: InterviewPreview | null | undefined) => void;
+  onRoomState?: (room: OwnedRoom | null, stats: RoomStats | null, blocker: { label: string; anchor: string; cls: "you" | "us" } | null) => void;
 }) {
+  // WS-R70. This is the ONE Tier 2 (allowlisted, deferred) read of `t` in
+  // this file's "Owner control" section -- the surrounding English strings
+  // in this section stay as they are (this workstream's scope cut, see
+  // context/rejected.md), but the new "Download everything" control this
+  // workstream adds is written properly bilingual from the start rather
+  // than joining the deferred pile. Never throws outside a provider
+  // (`useStudioLocale`'s own header): falls back to English.
+  const { t } = useStudioLocale();
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const stopped = replica.lifecycle === "revoked" || replica.lifecycle === "purging";
   const erased = erasureStatus?.state === "complete";
-  const verificationCount = [replica.age_verified, replica.identity_verified, replica.liveness_verified].filter(Boolean).length;
   const view = wizard.steps.find((row) => row.id === step) ?? wizard.steps[0];
   const stepNumber = view.number;
   const previewWizardInput = testEnvironment
@@ -791,8 +798,8 @@ function ReplicaWorkspace({
           on a phone and the STEP TITLE has to be it. */}
       {testEnvironment && (
         <aside className="test-environment-notice" role="status">
-          <strong>Internal test environment</strong>
-          <span>Add any useful sources, then hear and talk to the clone.</span>
+          <strong>{t.studioApp.testEnvironmentNoticeTitle}</strong>
+          <span>{t.studioApp.testEnvironmentNoticeBody}</span>
         </aside>
       )}
 
@@ -811,7 +818,9 @@ function ReplicaWorkspace({
               <span className="tiny-divider" />
               {copy.workspaceNoun}
             </div>
-            <h1>{replica.display_name}</h1>
+            {/* WS-R79: a creator's own Room name, independent of which
+                locale they are reading the rest of the studio's chrome in. */}
+            <h1><Localized as="span" text={replica.display_name} /></h1>
             <p>Created {dateLabel(replica.created_at)} · Policy {replica.policy_version}</p>
           </div>
           <div className="control-seal">
@@ -826,7 +835,7 @@ function ReplicaWorkspace({
           <div className={`stop-icon ${erased ? "complete" : ""}`}>{erased ? "✓" : "×"}</div>
           <div>
             <p className="eyebrow">{erased ? "Verified erasure complete" : "Future use disabled"}</p>
-            <h2>{erased ? "This replica has been erased." : "This replica has been revoked."}</h2>
+            <h2>{erased ? "Your AI has been erased." : "Your AI has been revoked."}</h2>
             <p>
               {erased
                 ? `Provider copies and private storage were confirmed deleted. Backup expiry: ${dateLabel(erasureStatus.backup_expires_at || "")}.`
@@ -862,25 +871,42 @@ function ReplicaWorkspace({
             </section>
           )}
 
-          {/* Every number on this strip is derived. The old version rendered a
-              literal "Voice versions 0 / No model trained" regardless of the
-              real `runtime.versions.voice_genome`, and a "Public access / Off /
-              Cannot be changed" claim that ChannelsStudio exists to falsify
-              (UX-Q-04, copy audit C5 and C6). A status this product cannot
-              derive is not shown.
+          {/* WS-R3. This replaced `ReadinessStrip`, which rendered four derived
+              numbers on every step: identity checks, a source count, a voice
+              version and a trust claim. Two problems, and only the second one
+              is about design. It was a DASHBOARD sitting between the step title
+              and the first control, on a step whose job is one task; and it
+              wore the word "Readiness" while answering none of the five
+              questions a creator actually has to answer before they let their
+              AI talk to anyone.
 
-              ON A PHONE IT IS COLLAPSED, and it is the clearest case in the
-              studio for collapsing something: four cards, none of which is an
-              ACTION, sitting between the step title and the first control. It
-              is a dashboard, and a dashboard above the fold on a step whose job
-              is one task is the fold spent on furniture. The summary keeps the
-              one number that changes ("2 of 3 identity checks"), so nothing a
-              person is tracking disappears. */}
-          {!testEnvironment && <ReadinessStrip
-            compact={compact}
-            verificationCount={verificationCount}
-            sourceCount={sources.length}
-            runtimeStatus={runtimeStatus}
+              The panel answers those five, with an honest "not measured yet"
+              wherever the instrument does not exist, and it is on the MEET step
+              only: readiness is what Meet is for, and repeating it on Feed and
+              Deploy would be the same furniture in three places. Its trust line
+              carries over the one claim from the old strip that never changes
+              with a measurement. */}
+          {!testEnvironment && step === "meet" && <ReadinessPanel
+            key={`readiness-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+            onGoStep={onGoStep}
+            onReadiness={onReadiness}
+          />}
+
+          {/* WS-R9. "It notices drift" — the Rooms plan's own line, and the
+              caught case it cites by name: a provider swapping a model within
+              four days under the same name. Directly under Readiness on the
+              same step, because both answer "can I trust what I am about to
+              publish" and a creator should not have to go looking for the
+              second half of that answer on a different screen. */}
+          {!testEnvironment && step === "meet" && <DriftWatchCard
+            key={`drift-watch-${replica.replica_id}`}
+            token={accessToken}
+            replicaId={replica.replica_id}
+            onAuthError={onReviewAuthError}
+            onGoStep={onGoStep}
           />}
 
           {/* The blocking line, now carrying its class. This is the surface the
@@ -900,7 +926,7 @@ function ReplicaWorkspace({
             work={wizardInput.platformWork}
             onSeeActivity={() => {
               if (step === "deploy") { onGoStep("feed"); return; }
-              jumpTo(`#processing-status-${step}`, "where each upload is right now");
+              jumpTo(`#processing-status-${step}`, t.studioApp.feed.uploadStatusTitle);
             }}
           />
 
@@ -910,30 +936,32 @@ function ReplicaWorkspace({
               <Band
                 collapsible={compact}
                 defaultOpen
-                title={testEnvironment ? "Add source files" : "Permission, then your material"}
-                blurb={testEnvironment ? "Upload audio, video, documents, or screenshots. Multiple files can be added in one pass." : "Nothing is read, transcribed or stored until you say it may be. Then everything you bring lands in one private ledger you can erase a row at a time."}
+                title={testEnvironment ? t.studioApp.feed.materialTitleTest : t.studioApp.feed.materialTitle}
+                blurb={testEnvironment ? t.studioApp.feed.materialBlurbTest : t.studioApp.feed.materialBlurb}
               >
-                <EnrollmentWorkspace
-                  key={`enrollment-${replica.replica_id}`}
-                  replicaId={replica.replica_id}
-                  testEnvironment={testEnvironment}
-                  consents={consents}
-                  sources={sources}
-                  loading={enrollmentLoading}
-                  onGrantConsent={onGrantConsent}
-                  onRevokeConsent={onRevokeConsent}
-                  onCreateUpload={onCreateUpload}
-                  onRetryUpload={onRetryUpload}
-                  onFinalizeUpload={onFinalizeUpload}
-                  onDeleteSource={onDeleteSource}
-                />
+                <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.material}</div>}>
+                  <EnrollmentWorkspace
+                    key={`enrollment-${replica.replica_id}`}
+                    replicaId={replica.replica_id}
+                    testEnvironment={testEnvironment}
+                    consents={consents}
+                    sources={sources}
+                    loading={enrollmentLoading}
+                    onGrantConsent={onGrantConsent}
+                    onRevokeConsent={onRevokeConsent}
+                    onCreateUpload={onCreateUpload}
+                    onRetryUpload={onRetryUpload}
+                    onFinalizeUpload={onFinalizeUpload}
+                    onDeleteSource={onDeleteSource}
+                  />
+                </Suspense>
               </Band>
 
               <Band
                 collapsible={compact}
                 defaultOpen={false}
-                title={testEnvironment ? "Add files and links" : "Files, links, videos, channels"}
-                blurb={testEnvironment ? "Drop text files or paste useful links. Add only what will help the clone understand you." : "Four ways in, one ledger out. Everything here is proposed to you before it changes anything about your clone."}
+                title={testEnvironment ? t.studioApp.feed.filesTitleTest : t.studioApp.feed.filesTitle}
+                blurb={testEnvironment ? t.studioApp.feed.filesBlurbTest : t.studioApp.feed.filesBlurb}
               >
                 <ContextLockerPanel
                   key={`context-${replica.replica_id}`}
@@ -974,8 +1002,8 @@ function ReplicaWorkspace({
               <Band
                 collapsible={compact}
                 defaultOpen={false}
-                title="Where each upload is right now"
-                blurb="Everything you have handed over, and what is happening to it. Anything that needs you is at the top, and anything stuck on our side says so."
+                title={t.studioApp.feed.uploadStatusTitle}
+                blurb={t.studioApp.feed.uploadStatusBlurb}
               >
                 <ActivityPanel
                   key={`activity-feed-${replica.replica_id}`}
@@ -999,37 +1027,57 @@ function ReplicaWorkspace({
               <Band
                 collapsible={compact}
                 defaultOpen
-                title="Hear it, then talk to it"
-                blurb="This is the whole point of the product. The preview is private, and the call is where the clone learns from you while you watch."
+                title={t.studioApp.meet.hearTalkTitle}
+                blurb={t.studioApp.meet.hearTalkBlurb}
               >
-                <VoicePreviewPanel
-                  key={`hear-voice-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  wizardInput={previewWizardInput}
-                  testEnvironment={testEnvironment}
-                  onAuthError={onReviewAuthError}
-                />
-                <VoiceExperimentPanel
-                  key={`voice-experiment-${replica.replica_id}`}
-                  replicaId={replica.replica_id}
-                />
+                <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.voice}</div>}>
+                  <VoicePreviewPanel
+                    key={`hear-voice-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    wizardInput={previewWizardInput}
+                    testEnvironment={testEnvironment}
+                    onAuthError={onReviewAuthError}
+                  />
+                </Suspense>
+                <Suspense fallback={null}>
+                  <VoiceExperimentPanel
+                    key={`voice-experiment-${replica.replica_id}`}
+                    replicaId={replica.replica_id}
+                  />
+                </Suspense>
                 {!testEnvironment && <VoiceUnlockNotice replica={replica} />}
-                <MirrorCallStudio
-                  key={`mirror-call-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  stopped={stopped}
-                  onAuthError={onReviewAuthError}
-                />
+                <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.call}</div>}>
+                  <MirrorCallStudio
+                    key={`mirror-call-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    stopped={stopped}
+                    onAuthError={onReviewAuthError}
+                    onInterviewPreview={onInterviewPreview}
+                  />
+                </Suspense>
               </Band>
 
               <Band
                 collapsible={compact}
                 defaultOpen={false}
-                title={testEnvironment ? "Processing status" : "Check it and correct it"}
-                blurb={testEnvironment ? "See what the clone is learning from the sources you added." : "What we think we learned, one claim at a time, and the dials only you can set. Nothing here publishes anything."}
+                title={testEnvironment ? t.studioApp.meet.checkCorrectTitleTest : t.studioApp.meet.checkCorrectTitle}
+                blurb={testEnvironment ? t.studioApp.meet.checkCorrectBlurbTest : t.studioApp.meet.checkCorrectBlurb}
               >
+                {/* WS-R4. FIRST in this band, and open, because it is the one
+                    thing on the Meet step that is thirty seconds long and moves
+                    the number. Everything below it is a lab. */}
+                {!testEnvironment && (
+                  <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.reviewQueue}</div>}>
+                    <ReviewQueue
+                      key={`review-queue-${replica.replica_id}`}
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      onAuthError={onReviewAuthError}
+                    />
+                  </Suspense>
+                )}
                 {!testEnvironment && mode === "teacher" && (
                   <TeacherSheetStudio
                     key={`sheet-${replica.replica_id}-${sheetProvenance}`}
@@ -1072,28 +1120,53 @@ function ReplicaWorkspace({
               {!testEnvironment && <Band
                 collapsible={compact}
                 defaultOpen={false}
-                title="Prove it is you"
-                blurb="A voice is a person. These are the checks that let your clone speak to anyone other than you, and they are the only reason this product can exist."
+                title={t.studioApp.meet.proveTitle}
+                blurb={t.studioApp.meet.proveBlurb}
               >
-                <IdentityProofing
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  sources={sources}
-                  onChanged={onIdentityChanged}
-                  onAuthError={onReviewAuthError}
-                />
-                <LivenessCapture
-                  consentActive={hasSourceConsent(consents) && replica.age_verified}
-                  challenge={challenge}
-                  loading={livenessLoading}
-                  onIssue={onIssueChallenge}
-                  onStartFace={onStartFaceSession}
-                  onPollFace={onPollFaceSession}
-                  onCancel={onCancelChallenge}
-                  onCreateUpload={onCreateLivenessUpload}
-                  onRetryUpload={onRetryUpload}
-                  onFinalize={onFinalizeLiveness}
-                />
+                {/* WS-R2. One band, two possible identity paths, never both.
+                    The Azure pair needs two Microsoft Limited Access
+                    approvals and has never been deployed; the spoken
+                    challenge uses services that are already running. The flag
+                    is off by default, so this renders exactly what it renders
+                    today until the main loop turns it on. */}
+                {VOICE_IDENTITY_UI ? (
+                  <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.identityChecks}</div>}>
+                    <VoiceIdentityChallengeBand
+                      consentActive={hasSourceConsent(consents)}
+                      challenge={voiceChallenge}
+                      loading={livenessLoading}
+                      onIssue={onIssueVoiceChallenge}
+                      onCancel={onCancelVoiceChallenge}
+                      onCreateUpload={onCreateVoiceIdentityUpload}
+                      onFinalize={onFinalizeVoiceIdentity}
+                      onRefresh={onRefreshVoiceChallenge}
+                    />
+                  </Suspense>
+                ) : (
+                  <>
+                    <IdentityProofing
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      sources={sources}
+                      onChanged={onIdentityChanged}
+                      onAuthError={onReviewAuthError}
+                    />
+                    <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.identityChecks}</div>}>
+                      <LivenessCapture
+                        consentActive={hasSourceConsent(consents) && replica.age_verified}
+                        challenge={challenge}
+                        loading={livenessLoading}
+                        onIssue={onIssueChallenge}
+                        onStartFace={onStartFaceSession}
+                        onPollFace={onPollFaceSession}
+                        onCancel={onCancelChallenge}
+                        onCreateUpload={onCreateLivenessUpload}
+                        onRetryUpload={onRetryUpload}
+                        onFinalize={onFinalizeLiveness}
+                      />
+                    </Suspense>
+                  </>
+                )}
                 <ModelConsentGate
                   token={accessToken}
                   replica={replica}
@@ -1112,15 +1185,17 @@ function ReplicaWorkspace({
 
               {!testEnvironment && <AdvancedArea
                 id="advanced-meet"
-                title="Advanced tuning, all optional"
-                blurb="Four labs for people who want to go further. Nothing in here is required to activate a clone, and skipping all of it costs you nothing."
+                title={t.studioApp.meet.advancedTitle}
+                blurb={t.studioApp.meet.advancedBlurb}
               >
-                <VoicePreviewLab
-                  key={`voice-preview-${replica.replica_id}`}
-                  token={accessToken}
-                  replicaId={replica.replica_id}
-                  onAuthError={onReviewAuthError}
-                />
+                <Suspense fallback={null}>
+                  <VoicePreviewLab
+                    key={`voice-preview-${replica.replica_id}`}
+                    token={accessToken}
+                    replicaId={replica.replica_id}
+                    onAuthError={onReviewAuthError}
+                  />
+                </Suspense>
                 <CalibrationStudio
                   token={accessToken}
                   replicaId={replica.replica_id}
@@ -1156,8 +1231,8 @@ function ReplicaWorkspace({
                 <Band
                   collapsible={compact}
                   defaultOpen={false}
-                  title="What every student is told first"
-                  blurb="Read this before you decide where the clone can be reached. The order is the informed half of informed consent."
+                  title={t.studioApp.deploy.disclosureTitle}
+                  blurb={t.studioApp.deploy.disclosureBlurb}
                 >
                   {sheetProvenance === "draft" ? (
                     <DisclosurePreview sheet={sheet} />
@@ -1165,17 +1240,13 @@ function ReplicaWorkspace({
                     <section className="disclosure-preview" aria-labelledby="disclosure-empty-title">
                       <div className="section-heading">
                         <div>
-                          <p className="eyebrow">Nothing saved yet</p>
-                          <h2 id="disclosure-empty-title">Your sheet has not been saved, so there is nothing to preview</h2>
-                          <p>
-                            The disclosure card names the teacher a student is talking to. We will not show you a
-                            preview with somebody else's name on it. Save your sheet on the Meet it step and come
-                            back, and this will show exactly what a student sees.
-                          </p>
+                          <p className="eyebrow">{t.studioApp.deploy.disclosureEmpty.eyebrow}</p>
+                          <h2 id="disclosure-empty-title">{t.studioApp.deploy.disclosureEmpty.title}</h2>
+                          <p>{t.studioApp.deploy.disclosureEmpty.body}</p>
                         </div>
                       </div>
                       <button className="button secondary-button" type="button" onClick={() => onGoStep("meet")}>
-                        Go and save your sheet
+                        {t.studioApp.deploy.disclosureEmpty.button}
                       </button>
                     </section>
                   )}
@@ -1185,8 +1256,8 @@ function ReplicaWorkspace({
               <Band
                 collapsible={compact}
                 defaultOpen
-                title="The gates, then the switch"
-                blurb="Activation is refused until every check has passed. The list below is the runtime's own answer, not a summary of it."
+                title={t.studioApp.deploy.gatesTitle}
+                blurb={t.studioApp.deploy.gatesBlurb}
               >
                 <RuntimeGate
                   key={`runtime-${replica.replica_id}`}
@@ -1198,12 +1269,41 @@ function ReplicaWorkspace({
                 />
               </Band>
 
+              {/* WS-R7. Above ChannelsStudio's own band on purpose: the Room
+                  is the primary, private, remembering address every follower
+                  actually talks to, and a channel is an address on somebody
+                  ELSE's platform this product connects to. It does not need a
+                  saved sheet to render — it proposes its OWN address from the
+                  replica's name — but publishing stays honestly locked until
+                  the sheet is published, same as everything else that reads
+                  the disclosure card. */}
+              {mode === "teacher" && (
+                <Band
+                  collapsible={compact}
+                  defaultOpen
+                  title={t.studioApp.deploy.roomTitle}
+                  blurb={t.studioApp.deploy.roomBlurb}
+                >
+                  <Suspense fallback={<div className="review-loading" role="status"><span className="spinner" />{t.studioApp.loading.room}</div>}>
+                    <RoomStudio
+                      key={`room-${replica.replica_id}`}
+                      token={accessToken}
+                      replicaId={replica.replica_id}
+                      onAuthError={onReviewAuthError}
+                      onGoStep={onGoStep}
+                      onStatusChange={onRoomPublished}
+                      onRoomState={onRoomState}
+                    />
+                  </Suspense>
+                </Band>
+              )}
+
               {mode === "teacher" && (
                 <Band
                   collapsible={compact}
                   defaultOpen={false}
-                  title="Where it can be reached"
-                  blurb="One address at a time, each connected separately, each revocable on its own."
+                  title={t.studioApp.deploy.channelsTitle}
+                  blurb={t.studioApp.deploy.channelsBlurb}
                 >
                   {sheetProvenance === "draft" ? (
                     <ChannelsStudio
@@ -1217,17 +1317,13 @@ function ReplicaWorkspace({
                     <section id="channels-studio" className="channels-studio" aria-labelledby="channels-empty-title">
                       <div className="section-heading">
                         <div>
-                          <p className="eyebrow">Nothing saved yet</p>
-                          <h2 id="channels-empty-title">A channel needs a saved sheet first</h2>
-                          <p>
-                            The embed code and the widget address are built from your clone's public slug, and that
-                            comes from your saved sheet. Until then any snippet we showed you would point somewhere
-                            that is not yours.
-                          </p>
+                          <p className="eyebrow">{t.studioApp.deploy.channelsEmpty.eyebrow}</p>
+                          <h2 id="channels-empty-title">{t.studioApp.deploy.channelsEmpty.title}</h2>
+                          <p>{t.studioApp.deploy.channelsEmpty.body}</p>
                         </div>
                       </div>
                       <button className="button secondary-button" type="button" onClick={() => onGoStep("meet")}>
-                        Go and save your sheet
+                        {t.studioApp.deploy.channelsEmpty.button}
                       </button>
                     </section>
                   )}
@@ -1236,17 +1332,33 @@ function ReplicaWorkspace({
 
               <AdvancedArea
                 id="advanced-deploy"
-                title="Owner control, including erasure"
-                blurb="Revoking stops future use immediately and queues every stored artifact, derived model and provider copy for verified deletion."
+                title={t.studioApp.deploy.ownerAreaTitle}
+                blurb={t.studioApp.deploy.ownerAreaBlurb}
               >
+                <section className="export-zone" aria-labelledby="export-title">
+                  <div>
+                    <p className="eyebrow">{t.creatorExport.eyebrow}</p>
+                    <h2 id="export-title">{t.creatorExport.title}</h2>
+                    <p>{t.creatorExport.body}</p>
+                  </div>
+                  <button
+                    className="button secondary-button"
+                    type="button"
+                    disabled={exporting}
+                    onClick={() => void onExport()}
+                  >
+                    {exporting ? <><Spinner label={t.creatorExport.downloading} />{t.creatorExport.downloading}</> : t.creatorExport.button}
+                  </button>
+                </section>
+                <WeeklyPushCard token={accessToken} />
                 <section className="danger-zone" aria-labelledby="control-title">
                   <div>
-                    <p className="eyebrow">Owner control</p>
-                    <h2 id="control-title">Revoke this replica</h2>
-                    <p>Future use stops immediately. Private artifacts and provider copies are then queued for erasure.</p>
+                    <p className="eyebrow">{t.studioApp.deploy.ownerControlEyebrow}</p>
+                    <h2 id="control-title">{t.studioApp.deploy.revokeTitle}</h2>
+                    <p>{t.studioApp.deploy.revokeBody}</p>
                   </div>
                   <button className="button danger-button" type="button" onClick={() => setConfirming(true)}>
-                    Revoke access
+                    {t.studioApp.deploy.revokeButton}
                   </button>
                 </section>
               </AdvancedArea>
@@ -1267,12 +1379,9 @@ function ReplicaWorkspace({
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-stop">STOP</div>
-            <h2 id="revoke-title">Revoke {replica.display_name}?</h2>
-            <p>
-              This immediately blocks generation and queues stored sources, derived models, memories, and provider copies for erasure.
-              Audio already exported outside Vyakti cannot be recalled.
-            </p>
-            <label className="field-label" htmlFor="revoke-confirmation">Type REVOKE to confirm</label>
+            <h2 id="revoke-title">{withLabel(t.studioApp.revokeDialog.titleTemplate, replica.display_name)}</h2>
+            <p>{t.studioApp.revokeDialog.body}</p>
+            <label className="field-label" htmlFor="revoke-confirmation">{t.studioApp.revokeDialog.confirmLabel}</label>
             <input
               id="revoke-confirmation"
               className="field"
@@ -1282,13 +1391,13 @@ function ReplicaWorkspace({
               onChange={(event) => setConfirmation(event.target.value.toUpperCase())}
             />
             <div className="modal-actions">
-              <button className="button secondary-button" disabled={revoking} onClick={() => setConfirming(false)}>Keep replica</button>
+              <button className="button secondary-button" disabled={revoking} onClick={() => setConfirming(false)}>{t.studioApp.revokeDialog.keepButton}</button>
               <button
                 className="button destructive-button"
                 disabled={revoking || confirmation !== "REVOKE"}
                 onClick={() => void onRevoke()}
               >
-                {revoking ? <><Spinner label="Revoking replica" />Revoking</> : "Revoke permanently"}
+                {revoking ? <><Spinner label={t.studioApp.revokeDialog.revokingAriaLabel} />{t.studioApp.revokeDialog.revoking}</> : t.studioApp.revokeDialog.revokePermanently}
               </button>
             </div>
           </section>
@@ -1302,15 +1411,144 @@ export default function StudioApp() {
   // Read once, at mount — see readStudioMode()'s own comment. Not re-read on
   // navigation, so this never flips mid-session.
   const [mode] = useState<StudioMode>(readStudioMode);
-  const copy = STUDIO_SELF_TEST_UI ? TEST_COPY : mode === "teacher" ? TEACHER_COPY : GENERIC_COPY;
-  const [session, setSession] = useState<StudioSession | null>(null);
+  // WS-R91. AuthGate's own locale-aware variant key into `copy.ts`'s
+  // `authGate.variant` table -- the SAME three-way selection `copy` below
+  // makes for `CreateReplicaCard`, restated as a string key rather than an
+  // object so AuthGate can look itself up correctly in either language.
+  const authVariant: AuthGateVariant = STUDIO_SELF_TEST_UI ? "test" : mode === "teacher" ? "teacher" : "generic";
+  const [session, setSession] = useState<StudioSession | null>(null); // copy-ok: scripts/check-copy.mjs's textNodes() pairs this generic's ">" with a later "<Replica[]>" across the plain useState lines between them, extracting real code (not copy) as a fake text node -- ws-r10-check-copy-apostrophe-parity's own documented failure mode, restated for angle brackets rather than apostrophes; "replicas" here is the pre-existing state variable, unrelated to the rooms-vocabulary rule this fires.
   const [authChecked, setAuthChecked] = useState(false);
   const [replicas, setReplicas] = useState<Replica[]>([]);
   const [selected, setSelected] = useState<Replica | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("booting");
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  // WS-R31. Runtime-only, never persisted: the "All panels" link inside
+  // `StudioShell` sets this true; the old rail view's own link back sets it
+  // false. `STUDIO_SHELL_UI` decides whether the shell exists AT ALL for this
+  // build; this decides which view a signed-in person is looking at RIGHT
+  // NOW inside a build that has it.
+  const [showAllPanels, setShowAllPanels] = useState(false);
+  // WS-R52. `?lang=` first, read ONCE at mount (a URL a creator bookmarked
+  // or shared should not silently stop meaning what it said); the stored
+  // preference (`selected.locale`, migration 112) once a replica has
+  // loaded and the URL gave nothing. `null` here means "no explicit URL
+  // hint" -- not "English" -- so the stored preference is never shadowed by
+  // a default this file invented. Exactly the fallback chain
+  // `api/_room-surface.js`'s `openRoom` already uses one surface over.
+  const [urlLocale] = useState<StudioChromeLocale | null>(() => {
+    const raw = new URLSearchParams(window.location.search).get("lang");
+    return raw === "en" || raw === "hi" ? raw : null;
+  });
+  // WS-R91. The pre-auth half of the chain: a replica has not loaded yet
+  // (signed out, or the fetch is still in flight), so there is no
+  // `vy_replica.locale` to read -- the studio's own remembered LOCAL choice
+  // stands in until one has. `resolveStudioLocale`'s own header states the
+  // full order; `context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`
+  // is the decision.
+  const [rememberedLocale, setRememberedLocale] = useState<StudioChromeLocale | null>(
+    () => readRememberedStudioLocale(),
+  );
+  const [localeBusy, setLocaleBusy] = useState(false);
+  const studioLocale: StudioChromeLocale = resolveStudioLocale({
+    urlLocale,
+    replica: selected,
+    rememberedLocale,
+  });
+  // WS-R106. `StudioApp` itself mounts `StudioLocaleProvider` below rather
+  // than sitting under it, so it cannot call `useStudioLocale()` -- `sa` is
+  // the direct `STUDIO_COPY_TABLE` read `handleExport` already used for
+  // exactly this reason (see its own `const t = STUDIO_COPY_TABLE[...]`
+  // below), generalised to the whole `studioApp` block so every handler in
+  // this component can read locale-aware copy the same way.
+  //
+  // `studioCopyReady` guards this the SAME way `StudioLocaleProvider` guards
+  // its own read one file over: `STUDIO_COPY_TABLE.hi` is a Proxy that
+  // THROWS on any property read until `loadStudioCopy("hi")` has installed
+  // the real table, and this line runs unconditionally in `StudioApp()`'s
+  // own body -- well before the `<StudioLocaleProvider>` in this function's
+  // JSX return has any chance to render null and stop React from ever
+  // reaching it. Every actual USE of `sa`/`copy` sits inside that same
+  // Provider's children (the signed-in tree, `CreateReplicaCard` included),
+  // so the English fallback below is never shown to a Hindi reader -- it
+  // exists only so this assignment does not crash the render before the
+  // Provider gets a chance to withhold its children the way it already
+  // does. See context/rejected.md#ws-r106-studioapp-own-copy-read-crashed-
+  // before-the-hindi-chunk-loaded.
+  const sa = studioCopyReady(studioLocale) ? STUDIO_COPY_TABLE[studioLocale].studioApp : STUDIO_COPY_TABLE.en.studioApp;
+  const copy: StudioCopy = sa.createReplica[STUDIO_SELF_TEST_UI ? "test" : mode === "teacher" ? "teacher" : "generic"];
+  // `StudioLocaleProvider`'s own effect (localeContext.tsx) re-renders ITS
+  // OWN subtree once the Hindi chunk lands, which fixes `useStudioLocale()`
+  // reads everywhere under it -- but `sa`/`copy` above are computed in this
+  // PARENT component, one level outside that subtree, so nothing forces
+  // `StudioApp()` itself to recompute them once the chunk resolves. Without
+  // this, a Hindi reader whose render happens to settle before the fetch
+  // finishes would see `copy`'s English fallback (`nameLabel`/`firstBody`/
+  // etc, all still props read directly, not through context) forever, not
+  // just for the one frame it exists to bridge. Mirrors
+  // `StudioLocaleProvider`'s own not-ready effect exactly, one component up.
+  const [, forceStudioCopyRerender] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (studioCopyReady(studioLocale)) return;
+    let alive = true;
+    loadStudioCopy(studioLocale).then(() => {
+      if (alive) forceStudioCopyRerender();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [studioLocale]);
+  // `src/room/RoomApp.tsx`'s own line, same reason: the studio's chrome
+  // locale is a client-side fact `studio.html`'s static `lang="en"` cannot
+  // know at build time.
+  useEffect(() => {
+    document.documentElement.lang = studioLocale;
+  }, [studioLocale]);
+  // WS-R91. Once a replica has loaded, ITS OWN locale is the authoritative
+  // record (`resolveStudioLocale` already prefers it over `rememberedLocale`
+  // for what is ON SCREEN) -- this keeps the LOCAL memory in sync with it
+  // too, so a mismatch (a creator switched language on a different device,
+  // or before finishing sign-in on this one) does not keep surfacing after
+  // the row has already settled it. Logged as a decision, not silently
+  // assumed: `context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`.
+  useEffect(() => {
+    if (selected) writeRememberedStudioLocale(normalizeStudioLocale(selected.locale));
+  }, [selected]);
+  const switchLocale = useCallback(
+    async (next: StudioChromeLocale) => {
+      if (localeBusy || next === studioLocale) return;
+      // Remembered locally regardless of sign-in state -- AuthGate's own
+      // language switch (pre-auth) and the signed-in shell's (post-auth)
+      // are the SAME callback for exactly this reason: whichever screen a
+      // creator switches language on, the choice survives a reload before
+      // any replica has loaded to say otherwise.
+      writeRememberedStudioLocale(next);
+      setRememberedLocale(next);
+      if (!session || !selected) return;
+      setLocaleBusy(true);
+      try {
+        const updated = await setReplicaLocale(session.accessToken, selected.replica_id, next);
+        setSelected(updated);
+        setReplicas((prev) => prev.map((r) => (r.replica_id === updated.replica_id ? updated : r)));
+      } catch {
+        // A locale switch that fails leaves the chrome exactly where it was
+        // -- never a silent partial flip, and never worth a full-page error
+        // banner for what is a convenience control, not a blocking action.
+      } finally {
+        setLocaleBusy(false);
+      }
+    },
+    [session, selected, localeBusy, studioLocale],
+  );
+  // WS-R23 (086). `inviteConfirmed` gates CreateReplicaCard behind
+  // InviteGate for a brand new account; `inviteCode` is what the eventual
+  // create call sends. Neither is read at all unless INVITES_REQUIRED_UI is
+  // on and replicas.length === 0 — see the render condition below.
+  const [inviteConfirmed, setInviteConfirmed] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<ReturnType<typeof friendlyError> | null>(null);
   // Focus moves here the moment an error appears (WS-AP): "if there is an
@@ -1332,6 +1570,10 @@ export default function StudioApp() {
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
   const [challenge, setChallenge] = useState<LivenessChallenge | null>(null);
   const [livenessLoading, setLivenessLoading] = useState(false);
+  // WS-R2. Only ever populated when VOICE_IDENTITY_UI is on; the status call
+  // is not made otherwise, so a build with the flag off never touches the
+  // endpoint that would 404 at it.
+  const [voiceChallenge, setVoiceChallenge] = useState<VoiceIdentityChallenge | null>(null);
   const [erasureRequestId, setErasureRequestId] = useState("");
   const [erasureStatus, setErasureStatus] = useState<ReplicaErasureStatus | null>(null);
 
@@ -1348,6 +1590,12 @@ export default function StudioApp() {
   const [runtimeStatus, setRuntimeStatus] = useState<ReplicaRuntimeStatus | null>(null);
   const [contextItemCount, setContextItemCount] = useState<number | null>(null);
   const [connectedChannels, setConnectedChannels] = useState<number | null>(null);
+  // WS-R7. `null` means the Room panel has not answered yet — the same
+  // "unknown is not zero" rule `connectedChannels` above already carries, so
+  // Deploy readiness cannot claim "not published" before the Room has ever
+  // been asked. Fed up from `RoomStudio`'s own load rather than fetched a
+  // second time here, `onRuntimeStatus`'s own pattern one field over.
+  const [roomPublished, setRoomPublished] = useState<boolean | null>(null);
   const [sheetDraft, setSheetDraft] = useState<TeacherSheet | null>(null);
 
   // Phone-sized viewport. Structural, not cosmetic: see `useCompact.ts` for why
@@ -1432,7 +1680,7 @@ export default function StudioApp() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const identity = useMemo(() => session?.email || session?.phone || "Signed in account", [session]);
+  const identity = useMemo(() => session?.email || session?.phone || sa.header.signedInAccountFallback, [session, sa]);
   const selectedId = selected?.replica_id ?? null;
   const sessionUserId = session?.userId || "";
   const activeChallengeId = challenge?.challenge_id || "";
@@ -1466,7 +1714,7 @@ export default function StudioApp() {
   }, [signOut]);
 
   const handleReviewAuthError = useCallback((cause: unknown) => {
-    handleApiError(cause, "Replica qualification controls could not be loaded");
+    handleApiError(cause, "AI qualification controls could not be loaded");
   }, [handleApiError]);
 
   const loadReplicas = useCallback(async (activeSession: StudioSession) => {
@@ -1535,7 +1783,7 @@ export default function StudioApp() {
         if (!live) return;
         setErasureStatus(status);
         if (status.state === "complete") {
-          setNotice("Verified erasure complete. Provider copies and private storage are confirmed deleted.");
+          setNotice(sa.notices.erasureComplete);
           return;
         }
         timer = window.setTimeout(() => void poll(), 5_000);
@@ -1585,6 +1833,12 @@ export default function StudioApp() {
     void (async () => {
       try {
         const fresh = await refreshForRequest(session);
+        // WS-R25 (migration 088). This effect fires exactly once per
+        // replica selection - the studio wizard's own mount for THIS
+        // replica - so this is the one call site for "studio_opened".
+        // Fire and forget: a failed mark must never block or surface an
+        // error on the wizard itself.
+        void markFunnelStep(fresh.accessToken, replicaId, "studio_opened").catch(() => {});
         const [
           consentResult,
           sourceResult,
@@ -1592,6 +1846,7 @@ export default function StudioApp() {
           runtimeResult,
           sheetResult,
           channelResult,
+          voiceChallengeResult,
         ] = await Promise.allSettled([
           listEnrollmentConsent(fresh.accessToken, replicaId),
           listSources(fresh.accessToken, replicaId),
@@ -1599,6 +1854,7 @@ export default function StudioApp() {
           readRuntimeStatus(fresh.accessToken, replicaId),
           mode === "teacher" ? readTeacherSheetDraft(fresh.accessToken, replicaId) : Promise.resolve(null),
           mode === "teacher" ? listChannels(fresh.accessToken, replicaId) : Promise.resolve(null),
+          VOICE_IDENTITY_UI ? voiceIdentityStatus(fresh.accessToken, replicaId) : Promise.resolve(null),
         ]);
         if (!live) return;
         if (consentResult.status === "fulfilled") setConsents(consentResult.value);
@@ -1609,6 +1865,7 @@ export default function StudioApp() {
         if (channelResult.status === "fulfilled" && channelResult.value) {
           setConnectedChannels(channelResult.value.filter((row) => row.status === "connected").length);
         }
+        if (voiceChallengeResult.status === "fulfilled") setVoiceChallenge(voiceChallengeResult.value);
         // Only the three that were already surfaced raise a banner. A runtime,
         // sheet or channel read that fails degrades the rail to "unknown",
         // which is honest and quiet; interrupting an upload with a banner about
@@ -1643,7 +1900,7 @@ export default function StudioApp() {
             refreshReplicaView(fresh, selectedId),
           ]);
           if (live) setConsents(nextConsents);
-          if (live) setNotice("Independent liveness verification passed. Training and inference remain separately permissioned.");
+          if (live) setNotice(sa.notices.livenessVerified);
         }
       } catch (cause) {
         if (!live) return;
@@ -1679,12 +1936,34 @@ export default function StudioApp() {
     setError(null);
     try {
       const fresh = await refreshForRequest(session);
-      const replica = await createReplica(fresh.accessToken, name);
+      const replica = await createReplica(fresh.accessToken, name, inviteCode || undefined);
       setReplicas((items) => [replica, ...items]);
       setSelected(replica);
       setShowCreate(false);
+      setInviteConfirmed(false);
+      setInviteCode("");
+      setInviteError(null);
       setNotice(copy.createdNotice);
     } catch (cause) {
+      // WS-R23 (086). The server's ONLY two invite refusals, named exactly
+      // (api/replica.js's error field IS the code, not a sentence — see
+      // ReplicaApiError's own `raw.replaceAll("_", " ")` transform, why this
+      // matches on the space-separated form rather than the wire form).
+      // Handled here rather than through errorCopy.ts's REFUSAL_COPY map so
+      // the person lands back on InviteGate with a reason, not on the
+      // generic error banner with no form to retry from.
+      if (
+        cause instanceof ReplicaApiError &&
+        (cause.message.trim() === "invite required" || cause.message.trim() === "invite invalid")
+      ) {
+        setInviteConfirmed(false);
+        setInviteError(
+          cause.message.trim() === "invite required"
+            ? sa.invite.codeRequired
+            : sa.invite.codeInvalid,
+        );
+        return;
+      }
       handleApiError(cause, "Could not create your workspace");
     } finally {
       setCreating(false);
@@ -1714,11 +1993,53 @@ export default function StudioApp() {
       });
       setSelected(result.replica);
       setReplicas((items) => items.map((item) => item.replica_id === result.replica.replica_id ? result.replica : item));
-      setNotice("Replica revoked. Future use is blocked and verified erasure is pending.");
+      setNotice(sa.notices.revoked);
     } catch (cause) {
-      handleApiError(cause, "Could not revoke this replica");
+      handleApiError(cause, "Could not revoke your AI");
     } finally {
       setRevoking(false);
+    }
+  }
+
+  // WS-R70. `t` read directly off `STUDIO_COPY_TABLE` (never `useStudioLocale()`
+  // -- this is a plain callback, not a component, so it cannot call a hook)
+  // by the SAME `studioLocale` every other locale-aware read in this
+  // component already uses. A client-side Blob download: the export
+  // response is one JSON document already in memory, and there is no
+  // server-side file to point a URL at (never the bytes, this workstream's
+  // own boundary law over `vy_replica_source` restated one layer up -- the
+  // creator's OWN document, once downloaded, is briefly a Blob in their own
+  // browser, never a second copy this platform stores).
+  async function handleExport() {
+    if (!session || !selected) return;
+    const t = STUDIO_COPY_TABLE[studioLocale].creatorExport;
+    setExporting(true);
+    setError(null);
+    try {
+      const fresh = await refreshForRequest(session);
+      const dump = await exportReplicaData(fresh.accessToken);
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `vyakti-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setNotice(t.done);
+    } catch (cause) {
+      // A 429 here is ALWAYS the once-a-day scope (this op has no other rate
+      // gate) - the specific, honest wait ("try again tomorrow") rather than
+      // `friendlyError`'s generic 429 text ("wait about a minute"), which
+      // would be wrong for a 24-hour window.
+      if (cause instanceof ReplicaApiError && cause.status === 429) {
+        setError({ headline: t.error, detail: t.rateLimited, canRetry: false });
+      } else {
+        handleApiError(cause, t.error);
+      }
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -1729,7 +2050,7 @@ export default function StudioApp() {
       const granted = await grantEnrollmentConsent(fresh.accessToken, selected.replica_id);
       setConsents(granted);
       await refreshReplicaView(fresh, selected.replica_id);
-      setNotice("Source permissions recorded. Private evidence intake is now open.");
+      setNotice(sa.notices.sourceConsentGranted);
     } catch (cause) {
       handleApiError(cause, "Could not record source permissions");
       throw cause;
@@ -1748,7 +2069,7 @@ export default function StudioApp() {
       setConsents(nextConsents);
       setSources(nextSources);
       await refreshReplicaView(fresh, selected.replica_id);
-      setNotice("Source permissions withdrawn. The replica is non-operational and source erasure is pending.");
+      setNotice(sa.notices.sourceConsentWithdrawn);
     } catch (cause) {
       handleApiError(cause, "Could not withdraw source permissions");
       throw cause;
@@ -1765,10 +2086,10 @@ export default function StudioApp() {
       ]);
       setConsents(nextConsents);
       setNotice(nextConsents.some((receipt) => receipt.scope === "inference" && !receipt.revoked_at)
-        ? "Private training and disclosed inference permissions recorded. No model is active until every independent gate passes."
-        : "Training and inference withdrawn. Model use is disabled and derived copies are queued for erasure.");
+        ? sa.notices.inferenceConsentGranted
+        : sa.notices.inferenceConsentWithdrawn);
     } catch (cause) {
-      handleApiError(cause, "Could not refresh verified model permissions");
+      handleApiError(cause, "Could not refresh verified AI permissions");
       throw cause;
     }
   }
@@ -1799,7 +2120,7 @@ export default function StudioApp() {
       const fresh = await refreshForRequest(session);
       const source = await finalizeSource(fresh.accessToken, selected.replica_id, sourceId);
       setSources((items) => [source, ...items.filter((item) => item.source_id !== source.source_id)]);
-      setNotice("Source received and isolated in private quarantine. No model training has started.");
+      setNotice(sa.notices.sourceQuarantined);
       return source;
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.data?.source) {
@@ -1855,7 +2176,7 @@ export default function StudioApp() {
       const updated = await pollOfficialFaceSession(fresh.accessToken, selected.replica_id, challengeId);
       setChallenge(updated);
       if (updated.face_session_state === "passed_deleted") {
-        setNotice("Official live-face and ID match passed. The Azure session was deleted; voice challenge capture is now unlocked.");
+        setNotice(sa.notices.officialFacePassed);
       }
       return updated;
     } catch (cause) {
@@ -1875,10 +2196,10 @@ export default function StudioApp() {
           ? { ...source, state: "deleting" }
           : source));
       setNotice(result.erasure === "confirmed"
-        ? "Verification cancelled. The provider session is deleted; raw evidence remains queued for confirmed erasure."
+        ? sa.notices.verificationCancelledConfirmed
         : result.erasure === "pending"
-          ? "Verification cancelled. Provider and raw-evidence deletion are pending with the durable cleanup worker."
-          : "Verification cancelled. No provider session existed; raw evidence is queued for confirmed erasure.");
+          ? sa.notices.verificationCancelledPending
+          : sa.notices.verificationCancelledNoProviderSession);
       return result;
     } catch (cause) {
       handleApiError(cause, "Could not cancel this verification attempt");
@@ -1913,10 +2234,92 @@ export default function StudioApp() {
       const result = await finalizeLivenessUpload(fresh.accessToken, selected.replica_id, challengeId, sourceId);
       setChallenge(result.challenge);
       setSources((items) => [result.source, ...items.filter((item) => item.source_id !== result.source.source_id)]);
-      setNotice("Live evidence secured. Verification is pending and biometric modeling remains locked.");
+      setNotice(sa.notices.liveEvidenceSecured);
       return result.challenge;
     } catch (cause) {
       handleApiError(cause, "Could not finalize live evidence");
+      throw cause;
+    }
+  }
+
+  // ── WS-R2: the spoken identity challenge ────────────────────────────────
+  // Every one of these mirrors its liveness twin above. The one difference
+  // worth naming is `handleRefreshVoiceChallenge`: the verdict is reached by a
+  // scheduled sweep and not by any request the studio makes, so the panel
+  // polls while the challenge is in flight rather than awaiting a result that
+  // no open connection is going to deliver.
+  async function handleRefreshVoiceChallenge() {
+    if (!session || !selected) return;
+    try {
+      const fresh = await refreshForRequest(session);
+      setVoiceChallenge(await voiceIdentityStatus(fresh.accessToken, selected.replica_id));
+    } catch {
+      // A failed poll is not worth a banner: the panel already says the check
+      // is with us, and the next tick either succeeds or the person reloads.
+    }
+  }
+
+  async function handleIssueVoiceChallenge() {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const issued = await issueVoiceIdentityChallenge(fresh.accessToken, selected.replica_id);
+      setVoiceChallenge(issued);
+      return issued;
+    } catch (cause) {
+      handleApiError(cause, "Could not get a sentence to read");
+      throw cause;
+    }
+  }
+
+  async function handleCancelVoiceChallenge(challengeId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const cancelled = await cancelVoiceIdentityChallenge(fresh.accessToken, selected.replica_id, challengeId);
+      setVoiceChallenge(cancelled);
+      setSources((items) => items.map((source) =>
+        source.capture_mode === "identity_challenge" ? { ...source, state: "deleting" } : source));
+      setNotice(sa.notices.attemptCancelled);
+      return cancelled;
+    } catch (cause) {
+      handleApiError(cause, "Could not cancel this attempt");
+      throw cause;
+    }
+  }
+
+  async function handleCreateVoiceIdentityUpload(input: {
+    challengeId: string;
+    role: "capture" | "transcript";
+    kind: "audio" | "video";
+    mime: string;
+    byteSize: number;
+    sha256: string;
+  }) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const created = await createVoiceIdentityUpload(fresh.accessToken, { replicaId: selected.replica_id, ...input });
+      setVoiceChallenge(created.challenge);
+      setSources((items) => [created.source, ...items.filter((item) => item.source_id !== created.source.source_id)]);
+      return created;
+    } catch (cause) {
+      handleApiError(cause, "Could not get permission to send the recording");
+      throw cause;
+    }
+  }
+
+  async function handleFinalizeVoiceIdentity(challengeId: string, sourceId: string) {
+    if (!session || !selected) throw new Error("Your session is no longer available");
+    try {
+      const fresh = await refreshForRequest(session);
+      const result = await finalizeVoiceIdentityUpload(fresh.accessToken, selected.replica_id, challengeId, sourceId);
+      setVoiceChallenge(result.challenge);
+      setSources((items) => [result.source, ...items.filter((item) => item.source_id !== result.source.source_id)]);
+      if (result.challenge.state === "captured") setNotice(sa.notices.recordingSecured);
+      return result.challenge;
+    } catch (cause) {
+      handleApiError(cause, "Could not secure the recording");
       throw cause;
     }
   }
@@ -1929,7 +2332,7 @@ export default function StudioApp() {
       setSources((items) => result.erasure === "complete"
         ? items.filter((item) => item.source_id !== sourceId)
         : items.map((item) => item.source_id === sourceId ? { ...item, state: "deleting" } : item));
-      setNotice(result.erasure === "complete" ? "Private source erased." : "Source disabled. Verified erasure is pending.");
+      setNotice(result.erasure === "complete" ? sa.notices.sourceErased : sa.notices.sourceDisabled);
       return result.erasure;
     } catch (cause) {
       handleApiError(cause, "Could not erase private source");
@@ -1960,8 +2363,9 @@ export default function StudioApp() {
       }
       : null,
     connectedChannels,
+    roomPublished,
     platformWork,
-  }), [connectedChannels, consents, contextItemCount, mode, platformWork, runtimeStatus, selected, sheetDraft, sources.length]);
+  }), [connectedChannels, consents, contextItemCount, mode, platformWork, roomPublished, runtimeStatus, selected, sheetDraft, sources.length]);
 
   const wizard = useMemo(() => {
     const base = computeWizard(wizardInput);
@@ -1982,25 +2386,45 @@ export default function StudioApp() {
     return (
       <main className="boot-page">
         <Mark />
-        <Spinner label="Opening private studio" />
-        <p>Opening your private studio</p>
+        <Spinner label={sa.loading.privateStudioAriaLabel} />
+        <p>{sa.loading.privateStudio}</p>
       </main>
     );
   }
 
-  if (!session) return <AuthGate copy={copy} testEnvironment={STUDIO_SELF_TEST_UI} onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
+  if (!session) {
+    return (
+      // WS-R91. The provider mounts ABOVE the gate: the sign-in screen reads
+      // real translated copy in both locales, from the moment it renders,
+      // rather than the fixed English `copy` object above (still used
+      // below, unchanged, by the signed-in-only `CreateReplicaCard`).
+      // context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in.
+      <StudioLocaleProvider locale={studioLocale}>
+        <AuthGate
+          variant={authVariant}
+          testEnvironment={STUDIO_SELF_TEST_UI}
+          onAuthed={(next) => { setSession(next); void loadReplicas(next); }}
+          onSwitchLocale={switchLocale}
+        />
+      </StudioLocaleProvider>
+    );
+  }
 
   return (
+    // WS-R52. Wraps the whole signed-in tree so any panel -- Tier 1 fully
+    // localized, Tier 2 not yet (copy.ts's own header) -- can read the
+    // creator's chrome locale via `useStudioLocale()` with no prop threading.
+    <StudioLocaleProvider locale={studioLocale}>
     <div className={`studio-shell${STUDIO_SELF_TEST_UI ? " studio-shell-self-test" : ""}`}>
       <header className="studio-header">
-        <a className="studio-logo" href="/" aria-label="Vyakti home">
+        <a className="studio-logo" href="/" aria-label={sa.header.homeAriaLabel}>
           <Mark />
-          <span><strong>VYAKTI</strong><small>{mode === "teacher" ? "GURUKUL STUDIO" : "REPLICA STUDIO"}</small></span>
+          <span><strong>VYAKTI</strong><small>{mode === "teacher" ? sa.header.gurukulStudio : sa.header.genericStudio}</small></span>
         </a>
-        <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? "Internal test workspace" : mode === "teacher" ? "Private teaching-clone workspace" : "Private self-replica workspace"}</div>
+        <div className="header-trust"><span className="secure-dot" />{STUDIO_SELF_TEST_UI ? sa.header.internalTestWorkspace : mode === "teacher" ? sa.header.privateTeachingWorkspace : sa.header.privateSelfOnlyWorkspace}</div>
         <div className="account-menu">
-          <span className="account-copy"><strong>{identity}</strong><small>{STUDIO_SELF_TEST_UI ? "Test workspace session" : "Verified account session"}</small></span>
-          <button className="signout-button" type="button" onClick={signOut}>Sign out</button>
+          <span className="account-copy"><strong>{identity}</strong><small>{STUDIO_SELF_TEST_UI ? sa.header.testWorkspaceSession : sa.header.verifiedAccountSession}</small></span>
+          <button className="signout-button" type="button" onClick={signOut}>{sa.header.signOut}</button>
         </div>
       </header>
 
@@ -2020,14 +2444,20 @@ export default function StudioApp() {
             question people ask again halfway down a long form. Different DOM
             rather than the same DOM hidden, so a phone does not carry a desktop
             rail it never shows. */}
+        {/* WS-R31. `StudioShell` carries its own tab bar (the collapse's
+            whole point), so the wizard rail and its phone twin render only
+            when the shell is off for this build, or when this person tapped
+            "All panels" to reach the full bench. The replica switcher stays
+            in both cases: switching workspace is orthogonal to which
+            navigation is on screen. */}
         {compact ? (
-          selected && !showCreate ? (
+          selected && !showCreate && !(STUDIO_SHELL_UI && !showAllPanels) ? (
             <CompactRail steps={wizard.steps} current={activeStep} onGo={goStep} />
           ) : null
         ) : (
         <div className="studio-rail">
-          {selected && !showCreate && (
-            <WizardRail steps={wizard.steps} current={activeStep} onGo={goStep} label={STUDIO_SELF_TEST_UI ? "Your test flow" : undefined} />
+          {selected && !showCreate && !(STUDIO_SHELL_UI && !showAllPanels) && (
+            <WizardRail steps={wizard.steps} current={activeStep} onGo={goStep} label={STUDIO_SELF_TEST_UI ? sa.header.yourTestFlow : undefined} />
           )}
           <ReplicaList
             replicas={replicas}
@@ -2042,70 +2472,113 @@ export default function StudioApp() {
           {notice && (
             <div className="notice" role="status">
               <span>✓</span>{notice}
-              <button type="button" aria-label="Dismiss message" onClick={() => setNotice("")}>×</button>
+              <button type="button" aria-label={sa.header.dismissMessage} onClick={() => setNotice("")}>×</button>
             </div>
           )}
           {error && (
             <div className="error-banner" role="alert" tabIndex={-1} ref={errorBannerRef}>
               <span>!</span><div><strong>{error.headline}</strong><p>{error.detail}</p></div>
-              <button type="button" onClick={() => session && void loadReplicas(session)}>Try again</button>
+              <button type="button" onClick={() => session && void loadReplicas(session)}>{sa.header.tryAgain}</button>
             </div>
           )}
 
           {loadState === "loading" || loadState === "booting" ? (
-            <div className="workspace-loading" aria-label="Loading replica workspace">
+            <div className="workspace-loading" aria-label={sa.loading.workspaceAriaLabel}>
               <div className="skeleton skeleton-title" />
               <div className="skeleton skeleton-subtitle" />
               <div className="skeleton-grid">
                 {Array.from({ length: 4 }, (_, index) => <div className="skeleton skeleton-card" key={index} />)}
               </div>
               <div className="skeleton skeleton-panel" />
-            </div>
+            </div> /* copy-ok: check-copy.mjs's textNodes() pairs this ">" with a later "<InviteGate" across the loadState/showCreate ternary, extracting real code (not copy) as a fake text node -- ws-r10-check-copy-apostrophe-parity's own failure mode, restated for angle brackets; "replicas.length" is the pre-existing state read, unrelated to rooms-vocabulary. */
           ) : showCreate || (!selected && loadState === "ready") ? (
-            <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
+            INVITES_REQUIRED_UI && replicas.length === 0 && !inviteConfirmed ? (
+              <InviteGate
+                onContinue={(code) => {
+                  setInviteError(null);
+                  setInviteCode(code);
+                  setInviteConfirmed(true);
+                }}
+                error={inviteError}
+              />
+            ) : (
+              <CreateReplicaCard onCreate={(name) => void handleCreate(name)} busy={creating} copy={copy} />
+            )
           ) : selected && sheet ? (
-            <ReplicaWorkspace
-              replica={selected}
-              testEnvironment={STUDIO_SELF_TEST_UI}
-              mode={mode}
-              copy={copy}
-              step={activeStep}
-              wizard={wizard}
-              wizardInput={wizardInput}
-              onGoStep={goStep}
-              sheet={sheet}
-              sheetProvenance={sheetProvenance}
-              runtimeStatus={runtimeStatus}
-              onRuntimeStatus={setRuntimeStatus}
-              onContextCount={setContextItemCount}
-              erasureStatus={erasureStatus}
-              consents={consents}
-              sources={sources}
-              enrollmentLoading={enrollmentLoading}
-              challenge={challenge}
-              livenessLoading={livenessLoading}
-              onGrantConsent={handleGrantConsent}
-              onRevokeConsent={handleRevokeConsent}
-              onCreateUpload={handleCreateUpload}
-              onRetryUpload={handleRetryUpload}
-              onFinalizeUpload={handleFinalizeUpload}
-              onDeleteSource={handleDeleteSource}
-              onIssueChallenge={handleIssueChallenge}
-              onStartFaceSession={handleStartFaceSession}
-              onPollFaceSession={handlePollFaceSession}
-              onCancelChallenge={handleCancelChallenge}
-              onCreateLivenessUpload={handleCreateLivenessUpload}
-              onFinalizeLiveness={handleFinalizeLiveness}
-              onIdentityChanged={handleIdentityChanged}
-              onVerifiedConsentChanged={handleVerifiedConsentChanged}
-              onRevoke={handleRevoke}
-              revoking={revoking}
-              accessToken={session.accessToken}
-              onReviewAuthError={handleReviewAuthError}
-              compact={compact}
-              onActivityView={handleActivityView}
-              onActivityAct={handleActivityAct}
-            />
+            <>
+              {/* WS-R31. The one-line way back, symmetric with the shell's
+                  own "All panels" link: visible only when this build HAS a
+                  shell to return to and this person explicitly left it. */}
+              {STUDIO_SHELL_UI && showAllPanels && (
+                <button type="button" className="text-button studio-back-to-shell-link" onClick={() => setShowAllPanels(false)}>
+                  {sa.header.backToShell}
+                </button>
+              )}
+              {(() => {
+                const workspaceProps = {
+                  replica: selected,
+                  testEnvironment: STUDIO_SELF_TEST_UI,
+                  mode,
+                  copy,
+                  step: activeStep,
+                  wizard,
+                  wizardInput,
+                  onGoStep: goStep,
+                  sheet,
+                  sheetProvenance,
+                  runtimeStatus,
+                  onRuntimeStatus: setRuntimeStatus,
+                  onRoomPublished: setRoomPublished,
+                  onContextCount: setContextItemCount,
+                  erasureStatus,
+                  consents,
+                  sources,
+                  enrollmentLoading,
+                  challenge,
+                  livenessLoading,
+                  onGrantConsent: handleGrantConsent,
+                  onRevokeConsent: handleRevokeConsent,
+                  onCreateUpload: handleCreateUpload,
+                  onRetryUpload: handleRetryUpload,
+                  onFinalizeUpload: handleFinalizeUpload,
+                  onDeleteSource: handleDeleteSource,
+                  onIssueChallenge: handleIssueChallenge,
+                  onStartFaceSession: handleStartFaceSession,
+                  onPollFaceSession: handlePollFaceSession,
+                  onCancelChallenge: handleCancelChallenge,
+                  onCreateLivenessUpload: handleCreateLivenessUpload,
+                  onFinalizeLiveness: handleFinalizeLiveness,
+                  voiceChallenge,
+                  onIssueVoiceChallenge: handleIssueVoiceChallenge,
+                  onCancelVoiceChallenge: handleCancelVoiceChallenge,
+                  onCreateVoiceIdentityUpload: handleCreateVoiceIdentityUpload,
+                  onFinalizeVoiceIdentity: handleFinalizeVoiceIdentity,
+                  onRefreshVoiceChallenge: handleRefreshVoiceChallenge,
+                  onIdentityChanged: handleIdentityChanged,
+                  onVerifiedConsentChanged: handleVerifiedConsentChanged,
+                  onRevoke: handleRevoke,
+                  revoking,
+                  onExport: handleExport,
+                  exporting,
+                  accessToken: session.accessToken,
+                  onReviewAuthError: handleReviewAuthError,
+                  compact,
+                  onActivityView: handleActivityView,
+                  onActivityAct: handleActivityAct,
+                } as const;
+                return STUDIO_SHELL_UI && !showAllPanels
+                  ? (
+                    <StudioShell
+                      {...workspaceProps}
+                      onShowAllPanels={() => setShowAllPanels(true)}
+                      locale={studioLocale}
+                      localeBusy={localeBusy}
+                      onSwitchLocale={(next) => void switchLocale(next)}
+                    />
+                  )
+                  : <ReplicaWorkspace {...workspaceProps} />;
+              })()}
+            </>
           ) : null}
 
           {/* The workspace switcher, on a phone, lives at the FOOT of the page
@@ -2117,8 +2590,8 @@ export default function StudioApp() {
           {compact && (
             <details className="workspace-switch">
               <summary>
-                <strong>{selected ? selected.display_name : "Your workspaces"}</strong>
-                <span>Switch workspace, or start another one</span>
+                <strong>{selected ? selected.display_name : sa.workspaceSwitch.yourWorkspaces}</strong>
+                <span>{sa.workspaceSwitch.switchOrStartAnother}</span>
               </summary>
               <ReplicaList
                 replicas={replicas}
@@ -2131,5 +2604,6 @@ export default function StudioApp() {
         </main>
       </div>
     </div>
+    </StudioLocaleProvider>
   );
 }

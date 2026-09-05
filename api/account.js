@@ -17,9 +17,32 @@
 //                                          DPDP memory-consent ledger (#148)
 
 import { allow, ipOf } from "./_ratelimit.js";
+import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
 import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ── WS-R32: the OTP doors behind vy_public_rate (closes ws-r26-otp-doors-
+// not-behind-vy-public-rate) ────────────────────────────────────────────────
+//
+// send_sms and verify_sms are the sign-in the Room uses, and until now both
+// were guarded ONLY by the in-memory `otp_dest` throttle below - per WARM
+// LAMBDA INSTANCE, so it resets on every cold start and is invisible to every
+// other instance or region a determined caller can land on next. It stays,
+// as a fast first layer with no database round trip; the calls below add a
+// SECOND, persistent layer in vy_public_rate (WS-R26, api/_rate-limit.js)
+// that survives both. Every limit and its reason lives in that file's
+// DEFAULT_LIMITS, under otp_send_ip/otp_send_dest/otp_verify_ip/
+// otp_verify_dest - named there rather than restated here, same discipline
+// api/room.js's `refused` already keeps.
+async function refused(res, scope, key) {
+  const gate = await consume(q, { scope, key });
+  if (gate.ok) return false;
+  res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+  res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  return true;
+}
 
 const rest = (path, params, opts = {}) => {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -50,6 +73,8 @@ export default async function handler(req, res) {
 
   try {
     const b = req.body || {};
+    // WS-R89: the one shared cap every POST door checks first.
+    if (bodyTooLarge(b, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     const op = b.op;
 
     if (op === "send_otp") {
@@ -58,22 +83,51 @@ export default async function handler(req, res) {
       // per-DESTINATION throttle (independent of IP): stops email-bombing a
       // victim address through rotating IPs
       if (!allow(email, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
+      // WS-R51 (evals/room-doors, the door-battery widening): `send_sms`
+      // below has carried the SAME two persistent, cross-instance layers
+      // since WS-R32 (`otp_send_ip`/`otp_send_dest`, this file's own header);
+      // `send_otp` never got them, so a warm-lambda-only in-memory throttle
+      // (`otp_dest` above) was its entire defense, invisible to every other
+      // instance or region a determined caller could land on next -
+      // precisely the gap WS-R32's own header names as the reason
+      // `vy_public_rate` exists at all. Wired here rather than left, per this
+      // workstream's law 3 ("anything a case finds is fixed").
+      if (await refused(res, "otp_send_ip", ipOf(req))) return;
+      if (await refused(res, "otp_send_dest", email)) return;
       return passthrough(res, await authFetch("otp", { email, create_user: true }));
     }
     if (op === "verify_otp") {
       const email = String(b.email || "").trim().toLowerCase();
+      // WS-R51: `verify_sms` below carries `otp_verify_ip`/`otp_verify_dest`
+      // (WS-R32); `verify_otp` carried NEITHER - the generic per-IP `account`
+      // scope at the top of this handler (20/window, every op on this door)
+      // was the only thing standing between a guessed email OTP and a
+      // successful verify. Wired here, `verify_sms`'s own two-scope shape.
+      if (!email) return res.status(400).json({ error: "valid email required" });
+      if (await refused(res, "otp_verify_ip", ipOf(req))) return;
+      if (await refused(res, "otp_verify_dest", email)) return;
       return passthrough(res, await authFetch("verify", { type: "email", email, token: String(b.token || "") }));
     }
     if (op === "send_sms") {
       const phone = String(b.phone || "").replace(/[^\d+]/g, "");
       if (phone.length < 8) return res.status(400).json({ error: "valid phone required" });
       // per-DESTINATION throttle: SMS pumping is real toll fraud — a number
-      // can be hit at most twice a minute regardless of source IPs
-      if (!allow(phone, "otp_dest", 2)) return res.status(429).json({ error: "slow down" });
+      // can be hit at most a few times a minute regardless of source IPs.
+      // Fast first layer (see the WS-R32 header above); the two persistent
+      // scopes below are the ceiling that survives a cold start.
+      if (!allow(phone, "otp_dest", 3)) return res.status(429).json({ error: "slow down" });
+      if (await refused(res, "otp_send_ip", ipOf(req))) return;
+      if (await refused(res, "otp_send_dest", phone)) return;
       return passthrough(res, await authFetch("otp", { phone, create_user: true }));
     }
     if (op === "verify_sms") {
       const phone = String(b.phone || "").replace(/[^\d+]/g, "");
+      // WS-R32: validate BEFORE gating - a malformed destination is refused
+      // here and never reaches consume(), so it never touches the counter
+      // (evals/rate-limit/run.mjs's own negative control on this point).
+      if (phone.length < 8) return res.status(400).json({ error: "valid phone required" });
+      if (await refused(res, "otp_verify_ip", ipOf(req))) return;
+      if (await refused(res, "otp_verify_dest", phone)) return;
       return passthrough(res, await authFetch("verify", { type: "sms", phone, token: String(b.token || "") }));
     }
     if (op === "google_url") {

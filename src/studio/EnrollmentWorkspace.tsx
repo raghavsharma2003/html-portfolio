@@ -588,7 +588,7 @@ export default function EnrollmentWorkspace({
           <h2 id="enrollment-title">{testEnvironment ? "Add audio, video, screenshots, or documents" : "Permission first, then anything you upload"}</h2>
         </div>
         {!testEnvironment && (
-          <p>Account consent opens private source intake. Biometric modeling, training, inference, and sharing stay locked.</p>
+          <p>Account consent opens private source intake. Voice setup, building your AI, running it, and sharing stay locked.</p>
         )}
       </div>
 
@@ -607,8 +607,8 @@ export default function EnrollmentWorkspace({
           {consentActive ? (
             <>
               <p className="consent-lede">
-                You permitted Vyakti to receive, transcribe, and privately store sources for this replica.
-                This is not permission for biometric modeling, voice training, generation, sharing, telephony, or model improvement.
+                You permitted Vyakti to receive, transcribe, and privately store sources for your AI.
+                This is not permission for biometric setup, building your AI's voice, generation, sharing, telephony, or improving your AI.
               </p>
               <div className="receipt-grid">
                 {REQUIRED_SCOPES.map((scope) => (
@@ -623,7 +623,7 @@ export default function EnrollmentWorkspace({
           ) : (
             <>
               <p className="consent-lede">
-                These permissions cover only source intake. You can withdraw them later. Withdrawal makes the replica non-operational
+                These permissions cover only source intake. You can withdraw them later. Withdrawal makes your AI non-operational
                 and queues its private sources for erasure.
               </p>
               <div className="scope-grid" aria-label="Permissions being requested">
@@ -713,7 +713,7 @@ export default function EnrollmentWorkspace({
                       <p>
                         {voiceSources.length && labeledVoiceSourceCount < voiceSources.length
                           ? "One or more existing voice sources have no language label. Label them in the source ledger, or add a short calibration."
-                          : "Add a short, clean sample in the missing language before you judge that language in the clone."}
+                          : "Add a short, clean sample in the missing language before you judge that language in your AI."}
                       </p>
                     </div>
                     <div className="language-gap-actions">
@@ -861,7 +861,7 @@ export default function EnrollmentWorkspace({
 
               {uploadMode === "identity_document" && (
                 <p className="identity-source-note" role="status">
-                  Identity-only mode bypasses memory extraction and model-training queues. The document is available only to the independent identity and live-match gates, then queued for erasure.
+                  Identity-only mode bypasses memory extraction and the queues that build your AI. The document is available only to the independent identity and live-match gates, then queued for erasure.
                 </p>
               )}
 
@@ -962,7 +962,7 @@ export default function EnrollmentWorkspace({
             <div className="modal-stop">PAUSE</div>
             <h2 id="withdraw-title">Withdraw source permissions?</h2>
             <p>
-              The replica becomes non-operational. Capture and storage permission end immediately, and every private source is queued for erasure.
+              Your AI becomes non-operational. Capture and storage permission end immediately, and every private source is queued for erasure.
               You can grant new permission later, but erased sources cannot be recovered.
             </p>
             <label className="field-label" htmlFor="withdraw-confirmation">Type WITHDRAW to confirm</label>
@@ -983,7 +983,7 @@ export default function EnrollmentWorkspace({
             <div className="modal-stop">ERASE</div>
             <h2 id="delete-source-title">Erase this private source?</h2>
             <p>
-              The original file is deleted from private storage. Claims and model versions derived from it must be invalidated and rebuilt.
+              The original file is deleted from private storage. Claims and AI versions derived from it must be invalidated and rebuilt.
               This action cannot be undone.
             </p>
             <label className="field-label" htmlFor="delete-source-confirmation">Type ERASE to confirm</label>

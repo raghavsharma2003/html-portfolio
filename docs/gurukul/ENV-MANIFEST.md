@@ -476,6 +476,12 @@ it is the value an owner pastes into their own `setWebhook` call, and it is
 compared in constant time on every update regardless of which clone the `?ch=`
 resolves to. A missing configured secret refuses every request, unchanged.
 
+**Verified (WS-R41, 2026-09-04)** against `core.telegram.org/bots/api#setwebhook`:
+the header is `X-Telegram-Bot-Api-Secret-Token`, 1-256 characters,
+`[A-Za-z0-9_-]` only — matches `api/tg.js`'s own `secretOk()` exactly. See
+that file's own header for what else this pass verified and fixed (a stale
+`reply_to_message_id` field, replaced by `reply_parameters` per Bot API 7.0).
+
 ### WhatsApp, per clone
 
 The existing `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` remain
@@ -484,6 +490,33 @@ per-teacher. `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` remain the
 fallback pair for a single-tenant lane; a bound clone gets its own
 `phone_number_id` from `vy_clone_channel.external_ref` and its own access token
 from the secret store, and never touches either variable.
+
+**Verified (WS-R41, 2026-09-04)** against
+`developers.facebook.com/docs/graph-api/webhooks/getting-started`: the
+signature header is `X-Hub-Signature-256`, `sha256=` + HMAC-SHA256 of the raw
+payload under the App Secret — matches `api/whatsapp.js`'s own
+`signatureOk()` exactly. See that file's own header for the full set of
+shapes this pass checked against Meta's own documents.
+
+### Provider contract marks (WS-R60, 2026-09-04)
+
+WS-R41 (2026-09-04) verified most provider-contract marks against the
+providers' own documents and left four open by name; this pass closed all
+four (two fully VERIFIED via cross-checked secondary sources where the
+primary page is unreachable by this session's fetch tool, two ANSWERED from
+the provider's own reference where the mark was an operator question rather
+than a code shape). Full citations:
+`context/measurements.md#ws-r60-open-provider-marks-2026-09-04`.
+
+| mark | status |
+|---|---|
+| Razorpay `updateSubscriptionQuantity` (subscription seat PATCH) | VERIFIED |
+| Razorpay `registerFundAccount` (fund account GET) | VERIFIED |
+| Razorpay `sendPayout` (payout POST) | VERIFIED |
+| RazorpayX payout webhook events (`payout.processed`/`failed`/`reversed` and 5 more) + payload | VERIFIED |
+| RazorpayX webhook signature (same `X-Razorpay-Signature`/HMAC-SHA256 mechanism as Subscriptions) | VERIFIED |
+| Telegram `setMessageReaction` body shape | VERIFIED (via the Bot API changelog + a typed SDK, not the primary reference page — it still truncates for this session's fetch tool) |
+| Meta: can one WABA/number's webhook be delivered to two apps or URLs | ANSWERED — yes, via the Subscribed Apps API (`POST /<WABA_ID>/subscribed_apps`), which is a different mechanism from the per-app webhook override; still an operator's call which shape to use, not a code decision |
 
 See `docs/gurukul/INSTAGRAM-DM-GAP.md` §3 for why WhatsApp is not yet
 self-serve (Tech Provider enrolment + Embedded Signup) and §1–2 for why
@@ -853,3 +886,516 @@ directory, not as an `api/*` route. SPEC §4 did not flag this. It is a sixth
 service the deploy runbook has to either build or contract out, not merely
 configure, before `AZURE_IDENTITY_REVIEW_PATH_APPROVED` can honestly become
 `true`.
+
+## 25. Vyakti Rooms v1 additions (`vercel-app` + `web build`, WS-R1..R10, 2026-09-03)
+
+Six workstreams merged as Vyakti Rooms v1 (`context/STATE.md`'s "main loop,
+Rooms merge" session log entry). Two of them introduced env-gated surfaces;
+one reused two existing sweep names against two new handlers. Every row below
+was checked against the file:line that reads it, same discipline as §1-24.
+
+### The owner identity path (WS-R2)
+
+`api/_replica-voice-identity.js` (all decisions), `api/replica-voice-identity.js`
+(the handler), `api/replica-voice-identity-sweep.js` (the attempt-expiry cron),
+and `src/studio/VoiceIdentityChallenge.tsx` (the capture UI). **Two independent
+flags, one per side of the HTTP boundary, and BOTH must be set for the seam to
+do anything** — this is deliberately not one name shared between server and
+build, because a Vite `import.meta.env.*` value is baked into the JS bundle at
+build time while `process.env.*` is read fresh per request, and conflating the
+two would mean "flip it on" sometimes needs a redeploy and sometimes does not,
+silently depending on which side you touched.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VOICE_IDENTITY_CHALLENGE` | `api/_replica-voice-identity.js:389` (`voiceIdentityChallengeEnabled`), read by `api/replica-voice-identity.js:60` and `api/replica-voice-identity-sweep.js:33` | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | the handler answers `404 not_found` on every op and the sweep answers `{ok:true, disabled:true}` — no challenge row is ever created, scored or expired, server-side |
+| `VITE_VOICE_IDENTITY_CHALLENGE` | `src/studio/StudioApp.tsx:130` via `voiceIdentityChallengeUiEnabled()` (`src/studio/voiceIdentityApi.ts:6`) | optional (switch) | must equal the exact string `"1"`; **this is a Vite build-time env var, baked into the bundle by `npx vite build` — setting it on Vercel requires a rebuild to take effect, unlike every `process.env` var in this file** | the capture card never mounts, even if the server flag above is on — a teacher can never reach the UI that would create a challenge |
+
+Setting only one of the pair is a real, reachable state: `VOICE_IDENTITY_CHALLENGE=1`
+alone leaves the API live with no UI path to it (reachable only by a direct
+API call); `VITE_VOICE_IDENTITY_CHALLENGE=1` alone renders a card whose every
+request 404s. Both default OFF, so the deployed tree is byte-identical in
+behaviour to pre-WS-R2 until the main loop sets both
+(`context/STATE.md`'s WS-R2 session log entry: "Both env flags default off, so
+the deployed tree is unchanged until the main loop turns them on").
+
+Two independent measurements gate a challenge internally (ECAPA cosine against
+the owner's own VoiceGenome reference at accept ≥0.78 / review 0.70-0.78 /
+reject <0.70, and a Sarvam transcript overlap plus the spoken nonce) — neither
+is a separate env var; both read the existing `api/_fidelity.js` and `SARVAM_API_KEY`
+(§15b) seams. **Unverified**: whether Sarvam returns Latin or Devanagari script
+for this sentence bank is untested against the live service
+(`context/rejected.md#romanised-lexicon-meets-devanagari-asr`), and there is no
+different-speaker control anywhere in this repo, so the 0.70 reject floor is
+inherited rather than earned (WS-R2's own session log entry says this
+directly).
+
+### Vendor voice bench arms (WS-R6)
+
+`api/_voice/providers/vendor-common.js`, `elevenlabs-pvc.js`, `sarvam-bulbul.js`,
+wired into `api/_voice/registry.js`. **Bench arms only** — `VOICE_LANE_ORDER`
+(the shipped default) is unchanged by any var below; they exist to make
+`context/decisions.md#platform-north-star`'s reversal condition ("the
+self-hosted lane stays materially below the vendor lane after fine-tuning
+effort") testable, and only that.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VOICE_VENDOR_ARMS` | `api/_voice/providers/vendor-common.js:36` (`VENDOR_ARMS_ENV`), read by `enabledVendorArms()` | optional (switch) | empty string → both arms return `available:false, reason:"vendor_arm_not_enabled:VOICE_VENDOR_ARMS", blocker:"waiting_on_you"` | neither bench arm is reachable; comma-separated list of `elevenlabs`, `sarvam` (e.g. `VOICE_VENDOR_ARMS=elevenlabs,sarvam`) |
+| `ELEVENLABS_API_KEY` | `api/_voice/providers/elevenlabs-pvc.js:80,102` (`vendorApiKey`) | required *once the arm is enabled above* | throws `elevenlabs_api_key_required` | the ElevenLabs arm construction 503s with that named reason |
+| `ELEVENLABS_MODEL_ID` | `api/_voice/providers/elevenlabs-pvc.js:83` (`pinnedModelId`) | optional | defaults `"eleven_multilingual_v2"`; rejects a value containing `"latest"` (same law as every other pinned-model var in this file) | none |
+| `ELEVENLABS_CLONE_MODE` | `api/_voice/providers/elevenlabs-pvc.js:84` | optional | defaults `"instant"` | none — `"professional"` mode is the multi-minute training path this file's own header says "cannot complete inside one request" |
+| `SARVAM_TTS_MODEL` | `api/_voice/providers/sarvam-bulbul.js:87` | optional | defaults `"bulbul:v3"` | none |
+| `SARVAM_TTS_SPEAKER` | `api/_voice/providers/sarvam-bulbul.js:89` | optional | defaults `"priya"` | none |
+| `VOICE_PRIMARY_LANE` | `api/_voice/registry.js:152` (`primarySynthesisLane`) | optional | unset → shipped order, self-hosted first, unchanged | naming a lane this file does not know throws `voice_primary_lane_unknown`; naming a real lane that is not configured throws rather than silently falling back to self-hosted — an operator who asks for a vendor primary and gets self-hosted audio without an error has been told the opposite of the truth about what produced it |
+
+`SARVAM_TTS_MODEL`/`SARVAM_TTS_SPEAKER` are new names, but the Sarvam arm's
+**credential** is the pre-existing `SARVAM_API_KEY` (§15b) — its third
+call site in this manifest now (self-hosted-ASR fallback, the processing
+worker's `transcribe` step, and this TTS bench arm), all in the same
+deployment target (`vercel-app`), so — unlike the cross-deployment pattern
+this file's header warns about — this one genuinely is the same setting doing
+three jobs, not three settings sharing a name.
+
+**Nothing here has ever been contacted.** No vendor key exists in any
+environment this repo's sessions can reach; no vendor audio has ever been
+produced; there is no listening result or similarity number for either arm
+(WS-R6's own session log entry). One matched pack costs about USD 0.048 on
+ElevenLabs and INR 0.81 on Sarvam at list prices read 2026-09-03.
+
+### Two more cron consumers of the existing `CRON_SECRET` (WS-R2, WS-R9)
+
+No new var — add these two handlers to §15's consumer list. Same comparator,
+same 24-byte minimum, same failure shape (a silent 401 on a schedule nobody is
+watching) as the five it already names.
+
+| cron | schedule (`vercel.json`) | handler | consumed at |
+|---|---|---|---|
+| identity-challenge attempt sweep | `*/5 * * * *` | `api/replica-voice-identity-sweep.js` | `:23` |
+| drift-watch sweep | `0 */6 * * *` | `api/drift-watch-sweep.js` | `:23` |
+
+`api/drift-watch-sweep.js` is the **sole writer** of `vy_replica_drift_report`
+(migration 076) — `api/drift-watch.js` (the owner-facing read) is deliberately
+read-only, so an unset `CRON_SECRET` here does not just delay an alert, it
+means drift is never computed for anyone, on any schedule, until the next time
+a human happens to open the studio and a synchronous read recomputes it
+inline (if that path exists — **unverified in this pass**, not read as part of
+this reconciliation).
+
+### The studio project's model keys — still absent
+
+Every LLM-backed reply in this repo, on every surface, leaves through exactly
+one of two doors, and both need a model key nobody has set on the **studio**
+Vercel project (`vyakti-replica-lab`, distinct from the `html-portfolio`
+project per this file's own "not one setting" rule — §22's Meera vars living
+on one Vercel project's dashboard does not set them on another project that
+happens to build from the same GitHub repo):
+
+- `api/chat.js:155` (the direct chat endpoint) explicitly checks
+  `process.env.OPENROUTER_API_KEY || OPENROUTER_KEY` (config fallback), a free
+  Google key pool (`poolSize()`), and `azureConfigured()` (`AZURE_KEY` +
+  `AZURE_ENDPOINT`) together, and returns `500 {"error":"no key configured"}`
+  by name when all three are absent.
+- `api/_surface.js:287` (`think()` — the ONE call every other surface's
+  `gatedReply()` routes through, per that file's own header: "One copy for
+  every surface — a second copy is a second set of sampling parameters nobody
+  remembers to keep in step") reads only `process.env.OPENROUTER_API_KEY`
+  directly, with no Google/Azure fallback. **This is a different failure
+  shape from `api/chat.js`'s, not the same one**: an empty key makes the
+  OpenRouter fetch fail its own `.ok` check, and `think()` catches that and
+  returns `""` rather than throwing or naming a reason — so a Room `say`, a
+  Mirror Call reply, a Telegram/WhatsApp turn or an embedded-widget message
+  does not 500 with `"no key configured"`, it hands `gatedReply()`'s honesty
+  gate an EMPTY model reply. **What a follower actually receives from that —
+  a named refusal, a blank message, or something `gateReply`'s own fallback
+  produces — was not traced further in this pass and is marked unverified
+  here rather than guessed at**, per this project's own law that a plausible
+  return hiding a dead pipeline is worse than a loud one.
+
+Neither `OPENROUTER_KEY`/`OPENROUTER_API_KEY`, `GOOGLE_KEYS`, `AZURE_KEY` nor
+`AZURE_ENDPOINT` (§22) has ever been set on the studio project
+(`context/STATE.md`'s "main loop, Rooms merge" session log entry: "Still
+owner-gated: model keys on the studio Vercel project (its chat API answers
+'no key configured')..."). This is a **separate gap from every subsystem in
+§1-24**, which are all replica/voice/identity plumbing — this is the base
+completion call underneath the Room, the Mirror Call, and every channel, and
+without it none of them can produce a reply at all, regardless of how many
+Rooms-specific vars above are set correctly.
+
+## 26. The studio collapsed to Feed/Meet/Share (`vercel-app`, WS-R31, 2026-09-04)
+
+`src/studio/StudioShell.tsx` (`web build`), read at `src/studio/StudioApp.tsx`.
+**One new build-time flag, a presentation switch only** — every panel it
+fronts (`ReplicaWorkspace`, unchanged) is the same component reading the same
+data behind the same blockers whether this is on or off; nothing here is a
+new capability, a new gate, or a new SQL statement.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `VITE_STUDIO_SHELL` | `src/studio/StudioApp.tsx` (`STUDIO_SHELL_UI`) | optional (switch) | **UNSET = ON**, the one flag in this file with that default; only the exact string `"0"` turns it off | unset or any value other than `"0"`: a signed-in creator sees the three-tab shell (Feed / Meet / Share) as the default view, with a plain "All panels" link one tap away to the old wizard rail (`StudioShell.tsx`'s own `onShowAllPanels`, a runtime view toggle, not a rebuild). Set to `"0"`: the studio renders exactly as it did before this workstream, and the shell component is never mounted. This is a Vite build-time env var (baked into the bundle by `npx vite build`, same caveat §25's `VITE_VOICE_IDENTITY_CHALLENGE` row already names): flipping it on Vercel needs a rebuild to take effect |
+
+**Why unset = on, against this file's own pattern of every other flag
+defaulting off.** Every prior flag in this manifest gates a NEW capability
+this codebase had not earned trust in yet (a spoken identity challenge, an
+invite wall) — defaulting off is the safe direction for something that might
+not work. This flag gates a REARRANGEMENT of capabilities that already exist
+and are already gated exactly as they were (`context/decisions.md#ws-r31-studio-shell-unset-is-on`):
+the whole point of WS-R31 is that a creator reaches the same panels sooner,
+so a deploy that forgot to set this var should still ship the shorter path,
+not silently keep the longer one. The rollback lever is the in-page "All
+panels" link, not this var — the var exists only so a real production defect
+in the shell can be switched off without a person's browser cache serving a
+stale bundle in between.
+
+**Where the shell gets its three headline reads**, none of them a new
+fetch: `src/studio/ReplicaWorkspace` (exported for the first time this
+workstream, unchanged otherwise) now accepts three additive, optional
+callback props — `onReadiness`, `onInterviewPreview`, `onRoomState` — wired
+to `ReadinessPanel`, `MirrorCallStudio` and `RoomStudio` respectively, each
+already computing the exact fact the shell needs on the exact read it was
+already making. `RoomStudio.tsx` and `MirrorCallStudio.tsx` gained the same
+kind of additive prop; no existing caller of either is affected, since both
+default to `undefined` and are called with the optional-chaining operator
+they were both already written with (`onStatusChange?.(...)`'s own pattern).
+
+**No new SQL. No new server-side env var.** Everything this workstream
+touches is `src/studio/`, `scripts/check-layout.mjs` (a new named layout
+target, `studio:shell`) and `evals/studio-shell/` (a new offline gate).
+
+## 27. The payout status webhook (`vercel-app`, WS-R56, migration 111, 2026-09-04)
+
+`api/payout-webhook.js` (the door, `POST /api/payout-webhook`, auto-routed by
+Vercel's own file-based convention — **no `vercel.json` rewrite added**,
+matching `api/payments-webhook.js`/`api/_room-telegram.js`'s own webhook
+doors, none of which needed one either), `api/_payments.js`'s
+`applyPayoutWebhook`, and `api/_payments/providers/{fake,razorpay}.js`'s new
+`verifyPayoutWebhook`/`parsePayoutEvent` pair. Closes the open item
+`context/STATE.md` and this workstream's own brief both name: WS-R36 built
+`markPayoutSent`/`markPayoutSettled` with no caller anywhere in this tree;
+this workstream gives `settled`/`failed` a real caller (a `sent`-marking
+caller remains unbuilt — see `api/_payments.js`'s own comment on
+`applyPayoutWebhook` for why its WHERE spans `queued`/`sent` rather than
+assuming the missing step ran).
+
+The three PAYMENTS\_\* vars below existed before this workstream
+(`api/_payments.js`'s `providerSecrets`) and were never listed in this
+manifest — a pre-existing gap, out of this workstream's own scope to close
+in full; only the ONE var this workstream adds is a new row here.
+
+| name | consumed at | required | fallback | breaks without it |
+|---|---|---|---|---|
+| `PAYMENTS_FAKE_PAYOUT_WEBHOOK_SECRET` | `api/_payments.js:providerSecrets` (the `fake` branch) | optional | unset falls back to the SAME value as `PAYMENTS_FAKE_WEBHOOK_SECRET` (pre-existing, also undocumented before this row) | nothing breaks — a deployment that never sets this one keeps signing/verifying the payout webhook with the identical secret the Subscriptions webhook already uses, which is the byte-for-byte fake-provider behaviour this workstream shipped with in `evals/payouts` and `evals/room-doors` |
+
+**The `razorpay` provider's own secret carries one new OPTIONAL field, not a
+new env var**: `providerSecrets`'s `razorpay` branch already returns
+whatever JSON keys live behind `PAYMENTS_SECRET_REF` unfiltered (§ this
+file never documented before — `accountNumber`, read by
+`api/_payments/providers/razorpay.js`'s `sendPayout`, is the existing
+precedent for an unvalidated optional field in that same blob).
+`applyPayoutWebhook` reads `secrets.payoutWebhookSecret`, falling back to
+`secrets.webhookSecret` when absent — an operator who configures RazorpayX's
+payout webhook with its own signing secret adds a `payoutWebhookSecret` key
+to that JSON blob; an operator who reuses one webhook secret for both
+products never has to.
+
+**NOT VERIFIED (named, not guessed — WS-R56, 2026-09-04).** This
+workstream's brief permitted no network beyond 127.0.0.1 and npm (only
+WS-R60 may fetch provider documentation this wave), so nothing about
+RazorpayX's own payout webhook was checked against a live document this
+session. Marked by name in `api/_payments/providers/razorpay.js`'s own
+comments on `verifyPayoutWebhook` and `parsePayoutEvent`:
+  - the header name `X-Razorpay-Signature` for a PAYOUT webhook specifically
+    (assumed identical to the Subscriptions webhook's own header, which WAS
+    fetched and cited, 2026-09-03 — see that file's `verifyWebhookSignature`);
+  - the envelope shape `{event, payload:{payout:{entity:{...}}}}` (assumed
+    from the SAME skeleton the Subscriptions/Payments webhooks use, per
+    `api/_payments.js`'s own `parseWebhookPayload`);
+  - the exact webhook EVENT NAMES `payout.processed`/`payout.reversed`/
+    `payout.failed`/`payout.rejected` (the Payouts Entity's own `status`
+    values were partially confirmed by WS-R41's `sendPayout` fetch,
+    2026-09-04; the WEBHOOK event names for the same outcomes were not
+    independently fetched);
+  - whether RazorpayX issues a SEPARATE signing secret for a payout webhook
+    at all (the reason `payoutWebhookSecret` exists as an optional field
+    rather than an assumed-shared one).
+
+Reversal condition for all four: whoever can next reach
+`razorpay.com`'s own RazorpayX payout-webhook page (or a sandbox account)
+confirms or corrects them — `context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-page-fetch-tool-two-ways`
+names the exact URLs that resisted a single-page fetch tool for the
+adjacent Payouts API this session reused conventions from.
+
+**No other new env var.** The rate limit gate reuses the EXISTING
+`payments_webhook_ip` scope (`api/_rate-limit.js`) rather than minting a
+second one — both doors are the same provider's own delivery IPs, not a
+person — so `api/_rate-limit.js` is untouched by this workstream.
+
+## 28. UPI Autopay, verified (`vercel-app`, WS-R69, 2026-09-05)
+
+**No new env var.** This workstream verified the follower Room's UPI Autopay
+mandate against Razorpay's own documents, fixed the fake provider twin to
+emit a realistic event sequence, and added the checkout disclosure copy the
+brief required — no new secret, no new `PAYMENTS_*` variable. `evals/payments/run.mjs`
+grew from 78 to 98 assertions (§12–§15); `evals/renewals/run.mjs` (54) and
+`evals/payments-reconcile/run.mjs` (38, the WS-R42 ledger/reconcile suite)
+were run and are UNCHANGED, per this workstream's own law 4.
+
+| mark | status | citation |
+|---|---|---|
+| How a Subscription is created for UPI Autopay (payment_method/upi fields) | **VERIFIED** — answered "there is no such field" | `razorpay.com/docs/payments/subscriptions/create/`, fetched 2026-09-05: the documented request body is `plan_id`, `customer_notify`, `total_count`, `quantity`, `start_at`, `expire_by`, `notes`, `addons` — no method/payment-method field anywhere; UPI Autopay is picked on Razorpay's own hosted Checkout page, never in this call |
+| The mandate amount versus the plan amount | **VERIFIED** | `razorpay.com/docs/payments/subscriptions/workflow/`, fetched 2026-09-05, quoted verbatim: "Immediate start: charged the plan amount (not refunded); Future start: charged ₹5 (auto-refunded)" — `createSubscription` never sends `start_at`, so the mandate's own authentication transaction IS the plan amount |
+| Pre-debit notification timing | **VERIFIED** | `razorpay.com/blog/what-is-upi-autopay-recurring-payments-razorpay-subscriptions/`, fetched 2026-09-05, quoted verbatim: "pre-debit notifications will be sent to consumers 24 hours prior to the debit" |
+| Pre-debit notification sender, for UPI specifically | **STILL OPEN** | the only page reachable that names a sender (`razorpay.com/docs/announcements/rbi-card-mandate-guidelines/subscriptions/`, via the cloudfront mirror) scopes it to CARD e-mandates ("Banks should send customers a pre-debit notification..."), not UPI; `npci.org.in` was unreachable across six attempts — `context/rejected.md#ws-r69-npci-org-in-unreachable-by-this-sessions-fetch-tool` |
+| Rs 15,000 ceiling (existence) | **VERIFIED (by an earlier workstream, unchanged)** | `api/_payments/providers/razorpay.js`'s own header, "RBI's Digital Payments E-mandate Framework, 2026... fetched 2026-09-03" |
+| Rs 15,000 ceiling — what happens above it | **STILL OPEN** | no `razorpay.com`/`npci.org.in` page this session reached states it directly; not consequential today (every Room price, Rs 299–599, is two orders of magnitude under it) |
+| Webhook events handled vs ignored | **VERIFIED (unchanged — already fully answered)** | `api/_payments.js`'s own `KIND_TO_STATE`: handled = `authenticated`/`activated`/`charged`/`resumed`/`paused`/`halted`/`cancelled`/`completed`; ignored (logged only) = `pending`, `payment.failed` |
+| Only the customer can resume a customer-paused Subscription | **VERIFIED, a new finding** | `razorpay.com/docs/payments/subscriptions/faqs/`, fetched 2026-09-05, quoted verbatim: "No. You cannot resume a Subscription paused by your customer. Only your customer can resume such Subscriptions." — this is why the Room has no "resume" button anywhere (confirmed by grep) and why `copy.ts`'s new `paused` copy says "resume it from your UPI app," never a dead in-Room control |
+| Seat-quantity updates do not work on a UPI/Emandate subscription | **VERIFIED, a new finding, OUT OF THIS WORKSTREAM'S SCOPE** | same FAQ page, quoted verbatim: "You can only update a Subscription authorised using cards and not via UPI and Emandate." Affects `api/_payments.js`'s `updateOrgSeats` (the SUITE seat lane, a different lane than this workstream's brief), which calls `updateSubscriptionQuantity` unconditionally — a real gap if a Suite's own subscription is ever authorised via UPI, named here rather than fixed (out of scope) |
+
+**What changed in code**, all in the follower Room lane only:
+- `api/_payments/providers/fake.js`: new `mandateEventSequence()` — the fake
+  twin now emits `authenticated -> activated -> charged... [-> halted]` in
+  Razorpay's own documented order, so `evals/payments/run.mjs` §12/§13 drive
+  the REAL state machine through a realistic multi-cycle lifecycle rather
+  than one hand-picked kind at a time.
+- `api/_payments.js`: `followerSubscriptionStatus` now derives a `'halted'`
+  DISPLAY state (never a stored one — `vy_room_subscription_state_check`,
+  migration 078, is UNCHANGED, no widening needed) from the most recent
+  matching `vy_payment_event.kind` when the stored state is `'paused'`. New
+  SQL (for EXPLAIN): `select kind from vy_payment_event where subscription_id
+  = ($1)::uuid and kind in ('subscription.paused', 'subscription.halted')
+  order by received_at desc limit 1` — runs ONLY when the stored state is
+  already `'paused'`, so every other read pays nothing new.
+- `src/room/copy.ts` / `RoomApp.tsx`: the checkout disclosure (`pay.mandateNote`/
+  `mandateNoteNoPrice`, both locales) rendered at all three subscribe
+  surfaces (the plain capped screen, the cap-reached offer, the
+  session-worked offer); `account.subscriptionStates.halted` added, `paused`
+  reworded to name the UPI app, both locales.
+- `src/room/roomPayApi.ts`: `RoomSubscriptionState.state` widened (TypeScript
+  union only — no CHECK, no migration) to include the virtual `'halted'`
+  value the API can now return.
+
+See `context/measurements.md#ws-r69-upi-autopay-verification-2026-09-05` for
+the full citation table and `context/decisions.md`/`context/rejected.md` for
+the fixed shapes and the closed fetch paths.
+
+## 29. Suites on UPI, the locked-seat path (`vercel-app`, WS-R73, 2026-09-05)
+
+**No new env var, no new migration.** This workstream closed WS-R69's own
+finding 6(a): Razorpay refuses `updateSubscriptionQuantity` (the Suite
+lane's own `updateOrgSeats`) outright when the subscription was authorised
+via UPI Autopay or Emandate. `evals/org-billing/run.mjs` grew from 40 to
+50 assertions (§6); `evals/payments/run.mjs` grew from 98 to 104 (§16);
+`evals/suites-self-serve/run.mjs` grew from 60 to 68 (§7, the disclosure
+proof). No SQL statement changed shape (`updateOrgSeats` already ran the
+same five queries; this workstream adds a PROVIDER call, never a new
+database read or write, ahead of its existing `update vy_org_subscription
+set seats = ...` write, and only when `sub.provider_subscription_ref` is
+already set).
+
+| mark | status | citation |
+|---|---|---|
+| The supported path when quantity cannot change | **VERIFIED** | `razorpay.com/docs/api/payments/subscriptions/update-subscription/`, fetched 2026-09-05, quoted verbatim: a UPI-authorised subscription's update is rejected with "subscriptions cannot be updated when payment mode is UPI", Emandate with "...emandate", and "the advised approach is to cancel and create a new Subscription if changes are needed" |
+| A distinct "upgrade this mandate to a card" operation | **VERIFIED, and it does not exist** | no document this session reached names a payment-method-change endpoint separate from cancel-and-recreate; Checkout (the same `short_url` `createSubscription` already returns) is where a payer picks card, UPI or Emandate every time, including on a subscription created after a cancellation, so "start a new subscription and pick a card" is the SAME documented path, not a second one |
+| Where the payment method is learned | **the provider's subscription read** (`getSubscription`, `api/_payments/providers/razorpay.js`), never a new ledger column | see `context/decisions.md#ws-r73-provider-read-not-a-ledger-column-for-the-mandate-method` |
+| The `payment_method` field on `GET /v1/subscriptions/:id` | **VERIFIED WITH A NAMED CAVEAT** | `github.com/razorpay/razorpay-node/blob/master/documents/subscription.md` (Razorpay's own official Node SDK docs repository), fetched 2026-09-05: the field appears on a "Delete offer linked to a subscription" sample response (`"payment_method":"card"`), which also returns a full Subscription entity; the PLAIN fetch-by-id sample in the SAME document does not show it. A corroborating (not primary) community capture of a live fetch-by-id response shows the identical field on the plain response too. Only `"card"` was seen in a sample; `"upi"`/`"emandate"` are this platform's own two other documented methods, never independently seen inside this field by this session — `getSubscription`'s own caller therefore fails OPEN toward "updatable" on an unrecognised third value, per its own header |
+
+**What changed in code**, the Suite lane only:
+- `api/_payments/providers/razorpay.js`: new `getSubscription(providerSubscriptionRef, secrets)`
+  (`GET /v1/subscriptions/:id`), returning `{payment_method}`.
+- `api/_payments/providers/fake.js`: the same function, an in-memory twin
+  defaulting an unset ref to `'card'` (every eval written before this
+  workstream expects an update to succeed); new test-only
+  `setFakeSubscriptionMethod`, `updateSubscriptionQuantityCallCountForTest`,
+  `resetUpdateSubscriptionQuantityCallCountForTest`.
+- `api/_payments.js`: `updateOrgSeats` calls `getSubscription` BEFORE
+  `updateSubscriptionQuantity` and refuses, named `org_seats_locked_by_mandate`
+  (`details: {payment_method, path: "cancel_and_create_new_subscription"}`),
+  before either the provider PATCH or the local `seats` write, when the
+  method is `upi` or `emandate` (case-insensitive).
+- `src/studio/copy.ts`: a new top-level `suiteSeatLock` section (both
+  locales), appended after `creatorExport`, the last existing section —
+  `mandateNote` (shown before checkout) and `seatsLockedByMandate` (shown
+  when the refusal above actually happens).
+- `src/studio/SuiteCard.tsx`: renders `mandateNote` above "Start Suite
+  subscription"; `addSeat`'s own catch shows `seatsLockedByMandate` instead
+  of the generic reason-code text when `updateOrgSeats` refuses
+  `org_seats_locked_by_mandate`.
+- `site/suites.html`: a second `price-take` paragraph per locale, in the
+  Pricing section (before the Start-a-Suite form), stating the same fact.
+
+See `context/measurements.md#ws-r73-suites-on-upi-verification-2026-09-05`
+for the fuller mark table and `context/decisions.md`/`context/rejected.md`
+for the seam decision and what stayed open.
+## 30. Dormancy (`vercel-app`, WS-R75, migration 119, 2026-09-05)
+
+A follower who has not visited for a long time is told, then forgotten with
+a receipt, on a schedule the follower can see, behind a flag that is off.
+No new person table — both new columns ride existing rows (`vy_room.
+dormancy_days`, `vy_room_follower.dormancy_notice_at`). See `api/_dormancy.js`'s
+own header for the full mechanism.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `ROOM_DORMANCY` | `api/_dormancy.js:dormancyEnabled()`, read by `api/renewals-sweep.js`'s handler and `api/_dormancy.js:dormancyThisWeek()` | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | **off (default)**: the columns exist the moment migration 119 is applied, an owner can still set `dormancy_days` on their own Room and a follower's account page still renders the policy sentence — but the daily sweep (`api/renewals-sweep.js`, WS-R37's own `0 0 * * *` cron) runs neither of `api/_dormancy.js`'s two statements, so no notice is ever sent and no follower is ever forgotten by this mechanism. **on**: the sweep also notices due followers and forgets overdue ones through the REAL `roomForgetForFollower` (`api/_room-surface.js`), every run |
+
+No new cron entry — `ROOM_DORMANCY` gates a step folded into WS-R37's existing
+`renewals-sweep` cron (this workstream's own law 2: "the daily sweep gains
+two statements"), never a second `vercel.json` crons entry. The owner sets
+this on Vercel like any other `process.env` var (not a `VITE_` build-time
+flag — no frontend rebuild needed to flip it).
+
+`ROOM_TELEGRAM_BOT_TOKEN` (already in this manifest, §15c) is reused, not
+invented, for the one real delivery channel this workstream wires (a
+dormancy notice's Telegram DM). Web push is deliberately NOT attempted — a
+real, previously undiscovered gap found while building this workstream:
+`public/room-sw.js`'s own push handler drops any payload whose `t` is not
+the literal string `"checkin"`, so `api/_renewals.js`'s own `t:"renewal"`
+push (WS-R37) is already silently discarded on arrival, unproven end to
+end. See `context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-
+checkin-payload`. WhatsApp stays structurally present and inert: no
+dormancy-specific template is approved (this repo has only
+`vyakti_checkin_v1`, `api/_room-whatsapp.js`), and Meta refuses free-form
+text outside an approved template.
+
+## 31. Handoff v1 on the relational kernel (`vercel-app`, WS-R87, 2026-09-05)
+
+`api/_relational-core.js` is a new, dependency-free module (no imports at
+all) evaluating Handoff's disclosure act. No migration — the policy version
+it evaluates under already existed on migration 083's own table. See
+`docs/gurukul/HANDOFF-KERNEL.md` for the full mechanism and what was ported
+from, and left in, the sibling repo's kernel.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `ROOM_HANDOFF_KERNEL` | `api/_handoff.js:handoffKernelEnabled()`, read by `sendHandoffRequest` and `answerHandoff` | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | **off (default)**: `sendHandoffRequest`/`answerHandoff` run exactly as they did before this workstream — no new SQL statement, no new refusal code, byte-identical INSERT (proven by `evals/handoff/run.mjs`'s own SQL diff). **on**: both calls evaluate the act through `api/_relational-core.js`'s `evaluateDisclosure` before their own write — a follower's payload as `verbatim`, follower to Room, before the INSERT; the creator's reply the other way, under the policy version already stored on the row, before the answering UPDATE (one new pre-read SELECT, only when on). A refusal is named `handoff_kernel_<code>` (e.g. `handoff_kernel_denied`) |
+
+Not a build-time (`VITE_`) flag — a plain `process.env` var like
+`ROOM_DORMANCY` above, no frontend rebuild needed to flip it. In v0 the
+grant evaluated is always self-issued (the follower's or creator's own
+explicit submission), so a legitimate call can never be refused by turning
+this flag on alone; the one reachable refusal path is
+`deps.handoffDenies`, a seam no production code populates yet
+(`context/decisions.md#ws-r87-handoff-v0-grant-is-self-issued`).
+
+## 32. The follower's receipt (`vercel-app`, WS-R100, migration 126, 2026-09-05)
+
+Every payment a follower makes gets a printable receipt built from the
+ledger (`vy_payment_event`, migration 078), never from the payment
+provider's own page. Both env vars are optional and both are read only by
+`api/_receipt.js`'s `platformSupplierInfo` at render time - unset renders
+one clearly marked placeholder sentence in the receipt itself (both
+locales), never a fabricated legal name or GSTIN.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `PLATFORM_LEGAL_NAME` | `api/_receipt.js:platformSupplierInfo()` | optional | the platform's own registered legal name, any non-empty string | **unset (default)**: every receipt's own "Supplier" section renders the named placeholder sentence instead of a name. **set**: renders verbatim, alongside `PLATFORM_GSTIN` if that is ALSO set (both are required together for `platformSupplierInfo().complete` to be true - one alone still renders the placeholder) |
+| `PLATFORM_GSTIN` | `api/_receipt.js:platformSupplierInfo()` | optional | a real fifteen-character GSTIN matching the standard shape (`GSTIN_RE`); anything else (unset, empty, malformed) is treated as unset | **unset or malformed (default)**: the placeholder sentence, exactly as an unset `PLATFORM_LEGAL_NAME` above - a typo in this var may not silently print a wrong tax identity. **set and shape-valid**: renders verbatim on every receipt from that point on |
+
+No migration gate, no cron, no new secret-store entry - both vars are
+plain, non-secret configuration (a legal name and a GSTIN are both public
+information on any real invoice) read the same way `TDS_RATE_BP_DEFAULT`'s
+sibling constants are, `api/_payments.js`'s own existing posture for a tax
+figure nobody has confirmed with an accountant yet, restated here for the
+platform's own identity rather than a rate. Setting them requires no
+frontend rebuild (not `VITE_`) and takes effect on the very next request -
+this deployment has never had either set, so every receipt issued so far
+carries the placeholder, honestly.
+## 33. The operator digest, incident alert and self-check verdict over Telegram (`vercel-app`, WS-R98, 2026-09-05)
+
+An operator who has never enabled browser push still gets the morning
+digest, a new-incident-kind alert and a failing self-check, in a Telegram
+chat they named, through the bot the Room already has
+(`ROOM_TELEGRAM_BOT_TOKEN`, already in this manifest, §15c — reused, never a
+second bot). `api/_operator-telegram.js` is the one sender; see that file's
+own header for the full mechanism, and `context/decisions.md
+#ws-r98-notify-claim-widened-to-either-channel` for why the digest/incident
+claim itself now fires on either channel being configured, not push alone.
+No migration.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `OPS_TELEGRAM_CHAT_IDS` | `api/_operator-telegram.js:operatorTelegramChatIds()`/`operatorTelegramConfigured()`, read by `sendOperatorDigest` (`api/_operator-digest.js`), `notifyNewIncidentKinds` (`api/_incidents.js`) and `sendSelfCheckTelegramAlert` (`api/_self-check.js`) | optional | a comma-separated list of Telegram chat ids (the operator's own private chat with the bot, after `/start`-ing it) | **unset (default)**: none of the three callers above attempts a Telegram send — each still runs exactly as it did before this workstream on the push channel alone. **set, together with the pre-existing `ROOM_TELEGRAM_BOT_TOKEN`**: each of the three sends one message per listed chat id, `title`+`body`+`url` on three lines, best-effort, beside whatever the push channel already does |
+
+Getting a chat id: the operator DMs the Room's own bot, sends `/start` (no
+slug payload — that path already answers with `welcomeNoSlugCard`,
+`api/_room-telegram.js`), and reads their own numeric chat id off Telegram's
+own "getUpdates" response or a "what's my id" bot the operator runs once —
+this workstream builds no new UI to surface it, since it is a value the
+operator reads OFF Telegram, not off this platform.
+
+A 403 (bot blocked) or 400 (chat no longer exists) removes nothing from
+`OPS_TELEGRAM_CHAT_IDS` — there is no row to delete, the env IS the list —
+it is recorded as one `provider_telegram` incident instead, visible on the
+ops board's own Incidents card; the operator edits the env var themselves.
+`api/_ops.js`'s own `digest.telegram` read shows this channel's last run
+time and how many chats it reached, derived from the existing
+`vy_sweep_run` heartbeat row rather than a new ledger table — see that
+function's own header on the one honest limitation this carries (only the
+LATEST run is visible, not a rolling history).
+
+## 34. The Room on WhatsApp (`vercel-app`, WS-R104, migration 128, 2026-09-05)
+
+A follower talks to a creator's AI inside WhatsApp the way they already can
+on Telegram (§15c, §30's own Telegram-first precedent): a one-Room-per-phone
+pointer (`vy_room_follower_whatsapp_chat`), inbound messages through the
+SAME follower lane and the ONE reply door (`gatedReply`, reached inside
+`roomSay`), replies as session messages inside Meta's 24-hour customer-
+service window, never a template spend without opt-in. `api/_room-whatsapp-
+chat.js` is the one new decision module; `api/room-wa.js`'s existing inbound
+branch (unchanged when this var is unset) is the door. Reuses the SAME
+WhatsApp Business number and webhook verify `api/_room-whatsapp.js` (§25,
+the check-in template lane) already has — `WHATSAPP_ACCESS_TOKEN`/
+`WHATSAPP_PHONE_NUMBER_ID`/`WHATSAPP_APP_SECRET`/`WHATSAPP_VERIFY_TOKEN`,
+all already in this manifest (§22/§25) — never a second credential pair. No
+new credential of any kind; the one new var is a plain feature flag.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `ROOM_WHATSAPP_CHAT` | `api/_room-whatsapp-chat.js:whatsappChatEnabled()`, read by `api/room-wa.js`'s inbound branch | optional | the literal string `"1"` (anything else, including unset, reads as off) | **unset (default)**: `api/room-wa.js`'s inbound branch is byte-for-byte what it always was — `handleStatusWebhook`'s content-free auto-reply (workstream law #6, `api/_room-whatsapp.js`'s own header: "no conversation on this wire"), and `vy_room_follower_whatsapp_chat` is never written to. **set to `"1"`**: an inbound text message from a phone with no pointer gets the join flow (`join <slug>` resolves the Room, sends the disclosure line, then the age/memory gate as WhatsApp reply-button messages — Telegram's own inline-keyboard callback-data shape, `a1`/`a0`/`m1`/`m0:<slug>`, restated over Meta's own interactive-button id, since this table carries no "pending step" column at all); a bound phone's ordinary message reaches the REAL follower lane (`roomSay`, the free cap, the never-rules, memory by the follower's own consent) and the reply leaves as a session message via `api/_room-whatsapp.js`'s new `sendSessionMessage` sender, only inside the 24-hour window Meta's own inbound delivery just opened — outside it (a rare, best-effort-ledger-lost-on-cold-start case, `api/whatsapp.js`'s own documented limitation) the follower gets nothing until they write again, counted as a content-free skip rather than a silent drop or a template substituted on their behalf. `hindi`/`english`/`stop`/`forget` are the command set (no leading slash — a WhatsApp business number's own idiom, unlike Telegram's `/command`), deliberately smaller than Telegram's five (no `export`, this workstream's brief's own scope). |
+
+The phone number itself is NEVER written to `vy_room_follower_whatsapp_chat`
+— `phone_hash` is a salted sha256 (`api/_room-whatsapp-chat.js:phoneHash()`,
+reusing `api/_rate-limit.js`'s salted-sha256 SHAPE but never its daily
+rotation, since this hash is a durable lookup key rather than a rate-limit
+bucket), reusing the SAME `RATE_SALT` this manifest already documents for
+`api/_rate-limit.js` (§25) rather than a new salt of its own. Every reply is
+sent to the number Meta's own webhook payload just supplied in the same
+request — this file never reverses the hash and never needs to. `stop`
+marks the pointer stopped (never deletes — migration 128's own header states
+why: unlike Telegram's channel pointer, this row is the only surviving
+record this channel ever existed for this phone); `forget` deletes it for
+real, through `api/_room-surface.js`'s `roomForgetCore`, by name, alongside
+the receipt migration 090 already issues.
+## 35. The recall run (`vercel-app`, WS-R101, migration 127, 2026-09-05)
+
+Readiness's `knows_your_material` part (`api/_readiness.js`) has never had a
+writer: `readRecallRun` was a committed stub that always returned null, so
+the part could only ever render "not measured yet" and no replica could
+cross the publish floor through a real computation (`context/decisions.md
+#ws-r95-readiness-floor-crossing-is-seeded-never-computed`).
+`api/_recall-run.js` is the writer: a held-out question set built
+deterministically from the replica's own sources (no model call), scored by
+driving each question through the REAL compiled agent via `gatedReply`
+(`api/_recall-run.js::scoreRecallRun`) — one model call per question. The
+"Measure now" op on the readiness door (`POST /api/readiness`,
+`op: "measure_now"`) is the only thing that can trigger it.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `RECALL_RUN` | `api/_recall-run.js:recallRunEnabled()`, read by `runRecallMeasurement` (the op's whole flow) | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | **unset (default)**: `POST /api/readiness {op:"measure_now"}` refuses immediately with a named 503 (`recall_run_off`) before it reads a single row — no SQL, no reply-seam call, no cost. `GET /api/readiness` is completely unaffected either way; `knowsYourMaterial` renders whatever `readRecallRun` finds (nothing, until a run has ever been stored). **on**: the op runs the full flow — generates the question set, drives it through the compiled agent (one real reply per question, the reply seam's own cost), scores it, and stores one `vy_recall_run` row, superseding the previous one |
+
+Not a build-time (`VITE_`) flag — a plain `process.env` var like
+`ROOM_DORMANCY` (§30) and `ROOM_HANDOFF_KERNEL` (§31), no frontend rebuild
+needed to flip it. The second, independent layer under this flag is the
+write's own rate predicate (`api/_recall-run.js`'s `RECALL_RUN_INSERT_SQL`):
+one run per replica per hour, enforced inside the same statement that
+supersedes the previous row, refused by name (`recall_run_rate_limited`,
+429) rather than by a separate counter a caller could race. Below 20
+usable passages across a replica's mined context items, approved review
+cards and transcribed interview answers, the run is refused before any
+model call (`recall_set_too_small`, 409) — `RECALL_SET_MIN`
+(`api/_recall-run.js`).
+
+No new secret-store entry: `RECALL_RUN` is a plain, non-secret switch, set
+the same way every other feature flag in this manifest is.

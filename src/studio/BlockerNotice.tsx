@@ -22,21 +22,30 @@
 // It renders NOTHING when there is no reason. A control that is enabled owes no
 // explanation, and a permanently-present empty box is furniture.
 import type { ReactNode } from "react";
-import { CLASS_COPY, type DisabledReason } from "./blockerClass";
+import type { DisabledReason } from "./blockerClass";
+import { useStudioLocale } from "./localeContext";
 
 /**
  * The reason on its own. `role="status"` rather than `alert`: this is a
  * standing condition, not an event, and an alert would interrupt a screen
  * reader mid-sentence every time a poll re-rendered the panel.
+ *
+ * WS-R52: the two-word badge (`t.classLabels`) reads from the creator's own
+ * chrome locale via context, not from `blockerClass.ts`'s own `CLASS_COPY`
+ * -- that table stays English on purpose (copy.ts's own header explains
+ * why: `evals/studiowizard.mjs` checks it against English-only regexes).
+ * `reason.headline`/`reason.next` are untouched: those ARE the honesty-gated
+ * prose the class label sits next to, and this workstream does not move it.
  */
 export function BlockerNotice({ reason, className = "" }: {
   reason: DisabledReason | null;
   className?: string;
 }) {
+  const { t } = useStudioLocale();
   if (!reason) return null;
   return (
     <p className={`blocker-notice blocker-notice-${reason.kind} ${className}`.trim()} role="status">
-      <span className="blocker-notice-class">{CLASS_COPY[reason.kind].label}</span>
+      <span className="blocker-notice-class">{t.classLabels[reason.kind]}</span>
       <span className="blocker-notice-headline">{reason.headline}</span>
       <span className="blocker-notice-next">{reason.next}</span>
     </p>

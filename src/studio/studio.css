@@ -222,6 +222,22 @@
     --ink: #171915;
     --ink-soft: #52564e;
     --ink-faint: #7a7e74;
+    /* WCAG 1.4.3 (text contrast) — WS-R50. `--ink-faint` measures 3.47:1 to
+     * 4.1:1 against the backgrounds it is actually painted on in this file
+     * (`--paper`, `--forest-soft`, `--panel-solid`), all below the 4.5:1
+     * floor for normal-size text. `--ink-faint` itself is used in 50+ places
+     * across this file and this workstream's own targets (the studio shell's
+     * three tabs) proved only three of them; darkening the shared token here
+     * would recolour dozens of spots this gate never measured, which is
+     * reasoning where this repo asks for measurement. So this is a SECOND,
+     * AA-safe token, reserved for the exact selectors this gate's axe scan
+     * actually caught failing on the studio shell's three tabs
+     * (`#hear-voice-counter` via `.voice-preview-script small`,
+     * `.hear-voice-state.idle`, `.mirror-note`, `.mirror-fidelity-legend`)
+     * — see `context/rejected.md#ws-r50-ink-faint-token-wide-recolour` for
+     * the wider `--ink-faint` sweep this deliberately did not do, and why.
+     * 5.15:1 to 7.0:1 against the backgrounds axe measured them on. */
+    --ink-faint-aa: #565a4f;
     --line: rgba(28, 32, 26, 0.12);
     --line-strong: rgba(28, 32, 26, 0.22);
     --forest: #17493b;
@@ -373,6 +389,13 @@
   .field-label {
     display: block;
     margin: 0 0 8px;
+    /* A label is prose when it carries a note to the creator (the check-in
+       design's "What to check on", the payout fund-account reference, the
+       Suite join line all run past 100 characters): the same 68ch measure
+       every other studio paragraph keeps, so a desktop label wraps at a
+       readable width instead of running 150 characters across the card.
+       Found by the wave-thirteen merge gate on a published Room's Share tab. */
+    max-width: var(--measure);
     color: var(--ink-soft);
     font-size: 12px;
     font-weight: 700;
@@ -452,6 +475,7 @@
   .auth-brand {
     grid-column: 1 / -1;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     min-height: 42px;
@@ -463,6 +487,28 @@
 
   .auth-brand .mark { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.24); }
   .brand-rule { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.25); }
+
+  /* WS-R91: the sign-in screen's own language switch reuses `.studio-lang-
+   * switch`/`.studio-lang-btn` (studio-shell.css, WS-R52/WS-R79) rather than
+   * forking a second component, but that component's palette
+   * (`--paper`/`--ink`/`--line-strong`) is authored for the light "paper"
+   * chrome the signed-in shell sits on — verbatim on `.auth-brand`'s own dark
+   * hero panel it would be a dark border and dark text on a dark green
+   * background, invisible rather than merely low-contrast. Scoped here to
+   * the two properties that actually need to change; every size, spacing and
+   * `aria-pressed` rule stays exactly the shared component's own. */
+  /* The switch's own dark hero background comes from `.auth-page::before`, a
+   * PSEUDO-element `scripts/check-layout.mjs`'s own contrast walker cannot
+   * see (it reads real ancestor `background-color`, which a `::before` is
+   * not part of, so it fell through to its own white default and reported a
+   * white label on white at 1.10:1 -- real, not a checker limitation: a
+   * screen reader user's high-contrast override or a printed screenshot
+   * would see exactly that same undefined background). A near-opaque
+   * (alpha > 0.85, that walker's own threshold) solid backdrop on the
+   * switch itself fixes both the real defect and the measurement. */
+  .auth-brand .studio-lang-switch { margin-left: auto; background: rgba(10, 38, 30, 0.94); border-color: rgba(255, 255, 255, 0.32); }
+  .auth-brand .studio-lang-btn { color: rgba(255, 255, 255, 0.92); }
+  .auth-brand .studio-lang-btn[aria-pressed="true"] { background: rgba(255, 255, 255, 0.96); color: var(--ink); }
 
   .auth-intro {
     align-self: center;
@@ -618,7 +664,12 @@
   .legal-copy {
     margin: 28px 0 0;
     color: var(--ink-faint);
-    font-size: 10px;
+    /* WS-R91: was a hardcoded 10px, below tokens.css's `--text-micro` floor
+     * (11px) -- unmeasured until `studio-hi:signed-out` (this workstream)
+     * became the first fixture to ever reach this screen. A consent-adjacent
+     * notice is exactly the copy tokens.css names as the reason the floor
+     * exists (`design/tokens.css`'s own comment on `--text-micro`). */
+    font-size: var(--text-micro);
     line-height: 1.55;
   }
 
@@ -974,7 +1025,7 @@
     letter-spacing: 0.16em;
   }
 
-  .danger-zone {
+  .danger-zone, .export-zone {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -984,8 +1035,15 @@
   }
 
   .danger-zone .eyebrow { color: var(--danger); }
-  .danger-zone h2 { font-size: 24px; }
+  .danger-zone h2, .export-zone h2 { font-size: 24px; }
   .danger-zone p:last-child { max-width: 640px; margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+  /* WS-R70. `var(--measure)` (68ch, tokens.css), not the danger zone's own
+     640px: this control's own body sentence is longer than "Revoke"'s, and a
+     PIXEL cap the shorter sentence never actually wrapped against would let
+     this one run past the readability line-length scripts/check-layout.mjs
+     enforces everywhere else in the studio (found by running that gate, not
+     by inspection - 116 characters per line before this fix). */
+  .export-zone p:last-child { max-width: var(--measure); margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
 
   .stopped-panel {
     display: flex;
@@ -2273,8 +2331,14 @@
 
   @media (max-width: 590px) {
     .auth-page { padding-inline: 15px; }
-    .auth-brand { margin-left: 6px; }
-    .auth-brand span:last-child, .brand-rule { display: none; }
+    .auth-brand { margin-left: 6px; flex-wrap: wrap; row-gap: 8px; }
+    .auth-brand-tag, .brand-rule { display: none; }
+    /* WS-R91: at this width the brand tag and rule are already dropped
+     * (above) rather than squeezed, and the language switch is the one new
+     * control here that must not follow them off screen — it wraps onto its
+     * own full-width row instead, `flex-wrap: wrap` on `.auth-brand` above
+     * plus a forced break so it never shares a row with `VYAKTI`. */
+    .auth-brand .studio-lang-switch { flex-basis: 100%; margin-left: 0; }
     .auth-intro { padding-inline: 6px; }
     .auth-intro > p:not(.eyebrow) { font-size: 14px; }
     .trust-strip { display: grid; gap: 12px; }
@@ -2294,7 +2358,7 @@
     .stage-lock { min-width: 0; }
     .stage-next { left: 54px; }
     .stage-line { left: 34px; }
-    .danger-zone { align-items: stretch; flex-direction: column; }
+    .danger-zone, .export-zone { align-items: stretch; flex-direction: column; }
     .danger-button { width: 100%; }
     .empty-card { min-height: 0; padding: 30px 22px; }
     .portrait-placeholder { max-width: 205px; }
@@ -2570,7 +2634,7 @@
 .voice-preview-script { display: block; margin-bottom: 22px; }
 .voice-preview-script textarea { width: 100%; min-height: 132px; resize: vertical; padding: 15px 16px; border: 1px solid var(--line); border-radius: 13px; outline: 0; color: var(--ink); background: rgba(255, 255, 255, 0.72); font: 500 14px/1.65 var(--sans); }
 .voice-preview-script textarea:focus { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(47, 91, 64, 0.12); }
-.voice-preview-script small { display: block; margin-top: 7px; color: var(--ink-faint); font-size: 10px; }
+.voice-preview-script small { display: block; margin-top: 7px; color: var(--ink-faint-aa); font-size: 10px; }
 .voice-preview-styles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .voice-preview-styles legend { grid-column: 1 / -1; }
 .voice-preview-styles button { min-height: 94px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink-soft); background: rgba(255, 255, 255, 0.42); text-align: left; cursor: pointer; }
@@ -2769,7 +2833,16 @@
 /* The embed snippet is the one block on this screen a teacher COPIES, so it
    scrolls inside its own box rather than wrapping: a wrapped script tag
    copied out of a UI is a script tag with a newline in the wrong place. */
-.embed-snippet { margin: 12px 0 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); overflow-x: auto; }
+/* `contain: inline-size` + `min-width: 0`: a scroll container still reports
+   its unwrapped text as its min-content contribution, and every `1fr` grid
+   track above it (the tab shell, the headline) resolves to that width, so
+   one 85-character script tag made the whole studio 777px wide at 390px and
+   the page scrolled sideways (found by the wave-thirteen merge gate, the
+   first time a published Room's Share tab was rendered under it). Inline-
+   size containment makes this box contribute nothing to its ancestors'
+   intrinsic width; the snippet still scrolls inside its own box, unwrapped,
+   exactly as the comment above asks. */
+.embed-snippet { margin: 12px 0 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); overflow-x: auto; min-width: 0; contain: inline-size; }
 .embed-snippet code { font: 500 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); white-space: pre; }
 
 .teacher-sheet-ingested { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
@@ -2814,7 +2887,7 @@
 .hear-voice-state.ready { color: var(--forest-deep); }
 .hear-voice-state.warming, .hear-voice-state.working { color: var(--ink-soft); }
 .hear-voice-state.failed { color: var(--danger); }
-.hear-voice-state.idle { color: var(--ink-faint); }
+.hear-voice-state.idle { color: var(--ink-faint-aa); }
 .hear-voice-stage-ready .hear-voice-state.ready { color: rgba(255, 255, 255, 0.65); }
 .hear-voice-message { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
 .hear-voice-stage small { color: var(--ink-faint); font-size: 11px; line-height: 1.55; }
@@ -3016,7 +3089,7 @@
 .mirror-body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 22px; }
 .mirror-stage { display: grid; gap: 16px; align-content: start; }
 .mirror-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.mirror-note { color: var(--ink-faint); font-size: 12px; line-height: 1.5; }
+.mirror-note { color: var(--ink-faint-aa); font-size: 12px; line-height: 1.5; }
 
 .mirror-warming {
   display: flex; gap: 14px; padding: 16px 18px;
@@ -3075,15 +3148,15 @@
   transform-origin: left center; transform: scaleX(0);
   transition: transform 280ms ease-out;
 }
-.mirror-fidelity-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--ink-faint); font-size: 11px; }
+.mirror-fidelity-legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--ink-faint-aa); font-size: 11px; }
 .mirror-fidelity-honesty { margin: 12px 0 4px; color: var(--ink); font-size: 12px; line-height: 1.55; }
 .mirror-fidelity-caveat { margin: 0 0 8px; color: var(--danger); font-size: 12px; line-height: 1.55; }
 .mirror-fidelity small { display: block; margin-top: 6px; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
 .mirror-dropped-count { color: #8a3a17; }
 
 .mirror-rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.mirror-rail-head small { color: var(--ink-faint); font-size: 11px; text-align: right; }
-.mirror-rail-empty { margin: 0; color: var(--ink-faint); font-size: 12px; line-height: 1.55; }
+.mirror-rail-head small { color: var(--ink-faint-aa); font-size: 11px; text-align: right; }
+.mirror-rail-empty { margin: 0; color: var(--ink-faint-aa); font-size: 12px; line-height: 1.55; }
 
 .mirror-chip {
   margin-bottom: 10px; padding: 13px 14px; border: 1px solid var(--line-strong);
@@ -3147,6 +3220,60 @@
 .mirror-chip-ev-single { border-left: 3px solid var(--line-strong); }
 .mirror-chip-ev-thin { border-left: 3px solid var(--signal); }
 .mirror-chip-ev-repeated { border-left: 3px solid var(--forest); }
+
+/* ── the interview (WS-R5) ───────────────────────────────────────────────
+   The Mirror Call re-pointed at the gaps in the archive. The visual grammar
+   is the chip rail's, deliberately: a gap and a chip are the same kind of
+   object to an owner (a thing the platform noticed, with its evidence
+   attached), and giving the interview its own idiom would make it read as a
+   second product inside the tab.
+
+   Every gap renders its EVIDENCE COUNT. A list that showed only the topics
+   would flatten "we have nothing on this" into "we have one thing", which is
+   the difference between a hole and a hint. Colour carries kind and nothing
+   else; nothing here encodes urgency, because nothing here measured any.
+
+   Transform and opacity only, per DESIGN-LAW. No layout property is
+   transitioned anywhere in this block. */
+.mirror-interview-entry {
+  display: grid; gap: 12px; padding: 18px 20px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-solid);
+}
+.mirror-interview-pitch { margin: 0; color: var(--ink); font: 500 15px/1.5 var(--serif); }
+.mirror-gap-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.mirror-gap {
+  padding: 12px 14px; border: 1px solid var(--line); border-left-width: 3px;
+  border-radius: var(--radius-sm); background: var(--paper);
+}
+.mirror-gap strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 13px; }
+.mirror-gap p { margin: 0 0 6px; color: var(--ink-soft); font-size: 12px; line-height: 1.55; }
+.mirror-gap small { color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+.mirror-gap-kind {
+  display: block; margin-bottom: 6px; color: var(--forest-deep);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.mirror-gap-contradiction { border-left-color: var(--signal); }
+.mirror-gap-sheet_field { border-left-color: var(--forest); }
+.mirror-gap-thin_topic { border-left-color: var(--line-strong); }
+.mirror-gap-readiness { border-left-color: var(--forest-deep); }
+
+.mirror-interview-live {
+  display: grid; gap: 4px; padding: 14px 16px;
+  border: 1px solid var(--forest); border-radius: var(--radius); background: var(--forest-soft);
+}
+.mirror-interview-live p { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.5; }
+.mirror-interview-live small { color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+
+.mirror-interview-summary {
+  display: grid; gap: 8px; margin-bottom: 18px; padding: 16px 18px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-solid);
+}
+.mirror-interview-summary p { margin: 0; color: var(--ink); font-size: 13px; line-height: 1.55; }
+.mirror-interview-summary ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; }
+.mirror-interview-summary li { color: var(--ink-soft); font-size: 12px; line-height: 1.5; }
+.mirror-interview-summary li strong { display: block; color: var(--ink); }
+.mirror-interview-summary li small { color: var(--ink-faint); font-size: 11px; }
+.mirror-interview-effect { color: var(--ink-soft) !important; font-size: 12px !important; }
 /* ── the Context step (WS-AB) ────────────────────────────────────────────
    "Bring your context": drop many files, paste many links, and every item
    states what it became. The visual grammar is deliberately flat — five

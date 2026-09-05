@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <title>Vyakti Suites</title>
+  <meta name="description" content="One bill for every Room your institute runs. A seat is one creator's Room. Start a Suite yourself, in minutes." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Vyakti Suites" />
+  <meta property="og:description" content="A seat is one creator's Room, under one bill. Start a Suite yourself, or talk to us first." />
+  <meta name="theme-color" content="#f4f1e9" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+  <!--
+    ══ WHY THIS PAGE IS ONE FILE (WS-R48) ═══════════════════════════════════
+    site/vyakti.html's own header explains the pattern this page copies: one
+    self-contained file, no build coupling, no extra step in
+    scripts/vercel-build.sh beyond one more `cp` line. It shares that page's
+    design tokens (restated, not imported — neither file ships a build step
+    that could import from the other) rather than inventing a second palette.
+
+    ══ WHAT THIS PAGE IS ═════════════════════════════════════════════════════
+    Suites (WS-R28's org, WS-R33's per-seat billing) already exist as ops and
+    a Studio card, with no way for a coaching institute, a creator collective
+    or an agency to find them, understand the price, or start one without a
+    person in the loop. This is that front door. India first: prices in
+    rupees, both sections in English and Hindi (WS-R24's own Room precedent,
+    switched with `?lang=hi`, never a second file).
+
+    ══ THE TWO PRICES BELOW, AND WHY THEY CANNOT DRIFT ═══════════════════════
+    api/_org.js is the source of truth for what a seat costs; api/_payments.js
+    reads the SAME numbers when it actually starts a Suite's subscription. A
+    second literal typed on THIS page would be a third place that number
+    could disagree with itself, so every rupee figure below is written next
+    to an HTML comment naming the exported constant it mirrors
+    (`// mirror of api/_org.js#NAME`), and `evals/suites-self-serve/run.mjs`
+    parses both this file and api/_org.js's own source and fails if they ever
+    disagree. WS-R42 is building a repo-wide version of this same check
+    beside this workstream; this page's comments are written to that
+    convention already.
+
+    ══ WHAT MAY BE SAID HERE ════════════════════════════════════════════════
+    No fake logos, no fake testimonials, no invented adoption numbers — there
+    are none yet, and the honest-empty-state section below says so rather
+    than being silently absent, `context/rejected.md#demo-teacher-is-not-a-
+    placeholder`'s own law restated for a second landing page. The em-dash
+    ban (`scripts/check-copy.mjs`) covers every site/*.html, and so do the
+    version-stamp, numbered-eyebrow, scroll-cue, filler-verb and one-middot
+    rules; this file is also added to the Rooms vocabulary rule and the
+    codename rule (scripts/check-copy.mjs's CODENAME_FILES/ROOMS_VOCAB_FILES),
+    same as site/vyakti.html, since it tells the same Rooms story to a
+    different buyer. HTML comments are exempt, body copy is not.
+
+    ══ THE TWO PATHS, AND WHAT EACH ACTUALLY DOES ════════════════════════════
+    "Start a Suite" never charges anything itself: it hands a name, a plan
+    and a seat count to /studio as a query string, which src/studio's own
+    startSuiteDraft.ts (WS-R48) carries across a sign-in redirect exactly the
+    way studioAuth.ts's restoreStudioMode() already carries `?mode=`, and
+    SuiteCard.tsx (existing, WS-R28/R33) is where the org gets created and
+    its seat subscription started through the real payments seam — never a
+    write from this file, which ships no framework and calls no API of its
+    own for that path. "Talk to us first" posts to the SAME api/apply.js
+    door site/vyakti.html's own form already uses, with `intent:"suite"`
+    (migration 107) as the only new field.
+  -->
+
+  <style>
+    /* ── reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body { margin: 0; }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+    }
+
+    /* ── tokens ────────────────────────────────────────────────────────────
+       site/vyakti.html's own values, restated for the same reason its
+       header gives: neither file ships a build step that could import the
+       other. docs/gurukul/DESIGN-SYSTEM.md is the single description both
+       are implementations of. One theme, locked. */
+    :root {
+      color-scheme: light;
+      --paper: #f4f1e9;
+      --paper-deep: #ebe6da;
+      --panel: #fffef9;
+      --ink: #171915;
+      --ink-soft: #52564e;
+      --ink-faint: #676b62; /* AA on paper (4.82:1) and on panel (5.39:1) */
+      --line: rgba(28, 32, 26, 0.12);
+      --line-strong: rgba(28, 32, 26, 0.22);
+
+      --forest: #17493b;
+      --forest-deep: #0e352a;
+      --forest-soft: #e1eee7;
+
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+      --radius-control: 10px;
+      --radius: 20px;
+      --radius-lg: 28px;
+
+      --tracking-display: -0.021em;
+      --tracking-heading: -0.012em;
+      --tracking-body: 0;
+      --tracking-caps: 0.06em;
+
+      --leading-display: 1.06;
+      --leading-tight: 1.25;
+      --leading-body: 1.6;
+
+      --measure: 68ch;
+      --space-section: clamp(56px, 9vw, 108px);
+      --space-pad: clamp(22px, 4vw, 44px);
+
+      --shadow: 0 24px 70px rgba(41, 43, 35, 0.1), 0 3px 12px rgba(41, 43, 35, 0.04);
+      --motion-instant: 90ms;
+      --motion-quick: 160ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    /* ── base ──────────────────────────────────────────────────────────── */
+    body {
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      line-height: var(--leading-body);
+      letter-spacing: var(--tracking-body);
+    }
+    /* Devanagari, system-only: this page loads no web font (grep -rl
+       "fonts.google" finds nothing in this repo), matching src/room/room.css's
+       own `:lang(hi)` rule and its own reasoning: a platform that ships its
+       own Noto Sans Devanagari uses it, one that ships none still renders via
+       its own Unicode fallback. */
+    :lang(hi) {
+      font-family: "Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif;
+    }
+
+    h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 400; }
+    :lang(hi) h1, :lang(hi) h2, :lang(hi) h3 { font-family: inherit; }
+    h1 { line-height: var(--leading-display); letter-spacing: var(--tracking-display); }
+    h2, h3 { line-height: var(--leading-tight); letter-spacing: var(--tracking-heading); }
+    p { margin: 0; }
+
+    :focus-visible { outline: 3px solid var(--forest); outline-offset: 3px; border-radius: 4px; }
+
+    [hidden] { display: none !important; }
+
+    .wrap { width: min(1120px, 100% - 2 * var(--space-pad)); margin-inline: auto; }
+    .measure { max-width: var(--measure); }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--forest);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: var(--tracking-caps);
+      text-transform: uppercase;
+    }
+
+    .mark {
+      display: inline-grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: end;
+      gap: 3px;
+      width: 34px;
+      height: 34px;
+      padding: 7px;
+      border-radius: 10px;
+      background: var(--forest);
+      flex: none;
+    }
+    .mark i { width: 100%; border-radius: 999px; background: var(--paper); }
+    .mark i:nth-child(1) { height: 42%; }
+    .mark i:nth-child(2) { height: 100%; }
+    .mark i:nth-child(3) { height: 68%; }
+
+    /* ── nav ───────────────────────────────────────────────────────────── */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding: 14px 0;
+      background: color-mix(in srgb, var(--paper) 88%, transparent);
+      backdrop-filter: saturate(1.4) blur(14px);
+    }
+    .nav .wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+    .brand b { font-size: 15px; font-weight: 800; letter-spacing: 0.14em; }
+    .brand small { color: var(--ink-faint); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; }
+    .nav-spacer { flex: 1; }
+    .nav-link { color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
+    .lang-toggle {
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      padding: 7px 14px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ── the two buttons ───────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 26px;
+      border: 1px solid var(--forest);
+      border-radius: var(--radius-control);
+      background: var(--forest);
+      color: var(--panel); /* 10.13:1 */
+      font-family: var(--sans);
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity var(--motion-quick) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn:active { transform: scale(0.97); }
+    .btn.secondary {
+      background: transparent;
+      color: var(--forest);
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+
+    /* ── hero ──────────────────────────────────────────────────────────── */
+    .hero { padding: clamp(40px, 6vw, 88px) 0 var(--space-section); }
+    .hero h1 { max-width: 22ch; font-size: clamp(32px, 5vw, 54px); }
+    .hero h1 em { font-style: normal; color: var(--forest); }
+    .hero p.lede { max-width: 50ch; margin-top: 22px; color: var(--ink-soft); font-size: clamp(17px, 1.8vw, 20px); }
+    .hero p.fine { max-width: 46ch; margin-top: 16px; color: var(--ink-faint); font-size: 13px; }
+
+    /* ── section prose ─────────────────────────────────────────────────── */
+    section { padding: var(--space-section) 0; }
+    .head h2 { font-size: clamp(26px, 3.6vw, 38px); max-width: 26ch; }
+    .head p { max-width: var(--measure); margin-top: 18px; color: var(--ink-soft); font-size: 17px; }
+
+    .claims { max-width: var(--measure); margin-top: 40px; display: grid; gap: 26px; }
+    .claims p { color: var(--ink-soft); font-size: 16px; }
+    .claims b { color: var(--ink); font-weight: 700; }
+
+    /* ── who this is for: a plain list, not a card grid ───────────────── */
+    .for-list { margin: 40px 0 0; padding: 0; list-style: none; display: grid; gap: 20px; max-width: var(--measure); }
+    .for-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; color: var(--ink-soft); font-size: 16px; }
+    .for-list li span { color: var(--forest); font-weight: 800; }
+    .for-list b { color: var(--ink); font-weight: 700; }
+
+    /* ── pricing: two plain rows, not a card shelf ─────────────────────── */
+    .price-rows { margin-top: 40px; display: grid; gap: 18px; max-width: var(--measure); }
+    .price-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: baseline;
+      gap: 10px 20px;
+      padding: 22px var(--space-pad);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .price-row h3 { font-size: 19px; }
+    .price-row .price-note { grid-column: 1 / -1; margin-top: 8px; color: var(--ink-soft); font-size: 14.5px; }
+    .price-row .price-amount { font-family: var(--serif); font-size: clamp(24px, 3vw, 30px); color: var(--forest-deep); white-space: nowrap; }
+    .price-row .price-amount small { font-family: var(--sans); font-size: 13px; color: var(--ink-faint); font-weight: 400; }
+    .price-take { margin-top: 22px; color: var(--ink-faint); font-size: 14px; max-width: var(--measure); }
+
+    /* ── the floor: one filled panel, site/vyakti.html's own shape ──────── */
+    .floor { padding: var(--space-pad); border: 1px solid rgba(23, 73, 59, 0.22); border-radius: var(--radius-lg); background: var(--forest-soft); }
+    .floor h2 { font-size: clamp(24px, 3.2vw, 32px); max-width: 26ch; }
+    .floor > p { max-width: var(--measure); margin-top: 18px; color: var(--forest-deep); font-size: 15.5px; }
+    .floor ul { margin: 26px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+    .floor li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 14px; max-width: var(--measure); color: var(--forest-deep); font-size: 15px; }
+    .floor li span { color: var(--forest); font-weight: 800; }
+
+    /* ── start a Suite: the self-serve form ────────────────────────────── */
+    .start-panel { border: 1px solid var(--line-strong); border-radius: var(--radius); padding: var(--space-pad); background: var(--panel); }
+    .start-panel h2 { font-size: 26px; }
+    .start-panel > p { margin-top: 12px; max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
+    .start-form { margin-top: 28px; max-width: 46ch; display: grid; gap: 16px; }
+    .start-field { display: grid; gap: 6px; }
+    .start-field label { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .start-field input, .start-field select {
+      font: inherit;
+      font-size: 15px;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .start-estimate { font-size: 13.5px; color: var(--ink-faint); }
+    .start-form .btn { justify-self: start; margin-top: 6px; }
+
+    /* ── talk to us first: the existing apply form, restated ───────────── */
+    .limits { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: var(--space-pad); }
+    .limits h2 { font-size: 24px; }
+    .limits ul { margin: 22px 0 0; padding-left: 20px; display: grid; gap: 12px; max-width: var(--measure); color: var(--ink-soft); font-size: 15px; }
+    .limits strong { color: var(--ink); }
+    .apply-form { margin-top: 30px; max-width: var(--measure); display: grid; gap: 18px; }
+    .apply-field { display: grid; gap: 6px; }
+    .apply-field label { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .apply-field input, .apply-field textarea {
+      font: inherit;
+      font-size: 15px;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-control);
+      background: var(--panel);
+      color: var(--ink);
+    }
+    .apply-field textarea { resize: vertical; min-height: 72px; }
+    .apply-form button { cursor: pointer; justify-self: start; }
+    .apply-form button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .apply-note { min-height: 1em; font-size: 13px; color: var(--ink-faint); }
+    .apply-note[data-state="error"] { color: var(--ink); font-weight: 700; }
+    .apply-note[data-state="ok"] { color: var(--forest-deep); font-weight: 700; }
+
+    /* ── honest empty social proof ──────────────────────────────────────── */
+    .proof { text-align: center; }
+    .proof p { max-width: 50ch; margin: 0 auto; color: var(--ink-faint); font-size: 15px; }
+
+    .foot { padding: 40px 0 56px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: 13px; }
+    .foot .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+    .foot p { max-width: 54ch; }
+    .foot a { color: var(--ink-soft); }
+
+    @media (max-width: 480px) {
+      .price-row { grid-template-columns: 1fr; }
+      .price-row .price-amount { justify-self: start; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="locale" id="loc-en" lang="en">
+  <nav class="nav" aria-label="Primary">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Vyakti home">
+        <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>VYAKTI</b><br /><small>SUITES</small></span>
+      </a>
+      <span class="nav-spacer"></span>
+      <a class="nav-link" href="#pricing">Pricing</a>
+      <a class="nav-link" href="#talk">Talk to us first</a>
+      <button class="lang-toggle" type="button" data-set-lang="hi">हिन्दी</button>
+    </div>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="wrap">
+        <h1>One bill for every Room your institute runs.</h1>
+        <p class="lede">
+          A seat is one creator's Room. Bring your teachers, your coaches or your whole roster under a single
+          Suite, and see what each of them sees, only as counts.
+        </p>
+        <div class="hero-actions">
+          <a class="btn" href="#start">Start a Suite</a>
+          <a class="btn secondary" href="#talk">Talk to us first</a>
+        </div>
+        <p class="fine">Self-serve, in minutes. Nothing is charged until you start a Suite's own subscription.</p>
+      </div>
+    </header>
+
+    <section aria-labelledby="for-title">
+      <div class="wrap">
+        <div class="head">
+          <p class="eyebrow">Who this is for</p>
+          <h2 id="for-title">Any group whose people already run their own Rooms.</h2>
+          <p>
+            A Suite does not replace a creator's own AI. It puts several of them under one roster and one bill,
+            so whoever runs the group can see how each one is doing without reading a single follower's word.
+          </p>
+        </div>
+        <ul class="for-list">
+          <li><span aria-hidden="true">&check;</span><span><b>Coaching institutes.</b> One seat per teacher, each teacher's AI still their own.</span></li>
+          <li><span aria-hidden="true">&check;</span><span><b>Creator collectives.</b> A shared roster for members who already publish separately.</span></li>
+          <li><span aria-hidden="true">&check;</span><span><b>Agencies.</b> One bill across every client Room an agency manages on someone's behalf.</span></li>
+          <li><span aria-hidden="true">&check;</span><span><b>Publishers.</b> A seat for every writer or host whose audience talks back.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section aria-labelledby="seat-title">
+      <div class="wrap">
+        <div class="head">
+          <p class="eyebrow">What a seat is</p>
+          <h2 id="seat-title">One creator's Room, under one bill.</h2>
+          <p>
+            A seat is not a follower and it is not a message. It is one creator's own Room, attached to your
+            Suite with their own consent: they accept the Suite by their own account, never added on their
+            behalf. Detaching a Room is self-service too, on either side.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing" aria-labelledby="pricing-title">
+      <div class="wrap">
+        <div class="head">
+          <p class="eyebrow">Pricing</p>
+          <h2 id="pricing-title">Per seat, billed monthly. No setup charge.</h2>
+        </div>
+        <div class="price-rows">
+          <div class="price-row">
+            <h3>Starter</h3>
+            <!-- mirror of api/_org.js#SUITE_SEAT_PRICE_STARTER_INR -->
+            <p class="price-amount" data-price="starter">&#8377;2,999<small> / seat / month</small></p>
+            <p class="price-note">Any seat count from 1 to 500. The plan most Suites start on.</p>
+          </div>
+          <div class="price-row">
+            <h3>Institute</h3>
+            <!-- mirror of api/_org.js#SUITE_SEAT_PRICE_INSTITUTE_INR, #SUITE_SEAT_PRICE_INSTITUTE_MIN_SEATS -->
+            <p class="price-amount" data-price="institute">&#8377;1,999<small> / seat / month</small></p>
+            <p class="price-note">10 seats minimum. The lower per-seat rate for a roster that size or larger.</p>
+          </div>
+        </div>
+        <!-- mirror of api/_payments.js#PLATFORM_TAKE_BP_DEFAULT -->
+        <p class="price-take">Vyakti's platform take is 25%, the same share every Room's own follower price already carries.</p>
+        <!-- WS-R73: razorpay.com/docs/api/payments/subscriptions/update-subscription/, fetched 2026-09-05, stated before checkout -->
+        <p class="price-take">Paying by UPI fixes your seat count for as long as that subscription runs. To change it, cancel it (it keeps working until the period ends) and start a new one at the seat count you need. Paying by card can be updated at any time.</p>
+      </div>
+    </section>
+
+    <section id="boundary" aria-labelledby="boundary-title">
+      <div class="wrap">
+        <div class="floor">
+          <h2 id="boundary-title">What a Suite admin sees, in plain words.</h2>
+          <p>
+            An admin runs the roster and the bill. An admin is not a creator's follower, and this is not a
+            setting you can turn off, it is how the underlying scopes are structured.
+          </p>
+          <ul>
+            <li><span aria-hidden="true">&check;</span><span> Counts, per Room: followers, messages, revenue. Never a follower's name and never their words.</span></li>
+            <li><span aria-hidden="true">&check;</span><span> Every follower who talks to a Room is told, on every screen, that they are talking to an AI, never to a person.</span></li>
+            <li><span aria-hidden="true">&check;</span><span> What a follower tells that AI stays in their own private Room. It never reaches the Suite admin, and it never reaches another follower.</span></li>
+            <li><span aria-hidden="true">&check;</span><span> A creator accepts a Suite by their own account. Nobody can add a Room to a Suite on someone else's behalf.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="start" aria-labelledby="start-title">
+      <div class="wrap">
+        <div class="start-panel">
+          <p class="eyebrow">Self-serve</p>
+          <h2 id="start-title">Start a Suite</h2>
+          <p>
+            Name it, pick a plan and a seat count, and continue. If you are not signed in yet, you will be asked
+            to sign in first and brought straight back here. Nothing is charged until the Suite's own
+            subscription actually starts, and that step uses the same seam every Room's own price already does.
+          </p>
+          <form class="start-form" id="start-form" novalidate>
+            <div class="start-field">
+              <label for="start-name">Suite name</label>
+              <input id="start-name" name="suite_name" type="text" maxlength="120" required placeholder="North Coaching" />
+            </div>
+            <div class="start-field">
+              <label for="start-plan">Plan</label>
+              <select id="start-plan" name="suite_plan">
+                <option value="starter">Starter</option>
+                <option value="institute">Institute (10 seats minimum)</option>
+              </select>
+            </div>
+            <div class="start-field">
+              <label for="start-seats">Seats</label>
+              <input id="start-seats" name="suite_seats" type="number" min="1" max="500" value="1" required />
+            </div>
+            <p class="start-estimate" id="start-estimate" role="status" aria-live="polite"></p>
+            <button class="btn" type="submit" id="start-submit">Continue to sign in</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="talk" aria-labelledby="talk-title">
+      <div class="wrap">
+        <div class="limits">
+          <p class="eyebrow">Prefer to talk first</p>
+          <h2 id="talk-title">Tell us about your group, and a person will read it.</h2>
+          <ul>
+            <li><strong>A person reads every message.</strong> This goes to the same queue site/vyakti.html's own application does, marked as a Suite enquiry.</li>
+            <li><strong>Self-serve stays open the whole time.</strong> Talking to us first never blocks starting a Suite yourself above, and starting one yourself never closes this door either.</li>
+          </ul>
+          <form class="apply-form" id="apply-form" novalidate>
+            <div class="apply-field">
+              <label for="apply-name">Your name</label>
+              <input id="apply-name" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive">A link to your group</label>
+              <input
+                id="apply-archive" name="archive_link" type="text" maxlength="2000" required
+                placeholder="A website, a listing, anything that shows who you are"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience">How many seats, roughly</label>
+              <textarea
+                id="apply-audience" name="audience" maxlength="2000"
+                placeholder="How many teachers, creators or clients you expect to bring"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact">Contact</label>
+              <input
+                id="apply-contact" name="contact" type="text" maxlength="320" required
+                placeholder="An email or a phone number" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit">Send</button>
+            <p class="apply-note" id="apply-status" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="proof" aria-labelledby="proof-title">
+      <div class="wrap">
+        <h2 id="proof-title" class="eyebrow" style="font-size:13px;">No Suites to show yet</h2>
+        <p>This page names no institute, no logo and no adoption number, because none has agreed to be shown here. The first ones will be named with their own permission, not before.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p>Vyakti Suites puts several creators' own Rooms under one roster and one bill, with the admin seeing counts, never a follower's words.</p>
+      <span class="nav-spacer"></span>
+      <a href="/">Vyakti</a>
+      <a href="/privacy">Privacy and Terms</a>
+    </div>
+  </footer>
+</div>
+
+<div class="locale" id="loc-hi" lang="hi" hidden>
+  <nav class="nav" aria-label="मुख्य">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Vyakti होम">
+        <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>VYAKTI</b><br /><small>SUITES</small></span>
+      </a>
+      <span class="nav-spacer"></span>
+      <a class="nav-link" href="#pricing-hi">कीमत</a>
+      <a class="nav-link" href="#talk-hi">पहले बात करें</a>
+      <button class="lang-toggle" type="button" data-set-lang="en">English</button>
+    </div>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="wrap">
+        <h1>आपके संस्थान के हर Room का एक ही बिल।</h1>
+        <p class="lede">
+          एक सीट यानी एक क्रिएटर का अपना Room। अपने शिक्षकों, कोचों या पूरी टीम को एक ही Suite के तहत लाइए, और हर
+          एक का हाल केवल गिनती के रूप में देखिए।
+        </p>
+        <div class="hero-actions">
+          <a class="btn" href="#start-hi">Suite शुरू करें</a>
+          <a class="btn secondary" href="#talk-hi">पहले बात करें</a>
+        </div>
+        <p class="fine">कुछ मिनटों में, खुद से। जब तक Suite की सदस्यता शुरू न हो, कुछ भी शुल्क नहीं लिया जाता।</p>
+      </div>
+    </header>
+
+    <section aria-labelledby="for-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <p class="eyebrow">यह किनके लिए है</p>
+          <h2 id="for-title-hi">कोई भी समूह जिसके लोग पहले से अपने Room चला रहे हैं।</h2>
+          <p>
+            Suite किसी क्रिएटर के अपने AI की जगह नहीं लेता। यह कई Room को एक ही सूची और एक ही बिल के तहत लाता है,
+            ताकि समूह चलाने वाला व्यक्ति किसी फॉलोअर का एक भी शब्द पढ़े बिना हर Room का हाल देख सके।
+          </p>
+        </div>
+        <ul class="for-list">
+          <li><span aria-hidden="true">&check;</span><span><b>कोचिंग संस्थान।</b> हर शिक्षक के लिए एक सीट, हर शिक्षक का AI फिर भी उन्हीं का अपना।</span></li>
+          <li><span aria-hidden="true">&check;</span><span><b>क्रिएटर समूह।</b> अलग-अलग प्रकाशित करने वाले सदस्यों के लिए एक साझा सूची।</span></li>
+          <li><span aria-hidden="true">&check;</span><span><b>एजेंसियां।</b> किसी की ओर से चलाए जा रहे हर क्लाइंट Room का एक ही बिल।</span></li>
+          <li><span aria-hidden="true">&check;</span><span><b>प्रकाशक।</b> हर लेखक या होस्ट के लिए एक सीट, जिनकी ऑडियंस जवाब देती है।</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section aria-labelledby="seat-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <p class="eyebrow">सीट क्या है</p>
+          <h2 id="seat-title-hi">एक क्रिएटर का Room, एक ही बिल के तहत।</h2>
+          <p>
+            सीट कोई फॉलोअर नहीं है और कोई संदेश भी नहीं। यह एक क्रिएटर का अपना Room है, जो अपनी ही सहमति से आपके
+            Suite से जुड़ता है: वे अपने ही खाते से Suite स्वीकार करते हैं, कभी किसी और की ओर से नहीं जोड़े जाते।
+            Room को अलग करना भी दोनों ओर से खुद ही किया जा सकता है।
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing-hi" aria-labelledby="pricing-title-hi">
+      <div class="wrap">
+        <div class="head">
+          <p class="eyebrow">कीमत</p>
+          <h2 id="pricing-title-hi">प्रति सीट, हर महीने। कोई सेटअप शुल्क नहीं।</h2>
+        </div>
+        <div class="price-rows">
+          <div class="price-row">
+            <h3>Starter</h3>
+            <!-- mirror of api/_org.js#SUITE_SEAT_PRICE_STARTER_INR -->
+            <p class="price-amount">&#8377;2,999<small> / सीट / महीना</small></p>
+            <p class="price-note">1 से 500 तक कोई भी सीट संख्या। अधिकतर Suite इसी योजना से शुरू करते हैं।</p>
+          </div>
+          <div class="price-row">
+            <h3>Institute</h3>
+            <!-- mirror of api/_org.js#SUITE_SEAT_PRICE_INSTITUTE_INR, #SUITE_SEAT_PRICE_INSTITUTE_MIN_SEATS -->
+            <p class="price-amount">&#8377;1,999<small> / सीट / महीना</small></p>
+            <p class="price-note">कम से कम 10 सीट। इतनी या उससे बड़ी सूची के लिए कम प्रति सीट दर।</p>
+          </div>
+        </div>
+        <!-- mirror of api/_payments.js#PLATFORM_TAKE_BP_DEFAULT -->
+        <p class="price-take">Vyakti का प्लेटफ़ॉर्म हिस्सा 25% है, वही हिस्सा जो हर Room की फॉलोअर कीमत में पहले से शामिल है।</p>
+        <!-- WS-R73: razorpay.com/docs/api/payments/subscriptions/update-subscription/, fetched 2026-09-05, stated before checkout -->
+        <p class="price-take">UPI से भुगतान करने पर, जब तक वह सदस्यता चलती है, आपकी सीट संख्या तय रहती है। इसे बदलने के लिए, इसे रद्द करें (यह अवधि खत्म होने तक काम करती रहेगी) और जितनी सीटें चाहिए उतनी संख्या पर एक नई सदस्यता शुरू करें। कार्ड से भुगतान करने पर कभी भी अपडेट किया जा सकता है।</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="boundary-title-hi">
+      <div class="wrap">
+        <div class="floor">
+          <h2 id="boundary-title-hi">Suite एडमिन क्या देखता है, साफ़ शब्दों में।</h2>
+          <p>
+            एक एडमिन सूची और बिल चलाता है। एडमिन किसी क्रिएटर का फॉलोअर नहीं है, और यह कोई बंद की जा सकने वाली
+            सेटिंग नहीं है, यह इस तरह ही बनाया गया है।
+          </p>
+          <ul>
+            <li><span aria-hidden="true">&check;</span><span> हर Room की गिनती: फॉलोअर, संदेश, कमाई। कभी किसी फॉलोअर का नाम नहीं, कभी उनके शब्द नहीं।</span></li>
+            <li><span aria-hidden="true">&check;</span><span> हर Room से बात करने वाले हर फॉलोअर को हर स्क्रीन पर बताया जाता है कि वे एक AI से बात कर रहे हैं, किसी व्यक्ति से नहीं।</span></li>
+            <li><span aria-hidden="true">&check;</span><span> फॉलोअर जो भी उस AI को बताता है वह उसके अपने निजी Room में ही रहता है। यह Suite एडमिन तक कभी नहीं पहुँचता, और किसी दूसरे फॉलोअर तक भी नहीं।</span></li>
+            <li><span aria-hidden="true">&check;</span><span> कोई क्रिएटर Suite को अपने ही खाते से स्वीकार करता है। कोई किसी और की ओर से Room को Suite में नहीं जोड़ सकता।</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="start-hi" aria-labelledby="start-title-hi">
+      <div class="wrap">
+        <div class="start-panel">
+          <p class="eyebrow">खुद से शुरू करें</p>
+          <h2 id="start-title-hi">Suite शुरू करें</h2>
+          <p>
+            नाम दीजिए, एक योजना और सीट संख्या चुनिए, और आगे बढ़िए। अगर आप अभी साइन इन नहीं हैं, तो पहले साइन इन
+            करने को कहा जाएगा और सीधे यहीं वापस लाया जाएगा। जब तक Suite की सदस्यता वाकई शुरू न हो, कुछ भी शुल्क
+            नहीं लिया जाता, और यह चरण उसी सीम का उपयोग करता है जो हर Room की कीमत पहले से करती है।
+          </p>
+          <form class="start-form" id="start-form-hi" novalidate>
+            <div class="start-field">
+              <label for="start-name-hi">Suite का नाम</label>
+              <input id="start-name-hi" name="suite_name" type="text" maxlength="120" required placeholder="North Coaching" />
+            </div>
+            <div class="start-field">
+              <label for="start-plan-hi">योजना</label>
+              <select id="start-plan-hi" name="suite_plan">
+                <option value="starter">Starter</option>
+                <option value="institute">Institute (कम से कम 10 सीट)</option>
+              </select>
+            </div>
+            <div class="start-field">
+              <label for="start-seats-hi">सीट</label>
+              <input id="start-seats-hi" name="suite_seats" type="number" min="1" max="500" value="1" required />
+            </div>
+            <p class="start-estimate" id="start-estimate-hi" role="status" aria-live="polite"></p>
+            <button class="btn" type="submit" id="start-submit-hi">साइन इन के लिए आगे बढ़ें</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section id="talk-hi" aria-labelledby="talk-title-hi">
+      <div class="wrap">
+        <div class="limits">
+          <p class="eyebrow">पहले बात करना चाहते हैं</p>
+          <h2 id="talk-title-hi">अपने समूह के बारे में बताइए, एक व्यक्ति इसे पढ़ेगा।</h2>
+          <ul>
+            <li><strong>हर संदेश एक व्यक्ति पढ़ता है।</strong> यह उसी सूची में जाता है जो site/vyakti.html के आवेदन में जाती है, बस Suite पूछताछ के रूप में चिह्नित।</li>
+            <li><strong>खुद से शुरू करना हमेशा खुला रहता है।</strong> पहले बात करना ऊपर खुद से Suite शुरू करने में कभी बाधा नहीं डालता, और खुद से शुरू करना भी इस रास्ते को कभी बंद नहीं करता।</li>
+          </ul>
+          <form class="apply-form" id="apply-form-hi" novalidate>
+            <div class="apply-field">
+              <label for="apply-name-hi">आपका नाम</label>
+              <input id="apply-name-hi" name="name" type="text" maxlength="200" required autocomplete="name" />
+            </div>
+            <div class="apply-field">
+              <label for="apply-archive-hi">आपके समूह का लिंक</label>
+              <input
+                id="apply-archive-hi" name="archive_link" type="text" maxlength="2000" required
+                placeholder="एक वेबसाइट, एक सूची, कुछ भी जो बताए आप कौन हैं"
+              />
+            </div>
+            <div class="apply-field">
+              <label for="apply-audience-hi">लगभग कितनी सीट</label>
+              <textarea
+                id="apply-audience-hi" name="audience" maxlength="2000"
+                placeholder="कितने शिक्षक, क्रिएटर या क्लाइंट लाने की उम्मीद है"
+              ></textarea>
+            </div>
+            <div class="apply-field">
+              <label for="apply-contact-hi">संपर्क</label>
+              <input
+                id="apply-contact-hi" name="contact" type="text" maxlength="320" required
+                placeholder="एक ईमेल या फ़ोन नंबर" autocomplete="email"
+              />
+            </div>
+            <button class="btn" type="submit" id="apply-submit-hi">भेजें</button>
+            <p class="apply-note" id="apply-status-hi" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="proof" aria-labelledby="proof-title-hi">
+      <div class="wrap">
+        <h2 id="proof-title-hi" class="eyebrow" style="font-size:13px;">अभी दिखाने के लिए कोई Suite नहीं</h2>
+        <p>इस पन्ने पर कोई संस्थान, कोई लोगो और कोई गोद लेने की संख्या नहीं दिखाई गई है, क्योंकि किसी ने भी अभी यहाँ दिखाए जाने की सहमति नहीं दी है। पहले नाम उन्हीं की अनुमति से जोड़े जाएंगे, उससे पहले नहीं।</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <p>Vyakti Suites कई क्रिएटर के अपने Room को एक सूची और एक बिल के तहत लाता है, जहाँ एडमिन केवल गिनती देखता है, फॉलोअर के शब्द कभी नहीं।</p>
+      <span class="nav-spacer"></span>
+      <a href="/">Vyakti</a>
+      <a href="/privacy">Privacy and Terms</a>
+    </div>
+  </footer>
+</div>
+
+  <!-- WS-R48. Locale toggle, the price estimate and the self-serve redirect.
+       No framework (this file's own no-build-step rule); the apply forms'
+       own script is site/vyakti.html's, restated with `intent:"suite"`. -->
+  <script>
+    (function () {
+      // ── mirror of api/_org.js's own exported constants, marked the same
+      // way the HTML above is. THE ONE PLACE the JS on this page carries a
+      // rupee figure, so the price estimate below can never disagree with
+      // the price cards above, which read the identical values. ──────────
+      var PRICE = {
+        starter: 2999,   // mirror of api/_org.js#SUITE_SEAT_PRICE_STARTER_INR
+        institute: 1999, // mirror of api/_org.js#SUITE_SEAT_PRICE_INSTITUTE_INR
+      };
+      var INSTITUTE_MIN_SEATS = 10; // mirror of api/_org.js#SUITE_SEAT_PRICE_INSTITUTE_MIN_SEATS
+      var SEAT_MIN = 1;   // mirror of api/_org.js#SUITE_SEAT_LIMIT_MIN
+      var SEAT_MAX = 500; // mirror of api/_org.js#SUITE_SEAT_LIMIT_MAX
+
+      function formatInr(n) {
+        return "₹" + n.toLocaleString("en-IN");
+      }
+
+      // ── locale toggle ────────────────────────────────────────────────
+      function applyLang(lang) {
+        var en = document.getElementById("loc-en");
+        var hi = document.getElementById("loc-hi");
+        var isHi = lang === "hi";
+        en.hidden = isHi;
+        hi.hidden = !isHi;
+        var params = new URLSearchParams(window.location.search);
+        if (isHi) params.set("lang", "hi"); else params.delete("lang");
+        var q = params.toString();
+        history.replaceState(null, "", window.location.pathname + (q ? "?" + q : ""));
+      }
+      var initial = new URLSearchParams(window.location.search).get("lang") === "hi" ? "hi" : "en";
+      applyLang(initial);
+      document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          applyLang(btn.getAttribute("data-set-lang"));
+        });
+      });
+
+      // ── the self-serve "Start a Suite" form, both locales ───────────────
+      function wireStartForm(formId, nameId, planId, seatsId, estimateId) {
+        var form = document.getElementById(formId);
+        var nameInput = document.getElementById(nameId);
+        var planSelect = document.getElementById(planId);
+        var seatsInput = document.getElementById(seatsId);
+        var estimate = document.getElementById(estimateId);
+        if (!form || !nameInput || !planSelect || !seatsInput || !estimate) return;
+
+        function updateEstimate() {
+          var plan = planSelect.value === "institute" ? "institute" : "starter";
+          var seatsRaw = Math.trunc(Number(seatsInput.value));
+          var seats = Number.isFinite(seatsRaw) ? Math.max(SEAT_MIN, Math.min(SEAT_MAX, seatsRaw)) : SEAT_MIN;
+          var perSeat = PRICE[plan];
+          estimate.textContent = seats + " seat" + (seats === 1 ? "" : "s") + " at " + formatInr(perSeat)
+            + " = " + formatInr(perSeat * seats) + " a month, before the Institute minimum seat count if it applies.";
+        }
+        planSelect.addEventListener("change", updateEstimate);
+        seatsInput.addEventListener("input", updateEstimate);
+        updateEstimate();
+
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          var name = nameInput.value.trim();
+          if (!name) return;
+          var plan = planSelect.value === "institute" ? "institute" : "starter";
+          var seatsRaw = Math.trunc(Number(seatsInput.value));
+          var seats = Number.isFinite(seatsRaw) ? seatsRaw : SEAT_MIN;
+          if (plan === "institute") seats = Math.max(seats, INSTITUTE_MIN_SEATS);
+          seats = Math.max(SEAT_MIN, Math.min(SEAT_MAX, seats));
+          var params = new URLSearchParams({
+            mode: "teacher",
+            start_suite: "1",
+            suite_name: name,
+            suite_plan: plan,
+            suite_seats: String(seats),
+          });
+          window.location.href = "/studio?" + params.toString();
+        });
+      }
+      wireStartForm("start-form", "start-name", "start-plan", "start-seats", "start-estimate");
+      wireStartForm("start-form-hi", "start-name-hi", "start-plan-hi", "start-seats-hi", "start-estimate-hi");
+
+      // ── the "talk to us first" apply form, both locales. Posts to
+      // api/apply.js exactly as site/vyakti.html's own script does, with
+      // intent:"suite" as the one new field (migration 107). ─────────────
+      function wireApplyForm(formId, statusId, submitId, nameId, archiveId, audienceId, contactId, sentText, rateLimitText, genericErrorText, networkErrorText, requiredText) {
+        var form = document.getElementById(formId);
+        var status = document.getElementById(statusId);
+        var submit = document.getElementById(submitId);
+        if (!form || !status || !submit) return;
+
+        function setStatus(state, text) {
+          status.setAttribute("data-state", state);
+          status.textContent = text;
+        }
+
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          var name = document.getElementById(nameId).value.trim();
+          var archiveLink = document.getElementById(archiveId).value.trim();
+          var audience = document.getElementById(audienceId).value.trim();
+          var contact = document.getElementById(contactId).value.trim();
+          if (!name || !archiveLink || !contact) {
+            setStatus("error", requiredText);
+            return;
+          }
+          submit.disabled = true;
+          setStatus("", "");
+          fetch("/api/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              op: "submit",
+              name: name,
+              archive_link: archiveLink,
+              audience: audience,
+              contact: contact,
+              intent: "suite",
+            }),
+          })
+            .then(function (response) {
+              return response.json().catch(function () { return {}; }).then(function (data) {
+                return { ok: response.ok, status: response.status, data: data };
+              });
+            })
+            .then(function (result) {
+              submit.disabled = false;
+              if (result.ok) {
+                form.reset();
+                setStatus("ok", sentText);
+                return;
+              }
+              if (result.status === 429) {
+                setStatus("error", rateLimitText);
+                return;
+              }
+              setStatus("error", genericErrorText);
+            })
+            .catch(function () {
+              submit.disabled = false;
+              setStatus("error", networkErrorText);
+            });
+        });
+      }
+      wireApplyForm(
+        "apply-form", "apply-status", "apply-submit", "apply-name", "apply-archive", "apply-audience", "apply-contact",
+        "Sent. A person will read this and reach out.",
+        "One message per contact per day. Please try again tomorrow.",
+        "That did not go through. Check the form and try again.",
+        "That did not reach the server. Check your connection and try again.",
+        "Your name, a link and a contact are all required."
+      );
+      wireApplyForm(
+        "apply-form-hi", "apply-status-hi", "apply-submit-hi", "apply-name-hi", "apply-archive-hi", "apply-audience-hi", "apply-contact-hi",
+        "भेज दिया गया। एक व्यक्ति इसे पढ़कर संपर्क करेगा।",
+        "एक दिन में एक ही संपर्क से एक संदेश। कृपया कल फिर कोशिश करें।",
+        "यह भेजा नहीं जा सका। फ़ॉर्म जाँचकर फिर कोशिश करें।",
+        "यह सर्वर तक नहीं पहुँचा। अपना कनेक्शन जाँचकर फिर कोशिश करें।",
+        "नाम, एक लिंक और एक संपर्क, तीनों ज़रूरी हैं।"
+      );
+    })();
+  </script>
+
+</body>
+</html>

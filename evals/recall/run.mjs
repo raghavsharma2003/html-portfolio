@@ -508,6 +508,161 @@ const FATE = {
   // their own memory.
   vy_account_person: "forget-only",
 
+  // ── the Room's person side (WS-R1; migration 071) ──
+  //
+  // A follower's membership of a creator's Room, and the titles they gave
+  // their own topic threads. Neither has a term a scoped "forget priya" could
+  // match — a membership is a join timestamp and a consent boolean, a thread
+  // row is a UUID and a short label the follower typed once — so api/memory.js's
+  // opForget, which resolves a referring expression against extracted facts and
+  // episodes, has no predicate that could ever name either table; api/room.js
+  // never calls opForget at all. Only the stronger door may take them: the
+  // account-level whole wipe (this manifest's loop, lane "relational", which is
+  // what the check below proves) or the Room's own "op":"forget" — a whole
+  // wipe scoped to one agent rather than one account, and PERSON_TABLES'
+  // `agent` flag is what keeps it from also taking a follower's rows in every
+  // OTHER creator's room.
+  vy_room_thread: "forget-only",
+  vy_room_follower: "forget-only",
+
+  // ── the Room's cohort day-count (WS-R12; migration 077) ──
+  //
+  // "Did this follower have a turn on this day" - an id, a date, a count, and
+  // no term a scoped "forget priya" could ever match, its two 071 siblings'
+  // reason exactly. Only the stronger door may take it: the account-level
+  // whole wipe (lane "relational", proven below) or the Room's own
+  // "op":"forget" (`roomForget`'s explicit room_id+person_id delete,
+  // api/_room-surface.js). NO `agent` flag, unlike its two siblings - this
+  // table carries no `agent_id` column (071's two do), so it is deliberately
+  // absent from `roomScopedTables()`'s generic per-agent loop and reached by
+  // name instead; `entry.lane === "relational"` is still what makes the
+  // check below true of it.
+  vy_room_follower_day: "forget-only",
+  // ── the Room's voice usage (WS-R19; migration 081) ──
+  //
+  // "How many seconds of voice this follower spent, on this day" - an id, a
+  // date, two counts, no term a scoped "forget priya" could ever match, the
+  // cohort day-count's own reasoning restated rather than re-derived. Only
+  // the stronger door may take it: the account-level whole wipe (lane
+  // "relational", proven below) or the Room's own "op":"forget"
+  // (`roomForget`'s explicit room_id+person_id delete, api/_room-surface.js).
+  // NO `agent` flag, like its 077 sibling - this table carries no `agent_id`
+  // column, so it is reached by name rather than through
+  // `roomScopedTables()`'s generic per-agent loop.
+  vy_room_voice_usage: "forget-only",
+  // ── WS-R11: the Room's money, person side (migration 078) ──
+  // A subscription is not memory, so a SCOPED "forget priya" has no term that
+  // could ever name it (a provider reference and a state, no words). Only the
+  // stronger door may take it, and even that door only takes it once its
+  // state is terminal - see api/memory.js's own PERSON_TABLES comment on this
+  // row for why a LIVE mandate survives a whole-account wipe rather than
+  // being silently orphaned.
+  vy_room_subscription: "forget-only",
+  // ── the Room's Pulse opt-in (WS-R17; migration 080) ──
+  // A follower's own toggle - content-free, no term a scoped "forget priya"
+  // could ever match (a UUID, a boolean-shaped pair of timestamps and a
+  // policy version, no words). Only the stronger door may take it: the
+  // account-level whole wipe (lane "relational", proven below) or the Room's
+  // own "op":"forget" (`roomForget`'s explicit room_id+person_id delete,
+  // api/_room-surface.js), `vy_room_follower_day`'s pattern one row above.
+  vy_room_pulse_optin: "forget-only",
+
+  // ── check-ins (WS-R16; migration 079) ──
+  // A follower's own schedule (days, a local time, a timezone) has no term a
+  // scoped "forget priya" could ever match — it names no topic, just a
+  // cadence — its 071/077 siblings' reason exactly. Only the stronger door
+  // may take it: the account-level whole wipe (lane "relational", proven
+  // below) or the Room's own "op":"forget" (`roomForget`'s explicit
+  // room_id+person_id delete, added in the same change as this table). NO
+  // `agent` flag, `vy_room_follower_day`'s own reason: neither this table nor
+  // its delivery ledger carries an `agent_id` column (agent context is
+  // joined from vy_room, the sweep's own reasoning), so both are absent from
+  // `roomScopedTables()`'s generic per-agent loop and reached by name
+  // instead.
+  vy_room_checkin: "forget-only",
+  // The delivery ledger: an id, a due date, a channel, a state, never a word
+  // — the day-count table's own content law restated a fourth time. Only the
+  // stronger door may take it, for the identical reason.
+  vy_room_checkin_delivery: "forget-only",
+  // ── WS-R18: which room a Telegram chat currently means (migration 082) ──
+  // A pointer - room_id, person_id, follower_id, a channel name, a chat
+  // address - and no words in it a scoped "forget priya" could ever match.
+  // Only the stronger door may take it: the account-level whole wipe (lane
+  // "relational", proven below) or the Room's own "op":"forget", reached
+  // through the follower_id -> vy_room_follower cascade rather than by name.
+  vy_room_follower_channel: "forget-only",
+  // ── WS-R22: a follower's own web push subscription (migration 085) ──
+  // An endpoint URL and two keys - a browser's own address for this device,
+  // no words in it a scoped "forget priya" could ever match, its 082 sibling's
+  // reason exactly. Only the stronger door may take it: the account-level
+  // whole wipe (lane "relational", proven below) or the Room's own
+  // "op":"forget", reached through the follower_id -> vy_room_follower
+  // cascade rather than by name.
+  vy_room_push_subscription: "forget-only",
+  // ── WS-R29: check-ins over WhatsApp utility templates (migration 092) ──
+  // A phone number and a state - `vy_room_push_subscription`'s exact
+  // reasoning restated for a phone number instead of a push endpoint: no
+  // words in it a scoped "forget priya" could ever match. Only the stronger
+  // door may take it: the account-level whole wipe (lane "relational",
+  // proven below) or the Room's own "op":"forget" (`roomForget`'s explicit
+  // room_id+person_id delete, added in the same change as this migration).
+  vy_room_follower_whatsapp: "forget-only",
+  // ── WS-R104: which room a WhatsApp phone currently means (migration 128) ──
+  // `vy_room_follower_channel`'s own pointer above, one transport further -
+  // a phone hash, a locale, two timestamps and a short code, no words in it
+  // a scoped "forget priya" could ever match. UNLIKE that table this one
+  // carries no `follower_id references vy_room_follower(follower_id) on
+  // delete cascade` at all (migration 128's own header states why: 009's
+  // WHERE-clause-binding law, restated rather than 082's own exception
+  // repeated a third time) - so the account-level whole wipe (lane
+  // "relational", proven below) and the Room's own "op":"forget"
+  // (`roomForget`'s explicit room_id+person_id delete, api/_room-surface.js)
+  // are the ONLY two doors that reach it at all, neither one a cascade.
+  vy_room_follower_whatsapp_chat: "forget-only",
+  // ── Handoff (WS-R20; migration 083) ──
+  // A follower's own verbatim ask and the creator's own verbatim reply -
+  // unlike every Room table above, this one DOES hold words (083's own
+  // header names it a deliberate, narrow exception to 071's "never a word"
+  // law). It is "forget-only" for the identical reason every Room table
+  // above is, not because it is content-free: `api/room.js` never calls
+  // `opForget` for ANY Room table (071's own entries state this once for the
+  // whole family), so a scoped "forget priya" has no path to any of them
+  // regardless of what they hold. Only the stronger door may take it: the
+  // account-level whole wipe (lane "relational", proven below) or the
+  // Room's own "op":"forget" (`roomForget`'s explicit room_id+person_id
+  // delete, added in the same change as this migration).
+  vy_room_handoff: "forget-only",
+  // ── WS-R30: the upgrade-offer ledger (migration 093) ──
+  // "Forget-only" for the identical reason every Room table above is: no
+  // scoped "forget priya" op reaches any Room table, only the stronger door
+  // (the account-level whole wipe, lane "relational", proven below, or
+  // `roomForget`'s own explicit room_id+person_id delete, added in the same
+  // change as this migration).
+  vy_room_upgrade_offer: "forget-only",
+  // ── WS-R37: the renewal reminder ledger (migration 099) ──
+  // "Forget-only" for the identical reason every Room table above is: no
+  // scoped "forget priya" op reaches any Room table, only the stronger door
+  // (the account-level whole wipe, lane "relational", proven below, or
+  // `roomForget`'s own explicit room_id+person_id delete, added in the same
+  // change as this migration). Content-free either way (subject_kind,
+  // period_end, channel, sent_at, a short failure code) - never a word the
+  // follower typed.
+  vy_renewal_reminder: "forget-only",
+  // ── WS-R67: the follower's own copy of every reply they flagged
+  //    (migration 116) ──
+  // "Forget-only" for the identical reason every Room table above is: no
+  // scoped "forget priya" op reaches any Room table, only the stronger door
+  // (the account-level whole wipe, lane "relational", proven below, or
+  // `roomForget`'s own explicit room_id+person_id delete, added in the same
+  // change as this migration). Content-free (which reply by hash, which
+  // reason, when) - never a word the follower typed. The CREATOR's mirror
+  // (`vy_room_reply_flag`) is deliberately absent from PERSON_TABLES and
+  // therefore from this FATE table too: it names no person at all
+  // (migration 116's own header), so it is reached only by room_id in the
+  // owner-wide erasure cascade, never by either forget door this table
+  // names.
+  vy_room_follower_reply_flag: "forget-only",
+
   // ── the consent ledger (task #148, migration 016) ──
   // The whole wipe takes it: a device-keyed record of a person surviving the
   // one request whose promise is that nothing about them remains would break

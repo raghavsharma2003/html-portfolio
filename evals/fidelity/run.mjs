@@ -185,6 +185,12 @@ function statusRow(extra = {}) {
     fidelity_qualified: true, fidelity_status: "pass",
     fidelity_score: { mean: 0.91, p10: 0.88, worst: 0.86, windows: 10, references: 3 },
     fidelity_computed_at: "2026-08-26T00:00:00.000Z",
+    // WS-R3's publish lock is a third peer gate on this row. It is set to a
+    // passing state here so this suite keeps testing FIDELITY: a baseline row
+    // that carried an unrelated blocker would make every "no blockers"
+    // assertion below vacuously false and every peer assertion untrustworthy.
+    readiness_qualified: true, readiness_overall: 82, readiness_min_part: 71,
+    readiness_unmeasured: 0, readiness_computed_at: "2026-08-26T00:00:00.000Z",
     capability_state: null, capability_activated_at: null,
     ...extra,
   };

@@ -25,6 +25,8 @@ import { SYLLABUS } from "../engine/practice/syllabus";
 import type { SubjectId } from "../engine/practice/syllabus";
 import type { TeacherSheet, TeacherStrictness, TeacherWarmth } from "../engine/agents/teacherTypes";
 import type { SheetProvenance } from "./sheetSeed";
+import { useStudioLocale } from "./localeContext";
+import type { StudioCopy } from "./copy";
 
 const SUBJECT_ID: Record<TeacherSheet["subjectDomain"], SubjectId> = {
   physics: "p",
@@ -32,33 +34,32 @@ const SUBJECT_ID: Record<TeacherSheet["subjectDomain"], SubjectId> = {
   maths: "m",
 };
 
-const STRICTNESS_LABELS: Record<TeacherStrictness, string> = {
-  0: "Never names it, reframes every miss as nearly right",
-  1: "Gentle, softens most corrections",
-  2: "Direct about the answer, easy about the person",
-  3: "Names a wrong step plainly, in the same breath it's met",
-  4: "No cushioning, the sharpest read of a mistake",
-};
+type TSC = StudioCopy["teacherSheetStudio"];
 
-const WARMTH_LABELS: Record<TeacherWarmth, string> = {
-  0: "All business, no encouragement beyond the correction itself",
-  1: "Occasional, and only for a real specific win",
-  2: "Steady encouragement, always tied to something they did",
-  3: "Warm by default, still specific",
-  4: "Highest encouragement density this sheet allows",
-};
+function strictnessLabel(value: TeacherStrictness, c: TSC): string {
+  return value === 0 ? c.strictness0 : value === 1 ? c.strictness1 : value === 2 ? c.strictness2
+    : value === 3 ? c.strictness3 : c.strictness4;
+}
+
+function warmthLabel(value: TeacherWarmth, c: TSC): string {
+  return value === 0 ? c.warmth0 : value === 1 ? c.warmth1 : value === 2 ? c.warmth2
+    : value === 3 ? c.warmth3 : c.warmth4;
+}
 
 // The read-only ING/ING? sample: a representative subset of the spec's
 // table, not all of it — the highest-signal, highest-recitation-risk fields,
 // which is exactly where a teacher most needs to SEE what was drafted even
-// though they cannot edit it here.
-const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; label: string; render: (sheet: TeacherSheet) => string }> = [
-  { key: "languageVoiceRule", label: "Language / voice ratio", render: (s) => s.languageVoiceRule },
-  { key: "sttSoundAlikes", label: "STT sound-alike pairs", render: (s) => s.sttSoundAlikes },
-  { key: "boardVerbalisms", label: "Board verbalisms (catchphrase field)", render: (s) => s.boardVerbalisms.join(", ") },
-  { key: "notationConventions", label: "Notation conventions", render: (s) => s.notationConventions },
-  { key: "analogyBank", label: "Signature analogies", render: (s) => s.analogyBank.map((a) => `${a.topic} → ${a.anchor}`).join("; ") },
-  { key: "commonMistakeBank", label: "Common mistake bank", render: (s) => `${s.commonMistakeBank.length} rows, strand-scoped` },
+// though they cannot edit it here. Labels are resolved from `t.teacherSheetStudio`
+// at render time (see `ingestedPreview` below).
+const INGESTED_PREVIEW: ReadonlyArray<{ key: keyof TeacherSheet; labelKey: keyof Pick<TSC,
+  "languageVoiceRuleLabel" | "sttSoundAlikesLabel" | "boardVerbalismsLabel" | "notationConventionsLabel" | "analogyBankLabel" | "commonMistakeBankLabel">;
+  render: (sheet: TeacherSheet, c: TSC) => string }> = [
+  { key: "languageVoiceRule", labelKey: "languageVoiceRuleLabel", render: (s) => s.languageVoiceRule },
+  { key: "sttSoundAlikes", labelKey: "sttSoundAlikesLabel", render: (s) => s.sttSoundAlikes },
+  { key: "boardVerbalisms", labelKey: "boardVerbalismsLabel", render: (s) => s.boardVerbalisms.join(", ") },
+  { key: "notationConventions", labelKey: "notationConventionsLabel", render: (s) => s.notationConventions },
+  { key: "analogyBank", labelKey: "analogyBankLabel", render: (s) => s.analogyBank.map((a) => `${a.topic} → ${a.anchor}`).join("; ") },
+  { key: "commonMistakeBank", labelKey: "commonMistakeBankLabel", render: (s, c) => c.commonMistakeBankSummary.split("{n}").join(String(s.commonMistakeBank.length)) },
 ];
 
 function chaptersFor(subject: TeacherSheet["subjectDomain"]) {
@@ -86,6 +87,8 @@ export default function TeacherSheetStudio({
   sheetProvenance: SheetProvenance;
   onAuthError: (cause: unknown) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.teacherSheetStudio;
   const [sheet, setSheet] = useState<TeacherSheet>(sheetDraft);
   const [ladderDraft, setLadderDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -148,12 +151,12 @@ export default function TeacherSheetStudio({
     try {
       await saveTeacherSheetDraft(token, replicaId, sheet);
       setServiceUnavailable(false);
-      setNotice("Sheet draft saved.");
+      setNotice(c.saved);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       // Same soft-fail idiom: the draft is never lost, it just isn't synced.
       setServiceUnavailable(true);
-      setNotice("Not saved to your account. The sheet service did not answer, so this draft is still only in this browser.");
+      setNotice(c.savedLocalOnly);
     } finally {
       setSaving(false);
     }
@@ -163,15 +166,12 @@ export default function TeacherSheetStudio({
     <section id="teacher-sheet-studio" className="teacher-sheet-studio" aria-labelledby="teacher-sheet-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Sheet review</p>
-          <h2 id="teacher-sheet-title">Review and confirm how {sheet.name || "this teacher"} teaches</h2>
-          <p>
-            Only what you have to decide is editable here. What we drafted from your uploads is read only, and you
-            correct it in the claims step.
-          </p>
+          <p className="eyebrow">{c.eyebrow}</p>
+          <h2 id="teacher-sheet-title">{c.title.split("{name}").join(sheet.name || c.titleFallbackName)}</h2>
+          <p>{c.intro}</p>
         </div>
         <button className="text-button" type="button" onClick={() => void load()}>
-          Load saved draft
+          {c.loadSavedDraft}
         </button>
       </div>
 
@@ -180,34 +180,29 @@ export default function TeacherSheetStudio({
           instead, because that is when it changes what a person decides to do
           with the next twenty minutes. */}
       {sheetProvenance === "seed" && (
-        <p className="field-note" role="status">
-          Nothing is saved for this clone yet. The fields below are blank or set to a middle default, and they carry
-          your name because we will never show you somebody else's. Save when you are ready.
-        </p>
+        <p className="field-note" role="status">{c.provenanceSeedNotice}</p>
       )}
 
       {serviceUnavailable && (
-        <p className="inline-error" role="status">
-          The sheet service did not answer. Anything you type stays in this browser and is not saved to your account.
-        </p>
+        <p className="inline-error" role="status">{c.serviceUnavailableNotice}</p>
       )}
 
       <div className="teacher-sheet-grid">
         <article className="teacher-sheet-card">
-          <h3>Subject &amp; syllabus coverage</h3>
-          <label className="field-label" htmlFor="subject-domain">Subject this clone answers in</label>
+          <h3>{c.subjectCardTitle}</h3>
+          <label className="field-label" htmlFor="subject-domain">{c.subjectLabel}</label>
           <select
             id="subject-domain"
             className="field"
             value={sheet.subjectDomain}
             onChange={(event) => setSubject(event.target.value as TeacherSheet["subjectDomain"])}
           >
-            <option value="physics">Physics</option>
-            <option value="chemistry">Chemistry</option>
-            <option value="maths">Maths</option>
+            <option value="physics">{c.subjectPhysics}</option>
+            <option value="chemistry">{c.subjectChemistry}</option>
+            <option value="maths">{c.subjectMaths}</option>
           </select>
 
-          <label className="field-label" htmlFor="syllabus-scope">Scope, and what it does not answer</label>
+          <label className="field-label" htmlFor="syllabus-scope">{c.scopeLabel}</label>
           <textarea
             id="syllabus-scope"
             className="field"
@@ -216,11 +211,8 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, syllabusScope: event.target.value }))}
           />
 
-          <p className="field-note">
-            Check every chapter this clone should teach. A physics teacher's clone answering
-            organic chemistry is a misrepresentation of them.
-          </p>
-          <div className="syllabus-coverage" role="group" aria-label="Chapter coverage">
+          <p className="field-note">{c.chapterNote}</p>
+          <div className="syllabus-coverage" role="group" aria-label={c.chapterCoverageAriaLabel}>
             {units.map((unit) => (
               <div key={unit.unit} className="syllabus-unit">
                 <strong>{unit.unit}</strong>
@@ -242,12 +234,9 @@ export default function TeacherSheetStudio({
         </article>
 
         <article className="teacher-sheet-card">
-          <h3>Strictness &amp; warmth</h3>
-          <p className="field-note">
-            You confirm these, we never infer them alone. An over-read here is a real harm to a 16-year-old
-            (teacher-sheet-spec.md §3).
-          </p>
-          <label className="field-label" htmlFor="strictness">Strictness: how bluntly a wrong answer is named</label>
+          <h3>{c.strictnessCardTitle}</h3>
+          <p className="field-note">{c.strictnessWarmthNote}</p>
+          <label className="field-label" htmlFor="strictness">{c.strictnessLabel}</label>
           <select
             id="strictness"
             className="field"
@@ -255,11 +244,11 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, strictness: Number(event.target.value) as TeacherStrictness }))}
           >
             {[0, 1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>{value}. {STRICTNESS_LABELS[value as TeacherStrictness]}</option>
+              <option key={value} value={value}>{value}. {strictnessLabel(value as TeacherStrictness, c)}</option>
             ))}
           </select>
 
-          <label className="field-label" htmlFor="warmth">Warmth: encouragement density, independent of strictness</label>
+          <label className="field-label" htmlFor="warmth">{c.warmthLabel}</label>
           <select
             id="warmth"
             className="field"
@@ -267,17 +256,14 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, warmth: Number(event.target.value) as TeacherWarmth }))}
           >
             {[0, 1, 2, 3, 4].map((value) => (
-              <option key={value} value={value}>{value}. {WARMTH_LABELS[value as TeacherWarmth]}</option>
+              <option key={value} value={value}>{value}. {warmthLabel(value as TeacherWarmth, c)}</option>
             ))}
           </select>
         </article>
 
         <article className="teacher-sheet-card">
-          <h3>Doubt-handling ladder</h3>
-          <p className="field-note">
-            The ordered hint rungs given before any full solution. This is the academic integrity spine. A full
-            solution is never the first response.
-          </p>
+          <h3>{c.ladderCardTitle}</h3>
+          <p className="field-note">{c.ladderNote}</p>
           <ol className="ladder-list">
             {sheet.doubtEscalationLadder.map((rung, index) => (
               <li key={`${rung}-${index}`}>
@@ -285,10 +271,10 @@ export default function TeacherSheetStudio({
                 <button
                   type="button"
                   className="text-button"
-                  aria-label={`Remove rung ${index + 1}`}
+                  aria-label={c.removeRungAriaLabel.split("{n}").join(String(index + 1))}
                   onClick={() => removeLadderRung(index)}
                 >
-                  Remove
+                  {c.removeRung}
                 </button>
               </li>
             ))}
@@ -296,22 +282,19 @@ export default function TeacherSheetStudio({
           <div className="create-row">
             <input
               className="field"
-              placeholder="Add the next rung"
+              placeholder={c.addRungPlaceholder}
               value={ladderDraft}
               onChange={(event) => setLadderDraft(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addLadderRung(); } }}
             />
-            <button className="button secondary-button" type="button" onClick={addLadderRung}>Add rung</button>
+            <button className="button secondary-button" type="button" onClick={addLadderRung}>{c.addRung}</button>
           </div>
         </article>
 
         <article className="teacher-sheet-card">
-          <h3>Boundaries</h3>
-          <p className="field-note">
-            <code>identityLife</code> is yours to write and is never ingested. A teacher's private life is not consented
-            training material even when it appears in your own uploaded videos.
-          </p>
-          <label className="field-label" htmlFor="identity-life">Teaching life, in one breath</label>
+          <h3>{c.boundariesCardTitle}</h3>
+          <p className="field-note">{c.boundariesNote}</p>
+          <label className="field-label" htmlFor="identity-life">{c.identityLifeLabel}</label>
           <textarea
             id="identity-life"
             className="field"
@@ -320,7 +303,7 @@ export default function TeacherSheetStudio({
             onChange={(event) => setSheet((current) => ({ ...current, identityLife: event.target.value }))}
           />
           <div className="teacher-sheet-readonly">
-            <span className="claim-meta">Mentor boundary · not editable here</span>
+            <span className="claim-meta">{c.mentorBoundaryLabel}</span>
             <p>{sheet.boundaryParagraph}</p>
           </div>
         </article>
@@ -328,20 +311,18 @@ export default function TeacherSheetStudio({
 
       <section className="teacher-sheet-ingested" aria-labelledby="ingested-title">
         <h3 id="ingested-title">
-          {sheetProvenance === "draft" ? "Drafted from your uploads" : "Nothing drafted yet"}
+          {sheetProvenance === "draft" ? c.ingestedTitleDraft : c.ingestedTitleEmpty}
         </h3>
         <p className="field-note">
-          {sheetProvenance === "draft"
-            ? "Read only here. Review or correct each one in the claims step."
-            : "These fill in once your uploads are processed. Read only here either way, and corrected in the claims step."}
+          {sheetProvenance === "draft" ? c.ingestedNoteDraft : c.ingestedNoteEmpty}
         </p>
         <div className="teacher-sheet-ingested-grid">
           {INGESTED_PREVIEW.map((item) => (
             <div key={String(item.key)} className="teacher-sheet-readonly">
-              <span className="claim-meta">{item.label}</span>
-              <p>{item.render(sheet)}</p>
+              <span className="claim-meta">{c[item.labelKey]}</span>
+              <p>{item.render(sheet, c)}</p>
               <small>
-                {sheetProvenance === "draft" ? "Drafted from your uploads" : "Not learned yet"}
+                {sheetProvenance === "draft" ? c.ingestedStatusDraft : c.ingestedStatusEmpty}
               </small>
             </div>
           ))}
@@ -351,9 +332,9 @@ export default function TeacherSheetStudio({
       {error && <p className="inline-error" role="alert">{error}</p>}
       {notice && <p className="field-note" role="status">{notice}</p>}
       <div className="person-model-action">
-        <p>Saving here never publishes a clone. Publish runs the full floor and consent gate separately.</p>
+        <p>{c.publishNote}</p>
         <button className="button primary-button" type="button" disabled={saving} onClick={() => void save()}>
-          {saving ? "Saving…" : "Save sheet draft"}
+          {saving ? c.saving : c.save}
         </button>
       </div>
     </section>

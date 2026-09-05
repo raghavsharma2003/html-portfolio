@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { runVoiceGenomeBuildSweep } from "./_replica-model-build.js";
+import { withSweepRun } from "./_sweep-run.js";
 
 function authorized(req) {
   const expected = Buffer.from(String(process.env.CRON_SECRET || ""));
@@ -13,7 +14,8 @@ export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!authorized(req)) return res.status(401).json({ error: "unauthorized" });
   try {
-    const summary = await runVoiceGenomeBuildSweep({ db: q, maxJobs: 2 });
+    // WS-R21: the ops board's heartbeat (migration 084).
+    const summary = await withSweepRun(q, "replica-model-build", () => runVoiceGenomeBuildSweep({ db: q, maxJobs: 2 }));
     return res.status(200).json({ ok: true, ...summary });
   } catch {
     return res.status(500).json({ error: "model_build_sweep_failed" });

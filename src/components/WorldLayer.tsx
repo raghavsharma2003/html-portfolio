@@ -185,6 +185,18 @@ export function usePainting(src: string): boolean {
  *  in every WebView this app ships to, and `color-mix(… calc(var(--a) *
  *  100%) …)` does not. A glass panel that silently renders opaque on an older
  *  Android is not a degradation, it is a black rectangle over the world. */
+/** `scrim` composited over `ground` at `alpha`, as a hex colour. Mirrors
+ *  scripts/check-contrast.mjs's `over()` so the gate and the page agree on
+ *  what the ground under text is. */
+function overHex(scrim: string, ground: string, alpha: number): string {
+  const c = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [sr, sg, sb] = c(scrim);
+  const [gr, gg, gb] = c(ground);
+  const mix = (a: number, b: number) => Math.round(a * alpha + b * (1 - alpha));
+  const hex2 = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex2(mix(sr, gr))}${hex2(mix(sg, gg))}${hex2(mix(sb, gb))}`;
+}
+
 function rgbOf(hex: string): string {
   const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return "255,255,255";
@@ -243,6 +255,17 @@ export function skyVars(frame: SkyFrame): React.CSSProperties {
     "--world-accent": t.accent,
     "--world-ink-rgb": rgbOf(t.ink),
     "--world-ink-dim": t.inkDim,
+    // The veiled ground: the scrim composited over the top stop at the
+    // scrim's own alpha, the same arithmetic scripts/check-contrast.mjs
+    // holds every ink to 4.5:1 against. Exposed as a colour so a surface
+    // can paint it as its OWN background under the world layer (the pixels
+    // it covers are identical to before), which is what an accessibility
+    // scanner reads: axe judges an element's contrast against its CSS
+    // ancestry, never against a sibling layer, so a light sky's raw top
+    // stop measured 4.35:1 under morning dim ink while the eye saw the
+    // veiled 5.8:1 (found by the accessibility gate at 06:00 IST,
+    // 2026-09-05; night skies had always passed).
+    "--world-ground": overHex(t.scrim, t.stops[0], t.scrimAlpha),
     "--world-control": t.control,
     "--world-control-rgb": rgbOf(t.control),
     "--world-control-a": String(t.controlAlpha),

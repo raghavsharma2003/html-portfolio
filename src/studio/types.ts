@@ -18,6 +18,12 @@ export interface Replica {
   age_verified: boolean;
   identity_verified: boolean;
   liveness_verified: boolean;
+  /** WS-R52 (migration 112). The STUDIO's own chrome language -- never the
+   *  AI's own replies, never the Room a follower sees (that is
+   *  src/room/copy.ts's business). Read from `?lang=` first, then this
+   *  stored value; src/studio/copy.ts's STUDIO_LOCALES is the source of
+   *  truth for what values are valid. */
+  locale: "en" | "hi";
   created_at: string;
   updated_at: string;
 }
@@ -72,7 +78,7 @@ export interface ReplicaSource {
   source_id: string;
   replica_id: string;
   kind: SourceKind;
-  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "upload" | "import" | "derived";
+  capture_mode: "live_challenge" | "provider_consent" | "identity_document" | "identity_challenge" | "upload" | "import" | "derived";
   mime: string;
   byte_size: number;
   state: SourceState;
@@ -114,6 +120,30 @@ export interface LivenessChallenge {
   face_session_expires_at: string | null;
   issued_at: string;
   expires_at: string;
+  updated_at: string;
+}
+
+// WS-R2, migration 072. The voice identity challenge: the owner proves they
+// are the voice in their own enrollment by reading a freshly issued sentence.
+export type VoiceIdentityState = "issued" | "captured" | "verifying" | "verified" | "failed" | "expired";
+/** "" until a verdict exists. `review` is a real, recorded outcome that does
+ *  NOT open the gate, because false acceptance on this metric is unmeasured. */
+export type VoiceIdentityDecision = "" | "accept" | "review" | "reject";
+
+export interface VoiceIdentityChallenge {
+  challenge_id: string;
+  replica_id: string;
+  sentence: string;
+  state: VoiceIdentityState;
+  decision: VoiceIdentityDecision;
+  attempt: number;
+  captured_source_id: string | null;
+  transcript_source_id: string | null;
+  failure_code: string;
+  similarity: number | null;
+  issued_at: string;
+  expires_at: string;
+  decided_at: string | null;
   updated_at: string;
 }
 
@@ -361,4 +391,76 @@ export interface CandidateEvaluation {
   progress?: { completed: number; total: number };
   dimensions?: CandidateEvalDimension[];
   assignment?: CandidateEvalAssignment | null;
+}
+
+// WS-R4, the review queue. `has_correction` rather than the source id: an
+// internal handle has no use on a screen, and the studio only has to know
+// whether the owner's better answer landed.
+export type ReviewCardKind = "question" | "claim" | "delta" | "follower_declined";
+export type ReviewCardState = "open" | "sounds_right" | "fixed" | "never";
+export type ReviewDecision = "sounds_right" | "fixed" | "never";
+
+export interface ReviewCard {
+  card_id: string;
+  kind: ReviewCardKind;
+  prompt_text: string;
+  answer_text: string;
+  source_refs: Array<Record<string, unknown>>;
+  state: ReviewCardState;
+  decided_at: string | null;
+  has_correction: boolean;
+  created_at: string;
+}
+
+export interface ReviewQueue {
+  replica_id: string;
+  cards: ReviewCard[];
+  open_count: number;
+  decided_count: number;
+  fixed_count: number;
+  never_count: number;
+  active_never_rules: number;
+  cap: number;
+}
+
+// WS-R67 (migration 116). Ten followers flagging the same reply is ONE
+// entry here with count=10, never ten - `api/_review-queue.js`'s
+// `readFlaggedReplies` groups by reply on the server, so the studio never
+// has to. `suggest_never` is true the moment even one follower named
+// `harmful` - the workstream brief's own words, "Never say this"
+// pre-selected for harmful.
+export type FlagReason = "wrong" | "harmful" | "not_them" | "other";
+
+export interface FlaggedReply {
+  reply_sha256: string;
+  reply_text: string;
+  count: number;
+  reasons: Record<FlagReason, number>;
+  suggest_never: boolean;
+  last_flagged_at: string;
+}
+
+export interface ReviewCorrectionUpload {
+  source: { source_id: string; mime: string; state: string };
+  upload: {
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    expires_at: string;
+  };
+}
+
+// WS-R72. The showcase picker's own list — a DECIDED review card the owner
+// can copy straight onto their public page, `api/_review-queue.js`'s
+// `readEligibleShowcaseCards`. Never a `ReviewCard`: this shape carries none
+// of the OPEN-queue fields (`state`, `decided_at`, `source_refs`,
+// `has_correction`) because every row this endpoint returns is already
+// `state: 'sounds_right'` by construction — the server's own WHERE clause,
+// never a client-side filter (`context/decisions.md#ws-r66-showcase-
+// eligibility-is-a-where-clause-on-kind`, restated for this read).
+export interface ShowcaseEligibleCard {
+  card_id: string;
+  kind: ReviewCardKind;
+  prompt_text: string;
+  answer_text: string;
 }

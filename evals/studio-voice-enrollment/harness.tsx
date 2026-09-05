@@ -12,6 +12,7 @@ const replica: Replica = {
   age_verified: true,
   identity_verified: true,
   liveness_verified: true,
+  locale: "en",
   created_at: "2026-08-24T00:00:00.000Z",
   updated_at: "2026-08-24T00:00:00.000Z",
 };

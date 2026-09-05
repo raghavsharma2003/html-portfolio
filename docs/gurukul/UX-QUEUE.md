@@ -524,3 +524,77 @@ one component at a time and this wave did the wizard chrome, the touch-target
 floor and the focus ring. The 2 700 lines of panel CSS still carry their own
 scales.
 
+---
+
+## WS-R1..R10 — Vyakti Rooms v1 (2026-09-03): no prior item closed, six new ones opened
+
+None of the tiered items above were closed by this wave — Rooms added six new
+panels to phase 5 (`PRODUCT-JOURNEY.md` Part 5) rather than fixing anything on
+the existing BREAK list. What each workstream's own session log flagged as
+open, not fixed, follows — filed here rather than silently dropped, per this
+file's own purpose.
+
+### UX-Q-R-01 · Phase 5 has not been re-audited since it gained five panels
+Readiness, the review queue, drift watch and RoomStudio all mounted onto the
+Meet/Deploy steps that Part 1's audit already found guilty of BREAK 24 (colliding
+step numbers) and BREAK 28 (no page-level sense of place) before any of them
+existed. Nobody has re-walked phase 5 with the new panels in place.
+**Do:** repeat the Part 1 audit method (read the real component tree, not the
+spec) against the current `StudioApp.tsx` Meet/Deploy sections.
+**Files:** `docs/gurukul/PRODUCT-JOURNEY.md` (target for the write-up),
+`src/studio/StudioApp.tsx`.
+
+### UX-Q-R-02 · The identity challenge has no different-speaker control (WS-R2)
+`api/_replica-voice-identity.js`'s accept/review/reject thresholds (0.78/0.70)
+are inherited from `api/_fidelity.js`'s self-vs-self ceiling work, not earned
+against an impostor set — there is no different-speaker control anywhere in
+this repo, so the false-accept rate for this specific gate is unmeasured.
+**Do:** build a different-speaker fixture and measure a real false-accept
+rate before `VOICE_IDENTITY_CHALLENGE` is turned on for anyone but the owner.
+**Files:** a new eval under `evals/identity-challenge/`, `api/_fidelity.js`.
+
+### UX-Q-R-03 · Sarvam script mismatch is untested for the identity sentence bank (WS-R2)
+Whether Sarvam's ASR returns Latin or Devanagari script for the identity
+challenge's server-issued sentences is unknown
+(`context/rejected.md#romanised-lexicon-meets-devanagari-asr` names the same
+class of problem elsewhere). The nonce check is the deliberate mitigation, but
+the transcript-overlap threshold (0.60) is marked provisional pending this.
+**Files:** `api/_voice-identity/verifier.js`.
+
+### UX-Q-R-04 · `recordOwnedFidelity` has zero live callers (WS-R9)
+Drift watch's score-drop signal depends on `vy_voice_fidelity` rows that
+nothing in production ever writes — the function's only caller is its own
+offline eval. Every real replica reads `not_measured` for this half of drift
+watch today, forever, until something calls it for real.
+**Do:** wire a real caller (the obvious one is the voice preview / genome
+approval path, once it exists) or state plainly in the drift watch UI that
+this half is structurally dark.
+**Files:** wherever a real fidelity score is ever computed for a real replica
+(no such call site exists yet — see `context/STATE.md`'s open voice problem).
+
+### UX-Q-R-05 · `check-copy.mjs` cannot tell a JSX apostrophe from a JS string delimiter (WS-R10)
+Discovered while sweeping the Rooms vocabulary rule into 30 files: the
+gate's whole-file quote-blanking approach produces both false negatives and
+false positives on an apostrophe inside JSX text, traced by hand twice this
+session rather than fixed (`context/rejected.md#ws-r10-check-copy-apostrophe-parity`).
+Out of scope for a rule-addition task; still open.
+**Files:** `scripts/check-copy.mjs`.
+
+### UX-Q-R-06 · No vendor voice arm has ever been contacted (WS-R6)
+`VOICE_VENDOR_ARMS`, `ELEVENLABS_API_KEY` and the Sarvam TTS pair
+(`docs/gurukul/ENV-MANIFEST.md` §25) are all code-complete and offline-gated
+only. No key exists anywhere this repo's sessions can reach, no vendor audio
+has ever been produced, and `platform-north-star`'s reversal condition (the
+whole reason these arms exist) remains untestable until one is.
+**Files:** whoever holds the ElevenLabs/Sarvam credentials next.
+
+### UX-Q-R-07 · The studio project still has no model key (all of Rooms, structurally)
+Every panel added by WS-R1..R10 that produces a reply — the Room, the
+interview, a future Mirror Call turn — routes through `api/_surface.js`'s
+`think()`, which needs `OPENROUTER_API_KEY` and has never had it on the
+studio Vercel project. This is not a Rooms defect; it predates Rooms and
+blocks it completely regardless of how correctly everything above is wired.
+See `docs/gurukul/ENV-MANIFEST.md` §25's closing note for the two different
+ways this fails depending on which door a surface leaves by.
+**Files:** the studio Vercel project's dashboard. Owner action, not code.
+

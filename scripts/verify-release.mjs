@@ -77,6 +77,14 @@ await gate("board legibility", NODE, ["scripts/check-contrast.mjs"]);
 // The em-dash ban, on the half of the app it never bound: product chrome.
 // She has stripTextingDashes on every bubble; the humans had nothing.
 await gate("chrome copy", NODE, ["scripts/check-copy.mjs"]);
+// WS-R42, "the money reconciles," law 3. A mirrored constant (the front end
+// cannot import a server module, so a handful of numbers are kept in two
+// files on purpose, `// mirror of api/<file>.js#<NAME>` marking each pair)
+// is a place two numbers can silently drift apart — the enrollment
+// sample-rate mirror three lines up already did this once for real. This
+// gate parses the literal on both sides of every marker in src/ and
+// site/suites.html and fails the moment they disagree. Offline, $0, a few ms.
+await gate("mirrored constants", NODE, ["scripts/check-mirrors.mjs"]);
 // The rate `services/voice-evidence/app.py`'s enhance stage EMITS and the rate
 // `api/_audio/wav.js`'s probeEnrollmentWav DEMANDS are two numbers with no
 // shared import (Node/Python, three deploy boundaries) that already drifted
@@ -140,12 +148,90 @@ await gate("web build", NODE, [fileURLToPath(VITE), "build"]);
 // run in CI. Its negative control is written down in its header: reintroduce
 // the 58px rail and it fails naming the element; restore it and it passes.
 await gate("layout readability", NODE, ["scripts/check-layout.mjs"]);
+// WS-R49. CAN A PERSON ON A BAD CONNECTION AFFORD TO WAIT. Nothing before this
+// gate measured what a follower on a Rs 12,000 Android phone on a busy cell
+// actually waits for — "India-first" was a stated law with no check behind
+// it. It renders the built /, /vyakti, /r/<slug> (via room-layout-fixture.html,
+// the same signed-in-without-a-secret technique the layout gate above uses)
+// and /studio (signed out) in real Chromium at 390x844 under CDP throttling
+// shaped like a bad Indian 4G day (CPU 4x, 1.6Mbps/750Kbps/150ms — the
+// long-standing Chrome DevTools/Lighthouse "Fast 3G" preset; see the file's
+// own header for why that number rather than a clean "4G" one), three
+// cold-cache runs each, against a named budget table (LCP, CLS, TBT, JS and
+// font transfer bytes, no render-blocking third-party request). A miss names
+// the target and the metric. See context/decisions.md#ws-r49-performance-
+// budgets-are-a-throttled-simulation-not-a-device for the reversal condition.
+await gate("performance budgets", NODE, ["scripts/check-performance.mjs"]);
 // The eval suite: parser cases, the persona invariants (crisis helplines,
 // never-deny-AI, NEVER MANIPULATE, spoken register), and the D0 fixture
 // integrity checks. run.mjs re-bundles from the REAL source on every run, so
 // this is a gate on the tree being shipped, not on a frozen copy — the same
 // reason tsc runs even though vite exits 0 with type errors.
 await gate("eval suite", NODE, ["evals/run.mjs"]);
+// WS-R8. Vyakti Rooms' Phase 1 hard rule, named as its own gate rather than
+// left to ride inside "eval suite": "the leak battery runs clean before a
+// second follower joins any Room. No exception for a launch date." Offline,
+// $0, ~6s — N followers (2, 5, 20) x 4 turns through the REAL follower lane
+// and the REAL compiler, 16,080 retrieval checks + 441 boundary checks, 0
+// leaks, two negative controls that must fail. See evals/room-leak/run.mjs's
+// header for what it does and does not prove.
+await gate("room leak battery", NODE, ["evals/room-leak/run.mjs"]);
+// WS-R27. Export/forget completeness for the Room: a follower's "forget me"
+// now writes a content-free receipt (migration 090,
+// `vy_room_forget_receipt`), and this proves the other half nothing checked
+// before — that `roomExport` names every person-lane Room table and
+// `roomForget` clears every one of them, static (DDL scan against
+// `roomExportManifest()`) plus dynamic (a real world through the real
+// follower lane), with two negative controls that must fail. See
+// evals/room-export/run.mjs's header for what it does and does not prove.
+await gate("room export completeness", NODE, ["evals/room-export/run.mjs"]);
+// WS-R38. THE DOOR BATTERY: every way into a Room, attacked offline through
+// the REAL decision modules the thin HTTP doors call — forged/expired
+// sessions, cross-Room sessions, body-supplied ids belonging to someone
+// else, webhook replay and signature tampering, an owner bearer reaching
+// for another owner's replica/org, rate-key malformation, invite-code
+// guessing, and the OTP verify brute-force floor. The door list is
+// enumerated by a static rule and asserted complete against api/'s own
+// directory listing. See evals/room-doors/run.mjs's own header for what it
+// proves, and this workstream's context entries for the two findings it
+// fixed (session-TTL enforcement was missing on most session-consuming
+// ops; a thread-creation door had no live-follower check at all).
+await gate("room door battery", NODE, ["evals/room-doors/run.mjs"]);
+// WS-R50. WCAG 2.1 A/AA over every follower and creator screen in both
+// locales: axe-core in a real Chromium against the built output on
+// 127.0.0.1:8933 (the layout gate owns 8931, WS-R49's performance gate
+// owns 8932), reusing `check-layout.mjs`'s own fixtures rather than a
+// third copy — plus a hand-written keyboard walk (axe cannot press a key),
+// asserting Tab reaches every control, Enter/Space activates it, Escape
+// closes an open panel, and focus is visibly marked. Zero `serious` or
+// `critical` findings of either kind fails the build; `moderate`/`minor`
+// axe findings are reported, not blocking — see
+// `context/decisions.md#ws-r50-accessibility-impact-threshold` for the
+// reversal condition. Runs in well under a minute; see
+// `scripts/check-accessibility.mjs`'s own header for what it does and does
+// not prove.
+await gate("accessibility", NODE, ["scripts/check-accessibility.mjs"]);
+// WS-R57. Named gate 21. `vercel.json` carried no `headers` block at all
+// before this workstream: a Room that keeps years of a follower's own words
+// shipped with no Content-Security-Policy, no HSTS, no frame protection, and
+// no proof the dependency tree `npm install` pulls is the one `package-
+// lock.json` says it is. This gate is two checks riding one file because
+// both share the same posture every gate above it does: prove it against the
+// real artifact, never a description of one. §1 loads the six real built
+// pages the brief named (the Room and the studio via the same layout-fixture
+// technique `check-layout.mjs`/`check-accessibility.mjs` already use for the
+// identical "needs a secret to render for real" wall, plus `/`, `/vyakti`,
+// `/suites`, `/creators`) in real Chromium on 127.0.0.1:8934 (never
+// 8931-8933), applies `vercel.json`'s own headers exactly as Vercel would,
+// and fails on any CSP violation, any missing header per route class, or a
+// CSP looser than this workstream's own law. §2 runs `npm ci --dry-run`
+// (lockfile integrity), `npm audit --omit=dev --audit-level=high` (a
+// registry call that FAILS, never passes silently, if the registry is
+// unreachable), and a scan for any dependency that runs an install script
+// without being on the named, justified allowlist in `scripts/
+// installScriptAllowlist.mjs`. See `scripts/check-headers.mjs`'s own header
+// for the full route table and what each failure kind means.
+await gate("security headers", NODE, ["scripts/check-headers.mjs"]);
 
 // Relational-schema integrity: the zero-orphan sweep and the citation
 // discipline (SPEC §4.2). Both are read-only sub-second queries against the

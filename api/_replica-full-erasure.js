@@ -57,6 +57,101 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // and when, video titles included, and a receipt that did not name it
       // would understate what was held.
       "owner_activity_trail",
+      // 074 (WS-R4). The review queue is its own class on the same test the
+      // three above pass: it holds questions asked of this person's AI, what it
+      // answered, and the sentences the person said must never be spoken in
+      // their name. A receipt that did not name them would understate what was
+      // held. Additive; the eval asserts membership, never the exact list.
+      "owner_review_queue",
+      // 075 (WS-R5). The interview is its own class and not a detail of
+      // `mirror_call_sessions`, because what it holds is different in kind: a
+      // Mirror Call transcript is the person talking, an interview answer is
+      // the person ANSWERING A QUESTION ABOUT THEMSELVES that this platform
+      // chose to ask. A receipt that folded the second into the first would be
+      // answering a narrower question than the one asked.
+      "owner_interview_answers",
+      // 078 (WS-R11). The Room's money is its own class rather than folded
+      // into anything above: a price, a subscription reference and a ledger
+      // of what moved are a different kind of record than a memory or a
+      // consent grant, and a receipt that did not name them would understate
+      // what was held. Additive; the eval asserts membership, never the exact
+      // list. 098 (WS-R36) folded the provider's own fund account reference
+      // into this SAME class rather than a new one - it is a detail of the
+      // Room's money, not a different kind of record.
+      "owner_room_payments",
+      // 079 (WS-R16). Check-in designs, follower schedules and the delivery
+      // ledger are their own class rather than folded into `agent_relational_memory`:
+      // a schedule and a delivery date are records of a standing arrangement
+      // between this AI and a named follower, distinct in kind from a fact or
+      // a memory, and a receipt that did not name them would understate what
+      // was held. Additive; the eval asserts membership, never the exact list.
+      "owner_room_checkins",
+      // 080 (WS-R17). Pulse's own class: a follower's opt-in toggle, the
+      // creator's topic labels, and the content-free weekly counts derived
+      // from both. None of the three is a memory or a payment, so folding
+      // them into either existing class would answer a narrower question
+      // than the one asked. Additive; the eval asserts membership, never the
+      // exact list. 097 (WS-R35) added two more tables to this SAME class
+      // (a k-anonymous week header and its combo buckets) rather than a new
+      // class of its own - same reasoning, one migration later.
+      "owner_room_pulse",
+      // 083 (WS-R20). Handoff's own class: a follower's verbatim ask and the
+      // creator's verbatim reply to it are a different kind of record than
+      // any of the above - the one Room table that deliberately holds
+      // words at all (083's own header names the exception) - and a
+      // receipt that did not name it would understate what was held.
+      // Additive; the eval asserts membership, never the exact list.
+      "owner_room_handoff",
+      // 091 (WS-R28). A Suite membership is its own class rather than folded
+      // into anything above: it names an organisation this owner belonged to
+      // and the role they held in it, a different kind of record than a
+      // memory, a payment or a schedule, and a receipt that did not name it
+      // would understate what was held. The Suite row itself (`vy_org`)
+      // deliberately outlives this erasure - see migration 091's header -
+      // so this class names only the MEMBERSHIP, never the organisation.
+      "owner_org_membership",
+      // 095 (WS-R33). A creator's own tier subscription is its own class
+      // rather than folded into `owner_room_payments`: it is a record of
+      // what the OWNER pays the platform for capacity, distinct in kind
+      // from `owner_room_payments`'s record of what FOLLOWERS pay a Room -
+      // one is money going out, the other money coming in - and a receipt
+      // that did not name it separately would answer a narrower question
+      // than the one asked. Additive; the eval asserts membership, never
+      // the exact list.
+      "owner_creator_tier_subscription",
+      // 104 (WS-R42). The creator-tier charge ledger (vy_creator_charge_event)
+      // is billing HISTORY for the SAME subscription the class immediately
+      // above already names - folded in rather than minting a new class,
+      // owner_room_pulse's own "a combo-bucket folds into the header's own
+      // class" precedent restated. Deleted by name, see the delete's own
+      // comment where it is scoped.
+      // 099 (WS-R37). A follower's own renewal-reminder history on this
+      // owner's Rooms (`owner_room_payments`'s own reach, one table over)
+      // and this owner's own creator-tier reminder history
+      // (`owner_creator_tier_subscription`'s own reach, one table over) are
+      // named as their own class rather than folded into either: the
+      // reminder ledger is a distinct KIND of record from a payment or a
+      // subscription state - when this creator's AI reminded someone, and
+      // on which channel - and a receipt that did not name it would
+      // understate what was held. Additive; the eval asserts membership,
+      // never the exact list.
+      "owner_room_renewal_reminders",
+      // 116 (WS-R67). A flagged reply is its own class rather than folded
+      // into `owner_review_queue`: it is follower-initiated safety feedback
+      // about something the AI already said, not a question the platform
+      // asked or the owner reviewed themselves, and a receipt that did not
+      // name it would understate what was held. Covers BOTH lanes: the
+      // follower's own copy of what they flagged, and the creator's
+      // content-free count of it. Additive; the eval asserts membership,
+      // never the exact list.
+      "owner_room_reply_flags",
+      // 115 (WS-R66). The creator's public-page showcase (`vy_room_showcase`)
+      // is its own class rather than folded into "rooms": it is up to five
+      // Q&A pairs the creator chose to show a stranger, real text a person
+      // outside this platform could have read, and a receipt that did not
+      // name it would understate what was held. Additive; the eval asserts
+      // membership, never the exact list.
+      "owner_room_showcase",
     ]),
   });
 }
@@ -371,6 +466,19 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- cascade for it means relying on an FK nobody re-checks.
      mirror_turns as (delete from vy_mirror_turn x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 075's interview (WS-R5). AHEAD of the mirror windows and sessions
+     -- because an interview session cascades from vy_mirror_session and an
+     -- answer points at a vy_mirror_window: deleting the parents first would
+     -- leave these two to a cascade, and the whole point of naming a table here
+     -- is not to rely on one. Same 059 argument, and it applies harder: an
+     -- interview answer is the ONLY material in this archive where the person
+     -- was answering a question about themselves rather than delivering a
+     -- lecture, which is exactly the material a deletion receipt is about.
+     -- CHILD FIRST — the answer names the session.
+     interview_answers as (delete from vy_interview_answer x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     interview_sessions as (delete from vy_interview_session x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_windows as (delete from vy_mirror_window x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      mirror_sessions as (delete from vy_mirror_session x using target t
@@ -384,6 +492,416 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- re-checks. Two independent layers for a harm the next turn does not undo.
      activity as (delete from vy_replica_activity x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 072's voice identity challenge (WS-R2). FK-SHAPED, NOT FK, the same
+     -- 009 convention as 053/055/057/058/061 above, so there is no cascade to
+     -- inherit and these rows would simply outlive the replica.
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- these two lines, which is how they got here. What they hold is the
+     -- reason it matters: a challenge row is a dated, numeric verdict on
+     -- whether a named person's own voice matched their own recording, and an
+     -- attempt row is every time that judgement was made about them. That is
+     -- a biometric conclusion about a human being, and it outliving the
+     -- deletion receipt would be exactly the standing claim revocation is
+     -- meant to end. CHILD FIRST: the attempt names a challenge.
+     voice_challenge_attempts as (delete from vy_replica_voice_challenge_attempt x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     voice_challenges as (delete from vy_replica_voice_challenge x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 074's review queue (WS-R4). FK-SHAPED, NOT FK, same convention as
+     -- 053/055/057/058/061 above, so there is no cascade to inherit and these
+     -- rows would simply outlive the replica. scripts/relcheck.mjs's owner-lane
+     -- reach walk fails the build for exactly that, which is why they are here.
+     -- What they hold makes it unacceptable independently of the gate: a card
+     -- is a question somebody asked this person's AI together with what it
+     -- answered, and a never-rule is a standing record of a sentence a named
+     -- person did not want said in their name. Both outliving the deletion
+     -- receipt is the receipt being false.
+     --
+     -- CHILD FIRST, as the chains above are ordered: a never-rule names the
+     -- card it came from, so nothing can strand a rule whose card is gone.
+     review_never_rules as (delete from vy_review_never_rule x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     review_cards as (delete from vy_review_card x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 073's readiness snapshots (WS-R3). Unlike the activity trail above this
+     -- one carries NO foreign key at all (009's convention for owner-keyed
+     -- tables), so this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without it.
+     -- It is also a table worth deleting on its own merits: a readiness history
+     -- is a dated record of how well we thought we had learned a named person,
+     -- which is exactly the kind of row an erasure that skipped it would leave
+     -- behind while reporting success.
+     readiness as (delete from vy_replica_readiness x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 127's recall runs (WS-R101). Same shape as readiness immediately
+     -- above and for the same reason: NO foreign key (009's convention), so
+     -- this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. A recall run is a dated, scored record of how well we thought a
+     -- named person's AI knew their own material, exactly what an erasure
+     -- that skipped it would leave behind while reporting success.
+     recall_runs as (delete from vy_recall_run x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 088's funnel marks (WS-R25). Same shape as readiness immediately
+     -- above and for the same reason: NO foreign key (009's convention),
+     -- so this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. Content-free (a step name and a timestamp, never a message), but
+     -- still a dated record of what a named person did and when, which is
+     -- exactly what an erasure that skipped it would leave behind.
+     funnel_marks as (delete from vy_replica_funnel_mark x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 076's drift watch history (WS-R9). Unlike the activity trail above,
+     -- and like 073's readiness snapshot immediately above, this table
+     -- carries NO foreign key at all (009's convention for owner-keyed
+     -- tables), so this line is not a second layer, it is the only layer, and
+     -- scripts/relcheck.mjs's owner-lane reach walk fails the build without
+     -- it. It is a table worth deleting on its own merits too: a drift report
+     -- is a dated record of how closely we thought a named person's clone
+     -- still sounded like them, plus the exact commitment hashes of every
+     -- voice-model swap that clone lived through, and an erasure that left it
+     -- behind would leave exactly the kind of record consent revocation is
+     -- meant to end.
+     drift_reports as (delete from vy_replica_drift_report x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 071's Room (WS-R1). vy_room carries owner_user_id with no person
+     -- column, so relcheck's owner-lane reach walk requires it by name here:
+     -- 071 declares replica_id/owner_user_id FK-SHAPED BUT NOT FK on 009's
+     -- convention, so there is no cascade to inherit and the room would simply
+     -- outlive the replica. What that means concretely is a public address at
+     -- /r/<slug> still resolving after the creator revoked the AI it points at.
+     --
+     -- CHILD FIRST, as every block above is ordered. The two child tables DO
+     -- carry room_id references vy_room(room_id) on delete cascade, so the
+     -- room delete alone would take them; they are deleted by name anyway, on
+     -- 059's precedent and for 059's reason -- relying on a cascade means
+     -- relying on an FK nobody re-checks, and the day someone drops it to add a
+     -- column these rows outlive the receipt and NOTHING reports it. Keyed on
+     -- agent_id rather than room_id because that is the binding the target CTE
+     -- already holds, and because it reaches a follower row whose room was
+     -- deleted out of order by any future path.
+     room_threads as (delete from vy_room_thread x using target t
+       where x.agent_id=t.agent_id),
+     room_followers as (delete from vy_room_follower x using target t
+       where x.agent_id=t.agent_id),
+     -- 078 (WS-R11), the Room's money. All four are reached from THIS side by
+     -- room_id, never by agent_id: none of them carries an agent binding, and
+     -- a room has exactly one agent (vy_room_replica_ix), so the join through
+     -- vy_room is exact rather than approximate. Ledger and payout FIRST,
+     -- subscription SECOND, room LAST - child before parent, 071's own
+     -- ordering restated: vy_payment_event.subscription_id and
+     -- vy_room_subscription.room_id both carry real FK CASCADE from this
+     -- point down, so these three deletes are a backstop rather than the only
+     -- mechanism - "relying on a cascade means relying on an FK nobody
+     -- re-checks" (071's own words, one migration over).
+     --
+     -- vy_creator_payout is the one exception: it has no room_id (a payout is
+     -- a roll-up across every room an owner has), so it is scoped by
+     -- owner_user_id alone - the imprecision migration 078's own header names
+     -- and context/decisions.md logs with its reversal condition.
+     --
+     -- 126 (WS-R100), the follower's receipt. Child of BOTH vy_payment_event
+     -- (payment_event_id) and vy_room (room_id), so deleted FIRST, ahead of
+     -- payment_events immediately below - child before parent, 071's own
+     -- ordering restated. Carries real FK CASCADE from both parents, so this
+     -- delete is a backstop rather than the only mechanism - "relying on a
+     -- cascade means relying on an FK nobody re-checks" (071's own words,
+     -- restated for the Nth time). Scoped by room_id, never person_id: a full
+     -- REPLICA erasure ends every receipt this Room's followers hold - their
+     -- money record dies with the Room's own ledger - never merely nulls the
+     -- person the way ONE follower's own account-wide "forget everything"
+     -- does (api/memory.js's explicit door); that gentler treatment is
+     -- reserved for a person ending their OWN relationship, not a creator
+     -- ending the whole Room. Folded into the "owner_room_payments" receipt
+     -- class below, 098's own precedent for the fund-account reference: a
+     -- follower's receipt is a detail of the Room's money, not a different
+     -- kind of record.
+     receipts as (delete from vy_receipt x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     payment_events as (delete from vy_payment_event x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     room_subscriptions as (delete from vy_room_subscription x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     room_prices as (delete from vy_room_price x using target t
+       where x.owner_user_id=t.owner_user_id
+         and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     creator_payouts as (delete from vy_creator_payout x using target t
+       where x.owner_user_id=t.owner_user_id),
+     -- 098 (WS-R36). The provider's own fund account reference - never a
+     -- bank detail, see that migration's own header. Same owner-wide scope
+     -- as vy_creator_payout immediately above and the same reasoning: no
+     -- column on this table can express a narrower one without changing
+     -- what it means (one row per owner+provider, not per replica).
+     creator_payout_accounts as (delete from vy_creator_payout_account x using target t
+       where x.owner_user_id=t.owner_user_id),
+     -- 095 (WS-R33), the creator's own tier subscription. Owner lane, NOT
+     -- person lane (this migration's own header restates the argument):
+     -- it is a record of what the OWNER pays the platform for capacity, not
+     -- a relationship with any person, so it is deleted BY NAME here rather
+     -- than through api/memory.js's PERSON_TABLES manifest. Scoped by BOTH
+     -- replica_id and owner_user_id directly - unlike vy_creator_payout two
+     -- lines up, this table carries its own replica_id column, so it is
+     -- exact rather than the owner-wide imprecision that table's own header
+     -- names: erasing one replica erases only that replica's own tier
+     -- subscription, never a sibling replica's.
+     -- 104 (WS-R42). The creator-tier charge ledger. Deleted CHILD-BEFORE-
+     -- PARENT, ahead of creator_subscriptions immediately below, even though
+     -- the FK on subscription_id would cascade it anyway - "relying on a
+     -- cascade means relying on an FK nobody re-checks" (071's own words,
+     -- restated for the Nth time). Scoped by BOTH replica_id and
+     -- owner_user_id directly, creator_subscriptions' own precedent one line
+     -- down: exact, not the owner-wide imprecision vy_creator_payout carries.
+     creator_charge_events as (delete from vy_creator_charge_event x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     creator_subscriptions as (delete from vy_creator_subscription x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 099 (WS-R37), the renewal reminder ledger. TWO lanes reached from
+     -- THIS side, in the SAME statement, vy_payment_event_one_lane's own
+     -- mutually-exclusive-columns shape restated for a delete predicate: the
+     -- FOLLOWER lane by room_id via the same vy_room subquery
+     -- payment_events/room_subscriptions use three lines up (a reminder
+     -- carries no agent binding), and the CREATOR lane by replica_id +
+     -- owner_user_id, creator_subscriptions' own scoping one line up. The
+     -- Suite lane (subject_kind='org') is deliberately UNREACHED here,
+     -- vy_org_subscription's own 091 precedent restated: a Suite's own
+     -- reminder history survives an owner's erasure exactly as the Suite
+     -- itself does. Carries real FK CASCADE from both vy_room and the
+     -- follower roster table for the follower lane, so this delete is a
+     -- backstop to that cascade rather than the only mechanism - 071's own
+     -- words, restated here for the Nth time.
+     renewal_reminders as (delete from vy_renewal_reminder x using target t
+       where (x.subject_kind='follower' and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id))
+          or (x.subject_kind='creator' and x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id)),
+     -- 086 (WS-R23), creator invites. vy_creator_invite has no room_id and no
+     -- replica_id of its own - an invite is redeemed once, before any room
+     -- exists, so it is scoped by owner_user_id alone, creator_payouts' own
+     -- reasoning one line up. redeemed_by_user_id IS the owner's id once a
+     -- code is spent, which is what makes this table OWNER lane rather than
+     -- person lane (086's own migration header, restated in
+     -- scripts/relcheck.mjs's widened PERSON_COLUMNS): the row is reached
+     -- HERE, by name, never through api/memory.js's PERSON_TABLES manifest,
+     -- and never through vy_creator_application's operator-only
+     -- eraseApplicationsByContact, which is a different table on a different
+     -- (pre-signup) lane entirely. An invite this owner never redeemed is
+     -- untouched, on purpose: it still belongs to whoever issued it and may
+     -- yet be redeemed by someone else.
+     creator_invites as (delete from vy_creator_invite x using target t
+       where x.redeemed_by_user_id=t.owner_user_id),
+     -- 079 (WS-R16), check-ins. All three are reached from THIS side by
+     -- room_id, payment_events's own reasoning three lines up: none of them
+     -- carries an agent binding, and a room has exactly one agent
+     -- (vy_room_replica_ix), so the join through vy_room is exact. Delivery
+     -- ledger FIRST, schedule SECOND, design THIRD - child before parent, the
+     -- ordering every block above restates. All three also carry real FK
+     -- CASCADE from this point down (room_id references vy_room, checkin_id
+     -- references vy_room_checkin, design_id/follower_id reference their own
+     -- parents), so these three deletes are a backstop rather than the only
+     -- mechanism - "relying on a cascade means relying on an FK nobody
+     -- re-checks" (071's own words, restated at 078 and here for the third
+     -- time).
+     checkin_deliveries as (delete from vy_room_checkin_delivery x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     checkins as (delete from vy_room_checkin x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     checkin_designs as (delete from vy_room_checkin_design x using target t
+       where x.owner_user_id=t.owner_user_id
+         and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 080 (WS-R17), Pulse. All three reached by room_id via the same
+     -- subquery the payment_events/room_subscriptions CTEs use two blocks
+     -- up, for the identical reason: none of the three carries an agent
+     -- binding.
+     -- Snapshot and topic FIRST (topic_id cascades from vy_room_pulse_topic,
+     -- so deleting topics after snapshots would be backwards for the same
+     -- child-before-parent reason 071's own header states), optin with them
+     -- since none of the three has a dependency on either of the other two.
+     -- All three also carry real FK CASCADE from vy_room, so these deletes
+     -- are the backstop 071's words describe rather than the only mechanism.
+     pulse_snapshots as (delete from vy_room_pulse_snapshot x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     pulse_topics as (delete from vy_room_pulse_topic x using target t
+       where x.owner_user_id=t.owner_user_id
+         and x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     pulse_optins as (delete from vy_room_pulse_optin x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 097 (WS-R35), Pulse v1. Same room_id-via-vy_room reasoning as the
+     -- three blocks just above, one migration later: neither table carries
+     -- an agent binding. Combo FIRST (it carries a real FK to the week
+     -- header, ON DELETE CASCADE, so deleting the header first would work
+     -- too, but child-before-parent is 071's own stated convention and this
+     -- delete is a backstop to that cascade either way, not the only
+     -- mechanism).
+     pulse_v1_combos as (delete from vy_room_pulse_combo x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     pulse_v1_weeks as (delete from vy_room_pulse_week x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 118 (WS-R74), the creator's weekly push. Reached by room_id via the
+     -- SAME vy_room subquery as pulse_v1_weeks immediately above: this
+     -- table carries no agent binding and no owner_user_id column at all
+     -- (migration 118's own header - the ledger is a room_agg table,
+     -- api/_creator-export.js's own scope for it). Carries a real FK
+     -- CASCADE from vy_room, so this delete is a backstop rather than the
+     -- only mechanism, pulse_v1_weeks' own reasoning restated a fifth time.
+     creator_weekly_pushes as (delete from vy_creator_weekly_push x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 083 (WS-R20), Handoff. Reached by room_id, the payment_events/
+     -- checkins/pulse blocks' own reasoning restated a fourth time: this
+     -- table carries no agent binding, and a room has exactly one agent
+     -- (vy_room_replica_ix), so the join through vy_room is exact. Carries a
+     -- real FK CASCADE from vy_room, so this delete is a backstop rather
+     -- than the only mechanism - "relying on a cascade means relying on an
+     -- FK nobody re-checks," 071's own words, restated a fourth time.
+     handoffs as (delete from vy_room_handoff x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 116 (WS-R67), flag this reply. TWO lanes, BOTH reached from THIS
+     -- side, by room_id via the SAME vy_room subquery every block above
+     -- uses: neither table carries an agent binding of its own. The first
+     -- lane below is also reached by a follower's own "forget me"
+     -- (api/_room-surface.js's roomForget, child-before-parent ahead of the
+     -- follower roster row) and by api/memory.js's PERSON_TABLES manifest
+     -- on a whole-account wipe - this delete is a backstop to both for the
+     -- case an owner erases the REPLICA outright, "relying on a cascade
+     -- means relying on an FK nobody re-checks" restated again. The second
+     -- lane below has no other path to erasure at all: it names no person
+     -- (migration 116's own header - no follower id, no person id, no
+     -- thread reference), so this is the ONLY place in the codebase that
+     -- ever deletes it. First lane FIRST: it carries a real FK CASCADE to
+     -- the follower roster row, this block's own child-before-parent rule.
+     reply_flags_follower as (delete from vy_room_follower_reply_flag x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     reply_flags_creator as (delete from vy_room_reply_flag x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 102 (WS-R40), arrival counts. Reached by room_id via the SAME
+     -- vy_room subquery every block above uses, for the identical reason:
+     -- no agent binding of its own. Carries a real FK CASCADE from vy_room
+     -- (migration 102's own header), so this delete is a backstop rather
+     -- than the only mechanism - "relying on a cascade means relying on an
+     -- FK nobody re-checks," restated again. No new entry in the
+     -- deletedClasses list below: like vy_replica_funnel_mark (WS-R25) and
+     -- vy_replica_drift_report (WS-R9) elsewhere in this file, this table
+     -- holds a content-free daily count with no person or follower
+     -- reference at all - not a different KIND of record from anything a
+     -- receipt already names, so a new class here would not answer a
+     -- question the existing ones leave open. (No backtick-quoting in this
+     -- comment on purpose: this whole statement is ONE JS template literal,
+     -- and a literal backtick anywhere inside it - even in a SQL comment -
+     -- closes the string early and corrupts every byte after it. See
+     -- context/rejected.md for the exact parse failure this caused once.)
+     room_arrivals as (delete from vy_room_arrival x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 108 (WS-R54), Suite attachment history. Reached by room_id via the
+     -- SAME vy_room subquery every block above uses, the arrival table's
+     -- own reasoning one block up restated: no agent binding of its own.
+     -- Carries a real FK CASCADE from vy_room (migration 108's own header),
+     -- so this delete is a backstop rather than the only mechanism -
+     -- "relying on a cascade means relying on an FK nobody re-checks,"
+     -- restated again. No new entry in the deletedClasses list below: like
+     -- its sibling one block up, this table holds a content-free record of
+     -- which Suite a Room sat in and when - no person, no follower
+     -- reference, not a different KIND of record from anything a receipt
+     -- already names.
+     room_org_attachments as (delete from vy_room_org_attachment x using target t
+     -- 110 (WS-R53), taste turn counts. Reached by room_id via the SAME
+     -- vy_room subquery room_arrivals just above uses, for the identical
+     -- reason: no agent binding of its own. Carries a real FK CASCADE from
+     -- vy_room (migration 110's own header), so this delete is a backstop
+     -- rather than the only mechanism - "relying on a cascade means relying
+     -- on an FK nobody re-checks," restated again. No new entry in the
+     -- deletedClasses list below: room_arrivals' own precedent immediately
+     -- above - a content-free daily count with no person or follower
+     -- reference at all, not a different KIND of record from anything a
+     -- receipt already names.
+     taste_turns as (delete from vy_room_taste_turn x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 115 (WS-R66), the creator's public-page showcase. Reached by room_id
+     -- via the SAME vy_room subquery every block above uses. Carries a real
+     -- FK CASCADE from vy_room (migration 115's own header), so this delete
+     -- is a backstop rather than the only mechanism - "relying on a cascade
+     -- means relying on an FK nobody re-checks," restated again. Unlike the
+     -- two content-free room-scoped tables immediately above, this
+     -- table DOES get its own entry in the deletedClasses list below: it
+     -- holds real text a stranger could read on the creator's own public
+     -- page, not a content-free count, so a receipt that folded it silently
+     -- into "rooms" would understate what was held.
+     room_showcase as (delete from vy_room_showcase x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 123 (WS-R86), follower referrals. Reached by room_id via the SAME
+     -- vy_room subquery every block above uses, room_arrivals' own
+     -- reasoning several blocks up restated: no agent binding of its own.
+     -- Carries a real FK CASCADE from vy_room (migration 123's own
+     -- header), so this delete is a backstop rather than the only
+     -- mechanism - relying on a cascade means relying on an FK nobody
+     -- re-checks, restated again. No new entry in the deletedClasses list
+     -- below: this table holds no person column at all, a one-way hash
+     -- and a room id and a timestamp, room_arrivals' own content-free
+     -- reasoning restated for a referral count instead of an arrival
+     -- count.
+     room_referrals as (delete from vy_room_referral x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     rooms as (delete from vy_room x using target t
+       where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
+     -- 091 (WS-R28), Suites v0. Reached by owner_user_id ALONE, creator_
+     -- payouts' own reasoning three blocks up restated a second time: a
+     -- Suite membership is not this ONE replica's, it is this OWNER's, so it
+     -- is out of scope for the replica-keyed joins every block above uses
+     -- and is scoped the same imprecise way vy_creator_payout already is
+     -- (migration 078's own header, migration 091's own header, both log the
+     -- same tradeoff in context/decisions.md: an owner erasing ONE of
+     -- several replicas also clears their Suite memberships everywhere).
+     -- vy_org itself is deliberately NOT deleted here and carries no
+     -- owner_user_id column for exactly that reason - see migration 091's
+     -- header: an org survives its last admin's own erasure, on purpose, so
+     -- a roster's shared address is never taken down by one person's wipe.
+     org_memberships as (delete from vy_org_member x using target t
+       where x.owner_user_id=t.owner_user_id),
+     -- 114 (WS-R62). An operator's own push subscription is not this ONE
+     -- replica's either - it is out of scope for the replica-keyed joins
+     -- above and reached by owner_user_id ALONE, org_memberships' own
+     -- precedent one block up restated a third time (an owner erasing ONE
+     -- of several replicas also clears every browser they ever subscribed
+     -- for platform ops alerts on). scripts/relcheck.mjs's owner-lane reach
+     -- walk finds this table by its own owner_user_id column and requires
+     -- it be named here or reached by cascade from vy_replica - it is
+     -- neither reached by cascade (no replica_id on this table at all) nor
+     -- exempt, so it is named here. No new entry in the deletedClasses list
+     -- above: room_arrivals'/room_org_attachments' own reasoning two blocks
+     -- up restated - a browser endpoint and its two encryption keys, no
+     -- memory, no follower words, no payment, not a different KIND of
+     -- record from anything a receipt already names.
+     operator_push_subscriptions as (delete from vy_operator_push_subscription x using target t
+       where x.owner_user_id=t.owner_user_id),
+     -- 118 (WS-R74). A creator's own push subscription, operator_push_
+     -- subscriptions' own reasoning one migration later restated for the
+     -- creator lane: not this ONE replica's, no replica_id column on this
+     -- table at all, reached by owner_user_id ALONE. scripts/relcheck.mjs's
+     -- owner-lane reach walk finds it by its own owner_user_id column and
+     -- requires it be named here or reached by cascade from vy_replica - it
+     -- is neither, so it is named here. No new entry in the deletedClasses
+     -- list above: a browser endpoint and its two encryption keys, no
+     -- memory, no follower words, operator_push_subscriptions' own
+     -- reasoning restated.
+     creator_push_subscriptions as (delete from vy_creator_push_subscription x using target t
+       where x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,

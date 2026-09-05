@@ -96,7 +96,64 @@ export function personModelReadiness(claims, now = Date.now()) {
   return { ready: blockers.length === 0, blockers, conflicts, accepted_claims: accepted.length };
 }
 
-export function buildPersonModelDefinition(claims, now = Date.now()) {
+/**
+ * DIALOGUE REGISTER — WS-R5.
+ *
+ * An archive is a monologue. An uploaded lecture, a chat export, a saved
+ * article: all of them are the person composing, none of them is the person in
+ * a conversation being asked something they had not prepared for. The interview
+ * (`api/_interview-gaps.js`, migration 075) is the only lane that produces the
+ * second kind, and this is the block that makes it findable.
+ *
+ * It is deliberately NOT a new claim domain and NOT a new confidence weight. It
+ * is a POINTER: which of the already-accepted claims came from a source with
+ * `purpose = 'interview'`, so retrieval can prefer them for register. Nothing
+ * here reweights, reranks or rewrites a claim, because an interview answer is
+ * not more true than an uploaded one, only differently shaped.
+ *
+ * ── THE HONEST SHAPE, AND ITS NEGATIVE CONTROL ───────────────────────────
+ * The block is ALWAYS present. `sources: 0, claims: []` is a positive statement
+ * ("this person has never been interviewed") and an absent key is not. That
+ * matters because the failure this could have had is
+ * `plausible-return-hides-a-dead-pipeline`: a builder that silently ignored the
+ * source ids would produce a definition indistinguishable from one built with
+ * them, and the register lane downstream would read an empty list as "they talk
+ * the same in conversation as in a lecture".
+ *
+ * So `evals/interview/run.mjs` drives it both ways: the same claims with the
+ * interview ids produce a populated block, and WITHOUT them produce an empty
+ * one. If the argument were ignored, the second assertion is the one that
+ * fails.
+ */
+export function dialogueRegister(accepted, interviewSourceIds) {
+  const ids = new Set(
+    (Array.isArray(interviewSourceIds) ? interviewSourceIds : [])
+      .map((id) => String(id || "").toLowerCase())
+      .filter(Boolean),
+  );
+  const rows = ids.size
+    ? accepted.filter((row) =>
+      (Array.isArray(row.source_ids) ? row.source_ids : [])
+        .some((id) => ids.has(String(id || "").toLowerCase())))
+    : [];
+  return {
+    // How many interview sources this replica has at all. Zero with a non-empty
+    // claim list would be impossible; zero with an empty one is the ordinary
+    // pre-interview state and says so.
+    sources: ids.size,
+    claims: rows.map((row) => ({
+      claim_id: String(row.claim_id),
+      domain: row.domain,
+      key: row.key,
+      confidence: number(row.confidence),
+    })).slice(0, 120),
+    // The one sentence a consumer needs and cannot derive: what this block is
+    // evidence OF. It is not a quality claim about the answers.
+    means: "claims that came from a conversation rather than from uploaded material; prefer for register, never for truth",
+  };
+}
+
+export function buildPersonModelDefinition(claims, now = Date.now(), options = {}) {
   const accepted = eligibleClaims(claims, now);
   const readiness = personModelReadiness(claims, now);
   if (!readiness.ready) fail("person_model_not_ready", 409, readiness);
@@ -133,6 +190,9 @@ export function buildPersonModelDefinition(claims, now = Date.now()) {
       register: groupValue(groups, "language", "register"),
       fillers: [...new Set(fillers)].slice(0, 16),
       pacing: groupValue(groups, "delivery", "pacing"),
+      // WS-R5. Always present, empty when this person has never been
+      // interviewed. See `dialogueRegister`.
+      dialogue_register: dialogueRegister(accepted, options.interviewSourceIds),
     },
     behavior: {
       turn_shape: groupValue(groups, "delivery", "turn_shape"),
@@ -186,8 +246,15 @@ export function clientClaim(row) {
   };
 }
 
+// `source_ids` is selected alongside its own cardinality, and that is not
+// redundancy. WS-R5's `dialogueRegister` decides whether a claim came from an
+// interview by INTERSECTING this array with the replica's interview sources, so
+// a select that returned only the count would have produced an empty register
+// block on every real replica while every offline fixture passed — a dead
+// pipeline with a plausible return, which is the defect class this repo has
+// already paid for more than once. `clientClaim` still emits only the count.
 const CLAIMS_SQL = `select c.claim_id,c.domain,c.key,c.body,c.origin,c.confidence,c.status,c.sensitive,
-  cardinality(c.source_ids) as source_count,c.t_valid_from,c.t_valid_to,c.created_at,c.updated_at,
+  c.source_ids,cardinality(c.source_ids) as source_count,c.t_valid_from,c.t_valid_to,c.created_at,c.updated_at,
   d.decision,d.reason_code,d.created_at as reviewed_at
 from vy_replica_claim c
 join vy_replica r on r.replica_id=c.replica_id and r.owner_user_id=$2::uuid
@@ -249,11 +316,38 @@ async function acceptedClaims(db, ownerUserId, rid) {
   return rows.map((row) => ({ ...row, claim_id: String(row.claim_id) })).filter((row) => row.decision === "accepted");
 }
 
+/** The replica's interview sources, for `dialogueRegister`.
+ *
+ *  Read HERE rather than imported from `api/_interview-store.js` so this module
+ *  keeps its single dependency direction (nothing in the person-model lane
+ *  imports the Mirror Call lane) and so a deployment without migration 075
+ *  degrades to an empty register block instead of a 500. The catch is narrow on
+ *  purpose: it swallows "the column does not exist yet", and an empty result
+ *  from it is reported as `sources: 0`, which is the same thing a replica that
+ *  has never been interviewed reports. Those two really are the same fact for
+ *  this consumer — there is no interview material either way. */
+async function interviewSourceIdsFor(db, ownerUserId, rid) {
+  try {
+    const rows = await db(
+      `select s.source_id from vy_replica_source s
+        where s.replica_id=$1::uuid and s.owner_user_id=$2::uuid and s.purpose='interview'
+        order by s.created_at desc limit 500`,
+      [rid, ownerUserId],
+    );
+    return rows.map((row) => String(row.source_id));
+  } catch {
+    return [];
+  }
+}
+
 export async function buildOwnedPersonProfile(db, ownerUserId, id) {
   const rid = replicaId(id);
-  const claims = await acceptedClaims(db, ownerUserId, rid);
+  const [claims, interviewSourceIds] = await Promise.all([
+    acceptedClaims(db, ownerUserId, rid),
+    interviewSourceIdsFor(db, ownerUserId, rid),
+  ]);
   const now = Date.now();
-  const definition = buildPersonModelDefinition(claims, now);
+  const definition = buildPersonModelDefinition(claims, now, { interviewSourceIds });
   const sourceSetHash = personModelSourceHash(claims, now);
   const rows = await db(
     `with owned as (

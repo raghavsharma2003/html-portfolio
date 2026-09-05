@@ -139,6 +139,13 @@ ok("calibration preferences gain owner tenancy", /vy_replica_preference_owner_fk
 const route = readFileSync(join(ROOT, "api/replica-person-model.js"), "utf8");
 ok("Person Model route derives authority from bearer auth", /const user = await requireUser\(req\)/.test(route) && !/body\.(?:owner|owner_user_id|user_id|device)/.test(route));
 const studio = readFileSync(join(ROOT, "src/studio/PersonModelStudio.tsx"), "utf8");
-ok("Studio makes uncertainty and raw-evidence withholding visible", /Conflicts stay visible/.test(studio) && /Raw transcripts, vectors, and storage paths remain withheld/.test(studio));
+// WS-R61: this file's own literal strings moved into src/studio/copy.ts
+// (the studio's locale table) -- `studio` alone no longer carries the
+// rendered English text, only `c.<key>` references. Read together, the same
+// pattern `evals/readiness/run.mjs` already established for this exact move
+// (context/decisions.md#ws-r52-existing-evals-updated-for-the-copy-ts-move).
+const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const studioWithCopy = `${studio}\n${copyTs}`;
+ok("Studio makes uncertainty and raw-evidence withholding visible", /Conflicts stay visible/.test(studioWithCopy) && /Raw transcripts, vectors, and storage paths remain withheld/.test(studioWithCopy));
 
 console.log(`\n${checks} Person Model checks passed`);

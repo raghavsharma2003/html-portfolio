@@ -41,9 +41,9 @@ const STATEMENT_COPY: Record<string, string> = {
   owns_or_controls_channel:
     "This YouTube channel is mine. I own it or I control it.",
   is_rights_holder_of_uploads:
-    "I hold the rights to the videos on it, so I can license their use for my own clone.",
+    "I hold the rights to the videos on it, so I can license their use for my own AI.",
   authorizes_audio_extraction_for_own_replica:
-    "I authorise this platform to take the AUDIO from those videos and use it to build my own clone.",
+    "I authorise this platform to take the AUDIO from those videos and use it to build my own AI.",
   understands_tos_exposure_is_not_copyright_permission:
     "I understand that my permission covers copyright, and that downloading from YouTube is separately restricted by YouTube's own Terms. That is a matter between YouTube and the account used, and my permission does not remove it.",
   understands_revocation_stops_extraction:
@@ -180,7 +180,7 @@ export default function IngestChannelStudio({
         <div>
           <h2 id="ingest-channel-title">Learn from your own channel</h2>
           <p className="field-note">
-            Your own lectures are the best material there is for your clone: your explanations, your
+            Your own lectures are the best material there is for your AI: your explanations, your
             examples, your phrasing. Point us at your channel and we will keep learning from it as you
             upload. Nothing is published from it without your review.
           </p>
@@ -206,7 +206,7 @@ export default function IngestChannelStudio({
             <fieldset className="model-consent-statements">
               <legend>Confirm this channel is yours</legend>
               <p className="field-note">
-                We only ever build a clone of the person who asked for it. Before we read a single video
+                We only ever build an AI of the person who asked for it. Before we read a single video
                 we need you to confirm, on the record, that this channel is yours. All five apply.
               </p>
               {statements.map((key) => (

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { disabledReason } from "./blockerClass";
 import { decideReplicaEvidence, getArtifactAudition, getReplicaReview, queueVoiceGenome, selectVoiceArtifact } from "./processingApi";
 import type { EvidenceDecision, ReplicaReview, ReviewEvidence } from "./types";
+import { useStudioLocale } from "./localeContext";
+import { withCount, type StudioCopy } from "./copy";
 
 // The owner's directive said three times: no identity or liveness check for
 // internal, self-only testing. REPLICA_SELF_TEST_MODE (default off) grants
@@ -9,58 +11,65 @@ import type { EvidenceDecision, ReplicaReview, ReviewEvidence } from "./types";
 // let the owner wonder later whether a clone was actually verified. This
 // reuses blockerClass.ts's own vocabulary ("us"-class: ours, not the owner's
 // job, never phrased as a task for them) rather than inventing a second one.
+//
+// WS-R61: `headline`/`next` here stay English -- see
+// context/decisions.md#ws-r52-class-labels-split-from-blockerclass-ts-own-copy
+// (its reversal condition names `disabledReason` calls exactly like this one).
+// Only the two-word class badge is localized, read from `t.classLabels`
+// instead of `SELF_TEST_NOTICE.classLabel` below, the same substitution
+// BlockerNotice.tsx/WizardRail.tsx already make.
 const SELF_TEST_NOTICE = disabledReason(
   "us",
-  "Identity and liveness checks are turned off for this replica.",
+  "Identity and liveness checks are turned off for your AI.",
   "REPLICA_SELF_TEST_MODE is on (self-only, internal testing). Nothing below was identity- or liveness-verified by a human.",
 );
 
-const REASONS: Record<EvidenceDecision, Array<[string, string]>> = {
-  accepted: [["matches_subject", "Matches me"], ["clean_identity_signal", "Clean identity signal"], ["measurement_verified", "Measurement verified"], ["segment_verified", "Speaker segment verified"]],
-  rejected: [["wrong_speaker", "Wrong speaker"], ["third_party_present", "Another person appears"], ["poor_quality", "Quality is too poor"], ["corrupt_or_incomplete", "Corrupt or incomplete"], ["synthetic_or_replayed", "Synthetic or replayed"], ["privacy_risk", "Privacy risk"]],
-  superseded: [["better_variant_selected", "Better variant selected"], ["newer_measurement", "Newer measurement"], ["corrected_segmentation", "Segmentation corrected"], ["source_replaced", "Source replaced"]],
-};
+const DECISION_VALUES: EvidenceDecision[] = ["accepted", "rejected", "superseded"];
 
 function words(value: string) { return value.replaceAll("_", " "); }
-function when(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Recently" : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
-}
-function summary(evidence: ReviewEvidence) {
-  const entries = Object.entries(evidence.summary);
-  if (!entries.length) return "Content withheld. Review only the timing, confidence, and provenance shown here.";
-  return entries.map(([key, value]) => `${words(key)}: ${value}`).join(" · ");
-}
 
-function EvidenceRow({ evidence, busy, onDecide }: { evidence: ReviewEvidence; busy: boolean; onDecide: (decision: EvidenceDecision, reason: string) => void }) {
+function EvidenceRow({ evidence, busy, onDecide, c }: { evidence: ReviewEvidence; busy: boolean; onDecide: (decision: EvidenceDecision, reason: string) => void; c: StudioCopy["processingReview"] }) {
   const [decision, setDecision] = useState<EvidenceDecision>(evidence.decision || "accepted");
-  const [reason, setReason] = useState(REASONS[evidence.decision || "accepted"][0][0]);
+  const reasonKeys = Object.keys(c.reasonLabel[evidence.decision || "accepted"]);
+  const [reason, setReason] = useState(reasonKeys[0]);
+  const decisionReasonKeys = Object.keys(c.reasonLabel[decision]);
+  function summary() {
+    const entries = Object.entries(evidence.summary);
+    if (!entries.length) return c.contentWithheld;
+    return entries.map(([key, value]) => `${words(key)}: ${value}`).join(" · ");
+  }
   return (
     <article className="review-evidence-row">
       <div className="review-evidence-main">
         <div className="review-evidence-title">
           <strong>{words(evidence.evidence_type)}</strong>
-          <span className={`review-decision decision-${evidence.decision || "pending"}`}>{evidence.decision ? words(evidence.decision) : "needs review"}</span>
+          <span className={`review-decision decision-${evidence.decision || "pending"}`}>{evidence.decision ? words(evidence.decision) : c.needsReview}</span>
         </div>
-        <p>{summary(evidence)}</p>
+        <p>{summary()}</p>
         <small>
-          {evidence.confidence == null ? "Confidence not reported" : `${Math.round(evidence.confidence * 100)}% confidence`}
-          {evidence.span_end_ms != null ? ` · ${(Number(evidence.span_end_ms) / 1000).toFixed(1)}s endpoint` : ""}
-          {` · ${evidence.provenance.family || "unreported family"} / ${evidence.provenance.name || "unreported adapter"} ${evidence.provenance.version || ""}`}
+          {evidence.confidence == null ? c.confidenceNotReported : withCount(c.confidencePct, Math.round(evidence.confidence * 100))}
+          {evidence.span_end_ms != null ? ` · ${c.endpointSuffix.split("{n}").join((Number(evidence.span_end_ms) / 1000).toFixed(1))}` : ""}
+          {` · ${evidence.provenance.family || c.unreportedFamily} / ${evidence.provenance.name || c.unreportedAdapter} ${evidence.provenance.version || ""}`}
         </small>
       </div>
-      {evidence.reviewable ? <div className="review-controls" aria-label={`Review ${words(evidence.evidence_type)}`}>
-        <label><span>Decision</span><select value={decision} disabled={busy} onChange={(event) => { const next = event.target.value as EvidenceDecision; setDecision(next); setReason(REASONS[next][0][0]); }}>
-          <option value="accepted">Accept</option><option value="rejected">Reject</option><option value="superseded">Supersede</option>
+      {evidence.reviewable ? <div className="review-controls" aria-label={withLabel(c.reviewAriaLabel, words(evidence.evidence_type))}>
+        <label><span>{c.decisionSelectLabel}</span><select value={decision} disabled={busy} onChange={(event) => { const next = event.target.value as EvidenceDecision; setDecision(next); setReason(Object.keys(c.reasonLabel[next])[0]); }}>
+          {DECISION_VALUES.map((value) => <option value={value} key={value}>{value === "accepted" ? c.optionAccept : value === "rejected" ? c.optionReject : c.optionSupersede}</option>)}
         </select></label>
-        <label><span>Reason</span><select value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)}>{REASONS[decision].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        <button className="review-save" type="button" disabled={busy} onClick={() => onDecide(decision, reason)}>{busy ? "Saving" : "Record review"}</button>
-      </div> : <p className="review-withheld">A decision is unavailable here because the evidence content is intentionally withheld.</p>}
+        <label><span>{c.reasonSelectLabel}</span><select value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)}>{decisionReasonKeys.map((value) => <option value={value} key={value}>{(c.reasonLabel[decision] as Record<string, string>)[value]}</option>)}</select></label>
+        <button className="review-save" type="button" disabled={busy} onClick={() => onDecide(decision, reason)}>{busy ? c.saving : c.recordReview}</button>
+      </div> : <p className="review-withheld">{c.decisionWithheldNote}</p>}
     </article>
   );
 }
 
+function withLabel(template: string, label: string) {
+  return template.split("{label}").join(label);
+}
+
 export default function ProcessingReview({ token, replicaId, sourceCount, onAuthError }: { token: string; replicaId: string; sourceCount: number; onAuthError: (cause: unknown) => void }) {
+  const { t } = useStudioLocale();
+  const c = t.processingReview;
   const [review, setReview] = useState<ReplicaReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
@@ -71,9 +80,9 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try { setReview(await getReplicaReview(token, replicaId)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Processing review is unavailable"); onAuthError(cause); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : c.errorProcessingUnavailable); onAuthError(cause); }
     finally { setLoading(false); }
-  }, [onAuthError, replicaId, token]);
+  }, [onAuthError, replicaId, token, c.errorProcessingUnavailable]);
 
   useEffect(() => { void load(); }, [load, sourceCount]);
   useEffect(() => {
@@ -89,20 +98,25 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     evidence: review.evidence.filter((item) => item.source_id === source.source_id),
   })) || [], [review]);
 
+  function when(value: string) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? c.recently : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+  }
+
   async function decide(evidence: ReviewEvidence, decision: EvidenceDecision, reasonCode: string) {
     setBusyId(evidence.evidence_id); setError(""); setNotice("");
     try {
       await decideReplicaEvidence(token, { replicaId, evidenceId: evidence.evidence_id, decision, reasonCode });
-      setNotice("Review decision recorded as an append-only receipt.");
+      setNotice(c.noticeReviewRecorded);
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Decision could not be recorded"); onAuthError(cause); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : c.errorDecisionNotRecorded); onAuthError(cause); }
     finally { setBusyId(""); }
   }
 
   async function queueBuild() {
     setBusyId("build"); setError(""); setNotice("");
-    try { await queueVoiceGenome(token, replicaId); setNotice("Draft voice model queued for building. It still needs your approval before anything can use it."); await load(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Draft build could not be queued"); onAuthError(cause); }
+    try { await queueVoiceGenome(token, replicaId); setNotice(c.noticeDraftQueued); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : c.errorDraftNotQueued); onAuthError(cause); }
     finally { setBusyId(""); }
   }
 
@@ -111,7 +125,7 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     try {
       const value = await getArtifactAudition(token, { replicaId, artifactId });
       setAudition({ artifactId: value.artifact_id, url: value.url, expiresAt: value.expires_at });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Private audition could not be opened"); onAuthError(cause); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : c.errorAuditionNotOpened); onAuthError(cause); }
     finally { setBusyId(""); }
   }
 
@@ -119,9 +133,9 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     setBusyId(`select:${artifactId}`); setError(""); setNotice("");
     try {
       await selectVoiceArtifact(token, { replicaId, artifactId });
-      setNotice("Voice candidate selected. Existing drafts were retired so the next voice model binds this exact audio.");
+      setNotice(c.noticeCandidateSelected);
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Voice candidate could not be selected"); onAuthError(cause); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : c.errorCandidateNotSelected); onAuthError(cause); }
     finally { setBusyId(""); }
   }
 
@@ -129,64 +143,79 @@ export default function ProcessingReview({ token, replicaId, sourceCount, onAuth
     <section id="processing-review" className="processing-review" aria-labelledby="processing-review-title">
       <div className="processing-review-content">
         <div className="panel-title-row">
-          <div><p className="eyebrow">Your review</p><h2 id="processing-review-title">See what we extracted, then approve it</h2></div>
-          <button className="review-refresh" type="button" disabled={loading} onClick={() => void load()}>{loading ? "Refreshing" : "Refresh"}</button>
+          <div><p className="eyebrow">{c.eyebrow}</p><h2 id="processing-review-title">{c.title}</h2></div>
+          <button className="review-refresh" type="button" disabled={loading} onClick={() => void load()}>{loading ? c.refreshing : c.refresh}</button>
         </div>
-        <p className="review-intro">Only review-safe measurements are shown. Raw transcripts, voice vectors, storage locations, provider references, and durable download links never enter this page. A private audition link is minted only after you press Listen and expires within 60 seconds.</p>
+        <p className="review-intro">{c.intro}</p>
         {notice && <p className="review-notice" role="status">{notice}</p>}
         {error && <p className="inline-error" role="alert">{error}</p>}
-        {loading && !review ? <div className="review-loading" role="status"><span className="spinner" />Loading private processing receipts</div> : null}
-        {!loading && review && bySource.length === 0 ? <div className="review-empty"><strong>No processing receipts yet</strong><p>Add a source above. It will appear here only after the private processing pipeline begins.</p></div> : null}
+        {loading && !review ? <div className="review-loading" role="status"><span className="spinner" />{c.loadingReceipts}</div> : null}
+        {!loading && review && bySource.length === 0 ? <div className="review-empty"><strong>{c.emptyHeadline}</strong><p>{c.emptyNote}</p></div> : null}
 
         <div className="review-source-list">
           {bySource.map(({ source, jobs, artifacts, evidence }) => (
             <details className="review-source" key={source.source_id} open={evidence.some((item) => !item.decision)}>
               <summary>
                 <span className="source-kind">{source.kind.slice(0, 2).toUpperCase()}</span>
-                <span><strong>{words(source.kind)} source</strong><small>{jobs.length} pipeline step{jobs.length === 1 ? "" : "s"} · {artifacts.length} derived variant{artifacts.length === 1 ? "" : "s"} · {evidence.length} evidence record{evidence.length === 1 ? "" : "s"}</small></span>
+                <span>
+                  <strong>{withLabel(c.sourceTitle, words(source.kind))}</strong>
+                  <small>
+                    {withCount(jobs.length === 1 ? c.pipelineStepOne : c.pipelineStepMany, jobs.length)}
+                    {" · "}
+                    {withCount(artifacts.length === 1 ? c.derivedVariantOne : c.derivedVariantMany, artifacts.length)}
+                    {" · "}
+                    {withCount(evidence.length === 1 ? c.evidenceRecordOne : c.evidenceRecordMany, evidence.length)}
+                  </small>
+                </span>
                 <span className={`source-state source-${source.state}`}><i />{words(source.state)}</span>
               </summary>
               <div className="review-source-body">
-                <div className="pipeline-strip" aria-label="Pipeline steps">{jobs.length ? jobs.map((job) => {
+                <div className="pipeline-strip" aria-label={c.pipelineStepsAriaLabel}>{jobs.length ? jobs.map((job) => {
                   const attempts = review?.attempts.filter((attempt) => attempt.job_id === job.job_id) || [];
-                  return <div className={`pipeline-step pipeline-${job.state}`} key={job.job_id}><strong>{words(job.step)}</strong><span>{words(job.state)} · attempt {job.attempt}</span>{attempts[0] && <small>{attempts[0].provenance.family} / {attempts[0].provenance.name} {attempts[0].provenance.version}</small>}</div>;
-                }) : <p className="muted-copy">No pipeline attempt has been recorded.</p>}</div>
+                  return <div className={`pipeline-step pipeline-${job.state}`} key={job.job_id}><strong>{words(job.step)}</strong><span>{words(job.state)} · {withCount(c.attemptLabel, job.attempt)}</span>{attempts[0] && <small>{attempts[0].provenance.family} / {attempts[0].provenance.name} {attempts[0].provenance.version}</small>}</div>;
+                }) : <p className="muted-copy">{c.noPipelineAttempt}</p>}</div>
                 {artifacts.length > 0 && <div className="artifact-grid">{artifacts.map((artifact) => <div className={artifact.selection_decision === "selected" ? "artifact-selected" : ""} key={artifact.artifact_id}>
-                  <div className="artifact-title"><strong>{words(artifact.variant_key)}</strong>{artifact.selection_decision === "selected" && <span>Selected voice</span>}</div>
+                  <div className="artifact-title"><strong>{words(artifact.variant_key)}</strong>{artifact.selection_decision === "selected" && <span>{c.selectedVoiceBadge}</span>}</div>
                   <span>{words(artifact.stage)} · {artifact.transform.name} {artifact.transform.version}</span>
                   <small>{artifact.provenance.family} / {artifact.provenance.name} {artifact.provenance.version}</small>
                   <div className="artifact-actions">
-                    <button type="button" disabled={busyId === `audition:${artifact.artifact_id}`} onClick={() => void auditionArtifact(artifact.artifact_id)}>{busyId === `audition:${artifact.artifact_id}` ? "Opening" : "Listen privately"}</button>
-                    {artifact.stage === "enhance" && <button className="artifact-select" type="button" disabled={artifact.selection_decision === "selected" || busyId === `select:${artifact.artifact_id}`} onClick={() => void selectArtifact(artifact.artifact_id)}>{busyId === `select:${artifact.artifact_id}` ? "Selecting" : artifact.selection_decision === "selected" ? "Selected" : "Use this voice"}</button>}
+                    <button type="button" disabled={busyId === `audition:${artifact.artifact_id}`} onClick={() => void auditionArtifact(artifact.artifact_id)}>{busyId === `audition:${artifact.artifact_id}` ? c.opening : c.listenPrivately}</button>
+                    {artifact.stage === "enhance" && <button className="artifact-select" type="button" disabled={artifact.selection_decision === "selected" || busyId === `select:${artifact.artifact_id}`} onClick={() => void selectArtifact(artifact.artifact_id)}>{busyId === `select:${artifact.artifact_id}` ? c.selecting : artifact.selection_decision === "selected" ? c.selected : c.useThisVoice}</button>}
                   </div>
-                  {audition?.artifactId === artifact.artifact_id && <div className="artifact-player"><audio controls preload="metadata" src={audition.url}>Your browser cannot play this private audio.</audio><small>The signed link expires automatically in under one minute.</small></div>}
+                  {audition?.artifactId === artifact.artifact_id && <div className="artifact-player"><audio controls preload="metadata" src={audition.url}>{c.cannotPlayAudio}</audio><small>{c.linkExpiresNote}</small></div>}
                 </div>)}</div>}
-                <div className="review-evidence-list">{evidence.length ? evidence.map((item) => <EvidenceRow key={item.evidence_id} evidence={item} busy={busyId === item.evidence_id} onDecide={(decision, reason) => void decide(item, decision, reason)} />) : <p className="muted-copy">No reviewable evidence has been emitted for this source.</p>}</div>
+                <div className="review-evidence-list">{evidence.length ? evidence.map((item) => <EvidenceRow key={item.evidence_id} evidence={item} busy={busyId === item.evidence_id} onDecide={(decision, reason) => void decide(item, decision, reason)} c={c} />) : <p className="muted-copy">{c.noReviewableEvidence}</p>}</div>
               </div>
             </details>
           ))}
         </div>
 
         {review?.self_test_mode && <div className="self-test-banner" role="status">
-          <span className={`self-test-badge blocker-${SELF_TEST_NOTICE.kind}`}>{SELF_TEST_NOTICE.classLabel}</span>
+          <span className={`self-test-badge blocker-${SELF_TEST_NOTICE.kind}`}>{t.classLabels[SELF_TEST_NOTICE.kind]}</span>
           <strong>{SELF_TEST_NOTICE.headline}</strong>
           <p>{SELF_TEST_NOTICE.next}</p>
         </div>}
 
         {review && <article className="build-readiness">
-          <div><p className="eyebrow">Draft only</p><h3>Voice model build gate</h3><p>A queued build cannot be used for synthesis. A separate approval and held-out real-world evaluation are still required.</p></div>
-          <div className="readiness-counts"><span><strong>{review.voice_genome_readiness.embedding_families}/2</strong> embedding families</span><span><strong>{review.voice_genome_readiness.voice_measurements}</strong> voice measurements</span><span><strong>{review.voice_genome_readiness.quality_measurements}</strong> quality measurements</span><span><strong>{review.voice_genome_readiness.speaker_segments}</strong> speaker segments</span></div>
+          <div><p className="eyebrow">{c.draftOnlyEyebrow}</p><h3>{c.voiceBuildGateTitle}</h3><p>{c.voiceBuildGateIntro}</p></div>
+          <div className="readiness-counts"><span><strong>{review.voice_genome_readiness.embedding_families}/2</strong> {c.acousticFamilies}</span><span><strong>{review.voice_genome_readiness.voice_measurements}</strong> {c.voiceMeasurements}</span><span><strong>{review.voice_genome_readiness.quality_measurements}</strong> {c.qualityMeasurements}</span><span><strong>{review.voice_genome_readiness.speaker_segments}</strong> {c.speakerSegments}</span></div>
           {review.voice_genome_readiness.blockers.length > 0 && <ul>{review.voice_genome_readiness.blockers.map((blocker) => <li key={blocker}>{words(blocker)}</li>)}</ul>}
-          <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? "Queueing draft" : "Queue a draft voice model"}</button>
-          {review.builds.length > 0 && <div className="build-ledger"><strong>Build ledger</strong>{review.builds.map((build) => <span key={build.build_id}>v{build.target_version} · {words(build.state)} · {when(build.created_at)}</span>)}</div>}
+          <button className="button primary-button" type="button" disabled={!review.voice_genome_readiness.ready || busyId === "build"} onClick={() => void queueBuild()}>{busyId === "build" ? c.queueingDraft : c.queueDraftVoice}</button>
+          {review.builds.length > 0 && <div className="build-ledger"><strong>{c.buildLedger}</strong>{review.builds.map((build) => <span key={build.build_id}>v{build.target_version} · {words(build.state)} · {when(build.created_at)}</span>)}</div>}
           {review.voice_genomes.length > 0 && <div className="genome-draft-ledger">
-            <strong>Immutable draft ledger</strong>
+            <strong>{c.immutableDraftLedger}</strong>
             {review.voice_genomes.map((genome) => <div key={genome.version}>
-              <span>Voice model version {genome.version}, {words(genome.status)}</span>
-              <small>{genome.embedding_families} independent embeddings · {genome.target_segments} target segments · {genome.enrollment_artifacts} private enrollment artifacts</small>
+              <span>{c.voiceVersionStatus.split("{n}").join(String(genome.version)).split("{label}").join(words(genome.status))}</span>
+              <small>
+                {c.voicePrintFamiliesDetail.split("{n}").join(String(genome.embedding_families))}
+                {" · "}
+                {c.targetSegmentsDetail.split("{n}").join(String(genome.target_segments))}
+                {" · "}
+                {c.enrollmentArtifactsDetail.split("{n}").join(String(genome.enrollment_artifacts))}
+              </small>
               <code>{genome.manifest_hash.slice(0, 16)}…</code>
             </div>)}
-            <p>Drafts cannot synthesize audio. Approval still requires owner calibration and a real held-out identity evaluation.</p>
+            <p>{c.draftsCannotSynthesize}</p>
           </div>}
         </article>}
       </div>

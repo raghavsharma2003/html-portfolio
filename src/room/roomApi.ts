@@ -1,0 +1,538 @@
+// The Room's one fetch wrapper. Follows the existing *Api.ts pattern
+// (src/studio/channelsApi.ts, teacherSheetApi.ts) so a reader who knows one
+// knows this one.
+//
+// It owns NO decision. Every rule about who may say what lives in
+// api/_room-surface.js, where the offline suite can reach it; this file turns
+// an op into a POST and an error code into a typed error, and nothing else.
+
+export class RoomApiError extends Error {
+  code: string;
+  status: number;
+  /** `room_free_cap_reached`/`room_paid_cap_reached` carry one: the message
+   *  allowance that was hit. */
+  messagesIncluded?: number;
+  /** `room_voice_cap_reached` carries this one instead (WS-R19): the voice
+   *  seconds allowance that was hit. */
+  voiceSecondsIncluded?: number;
+  /** `rate_limited` (WS-R26, api/_rate-limit.js) carries this one: how many
+   *  seconds until the same connection is admitted again. */
+  retryAfterSeconds?: number;
+
+  constructor(
+    code: string,
+    status: number,
+    messagesIncluded?: number,
+    voiceSecondsIncluded?: number,
+    retryAfterSeconds?: number,
+  ) {
+    super(code);
+    this.code = code;
+    this.status = status;
+    if (typeof messagesIncluded === "number") this.messagesIncluded = messagesIncluded;
+    if (typeof voiceSecondsIncluded === "number") this.voiceSecondsIncluded = voiceSecondsIncluded;
+    if (typeof retryAfterSeconds === "number") this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+export interface RoomQuota {
+  tier: "free" | "paid";
+  messages_used: number;
+  messages_included: number;
+  messages_left: number | null;
+}
+
+export interface RoomFollower {
+  joined_at: string | null;
+  tier: "free" | "paid";
+  remembers: boolean;
+  messages_used: number;
+  messages_included: number;
+  messages_left: number | null;
+  // WS-R19: real only for a paid follower — see api/_room-surface.js's
+  // `clientFollower` for why a free follower's own copy of these is always 0.
+  voice_seconds_used: number;
+  voice_seconds_included: number;
+  voice_seconds_left: number;
+  // WS-R39 (migration 101). `null` for a follower who has never opened
+  // their own settings page.
+  settings_reviewed_at: string | null;
+}
+
+export interface RoomSpoken {
+  audio: string;
+  format: { sampleRate: number; channels: number };
+  generation_id: string;
+  watermark_algorithm: string;
+  disclosure_scheme: string;
+  voice: { seconds_used: number; seconds_included: number; seconds_left: number };
+  session: string;
+}
+
+export interface RoomThread {
+  thread_id: string;
+  title: string;
+  last_message_at: string | null;
+}
+
+export interface RoomOpen {
+  room: {
+    slug: string;
+    display_name: string;
+    name: string;
+    handoff_enabled: boolean;
+    /** WS-R53 (migration 110). The creator's own switch for the three-
+     *  question taste before the sign-in wall - read here rather than
+     *  guessed client side, `handoff_enabled`'s own reason one screen over. */
+    taste_enabled: boolean;
+    /** WS-R45 (migration 105), carried here for the first time by a
+     *  follower-facing read (WS-R53) - the directory's own one-line bio,
+     *  plain text the creator wrote about themselves. `""` when unset. */
+    bio: string;
+  };
+  disclosure: string;
+  joined: boolean;
+  follower: RoomFollower | null;
+  threads?: RoomThread[];
+  session: string | null;
+  /** WS-R24. The follower's own stored locale once joined; the browser hint
+   *  behind the creator's own `default_locale` before that. `roomDisclosureCard`
+   *  above is rendered in exactly this locale - never re-picked client side. */
+  locale: "en" | "hi";
+}
+
+/** WS-R53. One answer from `roomTaste` (api/_room-taste.js) — no session, no
+ *  thread, nothing that outlives this one call. `disclosure` is non-null
+ *  ONLY on `turn_index === 1`, `RoomOpen.disclosure`'s own shape carried by
+ *  a lane with no session to bind it into. */
+export interface RoomTasteTurn {
+  room: { slug: string; display_name: string; name: string };
+  disclosure: string | null;
+  locale: "en" | "hi";
+  reply: string;
+  turn_index: number;
+  turns_left: number;
+}
+
+/** WS-R30 (migration 093). `cap_reached` is written to the ledger but never
+ *  rendered as its own card client-side - the capped card (below) already
+ *  covers that moment; this type exists so `session_worked` has somewhere to
+ *  land. `price_inr`/`currency` are null when the creator has not set a
+ *  price yet, the honest `pay.priceNotSet` state one screen over. */
+export interface RoomOffer {
+  reason: "session_worked" | "cap_reached";
+  price_inr: number | null;
+  currency: string | null;
+}
+
+export interface RoomTurn {
+  bubbles: string[];
+  reply: string;
+  remembers: boolean;
+  thread_id: string | null;
+  quota: RoomQuota;
+  upgrade_prompt: boolean;
+  offer: RoomOffer | null;
+  session: string;
+}
+
+export interface RoomHistory {
+  remembers: boolean;
+  thread_id?: string | null;
+  turns: { role: "user" | "assistant"; content: string }[];
+}
+
+export interface RoomCitations {
+  name: string;
+  sources: string[];
+  exact: boolean;
+}
+
+async function post<T>(body: Record<string, unknown>, accessToken?: string | null): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const response = await fetch("/api/room", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new RoomApiError(
+      String(data?.error || `room_request_failed_${response.status}`),
+      response.status,
+      typeof data?.messages_included === "number" ? data.messages_included : undefined,
+      typeof data?.voice_seconds_included === "number" ? data.voice_seconds_included : undefined,
+      typeof data?.retry_after_seconds === "number" ? data.retry_after_seconds : undefined,
+    );
+  }
+  return data as T;
+}
+
+/** The slug is the URL and the URL is the slug. Read from the path rather than
+ *  from a query so the address a creator prints on a card is the address that
+ *  works, and clamped to the same shape the server accepts so a junk path is a
+ *  local "not found" rather than a round trip. */
+export function slugFromPath(pathname = window.location.pathname): string {
+  const match = /^\/r\/([a-z0-9][a-z0-9-]{0,62})\/?$/i.exec(pathname);
+  return match ? match[1].toLowerCase() : "";
+}
+
+/** WS-R40: the growth counter's own hint, read off the URL a bio link
+ *  (no `via`), a shared link (`?via=share`), or an embed (`?via=embed`)
+ *  carries. The server allowlists it (`api/_room-surface.js`'s
+ *  `resolveArrivalVia`) before it ever reaches SQL, so this reads the raw
+ *  query string verbatim rather than re-deriving the allowlist client
+ *  side — anything the server does not recognise counts as 'direct'
+ *  there, never here. */
+export function viaFromLocation(search = window.location.search): string {
+  return new URLSearchParams(search).get("via") || "";
+}
+
+/** WS-R86 (migration 123): the referral hash a `?ref=` link carries,
+ *  `viaFromLocation`'s own pattern one field over. The server validates
+ *  the shape (`api/_room-surface.js`'s `resolveReferralHash`) before it
+ *  ever reaches SQL, so this reads the raw query string verbatim and lets
+ *  the server decide - a stray or malformed value here simply mints no
+ *  referral row, never a client-side error. */
+export function refFromLocation(search = window.location.search): string {
+  return new URLSearchParams(search).get("ref") || "";
+}
+
+/** `locale` is a HINT, read only when there is no follower row yet to answer
+ *  the question instead - `api/_room-surface.js`'s `openRoom` ignores it the
+ *  moment a follower already exists. Omit it and the server falls back to the
+ *  creator's own `default_locale`. `via` (WS-R40) is passed through unchanged
+ *  on every call this client makes, `api/_room-surface.js`'s own header on
+ *  why: counted once per call, never deduplicated across a session. */
+export const openRoom = (
+  slug: string,
+  accessToken?: string | null,
+  locale?: string | null,
+  via?: string | null,
+) => post<RoomOpen>({ op: "open", room: slug, locale: locale || undefined, via: via || undefined }, accessToken);
+
+/** WS-R53. Keyed by (room, caller IP) at the server, `api/_rate-limit.js`'s
+ *  `room_taste` scope, 3/day - no session, no bearer, no accessToken
+ *  parameter on this call at all, because there is no follower yet for one
+ *  to name. A refused turn (the daily limit spent) throws `RoomApiError`
+ *  with `code === "rate_limited"` exactly like every other rate-limited
+ *  door in this file, `retryAfterSeconds` carried the same way. */
+export const tasteInRoom = (
+  slug: string,
+  message: string,
+  locale?: string | null,
+) => post<RoomTasteTurn>({ op: "taste", room: slug, message, locale: locale || undefined });
+
+/** `ref` (WS-R86) is the referral hash a `?ref=` link carried - pass it
+ *  only on the FIRST real join call for a follower (`RoomApp.tsx`'s own
+ *  `JoinSheet`), never on a repeat join (the memory-consent toggle):
+ *  `api/_room-surface.js`'s own `joinRoom` gates the referral write to a
+ *  genuinely new follower row regardless, so passing it again on a repeat
+ *  call is harmless but pointless - this client simply never does it. */
+export const joinRoom = (
+  slug: string,
+  accessToken: string,
+  answers: { age18: boolean; remember: boolean },
+  locale?: string | null,
+  ref?: string | null,
+) => post<RoomOpen & { session: string }>(
+  {
+    op: "join", room: slug, age_18: answers.age18, remember: answers.remember,
+    locale: locale || undefined, ref: ref || undefined,
+  },
+  accessToken,
+);
+
+/** WS-R86 (migration 123). "Bring a friend" - session-scoped, no body
+ *  field but the session itself, `roomCitations`'s own call shape. */
+export interface RoomReferralLink {
+  url: string;
+}
+export const roomReferralLink = (session: string) =>
+  post<RoomReferralLink>({ op: "referral_link", session });
+
+/** WS-R24, the follower's own chrome language, changed from inside a Room
+ *  they have already joined. Scoped off the SESSION, never a person id in the
+ *  body - `api/_room-surface.js`'s `roomSetLocale` is the one predicate that
+ *  enforces this, so a follower cannot name another follower's row here even
+ *  by constructing the request by hand. Returns a fresh session, because the
+ *  disclosure card's bytes (and therefore its bound digest) changed with the
+ *  language - and (WS-R84) the card's own bytes alongside it, so the caller
+ *  never has to make a second round trip just to stop showing the old
+ *  language's disclosure. */
+export const setRoomLocale = (session: string, locale: "en" | "hi") =>
+  post<{ locale: "en" | "hi"; session: string; disclosure: string }>({ op: "locale", session, locale });
+
+export const sayInRoom = (
+  session: string,
+  message: string,
+  options: { thread?: string | null; transcript?: { role: string; content: string }[] } = {},
+) =>
+  post<RoomTurn>({
+    op: "say",
+    session,
+    message,
+    thread: options.thread ?? null,
+    transcript: options.transcript ?? [],
+  });
+
+/** WS-R19, behind `VITE_ROOM_VOICE`. `text` must be the EXACT reply text the
+ *  session just returned from `sayInRoom` — the server binds a clip to the
+ *  reply that produced it and refuses anything else, `room_voice_reply_
+ *  mismatch`. */
+export const speakInRoom = (session: string, text: string) =>
+  post<RoomSpoken>({ op: "speak", session, text });
+
+export const roomHistory = (session: string, thread?: string | null) =>
+  post<RoomHistory>({ op: "history", session, thread: thread ?? null });
+
+export const newRoomThread = (session: string, title: string) =>
+  post<RoomThread>({ op: "thread", session, title });
+
+export interface PulseOptIn {
+  thread_id: string | null;
+  active: boolean;
+  granted_at?: string;
+  revoked_at?: string | null;
+  policy_version?: number;
+}
+
+/** "Let this count" - a follower's own toggle (WS-R17). `threadId` null
+ *  means "this whole relationship", the shape used before the Room has any
+ *  threads. Both are revocable and both answer with the row's own state,
+ *  never a fake success. */
+export const setPulseOptIn = (session: string, threadId: string | null) =>
+  post<PulseOptIn>({ op: "pulse_optin", session, thread: threadId });
+
+export const revokePulseOptIn = (session: string, threadId: string | null) =>
+  post<PulseOptIn>({ op: "pulse_revoke", session, thread: threadId });
+
+/** "Continue free" (WS-R30). No offer id in the request - scope comes off
+ *  the session, `api/_room-surface.js`'s `roomDismissOffer` own header. */
+export const dismissOffer = (session: string) =>
+  post<{ dismissed: boolean }>({ op: "offer_dismiss", session });
+
+export const roomCitations = (session: string) =>
+  post<RoomCitations>({ op: "citations", session });
+
+// ── flag this reply (WS-R67, migration 116) ────────────────────────────────
+
+export type RoomFlagReason = "wrong" | "harmful" | "not_them" | "other";
+
+export interface RoomFlag {
+  reply_sha256: string;
+  reason: RoomFlagReason;
+  reply_text: string;
+  created_at: string;
+}
+
+/**
+ * sha256 hex of one reply's exact text, via the Web Crypto API every browser
+ * this app targets already has - no new dependency. The SAME hash the server
+ * computes off its own stored copy of the same bytes
+ * (api/_room-surface.js's `flagReply`/`replyTextFromOwnHistory`), so two
+ * independent implementations of one well-known primitive are the only thing
+ * that has to agree; the server never trusts this value as the TEXT, only as
+ * WHICH reply it names, and refuses one that matches nothing in this
+ * follower's own history.
+ */
+export async function replySha256(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** "Flag this." `reply` is the exact text `sayInRoom` returned (never a
+ *  bubble fragment - a turn may render as several bubbles, and the hash
+ *  binds the whole reply, `speakInRoom`'s own "the exact reply text"
+ *  restated for a flag instead of a clip). */
+export const flagReply = (session: string, reply: string, reason: RoomFlagReason) =>
+  replySha256(reply).then((hash) =>
+    post<{ flagged: boolean; reply_sha256: string; reason: RoomFlagReason }>({
+      op: "flag",
+      session,
+      reply_sha256: hash,
+      reason,
+    }),
+  );
+
+export const unflagReply = (session: string, replySha256Hex: string) =>
+  post<{ withdrawn: boolean }>({ op: "unflag", session, reply_sha256: replySha256Hex });
+
+/** The follower's own account-page list. */
+export const followerFlags = (session: string) => post<{ flags: RoomFlag[] }>({ op: "flags", session });
+
+export const roomStats = (slug: string) =>
+  post<{ talked_today: number | null }>({ op: "stats", room: slug });
+
+export const exportRoomData = (session: string, accessToken: string) =>
+  post<Record<string, unknown>>({ op: "export", session }, accessToken);
+
+/** WS-R27 (migration 090): the one row that survives a follower's forget in
+ *  this Room. Content-free by construction (`person_hash`, never a person id)
+ *  - see api/memory.js's `roomForgetReceiptHash` for why. `null` only when the
+ *  database has not yet applied migration 090, never because the write
+ *  failed (a failed write fails the whole `forget` request). */
+export interface RoomForgetReceipt {
+  receipt_id: string;
+  room: string;
+  person_hash: string;
+  policy_version: number;
+  counts: Record<string, number>;
+  issued_at: string;
+}
+
+export const forgetRoomData = (session: string, accessToken: string) =>
+  post<{ forgotten: boolean; deleted: Record<string, number>; receipt: RoomForgetReceipt | null }>(
+    { op: "forget", session },
+    accessToken,
+  );
+
+// ── web push (WS-R22, migration 085) ───────────────────────────────────────
+// The endpoint/keys are the browser's OWN `PushSubscription`, never
+// constructed here - `CheckinsPanel.tsx`'s `enablePush` builds them via the
+// real `PushManager` and hands the three fields straight through.
+export const pushSubscribe = (session: string, endpoint: string, p256dh: string, auth: string) =>
+  post<{ subscribed: boolean; subscription_id?: string }>({ op: "push_subscribe", session, endpoint, p256dh, auth });
+
+export const pushUnsubscribe = (session: string, endpoint: string) =>
+  post<{ subscribed: boolean; revoked: boolean }>({ op: "push_unsubscribe", session, endpoint });
+
+export const pushStatus = (session: string) => post<{ subscribed: boolean }>({ op: "push_status", session });
+
+// ── check-ins on WhatsApp (WS-R29, migration 092) ──────────────────────────
+// `available` is server-driven, `pushKey`'s own shape one channel over: null/
+// false means `ROOM_WHATSAPP_TEMPLATE_APPROVED` is unset on this deployment,
+// and the whole control is absent, never shown-and-disabled (workstream law
+// #3 - "structurally absent the way INVITES_REQUIRED was").
+export interface RoomWhatsappStatus {
+  available: boolean;
+  subscribed: boolean;
+  state: "active" | "stopped" | "failed" | null;
+  phone_masked: string | null;
+}
+
+export const whatsappStatus = (session: string) =>
+  post<RoomWhatsappStatus>({ op: "whatsapp_status", session });
+
+export const whatsappOptIn = (session: string, phone: string) =>
+  post<{ subscribed: boolean; state: string; phone_masked: string }>({ op: "whatsapp_optin", session, phone });
+
+export const whatsappStop = (session: string) =>
+  post<{ subscribed: boolean; state: string }>({ op: "whatsapp_stop", session });
+
+// ── the follower's own page (WS-R39, migration 101) ────────────────────────
+// One composed read for the account page: memory consent (via `follower`,
+// already on this type), the three check-in channels' status, the room's
+// price, any open cap-reached offer, and when this page was last reviewed.
+// Subscription STATE is deliberately not part of this shape — the page reads
+// it through the EXISTING `paymentStatus` op (roomPayApi.ts) instead, `api/
+// _room-surface.js`'s own header explains why.
+export interface RoomSettingsChannelPush {
+  subscribed: boolean;
+}
+export interface RoomSettingsChannelWhatsapp {
+  available: boolean;
+  subscribed: boolean;
+  state: "active" | "stopped" | "failed" | null;
+  phone_masked: string | null;
+}
+export interface RoomSettingsChannelTelegram {
+  connected: boolean;
+  checkins_enabled: boolean;
+  stopped: boolean;
+}
+export interface RoomSettingsOffer {
+  reason: "cap_reached";
+  shown_at: string;
+}
+export interface RoomSettingsPrice {
+  price_inr: number;
+  currency: string;
+}
+export interface RoomSettings {
+  room: {
+    slug: string;
+    name: string;
+    display_name: string;
+    // WS-R75 (migration 119). `null` means the creator has never turned
+    // dormancy on - AccountPage.tsx renders nothing in that case.
+    dormancy_days: number | null;
+  };
+  disclosure: string;
+  locale: "en" | "hi";
+  follower: RoomFollower;
+  settings_reviewed_at: string | null;
+  channels: {
+    push: RoomSettingsChannelPush;
+    whatsapp: RoomSettingsChannelWhatsapp;
+    telegram: RoomSettingsChannelTelegram;
+  };
+  price: RoomSettingsPrice | null;
+  /** The one OPEN `cap_reached` offer, if any — `null` otherwise. A
+   *  `session_worked` offer never appears here; it already reached the
+   *  client on the turn that earned it (`RoomTurn.offer`). */
+  offer: RoomSettingsOffer | null;
+}
+
+export const roomSettings = (session: string) => post<RoomSettings>({ op: "settings", session });
+
+export const markSettingsReviewed = (session: string) =>
+  post<{ settings_reviewed_at: string | null }>({ op: "settings_reviewed", session });
+
+/** WS-R100 (migration 126). The follower's own receipts. `RoomReceiptRow`
+ *  is the list shape (`listReceipts`, the account page's own read);
+ *  `fetchReceiptHtml` is the ONE place this file does not reuse `post<T>`
+ *  above — the server's own `format:"html"` response is the printable page
+ *  itself, `text/html`, never a JSON envelope `response.json()` could
+ *  parse, so this reads `response.text()` instead. */
+export interface RoomReceiptRow {
+  payment_event_id: string;
+  receipt_no: number;
+  issued_at: string;
+  amount_inr: number;
+}
+
+export const listReceipts = (session: string) =>
+  post<{ receipts: RoomReceiptRow[] }>({ op: "receipts", session });
+
+export async function fetchReceiptHtml(session: string, paymentEventId: string): Promise<string> {
+  const response = await fetch("/api/room", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ op: "receipt", session, payment_event_id: paymentEventId, format: "html" }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let code = `room_request_failed_${response.status}`;
+    try { code = String(JSON.parse(text)?.error || code); } catch { /* the error response is JSON; a non-JSON body here is unexpected but must not throw a parse error over a network error */ }
+    throw new RoomApiError(code, response.status);
+  }
+  return text;
+}
+
+// ── WS-R108: the follower's readable export ─────────────────────────────
+// The SAME session-scoped `export` op `exportRoomData` above already calls,
+// requested with `format: "html"` instead - `fetchReceiptHtml`'s own shape
+// one op over: the server's response is the printable page itself,
+// `text/html`, never a JSON envelope `response.json()` could parse, and it
+// still needs the bearer (unlike the receipt) because `export` always has -
+// `api/room.js`'s own second-layer check runs before either format branch.
+export async function fetchRoomExportReadableHtml(session: string, accessToken: string): Promise<string> {
+  const response = await fetch("/api/room", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ op: "export", session, format: "html" }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let code = `room_request_failed_${response.status}`;
+    try { code = String(JSON.parse(text)?.error || code); } catch { /* the error response is JSON; a non-JSON body here is unexpected but must not throw a parse error over a network error */ }
+    throw new RoomApiError(code, response.status);
+  }
+  return text;
+}

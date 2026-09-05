@@ -62,12 +62,33 @@ export function sourceUploadInput(value) {
   if (!SHA256.test(sha256)) fail("lowercase SHA-256 is required");
   if (typeof input.contains_third_parties !== "boolean") fail("contains_third_parties declaration required");
   const purpose = String(input.purpose || "memory").trim();
-  if (!new Set(["memory", "identity_document"]).has(purpose)) fail("unsupported source purpose");
+  if (!new Set(["memory", "identity_document", "identity_challenge", "correction", "interview"]).has(purpose)) fail("unsupported source purpose");
   if (purpose === "identity_document") {
     const accepted = (kind === "image" && new Set(["image/jpeg", "image/png"]).has(mime)) ||
       (kind === "document" && mime === "application/pdf");
     if (!accepted) fail("identity document must be JPEG PNG or PDF");
     if (input.contains_third_parties) fail("identity document must contain only the verified subject");
+  }
+  // WS-R2 (migration 072). A spoken identity challenge is audio or video of
+  // exactly one person reading a server-issued sentence. It is VERIFICATION
+  // evidence and never enrollment material: `finalizeOwnedSource` below only
+  // enqueues the eight-step DAG for capture_mode='upload', so this mode
+  // cannot reach a voice genome, and `completeVoiceChallenge` queues the
+  // bytes for deletion the moment a decision exists.
+  if (purpose === "identity_challenge") {
+    if (kind !== "audio" && kind !== "video") fail("identity challenge must be audio or video");
+    if (input.contains_third_parties) fail("identity challenge must contain only the verified subject");
+  }
+  const captureMode = purpose === "identity_document" ? "identity_document"
+    : purpose === "identity_challenge" ? "identity_challenge"
+      : "upload";
+  // WS-R4. A correction is the owner's better answer to a review card. It is
+  // typed or dictated, so it is text or audio and nothing else, and it names
+  // only the owner — a correction that declares third parties would put someone
+  // else's words into the material this AI answers from.
+  if (purpose === "correction") {
+    if (!new Set(["text", "audio"]).has(kind)) fail("a correction must be text or audio");
+    if (input.contains_third_parties) fail("a correction must contain only the owner");
   }
   return {
     kind,
@@ -75,7 +96,8 @@ export function sourceUploadInput(value) {
     byteSize,
     sha256,
     containsThirdParties: input.contains_third_parties,
-    captureMode: purpose === "identity_document" ? "identity_document" : "upload",
+    captureMode,
+    purpose,
   };
 }
 
@@ -91,6 +113,9 @@ export function clientSource(row) {
     replica_id: row.replica_id,
     kind: row.kind,
     capture_mode: row.capture_mode,
+    // WS-R4. Named on the wire so a studio can tell a lecture from a correction
+    // without inferring it from the mime type.
+    purpose: row.purpose || "memory",
     mime: row.mime,
     byte_size: Number(row.byte_size),
     state: row.state,
@@ -101,7 +126,7 @@ export function clientSource(row) {
   };
 }
 
-const SOURCE_RETURNING = `source_id, replica_id, owner_user_id, kind, capture_mode, storage_bucket,
+const SOURCE_RETURNING = `source_id, replica_id, owner_user_id, kind, capture_mode, purpose, storage_bucket,
   object_path, mime, byte_size, sha256, state, contains_third_parties,
   rejection_code, created_at, updated_at`;
 
@@ -142,9 +167,9 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
        insert into vy_replica_source
          (source_id, replica_id, owner_user_id, consent_id, kind, capture_mode,
           storage_bucket, object_path, mime, byte_size, sha256,
-          contains_third_parties, provenance)
+          contains_third_parties, provenance, purpose)
        select $3::uuid, owned.replica_id, $2::uuid, capture.consent_id, $4, $12,
-              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb
+              $5, $6, $7, $8::int8, $9, $10::bool, $11::jsonb, $13::text
          from owned cross join capture cross join storage_ok cross join pending_budget
        returning ${SOURCE_RETURNING}
      ), audit as (
@@ -154,12 +179,13 @@ export async function createPendingSource(db, ownerUserId, id, value, options = 
               (select policy_version from owned), 'allowed',
               jsonb_build_object('kind', kind, 'byte_size', byte_size,
                                  'contains_third_parties', contains_third_parties,
-                                 'capture_mode', capture_mode)
+                                 'capture_mode', capture_mode, 'purpose', purpose)
          from inserted
      )
      select * from inserted`,
     [rid, ownerUserId, sourceId, input.kind, REPLICA_STORAGE_WRITE_BUCKET, path, input.mime,
-      input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode],
+      input.byteSize, input.sha256, input.containsThirdParties, provenance, input.captureMode,
+      input.purpose],
   );
   return rows[0] || null;
 }
@@ -291,6 +317,35 @@ export async function markOwnedSourceDeleting(db, ownerUserId, id, source) {
        update vy_replica_consent c set revoked_at=coalesce(revoked_at,now())
         where c.replica_id=$1::uuid and c.owner_user_id=$2::uuid and c.scope='biometric' and c.revoked_at is null
           and exists (select 1 from liveness_challenges)
+     ),
+     -- WS-R2. A voice identity challenge whose evidence is being deleted
+     -- while it is STILL IN FLIGHT can never be settled, so it fails now with
+     -- a reason rather than being leased later and failing for a missing
+     -- object. Its running attempt is closed with the same code.
+     --
+     -- Deliberately NOT paired with an identity revocation, unlike the
+     -- liveness block above. completeVoiceChallenge queues this exact source
+     -- for deletion on EVERY decision including an accept, because a
+     -- verification recording that outlives its verdict is a person's face
+     -- and voice kept for no purpose. Revoking identity here would therefore
+     -- undo every successful challenge microseconds after it succeeded. The
+     -- decision is the durable artifact; the recording is not, and that
+     -- asymmetry is the whole point of deleting it.
+     voice_challenges as (
+       update vy_replica_voice_challenge ch set state='expired',
+              failure_code='challenge_evidence_deleted',
+              verification_lease_token_hash='',verification_leased_at=null,
+              verification_lease_expires_at=null,updated_at=now()
+        where ch.replica_id=$1::uuid and ch.owner_user_id=$2::uuid
+          and $3::uuid in (ch.captured_source_id,ch.transcript_source_id)
+          and ch.state in ('issued','captured','verifying')
+          and exists (select 1 from target)
+       returning ch.challenge_id,ch.verification_attempt
+     ), voice_challenge_attempts as (
+       update vy_replica_voice_challenge_attempt a set outcome='failed',
+              failure_code='challenge_evidence_deleted',finished_at=now()
+        from voice_challenges ch where a.challenge_id=ch.challenge_id
+          and a.attempt=ch.verification_attempt and a.outcome='running'
      ), identity_cases as (
        update vy_replica_identity_case c set state='revoked',revoked_at=coalesce(revoked_at,now()),
               lease_token_hash='',leased_at=null,lease_expires_at=null,updated_at=now()

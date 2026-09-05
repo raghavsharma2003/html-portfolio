@@ -50,6 +50,37 @@ export const SCORE_AXES = Object.freeze([
   Object.freeze({ id: "pronunciation", label: "Pronunciation and intelligibility", low: "wrong or hard to understand", high: "every word is correct and clear" }),
 ]);
 
+// ── how an arm is reached, and what proves its bytes ─────────────────────────
+// Every arm up to now spoke ONE transport: a signed request to a runtime this
+// platform operates, whose reply carries an HMAC and a PerTh watermark the
+// runtime embedded. The vendor arms speak a different one and there is no way
+// to pretend otherwise: an ElevenLabs or Sarvam response is authenticated by
+// TLS and an API key, and neither vendor embeds PerTh. So the pack records the
+// transport and the protection path per arm instead of asserting one shape for
+// all of them, and the verifier refuses BOTH directions of the mistake — a
+// self-hosted result that lost its watermark, and a vendor result that claims
+// one it cannot have.
+export const TRANSPORTS = Object.freeze({
+  SIGNED_RUNTIME: "signed_runtime",
+  VENDOR_API: "vendor_api",
+});
+export const PROTECTION_PATHS = Object.freeze({
+  RUNTIME_PERTH: "runtime_perth",
+  DELIVERY_AUDIOSEAL: "delivery_audioseal",
+});
+// List prices read from each vendor's public pricing page on 2026-09-03, in
+// USD per million characters. They exist so a plan can print what a pack costs
+// BEFORE anyone confirms it, and they are documentation of a reading on a date,
+// not a promise about a bill.
+export const VENDOR_LIST_PRICE_USD_PER_MCHARACTERS = Object.freeze({
+  elevenlabs: 180,
+  sarvam: 34,
+});
+// The character ceiling a caller may ask for with `--max-chars`. One matched
+// pack is under 300 characters per arm per language, so this is roughly forty
+// packs and is a stop, not a budget.
+export const VENDOR_CHARACTER_HARD_STOP = 20_000;
+
 export const ARM_SPECS = Object.freeze({
   chatterbox: Object.freeze({
     id: "chatterbox",
@@ -100,7 +131,61 @@ export const ARM_SPECS = Object.freeze({
     modelRevision: "65f1e80f94b599d474bb6af9094a803dc52f60bd",
     envPrefix: "ZONOS2",
   }),
+  // ── vendor arms ────────────────────────────────────────────────────────────
+  // The ceiling `decisions.md#platform-north-star` has always named and nobody
+  // has ever measured. Optional, cost-capped, and opaque in the sealed pack in
+  // exactly the way every other arm is: a listener sees a 24-character id and
+  // the target text, and learns nothing about who made the sound.
+  elevenlabs: Object.freeze({
+    id: "elevenlabs",
+    label: "ElevenLabs voice clone",
+    required: false,
+    languages: Object.freeze(["en", "hi"]),
+    model: "elevenlabs_voice_clone",
+    // The vendor's own pinned model id stands in for a git revision. It is what
+    // must be reported back and matched, and "latest" is refused upstream.
+    modelRevision: "eleven_multilingual_v2",
+    envPrefix: "ELEVENLABS",
+    transport: TRANSPORTS.VENDOR_API,
+    vendor: "elevenlabs",
+    clonesTheOwner: true,
+    protectionPath: PROTECTION_PATHS.DELIVERY_AUDIOSEAL,
+    listPriceUsdPerMillionCharacters: VENDOR_LIST_PRICE_USD_PER_MCHARACTERS.elevenlabs,
+  }),
+  // Sarvam is a BASE arm and the pack says so everywhere it can. It cannot win
+  // owner likeness and it is not there to. It is the accent-identity control
+  // `rejected.md#azure-tts` says every future voice comparison must carry: the
+  // Azure battery measured pronunciation, never accent identity, and the ear
+  // overruled every number it produced.
+  sarvam: Object.freeze({
+    id: "sarvam",
+    label: "Sarvam Bulbul Indian-accent base voice",
+    required: false,
+    languages: Object.freeze(["en", "hi"]),
+    model: "sarvam_bulbul_base",
+    modelRevision: "bulbul:v3",
+    envPrefix: "SARVAM",
+    transport: TRANSPORTS.VENDOR_API,
+    vendor: "sarvam",
+    clonesTheOwner: false,
+    armCategory: "indian_accent_base_voice",
+    protectionPath: PROTECTION_PATHS.DELIVERY_AUDIOSEAL,
+    listPriceUsdPerMillionCharacters: VENDOR_LIST_PRICE_USD_PER_MCHARACTERS.sarvam,
+  }),
 });
+
+/** Defaults for the arms that predate the transport field. */
+export function armTransport(armId) {
+  return ARM_SPECS[armId]?.transport || TRANSPORTS.SIGNED_RUNTIME;
+}
+
+export function armProtectionPath(armId) {
+  return ARM_SPECS[armId]?.protectionPath || PROTECTION_PATHS.RUNTIME_PERTH;
+}
+
+export function isVendorArm(armId) {
+  return armTransport(armId) === TRANSPORTS.VENDOR_API;
+}
 
 const SHA_RE = /^[0-9a-f]{64}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -225,10 +310,21 @@ export function buildPlan({
       expectedModelRevision: ARM_SPECS[armId].modelRevision,
       expectedModelCommitment: ARM_SPECS[armId].modelCommitment || "required_at_run",
       attemptReservationUsd: ATTEMPT_RESERVATION_USD,
+      transport: armTransport(armId),
+      protectionPath: armProtectionPath(armId),
+      clonesTheOwner: ARM_SPECS[armId].clonesTheOwner !== false,
+      // What the vendor will bill for, computed from the exact text the arm
+      // will speak. Zero for the self-hosted arms, which bill GPU seconds this
+      // ledger does not model.
+      billableCharacters: isVendorArm(armId) ? characterUnits(prompt.fullText) : 0,
     });
   }));
   const projectedAttemptReservationUsd = items.length * ATTEMPT_RESERVATION_USD;
   if (projectedAttemptReservationUsd > CLOUD_HARD_STOP_USD) throw new Error("matched_pack_cloud_hard_stop_exceeded");
+  const vendorCharacters = items.reduce((sum, item) => sum + item.billableCharacters, 0);
+  if (vendorCharacters > VENDOR_CHARACTER_HARD_STOP) throw new Error("matched_pack_vendor_character_hard_stop_exceeded");
+  const projectedVendorCostUsd = items.reduce((sum, item) => sum + (item.billableCharacters
+    * (ARM_SPECS[item.armId].listPriceUsdPerMillionCharacters || 0) / 1_000_000), 0);
   return Object.freeze({
     contract: MATCHED_PACK_CONTRACT,
     status: "planned_no_cloud_calls",
@@ -236,6 +332,13 @@ export function buildPlan({
     cloudHardStopUsd: CLOUD_HARD_STOP_USD,
     attemptReservationUsd: ATTEMPT_RESERVATION_USD,
     projectedAttemptReservationUsd,
+    vendorCharacterHardStop: VENDOR_CHARACTER_HARD_STOP,
+    projectedVendorCharacters: vendorCharacters,
+    // Printed by `plan` so the number an owner approves is the number their
+    // vendor account will see, computed from list prices read on a stated date
+    // rather than from a rate somebody remembered.
+    projectedVendorCostUsd: Math.round(projectedVendorCostUsd * 10_000) / 10_000,
+    vendorListPricesUsdPerMillionCharacters: VENDOR_LIST_PRICE_USD_PER_MCHARACTERS,
     reference: Object.freeze({
       sourceSha256,
       sha256: referenceSha256,
@@ -296,12 +399,48 @@ function chatterboxPayload(item, prompt, common) {
   };
 }
 
+/** Characters a vendor bills. Upper bound on purpose, for Devanagari. */
+export function characterUnits(text) {
+  const value = String(text || "");
+  return Math.max(Array.from(value).length, Buffer.byteLength(value, "utf8"));
+}
+
 export function payloadForItem({ plan, item, referenceWav, referenceText, requestId, generationId }) {
   const prompt = plan.prompts[item.languageId];
   if (!prompt || sha256(referenceWav) !== plan.reference.sha256 || sha256(Buffer.from(referenceText)) !== plan.reference.textSha256) {
     throw new Error("matched_pack_payload_binding_invalid");
   }
   if (!UUID_RE.test(requestId) || !UUID_RE.test(generationId)) throw new Error("matched_pack_request_identity_invalid");
+  // A vendor arm gets a SMALLER payload, and the smallness is the point. The
+  // reference window is not re-uploaded at synthesis time: the clone was made
+  // from it once and the vendor holds a disposable voice id keyed to it
+  // (`decisions.md#replica-provider-portable`). Sarvam hears no reference at
+  // all. What the payload still carries is every binding a cell is compared on
+  // — exact text, seed, reference hash, consent receipt — so an owner can check
+  // that a vendor clip and a self-hosted clip answered the same question.
+  if (isVendorArm(item.armId)) {
+    const spec = ARM_SPECS[item.armId];
+    return {
+      request_id: requestId,
+      generation_id: generationId,
+      replica_id: plan.replicaId,
+      vendor: spec.vendor,
+      vendor_model_revision: spec.modelRevision,
+      language_id: item.languageId,
+      text: prompt.fullText,
+      reference_sha256: plan.reference.sha256,
+      reference_source_sha256: plan.reference.sourceSha256,
+      reference_window_start_ms: plan.reference.windowStartMs,
+      reference_window_end_ms: plan.reference.windowEndMs,
+      reference_sent_to_vendor: spec.clonesTheOwner === true,
+      consent_receipt_sha256: plan.consentReceiptSha256,
+      evaluation_scope: "verified_owner_identity",
+      identity_scope: "verified_owner_self",
+      release_eligible: true,
+      seed: plan.seed,
+      billable_characters: characterUnits(prompt.fullText),
+    };
+  }
   const common = {
     request_id: requestId,
     generation_id: generationId,
@@ -429,7 +568,101 @@ function verifyIndicF5NormalizationReceipt({ payload, item, receipt }) {
   });
 }
 
+/**
+ * Verify one VENDOR arm's result.
+ *
+ * Separate from the signed-runtime verifier because the evidence genuinely
+ * differs, and because collapsing them would mean weakening the HMAC and PerTh
+ * requirements for every existing arm to accommodate two new ones. The rules
+ * here are the strictest ones a vendor call can actually support, and the two
+ * refusals that matter are symmetric: a vendor result that CLAIMS a PerTh
+ * watermark is rejected as fabricated evidence, and a vendor result that omits
+ * its protection path is rejected as unlabelled.
+ */
+export function verifyVendorResult({ plan, item, payload, result, transportProof, expectedModelCommitment }) {
+  const spec = ARM_SPECS[item.armId];
+  if (transportProof !== "tls_vendor_api") throw new Error("matched_pack_vendor_transport_invalid");
+  if (!SHA_RE.test(expectedModelCommitment || "")) throw new Error("matched_pack_expected_model_commitment_required");
+  const prompt = plan.prompts[item.languageId];
+  exactOrFail(payload.text, prompt.fullText, "matched_pack_result_text_request_drift");
+  exactOrFail(sha256(payload.text), item.fullTextSha256, "matched_pack_result_text_hash_drift");
+  exactOrFail(payload.seed, plan.seed, "matched_pack_result_seed_drift");
+  exactOrFail(payload.reference_sha256, plan.reference.sha256, "matched_pack_result_reference_request_drift");
+  exactOrFail(payload.consent_receipt_sha256, plan.consentReceiptSha256, "matched_pack_result_consent_request_drift");
+  exactOrFail(result.request_id, payload.request_id, "matched_pack_result_request_drift");
+  exactOrFail(result.model, item.expectedModel, "matched_pack_result_model_drift");
+  exactOrFail(result.model_revision, item.expectedModelRevision, "matched_pack_result_model_revision_drift");
+  exactOrFail(result.model_commitment, expectedModelCommitment, "matched_pack_result_model_commitment_drift");
+  exactOrFail(result.language_id, item.languageId, "matched_pack_result_language_drift");
+  exactOrFail(result.seed, plan.seed, "matched_pack_result_seed_receipt_drift");
+  exactOrFail(result.protection_path, spec.protectionPath, "matched_pack_vendor_protection_path_invalid");
+  // The fabricated-evidence refusal. No vendor in this registry embeds PerTh,
+  // so a `true` here did not come from a measurement.
+  if (result.perth_watermark_verified === true) throw new Error("matched_pack_vendor_perth_claim_invalid");
+  // A base arm entering a clone cell unlabelled is the `azure-tts` failure with
+  // the arms swapped: a number that looks like likeness and measures accent.
+  exactOrFail(result.clones_the_owner, spec.clonesTheOwner === true, "matched_pack_vendor_arm_category_drift");
+  if (spec.armCategory && result.arm_category !== spec.armCategory) {
+    throw new Error("matched_pack_vendor_arm_category_drift");
+  }
+  if (result.sample_rate !== SAMPLE_RATE || result.channels !== 1 || result.encoding !== "pcm_s16le") {
+    throw new Error("matched_pack_result_geometry_invalid");
+  }
+  const pcm = Buffer.from(String(result.audio_base64 || ""), "base64");
+  if (!pcm.length || pcm.length % 2 !== 0 || sha256(pcm) !== result.output_sha256) throw new Error("matched_pack_result_output_invalid");
+  const billed = Number(result.billed_characters);
+  if (!Number.isInteger(billed) || billed <= 0 || billed !== payload.billable_characters) {
+    throw new Error("matched_pack_vendor_billing_drift");
+  }
+  const wav = wrapWav(pcm);
+  return Object.freeze({
+    contract: MATCHED_PACK_CONTRACT,
+    itemId: item.id,
+    armId: item.armId,
+    evaluationVariant: "default",
+    languageId: item.languageId,
+    seed: plan.seed,
+    requestId: payload.request_id,
+    generationId: payload.generation_id,
+    bodySha256: item.bodySha256,
+    disclosureSha256: item.disclosureSha256,
+    fullTextSha256: item.fullTextSha256,
+    sourceSha256: plan.reference.sourceSha256,
+    referenceSha256: plan.reference.sha256,
+    referenceTextSha256: plan.reference.textSha256,
+    referenceTextEvidenceScope: plan.reference.textEvidenceScope,
+    referenceSentToVendor: payload.reference_sent_to_vendor === true,
+    consentReceiptSha256: plan.consentReceiptSha256,
+    model: result.model,
+    modelRevision: result.model_revision,
+    modelCommitment: result.model_commitment,
+    outputPcmSha256: result.output_sha256,
+    outputWavSha256: sha256(wav),
+    sampleRate: result.sample_rate,
+    channels: result.channels,
+    encoding: result.encoding,
+    durationMs: Number(result.duration_ms),
+    transport: TRANSPORTS.VENDOR_API,
+    transportProof,
+    protectionPath: spec.protectionPath,
+    clonesTheOwner: spec.clonesTheOwner === true,
+    armCategory: spec.armCategory || "voice_clone",
+    // Recorded false, deliberately, on every vendor clip. The bench serves
+    // these locally to one owner; anything DELIVERED from a vendor arm goes
+    // through `api/_provenance/delivery.js` and is watermarked there.
+    perthWatermarkVerified: false,
+    responseHmacVerified: false,
+    billedCharacters: billed,
+    resampledTo24k: result.resampled_to_24k === true,
+    pronunciationNormalization: null,
+    elapsedMs: Number(result.elapsed_ms),
+    realTimeFactor: Number(result.real_time_factor),
+    wav,
+  });
+}
+
 export function verifyProviderResult({ plan, item, payload, result, responseSignatureVerified, expectedModelCommitment }) {
+  if (isVendorArm(item.armId)) throw new Error("matched_pack_vendor_arm_needs_vendor_verifier");
   if (responseSignatureVerified !== true) throw new Error("matched_pack_response_hmac_invalid");
   if (!SHA_RE.test(expectedModelCommitment || "")) throw new Error("matched_pack_expected_model_commitment_required");
   const prompt = plan.prompts[item.languageId];
@@ -521,10 +754,45 @@ export function verifyProviderResult({ plan, item, payload, result, responseSign
     perthWatermarkVerified: true,
     perthScore: Number(result.perth_score),
     responseHmacVerified: true,
+    transport: TRANSPORTS.SIGNED_RUNTIME,
+    transportProof: "hmac_sha256",
+    protectionPath: PROTECTION_PATHS.RUNTIME_PERTH,
+    clonesTheOwner: true,
+    armCategory: "voice_clone",
+    billedCharacters: 0,
     elapsedMs: Number(result.elapsed_ms),
     pronunciationNormalization,
     realTimeFactor: Number(result.real_time_factor),
     wav,
+  });
+}
+
+/**
+ * The vendor spend stop, and it is a CHARACTER stop rather than a dollar one.
+ *
+ * The existing USD ledger reserves half a dollar per attempt because a GPU
+ * request has no cheaper unit to count. A vendor bills characters, and
+ * characters are known exactly before the call, so this refuses on the unit the
+ * bill will actually use. It reserves BEFORE the request, so a run that fails
+ * halfway still cannot walk past the ceiling by retrying.
+ */
+export function reserveVendorCharacters(ledger, itemId, characters, maxCharacters) {
+  const limit = Number(maxCharacters);
+  if (!Number.isInteger(limit) || limit <= 0 || limit > VENDOR_CHARACTER_HARD_STOP) {
+    throw new Error("matched_pack_vendor_character_limit_invalid");
+  }
+  const count = Number(characters);
+  if (!Number.isInteger(count) || count <= 0) throw new Error("matched_pack_vendor_character_units_invalid");
+  const prior = Array.isArray(ledger?.vendorAttempts) ? ledger.vendorAttempts : [];
+  const reserved = prior.reduce((sum, attempt) => sum + Number(attempt.reservedCharacters || 0), 0);
+  if (reserved + count > limit) throw new Error("matched_pack_vendor_character_stop_exceeded");
+  return Object.freeze({
+    ...ledger,
+    vendorCharacterLimit: limit,
+    vendorAttempts: Object.freeze([
+      ...prior,
+      Object.freeze({ itemId, reservedCharacters: count, state: "reserved" }),
+    ]),
   });
 }
 

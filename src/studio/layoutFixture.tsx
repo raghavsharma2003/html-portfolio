@@ -25,7 +25,35 @@ import "./design/tokens.css";
 import "./studio.css";
 import "./design/honesty.css";
 import "./design/mobile.css";
+// WS-R4. The review card is rendered by this fixture, so the gate has to load
+// the stylesheet the real studio loads or it would measure an unstyled panel
+// and report OK about a layout nobody ships.
+import "./design/review-queue.css";
 import type { Replica } from "./types";
+import { loadStudioCopy, STUDIO_COPY_TABLE } from "./copy";
+
+/** WS-R52. `src/room/layoutFixture.tsx`'s own `flattenHiStrings` -- the
+ *  measurement algorithm it feeds (`scripts/check-layout.mjs`'s `glyphAudit`)
+ *  is shared by calling the SAME function with a different `stringsGlobal`;
+ *  this eight-line flatten helper is glue, not measurement, and is kept
+ *  local rather than imported from `src/room/layoutFixture.tsx` because that
+ *  module runs a side-effecting `render()` at import time against a DOM node
+ *  (`#room-root`) this page never mounts. */
+function flattenHiStrings(node: unknown, prefix: string, out: [string, string][]): void {
+  if (typeof node === "string") {
+    out.push([prefix, node]);
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => flattenHiStrings(v, `${prefix}[${i}]`, out));
+  } else if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) flattenHiStrings(v, prefix ? `${prefix}.${k}` : k, out);
+  }
+}
+
+declare global {
+  interface Window {
+    __STUDIO_HI_STRINGS__?: [string, string][];
+  }
+}
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", ""]);
 
@@ -38,6 +66,7 @@ const FIXTURE_REPLICA: Replica = {
   age_verified: false,
   identity_verified: false,
   liveness_verified: false,
+  locale: "en",
   created_at: "2026-08-01T09:00:00.000Z",
   updated_at: "2026-08-01T09:00:00.000Z",
 };
@@ -52,6 +81,76 @@ const ROUTES: Record<string, unknown> = {
   "/api/account": { account: { email: "teacher@example.edu", verified: true } },
   "/api/replica-source": { sources: [] },
   "/api/replica-review": { review: null, items: [] },
+  /* WS-R4. POPULATED on purpose, unlike most routes here: the review card is
+     the longest single block of model-authored prose in the studio and it is
+     the exact shape the collapsed-column defect lives in. An empty queue would
+     render three sentences and prove nothing. */
+  "/api/review-queue": {
+    queue: {
+      replica_id: "fixture-replica-0001",
+      cards: [{
+        card_id: "fixture-card-0001",
+        kind: "question",
+        prompt_text: "Should I do cardio on lifting days, or keep the two completely separate through the week?",
+        answer_text: "Keep them separate where you can. If you have to stack them, lift first and put the cardio after, "
+          + "twenty minutes at a pace you could hold a conversation at. The point is that the lifting session is the one "
+          + "you protect, and everything else fits around it.",
+        source_refs: [],
+        state: "open",
+        decided_at: null,
+        has_correction: false,
+        created_at: "2026-08-01T09:00:00.000Z",
+      }],
+      open_count: 14,
+      decided_count: 16,
+      fixed_count: 3,
+      never_count: 1,
+      active_never_rules: 1,
+      cap: 30,
+    },
+    // WS-R72. Two more populated-on-purpose shapes at the SAME path, the
+    // comment above's own reasoning restated: `flags` (the studio's flagged-
+    // reply cards, so their "Never say this" / "Sounds right anyway" render
+    // for real rather than behind an empty list) and `cards` (the Share
+    // tab's picker, `op: "showcase_eligible"`'s own response key). This
+    // fixture answers every request to this path with the SAME static body
+    // regardless of method or `op` - `installStubFetch`'s own limit, stated
+    // in its header - so both live alongside `queue` rather than replacing
+    // it.
+    flags: [
+      {
+        reply_sha256: "1".repeat(64),
+        reply_text: "The exam is on the 14th, not the 12th. I checked the notice again this morning.",
+        count: 3,
+        reasons: { wrong: 1, harmful: 2, not_them: 0, other: 0 },
+        suggest_never: true,
+        last_flagged_at: "2026-08-30T10:00:00.000Z",
+      },
+      {
+        reply_sha256: "2".repeat(64),
+        reply_text: "You can skip the mock test this week if you are still recovering from the fever.",
+        count: 1,
+        reasons: { wrong: 0, harmful: 0, not_them: 1, other: 0 },
+        suggest_never: false,
+        last_flagged_at: "2026-08-29T08:00:00.000Z",
+      },
+    ],
+    cards: [
+      {
+        card_id: "fixture-card-eligible-0001",
+        kind: "question",
+        prompt_text: "How long before a JEE mock test should I stop revising new topics?",
+        answer_text: "Stop new topics about a week out. The last week is for the mistakes you already know you make, "
+          + "not for anything new.",
+      },
+      {
+        card_id: "fixture-card-eligible-0002",
+        kind: "claim",
+        prompt_text: "Does your AI have this right about you?",
+        answer_text: "I only take students who can commit to daily practice, not weekend crash sessions.",
+      },
+    ],
+  },
   // `ActivityView`. `jobs` and `lanes` are both read without a guard, and
   // `next_poll_ms: null` is what stops the panel polling forever under the gate.
   "/api/replica-activity": {
@@ -76,6 +175,36 @@ const ROUTES: Record<string, unknown> = {
     },
   },
   "/api/clone-channel": { channels: [] },
+  // WS-R7. The Room's creator side. `room: null` with a named reason is the
+  // REAL shape `getOwnedRoom` returns before a creator has ever set one up —
+  // the empty state that carries this panel's longest prose, so it is the one
+  // worth measuring rather than a bare `{}`.
+  "/api/room-publish": { room: null, reason: "not_created" },
+  // `RoomStudio`'s Week six card reads `cohorts` and `verdict` without a
+  // guard the moment a Room is published (the `showcase-picker` scenario
+  // publishes one); an unlisted route's `{}` threw before the picker could
+  // paint (found by the wave-thirteen merge gate). The real door always
+  // answers this shape (api/_room-cohorts.js's own `verdictFor`).
+  "/api/room-cohorts": {
+    cohorts: [],
+    verdict: { verdict: "not_measurable_yet", cohort_week: null, week6_return_share: null },
+  },
+  // `InviteCreatorCard` (WS-R47) reads `quota.remaining` without a guard once
+  // a Room is published, the same way as the cohorts card above; the real
+  // door's own shape (`api/_creator-invites.js`: three invites, none used).
+  "/api/invites": { invites: [], quota: { max: 3, used: 0, remaining: 3 } },
+  // `HandoffCard` (WS-R20) reads `counts.sent`/`counts.answered` without a
+  // guard once a Room is published. One static body answers every op on this
+  // path (`installStubFetch`'s own limit), so `config_get`'s two fields and
+  // `queue`'s two fields live side by side: Handoff off, an empty queue.
+  "/api/handoff": {
+    enabled: false, monthly_cap: 0,
+    counts: { drafted: 0, sent: 0, answered: 0, withdrawn: 0 }, next: null,
+  },
+  // `CheckinsCard` (WS-R16): `design_list` unwraps `designs`; none designed.
+  "/api/checkins": { designs: [] },
+  // `RoomStudio`'s Suite line (WS-R28): `room_status` unwraps `org`; not in a Suite.
+  "/api/org": { org: null },
   // `ChannelWatchView`. `attestations` is read without a guard, so it has to
   // be an array or the Feed step throws before it paints.
   "/api/channel-watch": {
@@ -83,8 +212,8 @@ const ROUTES: Record<string, unknown> = {
     watches: [],
     statements: [
       "This YouTube channel is mine, I own it or I control it.",
-      "I hold the rights to the videos on it, so I can license their use for my own clone.",
-      "I authorise this platform to take the audio from those videos and use it to build my own clone.",
+      "I hold the rights to the videos on it, so I can license their use for my own AI.",
+      "I authorise this platform to take the audio from those videos and use it to build my own AI.",
     ],
     statement_set: "channel-ownership-v1",
     extraction_available: false,
@@ -130,7 +259,7 @@ const ACTIVITY_LANES = [
 const LANE_LABELS: Record<(typeof ACTIVITY_LANES)[number], string> = {
   upload_processing: "Uploaded recordings", channel_video: "Individual videos",
   channel_watch: "Channel watching", context_item: "Files and links",
-  voice_model_build: "Voice model builds", mirror_finetune: "Mirror Call learning",
+  voice_model_build: "Voice builds", mirror_finetune: "Mirror Call learning",
   erasure: "Erasure",
 };
 
@@ -247,6 +376,34 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
       },
     },
   },
+
+  // WS-R72. A published Room, so the Share tab's `ShowcaseCard` mounts at
+  // all - the base fixture's `/api/room-publish` answers `{ room: null,
+  // reason: "not_created" }` on purpose (`RoomStudio.tsx`'s own "shown
+  // whenever there is no room yet" comment), which is exactly why this Room
+  // has never rendered under the layout gate before this scenario existed.
+  // `check-layout.mjs`'s own "deploy-picker" step opens the picker with a
+  // REAL CLICK on `[data-picker-open="1"]` rather than a second flag pre-
+  // opening it (`context/rejected.md`'s WS-R43 law, restated for a new
+  // control rather than a Room dialog).
+  "showcase-picker": {
+    "/api/room-publish": {
+      room: {
+        room_id: "fixture-room-0001", slug: "anjali-physics", display_name: "Anjali Physics",
+        free_monthly_messages: 20, paid_monthly_messages: 400, paid_monthly_voice_seconds: 1_800,
+        default_locale: "en", one_line_bio: "JEE physics, one topic a day.",
+        listed: true, listed_at: "2026-08-20T09:00:00.000Z",
+        published: true, paused: false,
+        published_at: "2026-08-15T09:00:00.000Z", paused_at: null,
+        created_at: "2026-08-01T09:00:00.000Z", updated_at: "2026-08-20T09:00:00.000Z",
+        telegram_deep_link: null,
+      },
+      reason: null,
+      can_publish: true,
+      blockers: { waiting_on_you: [], waiting_on_us: [] },
+      showcase: [],
+    },
+  },
 };
 
 function installStubFetch() {
@@ -296,6 +453,25 @@ function installStubFetch() {
   };
 }
 
+/** WS-R91. The layout gate reuses ONE browser context (and so ONE origin's
+ *  localStorage) across every `studio`/`studio-hi`/`studio:shell` step at a
+ *  given viewport (`scripts/check-layout.mjs`'s own per-viewport loop) --
+ *  an EARLIER target's `seedAuth()` call leaves a real session sitting in
+ *  storage that a later `?signedOut=1` navigation would otherwise inherit
+ *  regardless of navigation order. Clearing the key explicitly, rather than
+ *  merely skipping `seedAuth()` below, is what makes this fixture state
+ *  correct no matter where `studio-hi:signed-out` sits in the target list. */
+function clearAuth() {
+  const KEY = "meera.state.v1";
+  try {
+    const state = JSON.parse(localStorage.getItem(KEY) || "{}");
+    delete state.auth;
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    // Nothing stored, or storage denied -- either way, no session to clear.
+  }
+}
+
 function seedAuth() {
   const KEY = "meera.state.v1";
   let state: Record<string, unknown> = {};
@@ -315,13 +491,36 @@ function seedAuth() {
   localStorage.setItem(KEY, JSON.stringify(state));
 }
 
+// WS-R91. `?signedOut=1` skips `seedAuth()` below so the fixture renders
+// `AuthGate` instead of the signed-in tree -- every OTHER target in this
+// gate has always been signed in by construction (`layoutFixture.tsx`'s own
+// header: a gate that cannot see the signed-in studio is a gate that cannot
+// see the defect class it exists to catch), and the sign-in screen itself
+// was simply never a state any target asked this fixture to reach before
+// now (`context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`).
+const SIGNED_OUT = new URLSearchParams(window.location.search).get("signedOut") === "1";
+
 const root = document.getElementById("studio-root")!;
 if (!LOOPBACK.has(window.location.hostname)) {
   root.textContent = "This page runs only on a local test server.";
 } else {
   installStubFetch();
-  seedAuth();
-  // No StrictMode. Its double render is right for finding effect bugs and wrong
-  // for a layout gate, which wants one settled paint to measure.
-  ReactDOM.createRoot(root).render(<StudioApp />);
+  if (SIGNED_OUT) clearAuth();
+  else seedAuth();
+  // The Hindi table is its own chunk (`src/studio/hiCopy.ts`, the WS-R71
+  // merge): install it through the app's own loader BEFORE the glyph list is
+  // built or the app mounts, so the gate's `__STUDIO_HI_STRINGS__` is the
+  // real table and a `?lang=hi` fixture paints Hindi on its first frame.
+  void loadStudioCopy("hi").then(() => {
+    // WS-R52: the live copy table, exposed exactly as `src/room/layoutFixture.tsx`
+    // exposes `ROOM_COPY_TABLE.hi` -- never a list re-typed in this file.
+    window.__STUDIO_HI_STRINGS__ = (() => {
+      const out: [string, string][] = [];
+      flattenHiStrings(STUDIO_COPY_TABLE.hi, "", out);
+      return out;
+    })();
+    // No StrictMode. Its double render is right for finding effect bugs and wrong
+    // for a layout gate, which wants one settled paint to measure.
+    ReactDOM.createRoot(root).render(<StudioApp />);
+  });
 }

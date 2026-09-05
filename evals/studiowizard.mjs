@@ -131,6 +131,9 @@ const BLANK = {
   mode: "teacher",
   runtime: null,
   connectedChannels: null,
+  // WS-R7. `null` is "RoomStudio has not answered yet", the same shape
+  // `connectedChannels` above already carries — see §9 for the coverage.
+  roomPublished: null,
   // WS-AJ. `null` is "the activity surface has not answered", and it must
   // reclassify nothing: the wizard has to behave exactly as it did before this
   // field existed when it is absent. §8 asserts that directly.
@@ -779,6 +782,42 @@ console.log('\n── 10. "Preview my voice" reads the rail\'s own classificatio
     if (named && named.cls !== panelReason.kind) disagreements++;
   }
   ok("the panel's class never disagrees with the rail's class for the gate it names", disagreements === 0, `bad=${disagreements}`);
+}
+
+// ── 11. WS-R7: a published Room is a second, honest way Deploy reads done ──
+console.log("\n── 11. a published Room completes Deploy the same way a channel does ──");
+
+{
+  const live = { active: true, blockers: [], voiceGenomeVersion: 3 };
+
+  ok(
+    "a known zero channels still asks while the Room's own state is UNKNOWN (null is not published)",
+    stepOf(computeWizard(input({ runtime: live, connectedChannels: 0, roomPublished: null })), "deploy")
+      .missing.some((row) => row.code === "no_channel"),
+  );
+  ok(
+    "a published Room alone, with zero channels, is enough for Deploy to read done",
+    stepOf(computeWizard(input({ runtime: live, connectedChannels: 0, roomPublished: true })), "deploy").state === "done",
+  );
+  ok(
+    "a published Room suppresses the 'connect a channel' ask",
+    !stepOf(computeWizard(input({ runtime: live, connectedChannels: 0, roomPublished: true })), "deploy")
+      .missing.some((row) => row.code === "no_channel"),
+  );
+  ok(
+    "zero channels AND an unpublished Room still asks",
+    stepOf(computeWizard(input({ runtime: live, connectedChannels: 0, roomPublished: false })), "deploy")
+      .missing.some((row) => row.code === "no_channel"),
+  );
+  ok(
+    "a connected channel alone is still enough on its own (unchanged from before this field existed)",
+    stepOf(computeWizard(input({ runtime: live, connectedChannels: 1, roomPublished: false })), "deploy").state === "done",
+  );
+  ok(
+    "absent `roomPublished` (a build that never mounts RoomStudio) behaves exactly as it did before this field existed",
+    stepOf(computeWizard(input({ runtime: live, connectedChannels: 0 })), "deploy").state !== "done"
+      && stepOf(computeWizard(input({ runtime: live, connectedChannels: 0 })), "deploy").missing.some((row) => row.code === "no_channel"),
+  );
 }
 
 console.log(fail ? `\n${fail} of ${pass + fail} FAILURES` : `\nALL ${pass} CHECKS PASS`);

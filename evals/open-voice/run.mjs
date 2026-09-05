@@ -519,7 +519,12 @@ ok("the advanced preview route passes its audited text frontend into the atomic 
 ok("NEGATIVE CONTROL: omitting the advanced route text frontend is caught before release",
   !advancedPreviewBindsTextFrontend(handler.replaceAll(/\n\s*text_frontend:\s*textFrontend,/g, "")));
 ok("no browser byte is returned before PerTh, AudioSeal, C2PA and ledger completion", /assertSynthesisResult/.test(handler) && /protectReplicaStream/.test(handler) && /await protectedAudio\.completion/.test(handler));
-ok("Studio presents real loading, empty, error and protected-audio states", /generating/.test(studio) && /No draft can speak yet/.test(studio) && /role="alert"/.test(studio) && /<audio controls/.test(studio));
+// WS-R71: VoicePreviewLab.tsx's own literal strings moved into
+// src/studio/copy.ts (`t.voicePreviewLab`); the one English-wording check
+// below now also reads copy.ts, `evals/readiness/run.mjs`'s own
+// `panelWithCopy` shape.
+const studioWithCopy = `${studio}\n${readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8")}`;
+ok("Studio presents real loading, empty, error and protected-audio states", /generating/.test(studio) && /No draft can speak yet/.test(studioWithCopy) && /role="alert"/.test(studio) && /<audio controls/.test(studio));
 ok("new Studio copy contains no em dash or en dash", !/[—–]/.test(studio));
 
 execFileSync("python", ["-m", "py_compile", "services/open-voice-runtime/app.py", "services/open-voice-runtime/broker.py", "services/open-voice-runtime/fetch_models.py", "services/open-voice-runtime/hindi_pack.py", "services/open-voice-runtime/bake_runtime_assets.py", "services/open-voice-runtime/offline_assets.py", "services/open-voice-runtime/offline_startup_probe.py"], { cwd: ROOT, stdio: "pipe" });

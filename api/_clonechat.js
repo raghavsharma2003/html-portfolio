@@ -57,6 +57,8 @@
 // mouth — presents a digest that does not match and is refused.
 import { createHmac, timingSafeEqual, createHash } from "node:crypto";
 import { gatedReply, makeCtx, splitForLimit, loadEngine, think, deliver } from "./_surface.js";
+import { compileNeverRules } from "./_never-rules.js";
+import { loadNeverRules } from "./_review-queue.js";
 import { resolveInboundClone, cloneDisclosureCard, disclosureNameFor } from "./_clonechannel.js";
 
 /** Web bubbles have no hard platform limit; this is a product one. Long enough
@@ -290,11 +292,23 @@ export async function cloneChatTurn(db, { session, message, transcript = [] }, d
   });
 
   const turns = [...history, { role: "user", content: text }];
+  // WS-R4. The owner's "Never say this" rules, read per turn from the table the
+  // review queue writes and handed to the one door as a PREDICATE. Not a prompt
+  // line: `gate0-structural` measured prompt instructions leaking 57-98% and the
+  // predicate leaking 0 of 31,122, and a list of forbidden sentences in a brief
+  // is also a phrase bank pointed at exactly the strings it forbids
+  // (`recited-prompt`). Read here rather than cached because a rule the owner
+  // added a minute ago has to bind on the next turn, not on the next deploy.
+  const neverRules = compileNeverRules(
+    deps.neverRules ?? (resolved.channel?.replica_id && resolved.channel?.owner_user_id
+      ? await loadNeverRules(db, resolved.channel.replica_id, resolved.channel.owner_user_id)
+      : []),
+  );
   // The one door. `record` and `nameable` are EMPTY, which makes honesty
   // family 4 as strict as it ever is: with no retrieved record, a clone that
   // claims a shared past with this visitor is caught, and on an anonymous
   // widget every such claim is false by construction.
-  const gatedOut = await gatedReply(ctx, compiled, turns, { label: "web/widget" });
+  const gatedOut = await gatedReply(ctx, compiled, turns, { label: "web/widget", neverRules });
   const said = gatedOut.text;
   if (said) {
     await deliver(ctx, "widget", { kind: "text", text: said, replyTo: null, buttons: [] });
@@ -318,6 +332,15 @@ export async function cloneChatTurn(db, { session, message, transcript = [] }, d
     ),
     // Counts only, never the strings — `gateReply`'s rule, and the whole point
     // of the event is that what it caught must not travel.
-    gate: { applied: gatedOut.gated, findings: gatedOut.findings.length },
+    // Counts and a boolean, never the rule's text and never the suppressed
+    // string. `never_rule_applied` is on the wire because a widget that went
+    // silent has to be able to say it was the owner's rule rather than a
+    // failure, and a visitor who is told "there is nothing here" about a
+    // deliberate refusal is being misled about which way the product broke.
+    gate: {
+      applied: gatedOut.gated,
+      findings: gatedOut.findings.length,
+      never_rule_applied: Boolean(gatedOut.neverRule),
+    },
   };
 }
