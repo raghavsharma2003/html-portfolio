@@ -9054,3 +9054,127 @@ PACKAGE VARIANT actually installed (native N-API vs. WASM, here) can lack
 it entirely with no version-mismatch warning. Check the installed
 package's own `.d.ts`, not the README, when a documented option does not
 behave as documented.
+
+## `ws-r57-naive-api-stub-crashes-the-real-room-shell` (2026-09-04, WS-R57)
+
+**The idea.** Point `scripts/check-headers.mjs`'s CSP check straight at
+the REAL, shipping `dist/room.html` (not a fixture), and answer every
+`/api/*` request from the gate's own static server with one generic 200
+`{ ok: true }` stub - simpler than reusing a fixture, and CSP is a
+property of the page shell, not of the data in it, so surely any 200
+would do.
+
+**What broke.** `RoomApp.tsx`'s first `useEffect` calls `openRoom` on
+mount, which expects the real handler's `RoomOpen` shape
+(`{ room: { slug, display_name, name, handoff_enabled }, disclosure,
+joined, follower, session, locale }`). Handed `{ ok: true }` instead, the
+component tried to read a field off `undefined` and threw `Cannot read
+properties of undefined (reading 'name')` as an uncaught `pageerror` -
+every single time, deterministically, nothing to do with headers at all.
+A generic 200 is not "any response the app can survive"; it is "a response
+shaped enough like a real one to not crash," and a fake `db`/fetch stub
+that does not bother shaping its response is exactly the class of
+"plausible return hides a dead pipeline" this repo's own `AGENTS.md` names
+as a law, just showing up on the TEST side of a gate instead of the
+product side.
+
+**What was built instead.** `room-layout-fixture.html` (`?screen=join`) -
+the same fixture `scripts/check-layout.mjs` and `scripts/check-
+accessibility.mjs` already built for this exact wall, complete with a real
+`/api/room` fetch stub (`installFetchStub`) that answers with a correctly
+shaped `RoomOpen`. The studio target did NOT need this swap - `dist/
+studio.html` signed-out fetches nothing on mount, already proven by
+`scripts/check-performance.mjs` running clean against it before this
+workstream existed. See `context/decisions.md#ws-r57-room-and-studio-csp-tested-against-layout-fixtures`.
+
+**What would reverse this.** If `openRoom`'s caller is ever made tolerant
+of an unexpected-but-200 body (fail soft into the room's own honest "not
+open" state rather than throwing), the real `room.html` becomes safe to
+test directly again and the fixture dependency can be dropped.
+
+## `ws-r57-vercel-json-comment-field-is-invalid-schema` (2026-09-04, WS-R57)
+
+**The idea.** `vercel.json` has no comment syntax (it is parsed as strict
+JSON, not JSON5/JSONC), and this workstream's `headers[]` array needed a
+long rationale attached to the route-class design as a whole rather than
+repeated seven times per entry. A `{ "_comment": "..." }` object as the
+first element of the `headers` array looked like a harmless place to put
+it - valid JSON, ignored by anything that only reads `source`/`headers`
+keys off entries it recognises.
+
+**Why it is wrong, caught before it shipped.** Vercel's own build-time
+schema validation for `vercel.json` requires every `headers[]` entry to
+carry `source` and `headers` - an object with neither is not "an extra key
+nothing reads," it is a MALFORMED entry the validator has no reason to
+skip past. This was never actually deployed to prove the failure mode
+(no live Vercel project to test against, and the brief's own law: no money,
+no live service calls this workstream cannot afford) - caught by inspection
+of the schema shape instead, which is the honest, cheaper thing to do
+before finding out the hard way that a config change silently broke every
+future deploy on this branch until read closely. Removed before commit;
+the file is checked with `JSON.parse` in this workstream's own testing but
+that alone would NOT have caught this, since the object is valid JSON -
+only knowing Vercel's own required-fields shape catches it, which is why
+this rejection exists as a note for whoever next reaches for a "just leave
+a comment in the JSON" shortcut here.
+
+**What was built instead.** The rationale lives in `scripts/check-
+headers.mjs`'s own file header instead (the established pattern every
+sibling gate in this repo already uses - `scripts/check-performance.mjs`'s
+70-line header, `scripts/check-accessibility.mjs`'s own) and in `context/
+decisions.md`'s per-decision entries, where prose belongs.
+
+**What would reverse this.** If Vercel's own schema is ever confirmed
+(from their own docs, read directly, not assumed) to tolerate an unknown
+key on a `headers[]` entry without rejecting the file, an actual comment
+field becomes safe to reintroduce - until then, treat every key in this
+array as schema-checked, not decoration.
+
+## `ws-r57-room-doors-frozen-fixture-now-expires-against-the-real-clock` (2026-09-05, found not fixed)
+
+**Found, not fixed - flagged for whoever owns `evals/room-doors/run.mjs`
+next; out of scope for this workstream, which touched none of the files
+below.** `evals/room-doors/run.mjs` line 217 hardcodes `const NOW =
+Date.parse("2026-09-04T12:00:00Z")` as the fixture's business-math clock,
+but `api/_room-surface.js`'s `assertSessionFresh(payload, now =
+Date.now())` - the REAL function every door battery scenario ultimately
+calls - defaults to the REAL wall clock whenever a caller does not pass
+its own `now` explicitly, and at least three call paths in this suite's
+own §2/§3 (`b-cross-room/handoff.js`, `b-cross-room/checkins.js`,
+`b-cross-room/room-pay.js`, plus an unhandled crash in §3) do not pass
+one. `ROOM_SESSION_TTL_MS` is exactly `12 * 60 * 60 * 1000` - 12 hours -
+so the moment the REAL wall clock crosses `2026-09-05T00:00:00Z` (the
+fixture's frozen `NOW` plus that TTL), every session this suite minted
+against the frozen `iat` starts reading as expired against the live
+clock, and these three assertions (plus §3's crash) flip from pass to
+fail with ZERO code change anywhere in the repo. Reproduced twice in a
+row, deterministically, at `2026-09-05T00:02:58Z` and again moments
+later, on a tree where `git diff <base> HEAD -- evals/room-doors/
+api/_room-surface.js api/_handoff.js api/_checkins.js api/_room-pay.js`
+is EMPTY - this workstream's own commits never touch any of these files,
+so the failure is not this workstream's regression, it is the real clock
+catching up to a comment this same file's own header already anticipated
+("minting a session against the real wall clock while driving a
+scenario's own business-math `deps.now` against a fixed calendar date
+unrelated to it... would need auditing across every suite that does it").
+This is also NOT unique to this one file: `grep -rl 'Date.parse("2026-09-04'
+evals/ api/` finds the identical pattern in `evals/room-push/run.mjs`,
+`evals/payouts/run.mjs` and `evals/org-billing/run.mjs` too - none
+audited by this workstream, named here so the next session does not
+re-discover the same wall clock only through a red gate with no obvious
+cause. Because `room-doors` is also one of `evals/run.mjs`'s own
+registered suites, this same root cause fails the `eval suite` gate too,
+not only the standalone `room door battery` gate - both were confirmed
+passing on this exact tree in earlier runs THIS SAME SESSION, before real
+time crossed the boundary, which is the clearest possible proof this is
+a clock artefact and not a code regression.
+
+**What would reverse this.** Either give every scenario in these four
+files a `now` parameter derived from their own frozen `NOW` constant
+(passed explicitly through every call, not defaulted) so the whole
+suite runs at a fixed simulated instant regardless of the real wall
+clock, or regenerate `NOW` to `Date.now()` at suite-start time so the
+fixture always describes "now" rather than a calendar date that
+silently expires. Either fix should re-run `evals/room-doors/run.mjs`
+(and the other three files this grep found) past a real UTC midnight to
+prove the fix actually holds, the same way this rejection was found.

@@ -563,5 +563,54 @@ const leakingStmt2 = realStmt.replace(
 ok("NEGATIVE CONTROL (c), second shape: a select list with message_text also FAILS",
   aggregateOnlyVerdict(leakingStmt2).leaks);
 
+// ═════════════════════════════════════════════════════════════════════════
+// §6 — WS-R57. Every named route class in vercel.json carries a headers[]
+// entry, statically, so this offline suite catches a route class that loses
+// its header entry (or a `vercel.json` edit that renames a `source` without
+// updating its match) without needing Chromium at all -- that browser-level
+// proof is `scripts/check-headers.mjs`'s own job; this is the cheap static
+// half that runs on every `eval suite` invocation, not only when someone
+// remembers to run the header gate by name. Scoped to exactly the six page
+// targets plus the API class that WS-R57's brief named -- not an unscoped
+// audit of every path vercel.json ever rewrites (`/privacy`, `/embed.js`,
+// `/sitemap.xml`...), which is out of this workstream's stated scope; see
+// `scripts/check-headers.mjs`'s own header for why that line was drawn here.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §6: every WS-R57 route class still has a vercel.json headers[] entry ──");
+{
+  const vercelConfig = JSON.parse(fs.readFileSync(join(REPO, "vercel.json"), "utf8"));
+  const headerRules = vercelConfig.headers || [];
+  const ROUTE_CLASSES = [
+    { source: "/r/:slug", required: ["Content-Security-Policy", "Permissions-Policy"] },
+    { source: "/studio", required: ["Content-Security-Policy", "Permissions-Policy"] },
+    { source: "/", required: ["Content-Security-Policy"] },
+    { source: "/vyakti", required: ["Content-Security-Policy"] },
+    { source: "/suites", required: ["Content-Security-Policy"] },
+    { source: "/creators", required: ["Content-Security-Policy"] },
+    { source: "/api/(.*)", required: ["X-Content-Type-Options", "Cache-Control"] },
+  ];
+  for (const rc of ROUTE_CLASSES) {
+    const rule = headerRules.find((h) => h.source === rc.source);
+    ok(`vercel.json headers[] has a "${rc.source}" entry`, Boolean(rule));
+    if (!rule) continue;
+    const keys = new Set((rule.headers || []).map((h) => h.key));
+    for (const key of rc.required) {
+      ok(`"${rc.source}" entry carries ${key}`, keys.has(key));
+    }
+    // Every HTML route class (everything but the API class) also carries the
+    // three headers that apply everywhere: HSTS, Referrer-Policy, nosniff.
+    if (rc.source !== "/api/(.*)") {
+      for (const key of ["Strict-Transport-Security", "Referrer-Policy", "X-Content-Type-Options"]) {
+        ok(`"${rc.source}" entry carries ${key}`, keys.has(key));
+      }
+    }
+  }
+
+  // NEGATIVE CONTROL: a route class this scan invents fails to be found,
+  // proving the presence check above is not vacuously true for every string.
+  const fakeRule = headerRules.find((h) => h.source === "/this-route-class-does-not-exist");
+  ok("NEGATIVE CONTROL: an invented route class is correctly reported absent", fakeRule === undefined);
+}
+
 console.log(`\nops: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
