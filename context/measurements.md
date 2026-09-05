@@ -9721,3 +9721,16 @@ moderate, 0 minor), 0 keyboard findings, 45727ms - includes
 (this file imports `TARGETS` from `check-layout.mjs` rather than
 duplicating it, so the new targets were picked up with no edit to this
 gate at all).
+
+**Follow-up, same session: an intermittent `color-contrast` finding on
+`site:/` (Meera's landing page, `.onb-sub`/`.onb-honest`, #4b423d on
+#7fb2e0, measured 4.35 against a 4.5 floor) appeared on a later re-run of
+`node scripts/check-accessibility.mjs` and reproduced twice more in a row.
+Isolated with two temporary `git worktree add` checkouts (both removed
+after): reproduces IDENTICALLY at this workstream's first commit
+(2e0af5e, before the ops-board addition) and at the untouched base commit
+(2d271f2) - confirmed pre-existing, not caused by anything in this
+workstream, and itself intermittent (this exact gate passed clean on this
+same tree earlier in the session, see the entry above) rather than a
+stable regression this workstream introduced. `site/`, `.onb-*` and Meera's
+own tokens are files this workstream never touched.
