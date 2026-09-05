@@ -145,10 +145,26 @@ export interface OpsPushConfig {
   vapid_public: string | null;
 }
 
+// WS-R76 (migration 120). `api/_ops.js`'s own `selfCheckOverview` shape,
+// typed here unchanged - this file computes nothing, `opsApi.ts`'s own
+// header rule restated. `failing_checks` is a list of the check's own NAMES
+// (an env var's name, a table's name, a sweep's name) - never a value.
+export interface OpsSelfCheck {
+  last_started_at: string | null;
+  last_outcome: SweepOutcome;
+  staleness: SweepStaleness;
+  checked: number;
+  passed: number;
+  failed: number;
+  failing_checks: string[];
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
   sweeps: OpsSweep[];
+  // WS-R76 (migration 120).
+  self_check: OpsSelfCheck;
   funnel: OpsFunnel;
   phase_gate: OpsPhaseGate;
   // WS-R40 (migration 102).

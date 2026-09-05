@@ -478,6 +478,45 @@ export async function revokeOperatorPushById(db, id) {
   await db(`update vy_operator_push_subscription set revoked_at = now() where id = ($1)::uuid`, [String(id)]);
 }
 
+/**
+ * WS-R76 (migration 120). "The ops board gains a Self-check line: last run,
+ * checks passed, the names of the failing ones" — the workstream brief's
+ * own words. `sweep` is `sweeps`'s own "self-check" row — the generic
+ * `vy_sweep_run` heartbeat every cron already gets, `sweepsOverview`'s own
+ * read one section up, never a second query here. `checked`/`passed`/
+ * `failed` come from that row's own `counts` (WS-R76's own handler returns
+ * them as plain numbers so `sanitizeCounts`, api/_sweep-run.js, keeps them
+ * rather than dropping them the way it drops a string).
+ *
+ * The failing check NAMES do not live on that row at all — `sanitizeCounts`
+ * collapses an array to its length by construction, the same content-free
+ * digest every other sweep's summary already gets — they live in
+ * `vy_incident` itself, one row per finding, `kind: "self_check"`,
+ * `door` the check's own name (`api/_self-check.js`'s own
+ * `recordSelfCheckIncidents`). Read HERE as today's rows only, never
+ * `incidentsOverview`'s own 7-day rolling window one section up: "the
+ * names of the failing ones" means THIS morning's run, not a week of
+ * history a single stale finding would otherwise keep alive on this line
+ * for six more days after it was already fixed.
+ */
+async function selfCheckFailingToday(db) {
+  const rows = await db(`select distinct door from vy_incident where day = current_date and kind = 'self_check' order by door`, []);
+  return rows.map((r) => r.door);
+}
+
+function selfCheckOverview(sweeps, failingToday) {
+  const sweep = sweeps.find((s) => s.sweep === "self-check") || null;
+  return {
+    last_started_at: sweep?.last_started_at ?? null,
+    last_outcome: sweep ? sweep.last_outcome : "never_ran",
+    staleness: sweep ? sweep.staleness : "unscheduled",
+    checked: Number(sweep?.counts?.checked) || 0,
+    passed: Number(sweep?.counts?.passed) || 0,
+    failed: Number(sweep?.counts?.failed) || 0,
+    failing_checks: failingToday,
+  };
+}
+
 /** The board's one call. `now` is a parameter (default `Date.now()`) so
  *  `evals/ops/run.mjs` can drive it at a fixed instant rather than racing a
  *  real clock. `deps` (WS-R40) exists for exactly one downstream seam today
@@ -499,10 +538,18 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
   for (const room of rooms) {
     roomsOut.push(await roomOverview(db, room, monthKey, now));
   }
+  // WS-R76: hoisted out of the return object below so `selfCheckOverview`
+  // can read the SAME already-fetched `sweeps` array rather than this board
+  // paying for a second `vy_sweep_run` round trip just to find one row in it.
+  const sweeps = await sweepsOverview(db, now);
   return {
     generated_at: new Date(now).toISOString(),
     rooms: roomsOut,
-    sweeps: await sweepsOverview(db, now),
+    sweeps,
+    // WS-R76 (migration 120). "Last run, checks passed, the names of the
+    // failing ones" - derived from `sweeps` above plus today's own
+    // `self_check`-kind incident rows, never a re-derivation of either.
+    self_check: selfCheckOverview(sweeps, await selfCheckFailingToday(db)),
     // WS-R25. "Minutes to first Room" and "where creators stop" -
     // `opsFunnel`'s own read, one extra call on the board's one endpoint.
     funnel: await opsFunnel(db, now),
