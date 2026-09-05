@@ -27,6 +27,10 @@
 // precedent, restated for an env reader instead of a SQL writer.
 import { INCIDENT_KINDS, recordIncident } from "./_incidents.js";
 import { sweepSchedules } from "./_sweep-schedule.js";
+// WS-R98. The failure path's own Telegram alert - safe to import directly,
+// `api/_operator-telegram.js` never imports this file back (see that file's
+// own header).
+import { sendOperatorTelegram } from "./_operator-telegram.js";
 
 // ═════════════════════════════════════════════════════════════════════════
 // (a) env presence, by NAME only
@@ -319,6 +323,63 @@ export async function runSelfCheck(deps = {}) {
 export async function recordSelfCheckIncidents(db, result) {
   for (const door of result.failing_doors) {
     await recordIncident(db, { kind: "self_check", door, status: 0 });
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// (e) the failure path's own Telegram alert (WS-R98)
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Content-free by construction: only `result.checked`/`result.failed` (plain
+// counts, already proven safe by `runSelfCheck`'s own return shape) ever
+// reach the body - never `result.failing_doors`' own names, even though
+// those names are themselves already content-free (an env var's name, a
+// table's name, a sweep's name, never a value) - kept OUT anyway so this
+// alert is exactly as content-free as `operatorDigestPayload`/
+// `incidentPushPayload` one file over, never a special case a future editor
+// has to reason about differently.
+
+/** Pure, `operatorDigestPayload`'s own "the parameter list is the
+ *  enforcement" shape (api/_operator-digest.js) restated a fourth time. */
+export function selfCheckTelegramPayload(result) {
+  const checked = Math.max(0, Math.trunc(Number(result?.checked) || 0));
+  const failed = Math.max(0, Math.trunc(Number(result?.failed) || 0));
+  return {
+    title: "Vyakti self-check",
+    body: `${failed}/${checked} checks failing this morning. See the ops board.`.slice(0, 200),
+    url: "/studio?mode=ops",
+  };
+}
+
+/**
+ * Fires ONLY on the failure path (`result.ok === false`) - a clean morning
+ * sends nothing, `notifyNewIncidentKinds`'s own "only a genuinely new kind
+ * wakes anyone" restraint restated for a daily cron instead of a per-kind
+ * claim. No idempotency machinery of its own is needed: this cron already
+ * runs at most once a day (`vercel.json`'s `30 2 * * *`), so "the failure
+ * path calls the sender" is naturally at-most-once-per-day, `withSweepRun`'s
+ * own heartbeat wrapper is what recorded it ran at all.
+ *
+ * Never throws - `deps.sendTelegram` defaults to the real
+ * `sendOperatorTelegram`, and every failure inside is caught, the same
+ * best-effort posture `recordSelfCheckIncidents`'s own caller
+ * (`api/self-check.js`) already takes for this whole step.
+ */
+export async function sendSelfCheckTelegramAlert(db, result, deps = {}) {
+  if (result?.ok) return { telegramSent: 0 };
+  const env = deps.env || process.env;
+  const sendTelegram = deps.sendTelegram || sendOperatorTelegram;
+  try {
+    const outcome = await sendTelegram(db, selfCheckTelegramPayload(result), {
+      env,
+      fetch: deps.fetch,
+      now: deps.now,
+      recordIncident,
+    });
+    return { telegramSent: outcome?.sent || 0 };
+  } catch (error) {
+    console.error("[self-check] telegram send failure:", error?.message || "unknown");
+    return { telegramSent: 0 };
   }
 }
 

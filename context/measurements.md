@@ -11982,3 +11982,79 @@ Not measured: `joinRoom`'s widened RETURNING (`(xmax = 0) as newly_joined`) is t
 ## `ci-release-gate-first-real-run-2026-09-05` — the 21-check gate in GitHub Actions, measured once
 
 n = 1 run (`release-gate.yml`, run 1, on `6deaf1e`), method: GitHub's own run record, 2026-09-05. Started 10:12:53Z, finished 10:21:27Z: 8 minutes 34 seconds wall clock for the Node 22 and Node 24 jobs in parallel, conclusion success on both. Below WS-R77's 25-minute trigger for splitting the browser checks into a parallel job (`decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet` stands). Not measured: per-check timing inside the runner (the job log was not read), a cold-cache run (this run downloaded Chromium for the first time and still fit).
+
+
+## `ws-r98-gate-before-after-2026-09-05` — WS-R98 gate results, before and after
+
+n = 1 workstream (WS-R98, the operator digest/incident/self-check alert over
+Telegram, no migration), method: `node scripts/verify-release.mjs` run on
+the untouched tree first (in an isolated `git worktree add --detach` copy of
+04395e2, never the shared main checkout, to avoid disturbing sibling
+sessions), then again after every change; date 2026-09-05, on a shared
+machine running roughly ten sibling worktrees' own full gates concurrently
+throughout (load average 11-15 the whole session). BEFORE: 18/21, 3 FAILED —
+`layout readability` (EADDRINUSE :8931), `eval suite` (EADDRINUSE :8940),
+`accessibility` (EADDRINUSE :8933) — all three a shared-machine port
+collision, none a real finding. AFTER (three full runs, plus two isolated
+single-check reruns once their ports freed): every one of the 21 non-DB
+checks was independently confirmed passing at least once, though no SINGLE
+invocation showed all 21 green simultaneously due to the same port
+contention recurring across runs (`layout readability` EADDRINUSE :8931 on
+run 1, `performance budgets` EADDRINUSE :8932 on run 2, `accessibility`
+EADDRINUSE :8933 on runs 1-3). Run 3 got `layout readability` for real
+(242020ms, ok) and `eval suite` for real (433740ms, ok) but hit a REAL
+(non-EADDRINUSE) finding on `performance budgets`: `/studio TBT: 380ms >
+300ms budget` (the only budget target this workstream's own `OpsBoard.tsx`/
+`opsApi.ts` changes touch). Re-run in isolation (`node scripts/check-
+performance.mjs` alone, once port 8932 was confirmed free) measured `/studio`
+TBT at 143ms — well inside budget, and `/studio`'s own JS weight unchanged
+at 162.2K both times — proving the 380ms reading was CPU-contention noise
+from the concurrent sibling gates, not a regression from this workstream's
+own two-line UI addition. `accessibility` re-run in isolation (`node
+scripts/check-accessibility.mjs` alone) passed cleanly: 0 critical/serious
+across 18 pages, 0 keyboard findings, 0 language-tag findings. `relational
+db gates: SKIPPED (no NEON_URL)` on every run, as expected in this
+environment. `node scripts/context.mjs --check` passed after every context
+append. Not measured: the two relational DB gates (no `NEON_URL` in this
+environment, per `ws-common.md`).
+
+## `ws-r98-eval-suite-counts-2026-09-05` — the new/extended offline suites, measured directly, a real bug caught and fixed
+
+n = several runs of `node evals/run.mjs` (the exact command `scripts/verify-
+release.mjs`'s own "eval suite" gate wraps, confirmed by reading that
+script's own `gate("eval suite", NODE, ["evals/run.mjs"])` line), both the
+whole suite and single-suite (`node evals/run.mjs <name>`) invocations,
+method: exit code plus each suite's own printed pass/fail line, read
+directly from the command's own stdout, not inferred from the outer gate's
+one-line "ok"/"FAIL" summary. Correction of an easy mistake worth naming:
+gate run 3 (the "AFTER" run in `ws-r98-gate-before-after-2026-09-05` above)
+printed "ok eval suite" BEFORE `evals/operator-telegram/run.mjs` had been
+registered in `evals/run.mjs`'s own `suites` map — that pass therefore
+proved nothing about the new suite at all (an unregistered name is silently
+skipped, never an error), which is exactly the "a plausible return hides a
+dead pipeline" trap restated for a test suite instead of a code path. Caught
+by running `node evals/run.mjs operator-telegram` directly, by name, AFTER
+registering it: 28 passed, 2 FAILED first try. Both failures were real, in
+the eval's own two format-precision assertions, not the implementation
+being tested — `operatorTelegramText`'s own choice of `title + "\n" + body`
+(single newline) versus the eval's own expectation of `title + "\n\n" +
+body` (a blank line, matching `api/_room-telegram.js`'s own multi-part card
+convention). Fixed in the implementation (blank line between title and
+body, single newline before the url — the more readable shape, and the one
+`api/_room-telegram.js`'s own cards already use), not in the test, then
+reran clean: `operator-telegram: 30 passed, 0 failed`. Every other touched
+suite run individually and confirmed clean the same way:
+`operator-digest: 54 passed, 0 failed` (its own new §7), `incidents: 43
+passed, 0 failed`, `self-check: 57 passed, 0 failed` (its own new §6),
+`ops: 143 passed, 0 failed` (its own new §5c3, including the "sent zero
+honestly" case). The FULL suite (`node evals/run.mjs`, no argument, all
+~91 files, post-fix and post-registration) then ran to completion: exit
+code 0, no "failed suites" line printed (the runner's own signal that
+every suite it ran — including `operator-telegram`, now registered —
+passed), 830 `── <suite> ──` section headers printed. This IS the real
+"eval suite" gate command, run directly rather than only through the
+slower full `verify-release.mjs` wrapper, which is why it was used to get
+the authoritative post-fix confirmation rather than paying for a fourth
+full gate run on an already heavily-loaded shared machine. Not measured:
+per-assertion timing (only exit codes and printed pass/fail counts were
+read).

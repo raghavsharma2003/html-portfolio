@@ -171,9 +171,17 @@ export interface OpsPosterArrivals {
 
 // WS-R88 (migration 125). `api/_operator-digest.js`'s own `lastOperatorDigest`
 // shape, typed here unchanged - this file computes nothing, `opsApi.ts`'s
-// own header rule restated.
+// own header rule restated. WS-R98 nests `telegram` - `api/_ops.js`'s own
+// `digestTelegramOverview` shape, "both channels' last delivery"
+// (workstream law #3).
+export interface OpsDigestTelegram {
+  configured: boolean;
+  last_run_at: string | null;
+  last_sent_count: number;
+}
 export interface OpsDigest {
   sent_at: string | null;
+  telegram: OpsDigestTelegram;
 }
 
 // WS-R86 (migration 123). `api/_funnel.js`'s own `friendArrivalsThisWeek`

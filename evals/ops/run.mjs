@@ -855,6 +855,54 @@ console.log("\n── §5c2: overview.digest (WS-R88) ──");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §5c3 — WS-R98. `overview.digest.telegram` - "the ops board's digest card
+// shows both channels' last delivery" (workstream law #3), derived from the
+// SAME already-fetched `sweeps` array (the "operator-digest" sweep's own
+// latest `vy_sweep_run` row), no new table.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5c3: overview.digest.telegram (WS-R98) ──");
+{
+  const state = opsState();
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), {
+    env: {}, tableApplied: async () => false,
+  });
+  ok("digest.telegram: unconfigured env reports honestly unconfigured, never a fabricated run",
+    overview.digest.telegram.configured === false && overview.digest.telegram.last_run_at === null && overview.digest.telegram.last_sent_count === 0);
+}
+{
+  const state = opsState();
+  state.sweepRuns.push({
+    run_id: "r1", sweep: "operator-digest",
+    started_at: `${state.today}T03:15:00.000Z`, finished_at: `${state.today}T03:15:05.000Z`,
+    outcome: "ok", counts: JSON.stringify({ sent_ledger: 1, pushed: 0, telegramSent: 2 }), error_code: "",
+  });
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), {
+    env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111,222" },
+    tableApplied: async () => false,
+  });
+  ok("digest.telegram: configured AND a real run reports it as sent, with the real count and the run's own time",
+    overview.digest.telegram.configured === true &&
+    overview.digest.telegram.last_run_at === `${state.today}T03:15:00.000Z` &&
+    overview.digest.telegram.last_sent_count === 2);
+}
+{
+  // A run where Telegram sent nothing (e.g. the send failed) is read
+  // honestly - never claiming "sent" for a run that carried a zero.
+  const state = opsState();
+  state.sweepRuns.push({
+    run_id: "r1", sweep: "operator-digest",
+    started_at: `${state.today}T03:15:00.000Z`, finished_at: `${state.today}T03:15:05.000Z`,
+    outcome: "ok", counts: JSON.stringify({ sent_ledger: 1, pushed: 0, telegramSent: 0 }), error_code: "",
+  });
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), {
+    env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111" },
+    tableApplied: async () => false,
+  });
+  ok("digest.telegram: a run that sent zero reports zero honestly, even though the sweep DID run",
+    overview.digest.telegram.last_sent_count === 0 && overview.digest.telegram.last_run_at === `${state.today}T03:15:00.000Z`);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §5 — NEGATIVE CONTROL (c): a select list that adds a follower text column
 // fails the SAME aggregate-only parser evals/room-leak/run.mjs runs.
 // ═════════════════════════════════════════════════════════════════════════

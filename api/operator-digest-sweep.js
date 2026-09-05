@@ -40,6 +40,10 @@ export default async function handler(req, res) {
         opsOverviewFn: (db, now) => opsOverview(db, now),
         operatorSubscriptionsFor: (db, ownerId) => operatorPushSubscriptionsFor(db, ownerId),
         revokeOperatorSubscription: (db, id) => revokeOperatorPushById(db, id),
+        // WS-R98: the digest's own Telegram fallback, best-effort, beside
+        // the push - `api/checkins-sweep.js`'s own `fetch: globalThis.fetch`
+        // line, restated.
+        fetch: globalThis.fetch,
       }));
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {

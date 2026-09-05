@@ -342,5 +342,59 @@ console.log("\n── §6: lastOperatorDigest ──");
   ok("lastOperatorDigest: a non-function db reports the same honest null, never a throw", notADb.sent_at === null);
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// §7 — WS-R98: the digest's own Telegram fallback, beside the push, on the
+// SAME `sendOperatorDigest` and the SAME §4 fixtures.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7: the Telegram fallback (WS-R98) ──");
+const TELEGRAM_ENV = { ...ENV, ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111,222" };
+{
+  // (a) both channels configured: both fire, each folding its OWN summary
+  // field (workstream law #2).
+  const state = freshDigestState();
+  const db = digestDb(state);
+  const pushSent = [];
+  let telegramCalls = 0;
+  const summary = await sendOperatorDigest(db, {
+    now: NOW, env: TELEGRAM_ENV, opsOverviewFn: async () => OVERVIEW,
+    operatorSubscriptionsFor: async () => [{ id: "sub-1", ...SUB }],
+    sendPush: async (sub, payload) => { pushSent.push(payload); return { ok: true, status: 201 }; },
+    sendTelegram: async () => { telegramCalls++; return { sent: 2, failed: 0 }; },
+  });
+  ok("sendOperatorDigest: both channels configured fire both, each its own summary field",
+    summary.pushed === 1 && summary.telegramSent === 2 && pushSent.length === 1 && telegramCalls === 1);
+}
+{
+  // (b) Telegram alone (no VAPID at all): still claims the ledger and sends
+  // - the widened claim, `context/decisions.md
+  // #ws-r98-notify-claim-widened-to-either-channel`.
+  const state = freshDigestState();
+  const db = digestDb(state);
+  let telegramPayload = null;
+  const summary = await sendOperatorDigest(db, {
+    now: NOW, env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111" }, // no VAPID, no OPS_OWNER_USER_IDS
+    opsOverviewFn: async () => OVERVIEW,
+    sendTelegram: async (d, payload) => { telegramPayload = payload; return { sent: 1, failed: 0 }; },
+  });
+  ok("sendOperatorDigest: Telegram alone claims the ledger row (widened from push-only)",
+    summary.sent_ledger === 1 && state.rows.length === 1);
+  ok("sendOperatorDigest: pushed stays honestly 0 (push was never configured), telegramSent carries the real send",
+    summary.pushed === 0 && summary.telegramSent === 1);
+  ok("sendOperatorDigest: the Telegram sender receives the SAME operatorDigestPayload shape the push channel would have",
+    telegramPayload?.kind === "operatorDigest" && telegramPayload?.route === "/studio?mode=ops");
+}
+{
+  // NEGATIVE CONTROL: neither channel configured still claims nothing -
+  // unchanged from §4(a), restated with the Telegram env vars present but
+  // incomplete (token only, no chat ids - still unconfigured).
+  const state = freshDigestState();
+  const db = digestDb(state);
+  const summary = await sendOperatorDigest(db, {
+    now: NOW, env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token" }, opsOverviewFn: async () => OVERVIEW,
+  });
+  ok("NEGATIVE CONTROL: a bot token with no OPS_TELEGRAM_CHAT_IDS is still unconfigured - claims and sends nothing",
+    summary.sent_ledger === 0 && summary.pushed === 0 && summary.telegramSent === 0 && state.rows.length === 0);
+}
+
 console.log(`\noperator-digest: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

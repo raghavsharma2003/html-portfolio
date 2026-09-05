@@ -70,6 +70,11 @@ import { INCIDENT_KINDS } from "./_incidents.js";
 // `sendTestOperatorDigest`) needed `opsOverview`/`opsOwnerIds`/`isOpsOwner`
 // imported directly instead of injected.
 import { lastOperatorDigest } from "./_operator-digest.js";
+// WS-R98. `operatorTelegramConfigured` is a pure function of env, no db -
+// the SAME "safe direction" this file's own header names for
+// `lastOperatorDigest` one import up: `api/_operator-telegram.js` never
+// imports THIS file back (see that file's own header).
+import { operatorTelegramConfigured } from "./_operator-telegram.js";
 import { randomUUID } from "node:crypto";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
@@ -519,6 +524,36 @@ async function selfCheckFailingToday(db) {
   return rows.map((r) => r.door);
 }
 
+/**
+ * WS-R98. "The ops board's digest card shows both channels' last delivery"
+ * (workstream law #3) - push's own half is `lastOperatorDigest`'s `sent_at`,
+ * unchanged, from the `vy_operator_digest` ledger. Telegram's own half is
+ * deliberately NOT a new table or a new column on that ledger (this
+ * workstream's own brief: "No migration expected") - it is read off the
+ * SAME already-fetched `sweeps` array `selfCheckOverview` above reads from,
+ * one section up: the "operator-digest" sweep's own latest `vy_sweep_run`
+ * row already carries a `telegramSent` count (`api/_operator-digest.js#
+ * sendOperatorDigest`'s own summary, kept by `api/_sweep-run.js#
+ * sanitizeCounts` because it is a plain number) - no second query.
+ *
+ * This is honestly a WEAKER guarantee than the push ledger's own row-per-day
+ * history: `vy_sweep_run` keeps only the LATEST run per sweep, so if
+ * yesterday's Telegram send succeeded and this morning's failed (config
+ * pulled, bot blocked), this reads as "last delivery: never", not
+ * "yesterday" - see `context/decisions.md#ws-r98-digest-telegram-last-
+ * delivery-read-from-sweep-run-not-a-ledger` for the reversal condition
+ * (build a real per-channel delivery ledger, migration 126, if that gap is
+ * ever found to matter in practice).
+ */
+function digestTelegramOverview(sweeps, env) {
+  const sweep = sweeps.find((s) => s.sweep === "operator-digest") || null;
+  return {
+    configured: operatorTelegramConfigured(env),
+    last_run_at: sweep?.last_started_at ?? null,
+    last_sent_count: Number(sweep?.counts?.telegramSent) || 0,
+  };
+}
+
 function selfCheckOverview(sweeps, failingToday) {
   const sweep = sweeps.find((s) => s.sweep === "self-check") || null;
   return {
@@ -621,8 +656,11 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     dormancy: await dormancyThisWeek(db, now, deps),
     // WS-R88 (migration 125). "Last digest" with its sent time - the board's
     // own read, `api/_operator-digest.js#lastOperatorDigest`'s own single
-    // query, reused rather than re-derived.
-    digest: await lastOperatorDigest(db),
+    // query, reused rather than re-derived. WS-R98 nests `telegram` inside
+    // this same object - "the digest card shows both channels' last
+    // delivery" (workstream law #3), `digestTelegramOverview`'s own header
+    // one section up on why no new query is needed for it.
+    digest: { ...(await lastOperatorDigest(db)), telegram: digestTelegramOverview(sweeps, deps.env || process.env) },
     // WS-R85 (migration 122). Growth from the share kit, broken down by
     // channel (WhatsApp / Instagram / YouTube / Telegram) rather than
     // lumped into one line - `share_arrivals_this_week`'s own shape, one

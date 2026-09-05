@@ -37,6 +37,8 @@ const {
   checkSiblingSweeps,
   runSelfCheck,
   recordSelfCheckIncidents,
+  selfCheckTelegramPayload,
+  sendSelfCheckTelegramAlert,
   SELF_CHECK_KIND_REGISTERED,
 } = await import(pathToFileURL(join(REPO, "api/_self-check.js")).href);
 const { INCIDENT_KINDS } = await import(pathToFileURL(join(REPO, "api/_incidents.js")).href);
@@ -362,6 +364,47 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   const spyDb = async (sql, params) => { if (sql.includes("insert into vy_incident")) calls.push(params); return []; };
   await recordSelfCheckIncidents(spyDb, { failing_doors: [] });
   ok("NEGATIVE CONTROL: a result with zero failing checks writes zero incident rows", calls.length === 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §6 — WS-R98: the failure path's own Telegram alert.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §6: the failure path's own Telegram alert (WS-R98) ──");
+{
+  const p = selfCheckTelegramPayload({ checked: 16, failed: 3 });
+  ok("selfCheckTelegramPayload: body names the real checked/failed counts", p.body.includes("3/16"));
+  ok("selfCheckTelegramPayload: url points at the ops board", p.url === "/studio?mode=ops");
+  ok("selfCheckTelegramPayload: body under 200 characters", p.body.length <= 200);
+}
+{
+  let telegramPayload = null;
+  const outcome = await sendSelfCheckTelegramAlert(async () => [], { ok: false, checked: 16, failed: 3 }, {
+    env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111" },
+    sendTelegram: async (db, payload) => { telegramPayload = payload; return { sent: 1, failed: 0 }; },
+  });
+  ok("sendSelfCheckTelegramAlert: a failing result sends exactly one Telegram alert", outcome.telegramSent === 1);
+  ok("sendSelfCheckTelegramAlert: the sender receives selfCheckTelegramPayload's own shape",
+    telegramPayload?.body.includes("3/16") && telegramPayload?.url === "/studio?mode=ops");
+}
+{
+  // NEGATIVE CONTROL: a healthy result (ok: true) never even reaches the
+  // sender - proven by a sender that throws if called at all.
+  const outcome = await sendSelfCheckTelegramAlert(async () => [], { ok: true, checked: 16, failed: 0 }, {
+    env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111" },
+    sendTelegram: async () => { throw new Error("must never be called on a healthy result"); },
+  });
+  ok("NEGATIVE CONTROL: sendSelfCheckTelegramAlert on a healthy result sends nothing, never calls the sender",
+    outcome.telegramSent === 0);
+}
+{
+  // NEGATIVE CONTROL: never throws, even when the real sender itself throws
+  // (e.g. an unset deps.fetch with Telegram configured).
+  const outcome = await sendSelfCheckTelegramAlert(async () => [], { ok: false, checked: 1, failed: 1 }, {
+    env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111" },
+    // no deps.fetch, no deps.sendTelegram override - reaches the REAL
+    // sendOperatorTelegram, which throws for a missing fetch once configured.
+  });
+  ok("sendSelfCheckTelegramAlert never throws even when the underlying sender does", outcome.telegramSent === 0);
 }
 
 console.log(`\nself-check: ${pass} passed, ${fail} failed`);
