@@ -168,9 +168,9 @@ the named, justified allowlist in `scripts/installScriptAllowlist.mjs`) as
 named gates — and 23 with it, adding the zero-orphan sweep and citation
 discipline.
 Migrations 071 through 099, 101 through 116 are applied live,
-except 100 and 103, which are unused (WS-R38 needed no new migration, every finding it
+except 100, 103 and 117, which are unused (WS-R38 needed no new migration, every finding it
 fixed was a missing check in existing JS, never a schema change; WS-R41's
-provider contracts needed none either); 102 (WS-R40, share arrival) and 104
+provider contracts and WS-R70's export needed none either); 102 (WS-R40, share arrival) and 104
 (the creator-tier charge ledger, WS-R42) were applied live at their merges
 and read back from the catalog. **118 is the next free number.**
 `scripts/check-copy.mjs` also gates a **Rooms
