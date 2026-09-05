@@ -11902,3 +11902,52 @@ firing the rule they are supposed to. This is a coverage/consistency
 measurement of the DOCUMENT, not a measurement of Hindi quality; no claim is
 made here about translation fluency, which is exactly what the document asks
 a person to judge.
+
+## `ws-r82-studio-hindi-tier-2-third-wave-2026-09-05`
+
+**What.** `evals/studio-locale/run.mjs`'s own leaf-key parity check, counted
+per new section added to `src/studio/copy.ts` (`copy.ts`'s own object
+literal, brace-matched): `contextLockerPanel` 78 leaf strings,
+`mirrorCallStudio` 120, `voiceEnrollmentLab` 66 — 264 new leaf strings per
+locale, 528 total across `en`/`hi`. **Method.** `node -e` script
+brace-matching each named section in the committed `src/studio/copy.ts` and
+counting `: "` occurrences inside it (n=1, deterministic, re-runnable).
+**Whole-table total after this session:** 1,452 real Hindi strings, every one
+passing the real `scripts/check-copy.mjs` scanner
+(`evals/studio-locale/run.mjs`'s own final check, not a sample). **Date:**
+2026-09-05.
+
+**What was NOT counted here.** `EnrollmentWorkspace.tsx`'s own strings —
+`decisions.md#ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted`
+explains why that file stayed English this session.
+
+## `ws-r82-studio-hi-chunk-wait-2026-09-05`
+
+**What.** `scripts/check-performance.mjs`'s new `studio-hi` target
+(`/studio?lang=hi`), the gate's own Fast-3G-equivalent throttle (4x CPU,
+1.6Mbps down / 750Kbps up / 150ms RTT), n=3 cold browser contexts per run,
+real built `dist/assets/hiCopy-XODOJ0ea.js` (165.2KB raw, 36.7KB gzip at
+this commit). **Method.** `node scripts/check-performance.mjs --target
+studio-hi` (single-target isolation) and the full six-target suite, each run
+fresh (no caching between invocations). **Results, three separate
+invocations across this session:**
+
+| run | LCP | JS transfer | Hindi chunk wait (median of 3) |
+|---|---|---|---|
+| isolated, run 1 (before excluding synthetic chunk bytes from JS tally) | 1740ms | 197.7KB (FAILED, 180KB budget) | 584ms |
+| isolated, run 2 (after the fix) | 1736ms | 161.4KB (pass) | 630ms |
+| full six-target suite | 1892ms | 161.4KB (pass) | 583ms |
+| per-run raw values (one isolated run) | — | — | 446ms / 679ms / 636ms |
+
+Budget: 800ms. Passes with real margin on every run; `/studio` (plain,
+no `?lang=hi`) and `studio-hi` both measure identical 161.4KB JS, confirming
+the WS-R71 chunk split still costs the signed-out visitor nothing. **What
+this number is a proxy for, and is NOT:** see
+`decisions.md#ws-r82-studio-hi-performance-target` — this is chunk
+download+parse+execute time under throttle, timed from the page's own
+`first-paint` PerformanceObserver entry, NOT a literal "first Hindi text
+node painted" time (no Hindi text node exists to time on this specific
+screen — `rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`).
+**Date:** 2026-09-05. **First run of this measurement ever** — WS-R71's own
+decision (`decisions.md#studio-hindi-table-is-its-own-chunk`) named it as an
+open reversal condition nobody had measured; this is that measurement.

@@ -8914,6 +8914,72 @@
       "kind": "rejection",
       "title": "Cross-reference: ws-r61s partial-translation finding (chrome vs statements) generalises to all six files here; nothing new tried.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-tier-2-third-wave-converted",
+      "kind": "decision",
+      "title": "Three of WS-R82's four named files convert (ContextLockerPanel.tsx, MirrorCallStudio.tsx, VoiceEnrollmentLab.tsx, 264 new leaf strings/locale); layoutFixture.tsx and main.tsx reclassify into Tier 1 (zero literal text of their own).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-context-locker-checkbox-is-a-control-not-a-ceremony",
+      "kind": "decision",
+      "title": "ContextLockerPanel.tsx's one consent-shaped checkbox is a feature-gating control, not a formal ceremony; translated with the rest of the file.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted",
+      "kind": "decision",
+      "title": "EnrollmentWorkspace.tsx carries a genuine four-statement consent ceremony, a SEVENTH file of this shape found after WS-R83 fixed its scope at six; left English this session.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-studio-hi-performance-target",
+      "kind": "decision",
+      "title": "check-performance.mjs gains a studio-hi target and a hindiChunkWaitMs proxy metric (real import() of the built chunk, budget 800ms) since no Hindi text node ever paints on the signed-out screen.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-enrollment-consent-panel-extracted-then-reverted",
+      "kind": "rejection",
+      "title": "EnrollmentConsentPanel.tsx extraction built and type-checked clean, then deliberately reverted: it would silently add a seventh file to WS-R83's fixed six-file legal-review scope.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-studio-hi-signed-out-entry-never-shows-hindi",
+      "kind": "rejection",
+      "title": "AuthGate renders before StudioLocaleProvider mounts, so ?lang=hi on the signed-out studio entry paints zero Hindi text; the brief's literal metric could not be built as specified.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-mirror-call-fine-tune-word-surfaced-by-the-move-to-copy-ts",
+      "kind": "rejection",
+      "title": "MirrorCallStudio.tsx's \"fine-tune\" literal, invisible to the copy scanner as a bare JSX ternary, tripped the rooms-vocabulary rule the instant it moved into copy.ts; reworded to \"voice build\".",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-context-locker-clone-word-surfaced-by-the-move-to-copy-ts",
+      "kind": "rejection",
+      "title": "ContextLockerPanel.tsx's stateDetail() return value carried the banned word \"clone\", invisible as a bare function return, until moved into copy.ts.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-studio-hindi-tier-2-third-wave-2026-09-05",
+      "kind": "measurement",
+      "title": "264 new leaf strings per locale (78 + 120 + 66) added this session; 1,452 real Hindi strings total in the whole studio copy table, all passing the real scanner.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-studio-hi-chunk-wait-2026-09-05",
+      "kind": "measurement",
+      "title": "Hindi chunk wait (real import() of the built hiCopy chunk, gate throttle, n=3): median 583-636ms across repeated runs, against an 800ms budget. First measurement of WS-R71's own open reversal condition.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r82-voicepanel-eval-also-concatenated-the-whole-copy-ts",
+      "kind": "rejection",
+      "title": "evals/voicepanel.mjs concatenated the whole copy.ts (not just its own section), so an unrelated mirrorCallStudio string leaked into its own three-minute-ceiling negative control; fixed with the same slice-just-the-section pattern voice-preview-ui.mjs already used.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17486,6 +17552,41 @@
       "src": "ws-r83-consent-ceremony-hindi-review-document-before-conversion",
       "rel": "caused_by",
       "dst": "ws-r83-whole-file-jsx-text-node-scan-rejected-as-the-block-boundary"
+    },
+    {
+      "src": "ws-r82-tier-2-third-wave-converted",
+      "rel": "measured_by",
+      "dst": "ws-r82-studio-hindi-tier-2-third-wave-2026-09-05"
+    },
+    {
+      "src": "ws-r82-studio-hi-performance-target",
+      "rel": "measured_by",
+      "dst": "ws-r82-studio-hi-chunk-wait-2026-09-05"
+    },
+    {
+      "src": "ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted",
+      "rel": "caused_by",
+      "dst": "ws-r82-enrollment-consent-panel-extracted-then-reverted"
+    },
+    {
+      "src": "ws-r82-studio-hi-performance-target",
+      "rel": "caused_by",
+      "dst": "ws-r82-studio-hi-signed-out-entry-never-shows-hindi"
+    },
+    {
+      "src": "ws-r82-tier-2-third-wave-converted",
+      "rel": "caused_by",
+      "dst": "ws-r82-mirror-call-fine-tune-word-surfaced-by-the-move-to-copy-ts"
+    },
+    {
+      "src": "ws-r82-tier-2-third-wave-converted",
+      "rel": "caused_by",
+      "dst": "ws-r82-context-locker-clone-word-surfaced-by-the-move-to-copy-ts"
+    },
+    {
+      "src": "ws-r82-tier-2-third-wave-converted",
+      "rel": "caused_by",
+      "dst": "ws-r82-voicepanel-eval-also-concatenated-the-whole-copy-ts"
     }
   ]
 }

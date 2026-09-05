@@ -571,7 +571,20 @@ section("client warmup budget");
   // WS-R71: VoicePreviewPanel.tsx's own literal strings moved into
   // src/studio/copy.ts; the two English-wording checks below now read this
   // concatenation, `evals/readiness/run.mjs`'s own `panelWithCopy` shape.
-  const clientWithCopy = `${client}\n${readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8")}`;
+  // WS-R82: concatenating the WHOLE of copy.ts (rather than just
+  // `t.voicePreviewPanel`'s own section) leaked a SIBLING section's wording
+  // into this file's own negative control the moment
+  // `mirrorCallStudio.gpuColdBodyTemplate` (an unrelated GPU cold-start
+  // message, carrying the SAME pre-existing "two to three minutes" phrase
+  // this file's own negative control bans) was added — the exact class of
+  // defect `evals/voice-preview-ui.mjs` already fixed for itself
+  // (`context/rejected.md#ws-r71-concatenating-the-whole-copy-ts-leaked-a-sibling-sections-wording-into-an-unrelated-check`),
+  // now applied here too rather than re-derived.
+  const copySource = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+  const voicePreviewPanelCopyStart = copySource.indexOf("  voicePreviewPanel: {");
+  const voicePreviewPanelCopyEnd = copySource.indexOf("  voiceExperimentPanel: {", voicePreviewPanelCopyStart);
+  const voicePreviewPanelCopy = copySource.slice(voicePreviewPanelCopyStart, voicePreviewPanelCopyEnd);
+  const clientWithCopy = `${client}\n${voicePreviewPanelCopy}`;
   const retries = Number(client.match(/const MAX_AUTO_RETRIES\s*=\s*(\d+)/)?.[1]);
   // Once the 200 s wake belief expires, the next 30 s poll dispatches the
   // necessary second synthesis. Allow one minute for that warm synthesis and

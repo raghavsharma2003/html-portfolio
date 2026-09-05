@@ -84,7 +84,7 @@
 // real network adds. A real-device measurement that disagrees with any
 // number here is exactly what should change the budget, not this script.
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -126,6 +126,36 @@ const BUDGETS = {
   fontBytes: 120 * 1024,
 };
 
+// WS-R82. `context/decisions.md#studio-hindi-table-is-its-own-chunk`'s own
+// reversal condition, never measured until now: "if a Hindi creator's first
+// paint is measured to wait more than one throttled round trip for the
+// chunk... preload the chunk... and re-measure; never raise the budget."
+// 800ms is that "one throttled round trip" made concrete: the Hindi chunk
+// (dist/assets/hiCopy-*.js) is comfortably under 40KB gzipped, and one HTTP
+// round trip on this gate's own Fast-3G throttle (150ms RTT, 1.6Mbps down)
+// comes to roughly 150ms handshake-equivalent latency plus well under 200ms
+// of transfer time for a file this size — 800ms leaves headroom for TCP
+// slow-start and JS parse/execute on a throttled CPU without hiding a real
+// regression the way a lax budget would.
+const HINDI_CHUNK_WAIT_BUDGET_MS = 800;
+
+/** Finds the built Hindi copy chunk (`dist/assets/hiCopy-<hash>.js`) by
+ *  filename prefix rather than a hardcoded hash — content hashes change on
+ *  every edit to `src/studio/hiCopy.ts`, and this gate must survive that
+ *  without a manual update. Returns the URL PATH the static server below
+ *  serves it at, or null if `dist/` was built before the WS-R71 chunk split
+ *  (an environmental state the caller reports by name, never silently). */
+function findHiCopyChunkPath() {
+  let names;
+  try {
+    names = readdirSync(join(DIST, "assets"));
+  } catch {
+    return null;
+  }
+  const hit = names.find((n) => n.startsWith("hiCopy-") && n.endsWith(".js"));
+  return hit ? `/assets/${hit}` : null;
+}
+
 // The four public entry points named in the brief. The Room's real `room.html`
 // needs a live, signed-in follower session this gate has no secret for — the
 // same wall scripts/check-layout.mjs's own header documents — so, exactly as
@@ -140,6 +170,19 @@ const TARGETS = [
   { name: "/vyakti", path: "/vyakti", label: "Vyakti landing (site/vyakti.html)" },
   { name: "/r/<slug>", path: "/r/anjali?screen=join", label: "Room join screen (room-layout-fixture.html data)" },
   { name: "/studio", path: "/studio", label: "Studio, signed out" },
+  // WS-R82. Same signed-out entry, `?lang=hi` — the shell (chrome, AuthGate)
+  // renders identically either way (StudioApp.tsx's `AuthGate` sits BEFORE
+  // `StudioLocaleProvider` mounts, so no Hindi text exists on the signed-out
+  // screen itself; that is a real, separate, out-of-scope finding — see
+  // context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi).
+  // The LCP/JS budgets below are the SAME as `/studio`, on purpose: splitting
+  // the Hindi table into its own chunk must cost the signed-out visitor
+  // NOTHING, and this target is what proves that rather than assuming it.
+  // The named `hindiChunkWaitMs` metric measures the one thing that IS new
+  // and locale-specific: how long the Hindi chunk itself takes to become
+  // usable under this gate's own throttle, once something asks for it — see
+  // `measureOnce`'s own comment for exactly what is measured and why.
+  { name: "studio-hi", path: "/studio?lang=hi", label: "Studio, signed out, Hindi (?lang=hi)" },
   // WS-R66: the creator's public page — a stranger's search result, cold
   // cache, on the same phone the four targets above already model. Static
   // server-rendered HTML with zero client script, so this target exists
@@ -245,9 +288,29 @@ async function measureOnce(browser, target) {
   });
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE.cpuRate });
 
+  // WS-R82. `hiChunkPath` is set ONLY for the `studio-hi` target. What this
+  // measures, precisely, and why it is a proxy rather than a direct
+  // "first Hindi text node" read: the studio's signed-out entry never
+  // renders a Hindi text node at all — `StudioApp.tsx`'s `AuthGate` sits
+  // BEFORE `StudioLocaleProvider` mounts (`context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`),
+  // so `?lang=hi` on a signed-out visit changes nothing about what paints.
+  // What DOES change, and what this decision's own reversal condition
+  // actually asks about, is how long the Hindi chunk itself takes to become
+  // usable once a signed-in creator's own code calls `loadStudioCopy("hi")`
+  // — a fact about the CHUNK under this gate's throttle, independent of
+  // which exact screen triggers the fetch. This measures that directly: the
+  // instant the English shell's own first paint fires, it starts a real
+  // `import()` of the ACTUAL built chunk (found by `findHiCopyChunkPath()`,
+  // never a hand-typed filename that would drift from the real content
+  // hash) and times how long that import takes to resolve, under the SAME
+  // network/CPU throttle already active on this page. `hindiChunkWaitMs` is
+  // that duration.
+  const hiChunkPath = target.name === "studio-hi" ? findHiCopyChunkPath() : null;
+
   const pending = new Map(); // requestId -> { url, type }
   const bytes = { js: 0, css: 0, font: 0, image: 0, other: 0, total: 0 };
   let requestCount = 0;
+  let hindiChunkBytes = 0;
   cdp.on("Network.responseReceived", (e) => {
     pending.set(e.requestId, { url: e.response.url, type: e.type });
     requestCount++;
@@ -256,13 +319,24 @@ async function measureOnce(browser, target) {
     const r = pending.get(e.requestId);
     if (!r) return;
     const n = e.encodedDataLength || 0;
+    // WS-R82. The `studio-hi` target's own instrumentation below triggers a
+    // real `import()` of the Hindi chunk to TIME it — a fetch no ordinary
+    // signed-out visitor's browser ever makes (`AuthGate` never calls
+    // `loadStudioCopy`). Counting those bytes into `bytes.js`/`bytes.total`
+    // would fail the JS BUDGET on a request this gate's own measurement
+    // methodology caused, not one a real visit would ever issue. Tallied
+    // separately instead, and reported, never silently dropped.
+    if (hiChunkPath && r.url.endsWith(hiChunkPath)) {
+      hindiChunkBytes += n;
+      return;
+    }
     const cat = categorize(r.type, r.url);
     bytes[cat] += n;
     bytes.total += n;
   });
 
-  await page.addInitScript(() => {
-    window.__PERF__ = { lcp: 0, cls: 0, longtasks: [] };
+  await page.addInitScript((chunkPath) => {
+    window.__PERF__ = { lcp: 0, cls: 0, longtasks: [], firstPaintMs: null, hindiChunkWaitMs: null };
     try {
       new PerformanceObserver((list) => {
         for (const e of list.getEntries()) window.__PERF__.lcp = e.startTime;
@@ -278,7 +352,21 @@ async function measureOnce(browser, target) {
         for (const e of list.getEntries()) window.__PERF__.longtasks.push(e.duration);
       }).observe({ type: "longtask", buffered: true });
     } catch {}
-  });
+    if (chunkPath) {
+      try {
+        new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            if (e.name !== "first-paint" || window.__PERF__.firstPaintMs !== null) continue;
+            window.__PERF__.firstPaintMs = e.startTime;
+            const importStarted = performance.now();
+            import(/* @vite-ignore */ chunkPath)
+              .then(() => { window.__PERF__.hindiChunkWaitMs = performance.now() - importStarted; })
+              .catch(() => { window.__PERF__.hindiChunkWaitMs = -1; }); // -1: the chunk itself failed to load, named rather than left as a silent null
+          }
+        }).observe({ type: "paint", buffered: true });
+      } catch {}
+    }
+  }, hiChunkPath);
 
   let crashed = null;
   page.on("pageerror", (e) => { crashed = String(e.message || e).slice(0, 200); });
@@ -319,6 +407,9 @@ async function measureOnce(browser, target) {
     renderBlocking,
     crashed,
     wallMs,
+    hindiChunkBytes,
+    firstPaintMs: perf.firstPaintMs,
+    hindiChunkWaitMs: perf.hindiChunkWaitMs,
   };
 }
 
@@ -326,6 +417,12 @@ async function measureTarget(browser, target) {
   const runs = [];
   for (let i = 0; i < RUNS; i++) runs.push(await measureOnce(browser, target));
   const crashes = runs.filter((r) => r.crashed);
+  // WS-R82. Only the `studio-hi` target sets this at all (`hiChunkPath` is
+  // null everywhere else, so `hindiChunkWaitMs` stays `null` on every run);
+  // `-1` on a run means the chunk import itself rejected, named apart from
+  // "no measurement was attempted" rather than folded into the same bucket.
+  const hindiChunkWaits = runs.map((r) => r.hindiChunkWaitMs).filter((v) => v !== null && v !== undefined);
+  const hindiChunkFailed = hindiChunkWaits.some((v) => v === -1);
   return {
     target: target.name,
     label: target.label,
@@ -342,7 +439,9 @@ async function measureTarget(browser, target) {
       totalBytes: median(runs.map((r) => r.bytes.total)),
       requestCount: median(runs.map((r) => r.requestCount)),
       renderBlockingCount: median(runs.map((r) => r.renderBlocking.count)),
+      hindiChunkWaitMs: hindiChunkWaits.length ? median(hindiChunkWaits.filter((v) => v !== -1)) : null,
     },
+    hindiChunkFailed,
     thirdPartyRenderBlocking: [...new Set(runs.flatMap((r) => r.renderBlocking.thirdParty))],
     crashed: crashes.length ? crashes[0].crashed : null,
   };
@@ -382,6 +481,23 @@ function evaluateBudgets(result) {
       detail: result.thirdPartyRenderBlocking.join(", "),
     });
   }
+  // WS-R82. `studio-hi` only: three distinct, separately-named outcomes,
+  // never folded into one bare pass/fail. A `null` median with no failure
+  // means `findHiCopyChunkPath()` itself found nothing — dist/ built before
+  // the WS-R71 chunk split — which is an environmental "run the build
+  // first", not a regression this gate should report as a budget miss.
+  if (result.target === "studio-hi") {
+    if (result.hindiChunkFailed) {
+      findings.push({ metric: "Hindi chunk wait", detail: "the chunk import itself rejected (see runs[].hindiChunkWaitMs === -1 with --json)" });
+    } else if (result.median.hindiChunkWaitMs === null) {
+      findings.push({ metric: "Hindi chunk wait", detail: "no measurement taken — dist/assets/hiCopy-*.js not found; run npx vite build first" });
+    } else if (result.median.hindiChunkWaitMs > HINDI_CHUNK_WAIT_BUDGET_MS) {
+      findings.push({
+        metric: "Hindi chunk wait",
+        detail: `${Math.round(result.median.hindiChunkWaitMs)}ms > ${HINDI_CHUNK_WAIT_BUDGET_MS}ms budget`,
+      });
+    }
+  }
   return findings;
 }
 
@@ -399,7 +515,10 @@ function printReport(results) {
         `${(m.jsBytes / 1024).toFixed(1).padStart(8)}K` +
         `${(m.cssBytes / 1024).toFixed(1).padStart(7)}K` +
         `${(m.fontBytes / 1024).toFixed(1).padStart(6)}K` +
-        `${String(Math.round(m.renderBlockingCount)).padStart(9)}`,
+        `${String(Math.round(m.renderBlockingCount)).padStart(9)}` +
+        (m.hindiChunkWaitMs !== null && m.hindiChunkWaitMs !== undefined
+          ? `   Hindi chunk wait: ${Math.round(m.hindiChunkWaitMs)}ms`
+          : r.target === "studio-hi" ? "   Hindi chunk wait: n/a" : ""),
     );
   }
   console.log("");
@@ -467,7 +586,13 @@ async function main() {
   server.close();
 
   if (asJson) {
-    console.log(JSON.stringify({ throttle: THROTTLE, budgets: BUDGETS, viewport: VIEWPORT, runs: RUNS, results }, null, 2));
+    console.log(JSON.stringify({
+      throttle: THROTTLE,
+      budgets: { ...BUDGETS, hindiChunkWaitMs: HINDI_CHUNK_WAIT_BUDGET_MS },
+      viewport: VIEWPORT,
+      runs: RUNS,
+      results,
+    }, null, 2));
   } else {
     printReport(results);
   }
