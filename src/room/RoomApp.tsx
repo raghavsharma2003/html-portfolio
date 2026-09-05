@@ -1042,7 +1042,19 @@ export default function RoomApp({
           writeStoredSession(next);
         }}
         onJoined={(joined) => {
-          setRoom(joined);
+          // WS-R94, a real defect this workstream's own rehearsal caught,
+          // the first time this transition has ever run against a real
+          // server rather than a fixture prop: `joinRoom` (api/_room-
+          // surface.js) returns `{joined, locale, follower, threads,
+          // session}` — deliberately NO `room` sub-object, `openRoom`'s own
+          // response is the one place that lives — so `setRoom(joined)`
+          // replaced the whole state with an object whose `.room` was
+          // `undefined`, and the very next render (`room.room.display_name`
+          // in the header) threw. `switchLocale`'s own line just above this
+          // component (`RoomApp.tsx`, `setRoom((prev) => prev ? {...prev,
+          // locale, disclosure} : prev)`) is the established fix shape for
+          // exactly this class of partial server response — applied here.
+          setRoom((prev) => (prev ? { ...prev, ...joined } : prev));
           setSession(joined.session);
           setThreads(joined.threads ?? []);
           setPhase("talking");

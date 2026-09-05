@@ -135,6 +135,22 @@ export function freshDoorsState() {
       reason: "wrong", created_at: "2026-09-01T09:00:00.000Z",
     },
   ];
+  // WS-R94: `meera_log` — the REAL `DEFAULT_MEMORY` (`api/_room-surface.js`,
+  // backed by `api/_surface.js`'s `logDmTurn`/`dmHistory`) is what runs when
+  // a caller passes no `deps.memory` at all, which is exactly the shape of
+  // the real `api/room.js` HTTP door with no deps overrides — every OTHER
+  // suite sharing this fixture always injects `fakeMemory([])`
+  // (`evals/room/fixtures.mjs`'s own in-memory stand-in) instead, so this
+  // table had never been reached through this fixture before.
+  state.meeraLog = [];
+  // WS-R94: `vy_teacher_sheet` — empty by default (no case in THIS battery
+  // ever needed it; every existing suite that calls `resolveRoom`/`roomSay`/
+  // `roomTaste` through this fixture passes its own `deps.loadAgent`,
+  // bypassing `api/_teachersheet.js`'s real DB-backed loader entirely). Only
+  // `evals/rehearsal/harness.mjs` populates a row here, because it is the
+  // one caller in this repo that drives the REAL `api/room.js` HTTP handler
+  // with NO deps overrides at all — see that file's own header.
+  state.teacherSheets = [];
   return state;
 }
 
@@ -1092,6 +1108,129 @@ function doorsPatterns(state) {
         state.roomPushSubs.push(row);
       }
       return [{ subscription_id: row.subscription_id, created_at: row.created_at }];
+    }
+
+    // WS-R94: `api/_creator-page.js`'s `publicCreatorPageRoomBySlug` — a
+    // DIFFERENT SELECT from `resolveRoom`'s own `vy_room r ... join vy_agent
+    // a` above (different column list, gated on `listed_at is not null`
+    // rather than a join), needed for the first time by `evals/rehearsal/
+    // follower.mjs`'s `/c/<slug>` step — no suite sharing this fixture had
+    // ever rendered the public creator page against it before.
+    if (has("select room_id, slug, display_name, one_line_bio, default_locale, listed_at, taste_enabled")) {
+      const s = String(params[0]);
+      const room = state.rooms.find(
+        (r) =>
+          r.slug.toLowerCase() === s &&
+          r.published_at != null &&
+          r.paused_at == null &&
+          r.listed_at != null,
+      );
+      return room
+        ? [{
+            room_id: room.room_id, slug: room.slug, display_name: room.display_name,
+            one_line_bio: room.one_line_bio ?? "", default_locale: room.default_locale ?? "en",
+            listed_at: room.listed_at, taste_enabled: room.taste_enabled !== false,
+          }]
+        : [];
+    }
+
+    // WS-R94: `api/_surface.js`'s `logDmTurn` (the REAL `DEFAULT_MEMORY.
+    // logTurn`, `api/_room-surface.js`) — one row per turn, `t()` an
+    // identity function here so the table name is the literal `meera_log`.
+    if (has("insert into meera_log")) {
+      const [device, role, content, person, agentId] = params;
+      state.meeraLog.push({
+        id: state.meeraLog.length + 1, agent_id: String(agentId), device_id: String(device),
+        role: String(role), channel: "chat", kind: "text", content: String(content ?? ""),
+        speaker_person_id: person == null ? null : String(person), group_id: null,
+        at: new Date().toISOString(),
+      });
+      return [];
+    }
+    // WS-R94: `api/_surface.js`'s `dmHistory` (the REAL `DEFAULT_MEMORY.
+    // history`) — `group_id is null` is the DM/Room-thread guard
+    // (`dmHistory`'s own header: never sweep up a group turn sharing a
+    // device), matched here even though this fixture's own rows never set
+    // `group_id` at all, so the guard is honoured by construction rather
+    // than by coincidence.
+    if (has("select role, content from meera_log") && has("group_id is null")) {
+      const [device, agentId] = params.map(String);
+      const rows = state.meeraLog
+        .filter((r) => r.device_id === device && r.agent_id === agentId && r.group_id == null)
+        .slice()
+        .reverse();
+      return rows.map((r) => ({ role: r.role, content: r.content }));
+    }
+
+    // WS-R94: `api/_room-surface.js`'s `roomSay` — the cohort day-counter
+    // (`insert into vy_room_follower_day ...`), reached only when a caller
+    // passes no `deps.tableApplied` at all (every existing suite sharing
+    // this fixture stubs that seam directly, so this INSERT had never
+    // actually executed against `evals/room/fixtures.mjs`'s own `fakeDb`
+    // before `evals/rehearsal/harness.mjs` — the real, deps-free
+    // `api/room.js` HTTP door — made `to_regclass` answer true above). Found
+    // the hard way: without this block first, `evals/room/fixtures.mjs`'s
+    // own `has("insert into vy_room_follower")` check (further down, in the
+    // base fixture this file falls through to) matches `"insert into
+    // vy_room_follower_day"` too — the string `"vy_room_follower_day"`
+    // literally CONTAINS `"vy_room_follower"` — and silently mis-writes the
+    // day-counter's four positional params into the FOLLOWER row's own
+    // `(follower_id, room_id, person_id, agent_id)` shape, corrupting a real
+    // follower on the very next `say`. Same defect CLASS this repo's own
+    // `context/rejected.md` already names for a different table pair
+    // (`router-matched-a-table-instead-of-a-statement`); a fifth instance,
+    // logged as its own entry (`ws-r94-fixture-insert-substring-collision-
+    // corrupted-a-follower-row`) because the collision is real and was
+    // latent, not hypothetical — reproduced once, fixed by matching the
+    // MORE SPECIFIC statement FIRST, `doorsPatterns`'s own position (checked
+    // before the base fixture) making that possible without editing the
+    // shared file at all.
+    if (has("insert into vy_room_follower_day")) {
+      const [roomId, personId, day] = params;
+      state.followerDayCounts = state.followerDayCounts || [];
+      const key = `${roomId}:${personId}:${day}`;
+      const row = state.followerDayCounts.find((r) => r.key === key);
+      if (row) row.turns += 1;
+      else state.followerDayCounts.push({ key, room_id: String(roomId), person_id: String(personId), day: String(day), turns: 1 });
+      return [];
+    }
+
+    // WS-R94: `api/memory.js`'s `tableApplied(name)` — `select to_regclass($1)
+    // is not null as present`, the migration-landed guard `isTableAppliedFor`
+    // falls back to whenever a caller passes no `deps.tableApplied` (every
+    // OTHER suite sharing this fixture always does, `deps.tableApplied =
+    // async () => true`'s own established shape, so this pattern was never
+    // needed until a caller with NO deps at all — `evals/rehearsal/harness.mjs`
+    // driving the real `api/room.js` HTTP door — existed). Always answers
+    // "present": this fixture represents a database with every migration
+    // applied, the harness's own honest simulation of production.
+    if (has("select to_regclass(")) {
+      return [{ present: true }];
+    }
+
+    // WS-R94: `api/_teachersheet.js`'s `publishedRow` — the ONE query
+    // `api/_room-surface.js`'s `resolveRoom` needs when a caller passes NO
+    // `deps.loadAgent` at all, which is exactly the shape of the real
+    // `api/room.js` HTTP handler `evals/rehearsal/harness.mjs` drives with
+    // zero deps overrides. Read off the real SQL text (`api/_teachersheet.js`):
+    // joined on `a.slug = $1`, gated on `status = 'published'` and
+    // `consent_artifact_id is not null`, ordered by `published_at desc`. No
+    // other suite in this repo needs this pattern — every one of them
+    // supplies its own `deps.loadAgent`/`deps.engine` and never reaches this
+    // module at all (confirmed by grep before this was added).
+    if (has("from vy_teacher_sheet s") && has("join vy_agent a")) {
+      const slug = String(params[0]);
+      const rows = state.teacherSheets
+        .filter((r) => r.slug === slug && r.status === "published" && r.consent_artifact_id != null)
+        .sort((a, b) => (a.published_at < b.published_at ? 1 : -1));
+      return rows.length
+        ? [{
+            sheet_id: rows[0].sheet_id, agent_id: rows[0].agent_id, version: rows[0].version,
+            sheet: rows[0].sheet, status: rows[0].status,
+            consent_artifact_id: rows[0].consent_artifact_id, published_at: rows[0].published_at,
+            slug: rows[0].slug,
+          }]
+        : [];
     }
 
     return undefined; // not a doors pattern — fall through to the base Room fixture
