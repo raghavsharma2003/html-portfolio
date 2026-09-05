@@ -343,6 +343,9 @@ export default function SuiteCard({
       <p className="field-note">
         {c.intro}
       </p>
+      <p className="field-note">
+        <a href="/suites/about" target="_blank" rel="noreferrer">{c.aboutLink}</a>
+      </p>
 
       {autoStart && (
         <p className="field-note" role="status">

@@ -10060,6 +10060,36 @@
       "kind": "rejection",
       "title": "check-performance.mjs's studio-hi/vyakti TBT budget failed 3 times under load average 17-20 on a 4-core box while sibling worktrees' gates ran concurrently; this workstream touches no src/ file, confirmed by grep; flagged, not fixed, following the ws-r106 precedent.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r117-suites-about-not-slug-scoped-no-db-parameter",
+      "kind": "decision",
+      "title": "The Suite admin transparency page /suites/about is a pure builder with no db parameter and no vite fixture plugin, unlike /r/<slug>/about; it states the real Suite-board data flow (Room/seat/billing only, zero follower data) rather than an unbuilt pulse-aggregate claim.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r117-suite-board-copy-conversion-already-complete",
+      "kind": "decision",
+      "title": "SuiteCard.tsx and site/suites.html were already fully Hindi-converted by prior workstreams before this session; this workstream verified that rather than redoing it, and added only the new /suites/about link as suite.aboutLink.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r117-suites-about-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/suites-about (new, 36/36), evals/suites-self-serve +2 (70/70), evals/probe-live +2 negative-control checks, node scripts/verify-release.mjs 21/21 checks passed offline, no NEON_URL in this container.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r117-probe-live-new-unconditional-surface-needs-a-fixture-route-too",
+      "kind": "rejection",
+      "title": "Adding /suites/about to scripts/probe-live.mjs as an unconditional check without a matching route in evals/probe-live/fakeServer.mjs failed 8 unrelated checks (every clean-fixture scenario) with a 404, not only the new one.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "suites-about-page",
+      "kind": "component",
+      "title": "/suites/about (api/_suites-about.js, api/suites-about.js): the Suite admin transparency page, server-rendered, both locales, no db, no migration.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19577,6 +19607,31 @@
       "src": "ws-r118-performance-budget-flaky-under-heavy-sibling-load",
       "rel": "part_of",
       "dst": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed"
+    },
+    {
+      "src": "ws-r117-suites-about-not-slug-scoped-no-db-parameter",
+      "rel": "part_of",
+      "dst": "suites-about-page"
+    },
+    {
+      "src": "suites-about-page",
+      "rel": "part_of",
+      "dst": "ws-r48-suites-self-serve"
+    },
+    {
+      "src": "ws-r117-suites-about-eval-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r117-suites-about-not-slug-scoped-no-db-parameter"
+    },
+    {
+      "src": "ws-r117-probe-live-new-unconditional-surface-needs-a-fixture-route-too",
+      "rel": "caused_by",
+      "dst": "suites-about-page"
+    },
+    {
+      "src": "ws-r117-suite-board-copy-conversion-already-complete",
+      "rel": "constrains",
+      "dst": "suites-about-page"
     }
   ]
 }

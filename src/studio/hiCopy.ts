@@ -367,6 +367,7 @@ export const HI: StudioCopy = {
     noticeWillNotRenewSimple: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
     autoStartLiveStarted: "\"{name}\" लाइव है, और इसकी सीट सदस्यता शुरू हो गई है।",
     autoStartLivePending: "\"{name}\" लाइव है। जब सीटों के लिए भुगतान लेने के लिए तैयार हों, तब नीचे इसकी सदस्यता शुरू करें।",
+    aboutLink: "एडमिन क्या देख सकता है और क्या नहीं",
   },
 
   roomStudio: {

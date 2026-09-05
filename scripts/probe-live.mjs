@@ -71,6 +71,7 @@ import {
   unknownSlug,
   creatorPageHeadFacts,
   roomAboutHeadFacts,
+  suitesAboutHeadFacts,
   validatePersonJsonLd,
   validateFaqPageJsonLd,
 } from "./probeLiveExpectations.mjs";
@@ -609,6 +610,51 @@ async function main() {
     }
   } else {
     notes.push("/r/:slug/about checks SKIPPED: no --creator-slug given (no live published Room can be assumed to exist)");
+  }
+
+  // ── 12. WS-R117: /suites/about, unconditional ───────────────────────────
+  // Not slug-scoped and reads no row (`api/_suites-about.js`'s own header)
+  // -- unlike `/r/<slug>/about` above, this page is identical for every
+  // deployment and needs no `--creator-slug` to exist, so it always runs.
+  {
+    const aboutFacts = suitesAboutHeadFacts();
+    const res = await client.request("GET", "/suites/about");
+    const bytes = await bufferOf(res);
+    const html = bytes.toString("utf8");
+    recordSurface("/suites/about", res, bytes);
+
+    if (res.status !== 200) {
+      fail("/suites/about", "status 200", res.status, "api/_suites-about.js");
+    }
+
+    const canonicalMatch = /<link rel="canonical" href="([^"]+)" \/>/.exec(html);
+    if (!canonicalMatch) {
+      fail("/suites/about", 'a <link rel="canonical"> tag', "(absent)", "api/_suites-about.js renderPage");
+    }
+
+    for (const code of aboutFacts.hreflangCodes) {
+      const escapedCode = code.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+      const re = new RegExp(`<link rel="alternate" hreflang="${escapedCode}" href="([^"]+)" \\/>`);
+      const m = re.exec(html);
+      if (!m) {
+        fail("/suites/about", `a hreflang="${code}" alternate link`, "(absent)", "api/_suites-about.js HREFLANG_CODES");
+        continue;
+      }
+      if (code === "hi" && !m[1].includes(aboutFacts.hiQuery)) {
+        fail("/suites/about", `hreflang="hi" href containing "${aboutFacts.hiQuery}"`, m[1], "api/_suites-about.js HI_LANG_QUERY");
+      }
+    }
+
+    const resHi = await client.request("GET", "/suites/about?lang=hi");
+    const bytesHi = await bufferOf(resHi);
+    const htmlHi = bytesHi.toString("utf8");
+    recordSurface("/suites/about?lang=hi", resHi, bytesHi);
+    if (resHi.status !== 200) {
+      fail("/suites/about?lang=hi", "status 200", resHi.status, "api/_suites-about.js");
+    }
+    if (!/<html lang="hi">/.test(htmlHi)) {
+      fail("/suites/about?lang=hi", '<html lang="hi">', "(absent)", "api/_suites-about.js renderPage");
+    }
   }
 
   // ═════════════════════════════════════════════════════════════════════

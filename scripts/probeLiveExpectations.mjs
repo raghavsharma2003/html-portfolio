@@ -296,6 +296,29 @@ export function roomAboutHeadFacts() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// WS-R117: `api/_suites-about.js`'s own HREFLANG_CODES/HI_LANG_QUERY/
+// OG_LOCALE, parsed the identical way `roomAboutHeadFacts` above parses
+// `_room-about.js`'s — a third file restating the same three constants
+// rather than sharing them, this probe reads each from its own real source
+// rather than assuming they still agree.
+// ─────────────────────────────────────────────────────────────────────────
+export function suitesAboutHeadFacts() {
+  const src = read("api/_suites-about.js");
+  const codesMatch = /const HREFLANG_CODES\s*=\s*\[([^\]]*)\]/.exec(src);
+  const hreflangCodes = codesMatch ? [...codesMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : null;
+  const hiQueryMatch = /const HI_LANG_QUERY\s*=\s*"([^"]+)"/.exec(src);
+  const ogLocaleMatch = /const OG_LOCALE\s*=\s*\{\s*en:\s*"([^"]+)",\s*hi:\s*"([^"]+)"\s*\}/.exec(src);
+  if (!hreflangCodes || !hreflangCodes.length || !hiQueryMatch || !ogLocaleMatch) {
+    throw new Error("probeLiveExpectations: could not parse api/_suites-about.js's HREFLANG_CODES/HI_LANG_QUERY/OG_LOCALE");
+  }
+  return {
+    hreflangCodes,
+    hiQuery: hiQueryMatch[1],
+    ogLocale: { en: ogLocaleMatch[1], hi: ogLocaleMatch[2] },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // WS-R90: a small, hand-written schema.org validator for exactly the two
 // JSON-LD types `api/_creator-page.js#buildCreatorPageJsonLd` emits (Person
 // always, FAQPage only with a showcase) — required fields only, never a

@@ -19387,3 +19387,86 @@ itself rather than copying this `if (recall.stale_method)` string-append a
 second time — two copies of the same three-line pattern is the threshold
 `api/_drift-watch.js`'s own commentary already uses elsewhere in this repo
 for "stop restating, start sharing."
+
+## `ws-r117-suites-about-not-slug-scoped-no-db-parameter` (2026-09-05, WS-R117)
+
+**Decision.** `/suites/about` (the Suite admin's transparency page,
+`api/_suites-about.js`) is built with NO `db` parameter and NO SQL at
+all, unlike `/r/<slug>/about` (`api/_room-about.js`, WS-R97) one surface
+over. `buildSuitesAboutHtml({ origin, lang })` is pure prose plus four
+imported platform constants (`SUITE_SEAT_PRICE_STARTER_INR`,
+`SUITE_SEAT_PRICE_INSTITUTE_INR`, `SUITE_SEAT_PRICE_INSTITUTE_MIN_SEATS`
+from `api/_org.js`; `PULSE_MIN_FOLLOWERS` from `api/_pulse.js`) — it
+describes no single Suite's own row, only the platform's standing promise,
+identical for every Suite that will ever exist. Consequently it needs no
+`vite.config.ts` `closeBundle` fixture-generation plugin the way `/c/<slug>`
+and `/r/<slug>/about` needed (`context/decisions.md#ws-r66-creator-page-
+fixture-generated-inside-the-web-build-gate`, `context/decisions.md#ws-r97`'s
+own room-about entry) — `scripts/build-suites-about-fixture.mjs` is called
+directly, unconditionally, at the top of `scripts/check-headers.mjs`'s and
+`scripts/check-performance.mjs`'s own runs (cheap: no DB, no browser, a
+few milliseconds), never gated behind vite at all.
+
+**Rationale.** `orgBoard`/`listMyOrgs` (`api/_org.js`) already carry their
+own "no follower table" comment — the Suite admin's REAL board (SuiteCard.tsx,
+already Tier 1 converted, `evals/studio-locale/run.mjs`) exposes Room list,
+seat usage, subscription state and owner-lane member ids, and nothing about
+any follower, not even a Pulse-style count. This page's brief line ("the
+same aggregate reads the ops board's per-Room class allows, n at least
+five mirrored from the pulse constant") does not correspond to any real
+data flow in the code today — `OpsBoard.tsx`'s own Pulse fields
+(`pulse_opt_ins`, `latest_pulse_week`) are a platform-internal ops-only
+view, never surfaced to a Suite admin at all. Rather than invent a Suite-
+admin-sees-pulse-counts claim the API cannot back (`rejected.md`'s
+no-fake-numbers law, restated for a claim rather than a number), the page
+states the real floor honestly: a Suite admin sees Room/seat/billing data
+only, and PULSE_MIN_FOLLOWERS is quoted as the platform's own aggregate-
+disclosure floor (the SAME number `/r/<slug>/about`'s creatorViewBody
+already quotes) to reassure the reader that even a creator's own privilege
+to see a shared topic as a count is itself gated at n>=5 and never
+verbatim — never claiming the Suite admin inherits that privilege, since
+today's code gives them nothing of the kind.
+
+**Reversal condition.** If a future workstream adds a genuine Suite-level
+aggregate read (e.g. `orgBoard` surfacing each attached Room's own opt-in
+Pulse topic counts to the admin), `api/_suites-about.js`'s `seesBody`/
+`neverSeesBody` copy should be rewritten to describe that real capability,
+citing the new read path by name, and `evals/suites-about/run.mjs`'s own
+static-import-scan allowlist (currently four platform-constant modules)
+should be widened by name to admit whatever new import that path needs.
+
+## `ws-r117-suite-board-copy-conversion-already-complete` (2026-09-05, WS-R117)
+
+**Decision.** No further Hindi copy conversion work was done on
+`SuiteCard.tsx`/`orgApi.ts`/`site/suites.html`'s checkout copy: this
+workstream's own brief's Law 1 ("convert every string through the copy
+table") was found, on inspection, already satisfied by prior workstreams
+before this session started. `SuiteCard.tsx` has been in
+`evals/studio-locale/run.mjs`'s `TIER_1_FILES` (zero literal English JSX
+text nodes, both locales present in `copy.ts#suite`/`hiCopy.ts#suite`)
+since the original WS-R52 list; `site/suites.html` already ships a
+complete, separate Hindi DOM block (`#loc-hi`) switched by `?lang=hi`,
+including its own translated `#boundary` "what a Suite admin sees" section
+this workstream extends with the new `/suites/about` link. The one gap
+this workstream DID close: `SuiteCard.tsx`'s `readableError()` fallback
+strings (`"could not load your Suites"` etc.) stay hardcoded English,
+identical to the SAME established pattern in `PayoutsCard.tsx` (also
+Tier 1) — these are opaque, truly-unexpected-error fallbacks, function
+arguments rather than JSX text nodes, so invisible to the static scan; left
+untouched as a pre-existing, cross-file pattern this workstream's narrow
+brief (the Suite board's HINDI COVERAGE, not a general error-copy audit)
+did not ask it to redesign.
+
+**Rationale.** Re-doing already-complete work risks a duplicate or
+conflicting `suite` copy block at merge time (`ws-common.md`'s append-only
+law exists precisely to prevent two workstreams both touching the same
+object). Verifying first and building only the genuinely missing piece
+(`/suites/about`, wired in as a NEW copy key `suite.aboutLink` appended as
+the object's last field in both `copy.ts` and `hiCopy.ts`) is the smaller,
+safer diff.
+
+**Reversal condition.** If a future audit of `readableError()`'s opaque
+fallback strings across every Tier 1 card (`SuiteCard.tsx`, `PayoutsCard.tsx`,
+and any sibling built the same way) decides those SHOULD be localized, the
+fix is a shared `t.errors.<key>` block added once and read from every
+card's own `readableError()` call, not a one-file patch here.

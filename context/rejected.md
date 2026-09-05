@@ -13488,3 +13488,37 @@ workstream's own scope. Not this workstream's to fix (its brief names the
 recall scorer only); flagged so the main loop does not read a
 `performance budgets` failure on this branch as a regression this
 workstream shipped.
+
+## `ws-r117-probe-live-new-unconditional-surface-needs-a-fixture-route-too` (2026-09-05, WS-R117)
+
+**Tried.** Adding `/suites/about` to `scripts/probe-live.mjs` as an
+unconditional check (no `--creator-slug` gate needed, since the page is
+not slug-scoped) — modeled on `/r/<slug>/about`'s own probe block, minus
+the slug flag.
+
+**What broke.** `node evals/run.mjs probe-live` — the suite that proves
+`probe-live.mjs`'s OWN checking logic against `evals/probe-live/fakeServer.mjs`,
+a small fixture HTTP server that answers every surface the probe checks —
+failed 8 of its checks the moment the new unconditional block landed:
+every "clean fixture" scenario (including ones with NOTHING to do with
+Suites) started reporting `/suites/about` as a 404, because the fixture
+server had no route for it at all. `scripts/probe-live.mjs` itself was
+correct; the OFFLINE PROOF OF the probe was incomplete, the exact
+distinction `evals/probe-live/run.mjs`'s own header draws between "does
+the probe notice a real defect" and "does the probe's assumed server
+exist." This surfaced first as a confusing `EADDRINUSE`-adjacent failure
+inside the full `verify-release.mjs` run (a same-second neighbor failure,
+`day-one`, briefly looked related but was an unrelated transient port
+collision from a concurrent sibling gate on this shared machine — it
+passed standalone with zero changes).
+
+**What closed it.** `evals/probe-live/fakeServer.mjs` gained a
+`/suites/about` route (calling the REAL `buildSuitesAboutHtml`, `lang`
+read from the query string, no fixture row needed since the page reads
+none) and a `dropSuitesAboutHreflang` defect switch, `evals/probe-live/run.mjs`
+gained a matching negative control (§2f). The rule this confirms for the
+NEXT workstream that adds an unconditional (non-flag-gated) surface to
+`probe-live.mjs`: the fixture server in `evals/probe-live/fakeServer.mjs`
+MUST answer that surface too, or every scenario in that suite fails
+together, not just the new one — an unconditional real-probe check has no
+"skip if absent" branch the way a `--creator-slug`-gated one does.

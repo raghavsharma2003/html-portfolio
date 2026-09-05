@@ -2670,6 +2670,29 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "env-manifest": "env-manifest/run.mjs",
+  // WS-R117. The Suite admin's transparency page (`/suites/about`, no
+  // migration): what a Suite is, what an admin sees once they attach a
+  // Room, what an admin never sees, what happens to a Room when a Suite
+  // lapses (WS-R33's own law: kept, none admitted), and the seat price, all
+  // read from imported (never mirrored-by-literal) platform constants.
+  // Drives the REAL `api/_suites-about.js` (`buildSuitesAboutHtml`) — a
+  // pure builder with no `db` argument at all, unlike `/r/<slug>/about`
+  // one surface over, since this page is not slug-scoped and reads no row.
+  // Proves: (1) the builder is pure, both locales, `?lang=` picks the
+  // locale; (2) every number on the page is the real imported constant
+  // (the seat prices, `PULSE_MIN_FOLLOWERS`), checked both by rendered
+  // value and by a static import-source scan; (3) the WS-R90/WS-R97
+  // hreflang/x-default/og:locale shape; (4) vercel.json carries the
+  // rewrite and the headers entry, CSP with no unsafe-inline/unsafe-eval
+  // script-src; (5) no em dash/en dash in either locale's body; (6) a
+  // static import scan proving this file reads nothing from any follower
+  // table (no `./_db.js` import, an allowlist of the four platform-
+  // constant modules it may import); (7) `scripts/check-copy.mjs`'s real
+  // scanner run directly against both locale renders, with a NEGATIVE
+  // CONTROL proving it actually fires on a poisoned fixture.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "suites-about": "suites-about/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

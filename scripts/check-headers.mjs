@@ -315,6 +315,18 @@ const TARGETS = [
     pp: DENY_PP,
     checkExecuted: null,
   },
+  // WS-R117: the Suite admin's transparency page. Server-rendered, no client
+  // script at all (this page carries no island, `/r/:slug/about`'s own
+  // reason above restated a second time) -- the CSP under test is still the
+  // real `/suites/about` rule from vercel.json, matched on the request path
+  // exactly as every other target here is.
+  {
+    name: "/suites/about",
+    path: "/suites/about",
+    label: "Suite admin transparency page (suites-about-fixture.html data)",
+    pp: DENY_PP,
+    checkExecuted: null,
+  },
 ];
 
 const MIME = {
@@ -338,6 +350,7 @@ async function resolveFile(pathname) {
   if (pathname === "/suites") return join(SITE, "suites.html");
   if (pathname === "/creators") return join(SITE, "creators.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
+  if (pathname === "/suites/about") return join(DIST, "suites-about-fixture.html");
   if (pathname.startsWith("/r/") && pathname.endsWith("/about")) return join(DIST, "room-about-fixture.html");
   if (pathname.startsWith("/r/")) return join(DIST, "room-layout-fixture.html");
   if (pathname.startsWith("/c/")) return join(DIST, "creator-page-fixture.html");
@@ -392,6 +405,12 @@ async function runHeaderChecks(rules) {
       stdio: "inherit",
     });
   }
+  // WS-R117: `/suites/about` needs no vite build step at all
+  // (`scripts/build-suites-about-fixture.mjs`'s own header) -- generated
+  // fresh here every run rather than gated behind the `existsSync` check
+  // above, so it can never go stale against the shipping builder.
+  const { buildSuitesAboutFixture } = await import("./build-suites-about-fixture.mjs");
+  await buildSuitesAboutFixture();
   if (!existsSync(join(SITE, "index.html")) || !existsSync(join(SITE, "vyakti.html"))) {
     fail("headers", "setup", "missing-fixture", "site/index.html or site/vyakti.html missing");
     return;

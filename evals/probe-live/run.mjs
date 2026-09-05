@@ -230,6 +230,21 @@ async function main() {
     }
   }
 
+  // ── 2f. WS-R117 NEGATIVE CONTROL: a dropped hreflang="hi" alternate on
+  //       /suites/about -- unconditional (not slug-scoped), so no
+  //       `--creator-slug` flag is needed to reach it ──────────────────────
+  {
+    const { url, stop } = await startFakeServer(PORT, { dropSuitesAboutHreflang: "hi" });
+    try {
+      const { exitCode, report } = await runProbe(url, []);
+      check("suites-about dropped hreflang=hi -> exit 1", exitCode === 1, `exit ${exitCode}`);
+      const hit = report && report.findings.some((f) => f.surface === "/suites/about" && /hreflang="hi"/.test(f.expectation) && f.observed === "(absent)");
+      check("suites-about dropped hreflang=hi -> the probe names it", Boolean(hit), report ? JSON.stringify(report.findings) : "(no parseable report)");
+    } finally {
+      await stop();
+    }
+  }
+
   // ── 3. THE STATIC SELF-SCAN, exercised on a mutated copy ────────────────
   {
     const tmpDir = mkdtempSync(join(tmpdir(), "probe-live-mutant-"));
