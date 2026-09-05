@@ -11523,3 +11523,18 @@ n = 48 studio screen loads (the `studio`, `studio:shell`, `studio-hi` and `studi
 | `.field-label` at `var(--measure)` | 0 | 48 loads clean |
 
 The probe that found the driver: for every element, `white-space` of `pre`/`nowrap` with `scrollWidth` past the viewport, a pixel `min-width` past it, or a grid whose resolved tracks sum past it; the `studio-tabshell`'s single track had resolved to 762.7 px.
+
+
+## `ws-r88-operator-digest-offline-batteries-2026-09-05`
+
+n = 755 checks across three suites, method: each run directly (`node evals/operator-digest/run.mjs`, `node evals/ops/run.mjs`, `node evals/room-doors/run.mjs`), offline, deterministic, $0, no network, no real Postgres, no model call, no GPU, against this worktree at commit 6deaf1e plus this workstream's own changes. Date 2026-09-05.
+
+| suite | result | what is new in it |
+|---|---|---|
+| `evals/operator-digest/run.mjs` (new) | 49/49 passed | `operatorDigestConfig` (no new env var), `digestCounts` (the n>=5 floor, a static-scan negative control proving it never reads `.slug`/`.display_name`), `operatorDigestPayload` (body under 200 chars, a static-scan negative control proving it names none of `OPERATOR_DIGEST_CONTENT_NAMES`, and NEGATIVE CONTROL (b): a follower count under 5 never appears as an exact number), `sendOperatorDigest` (the ledger claim's own unique-`day` idempotency, a 404 revoking only the dead subscription, a missing `opsOverviewFn` throwing loudly), `sendTestOperatorDigest` (writes no ledger row, title carries "TEST"), `lastOperatorDigest` (honest null with no row) |
+| `evals/ops/run.mjs` (extended) | 137/137 passed (135 before this workstream's own two new `overview.digest` assertions in §5c2) | `opsOverview`'s own new `digest` field: an honest null with no send ever recorded, and the MOST RECENT day's row surfacing (not an older one) once two are seeded |
+| `evals/room-doors/run.mjs` (extended) | 569/569 passed (566 before this workstream's own three new assertions in §17d; all eight attack classes still exercised; `ops.js` grew from 2 to 3 cased ops) | new §17d: `send_test_digest` class-e negative control — a bearer NOT on `OPS_OWNER_USER_IDS`, calling `sendTestOperatorDigest` DIRECTLY (bypassing `api/ops.js`'s own door-level gate), pushes to NOBODY even when they hold a real subscription row of their own; `OP_COVERAGE["ops.js"].send_test_digest` added |
+
+Also run: `npx tsc --noEmit -p .` — clean, no output, confirming `OpsBoard.tsx`/`opsApi.ts`'s new `OpsDigest` type and the `DigestCard` component type-check against the existing `OpsOverview` shape.
+
+Not measured by this session: a live EXPLAIN of migration 125's own statements (needs `NEON_URL`, the main loop's own job per `ws-common.md`) and a real push delivered to a real browser (this environment has no route to one — `api/_push/webpush.js`'s own header names the identical, standing limit for every push path in this repo). Nothing else in this session was measured and not reported.

@@ -35,7 +35,12 @@ import {
   subscribeOperatorPush,
   revokeOperatorPush,
   OpsPushError,
+  operatorPushSubscriptionsFor,
+  revokeOperatorPushById,
 } from "./_ops.js";
+// WS-R88 (migration 125). "Send a test digest now" - the ops board's own
+// operator op, cased below alongside push_subscribe/push_revoke.
+import { sendTestOperatorDigest } from "./_operator-digest.js";
 
 export const config = { maxDuration: 30 };
 
@@ -70,6 +75,17 @@ export default async function handler(req, res) {
     }
     if (op === "push_revoke") {
       const result = await revokeOperatorPush(q, user.id, body.endpoint);
+      return res.status(200).json(result);
+    }
+    // WS-R88 (migration 125). Sends to the CALLER's own subscription(s)
+    // only, marked as a test, and writes no ledger row -
+    // api/_operator-digest.js#sendTestOperatorDigest's own header.
+    if (op === "send_test_digest") {
+      const result = await sendTestOperatorDigest(q, user.id, {
+        opsOverviewFn: (db, now) => opsOverview(db, now),
+        operatorSubscriptionsFor: (db, ownerId) => operatorPushSubscriptionsFor(db, ownerId),
+        revokeOperatorSubscription: (db, id) => revokeOperatorPushById(db, id),
+      });
       return res.status(200).json(result);
     }
     return res.status(400).json({ error: "unknown_op" });

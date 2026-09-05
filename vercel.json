@@ -166,7 +166,8 @@
     { "path": "/api/pulse-sweep", "schedule": "0 3 * * 1" },
     { "path": "/api/renewals-sweep", "schedule": "0 0 * * *" },
     { "path": "/api/creator-push-sweep", "schedule": "0 4 * * 1" },
-    { "path": "/api/self-check", "schedule": "30 2 * * *" }
+    { "path": "/api/self-check", "schedule": "30 2 * * *" },
+    { "path": "/api/operator-digest-sweep", "schedule": "15 3 * * *" }
   ],
   "functions": {
     "api/room-card.js": {

@@ -23,6 +23,7 @@ import {
   readOpsOverview,
   subscribeOpsPush,
   revokeOpsPush,
+  sendTestOpsDigest,
   type OpsOverview,
   type OpsRoom,
   type OpsSweep,
@@ -36,6 +37,7 @@ import {
   type OpsPushConfig,
   type OpsSelfCheck,
   type OpsPosterArrivals,
+  type OpsDigest,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -555,6 +557,48 @@ function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig })
   );
 }
 
+// WS-R88 (migration 125). "The ops board shows 'Last digest' with its sent
+// time and a 'Send a test digest now' operator op" - the workstream brief's
+// own words. `PushAlertsCard`'s own busy/error posture restated: a test
+// send is a POST on the SAME `/api/ops` door, and its own result never
+// changes `digest.sent_at` (workstream law 4: "writes no ledger row"), so
+// this card's own "Last digest" line is deliberately never optimistically
+// updated by a successful test send - only a real overview refresh moves
+// it, which is the honest reflection of what the ledger actually recorded.
+function DigestCard({ token, digest }: { token: string; digest: OpsDigest }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<"sent" | "none" | "error" | null>(null);
+
+  const sendTest = useCallback(async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const outcome = await sendTestOpsDigest(token);
+      setResult(outcome.pushed > 0 ? "sent" : "none");
+    } catch {
+      setResult("error");
+    } finally {
+      setBusy(false);
+    }
+  }, [token]);
+
+  return (
+    <div className="ops-board__panel">
+      <h2>Morning digest</h2>
+      <p className="ops-board__slug">
+        One push a day: Rooms live, followers joined, messages, money moved, the self-check's verdict, incidents.
+      </p>
+      <p>Last digest: {formatAgo(digest.sent_at)}</p>
+      <button type="button" disabled={busy} onPointerDown={sendTest}>
+        {busy ? "Sending." : "Send a test digest now"}
+      </button>
+      {result === "sent" && <p className="ops-board__slug">Test digest sent to this device.</p>}
+      {result === "none" && <p className="ops-board__slug">No active subscription on this device to send to. Turn on alerts above first.</p>}
+      {result === "error" && <p className="ops-board__error">Could not send a test digest right now.</p>}
+    </div>
+  );
+}
+
 export default function OpsBoard() {
   const [session, setSession] = useState<StudioSession | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
@@ -661,6 +705,7 @@ export default function OpsBoard() {
             <SelfCheckCard selfCheck={overview.self_check} />
             <IncidentsCard incidents={overview.incidents} />
             <PushAlertsCard token={session.accessToken} push={overview.push} />
+            <DigestCard token={session.accessToken} digest={overview.digest} />
           </>
         )}
       </div>

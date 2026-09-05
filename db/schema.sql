@@ -4361,3 +4361,25 @@ alter table vy_incident add constraint vy_incident_kind_check
 alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
 alter table vy_room_arrival add constraint vy_room_arrival_via_check
   check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster'));
+
+-- Migration 125 - the operator's morning digest (WS-R88). See
+-- db/migrations/125_operator_digest.sql for the full argument: one row per
+-- DAY (never per subscription), content-free by schema, no person column at
+-- all - `vy_sweep_run` (084) and `vy_incident` (109)'s own precedent
+-- restated a third time.
+create table if not exists vy_operator_digest (
+  digest_id  uuid primary key,
+  day        date not null,
+  sent_at    timestamptz not null default now(),
+  counts     jsonb not null default '{}'::jsonb
+);
+create unique index if not exists vy_operator_digest_day_ix
+  on vy_operator_digest (day);
+alter table vy_operator_digest drop constraint if exists vy_operator_digest_counts_object;
+alter table vy_operator_digest add constraint vy_operator_digest_counts_object
+  check (jsonb_typeof(counts) = 'object');
+alter table vy_operator_digest drop constraint if exists vy_operator_digest_counts_size;
+alter table vy_operator_digest add constraint vy_operator_digest_counts_size
+  check (octet_length(counts::text) <= 4096);
+create index if not exists vy_operator_digest_day_desc_ix
+  on vy_operator_digest (day desc);
