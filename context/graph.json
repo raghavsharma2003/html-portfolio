@@ -8134,6 +8134,54 @@
       "kind": "rejection",
       "title": "check-layout.mjs glyphAudit flagged a testable-but-uniform=null Hindi string on width-diff alone; fixed by requiring uniform === true.",
       "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r80-island-not-a-second-app",
+      "kind": "decision",
+      "title": "The taste on /c/<slug> is a dependency-free progressively-enhanced island (public/creator-taste.js) enhancing a plain no-JS form, never a second client app; no new server op.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-taste-copy-restated-not-imported",
+      "kind": "decision",
+      "title": "api/_creator-page.js carries its own TASTE_COPY, restating src/room/copy.ts's taste section rather than importing it (api/ cannot import .ts), proven byte-identical by an eval that bundles the real copy.ts with esbuild.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-via-search-survives-as-a-hidden-field-not-in-the-form-action",
+      "kind": "decision",
+      "title": "The taste form's no-JS action carries no query string; via=search rides as a hidden field, because a GET form submission replaces action's own query string with the serialized fields rather than appending to it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-creator-page-performance-2026-09-05",
+      "kind": "measurement",
+      "title": "/c/<slug> with the taste island: LCP 344ms, TBT 40ms, CLS 0.000, JS 2.2KB against WS-R66's own 0.0KB/448ms/154ms baseline, all well inside budget.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-creator-taste-js-size-2026-09-05",
+      "kind": "measurement",
+      "title": "public/creator-taste.js: 5722 bytes raw, 2128 bytes minified, against the 6144-byte (6KB) budget WS-R46's room-embed.js already set.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-creator-page-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/creator-page/run.mjs: 89 assertions, offline, includes a real esbuild bundle of src/room/copy.ts compared field-by-field against TASTE_COPY, both locales, all pass.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-room-taste-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-taste/run.mjs: 32 assertions including a new \u00a76 (9 assertions) statically scanning the taste island for its one fetch target, one op literal, and textContent-only rendering, all pass.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r80-data-attributes-on-the-wrapping-section-not-the-element-the-script-reads",
+      "kind": "rejection",
+      "title": "The island's first draft wrote data-room/data-locale on the wrapping <section>, while the script read them off the <form> it actually has a handle to; the form's own guard silently returned early and the island never mounted, caught only by check-headers.mjs's checkExecuted proof.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16091,6 +16139,46 @@
       "src": "ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed",
       "rel": "caused_by",
       "dst": "ws-r77-glyph-detector-null-uniform-treated-as-flaggable-2026-09-06"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "measured_by",
+      "dst": "ws-r80-creator-page-performance-2026-09-05"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "measured_by",
+      "dst": "ws-r80-creator-taste-js-size-2026-09-05"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "caused_by",
+      "dst": "ws-r80-data-attributes-on-the-wrapping-section-not-the-element-the-script-reads"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "constrains",
+      "dst": "ws-r80-taste-copy-restated-not-imported"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "constrains",
+      "dst": "ws-r80-via-search-survives-as-a-hidden-field-not-in-the-form-action"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "measured_by",
+      "dst": "ws-r80-creator-page-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r80-island-not-a-second-app",
+      "rel": "measured_by",
+      "dst": "ws-r80-room-taste-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r80-taste-copy-restated-not-imported",
+      "rel": "measured_by",
+      "dst": "ws-r80-creator-page-eval-2026-09-05"
     }
   ]
 }

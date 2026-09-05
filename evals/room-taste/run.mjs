@@ -39,6 +39,7 @@
 //      deliberately seeded with a fake follower-memory string, DOES flag a
 //      difference - proving the byte-diff is not vacuous either.
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadFixtureAgent, freshState, fakeDb, SLUG, ROOM_ID } from "../room/fixtures.mjs";
@@ -294,6 +295,108 @@ export async function roomTaste() { return joinRoom(); }
   const flagged = diffOutside(honest, leaked, new Set());
   ok("NEGATIVE CONTROL: the comparator (with NO expected-diff allowance) flags 'system' the moment memory leaks in",
     flagged.includes("system"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §6: WS-R80 — the island, static ──");
+
+const ISLAND_PATH = join(REPO, "public/creator-taste.js");
+const ISLAND_SRC = fs.readFileSync(ISLAND_PATH, "utf8");
+
+// (a) parses, is dependency-free, and fits the size cap — `evals/room-embed/
+// run.mjs`'s own §1 technique, applied to a real file on disk instead of an
+// exported string constant (this island has no server-side counterpart to
+// export it from: `/c/:slug` has no client bundle at all).
+{
+  let parsed = true;
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function("document", "fetch", ISLAND_SRC);
+  } catch {
+    parsed = false;
+  }
+  ok("new Function(ISLAND_SRC) does not throw", parsed);
+  ok("dependency-free (no import, no require)", !/\brequire\(|^\s*import\s/m.test(ISLAND_SRC));
+
+  const rawBytes = Buffer.byteLength(ISLAND_SRC, "utf8");
+  console.log(`  info  raw source: ${rawBytes} bytes`);
+  let minified = "";
+  let minifyRan = true;
+  try {
+    minified = execFileSync("npx", ["--no-install", "esbuild", "--minify", "--loader=js"], {
+      input: ISLAND_SRC,
+      cwd: REPO,
+      encoding: "utf8",
+    });
+  } catch (e) {
+    minifyRan = false;
+    console.log(`  info  esbuild minify unavailable offline: ${e.message.split("\n")[0]}`);
+  }
+  if (minifyRan) {
+    const minBytes = Buffer.byteLength(minified, "utf8");
+    console.log(`  info  minified: ${minBytes} bytes`);
+    ok("minified island is under 6 KB (WS-R46's own room-embed.js budget)", minBytes < 6144, `${minBytes} bytes`);
+  } else {
+    ok("raw (unminified) island is under 6 KB, as a floor", rawBytes < 6144, `${rawBytes} bytes`);
+  }
+}
+
+// (b) THE ONE FETCH TARGET, and THE ONE OP LITERAL — `api/_room-embed.js`'s
+// own "one fetch, one target" technique, pointed at the op the request body
+// carries rather than the URL. A follower op reaching this file (say, join
+// or say) would mean a stranger's browser, on a page this platform does not
+// control, could be made to mint a session or send a message it never
+// showed a disclosure for — the exact boundary `api/_room-taste.js`'s own
+// header states for the server side, checked here for the client the
+// workstream brief actually ships.
+function onlyFetchesApiRoom(src) {
+  const calls = [...src.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]);
+  if (calls.length === 0) return false;
+  return calls.every((argText) => /["']\/api\/room["']/.test(argText));
+}
+
+function opLiteralsSent(src) {
+  // Every `op:` field value literal anywhere in the source — a JSON.stringify
+  // call site's own op field, matched narrowly (a quoted literal right after
+  // `op:`) so a computed op (which this house style never uses, `api/room.js`'s
+  // own header states the op is always a literal string at every call site)
+  // would fail to match and this function would rightly find zero op
+  // literals rather than pretend to have proven anything about it.
+  return [...src.matchAll(/\bop:\s*["']([a-z_]+)["']/g)].map((m) => m[1]);
+}
+
+const FOLLOWER_OPS = new Set([
+  "join", "say", "speak", "history", "thread", "locale", "pulse_optin", "pulse_revoke",
+  "push_subscribe", "push_unsubscribe", "push_status", "whatsapp_optin", "whatsapp_stop",
+  "whatsapp_status", "offer_dismiss", "settings", "settings_reviewed", "citations",
+  "flag", "unflag", "flags", "export", "forget",
+]);
+
+{
+  ok("the real island: exactly one fetch, and it names /api/room", onlyFetchesApiRoom(ISLAND_SRC));
+  const ops = [...new Set(opLiteralsSent(ISLAND_SRC))];
+  ok("the real island sends exactly one DISTINCT op literal (code, not this file's own comments)",
+    ops.length === 1, JSON.stringify(ops));
+  ok("...and it is \"taste\", never a follower op", ops[0] === "taste");
+  ok("the real island's source names no follower op literal anywhere, not just in a fetch body",
+    [...FOLLOWER_OPS].every((op) => !new RegExp(`["']${op}["']`).test(ISLAND_SRC)));
+
+  const corruptedFetch = ISLAND_SRC.replace('fetch("/api/room"', 'fetch("/api/room"); fetch("/api/account"');
+  ok("NEGATIVE CONTROL: a second fetch to a different address is caught",
+    !onlyFetchesApiRoom(corruptedFetch));
+
+  const corruptedOp = ISLAND_SRC.replace('op: "taste"', 'op: "join"');
+  ok("NEGATIVE CONTROL: a follower op swapped in for \"taste\" is caught",
+    opLiteralsSent(corruptedOp).includes("join") && !opLiteralsSent(corruptedOp).includes("taste"));
+}
+
+// (c) NEVER innerHTML — a visitor's own typed question, and the model's own
+// reply text, are both attacker-reachable strings on a page this platform
+// does not gate behind a session; this island must only ever place them on
+// the page with `textContent`.
+{
+  ok("the real island never assigns .innerHTML", !/\.innerHTML\s*=/.test(ISLAND_SRC));
+  ok("...it renders dynamic text with .textContent instead", /\.textContent\s*=/.test(ISLAND_SRC));
 }
 
 console.log(`\nroom-taste: ${pass} passed, ${fail} failed`);

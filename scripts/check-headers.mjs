@@ -271,7 +271,17 @@ const TARGETS = [
   // browser, since it is never executed as script) — the CSP under test is
   // still the real `/c/:slug` rule from vercel.json, matched on the request
   // path exactly as the Room's own row above is.
-  { name: "/c/:slug", path: "/c/anjali", label: "Creator public page (creator-page-fixture.html data)", pp: DENY_PP, checkExecuted: null },
+  {
+    name: "/c/:slug",
+    path: "/c/anjali",
+    label: "Creator public page (creator-page-fixture.html data)",
+    pp: DENY_PP,
+    // WS-R80: the taste island (`/creator-taste.js`, `script-src 'self'`,
+    // no 'unsafe-inline' needed) must actually mount, not merely fail to
+    // violate CSP while sitting inert -- it marks its own form
+    // `data-enhanced="1"` once its listener is attached.
+    checkExecuted: () => document.getElementById("vy-taste-form")?.getAttribute("data-enhanced") === "1",
+  },
 ];
 
 const MIME = {

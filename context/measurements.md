@@ -11134,3 +11134,66 @@ Separately, both Node 22 (the system default here, `v22.22.2`) and Node 24 (`v24
 n = 1 string (real Hindi, "सभी", key `threads.all`), method: the SAME `.room-shell:lang(hi)` CSS resolution the real `room-hi` glyph pass uses, replayed by hand in a throwaway Playwright script against the exact `getComputedStyle(...).fontFamily` the page itself reports, under a scratch `$HOME` with `@expo-google-fonts/noto-sans-devanagari`'s ttf installed as a user-local system font (this workstream's own CI fix), 2026-09-06.
 
 Measured: `real` = 26.208px, `tofu` (3 boxes) = 28.992px, `diffPct` = 9.6% (below the 10% `MIN_GLYPH_DIFF_PCT` bar), `baseChars` = [स, भ] (2, since `ी` is a matra and `BASE_LETTER` excludes it), so `uniformWidths` returned `null` (its own `< MIN_DEVANAGARI_CHARS` floor, which needs 3 base letters). Before this workstream's fix, the results filter read `r.uniform !== false`, under which `null !== false` is `true` — so a `testable` string (3+ Devanagari codepoints, matras counted) whose uniformity could not actually be measured (fewer than 3 BASE letters) was treated the same as a CONFIRMED-uniform one, and got flagged on width-diff alone. This is the exact category `context/rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words` describes for "गलत"/"वजह" (both 3 base consonants, both confirmed uniform=true) but for a DIFFERENT shape: 2 base consonants plus 1 matra, confirmed uniform=null. Fixed by requiring `r.uniform === true` (see `context/rejected.md#ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed`). Why this was never seen before: every prior run of this gate, on every machine that has run it, rendered Hindi copy through whatever the machine's OWN font substitution supplied for `sans-serif` (this repo loads no web fonts anywhere) — never through "Noto Sans Devanagari" itself, the CSS's actual first choice, until this workstream's own CI font-install step made that font available and preferred on a real run for the first time. Not measured: whether any OTHER string in the current 759+220-string Hindi corpus has the same 2-base-plus-matra shape AND a diffPct at or under 10% against the real font (a full `--only room-hi --only studio-hi` re-run after the fix, on this machine, is the check for that — see the session log for its result).
+
+## `ws-r80-creator-page-performance-2026-09-05`
+
+n = 1 target (`/c/<slug>`, `creator-page-fixture.html` data, same fixture
+WS-R66 measured, now carrying the taste island), 3 cold-cache runs, method:
+`scripts/check-performance.mjs`'s existing harness (real Chromium over CDP,
+390x844, throttle CPU 4x / 1.6Mbps down / 750Kbps up / 150ms RTT), date
+2026-09-05, this workstream's own machine.
+
+| metric | before (WS-R66, `ws-r66-creator-page-performance-2026-09-05`) | after (WS-R80) | budget |
+|---|---|---|---|
+| LCP | 448ms | 344ms | 2500ms |
+| CLS | 0.000 | 0.000 | 0.1 |
+| TBT | 154ms | 40ms | 300ms |
+| JS transferred | 0.0KB | 2.2KB | 180KB |
+| CSS transferred | 0.0KB | 0.0KB | none named |
+| font | 0.0KB | 0.0KB | 120KB |
+| render-blocking requests | 0 | 0 | 0 |
+
+The LCP/TBT drop between runs is ordinary run-to-run noise on this one
+machine (n=3 cold runs, no fixed seed), not a claimed improvement from the
+island — the number that matters here is that 2.2KB against a 180KB budget
+leaves no realistic path to a regression from this workstream alone. Not
+measured: a real device on a real Indian mobile network, same reversal
+condition WS-R66's own row already carries.
+
+## `ws-r80-creator-taste-js-size-2026-09-05`
+
+n = 1 file (`public/creator-taste.js`), method: `Buffer.byteLength` on the
+raw source and on `esbuild --minify` output, both asserted in
+`evals/room-taste/run.mjs` §6, date 2026-09-05.
+
+| | bytes |
+|---|---|
+| raw | 5722 |
+| minified (esbuild --minify) | 2128 |
+| budget (WS-R46's own `room-embed.js` cap) | 6144 (6KB) |
+
+For comparison, `api/_room-embed.js`'s `ROOM_EMBED_JS` (the precedent this
+budget is named after) minifies smaller still; both sit well under the cap.
+Not measured: gzip/brotli transfer size (the performance gate's JS budget
+above is measured as bytes served, uncompressed, the same method WS-R66's
+own row used, so the two numbers are comparable to each other but not to a
+gzip-aware CDN metric).
+
+## `ws-r80-creator-page-eval-2026-09-05`
+
+n = 89 assertions, `evals/creator-page/run.mjs`, offline, deterministic,
+$0, no DB, no network, no model call; date 2026-09-05. Includes a real
+esbuild bundle of `src/room/copy.ts` (`evals/room-locale/run.mjs`'s own
+technique) compared field-by-field against `TASTE_COPY`, both locales, and
+one negative control that a drifted string is caught. All 89 pass.
+
+## `ws-r80-room-taste-eval-2026-09-05`
+
+n = 32 assertions, `evals/room-taste/run.mjs` (extended with a new §6 for
+this workstream), offline, deterministic, $0; date 2026-09-05. The new §6
+(9 assertions): the island source parses (`new Function`), is
+dependency-free, fits the 6KB cap, sends exactly one fetch (to
+`/api/room`) and exactly one op literal (`"taste"`, never a follower op),
+never assigns `.innerHTML`, and two negative controls (a second fetch
+target, a follower op swapped in for `"taste"`) are both caught. All 32
+pass.

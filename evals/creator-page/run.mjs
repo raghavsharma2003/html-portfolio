@@ -31,8 +31,10 @@
 //       job, simulated here as a 23505 the fake db raises if the writer
 //       above it is ever bypassed).
 //   (c) an unlisted Room's page is byte-identical to an unknown slug's.
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { execSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -50,7 +52,7 @@ const ok = (name, cond, extra = "") => {
 const CREATOR_PAGE = await import(pathToFileURL(join(API, "_creator-page.js")).href);
 const ROOM_PUBLISH = await import(pathToFileURL(join(API, "_room-publish.js")).href);
 const {
-  publicCreatorPageRoomBySlug, resolveCreatorPage, buildCreatorPageHtml, buildCreatorPageJsonLd,
+  publicCreatorPageRoomBySlug, resolveCreatorPage, buildCreatorPageHtml, buildCreatorPageJsonLd, TASTE_COPY,
 } = CREATOR_PAGE;
 const { setRoomShowcase, removeRoomShowcase, readRoomShowcase, RoomPublishError } = ROOM_PUBLISH;
 
@@ -69,7 +71,7 @@ function freshState() {
         room_id: ROOM_ID, slug: "anjali-physics", replica_id: REPLICA_ID, owner_user_id: OWNER,
         display_name: "Anjali", one_line_bio: "JEE physics, one topic a day.",
         default_locale: "en", listed_at: "2026-09-01T00:00:00.000Z",
-        published_at: "2026-08-01T00:00:00.000Z", paused_at: null,
+        published_at: "2026-08-01T00:00:00.000Z", paused_at: null, taste_enabled: true,
       },
     ],
     showcase: [],
@@ -430,6 +432,100 @@ function makeDb(state) {
   const csp = headerRule?.headers?.find((h) => h.key === "Content-Security-Policy")?.value ?? "";
   ok("that CSP carries no 'unsafe-inline'/'unsafe-eval' in script-src (no inline script on this page beyond exempt JSON-LD)",
     !/script-src[^;]*unsafe-inline/.test(csp) && !/script-src[^;]*unsafe-eval/.test(csp));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 12. WS-R80: THE TASTE ISLAND'S MARKUP
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const room = { display_name: "Anjali", one_line_bio: "JEE physics.", default_locale: "en", slug: "anjali-physics", taste_enabled: true };
+  const htmlOn = buildCreatorPageHtml({ room, showcase: [] }, { origin: "https://vyakti.app", slug: "anjali-physics" });
+
+  ok("the taste form is rendered when taste_enabled is true (or absent -> default true)",
+    htmlOn.includes('id="vy-taste-form"'));
+  ok("the form carries the room's own slug and locale as data attributes",
+    htmlOn.includes('data-room="anjali-physics"') && htmlOn.includes('data-locale="en"'));
+  ok("the deferred island script is included, and only as an external <script src>, never inline",
+    htmlOn.includes('<script src="/creator-taste.js" defer></script>'));
+  ok("the lede has {name} already substituted server-side",
+    htmlOn.includes("Ask Anjali AI a question before you sign in."));
+  ok("the join link exists but starts hidden (JS reveals it after the third turn or a refusal)",
+    /<a id="vy-taste-join" href="\/r\/anjali-physics\?via=search" hidden>/.test(htmlOn));
+
+  // The no-JS fallback: a GET form whose `action` carries no query string,
+  // with `via=search` as a HIDDEN FIELD instead -- a GET submission REPLACES
+  // action's own query string with the serialized form fields (the HTML
+  // living standard's rule), so `via=search` would be silently lost if it
+  // lived in the action URL instead.
+  ok("the form's action carries no query string of its own",
+    /action="\/r\/anjali-physics"/.test(htmlOn) && !/action="\/r\/anjali-physics\?/.test(htmlOn));
+  ok("via=search rides as a hidden field, surviving a plain (no-JS) GET submission",
+    /<input type="hidden" name="via" value="search" \/>/.test(htmlOn));
+
+  // REGRESSION: the fixture builder (`scripts/build-creator-page-fixture.mjs`)
+  // passes a `room` object with NO `slug` field at all (only display_name,
+  // one_line_bio, default_locale) -- the same shape `resolveCreatorPage`'s
+  // caller would get for a row where `room.slug` legitimately differs in
+  // case from the URL's own `slug` param. The widget must key off the URL
+  // slug (the same one `joinUrl`/`roomImageUrl` already use), never
+  // `room.slug`, or a fixture/production drift like that silently ships a
+  // form that posts to `/r/` with an empty slug.
+  const roomNoSlugField = { display_name: "Anjali", one_line_bio: "JEE physics.", default_locale: "en" };
+  const htmlNoSlugField = buildCreatorPageHtml({ room: roomNoSlugField, showcase: [] }, { origin: "https://vyakti.app", slug: "anjali" });
+  ok("REGRESSION: the widget keys off the URL slug, not room.slug (which may be absent from the row shape)",
+    htmlNoSlugField.includes('data-room="anjali"') && htmlNoSlugField.includes('action="/r/anjali"'));
+
+  const room2 = { ...room, taste_enabled: false };
+  const htmlOff = buildCreatorPageHtml({ room: room2, showcase: [] }, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok("NEGATIVE CONTROL: taste_enabled=false renders no taste form at all",
+    !htmlOff.includes('id="vy-taste-form"'));
+  ok("...and no deferred island script either -- absent, not hidden",
+    !htmlOff.includes("creator-taste.js"));
+
+  const roomHi = { ...room, default_locale: "hi" };
+  const htmlHi = buildCreatorPageHtml({ room: roomHi, showcase: [] }, { origin: "https://vyakti.app", slug: "anjali-physics" });
+  ok("a Hindi Room's taste widget renders Hindi copy, not English",
+    htmlHi.includes("साइन इन करने से पहले") && !htmlHi.includes("Ask Anjali AI a question"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 13. WS-R80: TASTE_COPY IS BYTE-IDENTICAL TO THE REAL src/room/copy.ts
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // `evals/room-locale/run.mjs`'s own technique: `copy.ts` is plain TS with
+  // no JSX, bundled with esbuild rather than imported directly (this file
+  // cannot import a `.ts` module any more than `api/_creator-page.js`
+  // itself can -- the same boundary, crossed to read the REAL export
+  // instead of trusting a copy of its text).
+  const OUT = mkdtempSync(join(tmpdir(), "creator-page-copy-eval-"));
+  const ENTRY = join(OUT, "entry.ts");
+  writeFileSync(
+    ENTRY,
+    `export { ROOM_COPY_TABLE } from ${JSON.stringify(join(REPO, "src/room/copy"))};\n`,
+  );
+  const BUNDLE = join(OUT, "copy.bundle.mjs");
+  execSync(
+    `npx esbuild ${ENTRY} --bundle --format=esm --platform=node --outfile=${BUNDLE} --log-level=error`,
+    { cwd: REPO, stdio: "inherit" },
+  );
+  const { ROOM_COPY_TABLE } = await import(pathToFileURL(BUNDLE).href);
+
+  for (const locale of ["en", "hi"]) {
+    const real = ROOM_COPY_TABLE[locale].taste;
+    const mine = TASTE_COPY[locale];
+    for (const key of Object.keys(real)) {
+      ok(`TASTE_COPY.${locale}.${key} matches the REAL src/room/copy.ts taste.${key}`, mine[key] === real[key], mine[key]);
+    }
+    ok(`TASTE_COPY.${locale}.errorGeneric matches the REAL src/room/copy.ts errors.generic`,
+      mine.errorGeneric === ROOM_COPY_TABLE[locale].errors.generic, mine.errorGeneric);
+    ok(`TASTE_COPY.${locale} carries no key the real taste section does not have`,
+      Object.keys(mine).filter((k) => k !== "errorGeneric").every((k) => k in real));
+  }
+
+  // NEGATIVE CONTROL: the comparator above actually bites.
+  const poisoned = { ...TASTE_COPY.en, send: "Submit" };
+  ok("NEGATIVE CONTROL: a drifted copy of taste.send is caught by the same comparator",
+    poisoned.send !== ROOM_COPY_TABLE.en.taste.send);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

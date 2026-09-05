@@ -14825,3 +14825,86 @@ branch merges and pushes) tells us the true number. If total job time is at
 or above 25 minutes on either Node version, split as described in
 `ws-r77-ci-runs-the-whole-gate` above, and log the real runtime that
 triggered it as a measurement before making the change.
+
+## `ws-r80-island-not-a-second-app` (2026-09-05, WS-R80)
+
+**Decision.** The taste on `/c/<slug>` is a small, dependency-free,
+progressively-enhanced island (`public/creator-taste.js`, served as a
+static file under the page's existing `script-src 'self'` CSP with no
+widening) enhancing a plain, real `<form>` that already works with no
+JavaScript at all (a GET to `/r/<slug>?via=search`, the Room's own taste
+screen for a signed-out visitor). It is never a second client app, never a
+bundle, and adds no new server op: the enhanced flow POSTs the exact same
+`{op:"taste", room, message, locale}` shape `api/room.js` already serves,
+through the SAME `roomTaste` (`api/_room-taste.js`) and the SAME 3-a-day
+`room_taste` rate scope.
+
+**Rationale.** `/c/<slug>` exists (WS-R66) specifically because a search
+visitor has no client app to hand off to — the page IS the content, and
+`scripts/check-performance.mjs`'s own budget table proves it stays there:
+2.2KB of JS after this workstream against a 180KB ceiling, LCP unchanged
+within run-to-run noise (`measurements.md#ws-r80-creator-page-performance-2026-09-05`).
+A second React app here would mean a second bundle, a second router, and a
+second place `taste_enabled` and the disclosure card have to agree with the
+Room's own — exactly the drift `api/_room-embed.js`'s header already warns
+against for its own, simpler embed. The no-JS form is not a fallback bolted
+on after the fact; it is the page's baseline behavior, and the island only
+upgrades it.
+
+**Reversal condition.** If a future workstream needs the taste screen on
+`/c/<slug>` to carry state across turns beyond one page load (say, a
+signed-in-but-not-joined visitor's history), or needs more than the three
+turns this island already fits in under 6KB minified, that is the point to
+build a real client entry for `/c/<slug>` rather than keep growing this
+file — the same "when does an island become an app" line
+`api/_room-embed.js#ws-r46-no-iframe-v0` draws for its own surface.
+
+## `ws-r80-taste-copy-restated-not-imported` (2026-09-05, WS-R80)
+
+**Decision.** `api/_creator-page.js` carries its own `TASTE_COPY` object
+(both locales) rather than importing `src/room/copy.ts`'s `taste` section.
+It is proven byte-identical to the real, bundled `copy.ts` export by
+`evals/creator-page/run.mjs` (esbuild-bundling the real file, exactly
+`evals/room-locale/run.mjs`'s own technique), field by field, both
+locales, with a negative control that a drifted string is caught.
+
+**Rationale.** `api/_creator-page.js` runs as a plain Vercel Node function;
+no file under `api/` imports anything under `src/` anywhere in this repo
+(grepped before writing this), and `src/studio/pulseApi.ts`'s own header
+already states the identical boundary in the other direction ("the front
+end cannot import a server module"). Typing the same nine strings twice
+and proving them equal by machine is the same trade this repo already
+makes for every `// mirror of api/<file>.js#<NAME>` marker
+(`scripts/check-mirrors.mjs`) — except those markers parse a single scalar
+literal and this is a whole copy block, so it is proven by a real bundle
+-and-compare in the eval suite instead of a marker the mirror gate cannot
+parse.
+
+**Reversal condition.** If a build step is ever added that lets an `api/`
+handler import a `.ts` module directly (bundling every Vercel function
+through esbuild/ncc rather than shipping them as plain Node files), drop
+`TASTE_COPY` and import `ROOM_COPY_TABLE` from `src/room/copy.ts` for real
+— the eval's own parity proof is the signal that nothing else needs to
+change first.
+
+## `ws-r80-via-search-survives-as-a-hidden-field-not-in-the-form-action` (2026-09-05, WS-R80)
+
+**Decision.** The taste form's no-JS fallback (`<form method="get"
+action="/r/<slug>">`) carries `via=search` as a hidden input field, never
+as part of `action`'s own query string.
+
+**Rationale.** Measured directly against a real Chromium GET submission
+(`public/creator-taste.js`'s own header cites the rule): the HTML living
+standard has a plain `<form method="get">` submission REPLACE whatever
+query string `action` already carried with the serialized form fields, not
+append to it. `action="/r/<slug>?via=search"` with a text input named `q`
+would submit to `/r/<slug>?q=<value>` and silently drop `via=search` on
+every no-JS visitor — exactly the visitor this fallback exists to serve,
+losing the one signal `api/_room-surface.js`'s `resolveArrivalVia` reads.
+Caught before merge by `evals/creator-page/run.mjs`'s own assertion that
+the rendered `action` carries no query string at all.
+
+**Reversal condition.** None expected; this is a fact about the HTML
+living standard, not a product choice. If a future edit moves `via=search`
+back into `action`'s query string, the eval assertion this decision cites
+will fail the moment `action` gains a `?`.

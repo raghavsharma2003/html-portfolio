@@ -10407,3 +10407,41 @@ the same font, rather than only against a same-length box run) — not
 lowering `MIN_GLYPH_DIFF_PCT` or reverting `=== true` back to `!== false`,
 both of which reintroduce a rejected false-positive class rather than
 closing this narrower gap.
+
+## `ws-r80-data-attributes-on-the-wrapping-section-not-the-element-the-script-reads` (2026-09-05, WS-R80)
+
+**What was tried.** The taste island's first draft wrote `data-room`/
+`data-locale` onto the `<section class="taste">` wrapper (the natural place
+to put "facts about this whole widget"), while `public/creator-taste.js`
+read them off `document.getElementById("vy-taste-form")` — the element it
+actually has a handle to, since it never queries the section at all.
+
+**What broke.** `scripts/check-headers.mjs`'s own `checkExecuted` proof for
+`/c/:slug` failed: `form.getAttribute("data-room")` returned `null`, the
+script's `if (!slug) return;` guard fired immediately, and the island never
+reached its own `data-enhanced="1"` marker — silently inert on a real page
+load, no console error, no CSP violation, nothing a casual look at the
+network tab would catch (the script DOES load, status 200, and DOES start
+executing; it just exits two lines in). Caught only because the headers
+gate's `checkExecuted` check exists at all — the earlier drafts of this
+same gate for `/` (`data-sky`) exist for exactly this class of bug, per
+that target's own comment ("if the hash ever goes stale this stays false
+even with zero reported violations"), and this workstream is the first
+time that comment's warning actually fired for real.
+
+**The fix.** Move `data-room`/`data-locale` onto the exact element
+(`<form id="vy-taste-form">`) the script queries, never a semantic parent
+it never selects. `evals/creator-page/run.mjs`'s own assertions still pass
+either way (they check `.includes('data-room="...')` anywhere in the page,
+not on a specific element) — they did NOT catch this, which is itself the
+finding: a substring assertion over rendered HTML cannot prove a `data-*`
+attribute reached the element that reads it back at runtime; only a real
+browser executing the real script against the real DOM can.
+
+**The rule.** When a static island reads a `data-*` attribute, write a
+test (or lean on a gate) that actually EXECUTES the script against the
+built page and checks the runtime side effect, not just that the attribute
+string appears somewhere in the HTML. `scripts/check-headers.mjs`'s
+`checkExecuted` seam is exactly this, and this workstream's own
+`data-enhanced="1"` marker (added for this reason, not as an afterthought)
+is what caught the bug before it shipped.
