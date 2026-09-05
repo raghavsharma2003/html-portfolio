@@ -191,7 +191,14 @@ const route = readFileSync(join(ROOT, "api/replica-review.js"), "utf8");
 ok("HTTP route derives ownership from bearer authentication", /const user = await requireUser\(req\)/.test(route) && /user\.id/.test(route));
 ok("HTTP route never reads a request owner id", !/body\.(?:owner|owner_user_id|user_id|device)/.test(route));
 const studio = readFileSync(join(ROOT, "src/studio/ProcessingReview.tsx"), "utf8");
-ok("Studio explicitly tells owners what remains withheld", /Raw transcripts, voice vectors, storage locations, provider references, and durable download links/.test(studio));
-ok("Studio exposes only a short-lived private audition and explicit voice selection", /Listen privately/.test(studio) && /Use this voice/.test(studio) && /expires automatically in under one minute/.test(studio));
+// WS-R61: this file's own literal strings moved into src/studio/copy.ts
+// (the studio's locale table) -- `studio` alone no longer carries the
+// rendered English text, only `c.<key>` references. Read together, the same
+// pattern `evals/readiness/run.mjs` already established for this exact move
+// (context/decisions.md#ws-r52-existing-evals-updated-for-the-copy-ts-move).
+const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const studioWithCopy = `${studio}\n${copyTs}`;
+ok("Studio explicitly tells owners what remains withheld", /Raw transcripts, voice vectors, storage locations, provider references, and durable download links/.test(studioWithCopy));
+ok("Studio exposes only a short-lived private audition and explicit voice selection", /Listen privately/.test(studioWithCopy) && /Use this voice/.test(studioWithCopy) && /expires automatically in under one minute/.test(studioWithCopy));
 
 console.log(`\n${checks} replica review checks passed`);
