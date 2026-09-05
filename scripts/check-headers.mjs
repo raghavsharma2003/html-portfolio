@@ -245,7 +245,28 @@ const TARGETS = [
   // byte-identical `<style>`/`<script src>` shells (verified: `diff` on the
   // built dist/ output), so this is the same CSP surface either way.
   { name: "room", path: "/r/anjali?screen=join", label: "Room (room-layout-fixture.html data)", pp: DENY_PP, checkExecuted: null },
-  { name: "studio", path: "/studio", label: "Studio (dist/studio.html)", pp: STUDIO_PP, checkExecuted: null },
+  // WS-R107. `hiPreload: "absent"` is the negative half of the preload
+  // proof: the plain, signed-out English visit must never get the Hindi
+  // chunk's `<link rel="modulepreload">` -- the whole reason the trigger
+  // script (`vite.config.ts`'s `studioHindiPreloadPlugin`) is conditional
+  // rather than a static tag. See the `studio-hi` row below for the
+  // positive half.
+  { name: "studio", path: "/studio", label: "Studio (dist/studio.html)", pp: STUDIO_PP, checkExecuted: null, hiPreload: "absent" },
+  // WS-R107. Same file (`dist/studio.html` -- one HTML shell serves both
+  // languages, `context/decisions.md#ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry`),
+  // requested with `?lang=hi`: `WS-R80`'s own precedent restated for a
+  // preload rather than an island -- "no CSP violation" alone would also
+  // pass a page where the trigger script silently failed to run, so this
+  // proves the actual side effect (`hiPreload: "present"`, checked below)
+  // happened under the real CSP, not merely that nothing was blocked.
+  {
+    name: "studio-hi",
+    path: "/studio?lang=hi",
+    label: "Studio, signed out, Hindi preload (dist/studio.html, ?lang=hi)",
+    pp: STUDIO_PP,
+    checkExecuted: null,
+    hiPreload: "present",
+  },
   {
     name: "/",
     path: "/",
@@ -479,6 +500,22 @@ async function runHeaderChecks(rules) {
     if (target.checkExecuted) {
       const executed = await page.evaluate(target.checkExecuted);
       if (!executed) fail("headers", target.name, "script-did-not-execute", "the hashed inline script's own side effect never happened");
+    }
+
+    // ── WS-R107: the Hindi chunk preload, present exactly where it must
+    // be and absent everywhere else. Counted, never just tested truthy, so
+    // a runaway duplicate (two links instead of one) fails by name rather
+    // than reading as "present, fine". ──
+    if (target.hiPreload) {
+      const count = await page.evaluate(
+        () => document.querySelectorAll('link[rel="modulepreload"][href*="hiCopy-"]').length,
+      );
+      if (target.hiPreload === "present" && count !== 1) {
+        fail("headers", target.name, "hi-preload-count", `expected exactly 1 Hindi-chunk modulepreload link, found ${count}`);
+      }
+      if (target.hiPreload === "absent" && count !== 0) {
+        fail("headers", target.name, "hi-preload-count", `expected 0 Hindi-chunk modulepreload links on the English studio, found ${count}`);
+      }
     }
 
     await context.close();

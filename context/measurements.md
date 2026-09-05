@@ -12494,3 +12494,67 @@ is that real, tiny cost, not noise), still comfortably inside the 180KB
 budget with room to spare; TBT is a CPU-time metric this cost cannot
 explain at 231-372ms of movement, and the untouched tree's own worse
 numbers at the same moment are the actual explanation.
+
+## `ws-r107-first-hindi-paint-before-preload-2026-09-05` — untouched-tree baseline, this session
+
+**n = 3 batches of 3 runs each, medians (method: `node scripts/check-performance.mjs
+--target studio-hi`, run standalone three separate times, on the WS-R107
+worktree BEFORE the preload plugin existed, `c2945f7`; 2026-09-05).** This
+session's machine was already contended (`uptime` load average approx.
+12-14 on 4 cores throughout, five to six sibling worktrees' own
+`verify-release.mjs` runs live in `ps aux`), unlike the wave-fifteen merge
+gate's idle-machine 918 ms figure this baseline is meant to sit beside.
+
+| batch | First Hindi paint | Hindi chunk wait | studio-hi JS |
+|---|---|---|---|
+| 1 | 903 ms | 683 ms | 163.0 KB |
+| 2 | 843 ms | 649 ms | 163.0 KB |
+| 3 | 861 ms | 644 ms | 163.0 KB |
+
+Median of the three batch medians: paint 861 ms, chunk wait 649 ms — in
+line with the wave-fifteen figure (918 ms / 661 ms) given this session's
+extra contention, confirming the structural cause named there still holds
+on this tree.
+
+## `ws-r107-first-hindi-paint-after-preload-2026-09-05` — with the build-time preload, this session
+
+**n = 3 batches of 3 runs each, medians, same method and same worktree,
+AFTER `vite.config.ts`'s `studioHindiPreloadPlugin` and its
+`fetchpriority="high"` trigger script landed; 2026-09-05.** Machine load
+average 12-20 across the three batches (`uptime`, checked before each) —
+worse, not better, than the baseline run above; this is the number this
+session's sandbox could produce, not a clean-machine figure, and the
+reversal condition in `context/decisions.md#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
+names what a clean re-run should do instead of trusting this one alone.
+
+| batch | First Hindi paint | Hindi chunk wait | studio-hi JS |
+|---|---|---|---|
+| 1 | 808 ms | 560 ms | 163.0 KB |
+| 2 | 572 ms | 326 ms | 163.0 KB |
+| 3 | 657 ms | 333 ms | 163.0 KB |
+
+Median of the three batch medians: paint 657 ms (down from 861 ms, about
+24% lower), chunk wait 333 ms (down from 649 ms, about half). One of three
+batches (808 ms) sits above the 700 ms bar
+`context/decisions.md#first-hindi-paint-budget-set-from-measurement` set for
+dropping the budget to 800, so the budget was left at 1000 rather than
+lowered — see that decision entry for the reasoning and the isolation test
+(`--target /studio` alone: 237 ms TBT, clean; the same target inside the
+full seven-target run during this contention: TBT budget miss) that
+attributes the miss to the shared machine rather than this diff. `studio-hi`
+JS stayed 163.0 KB in every run before and after, the direct proof the
+English studio's own transferred bytes did not move.
+
+## `ws-r107-security-headers-with-hi-preload-target-2026-09-05`
+
+Method: `node scripts/check-headers.mjs`, run standalone, this worktree,
+after the preload plugin and its CSP hash landed; 2026-09-05. Result: `ok
+security headers: 0 findings across 9 page target(s) + supply chain` (was 8
+targets before this workstream — the new `studio-hi` row, `/studio?lang=hi`
+against the same `dist/studio.html`). Zero CSP violations on either the
+plain `/studio` or `studio-hi` navigation; the `hiPreload` DOM count check
+(`document.querySelectorAll('link[rel="modulepreload"][href*="hiCopy-"]')`)
+read exactly 1 on `studio-hi` and exactly 0 on `studio`, proving the trigger
+script both ran under the real CSP and stayed conditional. `npm audit`: 4
+moderate/low findings, below `--audit-level=high`, not blocking (pre-existing,
+unrelated to this workstream).

@@ -18010,3 +18010,103 @@ receipt was late (this line only ever answers "how many," never "whose") -
 at which point `vy_receipt` itself would need an `issued_by` column
 ('webhook' | 'sweep') rather than reading the answer back out of a sweep's
 own summary row.
+
+## `ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry` (2026-09-05, WS-R107)
+
+**Decision.** The Hindi chunk's `<link rel="modulepreload">` is emitted by a
+`closeBundle` Vite plugin (`vite.config.ts`'s `studioHindiPreloadPlugin`,
+the same shape as `creatorPageFixturePlugin`/`roomAboutFixturePlugin`) into
+the single, already-shipping `dist/studio.html` — never a second built HTML
+entry. The plugin writes two things into the built file, right after
+`<meta charset="UTF-8" />`: a `<meta name="hi-chunk-preload"
+content="/assets/hiCopy-<hash>.js">` carrying the build's real content hash,
+and a fixed-text inline `<script>` (hash `sha256-AnsxiNdMvRHkPU2yPOU1ffSBiVm6sO/Mrqo/tjZolGA=`,
+now in `vercel.json`'s `/studio` and `/studio.html` CSP `script-src`) that
+reads that meta tag and, only when `?lang=hi` is in the URL or (absent any
+`lang` param) `localStorage['vyakti.studio.locale.v1']` is `"hi"` — the same
+two-step order `resolveStudioLocale` (`src/studio/studioLocalePreference.ts`)
+uses before a replica has loaded — creates the real `<link
+rel="modulepreload" fetchpriority="high">` itself.
+
+**Why this over a second `studio-hi.html` entry.** The brief's own two
+options were read and weighed. Option (a), a second built entry routed by a
+`vercel.json` rewrite matching `?lang=hi`, IS a real Vercel capability:
+verified against `https://vercel.com/docs/project-configuration/vercel-json#rewrites`,
+which documents `has`/`missing` objects with `type`, `key` and `value`
+properties and shows a worked `"type": "query"` example on the same page's
+`headers` section (`"has": [{ "type": "query", "key": "authorized" }]`) —
+the identical `{type,key,value}` shape the page states rewrites and headers
+share. It was set aside anyway after a build experiment (not reasoning
+alone, per this project's own rule): pointing TWO `rollupOptions.input` keys
+at the literal same `studio.html` path (`studio: "studio.html"`,
+`"studio-hi-experiment": "studio.html"`) produced a tiny orphan JS facade
+chunk for the second key (`studio-hi-experiment-<hash>.js`, 0.02 KB) and NO
+second HTML file at all — Vite/Rollup key an HTML *entry* by its resolved
+file path, not by the input object's key
+(`context/rejected.md#ws-r107-two-vite-entries-cannot-share-one-html-source-file`
+has the full experiment). A working option (a) therefore needs a genuinely
+SEPARATE source file — a hand-duplicated `studio-hi.html`, the whole shell
+(the CSS-layer-order fix comment, every meta tag, the description) copied
+and then kept byte-for-byte in sync by hand forever, the exact kind of
+duplication-drift this project's own `context/` exists to warn against.
+
+Option (b) has one moving part that varies build to build (the `<meta>`
+tag's `content`, which CSP does not gate) and one that never does (the
+script's own text, so its CSP hash, once committed, never goes stale as
+`hiCopy.ts` grows or shrinks) — no second shell to drift, and the English
+visit is provably unaffected: `scripts/check-performance.mjs`'s `jsBytes`
+budget on the `/studio` target catches a byte added, and a new static check
+in that same file (`checkHindiPreloadStatic`) asserts the built
+`dist/studio.html` carries exactly one `hi-chunk-preload` meta tag and never
+a literal, unconditional `<link rel="modulepreload">` for the Hindi chunk —
+the failure mode a static tag would create (fetched for every visitor,
+silently, with no CSP violation to catch it). `scripts/check-headers.mjs`
+gained a `studio-hi` target (`/studio?lang=hi` against the same
+`dist/studio.html`) proving, under the real CSP in a real browser, that the
+preload link is created exactly once for a Hindi request and never for the
+plain `/studio` request (`hiPreload: "present"`/`"absent"`,
+WS-R80's own "prove the side effect, not just the absence of a violation"
+precedent restated for a preload).
+
+**Reversal.** If a future workstream needs the studio to ship genuinely
+different HTML per locale for a reason beyond one preload link (a different
+`<title>`, a different meta description, server-rendered Hindi content),
+the maintenance cost of a real second entry stops being avoidable and
+option (a) — with a real second source file, not the same-path experiment
+this decision rejected — becomes the right call; revisit this decision
+first if the CSP-hash-stability trick above still holds (the script's own
+text has not needed to change), since that is the part option (b) most
+depends on.
+
+## `ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention` (2026-09-05, WS-R107)
+
+**Decision.** `FIRST_HINDI_PAINT_BUDGET_MS` stays 1000 this session; it is
+NOT returned to 800 despite the preload measurably working.
+
+**Why.** `context/decisions.md#first-hindi-paint-budget-set-from-measurement`'s
+own reversal condition is mechanical: drop to 800 only if three consecutive
+`--target studio-hi` batches measure under 700 ms. This session's three
+batches of the shipped (`fetchpriority="high"`) preload measured 808 ms,
+572 ms and 657 ms
+(`context/measurements.md#ws-r107-first-hindi-paint-after-preload-2026-09-05`)
+— one of three over the 700 ms line, so the bar is not met. The mechanism
+itself plainly works: Hindi chunk wait fell from a 644-683 ms baseline
+median to 326-560 ms (roughly half), and first-paint's own median fell from
+861 ms to 657 ms across the two three-batch sets (roughly a fifth) — but
+`uptime`'s load average sat at 12-20 on this 4-core sandbox for the entire
+measurement window (six sibling worktrees' own release gates running
+concurrently, confirmed with `ps aux`), and `--target /studio` (the
+English shell, untouched by this workstream, no Hindi chunk ever fetched)
+measured a TBT budget MISS in the same contended window while passing
+cleanly (237 ms) run alone seconds later — proof the noise is the shared
+machine, not this diff.
+
+**Reversal.** Re-run the exact `n=3 batches x 3 runs, --target studio-hi`
+protocol on a quiet machine (`uptime` load average near 1, no sibling
+`verify-release.mjs` in `ps aux`) before deciding the budget either way. If
+it is still not reliably under 700 ms with no contention to blame, the next
+lever is the Hindi chunk's own size (172 KB source / 38 KB gzip) — the
+chunk-wait number (326-611 ms measured) already leaves limited room under
+an 800 ms total once React's commit and layout are added on top of a 4x
+CPU throttle, so shrinking `hiCopy.ts` itself, not another network-side
+fix, is what is left to try.

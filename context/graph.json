@@ -9514,6 +9514,42 @@
       "kind": "measurement",
       "title": "evals/receipt-sweep 23/23 (new), evals/payments-reconcile 42/42 (4 new), evals/room-receipt 52/52 and evals/ops 143/143 unchanged, evals/probe-live 0 findings (new cron door auto-covered), full eval suite exit 0, tsc clean.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry",
+      "kind": "decision",
+      "title": "The Hindi chunk preload is a closeBundle-injected meta tag plus a fixed-text, CSP-hashed inline script in the single dist/studio.html, not a second built HTML entry.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention",
+      "kind": "decision",
+      "title": "FIRST_HINDI_PAINT_BUDGET_MS stays 1000: the preload measurably works (chunk wait roughly halved, paint down about 24%) but one of three batches still exceeded 700ms under this sessions heavy machine contention.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r107-first-hindi-paint-before-preload-2026-09-05",
+      "kind": "measurement",
+      "title": "Baseline first Hindi paint this session: medians 903/843/861ms across 3 batches, chunk wait 683/649/644ms, contended machine.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r107-first-hindi-paint-after-preload-2026-09-05",
+      "kind": "measurement",
+      "title": "After the build-time preload: medians 808/572/657ms across 3 batches, chunk wait 560/326/333ms; one batch over the 700ms bar under worse contention than the baseline run.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r107-security-headers-with-hi-preload-target-2026-09-05",
+      "kind": "measurement",
+      "title": "check-headers.mjs: 0 findings across 9 targets (was 8); the new studio-hi target proves exactly one modulepreload link is created for a Hindi request and none for English, under the real CSP.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r107-two-vite-entries-cannot-share-one-html-source-file",
+      "kind": "rejection",
+      "title": "Two rollupOptions.input keys pointing at the identical studio.html path do not produce two HTML outputs: Rollup keys an HTML entry by resolved file path, not the input key name, so the second key only orphaned a tiny JS facade chunk.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18581,6 +18617,41 @@
       "src": "ws-r103-backfill-sweep-closes-the-named-gap",
       "rel": "caused_by",
       "dst": "ws-r100-receipt-issued-alongside-not-inside-the-ledger-write"
+    },
+    {
+      "src": "ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry",
+      "rel": "caused_by",
+      "dst": "ws-r107-two-vite-entries-cannot-share-one-html-source-file"
+    },
+    {
+      "src": "ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry",
+      "rel": "constrains",
+      "dst": "studio-hindi-table-is-its-own-chunk"
+    },
+    {
+      "src": "ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry",
+      "rel": "measured_by",
+      "dst": "ws-r107-security-headers-with-hi-preload-target-2026-09-05"
+    },
+    {
+      "src": "ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention",
+      "rel": "measured_by",
+      "dst": "ws-r107-first-hindi-paint-before-preload-2026-09-05"
+    },
+    {
+      "src": "ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention",
+      "rel": "measured_by",
+      "dst": "ws-r107-first-hindi-paint-after-preload-2026-09-05"
+    },
+    {
+      "src": "ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention",
+      "rel": "supersedes",
+      "dst": "first-hindi-paint-budget-set-from-measurement"
+    },
+    {
+      "src": "ws-r107-first-hindi-paint-after-preload-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r107-hindi-preload-is-a-conditional-inline-script-not-a-second-entry"
     }
   ]
 }
