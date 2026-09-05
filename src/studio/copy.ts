@@ -139,6 +139,40 @@ interface ShellCopy {
   onUsCount: string; // "{n} on us"
 }
 
+// ── creatorPath: CreatorPath.tsx, the Feed tab's own path card (WS-R65) ────
+interface CreatorPathCopy {
+  eyebrow: string;
+  /** One short name per step, `CreatorPath.tsx#CREATOR_PATH_STEPS`'s own
+   *  order — the list row, shown for every step regardless of state. */
+  stepLabel: Record<
+    | "account_created" | "studio_opened" | "first_source_uploaded" | "processing_finished"
+    | "first_preview_heard" | "readiness_first_measured" | "readiness_passed_lock" | "disclosure_approved"
+    | "room_created" | "publish_clicked" | "room_published" | "first_follower_joined",
+    string
+  >;
+  /** The one sentence shown beneath the list, for whichever step is
+   *  current. `readiness_passed_lock`'s own template carries `{n}`/`{n2}`,
+   *  spliced by the real floors at render time
+   *  (`CreatorPath.tsx#CREATOR_PATH_READINESS_PART_FLOOR`/`_OVERALL_FLOOR`)
+   *  rather than a second hardcoded 55/70 in this file. */
+  currentSentence: Record<
+    | "account_created" | "studio_opened" | "first_source_uploaded" | "processing_finished"
+    | "first_preview_heard" | "readiness_first_measured" | "readiness_passed_lock" | "disclosure_approved"
+    | "room_created" | "publish_clicked" | "room_published" | "first_follower_joined",
+    string
+  >;
+  /** The one button beneath that sentence. */
+  currentButton: Record<
+    | "account_created" | "studio_opened" | "first_source_uploaded" | "processing_finished"
+    | "first_preview_heard" | "readiness_first_measured" | "readiness_passed_lock" | "disclosure_approved"
+    | "room_created" | "publish_clicked" | "room_published" | "first_follower_joined",
+    string
+  >;
+  stateLabel: Record<"done" | "current" | "ahead", string>;
+  pausedSentence: string;
+  pausedButton: string;
+}
+
 // ── wizardRail: WizardRail.tsx's own hardcoded chrome ──────────────────────
 interface WizardRailCopy {
   railLabel: string;
@@ -404,6 +438,7 @@ interface SuiteCopy {
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
+  creatorPath: CreatorPathCopy;
   wizardRail: WizardRailCopy;
   readiness: ReadinessCopy;
   driftWatch: DriftWatchCopy;
@@ -434,6 +469,55 @@ const EN: StudioCopy = {
     stillLockedTitle: "Still locked on Meet",
     forYou: "{n} for you",
     onUsCount: "{n} on us",
+  },
+
+  creatorPath: {
+    eyebrow: "Your path to a published Room",
+    stepLabel: {
+      account_created: "Your workspace",
+      studio_opened: "You opened the studio",
+      first_source_uploaded: "Your first source",
+      processing_finished: "We finish processing it",
+      first_preview_heard: "You hear your AI",
+      readiness_first_measured: "We measure Readiness",
+      readiness_passed_lock: "Readiness clears the floor",
+      disclosure_approved: "You approve what followers are told",
+      room_created: "You set up your Room",
+      publish_clicked: "You publish it",
+      room_published: "Your Room goes live",
+      first_follower_joined: "Your first follower joins",
+    },
+    currentSentence: {
+      account_created: "Your workspace is ready.",
+      studio_opened: "You are in the studio right now.",
+      first_source_uploaded: "Add one file, video, or link to start.",
+      processing_finished: "We are still processing what you gave us.",
+      first_preview_heard: "Go and hear your AI for the first time.",
+      readiness_first_measured: "Go talk to your AI so we can measure Readiness.",
+      readiness_passed_lock: "Get every part to {n} and the whole to {n2}.",
+      disclosure_approved: "Read and approve what every follower is told first.",
+      room_created: "Set up your Room.",
+      publish_clicked: "Publish your Room when you are ready.",
+      room_published: "Your Room just went live.",
+      first_follower_joined: "Waiting for your first follower.",
+    },
+    currentButton: {
+      account_created: "Continue",
+      studio_opened: "Continue",
+      first_source_uploaded: "Add your first source",
+      processing_finished: "See what is happening",
+      first_preview_heard: "Hear your AI",
+      readiness_first_measured: "Talk to your AI",
+      readiness_passed_lock: "Improve Readiness",
+      disclosure_approved: "Review and approve",
+      room_created: "Set up your Room",
+      publish_clicked: "Publish your Room",
+      room_published: "Open your Room",
+      first_follower_joined: "Open your Room",
+    },
+    stateLabel: { done: "Done", current: "Now", ahead: "Later" },
+    pausedSentence: "Your Room is paused, so nobody can reach it right now.",
+    pausedButton: "Go and resume your Room",
   },
 
   wizardRail: {
@@ -734,6 +818,55 @@ const HI: StudioCopy = {
     stillLockedTitle: "मीट पर अभी भी लॉक",
     forYou: "{n} आप पर",
     onUsCount: "{n} हम पर",
+  },
+
+  creatorPath: {
+    eyebrow: "आपके रूम के पब्लिश होने तक का रास्ता",
+    stepLabel: {
+      account_created: "आपका वर्कस्पेस",
+      studio_opened: "आपने स्टूडियो खोला",
+      first_source_uploaded: "आपका पहला सोर्स",
+      processing_finished: "हमने इसे प्रोसेस कर लिया",
+      first_preview_heard: "आपने अपना AI सुना",
+      readiness_first_measured: "हमने तैयारी मापी",
+      readiness_passed_lock: "तैयारी ने सीमा पार की",
+      disclosure_approved: "आपने मंज़ूरी दी कि फॉलोअर को क्या बताया जाता है",
+      room_created: "आपने अपना रूम बनाया",
+      publish_clicked: "आपने इसे पब्लिश किया",
+      room_published: "आपका रूम लाइव है",
+      first_follower_joined: "आपका पहला फॉलोअर जुड़ा",
+    },
+    currentSentence: {
+      account_created: "आपका वर्कस्पेस तैयार है।",
+      studio_opened: "आप अभी स्टूडियो में हैं।",
+      first_source_uploaded: "शुरू करने के लिए एक फ़ाइल, वीडियो, या लिंक जोड़ें।",
+      processing_finished: "हम अभी भी आपकी दी हुई चीज़ें प्रोसेस कर रहे हैं।",
+      first_preview_heard: "जाकर पहली बार अपना AI सुनें।",
+      readiness_first_measured: "अपने AI से बात करें ताकि हम तैयारी माप सकें।",
+      readiness_passed_lock: "हर हिस्से को {n} तक और पूरे को {n2} तक पहुंचाएं।",
+      disclosure_approved: "पढ़ें और मंज़ूरी दें कि हर फॉलोअर को पहले क्या बताया जाता है।",
+      room_created: "अपना रूम बनाएं।",
+      publish_clicked: "तैयार होने पर अपना रूम पब्लिश करें।",
+      room_published: "आपका रूम अभी लाइव हुआ।",
+      first_follower_joined: "आपके पहले फॉलोअर का इंतज़ार है।",
+    },
+    currentButton: {
+      account_created: "जारी रखें",
+      studio_opened: "जारी रखें",
+      first_source_uploaded: "अपना पहला सोर्स जोड़ें",
+      processing_finished: "देखें क्या हो रहा है",
+      first_preview_heard: "अपना AI सुनें",
+      readiness_first_measured: "अपने AI से बात करें",
+      readiness_passed_lock: "तैयारी सुधारें",
+      disclosure_approved: "पढ़ें और मंज़ूरी दें",
+      room_created: "अपना रूम बनाएं",
+      publish_clicked: "अपना रूम पब्लिश करें",
+      room_published: "अपना रूम खोलें",
+      first_follower_joined: "अपना रूम खोलें",
+    },
+    stateLabel: { done: "पूरा हुआ", current: "अभी", ahead: "बाद में" },
+    pausedSentence: "आपका रूम रुका हुआ है, इसलिए अभी कोई इस तक नहीं पहुंच सकता।",
+    pausedButton: "जाकर अपना रूम फिर शुरू करें",
   },
 
   wizardRail: {

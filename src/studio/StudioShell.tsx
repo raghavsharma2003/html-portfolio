@@ -42,6 +42,7 @@
 import { useEffect, useState, type ComponentProps } from "react";
 import { ReplicaWorkspace } from "./StudioApp";
 import { BLOCKER_META } from "./QuickStartPath";
+import { CreatorPathCard, type CreatorPathInput } from "./CreatorPath";
 import VideoLinkMount from "./VideoLinkMount";
 import { Band, jumpTo } from "./WizardRail";
 import { roomLink } from "./roomPublishApi";
@@ -239,6 +240,21 @@ export default function StudioShell(
 
   const active = headlineForTab(activeTab, inputs);
 
+  // WS-R65. Built from the SAME reads `inputs` above already assembles —
+  // no fetch of its own (`CreatorPath.tsx`'s own header names why a new
+  // endpoint was rejected). Only meaningful in teacher mode: a generic
+  // (self) replica has no Room at all, so `inputs.share.room` is always
+  // `null` there and the card would have nothing past "we finish
+  // processing it" to ever show.
+  const creatorPathInput: CreatorPathInput = {
+    accountCreatedAt: replica.created_at,
+    sourceCount: inputs.feed.sourceCount,
+    platformWork: inputs.feed.platformWork,
+    readiness: inputs.meet.readiness,
+    room: inputs.share.room,
+    followersTotal: inputs.share.followersTotal,
+  };
+
   return (
     <div className="studio-tabshell">
       <StudioLanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
@@ -277,6 +293,10 @@ export default function StudioShell(
           </button>
         )}
       </section>
+
+      {activeTab === "feed" && mode === "teacher" && (
+        <CreatorPathCard input={creatorPathInput} onGoStep={onGoStep} />
+      )}
 
       {activeTab === "meet" && !testEnvironment && runtimeStatus && (
         <StillLocked blockers={runtimeStatus.blockers} />

@@ -39,21 +39,22 @@ const MARK_STEPS = Object.freeze(["studio_opened", "publish_clicked"]);
  *  does); `publish_clicked` sits immediately before `room_published` (the
  *  click and the write it triggers are two different instants -
  *  `api/_room-publish.js`'s gate can refuse the write, so a click with no
- *  matching publish is a real, common shape, not a bug in this list). */
-export const FUNNEL_STEPS = Object.freeze([
-  "account_created",
-  "studio_opened",
-  "first_source_uploaded",
-  "processing_finished",
-  "first_preview_heard",
-  "readiness_first_measured",
-  "readiness_passed_lock",
-  "disclosure_approved",
-  "room_created",
-  "publish_clicked",
-  "room_published",
-  "first_follower_joined",
-]);
+ *  matching publish is a real, common shape, not a bug in this list).
+ *
+ * WS-R65: the order lives in ONE string literal, `FUNNEL_STEPS_ORDER`, so
+ * `scripts/check-mirrors.mjs` (which can only read a single scalar off an
+ * `export const NAME = <literal>` line, never an array) has something to
+ * parse. `FUNNEL_STEPS` below is DERIVED from it by `.split(",")`, never a
+ * second hand-typed list - the creator studio's own path card
+ * (`src/studio/CreatorPath.tsx#CREATOR_PATH_STEPS_ORDER`) mirrors this exact
+ * string, and the two can never silently drift the way two independently
+ * typed arrays could. */
+// One line, one literal, on purpose: `scripts/check-mirrors.mjs` only reads
+// a scalar that sits whole on the `export const NAME = <literal>` line
+// itself, so this string cannot be wrapped or `+`-concatenated without
+// breaking the exact mirror it exists to be checked against.
+export const FUNNEL_STEPS_ORDER = "account_created,studio_opened,first_source_uploaded,processing_finished,first_preview_heard,readiness_first_measured,readiness_passed_lock,disclosure_approved,room_created,publish_clicked,room_published,first_follower_joined";
+export const FUNNEL_STEPS = Object.freeze(FUNNEL_STEPS_ORDER.split(","));
 
 function iso(value) {
   if (!value) return null;

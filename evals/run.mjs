@@ -1990,6 +1990,22 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
   // browser.
   "room-install": "room-install/run.mjs",
+  // WS-R65: the creator's first five minutes, the Feed tab's own path card
+  // (`src/studio/CreatorPath.tsx`). The step order equals
+  // `api/_funnel.js#FUNNEL_STEPS` byte for byte (both derived from the SAME
+  // mirrored string, `CREATOR_PATH_STEPS_ORDER`/`FUNNEL_STEPS_ORDER`); the
+  // Readiness floors (70/55) mirror `api/_readiness.js` exactly;
+  // `computeCreatorPath` is fuzzed as a pure function over 2000+ input
+  // combinations (deterministic, a DONE prefix then at most one CURRENT
+  // then an AHEAD suffix, and the disappearance rule -- hidden once
+  // `room_published`, back only if paused -- holding across the whole
+  // space); TWO NEGATIVE CONTROLS run the REAL `scripts/check-mirrors.mjs`
+  // against a REORDERED step string and a wrong Readiness floor, proving
+  // the mirror gate the brief asks for actually bites a drift.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
+  // browser.
+  "studio-path": "studio-path/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

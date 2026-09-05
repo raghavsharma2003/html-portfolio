@@ -13710,3 +13710,81 @@ follower's devices (today it is per-browser, per-slug, `localStorage`
 only), the `InstallStorage` interface and the three pure functions stay
 exactly as they are — only the concrete storage `RoomApp.tsx` passes in
 changes, from `window.localStorage` to a thin wrapper over a server call.
+
+## `ws-r65-creator-path-reads-existing-state-not-a-new-endpoint` (2026-09-05, WS-R65)
+
+**Decision.** The Feed tab's new path card (`src/studio/CreatorPath.tsx`)
+derives every one of its twelve step states from data `StudioShell.tsx`
+already holds in React state for the tab bar itself — `sources.length`,
+`wizardInput.platformWork`, the same `readiness`/`room`/`roomStats` shapes
+`studioShellModel.ts#headlineForTab` already consumes. It adds no fetch,
+no new API route, and no new op on `api/replica.js`, even though
+`api/_funnel.js#replicaFunnel` already returns this exact ordered `steps`
+object and a GET beside `api/replica-activity.js` (itself op-less, so
+outside `evals/room-doors/run.mjs`'s `OP_COVERAGE` scan entirely) would
+have been a few lines.
+
+**Rationale.** The brief's own escape hatch for a new endpoint names a
+specific shape: "one owner op on an EXISTING DOOR with its door-battery
+case" — not a bare new GET file. Taking that literally means wiring
+`replicaFunnel` through `evals/room-doors/run.mjs`'s shared fake `db`,
+which as of this workstream has ZERO support for `vy_replica_source`,
+`vy_replica_processing_job`, `vy_replica_generation`,
+`vy_replica_readiness`, `vy_teacher_sheet`, `vy_room` or
+`vy_room_follower` — seven table shapes `replicaFunnel` itself joins
+across in eight queries. Teaching all seven to a fixture five other
+wave-twelve workstreams are editing concurrently, for a card whose job is
+a Feed-tab progress list rather than a ledger, is a disproportionate
+amount of new shared-file surface for what it buys: every one of the
+composed reads already exists, fetched for a reason that predates this
+workstream, and the only real gap (no signal for "the creator's own voice
+preview has been heard") is honestly represented as unconfirmed rather
+than invented. See `context/rejected.md#ws-r65-funnel-read-op-rejected-
+fixture-too-heavy` for the specific wall this hit.
+
+**Reversal condition.** If `evals/room-doors/run.mjs`'s shared fixture ever
+grows real support for those seven tables (for an unrelated workstream's
+own reason — a Room dialog surface, an export completeness check, anything
+that already needs to read one of them through that door), revisit: a
+`funnel_read` op on `api/replica.js` returning the real `replicaFunnel`
+would then be strictly more accurate than this file's front-end proxies,
+in particular for `first_preview_heard` and `disclosure_approved`, which
+today are only ever forward-filled from a later, stronger signal.
+
+## `ws-r65-creator-path-one-next-action-and-disappearance-rule` (2026-09-05, WS-R65)
+
+**Decision.** `computeCreatorPath` (pure, `src/studio/CreatorPath.tsx`)
+renders the whole `FUNNEL_STEPS` order as done/current/ahead by finding the
+FURTHEST step with real positive evidence ("last reached", the exact shape
+`api/_funnel.js#lastReachedStep` already uses) rather than gating each step
+on the one immediately before it. Evidence is never a negative fact — an
+unconfirmed step is absence of evidence, not evidence of absence — so a
+step this session has not opened (Meet/Share, per `studioShellModel.ts`'s
+own `undefined`-means-unchecked convention) renders "ahead" rather than
+guessed either way, with ONE deliberate exception: `room.published === true`
+forward-fills `disclosure_approved`/`room_created`/`publish_clicked` even
+if Meet was never reopened, because `api/_room-publish.js#publishRoom`'s
+own atomic write predicate cannot set `published_at` without every one of
+those already being true — that is a proof, not a guess. The card is
+visible until `room_published` is reached, then hidden, then visible again
+only if the Room is subsequently paused.
+
+**Rationale.** The brief's own words: "the studio should show it as a path
+with one next action, never a dashboard of everything." A card that gated
+step N strictly on step N-1 being independently confirmed would get stuck
+the first time a creator revisits Feed without having reopened Meet or
+Share this session — even for a creator who published weeks ago — which is
+exactly the same "not checked yet" honesty the rest of this shell already
+carries elsewhere (the Share tab's own headline says the identical thing).
+Disappearing once published and returning only on pause matches the card's
+own stated job: a five-minute guided path that has done its work the
+moment the Room is live, reopened only when something again needs the
+creator's attention before anyone can reach their AI.
+
+**Reversal condition.** If a future session finds a real creator confused
+by the card re-showing "not checked yet" progress after a page reload
+despite having published in a PRIOR session (i.e. the honesty convention
+reads as a regression rather than as consistency), the fix is a composed
+read at Feed-tab mount — `room.published` specifically, the one signal that
+already needs no tab switch to trust — not a change to the forward-fill
+rule itself.

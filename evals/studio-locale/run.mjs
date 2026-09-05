@@ -154,6 +154,10 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
     "BlockerNotice.tsx", "WizardRail.tsx", "StudioShell.tsx", "ReadinessPanel.tsx",
     "DriftWatchCard.tsx", "ReviewQueue.tsx", "PayoutsCard.tsx", "CheckinsCard.tsx",
     "HandoffCard.tsx", "InviteCreatorCard.tsx", "InviteGate.tsx", "SuiteCard.tsx",
+    // WS-R65's own new file: the Feed tab's path card. Every sentence it
+    // renders routes through `t.creatorPath`, the same law this whole list
+    // enforces for every other Tier 1 file.
+    "CreatorPath.tsx",
     // WS-R52's own new file: the locale context/provider. No literal English
     // text of its own (it renders nothing; it hands `t` to whatever mounts
     // under it), so it clears the scan the same way an empty file would, but
