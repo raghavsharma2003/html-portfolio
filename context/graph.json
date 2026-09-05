@@ -7174,6 +7174,12 @@
       "kind": "rejection",
       "title": "A {_comment: ...} pseudo-entry as the first element of vercel.json headers[] is valid JSON but not a valid Vercel headers entry (source and headers are both required) - would have broken every future deploy. Caught by inspection before commit; rationale moved into scripts/check-headers.mjs own header comment instead.",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r57-room-doors-frozen-fixture-now-expires-against-the-real-clock",
+      "kind": "rejection",
+      "title": "evals/room-doors/run.mjs (and room-push/payouts/org-billing) hardcode NOW = 2026-09-04T12:00:00Z while api/_room-surface.js assertSessionFresh defaults to the real Date.now(); once wall-clock crosses NOW+12h the suite fails with zero code change. Found, not fixed - out of this workstreams scope.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [

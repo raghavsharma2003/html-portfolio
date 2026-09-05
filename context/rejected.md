@@ -8905,3 +8905,52 @@ decisions.md`'s per-decision entries, where prose belongs.
 key on a `headers[]` entry without rejecting the file, an actual comment
 field becomes safe to reintroduce - until then, treat every key in this
 array as schema-checked, not decoration.
+
+## `ws-r57-room-doors-frozen-fixture-now-expires-against-the-real-clock` (2026-09-05, found not fixed)
+
+**Found, not fixed - flagged for whoever owns `evals/room-doors/run.mjs`
+next; out of scope for this workstream, which touched none of the files
+below.** `evals/room-doors/run.mjs` line 217 hardcodes `const NOW =
+Date.parse("2026-09-04T12:00:00Z")` as the fixture's business-math clock,
+but `api/_room-surface.js`'s `assertSessionFresh(payload, now =
+Date.now())` - the REAL function every door battery scenario ultimately
+calls - defaults to the REAL wall clock whenever a caller does not pass
+its own `now` explicitly, and at least three call paths in this suite's
+own §2/§3 (`b-cross-room/handoff.js`, `b-cross-room/checkins.js`,
+`b-cross-room/room-pay.js`, plus an unhandled crash in §3) do not pass
+one. `ROOM_SESSION_TTL_MS` is exactly `12 * 60 * 60 * 1000` - 12 hours -
+so the moment the REAL wall clock crosses `2026-09-05T00:00:00Z` (the
+fixture's frozen `NOW` plus that TTL), every session this suite minted
+against the frozen `iat` starts reading as expired against the live
+clock, and these three assertions (plus §3's crash) flip from pass to
+fail with ZERO code change anywhere in the repo. Reproduced twice in a
+row, deterministically, at `2026-09-05T00:02:58Z` and again moments
+later, on a tree where `git diff <base> HEAD -- evals/room-doors/
+api/_room-surface.js api/_handoff.js api/_checkins.js api/_room-pay.js`
+is EMPTY - this workstream's own commits never touch any of these files,
+so the failure is not this workstream's regression, it is the real clock
+catching up to a comment this same file's own header already anticipated
+("minting a session against the real wall clock while driving a
+scenario's own business-math `deps.now` against a fixed calendar date
+unrelated to it... would need auditing across every suite that does it").
+This is also NOT unique to this one file: `grep -rl 'Date.parse("2026-09-04'
+evals/ api/` finds the identical pattern in `evals/room-push/run.mjs`,
+`evals/payouts/run.mjs` and `evals/org-billing/run.mjs` too - none
+audited by this workstream, named here so the next session does not
+re-discover the same wall clock only through a red gate with no obvious
+cause. Because `room-doors` is also one of `evals/run.mjs`'s own
+registered suites, this same root cause fails the `eval suite` gate too,
+not only the standalone `room door battery` gate - both were confirmed
+passing on this exact tree in earlier runs THIS SAME SESSION, before real
+time crossed the boundary, which is the clearest possible proof this is
+a clock artefact and not a code regression.
+
+**What would reverse this.** Either give every scenario in these four
+files a `now` parameter derived from their own frozen `NOW` constant
+(passed explicitly through every call, not defaulted) so the whole
+suite runs at a fixed simulated instant regardless of the real wall
+clock, or regenerate `NOW` to `Date.now()` at suite-start time so the
+fixture always describes "now" rather than a calendar date that
+silently expires. Either fix should re-run `evals/room-doors/run.mjs`
+(and the other three files this grep found) past a real UTC midnight to
+prove the fix actually holds, the same way this rejection was found.
