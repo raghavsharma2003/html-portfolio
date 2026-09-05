@@ -15714,3 +15714,93 @@ budget with a measurement, never silently. If the placeholder ever throws in
 production (an incident row naming `studio_copy_hi_not_loaded`), the provider
 gate has a hole and the fix is in `localeContext.tsx`, not a softer
 placeholder.
+
+## `ws-r84-locale-switch-refetch-table` (2026-09-05, WS-R84)
+
+**Decision.** Every server-authored string the Room renders, and how the
+locale switch keeps each one fresh — enumerated once here rather than left
+implicit in seven call sites, so the next workstream that adds an
+app-voiced string has a place to add its own row instead of re-deriving the
+question from scratch.
+
+| string | op that delivers it | refetch strategy | why |
+|---|---|---|---|
+| the disclosure card, talk screen (`RoomOpen.disclosure`) | `open` (first load), `locale` (switch, already-joined) | `roomSetLocale`'s OWN response now carries the fresh card (`api/_room-surface.js`), never a second `open` call | the switch already makes exactly one call while talking (`op:"locale"`); adding the field to its response is "the same op the screen already uses," never a new one — the WRITE that changes the follower's locale is the one place that already knows the fresh card, because it computed it to bind the session's own digest |
+| the disclosure card, join screen (`RoomOpen.disclosure`, not-yet-joined) | `open` | `switchLocale`'s pre-join branch already re-calls `open` on every switch (unchanged by this workstream) | this is the literal "refetched through the same path that fetched it on open" case — `JoinSheet` reads `room.disclosure` straight off the prop, no local copy to go stale |
+| the disclosure card, taste screen (`RoomTasteTurn.disclosure`, turn 1 only) | `taste` (each turn), `open` (pre-join switch) | **redesigned**, not merely refetched: `TasteScreen` no longer holds the disclosure TEXT in local state at all, only a `hasAsked` boolean; the text always renders straight off the `room.disclosure` PROP, which `switchLocale`'s pre-join branch already refreshes via `open` | a taste turn's own `disclosure` field and `room.disclosure` are byte-identical by construction (both `roomDisclosureCard(name, locale)` off the same name and the same locale this screen passes to `tasteInRoom`) — holding a THIRD copy in local state was the actual bug (`rejected.md#ws-r84-taste-screen-disclosure-was-a-third-stale-copy`), not a missing refetch |
+| the disclosure card, account screen (`RoomSettings.disclosure`) | `settings` | already correct: `AccountPage`'s one `useEffect` is keyed on `[session, fixtureSettings]`, and `switchLocale`'s talking branch always calls `setSession()` with the fresh session, so a mounted account page refetches `roomSettings` automatically the moment a switch lands | `roomSettings` (server) derives the card fresh from the follower row on every call — it was never capable of going stale; the only way it COULD have shown stale text is if the client held an old `session` string, which it never does once `switchLocale` updates it. Locked in by `evals/room-locale/run.mjs`'s new §6 rather than left as an unverified claim |
+| the disclosure card, Telegram (`roomDisclosureCard`, `/start`) | sent once at `/start`, never re-sent by an ordinary message | **fixed**: `/hindi`/`/english` now re-send the card, in the new locale, in the SAME reply as the confirmation | Telegram has no persisted client state to refresh — each message is a fresh HTTP request — so "refetch" here means "the app must SEND it again," which WS-R24's own law 4 ("every app-voiced card takes a locale") already implied but the switch command never did until this workstream |
+| the AI's name line (`room.name`/`display_name`, every screen's `<h1>`) | `open`/`join`/`settings` | none needed | creator content, not follower-locale text — written once in whatever script the creator's own name is in, tagged at the node by `detectRoomTextLang` (WS-R79) regardless of the surrounding chrome's locale, same category as `room.bio` |
+| check-in card titles (`RoomCheckinDesign.title`/`RoomCheckin.title`) | `designs`/`opt_in`/`list_mine` | none needed | creator-authored free text (`api/_checkins.js`'s `createDesign`), no locale variant exists to switch to — same category as the name line above |
+| the cap-reached card (`copy.capOffer.*`) | n/a (client copy) + `settings`/turn response for the price number only | none needed | the SENTENCE is `src/room/copy.ts`'s `ROOM_COPY_TABLE`, already reactive to `locale` on every render; only `price_inr`/`currency` are server data, and neither is locale-text |
+| renewal sentences (`followerRenewalTelegramText`, `api/_renewals.js`) | the renewal sweep (`renewals-sweep.js`), not a follower-facing op at all | none needed | composed fresh, server-side, at SEND time, reading `follower.locale` off the live row (`dueReminders`'s own `f.locale` select) — a switch that already committed before the sweep next runs is read correctly by construction, nothing to refetch |
+| dormancy sentences (`dormancyNoticeTelegramText`, `api/_dormancy.js`) | the dormancy sweep (unrelated cron) | none needed | same shape as renewals, one file over — reads `f.locale` fresh at send time |
+| the account page's own dormancy/renewal SENTENCES (`copy.dormancy.note`, `copy.account.subscriptionRenews`) | n/a (client copy, server supplies only `dormancy_days`/`current_period_end`) | none needed | client copy again, reactive to `locale` the same way `capOffer`'s is |
+
+**Rationale for the shape of the table itself.** Two failure modes exist for
+a server-authored string across a locale switch — the client keeps a STALE
+COPY of text it already has (talk, taste), or the client never asks the
+server to SAY it again at all (Telegram) — and they need different fixes.
+A third category (creator content: the name, the bio, check-in titles) has
+no "fresh" version to fetch in the first place, because it was never
+translated; WS-R79 already made that category render correctly regardless
+of staleness (node-level tagging), and this workstream does not touch it
+again. Getting this categorisation right matters because `langTagAudit`
+(`scripts/check-accessibility.mjs`) cannot tell the difference between
+"correctly untranslated creator content" and "wrongly stale translated
+text" — both are, from a screen reader's point of view, correctly-tagged
+text in whatever script it happens to be in. Only reading the actual BYTES
+against `roomDisclosureCard`'s own output (as `evals/room-locale/run.mjs`'s
+new §6 and `scripts/check-accessibility.mjs`'s new locale-switch walk both
+do) can catch the staleness class.
+
+**Reversal condition.** If a future workstream adds a NEW server-authored,
+follower-locale-dependent string (not creator content), add its own row to
+this table before shipping it, and prefer the "existing op's response
+already computed it" shape (like `roomSetLocale`'s new `disclosure` field)
+over a second round trip wherever the write path already has the fresh
+bytes in hand. If Telegram ever gains persisted per-chat client state (a
+menu, a mini-app) that could ALSO go stale the way the disclosure card did,
+its own "refetch" needs the same table-row treatment this file gives every
+web screen.
+
+## `ws-r84-taste-screen-live-locale-switch-in-the-layout-gate` (2026-09-05, WS-R84)
+
+**Decision.** `RoomApp.tsx` gained one new fixture-only prop,
+`fixtureLiveLocaleSwitch`, which is the ONE narrow exception to
+`switchLocale`'s existing "never run anything while `fixtureOpen` is set"
+guard (`if ((fixtureOpen && !fixtureLiveLocaleSwitch) || ...) return;`).
+Every other fixture screen keeps the function completely blocked, exactly
+as before this workstream. `layoutFixture.tsx`'s `?live=1` query flag is
+the only place that sets the new prop to true, and its fetch stub answers
+`op: "locale"` the same shape the real `roomSetLocale` does.
+`scripts/check-accessibility.mjs` uses it to click the real "हिन्दी" button
+against the real `room:talk` fixture and assert the real resulting DOM —
+both that `.room-shell`'s own `lang` attribute flips to `hi` and that the
+disclosure card's own text changes and contains Devanagari — before
+re-running `langTagAudit` on the switched page.
+
+**Rationale.** Every other fixture-screen assertion in this file supplies
+DATA and leaves `RoomApp.tsx`'s own logic untouched (`?lang=hi` renders a
+statically-correct post-switch STATE, never exercises the switch ITSELF).
+That is insufficient here: `langTagAudit` cannot distinguish "fresh Hindi
+text, correctly tagged" from "stale English text, ALSO correctly tagged
+(as English)" — a regression that reintroduces the disclosure-staleness bug
+this workstream fixes would render a screen with ZERO language-tag findings,
+because the stale English card is still honestly English and still
+correctly un-tagged as Hindi. Only exercising the REAL switch, through a
+REAL click, and reading the disclosure card's own bytes before and after,
+can catch that class of regression. A hand-built "post-switch" fixture
+object was considered and rejected for the same reason a self-consistent
+round trip was rejected in `ws-r78-poster-decode-verification-via-real-
+scanner`: it would compare the render against a second, independently
+fallible description of what "switched" should look like, not against what
+the ACTUAL production code (`switchLocale`, `setRoomLocale`) does when run.
+
+**Reversal condition.** If a future redesign makes `switchLocale` need real
+`fetch` access on every fixture screen for some other reason, this prop can
+be widened or removed at that point — but doing so on this workstream's own
+strength alone would mean every OTHER fixture screen's keyboard walk could
+now fire a real (stubbed) network call if it happens to tab onto the
+language switch, which is a wider behaviour change than this workstream's
+brief authorized. Keep it scoped to the one screen that needs it.

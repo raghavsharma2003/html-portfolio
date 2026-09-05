@@ -11523,3 +11523,51 @@ n = 48 studio screen loads (the `studio`, `studio:shell`, `studio-hi` and `studi
 | `.field-label` at `var(--measure)` | 0 | 48 loads clean |
 
 The probe that found the driver: for every element, `white-space` of `pre`/`nowrap` with `scrollWidth` past the viewport, a pixel `min-width` past it, or a grid whose resolved tracks sum past it; the `studio-tabshell`'s single track had resolved to 762.7 px.
+
+## `ws-r84-locale-switch-refetch-measurements` (2026-09-05, WS-R84)
+
+n and method for every number this workstream produced, all offline,
+deterministic, $0:
+
+- **`evals/room-locale/run.mjs`**: 54 passed, 0 failed after this
+  workstream's new §6 (15 assertions) is added, run against the fixed
+  tree — `node evals/room-locale/run.mjs`, 2026-09-05.
+- **`evals/room-telegram/run.mjs`**: 61 passed, 0 failed after this
+  workstream's new section (12 assertions) is added, run against the fixed
+  tree. Run FIRST against the tree with only the eval added (server/client
+  fix not yet applied): **58 passed, 3 failed** — the three new assertions
+  that check the disclosure card is actually re-sent — proving the new
+  section is a real regression test, not a vacuous one, before the fix
+  that makes it pass was ever applied. `node evals/room-telegram/run.mjs`,
+  2026-09-05.
+- **`node evals/run.mjs`** (the full eval registry, "eval suite" gate): 0
+  `FAIL` lines across the complete run (13,213 lines of output, dozens of
+  suites), both on the untouched tree (baseline) and on the tree with this
+  workstream's full patch applied — run in isolation both times (no
+  concurrent file edits), 2026-09-05.
+- **`scripts/check-accessibility.mjs`**, full run: 17 pages scanned on the
+  untouched tree, 18 on the patched tree (the one new locale-switch walk),
+  0 critical/serious/moderate/minor axe findings, 0 keyboard findings, 0
+  language-tag findings both times — real Chromium via Playwright at
+  `/opt/pw-browsers/chromium`, 127.0.0.1:8933, 2026-09-05.
+- **The accessibility gate's new check, proven non-vacuous**: with the
+  client-side fix (`RoomApp.tsx`'s `switchLocale`) temporarily reverted by
+  hand and `dist/` rebuilt, `node scripts/check-accessibility.mjs --target
+  room` reports **1 language-tag finding** —
+  `lang-stale-disclosure-after-switch` at `room:talk(locale-switch)`,
+  `"disclosure card text is byte-identical before and after the switch"`.
+  With the fix restored and rebuilt: **0 findings**, `--target room` alone
+  runs 6 pages in 18,945ms. This is the direct, measured proof that the new
+  walk (a) exercises the real production code through a real click and (b)
+  fails when that code is wrong, not just when the fixture data is wrong.
+- **`scripts/check-performance.mjs`**, run standalone on the untouched
+  tree: 5 targets x 3 runs, all within budget (4x CPU throttle,
+  1.6 Mbps/750 Kbps/150 ms network shape) — unaffected by this workstream
+  (no bundle-size or Web Vitals change), confirmed rather than assumed.
+- **`npx tsc --noEmit -p .`**: clean, no errors, on the tree with this
+  workstream's full patch applied, 2026-09-05.
+- **`node scripts/check-copy.mjs`**: `6 scopes clean, 21 negative controls
+  bit`, unchanged by this workstream (no new user-visible string was
+  added — every card this workstream touches already existed in both
+  locales; the changes are which existing card gets sent, never a new
+  one).
