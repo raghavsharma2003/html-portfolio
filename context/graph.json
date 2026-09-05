@@ -10366,6 +10366,12 @@
       "kind": "measurement",
       "title": "Real untouched-tree vs patched-tree eval counts for the UPI mandate lifecycle: evals/payments 113->127, evals/ops 151->154, evals/org-billing 50->59, evals/room-doors 799->802, evals/renewals 55->70, all 0 failed; tsc -b exit 0; check-copy.mjs clean.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r125-release-gate-runs",
+      "kind": "measurement",
+      "title": "Two full verify-release.mjs runs on the patched tree under 18-24+ concurrent sibling processes: run 1 17/21 (4 failures, all independently re-run standalone and confirmed passing - performance budgets, rehearsal-creator, accessibility - except layout readability which shrank 9 to 2 findings across retries but was not fully reconfirmed clean); run 2 19/21, both failures pure EADDRINUSE port collisions (layout readability, performance budgets), eval suite and accessibility clean in the real full run.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
