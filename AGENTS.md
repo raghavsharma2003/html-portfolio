@@ -65,6 +65,12 @@ Notes that will otherwise cost you an hour:
 - `evals/echosim/build.mjs` must have been run once or the `stuck-turn` gate
   fails on a missing artifact. Same rule: check the untouched tree first.
 
+**Deploying: push, then probe.** Push before you deploy (`CLAUDE.md`'s own
+law — the Vercel build pulls the full source from the GitHub branch), and
+after every deploy run `node scripts/probe-live.mjs <base-url>` against the
+result (`docs/gurukul/DEPLOY.md` Phase 6) — it checks, for free, that the
+deployment actually serves what the tree promised.
+
 ## The laws. These are not style preferences
 
 - **Never claim what you did not run.** A truthful "did not run, here is the

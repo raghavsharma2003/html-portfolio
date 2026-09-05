@@ -13710,3 +13710,63 @@ follower's devices (today it is per-browser, per-slug, `localStorage`
 only), the `InstallStorage` interface and the three pure functions stay
 exactly as they are — only the concrete storage `RoomApp.tsx` passes in
 changes, from `window.localStorage` to a thin wrapper over a server call.
+
+## `ws-r64-expectations-parsed-from-source-not-retyped` (2026-09-05, WS-R64)
+
+**Decision.** `scripts/probe-live.mjs` (the live probe) never hand-types an
+expected header value, byte sequence, status code, or error body. Every
+expectation it checks against a real deployment is parsed, at run time,
+from this repo's own source by `scripts/probeLiveExpectations.mjs`:
+`vercel.json`'s `headers[]` array and `crons[]` list, `api/_room-page.js`'s
+`PLATFORM_TITLE`/`PLATFORM_DESCRIPTION`/`OG_IMAGE_WIDTH`/`OG_IMAGE_HEIGHT`,
+`api/_room-card.js`'s `ROOM_CARD_SIZES`, `public/room.webmanifest` and
+`public/room-sw.js`'s own bytes, `api/_room-embed.js`'s `ROOM_EMBED_JS`
+literal and its `{room:null}` shape, `api/room.js`'s closing `unknown_op`
+fallthrough and its list of known ops, `api/_room-surface.js`'s
+`readRoomSession`'s own thrown error, and each of the twelve cron files'
+own `authorized(req)` failure line (two of which answer 403 with a
+different string than the other ten's 401 — both correct, neither
+hand-typed as a single assumed shape).
+
+**Rationale.** A live probe that carries a SECOND, hand-typed copy of a
+fact the source already states is exactly the kind of drift this repo's
+whole `context/` discipline exists to prevent (`AGENTS.md`'s own "never a
+second literal" framing, restated here for a checker rather than a prompt).
+A future rename of an error code, a resized card, or a route added to
+`vercel.json` is caught the day it ships because the probe re-derives the
+expectation from the same file that changed, rather than continuing to
+check a frozen assumption nobody remembered to update.
+
+**Reversal condition.** If a checked surface's literal ever becomes
+genuinely unparseable from source (a minified/obfuscated build with no
+readable literal, say), a maintained, explicitly-labelled fallback literal
+is warranted for that one surface — cross-referenced in a comment to the
+exact line it is standing in for, never a silent, unlabelled constant.
+
+## `ws-r64-not-a-verify-release-gate` (2026-09-05, WS-R64)
+
+**Decision.** `scripts/probe-live.mjs` is documented as a post-deploy step
+(`docs/gurukul/DEPLOY.md` Phase 6, `AGENTS.md`'s one-sentence deploy
+paragraph) and is never invoked from `scripts/verify-release.mjs`. Its own
+offline proof, `evals/probe-live/run.mjs`, IS wired into `evals/run.mjs`
+and therefore IS part of the `eval suite` gate — that suite proves the
+probe's checking LOGIC against a fixture server on 127.0.0.1, never a real
+deployment.
+
+**Rationale.** This workstream's own brief states it plainly: "a gate must
+run offline." `scripts/probe-live.mjs` makes real GET/HEAD requests (plus
+two always-refused `POST /api/room` bodies) against one live base URL
+supplied on the command line — there is no base URL to probe until
+something has already been deployed, so it cannot run inside a gate that
+`npm test`/CI executes with no deployment in front of it, and folding it in
+would make every gate run depend on network reachability and a live
+project's current state, which is exactly what `verify-release.mjs`'s
+existing `--live` flag already exists to keep OUT of the default path.
+
+**Reversal condition.** None anticipated. If Vercel or an equivalent ever
+offered a fully offline, byte-for-byte faithful replica of a real
+deployment (routing, headers, and all), the fixture server this
+workstream built for the offline eval would already be most of the way
+there — but no such capability exists today, and `evals/probe-live/
+fakeServer.mjs` is deliberately a hand-built approximation, not a claim of
+parity with the real Vercel edge.

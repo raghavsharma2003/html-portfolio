@@ -10317,3 +10317,34 @@ n = 1 migration (2 statements in one transaction), 1 API statement; method = the
 | `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
 
 Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.
+
+## `ws-r64-probe-live-offline-eval-2026-09-05`
+
+n = 41 surfaces checked (13 header-promised route-class requests, 4
+person/bot `/r/:slug` variants, 4 og/story.png requests across 2 kinds,
+1 manifest, 1 service worker, 1 embed script, 6 static/marketing pages, 3
+refused-door requests, 12 unauthenticated cron requests) across 11
+assertions (3 on a well-behaved fixture, 2 on each of 2 negative controls,
+3 on a mutated-copy self-scan run, 1 on the allowlist's own shape); method
+= `node evals/probe-live/run.mjs`, `scripts/probe-live.mjs` (real,
+unmodified) driven against `evals/probe-live/fakeServer.mjs` on
+`127.0.0.1:8940` via `util.promisify(execFile)` (see
+`rejected.md#ws-r64-execfilesync-deadlocks-a-fixture-server-in-the-same-process`
+for why not `execFileSync`); date 2026-09-05. Result: 11/11 assertions
+green, 0 findings against the clean fixture, exactly 1 finding each
+against the 2 deliberately-broken fixtures (a dropped `Permissions-Policy`
+header, a corrupted manifest byte), and the mutated-copy run refused to
+start (before any network call) the moment a third, disallowed `op` was
+injected into it. Runtime: well under the 60s the live script itself is
+bounded to — the full offline suite (3 server spin-ups plus the mutant
+run) completes in a few seconds.
+
+Also measured, same date: `node scripts/verify-release.mjs` on this
+workstream's tree (which includes the above as part of the `eval suite`
+gate) — 20 of 21 checks green without `NEON_URL`; the one failure
+(`accessibility`, a pre-existing color-contrast finding on `.onb-sub`/
+`.onb-honest` in Meera's own onboarding component, `src/components/
+Onboarding.tsx`) reproduces identically (4.35 vs the required 4.5:1,
+byte-for-byte the same finding) on a standalone re-run of `node
+scripts/check-accessibility.mjs` and touches no file this workstream's
+`git diff` includes — environmental, not this workstream's.

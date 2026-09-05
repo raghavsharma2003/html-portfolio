@@ -7582,6 +7582,42 @@
       "kind": "measurement",
       "title": "Migration 113 widened vy_room_arrival's via CHECK to admit install (the value WS-R59's JS allowlist added) at the WS-R59 merge; applied live after reading the constraint's name back; the upsert plan is unchanged.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-live-probe",
+      "kind": "component",
+      "title": "scripts/probe-live.mjs + scripts/probeLiveExpectations.mjs + evals/probe-live/: a post-deploy script that checks a real deployment's public surfaces (vercel.json headers per route class, the Room's bot unfurl, og.png/story.png, the per-Room manifest, room-sw.js, room-embed.js, the directory/suites/sitemap/robots/privacy/delete-account pages, POST /api/room's two safe refusals, GET /api/room-embed for an unknown slug, all twelve cron sweeps refusing an unauthenticated caller) against expectations parsed from this repo's own source; documented as a post-deploy step, never wired into verify-release.mjs.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-expectations-parsed-from-source-not-retyped",
+      "kind": "decision",
+      "title": "scripts/probe-live.mjs never hand-types an expected header, byte sequence, status, or error body; every expectation is parsed at run time from this repo's own source by scripts/probeLiveExpectations.mjs",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-not-a-verify-release-gate",
+      "kind": "decision",
+      "title": "scripts/probe-live.mjs is documented in docs/gurukul/DEPLOY.md and AGENTS.md as a post-deploy step and is never invoked from scripts/verify-release.mjs, because a gate must run offline and this makes real requests to one live URL; its own offline proof (evals/probe-live/run.mjs) IS part of the eval suite gate",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-execfilesync-deadlocks-a-fixture-server-in-the-same-process",
+      "kind": "rejection",
+      "title": "evals/probe-live/run.mjs spawning the live probe via execFileSync while a fixture HTTP server ran in the same parent process deadlocked every request until its own 10s timeout, because execFileSync blocks the whole event loop the fixture server needed to answer; fixed by switching to promisified, async execFile",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-op-quote-regex-matched-its-own-comment-prose",
+      "kind": "rejection",
+      "title": "the static self-scan's first op-literal regex allowed a backtick as a quote character, so its own header comment (using a backtick as inline-code markup around the word op:) was matched as a fake POST body and the unmutated, correct script refused to run against itself; fixed by scoping the regex to single/double quotes on one line only",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r64-probe-live-offline-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/probe-live/run.mjs: 41 surfaces, 11 assertions, 11/11 green against a fixture server on 127.0.0.1:8940 (clean fixture zero findings, two negative controls each producing exactly the expected finding, a mutated-copy self-scan refusing to start); verify-release.mjs 20/21 green without NEON_URL, the one failure (accessibility, Meera onboarding contrast) reproduced on a standalone rerun and touches no file in this workstream's diff",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15104,6 +15140,41 @@
       "src": "rooms-migration-113-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
+    },
+    {
+      "src": "ws-r64-expectations-parsed-from-source-not-retyped",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r64-not-a-verify-release-gate",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r64-execfilesync-deadlocks-a-fixture-server-in-the-same-process",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r64-op-quote-regex-matched-its-own-comment-prose",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r64-probe-live-offline-eval-2026-09-05",
+      "rel": "part_of",
+      "dst": "ws-r64-live-probe"
+    },
+    {
+      "src": "ws-r64-expectations-parsed-from-source-not-retyped",
+      "rel": "measured_by",
+      "dst": "ws-r64-probe-live-offline-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r64-not-a-verify-release-gate",
+      "rel": "measured_by",
+      "dst": "ws-r64-probe-live-offline-eval-2026-09-05"
     }
   ]
 }

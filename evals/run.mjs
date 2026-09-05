@@ -1990,6 +1990,32 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
   // browser.
   "room-install": "room-install/run.mjs",
+  // WS-R64. THE LIVE PROBE'S OWN OFFLINE PROOF. `scripts/probe-live.mjs`
+  // (NOT itself a gate -- it is a documented post-deploy step, see
+  // docs/gurukul/DEPLOY.md and AGENTS.md's deploy paragraph, run against a
+  // real base URL, which a gate must never touch) checks a REAL deployment
+  // for what the tree promised: vercel.json's headers[] per route class,
+  // the Room's crawler unfurl and its og.png/story.png/manifest, the
+  // installable manifest, /room-sw.js, /room-embed.js, the directory/
+  // suites/sitemap/robots/privacy/delete-account pages, POST /api/room's
+  // two safe refusals (unknown op, no session), GET /api/room-embed for an
+  // unknown slug, and all twelve cron sweeps refusing an unauthenticated
+  // caller -- every expectation parsed from THIS repo's own source
+  // (`scripts/probeLiveExpectations.mjs`), never a second literal.
+  //
+  // This suite proves the PROBE's own logic against `evals/probe-live/
+  // fakeServer.mjs` on 127.0.0.1:8940 (above 8935, so it never collides
+  // with the layout/performance/accessibility/headers gates' own ports): a
+  // well-behaved fixture yields zero findings; two NEGATIVE CONTROLS (a
+  // dropped header, a corrupted manifest byte) each produce exactly the
+  // finding that defect should; and a MUTATED copy of the real script,
+  // fed a third, disallowed POST op, is proven to refuse to run before
+  // ever touching the network -- the static self-scan the live script's
+  // own header promises, exercised rather than merely asserted.
+  //
+  // Offline, deterministic, $0, no DB, no real network (127.0.0.1 only),
+  // no model call, no GPU, no browser.
+  "probe-live": "probe-live/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
