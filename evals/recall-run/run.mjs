@@ -65,6 +65,9 @@ const {
   storeRecallRun, recallRunEnabled, RECALL_SET_MIN, RECALL_RUN_METHOD_VERSION,
 } = RECALL;
 
+// WS-R118: the keyed set §7/§8 below measure the real scorer against.
+const KEYED = await import(pathToFileURL(join(ROOT, "evals/recall-run/keyed.mjs")).href);
+
 const READINESS = await import(pathToFileURL(join(API, "_readiness.js")).href);
 const {
   readRecallRun, readOwnedReadiness, readinessScreen,
@@ -558,6 +561,119 @@ console.log("\n── §6: THE CAPSTONE — the publish lock crosses through a R
   eq(after.publish_locked, false, "THE PUBLISH LOCK CROSSES — through a real recall run and four other real measurements, never a seed of vy_replica_readiness");
   ok("vy_replica_readiness was written by readOwnedReadiness itself, exactly twice (before, after) — never pre-seeded by this test",
     state.readiness_snapshots.length === 2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §7: THE KEYED SET — WS-R118, the scorer calibrated ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `evals/recall-run/keyed.mjs`'s own header has the full account: 60
+// hand-authored (passage, answer) pairs, six classes, a band per class a
+// person would sign. This section measures the REAL `scoreAnswer` against
+// every case, logs per-class agreement (n and method, `context/measurements
+// .md`'s own house rule), and gates on it — a regression here means a future
+// change to the scorer moved it OFF what a person would call correct, which
+// is exactly the thing WS-R101 shipped with no way to detect.
+{
+  const byClass = new Map();
+  const misses = [];
+  for (const c of KEYED.RECALL_KEYED_CASES) {
+    const [lo, hi] = KEYED.RECALL_KEYED_BANDS[c.cls];
+    const score = scoreAnswer(c.passage, c.answer);
+    const inBand = score >= lo && score <= hi;
+    const row = byClass.get(c.cls) || { n: 0, ok: 0 };
+    row.n++;
+    if (inBand) row.ok++;
+    byClass.set(c.cls, row);
+    if (!inBand) misses.push(`${c.id}: score=${score} not in [${lo},${hi}] (${c.reason})`);
+  }
+  let totalOk = 0, totalN = 0;
+  for (const cls of KEYED.RECALL_KEYED_CLASSES) {
+    const row = byClass.get(cls) || { n: 0, ok: 0 };
+    totalOk += row.ok; totalN += row.n;
+    console.log(`  ${cls}: ${row.ok}/${row.n} agree with the keyed band`);
+  }
+  eq(totalN, 60, "the keyed set carries at least the 60 cases WS-R118's own brief requires");
+  ok(`every keyed case agrees with the scorer measured on the current tree (n=${totalN})`,
+    totalOk === totalN, misses.join("\n  "));
+  // §0 of `api/_recall-run.js`'s own header + `context/measurements.md
+  // #ws-r118-recall-scorer-keyed-agreement`: BEFORE this workstream, the
+  // identical 60-case keyed set measured against WS-R101's original
+  // `scoreAnswer` (vocabulary + order, no stemming, no synonyms, no
+  // contradiction penalty, no evasion floor, and the Devanagari matra bug)
+  // agreed on 49/60 — every class but contradiction (0/10) and evasive
+  // (9/10, one Hindi case 2 points over its own ceiling). That number is not
+  // re-derived here (the pre-WS-R118 function no longer exists in this
+  // file to import), but it is the "before" this section's 60/60 is the
+  // "after" of, logged in full with method and date in
+  // `context/measurements.md`.
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §8: NEGATIVE CONTROLS — the contradiction cap and the evasion floor are load-bearing ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Same technique as §2b above: patch the REAL module's source text, remove
+// exactly one guard, re-import the patched copy, and show the assertions
+// this file already makes now FAIL against it. A guard whose removal changes
+// nothing is not a guard.
+{
+  const source = readFileSync(join(API, "_recall-run.js"), "utf8");
+
+  // ── (a) remove the contradiction cap: the contradiction class collapses ──
+  const CONTRADICTION_GUARD = "  if (hasContradiction(passageWordsRaw, answerWordsRaw)) {\n"
+    + "    score = Math.min(score, RECALL_CONTRADICTION_CAP);\n"
+    + "  }\n";
+  ok("the contradiction-cap negative control finds the exact guard it means to patch",
+    source.includes(CONTRADICTION_GUARD));
+  const patchedNoContradiction = source.split(CONTRADICTION_GUARD).join("");
+  ok("...and the patch actually changed the source", patchedNoContradiction !== source);
+
+  // ── (b) remove the evasion floor: "I don't know" scores well above 10 ──
+  const EVASION_GUARD = "  if (answerWordsRaw.length < RECALL_EVASION_MIN_WORDS) {\n"
+    + "    score = Math.min(score, RECALL_EVASION_CAP);\n"
+    + "  }\n";
+  ok("the evasion-floor negative control finds the exact guard it means to patch",
+    source.includes(EVASION_GUARD));
+  const patchedNoEvasion = source.split(EVASION_GUARD).join("");
+  ok("...and the patch actually changed the source", patchedNoEvasion !== source);
+
+  async function importPatched(text, tag) {
+    const rewritten = text.replace(
+      /from "\.\/([^"]+)"/g,
+      (_match, rel) => `from "${pathToFileURL(join(API, rel)).href}"`,
+    );
+    const dir = mkdtempSync(join(tmpdir(), `recall-run-${tag}-`));
+    const file = join(dir, "patched.mjs");
+    writeFileSync(file, rewritten);
+    return import(pathToFileURL(file).href);
+  }
+
+  const NC_A = await importPatched(patchedNoContradiction, "nc-contradiction");
+  const contraCases = KEYED.RECALL_KEYED_CASES.filter((c) => c.cls === "contradiction");
+  const [contraLo, contraHi] = KEYED.RECALL_KEYED_BANDS.contradiction;
+  const contraInBand = contraCases.filter((c) => {
+    const s = NC_A.scoreAnswer(c.passage, c.answer);
+    return s >= contraLo && s <= contraHi;
+  }).length;
+  ok(`without the contradiction cap, the contradiction class no longer agrees (was 10/10, patched=${contraInBand}/10)`,
+    contraInBand < contraCases.length);
+
+  const NC_B = await importPatched(patchedNoEvasion, "nc-evasion");
+  // A purpose-built example, separate from the keyed set: a passage that
+  // happens to open with the exact words an "I don't know"-shaped answer
+  // would reuse, so removing the floor has real overlap to inflate the
+  // score with — the same reason `evals/readiness/run.mjs` §4 removes a
+  // guard against fixtures chosen to expose it, not fixtures that would
+  // pass either way.
+  const idkPassage = "I do not know why I quit my old job, and honestly I have never looked back.";
+  const idkAnswer = "I do not know.";
+  const idkWithFloor = scoreAnswer(idkPassage, idkAnswer);
+  const idkWithoutFloor = NC_B.scoreAnswer(idkPassage, idkAnswer);
+  ok(`the real scorer holds "I do not know." to the evasive band (scored ${idkWithFloor})`,
+    idkWithFloor >= 0 && idkWithFloor <= 10);
+  ok(`...but WITHOUT the evasion floor, the same answer scores above 10 (scored ${idkWithoutFloor})`,
+    idkWithoutFloor > 10, `got ${idkWithoutFloor}`);
 }
 
 console.log(`\n${checks} checks, all pass.`);

@@ -13357,3 +13357,134 @@ CTE to an existing multi-line template-literal statement in this codebase
 and every other file built the same way) must run `node -c <file>` (or
 this project's `tsc`) after writing the comment, not only after writing
 the SQL, and must never use a markdown code-span backtick inside it.
+
+## `ws-r118-devanagari-matras-stripped-by-the-unicode-letter-class` (2026-09-05, WS-R118)
+
+**Tried.** Wired a negation-aware contradiction penalty into
+`api/_recall-run.js#scoreAnswer` (`RECALL_NEGATION_WORDS = ["not", "never",
+"नहीं"]`) and ran it against the Hindi half of a new keyed contradiction
+class — ten cases, each an answer that negates its own passage's claims
+near the same key terms.
+
+**What broke.** All ten scored 47-89, nowhere near the intended 0-20 band,
+and `hasContradiction` returned `false` on every one of them, even though
+the answer text visibly contained "नहीं" right next to the negated term.
+The cause was not in the new code at all: `normalizeWords`'s character
+filter, `[^\p{L}\p{N}\s]+` (kept Unicode Letter and Number, stripped
+everything else), had been silently mangling every Hindi token since
+WS-R101 shipped. Devanagari vowel signs and anusvara — the ी, ें, ं, ा,
+ि marks that turn a bare consonant cluster into a real word — are Unicode
+category `\p{M}` (Mark), not `\p{L}` or `\p{N}`, so the filter stripped
+them as if they were punctuation. "नहीं" normalized to "नह"; a negation
+check comparing against the literal string "नहीं" could never match
+anything, ever, on any Hindi input. Confirmed directly: `nw("नहीं")` before
+the fix returns `["नह"]`; after adding `\p{M}` to the kept class, it
+returns `["नहीं"]`.
+
+**Why it survived undetected since WS-R101.** Passage and answer are always
+mangled by the SAME filter, so plain vocabulary-overlap and word-order
+scoring — the only two mechanisms `scoreAnswer` had before this
+workstream — happened to keep working: two mangled versions of the same
+word still equal each other, and overlap/order counting does not care what
+a token actually contains, only whether two of them match. No prior code
+path in this file ever did an EXACT-STRING check against a literal Hindi
+word, so nothing had ever been positioned to expose the bug. The FIRST
+exact-string check on Hindi text this file ever wrote (the negation list)
+found it immediately.
+
+**Fix.** `normalizeWords`'s filter is now `[^\p{L}\p{M}\p{N}\s]+}` —
+kept Letter, Mark and Number, everything else stripped. This changes
+tokenization for every Hindi passage this scorer has ever processed, not
+only the new contradiction path; re-running the FULL 60-case keyed set
+(all six classes, both languages) after the fix still agrees 60/60, so the
+fix did not regress anything the earlier classes depended on. No
+production `vy_recall_run` row has ever been written outside a fake `db`
+(`context/STATE.md`'s LIVE table), so this fix changes no number a
+creator has ever actually seen.
+
+**Rule.** A Unicode character-class filter meant to keep "letters and
+numbers" for a SCRIPT WITH COMBINING MARKS (Devanagari, and most Indic
+and Southeast Asian scripts) must include `\p{M}` or it silently
+corrupts every word in that script while looking, to overlap-style
+scoring, like it's working fine. Grep this repo for `\p{L}` or `\\p\{L\}`
+before adding a SECOND exact-string check on non-Latin text anywhere in
+this codebase; the same defect could be sitting in any file that never
+happened to need one before.
+
+## `ws-r118-negation-window-false-flagged-a-positive-contrast-term` (2026-09-05, WS-R118)
+
+**Tried.** The first draft of the `EP[5]`/`HP[5]` base passages in
+`evals/recall-run/keyed.mjs` carried their own embedded negation as
+legitimate content — "...a good meal always starts with patience and never
+with a shortcut" — on the theory that a scorer should tolerate a passage
+that happens to use "never" honestly. A correct, otherwise-unremarkable
+PARTIAL answer for that passage ("...who insisted on patience", no
+negation at all) was then capped to 15 by the new contradiction penalty —
+wrong by a wide margin against the intended 40-70 band.
+
+**What broke.** `hasContradiction`'s window (4 tokens) does not parse
+grammar; it flags any shared key term that falls within the window of a
+negation marker on EITHER side. In "...starts with patience and never
+with a shortcut", "shortcut" is correctly the term "never" negates, but
+"patience" — the term the CONTRAST is drawn against, not the term being
+denied — sat only two tokens from "never" and got flagged too. The partial
+answer shares "patience" with the passage; the passage's own copy of
+"patience" was (wrongly) marked negated, the answer's was not, and the
+mismatch tripped the contradiction cap on a completely truthful answer.
+
+**Fix.** Rewrote `EP[5]`/`HP[5]` to drop the "...and never with a
+shortcut" clause entirely, so the base passage carries no negation of its
+own; the contradiction class for passage 5 (`en-contra-5`/`hi-contra-5`)
+instead introduces FRESH negation only inside the answer, never baked into
+the ground-truth passage. This is a fixture fix, not a scorer fix — the
+underlying limitation (a flat token window cannot distinguish "the term
+being denied" from "the term a denial is merely near") is real and stays
+documented as a limit on `hasContradiction` itself
+(`context/decisions.md#ws-r118-recall-scorer-calibrated-against-a-keyed-
+set`), not silently designed around.
+
+**Rule.** A negation-window check over raw token distance will
+false-flag a POSITIVE term that sits near a negation aimed at something
+else nearby (a contrast, "X but not Y" naming X first). Do not build a
+keyed passage whose OWN ground truth contains a negation next to a term
+that should read as affirmed — it manufactures a test the scorer cannot
+pass honestly. If a future workstream needs a passage that genuinely
+DOES contain internal negation of some of its own claims, that passage's
+own key terms need to be excluded from `hasContradiction`'s shared-term
+comparison by construction (e.g. scoping the window to the SAME clause,
+which needs real clause boundaries — sentence-final punctuation, at
+minimum — not a token count), never patched around per-passage.
+
+## `ws-r118-performance-budget-flaky-under-heavy-sibling-load` (2026-09-05, WS-R118)
+
+**Measured, not fixed; not caused by this workstream.**
+`node scripts/check-performance.mjs`, run three times over roughly ten
+minutes while this workstream's own `verify-release.mjs` and numerous
+sibling worktrees' gates ran concurrently on the same machine (`uptime`
+load average 17.1-19.7 across the three runs, on a 4-core box —
+4-5x oversubscribed): run 1 (inside the full `verify-release.mjs`) failed
+on `studio-hi` alone (TBT 439ms > 300ms budget); run 2 (standalone) failed
+on BOTH `/vyakti` (TBT 309ms) and `studio-hi` (TBT 353ms); run 3
+(standalone) failed on `studio-hi` alone again (TBT 467ms). Every other
+target and metric passed on all three runs (LCP, CLS, JS/CSS/font
+transfer, blocking-resource counts all within budget throughout) — only
+Total Blocking Time, the one metric that is pure main-thread CPU time
+under Chromium CDP throttling, moved, and it moved on a DIFFERENT
+combination of targets each run. This workstream touches
+`api/_recall-run.js`, `api/_readiness.js` and files under `evals/`
+only — confirmed by grep that no file under `src/` imports either changed
+API module (three references found, all comments/mirrored-constant
+citations, `context/decisions.md`'s own entries above cite them) — so
+nothing in this workstream's diff can move a client bundle's TBT. This
+compounds, rather than introduces, the finding
+`context/rejected.md#ws-r106-studio-hindi-chunk-wait-measured-870-879ms-
+against-800-budget` already logged for the same `studio-hi` target under a
+DIFFERENT metric (chunk-wait, not TBT) at a much lower load average
+(2.5-2.8); `context/decisions.md#ws-r106-hindi-chunk-wait-miss-flagged-
+not-fixed` is the standing precedent this entry follows rather than
+re-deriving: measure, name the cause, leave the gate's own budget for the
+main loop to move, never adjust a shipping gate's number from inside one
+workstream's own scope. Not this workstream's to fix (its brief names the
+recall scorer only); flagged so the main loop does not read a
+`performance budgets` failure on this branch as a regression this
+workstream shipped.

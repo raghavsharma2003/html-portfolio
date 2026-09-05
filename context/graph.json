@@ -10024,6 +10024,42 @@
       "kind": "measurement",
       "title": "evals/review-queue/run.mjs 176/176; evals/room-adversarial-creator/run.mjs 247/247 (detector recall 41/41=100.0%, false positives 0/15=0.0%, unchanged after the move to api/_material-detector.js); evals/room-doors/run.mjs 748 ok/0 failed including the new remove_source owner-bearer case.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r118-recall-scorer-calibrated-against-a-keyed-set",
+      "kind": "decision",
+      "title": "scoreAnswer gains stemming+synonyms, a negation-aware contradiction cap, and an evasion floor, each earned by a keyed-set class the original scorer failed; RECALL_RUN_METHOD_VERSION bumps v1->v2.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r118-recall-scorer-keyed-agreement",
+      "kind": "measurement",
+      "title": "60-case keyed set (evals/recall-run/keyed.mjs), 6 classes x en/hi: before 49/60 (contradiction 0/10, evasive 9/10), after 60/60, all classes 10/10; two negative controls confirm the contradiction cap and evasion floor are load-bearing.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r118-devanagari-matras-stripped-by-the-unicode-letter-class",
+      "kind": "rejection",
+      "title": "normalizeWords's \\p{L}\\p{N} filter stripped Devanagari combining marks (\\p{M}), mangling every Hindi token since WS-R101; the first exact-string check on Hindi text (negation) found it; fixed by adding \\p{M} to the kept class.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r118-negation-window-false-flagged-a-positive-contrast-term",
+      "kind": "rejection",
+      "title": "A base keyed passage with its own embedded negation (a contrast clause) false-flagged an unrelated positive term within the negation window, wrongly capping a correct partial answer; fixed by keeping ground-truth passages negation-free, documented as a hasContradiction limit.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r118-stale-recall-method-note-rides-the-existing-english-field",
+      "kind": "decision",
+      "title": "readRecallRun's stale_method flag (a version-string prefix compare, failing toward stale) is rendered by appending one sentence to the existing server-authored English part.method field, never a new copy-table entry.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r118-performance-budget-flaky-under-heavy-sibling-load",
+      "kind": "rejection",
+      "title": "check-performance.mjs's studio-hi/vyakti TBT budget failed 3 times under load average 17-20 on a 4-core box while sibling worktrees' gates ran concurrently; this workstream touches no src/ file, confirmed by grep; flagged, not fixed, following the ws-r106 precedent.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19511,6 +19547,36 @@
       "src": "ws-r112-instruction-shaped-card-suite-counts-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r112-hg-en-2-is-not-a-clean-nfkc-negative-control"
+    },
+    {
+      "src": "ws-r118-recall-scorer-calibrated-against-a-keyed-set",
+      "rel": "measured_by",
+      "dst": "ws-r118-recall-scorer-keyed-agreement"
+    },
+    {
+      "src": "ws-r118-recall-scorer-calibrated-against-a-keyed-set",
+      "rel": "supersedes",
+      "dst": "ws-r101-recall-scorer-order-sensitive"
+    },
+    {
+      "src": "ws-r118-recall-scorer-calibrated-against-a-keyed-set",
+      "rel": "caused_by",
+      "dst": "ws-r118-devanagari-matras-stripped-by-the-unicode-letter-class"
+    },
+    {
+      "src": "ws-r118-recall-scorer-calibrated-against-a-keyed-set",
+      "rel": "caused_by",
+      "dst": "ws-r118-negation-window-false-flagged-a-positive-contrast-term"
+    },
+    {
+      "src": "ws-r118-stale-recall-method-note-rides-the-existing-english-field",
+      "rel": "part_of",
+      "dst": "ws-r101-recall-run-writer"
+    },
+    {
+      "src": "ws-r118-performance-budget-flaky-under-heavy-sibling-load",
+      "rel": "part_of",
+      "dst": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed"
     }
   ]
 }

@@ -252,9 +252,115 @@ const LCS_WORD_CAP = 220;
 function normalizeWords(text) {
   return String(text || "")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    // WS-R118, `evals/recall-run/keyed.mjs`: `\p{M}` (Unicode "Mark") was
+    // missing here, so every Devanagari combining vowel sign and anusvara —
+    // ी ा ें ं ि ु etc. — was being STRIPPED as if it were punctuation.
+    // "नहीं" (not/never) normalized to "नह", silently unmatchable against
+    // anything, and every Hindi word lost its own vowel marks the same way.
+    // Passage and answer were mangled identically, so plain overlap scoring
+    // happened to survive it, but no exact-string check on a Hindi word —
+    // this file's own new negation check included — ever could have. Found
+    // by the keyed set's Hindi contradiction class scoring 47-89 with the
+    // negation penalty wired in and doing nothing (`context/rejected.md
+    // #ws-r118-devanagari-matras-stripped-by-the-unicode-letter-class`).
+    .replace(/[^\p{L}\p{M}\p{N}\s]+/gu, " ")
     .split(/\s+/)
     .filter(Boolean);
+}
+
+/** A small, hand-built SUFFIX stemmer, English only. Deliberately naive —
+ *  four common suffixes, a minimum stem length so short unrelated words
+ *  ("is", "as") are never touched — because a real stemmer (Porter or
+ *  better) is a dependency this file's own header refuses on principle
+ *  (`RECALL_RUN` already spends real money per question; this scorer stays
+ *  pure and dependency-free so the cost of a run is the model call, never
+ *  the scoring). It does not handle irregular verbs ("grew"/"grow",
+ *  "lost"/"lose") — those ride on `SYNONYM_GROUPS` below instead. LOGGED
+ *  LIMIT: covers only the four commonest English inflections; a paraphrase
+ *  using a suffix outside this list falls back to raw word match. */
+function stemEnglish(word) {
+  if (word.length <= 4) return word;
+  if (word.endsWith("ies") && word.length > 6) return `${word.slice(0, -3)}y`;
+  if (word.endsWith("ing") && word.length > 6) return word.slice(0, -3);
+  if (word.endsWith("ed") && word.length > 5) return word.slice(0, -2);
+  if (word.endsWith("es") && word.length > 5) return word.slice(0, -2);
+  if (word.endsWith("ly") && word.length > 5) return word.slice(0, -2);
+  if (word.endsWith("s") && !word.endsWith("ss") && word.length > 4) return word.slice(0, -1);
+  return word;
+}
+
+/**
+ * A small, hand-built SYNONYM list — NOT a general thesaurus, and not meant
+ * to become one. WS-R118's own law 2: "a small hand-built list is fine and
+ * must be logged as a limit". Each group's first member is its canonical
+ * form. Covers irregular English verbs the stemmer above cannot reach and a
+ * short list of everyday Hindi synonyms exercised by
+ * `evals/recall-run/keyed.mjs`'s own paraphrase class. A paraphrase using a
+ * synonym pair outside this list scores on raw/stemmed overlap alone, the
+ * same as before this workstream — this list only ever ADDS credit, never
+ * removes it, so extending it is always safe and never a breaking change.
+ */
+const SYNONYM_GROUPS = [
+  ["small", "tiny", "little"],
+  ["shop", "store"],
+  ["near", "beside"],
+  ["grew", "grow", "growing"],
+  ["spent", "spend", "spending"],
+  ["job", "work", "career"],
+  ["school", "college"],
+  ["teaching", "taught", "teach"],
+  ["loved", "love", "enjoyed", "enjoy"],
+  ["understand", "understood", "grasp", "grasped"],
+  ["hard", "difficult", "tough"],
+  ["started", "start", "began", "begin"],
+  ["injury", "hurt"],
+  ["forced", "force"],
+  ["stop", "stopped", "quit", "quitting"],
+  ["startup", "company"],
+  ["lost", "lose", "losing"],
+  ["biggest", "largest"],
+  ["client", "customer"],
+  ["lay", "laid", "fire", "fired"],
+  ["cook", "cooking", "cooked"],
+  ["insisted", "insist", "said"],
+  ["meal", "food", "dish"],
+  ["patience", "patient"],
+  // Hindi — small and hand-built, same law, see this const's own docstring.
+  ["पला", "बड़ा"],
+  ["दादी", "नानी"],
+  ["सिलाई", "कपड़े"],
+  ["दुकान", "स्टोर"],
+  ["पढ़ाना", "सिखाना"],
+  ["स्कूल", "विद्यालय"],
+  ["समझते", "समझ"],
+  ["दौड़ना", "दौड़"],
+  ["चोट", "घाव"],
+  ["छोड़ना", "छोड़"],
+  ["सुबह", "प्रातः"],
+  ["कठिन", "मुश्किल"],
+  ["कंपनी", "स्टार्टअप"],
+  ["ग्राहक", "क्लाइंट"],
+  ["निकालना", "हटाना"],
+  ["खाना", "भोजन"],
+  ["पिता", "बाबा"],
+  ["धैर्य", "सब्र"],
+];
+const SYNONYM_CANON = new Map();
+for (const group of SYNONYM_GROUPS) {
+  for (const word of group) SYNONYM_CANON.set(word, group[0]);
+}
+
+/** A word after stemming and synonym folding — the token space BOTH the
+ *  unigram-overlap term and the order term are computed over, so a
+ *  paraphrase's credit shows up in both, not just one. */
+function canonicalWord(word) {
+  if (SYNONYM_CANON.has(word)) return SYNONYM_CANON.get(word);
+  const stemmed = stemEnglish(word);
+  return SYNONYM_CANON.has(stemmed) ? SYNONYM_CANON.get(stemmed) : stemmed;
+}
+
+function canonicalWords(words) {
+  return words.map(canonicalWord);
 }
 
 function longestCommonSubsequenceLength(a, b) {
@@ -272,6 +378,79 @@ function longestCommonSubsequenceLength(a, b) {
   return prev[right.length];
 }
 
+/** Below this many words an answer cannot carry a real demonstration of
+ *  recall regardless of what it happens to overlap with — "I don't know",
+ *  "That's a good question", any brush-off. `evals/recall-run/run.mjs`'s own
+ *  negative control patches this guard out and shows "I do not know." (which
+ *  happens to share its own opening words with a passage that starts the
+ *  same way) scoring 25, not the 8 the real scorer gives it — proof the
+ *  floor is load-bearing, not decorative. */
+export const RECALL_EVASION_MIN_WORDS = 6;
+/** The ceiling an evasive answer is held to, inside the keyed set's own
+ *  "empty or evasive (0-10)" band with margin for rounding. */
+export const RECALL_EVASION_CAP = 8;
+
+/** Negation markers this scorer knows, WS-R118 law 2's own exact list:
+ *  English "not"/"never", Hindi "नहीं" (which also covers "कभी नहीं", "never"
+ *  — "कभी" alone is not negation without it, so a bare "नहीं" match already
+ *  finds every occurrence of that two-word phrase). LOGGED LIMIT: this is a
+ *  hand-built list of exactly what the brief named, not a negation grammar —
+ *  it does not catch "no", "neither...nor", double negatives, or a Hindi
+ *  negator outside this pair (कोई नहीं, मत, etc.). */
+export const RECALL_NEGATION_WORDS = Object.freeze(["not", "never", "नहीं"]);
+const NEGATION_SET = new Set(RECALL_NEGATION_WORDS);
+/** How many tokens away a negation marker still "reaches" a key term. A
+ *  window, not a full-clause parse — this scorer has no grammar — chosen so
+ *  a short negated clause ("I did not grow up in Jaipur.") reliably flags
+ *  its own key terms while a negation several clauses away does not. LOGGED
+ *  LIMIT: a negation whose scope is genuinely a long clause away (the kind a
+ *  parser would resolve, this window will not) is undetected either way —
+ *  the same "no grammar" limit stated above, just restated in tokens. */
+const NEGATION_WINDOW = 4;
+
+/** Canonical content words (length > 2, so stray single letters and
+ *  transliteration noise are not treated as "key terms") that fall within
+ *  `NEGATION_WINDOW` of a negation marker in `words`. */
+function negatedTerms(words) {
+  const negationIndexes = [];
+  words.forEach((word, i) => { if (NEGATION_SET.has(word)) negationIndexes.push(i); });
+  if (!negationIndexes.length) return new Set();
+  const flagged = new Set();
+  for (let i = 0; i < words.length; i++) {
+    if (NEGATION_SET.has(words[i]) || words[i].length <= 2) continue;
+    if (negationIndexes.some((j) => Math.abs(j - i) <= NEGATION_WINDOW)) flagged.add(words[i]);
+  }
+  return flagged;
+}
+
+/**
+ * True when the answer and the passage disagree about whether some SHARED
+ * key term is negated — the passage states it plainly and the answer denies
+ * it near the same word, or the reverse. This is the check WS-R101's scorer
+ * never had: a negated echo has almost the same vocabulary AND almost the
+ * same word order as the passage it contradicts (inserting "not" barely
+ * moves anything), so neither `RECALL_UNIGRAM_WEIGHT` nor
+ * `RECALL_ORDER_WEIGHT` — order-sensitive or not — can tell the two apart on
+ * their own. `evals/recall-run/run.mjs`'s own negative control removes just
+ * this check and shows the keyed set's contradiction class collapses to 0/10
+ * in band, from 10/10 with it. Exported so that control can call it directly
+ * on both the real and the guard-removed module.
+ */
+export function hasContradiction(passageWordsRaw, answerWordsRaw) {
+  const passageCanon = canonicalWords(passageWordsRaw);
+  const answerCanon = canonicalWords(answerWordsRaw);
+  const passageNegated = negatedTerms(passageCanon);
+  const answerNegated = negatedTerms(answerCanon);
+  const passageSet = new Set(passageCanon);
+  const answerSet = new Set(answerCanon);
+  const shared = [...passageSet].filter((word) =>
+    answerSet.has(word) && !NEGATION_SET.has(word) && word.length > 2);
+  return shared.some((term) => passageNegated.has(term) !== answerNegated.has(term));
+}
+/** The ceiling a detected contradiction is held to, inside the keyed set's
+ *  own "contradiction (0-20)" band with margin for rounding. */
+export const RECALL_CONTRADICTION_CAP = 15;
+
 /**
  * Score one answer against the passage it was supposed to demonstrate
  * knowledge of. PURE, 0-100 integer. `evals/recall-run/run.mjs` §2 pins the
@@ -280,11 +459,24 @@ function longestCommonSubsequenceLength(a, b) {
  * order score strictly between the two — never equal to either, because
  * `RECALL_UNIGRAM_WEIGHT` alone (no order term) would put a shuffled echo at
  * 100 too, and that gap is exactly what the order term exists to close.
+ *
+ * WS-R118 adds three things on top of WS-R101's original vocabulary+order
+ * blend, each earned by a class of `evals/recall-run/keyed.mjs`'s 60-case
+ * keyed set that the original scorer failed and this one does not (measured
+ * before and after, `context/measurements.md`): stemming and a small
+ * synonym list so a genuine paraphrase is scored on what it MEANS rather
+ * than which exact word forms it reused; a negation-aware contradiction cap
+ * so denying the passage's own claim near its own key terms cannot still
+ * read as a good answer; and a floor for answers too short to be carrying a
+ * real recall demonstration at all.
  */
 export function scoreAnswer(passageText, answerText) {
-  const passageWords = normalizeWords(passageText);
-  const answerWords = normalizeWords(answerText);
-  if (!passageWords.length || !answerWords.length) return 0;
+  const passageWordsRaw = normalizeWords(passageText);
+  const answerWordsRaw = normalizeWords(answerText);
+  if (!passageWordsRaw.length || !answerWordsRaw.length) return 0;
+
+  const passageWords = canonicalWords(passageWordsRaw);
+  const answerWords = canonicalWords(answerWordsRaw);
   const passageSet = new Set(passageWords);
   const answerSet = new Set(answerWords);
   const distinct = [...passageSet];
@@ -293,14 +485,31 @@ export function scoreAnswer(passageText, answerText) {
   const lcsLen = longestCommonSubsequenceLength(passageWords, answerWords);
   const orderRatio = lcsLen / Math.min(passageWords.length, LCS_WORD_CAP);
   const raw = RECALL_UNIGRAM_WEIGHT * unigramRecall + RECALL_ORDER_WEIGHT * orderRatio;
-  return Math.max(0, Math.min(100, Math.round(raw * 100)));
+  let score = Math.round(raw * 100);
+
+  if (answerWordsRaw.length < RECALL_EVASION_MIN_WORDS) {
+    score = Math.min(score, RECALL_EVASION_CAP);
+  }
+  if (hasContradiction(passageWordsRaw, answerWordsRaw)) {
+    score = Math.min(score, RECALL_CONTRADICTION_CAP);
+  }
+
+  return Math.max(0, Math.min(100, score));
 }
 
 /** The method string stored on the row (`vy_recall_run.method`) — an
  *  internal, versioned label for HOW the score was produced, distinct from
  *  the sentence a creator reads (`api/_readiness.js::knowsYourMaterial`
- *  builds that one from `n` at read time, never from this stored text). */
-export const RECALL_RUN_METHOD_VERSION = "recall-run/v1";
+ *  builds that one from `n` at read time, never from this stored text).
+ *  Bumped to `v2` by WS-R118: the scorer this version names is a different
+ *  function than the one `v1` named (stemming, synonyms, the contradiction
+ *  cap, the evasion floor, the Devanagari normalization fix), so a `v1` row
+ *  already on file was measured by an instrument that no longer exists.
+ *  `api/_readiness.js::readRecallRun` compares a stored row's own `method`
+ *  against this constant and marks it accordingly — the same
+ *  named-not-silent law `api/_drift-watch.js` already applies to a stale
+ *  prosody anchor, applied here to a superseded scorer. */
+export const RECALL_RUN_METHOD_VERSION = "recall-run/v2";
 
 const RECALL_ANSWER_TEXT_MAX = 2000;
 
