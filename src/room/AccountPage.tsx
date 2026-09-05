@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { StudioSession } from "../studio/types";
 import type { RoomCopy, RoomLocale } from "./copy";
-import { withName, withPrice } from "./copy";
+import { withName, withPrice, withDuration, dormancyDurationLabel } from "./copy";
 import {
   RoomApiError,
   exportRoomData,
@@ -508,6 +508,16 @@ export default function AccountPage({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* WS-R75 (migration 119). Nothing renders when the creator has never
+          turned dormancy on - `settings.room.dormancy_days` is null in that
+          case, the same "null means off" contract the database column
+          itself carries. */}
+      {settings.room.dormancy_days != null && (
+        <p className="room-fine">
+          {withDuration(copy.dormancy.note, dormancyDurationLabel(settings.room.dormancy_days, locale))}
+        </p>
       )}
 
       <h3 className="room-checkins-subhead">{copy.account.dataTitle}</h3>

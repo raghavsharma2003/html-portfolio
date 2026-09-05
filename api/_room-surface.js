@@ -366,7 +366,8 @@ export async function roomBySlug(db, slug) {
     `select r.room_id, r.slug, r.replica_id, r.agent_id, r.owner_user_id,
             r.display_name, r.free_monthly_messages, r.paid_monthly_messages,
             r.paid_monthly_voice_seconds, r.handoff_enabled, r.handoff_monthly_cap,
-            r.default_locale, r.published_at, r.taste_enabled, r.one_line_bio, a.slug as agent_slug
+            r.default_locale, r.published_at, r.taste_enabled, r.one_line_bio,
+            r.dormancy_days, a.slug as agent_slug
        from vy_room r
        join vy_agent a on a.agent_id = r.agent_id
       where lower(r.slug) = $1
@@ -997,6 +998,16 @@ export async function joinRoom(
             -- with roomSetLocale - only the INSERT branch, a genuinely new
             -- follower, gets to set it at all.
             last_seen_at = now(),
+            -- WS-R75 (migration 119): a repeat join IS a visit, and a visit
+            -- always clears a pending dormancy notice - the one column this
+            -- workstream's own law 2 names. This is a defensive convenience,
+            -- never the correctness mechanism: `dormancyForgetDue`
+            -- (api/_dormancy.js) never trusts this column alone, it
+            -- re-checks `last_seen_at` against `dormancy_notice_at` directly,
+            -- so a follower who keeps talking without ever hitting `join`
+            -- again is provably safe even on a database where this line had
+            -- never shipped.
+            dormancy_notice_at = null,
             updated_at = now()
      returning follower_id, room_id, person_id, agent_id, joined_at, age_attested_at,
                memory_consent_at, tier, month_key, month_message_count, last_seen_at, locale`,
@@ -2179,6 +2190,27 @@ function ownershipSql(t) {
 
 export async function roomForget(db, { session }, deps = {}) {
   const who = await selfScope(db, session, deps);
+  return roomForgetCore(db, who, deps);
+}
+
+/**
+ * WS-R75 (migration 119). The dormancy sweep's own entry point into the
+ * SAME forget - every statement below, the same child-before-parent
+ * ordering, the same receipt. The only difference from `roomForget` above
+ * is where `who` comes from: a cron has no follower bearer token to read a
+ * session out of, so it hands over an already-resolved scope
+ * (`roomId`/`personId`/`agentId`/`slug`/`locale`, `selfScope`'s own return
+ * shape) instead of a session, and this skips straight to the shared core.
+ * "Forgotten through the REAL roomForget, never a second delete path" (this
+ * workstream's own law 2b) means literally this function - `evals/room-
+ * dormancy/run.mjs` asserts the two exported names resolve to the same
+ * underlying delete sequence rather than two copies that could drift.
+ */
+export async function roomForgetForFollower(db, who, deps = {}) {
+  return roomForgetCore(db, who, deps);
+}
+
+async function roomForgetCore(db, who, deps = {}) {
   const devices = await threadDeviceSet(db, who.roomId, who.personId, who.agentId);
   const deleted = {};
 
@@ -2903,7 +2935,16 @@ export async function roomSettings(db, { session }, deps = {}) {
   }
 
   return {
-    room: { slug: who.slug, name, display_name: resolved.room.display_name || name },
+    room: {
+      slug: who.slug,
+      name,
+      display_name: resolved.room.display_name || name,
+      // WS-R75 (migration 119). `null` means the creator has never turned
+      // dormancy on - the account page renders nothing in that case, never
+      // a guessed default. Read straight off `resolved.room` (`roomBySlug`'s
+      // own SELECT, widened by this workstream), never re-queried here.
+      dormancy_days: resolved.room.dormancy_days ?? null,
+    },
     disclosure,
     locale: who.locale,
     follower: clientFollower(follower, resolved.room),

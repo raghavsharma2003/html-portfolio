@@ -4289,3 +4289,21 @@ create table if not exists vy_room_reply_flag (
 );
 create index if not exists vy_room_reply_flag_room_reply_ix
   on vy_room_reply_flag (room_id, reply_sha256, created_at desc);
+
+-- Migration 119 - dormancy (WS-R75). No new person table - both columns
+-- ride an existing person-lane row. See the migration file's own header.
+alter table vy_room add column if not exists dormancy_days integer;
+
+alter table vy_room drop constraint if exists vy_room_dormancy_days_floor;
+alter table vy_room add constraint vy_room_dormancy_days_floor
+  check (dormancy_days is null or dormancy_days >= 180);
+
+alter table vy_room_follower add column if not exists dormancy_notice_at timestamptz;
+
+create index if not exists vy_room_follower_dormancy_due_ix
+  on vy_room_follower (room_id, last_seen_at)
+  where dormancy_notice_at is null;
+
+create index if not exists vy_room_follower_dormancy_notice_ix
+  on vy_room_follower (dormancy_notice_at)
+  where dormancy_notice_at is not null;

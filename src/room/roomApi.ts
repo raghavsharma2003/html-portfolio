@@ -423,7 +423,14 @@ export interface RoomSettingsPrice {
   currency: string;
 }
 export interface RoomSettings {
-  room: { slug: string; name: string; display_name: string };
+  room: {
+    slug: string;
+    name: string;
+    display_name: string;
+    // WS-R75 (migration 119). `null` means the creator has never turned
+    // dormancy on - AccountPage.tsx renders nothing in that case.
+    dormancy_days: number | null;
+  };
   disclosure: string;
   locale: "en" | "hi";
   follower: RoomFollower;

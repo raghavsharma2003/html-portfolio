@@ -2108,6 +2108,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "creator-export": "creator-export/run.mjs",
+  // WS-R75 (migration 119). Dormancy: a follower who has not visited for a
+  // year is told, then forgotten with a receipt, on a schedule the follower
+  // can see, behind a flag that is off. Drives the REAL `dormancyNoticeDue`/
+  // `dormancyForgetDue`/`dormancySweep` (api/_dormancy.js) and the REAL
+  // `roomForgetForFollower` (api/_room-surface.js) over a fake db: a
+  // follower past the notice threshold gets a notice and only a notice; a
+  // follower past the forget threshold with no visit since is forgotten
+  // through the SAME delete sequence a follower's own "forget me" op uses;
+  // `ROOM_DORMANCY` unset runs neither statement. TWO NEGATIVE CONTROLS: (a)
+  // a forget attempted with no prior notice is refused by the predicate
+  // itself (never reaches roomForgetForFollower); (b) a follower who visited
+  // AFTER their notice is never forgotten, even though the notice column was
+  // never cleared - the predicate's own timestamp comparison, not a cleared
+  // column, is what protects them.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-dormancy": "room-dormancy/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

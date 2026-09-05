@@ -1535,6 +1535,20 @@ console.log("\n── §16: the 27 preexisting-uncased owner-bearer ops (WS-R51)
   okClass("e-owner-bearer", "room-publish.js", "set_free_cap: the real owner's own write succeeds (the fixture is sound)", mine?.free_monthly_messages === 30);
 }
 {
+  // set_dormancy_days (WS-R75, migration 119) - `set_free_cap`'s own shape.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.setRoomDormancyDays(db, OWNER_B, REPLICA_ID, 365);
+  okClass("e-owner-bearer", "room-publish.js", "set_dormancy_days: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's policy", stolen == null);
+  ok("[e-owner-bearer/room-publish.js] set_dormancy_days: OWNER's own room is UNCHANGED by OWNER_B's attempt", state.rooms[0].dormancy_days == null);
+  const mine = await ROOM_PUBLISH.setRoomDormancyDays(db, OWNER, REPLICA_ID, 365);
+  okClass("e-owner-bearer", "room-publish.js", "set_dormancy_days: the real owner's own write succeeds (the fixture is sound)", mine?.dormancy_days === 365);
+  const belowFloor = await threw(() => ROOM_PUBLISH.setRoomDormancyDays(db, OWNER, REPLICA_ID, 30));
+  ok("[e-owner-bearer/room-publish.js] set_dormancy_days: a value below the floor is refused by name, never a raw constraint 500", belowFloor?.code === "room_dormancy_days_invalid");
+  const off = await ROOM_PUBLISH.setRoomDormancyDays(db, OWNER, REPLICA_ID, null);
+  ok("[e-owner-bearer/room-publish.js] set_dormancy_days: null turns the policy back off", off?.dormancy_days === null);
+}
+{
   const state = freshDoorsState();
   const db = doorsDb(state);
   const stolen = await ROOM_PUBLISH.setRoomPaidCeilings(db, OWNER_B, REPLICA_ID, { messages: 700, voiceSeconds: 2400 });
@@ -2044,6 +2058,8 @@ const OP_COVERAGE = {
     set_default_locale: { classes: ["e"] },
     set_bio: { classes: ["e"] },
     set_taste_enabled: { classes: ["e"] },
+    // WS-R75 (migration 119).
+    set_dormancy_days: { classes: ["e"] },
     list: { classes: ["e"] },
     unlist: { classes: ["e"] },
     stats: { classes: ["e"] },

@@ -104,6 +104,35 @@ export const withPrice = (template: string, priceLabel: string) => template.spli
  *  formatted ("12 Sep 2026") by the caller. */
 export const withDate = (template: string, dateLabel: string) => template.split("{date}").join(dateLabel);
 
+/** WS-R75 (migration 119). `dormancy.note`'s `{duration}` placeholder,
+ *  `withDate`'s own shape. `durationLabel` is already formatted by
+ *  `dormancyDurationLabel` below. */
+export const withDuration = (template: string, durationLabel: string) =>
+  template.split("{duration}").join(durationLabel);
+
+/**
+ * A whole number of days, rendered as whole years or whole months where
+ * the number divides evenly, and as days otherwise - never the raw number
+ * of days when a rounder word says the same thing ("a year", never "365
+ * days"). `days` is always >= 180 here (migration 119's own floor) or the
+ * caller does not render this sentence at all.
+ */
+export function dormancyDurationLabel(days: number, locale: RoomLocale): string {
+  const n = Math.round(Number(days));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n % 365 === 0) {
+    const years = n / 365;
+    if (locale === "hi") return years === 1 ? "एक साल" : `${years} साल`;
+    return years === 1 ? "a year" : `${years} years`;
+  }
+  if (n % 30 === 0) {
+    const months = n / 30;
+    if (locale === "hi") return `${months} महीने`;
+    return `${months} months`;
+  }
+  return locale === "hi" ? `${n} दिन` : `${n} days`;
+}
+
 const EN = {
   /** While the address is resolving. Not a spinner's label: it says what is
    *  happening rather than that something is. */
@@ -521,6 +550,14 @@ const EN = {
     withdrawnStatus: "You took this back.",
     answeredFrom: "From {name}:",
   },
+
+  /** WS-R75 (migration 119). One sentence, only when the Room has a policy
+   *  set (`AccountPage.tsx` renders nothing when `dormancy_days` is null).
+   *  `{duration}` is filled by `dormancyDurationLabel` below, never a raw
+   *  day count - "a year", never "365 days". */
+  dormancy: {
+    note: "Kept until {duration} after your last visit.",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -839,6 +876,10 @@ const HI: typeof EN = {
     sentStatus: "भेजा गया, जवाब का इंतज़ार है।",
     withdrawnStatus: "आपने इसे वापस ले लिया।",
     answeredFrom: "{name} की ओर से:",
+  },
+
+  dormancy: {
+    note: "आपकी आख़िरी विज़िट के {duration} बाद तक रखा जाएगा।",
   },
 };
 

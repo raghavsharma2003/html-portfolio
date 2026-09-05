@@ -15,6 +15,9 @@
 //                                                    bio (WS-R45)
 //   POST /api/room-publish {op:"set_taste_enabled"} the three-question taste
 //                                                    switch, per Room (WS-R53)
+//   POST /api/room-publish {op:"set_dormancy_days"} the retention policy -
+//                                                    null (off) or an integer
+//                                                    days floor (WS-R75)
 //   POST /api/room-publish {op:"list"}           opt in to the creator
 //                                                    directory, refused
 //                                                    unless published (WS-R45)
@@ -47,6 +50,7 @@ import {
   setRoomDefaultLocale,
   setRoomBio,
   setRoomTasteEnabled,
+  setRoomDormancyDays,
   listRoom,
   unlistRoom,
   ownerRoomStats,
@@ -160,6 +164,13 @@ async function handler(req, res) {
       const room = await setRoomTasteEnabled(q, user.id, replicaId, body.enabled === true);
       if (!room) return notFound(res);
       obsBestEffort("room_publish.set_taste_enabled", { enabled: room.taste_enabled });
+      return res.status(200).json({ room });
+    }
+
+    if (op === "set_dormancy_days") {
+      const room = await setRoomDormancyDays(q, user.id, replicaId, body.days ?? null);
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.set_dormancy_days", { dormancy_days: room.dormancy_days });
       return res.status(200).json({ room });
     }
 
