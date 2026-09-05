@@ -132,6 +132,24 @@ export const DEFAULT_LIMITS = {
   // the abuse shape this bounds is one account hammering its OWN export,
   // never a cross-account concern the way `room_open_ip` guards against.
   creator_export_owner: { limit: 1, windowMs: 24 * 60 * 60_000 },
+  // WS-R89 (the second door battery, class d): a Telegram redelivery of the
+  // SAME `update_id` — real, correctly-signed, Telegram's OWN retry policy
+  // on a slow or non-2xx response, never a third party (the shared secret
+  // already refuses anyone else) — would otherwise double-spend a
+  // follower's monthly cap and send a second reply
+  // (`handleOrdinaryMessage` -> `roomSay`, metered exactly as the web door
+  // is). Keyed on `update_id` with limit 1: the FIRST delivery consumes the
+  // slot, every later one this window is a no-op. THIS IS A BOUNDED
+  // MITIGATION, NOT A PERMANENT LEDGER — `purgeStalePublicRateWindows`'s own
+  // default retention is 24 hours regardless of a scope's own `windowMs`
+  // (`api/_checkins.js`'s sweep calls it with no override), so the window
+  // below is set well under that ceiling rather than claiming a longer one
+  // the retention sweep would silently undercut —
+  // `context/decisions.md#ws-r89-telegram-update-dedup-is-a-bounded-window-
+  // not-a-permanent-ledger` states the honest limit and what would close it
+  // for good (a real per-update_id table, which needs a migration this
+  // workstream does not have).
+  room_tg_update_seen: { limit: 1, windowMs: 3 * 60 * 60_000 },
 };
 
 /**

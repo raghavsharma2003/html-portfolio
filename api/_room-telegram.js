@@ -67,6 +67,7 @@ import {
 } from "./_room-surface.js";
 import { personForSurfaceUser, linkSurfacePerson } from "./_room.js";
 import { activeProviderName } from "./_payments.js";
+import { consume } from "./_rate-limit.js";
 
 /** Telegram's own hard limit on a text message body - `roomSay`'s own bubbles
  *  are split at 4000 (`ROOM_TEXT_LIMIT`, api/_room-surface.js), which already
@@ -779,6 +780,20 @@ export async function handleRoomTelegramUpdate(update, deps = {}) {
   if (typeof db !== "function") throw new RoomError("room_db_required", 500);
   const env = deps.env ?? process.env;
   const now = deps.now ?? Date.now();
+
+  // WS-R89 (the second door battery, class d): refuse a redelivered
+  // `update_id` as a no-op — `api/_rate-limit.js`'s own header on the
+  // `room_tg_update_seen` scope states exactly what this does and does not
+  // guarantee (a bounded window, not a permanent ledger). `deps.consume` is
+  // injectable, `assertSessionFresh`'s own shape, so an offline eval can
+  // drive this with a fake counter without a real `vy_public_rate` table.
+  const consumeFn = deps.consume ?? consume;
+  const updateId = update?.update_id;
+  if (Number.isInteger(updateId)) {
+    const seen = await consumeFn(db, { scope: "room_tg_update_seen", key: String(updateId), now, env });
+    if (!seen.ok) return { ok: true, skipped: "duplicate_update" };
+  }
+
   const tg = deps.tg ?? defaultRoomTelegramClient(String(env.ROOM_TELEGRAM_BOT_TOKEN || ""));
   const ctx = {
     findPerson: deps.personForSurfaceUser ?? personForSurfaceUser,
