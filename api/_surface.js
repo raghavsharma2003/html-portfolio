@@ -43,6 +43,7 @@
 // A degraded persona that still replies is the `silent-truncation` shape — it
 // works, everything returns 200, and she is quietly someone else.
 import { q } from "./_db.js";
+import { OPENROUTER_KEY } from "./_config.js";
 import { MEERA_AGENT_ID } from "./_agentscope.js";
 // WS-R4. The owner's "Never say this" rules, as a predicate on the assembled
 // reply. `api/_never-rules.js` imports NOTHING, on purpose: this file is on
@@ -284,7 +285,16 @@ export async function loadEngine() {
  *  `system_tail`. One copy for every surface — a second copy is a second set
  *  of sampling parameters nobody remembers to keep in step. */
 export async function think(engine, compiled, turns) {
-  const key = process.env.OPENROUTER_API_KEY || "";
+  // The SAME read every other completion caller in api/ makes (`chat.js`,
+  // `memory.js`, `speech.js`, `search.js`, `culture.js`, `_embed.js`): the
+  // env alias first, then the key `scripts/write-config.mjs` bakes into
+  // `_config.js` under the name the self-check verifies (`OPENROUTER_KEY`,
+  // `api/_self-check.js`'s REQUIRED_ENV). From 2026-09-03 to 2026-09-05
+  // this door read the alias ALONE, so a deployment with the required name
+  // set and the alias unset passed its own self-check while every Room,
+  // Mirror Call and channel reply came back empty (WS-R96's finding,
+  // `docs/gurukul/DAY-ONE.md`'s section 2).
+  const key = process.env.OPENROUTER_API_KEY || OPENROUTER_KEY || "";
   const body = {
     model: "google/gemini-3.6-flash",
     messages: [

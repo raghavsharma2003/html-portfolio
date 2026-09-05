@@ -17,8 +17,8 @@
 // English, the disclosure, the referral link) -> a SECOND browser context
 // opens the referral link and joins (the referral row lands, self-referral
 // is refused) -> export -> forget.
-import { existsSync } from "node:fs";
 import { startHarness } from "./harness.mjs";
+import { launchRehearsalBrowser } from "./browser.mjs";
 
 const FULL = process.argv.includes("--full");
 const STATE_KEY = "meera.state.v1";
@@ -423,24 +423,20 @@ async function runJourney({ harness, browser, locale, gate }) {
 }
 
 export async function main() {
-  let chromium;
-  try {
-    ({ chromium } = await import("playwright"));
-  } catch {
-    console.log("SKIP: playwright not installed");
+  // The one launch both rehearsals share (`./browser.mjs`): a named binary,
+  // else Playwright's full build by channel, else a SKIP by name — probed
+  // BEFORE the harness builds `dist/`, so a runner with no browser (the
+  // build workflow) spends nothing on a walk it cannot take.
+  const launched = await launchRehearsalBrowser();
+  if (!launched.browser) {
+    console.log(`SKIP: ${launched.reason} — the release gate runs this walk with a real Chromium`);
     return 0;
   }
-  const executablePath = [process.env.CHROMIUM_PATH, "/opt/pw-browsers/chromium"].find(
-    (p) => p && existsSync(p),
-  );
+  const browser = launched.browser;
 
   const t0 = Date.now();
   const harness = await startHarness({ build: true });
   console.log(`harness up at ${harness.url}`);
-
-  const browser = await chromium.launch(
-    executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] },
-  );
 
   try {
     await runJourney({ harness, browser, locale: "en", gate: "en" });

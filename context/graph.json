@@ -9394,6 +9394,18 @@
       "kind": "measurement",
       "title": "studio-hi JS transfer 163.0KB after AuthGate's move into copy.ts (was 161.4-162.9KB), 17KB under the 180KB budget; Hindi chunk grew to 172.22KB source / 38.22KB gzipped.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rehearsals-launched-a-fixed-chromium-path-and-failed-the-build-workflow",
+      "kind": "rejection",
+      "title": "The build workflow, which installs no browser, failed both rehearsal suites on 959b118 with an uncaught launch error; one shared launcher now tries a named binary, then Playwright's full build by channel, then skips by name, reproduced with an empty bind mount over /opt/pw-browsers.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "surface-think-falls-back-to-the-config-key-like-every-other-door",
+      "kind": "decision",
+      "title": "think() reads OPENROUTER_API_KEY then the config's OPENROUTER_KEY, the same read every other completion caller makes, so the self-check's required-name check covers the one door every Room reply uses.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18346,6 +18358,16 @@
       "src": "ws-r91-authgate-reads-locale-before-sign-in",
       "rel": "constrains",
       "dst": "ws-r91-studio-lang-switch-needs-its-own-opaque-backdrop-on-the-hero"
+    },
+    {
+      "src": "rehearsals-launched-a-fixed-chromium-path-and-failed-the-build-workflow",
+      "rel": "caused_by",
+      "dst": "room-push-chromium-headless-shell-shows-no-notification"
+    },
+    {
+      "src": "surface-think-falls-back-to-the-config-key-like-every-other-door",
+      "rel": "caused_by",
+      "dst": "ws-r96-day-one-runbook"
     }
   ]
 }

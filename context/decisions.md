@@ -17721,3 +17721,24 @@ pseudo-element layering entirely), this override becomes redundant rather
 than wrong — safe to remove once confirmed the walker sees the real
 ancestor background directly. Until then, removing it re-introduces the
 same undefined-background gap this decision fixes.
+
+## `surface-think-falls-back-to-the-config-key-like-every-other-door` (2026-09-05, main loop, at the WS-R96 merge)
+
+**Decision.** `api/_surface.js`'s `think()`, the one completion call every
+Room, Mirror Call and channel reply leaves by, reads
+`process.env.OPENROUTER_API_KEY` and then `_config.js`'s `OPENROUTER_KEY`,
+the identical read `chat.js`, `memory.js`, `speech.js`, `search.js`,
+`culture.js` and `_embed.js` make.
+
+**Why.** From 2026-09-03 it read the env alias alone. `OPENROUTER_KEY` is
+the name `scripts/write-config.mjs` requires at deploy and the name the
+self-check verifies every morning, so a deployment with the required name
+set and the alias unset passed its own self-check while every Room reply
+came back empty, silently (WS-R96 found it by reading the code for the
+day-one runbook; `docs/gurukul/DAY-ONE.md` section 2). A self-check that
+verifies a name no door reads is a clean line that proves nothing.
+
+**Reversal.** If the completion key ever needs to differ per product
+(Meera's and Vyakti's spend on two accounts), split it by a NEW name both
+the door and the self-check carry, never by an alias only one of them
+knows.

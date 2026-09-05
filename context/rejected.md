@@ -12370,3 +12370,34 @@ Re-measured after the fix: real, varying `firstHindiPaintMs` values
 (586-1006ms across separate runs on this session's own heavily shared
 sandbox — see `context/measurements.md#ws-r91-first-hindi-paint-2026-09-05`),
 never a repeated `null`.
+
+## `rehearsals-launched-a-fixed-chromium-path-and-failed-the-build-workflow` (2026-09-05, main loop, at the CI run on `959b118`)
+
+**Tried.** WS-R94 and WS-R95 launched Chromium the way this container
+does it: a fixed `/opt/pw-browsers` path if it exists, else Playwright's
+default launch. Both suites were registered in `evals/run.mjs`, which two
+workflows run: the release gate (`release-gate.yml`, which installs
+Playwright's browsers) and the build workflow (`build-apk.yml`, which
+installs none and never did, because every suite it ran before this wave
+was offline).
+
+**What broke.** The build workflow's eval suite failed on exactly the two
+rehearsals: no `/opt/pw-browsers`, no `~/.cache/ms-playwright`, so the
+default launch threw "Executable doesn't exist" and each suite died with an
+uncaught exception. The release gate, one workflow over, had passed the
+same commit. The same shape as the room-push failure four hours earlier
+(`rejected.md#room-push-chromium-headless-shell-shows-no-notification`),
+one step further along: not the wrong browser, no browser.
+
+**What to do differently.** One launcher for both rehearsals
+(`evals/rehearsal/browser.mjs`): a named binary if one exists, else
+Playwright's FULL build by channel, else a SKIP by name and exit 0, probed
+before any harness builds `dist/`. The skip is honest only because the
+release gate, which carries a browser, runs the identical registry on every
+push; a suite that needs a browser must say which workflow proves it.
+Reproduced the build runner faithfully by bind-mounting an empty directory
+over `/opt/pw-browsers` in a private mount namespace with an empty
+`PLAYWRIGHT_BROWSERS_PATH`: both suites skip by name, exit 0; on the
+container both walk in full. A `CHROMIUM_PATH=/nonexistent` simulation was
+NOT enough, because the fixed path still existed, and the first "test" of
+this fix passed for the wrong reason.

@@ -57,7 +57,6 @@
 // the floor is SEEDED (see the "crosses the floor" step below), never
 // computed. Logged to context/rejected.md and context/decisions.md.
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -73,11 +72,20 @@ function ok(name, cond, extra = "") {
   else { fail++; failures.push(name); console.log(`FAIL  ${name}${extra ? `   ${extra}` : ""}`); }
 }
 
-const { chromium } = await import("playwright");
-const executablePath = [
-  process.env.CHROMIUM_PATH,
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-].find((p) => p && existsSync(p));
+// The one launch both rehearsals share (`./browser.mjs`): a named binary,
+// else Playwright's full build by channel, else a SKIP by name — probed
+// BEFORE any harness builds `dist/`, so a runner with no browser (the build
+// workflow, which installs none) spends nothing on a walk it cannot take.
+// The release gate carries a real Chromium and runs this same registry.
+const { launchRehearsalBrowser } = await import(pathToFileURL(join(ROOT, "evals/rehearsal/browser.mjs")).href);
+{
+  const probe = await launchRehearsalBrowser();
+  if (!probe.browser) {
+    console.log(`SKIP: ${probe.reason} — the release gate runs this walk with a real Chromium`);
+    process.exit(0);
+  }
+  await probe.browser.close();
+}
 
 const { startCreatorHarness, REHEARSAL_OWNER_TOKEN, REHEARSAL_OWNER } = await import(
   pathToFileURL(join(ROOT, "evals/rehearsal/harness-creator.mjs")).href
@@ -94,9 +102,12 @@ async function walkLocale(locale) {
   const state = freshRehearsalCreatorState();
   const db = rehearsalCreatorDb(state);
   const { url, stop } = await startCreatorHarness({ db });
-  const browser = await chromium.launch(
-    executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] },
-  );
+  const launched = await launchRehearsalBrowser();
+  if (!launched.browser) {
+    await stop();
+    throw new Error(`chromium launched for the probe above but not for the ${locale} walk: ${launched.reason}`);
+  }
+  const browser = launched.browser;
   const gapNotes = [];
 
   try {

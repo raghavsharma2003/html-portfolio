@@ -85,23 +85,24 @@ exactly two names in this whole runbook: `OPENROUTER_KEY` and `NEON_URL`.**
 Every other step below is `manual:` for this reason, not because nobody
 thought to wire it.
 
-### 2. The one name that IS checked is not the one the product actually calls
+### 2. The one name that IS checked was not the one the product actually called (closed at this runbook's merge, 2026-09-05)
 
-One specific instance of gap 1 is worth naming by itself, because it can pass
-self-check's one useful check while the product stays fully dark:
+One specific instance of gap 1 was worth naming by itself, because it could
+pass self-check's one useful check while the product stayed fully dark:
 `api/_surface.js`'s `think()` — the ONE completion call every Room reply,
-every Mirror Call reply, and every channel message routes through — reads
+every Mirror Call reply, and every channel message routes through — read
 **only** `process.env.OPENROUTER_API_KEY`, a name self-check does not check
-at all, with no fallback to `OPENROUTER_KEY`. (`api/chat.js` is the one
-caller that DOES fall back to `OPENROUTER_KEY`, which is why Meera's direct
-chat and a Room's `say` can fail in two different, easy-to-conflate ways —
-see `docs/gurukul/ENV-MANIFEST.md` §25's own two-failure-shape note.) Set
-`OPENROUTER_KEY` alone, and self-check reports **clean** while every follower
-in every Room still gets back an empty reply from `think()`, silently,
-because the honesty gate downstream of an empty completion has no way to know
-the empty string came from a missing key rather than a real, considered
-silence. Step 6 below names this explicitly; do not treat step 7's clean
-self-check line as proof step 6 is also done.
+at all, with no fallback to `OPENROUTER_KEY`, while `api/chat.js` and every
+other completion caller in `api/` fell back to `OPENROUTER_KEY`. Set
+`OPENROUTER_KEY` alone, and self-check reported **clean** while every
+follower in every Room got back an empty reply from `think()`, silently,
+because the honesty gate downstream of an empty completion has no way to
+know the empty string came from a missing key rather than a real, considered
+silence. **Fixed the day this runbook merged:** `think()` now reads the
+alias first and then the config's `OPENROUTER_KEY`, the same read every
+other door makes (`context/rejected.md#surface-think-read-the-env-alias-alone`),
+so step 7's self-check line now covers step 6 as well; step 6 stays in the
+table as the optional override it always was.
 
 ## How `scripts/day-one.mjs` proves each step
 
@@ -156,7 +157,7 @@ script by design, not a defect the script found).
 | 3 | Migrations 015 through 125 applied | none (schema, not env) | the Neon database step 2 points at | $0 | self-check:door:vy_room missing | ops door reports no `migration 071: vy_room missing` finding (`node db/migrations/apply.mjs` plus `node scripts/relcheck.mjs`, per `docs/gurukul/DEPLOY.md` Phase 1); this door only appears at all once step 2's own database answers `select 1` | every Room-specific API 500s even though generic ones (auth, Meera) work; the exact half-migrated state `relcheck.mjs` exists to catch |
 | 4 | `CRON_SECRET` | `CRON_SECRET` | html-portfolio (where the cron schedule actually runs, per this file's own Vercel-projects section) | $0 | manual: open the Vercel dashboard's Cron Jobs tab for html-portfolio (self-check's REQUIRED_ENV/OPTIONAL_ENV lists deliberately exclude CRON_SECRET, ENV-MANIFEST §15, and probe-live's cron section proves only the REFUSAL SHAPE, never that a secret is configured, since it never sends one) | the last invocation of each of the twelve `vercel.json` cron entries reads 200, not 401/403 | all five replica sweeps, the self-check sweep itself, and every other cron 401 forever, on schedule, with nothing surfaced anywhere but a Vercel invocation log nobody is watching (the exact failure `SPEC-GURUKUL.md` §4 named) |
 | 5 | `OPS_OWNER_USER_IDS`, plus a real sign-in for that account | `OPS_OWNER_USER_IDS` | html-portfolio (or wherever the operator actually signs in and calls `/api/ops`) | $0 | manual: sign in as the allowlisted account, then call `GET /api/ops` with that session's bearer | the response is 200 rather than the courtesy 404 an unconfigured or non-allowlisted caller gets | every `self-check:` row below this one stays `unknown: no operator bearer given` forever, and the ops board itself (funnel, incidents, sweeps) has no reader |
-| 6 | `OPENROUTER_API_KEY` — the completion door every Room reply actually uses | `OPENROUTER_API_KEY` | vyakti-replica-lab | $0 to configure; per-token spend once real traffic runs, no budget fence on this specific path today | manual: NAMED SELF-CHECK BLIND SPOT, see this file's own section 2 above — run `node scripts/first-room.mjs` through to `follower-say` | the follower-say stage's `reply` field is non-empty | `api/_surface.js`'s `think()` returns an empty string on every call; a Room, a Mirror Call reply and every channel message all go silent with no named error anywhere, and step 7 below can report clean at the same time |
+| 6 | `OPENROUTER_API_KEY` — an optional override for the completion door every Room reply uses; since 2026-09-05 `think()` falls back to step 7's `OPENROUTER_KEY`, the same read every other door makes (this file's own section 2) | `OPENROUTER_API_KEY` (optional) | vyakti-replica-lab | $0 to configure; per-token spend once real traffic runs, no budget fence on this specific path today | manual: run `node scripts/first-room.mjs` through to `follower-say` once step 7 is done — the one proof that a reply actually comes back | the follower-say stage's `reply` field is non-empty | nothing on its own: with step 7 set, `api/_surface.js`'s `think()` has a key; with BOTH unset it returns an empty string on every call and a Room, a Mirror Call reply and every channel message go silent with no named error anywhere |
 | 7 | `OPENROUTER_KEY` — the name self-check actually checks, and `api/chat.js`'s own fallback | `OPENROUTER_KEY` | vyakti-replica-lab | same budget as step 6 | self-check:env:OPENROUTER_KEY | ops door reports no `env: OPENROUTER_KEY missing` finding | `api/chat.js`'s direct chat endpoint answers `500 {"error":"no key configured"}` by name; unrelated to step 6's failure mode, and both are real gaps at once until both names are set |
 | 8 | Replica private storage: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` (optional, defaults to `vyakti-replica-private`) | vyakti-replica-lab | $0 on the existing Supabase project's free storage tier for Phase 0's volumes | manual: NAMED SELF-CHECK BLIND SPOT, see this file's own section 1 above — run `node scripts/first-room.mjs`'s `upload` stage through to a real signed PUT, or `node scripts/check-replica-env.mjs` | the `upload` stage reports `ok`, or `check-replica-env.mjs` shows `replica_storage` LIVE | enrollment, evidence and voice-preview uploads all fail at the signed-upload step; `first-room.mjs`'s own `upload` stage is the first thing that would show this, since self-check never will |
 | 9 | The Chatterbox voice preview lane: `AZURE_OPEN_VOICE_ORIGIN`, `OPEN_VOICE_HMAC_SECRET`, `AZURE_AUDIO_PROTECTION_ORIGIN`, `AZURE_AUDIO_PROTECTION_HMAC_SECRET`, `REPLICA_WATERMARK_TOKEN_SECRET`, `REPLICA_COMMITMENT_SECRET` | same six names | vyakti-replica-lab, plus deploying the `open-voice-runtime` and `audio-protection` standalone services first (`docs/gurukul/DEPLOY.md` Phase 3) | Azure Container Apps GPU compute, scale-to-zero (near $0 idle; real $ per warm synthesis) | manual: `node scripts/check-replica-env.mjs`, per `docs/gurukul/DEPLOY.md` Phase 2b's own verify step — self-check does not list any of these six names | `voice_chatterbox_preview` shows LIVE | `/api/replica-voice-preview` answers `503 open_voice_origin_required`; the studio's voice panel can never produce audio, which `context/STATE.md`'s START HERE block already names as the single blocker on the first owner ever hearing their own clone in a browser |
