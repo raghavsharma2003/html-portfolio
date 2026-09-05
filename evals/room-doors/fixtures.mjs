@@ -92,6 +92,12 @@ export function freshDoorsState() {
     room_id: ROOM_ID, person_id: PERSON_A, issued_at: "2026-09-01T00:05:00.000Z",
   }];
   state.receiptCounters = [{ fy: "2026-27", next: 2 }];
+  // WS-R109. `vy_room_upgrade_offer` (migration 093, `api/_phase-gate.js`)
+  // — no case sharing this fixture had a reason to drive `sessionWorked`/
+  // `recordOffer` for real before `evals/rehearsal/follower.mjs`'s own
+  // "the sessionWorked offer state after a session that worked" step.
+  // Starts empty: nothing has been offered to anyone yet.
+  state.offers = [];
   state.publicRate = new Map();
   state.checkinDesigns = [];
   state.checkins = [];
@@ -522,8 +528,19 @@ function doorsPatterns(state) {
       const [provider, ref, roomId, subId, kind, amountInr, takeInr, shareInr, payloadHash, nextState, periodStart, periodEnd] = params;
       const dup = state.events.find((e) => e.provider === provider && e.provider_event_ref === ref);
       if (dup) return []; // ON CONFLICT DO NOTHING — the replay case this battery is about
+      // WS-R109: was `` `e${state.events.length + 1}` `` — fine for every
+      // existing reader of `event_id` (relational equality only, never
+      // format-checked, confirmed by grep before this change), but a real
+      // gap once `api/_room-surface.js`'s own `roomReceipt` reads it: that
+      // function's own `UUID.test(paymentEventId)` guard (a real, correct
+      // 400/404-refusing check against a garbage id) rejects a non-UUID
+      // event id before its WHERE clause ever runs, which
+      // `evals/rehearsal/follower.mjs`'s own receipts step found by driving
+      // a REAL landed charge through `applyWebhook` end to end for the
+      // first time — no suite sharing this fixture had a reason to read a
+      // generated event's own id back through that particular door before.
       const event = {
-        event_id: `e${state.events.length + 1}`, provider, provider_event_ref: ref, room_id: roomId,
+        event_id: randomUUID(), provider, provider_event_ref: ref, room_id: roomId,
         subscription_id: subId, kind, amount_inr: amountInr, platform_take_inr: takeInr,
         creator_share_inr: shareInr, signature_verified: true, payload_hash: payloadHash,
         received_at: new Date(Date.now() + state.events.length).toISOString(),
@@ -539,7 +556,15 @@ function doorsPatterns(state) {
           tier = follower.tier;
         }
       }
-      return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, tier }];
+      // WS-R109: `person_id` — missing until this workstream, a real gap
+      // that blocked `issueFollowerReceipt`'s own `personId` argument (the
+      // real SQL's own `su.person_id` column, read off the subscription
+      // this event just updated) from ever being anything but `undefined`.
+      // No suite sharing this fixture had driven a REAL landed charge
+      // through `applyWebhook` before `evals/rehearsal/follower.mjs`'s own
+      // receipts step — every existing receipt case seeds `state.receipts`
+      // directly instead (this file's own WS-R100 comment, further down).
+      return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, tier, person_id: sub ? sub.person_id : null }];
     }
 
     // ── WS-R100 (migration 126): the follower's own receipt reads
@@ -1281,6 +1306,156 @@ function doorsPatterns(state) {
         : [];
     }
 
+    // WS-R109: `api/_room-about.js`'s own `publicRoomAboutBySlug` — a THIRD
+    // select off `vy_room` by slug, distinct from both `resolveRoom`'s own
+    // `join vy_agent` shape and `publicCreatorPageRoomBySlug`'s own column
+    // list above, needed for the first time by `evals/rehearsal/follower.mjs`'s
+    // own "/r/<slug>/about" step. Unlike the creator-page read, NOT gated on
+    // `listed_at is not null` — that file's own header explains why: a
+    // follower who already holds the link must be able to read this page
+    // whether or not the creator opted into the public directory.
+    if (has("select slug, display_name, default_locale, dormancy_days")) {
+      const s = String(params[0]);
+      const room = state.rooms.find(
+        (r) => r.slug.toLowerCase() === s && r.published_at != null && r.paused_at == null,
+      );
+      return room
+        ? [{
+            slug: room.slug, display_name: room.display_name, default_locale: room.default_locale ?? "en",
+            dormancy_days: room.dormancy_days ?? null, free_monthly_messages: room.free_monthly_messages,
+            paid_monthly_messages: room.paid_monthly_messages, paid_monthly_voice_seconds: room.paid_monthly_voice_seconds,
+          }]
+        : [];
+    }
+
+    // WS-R109: `api/_payments.js`'s `applyWebhook`'s own price read
+    // (`select follower_price_inr, currency from vy_room_price...`) — a
+    // DIFFERENT column list from the single-column read above (`select
+    // follower_price_inr from vy_room_price`, no `currency`), reached for
+    // the first time by a REAL landed charge driven through `applyWebhook`
+    // rather than a seeded `state.receipts` row.
+    if (has("select follower_price_inr, currency from vy_room_price")) {
+      const row = state.prices.find((p) => p.room_id === String(params[0]));
+      return row ? [{ follower_price_inr: row.follower_price_inr, currency: row.currency }] : [];
+    }
+
+    // WS-R109: `api/_payments.js`'s `issueFollowerReceipt` — the WRITE side
+    // of the WS-R100 receipt (`insert into vy_receipt_counter` ... `insert
+    // into vy_receipt`), reached for the first time by any suite sharing
+    // this fixture: every existing receipt case (this file's own WS-R100
+    // seed above, `evals/room-receipt/run.mjs`) seeds `state.receipts`
+    // directly and proves only the READ side's cross-identity refusal;
+    // `evals/rehearsal/follower.mjs`'s own "receipts list after a fake
+    // landed charge" step is the first caller to drive a receipt into
+    // existence through the real webhook-apply function, so the counter's
+    // own per-FY claim and the receipt row's own insert need a real write
+    // pattern for the first time. Params, read off the real SQL text:
+    // `[fy, eventId, roomId, personId, issuedAt]`.
+    if (has("insert into vy_receipt_counter")) {
+      const [fy, eventId, roomId, personId, issuedAt] = params;
+      state.receiptCounters = state.receiptCounters || [];
+      let counter = state.receiptCounters.find((c) => c.fy === String(fy));
+      if (!counter) {
+        counter = { fy: String(fy), next: 1 };
+        state.receiptCounters.push(counter);
+      }
+      // `bump`'s own "not exists" guard: a SECOND call for the SAME payment
+      // event burns no counter number and inserts nothing — the real SQL's
+      // own idempotence, restated here rather than assumed.
+      const already = state.receipts.some((r) => r.payment_event_id === String(eventId));
+      if (already) return [];
+      const claimedNo = counter.next;
+      counter.next += 1;
+      const row = {
+        receipt_id: randomUUID(), receipt_no: claimedNo, payment_event_id: String(eventId),
+        room_id: String(roomId), person_id: String(personId), issued_at: issuedAt || new Date().toISOString(),
+      };
+      state.receipts.push(row);
+      return [{ receipt_id: row.receipt_id, receipt_no: row.receipt_no, issued_at: row.issued_at }];
+    }
+
+    // WS-R109: `api/_phase-gate.js`'s `sessionWorked` (migration 093) — one
+    // statement, matched by its own three-CTE join list, the same
+    // distinguishing substring `evals/phase-gate/run.mjs`'s own fixture
+    // uses. `sessionWorkedRow` below mirrors that suite's own
+    // `sessionWorkedRow` BY HAND over this fixture's own state shape
+    // (`state.followers`/`state.threads`/`state.followerDayCounts`/
+    // `state.meeraLog`, not a shared import — `evals/phase-gate/run.mjs`'s
+    // own copy is local to that file by the same design choice), never
+    // asserted equal to the real predicate — the assertions in
+    // `evals/rehearsal/follower.mjs` check the real, computed `worked`
+    // field, not this function's own agreement with itself.
+    if (has("from follower_scope fs, thread_scope ts, cap_history ch")) {
+      const [roomId, personId, threadId, deviceId, agentId, nowIso] = params;
+      const follower = state.followers.find((f) => f.room_id === String(roomId) && f.person_id === String(personId));
+      const roomRow = state.rooms.find((r) => r.room_id === String(roomId));
+      const thread = state.threads.find(
+        (t) => t.thread_id === String(threadId) && t.room_id === String(roomId) && t.person_id === String(personId),
+      );
+      const now = new Date(nowIso).getTime();
+      const included = follower
+        ? (follower.tier === "paid" ? roomRow.paid_monthly_messages : roomRow.free_monthly_messages)
+        : null;
+      const used = follower ? follower.month_message_count : null;
+      const remaining = Math.max((included ?? 0) - (used ?? 0), 0);
+      const monthOf = (ms) => new Date(ms).toISOString().slice(0, 7);
+      const thisMonth = monthOf(now);
+      const byMonth = {};
+      for (const d of state.followerDayCounts || []) {
+        if (d.room_id !== String(roomId) || d.person_id !== String(personId)) continue;
+        const m = d.day.slice(0, 7);
+        if (m === thisMonth) continue;
+        byMonth[m] = (byMonth[m] || 0) + d.turns;
+      }
+      const hitCapBefore = Object.values(byMonth).some((sum) => sum >= (included ?? Infinity));
+      const threadCreated = thread ? thread.created_at : null;
+      const today = new Date(now).toISOString().slice(0, 10);
+      const continuedFromEarlierDay = threadCreated != null && threadCreated.slice(0, 10) < today;
+      const lane = (state.meeraLog || [])
+        .filter((m) => m.speaker_person_id === String(personId) && m.agent_id === String(agentId)
+          && m.device_id === String(deviceId) && m.role === "me")
+        .map((m) => new Date(m.at).getTime())
+        .sort((a, b) => a - b);
+      const SESSION_GAP_MINUTES = 30;
+      const SESSION_MIN_MESSAGES = 4;
+      let sessionStart = -Infinity;
+      for (let i = 1; i < lane.length; i++) {
+        if (lane[i] - lane[i - 1] > SESSION_GAP_MINUTES * 60_000) sessionStart = lane[i];
+      }
+      const sessionMsgs = lane.filter((t) => t >= sessionStart);
+      const worked =
+        follower?.tier === "free" &&
+        sessionMsgs.length >= SESSION_MIN_MESSAGES &&
+        continuedFromEarlierDay &&
+        (remaining < 5 || hitCapBefore);
+      return [{
+        tier: follower?.tier ?? null, messages_used: used, messages_included: included, messages_remaining: remaining,
+        hit_cap_before: hitCapBefore, thread_continued_from_earlier_day: continuedFromEarlierDay,
+        session_message_count: sessionMsgs.length,
+        session_last_at: sessionMsgs.length ? new Date(Math.max(...sessionMsgs)).toISOString() : null,
+        worked,
+      }];
+    }
+
+    // WS-R109: `api/_phase-gate.js`'s `recordOffer` — the 14-day cooldown
+    // IS the write (INSERT ... WHERE NOT EXISTS), `evals/phase-gate/run.mjs`'s
+    // own fixture pattern restated over `state.offers`.
+    if (has("insert into vy_room_upgrade_offer")) {
+      const [offerId, roomId, personId, followerId, reason, nowIso, cooldownDays] = params;
+      const now = new Date(nowIso).getTime();
+      state.offers = state.offers || [];
+      const withinWindow = state.offers.some(
+        (o) => o.follower_id === String(followerId) && now - new Date(o.shown_at).getTime() < Number(cooldownDays) * 86_400_000,
+      );
+      if (withinWindow) return [];
+      const row = {
+        offer_id: String(offerId), room_id: String(roomId), person_id: String(personId), follower_id: String(followerId),
+        shown_at: nowIso, reason, outcome: null, outcome_at: null,
+      };
+      state.offers.push(row);
+      return [{ offer_id: row.offer_id, reason: row.reason, shown_at: row.shown_at }];
+    }
+
     return undefined; // not a doors pattern — fall through to the base Room fixture
   };
 }
@@ -1306,8 +1481,10 @@ export function doorsDb(state) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// WS-R95 (the creator journey rehearsal, evals/rehearsal/harness-creator.mjs
-// and evals/rehearsal/creator.mjs). APPEND-ONLY, per the wave-fifteen brief.
+// WS-R95 (the creator journey rehearsal, evals/rehearsal/creator.mjs, over
+// evals/rehearsal/harness.mjs since WS-R109 folded the two rehearsal
+// harnesses onto one contract — the separate harness-creator.mjs this
+// comment used to name is retired). APPEND-ONLY, per the wave-fifteen brief.
 //
 // The rehearsal drives the REAL HTTP doors over a REAL local server, which
 // means it reaches decision modules `doorsDb` above was never asked to know

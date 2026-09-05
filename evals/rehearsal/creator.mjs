@@ -87,21 +87,26 @@ const { launchRehearsalBrowser } = await import(pathToFileURL(join(ROOT, "evals/
   await probe.browser.close();
 }
 
-const { startCreatorHarness, REHEARSAL_OWNER_TOKEN, REHEARSAL_OWNER } = await import(
-  pathToFileURL(join(ROOT, "evals/rehearsal/harness-creator.mjs")).href
+// WS-R109 (wave sixteen): the separate `harness-creator.mjs` this file used
+// to import is retired — `evals/rehearsal/harness.mjs`'s own `startHarness`
+// now routes this walk's five doors too (`kind: "creator"`), the fold that
+// workstream's own law 1 asked for. `build` re-runs `npx vite build` only
+// for the FIRST locale walked; the second (Hindi, under `--full`) reuses the
+// same `dist/` — `follower.mjs`'s own precedent for the identical reason.
+const { startHarness, REHEARSAL_OWNER_TOKEN, REHEARSAL_OWNER } = await import(
+  pathToFileURL(join(ROOT, "evals/rehearsal/harness.mjs")).href
 );
-const { freshRehearsalCreatorState, rehearsalCreatorDb } = await import(
-  pathToFileURL(join(ROOT, "evals/room-doors/fixtures.mjs")).href
-);
+
+let builtOnce = false;
 
 /** One walk, in one locale, over its own fresh harness and fresh fixture
  *  world — never shared with the other locale's run, so a bug in one
  *  cannot leave a stray row the other reads as its own. */
 async function walkLocale(locale) {
   console.log(`\n── creator journey (${locale}) ──`);
-  const state = freshRehearsalCreatorState();
-  const db = rehearsalCreatorDb(state);
-  const { url, stop } = await startCreatorHarness({ db });
+  const harness = await startHarness({ kind: "creator", build: !builtOnce });
+  builtOnce = true;
+  const { url, state, stop } = harness;
   const launched = await launchRehearsalBrowser();
   if (!launched.browser) {
     await stop();
@@ -111,7 +116,23 @@ async function walkLocale(locale) {
   const gapNotes = [];
 
   try {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    // WS-R109. A distinct synthetic `x-real-ip` per locale gate —
+    // `evals/rehearsal/follower.mjs`'s own precedent for the identical
+    // reason (`context/rejected.md#ws-r94-shared-unknown-ip-bucket-
+    // exhausted-the-90-per-minute-room-ip-gate-across-both-locale-gates`):
+    // this harness has no reverse proxy in front of it, so every request
+    // otherwise carries NO forwarded-for header and every rate limiter
+    // keyed by IP (`api/room-publish.js`'s own included) collapses BOTH
+    // locale gates in the same process onto the single bucket "unknown",
+    // found the hard way (a real 429 on the Hindi gate's own showcase_set,
+    // after the English gate had already spent that bucket's budget) once
+    // `--full` actually reached this code path for the first time. A real
+    // deployment never does this (every visitor has a real, distinct IP),
+    // so this restores realism the harness silently removed.
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      extraHTTPHeaders: { "x-real-ip": locale === "hi" ? "10.95.2.1" : "10.95.1.1" },
+    });
     const page = await context.newPage();
     page.on("pageerror", (error) => console.error(`  [browser error, ${locale}]`, error.message));
 
@@ -127,7 +148,16 @@ async function walkLocale(locale) {
       }));
     }, { token: REHEARSAL_OWNER_TOKEN, ownerId: REHEARSAL_OWNER });
 
-    await page.goto(`${url}/studio.html${locale === "hi" ? "?lang=hi" : ""}`, { waitUntil: "networkidle" });
+    // WS-R109. `?mode=teacher` (`StudioApp.tsx`'s own `readStudioMode()`,
+    // read once from the URL at mount) is what actually gates `RoomStudio`
+    // — the Share tab, its showcase picker, and the share kit — never a
+    // runtime-activation signal at all. Without it `mode` stays "generic"
+    // and `RoomStudio` never mounts, which is the REAL reason the picker
+    // and the share kit's own "Copy" button were unreachable through the
+    // DOM before this workstream, not the runtime-activation gate this
+    // file used to attribute it to (`context/rejected.md
+    // #ws-r95-share-tab-mount-blamed-on-runtime-not-on-the-missing-mode-teacher-param`).
+    await page.goto(`${url}/studio.html?mode=teacher${locale === "hi" ? "&lang=hi" : ""}`, { waitUntil: "networkidle" });
     const rootText = await page.locator("#studio-root").innerText().catch(() => "");
     ok(`${locale}: studio shell renders signed in (no sign-in prompt)`, rootText.length > 0 && !/sign in with google/i.test(rootText));
     ok(`${locale}: document.documentElement.lang reflects the chosen locale`,
@@ -164,22 +194,42 @@ async function walkLocale(locale) {
     const railText = await page.locator('[aria-label="Your AIs"]').textContent().catch(() => "");
     ok(`${locale}: the created replica renders in the studio's own "Your AIs" rail`, railText.includes("Anjali Physics"), railText.slice(0, 80));
 
-    // ── ADD ONE TEXT SOURCE (the Context Locker, api/context-items.js) ────
-    const addFiles = await page.evaluate(async ({ token, replicaId }) => {
-      const content = btoa("I teach JEE physics. I never do cardio on lifting days; lifting is protected.");
-      const r = await fetch("/api/context-items", {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          op: "add_files", replica_id: replicaId,
-          files: [{ filename: "notes.txt", content_base64: content, authorship: "mine" }],
-        }),
-      });
-      return { status: r.status, body: await r.json() };
-    }, { token: REHEARSAL_OWNER_TOKEN, replicaId });
-    ok(`${locale}: add_files returns 200 with one accepted item`,
-      addFiles.status === 200 && addFiles.body?.results?.[0]?.item?.source_name === "notes.txt",
-      JSON.stringify(addFiles.body).slice(0, 160));
-    gapNotes.push("the Context Locker's own drop-zone form was not driven through the DOM — see this file's header.");
+    // ── ADD ONE TEXT SOURCE, through the Context Locker's REAL drop zone
+    //    (WS-R109) — `ContextLockerPanel.tsx`'s own `<input type="file"
+    //    class="context-file-input">`, driven with Playwright's own
+    //    `setInputFiles` rather than a body-shaped `fetch`, closing the gap
+    //    WS-R95's own header named ("the Context Locker's own drop-zone
+    //    form was not driven through the DOM"). The Band wrapping it is
+    //    collapsible on this walk's own 390px viewport and starts closed
+    //    (`WizardRail.tsx`'s own `Band`), so its `<summary>` is opened
+    //    first, the same real tap a follower on a phone would make. ──────
+    await page.getByText(/^(Files, links, videos, channels|Add files and links)$/).first().click();
+    const fileInput = page.locator("input.context-file-input");
+    await fileInput.waitFor({ state: "attached", timeout: 10_000 });
+    const [addFilesResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith("/api/context-items") && r.request().method() === "POST",
+        { timeout: 15_000 },
+      ),
+      fileInput.setInputFiles({
+        name: "notes.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("I teach JEE physics. I never do cardio on lifting days; lifting is protected."),
+      }),
+    ]);
+    const addFilesBody = await addFilesResponse.json().catch(() => ({}));
+    ok(`${locale}: the drop zone's own file input posts a real add_files request that returns 200 with one accepted item`,
+      addFilesResponse.status() === 200 && addFilesBody?.results?.[0]?.item?.source_name === "notes.txt",
+      JSON.stringify(addFilesBody).slice(0, 160));
+    // The result row the write response drove onto the screen, AND the
+    // real row in the fixture the panel's own follow-up GET (`load()`,
+    // `ContextLockerPanel.tsx`'s own `send()`) had to read back for that
+    // screen to be honest — never one without the other,
+    // `evals/rehearsal/follower.mjs`'s own rule restated here.
+    const resultName = await page.locator(".context-results .context-result-name").first().innerText().catch(() => "");
+    ok(`${locale}: the drop zone's own result row names the real file`, resultName.includes("notes.txt"), resultName);
+    ok(`${locale}: the fixture's own vy_context_item row was written by the real add_files call`,
+      state.contextItems.some((i) => i.replica_id === replicaId && i.source_name === "notes.txt"));
 
     // ── READINESS: locked below the floor. Real computation, real six
     //    inputs, all but one honestly unmeasured — see this file's header
@@ -282,6 +332,14 @@ async function walkLocale(locale) {
 
     // Crossing the floor is SEEDED, not computed — see this file's header
     // for why that is not a shortcut but the only reachable state today.
+    // WS-R109's own brief named this walk's gain IF R101 (the recall run
+    // that writes Readiness's "knows_your_material" part) had landed by the
+    // time this file was read — `git log --oneline -1` on this worktree's
+    // wave-sixteen base and a grep of `api/_readiness.js#readRecallRun`
+    // (still the committed stub, unused params, `return recall` where
+    // `recall` is always its own null default) both confirm it has not, so
+    // this step stays a named gap rather than a silently-kept shortcut.
+    gapNotes.push("Readiness still crosses the floor by a fixture seed, not a real computation: R101 (the recall run that writes the \"knows_your_material\" part) had not landed on this worktree's base at the time this walk was written — see api/_readiness.js#readRecallRun.");
     state.rehearsalReadinessLast = { overall: 82, min_part: 71, unmeasured_count: 0 };
     const publishedNow = await page.evaluate(async ({ token, replicaId }) => {
       const r = await fetch("/api/room-publish", {
@@ -305,40 +363,35 @@ async function walkLocale(locale) {
     });
 
     await page.reload({ waitUntil: "networkidle" });
-    await page.getByText(/^Share$/).first().click({ timeout: 4_000 }).catch(() => {
-      gapNotes.push('the studio\'s own "Share" tab was not reached through a real click.');
-    });
-    let pickerClicked = false;
-    try {
-      await page.getByText(/pick from your reviews/i).first().click({ timeout: 4_000 });
-      await page.getByText(/what do you teach\?/i).first().click({ timeout: 4_000 });
-      pickerClicked = true;
-    } catch {
-      // A REAL finding this walk made, not a flaky selector: the studio's
-      // OWN "Deploy it" step renders "Your AI is not active yet" / "Waiting
-      // on you: ... Verify your identity to activate" for ANY replica whose
-      // runtime is not active, and `RoomStudio` (the component carrying the
-      // showcase picker) does not mount AT ALL behind that gate — confirmed
-      // by inspecting the real rendered HTML, not inferred. This rehearsal
-      // pre-seeds runtime activation TRUE only for the room-publish SQL
-      // predicate (`state.rehearsalRuntimeActive`, evals/room-doors/
-      // fixtures.mjs), which is a database fact; the STUDIO UI reads a
-      // SEPARATE signal (`/api/replica-runtime`, and the replica's own
-      // `age_verified`/`identity_verified`/`liveness_verified` columns) that
-      // this rehearsal does not also fake, because doing so would mean
-      // reproducing the whole identity/liveness verification pipeline (its
-      // own multi-stage product, out of this rehearsal's scope). The
-      // showcase pick is therefore driven through the door below instead.
-      gapNotes.push('the Share tab\'s "Pick from your reviews" picker never mounts for a replica whose runtime is not active (a real UI gate this walk found, not a flaky selector — see the code comment above); driven through the door instead.');
-    }
-    if (!pickerClicked) {
-      await page.evaluate(async ({ token, replicaId }) => {
-        await fetch("/api/room-publish", {
-          method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-          body: JSON.stringify({ op: "showcase_set", replica_id: replicaId, position: 1, source_card_id: "eeeeeeee-0000-4000-8000-000000000001" }),
-        });
-      }, { token: REHEARSAL_OWNER_TOKEN, replicaId });
-    }
+    // WS-R109. `?mode=teacher` on the page's OWN url (set once, at
+    // navigation, above) is what mounts `RoomStudio` — the earlier
+    // "runtime not active" explanation this file carried was wrong about
+    // the mechanism (see the navigation step's own comment); with the real
+    // mount condition met, the Share tab, its showcase picker, and the
+    // share kit below are all driven through real clicks, no HTTP fallback.
+    // `SHARE_COPY` below (`src/studio/copy.ts`/`hiCopy.ts`'s own
+    // `tabTitle`/`showcasePicker`/`shareKit` strings, read off both files
+    // directly): WS-R95's original strings here were English-only
+    // regardless of `locale`, never noticed because the `?mode=teacher` gap
+    // meant this whole section had never actually run for `hi` before —
+    // found by running `--full` for real, not assumed.
+    const shareCopy = locale === "hi"
+      ? { tab: "शेयर", pick: "अपनी समीक्षाओं में से चुनें", pickTitle: /वे कार्ड जिन्हें आपने पहले ही सही कहा है/, use: "इसे इस्तेमाल करें", copy: "कॉपी करें", download: "सब कुछ डाउनलोड करें" }
+      : { tab: "Share", pick: "Pick from your reviews", pickTitle: /cards you already marked sounds right/i, use: "Use this", copy: "Copy", download: "Download everything" };
+    await page.getByText(new RegExp(`^${shareCopy.tab}$`)).first().click({ timeout: 10_000 });
+    await page.getByRole("button", { name: shareCopy.pick }).first().click({ timeout: 10_000 });
+    await page.getByText(shareCopy.pickTitle).waitFor({ timeout: 10_000 });
+    const pickerItem = page.locator(".vy-room__showcase-picker-item", { hasText: "What do you teach?" });
+    ok(`${locale}: the picker's own list shows the seeded, decided card`, await pickerItem.count() === 1);
+    const [showcaseSetResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "showcase_set",
+        { timeout: 10_000 },
+      ),
+      pickerItem.getByRole("button", { name: shareCopy.use }).click(),
+    ]);
+    ok(`${locale}: "Use this" in the real picker posts a real showcase_set that returns 200`,
+      showcaseSetResponse.status() === 200);
     const showcaseRead = await page.evaluate(async ({ token, replicaId }) => {
       const r = await fetch(`/api/room-publish?replica_id=${replicaId}`, { headers: { authorization: `Bearer ${token}` } });
       return { status: r.status, body: await r.json() };
@@ -372,37 +425,62 @@ async function walkLocale(locale) {
 
     // ── SHARE KIT: open it, copy the WhatsApp text — a real click where a
     //    real button exists (`shareKit.copy`, src/studio/copy.ts). ────────
-    let copiedViaClick = false;
-    try {
-      const clip = await context.grantPermissions?.(["clipboard-read", "clipboard-write"]).then(() => true).catch(() => false);
-      await page.getByText(/^copy$/i).first().click({ timeout: 4_000 });
-      copiedViaClick = true;
-      void clip;
-    } catch (error) {
-      gapNotes.push(`the share kit's own "Copy" button was not reached through a real click (${error.message.split("\n")[0]}); the kit's text was read through the door instead.`);
-    }
-    const kit = await page.evaluate(async ({ token, replicaId }) => {
-      const r = await fetch("/api/room-publish", {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ op: "share_kit", replica_id: replicaId }),
-      });
-      return { status: r.status, body: await r.json() };
-    }, { token: REHEARSAL_OWNER_TOKEN, replicaId });
-    const whatsapp = kit.body?.kit?.find((k) => k.channel === "whatsapp");
+    // WS-R109: `?mode=teacher` mounts `ShareKitCard` for real (this file's
+    // own navigation-step comment), so "Copy" is now a real click, waited
+    // on against the real network round trip its own `load()` effect makes
+    // rather than a fixed timeout guessing when the kit finished fetching.
+    await context.grantPermissions?.(["clipboard-read", "clipboard-write"]).catch(() => {});
+    const [kitResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith("/api/room-publish") && r.request().postDataJSON()?.op === "share_kit",
+        { timeout: 10_000 },
+      ),
+      page.reload({ waitUntil: "networkidle" }),
+    ]);
+    const kitBody = await kitResponse.json().catch(() => ({}));
+    const whatsapp = kitBody?.kit?.find((k) => k.channel === "whatsapp");
     ok(`${locale}: the share kit carries a real WhatsApp text naming the AI, never "clone"`,
-      Boolean(whatsapp?.text) && whatsapp.text.includes("AI") && !/\bclone\b/i.test(whatsapp.text),
-      copiedViaClick ? "(also copied via a real click)" : "");
+      Boolean(whatsapp?.text) && whatsapp.text.includes("AI") && !/\bclone\b/i.test(whatsapp.text));
+    await page.getByText(new RegExp(`^${shareCopy.copy}$`)).first().click({ timeout: 10_000 });
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText().catch(() => ""));
+    ok(`${locale}: the share kit's own "Copy" button wrote real kit text to the clipboard`,
+      clipboardText.length > 0 && clipboardText.includes("AI"), clipboardText.slice(0, 80));
 
-    // ── EXPORT: download it, read its manifest. ─────────────────────────
-    const exported = await page.evaluate(async ({ token }) => {
-      const r = await fetch("/api/replica", {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ op: "export" }),
-      });
-      return { status: r.status, body: await r.json() };
-    }, { token: REHEARSAL_OWNER_TOKEN });
-    ok(`${locale}: export returns 200 with a real manifest`, exported.status === 200 && Array.isArray(exported.body?.manifest));
-    const contextEntry = exported.body?.manifest?.find((m) => m.table === "vy_context_item");
+    // ── EXPORT: through the real "Download everything" button, one real
+    //    click driving both the manifest assertion and the download event
+    //    (WS-R109: `/api/replica {op:"export"}` is rate-limited to once a
+    //    day per owner — `handleExport`'s own code comment, "A 429 here is
+    //    ALWAYS the once-a-day scope" — so WS-R95's original TWO calls, one
+    //    via `page.evaluate(fetch(...))` and a SECOND through this real
+    //    click, collided the moment `?mode=teacher` made the click
+    //    reachable for the first time: a real 429 on the second call, found
+    //    the hard way by driving it, not assumed). "Download everything"
+    //    lives inside a collapsed `<details>` band ("Owner control,
+    //    including erasure") that stays reachable regardless of mode or
+    //    runtime activation (unlike the showcase picker above, it is NOT
+    //    inside `{mode === "teacher" && (...)}` — confirmed by reading
+    //    `StudioApp.tsx`'s own JSX), so only its own `<summary>` needs
+    //    opening first. ────────────────────────────────────────────────
+    await page.getByText(/owner control, including erasure/i).first().click({ timeout: 10_000 });
+    // `t.creatorExport.title` (the section's own `<h2>`) and
+    // `t.creatorExport.button` are the SAME string, "Download everything"
+    // (`copy.ts`), and the heading renders BEFORE the button in this
+    // section's own JSX — `getByText(...)` would match the heading, not
+    // the button, and clicking a heading does nothing, found the hard way
+    // rather than assumed. `getByRole("button", ...)` is unambiguous.
+    const [download, exportResponse] = await Promise.all([
+      page.waitForEvent("download", { timeout: 15_000 }),
+      page.waitForResponse(
+        (r) => r.url().endsWith("/api/replica") && r.request().postDataJSON()?.op === "export",
+        { timeout: 15_000 },
+      ),
+      page.getByRole("button", { name: new RegExp(`^${shareCopy.download}$`, "i") }).click({ timeout: 10_000 }),
+    ]);
+    ok(`${locale}: "Download everything" triggers a real browser download event`, Boolean(download));
+    const exported = await exportResponse.json().catch(() => ({}));
+    ok(`${locale}: the same real click's own response carries a real manifest`,
+      exportResponse.status() === 200 && Array.isArray(exported?.manifest));
+    const contextEntry = exported?.manifest?.find((m) => m.table === "vy_context_item");
     ok(`${locale}: the export's own manifest carries the ONE real source this walk added, not an invented count`,
       contextEntry?.rows === 1, JSON.stringify(contextEntry));
     // NEGATIVE CONTROL — the export never contains a follower's words. This
@@ -411,25 +489,7 @@ async function walkLocale(locale) {
     // and that nothing in the dump reads as a follower's own turn.
     const followerTableNames = ["vy_room_thread", "vy_room_message", "vy_room_follower"];
     ok(`${locale}: NEGATIVE CONTROL — the export carries zero rows for every follower-lane table it names`,
-      exported.body?.manifest?.filter((m) => followerTableNames.includes(m.table)).every((m) => m.rows === 0));
-
-    let downloadedViaClick = false;
-    try {
-      // "Download everything" lives inside a collapsed `<details class=
-      // "advanced-disclosure">` band ("Owner control, including erasure")
-      // that stays reachable even for a not-yet-active replica (unlike the
-      // showcase picker above), but the button is not click-actionable
-      // until its own `<summary>` opens the band.
-      await page.getByText(/owner control, including erasure/i).first().click({ timeout: 4_000 });
-      const [download] = await Promise.all([
-        page.waitForEvent("download", { timeout: 4_000 }),
-        page.getByText(/^download everything$/i).first().click({ timeout: 4_000 }),
-      ]);
-      downloadedViaClick = Boolean(download);
-    } catch (error) {
-      gapNotes.push(`the "Download everything" button's own click/download event was not observed (${error.message.split("\n")[0]}); the export was proven through the door above instead.`);
-    }
-    ok(`${locale}: export is proven ${downloadedViaClick ? "via a real click and a real browser download event" : "via the door (see the gap note)"}`, true);
+      exported?.manifest?.filter((m) => followerTableNames.includes(m.table)).every((m) => m.rows === 0));
 
     if (gapNotes.length) {
       console.log(`  fixture/UI gaps named for ${locale}:`);
