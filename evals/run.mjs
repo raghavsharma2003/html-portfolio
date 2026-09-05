@@ -2294,6 +2294,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "consent-review": "consent-review/run.mjs",
+  // WS-R96: the day-one runbook (`docs/gurukul/DAY-ONE.md`) and its script
+  // (`scripts/day-one.mjs`). Proves `scripts/dayOneRunbook.mjs#parseRunbook`
+  // against the REAL runbook table (never a retyped copy), including the
+  // REQUIRED NEGATIVE CONTROL — a row whose Proving Command cell is blanked
+  // out fails the WHOLE parse, not one row of it — plus a second control for
+  // a dropped column. Then drives the REAL `scripts/day-one.mjs` as a
+  // subprocess against `evals/day-one/fakeServer.mjs` (a thin wrapper around
+  // the REAL `evals/probe-live/fakeServer.mjs`, reusing its server code
+  // rather than a second copy) in three self-check states — stub config,
+  // half configured, complete — asserting the exact per-step done/blocked
+  // verdicts each state should produce, that every `manual:` row is always
+  // `unknown` and never silently "done", and that the exit code always
+  // matches whether any row is blocked. Two more cases: no operator bearer
+  // given (every `self-check:` row degrades to `unknown`, probe-live rows
+  // are unaffected) and an unreachable base URL (never crashes, never claims
+  // a step is done).
+  //
+  // Offline, deterministic, $0, no DB, no real network (127.0.0.1 only), no
+  // model call, no GPU, no browser.
+  "day-one": "day-one/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
