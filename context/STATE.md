@@ -852,3 +852,47 @@ Migration 094 is this workstream's; 095 is next.
 **2026-09-04, WS-R40 merged (share and arrival, migration 102).** Tenth of wave ten, merged over the WS-R44 tip 5e141b1 (relaunched over e7b6a6d after the session boundary, first attempt's `-wip` branch deleted after the merge). Conflicts in the context files, `api/_funnel.js`, `api/_ops.js`, `api/_replica-full-erasure.js`, the eval registry, `evals/room-doors/run.mjs`, `evals/room-leak/run.mjs` and `vercel.json` (the bot-only rewrite sits above the static `/r/:slug` one and below WS-R48's `/suites`). Migration 102 (`vy_room_arrival(room_id, day, via, count)`, no person column) was applied live in one transaction of two statements, read back, and its four statements `EXPLAIN`ed, every one on an index (`measurements.md#rooms-migration-102-live-verification-2026-09-04`). A crawler fetching `/r/<slug>` now gets a real head (name, one line, picture) for a published Room and the identical platform card for a paused or unknown one; a person still gets `room.html`; the Room header has a Share control that carries `?via=share` and no sender identity; the ops board's funnel has a floored "Growth" line. room-share 48/48, funnel 49/49, ops 69/69. Not proven: no crawler has fetched a Room, no arrival row exists, and Vercel's `has` user-agent match is proven against the suite's regex only, never a live edge request (the next deploy is the first real test).
 
 **2026-09-04, WS-R43 merged (the Room in a real browser). Wave ten complete.** Last of wave ten, merged over the WS-R40 tip plus its live-verification log 16630b7. No migration. Conflicts in the context files (+10 nodes, +6 edges, 0 duplicated headings) and `scripts/check-layout.mjs`; `.gitignore` gains `evals/room-browser/shots/`. The layout gate now measures Devanagari glyph widths on 180 Hindi strings (three-character minimum, `decisions.md#ws-r43-glyph-width-test-needs-3-devanagari-chars`), a 44 px tap-target floor across every Room control, pointerdown feedback, and reduced-motion honouring, with four new fixtures (capped, receipt, check-ins, handoff) at the phone viewport only (`decisions.md#ws-r43-new-room-screens-tested-at-phone-viewport-only`). Six tap targets and the missing pointerdown feedback were fixed in `RoomApp.tsx`/`AccountPage.tsx`/`room.css`. Layout readability took 114.9 s in the combined gate, inside its two-minute budget with less margin than before; whoever adds the next Room target should measure first. Found and NOT fixed: none of the four in-flow dialogs scroll into view or take focus on open (`rejected.md#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view`), an open item for wave eleven. **The combined tree b5348dc passed the full gate once, all 20 checks, `EXIT 0`, and the eval suite exited 0 (door battery 302/302, room-share 48/48, payments-reconcile 30/30, room-push 52/52, room-whatsapp 68/68, suites-self-serve 60/60); graph 1171 nodes / 1429 edges.** Eleven workstreams built, eleven merged: R46, R50, R47, R49, R45, R48, R42, R41, R44, R40, R43. Migrations 102 and 104 through 107 live; 100 and 103 unused; 108 next. Open into wave eleven: the 27 pre-existing uncased owner-bearer ops; the RazorpayX/Razorpay PATCH and Telegram `setMessageReaction` shapes; the Room dialogs not scrolling into view; the Suite lane reconciling on the current attachment; the studio still has no locale table; and nothing in this wave has been exercised by a real crawler, a real payment or a real person.
+
+**2026-09-05, WS-R51 built (every door cased), not yet merged.** No
+migration. WS-R44's own `OP_COVERAGE` table named 27 owner-bearer ops across
+`payments.js`/`org.js`/`room-publish.js`/`invites.js`/`apply.js` as
+`preexisting-uncased`; every one now carries a real dynamic case through the
+real decision module in `evals/room-doors/run.mjs`, and the computed-op-list
+mechanism widens from those seven doors to all twelve `EXPECTED_DOORS` that
+read `op` from a body (`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`,
+`account.js` join it), with the three webhook doors verified — not merely
+assumed — to read no `op` literal at all. The `preexisting-uncased` class
+is deleted outright. Along the way this found and fixed two real security
+gaps, both in their own commits: `api/_payments.js`'s
+`startCreatorSubscription` trusted a body-supplied `replica_id` with no
+ownership check at all (a class-c gap; fixed with the same `vy_replica`
+ownership read `api/_replica.js`'s own `getOwnedReplica` uses), and
+`api/account.js`'s `send_otp`/`verify_otp` (email) never got the persistent,
+cross-instance rate scopes WS-R32 gave `send_sms`/`verify_sms` (phone) —
+`verify_otp` had no gate at all beyond the door's generic per-IP bucket. Also
+found and fixed, unrelated to security: nine pre-existing calls in the door
+battery's own test body were missing `now: NOW`, silently falling back to
+the real wall clock, and the fixture's own `NOW` was pinned to a literal
+`2026-09-04T12:00:00Z` — invisible for months, then a genuine
+`room_session_expired` crash the moment this session's own clock ticked past
+that fixed date's 12-hour freshness window mid-run. The root cause (pinned
+`NOW`) was independently diagnosed on the main tree mid-flight and fixed
+there with `const NOW = Date.now();`; applied here identically, one line,
+plus the nine `now: NOW` additions kept for the same explicit-over-implicit
+reason every other call in the file already follows
+(`rejected.md#ws-r51-fixture-deps-now-silently-fell-back-to-real-clock`).
+`evals/room-doors/fixtures.mjs` gained 21 new SQL patterns (org's
+create/admin-join/accept/detach/list-mine, room-publish's eight owner-scoped
+writes, replica's revoke/erasure-status/funnel-mark, invites' list/revoke/
+erase, apply's list/erase) and `state.orgs`/`state.erasureJobs`/
+`state.funnelMarks`. Two NEGATIVE CONTROLS added: an owner predicate struck
+from a fixture copy of the decision path (proves the real case was
+load-bearing, not vacuous), and an op literal injected into a temp copy of a
+real door's source (proves the completeness check actually catches an
+uncased op). Door battery: 302 -> 478 assertions, runtime 3.0s -> ~4.6s
+(well under the 20s ceiling), three repeat runs byte-identical.
+`evals/org-billing/run.mjs` and `evals/payments-reconcile/run.mjs` both
+needed one new fixture line each to admit `startCreatorSubscription`'s new
+ownership read; both still pass (40/40, 30/30). Not run against the live
+database (no `NEON_URL` in this worktree) — every new SQL statement is
+listed in this workstream's final report for the main loop's own `EXPLAIN`.

@@ -9661,3 +9661,29 @@ sites are exercised by the current fixtures: `.room-stat` (talked-today
 count) needs `talked_today > 0`, `.room-upgrade` needs `upgrade_prompt`
 true, neither of which this workstream's static fixtures set - stated
 plainly rather than implying wider coverage than this run actually proves.
+
+## `ws-r51-door-battery-cases-and-runtime-before-after-2026-09-05` (WS-R51)
+
+**n and method.** `node evals/room-doors/run.mjs`, offline, deterministic,
+$0, no DB, no network, no GPU, no model call — every number below is the
+script's own `pass`/`fail` counters and `time`(1)'s wall-clock, this
+worktree's untouched-tree commit `2d271f2` as the baseline, three repeat runs
+of the final tree confirmed byte-identical pass counts (no flakiness).
+
+| | before (untouched tree) | after (WS-R51) |
+|---|---|---|
+| total assertions | 302 | 478 |
+| doors carrying a case in `OP_COVERAGE` | 7 | 12 |
+| ops audited by the computed-op-list mechanism | the 7 doors' own ops only | all 15 `EXPECTED_DOORS` (12 audited by name, 3 verified structurally op-less) |
+| `preexisting-uncased` entries | 27 | 0 |
+| new fixture SQL patterns added (`evals/room-doors/fixtures.mjs`) | — | 21 (room-publish's 8 owner-scoped writes, org's create/join-admin/accept/detach/list-mine, replica's revoke/erasure-status/funnel-mark, invites' list/revoke/erase, apply's list/erase) |
+| runtime (`time node evals/room-doors/run.mjs`) | 3.0 s | 4.6 s (three repeats: 4.6s, 2.7s, — under the 20 s ceiling this workstream's own brief names by a wide margin) |
+| security findings fixed (never merely cased) | — | 2 (`api/_payments.js`'s `startCreatorSubscription` missing ownership check; `api/account.js`'s `send_otp`/`verify_otp` missing the persistent OTP rate scopes) |
+| latent test-only bug found and fixed | — | 1 (nine calls across the ORIGINAL, pre-WS-R51 file body were missing `now: NOW` in their `deps`, silently falling back to `Date.now()`; harmless while the real clock stayed within 12h of the fixture's fixed `2026-09-04T12:00:00Z`, and a real, reproduced `room_session_expired` failure the moment this very session's own clock crossed that boundary mid-run) |
+
+**Case counts by attack class, final tree:** a-forged-session 41,
+b-cross-room 12, c-body-ids 9, d-webhook-replay 13, e-owner-bearer 100,
+f-rate-key 9, g-invite-guess 3, h-otp-brute-force 8 — 195 of the 478 total
+assertions are `okClass`-classed attack cases; the rest are fixture-soundness
+checks, static wiring proofs, and the computed-op-list's own completeness
+loop.

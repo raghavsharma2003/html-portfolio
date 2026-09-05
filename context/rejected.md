@@ -8830,3 +8830,93 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r51-loose-substring-pattern-matched-seatcapsqls-own-embedded-fragment` (2026-09-05, WS-R51)
+
+**Tried.** Adding `orgBoard`'s own SQL (which embeds `seatCapSql`'s
+`vy_org_subscription` sub-select inside its SELECT LIST) to
+`evals/room-doors/fixtures.mjs`, expecting the new join-shaped pattern this
+workstream added (`join vy_org_member m on m.org_id = o.org_id and
+m.owner_user_id = ($2)::uuid and m.role = 'admin'`) to match it.
+
+**What broke, and how it was told apart from a real app bug.** `orgBoard`'s
+real admin case threw `org_not_found` even for the SEEDED real admin — a
+symptom identical to a genuine ownership-check regression. It was NOT one:
+an EARLIER, pre-existing pattern in the same file (WS-R44's own, for
+`cancelOrgRenewal`'s subscription-status read: `has("from vy_org_subscription")
+&& has("org_id = ($1)::uuid") && has("state in (")`) matched `orgBoard`'s
+query too, purely by substring coincidence — `seatCapSql`'s own embedded
+fragment (`from vy_org_subscription os ... where os.org_id = o.org_id`,
+combined with the outer `where o.org_id = ($1)::uuid`) satisfies all three
+loose substrings, and being earlier in the `if`-chain, it intercepted first
+and returned an empty `orgSubscriptions` lookup — a `[]`, which is exactly
+what `orgBoard` reads as "not found." Confirmed with `console.error` markers
+placed at the top of `doorsPatterns` and inside both candidate `if` blocks:
+the top marker fired (proving the function was reached and the text
+genuinely contained the join substring), neither candidate block's own
+marker fired, and the actual intercepting pattern was found by systematically
+grepping every `has(` check between them and testing each one's three
+conditions against the captured SQL text directly. Fixed by narrowing the
+WS-R44 pattern with `&& !has("vy_org_member")` — the real `cancelOrgRenewal`
+query it exists for never mentions that table.
+
+**The law.** A loose three-substring `has()` guard, written against one
+statement's own text, can silently start matching a LATER statement that
+happens to embed the same words for an unrelated reason — `seatCapSql`
+reused across five call sites is exactly the kind of shared fragment that
+produces this. The fix is not "write tighter patterns from the start" (this
+file already has dozens, and most are fine); it is "when a fixture case
+fails in a way that looks like a real regression, trace which `if` block
+ACTUALLY fired before assuming the code under test is wrong" — a
+`console.error` at the top of the dispatcher and inside each suspect block
+found this in minutes; guessing at the SQL text by eye did not.
+
+## `ws-r51-fixture-deps-now-silently-fell-back-to-real-clock` (2026-09-05, WS-R51)
+
+**Found, not a rejection of an approach — a latent bug in the ORIGINAL
+WS-R38/WS-R44 test body, surfaced by this session's own wall clock crossing
+a date boundary mid-run.** Nine calls across `evals/room-doors/run.mjs`
+(nowhere this workstream's own new §16/§17 material, all pre-existing)
+passed a fresh, validly-minted room session into a function's `deps` object
+without `now: NOW` — `assertSessionFresh(payload, deps.now ?? Date.now())`
+then silently used the REAL wall clock instead of the fixture's fixed
+`2026-09-04T12:00:00Z`. Harmless for eleven months of this file's life,
+because the real clock stayed within the 12-hour freshness window of that
+fixed date every time anyone ran it — until this very session, whose own
+clock ticked from 2026-09-04 to 2026-09-05 partway through, at which point
+`room_session_expired` started throwing from inside `draftHandoffPayload`
+(the first of the nine reached in file order) and cascaded to a hard crash
+rather than a clean assertion failure, since none of the nine calls were
+wrapped in `threw()`.
+
+**Fixed, all nine**, `now: NOW` added to each — `draftHandoffPayload`/
+`myHandoffs`/`withdrawHandoffRequest` (§3), `stop`/`listMine` (§3),
+`draftHandoffPayload`/`optIn`/`followerSubscriptionStatus` (§2's cross-room
+block), and `startFollowerSubscription` (§4 and §10) — confirmed against
+every OTHER call in the file already following this convention; the five
+REMAINING calls missing `now:` (lines using a deliberately pre-expired
+`expired` session) are unaffected by design, since a later real clock only
+makes an already-13-hours-stale session more stale, never less.
+
+**The law.** A fixed fixture `now` is only as safe as EVERY call site that
+consumes a session minted against it — one omitted `now:` is invisible until
+the real clock outruns the fixture's own freshness window, and a suite that
+is "$0, offline, deterministic" in every other respect had exactly one
+silent dependency on wall-clock time. `evals/room-doors/run.mjs` has no
+CI schedule that would have caught this on its own; whoever next edits this
+file should grep for `env: ENV }` (or `env: { ...ENV`) without an adjacent
+`now:` before adding a new session-consuming call, the same check this
+session ran by hand.
+
+**Correction, same session:** the root cause — `NOW` pinned to a literal
+`Date.parse("2026-09-04T12:00:00Z")` at all — was independently diagnosed on
+the main tree while this workstream was mid-flight (the coordinator's own
+message: "environmental, already fixed on the main tree, not yours") and
+fixed there with `const NOW = Date.now();`, every relative offset unchanged.
+Applied here identically, one line. The nine `now: NOW` additions above are
+NOT superseded by that fix — they were already correct, harmless, and now
+consistent with `NOW` being real time too (a call without an explicit `now:`
+would merely default to a SECOND, millisecond-later `Date.now()` call rather
+than a stale pinned date, which is why the crash stopped reproducing either
+way) — kept for the same reason every other call in this file states its
+`now:` explicitly rather than relying on the default.

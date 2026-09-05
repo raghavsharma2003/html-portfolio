@@ -12653,3 +12653,55 @@ collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
 to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
 runtime budget is a reason to scope narrowly by default, not a reason to
 stay narrow once there is a real defect to catch.
+
+## `ws-r51-every-door-cased` (2026-09-05, WS-R51)
+
+**Decision.** Every one of the 27 owner-bearer ops WS-R44 left marked
+`preexisting-uncased` in `evals/room-doors/run.mjs`'s `OP_COVERAGE` table
+(across `payments.js`, `org.js`, `room-publish.js`, `invites.js`, `apply.js`)
+now carries a real dynamic case through the real decision module, and §16's
+own computed-op-list mechanism widens from the seven doors WS-R44 scoped it
+to (`decisions.md#ws-r44-computed-op-list-scoped-to-six-named-doors`) to
+EVERY door in `EXPECTED_DOORS` that reads `op` from a body — five more
+(`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`, `account.js`), twelve
+in total. The three webhook doors (`payments-webhook.js`, `room-tg.js`,
+`room-wa.js`) are excluded, but as a VERIFIED structural fact (a new
+assertion confirms `computedOps()` finds zero `op` literals in each), not an
+assumed one. The `preexisting-uncased` class is deleted outright — no entry
+in `OP_COVERAGE` may use that string any more.
+
+**What the widening found and fixed, in the same commits as the cases that
+found them (this workstream's own law 3):**
+
+1. `api/_payments.js`'s `startCreatorSubscription` trusted a body-supplied
+   `replicaId` with NO ownership check at all beyond UUID shape — its own
+   comment said "the caller already knows... this file holds no `vy_replica`
+   query anywhere else." A class-c body-supplied-id case (OWNER_B naming
+   OWNER's own `replica_id`) would have minted a `vy_creator_subscription`
+   row binding one owner's id to another owner's replica. Fixed by adding a
+   real ownership read (`ownedReplicaHandle`, the same `vy_replica` shape
+   `api/_replica.js`'s `getOwnedReplica` already uses) before anything else
+   runs.
+2. `api/account.js`'s `send_otp`/`verify_otp` (email) never carried the
+   persistent, cross-instance `otp_send_ip`/`otp_send_dest`/`otp_verify_ip`/
+   `otp_verify_dest` scopes WS-R32 gave `send_sms`/`verify_sms` (phone) —
+   `verify_otp` had NO gate beyond the door's generic 20/min IP bucket.
+   Fixed by wiring the same four scopes, `verify_sms`'s own shape exactly.
+
+**What the widened door-battery negative-controls found and this workstream
+did NOT fix, named rather than silently left:** none — every finding the
+widening surfaced above got a fix in this same session.
+
+**Rationale.** "An uncased owner op is a door nobody has tried to push"
+(the brief's own words) is not a hypothetical: two of the twelve widened
+doors had real gaps, both silent until pushed. A coverage table with an
+honest, named "we have not tried this yet" class is strictly better than one
+that looks complete — but it is also an invitation the next workstream should
+close rather than inherit, which is why this one closes it rather than
+widening the exclusion list.
+
+**Reversal condition.** If a future op is added to one of these twelve doors
+and the honest answer is "no case yet, no time this session," name it with a
+SPECIFIC reason (what class does not apply and why, `room.js`'s "open"/"join"
+exclusion precedent) — never resurrect the bare string `preexisting-uncased`
+as a catch-all, which is exactly the shape this decision closes.

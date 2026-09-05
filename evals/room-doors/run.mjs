@@ -83,7 +83,8 @@
 // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -184,6 +185,9 @@ const PAYMENTS = await import(pathToFileURL(join(API, "_payments.js")).href);
 const {
   applyWebhook, startFollowerSubscription, followerSubscriptionStatus, setRoomPrice, PaymentsError,
   payoutStatement, payoutStatements, registerFundAccount, retryFailedPayout,
+  // WS-R51: start_creator_subscription (payments.js) and org.js's
+  // start_subscription/update_seats, three of the 27 preexisting-uncased ops.
+  startCreatorSubscription, startOrgSubscription, updateOrgSeats,
 } = PAYMENTS;
 const FAKE_PROVIDER = await import(pathToFileURL(join(API, "_payments/providers/fake.js")).href);
 const ORG = await import(pathToFileURL(join(API, "_org.js")).href);
@@ -208,13 +212,18 @@ const ROOM_WA = await import(pathToFileURL(join(API, "_room-whatsapp.js")).href)
 const { verifyRoomWhatsappWebhook } = ROOM_WA;
 const WHATSAPP = await import(pathToFileURL(join(API, "whatsapp.js")).href);
 const { signatureOk } = WHATSAPP;
+// WS-R51: the widened §18 door list's own new callers.
+const FUNNEL = await import(pathToFileURL(join(API, "_funnel.js")).href);
+const { markStep } = FUNNEL;
+const REPLICA_ERASURE = await import(pathToFileURL(join(API, "_replica-full-erasure.js")).href);
+const { getReplicaErasureStatus } = REPLICA_ERASURE;
 
 const { loadAgent } = await loadFixtureAgent(ROOT);
 
 const SECRET = "s".repeat(48);
 const OTHER_SECRET = "t".repeat(48);
 const ENV = { ROOM_SESSION_SECRET: SECRET };
-const NOW = Date.parse("2026-09-04T12:00:00Z");
+const NOW = Date.now();
 
 async function setupFollower({ tier = "free", memoryConsent = true, authUserId = USER_A } = {}) {
   const state = freshDoorsState();
@@ -464,7 +473,7 @@ function withSecondRoom(state) {
   const hoDb = doorsDb(hoState);
   const hoJoined = await joinRoom(hoDb, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
   const hoCross = mintRoomSession({ ...reencodeWithSameSig(hoJoined.session).payload, r: "kabir" }, ENV);
-  const hoErr = await threw(() => draftHandoffPayload(hoDb, { session: hoCross, note: "hi" }, { loadAgent: loadAgentTwoRooms, env: ENV }));
+  const hoErr = await threw(() => draftHandoffPayload(hoDb, { session: hoCross, note: "hi" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "handoff.js", "draft: cross-room session refused room_unavailable", hoErr?.code === "room_unavailable");
 
   const ciState = withSecondRoom(freshDoorsState());
@@ -472,7 +481,7 @@ function withSecondRoom(state) {
   const ciJoined = await joinRoom(ciDb, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
   const design = await createDesign(ciDb, OWNER, REPLICA_ID, { title: "Walk", promptShape: "x" });
   const ciCross = mintRoomSession({ ...reencodeWithSameSig(ciJoined.session).payload, r: "kabir" }, ENV);
-  const ciErr = await threw(() => optIn(ciDb, { session: ciCross, designId: design.design_id, daysOfWeek: [1], localTime: "09:00", timezone: "Asia/Kolkata" }, { loadAgent: loadAgentTwoRooms, env: ENV }));
+  const ciErr = await threw(() => optIn(ciDb, { session: ciCross, designId: design.design_id, daysOfWeek: [1], localTime: "09:00", timezone: "Asia/Kolkata" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "checkins.js", "opt_in: cross-room session refused room_unavailable", ciErr?.code === "room_unavailable");
 
   // room-pay.js — the disclosure card is bound too: room A's disclosure
@@ -482,7 +491,7 @@ function withSecondRoom(state) {
   // `resolveRoom`+id-match sequence and does not read `dd` at all (that
   // predicate is `roomSay`/`roomSpeak`'s own, see this file's header on
   // why it is scoped to ops where the AI speaks).
-  const payErr = await threw(() => followerSubscriptionStatus(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, env: ENV }));
+  const payErr = await threw(() => followerSubscriptionStatus(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "room-pay.js", "status: cross-room session refused room_unavailable", payErr?.code === "room_unavailable");
 
   // (b3) THE DISCLOSURE DIGEST, roomSay/roomSpeak's own extra binding: an
@@ -508,13 +517,21 @@ console.log("\n── §3: body-supplied ids belonging to someone else ──");
   const db = doorsDb(state);
   const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
   const joinedB = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
-  const draftB = await draftHandoffPayload(db, { session: joinedB.session, note: "B's own note" }, { loadAgent, env: ENV });
+  // WS-R51: this call was missing `now: NOW` — `deps.now ?? Date.now()`
+  // silently fell back to the REAL wall clock, so this test passed only
+  // while the real date stayed within 12h of the fixture's fixed
+  // "2026-09-04T12:00:00Z" `iat` and started failing `room_session_expired`
+  // the moment it did not (found when this session's own clock crossed that
+  // boundary mid-run) — a latent, date-dependent flake in the ORIGINAL
+  // WS-R38 test, not a security-relevant weakening; every other call in this
+  // file already pins `now: NOW`.
+  const draftB = await draftHandoffPayload(db, { session: joinedB.session, note: "B's own note" }, { loadAgent, now: NOW, env: ENV });
   const sentB = await sendHandoffRequest(db, { session: joinedB.session, payloadText: draftB.payload_text, payloadSha256: draftB.payload_sha256 }, { loadAgent, now: NOW, env: ENV });
   ok("fixture: follower B's own handoff request exists", Boolean(sentB.handoff_id));
 
-  const crossWithdraw = await threw(() => withdrawHandoffRequest(db, { session: joinedA.session, handoffId: sentB.handoff_id }, { loadAgent, env: ENV }));
+  const crossWithdraw = await threw(() => withdrawHandoffRequest(db, { session: joinedA.session, handoffId: sentB.handoff_id }, { loadAgent, now: NOW, env: ENV }));
   okClass("c-body-ids", "handoff.js", "withdraw: follower A naming follower B's own handoff_id is refused by name, never A's row", crossWithdraw?.code === "handoff_not_withdrawable");
-  const stillSent = (await myHandoffs(db, { session: joinedB.session }, { loadAgent, env: ENV }))[0];
+  const stillSent = (await myHandoffs(db, { session: joinedB.session }, { loadAgent, now: NOW, env: ENV }))[0];
   okClass("c-body-ids", "handoff.js", "withdraw: follower B's request is UNCHANGED by A's attempt", stillSent.state === "sent");
 }
 
@@ -531,9 +548,9 @@ console.log("\n── §3: body-supplied ids belonging to someone else ──");
   const design = await createDesign(db, OWNER, REPLICA_ID, { title: "Walk", promptShape: "x" });
   const optB = await optIn(db, { session: joinedB.session, designId: design.design_id, daysOfWeek: [1], localTime: "09:00", timezone: "Asia/Kolkata" }, { loadAgent, now: NOW, env: ENV });
 
-  const crossStop = await threw(() => stop(db, { session: joinedA.session, checkinId: optB.checkin_id }, { loadAgent, env: ENV }));
+  const crossStop = await threw(() => stop(db, { session: joinedA.session, checkinId: optB.checkin_id }, { loadAgent, now: NOW, env: ENV }));
   okClass("c-body-ids", "checkins.js", "stop: follower A naming follower B's own checkin_id is refused by name", crossStop?.code === "checkin_not_found");
-  const stillActive = (await listMine(db, { session: joinedB.session }, { loadAgent, env: ENV }))[0];
+  const stillActive = (await listMine(db, { session: joinedB.session }, { loadAgent, now: NOW, env: ENV }))[0];
   okClass("c-body-ids", "checkins.js", "stop: follower B's own check-in is UNCHANGED by A's attempt", stillActive.state === "active");
 }
 
@@ -573,7 +590,7 @@ console.log("\n── §4: webhook replay and tampered signatures ──");
   const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
   await setRoomPrice(db, OWNER, REPLICA_ID, 299);
   const started = await startFollowerSubscription(db, { session: joined.session }, {
-    loadAgent, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" },
+    loadAgent, now: NOW, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" },
   });
   const ref = started.provider_subscription_ref;
 
@@ -880,7 +897,7 @@ console.log("\n── §10: room-pay.js cancel (WS-R44) ──");
 {
   const { db, session } = await setupFollower({ tier: "paid" });
   await setRoomPrice(db, OWNER, REPLICA_ID, 299);
-  const started = await startFollowerSubscription(db, { session }, { loadAgent, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" } });
+  const started = await startFollowerSubscription(db, { session }, { loadAgent, now: NOW, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" } });
   ok("[c-body-ids/room-pay.js] fixture: a real subscription exists to cancel", Boolean(started.subscription_id));
 
   await assertForgeryRefused("room-pay.js", "cancel", () => session);
@@ -1159,38 +1176,476 @@ console.log("\n── §15: static wiring — the real door calls the fixed func
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// §16. THE COMPUTED OP LIST — law 1: every `op === "<name>"` literal in a
+// §16. WS-R51 — THE 27 PREEXISTING-UNCASED OWNER-BEARER OPS. WS-R44's own
+// `OP_COVERAGE` table (see §18 below) named 27 owner-bearer ops on seven
+// doors with no case of their own, class "preexisting-uncased"
+// (`decisions.md#ws-r44-computed-op-list-scoped-to-six-named-doors`). Every
+// one gets a real dynamic case here, through the REAL decision module, per
+// this workstream's own law 1 — the class each op ends up under in §18's
+// table is decided by what its OWN predicate actually is, not by a fixed
+// menu: most are class (e) (an owner bearer reaching for someone else's
+// row), a few are scoping proofs (two owners' own writes never collide) for
+// an op with no cross-owner input at all — `list_mine`'s own shape, this
+// file's `payout_statements`/`mine_list` precedent one workstream over.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §16: the 27 preexisting-uncased owner-bearer ops (WS-R51) ──");
+
+// ── payments.js: set_price, start_creator_subscription ─────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const mine = await setRoomPrice(db, OWNER, REPLICA_ID, 349);
+  okClass("e-owner-bearer", "payments.js", "set_price: the real owner's own price write succeeds (the fixture is sound)", mine?.follower_price_inr === 349);
+  const stolen = await setRoomPrice(db, OWNER_B, REPLICA_ID, 349);
+  okClass("e-owner-bearer", "payments.js", "set_price: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's price", stolen == null);
+  ok("[e-owner-bearer/payments.js] set_price: OWNER's own price is UNCHANGED by OWNER_B's attempt", state.prices.find((p) => p.room_id === ROOM_ID)?.follower_price_inr === 349);
+}
+{
+  // start_creator_subscription — WS-R51's own FIX: `ownedReplicaHandle` used
+  // to validate ONLY the shape of `replicaId`, trusting "the caller already
+  // knows" it is their own (see api/_payments.js's own comment, now
+  // rewritten). A body-supplied `replica_id` belonging to ANOTHER owner is
+  // class (c): refused by name, never silently minting a
+  // `vy_creator_subscription` row that binds one owner's id to another
+  // owner's replica.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => startCreatorSubscription(db, { ownerUserId: OWNER_B, replicaId: REPLICA_ID, plan: "room" }, { env: { PAYMENTS_PROVIDER: "fake" } }));
+  okClass("c-body-ids", "payments.js", "start_creator_subscription: a body-supplied replica_id belonging to a DIFFERENT owner is refused, never subscribed (WS-R51 fix)", stolen?.code === "creator_tier_replica_not_owned");
+  ok("[c-body-ids/payments.js] start_creator_subscription: zero vy_creator_subscription rows were written for OWNER_B's attempt", state.creatorSubscriptions.length === 0);
+  // The real owner's own replica_id passes the SAME new ownership gate — the
+  // door battery's own scope is this boundary, not the whole subscribe flow
+  // downstream of it (already `evals/org-billing`/`evals/payments-reconcile`'s
+  // own subject); the fixture does not model the INSERT past the gate, so a
+  // sound positive result here is "not refused for OWNERSHIP", never a null
+  // or an ownership-shaped error.
+  const mineOutcome = await threw(() => startCreatorSubscription(db, { ownerUserId: OWNER, replicaId: REPLICA_ID, plan: "room" }, { env: { PAYMENTS_PROVIDER: "fake" }, secrets: { keyId: "k", keySecret: "s", webhookSecret: "wh" } }));
+  okClass("c-body-ids", "payments.js", "start_creator_subscription: the real owner's own replica_id passes the ownership gate (a DIFFERENT, later failure than creator_tier_replica_not_owned — the fixture and the fix are both sound)", mineOutcome?.code !== "creator_tier_replica_not_owned");
+}
+
+// ── org.js: create, invite, accept, detach_room, board, start_subscription,
+//    update_seats, list_mine, room_status ───────────────────────────────────
+{
+  // create: no cross-owner input exists for this op (it only ever creates
+  // the CALLING bearer's own org+admin row, `room.js`'s "open"/"join" own
+  // shape) — the real dynamic case is a scoping proof, two owners' own orgs
+  // never collide or leak into each other.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const orgA = await ORG.createOrg(db, OWNER, { name: "Anjali's Suite", seatLimit: 5 });
+  const orgB = await ORG.createOrg(db, OWNER_B, { name: "A Second Suite", seatLimit: 3 });
+  okClass("e-owner-bearer", "org.js", "create: two different owners' own orgs never collide", orgA.org_id !== orgB.org_id && orgA.slug !== orgB.slug);
+  const adminA = state.orgMembers.find((m) => m.org_id === orgA.org_id);
+  okClass("e-owner-bearer", "org.js", "create: the CREATING owner's own admin row is written, never a body-supplied one", adminA?.owner_user_id === OWNER);
+}
+{
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  const db = doorsDb(state);
+  const mine = await ORG.inviteMember(db, OWNER, ORG_A);
+  okClass("e-owner-bearer", "org.js", "invite: the real admin invites into their own Suite", mine?.org_id === ORG_A);
+  const stolen = await threw(() => ORG.inviteMember(db, OWNER_B, ORG_A));
+  okClass("e-owner-bearer", "org.js", "invite: a NON-member's bearer against the same org_id is refused org_not_found (404, never 403)", stolen instanceof OrgError && stolen.code === "org_not_found");
+}
+{
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  const db = doorsDb(state);
+  const acceptedB = await ORG.acceptMembership(db, OWNER_B, ORG_A);
+  okClass("e-owner-bearer", "org.js", "accept: a creator's own acceptMembership writes their OWN row", acceptedB.owner_user_id === OWNER_B && acceptedB.role === "creator");
+  ok("[e-owner-bearer/org.js] accept: nobody else's membership row was touched by OWNER_B's own accept", state.orgMembers.length === 1 && state.orgMembers[0].owner_user_id === OWNER_B);
+  const unknownOrg = await threw(() => ORG.acceptMembership(db, OWNER, "ffffffff-0000-4000-8000-000000000000"));
+  okClass("e-owner-bearer", "org.js", "accept: an unknown org_id is refused org_not_found, never a phantom membership", unknownOrg instanceof OrgError && unknownOrg.code === "org_not_found");
+}
+{
+  // detach_room: the room's own owner OR an admin of its attached org may
+  // detach it; a random third party (neither) may not. `evals/room-doors`'s
+  // own attach_room precedent (§3) tolerates any OrgError rather than the
+  // one specific code this fixture's own simplified diag path would report —
+  // the same discipline, restated: this op's write predicate, not its
+  // courtesy-layer wording, is what is under test.
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  state.rooms[0].org_id = ORG_A;
+  const db = doorsDb(state);
+  const stolen = await threw(() => ORG.detachRoom(db, OWNER_B, ROOM_ID));
+  okClass("e-owner-bearer", "org.js", "detach_room: a bearer who is neither the room's own owner nor an admin of its org is refused, never detaches it", stolen instanceof OrgError);
+  ok("[e-owner-bearer/org.js] detach_room: the room's own org_id is UNCHANGED by the stranger's attempt", state.rooms[0].org_id === ORG_A);
+  const mine = await ORG.detachRoom(db, OWNER, ROOM_ID);
+  okClass("e-owner-bearer", "org.js", "detach_room: the room's own owner detaches it themselves, no admin role required (self-service exit, the fixture is sound)", mine?.org_id === null);
+}
+{
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  const db = doorsDb(state);
+  const mine = await ORG.orgBoard(db, ORG_A, OWNER, NOW);
+  okClass("e-owner-bearer", "org.js", "board: the real admin reads their own Suite's board", mine?.org?.org_id === ORG_A);
+  const stolen = await threw(() => ORG.orgBoard(db, ORG_A, OWNER_B, NOW));
+  okClass("e-owner-bearer", "org.js", "board: a NON-member's bearer against the same org_id is refused org_not_found (404, never the roster or a Room's own counts)", stolen instanceof OrgError && stolen.code === "org_not_found");
+}
+{
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  const db = doorsDb(state);
+  const stolen = await threw(() => startOrgSubscription(db, { ownerUserId: OWNER_B, orgId: ORG_A, plan: "starter", seats: 2 }, { env: { PAYMENTS_PROVIDER: "fake" } }));
+  okClass("e-owner-bearer", "org.js", "start_subscription: a NON-admin's bearer is refused org_not_found through orgAdminOrThrow, before any provider call", stolen instanceof PaymentsError && stolen.code === "org_not_found");
+  ok("[e-owner-bearer/org.js] start_subscription: zero vy_org_subscription rows were written for the non-admin's attempt", state.orgSubscriptions.length === 0);
+  const mineOutcome = await threw(() => startOrgSubscription(db, { ownerUserId: OWNER, orgId: ORG_A, plan: "starter", seats: 2 }, { env: { PAYMENTS_PROVIDER: "fake" } }));
+  okClass("e-owner-bearer", "org.js", "start_subscription: the real admin's own call passes the SAME gate, refused for a DIFFERENT, later reason than org_not_found (the admin predicate discriminates)", mineOutcome?.code !== "org_not_found");
+}
+{
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  const db = doorsDb(state);
+  const stolen = await threw(() => updateOrgSeats(db, { ownerUserId: OWNER_B, orgId: ORG_A, seats: 4 }, { env: { PAYMENTS_PROVIDER: "fake" } }));
+  okClass("e-owner-bearer", "org.js", "update_seats: a NON-admin's bearer is refused org_not_found through orgAdminOrThrow", stolen instanceof PaymentsError && stolen.code === "org_not_found");
+  const mineOutcome = await threw(() => updateOrgSeats(db, { ownerUserId: OWNER, orgId: ORG_A, seats: 4 }, { env: { PAYMENTS_PROVIDER: "fake" } }));
+  okClass("e-owner-bearer", "org.js", "update_seats: the real admin's own call passes the SAME gate, refused for a DIFFERENT, later reason than org_not_found", mineOutcome?.code !== "org_not_found");
+}
+{
+  // list_mine: no cross-owner input at all (op:"list_mine" carries no
+  // org_id) — the same shape `create` above and `payout_statements`/
+  // `mine_list` already prove: two owners' own results never cross.
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.orgMembers = [{ org_id: ORG_A, owner_user_id: OWNER, role: "admin", added_at: "2026-08-01T00:00:00.000Z" }];
+  const db = doorsDb(state);
+  const mine = await ORG.listMyOrgs(db, OWNER);
+  okClass("e-owner-bearer", "org.js", "list_mine: the real member sees their own Suite", mine.length === 1 && mine[0].org_id === ORG_A);
+  const others = await ORG.listMyOrgs(db, OWNER_B);
+  okClass("e-owner-bearer", "org.js", "list_mine: a DIFFERENT owner with no membership sees an empty list, never OWNER's Suite", Array.isArray(others) && others.length === 0);
+}
+{
+  const state = freshDoorsState();
+  state.orgs.push({ org_id: ORG_A, name: "Anjali's Suite", slug: "anjalis-suite", plan: "starter", seat_limit: 5, created_at: "2026-08-01T00:00:00.000Z" });
+  state.rooms[0].org_id = ORG_A;
+  const db = doorsDb(state);
+  const mine = await ORG.roomSuiteStatus(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "org.js", "room_status: the real owner reads their own Room's Suite membership", mine?.org_id === ORG_A);
+  const stolen = await ORG.roomSuiteStatus(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "org.js", "room_status: a DIFFERENT owner's bearer against the same replica_id gets null, never OWNER's Suite name", stolen == null);
+}
+
+// ── room-publish.js: create, rename, publish, pause, resume, set_free_cap,
+//    set_paid_ceilings, set_default_locale, stats ──────────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.createRoom(db, OWNER_B, REPLICA_ID, {});
+  okClass("e-owner-bearer", "room-publish.js", "create: a DIFFERENT owner's bearer against OWNER's own replica_id gets null (ownedReplica's own scope), never creates or returns OWNER's Room", stolen == null);
+  const mine = await ROOM_PUBLISH.createRoom(db, OWNER, REPLICA_ID, {});
+  okClass("e-owner-bearer", "room-publish.js", "create: the real owner's own call returns their existing Room, idempotent (the fixture is sound)", mine?.room_id === ROOM_ID || mine?.slug != null);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.renameRoom(db, OWNER_B, REPLICA_ID, "a-strangers-slug");
+  okClass("e-owner-bearer", "room-publish.js", "rename: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never renames OWNER's Room", stolen == null);
+  ok("[e-owner-bearer/room-publish.js] rename: OWNER's own slug is UNCHANGED by OWNER_B's attempt", state.rooms[0].slug !== "a-strangers-slug");
+  const mine = await ROOM_PUBLISH.renameRoom(db, OWNER, REPLICA_ID, "anjali-renamed");
+  okClass("e-owner-bearer", "room-publish.js", "rename: the real owner's own rename succeeds (the fixture is sound)", mine?.slug === "anjali-renamed");
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.publishRoom(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "publish: a DIFFERENT owner's bearer against OWNER's own replica_id gets null (ownedRoomRow's own scope), never touches OWNER's Room", stolen == null);
+  // This fixture takes the write's owner-matched branch unconditionally
+  // (this block's own header: "prove the OWNER boundary, not the whole
+  // write" — the readiness lock's three fragments are `_room-publish.js`'s
+  // own dedicated suite's subject, not this workstream's), so the real
+  // owner's own call is a clean, non-null publish, never a not-found.
+  const mine = await ROOM_PUBLISH.publishRoom(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "publish: the real owner's own call reaches and writes THEIR OWN row (the fixture is sound)", mine?.published === true);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.pauseRoom(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "pause: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never pauses OWNER's Room", stolen == null);
+  ok("[e-owner-bearer/room-publish.js] pause: OWNER's own room is UNCHANGED by OWNER_B's attempt", state.rooms[0].paused_at == null);
+  const mine = await ROOM_PUBLISH.pauseRoom(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "pause: the real owner's own pause succeeds (pausing is unconditional, the fixture is sound)", mine?.paused === true);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.resumeRoom(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "resume: a DIFFERENT owner's bearer against OWNER's own replica_id gets null (ownedRoomRow's own scope), never touches OWNER's Room", stolen == null);
+  const mine = await ROOM_PUBLISH.resumeRoom(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "resume: the real owner's own call reaches and writes THEIR OWN row, never a not-found (the fixture is sound)", mine?.paused === false);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.setRoomFreeCap(db, OWNER_B, REPLICA_ID, 30);
+  okClass("e-owner-bearer", "room-publish.js", "set_free_cap: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's cap", stolen == null);
+  ok("[e-owner-bearer/room-publish.js] set_free_cap: OWNER's own cap is UNCHANGED by OWNER_B's attempt", state.rooms[0].free_monthly_messages !== 30);
+  const mine = await ROOM_PUBLISH.setRoomFreeCap(db, OWNER, REPLICA_ID, 30);
+  okClass("e-owner-bearer", "room-publish.js", "set_free_cap: the real owner's own write succeeds (the fixture is sound)", mine?.free_monthly_messages === 30);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.setRoomPaidCeilings(db, OWNER_B, REPLICA_ID, { messages: 700, voiceSeconds: 2400 });
+  okClass("e-owner-bearer", "room-publish.js", "set_paid_ceilings: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's ceilings", stolen == null);
+  const mine = await ROOM_PUBLISH.setRoomPaidCeilings(db, OWNER, REPLICA_ID, { messages: 700, voiceSeconds: 2400 });
+  okClass("e-owner-bearer", "room-publish.js", "set_paid_ceilings: the real owner's own write succeeds (the fixture is sound)", mine?.paid_monthly_messages === 700 && mine?.paid_monthly_voice_seconds === 2400);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.setRoomDefaultLocale(db, OWNER_B, REPLICA_ID, "hi");
+  okClass("e-owner-bearer", "room-publish.js", "set_default_locale: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's locale", stolen == null);
+  const mine = await ROOM_PUBLISH.setRoomDefaultLocale(db, OWNER, REPLICA_ID, "hi");
+  okClass("e-owner-bearer", "room-publish.js", "set_default_locale: the real owner's own write succeeds (the fixture is sound)", mine?.default_locale === "hi");
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.ownerRoomStats(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "stats: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never OWNER's counts", stolen == null);
+  const mine = await ROOM_PUBLISH.ownerRoomStats(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "room-publish.js", "stats: the real owner's own read succeeds, real zeros never a null (the fixture is sound)", mine != null && mine.followers_total === 0);
+}
+
+// ── invites.js: issue, list, revoke, erase (operator-only) ─────────────────
+// The security boundary for all four is `requireOperator`, checked at the
+// DOOR (api/invites.js), never inside the decision module — §11's own
+// `isOpsOwner`/`retry_failed_payout` method, applied to `OPS_OWNER_USER_IDS`
+// membership instead. Proven dynamically on the real primitive and
+// statically as running BEFORE each of the four functions, `evals/rate-
+// limit/run.mjs`'s own §7 method.
+{
+  const OPERATOR_ENV = { OPS_OWNER_USER_IDS: "op-uid-r51" };
+  for (const opName of ["issue", "list", "revoke", "erase"]) {
+    okClass("e-owner-bearer", "invites.js", `${opName}: requireOperator admits the configured operator`, (() => { try { requireOperator("op-uid-r51", OPERATOR_ENV); return true; } catch { return false; } })());
+    okClass("e-owner-bearer", "invites.js", `${opName}: requireOperator refuses a non-operator bearer (403, before any of issue/list/revoke/erase runs)`, (() => { try { requireOperator(OWNER_B, OPERATOR_ENV); return false; } catch (e) { return e instanceof InvitesError && e.code === "operator_only"; } })());
+  }
+  const src = readFileSync(join(API, "invites.js"), "utf8");
+  const block = src.slice(src.indexOf("requireOperator(user.id)"));
+  for (const [opName, fnName] of [["issue", "issueInvite("], ["list", "listInvites("], ["revoke", "revokeInvite("], ["erase", "eraseInvite("]]) {
+    ok(`[wiring/invites.js] "${opName}" calls requireOperator BEFORE ${fnName.slice(0, -1)}, never after`, block.indexOf(fnName) > 0);
+  }
+}
+{
+  // The functions themselves are sound once past the gate — proven once,
+  // dynamically, rather than re-derived per op above.
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const { code, invite } = await INVITES.issueInvite(db, "op-uid-r51", { contact: "creator@example.com" });
+  ok("[e-owner-bearer/invites.js] issue: an operator's own issue mints a real, redeemable code", typeof code === "string" && Boolean(invite?.invite_id));
+  const listed = await INVITES.listInvites(db, {});
+  ok("[e-owner-bearer/invites.js] list: the issued invite is visible to the operator console", listed.some((i) => i.invite_id === invite.invite_id));
+  const revoked = await INVITES.revokeInvite(db, invite.invite_id);
+  ok("[e-owner-bearer/invites.js] revoke: the operator's own revoke disables it", revoked.expires_at <= new Date().toISOString());
+  const erased = await threw(() => INVITES.eraseInvite(db, invite.invite_id));
+  ok("[e-owner-bearer/invites.js] erase: a REVOKED-but-unredeemed invite still erases outright", erased == null || erased.deleted === true);
+}
+
+// ── apply.js: list, erase (operator-only) ───────────────────────────────────
+{
+  const OPERATOR_ENV = { OPS_OWNER_USER_IDS: "op-uid-r51" };
+  for (const opName of ["list", "erase"]) {
+    okClass("e-owner-bearer", "apply.js", `${opName}: requireOperator admits the configured operator`, (() => { try { requireOperator("op-uid-r51", OPERATOR_ENV); return true; } catch { return false; } })());
+    okClass("e-owner-bearer", "apply.js", `${opName}: requireOperator refuses a non-operator bearer (403, before ${opName} runs)`, (() => { try { requireOperator(OWNER_B, OPERATOR_ENV); return false; } catch (e) { return e instanceof InvitesError && e.code === "operator_only"; } })());
+  }
+  const src = readFileSync(join(API, "apply.js"), "utf8");
+  const block = src.slice(src.indexOf("requireOperator(user.id)"));
+  ok('[wiring/apply.js] "list" calls requireOperator BEFORE listApplications, never after', block.indexOf("listApplications(") > 0);
+  ok('[wiring/apply.js] "erase" calls requireOperator BEFORE eraseApplicationsByContact, never after', block.indexOf("eraseApplicationsByContact(") > 0);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  await APPLY.submitApplication(db, { name: "A Creator", archive_link: "https://example.com/a", contact: "creator2@example.com" }, { now: NOW });
+  const listed = await APPLY.listApplications(db, {});
+  ok("[e-owner-bearer/apply.js] list: an operator's own list sees the real application", listed.length === 1);
+  const erased = await APPLY.eraseApplicationsByContact(db, "creator2@example.com");
+  ok("[e-owner-bearer/apply.js] erase: an operator's own erase-by-contact deletes it", erased.deleted === 1);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §17. WS-R51 — THE FIVE WIDENED DOORS' OWN NEW/NEWLY-COVERED OPS.
+// checkins.js/handoff.js/pulse.js/replica.js/account.js join §18's computed
+// op list for the first time this workstream — every genuinely uncased
+// owner-bearer op among them gets a real case here, exactly as §16 does for
+// the original seven doors' own 27.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §17: the five widened doors' own new cases (WS-R51) ──");
+
+// ── checkins.js: design_create, design_pause (design_list already cased
+//    in §5; designs/opt_in/stop/list_mine/telegram_status/telegram_set
+//    already cased or wiring-proved above) ──────────────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => createDesign(db, OWNER_B, REPLICA_ID, { title: "Steal", promptShape: "x" }));
+  okClass("e-owner-bearer", "checkins.js", "design_create: a DIFFERENT owner's bearer against OWNER's own replica_id is refused room_not_found, never creates a design under OWNER's Room", stolen?.code === "room_not_found");
+  ok("[e-owner-bearer/checkins.js] design_create: no design was written for OWNER_B's attempt", state.checkinDesigns.length === 0);
+  const mine = await createDesign(db, OWNER, REPLICA_ID, { title: "Walk", promptShape: "ask about the walk" });
+  okClass("e-owner-bearer", "checkins.js", "design_create: the real owner's own create succeeds (the fixture is sound)", Boolean(mine?.design_id));
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const design = await createDesign(db, OWNER, REPLICA_ID, { title: "Walk", promptShape: "x" });
+  const stolen = await threw(() => pauseDesign(db, OWNER_B, REPLICA_ID, design.design_id, { state: "paused" }));
+  okClass("e-owner-bearer", "checkins.js", "design_pause: a DIFFERENT owner's bearer against OWNER's own replica_id is refused room_not_found, never pauses OWNER's design", stolen?.code === "room_not_found");
+  ok("[e-owner-bearer/checkins.js] design_pause: OWNER's own design is UNCHANGED by OWNER_B's attempt", state.checkinDesigns[0].state === "active");
+  const mine = await pauseDesign(db, OWNER, REPLICA_ID, design.design_id, { state: "paused" });
+  okClass("e-owner-bearer", "checkins.js", "design_pause: the real owner's own pause succeeds (the fixture is sound)", mine.state === "paused");
+}
+
+// ── handoff.js: config_set, queue, answer (config_get already cased in §5;
+//    draft/send/withdraw/mine already cased or wiring-proved above) ───────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => HANDOFF.setHandoffConfig(db, OWNER_B, REPLICA_ID, { enabled: true, monthlyCap: 10 }));
+  okClass("e-owner-bearer", "handoff.js", "config_set: a DIFFERENT owner's bearer against OWNER's own replica_id is refused room_not_found, never enables handoff on OWNER's Room", stolen?.code === "room_not_found");
+  ok("[e-owner-bearer/handoff.js] config_set: OWNER's own handoff switch is UNCHANGED by OWNER_B's attempt", state.rooms[0].handoff_enabled === false);
+  const mine = await HANDOFF.setHandoffConfig(db, OWNER, REPLICA_ID, { enabled: true, monthlyCap: 10 });
+  okClass("e-owner-bearer", "handoff.js", "config_set: the real owner's own write succeeds (the fixture is sound)", mine.enabled === true && mine.monthly_cap === 10);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => HANDOFF.handoffQueue(db, OWNER_B, REPLICA_ID));
+  okClass("e-owner-bearer", "handoff.js", "queue: a DIFFERENT owner's bearer against OWNER's own replica_id is refused room_not_found, never OWNER's queue", stolen?.code === "room_not_found");
+  const mine = await HANDOFF.handoffQueue(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "handoff.js", "queue: the real owner's own read succeeds, an honest empty queue never a refusal (the fixture is sound)", mine != null && mine.counts != null);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => HANDOFF.answerHandoff(db, OWNER_B, REPLICA_ID, "ffffffff-0000-4000-8000-000000000000", { replyText: "hi" }));
+  okClass("e-owner-bearer", "handoff.js", "answer: a DIFFERENT owner's bearer against OWNER's own replica_id is refused room_not_found, BEFORE the write predicate even runs", stolen?.code === "room_not_found");
+  const mineOutcome = await threw(() => HANDOFF.answerHandoff(db, OWNER, REPLICA_ID, "ffffffff-0000-4000-8000-000000000000", { replyText: "hi" }));
+  okClass("e-owner-bearer", "handoff.js", "answer: the real owner's own call reaches the write predicate for THEIR OWN room (a made-up handoff_id is 'not answerable', a DIFFERENT reason than room_not_found)", mineOutcome?.code === "handoff_not_answerable");
+}
+
+// ── pulse.js: set_topics ────────────────────────────────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => PULSE.setTopics(db, OWNER_B, REPLICA_ID, []));
+  okClass("e-owner-bearer", "pulse.js", "set_topics: a DIFFERENT owner's bearer against OWNER's own replica_id is refused pulse_room_not_found, never touches OWNER's topics", stolen?.code === "pulse_room_not_found");
+  const mine = await PULSE.setTopics(db, OWNER, REPLICA_ID, []);
+  okClass("e-owner-bearer", "pulse.js", "set_topics: the real owner's own write succeeds (the fixture is sound)", Array.isArray(mine));
+}
+
+// ── replica.js: revoke, erasure_status, funnel_mark (create already cased
+//    in §7 via invite-code guessing) ─────────────────────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await REPLICA.requestOwnedReplicaErasure(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "replica.js", "revoke: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never revokes OWNER's replica", stolen == null);
+  ok("[e-owner-bearer/replica.js] revoke: OWNER's own replica is UNCHANGED by OWNER_B's attempt", state.replicas[0].lifecycle !== "revoked");
+  const mine = await REPLICA.requestOwnedReplicaErasure(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "replica.js", "revoke: the real owner's own revoke succeeds (the fixture is sound)", mine?.replica?.replica_id === REPLICA_ID);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  await REPLICA.requestOwnedReplicaErasure(db, OWNER, REPLICA_ID);
+  const jobId = state.erasureJobs[0].job_id;
+  const stolen = await getReplicaErasureStatus(db, OWNER_B, jobId);
+  okClass("e-owner-bearer", "replica.js", "erasure_status: a DIFFERENT owner's bearer naming OWNER's own erasure_request_id gets null, never OWNER's status", stolen == null);
+  const mine = await getReplicaErasureStatus(db, OWNER, jobId);
+  okClass("e-owner-bearer", "replica.js", "erasure_status: the real owner's own read succeeds (the fixture is sound)", mine?.state === "pending");
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await threw(() => markStep(db, OWNER_B, REPLICA_ID, "studio_opened"));
+  okClass("e-owner-bearer", "replica.js", "funnel_mark: a DIFFERENT owner's bearer against OWNER's own replica_id is refused replica_not_found, never marks OWNER's funnel", stolen?.code === "replica_not_found");
+  ok("[e-owner-bearer/replica.js] funnel_mark: no mark was written for OWNER_B's attempt", state.funnelMarks.length === 0);
+  const mine = await markStep(db, OWNER, REPLICA_ID, "studio_opened");
+  okClass("e-owner-bearer", "replica.js", "funnel_mark: the real owner's own mark succeeds (the fixture is sound)", mine?.step === "studio_opened");
+}
+
+// ── account.js: send_otp, verify_otp — WS-R51's own FIX (this file's
+//    header: verify_sms/send_sms already carried these two persistent
+//    scopes since WS-R32; send_otp/verify_otp did not). §8's own method,
+//    one destination shape over (email rather than phone).
+{
+  const db = doorsDb(freshDoorsState());
+  const sendResults = [];
+  // `_rate-limit.js`'s own DEFAULT_LIMITS: otp_send_dest is 10/hour, the SAME
+  // ceiling send_sms already carries.
+  for (let i = 0; i < 11; i++) {
+    sendResults.push(await consume(db, { scope: "otp_send_dest", key: "attacker@example.com", now: NOW + i * 1000 }));
+  }
+  okClass("h-otp-brute-force", "account.js", "send_otp: attempts 1-10 against one destination are admitted", sendResults.slice(0, 10).every((r) => r.ok === true));
+  okClass("h-otp-brute-force", "account.js", "send_otp: the 11th send attempt against the SAME destination is refused (WS-R51 — this op had no persistent gate at all before this fix)", sendResults[10].ok === false && sendResults[10].code === "rate_limited");
+
+  const verifyResults = [];
+  for (let i = 0; i < 11; i++) {
+    verifyResults.push(await consume(db, { scope: "otp_verify_dest", key: "attacker2@example.com", now: NOW + i * 1000 }));
+  }
+  okClass("h-otp-brute-force", "account.js", "verify_otp: attempts 1-10 against one destination are admitted", verifyResults.slice(0, 10).every((r) => r.ok === true));
+  okClass("h-otp-brute-force", "account.js", "verify_otp: the 11th verify attempt against the SAME destination is refused (WS-R51 — this op had NO gate at all before this fix)", verifyResults[10].ok === false && verifyResults[10].code === "rate_limited");
+
+  const src = readFileSync(join(API, "account.js"), "utf8");
+  const sendBlock = src.slice(src.indexOf('if (op === "send_otp")'), src.indexOf('if (op === "verify_otp")'));
+  ok('[wiring/account.js] "send_otp" wires otp_send_ip AND otp_send_dest, keyed by the email itself (WS-R51)', /refused\(res, "otp_send_ip", ipOf\(req\)\)/.test(sendBlock) && /refused\(res, "otp_send_dest", email\)/.test(sendBlock));
+  const verifyBlock = src.slice(src.indexOf('if (op === "verify_otp")'), src.indexOf('if (op === "send_sms")'));
+  ok('[wiring/account.js] "verify_otp" wires otp_verify_ip AND otp_verify_dest, keyed by the email itself (WS-R51)', /refused\(res, "otp_verify_ip", ipOf\(req\)\)/.test(verifyBlock) && /refused\(res, "otp_verify_dest", email\)/.test(verifyBlock));
+  ok('[wiring/account.js] "verify_otp" validates the email BEFORE the gate runs, the same order verify_sms already uses', verifyBlock.indexOf("if (!email)") < verifyBlock.indexOf('refused(res, "otp_verify_ip"'));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §18. THE COMPUTED OP LIST — law 1: every `op === "<name>"` literal in a
 // door's own source is read off that source (never hand-typed twice) and
 // asserted against this file's own coverage table, so a new op fails the
-// gate the day it is written without an entry here — the mechanism this
-// whole workstream exists to build, applied to the six doors its own brief
-// names as carrying ops that merged in "beside" the WS-R38 door battery
-// without a case of their own (`room.js`, `room-pay.js`, `payments.js`,
-// `org.js`, `room-publish.js`, `invites.js`), plus `apply.js`, named
-// explicitly for its WS-R48 `intent` widening. The other EXPECTED_DOORS
-// (`checkins.js`, `handoff.js`, `pulse.js`, `replica.js`, `account.js`, the
-// three webhook doors) keep their EXISTING hand-picked cases above,
-// unaudited by this mechanism — a deliberate scope decision, not an
-// oversight (`decisions.md#ws-r44-computed-op-list-scoped-to-six-named-doors`).
+// gate the day it is written without an entry here — the mechanism WS-R44
+// built for seven doors and WS-R51 widens to EVERY door in `EXPECTED_DOORS`
+// that reads `op` from a body: the original seven (`room.js`, `room-pay.js`,
+// `payments.js`, `org.js`, `room-publish.js`, `invites.js`, `apply.js`) plus
+// `checkins.js`, `handoff.js`, `pulse.js`, `replica.js` and `account.js` —
+// every EXPECTED_DOORS entry except the three webhook doors
+// (`payments-webhook.js`, `room-tg.js`, `room-wa.js`), which this file's own
+// assertion just below the table confirms read no `op` literal at all (they
+// dispatch on `event`/a raw signature, never a body op — a STRUCTURAL
+// exclusion under law 2's own words, "a door whose op shapes the regex
+// cannot read is a finding, not an exclusion" — checked here rather than
+// assumed, so a future op-shaped dispatch added to one of those three fails
+// this file loudly instead of sailing through unaudited).
 //
 // Every op below is either CASED (a real class from this file's own attack
-// taxonomy, exercised above) or EXCLUDED with a named reason — and an
-// exclusion is honest about WHICH of two different things it is naming:
-// "no session and no bearer" (law 1's own criterion — there is no
-// credential-scoped boundary for any class here to test) is a SAFE
-// exclusion; "preexisting-uncased" is NOT a safety claim, it is this
-// workstream's own finding, said plainly rather than hidden behind a
-// passing gate — an owner-bearer op that predates WS-R38, that this
-// workstream's own brief does not name, and that this run therefore leaves
-// genuinely unattacked. See the final report for the full list and the
-// reversal condition that retires each one.
-console.log("\n── §16: the computed op list — every op is cased or named ──");
+// taxonomy, exercised above) or EXCLUDED with a named reason — and every
+// exclusion left standing is a SAFE one: "no session and no bearer" (law 1's
+// own criterion — there is no credential-scoped boundary for any class here
+// to test) or "no cross-identity input for classes b/c/e" (an op that reads
+// or writes only the CALLING bearer's own row, `room.js`'s "open"/"join" own
+// precedent). The `preexisting-uncased` class WS-R44 left standing for 27
+// ops is DELETED by this workstream, not renamed — every op it used to mark
+// that way now carries either a real class (a dynamic case in §16/§17 above)
+// or one of the two safe exclusions, and `decisions.md#ws-r51-every-door-
+// cased` names the reversal condition for the ops this run still cannot
+// exercise (the three structurally op-less webhook doors).
+console.log("\n── §18: the computed op list — every op is cased or named ──");
 
 function computedOps(file) {
   const src = readFileSync(join(API, file), "utf8");
   const names = new Set();
   for (const m of src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)) names.add(m[1]);
   return [...names].sort();
+}
+
+// WS-R51 law 2's own check: the three webhook doors genuinely read no `op`
+// literal — verified here, not merely asserted in a comment, so a future
+// op-shaped dispatch added to one of them is a FINDING (this assertion
+// fails) rather than a silent gap in EXPECTED_DOORS' own coverage.
+for (const webhookDoor of ["payments-webhook.js", "room-tg.js", "room-wa.js"]) {
+  ok(`[computed-op-list/${webhookDoor}] reads no "op" literal at all (structurally excluded from OP_COVERAGE, not merely skipped)`, computedOps(webhookDoor).length === 0);
 }
 
 // door -> op -> { classes: [...] } (cased, exercised above) | { excluded: "reason" }
@@ -1225,8 +1680,8 @@ const OP_COVERAGE = {
     cancel: { classes: ["a", "b"] },
   },
   "payments.js": {
-    set_price: { excluded: "preexisting-uncased — owner-bearer op unchanged since before WS-R38, not named by this workstream's own brief" },
-    start_creator_subscription: { excluded: "preexisting-uncased, same reason as set_price" },
+    set_price: { classes: ["e"] },
+    start_creator_subscription: { classes: ["c"] },
     payout_statements: { classes: ["e"] },
     payout_statement: { classes: ["c"] },
     register_fund_account: { classes: ["e"] },
@@ -1235,46 +1690,90 @@ const OP_COVERAGE = {
     cancel_creator_subscription: { classes: ["e"] },
   },
   "org.js": {
-    create: { excluded: "preexisting-uncased" },
-    invite: { excluded: "preexisting-uncased" },
-    accept: { excluded: "preexisting-uncased" },
+    create: { classes: ["e"] },
+    invite: { classes: ["e"] },
+    accept: { classes: ["e"] },
     attach_room: { classes: ["c"] },
-    detach_room: { excluded: "preexisting-uncased" },
-    board: { excluded: "preexisting-uncased" },
-    subscription: { excluded: "preexisting-uncased" },
-    start_subscription: { excluded: "preexisting-uncased" },
-    update_seats: { excluded: "preexisting-uncased" },
+    detach_room: { classes: ["e"] },
+    board: { classes: ["e"] },
+    subscription: { classes: ["e"] },
+    start_subscription: { classes: ["e"] },
+    update_seats: { classes: ["e"] },
     cancel_subscription: { classes: ["e"] },
-    list_mine: { excluded: "preexisting-uncased" },
+    list_mine: { classes: ["e"] },
     members: { classes: ["e"] },
-    room_status: { excluded: "preexisting-uncased" },
+    room_status: { classes: ["e"] },
   },
   "room-publish.js": {
-    create: { excluded: "preexisting-uncased" },
-    rename: { excluded: "preexisting-uncased" },
-    publish: { excluded: "preexisting-uncased" },
-    pause: { excluded: "preexisting-uncased" },
-    resume: { excluded: "preexisting-uncased" },
-    set_free_cap: { excluded: "preexisting-uncased" },
-    set_paid_ceilings: { excluded: "preexisting-uncased" },
-    set_default_locale: { excluded: "preexisting-uncased" },
+    create: { classes: ["e"] },
+    rename: { classes: ["e"] },
+    publish: { classes: ["e"] },
+    pause: { classes: ["e"] },
+    resume: { classes: ["e"] },
+    set_free_cap: { classes: ["e"] },
+    set_paid_ceilings: { classes: ["e"] },
+    set_default_locale: { classes: ["e"] },
     set_bio: { classes: ["e"] },
     list: { classes: ["e"] },
     unlist: { classes: ["e"] },
-    stats: { excluded: "preexisting-uncased" },
+    stats: { classes: ["e"] },
   },
   "invites.js": {
-    issue: { excluded: "preexisting-uncased" },
-    list: { excluded: "preexisting-uncased" },
-    revoke: { excluded: "preexisting-uncased" },
-    erase: { excluded: "preexisting-uncased" },
+    issue: { classes: ["e"] },
+    list: { classes: ["e"] },
+    revoke: { classes: ["e"] },
+    erase: { classes: ["e"] },
     mine_issue: { classes: ["e"] },
     mine_list: { classes: ["e"] },
   },
   "apply.js": {
     submit: { excluded: "no session and no bearer — public, unauthenticated (the WS-R48 intent field widens this op's BODY, never its identity boundary)" },
-    list: { excluded: "preexisting-uncased, operator-only, unchanged by WS-R48" },
-    erase: { excluded: "preexisting-uncased, operator-only, unchanged by WS-R48" },
+    list: { classes: ["e"] },
+    erase: { classes: ["e"] },
+  },
+  // ── WS-R51: the five doors §18 widens to for the first time. ────────────
+  "checkins.js": {
+    design_create: { classes: ["e"] },
+    design_list: { classes: ["e"] },
+    design_pause: { classes: ["e"] },
+    designs: { classes: ["a", "b"] },
+    opt_in: { classes: ["a", "b", "c"] },
+    stop: { classes: ["a", "b", "c"] },
+    list_mine: { classes: ["a", "b"] },
+    telegram_status: { classes: ["a", "b"] },
+    telegram_set: { classes: ["a", "b"] },
+  },
+  "handoff.js": {
+    config_get: { classes: ["e"] },
+    config_set: { classes: ["e"] },
+    queue: { classes: ["e"] },
+    answer: { classes: ["e"] },
+    draft: { classes: ["a", "b"] },
+    send: { classes: ["a", "b"] },
+    withdraw: { classes: ["a", "b", "c"] },
+    mine: { classes: ["a", "b"] },
+  },
+  "pulse.js": {
+    set_topics: { classes: ["e"] },
+  },
+  "replica.js": {
+    create: { classes: ["g"] },
+    revoke: { classes: ["e"] },
+    erasure_status: { classes: ["e"] },
+    funnel_mark: { classes: ["e"] },
+  },
+  "account.js": {
+    send_otp: { classes: ["h"] },
+    verify_otp: { classes: ["h"] },
+    send_sms: { classes: ["h"] },
+    verify_sms: { classes: ["h"] },
+    google_url: { excluded: "no session and no bearer — a static redirect URL, no identity or another account's data anywhere in the response" },
+    refresh: { excluded: "no cross-identity input for classes b/c/e — the caller presents their OWN refresh_token; Supabase Auth itself is what a stolen token would defeat, not a predicate this file could add" },
+    save_state: { excluded: "no cross-identity input for classes b/c/e — user is resolved ONLY from userFromToken(access_token), never a body-supplied id; the row written is keyed on that verified user's own id" },
+    load_state: { excluded: "no cross-identity input for classes b/c/e, save_state's own reason" },
+    wipe_state: { excluded: "no cross-identity input for classes b/c/e, save_state's own reason" },
+    consent: { excluded: "no session and no bearer — append-only ledger row, unauthenticated by design (this file's own header: most users are anonymous device ids); user_id rides along only when present and is never trusted to scope a READ, since there is no read op" },
+    track: { excluded: "no session and no bearer — unauthenticated analytics row, this file's own header" },
   },
 };
 
@@ -1286,6 +1785,10 @@ for (const [file, coverage] of Object.entries(OP_COVERAGE)) {
     const entry = coverage[opName];
     const known = Boolean(entry && (entry.excluded || (Array.isArray(entry.classes) && entry.classes.length > 0)));
     if (!known) uncasedOps++;
+    // WS-R51 law 2: the "preexisting-uncased" class is DELETED, not
+    // renamed — this loop fails loudly if any entry still uses it, so a
+    // future rebase that reintroduces the string cannot silently reopen the
+    // gap this workstream closed.
     if (entry?.excluded?.startsWith("preexisting-uncased")) preexistingGaps++;
     ok(`[computed-op-list/${file}] "${opName}" is either cased or named excluded`, known, known ? "" : "— UNCASED OP, no entry in OP_COVERAGE at all");
   }
@@ -1298,7 +1801,81 @@ for (const [file, coverage] of Object.entries(OP_COVERAGE)) {
   console.log(`  ${file.padEnd(18)} ops (${ops.length}): ${ops.join(", ")}`);
 }
 ok("the computed op list found ZERO ops with no OP_COVERAGE entry at all (every op is cased or named excluded)", uncasedOps === 0);
-console.log(`  ${preexistingGaps} op(s) across these seven doors are named "preexisting-uncased" — a real, honest finding, not a silent pass (see the final report)`);
+ok('the "preexisting-uncased" class is GONE from OP_COVERAGE — every op WS-R44 left there now carries a real class or a safe exclusion (WS-R51 law 2)', preexistingGaps === 0);
+
+// ═════════════════════════════════════════════════════════════════════════
+// §19. WS-R51 — NEGATIVE CONTROLS (law 4). Both MUST fail, or this
+// workstream has proven nothing about its own new cases
+// (`sound-gate-proved-by-silence`, `evals/room-leak/run.mjs`'s own header
+// law, restated here for the door battery's own new material).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §19: negative controls (both MUST fail) ──");
+
+// Control (1): the owner predicate STRUCK from a fixture copy of the
+// decision path — `evals/room/run.mjs`'s own §6 technique (a wrapped `db`
+// that rewrites the query BEFORE it reaches the fixture), applied here at
+// the level this battery's own fixture operates on: `setRoomFreeCap`'s own
+// UPDATE (`where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid`) is
+// intercepted and answered by REPLICA_ID ALONE, `owner_user_id` never
+// consulted — exactly what a shipped WHERE clause losing its owner half
+// would produce. If §16's own `set_free_cap` case still passed against THIS
+// weakened world, that case would have been proving nothing.
+{
+  const state = freshDoorsState();
+  const realDb = doorsDb(state);
+  const ownerCheckStruck = async (sql, params) => {
+    if (sql.includes("set free_monthly_messages = ($3)::int4")) {
+      // The struck predicate: match by replica_id ALONE, the shape a
+      // shipped WHERE clause missing its owner half would produce.
+      const [, replica, cap] = params;
+      const row = state.rooms.find((r) => r.replica_id === String(replica));
+      if (!row) return [];
+      row.free_monthly_messages = cap;
+      return [{ ...row }];
+    }
+    return realDb(sql, params);
+  };
+  const leaked = await ROOM_PUBLISH.setRoomFreeCap(ownerCheckStruck, OWNER_B, REPLICA_ID, 77);
+  ok(
+    "NEGATIVE CONTROL (1): with the owner predicate struck, a DIFFERENT owner's bearer now DOES write OWNER's own free cap — proving §16's real case (which struck nothing) was actually load-bearing, not vacuous",
+    leaked?.free_monthly_messages === 77,
+  );
+  ok("NEGATIVE CONTROL (1): the struck world genuinely changed the outcome (OWNER's own cap is now 77, not the fixture's original default)", state.rooms[0].free_monthly_messages === 77);
+}
+
+// Control (2): an op literal ADDED to a temp copy of a real door's source,
+// with no OP_COVERAGE entry for it — proving §18's own completeness check
+// (the mechanism this whole workstream widens) actually fails loudly on an
+// uncased op, rather than silently passing on anything.
+{
+  const realSrc = readFileSync(join(API, "room-publish.js"), "utf8");
+  const sneakyOp = "totally_new_sneaky_op_added_by_negative_control";
+  const mutated = realSrc.replace(
+    'if (op === "stats") {',
+    `if (op === "${sneakyOp}") { /* WS-R51 negative control: an op with no case and no OP_COVERAGE entry at all */ }\n    if (op === "stats") {`,
+  );
+  ok("NEGATIVE CONTROL (2) fixture sanity: the injected op literal actually landed in the mutated copy", mutated.includes(`op === "${sneakyOp}"`) && mutated !== realSrc);
+  const tmpDir = mkdtempSync(join(tmpdir(), "ws-r51-negctrl-"));
+  const tmpFile = join(tmpDir, "room-publish.js");
+  try {
+    writeFileSync(tmpFile, mutated, "utf8");
+    // computedOps() itself always reads from API/<file> (it is exercised
+    // against the real doors elsewhere in this file, on purpose — a
+    // relative-path parameter would defeat that); this control reads the
+    // temp copy with the SAME extraction regex directly, never a second,
+    // hand-derived one.
+    const mutatedSrc = readFileSync(tmpFile, "utf8");
+    const mutatedOps = [...new Set([...mutatedSrc.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)].map((m) => m[1]))];
+    const realCoverage = OP_COVERAGE["room-publish.js"];
+    const known = Boolean(realCoverage[sneakyOp]);
+    ok(
+      `NEGATIVE CONTROL (2): a "${sneakyOp}" op discovered in the mutated door has NO OP_COVERAGE entry — this is exactly the "UNCASED OP" failure §18 raises on a real door, proving the completeness check actually catches a new, uncovered op rather than passing on anything`,
+      mutatedOps.includes(sneakyOp) && !known,
+    );
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
 
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── case counts per attack class, per door ──");

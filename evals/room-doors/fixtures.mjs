@@ -42,14 +42,24 @@ export function freshDoorsState() {
   // `rooms` already carries the base fixture's one published room, owned by
   // `OWNER`, replica `REPLICA_ID`. Every owner-door case below either reads
   // that room as its rightful owner or reads it (and is refused) as `OWNER_B`
-  // — nothing here EVER inserts a second real room, so `attachRoom`/`orgBoard`
-  // style multi-room reads are deliberately out of this battery's scope; see
-  // this file's own header note in evals/room-doors/run.mjs on why.
+  // — this file still never inserts a SECOND real room (WS-R38's own scope
+  // note, restated), but WS-R51 adds `state.orgs` and the join-shaped
+  // `vy_org`/`vy_org_member` patterns below so `orgBoard`/`inviteMember`/
+  // `startOrgSubscription`/`updateOrgSeats`/`roomSuiteStatus` — four of the
+  // ten `org.js` ops this workstream's own brief names — can be driven for
+  // real rather than left "preexisting-uncased" (see
+  // `context/rejected.md#ws-r44-new-payout-and-directory-cases-needed-fixture-sql-this-workstream-had-not-yet-added`,
+  // the exact gap this workstream closes).
   state.rooms[0].handoff_enabled = false;
   state.rooms[0].handoff_monthly_cap = 5;
   state.replicas = [
     {
-      replica_id: REPLICA_ID, owner_user_id: OWNER, display_name: "Anjali",
+      // WS-R51: `agent_id` — room-publish.js's `createRoom` reads it BEFORE
+      // its own idempotent existing-room check (`if (!replica.agent_id)
+      // throw...` precedes `ownedRoomRow`), so a replica fixture with no
+      // agent at all refused every `create` case this workstream added
+      // before this field was here, real owner and stranger alike.
+      replica_id: REPLICA_ID, owner_user_id: OWNER, agent_id: AGENT_ID, display_name: "Anjali",
       subject_mode: "self", lifecycle: "consent_pending", policy_version: "replica-self-v1",
       age_verified_at: null, identity_verified_at: null, liveness_verified_at: null,
       identity_expires_at: null, created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000Z",
@@ -76,6 +86,14 @@ export function freshDoorsState() {
   // subscription`/`cancel_subscription`) reuses them.
   state.payouts = [];
   state.payoutAccounts = [];
+  // WS-R51: `vy_org` rows (createOrg/orgBoard/inviteMember/roomSuiteStatus),
+  // the replica erasure job ledger (`getReplicaErasureStatus`) and the
+  // creator funnel mark table (`markStep`) — none of the seven doors this
+  // battery originally cased needed them; three of the five doors §16 widens
+  // to now do.
+  state.orgs = [];
+  state.erasureJobs = [];
+  state.funnelMarks = [];
   return state;
 }
 
@@ -188,6 +206,16 @@ function doorsPatterns(state) {
       const [followerId, monthKey] = params.map(String);
       return [{ n: state.handoffs.filter((h) => h.follower_id === followerId && h.month_key === monthKey && h.state !== "withdrawn").length }];
     }
+    // WS-R51: handoff.js's "config_set" (setHandoffConfig) — the owner
+    // switch and cap, one row over the follower-scoped patterns above.
+    if (has("set handoff_enabled = ($3)::boolean")) {
+      const [roomId, ownerUserId, enabled, cap] = params;
+      const r = state.rooms.find((x) => x.room_id === String(roomId) && x.owner_user_id === String(ownerUserId));
+      if (!r) return [];
+      r.handoff_enabled = enabled;
+      r.handoff_monthly_cap = cap;
+      return [{ room_id: r.room_id, handoff_enabled: r.handoff_enabled, handoff_monthly_cap: r.handoff_monthly_cap }];
+    }
     if (has("update vy_room_handoff") && has("set state = 'withdrawn'")) {
       const [handoffId, roomId, personId, followerId] = params.map(String);
       const h = state.handoffs.find(
@@ -291,6 +319,33 @@ function doorsPatterns(state) {
       state.invites.push(row);
       return [row];
     }
+    // WS-R51: invites.js's operator ops beyond "issue" — list/revoke/erase.
+    if (has("from vy_creator_invite") && has("order by created_at desc") && has("limit $1::int") && !has("issued_kind")) {
+      const [cap] = params;
+      return state.invites
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, Number(cap) || 50);
+    }
+    if (has("update vy_creator_invite") && has("set expires_at = least(expires_at, now())")) {
+      const [inviteId] = params.map(String);
+      const row = state.invites.find((i) => i.invite_id === inviteId && i.redeemed_at == null);
+      if (!row) return [];
+      row.expires_at = new Date(0).toISOString();
+      return [{ ...row }];
+    }
+    if (has("delete from vy_creator_invite") && has("where invite_id = $1::uuid") && has("redeemed_at is null")) {
+      const [inviteId] = params.map(String);
+      const idx = state.invites.findIndex((i) => i.invite_id === inviteId && i.redeemed_at == null);
+      if (idx === -1) return [];
+      state.invites.splice(idx, 1);
+      return [{ invite_id: inviteId }];
+    }
+    if (has("select 1 from vy_creator_invite where invite_id = $1::uuid and redeemed_at is not null")) {
+      const [inviteId] = params.map(String);
+      const still = state.invites.some((i) => i.invite_id === inviteId && i.redeemed_at != null);
+      return still ? [{ x: 1 }] : [];
+    }
 
     // ── vy_creator_application (api/_apply.js) — only the happy-path insert
     //    and the daily-per-contact refusal are needed here; every OTHER
@@ -298,14 +353,24 @@ function doorsPatterns(state) {
     //    boundary, which never reaches SQL at all (`requireOperator` throws
     //    first). ──────────────────────────────────────────────────────────
     if (has("insert into vy_creator_application")) {
-      const [id, name, archiveLink, audience, contact, key, day] = params;
+      const [id, name, archiveLink, audience, contact, key, day, intent] = params;
       if (state.applications.some((a) => a.contact_key === key && a.applied_on === day)) return [];
       const row = {
         application_id: id, name, archive_link: archiveLink, audience, contact,
-        contact_key: key, applied_on: day, status: "new", created_at: new Date().toISOString(),
+        contact_key: key, applied_on: day, status: "new", intent: intent || "creator", created_at: new Date().toISOString(),
       };
       state.applications.push(row);
       return [row];
+    }
+    // WS-R51: apply.js's operator ops — list/erase.
+    if (has("select application_id, name, archive_link, audience, contact, status, intent, created_at") && has("from vy_creator_application")) {
+      return state.applications.slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+    if (has("delete from vy_creator_application where contact_key = $1::text")) {
+      const [key] = params.map(String);
+      const before = state.applications.length;
+      state.applications = state.applications.filter((a) => a.contact_key !== key);
+      return Array.from({ length: before - state.applications.length }, () => ({ application_id: "x" }));
     }
 
     // ── PAYMENTS: vy_room_price / vy_room_subscription / vy_payment_event —
@@ -447,7 +512,18 @@ function doorsPatterns(state) {
       row.cancel_at_period_end = true;
       return [{ subscription_id: row.subscription_id, state: row.state, current_period_end: row.current_period_end ?? null, cancel_at_period_end: true }];
     }
-    if (has("from vy_org_subscription") && has("org_id = ($1)::uuid") && has("state in (")) {
+    // WS-R51: narrowed with `!has("vy_org_member")` — `seatCapSql`'s own
+    // fragment (embedded in `orgBoard`/`startOrgSubscription`/`updateOrgSeats`/
+    // `listMyOrgs`'s SELECT lists below) ALSO contains "from
+    // vy_org_subscription", "org_id = ($1)::uuid" and "state in (" as plain
+    // substrings — this pattern's original three-substring test alone
+    // silently matched those four queries too and returned an empty
+    // `orgSubscriptions` lookup for every one of them, which is exactly how
+    // this workstream's first `orgBoard` case failed before this line was
+    // narrowed (`context/rejected.md#ws-r51-loose-substring-pattern-matched-
+    // seatcapsqls-own-embedded-fragment`). The real `cancelOrgRenewal` status
+    // read this pattern exists for never mentions `vy_org_member` at all.
+    if (has("from vy_org_subscription") && has("org_id = ($1)::uuid") && has("state in (") && !has("vy_org_member")) {
       const [orgId] = params.map(String);
       const row = state.orgSubscriptions.find(
         (s) => s.org_id === orgId && ["created", "authenticated", "active", "paused"].includes(s.state),
@@ -474,6 +550,23 @@ function doorsPatterns(state) {
       );
       if (!isAdmin) return [];
       return [{ org_id: orgId, slug: org?.slug ?? null, plan: org?.plan ?? null, seat_limit: org?.seat_limit ?? null }];
+    }
+    // WS-R51: org.js's "list_mine" (listMyOrgs) — every Suite the CALLING
+    // bearer belongs to, admin or creator, no admin restriction and no
+    // org_id in the body at all.
+    if (has("from vy_org_member m") && has("join vy_org o on o.org_id = m.org_id")) {
+      const [owner] = params.map(String);
+      const mine = state.orgMembers
+        .filter((m) => m.owner_user_id === owner)
+        .map((m) => {
+          const org = state.orgs.find((o) => o.org_id === m.org_id);
+          if (!org) return null;
+          const seatsUsed = state.rooms.filter((r) => r.org_id === org.org_id).length;
+          return { org_id: org.org_id, name: org.name, slug: org.slug, plan: org.plan, seat_limit: org.seat_limit, created_at: org.created_at, role: m.role, seats_used: seatsUsed, seats_paid: org.seat_limit };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      return mine;
     }
 
     // ── WS-R44: WS-R36's payout ledger and fund account (api/_payments.js) ─
@@ -597,6 +690,205 @@ function doorsPatterns(state) {
         return [{ count: row.count }];
       }
       return [];
+    }
+
+    // ── WS-R51: room-publish.js's create/rename/publish/pause/resume/
+    //    set_free_cap/set_paid_ceilings/set_default_locale — the eight of
+    //    the workstream's own 27 "preexisting-uncased" ops that live in
+    //    `api/_room-publish.js`. Every one of these is `assertOwnerScope`
+    //    then a plain `where owner_user_id = ($1)::uuid and replica_id =
+    //    ($2)::uuid` UPDATE — the SAME owner-scoped shape `set listed_at`/
+    //    `set one_line_bio` already prove above; this is the remaining six
+    //    columns those two never touched. `publish`/`resume`'s own THREE-
+    //    FRAGMENT readiness lock (runtime capability, readiness floor,
+    //    disclosure approval) is deliberately NOT reproduced here — that
+    //    lock is `api/_room-publish.js`'s own subject, already proven by its
+    //    dedicated suite; this fixture only needs to prove the OWNER
+    //    boundary the write's WHERE clause enforces, so it always takes the
+    //    `then` branch of the CASE once the owner matches, exactly the way
+    //    `coalesce(r.published_at, now())` already behaves once every real
+    //    gate is open. ─────────────────────────────────────────────────────
+    if (has("insert into vy_room\n")) {
+      // createRoom's own INSERT never fires in this battery — `ownedReplica`
+      // and the idempotent `ownedRoomRow` re-read both resolve through
+      // patterns already above, and the fixture's one room already exists
+      // for REPLICA_ID/OWNER — but a caller that reaches this far with a
+      // truly new replica gets an honest new row rather than a silent [].
+      const [, proposed, replicaIdP, agentIdP, ownerIdP, displayName] = params;
+      const row = {
+        room_id: `f${state.rooms.length}${"0".repeat(30)}`, slug: proposed, replica_id: String(replicaIdP),
+        agent_id: String(agentIdP), owner_user_id: String(ownerIdP), display_name: displayName,
+        free_monthly_messages: 20, paid_monthly_messages: 500, paid_monthly_voice_seconds: 1800,
+        listed_at: null, one_line_bio: null, published_at: null, paused_at: null,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      };
+      state.rooms.push(row);
+      return [{ ...row }];
+    }
+    if (has("set slug = $3, updated_at = now()")) {
+      const [ownerUserId, replicaId, slug] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.slug = slug;
+      return [{ ...r }];
+    }
+    if (has("published_at = case")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.published_at = r.published_at || new Date().toISOString();
+      return [{ ...r }];
+    }
+    if (has("set paused_at = now(), updated_at = now()")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.paused_at = new Date().toISOString();
+      return [{ ...r }];
+    }
+    if (has("paused_at = case")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.paused_at = null;
+      return [{ ...r }];
+    }
+    if (has("set free_monthly_messages = ($3)::int4")) {
+      const [ownerUserId, replicaId, n] = params;
+      const r = state.rooms.find((x) => x.owner_user_id === String(ownerUserId) && x.replica_id === String(replicaId));
+      if (!r) return [];
+      r.free_monthly_messages = n;
+      return [{ ...r }];
+    }
+    if (has("set paid_monthly_messages = ($3)::int4")) {
+      const [ownerUserId, replicaId, m, v] = params;
+      const r = state.rooms.find((x) => x.owner_user_id === String(ownerUserId) && x.replica_id === String(replicaId));
+      if (!r) return [];
+      r.paid_monthly_messages = m;
+      r.paid_monthly_voice_seconds = v;
+      return [{ ...r }];
+    }
+    if (has("set default_locale = $3, updated_at = now()")) {
+      const [ownerUserId, replicaId, loc] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      r.default_locale = loc;
+      return [{ ...r }];
+    }
+
+    // ── WS-R51: org.js's create/invite/accept/detach_room/board/
+    //    start_subscription/update_seats/room_status — the remaining
+    //    `api/_org.js`/`api/_payments.js` "preexisting-uncased" ops. ───────
+    if (has("with new_org as (") && has("insert into vy_org ")) {
+      const [orgId, name, slug, owner, plan, seatLimit] = params;
+      if (state.orgs.some((o) => o.slug === slug)) {
+        throw Object.assign(new Error('duplicate key value violates unique constraint "vy_org_slug_ix"'), { code: "23505" });
+      }
+      const row = { org_id: orgId, name, slug, plan, seat_limit: seatLimit, created_at: new Date().toISOString() };
+      state.orgs.push(row);
+      state.orgMembers.push({ org_id: orgId, owner_user_id: String(owner), role: "admin", added_at: new Date().toISOString() });
+      return [{ ...row }];
+    }
+    if (has("join vy_org_member m on m.org_id = o.org_id and m.owner_user_id = ($2)::uuid and m.role = 'admin'")) {
+      const [orgId, adminId] = params.map(String);
+      const isAdmin = state.orgMembers.some((m) => m.org_id === orgId && m.owner_user_id === adminId && m.role === "admin");
+      if (!isAdmin) return [];
+      const org = state.orgs.find((o) => o.org_id === orgId);
+      if (!org) return [];
+      if (has("o.plan, o.seat_limit, o.created_at")) {
+        // orgBoard's own header select — `seats_paid` is the coalesced cap;
+        // this fixture takes the un-subscribed fallback (`seat_limit`)
+        // rather than reproducing `seatCapSql`'s own subscription lookup,
+        // the same "prove the owner boundary, not the whole write" scope
+        // this block's own header states.
+        return [{ org_id: org.org_id, name: org.name, slug: org.slug, plan: org.plan, seat_limit: org.seat_limit, created_at: org.created_at, seats_paid: org.seat_limit }];
+      }
+      if (has("o.slug, o.plan, o.seat_limit")) {
+        // orgAdminOrThrow's own shape (startOrgSubscription/updateOrgSeats).
+        return [{ org_id: org.org_id, slug: org.slug, plan: org.plan, seat_limit: org.seat_limit }];
+      }
+      // inviteMember's own shape.
+      return [{ org_id: org.org_id, name: org.name, slug: org.slug }];
+    }
+    if (has("with target as (") && has("insert into vy_org_member") && has("on conflict (org_id, owner_user_id) do nothing")) {
+      const [orgId, owner] = params.map(String);
+      const org = state.orgs.find((o) => o.org_id === orgId);
+      if (!org) return [{ org_exists: 0, role: null, added_at: null }];
+      let member = state.orgMembers.find((m) => m.org_id === orgId && m.owner_user_id === owner);
+      if (!member) {
+        member = { org_id: orgId, owner_user_id: owner, role: "creator", added_at: new Date().toISOString() };
+        state.orgMembers.push(member);
+      }
+      return [{ org_exists: 1, role: member.role, added_at: member.added_at }];
+    }
+    if (has("set org_id = null, org_attached_at = null")) {
+      const [room, caller] = params.map(String);
+      const r = state.rooms.find((x) => x.room_id === room);
+      if (!r || r.org_id == null) return [];
+      const isAdmin = state.orgMembers.some((m) => m.org_id === r.org_id && m.owner_user_id === caller && m.role === "admin");
+      if (r.owner_user_id !== caller && !isAdmin) return [];
+      r.org_id = null;
+      r.org_attached_at = null;
+      return [{ room_id: r.room_id }];
+    }
+    if (has("as current_org_id") && has("as room_owner")) {
+      const [room] = params.map(String);
+      const r = state.rooms.find((x) => x.room_id === room);
+      return [{ room_exists: r ? 1 : null, current_org_id: r?.org_id ?? null, room_owner: r?.owner_user_id ?? null }];
+    }
+    if (has("from vy_room r") && has("join vy_org o on o.org_id = r.org_id")) {
+      const [owner, rid] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === owner && x.replica_id === rid);
+      if (!r || r.org_id == null) return [];
+      const org = state.orgs.find((o) => o.org_id === r.org_id);
+      return org ? [{ org_id: org.org_id, name: org.name, slug: org.slug }] : [];
+    }
+
+    // ── WS-R51: replica.js's revoke/erasure_status/funnel_mark. ───────────
+    if (has("into vy_replica_erasure_job")) {
+      const [rid, owner] = params.map(String);
+      const r = state.replicas.find((x) => x.replica_id === rid && x.owner_user_id === owner);
+      if (!r) return [];
+      r.lifecycle = "revoked";
+      r.revoked_at = new Date().toISOString();
+      // getReplicaErasureStatus's own `replicaErasureRequestHash` requires a
+      // real UUID shape (400s on anything else) — a real one, not a plain
+      // string, so the erasure_status test one function over can drive it.
+      const jobId = randomUUID();
+      state.erasureJobs.push({ job_id: jobId, replica_id: rid, owner_user_id: owner, requested_at: new Date().toISOString(), updated_at: new Date().toISOString(), attempts: 0 });
+      return [{ ...r, erasure_request_id: jobId }];
+    }
+    if (has("from vy_replica_erasure_job j where j.job_id=$1::uuid and j.owner_user_id=$2::uuid")) {
+      const [jobId, owner] = params.map(String);
+      const job = state.erasureJobs.find((j) => j.job_id === jobId && j.owner_user_id === owner);
+      if (!job) return [];
+      return [{
+        state: "pending", requested_at: job.requested_at, updated_at: job.updated_at, completed_at: null,
+        backup_expires_at: null, attempts: job.attempts, provider_state: "confirmed", storage_state: "confirmed",
+        deleted_classes: [],
+      }];
+    }
+    if (has("with owned as (") && has("into vy_replica_funnel_mark")) {
+      const [rid, owner, step] = params.map(String);
+      const r = state.replicas.find((x) => x.replica_id === rid && x.owner_user_id === owner);
+      if (!r) return [{ owned: 0, at: null }];
+      let mark = state.funnelMarks.find((m) => m.replica_id === rid && m.owner_user_id === owner && m.step === step);
+      if (!mark) {
+        mark = { replica_id: rid, owner_user_id: owner, step, at: new Date().toISOString() };
+        state.funnelMarks.push(mark);
+      }
+      return [{ owned: 1, at: mark.at }];
+    }
+    // WS-R51: api/_payments.js's `startCreatorSubscription` fix — a
+    // body-supplied `replicaId` is now verified against the bearer's OWN
+    // `vy_replica` row before a subscription can ever be created for it
+    // (this workstream's own class-c finding). Byte-identical SQL shape to
+    // the existing `getOwnedReplica` pattern above, reused rather than
+    // duplicated with a different WHERE text.
+    if (has("select replica_id from vy_replica where replica_id = $1::uuid and owner_user_id = $2::uuid")) {
+      const [replica, owner] = params.map(String);
+      const row = state.replicas.find((r) => r.replica_id === replica && r.owner_user_id === owner);
+      return row ? [{ replica_id: row.replica_id }] : [];
     }
 
     return undefined; // not a doors pattern — fall through to the base Room fixture
