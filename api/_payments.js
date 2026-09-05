@@ -596,6 +596,16 @@ export async function startOrgSubscription(db, { ownerUserId, orgId, plan, seats
   };
 }
 
+/** WS-R73: the two payment methods Razorpay refuses a quantity update on.
+ *  `razorpay.com/docs/payments/subscriptions/faqs/`, fetched 2026-09-05
+ *  (WS-R69's own finding 6(a), closed by this workstream): "You can only
+ *  update a Subscription authorised using cards and not via UPI and
+ *  Emandate." Compared case-insensitively against `getSubscription`'s own
+ *  raw `payment_method` string - see that function's own header
+ *  (`api/_payments/providers/razorpay.js`) for why an UNRECOGNISED third
+ *  value is treated as updatable rather than blocked. */
+const SEAT_UPDATE_LOCKED_METHODS = new Set(["upi", "emandate"]);
+
 /**
  * Add (or reduce) a Suite's seats on its own LIVE subscription. "Adding a
  * seat is a subscription update through the seam, prorated by the provider,
@@ -604,6 +614,21 @@ export async function startOrgSubscription(db, { ownerUserId, orgId, plan, seats
  * ever updated with what the provider actually accepted. A subscription that
  * has not yet been authenticated (no provider ref) has nothing for a
  * provider to prorate, so the local row alone is updated.
+ *
+ * WS-R73: Razorpay refuses this PATCH outright when the subscription was
+ * authorised via UPI Autopay or Emandate ("cannot be updated when payment
+ * mode is upi" / "...emandate", the SAME faqs page, quoted verbatim in
+ * `api/_payments/providers/razorpay.js`'s own WS-R73 addendum) - so before
+ * ever calling `updateSubscriptionQuantity`, this function calls
+ * `provider.getSubscription` to learn the method that authorised the
+ * subscription and refuses BY NAME (`org_seats_locked_by_mandate`) rather
+ * than let a raw provider error reach the admin, or worse, prorate the LOCAL
+ * seat count while the provider itself never agreed to bill the new one
+ * (`context/decisions.md#ws-r73-provider-read-not-a-ledger-column-for-the-mandate-method`).
+ * The refusal carries `details.payment_method` and `details.path` - "cancel
+ * and create a new Subscription if changes are needed," Razorpay's own
+ * documented alternative, quoted in full in the same addendum - so a caller
+ * never has to guess what to do next.
  */
 export async function updateOrgSeats(db, { ownerUserId, orgId, seats }, deps = {}) {
   const env = deps.env ?? process.env;
@@ -641,6 +666,14 @@ export async function updateOrgSeats(db, { ownerUserId, orgId, seats }, deps = {
   if (sub.provider_subscription_ref) {
     const secrets = deps.secrets ?? (await providerSecrets(sub.provider, env, deps.secretBackend));
     const provider = providerFor(sub.provider);
+    const info = await provider.getSubscription(sub.provider_subscription_ref, secrets);
+    const method = String(info?.payment_method || "").toLowerCase();
+    if (SEAT_UPDATE_LOCKED_METHODS.has(method)) {
+      throw new PaymentsError("org_seats_locked_by_mandate", 409, {
+        payment_method: method,
+        path: "cancel_and_create_new_subscription",
+      });
+    }
     await provider.updateSubscriptionQuantity(sub.provider_subscription_ref, seatCount, secrets);
   }
 

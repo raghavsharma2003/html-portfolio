@@ -22,10 +22,46 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const name = "fake";
 
+/** WS-R73's own in-memory twin state: which payment method a given fake
+ *  subscription ref was authorised with. Real Razorpay Checkout is where a
+ *  customer actually picks card, UPI Autopay or Emandate - a step this
+ *  platform's own `createSubscription` never sees (razorpay.js's own WS-R69
+ *  addendum, finding 1) - so the fake twin cannot derive a method from its
+ *  own deterministic ref the way it derives the ref itself. Defaults to
+ *  `'card'` when nothing was ever set: every eval written before this
+ *  workstream calls `updateOrgSeats` expecting the provider update to
+ *  succeed, and `'card'` is the one method that update was ever built to
+ *  reach - see `setFakeSubscriptionMethod` below for how a test asks for
+ *  the other two. */
+const FAKE_SUBSCRIPTION_METHODS = new Map();
+
 export async function createSubscription(input) {
   const seed = `${input.label || ""}:${input.ref || ""}:${input.priceInr || 0}`;
   const ref = `fake_sub_${createHash("sha256").update(seed).digest("hex").slice(0, 24)}`;
   return { provider_subscription_ref: ref, checkout_url: `https://fake-provider.invalid/pay/${ref}`, status: "created" };
+}
+
+/**
+ * Read back a subscription's own payment method (WS-R73) - the fake twin of
+ * razorpay.js's own `getSubscription`, which reads the SAME field off a real
+ * `GET /v1/subscriptions/:id` response. `api/_payments.js`'s `updateOrgSeats`
+ * calls this BEFORE `updateSubscriptionQuantity` below, exactly the order the
+ * real provider forces (a UPI or Emandate subscription refuses the PATCH
+ * outright, so asking first is the only way to give a named refusal instead
+ * of a raw provider error).
+ */
+export async function getSubscription(providerSubscriptionRef) {
+  return { payment_method: FAKE_SUBSCRIPTION_METHODS.get(String(providerSubscriptionRef)) || "card" };
+}
+
+/**
+ * Test-only (WS-R73): make a fake subscription ref report a specific payment
+ * method the next time `getSubscription` reads it - `signWebhookForTest`'s
+ * own precedent one function down for what "test-only" means in this file.
+ * Never called from `api/_payments.js` itself.
+ */
+export function setFakeSubscriptionMethod(providerSubscriptionRef, method) {
+  FAKE_SUBSCRIPTION_METHODS.set(String(providerSubscriptionRef), String(method));
 }
 
 /** `opts.atCycleEnd` (WS-R37) - default false is byte-identical to this
@@ -39,6 +75,15 @@ export async function cancelSubscription(_providerSubscriptionRef, opts = {}, _s
   return { ok: true, cancel_at_cycle_end: Boolean(opts.atCycleEnd) };
 }
 
+/** WS-R73: a plain counter, incremented on every real call, so an eval can
+ *  prove a refusal happened BEFORE the provider was ever reached rather than
+ *  merely that the local database was not written - `evals/org-billing`'s own
+ *  §3 comment ("the fake provider never exposes a call counter of its own")
+ *  named exactly this gap; this is the first caller that needs the provider
+ *  itself to refuse a request UPI/Emandate would refuse, so the counter is
+ *  the only way to prove the PATCH itself never fired. */
+let updateSubscriptionQuantityCalls = 0;
+
 /** Change a subscription's seat quantity - the Suite lane's own operation,
  *  WS-R33: "adding a seat is a subscription update through the seam,
  *  prorated by the provider, never by us." No proration happens in the fake
@@ -46,7 +91,18 @@ export async function cancelSubscription(_providerSubscriptionRef, opts = {}, _s
  *  SHAPE and the caller's own handling of the response, `cancelSubscription`'s
  *  own scope one function up. */
 export async function updateSubscriptionQuantity(_providerSubscriptionRef, quantity) {
+  updateSubscriptionQuantityCalls += 1;
   return { ok: true, quantity: Number(quantity) };
+}
+
+/** Test-only (WS-R73): read and reset the counter above - never called from
+ *  `api/_payments.js` itself, `setFakeSubscriptionMethod`'s own precedent for
+ *  what "test-only" means in this file. */
+export function updateSubscriptionQuantityCallCountForTest() {
+  return updateSubscriptionQuantityCalls;
+}
+export function resetUpdateSubscriptionQuantityCallCountForTest() {
+  updateSubscriptionQuantityCalls = 0;
 }
 
 /** Byte-identical algorithm to razorpay.js's, so a suite proving "a bad

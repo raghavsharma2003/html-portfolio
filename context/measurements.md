@@ -11061,3 +11061,38 @@ n = 979 Hindi strings (759 studio, 220 Room), method: `node scripts/check-layout
 | U+FDD0 U+FDD1 U+FDD2 (control) | none | not applicable | yes | not run | uniform, as required |
 
 Every other string: unchanged (the uniformity half only narrows findings; a string the width diff passed is untouched). The finding reproduced identically on two runs 20 minutes apart, so it was not a load or font-loading flake (`rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words`). Not measured: real tofu on this machine (every installed face has Devanagari, so a missing webfont still renders letters here; the control is the only proof the detector would see it).
+
+## `ws-r73-suites-on-upi-verification-2026-09-05`
+
+n = 4 document marks (the supported path, the distinct-upgrade-endpoint
+non-finding, the `payment_method` field's existence with a caveat, and the
+two exact Razorpay error strings), plus 3 offline eval suites; method =
+WebFetch/WebSearch against Razorpay's and GitHub's own documentation pages
+only (no sandbox account, no live call), each mark dated at the fetch, then
+`node evals/org-billing/run.mjs`, `node evals/payments/run.mjs`,
+`node evals/suites-self-serve/run.mjs` run directly (not only inside the
+release gate) to confirm each suite's own new section in isolation; date
+2026-09-05.
+
+| mark | citation | date |
+|---|---|---|
+| "cancel and create a new Subscription if changes are needed" | `razorpay.com/docs/api/payments/subscriptions/update-subscription/` | 2026-09-05 |
+| "subscriptions cannot be updated when payment mode is UPI" / "...emandate" | same page | 2026-09-05 |
+| no distinct upgrade-to-card endpoint exists | same page, plus a follow-up search for "change payment method"; see `context/rejected.md#ws-r73-no-distinct-upi-to-card-upgrade-endpoint` | 2026-09-05 |
+| `payment_method` field on the Subscription entity | `github.com/razorpay/razorpay-node/blob/master/documents/subscription.md`, on a "Delete offer" sample response, not the plain fetch-by-id sample in the same document | 2026-09-05 |
+
+| eval suite | before | after | new sections |
+|---|---|---|---|
+| `evals/org-billing/run.mjs` | 40 | 50 | §6 (UPI refused, Emandate refused, card still succeeds, each with a negative and, for card, a positive control on the fake twin's new call counter) |
+| `evals/payments/run.mjs` | 98 | 104 | §16 (`getSubscription`'s own request shape, the no-field-present case, the missing-credentials negative control, the fake twin's default and its test-only setter) |
+| `evals/suites-self-serve/run.mjs` | 60 | 68 | §7 (the disclosure text present on the real page in both locales, distinguished by a Devanagari-range check rather than a script-order assumption; `SuiteCard.tsx` renders it before checkout and shows the named refusal's own copy on `org_seats_locked_by_mandate`) |
+
+`node scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls,
+unchanged. `node scripts/check-mirrors.mjs`: 10 markers, 0 disagree
+(unchanged count — this workstream's new copy carries no numeric constant
+needing a mirror marker). `npx tsc -b`: clean. Not measured: no real
+`vy_org_subscription` row has ever been authorised via a real Razorpay
+Checkout by any workstream, so the `payment_method` string this platform
+would actually read back from a live account has never been observed;
+`getSubscription`'s own caller is proven against `evals/org-billing`'s fake
+twin only, not against a sandbox account.
