@@ -9448,6 +9448,48 @@
       "kind": "decision",
       "title": "The first-Hindi-paint budget is 1000 ms, set from measurement rather than copied from the chunk-wait budget; returns to 800 once the Hindi chunk is preloaded from the built page and three gate runs measure under 700 ms.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-corpus-injection-first-run-18-of-41-not-found",
+      "kind": "measurement",
+      "title": "First run of the creator-material injection sweep found 18/41 not_found: four sheet fields (languageVoiceRule, voiceIdentityPhrase, shareSuggestLine, stageNickname) are unreachable on roomSay's real text-lane call shape, and stageGettingClose/stageEstablished needed messageCount past stageFor's own threshold rather than 1.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-boundary-injection-fields-verified-not-assumed",
+      "kind": "decision",
+      "title": "evals/room-adversarial-creator/run.mjs injects into nine sheet fields verified reachable on roomSay's real call shape, not the thirteen the field-list constants alone suggested.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-boundary-status-and-clean-diff-41-of-41",
+      "kind": "measurement",
+      "title": "41/41 corpus entries reach the compiled prompt through the real compiler; 0/41 land inside any labelled material block (materialBoundaryStatus, validated against toy compiler twins first); hostile vs benign-twin compiled prompts diff clean outside the substituted text on all 41.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-no-material-instruction-boundary-in-the-compiler",
+      "kind": "rejection",
+      "title": "The workstream brief asked for a suite proving injected creator material stays inside a real material block boundary; reading persona.ts/compiler.ts end to end and measuring 41 corpus entries found no such block exists for creator-authored sheet content on the Room text lane at all.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-secret-shaped-material-leak-rate",
+      "kind": "measurement",
+      "title": "2 of 5 secret-shaped corpus entries reached the DELIVERED, post-gate reply through the real roomSay/gateReply with no never-rule in place; the honesty gate's trustedText includes the full compiled system prompt so nothing there is positioned to catch a sheet-field secret.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-detector-recall-and-false-positive-rate",
+      "kind": "measurement",
+      "title": "detectInstructionShapedMaterial: 100% recall on the 41-entry hostile corpus, 0% false positives on a 15-line benign sample built to trap a naive keyword match (n=41, n=15).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime",
+      "kind": "decision",
+      "title": "This workstream ships an ingest-time pure-regex detector rather than a compiler-level material block, and does not wire it into a review-queue card kind because migration 074's kind CHECK is closed and this workstream carries no migration.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18440,6 +18482,31 @@
       "src": "first-hindi-paint-budget-set-from-measurement",
       "rel": "constrains",
       "dst": "ws-r91-authgate-reads-locale-before-sign-in"
+    },
+    {
+      "src": "ws-r105-boundary-injection-fields-verified-not-assumed",
+      "rel": "measured_by",
+      "dst": "ws-r105-corpus-injection-first-run-18-of-41-not-found"
+    },
+    {
+      "src": "ws-r105-no-material-instruction-boundary-in-the-compiler",
+      "rel": "measured_by",
+      "dst": "ws-r105-boundary-status-and-clean-diff-41-of-41"
+    },
+    {
+      "src": "ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime",
+      "rel": "caused_by",
+      "dst": "ws-r105-no-material-instruction-boundary-in-the-compiler"
+    },
+    {
+      "src": "ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime",
+      "rel": "measured_by",
+      "dst": "ws-r105-secret-shaped-material-leak-rate"
+    },
+    {
+      "src": "ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime",
+      "rel": "measured_by",
+      "dst": "ws-r105-detector-recall-and-false-positive-rate"
     }
   ]
 }

@@ -2488,6 +2488,50 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-about": "room-about/run.mjs",
+  // WS-R105. ADVERSARIAL CREATOR MATERIAL. `evals/room-adversarial/run.mjs`
+  // (WS-R99) attacked the Room from the FOLLOWER's side; nobody had attacked
+  // it from the CREATOR's — the one direction the product's own definition
+  // says MUST reach every follower ("creator material flows down to
+  // everyone", AGENTS.md). `evals/room-adversarial-creator/corpus.mjs`
+  // carries 41 injectable hostile passages (English and Hindi: instruction
+  // override, fake system-prompt framing, role reassignment, exfiltration
+  // bait, another creator's name and slug, secret-shaped strings,
+  // homoglyph variants), injected one at a time into the REAL, VERIFIED-
+  // reachable sheet fields `sheetToModule -> buildSystemPromptParts` reads
+  // on the Room's own text lane, compiled through the REAL, freshly-bundled
+  // compiler (`evals/room/fixtures.mjs`'s `loadFixtureAgent`), and driven
+  // through the REAL `api/_room-surface.js::roomSay` with WS-R99's own
+  // echo-everything fake model.
+  //
+  // THE CENTRAL, MEASURED FINDING (full reasoning in `run.mjs`'s own
+  // header, and `context/rejected.md#no-material-instruction-boundary-in-
+  // the-compiler`): reading `src/engine/persona.ts` and
+  // `src/engine/compiler.ts` end to end finds NO structural block
+  // separating creator-authored sheet content from instruction text on this
+  // lane — every field is concatenated directly into an instruction
+  // sentence or appended as a bare, unlabelled paragraph. Measured on all
+  // 41 corpus entries: 41/41 reach the compiled prompt, 0/41 land inside
+  // any kind of labelled, data-only block. The suite proves its own
+  // boundary-detection method is not vacuous first (law 3's two negative
+  // controls, against two TOY compiler twins built for exactly that — the
+  // real compiler has no block to twin), then measures the delivered-reply
+  // consequence directly: of 5 secret-shaped-string entries driven through
+  // the real `roomSay` and honesty gate, the exact leak count is measured
+  // and logged (`context/measurements.md#ws-r105-secret-shaped-material-
+  // leak-rate`) rather than assumed either way.
+  //
+  // `evals/room-adversarial-creator/detector.mjs` is the mitigation this
+  // finding leaves room for: a pure, no-model-call, NFKC-normalised regex
+  // detector (WS-R89's own precedent) measured at 100% recall on the
+  // corpus and 0% false positives on a benign-source sample crafted to trap
+  // a naive keyword match. It does NOT ship as a review-queue card kind —
+  // migration 074's `kind` CHECK is a closed four-value list and this
+  // workstream carries no migration, so law 4's own contingency ("if a
+  // migration would be needed, do not add the card, log why") applies
+  // regardless of the measured rate; both are logged in `context/`.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-adversarial-creator": "room-adversarial-creator/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
