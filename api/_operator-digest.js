@@ -155,12 +155,37 @@ export function digestCounts(overview) {
     self_check_ran: selfCheck.last_outcome != null && selfCheck.last_outcome !== "never_ran",
     incidents_today: incidentsToday,
     incidents_new_kinds: Array.isArray(incidents.new_kinds) ? incidents.new_kinds.length : 0,
-    // WS-R102. A COUNT only, never `selfCheck.optional_absent` itself - this
-    // digest's own push payload is a broadcast body, and workstream law 3 is
-    // explicit: "never the names" (`docs/gurukul/DAY-ONE.md`'s own gap 1,
-    // named by a static scan of `operatorDigestPayload`'s own source below).
-    optional_absent_count: Array.isArray(selfCheck.optional_absent) ? selfCheck.optional_absent.length : 0,
+    // WS-R102, widened WS-R116. A COUNT only, never `selfCheck.
+    // optional_absent` itself - this digest's own push payload is a
+    // broadcast body, and workstream law 3 is explicit: "never the names"
+    // (`docs/gurukul/DAY-ONE.md`'s own gap 1, named by a static scan of
+    // `operatorDigestPayload`'s own source below). WS-R116 widens the
+    // COUNT'S OWN MEANING, not the law: `envPresence` now reports ~90 more
+    // names (`docs/gurukul/ENV-MANIFEST.md`), so a flat name count would
+    // read as "127 optional not set" the morning after this workstream
+    // merges, for a deployment whose actual dark surface is unchanged -
+    // alarming and useless in the same breath. `optional_absent_by_section`
+    // (`api/_self-check.js#runSelfCheck`, same field `selfCheckOverview`
+    // exposes) is grouped by manifest section already; counting SECTIONS
+    // with at least one absent name (plus the pre-Rooms `ungrouped` bucket
+    // as one more, if non-empty) answers "how many capability areas are
+    // dark" - the number that stays roughly stable as the manifest grows,
+    // the same way `selfCheck.checked` growing does not inflate `failed`.
+    optional_absent_count: sectionsWithAbsences(selfCheck.optional_absent_by_section),
   };
+}
+
+/** `{sections, ungrouped}` -> a plain count of "buckets with at least one
+ *  absent name" - `ungrouped` counts as one more bucket only when non-empty,
+ *  same "an honest empty state contributes nothing" posture this file's
+ *  other counts already take. Tolerant of an older/missing shape (an
+ *  absent `optional_absent_by_section` reads as zero, never throws) so a
+ *  caller feeding this an older `runSelfCheck` result does not crash the
+ *  whole digest over one field. */
+function sectionsWithAbsences(bySection) {
+  const sections = Array.isArray(bySection?.sections) ? bySection.sections.length : 0;
+  const ungrouped = Array.isArray(bySection?.ungrouped) && bySection.ungrouped.length > 0 ? 1 : 0;
+  return sections + ungrouped;
 }
 
 // Every follower/room-content column this repo has ever put a name to on a
@@ -218,10 +243,16 @@ export function operatorDigestPayload(counts) {
     ? `${incidentsToday} incident${incidentsToday === 1 ? "" : "s"} today${newKinds > 0 ? ` (${newKinds} new)` : ""}`
     : "no incidents today";
 
-  // WS-R102. A count only, never a name - `digestCounts`'s own header on
-  // why. Silent when zero, the same "an honest empty state says nothing
-  // extra" posture `incidentsPart` above already takes for zero incidents.
-  const optionalPart = optionalAbsent > 0 ? ` ${optionalAbsent} optional not set.` : "";
+  // WS-R102, reworded WS-R116. A count only, never a name - `digestCounts`'s
+  // own header on why. "Area(s)" rather than "optional [name count]" since
+  // WS-R116 widened what `optional_absent_count` counts (manifest SECTIONS
+  // with a gap, not raw names, same header) - the word in the body has to
+  // match the number or the sentence lies about what it measured. Silent
+  // when zero, the same "an honest empty state says nothing extra" posture
+  // `incidentsPart` above already takes for zero incidents.
+  const optionalPart = optionalAbsent > 0
+    ? ` ${optionalAbsent} area${optionalAbsent === 1 ? "" : "s"} with an optional setting not set.`
+    : "";
 
   const body = `${roomsPublished} Room${roomsPublished === 1 ? "" : "s"} live, ${followersPart}, ${messages} message${messages === 1 ? "" : "s"}, Rs ${revenue} this month. ${selfPart}. ${incidentsPart}.${optionalPart}`
     .slice(0, 200);

@@ -98,7 +98,7 @@ function overviewWith(rooms, selfCheck, incidents) {
     c.rooms_published === 0 && c.followers_joined_7d === 0 && c.messages_last_24h === 0 && c.revenue_this_month_inr === 0);
   ok("digestCounts: zero followers platform-wide is BELOW the floor", c.followers_joined_below_floor === true);
   ok("digestCounts: no self-check has run reports self_check_ran = false", c.self_check_ran === false);
-  ok("WS-R102: a self_check with no optional_absent field at all reports optional_absent_count 0, never omitted or thrown",
+  ok("WS-R102/WS-R116: a self_check with no optional_absent_by_section field at all reports optional_absent_count 0, never omitted or thrown",
     c.optional_absent_count === 0);
 }
 {
@@ -107,7 +107,22 @@ function overviewWith(rooms, selfCheck, incidents) {
     { published: true, joined_last_7d: 2, messages_last_24h: 5, revenue_this_month_inr: 0, slug: "also-never", display_name: "also-never" },
     { published: false, joined_last_7d: 9, messages_last_24h: 0, revenue_this_month_inr: 0, slug: "unpub", display_name: "unpub" },
   ];
-  const c = digestCounts(overviewWith(rooms, { checked: 12, passed: 10, failed: 2, last_outcome: "partial", optional_absent: ["AZURE_KEY", "SUPABASE_URL", "TELEGRAM_BOT_TOKEN"] }, { by_kind_door: [{ kind: "door_5xx", door: "room.js", count: 3 }], new_kinds: ["door_5xx"] }));
+  const c = digestCounts(overviewWith(rooms, {
+    checked: 12, passed: 10, failed: 2, last_outcome: "partial",
+    optional_absent: ["AZURE_KEY", "SUPABASE_URL", "TELEGRAM_BOT_TOKEN"],
+    // WS-R116: three absent NAMES across TWO manifest sections plus the
+    // pre-Rooms ungrouped bucket - `digestCounts` counts the buckets
+    // (3 here: two sections plus one non-empty ungrouped), never the
+    // three raw names, `api/_self-check.js#runSelfCheck`'s own
+    // `optional_absent_by_section` shape.
+    optional_absent_by_section: {
+      sections: [
+        { section: "7", sectionTitle: "Voice: Azure Personal Voice", names: ["SUPABASE_URL"] },
+        { section: "15c", sectionTitle: "Clone channels", names: ["TELEGRAM_BOT_TOKEN"] },
+      ],
+      ungrouped: ["AZURE_KEY"],
+    },
+  }, { by_kind_door: [{ kind: "door_5xx", door: "room.js", count: 3 }], new_kinds: ["door_5xx"] }));
   ok("digestCounts: rooms_published counts only PUBLISHED rooms", c.rooms_published === 2);
   ok("digestCounts: followers_joined_7d sums joined_last_7d across EVERY room (published or not)", c.followers_joined_7d === 2 + 2 + 9);
   ok("digestCounts: 13 followers platform-wide clears the floor", c.followers_joined_below_floor === false);
@@ -117,8 +132,41 @@ function overviewWith(rooms, selfCheck, incidents) {
   ok("digestCounts: self_check_ran is true once last_outcome is not never_ran", c.self_check_ran === true);
   ok("digestCounts: incidents_today sums the by_kind_door counts", c.incidents_today === 3);
   ok("digestCounts: incidents_new_kinds is the length of new_kinds", c.incidents_new_kinds === 1);
-  ok("WS-R102: digestCounts.optional_absent_count is the LENGTH of overview.self_check.optional_absent, a plain number",
+  ok("WS-R116: digestCounts.optional_absent_count is the number of manifest SECTIONS with a gap (2) plus a non-empty ungrouped bucket (1) = 3, never a raw name count",
     c.optional_absent_count === 3 && typeof c.optional_absent_count === "number");
+}
+{
+  // WS-R116: FIVE absent names spread across only TWO sections must count
+  // as 2, not 5 - the whole point of counting capability AREAS rather than
+  // raw names (`api/_operator-digest.js#sectionsWithAbsences`'s own header:
+  // a flat name count would read as "127 optional not set" the morning
+  // this workstream merges, for a deployment whose real dark surface is
+  // unchanged).
+  const c = digestCounts(overviewWith([], {
+    checked: 1, passed: 1, failed: 0, last_outcome: "fresh",
+    optional_absent: ["N1", "N2", "N3", "N4", "N5"],
+    optional_absent_by_section: {
+      sections: [
+        { section: "1", sectionTitle: "Foundry", names: ["N1", "N2", "N3"] },
+        { section: "7", sectionTitle: "Voice", names: ["N4", "N5"] },
+      ],
+      ungrouped: [],
+    },
+  }));
+  ok("WS-R116: 5 absent names across only 2 sections counts as 2, not 5",
+    c.optional_absent_count === 2, `got ${c.optional_absent_count}`);
+}
+{
+  // NEGATIVE CONTROL: an empty ungrouped array contributes ZERO to the
+  // count, never counted as "one more bucket" just for existing as a field
+  // - only a NON-EMPTY ungrouped bucket counts, `sectionsWithAbsences`'s
+  // own "an honest empty state contributes nothing" law.
+  const c = digestCounts(overviewWith([], {
+    checked: 1, passed: 1, failed: 0, last_outcome: "fresh",
+    optional_absent_by_section: { sections: [{ section: "1", sectionTitle: "Foundry", names: ["N1"] }], ungrouped: [] },
+  }));
+  ok("NEGATIVE CONTROL: an empty (present but zero-length) ungrouped array never adds to the count",
+    c.optional_absent_count === 1, `got ${c.optional_absent_count}`);
 }
 {
   // Exactly at the floor: 5 clears it, never below.
@@ -170,12 +218,13 @@ console.log("\n── §3: operatorDigestPayload ──");
   ok("operatorDigestPayload: body names the real counts", p.body.includes("3 Room") && p.body.includes("12 follower") && p.body.includes("240 message"));
   ok("operatorDigestPayload: a clean self-check reads N/N passing", p.body.includes("12/12 passing"));
   ok("operatorDigestPayload: zero incidents reports honestly", p.body.includes("no incidents today"));
-  ok("WS-R102: no optional_absent_count field at all says nothing about it, never a fabricated '0 optional not set'",
-    !p.body.includes("optional not set"));
+  ok("WS-R102/WS-R116: no optional_absent_count field at all says nothing about it, never a fabricated '0 area(s) with an optional setting not set'",
+    !p.body.includes("optional setting not set"));
 }
 {
-  // WS-R102: a non-zero optional_absent_count is named as a COUNT, never a
-  // name, and stays inside the 200-character body cap.
+  // WS-R102, reworded WS-R116: a non-zero optional_absent_count is named as
+  // a per-SECTION count of capability areas, never a raw name count and
+  // never a name, and stays inside the 200-character body cap.
   const counts = {
     rooms_published: 3, followers_joined_7d: 12, followers_joined_below_floor: false,
     messages_last_24h: 240, revenue_this_month_inr: 4500,
@@ -183,9 +232,24 @@ console.log("\n── §3: operatorDigestPayload ──");
     incidents_today: 0, incidents_new_kinds: 0, optional_absent_count: 4,
   };
   const p = operatorDigestPayload(counts);
-  ok("WS-R102: a non-zero optional_absent_count is named as a plain count", p.body.includes("4 optional not set"));
+  ok("WS-R116: a non-zero optional_absent_count is named as '<N> areas with an optional setting not set'",
+    p.body.includes("4 areas with an optional setting not set"));
   ok("WS-R102: body still under 200 characters with the optional-absent clause appended", p.body.length <= 200);
   ok("WS-R102: the body never contains an env var's own NAME, only the count", !/[A-Z][A-Z0-9_]{3,}/.test(p.body));
+}
+{
+  // WS-R116: singular wording for exactly one area, matching every other
+  // pluralisation this file already does (Room/Rooms, follower/followers,
+  // message/messages, incident/incidents).
+  const counts = {
+    rooms_published: 1, followers_joined_7d: 6, followers_joined_below_floor: false,
+    messages_last_24h: 1, revenue_this_month_inr: 0,
+    self_check_checked: 1, self_check_failed: 0, self_check_ran: true,
+    incidents_today: 0, incidents_new_kinds: 0, optional_absent_count: 1,
+  };
+  const p = operatorDigestPayload(counts);
+  ok("WS-R116: exactly one absent area is singular ('1 area', never '1 areas')",
+    p.body.includes("1 area with an optional setting not set") && !p.body.includes("1 areas"));
 }
 {
   // NEGATIVE CONTROL: optional_absent_count of exactly zero is silent, the

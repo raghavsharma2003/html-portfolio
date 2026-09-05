@@ -25,9 +25,23 @@
 //                              a regex dialect)
 //   self-check:env:<NAME>      via the ops door (GET /api/ops, an operator
 //                              bearer), the `self_check.failing_checks` list
-//                              must not contain "env: <NAME> missing"
-//   self-check:door:<substring> same list must not contain any entry
-//                              containing <substring>
+//                              must not contain "env: <NAME> missing" AND
+//                              (WS-R102) `self_check.optional_absent` must
+//                              not contain <NAME> — a name on EITHER list
+//                              blocks the step, so this one prefix already
+//                              covers both a REQUIRED_ENV name and any of
+//                              the ~90 manifest names WS-R116 widened
+//                              `optional_absent` to include
+//   self-check:env-all:<N1>,<N2>,...  (WS-R116) the SAME check as
+//                              `self-check:env:<NAME>`, run for every name
+//                              in the comma-separated list — a row needing
+//                              MULTIPLE names present (a subsystem
+//                              `scripts/check-replica-env.mjs` reports as
+//                              one LIVE/DARK/BROKEN-HALFWAY line over N>1
+//                              vars) blocks the moment any ONE of them is
+//                              missing, named
+//   self-check:door:<substring> same `failing_checks` list must not
+//                              contain any entry containing <substring>
 //   manual:<instruction>       never run automatically by day-one.mjs — every
 //                              row whose proof is `scripts/first-room.mjs`,
 //                              a studio panel, or a dashboard setting is
@@ -50,7 +64,7 @@ export const RUNBOOK_PATH = join(ROOT, "docs", "gurukul", "DAY-ONE.md");
 
 const START_MARKER = "<!-- DAY-ONE-TABLE:START -->";
 const END_MARKER = "<!-- DAY-ONE-TABLE:END -->";
-const PROVING_PREFIXES = Object.freeze(["probe-live", "self-check:env:", "self-check:door:", "manual:"]);
+const PROVING_PREFIXES = Object.freeze(["probe-live", "self-check:env:", "self-check:env-all:", "self-check:door:", "manual:"]);
 
 /** Splits one markdown table row (`| a | b | c |`) into trimmed cells,
  *  tolerant of a row that omits the leading/trailing pipe. Never touches a
@@ -73,6 +87,17 @@ function classifyProvingCommand(raw) {
   if (!trimmed) return null;
   if (trimmed.startsWith("probe-live:")) return { kind: "probe-live-scoped", substring: trimmed.slice("probe-live:".length).trim() };
   if (trimmed === "probe-live") return { kind: "probe-live-whole" };
+  // "self-check:env-all:" must be checked before "self-check:env:" would
+  // even matter here — the two prefixes differ at the character right
+  // after "env" ("-" vs ":"), so `startsWith("self-check:env:")` can never
+  // match a "self-check:env-all:..." cell — but the multi-name kind is
+  // listed first anyway so a future reader sees the more specific case
+  // before the general one.
+  if (trimmed.startsWith("self-check:env-all:")) {
+    const names = trimmed.slice("self-check:env-all:".length).split(",").map((s) => s.trim()).filter(Boolean);
+    if (names.length === 0) return null;
+    return { kind: "self-check-env-all", names };
+  }
   if (trimmed.startsWith("self-check:env:")) return { kind: "self-check-env", name: trimmed.slice("self-check:env:".length).trim() };
   if (trimmed.startsWith("self-check:door:")) return { kind: "self-check-door", substring: trimmed.slice("self-check:door:".length).trim() };
   if (trimmed.startsWith("manual:")) return { kind: "manual", instruction: trimmed.slice("manual:".length).trim() };

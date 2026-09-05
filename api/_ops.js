@@ -86,6 +86,12 @@ import { lastOperatorDigest } from "./_operator-digest.js";
 // imports THIS file back (see that file's own header).
 import { operatorTelegramConfigured } from "./_operator-telegram.js";
 import { randomUUID } from "node:crypto";
+// WS-R116. The SAME leaf module api/_self-check.js imports for its own
+// widened envPresence() - imported directly here rather than through
+// api/_self-check.js, since this file may not import that one (the cycle
+// this section's own comment above already names). Zero risk: this module
+// imports nothing from api/ itself, so there is no cycle to be part of.
+import { groupAbsentBySection } from "./_env-manifest.js";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -631,6 +637,12 @@ function selfCheckOverview(sweeps, todayDoors) {
     failed: Number(sweep?.counts?.failed) || 0,
     failing_checks: todayDoors.failing,
     optional_absent: todayDoors.optionalAbsent,
+    // WS-R116. The board's own "grouped by manifest section" card reads
+    // this instead of re-deriving the grouping from the flat list above -
+    // ONE reducer (api/_env-manifest.js), called from both here and
+    // api/_self-check.js#runSelfCheck, never two independent groupings
+    // that could silently disagree about which section a name belongs to.
+    optional_absent_by_section: groupAbsentBySection(todayDoors.optionalAbsent),
   };
 }
 

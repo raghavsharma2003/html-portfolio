@@ -133,10 +133,16 @@ async function readOpsDoor(baseUrl, bearer) {
  * 1 keeps an absent OPTIONAL name out of that list entirely), and an
  * OPTIONAL name absent now reads from the SEPARATE `self_check.
  * optional_absent` list `api/_ops.js#selfCheckOverview` exposes
- * (`docs/gurukul/DAY-ONE.md`'s own gap 1, closed WS-R102). A name on
- * NEITHER list is `REQUIRED_ENV`/`OPTIONAL_ENV` and present, or a name this
- * self-check does not track at all (still the ~90-name residual gap 1
- * names) - either way this step has nothing to report, so it reads `done`,
+ * (`docs/gurukul/DAY-ONE.md`'s own gap 1, the `OPTIONAL_ENV` half closed
+ * WS-R102, the `docs/gurukul/ENV-MANIFEST.md` manifest half closed
+ * WS-R116 - `self-check-env-all` below is the WS-R116 sibling for a row
+ * needing MULTIPLE names present at once). A name on NEITHER list is
+ * `REQUIRED_ENV`/`OPTIONAL_ENV`/`MANIFEST_ONLY_ENV` and present, or a name
+ * genuinely absent from `docs/gurukul/ENV-MANIFEST.md` itself (e.g.
+ * `OPS_OWNER_USER_IDS`, `OPENROUTER_API_KEY` - a document gap, not a
+ * self-check gap, `context/decisions.md#ws-r116-day-one-rows-convert-
+ * only-when-presence-was-the-whole-proof`) - either way this step has
+ * nothing to report, so it reads `done`,
  * the same "absence of a finding is not proof of anything beyond what was
  * actually checked" honesty this script already carries for `probe-live`.
  */
@@ -152,7 +158,7 @@ export function judgeStep(step, { probeReport, probeError, opsResult }) {
     if (matches.length === 0) return { status: "done", detail: `probe-live: no finding matching "${p.substring}"` };
     return { status: "blocked", detail: `probe-live: ${matches.length} finding(s) matching "${p.substring}": ${matches[0].surface}` };
   }
-  if (p.kind === "self-check-env" || p.kind === "self-check-door") {
+  if (p.kind === "self-check-env" || p.kind === "self-check-env-all" || p.kind === "self-check-door") {
     if (opsResult.skipped) return { status: "unknown", detail: "no operator bearer given (set VYAKTI_OPERATOR_SESSION)" };
     if (opsResult.error) return { status: "unknown", detail: opsResult.error };
     const failing = opsResult.overview?.self_check?.failing_checks || [];
@@ -164,6 +170,21 @@ export function judgeStep(step, { probeReport, probeError, opsResult }) {
         return { status: "blocked", detail: `ops door: "optional, not set: ${p.name}"` };
       }
       return { status: "done", detail: `ops door: no "${door}" finding` };
+    }
+    if (p.kind === "self-check-env-all") {
+      // WS-R116. Every name in the row must be present — the SAME two-list
+      // check `self-check-env` runs above, for each name in turn, blocking
+      // (and naming which one) at the FIRST name that fails either check.
+      // `scripts/check-replica-env.mjs`'s own "LIVE only once every
+      // required var is set" semantics restated over the ops door instead
+      // of a local shell's env.
+      const optionalAbsent = opsResult.overview?.self_check?.optional_absent || [];
+      for (const name of p.names) {
+        const door = `env: ${name} missing`;
+        if (failing.includes(door)) return { status: "blocked", detail: `ops door: "${door}"` };
+        if (optionalAbsent.includes(name)) return { status: "blocked", detail: `ops door: "optional, not set: ${name}"` };
+      }
+      return { status: "done", detail: `ops door: no finding for any of ${p.names.length} name(s)` };
     }
     const match = failing.find((d) => d.includes(p.substring));
     if (match) return { status: "blocked", detail: `ops door: "${match}"` };

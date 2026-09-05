@@ -87,7 +87,7 @@ async function main() {
     const kinds = new Set(steps.map((s) => s.proving.kind));
     check(
       "real runbook uses only the documented proving-command kinds",
-      [...kinds].every((k) => ["probe-live-whole", "probe-live-scoped", "self-check-env", "self-check-door", "manual"].includes(k)),
+      [...kinds].every((k) => ["probe-live-whole", "probe-live-scoped", "self-check-env", "self-check-env-all", "self-check-door", "manual"].includes(k)),
       [...kinds].join(", "),
     );
     check("real runbook has at least one probe-live row", steps.some((s) => s.proving.kind.startsWith("probe-live")));
@@ -137,13 +137,13 @@ async function main() {
 
   // ── 1d. WS-R102: judgeStep's own self-check-env branch, unit tested ─────
   // Direct against `judgeStep` (never a subprocess) - proves the widened
-  // branch on its own terms, since NO row in the REAL runbook today names
-  // an OPTIONAL_ENV member as its sole reason to stay `manual:` (every row
-  // whose Proving Command cell already reads `self-check:env:<NAME>` names
-  // a REQUIRED_ENV member, unchanged by this workstream - see
-  // `context/decisions.md#ws-r102-no-day-one-row-converts-from-manual` for
-  // why, and `docs/gurukul/DAY-ONE.md`'s own gap 1 rewrite for the honest
-  // accounting).
+  // branch on its own terms. As of WS-R116 the real runbook DOES name an
+  // OPTIONAL name this way (step 4, `self-check:env:CRON_SECRET`, one of
+  // the ~90 manifest-only names `optional_absent` now carries, see
+  // `docs/gurukul/DAY-ONE.md`'s own gap 1 rewrite) - these synthetic
+  // fixtures stay in place anyway, unit-testing the branch's own logic
+  // directly rather than only through whichever real row happens to use
+  // it today.
   {
     const syntheticStep = { proving: { kind: "self-check-env", name: "SUPABASE_URL" } };
     const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["SUPABASE_URL"] } } };
@@ -187,6 +187,66 @@ async function main() {
     const r = judgeStep(syntheticStep, { opsResult });
     check("judgeStep: a missing optional_absent field on the overview never throws, reads done",
       r.status === "done", JSON.stringify(r));
+  }
+
+  // ── 1e. WS-R116: judgeStep's own self-check-env-all branch, unit tested ──
+  // The multi-name row (steps 9, 10, 12 in the real runbook) blocks the
+  // moment ANY ONE of its names is missing, naming that one - never "some
+  // subset is fine", the same all-or-nothing semantics `scripts/check-
+  // replica-env.mjs`'s own LIVE state already carries for these exact
+  // subsystems.
+  {
+    const syntheticStep = { proving: { kind: "self-check-env-all", names: ["A", "B", "C"] } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: [] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: self-check-env-all with every name present reads done", r.status === "done", JSON.stringify(r));
+  }
+  {
+    // The FIRST name in the list is the one missing.
+    const syntheticStep = { proving: { kind: "self-check-env-all", names: ["A", "B", "C"] } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["A"] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: self-check-env-all blocks on the first missing name, named",
+      r.status === "blocked" && /optional, not set: A/.test(r.detail), JSON.stringify(r));
+  }
+  {
+    // The LAST name in the list is the one missing - proves the loop checks
+    // every name, not only the first.
+    const syntheticStep = { proving: { kind: "self-check-env-all", names: ["A", "B", "C"] } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["C"] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: self-check-env-all blocks on the LAST name too, named",
+      r.status === "blocked" && /optional, not set: C/.test(r.detail), JSON.stringify(r));
+  }
+  {
+    // A REQUIRED name (failing_checks, never optional_absent) inside a
+    // multi-name row is caught the same way as the single-name kind.
+    const syntheticStep = { proving: { kind: "self-check-env-all", names: ["NEON_URL", "B"] } };
+    const opsResult = { overview: { self_check: { failing_checks: ["env: NEON_URL missing"], optional_absent: [] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("judgeStep: self-check-env-all blocks on a REQUIRED name via failing_checks",
+      r.status === "blocked" && r.detail.includes('"env: NEON_URL missing"'), JSON.stringify(r));
+  }
+  {
+    // NEGATIVE CONTROL: a name absent from BOTH lists but not in this row's
+    // own `names` never blocks it.
+    const syntheticStep = { proving: { kind: "self-check-env-all", names: ["A", "B"] } };
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["Z"] } } };
+    const r = judgeStep(syntheticStep, { opsResult });
+    check("NEGATIVE CONTROL: self-check-env-all ignores an absent name outside its own list",
+      r.status === "done", JSON.stringify(r));
+  }
+  {
+    // The real runbook's own step 9 row, end to end against a fixture that
+    // is missing exactly one of its six names.
+    const { steps } = parseRunbook(readFileSync(RUNBOOK_PATH, "utf8"));
+    const step9 = steps.find((s) => s.n === 9);
+    check("real runbook step 9 is the self-check-env-all Chatterbox row",
+      step9?.proving.kind === "self-check-env-all" && step9.proving.names.length === 6, JSON.stringify(step9?.proving));
+    const opsResult = { overview: { self_check: { failing_checks: [], optional_absent: ["REPLICA_COMMITMENT_SECRET"] } } };
+    const r = judgeStep(step9, { opsResult });
+    check("real step 9 blocks when one of its six real names is absent",
+      r.status === "blocked" && /REPLICA_COMMITMENT_SECRET/.test(r.detail), JSON.stringify(r));
   }
 
   // ── 2. day-one.mjs against the fixture, three self-check states ─────────

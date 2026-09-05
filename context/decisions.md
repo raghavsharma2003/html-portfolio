@@ -18928,3 +18928,110 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r116-manifest-names-never-promote-to-required-env` (2026-09-05, WS-R116)
+
+**Decision.** `api/_self-check.js#envPresence` now reports on 110 more
+names (`MANIFEST_ONLY_ENV`, every `docs/gurukul/ENV-MANIFEST.md` name
+whose target includes `vercel-app`, minus whatever `REQUIRED_ENV`/
+`OPTIONAL_ENV` already cover), but every one of those rows is hard-coded
+`required: false` — none can ever enter `checks`/`failing_doors`, and
+`REQUIRED_ENV` itself (`OPENROUTER_KEY`, `NEON_URL`) is completely
+untouched. Widening WHICH names self-check can report on is this
+workstream's whole point; widening WHICH names can fail the morning check
+is a deliberately separate decision this workstream does not make.
+
+**Rationale.** The manifest's own per-row `required` column means "the
+FEATURE breaks without this" (e.g. `AZURE_FOUNDRY_API_KEY` unset 503s
+claim extraction) — a real but narrow, single-capability claim, and a
+different, much stronger one than `REQUIRED_ENV`'s "the site cannot run
+AT ALL without this." Promoting even a handful of the ~90-plus manifest
+names into `checks` would make the morning self-check FAIL on a
+deployment that is intentionally running with, say, Foundry claim
+extraction off (an honest, supported "apprentice" state per this repo's
+own vocabulary) — the exact regression `context/rejected.md#ws-r96-self-
+check-optional-env-never-becomes-a-finding` and WS-R102's own
+`context/decisions.md#ws-r102-optional-absent-is-a-separate-field-never-
+checks` (the direct precedent this decision restates for a much longer
+name list) already reasoned through for the original two-list surface.
+
+**Reversal condition.** If a future workstream decides a SPECIFIC
+manifest name should become deploy-blocking (not "this one feature is
+off" but "the studio Vercel project should refuse to be called healthy
+without it"), that is a deliberate, named, one-at-a-time move into
+`REQUIRED_ENV` itself — never a bulk promotion of `MANIFEST_ONLY_ENV` or
+a change to how `envPresence`/`runSelfCheck` treats the manifest-derived
+rows as a class.
+
+## `ws-r116-manifest-names-dedup-to-first-section` (2026-09-05, WS-R116)
+
+**Decision.** `scripts/envManifest.mjs#parseEnvManifest` merges every
+occurrence of a name across the manifest's own tables into ONE entry: the
+`target` array is the union of every occurrence's section targets, and
+`required` is true if ANY occurrence says required — but `section`/
+`sectionTitle` are taken from the FIRST section the name is declared in,
+an arbitrary but fixed tie-break, never every section it appears in.
+
+**Rationale.** A name genuinely can be read in more than one deployment
+(the manifest's own header: "two independent settings... that happen to
+share a name", `AZURE_FACE_LIVENESS_LIMITED_ACCESS_APPROVED` in §4, §5
+and the azure-verifier service) — for the union to be USEFUL to a
+presence check (which only ever asks "is this name set", not "in which
+of its readers"), collapsing to one entry is correct. But the ops board's
+own "group absent names by manifest section" card (law 3) needs exactly
+ONE section per name to render a sane list — showing the same name under
+three different section headers on one card would be confusing, not more
+honest, since the underlying question ("is `AZURE_FACE_LIVENESS_LIMITED_
+ACCESS_APPROVED` set on the ONE environment this process can read") has
+one answer regardless of how many places document reading it. First
+section chosen (rather than, say, the section with the most rows, or
+alphabetically) purely because it is the doc's own natural reading order
+and needs no extra computation.
+
+**Reversal condition.** If the ops board's Self-check card is ever asked
+to show ALL of a name's sections rather than one, `entry.section` would
+need to become an array and `groupAbsentBySection`'s reducer would need
+to add a name to every section it belongs to (a name could then appear
+twice on the board, once per section) — a real, larger UI change, not a
+one-line fix, so this decision should be revisited deliberately rather
+than patched around.
+
+## `ws-r116-day-one-rows-convert-only-when-presence-was-the-whole-proof` (2026-09-05, WS-R116)
+
+**Decision.** Four `docs/gurukul/DAY-ONE.md` rows (4, 9, 10, 12) converted
+from `manual:` to `self-check:env:`/`self-check:env-all:`. Four more (5,
+6, 8, 11) were re-audited and deliberately left `manual:`.
+
+**Rationale.** The four that converted all shared one property: their
+ORIGINAL manual instruction was `node scripts/check-replica-env.mjs`,
+whose own header states plainly it is a pure presence check ("LIVE: every
+required var for this subsystem is set... this script does not validate
+VALUE shape") — so the ops door's widened `optional_absent` proves the
+IDENTICAL fact those rows already accepted as sufficient proof, over HTTP
+against a live deployment rather than a local shell's env. The four that
+stayed manual failed that test for two different, both legitimate,
+reasons: (5) `OPS_OWNER_USER_IDS` and (6) `OPENROUTER_API_KEY` are not in
+`ENV-MANIFEST.md` at all — a document gap, not a self-check gap, out of
+this workstream's own brief ("no migration, no new env var" scoped the
+code, not the doc); row 5 also cannot ever convert for a structural
+reason — the ops door itself requires `OPS_OWNER_USER_IDS` to already be
+set before it will answer, so a check reading that name's presence
+THROUGH that door is circular. (8) and (11) both need a value's
+CORRECTNESS, not merely its presence — a Supabase key can be set and
+still point at the wrong bucket, and `REPLICA_SELF_TEST_OWNER_USER_ID`
+must equal one specific UUID — and `Boolean(env[name])` cannot tell a
+right value from a wrong one, only a real signed upload or a real
+`/api/replica-runtime` call can, exactly the reasoning WS-R102 already
+established for step 8 alone (`context/decisions.md#ws-r102-no-day-one-
+row-converts-from-manual`), now extended and applied name by name across
+the newly-widened list.
+
+**Reversal condition.** Rows 5/6 convert if `docs/gurukul/ENV-MANIFEST.md`
+is ever widened to document `OPS_OWNER_USER_IDS`/`OPENROUTER_API_KEY` by
+name AND (for row 5 specifically) a bootstrap path other than the ops
+door itself exists to check its own presence — until then the circularity
+is structural, not a coverage gap. Rows 8/11 convert only if their own
+underlying checks are ever narrowed to presence-only (unlikely and
+undesirable, since that would weaken what those two checks actually
+prove) — more likely they simply stay manual permanently, which is the
+honest state for "a value can be set and still be wrong."

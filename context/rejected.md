@@ -13187,3 +13187,46 @@ family of budget -- raise it FROM A MEASUREMENT, name the reversal
 condition, never copy a number). Flagged for the main loop rather than
 silently worked around; see `context/decisions.md#ws-r106-hindi-chunk-
 wait-miss-flagged-not-fixed` for the reversal condition.
+
+## `ws-r116-one-literal-header-shape-assumed-universal` (2026-09-05, WS-R116)
+
+**What was tried.** `scripts/envManifest.mjs`'s first draft matched
+exactly ONE literal env-var-table header — `| name | consumed at |
+required | fallback | breaks without it |` — checked by hand against the
+first 30 tables in `docs/gurukul/ENV-MANIFEST.md` (§1 through §27) and
+documented in the file's own header as "shares the IDENTICAL literal
+five-column header", stated as a fact about the WHOLE document rather
+than the sample actually checked.
+
+**What specifically broke.** An eval assertion that `ROOM_WHATSAPP_CHAT`
+(§34, one of the workstream brief's own headline "Rooms names" examples)
+would appear in the parsed output failed: `undefined`, no throw, no
+error, the parse simply never saw it. Tracing why found `docs/gurukul/
+ENV-MANIFEST.md:1353` uses a DIFFERENT header for that table's row: `|
+Var | Read by | Required? | Exact value | What changes with it |` — same
+five columns, same meaning, different words, introduced (unremarked, no
+migration note) somewhere between §27 and §30 by a later workstream. `grep
+-n "| name |"` alone — the check this file's own header comment had
+implicitly relied on — returns exactly 30 matches and silently undercounts
+by 6 tables and 7 names (`ROOM_DORMANCY`, `ROOM_HANDOFF_KERNEL`,
+`PLATFORM_LEGAL_NAME`, `PLATFORM_GSTIN`, `OPS_TELEGRAM_CHAT_IDS`,
+`ROOM_WHATSAPP_CHAT`, `RECALL_RUN` —
+`context/measurements.md#ws-r116-env-manifest-md-carries-two-header-shapes`).
+
+**What replaced it.** `ENV_TABLE_HEADERS`, a list of both known shapes,
+matched case-insensitively; a table matching EITHER is recognised. The
+comment claiming a single universal header was rewritten to name both and
+say why there are two (a later workstream's own naming convention, no
+functional difference) rather than restate the now-falsified "IDENTICAL"
+claim more carefully worded.
+
+**The rule.** "Checked by hand against N examples" is not the same claim
+as "true of the whole document," and a header comment that states the
+narrower fact as the broader one will mislead the next reader exactly the
+way this file's own first draft misled its own author eleven days later
+in the same session. When a parser's own correctness comment makes a
+universal claim about a hand-maintained document's own consistency,
+either verify it exhaustively (every table's header line, not a sample)
+or write the comment as "every table checked so far" rather than
+"every table" — the gap between the two is exactly what this entry
+found the hard way, inside the same workstream that wrote the claim.
