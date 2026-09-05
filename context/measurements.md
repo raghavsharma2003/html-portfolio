@@ -10976,3 +10976,18 @@ prose living there unscanned); the CREATOR-AUTHORED text a stranger reads
 via the real `scanSource` scanner, proven in `evals/creator-page/run.mjs`'s
 own copy-gate section (an em dash and the word "clone" each refused, named
 `room_showcase_copy_violation`).
+
+## `rooms-migration-115-live-verification-2026-09-05`
+
+n = 1 migration (2 statements, plus 1 index added at the merge), 7 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (the table did not exist), the catalog read back (seven columns, three CHECKs, the partial unique `(room_id, position) where removed_at is null` index), then `EXPLAIN` (never `EXPLAIN ANALYZE`) with typed literals; date 2026-09-05, at the WS-R66 merge (54d2e2a).
+
+| statement | plan |
+|---|---|
+| `readRoomShowcase` (active slots by room, ordered by position) | Index Scan on `vy_room_showcase_position_ix` |
+| the review-card pick (`state = 'sounds_right' and kind <> 'follower_declined'`) | Index Scan on `vy_review_card_owner_ix`, the card, state and kind as the filter |
+| `setRoomShowcase`'s slot close (by room and position, active only) | Index Scan on `vy_room_showcase_position_ix` |
+| `removeRoomShowcase` (by id, joined to the owner's Room) | primary key then `vy_room_owner_ix` |
+| `publicCreatorPageRoomBySlug` (listed, published, unpaused) | Index Scan on `vy_room_slug_ix`, the three predicates as the filter |
+| the erasure delete by room | **Seq Scan** of `vy_room_showcase` before the merge added `vy_room_showcase_room_ix` (the partial unique index does not cover removed rows); Index Scan after (see the re-plan in the merge log) |
+
+Not measured: no creator has saved a showcase slot; no crawler has fetched `/c/<slug>`.

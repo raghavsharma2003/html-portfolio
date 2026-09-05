@@ -7996,6 +7996,12 @@
       "kind": "measurement",
       "title": "/c/:slug on check-headers.mjs: 0 CSP violations across 7 page targets with no unsafe-inline/hash needed for the inline application/ld+json block; check-copy.mjs unchanged at 6 scopes/21 controls; showcase text copy-gated at write time via the real scanner.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-115-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 115 (vy_room_showcase) applied live at the WS-R66 merge; every read and write plans on the partial unique index or the owner index; the erasure delete seq-scanned until a plain room index was added at the merge.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15853,6 +15859,11 @@
       "src": "ws-r66-showcase-eligibility-is-a-where-clause-on-kind",
       "rel": "caused_by",
       "dst": "ws-r66-comment-naming-a-table-broke-a-line-scoped-erasure-scan"
+    },
+    {
+      "src": "rooms-migration-115-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r66-showcase-eligibility-is-a-where-clause-on-kind"
     }
   ]
 }
