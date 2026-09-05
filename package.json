@@ -21,6 +21,8 @@
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
     "@capgo/capacitor-speech-recognition": "^8.1.10",
+    "@expo-google-fonts/noto-sans-devanagari": "0.4.1",
+    "@napi-rs/canvas": "1.0.8",
     "chess.js": "^1.4.0",
     "framer-motion": "^13.0.0",
     "react": "^19.2.8",

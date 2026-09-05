@@ -16,6 +16,8 @@
       ],
       "destination": "/api/room-page?slug=:slug"
     },
+    { "source": "/r/:slug/og.png", "destination": "/api/room-card?slug=:slug&kind=og" },
+    { "source": "/r/:slug/story.png", "destination": "/api/room-card?slug=:slug&kind=story" },
     { "source": "/r/:slug", "destination": "/room.html" },
     { "source": "/suites", "destination": "/suites.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
@@ -38,5 +40,10 @@
     { "path": "/api/checkins-sweep", "schedule": "*/15 * * * *" },
     { "path": "/api/pulse-sweep", "schedule": "0 3 * * 1" },
     { "path": "/api/renewals-sweep", "schedule": "0 0 * * *" }
-  ]
+  ],
+  "functions": {
+    "api/room-card.js": {
+      "excludeFiles": "node_modules/@napi-rs/canvas-linux-x64-musl/**"
+    }
+  }
 }

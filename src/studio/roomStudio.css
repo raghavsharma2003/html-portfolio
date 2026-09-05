@@ -40,6 +40,11 @@
     gap: var(--space-tight);
     margin: var(--space-tight) 0 var(--space-item);
   }
+  /* WS-R55. Sits right under the link row; the same gap the row's own
+     children use rather than a new value. */
+  .vy-room__story-card-link {
+    margin: 0 0 var(--space-item);
+  }
   .vy-room__link {
     flex: 1 1 auto;
     min-width: 0;

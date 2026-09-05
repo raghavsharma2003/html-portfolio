@@ -8830,3 +8830,104 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r55-resvg-devanagari-shaping` — `@resvg/resvg-js` corrupts ordinary Hindi text; the named rasteriser could not ship (2026-09-04, WS-R55)
+
+**What was tried.** WS-R55's own brief named the rasteriser explicitly:
+"rasterised with `@resvg/resvg-js`". Installed, wired end to end
+(`renderRoomCard` -> SVG -> `Resvg.render().asPng()`), the bundled font
+loaded via `fontFiles` — the whole pipeline ran without error and produced
+a PNG for every input. It was tested on real Hindi content before the HTTP
+door was written at all, per this repo's own "measure before shipping the
+plan" law, and that is the only reason this was caught before a merge.
+
+**What broke.** The three-codepoint sequence ब (U+092C) + ा (vowel sign AA,
+U+093E) + त (U+0924) — spelling "बात" ("talk"; also literally the first
+word of `roomDisclosureCard`'s own Hindi sentence, "आप ... से **बात** कर
+रहे हैं") — rendered as a visibly wrong glyph. Isolated two-character
+syllables (`बा` alone, `ता` alone) rendered CORRECTLY; the identical two
+syllables joined into one three-character word did not. Separately, a
+space immediately following certain vowel-sign clusters vanished outright:
+"प्रिया AI" rendered as "प्रियाAI", "यह प्रिया नहीं है" as
+"यह प्रियानहींहै" (no error, no warning — the space glyph was simply not
+drawn). Consonant+AA-matra is one of the single most common patterns in
+Hindi (बात, जाता, आता, साथ, काम, माता...), so this was not an edge case; a
+typical 140-character bio would very likely contain it.
+
+**Isolating the cause, in order:**
+1. First suspected the font file: `@fontsource/noto-sans-devanagari`
+   ships only `.woff`/`.woff2`, and resvg-js's native `fontFiles` loader
+   parses sfnt (ttf/otf/ttc) bytes only — handing it a `.woff2` failed
+   SILENTLY (no error, an entirely blank white PNG). That is a real,
+   separate finding (kept below), but switching to a raw `.ttf`
+   (`@expo-google-fonts/noto-sans-devanagari`) did not fix the corruption —
+   only the blank-page failure.
+2. Decoded the CURRENT (2026) Google Fonts release of Noto Sans Devanagari
+   from `@fontsource`'s own `.woff2` via `wawoff2` and fed the raw sfnt
+   bytes to resvg-js directly: identical corruption. Rules out "a stale or
+   mispackaged font file" as the cause.
+3. Tried `@resvg/resvg-js` 2.7.0-alpha.2 (latest prerelease as of this
+   date) against the same bytes: identical corruption. Rules out "a
+   regression already fixed in a newer build" — this is not a version to
+   wait out.
+4. Reproduced the working case (`बा` and `ता` in isolation) and the broken
+   case (`बात` as one run) side by side to rule out a corrupted font
+   entirely: both syllables are individually correct, so the font's own
+   glyph table is not at fault. The failure is specifically in how
+   resvg-js's bundled shaper (rustybuzz) joins/breaks Devanagari clusters
+   across a matra+consonant boundary, and separately how it advances past
+   a space adjacent to one — a shaping-engine defect, not a font defect.
+
+**What shipped instead.** `@napi-rs/canvas` (Skia's own text shaper — the
+same engine Chrome and Android use), drawing directly via `fillText` rather
+than an SVG-to-raster step. The identical font bytes (this time the
+multi-script `@expo-google-fonts/noto-sans-devanagari` `.ttf`, which also
+carries Latin so one file serves the whole mixed-script card) render every
+one of the same test strings correctly through it — verified before this
+became the shipped path, not assumed. See `api/_room-card.js`'s own header
+for the full before/after and `context/decisions.md#ws-r55-canvas-not-resvg-for-devanagari`
+for the reversal condition.
+
+**The law.** A library named in a brief is a plan, not a fact. This
+product's own standing rule — measure before shipping — caught a
+correctness bug that would otherwise have shipped a broken picture to
+every Hindi-locale Room's shared link, silently (no exception, no log line,
+a plausible-looking image with a few wrong letters in it), which is close
+to the worst possible failure mode for exactly the kind of first-impression
+surface this workstream exists to build.
+
+## `ws-r55-fontsource-woff2-unreadable-by-resvg-native-font-loader` (2026-09-04, WS-R55)
+
+**What was tried.** `@fontsource/noto-sans-devanagari`, the npm package
+named first (it is what most of the web ecosystem reaches for, and its
+Devanagari-only subset files are far smaller than a multi-script font),
+loaded into `@resvg/resvg-js` via `font.fontFiles: [woff2Path]`.
+
+**What broke.** No error, no thrown exception, no console warning — the
+call returned a PNG of the correct dimensions and it was entirely blank
+(every pixel 255,255,255, measured with `sharp().stats()`). resvg-js's
+native N-API binding's font loader (`fontdb`, via the Rust `ttf-parser`
+crate) parses sfnt containers (TrueType/OpenType/TrueType-Collection)
+directly; a `.woff`/`.woff2` file is a DIFFERENT, compressed container
+format wrapping sfnt tables, and this loader does not decompress it first.
+The README for `@resvg/resvg-js` documents a `fontBuffers` option "new in
+2.5.0" that (per its own example) accepts a `.woff2` `ArrayBuffer` — but
+that option exists only on the WASM build (`index.d.ts` for the native
+N-API package installed here, `@resvg/resvg-js` 2.6.2, has no
+`fontBuffers` field on its `font` options type at all, only `fontFiles`/
+`fontDirs`), so the documented escape hatch does not apply to the package
+this brief named.
+
+**What shipped instead.** Moot once resvg-js itself was rejected (see the
+entry above) — `@napi-rs/canvas`'s own Skia font manager parses `.woff2`
+directly (verified against the SAME `@fontsource` file), so this specific
+failure mode does not recur with the shipped rasteriser. The font actually
+bundled is `@expo-google-fonts/noto-sans-devanagari`'s raw `.ttf` regardless,
+for the SEPARATE reason that it is one file covering both scripts a mixed
+Latin+Devanagari card needs (`context/decisions.md#ws-r55-font-package-choice`).
+
+**The law.** A library's own README documents a feature; the SPECIFIC
+PACKAGE VARIANT actually installed (native N-API vs. WASM, here) can lack
+it entirely with no version-mismatch warning. Check the installed
+package's own `.d.ts`, not the README, when a documented option does not
+behave as documented.

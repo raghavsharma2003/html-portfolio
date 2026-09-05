@@ -1919,6 +1919,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-share": "room-share/run.mjs",
+  // WS-R55. The Room's pictures: `renderRoomCard`/`computeCardLayout`
+  // (`api/_room-card.js`) drawn with `@napi-rs/canvas` (not the
+  // `@resvg/resvg-js` the brief named — see that file's own header for the
+  // measured Devanagari shaping corruption that ruled it out) and the
+  // bundled `@expo-google-fonts/noto-sans-devanagari` face. Proves: the SVG
+  // for `en` and `hi`, both kinds (og/story), sized exactly to
+  // `ROOM_CARD_SIZES`; the identical-bytes rule (a paused Room and an
+  // unknown slug rasterise to hash-identical PNGs); every rendered line —
+  // name, bio, disclosure sentence, brand mark — scans clean under the REAL
+  // `scripts/check-copy.mjs` scanner; the ETag is stable, distinct per kind
+  // and per Room, and identical for every unpublished-or-unknown slug. TWO
+  // NEGATIVE CONTROLS: (a) a poisoned fixture carrying `row.follower_count`
+  // is caught by a static scan of this file's own `row.<field>` property
+  // access, which the REAL `api/_room-card.js`/`api/room-card.js` pass
+  // clean (only `display_name`/`one_line_bio`/`default_locale`); (b) a bio
+  // containing the banned word "clone" is caught by the real scanner when
+  // run through this file's own rendered text.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-card": "room-card/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
