@@ -61,6 +61,7 @@ import type { Readiness } from "./readinessApi";
 import type { InterviewPreview } from "./mirrorCallApi";
 import type { OwnedRoom, RoomStats } from "./roomPublishApi";
 import StudioShell from "./StudioShell";
+import { Localized } from "./Localized";
 import DriftWatchCard from "./DriftWatchCard";
 import {
   AdvancedArea,
@@ -865,7 +866,9 @@ export function ReplicaWorkspace({
               <span className="tiny-divider" />
               {copy.workspaceNoun}
             </div>
-            <h1>{replica.display_name}</h1>
+            {/* WS-R79: a creator's own Room name, independent of which
+                locale they are reading the rest of the studio's chrome in. */}
+            <h1><Localized as="span" text={replica.display_name} /></h1>
             <p>Created {dateLabel(replica.created_at)} · Policy {replica.policy_version}</p>
           </div>
           <div className="control-seal">

@@ -861,3 +861,55 @@ export function normalizeLocale(input: string | null | undefined): RoomLocale {
   const s = String(input || "").trim().toLowerCase();
   return s === "hi" || s.startsWith("hi-") ? "hi" : "en";
 }
+
+// ── WS-R79: language tagging for screen readers ─────────────────────────
+//
+// `document.documentElement.lang`/`<main lang={locale}>` (`RoomApp.tsx`'s
+// own effect and JSX) name ONE thing: the follower's own chosen chrome
+// language. Four kinds of text on this surface are not guaranteed to be IN
+// that language, and nothing checked it before this workstream:
+//
+//   - the disclosure sentence. `roomDisclosureCard` is rendered in the
+//     locale it was FETCHED in, never re-picked client side (this file's own
+//     `RoomOpen.locale` comment) - but `switchLocale` (`RoomApp.tsx`) mints a
+//     fresh SESSION on a locale change and updates `document.documentElement.
+//     lang` immediately, without ever re-fetching the disclosure text itself.
+//     A follower who switches language mid-conversation now has a document
+//     tagged in the NEW locale wrapping a disclosure card still written in
+//     the OLD one, until their next message. Tagging the document was never
+//     going to catch this - only the node can.
+//   - the creator's own name (`room.name`/`display_name`) and the room's own
+//     "AI" heading. A name is not translated (`withName`'s own comment,
+//     restated) and is not guaranteed to be written in the SAME script the
+//     follower reads the rest of the room in either - a creator can write
+//     their own name in Devanagari and a follower can still read the room's
+//     chrome in English, or the reverse.
+//   - any other creator-authored text (the one-line bio, a showcase question
+//     or answer on `/c/<slug>`) - written once, in the Room's own default
+//     locale, read by a follower who chose the OTHER one.
+//
+// `detectRoomTextLang` answers the one question that actually decides
+// pronunciation - what SCRIPT a piece of text is actually IN - from the
+// text's own characters, never from `room.locale`/`document.documentElement.
+// lang`, which name a different question entirely (the follower's own
+// chosen chrome language, not what any one sentence happens to be written
+// in). See `context/decisions.md#ws-r79-tag-at-the-node-not-the-document`.
+//
+// The Devanagari block is U+0900-U+097F - the same range
+// `scripts/check-layout.mjs`'s own glyph probe already tests strings against
+// (that file's `devanagariCount`), restated here rather than imported: this
+// module ships to the browser and that one runs only in the release gate,
+// two different runtimes with no shared boundary to cross (the same reason
+// `api/_creator-page.js` restates it a third time rather than importing
+// from either).
+const DEVANAGARI_RANGE = /[ऀ-ॿ]/;
+
+/** Detects which of `ROOM_LOCALES` a piece of TEXT is actually written in,
+ *  from its own characters. English is the default for anything with no
+ *  Devanagari codepoint at all - digits, punctuation, a Latin-script name,
+ *  an untranslated loanword like "AI" - exactly the same default
+ *  `normalizeLocale` above already applies to a browser or Telegram hint
+ *  that names no language it recognises. */
+export function detectRoomTextLang(text: string): RoomLocale {
+  return DEVANAGARI_RANGE.test(String(text || "")) ? "hi" : "en";
+}

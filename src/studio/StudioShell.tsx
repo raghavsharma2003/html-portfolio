@@ -87,6 +87,10 @@ function StudioLanguageSwitch({
           key={l}
           type="button"
           className="studio-lang-btn"
+          // WS-R79: same reason `RoomApp.tsx`'s own `LanguageSwitch` gets
+          // this — both labels are always shown, side by side, in every
+          // locale, so the OTHER one needs its own `lang`.
+          lang={l}
           aria-pressed={locale === l}
           disabled={busy}
           onClick={() => onSwitch(l)}

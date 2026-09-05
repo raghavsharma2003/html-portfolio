@@ -17,7 +17,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { StudioSession } from "../studio/types";
 import type { RoomCopy, RoomLocale } from "./copy";
-import { withName, withPrice } from "./copy";
+import { withPrice } from "./copy";
+import { LocalizedName, LocalizedDisclosure } from "./Localized";
 import {
   RoomApiError,
   exportRoomData,
@@ -359,9 +360,10 @@ export default function AccountPage({
           card already says on every screen. */}
       <h3 className="room-checkins-subhead">{copy.account.disclosureTitle}</h3>
       <div className="room-card" role="note">
-        {(settings?.disclosure || "").split("\n").map((line) => (
-          <p key={line}>{line}</p>
-        ))}
+        {/* WS-R79: same reasoning as `RoomApp.tsx`'s own three disclosure
+            renders — tagged from its own characters, never from this page's
+            document `lang`. */}
+        <LocalizedDisclosure text={settings?.disclosure || ""} />
       </div>
 
       <h3 className="room-checkins-subhead">{copy.account.memoryTitle}</h3>
@@ -534,7 +536,9 @@ export default function AccountPage({
           </button>
         ) : (
           <>
-            <p className="room-fine">{withName(copy.menu.forgetNote, name)}</p>
+            <p className="room-fine">
+              <LocalizedName template={copy.menu.forgetNote} name={name} />
+            </p>
             <button
               type="button"
               className="room-btn danger"
