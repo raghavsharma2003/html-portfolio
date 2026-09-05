@@ -13032,3 +13032,75 @@ exceeds 50 ms.
 Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
 sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
 `vy_room_follower_whatsapp_chat` row exists yet.
+
+## `ws-r112-instruction-shaped-card-suite-counts-2026-09-05` (WS-R112)
+
+**Measured, offline, deterministic; n and method below; date 2026-09-05.**
+
+- `node evals/review-queue/run.mjs`: **176/176** checks passed. No
+  untouched-tree baseline was captured for this file before this
+  workstream's own edits began (the same honest gap WS-R18, WS-R22 and
+  WS-R34 each logged for their own sessions) — sections 1-7's own console
+  output is unchanged by inspection (no assertion in those sections was
+  touched), and section 8 (WS-R112's own addition) is entirely new.
+  Method: a fake database
+  routing on statement SHAPE (never a table name), driving the REAL
+  `api/_review-queue.js`, `api/_context-mining.js` and
+  `api/_material-detector.js` against fixture text and a real corpus
+  (`evals/room-adversarial-creator/corpus.mjs`, imported, never
+  duplicated). Section 8 alone: 8a-8i, covering detector recall on every
+  `MAIN_ENTRIES` class (41/41, restated from WS-R105's own measurement,
+  unchanged since the detector moved verbatim), zero false positives on
+  `BENIGN_SOURCE_SAMPLE` (n=15), the dedupe-on-item-not-sentence property,
+  the queue cap, the `remove_source` decision's SQL clauses (read off the
+  real shipping string, never simulated), the never-rule-from-a-flag
+  binding through `S.gateReply` (this file's own §5 shape), the
+  `applyIngestRunDelta` fix driven through a dedicated two-branch fake db,
+  and the NFKC negative control (below).
+- `node evals/room-adversarial-creator/run.mjs`: **247/247** passed. Three
+  checks in this total are new (migration 074's file unedited, migration
+  129's existence and shape, `api/_review-queue.js` now naming
+  `instruction_shaped`); no untouched-tree baseline count was captured
+  before this workstream's edits, for the same reason given above. Detector
+  recall: **41/41 = 100.0%**, false-positive rate: **0/15 = 0.0%** — both
+  re-measured against the file's OWN corpus after the detector's move to
+  `api/_material-detector.js`, confirming the move preserved measured
+  behaviour exactly (the moved file's content is unchanged apart from its
+  own header comment, confirmed by direct comparison).
+- `node evals/room-doors/run.mjs`: **748 ok, 0 failed** (full battery, run
+  after this workstream's own edits; no untouched-tree baseline captured
+  for the same reason given above). The new `decideReviewCard`
+  'remove_source' owner-bearer case (a different owner refused, the real
+  owner's removal marking the fixture's context item refused) is inside
+  the `e-owner-bearer/review-queue.js` count, which the run's own tally
+  reports as 128 ok, 0 failed.
+- `node scripts/context.mjs --check`: clean before this workstream's own
+  entries were appended (1638 nodes, 1876 edges) and re-run clean after.
+
+**The NFKC negative control, specifically measured (n=1 synthetic
+fixture, method below, date 2026-09-05).** `hg-en-2` (the corpus's own
+fullwidth fixture) could NOT serve as this control: `role_reassignment`'s
+own pattern carries a hardcoded fullwidth alternative
+(`|ｏｐｅｒａｔｏｒ)`) that matches independent of NFKC, which would have
+made the control pass for a reason unrelated to normalisation
+(`context/rejected.md#ws-r112-hg-en-2-is-not-a-clean-nfkc-negative-
+control`). A synthetic fullwidth encoding of `instruction_override`'s own
+trigger phrase ("Ignore all previous instructions.", every ASCII letter
+mapped to U+FF21-U+FF5A, spaces and punctuation untouched) was built
+instead: the REAL detector (with NFKC) matches both `homoglyph` and
+`instruction_override`; a detector built with the exact same source but
+`raw.toLowerCase()` in place of `raw.normalize("NFKC").toLowerCase()`
+still matches `homoglyph` (the mixed-script check runs on raw text,
+unconditionally) but MISSES `instruction_override` entirely — the fullwidth
+letters never match the ASCII pattern without normalisation first.
+
+**Live-verification status, stated plainly.** Migration 129 has never
+executed against a live Postgres (no `NEON_URL` in this environment). The
+constraint name `vy_review_card_kind_check` used in both the migration and
+the drop-then-add is Postgres's own default naming for an unnamed,
+single-column, inline CHECK — never invented by this repo — but it has
+NOT been read back from `pg_constraint` by this workstream, only asserted
+by convention (the same convention migration 096 confirmed live for an
+identically-shaped CHECK, `context/measurements.md#rooms-migration-085-
+live-verification-2026-09-04`). The main loop must read it back before
+applying, exactly as this migration's own header says.

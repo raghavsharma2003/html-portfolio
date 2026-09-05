@@ -4487,3 +4487,12 @@ create index if not exists vy_room_follower_whatsapp_chat_person_ix
   on vy_room_follower_whatsapp_chat (person_id, room_id);
 create index if not exists vy_room_follower_whatsapp_chat_follower_ix
   on vy_room_follower_whatsapp_chat (follower_id);
+
+-- Migration 129 - review card kind widened to admit 'instruction_shaped'
+-- (WS-R112). See db/migrations/129_review_card_instruction_shaped.sql for
+-- the full argument. Drop-then-add on Postgres's own default name for this
+-- unnamed, single-column, inline CHECK — migration 096's own precedent one
+-- migration family over, for `vy_room_checkin_delivery`'s channel CHECK.
+alter table vy_review_card drop constraint if exists vy_review_card_kind_check;
+alter table vy_review_card add constraint vy_review_card_kind_check
+  check (kind in ('question','claim','delta','follower_declined','instruction_shaped'));

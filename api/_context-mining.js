@@ -48,6 +48,7 @@
 // None of them is a failure and none of them is silence.
 import { draftFromTranscript, transcriptStats } from "./_engine.gen.js";
 import { MAX_CITATIONS_PER_CANDIDATE } from "./_context/limits.js";
+import { detectInstructionShapedMaterial } from "./_material-detector.js";
 
 /** The speaker label owner turns are relabelled to before the statistical pass
  *  sees them. A constant rather than the owner's real name: `_obs.js`'s law is
@@ -130,6 +131,48 @@ function citationsFor(body, segments, fragment, itemId) {
 
 const fieldFor = (fragment) => (String(fragment).includes(" ") ? "boardVerbalisms" : "exSlangRepeat");
 
+// ── WS-R112: the instruction-shaped-material flag ────────────────────────
+//
+// WS-R105 built `detectInstructionShapedMaterial` (now `api/_material-
+// detector.js`, pure, measured against a real corpus) and could not ship it:
+// no review-card kind existed to carry the finding. Migration 129 adds one
+// (`kind='instruction_shaped'`), and THIS is where it runs: every newly
+// mined item's text, once, right here — never at read time, never at reply
+// time. The finding is a review-queue card the creator decides on, never a
+// silent mine and never a silent block.
+
+/** The first sentence of `text`, capped — never the whole passage. The
+ *  workstream's own law: the card names ENOUGH of the passage for a creator
+ *  to recognise it, and the class name is the reason; the full passage is
+ *  never repeated onto the card a second time (it is still readable in full
+ *  from the locker item itself, which this card's `origin_ref` points at). */
+export function firstSentenceOf(text, max = 500) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return "";
+  const match = /^[\s\S]*?[.!?](?:\s|$)/.exec(trimmed);
+  const sentence = (match ? match[0] : trimmed).trim();
+  return sentence.slice(0, max);
+}
+
+/**
+ * Runs the pure detector over the WHOLE stored item body — deliberately NOT
+ * only the owner-attributed segments `ownerSegments` carves out above. An
+ * instruction-shaped footer can sit in a third party's turns of a forwarded
+ * chain exactly as easily as in the owner's own, and the risk this card
+ * exists for is "this text reached the platform at all", never "this text
+ * became a style delta" — those are two different questions with two
+ * different answers, and this one is answered independently of whether
+ * anything else about the item mined at all.
+ *
+ * @returns `null` when nothing matched (a card is a POSITIVE finding, never
+ *          a row recording silence), or `{ matchedClasses, firstSentence }`.
+ */
+export function materialFlagFor(body) {
+  const { flagged, matchedClasses } = detectInstructionShapedMaterial(body);
+  if (!flagged) return null;
+  return Object.freeze({ matchedClasses: Object.freeze([...matchedClasses]), firstSentence: firstSentenceOf(body) });
+}
+
 /**
  * Mine one extracted item.
  *
@@ -142,6 +185,10 @@ const fieldFor = (fragment) => (String(fragment).includes(" ") ? "boardVerbalism
 export function mineContextItem(item, extraction, options = {}) {
   const body = extraction.body;
   const { segments, reason } = ownerSegments(extraction, options);
+  // WS-R112. Computed once, over the whole body, before the owner/segment
+  // split below — see `materialFlagFor`'s own header for why the split does
+  // not gate this check.
+  const materialFlag = materialFlagFor(body);
 
   const itemFacts = {
     item_id: item.item_id,
@@ -163,6 +210,7 @@ export function mineContextItem(item, extraction, options = {}) {
       deltaCount: 0,
       stats: { item: itemFacts },
       delta: { kind: "context-sheet-candidates/v1", item: itemFacts, additions: [], measurements: null, notMinedReason: reason },
+      materialFlag,
     };
   }
 
@@ -216,6 +264,7 @@ export function mineContextItem(item, extraction, options = {}) {
       ),
       ...(additions.length ? {} : { notMinedReason: "no_candidates_cleared_held_out" }),
     },
+    materialFlag,
   };
 }
 

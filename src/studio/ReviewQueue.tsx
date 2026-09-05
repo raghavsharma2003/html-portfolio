@@ -68,11 +68,24 @@ const BUTTON_ORDER = [
   { decision: "never", hint: "3" },
 ] as const;
 
-type Decision = (typeof BUTTON_ORDER)[number]["decision"];
+// WS-R112. An 'instruction_shaped' card has no answer to fix, only a source
+// to keep or remove - key 2 becomes "Remove this source" rather than
+// "Close, fix it" for this ONE kind, everything else about the row (order,
+// hints, pointerdown feedback) unchanged.
+const INSTRUCTION_SHAPED_BUTTON_ORDER = [
+  { decision: "sounds_right", hint: "1" },
+  { decision: "remove_source", hint: "2" },
+  { decision: "never", hint: "3" },
+] as const;
+
+type Decision =
+  | (typeof BUTTON_ORDER)[number]["decision"]
+  | (typeof INSTRUCTION_SHAPED_BUTTON_ORDER)[number]["decision"];
 
 function buttonLabel(t: StudioCopy, decision: Decision): string {
   if (decision === "sounds_right") return t.reviewQueue.buttonSoundsRight;
   if (decision === "fixed") return t.reviewQueue.buttonFixed;
+  if (decision === "remove_source") return t.reviewQueue.buttonRemoveSource;
   return t.reviewQueue.buttonNever;
 }
 
@@ -131,6 +144,9 @@ export default function ReviewQueue({
   const card = cards[Math.min(index, Math.max(0, cards.length - 1))] ?? null;
   const total = (queue?.open_count ?? 0) + (queue?.decided_count ?? 0);
   const position = (queue?.decided_count ?? 0) + 1;
+  // WS-R112. One card kind, one different middle button - everything else
+  // about the row (order, hints, feedback timing) is the SAME component.
+  const buttonOrder = card?.kind === "instruction_shaped" ? INSTRUCTION_SHAPED_BUTTON_ORDER : BUTTON_ORDER;
 
   async function submit(decision: Decision, correctionSourceId?: string) {
     if (!card || busy) return;
@@ -139,10 +155,18 @@ export default function ReviewQueue({
     try {
       const result = await decideReviewCard(token, replicaId, card.card_id, decision, {
         correctionSourceId,
-        // "Never say this" forbids the SHAPE of the answer that was on the card.
-        // The pattern is stored as a matcher and enforced on the reply path; it
-        // never enters a prompt.
-        ...(decision === "never" ? { pattern: card.answer_text || card.prompt_text } : {}),
+        // "Never say this" forbids the SHAPE of the answer that was on the
+        // card. The pattern is stored as a matcher and enforced on the reply
+        // path; it never enters a prompt. On an 'instruction_shaped' card
+        // there IS no answer worth blocking - `answer_text` there is a
+        // class-name reason, never a sentence the AI could say - so the
+        // pattern is the flagged passage's own first sentence instead
+        // (`card.prompt_text`, WS-R105's own detector output).
+        ...(decision === "never" ? {
+          pattern: card.kind === "instruction_shaped"
+            ? card.prompt_text
+            : (card.answer_text || card.prompt_text),
+        } : {}),
       });
       setQueue(result.queue);
       setComposing(false);
@@ -152,7 +176,9 @@ export default function ReviewQueue({
         ? t.reviewQueue.noticeFixed
         : decision === "never"
           ? t.reviewQueue.noticeNever
-          : t.reviewQueue.noticeSaved);
+          : decision === "remove_source"
+            ? t.reviewQueue.noticeRemoved
+            : t.reviewQueue.noticeSaved);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
       setError(cause instanceof Error ? cause.message : t.reviewQueue.errorSave);
@@ -287,7 +313,7 @@ export default function ReviewQueue({
     if (composing || busy || !card) return;
     const target = event.target as HTMLElement;
     if (target.tagName === "TEXTAREA" || target.tagName === "INPUT") return;
-    const button = BUTTON_ORDER.find((row) => row.hint === event.key);
+    const button = buttonOrder.find((row) => row.hint === event.key);
     if (!button) return;
     event.preventDefault();
     if (button.decision === "fixed") { setComposing(true); return; }
@@ -344,7 +370,7 @@ export default function ReviewQueue({
 
           {!composing ? (
             <div className="review-card-actions">
-              {BUTTON_ORDER.map((button) => (
+              {buttonOrder.map((button) => (
                 <button
                   key={button.decision}
                   className={`review-choice review-choice-${button.decision}`}

@@ -2590,15 +2590,21 @@ const suites = {
   // and logged (`context/measurements.md#ws-r105-secret-shaped-material-
   // leak-rate`) rather than assumed either way.
   //
-  // `evals/room-adversarial-creator/detector.mjs` is the mitigation this
-  // finding leaves room for: a pure, no-model-call, NFKC-normalised regex
-  // detector (WS-R89's own precedent) measured at 100% recall on the
-  // corpus and 0% false positives on a benign-source sample crafted to trap
-  // a naive keyword match. It does NOT ship as a review-queue card kind —
-  // migration 074's `kind` CHECK is a closed four-value list and this
-  // workstream carries no migration, so law 4's own contingency ("if a
-  // migration would be needed, do not add the card, log why") applies
-  // regardless of the measured rate; both are logged in `context/`.
+  // `api/_material-detector.js` (moved here from this directory's own
+  // `detector.mjs` by WS-R112, unchanged) is the mitigation this finding
+  // leaves room for: a pure, no-model-call, NFKC-normalised regex detector
+  // (WS-R89's own precedent) measured at 100% recall on the corpus and 0%
+  // false positives on a benign-source sample crafted to trap a naive
+  // keyword match. WS-R105 could not ship it as a review-queue card kind —
+  // migration 074's `kind` CHECK was a closed four-value list and that
+  // workstream carried no migration, so law 4's own contingency ("if a
+  // migration would be needed, do not add the card, log why") applied
+  // regardless of the measured rate. WS-R112 (migration 129) shipped it:
+  // `api/_context-mining.js` runs the detector over every newly mined
+  // item's text and `api/_review-queue.js::persistInstructionShapedCard`
+  // writes one `kind='instruction_shaped'` card per flagged source; see
+  // `context/decisions.md#ws-r112-instruction-shaped-is-a-review-card-not-
+  // a-runtime-filter`.
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-adversarial-creator": "room-adversarial-creator/run.mjs",
