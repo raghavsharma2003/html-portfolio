@@ -2207,6 +2207,25 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-dormancy": "room-dormancy/run.mjs",
+  // WS-R88 (migration 125). The operator's morning digest:
+  // `api/_operator-digest.js`'s `digestCounts` (the n>=5 follower floor,
+  // reading only already-aggregated fields off `opsOverview`'s own shape,
+  // never a Room's slug), `operatorDigestPayload` (the WS-R22 "parameter
+  // list is the enforcement" shape, a static scan proving its own source
+  // names no follower/Room-content column, the body under 200 characters),
+  // `sendOperatorDigest`'s ledger claim (the unique `day` index is the
+  // idempotency, a second sweep tick the same day sends nothing more),
+  // `sendTestOperatorDigest` (sends to the caller's own subscription only,
+  // writes no ledger row, refuses a bearer not on OPS_OWNER_USER_IDS even
+  // called directly), and `lastOperatorDigest`'s own board read. THREE
+  // NEGATIVE CONTROLS: a body carrying a Room's slug or display name is
+  // impossible by construction (static scan); a follower count under 5
+  // never appears as an exact number in the body; a bearer not on the
+  // operator allowlist calling `sendTestOperatorDigest` directly pushes to
+  // nobody.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "operator-digest": "operator-digest/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -8500,6 +8500,30 @@
       "kind": "measurement",
       "title": "The published Share tab under the layout gate: 12 findings, then 22 (777 px document), then 5 (150 cpl), then 0 across 48 screen loads as each cause was removed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r88-operator-digest-never-imports-ops-js",
+      "kind": "decision",
+      "title": "api/_operator-digest.js never imports api/_ops.js back; every _ops.js function it needs is injected via deps or locally restated, avoiding the _ops.js<->_operator-digest.js import cycle _incidents.js already named.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r88-follower-floor-applied-inside-digestCounts-not-the-payload-builder",
+      "kind": "decision",
+      "title": "The n>=5 follower floor is decided inside digestCounts, which sets a boolean the payload builder branches on; the floored branch never reads the raw sub-5 count at all, so it cannot leak it even by accident.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r88-ops-board-digest-copy-stays-english-inline",
+      "kind": "decision",
+      "title": "DigestCard copy stays inline English in OpsBoard.tsx, not in copy.ts/hiCopy.ts, restating ws-r62-ops-board-push-copy-stays-english-inline for a second card on the same TIER_2_ALLOWLIST page.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r88-operator-digest-offline-batteries-2026-09-05",
+      "kind": "measurement",
+      "title": "755 offline checks across evals/operator-digest (49, new), evals/ops (137, was 135), evals/room-doors (569, was 566) - all passed, zero real db, zero network.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16737,6 +16761,21 @@
       "src": "wave-thirteen-merge-gate-first-published-share-tab-2026-09-05",
       "rel": "measured_by",
       "dst": "published-room-share-tab-never-rendered-under-the-layout-gate-until-wave-thirteen"
+    },
+    {
+      "src": "ws-r88-operator-digest-never-imports-ops-js",
+      "rel": "caused_by",
+      "dst": "ws-r58-operator-push-subscription-store-does-not-exist"
+    },
+    {
+      "src": "ws-r88-follower-floor-applied-inside-digestCounts-not-the-payload-builder",
+      "rel": "measured_by",
+      "dst": "ws-r88-operator-digest-offline-batteries-2026-09-05"
+    },
+    {
+      "src": "ws-r88-ops-board-digest-copy-stays-english-inline",
+      "rel": "caused_by",
+      "dst": "ws-r62-ops-board-push-copy-stays-english-inline"
     }
   ]
 }

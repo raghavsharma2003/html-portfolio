@@ -222,6 +222,10 @@ const RENEWALS = await import(pathToFileURL(join(API, "_renewals.js")).href);
 const { cancelFollowerRenewal, cancelCreatorRenewal, cancelOrgRenewal } = RENEWALS;
 const OPS = await import(pathToFileURL(join(API, "_ops.js")).href);
 const { isOpsOwner, subscribeOperatorPush, revokeOperatorPush, operatorPushSubscriptionsFor } = OPS;
+// WS-R88 (migration 125): ops.js's own third op-shaped body, "send a test
+// digest now".
+const OPERATOR_DIGEST = await import(pathToFileURL(join(API, "_operator-digest.js")).href);
+const { sendTestOperatorDigest } = OPERATOR_DIGEST;
 const CREATOR_PUSH = await import(pathToFileURL(join(API, "_creator-push.js")).href);
 const { subscribeCreatorPush, revokeCreatorPush } = CREATOR_PUSH;
 const RATE = await import(pathToFileURL(join(API, "_rate-limit.js")).href);
@@ -2053,6 +2057,55 @@ console.log("\n── §17c: replica.js push_subscribe / push_revoke (WS-R74) �
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §17d. WS-R88 (migration 125) — ops.js's own `send_test_digest`, the door's
+// THIRD op-shaped body. `sendTestOperatorDigest` reads no request-body
+// identity at all (`ownerUserId` is `api/ops.js`'s own already-verified
+// `user.id`, never a body-supplied id — the door's own header), so the
+// class-e attack this section actually tests is narrower than §17b's own
+// subscribe/revoke pair: can calling this function DIRECTLY with a bearer
+// NOT on `OPS_OWNER_USER_IDS` push a real notification to ANYONE at all —
+// including that same bearer's own device, if they happen to hold a row in
+// `vy_operator_push_subscription` from before they were removed from the
+// allowlist? `isOpsOwnerLocal`'s own explicit check
+// (`api/_operator-digest.js`'s own header names why a WHERE-clause SQL
+// parameter is not available on this read-and-send path the way it is for
+// §17b's own INSERT/UPDATE) is what refuses this, proven here by calling
+// the real function directly, bypassing `api/ops.js`'s own door-level
+// `isOpsOwner` gate entirely.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §17d: ops.js send_test_digest (WS-R88) ──");
+{
+  const ALLOWLIST_ENV = { OPS_OWNER_USER_IDS: OWNER, ROOM_PUSH_VAPID_PUBLIC: "pub", ROOM_PUSH_VAPID_PRIVATE: "priv", ROOM_PUSH_VAPID_SUBJECT: "mailto:x@example.test" };
+  const SUB3 = {
+    endpoint: "https://push.example.test/operator-digest-device",
+    p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM",
+    auth: "tBHItJI5svbpez7KI4CCXg",
+  };
+  // OWNER_B (not on the allowlist) DOES hold a real subscription row of
+  // their own — the exact scenario named in this section's own header:
+  // a formerly-allowlisted operator, or one added by mistake, still has a
+  // browser subscription on file.
+  const subsByOwner = { [OWNER_B]: [{ id: "s-b", endpoint: SUB3.endpoint, p256dh: SUB3.p256dh, auth: SUB3.auth }] };
+  const sent = [];
+  const commonDeps = {
+    env: ALLOWLIST_ENV,
+    opsOverviewFn: async () => ({ rooms: [], self_check: { checked: 0, failed: 0, last_outcome: "never_ran" }, incidents: { by_kind_door: [], new_kinds: [] } }),
+    operatorSubscriptionsFor: async (db, ownerId) => subsByOwner[ownerId] || [],
+    sendPush: async (sub, payload) => { sent.push({ sub, payload }); return { ok: true, status: 201 }; },
+  };
+
+  const noopDb = async () => [];
+  const strangerResult = await sendTestOperatorDigest(noopDb, OWNER_B, commonDeps);
+  okClass("e-owner-bearer", "ops.js", "send_test_digest: NEGATIVE CONTROL — a bearer NOT on OPS_OWNER_USER_IDS pushes to NOBODY, even though they hold their own real subscription row, decided by isOpsOwnerLocal, not by this test skipping a JS check", strangerResult.pushed === 0 && sent.length === 0);
+
+  subsByOwner[OWNER] = [{ id: "s-a", endpoint: "https://push.example.test/owner-device", p256dh: SUB3.p256dh, auth: SUB3.auth }];
+  const ownerResult = await sendTestOperatorDigest(noopDb, OWNER, commonDeps);
+  okClass("e-owner-bearer", "ops.js", "send_test_digest: the real operator's own test send succeeds (the fixture is sound)", ownerResult.pushed === 1 && sent.length === 1);
+  const payload = JSON.parse(sent[0].payload);
+  ok("[e-owner-bearer/ops.js] send_test_digest: the payload title is marked as a test", payload.title.startsWith("TEST"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §18. THE COMPUTED OP LIST — law 1: every `op === "<name>"` literal in a
 // door's own source is read off that source (never hand-typed twice) and
 // asserted against this file's own coverage table, so a new op fails the
@@ -2246,6 +2299,8 @@ const OP_COVERAGE = {
   "ops.js": {
     push_subscribe: { classes: ["e"] },
     push_revoke: { classes: ["e"] },
+    // WS-R88 (migration 125). "Send a test digest now" - see §17d below.
+    send_test_digest: { classes: ["e"] },
   },
   "account.js": {
     send_otp: { classes: ["h"] },

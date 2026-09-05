@@ -62,6 +62,14 @@ import { reconciliationOverview } from "./_payments.js";
 // rather than re-derived, this file's own established pattern one import
 // list up.
 import { INCIDENT_KINDS } from "./_incidents.js";
+// WS-R88 (migration 125). The board's own "Last digest" read - the ONE
+// direction this import is safe: `api/_operator-digest.js` never imports
+// THIS file back (see that file's own header), so there is no
+// `_ops.js -> _operator-digest.js -> _ops.js` cycle the way there would be
+// if the digest's own write path (`sendOperatorDigest`/
+// `sendTestOperatorDigest`) needed `opsOverview`/`opsOwnerIds`/`isOpsOwner`
+// imported directly instead of injected.
+import { lastOperatorDigest } from "./_operator-digest.js";
 import { randomUUID } from "node:crypto";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
@@ -605,5 +613,9 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // restated for a count that COULD identify a person in a small bucket
     // (this workstream's own law 4).
     dormancy: await dormancyThisWeek(db, now, deps),
+    // WS-R88 (migration 125). "Last digest" with its sent time - the board's
+    // own read, `api/_operator-digest.js#lastOperatorDigest`'s own single
+    // query, reused rather than re-derived.
+    digest: await lastOperatorDigest(db),
   };
 }

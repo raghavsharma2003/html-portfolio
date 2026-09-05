@@ -15714,3 +15714,106 @@ budget with a measurement, never silently. If the placeholder ever throws in
 production (an incident row naming `studio_copy_hi_not_loaded`), the provider
 gate has a hole and the fix is in `localeContext.tsx`, not a softer
 placeholder.
+
+## `ws-r88-operator-digest-never-imports-ops-js` (2026-09-05, WS-R88)
+
+**Decision.** `api/_operator-digest.js` (the operator's morning digest,
+migration 125) never imports `api/_ops.js`, in either direction beyond one:
+`api/_ops.js` imports ONE pure read (`lastOperatorDigest`) FROM this file
+for the board's own "Last digest" line, but this file never imports
+`opsOverview`/`opsOwnerIds`/`isOpsOwner`/`operatorPushConfig`/
+`operatorPushSubscriptionsFor`/`revokeOperatorPushById` back from `_ops.js`.
+Every one of those is either taken as an INJECTED `deps` function
+(`deps.opsOverviewFn`, `deps.operatorSubscriptionsFor`,
+`deps.revokeOperatorSubscription`, `deps.sendPush` — the identical shape
+`api/_incidents.js#notifyNewIncidentKinds` already takes) or LOCALLY
+RESTATED as a small pure function this file owns (`opsOwnerIdsLocal`,
+`isOpsOwnerLocal`, `operatorDigestConfig`). The two callers that need both
+files (`api/operator-digest-sweep.js`, the cron; `api/ops.js`, for the
+"send a test digest now" op) import both separately and wire the real
+functions together at the one place that needs to know about both.
+
+**Rationale.** `api/_ops.js` needing `lastOperatorDigest` for its own board
+read is unavoidable — the board lives in `_ops.js`. If `_operator-digest.js`
+also imported `opsOverview` (etc.) directly from `_ops.js` for its OWN write
+path, the two files would import each other, exactly the
+`api/_ops.js -> api/_incidents.js -> api/_ops.js` shape
+`context/rejected.md#ws-r58-incidents-importing-opsownerids-from-ops-js-
+makes-a-cycle` already names for a sibling pair one workstream earlier — a
+Node ESM cycle that resolves (both files DO export usable bindings by the
+time either is called) but is exactly the shape that repo already
+identified as a bug magnet, not merely a lint complaint. `api/_incidents.js`'s
+own `opsOwnerIdsLocal` and `api/_creator-push.js`'s own `creatorPushConfig`
+are both the identical restatement for the identical reason, one file each
+— this is the third instance of the same pattern, not a new one.
+
+**Reversal condition.** If a future refactor extracts `opsOwnerIds`/
+`isOpsOwner`/`operatorPushConfig` into a THIRD file neither `_ops.js` nor
+`_operator-digest.js`/`_incidents.js` owns (a genuine "no cycle possible"
+shared module), delete every local restatement across all three files in
+favour of importing from that new file in the same commit — until that
+file exists, restating six small pure lines three times is cheaper than the
+cycle risk, and `evals/operator-digest/run.mjs`'s own env/config assertions
+would need updating alongside any such move.
+
+## `ws-r88-follower-floor-applied-inside-digestCounts-not-the-payload-builder` (2026-09-05, WS-R88)
+
+**Decision.** The `n>=5` follower floor (workstream law 2: "one follower
+joined one Room is fewer than 5") is decided inside `digestCounts` — the
+PURE REDUCTION of `opsOverview()`'s own shape — which sets
+`followers_joined_below_floor: true/false` alongside the real
+`followers_joined_7d` integer. `operatorDigestPayload` (the WS-R22
+"parameter list is the enforcement" payload builder) never re-derives the
+floor itself; it only BRANCHES on the boolean `digestCounts` already
+computed, and its floored branch never reads `counts.followers_joined_7d`
+at all — the raw number is structurally unreachable from that branch, not
+merely unused by convention.
+
+**Rationale.** Keeping the floor decision and the number it floors in the
+SAME function (rather than passing the raw number to the payload builder
+and trusting it to check a threshold correctly every time) removes exactly
+one class of bug: a future edit to `operatorDigestPayload` that adds a
+second place the raw count is read (a second sentence, a debug log) would
+have to ALSO remember to guard it, whereas today there is nothing to
+remember — the number the floored branch could leak simply is not a
+parameter reachable from that branch. `evals/operator-digest/run.mjs`'s own
+NEGATIVE CONTROL (b) proves the observable half of this (a body built from
+a sub-5 count never contains the exact number); this decision is why that
+control has nothing to catch even directly.
+
+**Reversal condition.** If a future digest needs to report the SAME
+platform-wide follower count somewhere it is not person-identifying (a
+monthly total across a much larger platform, say, where the argument in
+`context/rejected.md` for why a small aggregate identifies someone no
+longer holds), raise `FOLLOWER_FLOOR` or make it configurable — never bypass
+`followers_joined_below_floor` in the payload builder while leaving the
+constant unchanged, which would silently reopen the exact gap the floor
+exists to close.
+
+## `ws-r88-ops-board-digest-copy-stays-english-inline` (2026-09-05, WS-R88)
+
+**Decision.** `DigestCard`'s copy (`OpsBoard.tsx`) lives inline as plain
+English strings, the SAME house style every other card on that page already
+uses — not as a bilingual entry in `src/studio/copy.ts`/`hiCopy.ts`, even
+though this workstream's own brief's file list names both. No new strings
+were added to either copy file.
+
+**Rationale.** This is `context/decisions.md#ws-r62-ops-board-push-copy-
+stays-english-inline`'s own precedent, restated for a second card on the
+identical page: `OpsBoard.tsx` is named in writing in
+`evals/studio-locale/run.mjs`'s own `TIER_2_ALLOWLIST` as deliberately
+unlocalized ("internal operator dashboard, never a creator-facing screen at
+all", WS-R52), the page carries no locale state and no language switcher,
+and adding bilingual `copy.ts` entries a page structurally cannot read would
+satisfy a file list's letter while adding dead weight nobody could reach —
+`AGENTS.md`'s own "a plausible return hides a dead pipeline" law, restated
+for unreachable localization rather than a fake success value.
+`ws-common.md`'s own rule binds here exactly as it bound WS-R62: where a
+live, gate-enforced decision disagrees with an instruction, they are both
+wins for `context/`.
+
+**Reversal condition.** Identical to WS-R62's own: the day `OpsBoard.tsx`
+leaves `TIER_2_ALLOWLIST` and gains a real locale switcher, move BOTH this
+card's copy and `PushAlertsCard`'s own into `src/studio/copy.ts`/`hiCopy.ts`
+in the same commit — neither card's own structure needs to change, only
+where its strings live.

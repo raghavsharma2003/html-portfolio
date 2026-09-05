@@ -169,6 +169,13 @@ export interface OpsPosterArrivals {
   note: string;
 }
 
+// WS-R88 (migration 125). `api/_operator-digest.js`'s own `lastOperatorDigest`
+// shape, typed here unchanged - this file computes nothing, `opsApi.ts`'s
+// own header rule restated.
+export interface OpsDigest {
+  sent_at: string | null;
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
@@ -187,6 +194,8 @@ export interface OpsOverview {
   push: OpsPushConfig;
   // WS-R78 (migration 121).
   poster_arrivals_this_week: OpsPosterArrivals;
+  // WS-R88 (migration 125).
+  digest: OpsDigest;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {
@@ -214,5 +223,15 @@ export async function revokeOpsPush(token: string, endpoint: string): Promise<{ 
   return replicaRequest<{ revoked: boolean }>(token, "/api/ops", {
     method: "POST",
     body: JSON.stringify({ op: "push_revoke", endpoint }),
+  });
+}
+
+// WS-R88 (migration 125). "Send a test digest now" - the SAME door, the
+// SAME one-door-one-auth-gate reason `subscribeOpsPush`/`revokeOpsPush`'s
+// own header names.
+export async function sendTestOpsDigest(token: string): Promise<{ pushed: number }> {
+  return replicaRequest<{ pushed: number }>(token, "/api/ops", {
+    method: "POST",
+    body: JSON.stringify({ op: "send_test_digest" }),
   });
 }

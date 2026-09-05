@@ -94,6 +94,10 @@ function opsState() {
   // depends on when it happens to run is a test that passes today and fails
   // on its own next October") restated for a day instead of a month.
   state.incidents = [];
+  // WS-R88 (migration 125). `api/_operator-digest.js#lastOperatorDigest`'s
+  // own read - rows are plain {day, sent_at}, `state.incidents`'s own
+  // "YYYY-MM-DD string, no real Postgres clock" convention restated.
+  state.operatorDigests = [];
   // The fixture's own "current_date" - §4's own fixed `now` (2026-09-10),
   // never the real wall clock. `incidentsOverview`'s SQL reads Postgres's
   // own `current_date`, which this offline fixture has no server for, so
@@ -299,6 +303,13 @@ function opsDb(state) {
         forgotten += Number(counts.dormancyForgotten || 0);
       }
       return [{ notices, forgotten }];
+    }
+
+    // ── WS-R88 (migration 125): vy_operator_digest, api/_operator-digest.js's
+    //    own lastOperatorDigest read - "the most recent row's sent_at". ────
+    if (has("select sent_at from vy_operator_digest")) {
+      const rows = [...state.operatorDigests].sort((a, b) => b.day.localeCompare(a.day));
+      return rows.length ? [{ sent_at: rows[0].sent_at }] : [];
     }
 
     return base(sql, params);
@@ -795,6 +806,33 @@ console.log("\n── §5c: operator push subscriptions (WS-R62) ──");
   ok("NEGATIVE CONTROL: a non-https endpoint is refused before any SQL runs", badEndpoint?.code === "ops_push_endpoint_invalid");
   const badKey = await threwAsync(() => subscribeOperatorPush(db, OPERATOR, { ...SUB, p256dh: "short" }, ENV));
   ok("NEGATIVE CONTROL: a too-short p256dh key is refused before any SQL runs", badKey?.code === "ops_push_key_invalid");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §5c2 — WS-R88 (migration 125). `overview.digest` - the board's own "Last
+// digest, sent time" read, `api/_operator-digest.js#lastOperatorDigest`
+// wired through `opsOverview`. This suite's own boundary: it proves the
+// PLUMBING (a seeded row surfaces, an empty table reports an honest null),
+// never `sendOperatorDigest`/`sendTestOperatorDigest` themselves - those
+// are `evals/operator-digest/run.mjs`'s own suite, `api/_ops.js`'s own
+// "this file computes nothing" rule restated one layer up.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5c2: overview.digest (WS-R88) ──");
+{
+  const state = opsState();
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), { tableApplied: async () => false });
+  ok("digest with no send ever reports an honest null, never a fabricated timestamp",
+    overview.digest.sent_at === null);
+}
+{
+  const state = opsState();
+  state.operatorDigests.push(
+    { day: "2026-09-03", sent_at: "2026-09-03T03:15:00.000Z" },
+    { day: state.today, sent_at: `${state.today}T03:15:00.000Z` },
+  );
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), { tableApplied: async () => false });
+  ok("digest.sent_at reflects the MOST RECENT day's own row, not an older one",
+    overview.digest.sent_at === `${state.today}T03:15:00.000Z`);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
