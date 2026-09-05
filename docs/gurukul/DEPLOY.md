@@ -432,3 +432,59 @@ wait, not a target date.
 - [ ] `AZURE_IDENTITY_REVIEW_PATH_APPROVED` stays `false` until the
       not-yet-built document-review service (Phase 3 sixth dependency) is
       deployed and tested — do not flip this to unblock a demo.
+- [ ] `node scripts/probe-live.mjs <base-url>` run against the deployment
+      just pushed, and clean — see Phase 6 below.
+
+## Phase 6 — after every deploy: probe what actually shipped (WS-R64)
+
+`node scripts/verify-release.mjs --live <base-url>` exists and costs money
+(it probes the model). Nothing else ever checked, for free, that a
+deployment actually SERVES what the tree promised — WS-R57's security
+headers, WS-R40's bot unfurl, WS-R55's og.png/story.png, WS-R59's
+installable manifest and service worker, WS-R45's creator directory and
+sitemap, WS-R48's `/suites`, and every API door's refusal shape. A push
+that silently shipped a stale build, a dropped header, or a manifest byte
+that drifted from `public/room.webmanifest` looked identical to a clean
+deploy until a person went and clicked around by hand.
+
+```bash
+node scripts/probe-live.mjs <base-url>                              # unprotected prod domain
+node scripts/probe-live.mjs <base-url> --share <link> --cookie-jar <file>   # protected preview
+```
+
+**Run this after every push that reaches a real deployment** — production
+or a preview — as the last step of "push, then probe": push the branch,
+let Vercel build it, then run this against the URL it produced. It is
+**not** a gate in `scripts/verify-release.mjs` and never will be: a gate
+must run offline, and this makes real GET/HEAD requests (plus two
+harmless, always-refused `POST /api/room` bodies) against one live URL.
+Its own logic — every expectation it checks, parsed from this repo's own
+source rather than a second hand-typed copy — is proven offline instead,
+in `evals/probe-live/run.mjs`, which IS part of `node
+scripts/verify-release.mjs`'s eval suite.
+
+**Every request costs nothing** — GET/HEAD, plus `POST /api/room` with an
+unknown op and with no session, both refused by `api/room.js`/
+`api/_room-surface.js` before either could ever reach a compiler or a
+provider (the script's own static self-scan refuses to even start if its
+own source ever grows a POST body outside those two). No sign-in, no paid
+call, ever.
+
+**A protected preview** (Vercel deployment protection, on by default for
+every branch preview) answers every request with a redirect toward
+`vercel.com/sso-api` until a bypass cookie is set. Visit the preview's
+share link once with `--share <the link>` — the script follows its
+redirects itself and stores whatever cookie it sets in the file named by
+`--cookie-jar`, so later runs against the same preview do not need the
+link again. **Never commit that file, and never paste the share link into
+a `context/` entry or a commit message** — it is a bearer credential and
+it expires in about a day; treat it exactly like any other secret named in
+`docs/gurukul/ENV-MANIFEST.md`. A production domain (no deployment
+protection) needs neither flag.
+
+A finding names the surface, what the repo's own source promised, and what
+came back — fix anything the finding says is this repo's fault (a missing
+header on a route class, a wrong content type, a drifted manifest byte)
+before calling the deploy done; a finding that is Vercel's own or the
+owner's to fix (deployment protection itself, a DNS/CDN layer) gets logged
+in `context/`, not silently worked around.

@@ -9595,3 +9595,71 @@ clock crossed. `evals/room-doors/run.mjs`: 306 passed, 0 failed after.
 ## `accessibility-gate-never-saw-a-day-sky-until-06-00-ist` (2026-09-05, main loop)
 
 WS-R50's accessibility gate passed every run for a day and a half, then failed the wave-eleven gate at 06:00 IST with one serious finding: `.onb-sub` and `.onb-honest` on Meera's landing at 4.35:1 against `#7fb2e0`, morning's top sky stop. Nothing in the tree had changed those files. The landing paints its dim ink over the live sky (`useSky`), the sky is a Bangalore clock, and every earlier run happened at night, whose dim ink is light on dark and passes. The contrast gate (`scripts/check-contrast.mjs`) had always held morning's dim ink to 4.5:1, but against the VEILED ground (the scrim composited over the stop at the scrim's alpha, 5.68:1); axe judges an element against its CSS ancestry alone and never sees the sibling scrim layer, so it read the raw stop. Fixed by exposing that veiled ground as `--world-ground` from `skyVars` and painting it as `.onb`'s own fallback background: the pixels the world layer covers are unchanged, and the scanner now reads the ground the eye sees. What specifically broke: a gate whose input is the wall clock has as many states as the clock, and a run at one hour proves one of them; the same shape as the door battery's calendar date and the layout gate's fixed wait (`#wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time`). Reversal: none; a future sky state must be checked at its own hour or with the clock pinned.
+
+## `ws-r64-execfilesync-deadlocks-a-fixture-server-in-the-same-process` (2026-09-05, WS-R64)
+
+**Tried.** `evals/probe-live/run.mjs` started an HTTP fixture server
+(`startFakeServer`, `node:http`) and then, in the SAME Node process,
+spawned the real `scripts/probe-live.mjs` as a child process with
+`execFileSync` to drive it against that server's URL.
+
+**What broke.** Every single request the child made hung for exactly its
+own 10-second `AbortController` timeout and then failed with an
+`AbortError`, for every check, every time — looking exactly like a proxy
+or DNS problem even though the target was `127.0.0.1` and a direct,
+same-process `fetch()` to the identical server answered instantly.
+`execFileSync` is synchronous: it blocks the calling process's entire
+event loop until the child exits. The fixture server was running in that
+same blocked process, so it could accept the child's TCP connection at the
+kernel level but could never run the JS callback that reads the request
+and writes a response — the parent was frozen waiting for the child, and
+the child was waiting on a server the parent could not service. A true
+deadlock, broken only by the child's own client-side timeout, which is why
+it surfaced as "every request times out" rather than an instant, obvious
+connection-refused.
+
+**The fix.** Replace `execFileSync` with `util.promisify(child_process.
+execFile)` and `await` it. The promisified form never blocks the parent's
+event loop, so the fixture server keeps handling requests concurrently
+while the child runs. Every check passed immediately after the swap, with
+no other change.
+
+**What would reverse it.** Nothing — this is a structural property of
+Node's event loop, not a configuration to tune. Any future eval that runs
+a fixture server and a spawned child IN THE SAME PROCESS must use the
+async child-process APIs (`execFile`, `spawn`), never their `*Sync`
+counterparts, or use two genuinely separate processes for the server and
+the driver.
+
+## `ws-r64-op-quote-regex-matched-its-own-comment-prose` (2026-09-05, WS-R64)
+
+**Tried.** `scripts/probe-live.mjs`'s static self-scan (the thing that
+proves the script can only ever `POST` two specific, always-refused `op`
+values) first matched `op` followed by a colon and ANY quote character
+(`"`, `'`, or a backtick) up to the next quote character, to find every
+`op:"..."` literal in the file's own bytes.
+
+**What broke.** The script's own header comment used a backtick as
+inline-code markup around the word `op:` (documenting the very pattern
+being scanned for), and the regex's `[^"'`]+` character class does not
+exclude newlines — so the "closing" backtick it matched against was a
+different backtick many lines later, in an unrelated sentence, and the
+capture swallowed several lines of prose as if they were one `op` value.
+The script refused to run against its own, unmutated, correct source,
+which is the worst possible failure mode for a self-scan: it reads as the
+scan working (something WAS found and blocked) while actually proving
+nothing about the real POST bodies at all.
+
+**The fix.** Scope the regex to single- or double-quoted strings on ONE
+line only (`/\bop\s*:\s*(["'])([^"'\n]*)\1/g`), matching the quote type on
+both ends, and reword the one comment that had used the exact `op: "..."`
+shape as literal example text (backticks are still used for inline code
+elsewhere in the file — the fix is not "never use a backtick in a
+comment", it is "never let this scan's own quote class include one").
+
+**What would reverse it.** Nothing to reverse — but the lesson generalises:
+a text-scanning safety check must be tested against the FILE IT SHIPS IN
+before being trusted, not only against a deliberately mutated copy. This
+one's own offline eval (`evals/probe-live/run.mjs`) now asserts BOTH
+directions — the real, unmutated file must pass, and a mutated copy with a
+disallowed op must fail — for exactly this reason.

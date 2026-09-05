@@ -10420,3 +10420,91 @@ n = 11 public surfaces plus one refused POST on the html-portfolio branch previe
 | `/sitemap.xml`, `/api/creators` | **500** `sitemap unavailable` / `creators_failure`; runtime log `[sitemap] failure: fetch failed` |
 
 The 500s are not the sitemap's or the directory's: the build log of the same deployment reads `MISSING: … NEON_URL, SUPABASE_URL, …` and `Building with stub config`, so `api/_db.js` had an empty host and undici reported "fetch failed" for every database call on BOTH projects (the studio project's log shows the same for the manifest and card doors, which then served their platform fallbacks). Setting the project env vars is the owner action the PR already lists; `api/_db.js` now throws `neon_url_missing` by name before the fetch so the next log says so.
+
+## `ws-r64-probe-live-offline-eval-2026-09-05`
+
+n = 41 surfaces checked (13 header-promised route-class requests, 4
+person/bot `/r/:slug` variants, 4 og/story.png requests across 2 kinds,
+1 manifest, 1 service worker, 1 embed script, 6 static/marketing pages, 3
+refused-door requests, 12 unauthenticated cron requests) across 11
+assertions (3 on a well-behaved fixture, 2 on each of 2 negative controls,
+3 on a mutated-copy self-scan run, 1 on the allowlist's own shape); method
+= `node evals/probe-live/run.mjs`, `scripts/probe-live.mjs` (real,
+unmodified) driven against `evals/probe-live/fakeServer.mjs` on
+`127.0.0.1:8940` via `util.promisify(execFile)` (see
+`rejected.md#ws-r64-execfilesync-deadlocks-a-fixture-server-in-the-same-process`
+for why not `execFileSync`); date 2026-09-05. Result: 11/11 assertions
+green, 0 findings against the clean fixture, exactly 1 finding each
+against the 2 deliberately-broken fixtures (a dropped `Permissions-Policy`
+header, a corrupted manifest byte), and the mutated-copy run refused to
+start (before any network call) the moment a third, disallowed `op` was
+injected into it. Runtime: well under the 60s the live script itself is
+bounded to — the full offline suite (3 server spin-ups plus the mutant
+run) completes in a few seconds.
+
+Also measured, same date: `node scripts/verify-release.mjs` on this
+workstream's tree (which includes the above as part of the `eval suite`
+gate) — 20 of 21 checks green without `NEON_URL`; the one failure
+(`accessibility`, a pre-existing color-contrast finding on `.onb-sub`/
+`.onb-honest` in Meera's own onboarding component, `src/components/
+Onboarding.tsx`) reproduces identically (4.35 vs the required 4.5:1,
+byte-for-byte the same finding) on a standalone re-run of `node
+scripts/check-accessibility.mjs` and touches no file this workstream's
+`git diff` includes — environmental, not this workstream's.
+
+## `ws-r64-live-report-2026-09-05`
+
+n = 42 surfaces; method = `node scripts/probe-live.mjs <base-url> --share
+<link> --cookie-jar <file>` (the real, unmodified script, run against the
+real deployment); base URL =
+`https://html-portfolio-git-claude-73ad3b-raghav-carbonsettles-projects.vercel.app`;
+date 2026-09-05. The `--share` priming worked (final status 200 after
+following the redirect chain, one `_vercel_jwt` cookie captured and never
+the raw share token) and every subsequent request rode that cookie
+successfully — deployment protection was not a blocker for any of the 42
+requests. **41 of 42 surfaces matched their expectation exactly**: every
+`vercel.json` `headers[]` promise held on all thirteen sampled paths; the
+Room's bot unfurl (three user agents) carried the right title, `og:image`
+URL and dimensions; `og.png`/`story.png` were valid PNGs at the exact
+`ROOM_CARD_SIZES`; the per-Room manifest for an unknown slug was
+byte-identical to `public/room.webmanifest`; `/room-sw.js` was
+byte-identical to `public/room-sw.js`; `/room-embed.js` was
+byte-identical to the real `ROOM_EMBED_JS`; `/creators`, `/suites`,
+`/robots.txt` (byte-identical to `site/robots.txt`), `/privacy` and
+`/delete-account` all answered 200 with content; `POST /api/room`
+refused an unknown op with 400 `unknown_op` and a sessionless `say` with
+401 `room_session_invalid`; `GET /api/room-embed` for an unknown slug
+returned `{room:null}`; and all twelve cron sweeps refused an
+unauthenticated caller with exactly the status/body their own source
+promises (two 403s, ten 401s, matching `cronAuthExpectation`'s per-file
+parse exactly).
+
+**One genuine finding: `GET /sitemap.xml` returned 500, not 200** (body
+`sitemap unavailable`, `api/sitemap.js`'s own catch-block text). Not a
+probe defect — `api/_sitemap.js`'s `buildSitemapXml` runs one SQL `select`
+against `vy_room` with no `try`/`catch` of its own, and `api/sitemap.js`
+is the ONE public-read Room door in this codebase that has NO graceful
+degradation on a DB failure: every sibling (`api/room-page.js`,
+`api/room-card.js`, `api/room-manifest.js`, `api/room-embed.js`) catches
+the identical class of error and still answers 200 with a platform-only
+fallback. Whether the underlying cause on THIS deployment is a genuinely
+unreachable database (this preview project's `NEON_URL`/DB credentials,
+an owner/Vercel-side fact this session cannot see) or a real query defect
+cannot be told apart from the outside — the response shape is identical
+either way. Not fixed by this workstream (out of its stated scope, and
+fixing it blind risks masking whichever cause is real); flagged instead as
+a follow-up task (see `mcp__ccd_session__spawn_task` in this session's own
+record) to (a) confirm whether this Vercel project has `NEON_URL`
+configured and (b) make `api/sitemap.js` degrade to a landing+directory-only
+200 on a DB failure, matching its four siblings, regardless of (a)'s
+answer.
+
+`/vyakti` answered 404 on this preview — NOT counted as a finding, and
+correctly so: `scripts/vercel-build.sh`'s own logic (`docs/gurukul/
+DEPLOY.md`'s "The Vercel reality") only ever writes the Vyakti landing to
+`dist/index.html` (serving it at `/`, which this run confirmed returns
+200), never to a separate `dist/vyakti.html` — so a 404 at `/vyakti`
+specifically is this build's normal shape when the platform-branch
+condition is true, not a broken route. This workstream's law 1 does not
+list `/vyakti` among the paths a status code is asserted against for
+exactly this reason.
