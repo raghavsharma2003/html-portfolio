@@ -12030,3 +12030,39 @@ the server side actually sends `room` again — and if this fix is ever
 reverted for any reason, re-run `evals/rehearsal/follower.mjs` first; it
 will fail loudly and immediately, which is the whole point of having built
 it.
+
+## `room-reply-lanes-carried-no-never-rules` (2026-09-05, main loop at the WS-R99 merge)
+
+**Tried.** WS-R4 (2026-09-02) shipped "Never say this" as a predicate at
+the one reply door: `gateReply(engine, raw, honestyCtx, label, neverRules)`
+in `api/_surface.js`, with `compileNeverRules` pure and `loadNeverRules` a
+SELECT the widget lane (`api/_clonechat.js`) reads per turn. The Room's
+reply lanes were written the same week and after, each calling
+`gatedReply(ctx, compiled, turns, { record, label })`, and every suite that
+drove them passed, because a missing `opts.neverRules` defaults to `[]` and
+an empty rule set gates nothing.
+
+**What broke.** Nothing visibly, for three days. WS-R99's adversarial
+battery, proving the matcher directly, then grepped `api/` for the string
+`neverRules` and found it in exactly two files: the widget and Mirror Call.
+`roomSay` (the follower's turn), `roomTaste` (a stranger's three questions)
+and the check-in sweep's `deliverOne` carried no rules at all, so a
+creator's rule (WS-R4's queue, WS-R67's "never say this" from a flag, R72's
+button) bound on the widget and never on their own Room. The capability was
+named and dead: `plausible-return-hides-a-dead-pipeline`, exactly, on the
+product's most important promise to a creator.
+
+**What to do differently.** One reader, `roomNeverRules(db, room, deps)` in
+`api/_room-surface.js`, used by all three lanes so they cannot disagree;
+read per reply, never cached (`_clonechat.js`'s own reason). The proof is
+in `evals/room-adversarial/run.mjs` §5, in two halves: the three call sites
+read off the real source (a lane that drops the key fails by name), and a
+rule row in the world's fake table suppressing a forbidden reply through
+the REAL `roomSay` and `roomTaste`, with another creator's rule as the
+control (delivered) and the row's removal as the second control (delivered
+again, so the read is per turn). The leak battery's taste-lane allowlist
+admits the reader by name as a SELECT on the creator's own table. The law:
+a predicate that takes its rule set as a parameter has as many wirings as
+it has callers, and a suite that passes with an empty set has proven
+nothing about any of them; grep the CALLERS of the door for the key the
+moment a new lane is added.

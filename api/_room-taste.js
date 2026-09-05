@@ -48,6 +48,7 @@ import {
   normalizeLocale,
   collector,
   ROOM_INBOUND_LIMIT,
+  roomNeverRules,
 } from "./_room-surface.js";
 import { tableApplied } from "./memory.js";
 
@@ -194,6 +195,12 @@ export async function roomTaste(db, { slug, message, locale: hintLocale = null, 
     // shared past is false by construction on this path.
     record: [],
     label: "web/room-taste",
+    // The creator's "Never say this" set as a predicate on this reply, the
+    // SAME read `roomSay` makes (a SELECT on the creator's own rule table,
+    // nothing of any follower's). A stranger's three questions are the
+    // easiest place to coax a forbidden sentence out of a creator's AI, and
+    // until 2026-09-05 this lane carried no rules at all (WS-R99's finding).
+    neverRules: await roomNeverRules(db, resolved.room, deps),
   });
   const said = gatedOut.text;
   if (said) {

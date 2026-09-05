@@ -9166,6 +9166,18 @@
       "kind": "measurement",
       "title": "Named which SQL the follower journey's fixture answers for real versus falls through to a silent empty default (vy_episode only, harmless), and which ops are out of this journey's scope entirely.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "room-reply-lanes-carried-no-never-rules",
+      "kind": "rejection",
+      "title": "For three days the Room's three reply lanes called gatedReply without neverRules, so a creator's Never-say-this rule bound on the widget and Mirror Call and never on their own Room; found by WS-R99's grep of the callers, fixed at its merge with one shared reader and a behavioural proof.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "room-never-rules-one-reader-three-lanes",
+      "kind": "decision",
+      "title": "roomSay, roomTaste and the check-in sweep read the creator's never-rules through one exported reader, per reply, never cached; deps.neverRules is the offline seam.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17933,6 +17945,21 @@
       "src": "ws-r94-shared-unknown-ip-bucket-exhausted-the-90-per-minute-room-ip-gate-across-both-locale-gates",
       "rel": "part_of",
       "dst": "ws-r94-hindi-walk-uses-the-real-language-switch-not-a-url-flag"
+    },
+    {
+      "src": "room-reply-lanes-carried-no-never-rules",
+      "rel": "caused_by",
+      "dst": "ws-r99-room-never-rules-not-wired"
+    },
+    {
+      "src": "room-never-rules-one-reader-three-lanes",
+      "rel": "supersedes",
+      "dst": "ws-r99-room-never-rules-not-wired"
+    },
+    {
+      "src": "room-never-rules-one-reader-three-lanes",
+      "rel": "caused_by",
+      "dst": "room-reply-lanes-carried-no-never-rules"
     }
   ]
 }

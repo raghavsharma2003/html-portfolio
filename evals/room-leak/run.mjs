@@ -1067,9 +1067,14 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
   // function, an error constructor, or a SELECT-only resolver - never a
   // mint, a session reader, or anything that touches `vy_room_follower`,
   // `vy_room_thread`, `vy_fact`, `vy_episode` or a consent ledger.
+  // `roomNeverRules` (2026-09-05) is a SELECT on the creator's OWN rule table
+  // (replica + owner, no person column) compiled into `gatedReply`'s
+  // predicate - the creator's "Never say this" set binding on a stranger's
+  // question, nothing of any follower's read or written.
   const ALLOWED_FROM_ROOM_SURFACE = new Set([
     "RoomError", "roomUnavailable", "resolveRoom", "roomNameFor",
     "roomDisclosureCard", "normalizeLocale", "collector", "ROOM_INBOUND_LIMIT",
+    "roomNeverRules",
   ]);
   const gotFromRoomSurface = importsFrom("_room-surface\\.js");
   const disallowedFromRoomSurface = gotFromRoomSurface.filter((n) => !ALLOWED_FROM_ROOM_SURFACE.has(n));

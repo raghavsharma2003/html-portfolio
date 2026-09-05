@@ -191,6 +191,9 @@ export function freshWorldState() {
   const withHandoff = freshHandoffState(withPulse);
   return {
     ...withHandoff,
+    // WS-R4's rule table, owner lane (no person column). Empty by default;
+    // a suite seeds a rule to prove the Room's reply lanes carry it.
+    neverRules: [],
     waOptins: [],
     pushSubs: [],
     checkinDesigns: [],
@@ -368,6 +371,17 @@ function worldExtraDb(state, base) {
     }
 
     // ── vy_room_forget_receipt (migration 090) ──────────────────────────────
+    // ── vy_review_never_rule — `loadNeverRules`'s own SELECT (api/_review-
+    //    queue.js), the read `roomSay`/`roomTaste`/the check-in sweep make per
+    //    reply since 2026-09-05. Owner lane, no person column: keyed by the
+    //    Room's replica and owner only. ──────────────────────────────────────
+    if (has("from vy_review_never_rule n") && has("n.revoked_at is null")) {
+      const [replicaIdValue, ownerUserId] = p;
+      return (state.neverRules || [])
+        .filter((n) => n.replica_id === replicaIdValue && n.owner_user_id === ownerUserId && !n.revoked_at)
+        .map((n) => ({ rule_id: n.rule_id, pattern: n.pattern, revoked_at: null }));
+    }
+
     if (has("insert into vy_room_forget_receipt")) {
       const [receiptId, roomId, personHash, policyVersion, counts, issuedAt] = params;
       state.forgetReceipts.push({

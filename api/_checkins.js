@@ -63,6 +63,7 @@ import {
   markTelegramChannelStopped,
   telegramCheckinsStatusFor,
   setTelegramCheckinsEnabledForFollower,
+  roomNeverRules,
 } from "./_room-surface.js";
 import { activeSubscriptionsFor, revokeSubscriptionById, touchSubscription } from "./_room-push.js";
 import { send as webPushSend, checkinPushPayload } from "./_push/webpush.js";
@@ -883,6 +884,12 @@ async function deliverOne(db, row, deps) {
   const gatedOut = await gatedReply(ctx, compiled, [...history, { role: "user", content: directive }], {
     record: facts.map((f) => f.body),
     label: "cron/checkin",
+    // The creator's "Never say this" set as a predicate on a check-in's
+    // reply too - the SAME read `roomSay` makes, keyed by the Room's own
+    // replica and owner (carried on the due row since 2026-09-05). A
+    // check-in is a Room reply that arrives unasked; a forbidden sentence in
+    // it would be worse, not better, for arriving on a schedule.
+    neverRules: await roomNeverRules(db, { replica_id: row.replica_id, owner_user_id: row.owner_user_id }, deps),
   });
   const said = gatedOut.text;
   const nextDueAt = computeNextDue(deps.now ?? Date.now(), row.days_of_week, row.local_time, row.timezone, {
@@ -972,7 +979,7 @@ export async function sweep(deps, now = Date.now()) {
   const dueForDelivery = await db(
     `select c.checkin_id, c.room_id, c.person_id, c.follower_id, c.next_due_at as due_at,
             c.days_of_week, c.local_time, c.timezone, c.quiet_from, c.quiet_to,
-            r.agent_id, r.slug, r.display_name, d.prompt_shape, d.title
+            r.agent_id, r.slug, r.display_name, r.replica_id, r.owner_user_id, d.prompt_shape, d.title
        from vy_room_checkin c
        join vy_room_checkin_design d on d.design_id = c.design_id and d.state = 'active'
        join vy_room r on r.room_id = c.room_id and r.published_at is not null

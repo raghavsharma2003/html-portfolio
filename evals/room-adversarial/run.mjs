@@ -410,21 +410,70 @@ console.log(`\n── §5: never-rules — the matcher, proven; the Room's wirin
   const gatedClean = gateReply(fakeEngineOk, cleanReply, { trustedText: [cleanReply], openItems: [] }, "adversarial-test", rules);
   ok("§5 a clean reply (matches no never-rule) is delivered, not suppressed", gatedClean.text === cleanReply && gatedClean.neverRule === "");
 
-  // THE NAMED GAP — read from the real, shipping source, so a future fix
-  // (someone wiring `neverRules` into either call) makes this line start
-  // failing rather than silently going stale.
+  // THE WIRING (closed at this suite's merge, 2026-09-05: WS-R99 found the
+  // gap, the main loop wired it — `context/rejected.md#room-reply-lanes-
+  // carried-no-never-rules`). First read off the real, shipping source: all
+  // three Room reply lanes hand `gatedReply` a `neverRules` key through the
+  // ONE shared reader, so a lane that stops doing so fails here by name.
   const roomSurfaceSrc = fs.readFileSync(join(REPO, "api/_room-surface.js"), "utf8");
   const roomTasteSrc = fs.readFileSync(join(REPO, "api/_room-taste.js"), "utf8");
+  const checkinsSrc = fs.readFileSync(join(REPO, "api/_checkins.js"), "utf8");
   const roomSayCallsGatedReply = /gatedReply\(ctx, compiled, turns, \{[^}]*\}\)/.exec(roomSurfaceSrc);
   const roomTasteCallsGatedReply = /gatedReply\(ctx, compiled, turns, \{[^}]*\}\)/.exec(roomTasteSrc);
-  ok("§5 KNOWN GAP (named, not fixed — out of this workstream's file scope): "
-    + "roomSay's own gatedReply() call carries no neverRules key today",
-    Boolean(roomSayCallsGatedReply) && !roomSayCallsGatedReply[0].includes("neverRules"));
-  ok("§5 KNOWN GAP (named, not fixed — out of this workstream's file scope): "
-    + "roomTaste's own gatedReply() call carries no neverRules key today",
-    Boolean(roomTasteCallsGatedReply) && !roomTasteCallsGatedReply[0].includes("neverRules"));
-  ok("§5 confirmed by grep: \"neverRules\" appears in api/_clonechat.js and api/_mirrorcall-reply.js only, never in the Room's two reply lanes",
-    !roomSurfaceSrc.includes("neverRules") && !roomTasteSrc.includes("neverRules"));
+  // The check-in call's opts carry a nested object (the due row's replica
+  // and owner), so it is sliced to its own closing `});` rather than matched
+  // on "no brace inside".
+  const checkinStart = checkinsSrc.indexOf('gatedReply(ctx, compiled, [...history, { role: "user", content: directive }], {');
+  const checkinEnd = checkinStart >= 0 ? checkinsSrc.indexOf("\n  });", checkinStart) : -1;
+  const checkinCallsGatedReply = checkinStart >= 0 && checkinEnd > checkinStart ? [checkinsSrc.slice(checkinStart, checkinEnd)] : null;
+  ok("§5 WIRED: roomSay's own gatedReply() call carries neverRules through roomNeverRules()",
+    Boolean(roomSayCallsGatedReply) && /neverRules: await roomNeverRules\(/.test(roomSayCallsGatedReply[0]));
+  ok("§5 WIRED: roomTaste's own gatedReply() call carries neverRules through the SAME roomNeverRules()",
+    Boolean(roomTasteCallsGatedReply) && /neverRules: await roomNeverRules\(/.test(roomTasteCallsGatedReply[0]));
+  ok("§5 WIRED: the check-in sweep's gatedReply() call carries neverRules through the SAME roomNeverRules()",
+    Boolean(checkinCallsGatedReply) && /neverRules: await roomNeverRules\(/.test(checkinCallsGatedReply[0]));
+
+  // Then BEHAVIOURALLY, through the REAL `roomSay` in this world: a rule row
+  // in the creator's own table (the world's fake db answers `loadNeverRules`'s
+  // own SELECT from `state.neverRules`) suppresses a reply that says the
+  // forbidden thing, and the identical reply is delivered when the row is
+  // for a DIFFERENT creator — the read is keyed by replica and owner, never
+  // "every rule anyone ever wrote".
+  {
+    const m = world.memberships[0];
+    const mk = key(m.followerIdx, m.roomIdx);
+    const room = ROOM_DEFS[m.roomIdx];
+    const other = ROOM_DEFS.find((r) => r.owner !== room.owner);
+    const forbidden = "here it is: the school's secret exam pattern leak, word for word.";
+    const sayForbidden = async () => forbidden;
+
+    state.neverRules.length = 0;
+    state.neverRules.push({ rule_id: "world-rule-other", replica_id: other.replica_id, owner_user_id: other.owner, pattern: "the school's secret exam pattern leak", revoked_at: null });
+    const unbound = await sendThroughRoomSay(mk, "what is the exam pattern?", sayForbidden);
+    ok("§5 BEHAVIOUR (control): another creator's rule does NOT bind on this Room — the forbidden reply is delivered",
+      unbound.turn.reply === forbidden, JSON.stringify(unbound.turn.reply));
+
+    state.neverRules.push({ rule_id: "world-rule-own", replica_id: room.replica_id, owner_user_id: room.owner, pattern: "the school's secret exam pattern leak", revoked_at: null });
+    const bound = await sendThroughRoomSay(mk, "what is the exam pattern?", sayForbidden);
+    ok("§5 BEHAVIOUR: this creator's own rule, as a row in their table, suppresses the SAME reply through the REAL roomSay",
+      bound.turn.reply === "", JSON.stringify(bound.turn.reply));
+
+    state.neverRules.length = 0;
+    const cleared = await sendThroughRoomSay(mk, "what is the exam pattern?", sayForbidden);
+    ok("§5 BEHAVIOUR: with the row gone the reply is delivered again — the rule set is read per turn, never cached",
+      cleared.turn.reply === forbidden, JSON.stringify(cleared.turn.reply));
+
+    // The taste lane, same rule, same shape. `turnIndex: 1` is the FIRST of
+    // a stranger's three questions — a no-follower turn on the SAME Room.
+    state.neverRules.push({ rule_id: "world-rule-own", replica_id: room.replica_id, owner_user_id: room.owner, pattern: "the school's secret exam pattern leak", revoked_at: null });
+    const tasteBound = await roomTaste(db, { slug: room.slug, message: "what is the exam pattern?", turnIndex: 1 }, { ...deps, loadAgent, reply: sayForbidden });
+    ok("§5 BEHAVIOUR: the SAME rule suppresses the SAME reply on the taste lane (a stranger's question, no follower)",
+      tasteBound.reply === "", JSON.stringify(tasteBound.reply));
+    state.neverRules.length = 0;
+    const tasteFree = await roomTaste(db, { slug: room.slug, message: "what is the exam pattern?", turnIndex: 1 }, { ...deps, loadAgent, reply: sayForbidden });
+    ok("§5 BEHAVIOUR (control): with no rule the taste lane delivers the reply",
+      tasteFree.reply === forbidden, JSON.stringify(tasteFree.reply));
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════

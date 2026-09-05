@@ -88,6 +88,11 @@ import {
 } from "./memory.js";
 import { authorizeRoomVoice, estimateClipSeconds } from "./_room-voice.js";
 import { sessionWorked, recordOffer, markOfferOutcome } from "./_phase-gate.js";
+// WS-R4's rule, read per turn: `loadNeverRules` is a SELECT and nothing else
+// (`evals/room-leak/run.mjs` layer 1 names this exact import as the allowed
+// shape, on `_clonechat.js`'s precedent); `compileNeverRules` imports nothing.
+import { loadNeverRules } from "./_review-queue.js";
+import { compileNeverRules } from "./_never-rules.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1563,6 +1568,30 @@ const DEFAULT_MEMORY = {
 };
 
 /**
+ * The creator's "Never say this" set for one Room, compiled for `gatedReply`'s
+ * `neverRules` predicate (WS-R4). ONE reader for every Room reply lane -
+ * `roomSay` below, `roomTaste` (api/_room-taste.js) and the check-in sweep
+ * (api/_checkins.js) - so the three can never disagree about which rules
+ * bind. Read PER REPLY rather than cached, `_clonechat.js`'s own reason: a
+ * rule the creator added a minute ago has to bind on the next turn, not on
+ * the next deploy. `deps.neverRules` (rows, not compiled) is the offline
+ * seam an eval uses when it has no rule table to read.
+ *
+ * The rule table is the creator's own (replica + owner, no person column):
+ * this read moves nothing across the three scopes, and `loadNeverRules` is
+ * a SELECT and nothing else, which is exactly the import shape the leak
+ * battery's static layer names as allowed. A Room row without a replica or
+ * owner (an older fixture) compiles to no rules rather than throwing: a
+ * missing rule set is the state this lane was in for three days and is
+ * still a reply, where a thrown 400 would be a Room that cannot answer.
+ */
+export async function roomNeverRules(db, room, deps = {}) {
+  if (Array.isArray(deps.neverRules)) return compileNeverRules(deps.neverRules);
+  if (!room?.replica_id || !room?.owner_user_id) return [];
+  return compileNeverRules(await loadNeverRules(db, room.replica_id, room.owner_user_id));
+}
+
+/**
  * One turn.
  *
  * The order below IS the design, and every step of it fails closed:
@@ -1796,10 +1825,15 @@ export async function roomSay(db, { session, message, threadId = null, transcrip
   // AI was HANDED is a moment it may retell, and one it was not is a
   // fabrication. On the memory-free path `record` is empty, which makes honesty
   // family 4 as strict as it ever is - every claim of a shared past is false by
-  // construction there.
+  // construction there. `neverRules` is the creator's "Never say this" set
+  // (WS-R4, R67) as a PREDICATE on this reply - from 2026-09-02 to 2026-09-05
+  // this call carried no rules at all, so a creator's rule bound on the
+  // widget and Mirror Call and never on their own Room (WS-R99's finding,
+  // `context/rejected.md#room-reply-lanes-carried-no-never-rules`).
   const gatedOut = await gatedReply(ctx, compiled, turns, {
     record: facts.map((f) => f.body),
     label: "web/room",
+    neverRules: await roomNeverRules(db, resolved.room, deps),
   });
   const said = gatedOut.text;
   if (said) {

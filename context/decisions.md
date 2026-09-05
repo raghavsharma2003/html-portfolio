@@ -17086,3 +17086,22 @@ does not re-derive this the same way.
 **Reversal condition.** If a future workstream adds a real `?lang=` entry
 point to `/r/<slug>` itself, the walk can use it directly; until then this
 is the only honest route.
+
+## `room-never-rules-one-reader-three-lanes` (2026-09-05, main loop)
+
+**Decision.** Every Room reply lane (`roomSay`, `roomTaste`, the check-in
+sweep) hands `gatedReply` the creator's never-rules through ONE exported
+reader, `roomNeverRules()` in `api/_room-surface.js`, which reads
+`loadNeverRules`'s own SELECT per reply and compiles it; `deps.neverRules`
+(rows) is the offline seam. A Room row without a replica or owner compiles
+to no rules rather than throwing.
+
+**Why.** Three call sites that each build their own read will drift (they
+did: three days at zero rules). One reader means one place to grep, one
+place the adversarial suite pins, and one behaviour a creator can be told.
+
+**Reversal.** If a fourth lane appears that cannot reach `_room-surface.js`
+without a cycle, move the reader to its own file rather than duplicating
+it; if per-reply reads show on the live plan as a seq scan on
+`vy_review_never_rule` (it has `(replica_id, owner_user_id)` under WS-R4's
+own index), cache for the length of one request, never longer.
