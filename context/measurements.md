@@ -11033,3 +11033,18 @@ n = 1 migration (2 statements, plus 1 index added at the merge), 7 API statement
 | the erasure delete by room | **Seq Scan** of `vy_room_showcase` before the merge added `vy_room_showcase_room_ix` (the partial unique index does not cover removed rows); Index Scan after (see the re-plan in the merge log) |
 
 Not measured: no creator has saved a showcase slot; no crawler has fetched `/c/<slug>`.
+
+## `ws-r70-creator-export-statements-live-explain-2026-09-05`
+
+n = 6 statements, one per scope shape the export issues plus its two lookups, out of the 52 table reads (every read is one of seven shapes over a different table, so the shape was planned, not every table); method = `EXPLAIN` (never `EXPLAIN ANALYZE`) on the live Neon project with typed literals; date 2026-09-05, at the WS-R70 merge.
+
+| shape | example | plan |
+|---|---|---|
+| `replica` (by replica list and owner) | `vy_replica_source` | Seq Scan at the table's current size (a handful of rows); the replica and owner indexes exist |
+| `owner` | `vy_creator_payout` | Bitmap on `vy_creator_payout_owner_list_ix` |
+| `invite_redeemed` | `vy_creator_invite` | Bitmap on `vy_creator_invite_redeemed_ix` |
+| `renewal_creator` (creator slice) | `vy_renewal_reminder` | Index Scan on `vy_renewal_reminder_owner_replica_ix`, `subject_kind` as the filter |
+| the replica lookup | `vy_replica` by owner | Seq Scan at 31 rows (`vy_replica_owner_ix` exists) |
+| the Room lookup | `vy_room` by owner | Index Scan on `vy_room_owner_ix` |
+
+Not measured: the `room_owner`, `room_agg` and `agent` shapes were not planned individually; no real export has run against a populated replica (the seeded figure is 3,679 bytes over four tables).

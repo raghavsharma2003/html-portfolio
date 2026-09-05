@@ -8062,6 +8062,12 @@
       "kind": "decision",
       "title": "The Room's per-day arrival-source counts table is excluded from OWNER_LANE_TABLES entirely (not even in OWNER_LANE_DELIBERATE_GAPS) because creatorExport's generic select * shape collides with evals/room-leak/run.mjs's aggregate-only discipline for that one table; reversal: a table-specific aggregate query, never a widened generic path.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r70-creator-export-statements-live-explain-2026-09-05",
+      "kind": "measurement",
+      "title": "Six representative creator-export statements EXPLAINed live at the WS-R70 merge: the owner, invite and renewal shapes on their indexes, the replica shape and the replica lookup seq-scanning at the tables' current handful of rows with indexes present.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15974,6 +15980,11 @@
       "src": "ws-r70-the-creators-export",
       "rel": "constrains",
       "dst": "ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline"
+    },
+    {
+      "src": "ws-r70-creator-export-statements-live-explain-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r62-operator-push-subscription-store-built"
     }
   ]
 }
