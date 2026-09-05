@@ -2294,6 +2294,28 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "consent-review": "consent-review/run.mjs",
+  // WS-R97. The follower's transparency page (`/r/<slug>/about`, no
+  // migration): what this AI knows about you, what the creator can see,
+  // how long it is kept, what a referral link carries, the free cap and
+  // what a paid tier adds, all read from the Room's own row and imported
+  // (never mirrored-by-literal) platform constants. Drives the REAL
+  // `api/_room-about.js` (`publicRoomAboutBySlug`/`buildRoomAboutHtml`)
+  // over a fake db. Proves: (1) the predicate is published+unpaused,
+  // deliberately NEVER `listed_at`-gated, unlike `/c/<slug>`; (2) the
+  // builder is pure, both locales; (3) every number on the page is the
+  // real imported constant (`PULSE_MIN_FOLLOWERS`, `DORMANCY_GRACE_DAYS`,
+  // the three room cap constants), checked both by rendered value and by a
+  // static import-source scan; (4) the retention section reads the Room's
+  // own `dormancy_days`, with different content when it is null; (5) the
+  // WS-R90 hreflang/x-default/og:locale shape; (6) vercel.json carries the
+  // rewrite (ordered before the generic `/r/:slug` catch-all) and the
+  // headers entry. NEGATIVE CONTROL: an unpublished Room, a paused Room,
+  // and an unknown slug all render BYTE IDENTICAL platform-only output,
+  // while a published-but-UNLISTED Room does not (this page's own
+  // predicate deliberately differs from `/c/<slug>`'s here).
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-about": "room-about/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

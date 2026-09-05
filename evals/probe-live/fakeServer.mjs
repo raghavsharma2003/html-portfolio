@@ -25,6 +25,7 @@ import {
 } from "../../scripts/probeLiveExpectations.mjs";
 import { makePng } from "./fakePng.mjs";
 import { buildCreatorPageHtml } from "../../api/_creator-page.js";
+import { buildRoomAboutHtml } from "../../api/_room-about.js";
 
 const BOT_RE = /.*(facebookexternalhit|WhatsApp|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|Googlebot).*/;
 
@@ -49,6 +50,21 @@ const CREATOR_FIXTURE_DATA = {
   ],
 };
 
+// WS-R97. `/r/<slug>/about` has no `listed_at` gate at all (its own
+// predicate, `api/_room-about.js`'s header) so this fixture reuses the
+// SAME `CREATOR_FIXTURE_SLUG` `--creator-slug` already names, rather than
+// inventing a second flag: a real deployment's `--creator-slug` is
+// guaranteed published-and-unpaused, which is all this page ever requires.
+const ROOM_ABOUT_FIXTURE_ROOM = {
+  slug: CREATOR_FIXTURE_SLUG,
+  display_name: "Fixture Creator",
+  default_locale: "en",
+  dormancy_days: 365,
+  free_monthly_messages: 20,
+  paid_monthly_messages: 500,
+  paid_monthly_voice_seconds: 1800,
+};
+
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -65,6 +81,7 @@ function json(res, status, body, extraHeaders = {}) {
  *   corruptManifestByte: true     -- flip one byte of the manifest.webmanifest response
  *   dropCreatorHreflang: "hi"     -- strip one named hreflang <link> from /c/<slug>'s <head>
  *   corruptCreatorJsonLd: true    -- rename the Person JSON-LD block's @type so it fails schema validation
+ *   dropAboutHreflang: "hi"       -- strip one named hreflang <link> from /r/<slug>/about's <head> (WS-R97)
  */
 export function startFakeServer(port, defects = {}) {
   const config = loadVercelConfig();
@@ -199,6 +216,25 @@ export function startFakeServer(port, defects = {}) {
         // before this workstream ever runs, so this handler must promise the
         // same headers the generic 404 fallback used to supply by accident.
         applyHeaders(res, "/c/:slug");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(Buffer.from(html));
+      }
+
+      // ── WS-R97: /r/:slug/about -- the REAL buildRoomAboutHtml's own
+      // output. Matched BEFORE the bare `/r/:slug` regex below, the
+      // identical ordering `vercel.json`'s own rewrites array uses.
+      const aboutMatch = /^\/r\/([^/]+)\/about$/.exec(pathname);
+      if (aboutMatch) {
+        const slug = decodeURIComponent(aboutMatch[1]);
+        const room = slug === CREATOR_FIXTURE_SLUG ? ROOM_ABOUT_FIXTURE_ROOM : null;
+        let html = buildRoomAboutHtml(room, { origin: `http://127.0.0.1:${port}`, slug });
+        if (defects.dropAboutHreflang) {
+          const code = defects.dropAboutHreflang.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+          html = html.replace(new RegExp(`<link rel="alternate" hreflang="${code}"[^>]*/>\\s*`), "");
+        }
+        // `/r/:slug/about` already carries a vercel.json headers[] rule
+        // (WS-R97) -- `/c/:slug`'s own comment above, restated.
+        applyHeaders(res, "/r/:slug/about");
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(Buffer.from(html));
       }

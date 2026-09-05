@@ -271,6 +271,30 @@ export function creatorPageHeadFacts() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// WS-R97: `api/_room-about.js`'s own HREFLANG_CODES/HI_LANG_QUERY/OG_LOCALE,
+// parsed the identical way `creatorPageHeadFacts` above parses
+// `_creator-page.js`'s — the two files restate the same three constants
+// rather than sharing them (that file's own header explains why), and this
+// probe reads each from its own real source rather than assuming they still
+// agree.
+// ─────────────────────────────────────────────────────────────────────────
+export function roomAboutHeadFacts() {
+  const src = read("api/_room-about.js");
+  const codesMatch = /const HREFLANG_CODES\s*=\s*\[([^\]]*)\]/.exec(src);
+  const hreflangCodes = codesMatch ? [...codesMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]) : null;
+  const hiQueryMatch = /const HI_LANG_QUERY\s*=\s*"([^"]+)"/.exec(src);
+  const ogLocaleMatch = /const OG_LOCALE\s*=\s*\{\s*en:\s*"([^"]+)",\s*hi:\s*"([^"]+)"\s*\}/.exec(src);
+  if (!hreflangCodes || !hreflangCodes.length || !hiQueryMatch || !ogLocaleMatch) {
+    throw new Error("probeLiveExpectations: could not parse api/_room-about.js's HREFLANG_CODES/HI_LANG_QUERY/OG_LOCALE");
+  }
+  return {
+    hreflangCodes,
+    hiQuery: hiQueryMatch[1],
+    ogLocale: { en: ogLocaleMatch[1], hi: ogLocaleMatch[2] },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // WS-R90: a small, hand-written schema.org validator for exactly the two
 // JSON-LD types `api/_creator-page.js#buildCreatorPageJsonLd` emits (Person
 // always, FAQPage only with a showcase) — required fields only, never a
