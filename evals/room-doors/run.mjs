@@ -3150,6 +3150,242 @@ console.log("\n── §23: replay / reuse ──");
     verifyRoomWhatsappWebhook.length <= 1);
 }
 
+// (d8)-(d10) WS-R115: three cases the WhatsApp CHAT lane's brief named that
+// (d5)-(d7) above did not yet cover — a phone bound to another Room, a
+// `join` for a paused Room, and the flag-off branch's own byte-identity.
+//
+// `doorsDb`'s own base fixture (evals/room-doors/fixtures.mjs, itself a thin
+// layer over evals/room/fixtures.mjs) has no reason to model the whatsapp
+// CHAT pointer table — nothing before this workstream drove it through
+// `doorsDb` at all, (d5)-(d7) above each build their own ad-hoc `db`
+// instead. `evals/room-whatsapp-chat/run.mjs`'s own `withWhatsappChat` is a
+// runnable script, not an importable module (importing it would RUN that
+// whole suite as a side effect), so the same small wrapper is re-derived
+// here rather than imported — `api/_room-whatsapp.js`'s own "re-deriving a
+// small helper rather than importing it is this house's own convention"
+// restated for a fixture.
+function wrapWhatsappChatDoorsDb(baseDb, state) {
+  state.waChatPointers ??= [];
+  return async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const p = (params || []).map((v) => (v == null ? null : String(v)));
+    if (has("insert into vy_room_follower_whatsapp_chat")) {
+      const [hash, roomId, personId, followerId, locale] = p;
+      const existing = state.waChatPointers.find((c) => c.phone_hash === hash);
+      if (existing) {
+        Object.assign(existing, {
+          room_id: roomId, person_id: personId, follower_id: followerId, locale,
+          stopped_at: null, stopped_code: null,
+        });
+      } else {
+        state.waChatPointers.push({
+          phone_hash: hash, room_id: roomId, person_id: personId, follower_id: followerId, locale,
+          joined_at: "2026-09-05T00:00:00.000Z", stopped_at: null, stopped_code: null,
+        });
+      }
+      return [];
+    }
+    if (has("from vy_room_follower_whatsapp_chat c") && has("join vy_room r")) {
+      const [hash] = p;
+      const row = state.waChatPointers.find((c) => c.phone_hash === hash && !c.stopped_at);
+      if (!row) return [];
+      const r = state.rooms.find((x) => x.room_id === row.room_id);
+      return r ? [{ slug: r.slug }] : [];
+    }
+    if (has("update vy_room_follower_whatsapp_chat") && has("set stopped_at = now()")) {
+      const [hash, code] = p;
+      const row = state.waChatPointers.find((c) => c.phone_hash === hash && !c.stopped_at);
+      if (row) { row.stopped_at = "2026-09-05T01:00:00.000Z"; row.stopped_code = code; }
+      return [];
+    }
+    if (has("vy_room_follower_whatsapp_chat") && has("room_id = ($1)::uuid and person_id = ($2)::uuid")) {
+      const [roomId, personId] = p;
+      if (has("delete from")) {
+        const gone = state.waChatPointers.filter((c) => c.room_id === roomId && c.person_id === personId);
+        state.waChatPointers = state.waChatPointers.filter((c) => !gone.includes(c));
+        return gone.map(() => ({ gone: 1 }));
+      }
+      if (has("select")) {
+        return state.waChatPointers
+          .filter((c) => c.room_id === roomId && c.person_id === personId)
+          .map((c) => ({ locale: c.locale, joined_at: c.joined_at, stopped_at: c.stopped_at, stopped_code: c.stopped_code }));
+      }
+    }
+    return baseDb(sql, params);
+  };
+}
+
+// (d8) a phone bound to ONE Room never crosses into another Room's follower
+// state — proven on `stop` and, more safety-critically, `forget` (an
+// irreversible delete) rather than an ordinary message: neither needs a
+// compiled agent reply, so this reaches for the REAL `resolveActiveFollower`
+// -> `whatsappChatPointerRoom` -> `followerRow` chain and the REAL
+// `roomForgetCore` cascade without needing a working `roomSay` compile for
+// either Room. `withSecondRoom` (§2's own two-Room fixture) is reused
+// verbatim.
+{
+  const state = withSecondRoom(freshDoorsState());
+  const db = wrapWhatsappChatDoorsDb(doorsDb(state), state);
+  const loadAgentTwoRooms = async (slug) => {
+    if (slug === SLUG) return loadAgent(slug);
+    if (slug === "kabir") return { module: {}, sheet: { name: "Kabir", slug: "kabir" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const roomDeps = {
+    loadAgent: loadAgentTwoRooms, now: NOW, env: ENV,
+    personTables: async () => PERSON_TABLES, tableApplied: async () => true,
+  };
+  const roomBId = state.rooms[1].room_id;
+
+  await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, roomDeps);
+  await joinRoom(db, { slug: "kabir", authUserId: USER_B, ageAttested: true, memoryConsent: true }, roomDeps);
+  const followerA = state.followers.find((f) => f.room_id === ROOM_ID && f.person_id === PERSON_A);
+  const followerB = state.followers.find((f) => f.room_id === roomBId && f.person_id === PERSON_B);
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "fixture is sound: both Rooms produced their own follower row",
+    Boolean(followerA) && Boolean(followerB) && followerA.follower_id !== followerB.follower_id);
+
+  const { phoneHash: doorsPhoneHash } = ROOM_WA_CHAT;
+  const phone1 = "+919000090001";
+  const phone2 = "+919000090002";
+  const hash1 = doorsPhoneHash(phone1, ENV);
+  const hash2 = doorsPhoneHash(phone2, ENV);
+  state.waChatPointers.push(
+    { phone_hash: hash1, room_id: ROOM_ID, person_id: PERSON_A, follower_id: followerA.follower_id,
+      locale: "en", joined_at: "2026-09-05T00:00:00.000Z", stopped_at: null, stopped_code: null },
+    { phone_hash: hash2, room_id: roomBId, person_id: PERSON_B, follower_id: followerB.follower_id,
+      locale: "en", joined_at: "2026-09-05T00:00:00.000Z", stopped_at: null, stopped_code: null },
+  );
+  const findPerson = async (surfaceName, surfaceUserId) => {
+    if (surfaceName !== "room_whatsapp") return null;
+    if (String(surfaceUserId) === hash1) return { person_id: PERSON_A };
+    if (String(surfaceUserId) === hash2) return { person_id: PERSON_B };
+    return null;
+  };
+  const sent = [];
+  const fakeWa = {
+    sendText: async (phone, text) => { sent.push({ phone, text }); return { ok: true }; },
+    sendButtons: async () => ({ ok: true }),
+  };
+  const textMsg = (phone, text, id) => ({
+    entry: [{ changes: [{ value: { messages: [{ from: phone.replace(/^\+/, ""), id, type: "text", text: { body: text } }] } }] }],
+  });
+
+  await handleRoomWhatsappChatWebhook(textMsg(phone1, "stop", "wamid.d8.stop"), {
+    db, wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: findPerson, linkSurfacePerson: async () => null, ...roomDeps,
+  });
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "stop from phone1 (Room A) marks ONLY phone1's own pointer stopped",
+    state.waChatPointers.find((c) => c.phone_hash === hash1)?.stopped_at != null);
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "...and NEVER touches phone2's pointer, bound to a DIFFERENT Room",
+    state.waChatPointers.find((c) => c.phone_hash === hash2)?.stopped_at == null);
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "...and Room B's own follower row is completely untouched (still present, cap unspent)",
+    state.followers.some((f) => f.follower_id === followerB.follower_id) && followerB.month_message_count === 0);
+
+  // forget — the irreversible one. phone2 (Room B) forgets; phone1's Room A
+  // state (follower row, pointer) must survive byte for byte.
+  await handleRoomWhatsappChatWebhook(textMsg(phone2, "forget", "wamid.d8.forget"), {
+    db, wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: findPerson, linkSurfacePerson: async () => null, ...roomDeps,
+  });
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "forget from phone2 (Room B) deletes ONLY phone2's own follower row",
+    !state.followers.some((f) => f.follower_id === followerB.follower_id));
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "...and its own whatsapp pointer",
+    !state.waChatPointers.some((c) => c.phone_hash === hash2));
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "...while phone1's Room A follower row survives byte for byte, a DIFFERENT phone's forget never reaching it",
+    state.followers.some((f) => f.follower_id === followerA.follower_id && f.room_id === ROOM_ID));
+  okClass("d8-cross-room-never-crosses", "room-wa.js", "...and phone1's own pointer (already stopped above) is still present, not swept up by phone2's delete",
+    state.waChatPointers.some((c) => c.phone_hash === hash1));
+}
+
+// (d9) `join <slug>` for a Room the CREATOR has since paused. `resolveRoom`'s
+// own predicate (`r.paused_at is null`, api/_room-surface.js's `roomBySlug`)
+// collapses a paused Room into the exact same "not found" it throws for an
+// unknown slug — `handleJoin`/`handleButton`'s own catch block sends the
+// SAME roomUnavailableCard either way and creates nothing. Proven dynamically
+// against the real flag, `b-cross-room`'s own "the discipline transfers
+// verbatim" restated for a flag this workstream's own brief names by name —
+// including the button path, since the age gate's "yes" tap can arrive
+// after a Room was paused mid-flow (the button-carries-state design, WS-R104's
+// own `decisions.md#ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-
+// text`, keeps no record of when a button was sent).
+{
+  const state = freshDoorsState();
+  state.rooms[0].paused_at = "2026-09-05T00:00:00.000Z";
+  const db = wrapWhatsappChatDoorsDb(doorsDb(state), state);
+  const roomDeps = { loadAgent, now: NOW, env: ENV };
+  const { roomUnavailableCard: roomUnavailableCardTg } = ROOM_TG;
+  const phone = "+919000090099";
+  const sent = [];
+  const fakeWa = {
+    sendText: async (p, text) => { sent.push({ phone: p, text }); return { ok: true }; },
+    sendButtons: async (p, text, buttons) => { sent.push({ phone: p, text, buttons }); return { ok: true }; },
+  };
+
+  const joinPayload = {
+    entry: [{ changes: [{ value: { messages: [{ from: phone.replace(/^\+/, ""), id: "wamid.d9.join", type: "text", text: { body: `join ${SLUG}` } }] } }] }],
+  };
+  const result = await handleRoomWhatsappChatWebhook(joinPayload, {
+    db, wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: async () => null, linkSurfacePerson: async () => null, ...roomDeps,
+  });
+  okClass("d9-join-paused-room", "room-wa.js", "join <slug> for a PAUSED Room is still answered, ok:true",
+    result?.ok === true && result?.replies === 1);
+  okClass("d9-join-paused-room", "room-wa.js", "...with the SAME roomUnavailableCard a genuinely unknown slug gets, never the disclosure line",
+    sent.length === 1 && sent[0].text === roomUnavailableCardTg("en"));
+  okClass("d9-join-paused-room", "room-wa.js", "...and creates no person, no follower, no pointer at all",
+    state.persons.length === 0 && state.followers.length === 0 && state.waChatPointers.length === 0);
+
+  // The SAME proof for the button path that actually ATTEMPTS the join —
+  // `m1`/`m0`, the final step, is the only button step that calls
+  // `resolveRoom` at all (`handleButton`'s own source: `a1`/`a0` never touch
+  // the room, they only ask or refuse the SECOND question — a REAL, if
+  // harmless, finding this workstream logged rather than silently routing
+  // around: `context/decisions.md#ws-r115-age-gate-yes-does-not-recheck-
+  // room-availability` states why it is not a leak — nothing is created
+  // before `m1`/`m0` either way, proven above and below).
+  sent.length = 0;
+  const buttonPayload = {
+    entry: [{ changes: [{ value: { messages: [{
+      from: phone.replace(/^\+/, ""), id: "wamid.d9.button", type: "interactive",
+      interactive: { type: "button_reply", button_reply: { id: `m1:${SLUG}` } },
+    }] } }] }],
+  };
+  const result2 = await handleRoomWhatsappChatWebhook(buttonPayload, {
+    db, wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: async () => null, linkSurfacePerson: async () => null, ...roomDeps,
+  });
+  okClass("d9-join-paused-room", "room-wa.js", "the memory-gate's OWN final tap ('m1') for a since-paused Room is refused, not half-joined",
+    result2?.ok === true && sent.length === 1 && sent[0].text === roomUnavailableCardTg("en"));
+  okClass("d9-join-paused-room", "room-wa.js", "...and still creates nobody",
+    state.persons.length === 0 && state.followers.length === 0 && state.waChatPointers.length === 0);
+}
+
+// (d10) the flag-OFF branch is BYTE-IDENTICAL to what shipped before WS-R104
+// ever existed — the real source, not merely trusted by name, and the real
+// default value of the flag a fresh deploy actually runs under.
+{
+  const src = readFileSync(join(API, "room-wa.js"), "utf8");
+  const flagIdx = src.indexOf("whatsappChatEnabled(process.env)");
+  const trueBranchIdx = src.indexOf("await handleRoomWhatsappChatWebhook(auth.payload, { db: q, fetch: globalThis.fetch })");
+  const falseBranchIdx = src.indexOf("await handleStatusWebhook(auth.payload, { db: q });");
+  okClass("d10-flag-off-byte-identical", "room-wa.js", "the real source carries the flag check, the ROOM_WHATSAPP_CHAT branch, and the unchanged false branch — all three, not renamed or moved",
+    flagIdx !== -1 && trueBranchIdx !== -1 && falseBranchIdx !== -1);
+  okClass("d10-flag-off-byte-identical", "room-wa.js", "...in that order: the flag check, then the new branch, then the SAME call `handleStatusWebhook(auth.payload, { db: q })` this door made before WS-R104 — never a rewritten call shape",
+    flagIdx < trueBranchIdx && trueBranchIdx < falseBranchIdx);
+  okClass("d10-flag-off-byte-identical", "room-wa.js", "whatsappChatEnabled with NO env var at all is false — the flag-off branch is what a fresh deploy actually runs",
+    whatsappChatEnabled({}) === false);
+  okClass("d10-flag-off-byte-identical", "room-wa.js", "...and stays false for every value but the literal string \"1\" (\"0\"/\"true\"/\"yes\"/empty all still route to the unchanged branch)",
+    ["0", "true", "yes", "TRUE", ""].every((v) => whatsappChatEnabled({ ROOM_WHATSAPP_CHAT: v }) === false));
+
+  // Dynamically: the SAME callee the flag-off branch calls still answers a
+  // status-only payload exactly as (d4) above already proved idempotent —
+  // not a second, drifted implementation reached through a different name.
+  const payload = { entry: [{ changes: [{ value: { statuses: [{ id: "wamid.d10.test", status: "delivered", recipient_id: "911234567890" }] } }] }] };
+  const out = await handleStatusWebhook(payload, { db: async () => [] });
+  okClass("d10-flag-off-byte-identical", "room-wa.js", "handleStatusWebhook itself (the flag-off branch's own callee) still answers a status callback with zero replies, unchanged by this workstream",
+    out.ok === true && out.statuses === 1 && out.replies === 0);
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // §24. WS-R89 (class e) — CRON DOORS. Every cron door reachable over HTTP
 // carries a shared secret this file's own §0 door list never attacked (cron

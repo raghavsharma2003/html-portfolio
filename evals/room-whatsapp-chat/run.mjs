@@ -21,6 +21,7 @@
 // job is the single-follower correctness the brief names: the join flow,
 // three ordinary turns, the free cap, the 24-hour session window (a fake
 // clock), a redelivered message id being a no-op, and `stop`/`forget`.
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SLUG, ROOM_ID, AGENT_ID, loadFixtureAgent, freshState, fakeDb } from "../room/fixtures.mjs";
@@ -52,6 +53,13 @@ const surface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).h
 const { roomDisclosureCard } = surface;
 const tg = await import(pathToFileURL(join(REPO, "api/_room-telegram.js")).href);
 const { adultGateCard, memoryGateCard, joinedCard, cappedCard, stoppedCard } = tg;
+// WS-R115: the shipping sender (its own outbound shapes are pinned below)
+// and the REAL 24h ledger `sendSessionMessage` reads (api/whatsapp.js's own
+// `noteInbound`/`windowOpen`/`resetWindow`, never a second implementation).
+const roomWaModule = await import(pathToFileURL(join(REPO, "api/_room-whatsapp.js")).href);
+const { sendSessionMessage } = roomWaModule;
+const waLedger = await import(pathToFileURL(join(REPO, "api/whatsapp.js")).href);
+const { noteInbound, windowOpen, resetWindow } = waLedger;
 
 const { loadAgent } = await loadFixtureAgent(REPO);
 const BASE_ENV = { ROOM_SESSION_SECRET: "s".repeat(48) };
@@ -482,6 +490,162 @@ console.log("\n── stop and forget ──");
   ok("forget leaves the Room itself standing", state.rooms.length === 1);
   ok("forget issues the real forget receipt", state.forgetReceipts.length === receiptsBefore + 1);
   ok("forget sends the real, app-voiced receipt card", texts(sent, phone).at(-1).includes("deleted"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── WS-R115: outbound shapes pinned against Meta's own Cloud API documents ──");
+// ═════════════════════════════════════════════════════════════════════════
+// `defaultRoomWhatsappChatClient`'s own header carries the full citation
+// (URL, section, fetch date) for every assertion below. This section calls
+// `sendText`/`sendButtons` DIRECTLY (a fake `fetch`, never a real one - the
+// "no calls to Telegram/Meta from any eval" law is unchanged, only reached
+// one layer deeper than the rest of this file's own webhook-shaped tests),
+// because pinning a wire shape against a document means inspecting the
+// EXACT bytes this codebase's own builder produces, not a copy of them
+// re-typed into the test.
+{
+  const captured = [];
+  const fakeFetch = async (_url, opts) => {
+    captured.push(JSON.parse(opts.body));
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  const client = defaultRoomWhatsappChatClient({
+    fetch: fakeFetch, accessToken: "test-token", phoneId: "test-phone-id",
+    env: BASE_ENV, now: Date.now(), windowOpen: () => true,
+  });
+  const phone = "+919000099001";
+
+  await client.sendText(phone, "hello there");
+  const textMsg = captured.at(-1);
+  ok('sendText: {type:"text", text:{body}} - developers.facebook.com/documentation/business-messaging/whatsapp/messages/text-messages, fetched 2026-09-05',
+    textMsg.type === "text" && textMsg.text.body === "hello there" && !("interactive" in textMsg));
+  ok("...and the envelope carries messaging_product/recipient_type/to, the SAME three fields the doc's own request syntax names",
+    textMsg.messaging_product === "whatsapp" && textMsg.recipient_type === "individual" && textMsg.to === phone.replace(/^\+/, ""));
+
+  await client.sendButtons(phone, "pick one", [{ id: "a1:x", title: "Yes, 18+" }, { id: "a0:x", title: "No" }]);
+  const btnMsg = captured.at(-1);
+  ok('sendButtons: {type:"interactive", interactive:{type:"button", body:{text}, action:{buttons:[{type:"reply", reply:{id,title}}]}}} - developers.facebook.com/documentation/business-messaging/whatsapp/messages/interactive-reply-buttons-messages, fetched 2026-09-05',
+    btnMsg.type === "interactive" && btnMsg.interactive.type === "button" &&
+      btnMsg.interactive.body.text === "pick one" &&
+      Array.isArray(btnMsg.interactive.action.buttons) &&
+      btnMsg.interactive.action.buttons.every((b) => b.type === "reply" && typeof b.reply.id === "string" && typeof b.reply.title === "string"));
+  ok("...with the button ids round-tripping unchanged, the SAME ids parseButtonId must read back off the reply",
+    btnMsg.interactive.action.buttons.map((b) => b.reply.id).join(",") === "a1:x,a0:x");
+
+  // The doc's own stated limit, quoted in the builder's own header:
+  // "Maximum 20 characters" on the button label.
+  await client.sendButtons(phone, "x", [{ id: "long", title: "a title that is definitely over twenty characters" }]);
+  ok("a button title over 20 characters is TRUNCATED to 20 by the builder, never sent oversized",
+    captured.at(-1).interactive.action.buttons[0].reply.title.length === 20);
+
+  // The doc's own stated limit on body text: "Maximum 1024 characters."
+  await client.sendButtons(phone, "y".repeat(2000), [{ id: "a", title: "ok" }]);
+  ok("an interactive message body over 1024 characters is TRUNCATED to 1024 by the builder",
+    captured.at(-1).interactive.body.text.length === 1024);
+
+  // The doc's own stated limit: "up to three predefined replies" / "Supports
+  // up to 3 buttons". WS-R104's own builder had no cap on button COUNT at
+  // all before this workstream - a real gap this suite found, fixed per
+  // this workstream's own law 2 (`defaultRoomWhatsappChatClient`'s own
+  // header states the fix).
+  const beforeFourthAttempt = captured.length;
+  let fourButtonError = null;
+  try {
+    await client.sendButtons(phone, "z", [
+      { id: "1", title: "a" }, { id: "2", title: "b" }, { id: "3", title: "c" }, { id: "4", title: "d" },
+    ]);
+  } catch (e) {
+    fourButtonError = e;
+  }
+  ok("MORE THAN THREE buttons is REFUSED by the builder - Meta's own 'up to three predefined replies' - never silently built and sent",
+    fourButtonError instanceof Error && /room_wa_button_count_invalid/.test(fourButtonError.message));
+  ok("...and no network call was made for the refused attempt", captured.length === beforeFourthAttempt);
+
+  // NEGATIVE CONTROL: the SAME check must not refuse the ordinary, correct
+  // case - one and two and three buttons all still go through.
+  for (const n of [1, 2, 3]) {
+    const before = captured.length;
+    await client.sendButtons(phone, "ok", Array.from({ length: n }, (_, i) => ({ id: `b${i}`, title: `t${i}` })));
+    ok(`NEGATIVE CONTROL: ${n} button(s) is NOT refused - the check is a real bound, not a vacuous refusal`,
+      captured.length === before + 1);
+  }
+
+  // Every REAL call site in this file sends exactly two - never at the
+  // limit, never over it, matching Meta's own document's worked example
+  // (two buttons) rather than the maximum it merely permits.
+  const src = readFileSync(join(REPO, "api/_room-whatsapp-chat.js"), "utf8");
+  const countButtonLiterals = (fnName) => {
+    const start = src.indexOf(`const ${fnName} = (slug) => [`);
+    const end = src.indexOf("];", start);
+    if (start === -1 || end === -1) return -1;
+    return (src.slice(start, end).match(/\{ id: `/g) || []).length;
+  };
+  ok("the real ageButtons call site builds exactly two buttons", countButtonLiterals("ageButtons") === 2);
+  ok("the real memoryButtons call site builds exactly two buttons", countButtonLiterals("memoryButtons") === 2);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── WS-R115: the REAL 24h ledger (api/whatsapp.js's own noteInbound/windowOpen), not stubbed ──");
+// ═════════════════════════════════════════════════════════════════════════
+// Every other window test in this file (above) fakes `deps.windowOpen`
+// directly. This section drives `sendSessionMessage` with `deps.windowOpen`
+// OMITTED, so it falls through to the REAL `windowOpen` this file imports
+// from api/whatsapp.js - the module-level ledger WS-R41 already verified
+// against developers.facebook.com/documentation/business-messaging/
+// whatsapp/messages/send-messages#customer-service-windows (fetched
+// 2026-09-05): "a 24-hour timer... starts... If the user messages... again
+// before the timer expires, the timer resets to 24 hours... When the window
+// closes, you can only send pre-approved template messages." This
+// workstream's own law 3 names the exact boundary to prove: 23:59 sends,
+// 24:01 does not, a new inbound reopens it, and a STRUCK ledger (a cold
+// start losing the in-memory Map, api/whatsapp.js's own header names this
+// exact scenario as the fail-closed direction) is caught.
+{
+  resetWindow();
+  const phone = "+919000045099";
+  const T0 = Date.parse("2026-09-05T00:00:00.000Z");
+  const captured = [];
+  const fakeFetch = async (_url, opts) => {
+    captured.push(JSON.parse(opts.body));
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  const deps = { fetch: fakeFetch, accessToken: "test-token", phoneId: "test-phone-id" };
+  const body = (text) => ({ type: "text", text: { body: text } });
+
+  ok("REAL ledger, no inbound on record for this phone: outside the window (fail closed)",
+    windowOpen(phone, T0) === false);
+
+  noteInbound(phone, T0);
+  ok("REAL ledger: the inbound message just noted opens the window", windowOpen(phone, T0) === true);
+
+  const T_2359 = T0 + 23 * 3_600_000 + 59 * 60_000;
+  const r1 = await sendSessionMessage(phone, body("at 23:59 after the inbound"), { ...deps, now: T_2359 });
+  ok("a send at 23:59 after the inbound SENDS - the real fetch seam was reached, a genuine Cloud API text-message body",
+    r1.ok === true && captured.length === 1 && captured[0].type === "text");
+
+  const T_2401 = T0 + 24 * 3_600_000 + 1 * 60_000;
+  const r2 = await sendSessionMessage(phone, body("at 24:01 after the SAME inbound"), { ...deps, now: T_2401 });
+  ok("a send at 24:01 after the SAME inbound does NOT send - window closed, zero additional network calls",
+    r2.ok === false && r2.skipped === "outside_window" && captured.length === 1);
+
+  // "the timer resets to 24 hours" - a NEW inbound reopens it, never a
+  // permanently-closed window.
+  noteInbound(phone, T_2401);
+  const r3 = await sendSessionMessage(phone, body("after the window reopened"), { ...deps, now: T_2401 + 60_000 });
+  ok("a NEW inbound reopens the window: the very next send goes through", r3.ok === true && captured.length === 2);
+
+  // NEGATIVE CONTROL: the ledger STRUCK (resetWindow - api/whatsapp.js's own
+  // header names exactly this: "a cold start forgets it and `send` then
+  // fails CLOSED"). A send for a phone the CURRENT process has no record of
+  // must be CAUGHT and refused, never allowed through on some other basis -
+  // this is what proves the fail-closed direction is real, not merely
+  // documented.
+  resetWindow();
+  const r4 = await sendSessionMessage(phone, body("after the ledger was struck"), { ...deps, now: T_2401 + 120_000 });
+  ok("NEGATIVE CONTROL: the ledger struck (a simulated cold start) - the send is CAUGHT and refused, never silently allowed through",
+    r4.ok === false && r4.skipped === "outside_window" && captured.length === 2);
+
+  resetWindow();
 }
 
 // ═════════════════════════════════════════════════════════════════════════

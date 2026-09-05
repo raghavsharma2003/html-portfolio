@@ -13032,3 +13032,38 @@ exceeds 50 ms.
 Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
 sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
 `vy_room_follower_whatsapp_chat` row exists yet.
+
+## `ws-r115-whatsapp-interactive-eval-counts-2026-09-05`
+
+`node evals/room-whatsapp-chat/run.mjs`, run standalone, 2026-09-05: 83
+assertions, 0 failed — 17 of the 83 are this workstream's own (counted
+directly off the suite's own source, `grep -c` over each new section: 11
+in "outbound shapes pinned against Meta's own Cloud API documents", 6 in
+"the REAL 24h ledger"), the remaining 66 WS-R104's own pre-existing
+suite, unchanged. `node evals/room-doors/run.mjs`, run standalone,
+2026-09-05: 764 ok, 0 failed (18 new: `d8-cross-room-never-crosses` 8,
+`d9-join-paused-room` 5, `d10-flag-off-byte-identical` 5). Both offline,
+deterministic, $0, no network beyond the CDX proxy fetch of Meta's public
+documentation pages (done once, ahead of writing code, saved to
+`/tmp/.../scratchpad/meta-docs/*.html` for this session's own reference,
+not committed).
+
+Method for the citation fetches themselves: `curl -sS -L` through the
+session's proxy against four URLs — `developers.facebook.com/
+documentation/business-messaging/whatsapp/messages/interactive-reply-
+buttons-messages`, `.../messages/text-messages`, `.../messages/send-
+messages` and `.../pricing` — each returning server-rendered
+Markdown-in-HTML (not a JS SPA shell), decoded with Python's
+`html.unescape` for the exact quoted sentences cited in
+`api/_room-whatsapp-chat.js`'s own header comments and in this file's and
+`decisions.md`'s WS-R115 entries. `developers.facebook.com/docs/whatsapp/
+pricing` (the OLD URL WS-R41 cited) returns an HTTP 301 to
+`.../documentation/business-messaging/whatsapp/pricing` — confirmed live
+on 2026-09-05, so WS-R41's own citation still resolves, just to a renamed
+path; not a broken link, and not itself evidence the RULE changed (the
+rule text at the new URL was independently re-read and matches, per
+`decisions.md#ws-r115-window-ledger-reconfirmed-no-code-change`).
+
+Full `node scripts/verify-release.mjs` gate results (before and after this
+workstream's changes) are recorded in `context/STATE.md`'s session log
+entry for this workstream, appended after this run completed.

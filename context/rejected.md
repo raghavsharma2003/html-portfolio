@@ -13187,3 +13187,32 @@ family of budget -- raise it FROM A MEASUREMENT, name the reversal
 condition, never copy a number). Flagged for the main loop rather than
 silently worked around; see `context/decisions.md#ws-r106-hindi-chunk-
 wait-miss-flagged-not-fixed` for the reversal condition.
+
+## `ws-r115-paused-room-button-test-assumed-a1-rechecks-availability` (2026-09-05, WS-R115)
+
+**Tried.** `evals/room-doors/run.mjs`'s new `d9-join-paused-room` case
+first sent an `a1:<slug>` button reply (the age gate's own "Yes, 18+" tap)
+against a Room whose `paused_at` had been set, expecting the SAME
+`roomUnavailableCard` refusal the `join <slug>` TEXT command gets for the
+identical paused Room.
+
+**What broke.** The assertion failed: `sent.length === 1` held, but
+`sent[0].text` was `memoryGateCard("en")`, not `roomUnavailableCard("en")`
+— the age gate's "yes" tap sent the SECOND question instead of refusing.
+Reading `api/_room-whatsapp-chat.js`'s `handleButton` explained why:
+its `a1`/`a0` branches never call `resolveRoom` at all — only the FINAL
+`m1`/`m0` tap does, right before `joinRoom` — so a Room's own availability
+is checked exactly once, at the last possible moment, not at every step
+that names a slug. This is not a scope bug (nothing is created before
+`m1`/`m0` either way, confirmed by the SAME case's own "creates nobody"
+assertion, which passed on the first try), just a wrong assumption about
+where the check lives.
+
+**Fix.** The case's button-path assertion was changed to send `m1:<slug>`
+instead of `a1:<slug>` — the step that actually attempts the join and
+therefore the step whose own availability check this case exists to
+prove — rather than adding a `resolveRoom` call to `a1`/`a0` that nothing
+in this workstream's own brief (verification against Meta's documents,
+which say nothing about this purely internal state machine) asked for.
+See `context/decisions.md#ws-r115-age-gate-yes-does-not-recheck-room-
+availability` for the standing decision and its own reversal condition.
