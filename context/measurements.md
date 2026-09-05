@@ -10390,3 +10390,33 @@ workstream, and itself intermittent (this exact gate passed clean on this
 same tree earlier in the session, see the entry above) rather than a
 stable regression this workstream introduced. `site/`, `.onb-*` and Meera's
 own tokens are files this workstream never touched.
+
+## `rooms-migration-110-live-verification-2026-09-05`
+
+n = 1 migration (3 statements in one transaction), 4 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP, the catalog read back (`vy_room.taste_enabled boolean default true`; `vy_room_taste_turn(room_id, day, count)` with the composite primary key, the `count >= 0` CHECK, the FK CASCADE from `vy_room` and the `day` index), then `EXPLAIN` (never `EXPLAIN ANALYZE`) with typed literals; date 2026-09-05, at the WS-R53 merge (33bbcd7).
+
+| statement | plan |
+|---|---|
+| `recordRoomTasteTurn`'s upsert | Insert with `vy_room_taste_turn_pkey` as the conflict arbiter |
+| `tasteTurnsThisWeek` (7-day sum) | Bitmap on `vy_room_taste_turn_day_ix`, plain aggregate |
+| `setRoomTasteEnabled`'s UPDATE by owner and replica | Index Scan on `vy_room_owner_ix` on both columns |
+| the erasure delete of a replica's taste turns | `vy_room_owner_ix` for the Rooms, Bitmap on `vy_room_taste_turn_pkey` by room |
+
+Not measured: no stranger has taken a taste turn; the 3-a-day scope has never refused a real fourth question.
+
+## `live-probe-wave-eleven-preview-2026-09-05`
+
+n = 11 public surfaces plus one refused POST on the html-portfolio branch preview (a414c7c, deployment dpl_8bkrjku8GwkhQ62DKYvrznJAiTem) and 6 on the vyakti-replica-lab preview; method = `curl` through Vercel's share link for a protected preview (the cookie the link sets, never the token in the repo), headers and bodies read, the bot unfurl fetched with a Facebook user agent, two unknown slugs' images hashed; date 2026-09-05, by the main loop after the wave-eleven push.
+
+| surface | observed |
+|---|---|
+| `/`, `/r/<slug>`, `/studio`, `/suites`, `/creators` | 200 with WS-R57's headers exactly as vercel.json states them (CSP with the committed hashes on the static pages, HSTS preload, nosniff, referrer and permissions policies; the studio's `camera=(self), microphone=(self)`) |
+| `/r/<unknown>` as a bot | 200, the unfurl head with `og:image`, `og:image:width` and the platform card, WS-R40 plus WS-R55 |
+| `/r/<unknown>/og.png`, `/story.png` | 200 `image/png` (PNG magic bytes), 30,276 and 52,965 bytes, ETag; two unknown slugs hash-identical (`b7669c18…`); `Cache-Control: public, max-age=3600` with `stale-while-revalidate` stripped on the way to the client, Vercel's documented behaviour |
+| `/r/<unknown>/manifest.webmanifest` | 200 `application/manifest+json`, 324 bytes, the platform manifest |
+| `/room-sw.js` | 200, 10,439 bytes |
+| `/robots.txt` | 200, WS-R45's text |
+| `POST /api/room {op: nope}` | 400 `{"error":"unknown_op"}` |
+| `/sitemap.xml`, `/api/creators` | **500** `sitemap unavailable` / `creators_failure`; runtime log `[sitemap] failure: fetch failed` |
+
+The 500s are not the sitemap's or the directory's: the build log of the same deployment reads `MISSING: … NEON_URL, SUPABASE_URL, …` and `Building with stub config`, so `api/_db.js` had an empty host and undici reported "fetch failed" for every database call on BOTH projects (the studio project's log shows the same for the manifest and card doors, which then served their platform fallbacks). Setting the project env vars is the owner action the PR already lists; `api/_db.js` now throws `neon_url_missing` by name before the fetch so the next log says so.

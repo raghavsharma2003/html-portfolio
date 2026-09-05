@@ -7642,6 +7642,18 @@
       "kind": "rejection",
       "title": "evals/room-doors/run.mjs NOW hardcoded to a calendar date broke once real time crossed it mid-session, unrelated to WS-R53; fixed per main-loop direction with const NOW = Date.now()",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-110-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 110 (vy_room.taste_enabled, vy_room_taste_turn) applied live at the WS-R53 merge; the upsert, the weekly sum, the owner switch and the erasure delete all plan on an index.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "live-probe-wave-eleven-preview-2026-09-05",
+      "kind": "measurement",
+      "title": "Main-loop probe of the a414c7c preview: headers, unfurl, images, manifest, worker and API refusals all as the tree states; sitemap and directory 500 because both Vercel projects build with the stub config (no NEON_URL set), every DB call failing as undici's bare 'fetch failed'; api/_db.js now throws neon_url_missing by name.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15189,6 +15201,16 @@
       "src": "ws-r53-doc-comments-naming-a-table-tripped-room-leaks-own-scanner",
       "rel": "caused_by",
       "dst": "ws-r40-double-quoted-table-name-fooled-room-leaks-own-backtick-pairing-scanner"
+    },
+    {
+      "src": "rooms-migration-110-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r40-public-room-read-lives-in-room-publish-not-a-new-file"
+    },
+    {
+      "src": "live-probe-wave-eleven-preview-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path"
     }
   ]
 }
