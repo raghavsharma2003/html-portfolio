@@ -11061,3 +11061,33 @@ n = 979 Hindi strings (759 studio, 220 Room), method: `node scripts/check-layout
 | U+FDD0 U+FDD1 U+FDD2 (control) | none | not applicable | yes | not run | uniform, as required |
 
 Every other string: unchanged (the uniformity half only narrows findings; a string the width diff passed is untouched). The finding reproduced identically on two runs 20 minutes apart, so it was not a load or font-loading flake (`rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words`). Not measured: real tofu on this machine (every installed face has Devanagari, so a missing webfont still renders letters here; the control is the only proof the detector would see it).
+
+## `ws-r78-poster-render-time-and-bytes-2026-09-05` — the poster's own render cost, measured
+
+n = 1 real Room (`display_name: "Anjali Sharma"`, a two-line English bio, origin `https://vyakti-rooms.vercel.app`), method: `rasterizeRoomCard` called directly (bypassing the HTTP door) in this worktree, `performance.now()` around each call, 2026-09-05, Node 22, no concurrent load.
+
+| call | ms |
+|---|---|
+| cold (first call in process — font registration + `@napi-rs/canvas` module load) | 333.9 |
+| warm (second call, same process) | 162.0 |
+
+Bytes, same run: poster PNG (1240x1754, a real QR at version 4) 79,256 bytes; the platform (unpublished/unknown) poster 72,681 bytes; `og.png` (1200x630, no QR) 36,764 bytes for the same Room, given for scale. Not measured: a real Vercel cold start (this worktree has no deployment); concurrent-request behaviour; a Hindi Room's poster bytes (expected larger, more glyph ink, not measured here). The warm figure is the more representative one for a Vercel function serving repeat requests within its own instance's lifetime, per `api/_room-card.js`'s own module-scope font cache.
+
+## `ws-r78-qr-encoder-real-scanner-verification-2026-09-05` — every version 1-10 decoded by an independent scanner
+
+n = 10 (one synthetic payload per version, chosen by string length to land exactly at that version under EC level M), method: `encodeQR` (the real `api/_qr.js`) rasterised via `@napi-rs/canvas` (module size 5px, quiet zone 4 modules) and decoded by `jsqr` (npm, a real, independent QR reader, added as a devDependency for this purpose), one process, 2026-09-05. All 10 decoded to the exact input string. Versions and masks the "best of 8" selection actually picked, for the record (not tuned or cherry-picked — this is every version 1-10 in one run):
+
+| version | mask chosen | payload length (bytes) |
+|---|---|---|
+| 1 | 6 | 1 |
+| 2 | 1 | 15 |
+| 3 | 0 | 27 |
+| 4 | 2 | 43 |
+| 5 | 1 | 63 |
+| 6 | 5 | 85 |
+| 7 | 2 | 107 |
+| 8 | 4 | 123 |
+| 9 | 1 | 153 |
+| 10 | 0 | 181 |
+
+This run followed the fix for `rejected.md#ws-r78-reversed-rs-generator-polynomial-passed-every-self-check` and `#ws-r78-format-info-msb-first-was-unscannable`; the identical spread, run BEFORE either fix, decoded 0 of 10. Not measured: a real phone camera (no camera available in this sandboxed environment) — `jsqr` is a real, independent, actively-maintained decoder library, but it is still software, not a lived scan; see this workstream's own final report for the honest statement of what remains unproven.
