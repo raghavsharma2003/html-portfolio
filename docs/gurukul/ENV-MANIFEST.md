@@ -1227,3 +1227,33 @@ already set).
 See `context/measurements.md#ws-r73-suites-on-upi-verification-2026-09-05`
 for the fuller mark table and `context/decisions.md`/`context/rejected.md`
 for the seam decision and what stayed open.
+## 30. Dormancy (`vercel-app`, WS-R75, migration 119, 2026-09-05)
+
+A follower who has not visited for a long time is told, then forgotten with
+a receipt, on a schedule the follower can see, behind a flag that is off.
+No new person table — both new columns ride existing rows (`vy_room.
+dormancy_days`, `vy_room_follower.dormancy_notice_at`). See `api/_dormancy.js`'s
+own header for the full mechanism.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `ROOM_DORMANCY` | `api/_dormancy.js:dormancyEnabled()`, read by `api/renewals-sweep.js`'s handler and `api/_dormancy.js:dormancyThisWeek()` | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | **off (default)**: the columns exist the moment migration 119 is applied, an owner can still set `dormancy_days` on their own Room and a follower's account page still renders the policy sentence — but the daily sweep (`api/renewals-sweep.js`, WS-R37's own `0 0 * * *` cron) runs neither of `api/_dormancy.js`'s two statements, so no notice is ever sent and no follower is ever forgotten by this mechanism. **on**: the sweep also notices due followers and forgets overdue ones through the REAL `roomForgetForFollower` (`api/_room-surface.js`), every run |
+
+No new cron entry — `ROOM_DORMANCY` gates a step folded into WS-R37's existing
+`renewals-sweep` cron (this workstream's own law 2: "the daily sweep gains
+two statements"), never a second `vercel.json` crons entry. The owner sets
+this on Vercel like any other `process.env` var (not a `VITE_` build-time
+flag — no frontend rebuild needed to flip it).
+
+`ROOM_TELEGRAM_BOT_TOKEN` (already in this manifest, §15c) is reused, not
+invented, for the one real delivery channel this workstream wires (a
+dormancy notice's Telegram DM). Web push is deliberately NOT attempted — a
+real, previously undiscovered gap found while building this workstream:
+`public/room-sw.js`'s own push handler drops any payload whose `t` is not
+the literal string `"checkin"`, so `api/_renewals.js`'s own `t:"renewal"`
+push (WS-R37) is already silently discarded on arrival, unproven end to
+end. See `context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-
+checkin-payload`. WhatsApp stays structurally present and inert: no
+dormancy-specific template is approved (this repo has only
+`vyakti_checkin_v1`, `api/_room-whatsapp.js`), and Meta refuses free-form
+text outside an approved template.

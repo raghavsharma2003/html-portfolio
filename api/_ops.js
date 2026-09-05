@@ -31,6 +31,13 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // file's own header names the rule this file already keeps), imported here
 // rather than re-derived so the board's one call stays the board's one call.
 import { opsFunnel, creatorInviteArrivalsThisWeek, shareArrivalsThisWeek, tasteTurnsThisWeek, posterArrivalsThisWeek } from "./_funnel.js";
+// WS-R75 (migration 119). `dormancyThisWeek` reads `vy_sweep_run`'s own
+// `counts` history (the SAME "renewals" sweep row `sweepsOverview` above
+// already reads for staleness), never `vy_room_follower` directly - it is
+// not admitted to this file's own AGGREGATE_ONLY class in `evals/room-
+// leak/run.mjs` because it has no reason to be: nothing here names either
+// guarded table at all.
+import { dormancyThisWeek } from "./_dormancy.js";
 // WS-R29 (migration 092). The unit cost is a named constant in the one file
 // that owns the send path - imported here rather than restated, so the
 // board's own number and the send path's own comment can never drift apart.
@@ -593,5 +600,10 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // arrivals this week came in through `?via=poster`, n>=5 floored the
     // same way `share_arrivals_this_week` already is.
     poster_arrivals_this_week: await posterArrivalsThisWeek(db, now, deps),
+    // WS-R75 (migration 119). Notices sent and followers forgotten this
+    // week, both n>=5 floored - `share_arrivals_this_week`'s own shape,
+    // restated for a count that COULD identify a person in a small bucket
+    // (this workstream's own law 4).
+    dormancy: await dormancyThisWeek(db, now, deps),
   };
 }

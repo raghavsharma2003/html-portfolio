@@ -17,6 +17,9 @@ export interface OwnedRoom {
   // shown alongside the name, and whether this Room currently opts in to
   // being listed there at all.
   one_line_bio: string;
+  // WS-R75 (migration 119). `null` means off - the default, kept forever
+  // exactly as every Room already behaves. An integer >= 180 turns it on.
+  dormancy_days: number | null;
   listed: boolean;
   listed_at: string | null;
   published: boolean;
@@ -170,6 +173,19 @@ export async function setOwnedRoomDefaultLocale(
  *  own shape. */
 export async function setOwnedRoomBio(token: string, replicaId: string, bio: string): Promise<OwnedRoom> {
   const data = await call<{ room: OwnedRoom }>(token, { op: "set_bio", replica_id: replicaId, bio });
+  return data.room;
+}
+
+/** The retention policy - `setOwnedRoomFreeCap`'s own shape. `days` is
+ *  `null` (turn the policy off) or an integer >= the server's own floor
+ *  (`room_dormancy_days_invalid` on a value below it, `RoomPublishApiError`'s
+ *  own shape, `blockers: null`). */
+export async function setOwnedRoomDormancyDays(
+  token: string,
+  replicaId: string,
+  days: number | null,
+): Promise<OwnedRoom> {
+  const data = await call<{ room: OwnedRoom }>(token, { op: "set_dormancy_days", replica_id: replicaId, days });
   return data.room;
 }
 

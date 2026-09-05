@@ -218,7 +218,19 @@ async function runRealWorld() {
 
   seedEverySurface(state, { roomId, personId, threadId: thread?.thread_id, agentId });
 
+  // WS-R75 (migration 119). No new table - `dormancy_notice_at` rides the
+  // EXISTING `vy_room_follower` row, already reached by roomScopedTables()'s
+  // own generic `select *` (this file's own header names the mechanism).
+  // Set directly on the fixture's own follower row rather than through a
+  // new insert path, since no op in this codebase writes this column except
+  // the sweep and joinRoom's own defensive clear - neither of which this
+  // suite's world otherwise exercises.
+  const followerRow = state.followers.find((f) => f.person_id === personId);
+  followerRow.dormancy_notice_at = "2026-09-01T00:00:00.000Z";
+
   const dump = await roomExport(db, { session: joined.session }, FULL_DEPS);
+  ok("roomExport's vy_room_follower row carries dormancy_notice_at when set - no code change needed, the generic select * already carries it",
+    Array.isArray(dump.tables.vy_room_follower) && dump.tables.vy_room_follower[0]?.dormancy_notice_at === "2026-09-01T00:00:00.000Z");
   const EXPECT_IN_EXPORT = [
     "vy_room_thread", "vy_room_follower", "vy_room_checkin", "vy_room_subscription",
     "vy_room_pulse_optin", "vy_room_follower_channel", "vy_room_push_subscription",

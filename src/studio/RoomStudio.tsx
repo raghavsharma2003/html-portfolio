@@ -36,6 +36,7 @@ import {
   setOwnedRoomPaidCeilings,
   setOwnedRoomDefaultLocale,
   setOwnedRoomBio,
+  setOwnedRoomDormancyDays,
   listOwnedRoom,
   unlistOwnedRoom,
   readOwnedRoomStats,
@@ -108,6 +109,11 @@ function formatCohortDate(t: StudioCopy, iso: string | null): string {
 }
 
 const FREE_CAP_PRESETS = [10, 20, 50, 100] as const;
+// WS-R75 (migration 119): mirrors migration 119's own CHECK (dormancy_days
+// is null or >= 180) - a bad value returns a server-named reason, this is
+// only the control's own displayed floor.
+const DORMANCY_DAYS_MIN = 180;
+const DORMANCY_DAYS_PRESETS = [180, 365, 730] as const;
 // WS-R19: mirrors migration 081's own CHECKs (100-2000 messages, 0-3600
 // voice seconds) - the bound the studio offers and the bound Postgres holds
 // must be the same numbers or the field would lie about what "editable"
@@ -207,7 +213,7 @@ export default function RoomStudio({
   const [suiteStatus, setSuiteStatus] = useState<SuiteRoomStatus | null>(null);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | "bio" | "listed" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "dormancy" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | "bio" | "listed" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");
@@ -215,6 +221,7 @@ export default function RoomStudio({
   const [embedCopied, setEmbedCopied] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
   const [capDraft, setCapDraft] = useState(20);
+  const [dormancyDraft, setDormancyDraft] = useState<number | null>(null);
   const [priceDraft, setPriceDraft] = useState(PRICE_MIN_INR);
   const [paidMessagesDraft, setPaidMessagesDraft] = useState(500);
   const [paidVoiceDraft, setPaidVoiceDraft] = useState(1800);
@@ -249,6 +256,7 @@ export default function RoomStudio({
       setSlugDraft(state?.room?.slug ?? "");
       setBioDraft(state?.room?.one_line_bio ?? "");
       setCapDraft(state?.room?.free_monthly_messages ?? 20);
+      setDormancyDraft(state?.room?.dormancy_days ?? null);
       setPaidMessagesDraft(state?.room?.paid_monthly_messages ?? 500);
       setPaidVoiceDraft(state?.room?.paid_monthly_voice_seconds ?? 1800);
       setError("");
@@ -329,6 +337,7 @@ export default function RoomStudio({
       setSlugDraft(next.slug);
       setBioDraft(next.one_line_bio);
       setCapDraft(next.free_monthly_messages);
+      setDormancyDraft(next.dormancy_days);
       setPaidMessagesDraft(next.paid_monthly_messages);
       setPaidVoiceDraft(next.paid_monthly_voice_seconds);
       setNotice(c.noticeRoomSetup);
@@ -411,6 +420,28 @@ export default function RoomStudio({
         setRoom(updated);
         setCapDraft(updated.free_monthly_messages);
         setNotice(withCount(c.noticeFreeCap, updated.free_monthly_messages));
+      } catch (e) {
+        fail(e);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, replicaId, fail],
+  );
+
+  const saveDormancy = useCallback(
+    async (next: number | null) => {
+      setBusy("dormancy");
+      setError("");
+      try {
+        const updated = await setOwnedRoomDormancyDays(token, replicaId, next);
+        setRoom(updated);
+        setDormancyDraft(updated.dormancy_days);
+        setNotice(
+          updated.dormancy_days == null
+            ? c.noticeDormancyOff
+            : withCount(c.noticeDormancyOn, updated.dormancy_days),
+        );
       } catch (e) {
         fail(e);
       } finally {
@@ -910,6 +941,59 @@ export default function RoomStudio({
             onPointerDown={() => void saveCap(capDraft)}
           >
             {busy === "cap" ? c.saving : c.save}
+          </button>
+        </div>
+      </article>
+
+      {/* WS-R75 (migration 119). Off by default - the control names the
+          floor (`c.dormancyFloorNote`) so a value below it is a visibly bad
+          input before it is ever a rejected request. */}
+      <article className="teacher-sheet-card vy-room__cap-card">
+        <h3>{c.dormancyTitle}</h3>
+        <p className="field-note">{c.dormancyIntro}</p>
+        <p className="field-note">{withCount(c.dormancyFloorNote, DORMANCY_DAYS_MIN)}</p>
+        <div className="vy-room__cap-row" role="group" aria-label={c.dormancyDaysAriaLabel}>
+          <button
+            type="button"
+            className={`vy-room__cap-pill${room.dormancy_days == null ? " vy-room__cap-pill--selected" : ""}`}
+            disabled={busy === "dormancy"}
+            onPointerDown={() => { setDormancyDraft(null); void saveDormancy(null); }}
+          >
+            {c.dormancyOff}
+          </button>
+          {DORMANCY_DAYS_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className={`vy-room__cap-pill${room.dormancy_days === preset ? " vy-room__cap-pill--selected" : ""}`}
+              disabled={busy === "dormancy"}
+              onPointerDown={() => { setDormancyDraft(preset); void saveDormancy(preset); }}
+            >
+              {preset}
+            </button>
+          ))}
+          <input
+            className="field vy-room__cap-field"
+            type="number"
+            min={DORMANCY_DAYS_MIN}
+            value={dormancyDraft ?? ""}
+            placeholder={c.dormancyOff}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setDormancyDraft(raw === "" ? null : Number(raw));
+            }}
+          />
+          <button
+            className="button secondary-button"
+            type="button"
+            disabled={
+              busy === "dormancy" ||
+              dormancyDraft === room.dormancy_days ||
+              (dormancyDraft != null && (!Number.isFinite(dormancyDraft) || dormancyDraft < DORMANCY_DAYS_MIN))
+            }
+            onPointerDown={() => void saveDormancy(dormancyDraft)}
+          >
+            {busy === "dormancy" ? c.saving : c.save}
           </button>
         </div>
       </article>

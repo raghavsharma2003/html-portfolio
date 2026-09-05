@@ -939,6 +939,14 @@ function doorsPatterns(state) {
       r.default_locale = loc;
       return [{ ...r }];
     }
+    // WS-R75 (migration 119). `setRoomFreeCap`'s own shape one column over.
+    if (has("set dormancy_days = ($3)::int4")) {
+      const [ownerUserId, replicaId, days] = params;
+      const r = state.rooms.find((x) => x.owner_user_id === String(ownerUserId) && x.replica_id === String(replicaId));
+      if (!r) return [];
+      r.dormancy_days = days == null ? null : Number(days);
+      return [{ ...r }];
+    }
 
     // ── WS-R51: org.js's create/invite/accept/detach_room/board/
     //    start_subscription/update_seats/room_status — the remaining

@@ -6,6 +6,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
 import { sweep } from "./_renewals.js";
+// WS-R75 (migration 119). "The daily sweep (WS-R37's own cron) gains two
+// statements" — this workstream's own law 2 — folded into THIS handler
+// rather than a second cron entry: `dormancySweep` runs alongside, never
+// instead of, the renewal work below, and both summaries land in the SAME
+// "renewals" vy_sweep_run row (`dormancyThisWeek`, api/_dormancy.js, reads
+// that row's own 7-day history rather than a dedicated ledger).
+import { dormancySweep } from "./_dormancy.js";
 import { withSweepRun } from "./_sweep-run.js";
 
 // A network call per due row across up to three channels, so this needs
@@ -27,7 +34,18 @@ export default async function handler(req, res) {
     // WS-R21: the ops board's heartbeat (migration 084), `api/checkins-
     // sweep.js`'s own call shape. `fetch` is required, explicitly, by the
     // web push deliverer - never a fallback to a global on its own.
-    const summary = await withSweepRun(q, "renewals", () => sweep({ db: q, env: process.env, fetch: globalThis.fetch }, Date.now()));
+    const summary = await withSweepRun(q, "renewals", async () => {
+      const runAt = Date.now();
+      const deps = { db: q, env: process.env, fetch: globalThis.fetch };
+      const renewals = await sweep(deps, runAt);
+      // WS-R75: the dormancy sweep is gated on its own env var
+      // (`ROOM_DORMANCY`), never on this cron existing — with the flag off
+      // it returns `{dormancyDisabled: true, ...zeros}` and runs neither of
+      // its two statements, so a database with migration 119 unapplied or
+      // the flag off pays no extra cost here at all.
+      const dormancy = await dormancySweep(deps, runAt);
+      return { ...renewals, ...dormancy };
+    });
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;

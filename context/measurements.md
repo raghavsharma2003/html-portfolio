@@ -11317,3 +11317,47 @@ n = 10 (one synthetic payload per version, chosen by string length to land exact
 | 10 | 0 | 181 |
 
 This run followed the fix for `rejected.md#ws-r78-reversed-rs-generator-polynomial-passed-every-self-check` and `#ws-r78-format-info-msb-first-was-unscannable`; the identical spread, run BEFORE either fix, decoded 0 of 10. Not measured: a real phone camera (no camera available in this sandboxed environment) — `jsqr` is a real, independent, actively-maintained decoder library, but it is still software, not a lived scan; see this workstream's own final report for the honest statement of what remains unproven.
+
+## `ws-r75-dormancy-offline-batteries-2026-09-05`
+
+n and method, all offline, deterministic, $0, no NEON_URL in this
+environment (date 2026-09-05):
+
+| suite | result | what it drives |
+|---|---|---|
+| `evals/room-dormancy/run.mjs` (new) | 37/37 | the REAL `dormancyNoticeDue`/`dormancyForgetDue`/`dormancySweep` (`api/_dormancy.js`) and the REAL `roomForgetForFollower` (`api/_room-surface.js`) over a fake db; two negative controls (a forget with no prior notice is structurally unreachable; a follower who visited after their notice is never forgotten even with the notice column left uncleared) |
+| `evals/room-leak/run.mjs` (layer 11 added) | 207/207, 336,307 retrieval row-scenario checks, 535 boundary checks (was 530 before this workstream, +5: dormancy's own layer 11) | a forget in one Room, driven by that Room's own policy, never touches another Room's own follower row, display name, or receipt; NEGATIVE CONTROL (a struck forget-due predicate that ignores the grace window and last-visit check) DOES sweep up the other Room's follower, proving the real predicate is load-bearing |
+| `evals/room-doors/run.mjs` | 551/551 (113 e-owner-bearer checks on room-publish.js, was ~108 before, +5: `set_dormancy_days`) | a different owner's bearer cannot write another owner's `dormancy_days`; a value below the floor is refused by name (`room_dormancy_days_invalid`), never a raw constraint 500; `null` turns the policy back off |
+| `evals/room-export/run.mjs` | 46/46 (+1: dormancy_notice_at coverage) | `dormancy_notice_at` rides `vy_room_follower`'s own row through the EXISTING generic `select *` `roomScopedTables()` loop already runs - no code change needed to carry it, only a fixture proving it |
+| `evals/ops/run.mjs` | 125/125 (+1: dormancy honest-empty-state) | `dormancyThisWeek` floors both counts to null with no dormancy sweep runs seeded, `below_floor: true`, `enabled: false` when `ROOM_DORMANCY` is unset - the SAME honest-empty-state law every other ops-board card in this suite already proves |
+| `node evals/run.mjs` (every registered suite, including the six above) | exit 0, all suites pass | the full offline battery, `room-dormancy` registered as the last entry |
+
+**The release gate**, `node scripts/verify-release.mjs`, twice, in this heavily
+concurrent wave-thirteen environment (many sibling worktrees' own gates
+running at the same time, all binding the same fixed ports 127.0.0.1:8931-
+8935):
+
+- **Untouched tree** (a separate `git worktree` at the base commit `8b154f8`,
+  never this workstream's own changes): **20/21**, one FAIL -
+  `accessibility`, `EADDRINUSE :8933` - a sibling worktree's own gate holding
+  the port at the moment this one ran, confirmed by three earlier attempts on
+  the SAME untouched tree that instead failed `layout readability`
+  (`EADDRINUSE :8931`) and/or `performance budgets` (`EADDRINUSE :8932`) -
+  different port, different check, every time, the signature of contention
+  rather than a real defect. Every one of `typecheck`/`eval suite`/`room leak
+  battery`/`room export completeness`/`room door battery`/`security headers`
+  passed on every attempt.
+- **This workstream's own tree**: see the workstream's final report for the
+  exact after-number and which check (if any) hit the identical port-
+  collision signature.
+
+**A real defect this workstream's own `node --check` caught before commit**:
+a SQL comment inside `joinRoom`'s ON CONFLICT UPDATE (`api/_room-surface.js`)
+used JS-style backticks around identifier names for readability
+(```` `dormancyForgetDue` ````, ```` `last_seen_at` ````) - the exact mistake
+`rejected.md#ws-r37-sql-comment-backticks-terminate-the-template-literal-a-
+third-time` already names, closing the JS template literal early and
+producing a `SyntaxError: missing ) after argument list` several hundred
+lines later at the next template literal. Caught immediately by
+`node --check api/_room-surface.js` before the first eval run, fixed by
+removing the backticks from the SQL comment.

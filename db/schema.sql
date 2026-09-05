@@ -4326,6 +4326,24 @@ create unique index if not exists vy_creator_weekly_push_room_week_ix
   on vy_creator_weekly_push (room_id, week_start);
 create index if not exists vy_creator_weekly_push_room_sent_ix
   on vy_creator_weekly_push (room_id, sent_at desc);
+-- Migration 119 - dormancy (WS-R75). No new person table - both columns
+-- ride an existing person-lane row. See the migration file's own header.
+alter table vy_room add column if not exists dormancy_days integer;
+
+alter table vy_room drop constraint if exists vy_room_dormancy_days_floor;
+alter table vy_room add constraint vy_room_dormancy_days_floor
+  check (dormancy_days is null or dormancy_days >= 180);
+
+alter table vy_room_follower add column if not exists dormancy_notice_at timestamptz;
+
+create index if not exists vy_room_follower_dormancy_due_ix
+  on vy_room_follower (room_id, last_seen_at)
+  where dormancy_notice_at is null;
+
+create index if not exists vy_room_follower_dormancy_notice_ix
+  on vy_room_follower (dormancy_notice_at)
+  where dormancy_notice_at is not null;
+
 -- Migration 120 - the self-check cron needs one more incident kind
 -- (WS-R76). See db/migrations/120_incident_self_check.sql for the full
 -- argument: the 109 block above named five kinds; this widens the same

@@ -304,9 +304,19 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // refused the workstream's `r.locale` (no such column on `vy_room`; the
   // fake db could not know). The row is delivered back to THAT SAME follower
   // and to nobody else, `_checkins.js`'s own admission shape above.
+  // WS-R75 (migration 119): `api/_dormancy.js`'s two statements
+  // (`dormancyNoticeDue`'s UPDATE, `dormancyForgetDue`'s SELECT) each read
+  // several of a follower's own columns (follower_id, person_id, agent_id,
+  // locale) - a real per-row read, not an aggregate, so it does not fit
+  // AGGREGATE_ONLY's shape. Admitted here instead, `_renewals.js`'s own
+  // admission one line up restated for the identical reason: neither
+  // statement is creator-facing - both act ON that same follower's own row
+  // (marking their own notice, or handing their own scope to the REAL
+  // `roomForgetForFollower`) and deliver nothing back to the creator or to
+  // any other follower.
   const ALLOWED = new Set([
     "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
-    "_renewals.js",
+    "_renewals.js", "_dormancy.js",
   ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
@@ -1825,6 +1835,129 @@ console.log("\n── layer 11: the creator's weekly push (Pulse headline can ne
   boundaryChecks++;
   ok("NEGATIVE CONTROL: a headline argument carrying the follower's raw token DOES leak into the payload - proving the scanner above is not vacuous",
     leakedTokens(leakyPayload, [FOLLOWER_TOKEN]).length > 0);
+}
+
+// ═══════════════════════════════════════
+// LAYER 12 (WS-R75, migration 119) — DORMANCY. The sweep runs across every
+// Room at once (`dormancySweep`, api/_dormancy.js) — the mirror image of
+// every layer above one more time: a forget in ONE Room, triggered by that
+// Room's own policy and that Room's own follower's own silence, must never
+// touch another Room's follower, whatever that second Room's own policy is.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 12: dormancy (a forget in one Room touches no other) ──");
+{
+  const { dormancySweep } = await import(pathToFileURL(join(REPO, "api/_dormancy.js")).href);
+  const DAY = 86_400_000;
+  const NOW11 = Date.parse("2026-09-05T00:00:00.000Z");
+  const iso = (daysAgo) => new Date(NOW11 - daysAgo * DAY).toISOString();
+
+  const ROOM_A11 = "e1000000-0000-4000-8000-000000000001"; // dormancy_days=365, follower overdue
+  const ROOM_B11 = "e2000000-0000-4000-8000-000000000002"; // dormancy_days=200, follower NOT due (visited recently)
+  const AGENT_A11 = "e1000000-0000-4000-8000-0000000000a1";
+  const AGENT_B11 = "e2000000-0000-4000-8000-0000000000b1";
+  const PERSON_A11 = "e1000000-0000-4000-8000-0000000000f1";
+  const PERSON_B11 = "e2000000-0000-4000-8000-0000000000f1";
+  const B11_TOKEN = "TOKROOMB_dormancy_isolation_probe_zzzzzzzz";
+
+  const state11 = {
+    rooms: [
+      { room_id: ROOM_A11, slug: "roomA11", display_name: "Room A", dormancy_days: 365 },
+      { room_id: ROOM_B11, slug: "roomB11", display_name: B11_TOKEN, dormancy_days: 200 },
+    ],
+    followers: [
+      // Room A: noticed 40 days ago, no visit since - due to be forgotten.
+      { follower_id: "aa110000-0000-4000-8000-000000000001", room_id: ROOM_A11, person_id: PERSON_A11,
+        agent_id: AGENT_A11, locale: "en", age_attested_at: iso(500), last_seen_at: iso(500), dormancy_notice_at: iso(40) },
+      // Room B: also has a policy, but visited YESTERDAY - nowhere near due.
+      { follower_id: "bb220000-0000-4000-8000-000000000001", room_id: ROOM_B11, person_id: PERSON_B11,
+        agent_id: AGENT_B11, locale: "en", age_attested_at: iso(500), last_seen_at: iso(1), dormancy_notice_at: null },
+    ],
+    receipts: [],
+  };
+
+  const db11 = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const p = (params || []).map((v) => (v == null ? null : String(v)));
+    if (has("update vy_room_follower f") && has("set dormancy_notice_at")) {
+      const [nowIso] = p;
+      const out = [];
+      for (const f of state11.followers) {
+        if (f.dormancy_notice_at != null) continue;
+        const room = state11.rooms.find((r) => r.room_id === f.room_id);
+        if (!room || room.dormancy_days == null) continue;
+        const threshold = new Date(nowIso).getTime() - (room.dormancy_days - 30) * DAY;
+        if (new Date(f.last_seen_at).getTime() >= threshold) continue;
+        f.dormancy_notice_at = nowIso;
+        out.push({ follower_id: f.follower_id, room_id: f.room_id, person_id: f.person_id, agent_id: f.agent_id, locale: f.locale, slug: room.slug, display_name: room.display_name });
+      }
+      return out;
+    }
+    if (has("select f.follower_id") && has("f.dormancy_notice_at is not null")) {
+      const [nowIso] = p;
+      const graceFloor = new Date(nowIso).getTime() - 30 * DAY;
+      return state11.followers
+        .filter((f) => f.dormancy_notice_at != null && new Date(f.dormancy_notice_at).getTime() < graceFloor
+          && new Date(f.last_seen_at).getTime() <= new Date(f.dormancy_notice_at).getTime())
+        .map((f) => ({ follower_id: f.follower_id, room_id: f.room_id, person_id: f.person_id, agent_id: f.agent_id, locale: f.locale,
+          slug: state11.rooms.find((r) => r.room_id === f.room_id)?.slug }));
+    }
+    if (has("select t.thread_id from vy_room_thread")) return [];
+    if (has("delete from vy_room_thread")) return [];
+    if (has("insert into meera_consent")) return [];
+    if (has("from vy_room_push_subscription") && has("revoked_at is null")) return [];
+    if (has("from vy_room_follower_channel") && has("channel = 'telegram'")) return [];
+    if (has("delete from vy_room_follower")) {
+      const [roomId, personId] = p;
+      const before = state11.followers.length;
+      state11.followers = state11.followers.filter((f) => !(f.room_id === roomId && f.person_id === personId));
+      return before !== state11.followers.length ? [{ gone: 1 }] : [];
+    }
+    if (has("insert into vy_room_forget_receipt")) {
+      state11.receipts.push({ room_id: params[1] });
+      return [];
+    }
+    throw new Error(`layer 12 fake db: unmatched SQL: ${sql}`);
+  };
+
+  const summary11 = await dormancySweep(
+    { db: db11, env: { ROOM_DORMANCY: "1" }, tableApplied: async (n) => n === "vy_room_forget_receipt", personTables: async () => [] },
+    NOW11,
+  );
+  boundaryChecks++;
+  ok("dormancy: exactly one follower forgotten this sweep (Room A's own, overdue one)", summary11.dormancyForgotten === 1, JSON.stringify(summary11));
+  boundaryChecks++;
+  ok("dormancy: Room A's overdue follower is GONE", !state11.followers.some((f) => f.person_id === PERSON_A11));
+  boundaryChecks++;
+  ok("dormancy: Room B's own follower row is BYTE-IDENTICAL — untouched by a forget that ran in a different Room in the same sweep",
+    state11.followers.some((f) => f.person_id === PERSON_B11 && f.last_seen_at === iso(1) && f.dormancy_notice_at === null));
+  boundaryChecks++;
+  ok("dormancy: Room B's own display name (planted as a token) never appears anywhere in the sweep's own summary",
+    leakedTokens(JSON.stringify(summary11), [B11_TOKEN]).length === 0);
+  boundaryChecks++;
+  ok("dormancy: the receipt written names Room A, never Room B",
+    state11.receipts.length === 1 && state11.receipts[0].room_id === ROOM_A11);
+
+  // NEGATIVE CONTROL — MUST FAIL. A struck forget-due predicate that ignores
+  // room_id entirely proves the real one above is load-bearing, not vacuous.
+  const struckDb11 = async (sql, params) => {
+    if (sql.includes("select f.follower_id") && sql.includes("f.dormancy_notice_at is not null")) {
+      // Every noticed follower, ANY room, ignoring the grace window AND the
+      // last-visit check — deliberately wrong, to prove the real predicate
+      // is what keeps Room B's untouched follower out.
+      return state11.followers
+        .filter((f) => true) // eslint-disable-line no-constant-condition
+        .map((f) => ({ follower_id: f.follower_id, room_id: f.room_id, person_id: f.person_id, agent_id: f.agent_id, locale: f.locale,
+          slug: state11.rooms.find((r) => r.room_id === f.room_id)?.slug }));
+    }
+    return db11(sql, params);
+  };
+  const struckSummary = await dormancySweep(
+    { db: struckDb11, env: { ROOM_DORMANCY: "1" }, tableApplied: async (n) => n === "vy_room_forget_receipt", personTables: async () => [] },
+    NOW11,
+  );
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: with the forget-due predicate struck to ignore the grace window and last-visit check, Room B's own follower IS swept up too - proving the real predicate above is load-bearing, not vacuous",
+    struckSummary.dormancyForgotten >= 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -8392,6 +8392,48 @@
       "kind": "component",
       "title": "api/_qr.js: a pure QR encoder (byte mode, EC level M, versions 1-10) with no third-party runtime, feeding api/_room-card.js's new poster kind.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-dormancy-forget-predicate-is-self-contained",
+      "kind": "decision",
+      "title": "The dormancy forget predicate (api/_dormancy.js) compares last_seen_at against dormancy_notice_at directly rather than relying on a cleared notice column as its safety mechanism; joinRoom still clears the column as a UX convenience only.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-dormancy-sweep-folded-into-renewals-cron",
+      "kind": "decision",
+      "title": "dormancySweep runs from api/renewals-sweep.js alongside WS-R37s own sweep, both summaries in the SAME vy_sweep_run row (sweep=renewals) rather than a new vercel.json crons entry or a new ledger table.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-dormancy-whatsapp-channel-left-inert",
+      "kind": "decision",
+      "title": "dormancySweep never calls sendTemplate: no dormancy-specific WhatsApp template is approved (only vyakti_checkin_v1 exists), so the channel stays structurally present and inert rather than inventing an unapproved template that would 400 at Meta.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-dormancy-offline-batteries-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-dormancy 37/37, room-leak layer 11 +5 boundary checks (535 total), room-doors +5 e-owner-bearer checks (551 total), room-export +1, ops +1 (125 total); full evals/run.mjs exit 0; baseline (untouched tree) 20/21 with the sole FAIL an EADDRINUSE port collision, reproduced on three separate ports across four attempts.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-web-push-type-switch-drops-every-non-checkin-payload",
+      "kind": "rejection",
+      "title": "public/room-sw.js only shows a notification for t===\"checkin\"; WS-R37s own renewal push (t:\"renewal\") is already silently discarded on arrival, and a planned dormancy push would meet the identical fate, so this workstream deliberately did not send one.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-sql-comment-backticks-terminate-the-template-literal-a-fourth-time",
+      "kind": "rejection",
+      "title": "A SQL comment inside joinRooms ON CONFLICT UPDATE used JS backticks around identifier names, closing the template literal early - the same defect ws-r37-sql-comment-backticks-terminate-the-template-literal-a-third-time already named, a fourth time, caught immediately by node --check.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r75-dormancy",
+      "kind": "component",
+      "title": "Dormancy (migration 119): vy_room.dormancy_days (owner policy, off by default) and vy_room_follower.dormancy_notice_at, no new person table. api/_dormancy.js holds the two sweep statements and dormancySweep, folded into WS-R37s daily cron behind ROOM_DORMANCY; forgetting goes through the real roomForgetForFollower. api/_room-publish.js set_dormancy_days is the owner control; the followers account page and the studio both render it.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16534,6 +16576,46 @@
       "src": "ws-r78-qr-encoder",
       "rel": "part_of",
       "dst": "ws-r55-room-card-pure-layout"
+    },
+    {
+      "src": "ws-r75-dormancy-offline-batteries-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r75-dormancy-forget-predicate-is-self-contained"
+    },
+    {
+      "src": "ws-r75-dormancy-sweep-folded-into-renewals-cron",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r75-sql-comment-backticks-terminate-the-template-literal-a-fourth-time",
+      "rel": "supersedes",
+      "dst": "ws-r37-sql-comment-backticks-terminate-the-template-literal-a-third-time"
+    },
+    {
+      "src": "ws-r75-dormancy-forget-predicate-is-self-contained",
+      "rel": "part_of",
+      "dst": "ws-r75-dormancy"
+    },
+    {
+      "src": "ws-r75-dormancy-sweep-folded-into-renewals-cron",
+      "rel": "part_of",
+      "dst": "ws-r75-dormancy"
+    },
+    {
+      "src": "ws-r75-dormancy-whatsapp-channel-left-inert",
+      "rel": "part_of",
+      "dst": "ws-r75-dormancy"
+    },
+    {
+      "src": "ws-r75-web-push-type-switch-drops-every-non-checkin-payload",
+      "rel": "caused_by",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r75-dormancy-offline-batteries-2026-09-05",
+      "rel": "part_of",
+      "dst": "ws-r75-dormancy"
     }
   ]
 }

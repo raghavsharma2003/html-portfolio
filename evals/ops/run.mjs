@@ -279,6 +279,28 @@ function opsDb(state) {
         .map((door) => ({ door }));
     }
 
+    // ── WS-R75 (migration 119): dormancyThisWeek's own rolling 7-day sum,
+    //    read off vy_sweep_run's own counts history rather than a dedicated
+    //    ledger (api/_dormancy.js's own header names the reason). ──────────
+    if (has("from vy_sweep_run") && has("dormancyNoticesSent")) {
+      const [sinceIso] = p;
+      let notices = 0;
+      let forgotten = 0;
+      for (const r of state.sweepRuns) {
+        if (r.sweep !== "renewals") continue;
+        if (sinceIso && r.started_at < sinceIso) continue;
+        let counts = {};
+        try {
+          counts = typeof r.counts === "string" ? JSON.parse(r.counts) : (r.counts || {});
+        } catch {
+          counts = {};
+        }
+        notices += Number(counts.dormancyNoticesSent || 0);
+        forgotten += Number(counts.dormancyForgotten || 0);
+      }
+      return [{ notices, forgotten }];
+    }
+
     return base(sql, params);
   };
 }
@@ -593,6 +615,13 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
   ok("push.configured is honestly false when VAPID is unset in this environment",
     overview.push.configured === false && overview.push.vapid_public === null,
     JSON.stringify(overview.push));
+
+  // WS-R75 (migration 119): no sweep run has ever carried a dormancy count
+  // in this fixture, so both numbers are honestly floored to null, not a
+  // fake zero pretending the sweep ran.
+  ok("dormancy.notices/forgotten are floored to null with no dormancy counts seeded (below the n>=5 floor)",
+    overview.dormancy.notices === null && overview.dormancy.forgotten === null && overview.dormancy.below_floor === true,
+    JSON.stringify(overview.dormancy));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

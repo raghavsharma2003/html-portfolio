@@ -592,6 +592,15 @@ interface RoomStudioCopy {
   noticePrice: string; // "Followers now pay {label} a month."
   noticeTierStarted: string;
   noticeTierCancel: string;
+  // WS-R75 (migration 119). Retention: off by default, an integer floor
+  // when on.
+  dormancyTitle: string;
+  dormancyIntro: string;
+  dormancyFloorNote: string; // "Minimum {n} days."
+  dormancyOff: string;
+  dormancyDaysAriaLabel: string;
+  noticeDormancyOn: string; // "Kept for {n} days after a follower's last visit."
+  noticeDormancyOff: string;
 }
 
 // ── videoLinkMount: VideoLinkMount.tsx (WS-R61) ────────────────────────────
@@ -1538,6 +1547,15 @@ const EN: StudioCopy = {
     noticePrice: "Followers now pay {label} a month.",
     noticeTierStarted: "Your tier subscription has started.",
     noticeTierCancel: "Will not renew after the current period ends.",
+    dormancyTitle: "Keep for a limited time",
+    dormancyIntro:
+      "Off by default: a follower's own conversation is kept forever, exactly as it is today. Turn this on " +
+      "and a quiet follower gets a plain notice before anything is forgotten, with time to return first.",
+    dormancyFloorNote: "Minimum {n} days.",
+    dormancyOff: "Off - keep forever",
+    dormancyDaysAriaLabel: "Days of inactivity before a follower is forgotten",
+    noticeDormancyOn: "A quiet follower is forgotten {n} days after their last visit, with a notice first.",
+    noticeDormancyOff: "Turned off. Every follower's conversation is kept forever again.",
   },
 
   videoLinkMount: {
@@ -2503,6 +2521,15 @@ const HI: StudioCopy = {
     noticePrice: "फॉलोअर्स अब महीने में {label} देते हैं।",
     noticeTierStarted: "आपकी टियर सदस्यता शुरू हो गई है।",
     noticeTierCancel: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
+    dormancyTitle: "सीमित समय के लिए रखें",
+    dormancyIntro:
+      "डिफ़ॉल्ट रूप से बंद: फॉलोअर की बातचीत हमेशा के लिए रखी जाती है, ठीक वैसे ही जैसे आज है। इसे चालू करें और " +
+      "किसी शांत फॉलोअर को कुछ भी भुलाए जाने से पहले एक साफ़ सूचना मिलती है, लौटने का समय देकर।",
+    dormancyFloorNote: "कम से कम {n} दिन।",
+    dormancyOff: "बंद - हमेशा रखें",
+    dormancyDaysAriaLabel: "फॉलोअर को भुलाए जाने से पहले निष्क्रियता के दिन",
+    noticeDormancyOn: "किसी शांत फॉलोअर को उनकी आख़िरी विज़िट के {n} दिन बाद, पहले सूचना देकर भुला दिया जाता है।",
+    noticeDormancyOff: "बंद कर दिया गया। हर फॉलोअर की बातचीत फिर से हमेशा के लिए रखी जाएगी।",
   },
 
   videoLinkMount: {
