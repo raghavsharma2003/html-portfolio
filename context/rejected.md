@@ -10950,3 +10950,30 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r89-consolidate-sweep-secret-in-query-or-body-found-out-of-scope` (2026-09-05, found, not fixed)
+
+**Found, not fixed — a genuine defect, out of this workstream's scope.** Reading every cron-secret-gated endpoint in `api/` for WS-R89's class-e ("cron doors: the secret in a query string or a body is refused; a constant-time compare is asserted by reading the door's source") found ONE real violation among fifteen: `api/consolidate-sweep.js`'s `authorized(req)`:
+
+```js
+function authorized(req) {
+  const auth = req.headers.authorization || "";
+  if (CRON_SECRET && auth === `Bearer ${CRON_SECRET}`) return true;
+  const provided =
+    req.headers["x-sweep-secret"] ||
+    (req.method === "GET" ? req.query?.secret : req.body?.secret) ||
+    "";
+  if (SWEEP_SECRET && provided === SWEEP_SECRET) return true;
+  return false;
+}
+```
+
+Two real defects: (1) the `SWEEP_SECRET` fallback accepts `req.query.secret` (GET) or `req.body.secret` (POST) — a secret in a query string is logged by proxies, CDNs and browser history, exactly the leak class every OTHER cron door in this repo refuses by design; (2) the `SWEEP_SECRET` comparison uses plain `===`, not `timingSafeEqual` — every other cron door's comparison is constant-time.
+
+**Why not fixed here.** `api/consolidate-sweep.js` is Meera's own memory-consolidation surface (`meera_log`/`vy_episode`), not Room-scoped — the SAME "not Room-scoped, carries its own surface" rule `ws-r38-door-list-completeness-rule` already uses to exclude `api/export.js`/`api/memory.js` from the door battery's main door list applies here, and this door battery has never owned Meera's own surfaces. `evals/consolidation/run.mjs` (the file's own dedicated suite) carries zero assertions about `authorized()` today, confirmed by grep — this is a real, previously-undiscovered gap with no test coverage anywhere, not merely undiscovered by this battery.
+
+**What would fix it.** Drop the `req.query?.secret`/`req.body?.secret` fallback entirely (keep the `x-sweep-secret` HEADER fallback — a legitimate second admin-trigger mechanism the file's own doc comment names), and switch the `SWEEP_SECRET` comparison to `timingSafeEqual` with a length guard, `api/checkins-sweep.js`'s own shape. Queued as a follow-up task for whoever owns Meera's own surfaces next (`mcp__ccd_session__spawn_task`, attempted twice this session, both calls timed out after 60s without confirming queued — if no task appears in the owner's queue, this paragraph is the fallback record of the finding).
+
+## `ws-r89-consolidate-sweep-fixture-not-built-out-of-scope` (2026-09-05, considered)
+
+**Considered, not built.** Fixing `api/consolidate-sweep.js` (see the entry above) would also need a new fixture and real test cases in `evals/consolidation/run.mjs` for `authorized()` — none exist today. Building that fixture was scoped OUT along with the fix itself, for the identical reason: it is Meera's own surface, this workstream's brief names Vyakti Rooms doors only, and a door battery that reached into Meera's own dedicated suite to add coverage there would be scope creep this repo's own precedent (`ws-r38-door-list-completeness-rule`'s own rationale) argues against.
