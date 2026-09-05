@@ -302,25 +302,28 @@ console.log("\n── 3. the arrival upsert: one statement, count increments ─
 
   // WS-R59 added 'install' to this allowlist without a migration in the
   // SAME commit, leaving a deliberate asymmetry the main loop closed with
-  // migration 113 at that merge. WS-R78 (this workstream) did not repeat
-  // that asymmetry: its own brief's law 1 is "add `poster` to
-  // ROOM_ARRIVAL_VIA AND widen migration 113's CHECK ... never one
-  // without the other", so migration 121 ships in this same commit. Two
-  // assertions rather than a loosened one: the full six-value JS
-  // allowlist is asserted directly, AND it is cross-checked against
-  // migration 121's own SQL text (parsed, not retyped) so the two can
-  // never drift the way 102 and the JS-only 'install' briefly did.
-  ok("ROOM_ARRIVAL_VIA is exactly the six named values, nothing more, nothing fewer",
+  // migration 113 at that merge. WS-R78 did not repeat that asymmetry: its
+  // own brief's law 1 was "add `poster` to ROOM_ARRIVAL_VIA AND widen
+  // migration 113's CHECK ... never one without the other", so migration
+  // 121 shipped in that same commit. WS-R85 (this workstream) restates the
+  // identical law a third time for its own four channels (whatsapp/
+  // instagram/youtube/telegram, migration 122): two assertions rather than
+  // a loosened one, the full TEN-value JS allowlist asserted directly, AND
+  // cross-checked against migration 122's own SQL text (parsed, not
+  // retyped, migration 122's own comment names it as the constraint
+  // migration 113 first named, superseding 121) so the two can never drift
+  // the way 102 and the JS-only 'install' briefly did.
+  ok("ROOM_ARRIVAL_VIA is exactly the ten named values, nothing more, nothing fewer",
     JSON.stringify([...ROOM_ARRIVAL_VIA].sort()) ===
-      JSON.stringify(["direct", "embed", "install", "poster", "search", "share"]));
-  const migration121Src = readFileSync(join(REPO, "db/migrations/121_room_arrival_via_poster.sql"), "utf8");
-  const checkMatch = migration121Src.match(/check \(via in \(([^)]+)\)\)/);
-  const migration121Values = checkMatch
+      JSON.stringify(["direct", "embed", "instagram", "install", "poster", "search", "share", "telegram", "whatsapp", "youtube"]));
+  const migration122Src = readFileSync(join(REPO, "db/migrations/122_room_arrival_via_share_kit.sql"), "utf8");
+  const checkMatch = migration122Src.match(/check \(via in \(([^)]+)\)\)/);
+  const migration122Values = checkMatch
     ? checkMatch[1].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).sort()
     : [];
-  ok("migration 121's own CHECK constraint names exactly the same six values as ROOM_ARRIVAL_VIA",
-    JSON.stringify(migration121Values) === JSON.stringify([...ROOM_ARRIVAL_VIA].sort()),
-    JSON.stringify(migration121Values));
+  ok("migration 122's own CHECK constraint names exactly the same ten values as ROOM_ARRIVAL_VIA",
+    JSON.stringify(migration122Values) === JSON.stringify([...ROOM_ARRIVAL_VIA].sort()),
+    JSON.stringify(migration122Values));
   ok("every named value round-trips through resolveArrivalVia unchanged",
     ROOM_ARRIVAL_VIA.every((v) => resolveArrivalVia(v) === v));
   ok("an unrecognised value becomes 'direct'", resolveArrivalVia("newsletter") === "direct");

@@ -602,6 +602,18 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
     overview.poster_arrivals_this_week.n === null && overview.poster_arrivals_this_week.below_floor === true,
     JSON.stringify(overview.poster_arrivals_this_week));
 
+  // WS-R85 (migration 122): the identical honest-empty-state posture, four
+  // `via` values over - `shareKitArrivalsThisWeek` is gated on the SAME
+  // `vy_room_arrival` table (migration 102), which this fixture also does
+  // not carry, so all four channels report the honest not-enough-data
+  // shape rather than a query the fixture db has no table to answer.
+  ok("share_kit_arrivals_this_week reports the honest not-enough-data shape on all four channels when migration 102 is unapplied",
+    Object.values(overview.share_kit_arrivals_this_week.channels).every((c) => c.n === null && c.below_floor === true),
+    JSON.stringify(overview.share_kit_arrivals_this_week));
+  ok("share_kit_arrivals_this_week names exactly whatsapp/instagram/youtube/telegram, nothing more, nothing fewer",
+    JSON.stringify(Object.keys(overview.share_kit_arrivals_this_week.channels).sort()) ===
+      JSON.stringify(["instagram", "telegram", "whatsapp", "youtube"]));
+
   // WS-R58 (migration 109): no incident has been seeded in this fixture -
   // law 3's own "none" honest empty state, not an omitted field.
   ok("LAW 3, honest empty state: no incidents seeded means an empty by_kind_door and no new kinds",

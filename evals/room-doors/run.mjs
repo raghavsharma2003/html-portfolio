@@ -1584,6 +1584,17 @@ console.log("\n── §16: the 27 preexisting-uncased owner-bearer ops (WS-R51)
   okClass("e-owner-bearer", "room-publish.js", "stats: the real owner's own read succeeds, real zeros never a null (the fixture is sound)", mine != null && mine.followers_total === 0);
 }
 
+// ── WS-R85 (migration 122): room-publish.js's share_kit ────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.ownerRoomShareKit(db, OWNER_B, REPLICA_ID, { origin: "https://vyakti-silk.vercel.app" });
+  okClass("e-owner-bearer", "room-publish.js", "share_kit: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never OWNER's kit", stolen == null);
+  const mine = await ROOM_PUBLISH.ownerRoomShareKit(db, OWNER, REPLICA_ID, { origin: "https://vyakti-silk.vercel.app" });
+  okClass("e-owner-bearer", "room-publish.js", "share_kit: the real owner's own read succeeds and returns a kit (the fixture's Room is already published, the fixture is sound)",
+    mine != null && Array.isArray(mine.kit) && mine.kit.length === 4);
+}
+
 // ── WS-R66: room-publish.js's showcase_set / showcase_remove (migration 115) ──
 {
   const state = freshDoorsState();
@@ -2180,6 +2191,8 @@ const OP_COVERAGE = {
     stats: { classes: ["e"] },
     showcase_set: { classes: ["e"] },
     showcase_remove: { classes: ["e"] },
+    // WS-R85 (migration 122).
+    share_kit: { classes: ["e"] },
   },
   "invites.js": {
     issue: { classes: ["e"] },
