@@ -1,9 +1,34 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// WS-R66. `/c/<slug>` (the creator's public page) is server-rendered HTML
+// with no client bundle at all — there is nothing for vite to compile the
+// way `room-layout-fixture.html` is a real entry. `scripts/check-headers.mjs`
+// and `scripts/check-performance.mjs` still need a real fixture file to
+// serve for it, built from the SHIPPING `buildCreatorPageHtml`
+// (`api/_creator-page.js`) rather than a hand-typed stand-in that could
+// drift. Generated here, in a `closeBundle` hook, rather than as its own
+// step in `scripts/verify-release.mjs`, so it exists by the time the single
+// "web build" gate finishes without adding a second named gate to that
+// count (`context/decisions.md#ws-r66-creator-page-fixture-generated-inside-the-web-build-gate`).
+function creatorPageFixturePlugin() {
+  return {
+    name: 'vyakti-creator-page-fixture',
+    apply: 'build' as const,
+    async closeBundle() {
+      // `./scripts/build-creator-page-fixture.d.mts` is the real type for
+      // this sibling .mjs script — a `.d.mts` file, not a cast or a
+      // suppression comment, so a real signature drift in that script still
+      // fails typecheck here rather than being silenced.
+      const { buildCreatorPageFixture } = await import('./scripts/build-creator-page-fixture.mjs')
+      await buildCreatorPageFixture()
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), creatorPageFixturePlugin()],
   build: {
     rollupOptions: {
       input: {

@@ -897,6 +897,23 @@ interface PersonModelStudioCopy {
   errorExtractionFailed: string;
 }
 
+// ── showcase: ShowcaseCard.tsx (WS-R66) ─────────────────────────────────────
+interface ShowcaseCopy {
+  title: string;
+  intro: string;
+  publishFirst: string;
+  slotLabel: string; // "Slot {n} of 5"
+  questionPlaceholder: string;
+  answerPlaceholder: string;
+  save: string;
+  saving: string;
+  remove: string;
+  removing: string;
+  removed: string;
+  saved: string;
+  copyViolation: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -920,6 +937,7 @@ interface StudioCopy {
   candidateEvaluationLab: CandidateEvaluationLabCopy;
   processingReview: ProcessingReviewCopy;
   personModelStudio: PersonModelStudioCopy;
+  showcase: ShowcaseCopy;
 }
 
 const EN: StudioCopy = {
@@ -1812,6 +1830,21 @@ const EN: StudioCopy = {
     errorBuildRefused: "Building what we learned about you was refused",
     errorApproveChanged: "Profile changed and could not be approved",
     errorExtractionFailed: "Cited claims could not be extracted",
+  },
+  showcase: {
+    title: "Show on your page",
+    intro: "Up to five questions and answers a stranger sees on your own public page before they ever join. Your own words, in your own order.",
+    publishFirst: "Publish your Room first, then you can show answers on your page.",
+    slotLabel: "Slot {n} of 5",
+    questionPlaceholder: "A question people actually ask",
+    answerPlaceholder: "Your answer, in your own words",
+    save: "Save",
+    saving: "Saving...",
+    remove: "Remove",
+    removing: "Removing...",
+    removed: "Removed from your page.",
+    saved: "Saved to your page.",
+    copyViolation: "That text is not allowed as written. Remove the dash or the flagged word and try again.",
   },
 };
 
@@ -2706,6 +2739,21 @@ const HI: StudioCopy = {
     errorBuildRefused: "हमने आपके बारे में जो सीखा उसे बनाना अस्वीकार हुआ",
     errorApproveChanged: "प्रोफ़ाइल बदल गई और मंज़ूर नहीं हो सकी",
     errorExtractionFailed: "उद्धृत दावे नहीं निकाले जा सके",
+  },
+  showcase: {
+    title: "अपने पेज पर दिखाएं",
+    intro: "पांच तक सवाल जवाब, जो कोई अजनबी जुड़ने से पहले आपके अपने पब्लिक पेज पर देखेगा। आपके अपने शब्द, आपके अपने क्रम में।",
+    publishFirst: "पहले अपना रूम पब्लिश करें, फिर आप अपने पेज पर जवाब दिखा सकते हैं।",
+    slotLabel: "स्लॉट {n}, कुल 5 में से",
+    questionPlaceholder: "एक सवाल जो लोग सच में पूछते हैं",
+    answerPlaceholder: "आपका जवाब, आपके अपने शब्दों में",
+    save: "सेव करें",
+    saving: "सेव हो रहा है...",
+    remove: "हटाएं",
+    removing: "हटाया जा रहा है...",
+    removed: "आपके पेज से हटा दिया गया।",
+    saved: "आपके पेज पर सेव हो गया।",
+    copyViolation: "यह टेक्स्ट ऐसे नहीं चल सकता। डैश हटाएं या जिस शब्द पर निशान लगा है उसे बदलें, फिर दोबारा कोशिश करें।",
   },
 };
 

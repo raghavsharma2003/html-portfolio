@@ -60,7 +60,13 @@ export async function buildSitemapXml(db, { origin }) {
   const entries = [
     urlEntry(`${origin}/`, null),
     urlEntry(`${origin}/creators`, null),
-    ...rows.map((r) => urlEntry(`${origin}/r/${r.slug}`, r.listed_at)),
+    // WS-R66. `/c/<slug>` sits beside `/r/<slug>` for every listed-and-
+    // published Room, the same `listed_at` lastmod: it is the crawlable
+    // content page for the identical Room the link right before it opens.
+    ...rows.flatMap((r) => [
+      urlEntry(`${origin}/r/${r.slug}`, r.listed_at),
+      urlEntry(`${origin}/c/${r.slug}`, r.listed_at),
+    ]),
   ];
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</urlset>\n`;

@@ -94,6 +94,31 @@ export function freshDoorsState() {
   state.orgs = [];
   state.erasureJobs = [];
   state.funnelMarks = [];
+  // WS-R66: the public-page showcase (`vy_room_showcase`) and the review
+  // cards it may copy text from (`vy_review_card`) — neither the base Room
+  // fixture nor this file's own `freshDoorsState` had any reason to carry
+  // before this workstream's `showcase_set`/`showcase_remove` cases needed
+  // them. One eligible card (kind 'question', state 'sounds_right') and one
+  // INELIGIBLE one (kind 'follower_declined', state 'sounds_right') so the
+  // door battery's own case can prove the WHERE clause, not just this
+  // workstream's own `evals/creator-page/run.mjs`, refuses the second.
+  state.roomShowcase = [];
+  state.reviewCards = [
+    {
+      card_id: "e1000000-0000-4000-8000-000000000001",
+      replica_id: REPLICA_ID, owner_user_id: OWNER,
+      kind: "question", state: "sounds_right",
+      prompt_text: "How do you explain projectile motion to a beginner?",
+      answer_text: "Split it into horizontal and vertical motion and treat them separately.",
+    },
+    {
+      card_id: "e2000000-0000-4000-8000-000000000002",
+      replica_id: REPLICA_ID, owner_user_id: OWNER,
+      kind: "follower_declined", state: "sounds_right",
+      prompt_text: "A real follower's own question, never showcase material",
+      answer_text: "A real follower's own words in this AI's reply to them",
+    },
+  ];
   return state;
 }
 
@@ -492,6 +517,54 @@ function doorsPatterns(state) {
       if (!r) return [];
       r.one_line_bio = bio;
       return [{ ...r }];
+    }
+
+    // ── WS-R66: api/_room-publish.js's showcase_set / showcase_remove ──────
+    // Read off the REAL SQL text those two functions send. The owner-scoped
+    // room handle they open with is already the generic "from vy_room" +
+    // "where owner_user_id = ($1)::uuid and replica_id = ($2)::uuid" pattern
+    // above; these four are their OWN statements, in the exact order
+    // `setRoomShowcase`/`removeRoomShowcase`/`readRoomShowcase` send them.
+    if (has("from vy_review_card") && has("kind <> 'follower_declined'")) {
+      const [cardId, ownerUserId, replicaId] = params.map(String);
+      const row = state.reviewCards.find(
+        (c) => c.card_id === cardId && c.owner_user_id === ownerUserId && c.replica_id === replicaId
+          && c.state === "sounds_right" && c.kind !== "follower_declined",
+      );
+      return row ? [{ prompt_text: row.prompt_text, answer_text: row.answer_text }] : [];
+    }
+    if (has("update vy_room_showcase") && has("set removed_at = now()") && has("position = ($2)::int")) {
+      const [roomId, position] = params;
+      for (const s of state.roomShowcase) {
+        if (s.room_id === String(roomId) && s.position === Number(position) && !s.removed_at) {
+          s.removed_at = new Date().toISOString();
+        }
+      }
+      return [];
+    }
+    if (has("insert into vy_room_showcase")) {
+      const [id, roomId, question, answer, position] = params;
+      state.roomShowcase.push({
+        id: String(id), room_id: String(roomId), question, answer,
+        position: Number(position), removed_at: null, created_at: new Date().toISOString(),
+      });
+      return [];
+    }
+    if (has("from vy_room_showcase") && has("order by position asc")) {
+      const [roomId] = params.map(String);
+      return state.roomShowcase
+        .filter((s) => s.room_id === roomId && !s.removed_at)
+        .sort((a, b) => a.position - b.position)
+        .map((s) => ({ id: s.id, question: s.question, answer: s.answer, position: s.position, created_at: s.created_at }));
+    }
+    if (has("update vy_room_showcase s") && has("from vy_room r")) {
+      const [ownerUserId, replicaId, id] = params.map(String);
+      const r = state.rooms.find((x) => x.owner_user_id === ownerUserId && x.replica_id === replicaId);
+      if (!r) return [];
+      const s = state.roomShowcase.find((x) => x.id === id && x.room_id === r.room_id && !x.removed_at);
+      if (!s) return [];
+      s.removed_at = new Date().toISOString();
+      return [{ room_id: s.room_id }];
     }
 
     // ── WS-R44: WS-R37's cancel lane (api/_renewals.js) ────────────────────

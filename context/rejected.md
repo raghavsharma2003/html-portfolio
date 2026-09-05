@@ -10047,3 +10047,44 @@ unbroken line rather than risk splitting it at the wrong point. The
 general fix from this file's neighboring entry still applies: run the full
 suite of evals that read the moved file's source, not only the two
 studio-locale/check-copy checks, before treating a Tier 2 move as done.
+
+## `ws-r66-comment-naming-a-table-broke-a-line-scoped-erasure-scan` (2026-09-05, WS-R66)
+
+**What was tried.** Adding a new `vy_room_showcase` delete block to
+`api/_replica-full-erasure.js`'s one big CTE statement, with an explanatory
+comment above it that named the two sibling tables immediately above it
+(`vy_room_arrival`/`vy_room_org_attachment`) by name, in backticks, to say
+"unlike these two content-free tables, this one gets its own deletedClasses
+entry."
+
+**What broke, twice, in two different ways.** First: the backticks
+themselves. This whole statement is ONE JS template literal (documented at
+the top of the file, and in `context/rejected.md`'s own git-commit-message
+entry for the identical failure mode one surface over) — a literal backtick
+anywhere inside it, even inside a SQL comment, closes the string early and
+corrupts every byte after it. `node evals/room-doors/run.mjs` failed with a
+raw `SyntaxError: missing ) after argument list` at import time, which is
+the honest way this class of bug announces itself: not a wrong answer, a
+file that will not parse. Fixed by removing the backticks and writing the
+table names as plain text instead.
+
+**Second, after removing the backticks:** `evals/room-leak/run.mjs`'s own
+`vy_room_arrival` static check (layer 1) asserts that EVERY LINE in
+`api/_replica-full-erasure.js` containing the literal substring
+`vy_room_arrival` matches `/delete from/i` — a line-scoped scan, not a
+statement-scoped one, built on the assumption that the only reason this
+file's text would ever name that table is to delete it. My comment, even
+with the backticks gone, still named `vy_room_arrival` in plain prose on a
+line that was not a delete — and the scan correctly, and loudly, failed:
+`FAIL the erasure job's only touch of vy_room_arrival is a delete`.
+
+**The fix, and the lesson.** Rewrote the comment to describe the two
+sibling tables generically ("the two content-free room-scoped tables
+immediately above") rather than naming either one. The lesson generalises
+beyond this one file: a line-scoped completeness scan (as opposed to a
+statement- or function-scoped one) treats EVERY occurrence of its target
+string as meaningful, comments included — a new comment added near an
+existing scanned table is not a safe, no-op addition, and the right check
+before adding prose near a table this file already manages is "does any
+gate scan this file's lines for this table's name," not just "does the SQL
+still parse."

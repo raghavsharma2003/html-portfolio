@@ -43,11 +43,24 @@ export interface RoomBlockers {
   waiting_on_us: RoomBlocker[];
 }
 
+/** WS-R66. One Q&A slot on the creator's own public page (`/c/<slug>`,
+ *  migration 115). `position` is 1..5 — the database's own ceiling, never a
+ *  limit this client merely promises to respect. */
+export interface RoomShowcaseItem {
+  id: string;
+  question: string;
+  answer: string;
+  position: number;
+}
+
 export interface RoomState {
   room: OwnedRoom | null;
   reason: string | null;
   can_publish?: boolean;
   blockers?: RoomBlockers;
+  // WS-R66. Fed on the same GET this state already comes from — no second
+  // round trip the Share tab has to remember to fire.
+  showcase?: RoomShowcaseItem[];
 }
 
 export interface RoomStats {
@@ -180,12 +193,49 @@ export async function readOwnedRoomStats(token: string, replicaId: string): Prom
   return data.stats;
 }
 
+/** Set one showcase slot (1..5): either typed/edited text (`question`/
+ *  `answer`) or a source review card's own id (`sourceCardId`) — never both
+ *  read as meaningful at once, `api/_room-publish.js`'s own precedence (a
+ *  card id, when present, wins). A card that is not `state: 'sounds_right'`
+ *  or whose `kind` is `'follower_declined'` is refused
+ *  (`room_showcase_card_ineligible`), never silently copied. */
+export async function setOwnedRoomShowcase(
+  token: string,
+  replicaId: string,
+  input: { position: number; question?: string; answer?: string; sourceCardId?: string },
+): Promise<RoomShowcaseItem[]> {
+  const data = await call<{ showcase: RoomShowcaseItem[] }>(token, {
+    op: "showcase_set",
+    replica_id: replicaId,
+    position: input.position,
+    question: input.question,
+    answer: input.answer,
+    source_card_id: input.sourceCardId,
+  });
+  return data.showcase;
+}
+
+/** Take one showcase item down. Unconditional, `unlistOwnedRoom`'s own
+ *  shape. */
+export async function removeOwnedRoomShowcase(token: string, replicaId: string, id: string): Promise<RoomShowcaseItem[]> {
+  const data = await call<{ showcase: RoomShowcaseItem[] }>(token, { op: "showcase_remove", replica_id: replicaId, id });
+  return data.showcase;
+}
+
 /** The follower-facing address. Built from the browser's own origin, so a
  *  preview deployment prints a link to itself rather than a hardcoded
  *  production one nobody previewing it can reach — `channelsApi.ts`'s
  *  `embedSnippet` reasoning, one surface over. */
 export function roomLink(slug: string, origin = window.location.origin): string {
   return `${origin}/r/${slug}`;
+}
+
+/** WS-R66. The creator's own public page — never shown unless the Room is
+ *  BOTH published and listed (`api/_creators.js`'s own predicate, restated
+ *  here as a link rather than re-checked), so a card printing this before
+ *  either is true would print a link that 404s as the platform's own name. */
+export function creatorPageLink(slug: string, origin = window.location.origin): string {
+  return `${origin}/c/${slug}`;
 }
 
 /** WS-R46. `channelsApi.ts`'s `embedSnippet` shape, one surface over: one

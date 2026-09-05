@@ -1559,6 +1559,46 @@ console.log("\n── §16: the 27 preexisting-uncased owner-bearer ops (WS-R51)
   okClass("e-owner-bearer", "room-publish.js", "stats: the real owner's own read succeeds, real zeros never a null (the fixture is sound)", mine != null && mine.followers_total === 0);
 }
 
+// ── WS-R66: room-publish.js's showcase_set / showcase_remove (migration 115) ──
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await ROOM_PUBLISH.setRoomShowcase(db, OWNER_B, REPLICA_ID, {
+    position: 1, question: "A stranger's question", answer: "A stranger's answer",
+  });
+  okClass("e-owner-bearer", "room-publish.js", "showcase_set: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never writes OWNER's showcase", stolen == null);
+  ok("[e-owner-bearer/room-publish.js] showcase_set: OWNER's own showcase is UNCHANGED by OWNER_B's attempt", state.roomShowcase.length === 0);
+  const mine = await ROOM_PUBLISH.setRoomShowcase(db, OWNER, REPLICA_ID, {
+    position: 1, question: "How do you explain projectile motion to a beginner?", answer: "Split it into horizontal and vertical motion.",
+  });
+  okClass("e-owner-bearer", "room-publish.js", "showcase_set: the real owner's own write succeeds (the fixture is sound)", mine?.showcase?.length === 1);
+
+  // WS-R66's own required negative control, cased here too so the door
+  // battery (not only `evals/creator-page/run.mjs`) proves the WHERE clause:
+  // a card whose kind is 'follower_declined' is refused even for the real
+  // owner, never silently copied.
+  let refused = false;
+  try {
+    await ROOM_PUBLISH.setRoomShowcase(db, OWNER, REPLICA_ID, {
+      position: 2, sourceCardId: "e2000000-0000-4000-8000-000000000002",
+    });
+  } catch (e) {
+    refused = e instanceof RoomPublishError && e.code === "room_showcase_card_ineligible";
+  }
+  ok("[e-owner-bearer/room-publish.js] showcase_set: a follower_declined-kind review card is refused, never copied", refused);
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  await ROOM_PUBLISH.setRoomShowcase(db, OWNER, REPLICA_ID, { position: 1, question: "Q", answer: "A" });
+  const itemId = state.roomShowcase[0].id;
+  const stolen = await ROOM_PUBLISH.removeRoomShowcase(db, OWNER_B, REPLICA_ID, itemId);
+  okClass("e-owner-bearer", "room-publish.js", "showcase_remove: a DIFFERENT owner's bearer against OWNER's own replica_id gets null, never removes OWNER's item", stolen == null);
+  ok("[e-owner-bearer/room-publish.js] showcase_remove: OWNER's own item is UNCHANGED by OWNER_B's attempt", state.roomShowcase[0].removed_at == null);
+  const mine = await ROOM_PUBLISH.removeRoomShowcase(db, OWNER, REPLICA_ID, itemId);
+  okClass("e-owner-bearer", "room-publish.js", "showcase_remove: the real owner's own removal succeeds (the fixture is sound)", mine?.showcase?.length === 0);
+}
+
 // ── invites.js: issue, list, revoke, erase (operator-only) ─────────────────
 // The security boundary for all four is `requireOperator`, checked at the
 // DOOR (api/invites.js), never inside the decision module — §11's own
@@ -2007,6 +2047,8 @@ const OP_COVERAGE = {
     list: { classes: ["e"] },
     unlist: { classes: ["e"] },
     stats: { classes: ["e"] },
+    showcase_set: { classes: ["e"] },
+    showcase_remove: { classes: ["e"] },
   },
   "invites.js": {
     issue: { classes: ["e"] },

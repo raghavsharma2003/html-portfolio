@@ -266,6 +266,12 @@ const TARGETS = [
   },
   { name: "/suites", path: "/suites", label: "Suites (site/suites.html)", pp: DENY_PP, checkExecuted: null },
   { name: "/creators", path: "/creators", label: "Creator directory (site/creators.html)", pp: DENY_PP, checkExecuted: null },
+  // WS-R66. Server-rendered, no client script at all beyond the exempt
+  // application/ld+json block (never gated by script-src in a compliant
+  // browser, since it is never executed as script) — the CSP under test is
+  // still the real `/c/:slug` rule from vercel.json, matched on the request
+  // path exactly as the Room's own row above is.
+  { name: "/c/:slug", path: "/c/anjali", label: "Creator public page (creator-page-fixture.html data)", pp: DENY_PP, checkExecuted: null },
 ];
 
 const MIME = {
@@ -290,6 +296,7 @@ async function resolveFile(pathname) {
   if (pathname === "/creators") return join(SITE, "creators.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
   if (pathname.startsWith("/r/")) return join(DIST, "room-layout-fixture.html");
+  if (pathname.startsWith("/c/")) return join(DIST, "creator-page-fixture.html");
   const rel = pathname.slice(1).replace(/^(\.\.(\/|\\|$))+/, "");
   const distPath = join(DIST, rel);
   if (existsSync(distPath)) return distPath;
@@ -334,7 +341,7 @@ function serveApp(rules) {
 // §1 driver
 // ═════════════════════════════════════════════════════════════════════════
 async function runHeaderChecks(rules) {
-  if (!existsSync(join(DIST, "room-layout-fixture.html")) || !existsSync(join(DIST, "studio.html"))) {
+  if (!existsSync(join(DIST, "room-layout-fixture.html")) || !existsSync(join(DIST, "studio.html")) || !existsSync(join(DIST, "creator-page-fixture.html"))) {
     console.log("  building (dist/ missing or incomplete) ...");
     execFileSync(process.execPath, [fileURLToPath(new URL("../node_modules/vite/bin/vite.js", import.meta.url)), "build"], {
       cwd: ROOT,

@@ -158,6 +158,10 @@ const { STUDIO_COPY_TABLE, STUDIO_LOCALES, normalizeStudioLocale } = await loadS
     // renders routes through `t.creatorPath`, the same law this whole list
     // enforces for every other Tier 1 file.
     "CreatorPath.tsx",
+    // WS-R66: the "Show on your page" showcase card - `InviteCreatorCard.tsx`'s
+    // own self-contained shape, one file over, converted from its first
+    // commit rather than left in Tier 2.
+    "ShowcaseCard.tsx",
     // WS-R52's own new file: the locale context/provider. No literal English
     // text of its own (it renders nothing; it hands `t` to whatever mounts
     // under it), so it clears the scan the same way an empty file would, but

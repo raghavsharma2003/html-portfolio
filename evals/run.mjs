@@ -2064,6 +2064,29 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-flags": "room-flags/run.mjs",
+  // WS-R66: the creator's public page (`/c/<slug>`, migration 115). Drives
+  // the REAL `api/_creator-page.js` (the listed-AND-published-AND-unpaused
+  // read, the pure HTML builder, the pure Person+FAQPage JSON-LD builder)
+  // and the REAL `api/_room-publish.js` (`setRoomShowcase`/
+  // `removeRoomShowcase`/`readRoomShowcase`) through a small hand-rolled
+  // fake db. THREE NEGATIVE CONTROLS, named in this workstream's own brief:
+  // (a) a review card whose `kind` is 'follower_declined' is refused as a
+  // showcase source, even when its `state` is 'sounds_right' - the WHERE
+  // clause `kind <> 'follower_declined'` is the column that tells a real
+  // follower's own words apart from creator material; (b) a sixth slot
+  // (`position = 6`) is refused before any SQL runs, and overwriting an
+  // occupied slot never yields six active rows (a fake-db 23505 proves the
+  // retiring UPDATE is not merely convention); (c) an unlisted Room's page
+  // is byte-identical to an unknown slug's. Also proves the em-dash/Rooms-
+  // vocabulary copy gate on showcase text via the REAL `scripts/
+  // check-copy.mjs` scanner, that `/sitemap.xml` carries `/c/<slug>` beside
+  // `/r/<slug>`, that `vercel.json` rewrites and headers `/c/:slug`, and a
+  // STATIC scan proving the showcase writer is reachable ONLY from the
+  // owner-authenticated `api/room-publish.js`, never any follower-facing
+  // file.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "creator-page": "creator-page/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

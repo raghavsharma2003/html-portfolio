@@ -1544,6 +1544,136 @@ console.log("\n── layer 9: flag this reply (WS-R67, migration 116) ──");
   rowChecks += 6;
 }
 
+// (WS-R66's showcase is layer 10; renumbered at the merge behind the taste, the world and the flags.)
+// LAYER 10 (WS-R66, migration 115) — THE CREATOR'S OWN PUBLIC-PAGE SHOWCASE.
+// The mirror image of every layer above: layers 1-6 prove a FOLLOWER's own
+// words can never reach the CREATOR's material or another follower. This
+// layer proves the opposite direction holds too — the creator's own public-
+// page WRITER (`setRoomShowcase`, api/_room-publish.js) can never surface a
+// FOLLOWER's own words, even though its one optional input
+// (`vy_review_card`) is a table that legitimately holds both kinds of text.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 10: showcase (the creator's own writer cannot surface a follower's words) ──");
+
+// (7a) STATIC. `setRoomShowcase`'s own source, read off the file rather than
+// retyped, `(1b)`'s technique restated a seventh way: a change to the
+// shipping predicate is a change this suite sees.
+{
+  const publishSrc = fs.readFileSync(join(REPO, "api/_room-publish.js"), "utf8");
+  const fnMatch = publishSrc.match(/export async function setRoomShowcase\([\s\S]*?\n}\n/);
+  ok("setRoomShowcase is found in api/_room-publish.js (not moved/renamed)", Boolean(fnMatch));
+  const body = fnMatch ? fnMatch[0] : "";
+  ok("setRoomShowcase's own eligible-card SELECT excludes kind='follower_declined' INSIDE its WHERE clause, not a JS check applied after the row is in hand",
+    body.includes("kind <> 'follower_declined'") && body.includes("state = 'sounds_right'"));
+  ok("that exclusion sits in the SAME statement as the state='sounds_right' gate (one WHERE, both conditions, migration 074's own two-part card model)",
+    /where[\s\S]{0,200}state = 'sounds_right'[\s\S]{0,60}kind <> 'follower_declined'|where[\s\S]{0,200}kind <> 'follower_declined'[\s\S]{0,60}state = 'sounds_right'/.test(body));
+
+  // Repo-wide: no follower-facing file ever calls the showcase writer — the
+  // same ALLOWED-set shape layer 6's own handoff check uses, restated for
+  // the opposite direction (there, no OTHER file may read a creator-only
+  // table; here, no FOLLOWER-facing file may call this creator-only writer).
+  const FOLLOWER_FACING = ["_room-surface.js", "_room.js", "_room-page.js", "_room-embed.js", "_room-manifest.js", "_room-telegram.js", "_room-whatsapp.js"];
+  const offenders = FOLLOWER_FACING.filter((f) => {
+    const p = join(REPO, "api", f);
+    if (!fs.existsSync(p)) return false;
+    const src = fs.readFileSync(p, "utf8");
+    return /\bsetRoomShowcase\s*\(/.test(src) || /\bremoveRoomShowcase\s*\(/.test(src);
+  });
+  ok("no follower-facing file imports or calls setRoomShowcase/removeRoomShowcase",
+    offenders.length === 0, offenders.join(","));
+}
+
+// (7b) WORLD CHECK. The REAL setRoomShowcase, driven through a fixture
+// carrying ONE eligible card (kind='question', creator material) and ONE
+// INELIGIBLE card of the SAME state ('sounds_right') whose kind is
+// 'follower_declined' — a real follower's own question and this AI's real
+// reply to them, seeded verbatim so a leak would be a byte-for-byte token
+// match `leakedTokens` (this file's own scanner) would actually catch.
+{
+  const { setRoomShowcase, RoomPublishError } = await import(pathToFileURL(join(REPO, "api/_room-publish.js")).href);
+  const FOLLOWER_TOKEN = "TOKFOLLOWERCARD_showcase_leak_probe_zzzzzzzz";
+  const roomRow = {
+    room_id: ROOM_ID, slug: SLUG, replica_id: REPLICA_ID, agent_id: AGENT_ID, owner_user_id: OWNER,
+    display_name: "Anjali", one_line_bio: "", default_locale: "en",
+    free_monthly_messages: 20, paid_monthly_messages: 500, paid_monthly_voice_seconds: 1800,
+    listed_at: null, published_at: "2026-08-01T00:00:00.000Z", paused_at: null,
+    created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000Z",
+  };
+  const cards = [
+    { card_id: "f1000000-0000-4000-8000-000000000001", replica_id: REPLICA_ID, owner_user_id: OWNER,
+      kind: "question", state: "sounds_right", prompt_text: "How do you approach a new topic?", answer_text: "One idea a day, in your own words." },
+    { card_id: "f2000000-0000-4000-8000-000000000002", replica_id: REPLICA_ID, owner_user_id: OWNER,
+      kind: "follower_declined", state: "sounds_right", prompt_text: FOLLOWER_TOKEN, answer_text: `${FOLLOWER_TOKEN}_reply` },
+  ];
+  const showcase = [];
+  const db = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    if (has("select room_id, slug, replica_id, agent_id, owner_user_id, display_name,") && has("limit 1")) {
+      const [owner, replica] = params.map(String);
+      return owner === roomRow.owner_user_id && replica === roomRow.replica_id ? [{ ...roomRow }] : [];
+    }
+    if (has("select prompt_text, answer_text") && has("from vy_review_card")) {
+      const [cardId, owner, replica] = params.map(String);
+      const row = cards.find((c) => c.card_id === cardId && c.owner_user_id === owner && c.replica_id === replica
+        && c.state === "sounds_right" && c.kind !== "follower_declined");
+      return row ? [{ prompt_text: row.prompt_text, answer_text: row.answer_text }] : [];
+    }
+    if (has("update vy_room_showcase") && has("position = ($2)::int")) {
+      for (const s of showcase) if (s.room_id === String(params[0]) && s.position === Number(params[1])) s.removed_at = "now";
+      return [];
+    }
+    if (has("insert into vy_room_showcase")) {
+      showcase.push({ id: String(params[0]), room_id: String(params[1]), question: params[2], answer: params[3], position: Number(params[4]), removed_at: null });
+      return [];
+    }
+    if (has("from vy_room_showcase") && has("order by position asc")) {
+      return showcase.filter((s) => !s.removed_at).sort((a, b) => a.position - b.position);
+    }
+    throw new Error(`layer 10 fake db: unmatched SQL: ${sql}`);
+  };
+
+  let refused = false;
+  try {
+    await setRoomShowcase(db, OWNER, REPLICA_ID, { position: 1, sourceCardId: cards[1].card_id });
+  } catch (e) {
+    refused = e instanceof RoomPublishError && e.code === "room_showcase_card_ineligible";
+  }
+  boundaryChecks++;
+  ok("showcase: the follower-sourced card is refused, never copied into the public showcase", refused);
+  boundaryChecks++;
+  ok("showcase: nothing was written to the public table on the refused attempt", showcase.length === 0);
+
+  const eligible = await setRoomShowcase(db, OWNER, REPLICA_ID, { position: 1, sourceCardId: cards[0].card_id });
+  boundaryChecks++;
+  ok("showcase: the eligible (creator-material) card WAS accepted (the fixture is sound, this is not vacuously refusing everything)",
+    eligible?.showcase?.length === 1);
+
+  const publicSurface = JSON.stringify(eligible.showcase);
+  boundaryChecks++;
+  ok("showcase: the follower's real token never reaches the public showcase surface, in any form",
+    leakedTokens(publicSurface, [FOLLOWER_TOKEN]).length === 0);
+  boundaryChecks++;
+  ok("showcase: the scan above is not vacuous - the follower's token really does exist somewhere in this world",
+    leakedTokens(JSON.stringify(cards), [FOLLOWER_TOKEN]).length > 0);
+
+  // NEGATIVE CONTROL — MUST FAIL. A hand-rolled copy of the eligibility read
+  // with the kind exclusion struck, `evals/room-leak`'s own standing law
+  // (`(1a)`'s writeSymbols derivation, `(6b)`'s tamper case): a check that
+  // cannot be observed failing proves nothing.
+  const struckDb = async (sql, params) => {
+    if (sql.includes("select prompt_text, answer_text")) {
+      const [cardId] = params.map(String);
+      const row = cards.find((c) => c.card_id === cardId); // NO kind/state filter at all
+      return row ? [{ prompt_text: row.prompt_text, answer_text: row.answer_text }] : [];
+    }
+    return db(sql, params);
+  };
+  const leakedResult = await setRoomShowcase(struckDb, OWNER, REPLICA_ID, { position: 2, sourceCardId: cards[1].card_id });
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: with the eligibility predicate struck, the follower's token DOES leak into the showcase - proving the real check above is load-bearing, not vacuous",
+    leakedTokens(JSON.stringify(leakedResult.showcase), [FOLLOWER_TOKEN]).length > 0);
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 console.log(`\n── verdict ──`);
 for (const w of worldSummaries) {
