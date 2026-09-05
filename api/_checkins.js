@@ -76,6 +76,12 @@ import {
 } from "./_room-whatsapp.js";
 import { sendRoomCheckinMessage } from "./_room-telegram.js";
 import { recordIncident, notifyNewIncidentKinds, pruneOldIncidents } from "./_incidents.js";
+// WS-R62 (migration 114). The real operator subscription store —
+// `notifyNewIncidentKinds`'s own injected seam, wired to production here
+// exactly as `activeSubscriptionsFor`/`revokeSubscriptionById` above are for
+// a follower's own subscription. `api/_ops.js` does NOT import this file
+// (see that file's own header), so this import is one-directional.
+import { operatorPushSubscriptionsFor, revokeOperatorPushById } from "./_ops.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -1045,7 +1051,14 @@ export async function sweep(deps, now = Date.now()) {
   // restated twice: neither failure mode may ever turn an otherwise-
   // successful check-ins sweep into one that reports `errors`.
   try {
-    const notified = await notifyNewIncidentKinds(db, { env: deps.env || process.env, fetch: deps.fetch, now });
+    const notified = await notifyNewIncidentKinds(db, {
+      env: deps.env || process.env,
+      fetch: deps.fetch,
+      now,
+      // WS-R62: the real store, no longer the always-empty default.
+      operatorSubscriptionsFor: (ownerId) => operatorPushSubscriptionsFor(db, ownerId),
+      revokeOperatorSubscription: (id) => revokeOperatorPushById(db, id),
+    });
     summary.incidentKindsChecked = notified.checked;
     summary.incidentKindsNotified = notified.claimed;
   } catch (error) {

@@ -761,6 +761,22 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- a roster's shared address is never taken down by one person's wipe.
      org_memberships as (delete from vy_org_member x using target t
        where x.owner_user_id=t.owner_user_id),
+     -- 114 (WS-R62). An operator's own push subscription is not this ONE
+     -- replica's either - it is out of scope for the replica-keyed joins
+     -- above and reached by owner_user_id ALONE, org_memberships' own
+     -- precedent one block up restated a third time (an owner erasing ONE
+     -- of several replicas also clears every browser they ever subscribed
+     -- for platform ops alerts on). scripts/relcheck.mjs's owner-lane reach
+     -- walk finds this table by its own owner_user_id column and requires
+     -- it be named here or reached by cascade from vy_replica - it is
+     -- neither reached by cascade (no replica_id on this table at all) nor
+     -- exempt, so it is named here. No new entry in the deletedClasses list
+     -- above: room_arrivals'/room_org_attachments' own reasoning two blocks
+     -- up restated - a browser endpoint and its two encryption keys, no
+     -- memory, no follower words, no payment, not a different KIND of
+     -- record from anything a receipt already names.
+     operator_push_subscriptions as (delete from vy_operator_push_subscription x using target t
+       where x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt
          (replica_id_hash,owner_user_hash,policy_version,reason,deleted_classes,processor_status,

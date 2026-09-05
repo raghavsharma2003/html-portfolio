@@ -7582,6 +7582,30 @@
       "kind": "measurement",
       "title": "Migration 113 widened vy_room_arrival's via CHECK to admit install (the value WS-R59's JS allowlist added) at the WS-R59 merge; applied live after reading the constraint's name back; the upsert plan is unchanged.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r62-operator-push-subscription-store-built",
+      "kind": "decision",
+      "title": "vy_operator_push_subscription (migration 114) is built and wired as api/_incidents.js's real operatorSubscriptionsFor/revokeOperatorSubscription seam via api/_checkins.js, closing the gap ws-r58-operator-push-subscription-store-does-not-exist named",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r62-operator-push-payload-reuses-push-sw",
+      "kind": "decision",
+      "title": "incidentPushPayload is shaped as flat {title,body,kind,route} JSON so the operator's real browser notification is drawn by public/push-sw.js unmodified, rather than a new service worker for the studio/ops board",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r62-ops-board-push-copy-stays-english-inline",
+      "kind": "decision",
+      "title": "the Alerts-on-this-phone card's copy stays inline English in OpsBoard.tsx rather than in src/studio/copy.ts, because evals/studio-locale/run.mjs's own TIER_2_ALLOWLIST already names OpsBoard.tsx as deliberately unlocalized and the page has no locale switcher to read a bilingual entry with",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r62-gate-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release 20/21 before and after (the one failure, accessibility color-contrast on site:/, is pre-existing and unrelated); room-doors 492->503, incidents 34->39, ops 124 total, full eval suite (evals/run.mjs) exit 0",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15104,6 +15128,31 @@
       "src": "rooms-migration-113-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
+    },
+    {
+      "src": "ws-r62-operator-push-subscription-store-built",
+      "rel": "supersedes",
+      "dst": "ws-r58-operator-push-subscription-store-does-not-exist"
+    },
+    {
+      "src": "ws-r62-operator-push-subscription-store-built",
+      "rel": "measured_by",
+      "dst": "ws-r62-gate-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r62-operator-push-payload-reuses-push-sw",
+      "rel": "part_of",
+      "dst": "ws-r62-operator-push-subscription-store-built"
+    },
+    {
+      "src": "ws-r62-ops-board-push-copy-stays-english-inline",
+      "rel": "part_of",
+      "dst": "ws-r62-operator-push-subscription-store-built"
+    },
+    {
+      "src": "ws-r62-ops-board-push-copy-stays-english-inline",
+      "rel": "constrains",
+      "dst": "ws-r52-tier-2-studio-files-not-localized"
     }
   ]
 }

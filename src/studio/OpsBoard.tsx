@@ -21,6 +21,8 @@ import { googleSignIn, isStudioAuthDead } from "./studioAuth";
 import { ReplicaApiError } from "./replicaApi";
 import {
   readOpsOverview,
+  subscribeOpsPush,
+  revokeOpsPush,
   type OpsOverview,
   type OpsRoom,
   type OpsSweep,
@@ -30,9 +32,41 @@ import {
   type OpsGateState,
   type SweepStaleness,
   type OpsIncidents,
+  type OpsPushConfig,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
+
+// WS-R62 (migration 114). This board is deliberately English-only, per the
+// standing decision `evals/studio-locale/run.mjs`'s own TIER_2_ALLOWLIST
+// entry names in writing: "Internal operator dashboard (`?mode=ops`), never
+// a creator-facing screen at all" - so this card's copy stays inline here,
+// the same house style every other card on this page already uses, rather
+// than a `src/studio/copy.ts` entry a page with no locale switcher at all
+// could never read (`context/decisions.md#ws-r62-ops-board-push-copy-stays-
+// english-inline`).
+
+/** RFC 4648 base64url, both directions - `src/room/AccountPage.tsx`'s own
+ *  pair, restated here rather than imported: that file lives under
+ *  `src/room/`, a different surface this board deliberately does not
+ *  depend on (this board's own header: a standalone mount, never grafted
+ *  onto another product). Two tiny pure functions duplicated once is a
+ *  smaller risk than a cross-surface import neither side asked for. */
+function b64uToUint8Array(b64u: string): Uint8Array<ArrayBuffer> {
+  const pad = "=".repeat((4 - (b64u.length % 4)) % 4);
+  const base64 = (b64u + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function bufToB64u(buf: ArrayBuffer | null): string {
+  if (!buf) return "";
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 
 const RETURN_PATH = "/studio?mode=ops";
 
@@ -362,6 +396,107 @@ function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
   );
 }
 
+// WS-R62 (migration 114). "The person running Phase 0 should learn that a
+// door started failing from their phone, not from opening Vercel"
+// (workstream brief). Reuses `/push-sw.js` - the SAME generic, already-
+// committed, already-reviewed display worker `src/notify/push.ts` registers
+// for Meera's own account-wide push - rather than a second service worker
+// this workstream would have to write and review from scratch. It works
+// unmodified because `api/_incidents.js`'s own operator payload is shaped
+// as exactly the `{title, body, kind, route}` flat JSON that worker's own
+// `push` handler already expects (`const data = d.data || d;` falls
+// through to the payload itself when it carries no `data` wrapper) - see
+// that file's own header for the full argument.
+function PushAlertsCard({ token, push }: { token: string; push: OpsPushConfig }) {
+  const [subscribed, setSubscribed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!push.configured) {
+      setChecked(true);
+      return;
+    }
+    let live = true;
+    (async () => {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
+        const existing = await registration?.pushManager.getSubscription();
+        if (live) setSubscribed(Boolean(existing));
+      } catch {
+        // Unsupported browser (no serviceWorker/PushManager) - the control
+        // below renders its own "not supported here" state from `busy`/
+        // `error` never being set, `AccountPage.tsx`'s own posture for the
+        // identical case one surface over.
+      } finally {
+        if (live) setChecked(true);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [push.configured]);
+
+  const toggle = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      if (subscribed) {
+        const registration = await navigator.serviceWorker.getRegistration("/push-sw.js");
+        const existing = await registration?.pushManager.getSubscription();
+        if (existing) {
+          await revokeOpsPush(token, existing.endpoint);
+          await existing.unsubscribe();
+        }
+        setSubscribed(false);
+      } else {
+        if (!push.vapid_public) return;
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("push_unsupported");
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") throw new Error("push_denied");
+        const registration = await navigator.serviceWorker.register("/push-sw.js");
+        await navigator.serviceWorker.ready;
+        const existing = await registration.pushManager.getSubscription();
+        const subscription =
+          existing ??
+          (await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: b64uToUint8Array(push.vapid_public),
+          }));
+        const endpoint = subscription.endpoint;
+        const p256dh = bufToB64u(subscription.getKey("p256dh"));
+        const auth = bufToB64u(subscription.getKey("auth"));
+        await subscribeOpsPush(token, endpoint, p256dh, auth);
+        setSubscribed(true);
+      }
+    } catch {
+      setError("Could not change alert settings on this device.");
+    } finally {
+      setBusy(false);
+    }
+  }, [subscribed, push.vapid_public, token]);
+
+  return (
+    <div className="ops-board__panel">
+      <h2>Alerts on this phone</h2>
+      {!push.configured ? (
+        <p className="ops-board__empty">Push alerts are not set up on this deployment yet.</p>
+      ) : (
+        <>
+          <p className="ops-board__slug">
+            A due-Room-alert-style push when a new incident kind shows up, at most once a day.
+          </p>
+          <button type="button" disabled={busy || !checked} onPointerDown={toggle}>
+            {subscribed ? "Turn off alerts on this device" : "Turn on alerts on this device"}
+          </button>
+          {error && <p className="ops-board__error">{error}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function OpsBoard() {
   const [session, setSession] = useState<StudioSession | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
@@ -461,6 +596,7 @@ export default function OpsBoard() {
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />
             <IncidentsCard incidents={overview.incidents} />
+            <PushAlertsCard token={session.accessToken} push={overview.push} />
           </>
         )}
       </div>

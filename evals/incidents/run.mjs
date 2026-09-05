@@ -101,6 +101,16 @@ function fakeDb(state) {
       return kinds.map((kind) => ({ kind }));
     }
 
+    // WS-R62: the push payload's own count read — today's total for one
+    // kind, across every door and status.
+    if (has("select coalesce(sum(count), 0)::int as n from vy_incident where day = current_date")) {
+      const [kind] = params;
+      const n = state.rows
+        .filter((r) => r.day === state.today && r.kind === kind)
+        .reduce((sum, r) => sum + Number(r.count || 0), 0);
+      return [{ n }];
+    }
+
     if (has("delete from vy_incident where day <")) {
       const [retentionDays] = params;
       const cutoff = addDays(state.today, -Number(retentionDays));
@@ -286,14 +296,19 @@ function fakeRes() {
 
 {
   // notifyNewIncidentKinds end to end, with an injected fake subscription
-  // and a fake sendPush spy — the honest gap this file's own header names
-  // (no real operator subscription store exists) is bridged for the test
-  // by `deps.operatorSubscriptionsFor`.
+  // and a fake sendPush spy — `deps.operatorSubscriptionsFor`/`deps.
+  // sendPush` are the SAME injection seam WS-R62 wires to the real
+  // `vy_operator_push_subscription` store in production (api/_checkins.js);
+  // this eval still drives it with a fake, `evals/room-doors/run.mjs`'s own
+  // §17b being the one that attacks the real store's OWN write/read
+  // functions directly.
   const state = freshState("2026-09-04");
   const db = fakeDb(state);
   await recordIncident(db, { kind: "door_5xx", door: "room.js", status: 500 });
+  await recordIncident(db, { kind: "door_5xx", door: "payments.js", status: 500 });
 
   let pushCalls = 0;
+  let lastPayload = null;
   const deps = {
     env: {
       ROOM_PUSH_VAPID_PUBLIC: "pub",
@@ -302,17 +317,74 @@ function fakeRes() {
       OPS_OWNER_USER_IDS: "11111111-1111-4111-8111-111111111111",
     },
     fetch: async () => ({ ok: true, status: 201 }),
-    operatorSubscriptionsFor: async () => [{ endpoint: "https://push.example.test/x", p256dh: "a", auth: "b" }],
-    sendPush: async () => { pushCalls++; return { ok: true, status: 201 }; },
+    operatorSubscriptionsFor: async () => [{ id: "sub-1", endpoint: "https://push.example.test/x", p256dh: "a", auth: "b" }],
+    sendPush: async (sub, payload) => { pushCalls++; lastPayload = payload; return { ok: true, status: 201 }; },
   };
 
   const first = await notifyNewIncidentKinds(db, deps);
   ok("notifyNewIncidentKinds: the first run claims the new kind and pushes once",
     first.claimed === 1 && first.pushed === 1 && pushCalls === 1);
+  const parsed = JSON.parse(lastPayload);
+  ok("notifyNewIncidentKinds: the push payload carries today's TOTAL count for the kind (both doors summed)",
+    parsed.body.includes("door_5xx") && parsed.body.includes("2"));
 
   const second = await notifyNewIncidentKinds(db, deps);
   ok("NEGATIVE CONTROL: a second push the SAME day for the SAME kind is refused",
     second.claimed === 0 && second.pushed === 0 && pushCalls === 1);
+}
+
+{
+  // A 404/410 from the push service revokes THAT subscription — workstream
+  // law #3, `_checkins.js`'s own `webPush` deliverer's posture for a
+  // follower restated for the operator lane. `deps.revokeOperatorSubscription`
+  // is the injection seam `api/_checkins.js` wires to the real
+  // `revokeOperatorPushById` in production.
+  const state = freshState("2026-09-04");
+  const db = fakeDb(state);
+  await recordIncident(db, { kind: "provider_telegram", door: "tg.js", status: 500 });
+
+  let revokedIds = [];
+  const deps = {
+    env: {
+      ROOM_PUSH_VAPID_PUBLIC: "pub",
+      ROOM_PUSH_VAPID_PRIVATE: "priv",
+      ROOM_PUSH_VAPID_SUBJECT: "mailto:ops@example.test",
+      OPS_OWNER_USER_IDS: "op-1",
+    },
+    fetch: async () => ({ ok: false, status: 410 }),
+    operatorSubscriptionsFor: async () => [{ id: "sub-dead", endpoint: "https://push.example.test/gone", p256dh: "a", auth: "b" }],
+    sendPush: async () => ({ ok: false, status: 410 }),
+    revokeOperatorSubscription: async (id) => { revokedIds.push(id); },
+  };
+  const result = await notifyNewIncidentKinds(db, deps);
+  ok("notifyNewIncidentKinds: a 410 from the push service revokes that ONE subscription by id",
+    result.claimed === 1 && result.pushed === 0 && revokedIds.length === 1 && revokedIds[0] === "sub-dead");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// incidentPushPayload — NEGATIVE CONTROL, STATIC: the payload builder can
+// carry no door name and no person id — only `kind` and `count`,
+// `evals/room-push/run.mjs`'s own "STATIC" scan of `checkinPushPayload`,
+// restated for the operator's own payload builder.
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const src = fs.readFileSync(join(REPO, "api/_incidents.js"), "utf8");
+  const start = src.indexOf("function incidentPushPayload");
+  ok("incidentPushPayload is present in the source", start >= 0);
+  const closingBrace = src.indexOf("\n}\n", start);
+  const body = src.slice(start, closingBrace < 0 ? src.length : closingBrace + 2);
+  const banned = ["\\bdoor\\b", "person_id", "personId", "follower_id", "followerId", "owner_user_id", "ownerUserId", "replica_id", "replicaId"];
+  const bannedRegex = new RegExp(banned.join("|"), "i");
+  const clean = !bannedRegex.test(body);
+  ok("the REAL incidentPushPayload's own source names no door and no person/owner/replica id",
+    clean, clean ? "" : body);
+
+  // Prove the detector actually catches a bad version, not merely passes a
+  // good one — `evals/room-push/run.mjs`'s own required shape for a static
+  // check restated.
+  const poisoned = `function incidentPushPayload(kind, count, door, personId) {\n  return JSON.stringify({ kind, count, door, personId });\n}`;
+  ok("NEGATIVE CONTROL: the same scan DOES flag a poisoned version that carries door/personId",
+    bannedRegex.test(poisoned));
 }
 
 {

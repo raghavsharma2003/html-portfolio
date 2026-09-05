@@ -55,6 +55,7 @@ import { reconciliationOverview } from "./_payments.js";
 // rather than re-derived, this file's own established pattern one import
 // list up.
 import { INCIDENT_KINDS } from "./_incidents.js";
+import { randomUUID } from "node:crypto";
 
 const OPS_OWNER_ENV = "OPS_OWNER_USER_IDS";
 
@@ -338,6 +339,145 @@ export async function incidentsOverview(db, now = Date.now()) {
   };
 }
 
+// ── WS-R62 (migration 114): operator push subscriptions ────────────────────
+//
+// Closes the gap `context/decisions.md#ws-r58-operator-push-subscription-
+// store-does-not-exist` names: `notifyNewIncidentKinds` (api/_incidents.js)
+// has always been able to SEND a push, through the real `_push/webpush.js`
+// `send()`, but had nobody real to send to. This section is that store's own
+// reader/writer pair, the follower lane's `api/_room-push.js` restated for
+// the owner lane - same endpoint/p256dh/auth validation, same
+// upsert-by-conflict-key shape, narrowed to one column of identity
+// (`owner_user_id`) instead of three (room/person/follower).
+//
+// LAW (workstream brief #2): a subscription row is written only for a
+// bearer on `OPS_OWNER_USER_IDS` - decided in the INSERT's own WHERE clause,
+// with the id list itself passed as a query PARAMETER, never by an `if` in
+// this JS above the query. That is not decoration: it means a caller who
+// reached `subscribeOperatorPush` with a non-operator id (a bug upstream in
+// the door's own gate, a future caller that forgets to check) still cannot
+// write a row - the SAME guarantee `evals/room-doors/run.mjs`'s class (e)
+// checks for every other owner-bearer op, proven here with a NEGATIVE
+// CONTROL that calls this function directly with an id NOT on the list and
+// asserts zero rows result.
+export class OpsPushError extends Error {
+  constructor(code, status = 400) {
+    super(code);
+    this.name = "OpsPushError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const B64U_RE = /^[A-Za-z0-9_-]+$/;
+
+function assertOperatorPushSubscription({ endpoint, p256dh, auth }) {
+  const url = String(endpoint || "");
+  if (!/^https:\/\//.test(url) || url.length > 2000) throw new OpsPushError("ops_push_endpoint_invalid", 400);
+  if (!B64U_RE.test(String(p256dh || "")) || String(p256dh).length < 40) {
+    throw new OpsPushError("ops_push_key_invalid", 400);
+  }
+  if (!B64U_RE.test(String(auth || "")) || String(auth).length < 10) {
+    throw new OpsPushError("ops_push_key_invalid", 400);
+  }
+}
+
+/** Whether a real push can ever be sent, and the public key a browser needs
+ *  to open a subscription with it (VAPID public keys are not secret - this
+ *  is the same "asked for here rather than a second copy" posture
+ *  `AccountPage.tsx`'s own `pushKey` read documents for the follower lane).
+ *  Pure function of env, no db - the board's own honest-empty-state law
+ *  (workstream brief #4): "the card says honestly when VAPID is unset." */
+export function operatorPushConfig(env = process.env) {
+  const vapidPublic = String(env.ROOM_PUSH_VAPID_PUBLIC || "");
+  const vapidPrivate = String(env.ROOM_PUSH_VAPID_PRIVATE || "");
+  const vapidSubject = String(env.ROOM_PUSH_VAPID_SUBJECT || "");
+  const configured = Boolean(vapidPublic && vapidPrivate && vapidSubject);
+  return { configured, vapid_public: configured ? vapidPublic : null };
+}
+
+/**
+ * The one write. `ownerUserId` is the CALLING bearer's own already-verified
+ * id (`api/ops.js`'s `requireUser`, never a body-supplied id - there is no
+ * "another operator's id" input anywhere in this op's body, the same "no
+ * cross-identity input" shape `room.js`'s "open"/"join" already establish
+ * for class (e)'s own exclusions). `env` carries `OPS_OWNER_USER_IDS`; the
+ * WHERE clause, not this function's control flow, is what refuses a bearer
+ * who is not on it - see this section's own header.
+ *
+ * Upserts on `(owner_user_id, endpoint)` (the migration's own unique index):
+ * an operator who re-enables notifications on the same browser/device
+ * updates the SAME row (clearing `revoked_at`) rather than growing a
+ * duplicate one request at a time would leave behind.
+ */
+export async function subscribeOperatorPush(db, ownerUserId, sub, env = process.env) {
+  if (typeof db !== "function") throw new Error("ops_push_database_required");
+  assertOperatorPushSubscription(sub || {});
+  const ids = opsOwnerIds(env);
+  const { endpoint, p256dh, auth } = sub;
+  const rows = await db(
+    `insert into vy_operator_push_subscription (id, owner_user_id, endpoint, p256dh, auth, created_at, revoked_at)
+     select ($1)::uuid, ($2)::uuid, $3, $4, $5, now(), null
+      where lower(($2)::text) = any(($6)::text[])
+     on conflict (owner_user_id, endpoint) do update
+        set p256dh = excluded.p256dh,
+            auth = excluded.auth,
+            revoked_at = null
+     returning id`,
+    [randomUUID(), ownerUserId, endpoint, p256dh, auth, ids],
+  );
+  return { subscribed: rows.length > 0 };
+}
+
+/** Revoke ONE of the calling bearer's own subscriptions, by the endpoint
+ *  their own browser reports - never by a body-supplied `owner_user_id`
+ *  (there is none in this op's body at all, the follower lane's
+ *  `removeSubscription` own shape restated). Same WHERE-decides-not-JS-
+ *  decides posture as `subscribeOperatorPush` above, belt and suspenders:
+ *  even a bearer somehow past the door's own gate revokes nothing for an id
+ *  the allowlist does not name. */
+export async function revokeOperatorPush(db, ownerUserId, endpoint, env = process.env) {
+  if (typeof db !== "function") throw new Error("ops_push_database_required");
+  const ids = opsOwnerIds(env);
+  const rows = await db(
+    `update vy_operator_push_subscription
+        set revoked_at = now()
+      where owner_user_id = ($1)::uuid
+        and endpoint = $2
+        and revoked_at is null
+        and lower(($1)::text) = any(($3)::text[])
+      returning id`,
+    [ownerUserId, String(endpoint || ""), ids],
+  );
+  return { revoked: rows.length > 0 };
+}
+
+/** The sweep's own read (workstream law #3) - `deps.operatorSubscriptionsFor`
+ *  in `api/_incidents.js`'s `notifyNewIncidentKinds` resolves to THIS in
+ *  production. Active (unrevoked) rows only, the migration's own partial
+ *  index - `api/_room-push.js`'s `activeSubscriptionsFor` restated for the
+ *  owner lane, ownerUserId never a request-supplied value here either (the
+ *  sweep already resolved it from `OPS_OWNER_USER_IDS` itself). NEGATIVE
+ *  CONTROL (workstream brief): a revoked row is never returned, so a 404/410
+ *  a sweep already acted on cannot be sent to twice. */
+export async function operatorPushSubscriptionsFor(db, ownerUserId) {
+  if (typeof db !== "function") return [];
+  return db(
+    `select id, endpoint, p256dh, auth
+       from vy_operator_push_subscription
+      where owner_user_id = ($1)::uuid and revoked_at is null`,
+    [String(ownerUserId)],
+  );
+}
+
+/** Revoke on a 404/410 from the push service - `api/_room-push.js`'s
+ *  `revokeSubscriptionById` restated, by `id` (the row a send just failed
+ *  for), never by endpoint text a caller supplies. */
+export async function revokeOperatorPushById(db, id) {
+  if (typeof db !== "function") return;
+  await db(`update vy_operator_push_subscription set revoked_at = now() where id = ($1)::uuid`, [String(id)]);
+}
+
 /** The board's one call. `now` is a parameter (default `Date.now()`) so
  *  `evals/ops/run.mjs` can drive it at a fixed instant rather than racing a
  *  real clock. `deps` (WS-R40) exists for exactly one downstream seam today
@@ -393,5 +533,10 @@ export async function opsOverview(db, now = Date.now(), deps = {}) {
     // door, `none` an honest empty state, red only for a kind new since the
     // 7 days before that.
     incidents: await incidentsOverview(db, now),
+    // WS-R62 (migration 114). Pure function of env, no db - whether a real
+    // push can be sent at all, and the public key the board's own "Alerts
+    // on this phone" control needs to open a subscription. Never the
+    // private key.
+    push: operatorPushConfig(deps.env || process.env),
   };
 }
