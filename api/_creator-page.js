@@ -1,6 +1,17 @@
 // api/_creator-page.js — the creator's own public page at /c/<slug> (WS-R66,
 // migration 115).
 //
+// ── WS-R90: SEARCH PRESENCE ─────────────────────────────────────────────
+//
+// This page already had a canonical (WS-R66) and Person/FAQPage JSON-LD
+// (WS-R66) and per-node language tags (WS-R79). WS-R90 adds the other three
+// things a search engine needs to index a bilingual page correctly: the
+// hreflang alternates and x-default (`HREFLANG_CODES` below), og:locale,
+// and — outside this file — an `xhtml:link` hreflang cluster for `/c/:slug`
+// in `api/_sitemap.js`. Nothing here changes what the PAGE renders for a
+// visitor; every addition is a `<link>`/`<meta>` tag in `<head>` a browser
+// already ignores if it does not recognize it.
+//
 // ── THE PROBLEM ─────────────────────────────────────────────────────────
 //
 // WS-R45 lists a creator on `/creators` (a name, a one-line bio, a
@@ -150,6 +161,34 @@ function jsonLdScript(obj) {
   const json = JSON.stringify(obj).replace(/</g, "\\u003c");
   return `<script type="application/ld+json">${json}</script>\n  `;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R90: SEARCH PRESENCE — hreflang alternates, x-default, and og:locale.
+//
+// Google's own hreflang doc ("Tell Google about localized versions of your
+// page") states the rule this page follows exactly: "The set of links is
+// identical for every version of the page" — every response to `/c/:slug`,
+// whichever locale it actually renders, carries the SAME three `<link>`
+// tags below, because they describe the URL STRUCTURE (which query string
+// reaches which language), not which language happened to render this one
+// time. That is also why this is computed from `url`/`slug` alone, never
+// from `locale` — the same reasoning `renderPage`'s existing `<link
+// rel="canonical">` already follows one line up (a fixed, query-string-free
+// address, "the en page" per this workstream's own brief, regardless of
+// which locale a Room's own `default_locale` renders there by default).
+//
+// HREFLANG_CODES and HI_LANG_QUERY are named constants, not inline
+// literals, so `scripts/probeLiveExpectations.mjs` can parse them straight
+// out of this file's own source for the live probe — WS-R64's law,
+// restated a second workstream over: "never a second literal."
+const HREFLANG_CODES = ["en", "hi", "x-default"];
+const HI_LANG_QUERY = "?lang=hi";
+
+// Open Graph's own two-part locale code (language_TERRITORY per the Open
+// Graph protocol, e.g. "en_US"), distinct from this product's plain "en"/
+// "hi" locale value — mapped once, here, so the probe can parse the exact
+// values this file actually emits rather than assuming the convention.
+const OG_LOCALE = { en: "en_US", hi: "hi_IN" };
 
 // ─────────────────────────────────────────────────────────────────────────
 // THE READ
@@ -343,6 +382,11 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
   const base = String(origin || "").replace(/\/+$/, "");
   const path = `/c/${encodeURIComponent(String(slug || ""))}`;
   const url = base ? `${base}${path}` : path;
+  // The `hi` hreflang alternate's own address — built from the SAME `url`
+  // every other address on this page is built from, so it can never drift
+  // out of sync with a slug change the way a second, independently-built
+  // URL could.
+  const hreflangHiUrl = `${url}${HI_LANG_QUERY}`;
   const roomImageUrl = `${base}/r/${encodeURIComponent(String(slug || ""))}/og.png`;
 
   if (!data || !data.room) {
@@ -350,6 +394,7 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
       title: PLATFORM_TITLE,
       description: PLATFORM_DESCRIPTION,
       url,
+      hreflangHiUrl,
       imageUrl: roomImageUrl,
       locale: "en",
       body: `<p>${esc(PLATFORM_DESCRIPTION)}</p>`,
@@ -406,7 +451,7 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
   const jsonLd = [jsonLdScript(ld.person), jsonLdScript(ld.faq)].join("");
 
   return renderPage({
-    title, description, url, imageUrl: roomImageUrl, locale, body, jsonLd,
+    title, description, url, hreflangHiUrl, imageUrl: roomImageUrl, locale, body, jsonLd,
     // The deferred island script, only when there is a form on the page for
     // it to enhance — `buildTasteSection` returns "" the instant
     // `taste_enabled` is false, and this line reads that same absence
@@ -415,17 +460,26 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
   });
 }
 
-function renderPage({ title, description, url, imageUrl, locale, body, jsonLd, tasteScript = false }) {
+function renderPage({ title, description, url, hreflangHiUrl, imageUrl, locale, body, jsonLd, tasteScript = false }) {
   const t = esc(title);
   const d = esc(description);
   const u = esc(url);
+  const hiU = esc(hreflangHiUrl);
   const i = esc(imageUrl);
   const htmlLang = locale === "hi" ? "hi" : "en";
+  const ogLocale = OG_LOCALE[htmlLang] || OG_LOCALE.en;
   // `defer`, never inline: `/creator-taste.js` is a static file the `/c/:slug`
   // CSP already admits under `script-src 'self'` — WS-R80's own law 2 — and
   // `defer` executes it after parsing, before `load`, without blocking the
   // render this page exists to serve fast.
   const script = tasteScript ? '\n    <script src="/creator-taste.js" defer></script>' : "";
+  // WS-R90: the hreflang alternates, ONE per HREFLANG_CODES entry, "en" and
+  // "x-default" both pointing at the bare address (`u`), "hi" at the
+  // `?lang=hi` address (`hiU`) — the same set on every response, per this
+  // file's own header above `HREFLANG_CODES`.
+  const hreflangLinks = HREFLANG_CODES
+    .map((code) => `<link rel="alternate" hreflang="${code}" href="${code === "hi" ? hiU : u}" />`)
+    .join("\n    ");
   return `<!doctype html>
 <html lang="${htmlLang}">
   <head>
@@ -434,7 +488,9 @@ function renderPage({ title, description, url, imageUrl, locale, body, jsonLd, t
     <title>${t}</title>
     <meta name="description" content="${d}" />
     <link rel="canonical" href="${u}" />
+    ${hreflangLinks}
     <meta property="og:type" content="profile" />
+    <meta property="og:locale" content="${ogLocale}" />
     <meta property="og:title" content="${t}" />
     <meta property="og:description" content="${d}" />
     <meta property="og:url" content="${u}" />

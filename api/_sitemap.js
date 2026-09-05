@@ -38,6 +38,29 @@ function urlEntry(loc, lastmodIso) {
   return `  <url><loc>${xmlEscape(loc)}</loc>${lastmod}</url>`;
 }
 
+// ── WS-R90 ───────────────────────────────────────────────────────────────
+// `/c/<slug>`'s own hreflang cluster, per Google's sitemap-method doc
+// ("Indicate alternate language pages using sitemaps"): each `<url>` names
+// EVERY language version as a child `<xhtml:link rel="alternate"
+// hreflang="...">`, "including itself" — the same three codes and the same
+// `?lang=hi` address `api/_creator-page.js`'s own `HREFLANG_CODES`/
+// `HI_LANG_QUERY` put in the page's own `<head>`, restated here rather than
+// imported (this module's own header: no cross-module import, a fake `db`
+// must reach every line). `evals/creator-directory/run.mjs` and
+// `evals/creator-page/run.mjs` both assert the two files agree.
+const HREFLANG_CODES = ["en", "hi", "x-default"];
+const HI_LANG_QUERY = "?lang=hi";
+
+function creatorPageUrlEntry(origin, slug, lastmodIso) {
+  const loc = `${origin}/c/${slug}`;
+  const hiLoc = `${loc}${HI_LANG_QUERY}`;
+  const lastmod = lastmodIso ? `<lastmod>${xmlEscape(new Date(lastmodIso).toISOString().slice(0, 10))}</lastmod>` : "";
+  const alternates = HREFLANG_CODES
+    .map((code) => `    <xhtml:link rel="alternate" hreflang="${code}" href="${xmlEscape(code === "hi" ? hiLoc : loc)}" />`)
+    .join("\n");
+  return `  <url>\n    <loc>${xmlEscape(loc)}</loc>${lastmod}\n${alternates}\n  </url>`;
+}
+
 /**
  * The full sitemap: the landing page, the directory, and every listed AND
  * published Room's `/r/<slug>`. `origin` is the caller's own scheme+host
@@ -65,9 +88,13 @@ export async function buildSitemapXml(db, { origin }) {
     // content page for the identical Room the link right before it opens.
     ...rows.flatMap((r) => [
       urlEntry(`${origin}/r/${r.slug}`, r.listed_at),
-      urlEntry(`${origin}/c/${r.slug}`, r.listed_at),
+      // WS-R90: `/c/<slug>` carries its hreflang cluster; `/r/<slug>` (the
+      // Room itself, a client app with no language-selecting query string
+      // of its own) does not — this workstream's brief names only the
+      // creator page for this addition.
+      creatorPageUrlEntry(origin, r.slug, r.listed_at),
     ]),
   ];
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</urlset>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${entries.join("\n")}\n</urlset>\n`;
 }

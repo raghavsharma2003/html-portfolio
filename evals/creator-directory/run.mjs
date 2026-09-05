@@ -240,6 +240,15 @@ function makeDb(state) {
   ok("does NOT carry the listed-but-unpublished Room", !xml.includes("/r/unpublished-but-listed"));
   ok("does NOT carry the published-but-unlisted Room", !xml.includes("/r/quiet-room"));
   ok("is well-formed enough to carry exactly one urlset root", (xml.match(/<urlset/g) || []).length === 1);
+
+  // WS-R90: /c/<slug>'s own hreflang cluster, present for every listed-and-
+  // published Room, absent for one that never made either bar.
+  ok("urlset declares the xhtml namespace", xml.includes('xmlns:xhtml="http://www.w3.org/1999/xhtml"'));
+  ok("carries /c/<slug> beside /r/<slug>", xml.includes("<loc>https://example.vyakti.app/c/arjun-physics</loc>"));
+  ok('the en alternate is the bare address', xml.includes('<xhtml:link rel="alternate" hreflang="en" href="https://example.vyakti.app/c/arjun-physics" />'));
+  ok('the hi alternate carries ?lang=hi', xml.includes('<xhtml:link rel="alternate" hreflang="hi" href="https://example.vyakti.app/c/arjun-physics?lang=hi" />'));
+  ok('the x-default alternate matches the en address', xml.includes('<xhtml:link rel="alternate" hreflang="x-default" href="https://example.vyakti.app/c/arjun-physics" />'));
+  ok("does NOT carry a /c/<slug> hreflang cluster for the unpublished-but-listed Room", !xml.includes("/c/unpublished-but-listed"));
 }
 
 // ── 4. unlist removes a Room from both the directory and the sitemap ──────

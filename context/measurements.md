@@ -11523,3 +11523,59 @@ n = 48 studio screen loads (the `studio`, `studio:shell`, `studio-hi` and `studi
 | `.field-label` at `var(--measure)` | 0 | 48 loads clean |
 
 The probe that found the driver: for every element, `white-space` of `pre`/`nowrap` with `scrollWidth` past the viewport, a pixel `min-width` past it, or a grid whose resolved tracks sum past it; the `studio-tabshell`'s single track had resolved to 762.7 px.
+
+## `ws-r90-creator-page-bytes-2026-09-05` — the exact byte cost of hreflang + og:locale
+
+n = 1 (the same `creator-page-fixture.html` fixture data WS-R66/WS-R80 both
+measured against: one Room, five showcase slots), method: built
+`buildCreatorPageHtml` twice with identical input — once from this
+worktree's committed tree at the start of this session (commit `6deaf1e`,
+checked out into a scratch detached worktree so the comparison never
+touched this worktree's own working files) and once from the tree after
+this workstream's changes — and diffed `Buffer.byteLength(html, "utf8")`,
+date 2026-09-05.
+
+| | bytes |
+|---|---|
+| before (WS-R80's own tree, commit 6deaf1e) | 7186 |
+| after (WS-R90: 3 hreflang `<link>` + 1 `og:locale` `<meta>`) | 7485 |
+| delta | +299 bytes (+4.2%) |
+
+## `ws-r90-creator-page-performance-2026-09-05`
+
+n = 1 target (`/c/<slug>`, `creator-page-fixture.html` data, same fixture
+WS-R66/WS-R80 measured), 3 cold-cache runs, method:
+`scripts/check-performance.mjs`'s existing harness (real Chromium over CDP,
+390x844, throttle CPU 4x / 1.6Mbps down / 750Kbps up / 150ms RTT), date
+2026-09-05, this workstream's own machine.
+
+| metric | before (WS-R80, `ws-r80-creator-page-performance-2026-09-05`) | after (WS-R90) | budget |
+|---|---|---|---|
+| LCP | 344ms | 268ms | 2500ms |
+| CLS | 0.000 | 0.000 | 0.1 |
+| TBT | 40ms | 0ms | 300ms |
+| JS transferred | 2.2KB | 2.2KB | 180KB |
+| CSS transferred | 0.0KB | 0.0KB | none named |
+| font | 0.0KB | 0.0KB | 120KB |
+| render-blocking requests | 0 | 0 | 0 |
+
+The LCP/TBT drop is ordinary run-to-run noise on this one machine (n=3 cold
+runs, no fixed seed), exactly the same caveat WS-R80's own entry names for
+its own before/after pair. JS transferred is UNCHANGED (WS-R90 adds no
+script, only `<link>`/`<meta>` tags in `<head>`) — the +299 bytes measured
+above (`ws-r90-creator-page-bytes-2026-09-05`) is HTML, which this table has
+no dedicated column for; it is well inside the page's overall headroom
+against the 180KB JS budget regardless.
+
+## `ws-r90-evals-2026-09-05`
+
+Offline, deterministic, $0, no DB, no network beyond the two WebFetch calls
+to Google's own hreflang/sitemap documentation pages made once while
+researching this workstream (never from the evals themselves), method:
+`node evals/<name>/run.mjs` run directly, date 2026-09-05.
+
+| suite | assertions | result |
+|---|---|---|
+| `evals/creator-page/run.mjs` | 119 (up from 89 before this workstream, measured by running the untouched tree in a scratch worktree) | all pass |
+| `evals/creator-directory/run.mjs` | 61 (up from 55) | all pass |
+| `evals/probe-live/run.mjs` | 23 checks (up from 12: two new sections proving `--creator-slug`'s happy path plus its honest skip, and two new negative controls, `dropCreatorHreflang`/`corruptCreatorJsonLd`) | all pass |

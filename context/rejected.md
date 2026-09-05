@@ -10950,3 +10950,44 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r90-fake-server-c-slug-handler-forgot-applyheaders` — a new route in the probe-live fixture server silently dropped a header promise the OLD 404 fallback had been supplying by accident (2026-09-05, WS-R90)
+
+**Tried.** `evals/probe-live/fakeServer.mjs`'s first draft of the new
+`/c/:slug` route handler (added so this workstream's `--creator-slug`
+checks would have something real to check against) wrote the response head
+directly — `res.writeHead(200, { "content-type": "text/html; ..." })` —
+without calling `applyHeaders(res, pathname)` first, the one line every
+other route in this file calls before writing its own headers.
+
+**What broke.** `evals/probe-live/run.mjs`'s existing, UNCHANGED "clean
+fixture -> zero findings" assertion started failing the moment this route
+existed, with five findings, all on `route-class /c/:slug` — Content-
+Security-Policy, Strict-Transport-Security, Referrer-Policy, Permissions-
+Policy and X-Content-Type-Options all reported `(absent)`. `/c/:slug`
+already carries a `vercel.json` `headers[]` rule (WS-R66), and
+`scripts/probe-live.mjs`'s own section 1 (its pre-existing route-class
+loop, untouched by this workstream) had ALREADY been probing `/c/:slug`
+with an unknown slug before this session ever started — it had simply been
+getting those five headers by accident, because with no dedicated handler
+the request fell through to this file's generic 404 fallback, which DOES
+call `applyHeaders` before its `404` write. The new 200-status handler
+short-circuited that fallback and took its header promise with it.
+
+**The fix.** One line — `applyHeaders(res, "/c/:slug")` — added immediately
+before the new handler's `res.writeHead(200, ...)`, the identical literal-
+source-string convention `roomMatch`'s own bot branch two blocks down
+already uses (`applyHeaders(res, "/r/:slug")`, which works because the
+literal string `"/r/:slug"` also happens to match `sourceToRegExp("/r/:slug")`'s
+own compiled pattern — a `:slug` segment contains no `/`).
+
+**The rule.** A NEW route added to a fixture server that already answers a
+path via a generic fallback must be checked against every existing
+assertion that path's OLD behavior satisfied, not just the NEW assertions
+the new route was built to pass — the old "clean fixture -> zero findings"
+check was the thing that caught this, precisely because it re-ran on every
+existing surface, not only the ones this workstream touched. The general
+form: adding a specific handler for a path a catch-all used to serve is a
+BEHAVIOR CHANGE for every promise the catch-all was silently satisfying,
+and the fix is to carry those promises forward explicitly, never to assume
+a new 200 response needs nothing the old 404 already had.
