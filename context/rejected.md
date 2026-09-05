@@ -13522,3 +13522,144 @@ NEXT workstream that adds an unconditional (non-flag-gated) surface to
 MUST answer that surface too, or every scenario in that suite fails
 together, not just the new one — an unconditional real-probe check has no
 "skip if absent" branch the way a `--creator-slug`-gated one does.
+
+## `ws-r113-a-file-named-hicopyauth-ts-silently-falls-out-of-the-copy-gate`
+
+**Tried.** Naming the new sign-in-only Hindi chunk `hiCopyAuth.ts`, the name
+this workstream's own brief uses verbatim throughout its Product/Build
+sections.
+
+**What broke.** `scripts/check-copy.mjs`'s `COPY_FILES` pattern
+(`/(errorCopy|copy|strings|messages|labels)\.tsx?$/i`) treats a file as a
+whole-file copy table ONLY when its basename ENDS with one of those words
+immediately before `.ts`/`.tsx` — `"hiCopyAuth.ts"` ends in `"Auth.ts"`, not
+`"Copy.ts"`, so it fails that match. Every string literal in the file would
+then fall to the general visible-prop heuristic instead (the one meant for
+JSX component files with a mix of code and copy), the wrong scan for a
+data-only file with no JSX at all — a real risk of either false-negatives
+(a string this heuristic reads as "not visible" going unscanned) or noisy
+false-positives, neither of which this workstream's own brief asked for or
+had time to characterise. The brief's OWN Build section states the rule
+correctly one paragraph after naming the file: "a basename ending in
+`Copy.ts` is scanned; keep the new file's name in that shape" — the two
+instructions conflict, and the shape rule is the one with a real mechanism
+behind it (a regex, not a preference).
+
+**Fix.** Named the file `hiAuthCopy.ts` instead — same words, reordered so
+the basename ends in `Copy.ts` and the existing `COPY_FILES` rule catches it
+with no change to `scripts/check-copy.mjs` itself (out of this workstream's
+file list). Verified directly: `node scripts/check-copy.mjs` treats every
+Hindi string in `hiAuthCopy.ts` as a copy-file literal and scans it under
+the SAME whole-file rule `hiCopy.ts` already relies on (confirmed clean,
+0 findings, alongside the existing 1648-leaf Hindi table).
+
+**Reversal.** None expected — this is a naming convention, not a measured
+trade-off. If a future workstream ever needs a genuinely different name for
+a copy-table file that cannot end in one of `COPY_FILES`'s five suffixes,
+widening that regex (a one-line, low-risk change) is the right fix, done
+deliberately in the same commit as the file it is meant to cover — never
+work around it by choosing a name that happens to still parse under the
+weaker heuristic.
+
+## `ws-r113-a-proxy-that-only-implements-get-is-invisible-to-object-keys`
+
+**Tried.** The first version of `STUDIO_COPY_TABLE.hi`'s section-scoped
+Proxy implemented only a `get` trap (throw-by-section on an uninstalled
+key, return the real value on an installed one) — the exact shape the
+pre-split `HI_NOT_LOADED` placeholder already used, extended with a second
+error name.
+
+**What broke.** `evals/studio-locale/run.mjs`'s own key-parity check (its
+`paths()` helper, `Object.entries(obj)` recursed) reported `en has 1648
+leaves, hi has 0` even AFTER both chunks were fully installed via
+`loadStudioCopy("hi")`. `Object.keys`/`Object.entries`/`for...in` do not
+call `get` at all to discover what keys exist — they call `ownKeys` +
+`getOwnPropertyDescriptor` on the Proxy, and since the underlying target was
+a genuinely empty object (`{} as StudioCopy`) with no trap overriding
+either, those enumerated ZERO keys forever, regardless of how much data had
+been assigned into the separate `hiInstalled` store the `get` trap actually
+reads from. `layoutFixture.tsx`'s `flattenHiStrings` (also `Object.entries`-
+based, feeds the layout gate's own glyph audit) would have failed the same
+way silently in a browser, reporting zero Hindi strings to check rather than
+1648 — never caught by TypeScript, since the Proxy's declared TYPE
+(`StudioCopy`) was never wrong, only its runtime enumeration behavior.
+
+**Fix.** Added `has`, `ownKeys` and `getOwnPropertyDescriptor` traps, all
+three delegating to the SAME `hiInstalled` store the `get` trap already
+reads (`Reflect.ownKeys(hiInstalled)` for `ownKeys`; a descriptor marked
+`enumerable: true, configurable: true` for any key present in
+`hiInstalled`, `undefined` otherwise). `configurable: true` on every
+reported key is what keeps this Proxy spec-legal despite the underlying
+target never actually growing those properties — the invariant only
+requires a NON-EXTENSIBLE target's own keys to be reported honestly; this
+target is extensible and empty by design. Confirmed fixed by the same
+eval: `en has 1648 leaves, hi has 1648 leaves` after the traps were added.
+
+**Reversal.** None expected. The lesson generalises: a `get`-only Proxy used
+as a lazy-loading placeholder is only safe for CODE THAT NAMES ITS OWN KEYS
+(`t.authGate.signInTitle`, the shape every real component uses) — the
+moment any caller reflects over the object's OWN shape (`Object.keys`,
+spreading it, `JSON.stringify`, a debugger's own object inspector), the
+placeholder needs `ownKeys`/`getOwnPropertyDescriptor` too, or it reads as
+permanently empty no matter what has actually loaded.
+
+## `ws-r113-a-short-backtick-quoted-word-in-a-comment-desynced-a-source-scanning-regex-onto-a-pre-existing-comment`
+
+**Tried.** Writing this workstream's own explanatory comments in `copy.ts`
+the way every surrounding comment in the file already does — a short
+identifier wrapped in backticks for emphasis, including bare short words
+like `` `has` ``, `` `get` ``, `` `hi` ``, `` `en` `` and `` `shell` ``
+(3-5 characters each).
+
+**What broke.** `evals/readiness/run.mjs`'s own banned-product-word check
+(§ "no banned product word enters the text this panel renders") concatenates
+`ReadinessPanel.tsx` with the FULL RAW SOURCE of `copy.ts` and extracts
+every `` `[^`]{6,}` `` backtick-quoted span (among two other patterns) to
+scan for `clone`/`replica`/`fine-tune`. That regex requires the quoted
+CONTENT to be at least 6 characters; a backtick pair enclosing fewer than 6
+non-backtick characters (`` `has` ``, content "has", 3 chars) cannot match
+as its own span, so the regex engine's next attempt starts at that pair's
+OWN closing backtick, treating it as a fresh OPENING delimiter and hunting
+forward for whatever backtick comes next ANYWHERE later in the file — here,
+tens of thousands of characters later, past `hiCopy.ts`'s own quoted name,
+sweeping up a completely unrelated, PRE-EXISTING WS-R106 comment
+(`// ... renamed from the pre-existing "REPLICA STUDIO" it replaces.`)
+inside its 104,146-character accidental span. The word "REPLICA" inside
+THAT quoted string then failed the banned-word check — a real, reproducible
+`node evals/readiness/run.mjs` failure (confirmed absent on the untouched
+`git show HEAD:src/studio/copy.ts`, confirmed present after this
+workstream's edits, confirmed gone again after the fix below) caused
+entirely by a formatting choice in a comment nowhere near
+`ReadinessPanel.tsx` or the readiness feature itself. `scripts/check-copy.mjs`
+never caught this (comments are not user-visible copy, out of its scope by
+design) — only this ONE eval's own raw-source concatenation trick
+surfaced it, and only because this file happens to carry a pre-existing
+banned word inside an unrelated historical comment for the regex to
+stumble onto.
+
+**Fix.** Rewrote every short (<6-character-content) backtick-quoted word
+this workstream had added across `copy.ts`, `hiCopy.ts` and `hiAuthCopy.ts`
+— either dropping the backticks entirely (`` `shell` `` to plain "the shell
+section", `` `has` ``/`` `get` `` to plain prose naming the trap) or, where a
+real short identifier needed marking, leaving it unquoted rather than
+backtick-wrapped alone. Verified by directly re-running the failing eval's
+own extraction logic in isolation (a one-off Node script reproducing its
+exact three regexes) before and after, and by confirming total backtick
+COUNT parity (even/even) is necessary but NOT sufficient — the real proof
+needed is running the regex sequentially and checking no accidental
+99,999+-character span appears, since two individually-even changes can
+still desync a MIDDLE section transiently before re-syncing by file end.
+
+**Reversal.** None expected as a decision — this is a durable style
+constraint, not a trade-off. The generalizable rule for the next agent
+writing a comment in ANY file another eval might concatenate and regex-scan
+raw: never backtick-wrap a bare word under 6 characters alone (`hi`, `en`,
+`get`, `has`, `sa`, `copy`, `shell`, `test` are exactly the class of word
+this bites) — either quote something longer (`hiAuthCopy.ts` rather than
+just `hi`) or leave it unquoted. If a future eval needs to scan a comment
+file this way again and trips the same failure mode, the more durable fix
+is teaching the SCANNING regex to require balanced backtick pairs (or to
+strip comments before scanning) rather than asking every future comment
+writer to remember this constraint by hand — that widening was out of this
+workstream's own file list (`evals/readiness/run.mjs` was never named in
+its brief) and was not made here.

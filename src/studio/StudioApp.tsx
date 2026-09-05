@@ -22,7 +22,7 @@ import {
 // `studioLocale` rather than through `useStudioLocale()` -- `handleExport`
 // below is a plain callback, not a component, so it cannot call a hook.
 import { loadStudioCopy, normalizeStudioLocale, STUDIO_COPY_TABLE, studioCopyReady, withLabel, type StudioLocale as StudioChromeLocale } from "./copy";
-import { StudioLocaleProvider, useStudioLocale } from "./localeContext";
+import { StudioLocaleAuthProvider, StudioLocaleProvider, useStudioLocale } from "./localeContext";
 // WS-R91. The pre-sign-in half of the locale chain (?lang= / a remembered
 // local choice / "en"), pulled out as its own pure module so it can be
 // unit-tested directly -- see `studioLocalePreference.ts`'s own header.
@@ -1490,8 +1490,26 @@ export default function StudioApp() {
   // just for the one frame it exists to bridge. Mirrors
   // `StudioLocaleProvider`'s own not-ready effect exactly, one component up.
   const [, forceStudioCopyRerender] = useReducer((n: number) => n + 1, 0);
+  // WS-R113: gated on `session` too, not just `studioCopyReady`. This effect
+  // runs unconditionally (React's own rule for hooks), including on every
+  // signed-OUT render -- before this workstream's split, that was harmless,
+  // because `loadStudioCopy` only ever fetched the ONE Hindi chunk the
+  // sign-in screen needed anyway. Now `loadStudioCopy` installs BOTH chunks
+  // (`hiAuthCopy.ts` and the much larger `hiCopy.ts`), and `sa`/`copy` above
+  // are only ever RENDERED once signed in (`sa.loading` on the boot page is
+  // the one pre-session read, and it already tolerates the English fallback
+  // deliberately -- `context/decisions.md#ws-r91-authgate-reads-locale-
+  // before-sign-in`'s own "sub-second transient" note). Fetching the REST
+  // chunk before a session exists would silently re-import exactly the cost
+  // `context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-
+  // and-a-rest-section` split away -- a signed-out `/studio?lang=hi` visit
+  // pulling ~184KB of panel copy it can never render. Once signed in, this
+  // effect's own `loadStudioCopy` call and the signed-in `StudioLocaleProvider`'s
+  // (localeContext.tsx) both fire; both are idempotent against the SAME
+  // `hiRestLoading` promise (`copy.ts`'s own cache), so this is never a
+  // second fetch, only a second awaiter.
   useEffect(() => {
-    if (studioCopyReady(studioLocale)) return;
+    if (!session || studioCopyReady(studioLocale)) return;
     let alive = true;
     loadStudioCopy(studioLocale).then(() => {
       if (alive) forceStudioCopyRerender();
@@ -1499,7 +1517,7 @@ export default function StudioApp() {
     return () => {
       alive = false;
     };
-  }, [studioLocale]);
+  }, [studioLocale, session]);
   // `src/room/RoomApp.tsx`'s own line, same reason: the studio's chrome
   // locale is a client-side fact `studio.html`'s static `lang="en"` cannot
   // know at build time.
@@ -2399,14 +2417,18 @@ export default function StudioApp() {
       // rather than the fixed English `copy` object above (still used
       // below, unchanged, by the signed-in-only `CreateReplicaCard`).
       // context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in.
-      <StudioLocaleProvider locale={studioLocale}>
+      // WS-R113: `StudioLocaleAuthProvider`, not `StudioLocaleProvider` --
+      // AuthGate reads only `authGate` + `shell.languageGroupLabel`, its own
+      // small chunk, and must not wait on the rest of the studio's Hindi
+      // table the way the signed-in tree below still does.
+      <StudioLocaleAuthProvider locale={studioLocale}>
         <AuthGate
           variant={authVariant}
           testEnvironment={STUDIO_SELF_TEST_UI}
           onAuthed={(next) => { setSession(next); void loadReplicas(next); }}
           onSwitchLocale={switchLocale}
         />
-      </StudioLocaleProvider>
+      </StudioLocaleAuthProvider>
     );
   }
 

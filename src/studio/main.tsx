@@ -29,26 +29,36 @@ import "./design/mobile.css";
 import "./design/review-queue.css";
 import { restoreStudioMode } from "./studioAuth";
 import { restoreStartSuiteDraft } from "./startSuiteDraft";
-import { loadStudioCopy } from "./copy";
+import { loadStudioCopyAuth } from "./copy";
 
-// WS-R91. Starts the Hindi copy chunk's own fetch as early as this module
-// can, well before `StudioLocaleProvider`'s own effect would otherwise
-// start it (which only runs after `StudioApp` has mounted, resolved
-// `authChecked`, and rendered a first time). `loadStudioCopy` dedupes
-// (`copy.ts`'s own `hiLoading` cache, installed once and shared), so this
-// is a pure head start, never a duplicate fetch: every later caller this
-// same page session makes (the provider, `AuthGate`, a signed-in panel)
+// WS-R91, narrowed WS-R113. Starts the Hindi AUTH chunk's own fetch as early
+// as this module can, well before `StudioLocaleAuthProvider`'s own effect
+// would otherwise start it (which only runs after `StudioApp` has mounted,
+// resolved `authChecked`, and rendered a first time). `loadStudioCopyAuth`
+// dedupes (`copy.ts`'s own `hiAuthLoading` cache, installed once and
+// shared), so this is a pure head start, never a duplicate fetch: every
+// later caller this same page session makes (the auth provider, `AuthGate`)
 // resolves against this SAME in-flight promise. Read directly from
 // `location.search` rather than through any React state, which does not
 // exist yet at this point in the module's lifecycle — the identical
 // "before render, never after" law `restoreStudioMode()`'s own comment
 // states two lines down, applied to a chunk fetch instead of a URL param.
+//
+// Only the AUTH chunk, not the whole table: `loadStudioCopy("hi")` (the
+// pre-WS-R113 call here) preloaded EVERY panel's Hindi to paint a sign-in
+// screen that reads two sections of it -- exactly the cost
+// `context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`
+// measured and split away. The REST of the table preloads once a session
+// exists -- the signed-in `StudioLocaleProvider`'s own effect
+// (localeContext.tsx) already calls the (strictly larger) `loadStudioCopy`
+// on mount, unchanged from before this split, so no second early call is
+// needed here for that half.
 // `context/decisions.md#ws-r91-hindi-chunk-preloaded-from-main-tsx` is the
 // reversal condition this exists to satisfy
 // (`context/decisions.md#studio-hindi-table-is-its-own-chunk`'s own one).
 try {
   if (new URLSearchParams(window.location.search).get("lang") === "hi") {
-    void loadStudioCopy("hi");
+    void loadStudioCopyAuth("hi");
   }
 } catch {
   // A malformed URL leaves this as a no-op; the provider's own later call

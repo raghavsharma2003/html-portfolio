@@ -13288,3 +13288,53 @@ caught) — all passed. Measured 2026-09-05, this workstream's own worktree,
 this container), full run time ~1080s on a shared, contended machine
 (`eval suite` alone: 588,671ms — see the rejected.md entry on why this
 run's timing is not comparable to an isolated one).
+
+## `ws-r113-first-hindi-paint-after-the-auth-rest-split-2026-09-05`
+
+**Method.** `node scripts/check-performance.mjs --target studio-hi`
+(`/studio?lang=hi`, real Chromium via CDP, 4x CPU throttle, Fast-3G network
+throttle, 3 runs per invocation with the MEDIAN reported), invoked THREE
+separate times ("three batches of three runs", workstream law 3), waiting
+for port 8932 to free between batches with an until-loop. `uptime` (1/5/15
+min load average) and a `ps aux` grep for sibling `verify-release.mjs`/
+`check-layout.mjs` processes recorded before each batch; no quiet window
+(load at or below the 4-core machine's own core count, zero sibling gates)
+was ever observed in a ~9 minute polling window this session tried first —
+wave seventeen has roughly ten sibling workstreams' own gates running
+concurrently on this shared sandbox for its entire duration. Measured AFTER
+fixing the `StudioApp.tsx` effect bug this same split surfaced (see
+`context/decisions.md#ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section`'s
+own "a real bug this split surfaced" paragraph) — the numbers below are the
+POST-fix state, the one that ships.
+
+**Batch 1** (load before: 11.62/9.97/6.14): median firstHindiPaintMs
+**595.8ms** (runs: 459.0, 595.8, 609.7ms); median hindiChunkWaitMs 0.3ms
+(runs: 0.3, 0.2, 63.5ms); jsBytes 164.9KB (all 3 runs).
+
+**Batch 2** (load before: 13.55/10.52/6.40): median firstHindiPaintMs
+**569.1ms** (runs: 569.1, 974.0, 438.0ms — the 974ms run is this
+measurement's own worst single observation, still under the OLD 1000ms
+budget); median hindiChunkWaitMs 0.2ms (runs: 0.2, 134.2, 0.1ms); jsBytes
+164.9KB.
+
+**Batch 3** (load before: 13.94/10.74/6.54): median firstHindiPaintMs
+**533.3ms** (runs: 533.3, 432.1, 567.9ms); median hindiChunkWaitMs 3.4ms
+(runs: 63.2, 0.2, 3.4ms); jsBytes 164.9KB.
+
+**Result.** All three batch medians (595.8, 569.1, 533.3ms) are under the
+700ms line `context/decisions.md#ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
+named as the mechanical reversal condition, measured under HEAVIER
+contention than that entry's own attempt (load average roughly 12-14 here
+throughout, versus that entry's 12-20 on a then-6-sibling machine — directly
+comparable order of magnitude, both far from quiet). `FIRST_HINDI_PAINT_BUDGET_MS`
+returns to 800 in the same commit
+(`scripts/check-performance.mjs`). A single ad-hoc run afterward, immediately
+following the budget edit, measured 711ms and 726ms median on two separate
+invocations (both still comfortably under 800) — the batch/ad-hoc gap is
+exactly the run-to-run contention variance this whole entry already names,
+not evidence against the three qualifying batches above.
+
+**Before this split, for comparison** (WS-R107, `context/measurements.md#ws-r107-first-hindi-paint-after-preload-2026-09-05`,
+not re-run here): 808ms, 572ms, 657ms — one of three batches over 700ms,
+which is the reason `FIRST_HINDI_PAINT_BUDGET_MS` stayed at 1000 through
+wave sixteen.

@@ -25,8 +25,10 @@
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
 import {
   loadStudioCopy,
+  loadStudioCopyAuth,
   normalizeStudioLocale,
   STUDIO_COPY_TABLE,
+  studioAuthCopyReady,
   studioCopyReady,
   type StudioCopy,
   type StudioLocale,
@@ -55,13 +57,16 @@ export function getActiveStudioLocale(): StudioLocale {
 
 export function StudioLocaleProvider({ locale, children }: { locale: StudioLocale; children: ReactNode }) {
   const safe = normalizeStudioLocale(locale);
-  // The Hindi table is its own chunk (`src/studio/hiCopy.ts`, the WS-R71
-  // merge): until `loadStudioCopy` has installed it, `STUDIO_COPY_TABLE.hi`
-  // throws on read, so this provider renders NOTHING for a locale whose
-  // table is not ready yet - never English in its place - and re-renders
-  // once the chunk lands. English is ready at module load, so the English
-  // studio pays no wait at all; a Hindi creator waits one small fetch on
-  // first paint and never sees the wrong language.
+  // The Hindi table is TWO independently-lazy chunks (`src/studio/
+  // hiAuthCopy.ts` + `hiCopy.ts`, WS-R113 splitting the WS-R71 merge): until
+  // `loadStudioCopy` has installed BOTH, `STUDIO_COPY_TABLE.hi` throws on
+  // read, so this provider (mounted only around the SIGNED-IN tree --
+  // `StudioLocaleAuthProvider` above is the sign-in screen's own, smaller
+  // gate) renders NOTHING for a locale whose table is not fully ready yet -
+  // never English in its place - and re-renders once both chunks land.
+  // English is ready at module load, so the English studio pays no wait at
+  // all; a signed-in Hindi creator waits on whichever chunk (if either) is
+  // not already installed and never sees the wrong language.
   const ready = studioCopyReady(safe);
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   useEffect(() => {
@@ -84,4 +89,38 @@ export function StudioLocaleProvider({ locale, children }: { locale: StudioLocal
 
 export function useStudioLocale(): StudioLocaleValue {
   return useContext(StudioLocaleContext);
+}
+
+// WS-R113. `AuthGate.tsx` (the sign-in screen) reads exactly two sections --
+// `t.authGate` in full, `t.shell.languageGroupLabel` for its own language
+// switch -- both of which now live in their own chunk, `hiAuthCopy.ts`,
+// smaller and loaded earlier than the rest of the studio's Hindi table
+// (`copy.ts`'s own header names the measurement this fixes). Gating the
+// SIGN-IN screen on `studioCopyReady`/`loadStudioCopy` (the signed-in
+// provider below, unchanged) would still block it on every OTHER panel's
+// Hindi -- `roomStudio`, the whole enrollment wizard -- none of which a
+// signed-out visitor can ever reach. This provider is the sign-in screen's
+// own gate: it waits on `studioAuthCopyReady`/`loadStudioCopyAuth` only.
+// `StudioApp.tsx` mounts THIS provider around `AuthGate`, never the one
+// below, for exactly this reason.
+export function StudioLocaleAuthProvider({ locale, children }: { locale: StudioLocale; children: ReactNode }) {
+  const safe = normalizeStudioLocale(locale);
+  const ready = studioAuthCopyReady(safe);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    activeLocale = safe;
+  }, [safe]);
+  useEffect(() => {
+    if (ready) return;
+    let alive = true;
+    loadStudioCopyAuth(safe).then(() => {
+      if (alive) rerender();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [safe, ready]);
+  if (!ready) return null;
+  const value: StudioLocaleValue = { locale: safe, t: STUDIO_COPY_TABLE[safe] };
+  return <StudioLocaleContext.Provider value={value}>{children}</StudioLocaleContext.Provider>;
 }

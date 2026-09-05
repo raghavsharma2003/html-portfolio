@@ -10090,6 +10090,36 @@
       "kind": "component",
       "title": "/suites/about (api/_suites-about.js, api/suites-about.js): the Suite admin transparency page, server-rendered, both locales, no db, no migration.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section",
+      "kind": "decision",
+      "title": "hiCopy.ts splits into hiAuthCopy.ts (authGate + shell, what the signed-out sign-in screen reads) and hiCopy.ts (everything else, loaded once signed in); STUDIO_COPY_TABLE.hi is one Proxy over both, throwing by section name; FIRST_HINDI_PAINT_BUDGET_MS returns to 800.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r113-first-hindi-paint-after-the-auth-rest-split-2026-09-05",
+      "kind": "measurement",
+      "title": "Three batches of three runs, --target studio-hi, on a heavily contended machine (load average 11.6-13.9): medians 595.8ms, 569.1ms, 533.3ms, all under the 700ms reversal line (was 808/572/657ms before this split, WS-R107). jsBytes 164.9KB, byte-identical to /studio.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r113-a-file-named-hicopyauth-ts-silently-falls-out-of-the-copy-gate",
+      "kind": "rejection",
+      "title": "Naming the new chunk hiCopyAuth.ts (the brief's own literal name) would end in \"Auth.ts\", missing scripts/check-copy.mjs's COPY_FILES suffix match; named hiAuthCopy.ts instead, ending in \"Copy.ts\", no gate script change needed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r113-a-proxy-that-only-implements-get-is-invisible-to-object-keys",
+      "kind": "rejection",
+      "title": "A get-only Proxy placeholder for STUDIO_COPY_TABLE.hi reported zero keys to Object.keys/Object.entries even after both chunks installed (en 1648 leaves, hi 0) -- fixed by adding has/ownKeys/getOwnPropertyDescriptor traps delegating to the same install store.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r113-a-short-backtick-quoted-word-in-a-comment-desynced-a-source-scanning-regex-onto-a-pre-existing-comment",
+      "kind": "rejection",
+      "title": "Backtick-wrapping bare short words (has, get, hi, en, shell) in new copy.ts comments desynced evals/readiness/run.mjs's raw-source backtick-quote regex (requires 6+ char content), sweeping a 104K-char accidental match onto a pre-existing WS-R106 comment containing REPLICA and failing the banned-word check -- fixed by removing the short backtick pairs.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19632,6 +19662,36 @@
       "src": "ws-r117-suite-board-copy-conversion-already-complete",
       "rel": "constrains",
       "dst": "suites-about-page"
+    },
+    {
+      "src": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section",
+      "rel": "measured_by",
+      "dst": "ws-r113-first-hindi-paint-after-the-auth-rest-split-2026-09-05"
+    },
+    {
+      "src": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section",
+      "rel": "supersedes",
+      "dst": "ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention"
+    },
+    {
+      "src": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section",
+      "rel": "caused_by",
+      "dst": "ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention"
+    },
+    {
+      "src": "ws-r113-a-file-named-hicopyauth-ts-silently-falls-out-of-the-copy-gate",
+      "rel": "constrains",
+      "dst": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section"
+    },
+    {
+      "src": "ws-r113-a-proxy-that-only-implements-get-is-invisible-to-object-keys",
+      "rel": "constrains",
+      "dst": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section"
+    },
+    {
+      "src": "ws-r113-a-short-backtick-quoted-word-in-a-comment-desynced-a-source-scanning-regex-onto-a-pre-existing-comment",
+      "rel": "constrains",
+      "dst": "ws-r113-hindi-chunk-splits-into-an-auth-section-and-a-rest-section"
     }
   ]
 }
