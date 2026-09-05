@@ -558,6 +558,21 @@ const EN = {
   dormancy: {
     note: "Kept until {duration} after your last visit.",
   },
+
+  /** WS-R86 (migration 123). "Bring a friend" - the account page's own
+   *  referral card, rendered right under the disclosure (this workstream's
+   *  own law 3). `url` itself is never copy - it is server data
+   *  (`roomReferralLink`, api/_room-surface.js's own op), read at render
+   *  time, never a template string this file could drift from the real
+   *  hash shape. A failed load or copy falls back to `errors.generic`
+   *  above, this file's own existing honest-failure sentence, never a new
+   *  one this workstream would have to keep in sync with it. */
+  referral: {
+    title: "Bring a friend",
+    note: "Share this link. If a friend joins through it, the creator only sees that a friend was brought in - never who.",
+    copy: "Copy link",
+    copied: "Copied",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -880,6 +895,13 @@ const HI: typeof EN = {
 
   dormancy: {
     note: "आपकी आख़िरी विज़िट के {duration} बाद तक रखा जाएगा।",
+  },
+
+  referral: {
+    title: "किसी दोस्त को लाएं",
+    note: "यह लिंक शेयर करें। अगर कोई दोस्त इससे जुड़ता है, तो क्रिएटर को सिर्फ इतना पता चलता है कि एक दोस्त आया - कभी यह नहीं कि कौन।",
+    copy: "लिंक कॉपी करें",
+    copied: "कॉपी हो गया",
   },
 };
 

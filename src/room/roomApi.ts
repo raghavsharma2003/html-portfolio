@@ -190,6 +190,16 @@ export function viaFromLocation(search = window.location.search): string {
   return new URLSearchParams(search).get("via") || "";
 }
 
+/** WS-R86 (migration 123): the referral hash a `?ref=` link carries,
+ *  `viaFromLocation`'s own pattern one field over. The server validates
+ *  the shape (`api/_room-surface.js`'s `resolveReferralHash`) before it
+ *  ever reaches SQL, so this reads the raw query string verbatim and lets
+ *  the server decide - a stray or malformed value here simply mints no
+ *  referral row, never a client-side error. */
+export function refFromLocation(search = window.location.search): string {
+  return new URLSearchParams(search).get("ref") || "";
+}
+
 /** `locale` is a HINT, read only when there is no follower row yet to answer
  *  the question instead - `api/_room-surface.js`'s `openRoom` ignores it the
  *  moment a follower already exists. Omit it and the server falls back to the
@@ -215,15 +225,33 @@ export const tasteInRoom = (
   locale?: string | null,
 ) => post<RoomTasteTurn>({ op: "taste", room: slug, message, locale: locale || undefined });
 
+/** `ref` (WS-R86) is the referral hash a `?ref=` link carried - pass it
+ *  only on the FIRST real join call for a follower (`RoomApp.tsx`'s own
+ *  `JoinSheet`), never on a repeat join (the memory-consent toggle):
+ *  `api/_room-surface.js`'s own `joinRoom` gates the referral write to a
+ *  genuinely new follower row regardless, so passing it again on a repeat
+ *  call is harmless but pointless - this client simply never does it. */
 export const joinRoom = (
   slug: string,
   accessToken: string,
   answers: { age18: boolean; remember: boolean },
   locale?: string | null,
+  ref?: string | null,
 ) => post<RoomOpen & { session: string }>(
-  { op: "join", room: slug, age_18: answers.age18, remember: answers.remember, locale: locale || undefined },
+  {
+    op: "join", room: slug, age_18: answers.age18, remember: answers.remember,
+    locale: locale || undefined, ref: ref || undefined,
+  },
   accessToken,
 );
+
+/** WS-R86 (migration 123). "Bring a friend" - session-scoped, no body
+ *  field but the session itself, `roomCitations`'s own call shape. */
+export interface RoomReferralLink {
+  url: string;
+}
+export const roomReferralLink = (session: string) =>
+  post<RoomReferralLink>({ op: "referral_link", session });
 
 /** WS-R24, the follower's own chrome language, changed from inside a Room
  *  they have already joined. Scoped off the SESSION, never a person id in the

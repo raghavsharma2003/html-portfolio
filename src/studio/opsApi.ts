@@ -169,6 +169,15 @@ export interface OpsPosterArrivals {
   note: string;
 }
 
+// WS-R86 (migration 123). `api/_funnel.js`'s own `friendArrivalsThisWeek`
+// shape, typed here unchanged - `OpsPosterArrivals`'s own shape, one `via`
+// value over.
+export interface OpsFriendArrivals {
+  n: number | null;
+  below_floor: boolean;
+  note: string;
+}
+
 export interface OpsOverview {
   generated_at: string;
   rooms: OpsRoom[];
@@ -187,6 +196,8 @@ export interface OpsOverview {
   push: OpsPushConfig;
   // WS-R78 (migration 121).
   poster_arrivals_this_week: OpsPosterArrivals;
+  // WS-R86 (migration 123).
+  friend_arrivals_this_week: OpsFriendArrivals;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

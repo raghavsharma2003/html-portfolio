@@ -391,6 +391,12 @@ function render() {
       fixtureAccountOpen={screen === "account"}
       fixtureSettings={hindi ? FIXTURE_SETTINGS_HI : FIXTURE_SETTINGS}
       fixturePayment={FIXTURE_PAYMENT}
+      // WS-R86 (migration 123): "Bring a friend" has no network to mint a
+      // real hash from under this fixture - a fixed, valid-shaped sample
+      // so the account screen's own glyph pass actually renders the card
+      // (`AccountPage.tsx`'s own header on why an unrendered card would
+      // otherwise hide its real Hindi string from the layout gate).
+      fixtureReferralUrl={`/r/anjali?via=friend&ref=${"a".repeat(64)}`}
       // WS-R43: the three screens no fixture reached before.
       fixtureCapped={screen === "capped"}
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}

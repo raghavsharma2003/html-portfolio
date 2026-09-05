@@ -1175,6 +1175,17 @@ export default function RoomStudio({
         ) : (
           <p className="field-note">{c.couldNotLoadCounts}</p>
         )}
+        {/* WS-R86 (migration 123). n>=5 floored - `stats.friends_brought_
+            this_week.note` is `api/_funnel.js`'s own honest sentence
+            (a real number at or above the floor, a fixed floor sentence
+            below it), rendered as-is rather than re-derived client side,
+            `posterArrivals.note`'s own shape (OpsBoard.tsx) one surface
+            over. Absent entirely (never a "0") until `stats` itself loads. */}
+        {stats && (
+          <p className="field-note">
+            {c.friendReferralTitle}: {stats.friends_brought_this_week.note}
+          </p>
+        )}
       </article>
 
       <article className="teacher-sheet-card vy-room__cohort-card">
