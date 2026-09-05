@@ -215,7 +215,15 @@ const { loadAgent } = await loadFixtureAgent(ROOT);
 const SECRET = "s".repeat(48);
 const OTHER_SECRET = "t".repeat(48);
 const ENV = { ROOM_SESSION_SECRET: SECRET };
-const NOW = Date.parse("2026-09-04T12:00:00Z");
+// The fixture clock is the REAL clock, read once. It used to be a fixed
+// calendar date (2026-09-04T12:00Z); sessions minted with `iat = NOW` were
+// then judged by resolvers that default `now` to `Date.now()`, and at
+// 2026-09-05T00:00Z real time crossed NOW + the 12h TTL and three cross-room
+// cases plus one crash flipped to failing with no code change (found by
+// WS-R57, fixed by the main loop at its merge). Every relative offset below
+// (`NOW - 13h` stale, `NOW - 11h59m` fresh) keeps its meaning under both
+// clocks because they now agree to within the run's own duration.
+const NOW = Date.now();
 
 async function setupFollower({ tier = "free", memoryConsent = true, authUserId = USER_A } = {}) {
   const state = freshDoorsState();

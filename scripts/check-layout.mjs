@@ -860,18 +860,32 @@ async function main() {
           if (await control.count().catch(() => 0)) {
             const box = await control.boundingBox().catch(() => null);
             if (box) {
-              // A 120ms settle after each event: `--motion-instant` (tokens.css)
-              // is 90ms, and reading `transform` mid-transition returns a real
-              // but MOVING matrix that equals neither endpoint - a false
-              // positive in both directions this margin exists to avoid.
-              const rest = await control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              // Settle by POLLING, not by a fixed wait: `--motion-instant`
+              // (tokens.css) is 90ms, and reading `transform` mid-transition
+              // returns a real but MOVING matrix that equals neither endpoint.
+              // A fixed 120ms margin was enough on a quiet machine and flaked
+              // under load (wave eleven, eight sibling gates on four cores:
+              // "transform did not clear on page.mouse.up()" on a control
+              // that clears fine), so each read waits up to 1500ms for the
+              // expected endpoint and only then reports what it saw. A
+              // healthy control settles in one or two polls; only a broken
+              // one pays the full bound.
+              const readTransform = () => control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              const settle = async (reached) => {
+                const t0 = Date.now();
+                let v = await readTransform();
+                while (!reached(v) && Date.now() - t0 < 1500) {
+                  await page.waitForTimeout(40);
+                  v = await readTransform();
+                }
+                return v;
+              };
+              const rest = await readTransform();
               await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
               await page.mouse.down();
-              await page.waitForTimeout(120);
-              const down = await control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              const down = await settle((v) => v !== null && v !== rest);
               await page.mouse.up();
-              await page.waitForTimeout(120);
-              const up = await control.evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+              const up = await settle((v) => v !== null && v === rest);
               if (rest !== null && down !== null && rest === down) {
                 findings.push({ where, kind: "pointerdown-feedback", el: "control", n: 0, unit: "",
                   text: "transform did not change on page.mouse.down()" });

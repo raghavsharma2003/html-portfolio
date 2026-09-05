@@ -8944,3 +8944,12 @@ negative control watches must describe forbidden-looking strings in prose
 rather than quote them verbatim — the fix here, and worth checking for
 before adding rich citations to any file with a same-substring negative
 control elsewhere in this codebase.
+
+## `wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time` (2026-09-05, main loop, at the WS-R57 report)
+
+Two gate checks that were correct on the day they were written failed on every wave-eleven tree at once, with no code change, and for two different reasons of the same shape: a constant where a measurement belonged.
+
+1. **The door battery's fixture clock was a calendar date.** `evals/room-doors/run.mjs` set `NOW = Date.parse("2026-09-04T12:00:00Z")` and minted sessions with `iat = NOW`; three cross-room cases (`handoff.js`, `checkins.js`, `room-pay.js`) and the OTP-floor case call resolvers that default `now` to `Date.now()`. At 2026-09-05T00:00Z the real clock crossed `NOW + 12h`, every such session became stale, and the battery reported `room_unavailable` where it expected a cross-room refusal (and one case crashed on `room_session_expired`). WS-R57 found it and traced it; the fix is `NOW = Date.now()`, read once, so both clocks agree to within the run's own duration and every relative offset (`NOW - 13h` stale, `NOW - 11h59m` fresh) keeps its meaning. `evals/payouts` and `evals/org-billing` keep their calendar `NOW` because they mint no sessions and their business math is about a fixed period.
+2. **The layout gate's pointerdown check waited a fixed 120 ms.** `scripts/check-layout.mjs` read a control's `transform` 120 ms after `mouse.down()` and 120 ms after `mouse.up()`, a margin chosen against a 90 ms transition on a quiet machine. With eight sibling gates on four cores the transition had not finished, and `room-hi:account` reported "transform did not clear on page.mouse.up()" on a control that clears fine alone (WS-R56 saw the same on `room-hi:more:checkins`, WS-R57 on `room-hi:account`, the main loop's own run on `room-hi:account`). The fix polls for the expected endpoint with a 1500 ms bound, so a healthy control costs one or two polls and only a broken one pays the bound.
+
+What specifically broke: a gate must not depend on the wall clock or on the machine being idle; both dependencies were invisible on the day they were written and surfaced only when the calendar turned and the machine filled. Reversal: none; if a future check needs a fixed date, it must inject that date into every resolver it drives, never rely on a default.

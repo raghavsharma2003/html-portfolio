@@ -7174,6 +7174,12 @@
       "kind": "measurement",
       "title": "Migration 111 (settled_at, failure_reason, unique partial index on provider_payout_ref) applied live in one transaction of five statements at the WS-R56 merge; catalog read back; the two transitions, the unknown-ref lookup and the widened statement read all plan on an index (the new provider-ref index or the pkey).",
       "at": "2026-09-04"
+    },
+    {
+      "id": "wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time",
+      "kind": "rejection",
+      "title": "The door battery's calendar-date fixture clock went stale at 2026-09-05T00:00Z against resolvers defaulting to Date.now(), and the layout gate's fixed 120 ms pointerdown settle flaked under eight concurrent gates; both replaced (real clock read once; a bounded poll for the expected transform).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -14381,6 +14387,11 @@
       "src": "rooms-migration-111-live-verification-2026-09-04",
       "rel": "measured_by",
       "dst": "ws-r56-event-ledger-is-the-payout-row-not-a-second-table"
+    },
+    {
+      "src": "wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time",
+      "rel": "supersedes",
+      "dst": "ws-r43-tap-target-floor-44px-across-room-controls"
     }
   ]
 }
