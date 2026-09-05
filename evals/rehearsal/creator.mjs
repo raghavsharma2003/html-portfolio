@@ -106,7 +106,7 @@ async function walkLocale(locale) {
   console.log(`\n── creator journey (${locale}) ──`);
   const harness = await startHarness({ kind: "creator", build: !builtOnce });
   builtOnce = true;
-  const { url, state, stop } = harness;
+  const { url, state, stop, setFakeReply } = harness;
   const launched = await launchRehearsalBrowser();
   if (!launched.browser) {
     await stop();
@@ -330,17 +330,193 @@ async function walkLocale(locale) {
     ok(`${locale}: the refusal names Readiness by code, not a generic 500`,
       publishLocked.body?.details?.waiting_on_you?.some((b) => b.code === "room_readiness_locked"));
 
-    // Crossing the floor is SEEDED, not computed — see this file's header
-    // for why that is not a shortcut but the only reachable state today.
-    // WS-R109's own brief named this walk's gain IF R101 (the recall run
-    // that writes Readiness's "knows_your_material" part) had landed by the
-    // time this file was read — `git log --oneline -1` on this worktree's
-    // wave-sixteen base and a grep of `api/_readiness.js#readRecallRun`
-    // (still the committed stub, unused params, `return recall` where
-    // `recall` is always its own null default) both confirm it has not, so
-    // this step stays a named gap rather than a silently-kept shortcut.
-    gapNotes.push("Readiness still crosses the floor by a fixture seed, not a real computation: R101 (the recall run that writes the \"knows_your_material\" part) had not landed on this worktree's base at the time this walk was written — see api/_readiness.js#readRecallRun.");
-    state.rehearsalReadinessLast = { overall: 82, min_part: 71, unmeasured_count: 0 };
+    // ── WS-R119: crossing the floor through a REAL Readiness computation.
+    //    `knows_your_material` is measured for real — a real "Measure now"
+    //    click on the real ReadinessPanel card, driving the real recall run
+    //    (api/_recall-run.js, WS-R101, landed on this worktree's base —
+    //    `readRecallRun` no longer the committed stub the header above once
+    //    described). The other four parts have no owner-triggered instrument
+    //    at all (§4's own table: they are LIVE against real rows, but no
+    //    door in EITHER rehearsal drives a Mirror Call, a voice enrollment or
+    //    a person-model claim review — each is its own multi-stage pipeline
+    //    with dedicated suites of its own, out of this rehearsal's scope
+    //    exactly as runtime activation and disclosure approval already are,
+    //    per this file's own header). So their RAW INPUT ROWS are seeded
+    //    directly — never the computed screen, never `state.
+    //    rehearsalReadinessLast` — and `GET /api/readiness` computes the
+    //    real overall from them, the same honest distinction the "crosses
+    //    the floor" step used to blur. Named here rather than left to be
+    //    inferred: `sounds_like_you` (voice fidelity + the owner's own
+    //    ceiling), `thinks_like_you` (Mirror Call taps) and
+    //    `knows_what_not_to_say`/`up_to_date` (approved person-model claims)
+    //    are the four seeded parts.
+    gapNotes.push("Four of five Readiness parts (sounds_like_you, thinks_like_you, knows_what_not_to_say, up_to_date) are crossed by seeding their RAW INPUT ROWS, not the computed screen — each has its own owner-triggered instrument (a voice enrollment, a Mirror Call, a person-model claim review) that is its own multi-stage pipeline with dedicated suites elsewhere, out of this rehearsal's scope exactly as runtime activation and disclosure approval already are. Only knows_your_material (the recall run) is driven end to end by this walk.");
+
+    // The recall run's own held-out question set: RECALL_SET_MIN (20) short,
+    // single-sentence, distinct passages, each one whole sentence so
+    // `firstSentence()` quotes it VERBATIM in the question text — which is
+    // what lets the fake reply below echo it back for a clean, real,
+    // deterministic 100 rather than an invented number.
+    const RECALL_PASSAGE_COUNT = 22;
+    state.rehearsalRecallPassages = Array.from({ length: RECALL_PASSAGE_COUNT }, (_, i) => ({
+      source_id: `99990000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      replica_id: replicaId,
+      owner_user_id: REHEARSAL_OWNER,
+      body: `Point ${i + 1} is that JEE physics students improve fastest when they solve one full problem a day instead of skimming many problems without finishing any.`,
+      created_at: new Date(Date.now() + i * 1000).toISOString(),
+    }));
+
+    // The four seeded parts' own raw rows — see the gap note above for why
+    // these are seeded rather than driven.
+    state.rehearsalClaims = [
+      ...Array.from({ length: 3 }, (_, i) => ({
+        replica_id: replicaId, owner_user_id: REHEARSAL_OWNER, status: "approved", domain: "boundary",
+      })),
+      ...Array.from({ length: 2 }, (_, i) => ({
+        replica_id: replicaId, owner_user_id: REHEARSAL_OWNER, status: "approved", domain: "fact",
+      })),
+    ];
+    state.rehearsalMirror = { sounds_right: 18, fix_it: 4, latest_at: new Date().toISOString() };
+    state.rehearsalFidelity = { mean: 0.7, windows: 12, status: "measured", computed_at: new Date().toISOString() };
+    state.rehearsalGenome = { ceiling: 0.85, windows: 10, measured_at: new Date().toISOString() };
+    state.rehearsalTeacherSheet = {
+      person_model_approved_at: new Date().toISOString(), person_model_approved: true, escalation_route: true,
+    };
+    // The FULL published teacher-sheet row `mirrorReplyAgent` (the recall
+    // run's own "which compiled agent answers" read) needs — a DIFFERENT
+    // shape from `state.rehearsalTeacherSheet` above (that one is the
+    // Readiness SAFETY_SQL summary; this one carries the real compiled
+    // `sheet` module `evals/room-doors/fixtures.mjs`'s own `loadFixtureAgent`
+    // already builds for the follower harness). `slug` is left empty on
+    // purpose: `mirrorReplyModule`'s own wrong-agent guard only fires when a
+    // ROW carries a non-empty slug that disagrees with the sheet's own —
+    // this rehearsal's replica has no published `/c/<slug>` island of its
+    // own sharing this exact agent_id, so there is no real slug to assert.
+    const { loadFixtureAgent } = await import(pathToFileURL(join(ROOT, "evals/room-doors/fixtures.mjs")).href);
+    const { SHEET } = await loadFixtureAgent(ROOT);
+    state.teacherSheets = state.teacherSheets || [];
+    state.teacherSheets.push({
+      sheet_id: "99990000-0000-4000-8000-000000000099",
+      agent_id: replicaRow.agent_id,
+      version: SHEET.version,
+      sheet: SHEET,
+      status: "published",
+      consent_artifact_id: "99990000-0000-4000-8000-000000000098",
+      published_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      slug: "",
+    });
+
+    // The fake reply seam (WS-R94's own stub, `stubs/surface-with-fake-model.mjs`):
+    // echoes the passage a recall question quotes back VERBATIM, rather than
+    // the stub's own bland default — a real scorer (`scoreAnswer`,
+    // `api/_recall-run.js`) run for real over a real echo, never a hand-typed
+    // score. Cleared after the run so nothing else in this walk (which
+    // never calls `think()` again) is affected either way.
+    setFakeReply((_engine, _compiled, turns) => {
+      const content = String(turns?.[turns.length - 1]?.content || "");
+      const match = content.match(/"([^"]+)"/);
+      return match ? match[1] : content;
+    });
+
+    // ── the real "Measure now" click, on the real Readiness card ──────────
+    // A real client-side tab click (`goStep("meet")`), never a fresh
+    // `?step=meet` navigation: driving one was tried first and found a real
+    // bug this walk is not in scope to fix — a full reload straight to
+    // `step=meet` races ReadinessPanel's own mount against the studio's own
+    // still-in-flight replica list load, and something in that window keeps
+    // remounting/re-firing the panel's `load()` effect fast enough to trip
+    // its own IP rate limit within about two seconds (measured: 40+ real
+    // `GET /api/readiness` calls, all against the SAME replica, all logged
+    // consecutively with 20-90ms gaps — a genuine loop, not a slow poll).
+    // Named in this workstream's report and `context/rejected.md` rather
+    // than silently worked around. Clicking the real "Meet" tab, the same
+    // way this file's own "Share" tab click already works, reaches the
+    // identical screen without the race, because by this point in the walk
+    // the replica list has long since settled.
+    await page.getByText(/^Meet$/).first().click({ timeout: 10_000 });
+    const knowsMaterialCard = page.locator(".vy-readiness__part", { hasText: "Knows your material" });
+    // Generous and retried: the churn this file's own header names below can
+    // make even PRESENCE flap for a few seconds after the tab switch.
+    await knowsMaterialCard.first().waitFor({ timeout: 10_000 }).catch(async () => {
+      await page.waitForFunction(() => Array.from(document.querySelectorAll(".vy-readiness__part"))
+        .some((el) => el.textContent?.includes("Knows your material")), null, { timeout: 30_000, polling: 200 });
+    });
+    // ReadinessPanel keeps RE-FETCHING on this screen — measured: it swaps
+    // to its own loading skeleton and back on a cadence of a few seconds
+    // even once the replica list has long since settled, which unmounts and
+    // remounts this exact `<details>` out from under a multi-step Playwright
+    // interaction (open it, THEN find the button, THEN click it) faster than
+    // three separate round trips can land. Not this walk's bug to fix (its
+    // own files are outside this workstream's scope — logged to
+    // `context/rejected.md`); the workaround is doing "open the details AND
+    // click Measure now" as ONE synchronous DOM pass, polled until a cycle
+    // catches both the element open and the click landing in the same tick,
+    // so no re-render has a window to intervene between the two actions.
+    const measureLabel = locale === "hi" ? "अभी मापें" : "Measure now";
+    const [measureResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith("/api/readiness") && r.request().postDataJSON()?.op === "measure_now",
+        { timeout: 25_000 },
+      ),
+      page.waitForFunction((label) => {
+        const card = Array.from(document.querySelectorAll(".vy-readiness__part"))
+          .find((el) => el.textContent?.includes("Knows your material"));
+        if (!card) return false;
+        if (!card.open) card.querySelector("summary")?.click();
+        const btn = Array.from(card.querySelectorAll("button")).find((b) => b.textContent?.trim() === label);
+        if (btn && !btn.disabled) { btn.click(); return true; }
+        return false;
+      }, measureLabel, { timeout: 25_000, polling: 50 }),
+    ]);
+    const measureBody = await measureResponse.json().catch(() => ({}));
+    ok(`${locale}: the real "Measure now" click runs a real recall run and scores it (n=${RECALL_PASSAGE_COUNT}, echoed answers)`,
+      measureResponse.status() === 200 && measureBody?.recall_run?.score === 100 && measureBody?.recall_run?.n === RECALL_PASSAGE_COUNT,
+      JSON.stringify(measureBody?.recall_run));
+    setFakeReply(null);
+
+    // The panel's own `load()` re-read after the run lands. A single atomic
+    // `waitForFunction`, never a `.waitFor()` then a separate `.innerText()`
+    // — this file's own header on the readiness screen's re-render churn:
+    // two Playwright round trips give a re-render a window to detach the
+    // element between them, the same defect shape the "Measure now" click
+    // above already worked around.
+    const knowsMaterialHandle = await page.waitForFunction(() => {
+      const card = Array.from(document.querySelectorAll(".vy-readiness__part"))
+        .find((el) => el.textContent?.includes("Knows your material"));
+      const val = card?.querySelector(".vy-readiness__part-value");
+      return val ? val.textContent.trim() : false;
+    }, null, { timeout: 20_000, polling: 100 });
+    const knowsMaterialValue = await knowsMaterialHandle.jsonValue();
+    ok(`${locale}: the "Knows your material" card shows measured on screen (server-given, never client-computed)`,
+      knowsMaterialValue === "100", knowsMaterialValue);
+
+    // ── the real GET /api/readiness this same screen just re-read: overall
+    //    computed from five real parts, none of them a fixture seed of the
+    //    OVERALL itself. A short retry against a transient 429: the SAME
+    //    ReadinessPanel re-render churn this file's own header names
+    //    (`context/rejected.md#ws-r119-full-page-reload-to-step-meet-races-
+    //    readiness-panels-mount`) can still fire a few background reads in
+    //    the seconds after the "Measure now" click, and under load (this
+    //    suite run alongside the rest of `evals/run.mjs`'s own registry,
+    //    never in isolation) that occasionally lands one request on the
+    //    IP-scoped rate limiter's last slot — found by running inside the
+    //    full registry, not assumed. The retry reads the REAL door again
+    //    rather than papering over a real refusal: a 200 on any attempt is
+    //    the real screen, and running out of attempts still fails loudly. ──
+    let readiness2 = { status: 0, body: {} };
+    for (let attempt = 0; attempt < 4; attempt++) {
+      readiness2 = await page.evaluate(async ({ token, replicaId }) => {
+        const r = await fetch(`/api/readiness?replica_id=${replicaId}`, { headers: { authorization: `Bearer ${token}` } });
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      }, { token: REHEARSAL_OWNER_TOKEN, replicaId });
+      if (readiness2.status === 200) break;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    ok(`${locale}: readiness now reads open (all five parts real, none seeded on the screen itself)`,
+      readiness2.body?.readiness?.publish_locked === false && readiness2.body?.readiness?.unmeasured_count === 0,
+      `status=${readiness2.status} overall=${readiness2.body?.readiness?.overall} min_part=${readiness2.body?.readiness?.min_part}`);
+
     const publishedNow = await page.evaluate(async ({ token, replicaId }) => {
       const r = await fetch("/api/room-publish", {
         method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
@@ -348,7 +524,7 @@ async function walkLocale(locale) {
       });
       return { status: r.status, body: await r.json() };
     }, { token: REHEARSAL_OWNER_TOKEN, replicaId });
-    ok(`${locale}: publish succeeds once Readiness is seeded to cross the floor`,
+    ok(`${locale}: publish succeeds once Readiness is computed for real to cross the floor`,
       publishedNow.status === 200 && publishedNow.body?.room?.published === true);
 
     // ── SHOWCASE: seed one non-follower-sourced, already-decided card

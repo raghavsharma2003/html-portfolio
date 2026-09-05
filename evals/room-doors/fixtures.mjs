@@ -1884,3 +1884,189 @@ export function rehearsalCreatorDb(state) {
   db.calls = calls;
   return db;
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R119 (wave seventeen, third pass). Fixture support neither `doorsDb`
+// nor `rehearsalCreatorDb` already carries, for `evals/rehearsal/creator.mjs`'s
+// real "Measure now" recall run and `evals/rehearsal/follower.mjs`'s real
+// WhatsApp-chat join. Composed the SAME way `rehearsalCreatorDb` composes
+// over `doorsDb` — new patterns tried FIRST, the existing db for everything
+// else — rather than editing either existing function's body, so this stays
+// a pure append (this file's own header law).
+//
+// Every match condition below was checked against a REPO-WIDE grep before
+// being written, per this file's own WS-R72 lesson (a substring shared by
+// two different real statements must be matched on something narrower, or
+// checked in the more-specific-first order): `t.body as body` and
+// `insert into vy_recall_run`/`from vy_recall_run r` are each unique to
+// `api/_recall-run.js`/`api/_readiness.js`; `s.published_at desc nulls last`
+// (mirrorReplyAgent's own ORDER BY) is unique among the THREE statements in
+// `api/_mirrorcall-store.js` sharing the substring `r.subject_mode = 'self'`
+// this file's original attempt matched on first, found the hard way and
+// corrected before it shipped.
+function ws119Patterns(state, sql, params, has) {
+  // ── api/_recall-run.js's CONTEXT_ITEM_SQL — the held-out question set's
+  //    own source read. `state.rehearsalRecallPassages`, never
+  //    `state.contextItems`: the passages this suite seeds stand in for
+  //    already-mined material, not a second copy of the ONE real file the
+  //    creator walk's own Context Locker step adds (`evals/rehearsal/
+  //    creator.mjs`'s own export-manifest negative control counts THAT one
+  //    real row, `rows === 1` — polluting `state.contextItems` here would
+  //    silently break it). ────────────────────────────────────────────────
+  if (has("t.body as body")) {
+    const [rid, owner] = params.map(String);
+    return (state.rehearsalRecallPassages || [])
+      .filter((p) => p.replica_id === rid && p.owner_user_id === owner)
+      .slice()
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((p) => ({ source_id: p.source_id, body: p.body }));
+  }
+  // ── api/_recall-run.js's RECALL_RUN_INSERT_SQL (storeRecallRun) — the
+  //    guard/supersede/insert CTE, simplified to the same "no idempotency
+  //    guard reproduced" posture `rehearsalPatterns`' own readiness insert
+  //    above already takes, PLUS the real one-run-per-hour rate predicate
+  //    (this suite's own reason to keep it: proving the SAME "Measure now"
+  //    click twice in one run must not silently double-count). ───────────
+  if (has("insert into vy_recall_run")) {
+    const [rid, owner, score, n, method, setHash] = params.map((v, i) => (i < 2 ? String(v) : v));
+    state.recallRuns ??= [];
+    const withinHour = state.recallRuns.some((r) => r.replica_id === rid && r.owner_user_id === owner
+      && !r.superseded_at && (Date.now() - new Date(r.created_at).getTime()) < 3_600_000);
+    if (withinHour) return [];
+    for (const r of state.recallRuns) {
+      if (r.replica_id === rid && r.owner_user_id === owner && !r.superseded_at) r.superseded_at = new Date().toISOString();
+    }
+    const row = {
+      run_id: randomUUID(), replica_id: rid, owner_user_id: owner,
+      score: Number(score), n: Number(n), method: String(method || ""), set_hash: String(setHash || ""),
+      superseded_at: null, created_at: new Date().toISOString(),
+    };
+    state.recallRuns.push(row);
+    return [{ run_id: row.run_id, created_at: row.created_at }];
+  }
+  // ── api/_readiness.js's RECALL_RUN_SQL (readRecallRun) — the latest
+  //    unsuperseded row, real superseding included. ─────────────────────
+  if (has("from vy_recall_run r") && has("superseded_at is null")) {
+    const [rid, owner] = params.map(String);
+    const rows = (state.recallRuns || [])
+      .filter((r) => r.replica_id === rid && r.owner_user_id === owner && !r.superseded_at)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const row = rows[0];
+    return row ? [{ score: row.score, n: row.n, method: row.method, created_at: row.created_at }] : [];
+  }
+  // ── api/_mirrorcall-store.js's mirrorReplyAgent — the recall run's own
+  //    "which compiled agent answers" read. Keyed on (replica_id,
+  //    owner_user_id), unlike the EXISTING `from vy_teacher_sheet s`/
+  //    `join vy_agent a` matcher in `doorsPatterns` above (WS-R94's
+  //    `publishedRow`, keyed on a SLUG param) — checked here, ahead of that
+  //    one, so this rehearsal's own call (which passes a replica_id as its
+  //    first param, never a slug) is never silently answered `[]` by the
+  //    slug-keyed matcher misreading it as an unknown slug. ───────────────
+  if (has("s.published_at desc nulls last")) {
+    const [rid, owner] = params.map(String);
+    const replica = (state.replicas || []).find((r) => r.replica_id === rid && r.owner_user_id === owner);
+    if (!replica) return [];
+    const rows = (state.teacherSheets || [])
+      .filter((s) => s.agent_id === replica.agent_id && s.status !== "revoked")
+      .slice()
+      .sort((a, b) => {
+        const aPub = a.status === "published" && a.consent_artifact_id != null ? 1 : 0;
+        const bPub = b.status === "published" && b.consent_artifact_id != null ? 1 : 0;
+        if (aPub !== bPub) return bPub - aPub;
+        return String(b.published_at || b.created_at || "").localeCompare(String(a.published_at || a.created_at || ""));
+      });
+    const row = rows[0];
+    return row
+      ? [{
+          sheet_id: row.sheet_id, agent_id: row.agent_id, version: row.version, sheet: row.sheet, status: row.status,
+          consent_artifact_id: row.consent_artifact_id, published_at: row.published_at, created_at: row.created_at,
+          slug: row.slug || "",
+        }]
+      : [];
+  }
+
+  // ── api/_room-voice.js's LATEST_DRAFT_GENOME_SQL — `authorizeRoomVoice`'s
+  //    OWN first read (never redirected: only `_replica-voice-preview.js`'s
+  //    exports are faked this wave, `_room-voice.js` itself is real and
+  //    unmodified), reached by the Telegram voice rehearsal's real
+  //    `roomSpeak` call. Absent from every existing fixture (`doorsDb`
+  //    included — confirmed by grep: no suite sharing this fixture reaches
+  //    `authorizeRoomVoice` through the real HTTP door before this one).
+  //    Answers "a draft genome exists" unconditionally for any replica —
+  //    this rehearsal has exactly one Room/replica, so there is no second
+  //    replica for a real caller to confuse this with. ───────────────────
+  if (has("max(g.version)::int4 as version")) {
+    return [{ version: 1 }];
+  }
+
+  // ── api/_room-whatsapp-chat.js — migration 128's own pointer table, NOT
+  //    modelled in `doorsDb`/`fakeDb` (confirmed by grep before this was
+  //    added: `evals/room-whatsapp-chat/run.mjs`'s own `withWhatsappChat`
+  //    wrapper is a LOCAL function in that suite, never exported, so this is
+  //    a restatement over `state.waChatPointers` rather than a second,
+  //    divergent shape). `bindWhatsappChatPointer`'s own upsert. ─────────
+  if (has("insert into vy_room_follower_whatsapp_chat")) {
+    const [hash, roomId, personId, followerId, locale] = params.map(String);
+    state.waChatPointers ??= [];
+    const existing = state.waChatPointers.find((c) => c.phone_hash === hash);
+    if (existing) {
+      Object.assign(existing, { room_id: roomId, person_id: personId, follower_id: followerId, locale, stopped_at: null, stopped_code: null });
+    } else {
+      state.waChatPointers.push({
+        phone_hash: hash, room_id: roomId, person_id: personId, follower_id: followerId, locale,
+        joined_at: new Date().toISOString(), stopped_at: null, stopped_code: null,
+      });
+    }
+    return [];
+  }
+  // `whatsappChatPointerRoom` — which slug this phone's ACTIVE pointer means.
+  if (has("from vy_room_follower_whatsapp_chat c") && has("join vy_room r")) {
+    const [hash] = params.map(String);
+    const row = (state.waChatPointers || []).find((c) => c.phone_hash === hash && !c.stopped_at);
+    if (!row) return [];
+    const r = (state.rooms || []).find((x) => x.room_id === row.room_id);
+    return r ? [{ slug: r.slug }] : [];
+  }
+  // `stopWhatsappChatPointer` — `stop`, never a delete.
+  if (has("update vy_room_follower_whatsapp_chat") && has("set stopped_at = now()")) {
+    const [hash, code] = params.map(String);
+    const row = (state.waChatPointers || []).find((c) => c.phone_hash === hash && !c.stopped_at);
+    if (row) { row.stopped_at = new Date().toISOString(); row.stopped_code = code; }
+    return [];
+  }
+
+  return undefined; // not a WS-R119 pattern — fall through to doorsDb/rehearsalCreatorDb
+}
+
+/** WS-R119. The follower rehearsal's own db, ahead of `doorsDb`. */
+export function ws119FollowerDb(state) {
+  state.rehearsalRecallPassages ??= [];
+  state.recallRuns ??= [];
+  state.waChatPointers ??= [];
+  const doors = doorsDb(state);
+  const db = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const hit = ws119Patterns(state, sql, params, has);
+    if (hit !== undefined) return hit;
+    return doors(sql, params);
+  };
+  return db;
+}
+
+/** WS-R119. The creator rehearsal's own db, ahead of `rehearsalCreatorDb`
+ *  (which is itself ahead of `doorsDb`) — the recall run's own reads/writes
+ *  need to win over `rehearsalCreatorDb`'s existing patterns exactly as that
+ *  file's own patterns need to win over `doorsDb`'s, for the identical
+ *  reason (a more specific matcher added later must be tried first). */
+export function ws119CreatorDb(state) {
+  state.rehearsalRecallPassages ??= [];
+  state.recallRuns ??= [];
+  const rehearsal = rehearsalCreatorDb(state);
+  const db = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    const hit = ws119Patterns(state, sql, params, has);
+    if (hit !== undefined) return hit;
+    return rehearsal(sql, params);
+  };
+  return db;
+}

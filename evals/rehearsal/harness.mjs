@@ -98,6 +98,36 @@ process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "r".repeat(
 // that fake.
 process.env.ROOM_PUSH_VAPID_PUBLIC = process.env.ROOM_PUSH_VAPID_PUBLIC || "B".repeat(87);
 
+// WS-R119 (wave seventeen, third pass). MUST be set before the stub imports
+// below: `api/whatsapp.js` reads `WHATSAPP_APP_SECRET`/`WHATSAPP_VERIFY_TOKEN`/
+// `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` into MODULE-LEVEL
+// `const`s at import time (`const APP_SECRET = process.env.WHATSAPP_APP_SECRET
+// || "";`, read once, never re-read from `process.env` again) — and that
+// module is already on this file's own transitive import graph before this
+// line runs (`stubs/surface-with-fake-model.mjs`'s own header: "Meera's
+// surfaces ... are also on this module's transitive import graph through
+// shared code paths this harness never calls but Node still has to LINK"),
+// so setting these AFTER the stub import two lines down would be silently too
+// late — found by reading `api/whatsapp.js`'s own source, not assumed.
+// `ROOM_TELEGRAM_WEBHOOK_SECRET`/`ROOM_TELEGRAM_BOT_TOKEN` are read at CALL
+// time instead (`verifyRoomTelegramWebhook(req, env = process.env)`), so
+// setting them here is a convenience, not a requirement — kept alongside the
+// others so every rehearsal secret lives in one place. Never overwritten if
+// already set, `ROOM_SESSION_SECRET`'s own precedent two lines up.
+process.env.WHATSAPP_APP_SECRET = process.env.WHATSAPP_APP_SECRET || "w".repeat(40);
+process.env.WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "rehearsal-verify-token";
+process.env.WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "rehearsal-access-token";
+process.env.WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "15550001111";
+process.env.ROOM_WHATSAPP_CHAT = process.env.ROOM_WHATSAPP_CHAT || "1";
+process.env.ROOM_TELEGRAM_WEBHOOK_SECRET = process.env.ROOM_TELEGRAM_WEBHOOK_SECRET || "t".repeat(40);
+process.env.ROOM_TELEGRAM_BOT_TOKEN = process.env.ROOM_TELEGRAM_BOT_TOKEN || "0000000000:rehearsal-bot-token";
+process.env.ROOM_VOICE = process.env.ROOM_VOICE || "1";
+// WS-R101/WS-R119. Off by default in production (`api/_recall-run.js::
+// recallRunEnabled`) because the reply seam it drives costs money for real —
+// this harness's own `./stubs/surface-with-fake-model.mjs` redirect is what
+// makes turning it on here $0, never a relaxation of the real gate.
+process.env.RECALL_RUN = process.env.RECALL_RUN || "1";
+
 const { setFixtureDb } = await import("./stubs/db.mjs");
 const { setFakeReply } = await import("./stubs/surface-with-fake-model.mjs");
 const { REHEARSAL_OWNER_TOKEN, REHEARSAL_OWNER } = await import("./stubs/auth-with-fake-user.mjs");
@@ -106,6 +136,11 @@ const doorsFixtures = await import(pathToFileURL(join(ROOT, "evals/room-doors/fi
 const {
   freshDoorsState, doorsDb, loadFixtureAgent,
   freshRehearsalCreatorState, rehearsalCreatorDb,
+  // WS-R119: the recall-run and WhatsApp-chat fixture patterns, composed
+  // ahead of `doorsDb`/`rehearsalCreatorDb` — see `evals/room-doors/
+  // fixtures.mjs`'s own header on why these are new functions rather than
+  // edits to either existing one.
+  ws119FollowerDb, ws119CreatorDb,
   SLUG, AGENT_ID, USER_A, USER_B, PERSON_A, PERSON_B,
 } = doorsFixtures;
 
@@ -197,24 +232,40 @@ const FALLBACK_JSON_ROUTES = {
   "/api/mirror-call": { contract: null, call: null },
 };
 
-/** WS-R109. Loopback passes through untouched (this harness's own origin,
- *  or `follower.mjs`/`creator.mjs` driving a step with plain `fetch` rather
- *  than the browser); everything else throws by name rather than reaching a
- *  real network — folded from `evals/rehearsal/harness-creator.mjs`'s own
- *  fetch interceptor, generalised from "answer two fixed fake hosts" to
- *  "never leave 127.0.0.1", since nothing in either rehearsal's own scope
- *  needs a SECOND fake host any more (the module-redirect above already
- *  answers Neon/Supabase without a network round trip at all). */
+// WS-R119. A module-scoped remap table, consulted by `installNetworkGuard`
+// below BEFORE its own loopback check — a real provider host (Meta's
+// `graph.facebook.com`, Telegram's `api.telegram.org`) rewritten to a fake
+// server's own `127.0.0.1` origin, path and body untouched, so the REAL
+// caller (`api/room-wa.js`/`api/_room-telegram.js`, both hard-code their
+// provider's host as a constant with no env override — confirmed by grep) is
+// never told about the fake at all; only the network reaches somewhere else.
+// `setNetworkRemap({})` clears it; a scenario sets it right before the step
+// that needs it and clears it right after, so a stray remap can never leak
+// into an unrelated later assertion.
+let remap = {};
+export function setNetworkRemap(map) { remap = map && typeof map === "object" ? map : {}; }
+
+/** WS-R109 (extended WS-R119). Loopback passes through untouched (this
+ *  harness's own origin, or `follower.mjs`/`creator.mjs` driving a step with
+ *  plain `fetch` rather than the browser); a URL matching a `remap` prefix is
+ *  rewritten to the fake server's origin first; everything else throws by
+ *  name rather than reaching a real network — folded from `evals/rehearsal/
+ *  harness-creator.mjs`'s own fetch interceptor, generalised from "answer two
+ *  fixed fake hosts" to "never leave 127.0.0.1". */
 function installNetworkGuard() {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
-    const url = typeof input === "string" ? input : input?.url ?? String(input);
+    const isRequestObject = typeof input !== "string" && input && typeof input === "object" && "url" in input;
+    let url = isRequestObject ? input.url : String(input);
+    for (const [prefix, target] of Object.entries(remap)) {
+      if (url.startsWith(prefix)) { url = target + url.slice(prefix.length); break; }
+    }
     if (url.startsWith("http://127.0.0.1:") || url.startsWith("http://localhost:")) {
-      return realFetch(input, init);
+      return realFetch(isRequestObject ? new Request(url, input) : url, init);
     }
     throw new Error(`rehearsal harness: unmodelled fetch target ${url} — no network beyond 127.0.0.1 (ws-common.md's own law)`);
   };
-  return () => { globalThis.fetch = realFetch; };
+  return () => { globalThis.fetch = realFetch; remap = {}; };
 }
 
 /** `npx vite build` — this workstream's brief, law 1: "serves `dist/`
@@ -319,12 +370,21 @@ export async function startHarness({ port = 0, build = true, kind = "follower" }
   if (build) ensureBuilt();
   const restoreFetch = installNetworkGuard();
   const state = kind === "creator" ? freshRehearsalCreatorState() : await buildFixtureState();
-  const db = kind === "creator" ? rehearsalCreatorDb(state) : doorsDb(state);
+  // WS-R119: `ws119CreatorDb`/`ws119FollowerDb` over `rehearsalCreatorDb`/
+  // `doorsDb` directly — see `evals/room-doors/fixtures.mjs`'s own header.
+  const db = kind === "creator" ? ws119CreatorDb(state) : ws119FollowerDb(state);
   setFixtureDb(db);
 
   const roomHandler = (await import(pathToFileURL(join(ROOT, "api", "room.js")).href)).default;
   const creatorPageHandler = (await import(pathToFileURL(join(ROOT, "api", "creator-page.js")).href)).default;
   const roomAboutHandler = (await import(pathToFileURL(join(ROOT, "api", "room-about.js")).href)).default;
+  // WS-R119. Loaded regardless of `kind`, `CREATOR_DOOR_MODULES`'s own
+  // precedent (`/api/checkins`, "routed here regardless of kind"): only the
+  // follower rehearsal drives these, but loading them unconditionally means
+  // a broken import fails the harness loudly at startup rather than on the
+  // first request that happens to reach it.
+  const roomWhatsappHandler = (await import(pathToFileURL(join(ROOT, "api", "room-wa.js")).href)).default;
+  const roomTelegramHandler = (await import(pathToFileURL(join(ROOT, "api", "room-tg.js")).href)).default;
   const creatorDoors = {};
   for (const [route, relPath] of Object.entries(CREATOR_DOOR_MODULES)) {
     creatorDoors[route] = (await import(pathToFileURL(join(HERE, relPath)).href)).default;
@@ -336,12 +396,37 @@ export async function startHarness({ port = 0, build = true, kind = "follower" }
       const url = new URL(req.url, "http://127.0.0.1");
       const pathname = url.pathname;
       req.query = Object.fromEntries(url.searchParams);
+
+      // WS-R119. `api/room-wa.js` carries `export const config = { api: {
+      // bodyParser: false } }` for real: `verifyRoomWhatsappWebhook` HMACs
+      // the RAW body under `WHATSAPP_APP_SECRET`, and `rawBodyOf(req)`
+      // (`api/whatsapp.js`) checks `req.rawBody` FIRST — so this route's own
+      // bytes are read here, BEFORE the generic JSON pre-parse below would
+      // otherwise consume the same stream and leave nothing for the real
+      // signature check to read. `req.body` is left unset on purpose: this
+      // handler never reads it (GET's own query-string handshake aside,
+      // handled by `verify()` itself off `req.url`).
+      if (pathname === "/api/room-wa") {
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        req.rawBody = Buffer.concat(chunks);
+        return await roomWhatsappHandler(req, res);
+      }
+
       if (req.method !== "GET" && req.method !== "HEAD") {
         req.body = await readJsonBody(req);
       }
 
       if (pathname === "/api/room" && (req.method === "POST" || req.method === "OPTIONS")) {
         return await roomHandler(req, res);
+      }
+
+      // WS-R119. `api/room-tg.js` reads `req.body || {}` (bodyParser stays
+      // on, `_room-telegram.js`'s own header: "no raw-body reader of its
+      // own"), so the generic JSON pre-parse above already did the right
+      // thing by the time this is reached.
+      if (pathname === "/api/room-tg" && req.method === "POST") {
+        return await roomTelegramHandler(req, res);
       }
 
       const creatorDoor = creatorDoors[pathname];
