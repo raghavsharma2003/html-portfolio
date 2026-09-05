@@ -50,7 +50,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 function rootFromModuleUrl(moduleUrl, options) {
   return fileURLToPath(new URL("..", moduleUrl), options);
@@ -500,6 +500,154 @@ async function walkAccountEscape(page) {
   return findings;
 }
 
+/* ═══ LANGUAGE TAGGING (WS-R79) ════════════════════════════════════════════
+ *
+ * TalkBack and VoiceOver read `lang` off the DOM, not off which locale a
+ * request happened to be for — a screen reader reads Devanagari in an
+ * English voice unless the node that carries it says `lang="hi"`, and it
+ * mispronounces an untranslated English word the same way if that word
+ * sits under an element WE ourselves wrongly tagged `lang="hi"`. Two
+ * questions, both run INSIDE the page against the real rendered DOM, exactly
+ * axe's own posture above:
+ *
+ *   1. COVERAGE. Every text node containing a Devanagari codepoint must sit
+ *      under an element whose COMPUTED `lang` (the nearest ancestor that
+ *      carries the attribute, or `document.documentElement.lang` when none
+ *      does — the same resolution rule a screen reader itself uses) is
+ *      `hi`/`hi-*`.
+ *   2. NO FALSE TAGGING. No element that ITSELF carries `lang="hi"` — never
+ *      one that merely inherits it — may contain only ASCII letters and no
+ *      Devanagari at all. Scoped to elements CARRYING the attribute, not
+ *      elements merely under one: a plain English loanword ("AI", "UPI")
+ *      sitting in prose this workstream never touched, inheriting `hi` from
+ *      `<main lang="hi">` the way every Hindi screen in this app already
+ *      does, is not a defect this rule exists to catch — only a node THIS
+ *      REPO explicitly tagged wrong is.
+ */
+function langTagAudit() {
+  const DEVANAGARI_RE = /[ऀ-ॿ]/;
+  const ASCII_LETTER_RE = /[A-Za-z]/;
+
+  function computedLang(el) {
+    let cur = el;
+    while (cur && cur.nodeType === 1) {
+      const l = cur.getAttribute && cur.getAttribute("lang");
+      if (l) return l.toLowerCase();
+      cur = cur.parentElement;
+    }
+    return (document.documentElement.lang || "en").toLowerCase();
+  }
+  const isHi = (l) => l === "hi" || l.startsWith("hi-");
+
+  // `<script>`/`<style>` carry text nodes too (a JSON-LD block's own payload,
+  // not prose) — never read by a screen reader, so never in scope for either
+  // question this audit asks.
+  const NEVER_READ = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+  const findings = [];
+  let devanagariNodes = 0;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) =>
+      n.parentElement && NEVER_READ.has(n.parentElement.tagName)
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT,
+  });
+  let node;
+  while ((node = walker.nextNode())) {
+    const text = node.textContent || "";
+    if (!DEVANAGARI_RE.test(text)) continue;
+    devanagariNodes++;
+    const parent = node.parentElement;
+    if (!parent) continue;
+    const lang = computedLang(parent);
+    if (!isHi(lang)) {
+      findings.push({ kind: "lang-devanagari-untagged", lang, text: text.trim().slice(0, 44) });
+    }
+  }
+
+  // `document.body`, not `document`: `<html lang="hi">` itself carries the
+  // attribute too, and its own accidental "ASCII-only" reading (whatever
+  // text happens to sit under it) is not a node THIS workstream tagged —
+  // law 2 is about nodes we deliberately marked, `<body>` down.
+  let taggedHiElements = 0;
+  const hiElements = document.body.querySelectorAll('[lang="hi"], [lang^="hi-"]');
+  for (const el of hiElements) {
+    const text = (el.textContent || "").trim();
+    if (!text) continue;
+    // `hi-Latn` (`VoicePreviewPanel.tsx`'s own Hinglish input, romanized
+    // Hindi written on purpose in Latin letters) is a real, more specific
+    // BCP-47 tag: Hindi language, Latin SCRIPT — ASCII-only text under it is
+    // not a mistake, it is the whole point of the tag. Only a bare `hi`/
+    // `hi-IN`-shaped tag (Devanagari implied, no script subtag saying
+    // otherwise) is checked for this.
+    if ((el.getAttribute("lang") || "").toLowerCase().includes("latn")) continue;
+    taggedHiElements++;
+    if (!DEVANAGARI_RE.test(text) && ASCII_LETTER_RE.test(text)) {
+      findings.push({ kind: "lang-hi-ascii-only", text: text.slice(0, 44) });
+    }
+  }
+
+  return { findings, devanagariNodes, taggedHiElements };
+}
+
+/* THE SELF-TEST — `selfTest()`'s own posture above, restated: a control that
+ * runs first, against inline fixtures with a known planted violation of
+ * EACH kind this audit exists to catch, and a clean fixture that must not
+ * flag anything. If this stops catching either planted defect, the audit
+ * itself is blind and nothing downstream of it can be trusted. */
+async function selfTestLangTag(chromium, executablePath) {
+  const browser = await chromium.launch(
+    executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] },
+  );
+  const page = await browser.newPage();
+  try {
+    // Coverage: a Devanagari name on an English page, with no `hi` ancestor
+    // anywhere — `RoomApp.tsx`'s own h1 shape before this workstream's fix.
+    await page.setContent(`<!doctype html><html lang="en"><body><h1>प्रिया AI</h1></body></html>`);
+    const dirtyCoverage = await page.evaluate(langTagAudit);
+    if (!dirtyCoverage.findings.some((f) => f.kind === "lang-devanagari-untagged")) {
+      throw new Error(
+        "self-test: planted lang-devanagari-untagged violation not caught. The negative control did not fire.",
+      );
+    }
+
+    // The same name, tagged at the node — must be clean. " AI" stays
+    // outside the span (an untranslated loanword, ASCII, no Devanagari) —
+    // exactly `Localized`'s own real output for `<h1>{name} AI</h1>`.
+    await page.setContent(
+      `<!doctype html><html lang="en"><body><h1><span lang="hi">प्रिया</span> AI</h1></body></html>`,
+    );
+    const cleanCoverage = await page.evaluate(langTagAudit);
+    if (cleanCoverage.findings.length > 0) {
+      throw new Error(
+        `self-test: clean lang-tag fixture flagged ${cleanCoverage.findings.length} finding(s). The rule set is over-firing.`,
+      );
+    }
+
+    // False tagging: an ASCII-only word wrongly given lang="hi" directly.
+    await page.setContent(`<!doctype html><html lang="hi"><body><p lang="hi">AI</p></body></html>`);
+    const dirtyAscii = await page.evaluate(langTagAudit);
+    if (!dirtyAscii.findings.some((f) => f.kind === "lang-hi-ascii-only")) {
+      throw new Error(
+        "self-test: planted lang-hi-ascii-only violation not caught. The negative control did not fire.",
+      );
+    }
+
+    // The same word, correctly INHERITING `hi` from an ancestor rather than
+    // carrying the attribute itself — must be clean, the exact distinction
+    // "no false tagging" above draws.
+    await page.setContent(`<!doctype html><html lang="hi"><body><p>AI</p></body></html>`);
+    const cleanAscii = await page.evaluate(langTagAudit);
+    if (cleanAscii.findings.length > 0) {
+      throw new Error(
+        `self-test: an inherited (not own-attribute) lang="hi" ASCII word was flagged. ` +
+          `${cleanAscii.findings.length} finding(s) — the own-attribute scoping is broken.`,
+      );
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
 async function main() {
   if (!existsSync(DIST)) {
     console.log("  skip  accessibility: dist/ absent, run `npx vite build` first");
@@ -538,6 +686,7 @@ async function main() {
 
   const t0 = Date.now();
   await selfTest(chromium, executablePath, axeSource);
+  await selfTestLangTag(chromium, executablePath);
 
   const server = await serveDist();
   const browser = await chromium.launch(
@@ -551,8 +700,11 @@ async function main() {
 
   const axeFindings = []; // { where, impact, id, help, nodes }
   const kbFindings = [];
+  const langFindings = []; // WS-R79: { where, kind, lang?, text }
   const counts = { critical: 0, serious: 0, moderate: 0, minor: 0 };
   let pagesScanned = 0;
+  let devanagariNodesTotal = 0;
+  let taggedHiElementsTotal = 0;
 
   async function scanOne(where, url, mountedSelector, mediaEmulation) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -597,6 +749,14 @@ async function main() {
         detail: v.nodes.map((n) => n.failureSummary || "").filter(Boolean),
       });
     }
+
+    // WS-R79: same page, same load, no extra navigation — folded in here on
+    // `check-layout.mjs`'s own runtime-budget law ("no extra page load").
+    const langResult = await page.evaluate(langTagAudit);
+    devanagariNodesTotal += langResult.devanagariNodes;
+    taggedHiElementsTotal += langResult.taggedHiElements;
+    for (const f of langResult.findings) langFindings.push({ where, ...f });
+
     await ctx.close();
   }
 
@@ -640,26 +800,93 @@ async function main() {
     await ctx.close();
   }
 
+  // ── the creator page, WS-R79's own target: `/c/<slug>` (`api/_creator-page.js`)
+  // has no client app to navigate to — "this page's whole job is to BE the
+  // content" (that file's own header) — so this calls the REAL, shipping
+  // `buildCreatorPageHtml` directly, the same move `scripts/build-creator-
+  // page-fixture.mjs` already makes for the performance/headers gates, fed a
+  // Room whose OWN words (name, bio, showcase) are written in the locale
+  // OTHER than the one requested: a Hindi-default-locale creator's page
+  // opened via `?lang=en` — a search engine, or a shared link with the
+  // "wrong" query string attached, the exact shape this workstream's brief
+  // names ("an English page with the Hindi disclosure"). Not the SAME
+  // fixture `check-headers.mjs`/`check-performance.mjs` build from
+  // `dist/creator-page-fixture.html`: that one is deliberately all-English
+  // (a realistic byte-size stand-in for THOSE gates' own budgets, untouched
+  // here so neither gate's numbers move) — this one is deliberately
+  // mismatched, because a fixture with nothing to mismatch could not prove
+  // anything about tagging one way or the other.
+  if (!targetFilter || targetFilter === "creator-page") {
+    const { buildCreatorPageHtml } = await import(
+      pathToFileURL(join(ROOT, "api/_creator-page.js")).href
+    );
+    const mismatchedRoom = {
+      display_name: "प्रिया",
+      one_line_bio: "भौतिकी हर दिन, सरल भाषा में।",
+      default_locale: "hi",
+    };
+    const mismatchedShowcase = [
+      {
+        question: "Do you also help with chemistry?",
+        answer: "Only physics for now, but I can point you to good resources.",
+      },
+      { question: "क्या आप रोज़ जवाब देते हैं?", answer: "हां, जब भी उपलब्ध होऊं।" },
+    ];
+    const html = buildCreatorPageHtml(
+      { room: mismatchedRoom, showcase: mismatchedShowcase },
+      { origin: "https://vyakti.app", slug: "priya", lang: "en" },
+    );
+    const where = "creator-page:mismatched-locale";
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.addScriptTag({ content: axeSource });
+    const result = await page.evaluate(
+      (tags) => window.axe.run(document, { runOnly: { type: "tag", values: tags } }),
+      AXE_TAGS,
+    );
+    pagesScanned++;
+    for (const v of result.violations) {
+      counts[v.impact] = (counts[v.impact] || 0) + 1;
+      axeFindings.push({
+        where, impact: v.impact, id: v.id, help: v.help,
+        nodesTotal: v.nodes.length,
+        nodes: v.nodes.map((n) => n.target.join(" ")),
+        detail: v.nodes.map((n) => n.failureSummary || "").filter(Boolean),
+      });
+    }
+    const langResult = await page.evaluate(langTagAudit);
+    devanagariNodesTotal += langResult.devanagariNodes;
+    taggedHiElementsTotal += langResult.taggedHiElements;
+    for (const f of langResult.findings) langFindings.push({ where, ...f });
+    await ctx.close();
+  }
+
   await browser.close();
   server.close();
   const runtimeMs = Date.now() - t0;
 
   const serious = counts.critical + counts.serious;
   const failedByKeyboard = kbFindings.length > 0;
+  const failedByLangTag = langFindings.length > 0;
 
   if (jsonOut) {
     const { writeFileSync } = await import("node:fs");
     writeFileSync(
       jsonOut,
-      JSON.stringify({ counts, axeFindings, kbFindings, pagesScanned, runtimeMs }, null, 2),
+      JSON.stringify(
+        { counts, axeFindings, kbFindings, langFindings, devanagariNodesTotal, taggedHiElementsTotal, pagesScanned, runtimeMs },
+        null,
+        2,
+      ),
     );
   }
 
-  if (serious > 0 || failedByKeyboard) {
+  if (serious > 0 || failedByKeyboard || failedByLangTag) {
     console.log(
       `FAIL  accessibility: ${counts.critical} critical, ${counts.serious} serious, ` +
         `${counts.moderate} moderate, ${counts.minor} minor axe violation(s) across ${pagesScanned} page(s); ` +
-        `${kbFindings.length} keyboard finding(s). ${runtimeMs}ms.`,
+        `${kbFindings.length} keyboard finding(s); ${langFindings.length} language-tag finding(s). ${runtimeMs}ms.`,
     );
     for (const f of axeFindings) {
       if (f.impact !== "critical" && f.impact !== "serious") continue;
@@ -673,6 +900,10 @@ async function main() {
       console.log(`\n      [keyboard:${f.kind}] ${f.where}`);
       console.log(`        ${f.detail}`);
     }
+    for (const f of langFindings) {
+      console.log(`\n      [lang:${f.kind}] ${f.where}${f.lang ? ` (computed lang="${f.lang}")` : ""}`);
+      console.log(`        "${f.text}"`);
+    }
     if (counts.moderate || counts.minor) {
       console.log(`\n      (${counts.moderate} moderate, ${counts.minor} minor — reported, not blocking; see --json for detail)`);
     }
@@ -681,7 +912,9 @@ async function main() {
 
   console.log(
     `  ok    accessibility: 0 critical/serious across ${pagesScanned} page(s) ` +
-      `(${counts.moderate} moderate, ${counts.minor} minor reported), 0 keyboard findings. ${runtimeMs}ms.`,
+      `(${counts.moderate} moderate, ${counts.minor} minor reported), 0 keyboard findings, ` +
+      `0 language-tag findings (${devanagariNodesTotal} Devanagari text node(s) checked, ` +
+      `${taggedHiElementsTotal} own-attribute lang="hi" element(s) checked). ${runtimeMs}ms.`,
   );
   return 0;
 }

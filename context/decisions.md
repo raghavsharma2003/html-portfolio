@@ -15218,3 +15218,127 @@ into it rather than adding a second one: `layoutFixture.tsx`'s
 `showcase-picker` scenario already has everything a Share-tab accessibility
 screen would need. Until then, this is a named, deliberate gap, not a
 silent one.
+
+---
+
+## `ws-r79-tag-at-the-node-not-the-document` (2026-09-05, WS-R79)
+
+**Decided.** Language tagging for screen readers is done at the NODE that
+carries the text — `src/room/copy.ts#detectRoomTextLang`, `src/studio/
+copy.ts#detectStudioTextLang`, and `api/_creator-page.js`'s own restated
+`detectPageTextLang`, each a one-line Devanagari-presence test — never by
+trusting `document.documentElement.lang`/`room.locale`/`?lang=` to already
+say what language a given piece of text is actually in.
+
+**Rationale.** Four kinds of text on the Room and the creator page are not
+guaranteed to be in the document's own locale, and the document `lang`
+alone cannot be trusted to describe them:
+
+1. **The disclosure sentence is fetched, not re-picked.** `RoomApp.tsx`'s
+   own `switchLocale` mints a fresh session and updates `document.
+   documentElement.lang` the moment a follower switches language, but never
+   refetches the disclosure text itself (`RoomOpen.disclosure` stays
+   whatever it was fetched as). A follower who switches mid-conversation
+   now has a document tagged in the NEW locale wrapping a card still
+   written in the OLD one, until their next message — proven directly by
+   reading `switchLocale`'s own two branches: `setRoomLocale`'s return type
+   (`roomApi.ts`) carries only `{ locale, session }`, no disclosure field.
+2. **A creator's own name, bio, and showcase answers are written once, in
+   the Room's own default locale — not the follower's chosen chrome
+   language.** `RoomOpen.room.bio`, `room.name`/`display_name`, and
+   `/c/<slug>`'s showcase Q&A all ship to the client with no accompanying
+   language field at all; the only honest signal is the text's own
+   characters.
+3. **The creator's public page (`api/_creator-page.js`) can be requested in
+   either locale via `?lang=` independent of `room.default_locale`** — a
+   Hindi-default-locale creator's page opened via `?lang=en` (a search
+   engine, or a shared link with the "wrong" query string) is a real,
+   reachable state, not a contrived one.
+
+Detecting from the text's own characters (Devanagari presence, U+0900-
+U+097F) makes every one of these correct BY CONSTRUCTION, regardless of
+whether any surrounding state (`room.locale`, a stale fetch, a mismatched
+query param) agrees with it — the mechanism does not depend on two pieces
+of state staying in sync, which is exactly the class of bug case 1 above
+already demonstrates is not free.
+
+**What was NOT done.** The staleness in case 1 (the disclosure text itself
+not being refetched on a locale switch) is not fixed here — this
+workstream's job was tagging, not refetching, and the node-level tag makes
+the STALE text pronounce correctly regardless. Fixing the staleness itself
+is a separate, smaller workstream: refetch or re-derive the disclosure card
+inside `switchLocale`'s own `session && phase === "talking"` branch.
+
+**Reversal condition.** If a future workstream adds a server-supplied
+language field alongside any of this text (e.g. `room.bio_locale`), the
+detector should prefer that field over character-sniffing wherever it is
+present — character-sniffing is a fallback for text with no declared
+language, not a permanent design commitment, and a declared field is more
+correct than any heuristic the moment one exists. Until then, the four call
+sites above have no such field to prefer.
+
+---
+
+## `ws-r79-language-switch-buttons-get-their-own-lang` (2026-09-05, WS-R79)
+
+**Decided.** `LanguageSwitch` (`src/room/RoomApp.tsx`) and
+`StudioLanguageSwitch` (`src/studio/StudioShell.tsx`) each set `lang={l}`
+directly on every one of their two buttons (`l` being the locale that
+button's own label — `ROOM_LANGUAGE_LABELS[l]`/`STUDIO_LANGUAGE_LABELS[l]`
+— is written in), rather than detecting it from the label text.
+
+**Rationale.** Both surfaces show BOTH words always, in both locales, by
+design (`ROOM_LANGUAGE_LABELS`'s own comment: "a person who reads only
+Hindi still has to be able to find English on the way to it"), so on an
+English-locale page the "हिन्दी" button's own text is Devanagari sitting
+under `<main lang="en">` with no tag of its own — this workstream's new
+accessibility-gate assertion caught it directly (6 occurrences across
+`room:join`/`room:talk`/`room:account`x2/`room:talk` reduced-motion and
+forced-colors variants, before the fix; `studio:shell`x3/`studio:shell-hi`
+similarly). The locale each button names is already KNOWN (it is the loop
+variable `l`, not detected from anything) — using that directly is simpler
+and more certain than running `detectRoomTextLang(ROOM_LANGUAGE_LABELS[l])`
+on a string this file already knows the language of.
+
+**What was deliberately NOT touched.** The group's own bilingual
+`aria-label` ("हिन्दी / English" — `src/room/RoomApp.tsx`'s literal string,
+`src/studio/copy.ts#shell.languageGroupLabel`) still mixes both languages
+in one attribute value with no way to tag either half separately — ARIA has
+no mechanism for a partial-string `lang`. Left as is rather than built
+around (an `aria-labelledby` pointing at a visually-hidden, per-word-tagged
+element was considered and set aside: it needs a `.sr-only`-shaped utility
+class neither the Room's nor the Studio's own stylesheet currently defines,
+and touching either was outside this workstream's own footprint budget). A
+screen reader reads the GROUP's own label once and then each BUTTON's own
+name correctly per this decision's own fix — the group label itself being
+imperfect is a real, named gap, not a silent one.
+
+**Reversal condition.** If a future workstream adds a visually-hidden
+utility class to either stylesheet for any other reason, revisit this gap:
+split the group label into two `lang`-tagged spans referenced by
+`aria-labelledby` rather than one bilingual attribute string.
+
+---
+
+## `ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check` (2026-09-05, WS-R79)
+
+**Decided.** The accessibility gate's "no `lang="hi"` element contains only
+ASCII letters" assertion (`scripts/check-accessibility.mjs#langTagAudit`)
+exempts any element whose OWN `lang` attribute contains `latn` (`hi-Latn`,
+case-insensitive) from that check entirely.
+
+**Rationale.** `hi-Latn` is a real, more specific BCP-47 tag than bare
+`hi`: Hindi LANGUAGE, Latin SCRIPT — `VoicePreviewPanel.tsx`'s own Hinglish
+input option (`inputLanguage: "hi-Latn"`) uses it correctly, for romanized
+Hindi written on purpose in Latin letters ("Namaste! Main aapka apna AI
+version hoon..."). ASCII-only text under `hi-Latn` is not a mistake, it is
+the entire reason the tag exists — a blanket "`hi`-prefixed and ASCII-only
+is always wrong" rule (this gate's first draft) flagged it as a violation,
+which is `scripts/check-accessibility.mjs`'s own class of over-firing
+(`selfTest`'s standing rule for the axe half, restated for this one).
+
+**Reversal condition.** None expected — this is a correct reading of
+BCP-47, not a scoped-out gap. If a future script variant tag is added for
+Hindi (`hi-Deva-Latn` or similar) that should ALSO be exempt, extend the
+same substring check; a bare `hi`/`hi-IN`/`hi-Deva` (Devanagari implied,
+nothing saying otherwise) should never be.

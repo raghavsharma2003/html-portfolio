@@ -92,6 +92,52 @@ function withName(template, name) {
   return String(template || "").split("{name}").join(name);
 }
 
+// ── WS-R79: language tagging for screen readers ───────────────────────────
+// `renderPage`'s own `<html lang="${htmlLang}">` names ONE thing: the
+// visitor's own requested locale (`?lang=`, or the Room's `default_locale`
+// when they asked for neither). Four things this page shows are the
+// CREATOR'S own words, written once in whichever script they used, and are
+// not guaranteed to be in that locale: their own name, their one-line bio,
+// a showcase question or answer, and the "Talk to {name} AI" join link. A
+// visitor who requests the OTHER locale via `?lang=` (a search engine, or a
+// person who followed a link with the "wrong" query string attached) reads
+// the platform's OWN copy correctly, in the requested locale, wrapping the
+// creator's words exactly as authored - unless those words are tagged on
+// their own.
+//
+// `detectPageTextLang` is `src/room/copy.ts`'s own `detectRoomTextLang`,
+// restated rather than imported: `api/` never imports from `src/` in this
+// repo (this file's own header, "no import of ./_db.js" - the same
+// deliberate boundary, extended to every module across that line) and this
+// page has no client bundle to share one with anyway - it is pure server
+// HTML.
+const DEVANAGARI_RANGE = /[ऀ-ॿ]/;
+function detectPageTextLang(text) {
+  return DEVANAGARI_RANGE.test(String(text || "")) ? "hi" : "en";
+}
+
+/** One piece of creator-authored text, tagged with the language it is
+ *  actually IN - the node, never the document
+ *  (`context/decisions.md#ws-r79-tag-at-the-node-not-the-document`). */
+function langSpan(tag, text, attrs = "") {
+  const t = String(text || "");
+  return `<${tag} lang="${detectPageTextLang(t)}"${attrs}>${esc(t)}</${tag}>`;
+}
+
+/** A template with exactly one occurrence of `name` inside it (`joinLabel`'s
+ *  own shape below) - the name gets its own `lang`, the words around it stay
+ *  untagged and inherit the page's own `htmlLang`, which is correct for
+ *  them: they are `PAGE_COPY`'s own platform strings, always written in the
+ *  locale they are shown in. Falls back to the whole string escaped, plain,
+ *  if `name` is empty or not found - the same shape `withName`
+ *  (`src/room/copy.ts`) falls back to when there is nothing to splice. */
+function withLangSplicedName(label, name) {
+  const n = String(name || "");
+  const idx = n ? label.indexOf(n) : -1;
+  if (idx === -1) return esc(label);
+  return esc(label.slice(0, idx)) + langSpan("span", n) + esc(label.slice(idx + n.length));
+}
+
 /** Escapes a JSON-LD payload for embedding inside a `<script>` element: `<`
  *  becomes `<` so a value carrying the literal text `</script>` (a
  *  creator's own bio or showcase answer, however unlikely) can never close
@@ -316,13 +362,13 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
 
   const showcaseHtml = items.length
     ? `<section aria-labelledby="showcase-title">
-    <h2 id="showcase-title">${esc(c.showcaseLabel(name))}</h2>
+    <h2 id="showcase-title">${withLangSplicedName(c.showcaseLabel(name), name)}</h2>
     <dl>
       ${items
         .map(
           (item) => `<div class="qa">
-        <dt>${esc(item.question)}</dt>
-        <dd>${esc(item.answer)}</dd>
+        ${langSpan("dt", item.question)}
+        ${langSpan("dd", item.answer)}
       </div>`,
         )
         .join("\n      ")}
@@ -332,16 +378,22 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
 
   const tasteHtml = buildTasteSection(room, name, locale, slug);
 
+  // WS-R79: `name` and `description` are the creator's own words - tagged on
+  // their own node rather than trusted to match `htmlLang` (see this file's
+  // own comment above `detectPageTextLang`). `c.poweredBy` stays a plain
+  // `esc()`: it is `PAGE_COPY`'s own platform sentence, always written in
+  // the locale it is shown in, never the creator's.
+  const h1Html = name ? `${langSpan("span", name)} AI` : esc(title);
   const body = `<main>
-    <h1>${esc(title)}</h1>
+    <h1>${h1Html}</h1>
     <section aria-labelledby="about-title">
       <h2 id="about-title">${esc(c.aboutLabel)}</h2>
-      <p>${esc(description)}</p>
+      ${langSpan("p", description)}
       <p class="disclosure">${esc(c.poweredBy)}</p>
     </section>
     ${tasteHtml}
     ${showcaseHtml}
-    <p><a href="${esc(joinUrl)}">${esc(c.joinLabel(name))}</a></p>
+    <p><a href="${esc(joinUrl)}">${withLangSplicedName(c.joinLabel(name), name)}</a></p>
   </main>`;
 
   const ld = buildCreatorPageJsonLd({ room, showcase: items, url });

@@ -11267,3 +11267,23 @@ evals/room-doors/run.mjs`, offline, deterministic, $0, against
 549/549 passed, all eight attack classes still exercised, zero uncased
 ops (`api/review-queue.js` remains deliberately outside the discovered
 door list, `ws-r72-review-queue-js-kept-outside-the-door-battery`).
+
+
+## `ws-r79-accessibility-lang-tag-coverage-2026-09-05` — nodes tagged per surface, before and after, with a fired-and-reverted negative control
+
+n = every target `scripts/check-accessibility.mjs` already scans (room, room-hi, studio:shell, studio:shell-hi, site, vyakti, plus this workstream's new `creator-page` target — 17 pages total) rendered in real Chromium headless at 390x844, `node scripts/check-accessibility.mjs`, worktree `ws-r79-language-tagging` over `8b154f8`, 2026-09-05.
+
+**Before this workstream** (measured by reading the code paths directly — `RoomApp.tsx`'s h1/disclosure/bio, `AccountPage.tsx`'s disclosure, `StudioApp.tsx`'s h1, `api/_creator-page.js`'s name/bio/showcase/join label all rendered with no `lang` of their own — plus running the NEW assertion against the pre-fix tree, which is the same thing as the fired-and-reverted control below applied at every one of those sites at once): `langTagAudit` had not been built at all, so 0 nodes were checked by construction. Once built and pointed at the untouched call sites, it found 13 real findings on the first run against the code before the render-site fixes: 6x the language-switch button's own "हिन्दी" label untagged under an English document (`room:join`, `room:talk`, `room:account`x2, `room:talk(reduced-motion)`, `room:talk(forced-colors)`), 3x the same on the studio (`studio:shell:feed/meet/deploy`) plus 1 on `studio:shell-hi:meet`, and 2 false positives from the audit's own first draft (JSON-LD script text on `creator-page`, fixed by excluding `SCRIPT`/`STYLE`/`NOSCRIPT`/`TEMPLATE` from the text-node walk — `rejected.md#ws-r79-json-ld-script-text-is-not-prose`) and 1 more (`hi-Latn` Hinglish sample text on `studio:shell:meet`/`studio:shell-hi:meet` wrongly held to the Devanagari-implied rule — `context/decisions.md#ws-r79-lang-hi-latn-exempt-from-the-ascii-only-check`).
+
+**After** (every render-site fix applied, both audit bugs fixed): `0 critical/serious across 17 page(s) (0 moderate, 0 minor reported), 0 keyboard findings, 0 language-tag findings (221 Devanagari text node(s) checked, 37 own-attribute lang="hi" element(s) checked). 47271ms.`
+
+**The fired-and-reverted negative control** (law 2's own requirement), against the `creator-page` target alone (`node scripts/check-accessibility.mjs --target creator-page`), a deliberately mismatched fixture (`display_name: "प्रिया"`, `one_line_bio: "भौतिकी हर दिन, सरल भाषा में।"`, `default_locale: "hi"`, page requested `?lang=en`):
+
+| state | result |
+|---|---|
+| `api/_creator-page.js`'s bio paragraph reverted to `<p>${esc(description)}</p>` (the helper removed) | `FAIL  accessibility: ... 1 language-tag finding(s). ` — `[lang:lang-devanagari-untagged] creator-page:mismatched-locale (computed lang="en")` `"भौतिकी हर दिन, सरल भाषा में।"` |
+| the same line restored to `${langSpan("p", description)}` | `ok    accessibility: 0 critical/serious across 1 page(s) ... 0 language-tag findings (6 Devanagari text node(s) checked, 6 own-attribute lang="hi" element(s) checked). 3483ms.` |
+
+**Also measured, offline** (`node evals/lang-tag/run.mjs`, $0, deterministic): 218 of the Room's own translated Hindi leaf strings (2 shared, untranslated placeholders correctly skipped) and 750 of the Studio's (9 skipped) each detect as `hi` through `detectRoomTextLang`/`detectStudioTextLang`; 8 named edge cases (empty string, a digits-only placeholder, a bare loanword, a bare acronym, a lone Devanagari codepoint, a Devanagari name plus an untranslated loanword, the same name in Latin script, Devanagari mixed with ASCII digits) each resolve as expected in both directions; `buildCreatorPageHtml`'s real output, parsed with a regex rather than trusted, carries the exact `lang="hi"`/`lang="en"` spans this workstream's brief names on the h1 name, the bio paragraph, a Hindi and an English showcase answer in the same list, and the join link's own name portion, while the platform's own sentences stay untagged plain paragraphs in the REQUESTED locale. 31/31.
+
+Not measured: no real screen reader (TalkBack/VoiceOver/NVDA) was run against any of this — every proof above is a computed-`lang`/DOM-shape assertion in Chromium, which is what `scripts/check-accessibility.mjs`'s own axe half already limits itself to for the same reason. A human pass with a real screen reader remains open.

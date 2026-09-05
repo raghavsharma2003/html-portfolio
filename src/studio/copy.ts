@@ -2943,3 +2943,24 @@ const HI: StudioCopy = {
 export const STUDIO_COPY_TABLE: Record<StudioLocale, StudioCopy> = { en: EN, hi: HI };
 
 export type { StudioCopy };
+
+// ── WS-R79: language tagging for screen readers ─────────────────────────
+// `src/room/copy.ts`'s own `detectRoomTextLang` comment, restated for the
+// creator's own chrome rather than the follower's: `document.documentElement.
+// lang` names the STUDIO locale the creator chose to read their own screens
+// in - it says nothing about what script their own Room name happens to be
+// written in (`StudioApp.tsx`'s own main workspace heading, a creator's own
+// name shown back to them, independent of which locale they are reading the
+// rest of the studio's chrome in). Duplicated rather than imported from
+// `src/room/copy.ts` on the SAME precedent that file's own `withCount`/
+// `withLabel` already follow next to `src/room/copy.ts`'s `withName`/
+// `withRetry` - one small helper per surface, not a shared import between
+// two files that are each read and reasoned about on their own.
+const STUDIO_DEVANAGARI_RANGE = /[ऀ-ॿ]/;
+
+/** Detects which of `STUDIO_LOCALES` a piece of TEXT is actually written in,
+ *  from its own characters - `src/room/copy.ts`'s own `detectRoomTextLang`,
+ *  the studio's own copy of the identical one-line rule. */
+export function detectStudioTextLang(text: string): StudioLocale {
+  return STUDIO_DEVANAGARI_RANGE.test(String(text || "")) ? "hi" : "en";
+}

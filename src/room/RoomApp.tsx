@@ -55,6 +55,7 @@ import SubscriptionPanel from "./SubscriptionPanel";
 import HandoffPanel from "./HandoffPanel";
 import AccountPage from "./AccountPage";
 import { useDialogInView } from "./useDialogInView";
+import { Localized, LocalizedName, LocalizedDisclosure } from "./Localized";
 import {
   RoomApiError,
   dismissOffer,
@@ -1027,7 +1028,18 @@ export default function RoomApp({
     <main className="room-shell" lang={locale}>
       <header className="room-head">
         <div className="room-head-row">
-          <h1>{name ? `${name} AI` : room?.room.display_name}</h1>
+          {/* WS-R79: the creator's own name is not guaranteed to be in the
+              script the follower reads the rest of this chrome in - tagged
+              on its own rather than inheriting `<main lang={locale}>` above. */}
+          <h1>
+            {name ? (
+              <>
+                <Localized as="span" text={name} /> AI
+              </>
+            ) : (
+              <Localized as="span" text={room?.room.display_name || ""} />
+            )}
+          </h1>
           <div className="room-head-actions">
             {/* WS-R40: growth is a follower sending this link to a friend. */}
             {room && (
@@ -1180,9 +1192,12 @@ export default function RoomApp({
         {/* The card, as DATA, at the top of the first screen. Never generated,
             never paraphrased, and never below the fold. */}
         <div className="room-card" role="note">
-          {(room?.disclosure || "").split("\n").map((line) => (
-            <p key={line}>{line}</p>
-          ))}
+          {/* WS-R79: the disclosure card is rendered in the locale it was
+              FETCHED in, never re-picked - a locale switch mid-conversation
+              updates the document's own `lang` without ever refetching this
+              text (`copy.ts`'s own comment on `detectRoomTextLang`). Tagged
+              from its own characters so it stays correct regardless. */}
+          <LocalizedDisclosure text={room?.disclosure || ""} />
         </div>
 
         {!remembers && <p className="room-fine">{copy.conversation.notRemembering}</p>}
@@ -1633,6 +1648,12 @@ export function LanguageSwitch({
           key={l}
           type="button"
           className="room-lang-btn"
+          // WS-R79: this button's own label is in `l`'s script, not
+          // necessarily the DOCUMENT's — both are always shown, side by
+          // side, in every locale (`ROOM_LANGUAGE_LABELS`'s own comment),
+          // so on an English page the "हिन्दी" button needs its own `lang`
+          // or a screen reader reads it in an English voice.
+          lang={l}
           aria-pressed={locale === l}
           disabled={busy}
           onClick={() => onSwitch(l)}
@@ -1783,25 +1804,37 @@ function TasteScreen({
     <main className="room-shell" lang={locale}>
       <section className="room-taste">
         <div className="room-head-row">
-          <h1>{name ? `${name} AI` : room.room.display_name}</h1>
+          {/* WS-R79: see the talk screen's own comment on the identical h1
+              two screens over — same reason, same fix. */}
+          <h1>
+            {name ? (
+              <>
+                <Localized as="span" text={name} /> AI
+              </>
+            ) : (
+              <Localized as="span" text={room.room.display_name || ""} />
+            )}
+          </h1>
           <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
         </div>
         {/* WS-R45. Plain text the creator wrote about themselves — never
             rendered as anything but a paragraph, exactly like the directory
-            card that already shows it. */}
-        {room.room.bio && <p className="room-lede">{room.room.bio}</p>}
+            card that already shows it. WS-R79: tagged on its own, since it is
+            written in the Room's own default locale, not necessarily the
+            one this screen's chrome is in. */}
+        {room.room.bio && <Localized as="p" className="room-lede" text={room.room.bio} />}
         {/* The card, the moment it exists (turn 1's own reply) — and once
             shown it STAYS shown, `api/_room-taste.js`'s own "carried on the
             first answer" law rendered rather than re-requested. Before that
             first reply, the lede alone says what this screen is. */}
         {disclosure ? (
           <div className="room-card" role="note">
-            {disclosure.split("\n").map((line) => (
-              <p key={line}>{line}</p>
-            ))}
+            <LocalizedDisclosure text={disclosure} />
           </div>
         ) : (
-          <p className="room-lede">{withName(copy.taste.lede, name)}</p>
+          <p className="room-lede">
+            <LocalizedName template={copy.taste.lede} name={name} />
+          </p>
         )}
 
         {exchanges.length > 0 && (
@@ -1932,15 +1965,15 @@ function JoinSheet({
     <main className="room-shell" lang={locale}>
       <section className="room-join">
         <div className="room-head-row">
-          <h2>{withName(copy.join.title, name)}</h2>
+          <h2>
+            <LocalizedName template={copy.join.title} name={name} />
+          </h2>
           <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
         </div>
         {/* The card first, and as data. A person answering the memory question
             below has already been told what they are talking to. */}
         <div className="room-card" role="note">
-          {room.disclosure.split("\n").map((line) => (
-            <p key={line}>{line}</p>
-          ))}
+          <LocalizedDisclosure text={room.disclosure} />
         </div>
         <p className="room-lede" style={{ marginTop: "var(--space-item)" }}>
           {copy.join.lede}
