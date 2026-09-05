@@ -99,6 +99,19 @@ export const INCIDENT_KINDS = Object.freeze([
 ]);
 const INCIDENT_KIND_SET = new Set(INCIDENT_KINDS);
 
+/** WS-R102. The door prefix a `self_check` incident row carries when it
+ *  names an OPTIONAL env var that is absent (`optional_absent: NAME`),
+ *  never a failing check. Declared HERE, beside the kind list it qualifies,
+ *  rather than in `api/_self-check.js` where it was born: `api/_ops.js`
+ *  reads it to partition today's self-check doors, and an `_ops.js ->
+ *  _self-check.js` import closed a load-order cycle at the wave-sixteen
+ *  merge (`_incidents -> _operator-telegram -> _room-telegram -> _payments
+ *  -> _org -> _ops -> _self-check`, whose module scope reads
+ *  `INCIDENT_KINDS` before this file has finished initialising:
+ *  `context/rejected.md#ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds`).
+ *  Both files import this one already; neither imports the other. */
+export const OPTIONAL_ABSENT_DOOR_PREFIX = "optional_absent: ";
+
 function validDoor(door) {
   const d = String(door || "");
   return d.length > 0 && d.length <= 100;

@@ -25,7 +25,7 @@
 // run.mjs`'s own static scan of this file's real source is the second,
 // independent guarantee - `api/_incidents.js`'s own INSERT-column-list scan
 // precedent, restated for an env reader instead of a SQL writer.
-import { INCIDENT_KINDS, recordIncident } from "./_incidents.js";
+import { INCIDENT_KINDS, recordIncident, OPTIONAL_ABSENT_DOOR_PREFIX } from "./_incidents.js";
 import { sweepSchedules } from "./_sweep-schedule.js";
 // WS-R98. The failure path's own Telegram alert - safe to import directly,
 // `api/_operator-telegram.js` never imports this file back (see that file's
@@ -365,7 +365,10 @@ export async function recordSelfCheckIncidents(db, result) {
 // failing check's door already uses. `api/_ops.js#selfCheckOverview` reads
 // this SAME `vy_incident` query `selfCheckTodayDoors` already makes and
 // partitions by this one prefix, so no second query is added there either.
-export const OPTIONAL_ABSENT_DOOR_PREFIX = "optional_absent: ";
+// Declared in api/_incidents.js since the wave-sixteen merge (see that
+// file, beside INCIDENT_KINDS); re-exported here so every existing importer
+// of this name keeps working unchanged.
+export { OPTIONAL_ABSENT_DOOR_PREFIX } from "./_incidents.js";
 
 /**
  * One `recordIncident` per name in `result.optional_absent` - a SEPARATE

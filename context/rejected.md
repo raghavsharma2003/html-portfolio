@@ -12968,3 +12968,75 @@ layer admits it without a hand-typed exception. Run the FULL release gate
 offline, deterministic suite testing the new file in isolation cannot catch
 a cross-file static scan that only runs when every `api/*.js` file is read
 together.
+
+## `ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing` — a raw DB row handed to `gatedReply` matches nothing, no error (2026-09-05, WS-R101)
+
+**Tried.** `api/_recall-run.js`'s first draft of `runRecallMeasurement`
+loaded never-say rules with `await loadNeverRules(db, rid, owner)` and
+passed that array straight through to `scoreRecallRun`'s `neverRules`
+option, which `gatedReply` (`api/_surface.js`) reads directly.
+
+**What specifically broke.** `evals/recall-run/run.mjs`'s own never-rule
+case (a compiled rule matching an echoed answer, expecting the answer
+suppressed) failed: the answer came back UNSUPPRESSED, `gated: true`,
+ordinary text, no error anywhere. `loadNeverRules` returns raw
+`{rule_id, pattern, revoked_at}` rows straight off `vy_review_never_rule`;
+`gateReply`'s matching (`replyViolatesNeverRule`) expects the COMPILED shape
+`api/_never-rules.js::compileNeverRules` produces (`{rule_id, needles}`, the
+pattern pre-normalised and pre-shingled into match tokens) — a raw row's
+`.pattern` field is simply never read by the matcher, so the row is inert
+and silent. `api/_room-surface.js::roomNeverRules` already compiles before
+handing rules to any Room reply lane; this file's first draft was the one
+caller in the repo that skipped it.
+
+**The fix.** `runRecallMeasurement` now calls
+`compileNeverRules(await loadNeverRules(db, rid, owner))`, and the
+docstring on `scoreRecallRun` states the contract in words: `neverRules`
+must arrive already compiled. `ws-r101-never-rules-must-arrive-compiled`
+(`context/decisions.md`) is the full argument and the open question this
+finding raises (should `gatedReply` accept either shape and compile a raw
+row itself, closing the gap structurally rather than by convention).
+
+**The lesson for the next caller.** A raw never-rule row and a compiled one
+are both plain JS objects with no type system distinguishing them at the
+`gatedReply` boundary, and the failure mode is not a crash, not a wrong
+answer, not a 500 — it is a completely ordinary-looking successful reply
+that happens to say the forbidden thing. `docs/gurukul/safety-floor-teacher.md`'s
+own measurement ("prompt instructions leaked 57-98%; the SQL predicate
+leaked 0 of 31,122") is why this rule exists as a predicate at all; this
+finding is the SAME law's plumbing half — a predicate that is never actually
+wired in is indistinguishable from no predicate, and the only way either
+suite or a human notices is a positive test that actually exercises the
+suppression, never a green run that merely calls the function.
+
+## `ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds` (2026-09-05, main loop, at the WS-R101 merge)
+
+**Tried.** WS-R102 had `api/_ops.js` import `OPTIONAL_ABSENT_DOOR_PREFIX`
+from `api/_self-check.js`, the file that declared it, the obvious source.
+Its own suites passed, and so did every wave-sixteen merge's touched
+suites, because each one imported the incidents module after something
+else had already loaded it.
+
+**What broke.** The full registry, run once with an empty suite key at the
+WS-R101 merge, failed `incidents` and `clonechannel` with "Cannot access
+'INCIDENT_KINDS' before initialization" at `api/_self-check.js:444`.
+A tracer over `api/`'s import statements found the cycle: `_incidents ->
+_operator-telegram` (WS-R98) `-> _room-telegram` (WS-R98) `-> _payments ->
+_org -> _ops -> _self-check` (the WS-R102 edge), and `_self-check`'s module
+scope reads `INCIDENT_KINDS.includes("self_check")` while `_incidents` is
+still initialising. A suite whose first import is `_incidents.js` enters
+the cycle at the top and crashes; a suite that imports `_self-check.js` or
+`_ops.js` first loads `_incidents.js` to completion before anything reads
+it, and passes. Load order, not logic, decided the result.
+
+**What to do differently.** The constant is a door prefix on an incident
+row, so it now lives in `api/_incidents.js` beside the kind list it
+qualifies; `_self-check.js` re-exports it for its existing importers and
+`_ops.js` imports it from `_incidents.js`, which both already read. The
+tracer shows no path from `_incidents.js` to `_self-check.js` afterwards.
+The law, WS-R98's cycle decision restated with a sharper edge: a MODULE-
+SCOPE read of another module's export is a load-order dependency, and
+inside an import cycle it is a crash that only some entry points see; a
+suite passing alone proves nothing about the registry, so a merge that adds
+an import between two `api/` files runs the whole registry, or a tracer
+over the import graph, before it is called clean.

@@ -1367,3 +1367,35 @@ why: unlike Telegram's channel pointer, this row is the only surviving
 record this channel ever existed for this phone); `forget` deletes it for
 real, through `api/_room-surface.js`'s `roomForgetCore`, by name, alongside
 the receipt migration 090 already issues.
+## 35. The recall run (`vercel-app`, WS-R101, migration 127, 2026-09-05)
+
+Readiness's `knows_your_material` part (`api/_readiness.js`) has never had a
+writer: `readRecallRun` was a committed stub that always returned null, so
+the part could only ever render "not measured yet" and no replica could
+cross the publish floor through a real computation (`context/decisions.md
+#ws-r95-readiness-floor-crossing-is-seeded-never-computed`).
+`api/_recall-run.js` is the writer: a held-out question set built
+deterministically from the replica's own sources (no model call), scored by
+driving each question through the REAL compiled agent via `gatedReply`
+(`api/_recall-run.js::scoreRecallRun`) — one model call per question. The
+"Measure now" op on the readiness door (`POST /api/readiness`,
+`op: "measure_now"`) is the only thing that can trigger it.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `RECALL_RUN` | `api/_recall-run.js:recallRunEnabled()`, read by `runRecallMeasurement` (the op's whole flow) | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | **unset (default)**: `POST /api/readiness {op:"measure_now"}` refuses immediately with a named 503 (`recall_run_off`) before it reads a single row — no SQL, no reply-seam call, no cost. `GET /api/readiness` is completely unaffected either way; `knowsYourMaterial` renders whatever `readRecallRun` finds (nothing, until a run has ever been stored). **on**: the op runs the full flow — generates the question set, drives it through the compiled agent (one real reply per question, the reply seam's own cost), scores it, and stores one `vy_recall_run` row, superseding the previous one |
+
+Not a build-time (`VITE_`) flag — a plain `process.env` var like
+`ROOM_DORMANCY` (§30) and `ROOM_HANDOFF_KERNEL` (§31), no frontend rebuild
+needed to flip it. The second, independent layer under this flag is the
+write's own rate predicate (`api/_recall-run.js`'s `RECALL_RUN_INSERT_SQL`):
+one run per replica per hour, enforced inside the same statement that
+supersedes the previous row, refused by name (`recall_run_rate_limited`,
+429) rather than by a separate counter a caller could race. Below 20
+usable passages across a replica's mined context items, approved review
+cards and transcribed interview answers, the run is refused before any
+model call (`recall_set_too_small`, 409) — `RECALL_SET_MIN`
+(`api/_recall-run.js`).
+
+No new secret-store entry: `RECALL_RUN` is a plain, non-secret switch, set
+the same way every other feature flag in this manifest is.

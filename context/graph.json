@@ -9802,6 +9802,48 @@
       "kind": "rejection",
       "title": "TABLE_COPY as a plain object keyed by table name failed evals/room-leak's static reach layer (unsafe-line on 15 tables, plus two hand-typed ALLOWED-set checks) on the first full gate run; fixed by an array of {table, en, hi} entries (ROOM_EXPORT_EXTRA's own shape) plus two named admissions.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-run-writer",
+      "kind": "decision",
+      "title": "api/_recall-run.js is the writer knows_your_material never had: a deterministic held-out question set from a replica's own sources, scored 0-100 through the real compiled agent, gated behind RECALL_RUN and rate-limited to one run per replica per hour (migration 127, vy_recall_run).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-scorer-order-sensitive",
+      "kind": "decision",
+      "title": "scoreAnswer blends vocabulary overlap and a longest-common-subsequence order term; a negative control proves an order-blind patch cannot tell an echoed passage apart from the same words shuffled (both score 100), which the real scorer does not do.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-never-rules-must-arrive-compiled",
+      "kind": "decision",
+      "title": "scoreRecallRun/runRecallMeasurement require neverRules already compiled (compileNeverRules), the same contract roomNeverRules already states for every Room reply lane, restated for a lane with no Room.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing",
+      "kind": "rejection",
+      "title": "A raw {rule_id,pattern,revoked_at} row handed straight to gatedReply matches nothing and throws nothing \u2014 the answer comes back unsuppressed, gated:true, ordinary text. Fixed by compiling before the call.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-recall-run-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/recall-run/run.mjs: 75 assertions, 0 failures, offline, deterministic, one real compiled-agent call path with a fake reply. Capstone: the publish lock crosses through a REAL recall run in the fixture world, vy_replica_readiness never seeded.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r101-gate-baseline",
+      "kind": "measurement",
+      "title": "verify-release timed out identically on the untouched tree and the ws-r101 tree, both EADDRINUSE on the same ports under nine concurrent sibling gates; layout and performance both pass standalone on ws-r101 once ports freed, confirming the timeout was environmental.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds",
+      "kind": "rejection",
+      "title": "WS-R102's import of the self-check module from the ops module closed a seven-file cycle starting at the incidents module, whose kind list the self-check module reads at module scope; two suites crashed only when their first import entered the cycle at the top. The prefix constant moved to the incidents module.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19079,6 +19121,41 @@
       "src": "ws-r108-the-readable-export",
       "rel": "measured_by",
       "dst": "ws-r108-full-release-gate-2026-09-05"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "supersedes",
+      "dst": "ws-r95-readiness-floor-crossing-is-seeded-never-computed"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "measured_by",
+      "dst": "ws-r101-recall-run-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "caused_by",
+      "dst": "ws-r101-recall-scorer-order-sensitive"
+    },
+    {
+      "src": "ws-r101-recall-run-writer",
+      "rel": "caused_by",
+      "dst": "ws-r101-never-rules-must-arrive-compiled"
+    },
+    {
+      "src": "ws-r101-never-rules-must-arrive-compiled",
+      "rel": "caused_by",
+      "dst": "ws-r101-recall-run-neverrules-uncompiled-silently-does-nothing"
+    },
+    {
+      "src": "ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds",
+      "rel": "caused_by",
+      "dst": "ws-r102-optional-absent-incidents-reuse-self-check-kind-with-a-door-prefix"
+    },
+    {
+      "src": "ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds",
+      "rel": "caused_by",
+      "dst": "ws-r58-incidents-importing-opsownerids-from-ops-js-makes-a-cycle"
     }
   ]
 }

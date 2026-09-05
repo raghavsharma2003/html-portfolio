@@ -68,7 +68,10 @@ import { INCIDENT_KINDS } from "./_incidents.js";
 // actually writes. Safe direction: api/_self-check.js never imports this
 // file (see that file's own header on why importing api/_ops.js back would
 // make a cycle one file over from api/_incidents.js's own precedent).
-import { OPTIONAL_ABSENT_DOOR_PREFIX } from "./_self-check.js";
+// (declared in api/_incidents.js since the wave-sixteen merge: an import
+// of api/_self-check.js from here closed a load-order cycle on
+// INCIDENT_KINDS, `context/rejected.md#ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds`).
+import { OPTIONAL_ABSENT_DOOR_PREFIX } from "./_incidents.js";
 // WS-R88 (migration 125). The board's own "Last digest" read - the ONE
 // direction this import is safe: `api/_operator-digest.js` never imports
 // THIS file back (see that file's own header), so there is no

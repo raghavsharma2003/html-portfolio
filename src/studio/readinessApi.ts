@@ -74,3 +74,27 @@ export async function readReadiness(token: string, replicaId: string): Promise<R
   );
   return data.readiness;
 }
+
+// ── WS-R101: the recall run ─────────────────────────────────────────────
+//
+// The door's own result, not a fresh `Readiness` screen — the write and the
+// read stay two requests (`api/readiness.js`'s own header states why), so a
+// caller that wants the updated part re-reads with `readReadiness` right
+// after this resolves, `ReadinessPanel.tsx`'s own `load()` reused rather than
+// a second copy of it here.
+export interface RecallRunResult {
+  run_id: string;
+  score: number;
+  n: number;
+  method: string;
+  computed_at: string;
+  set_hash: string;
+}
+
+export async function measureRecallNow(token: string, replicaId: string): Promise<RecallRunResult> {
+  const data = await replicaRequest<{ recall_run: RecallRunResult }>(token, "/api/readiness", {
+    method: "POST",
+    body: JSON.stringify({ op: "measure_now", replica_id: replicaId }),
+  });
+  return data.recall_run;
+}

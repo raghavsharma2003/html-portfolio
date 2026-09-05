@@ -230,6 +230,18 @@ const { getOwnedRoom, listRoom, unlistRoom, setRoomBio, RoomPublishError } = ROO
 // are, without joining §18's completeness machinery.
 const REVIEW_QUEUE = await import(pathToFileURL(join(API, "_review-queue.js")).href);
 const { readEligibleShowcaseCards, dismissFlaggedReply, ReviewQueueError } = REVIEW_QUEUE;
+// WS-R101: `api/readiness.js` is NOT one of this file's DOOR_MODULES either
+// (it imports `./_readiness.js` and `./_recall-run.js`, neither in the
+// closed set §0 names) and is NOT added to one here - the SAME deliberate,
+// logged scope boundary WS-R72 states in full for `api/review-queue.js`
+// (`context/decisions.md#ws-r72-review-queue-js-kept-outside-the-door-
+// battery`), applied here rather than re-argued: adding it would make §18
+// enumerate `measure_now` alongside a GET-only read this file has no `op`
+// literal for, a real structural change out of this workstream's own scope.
+// This import is for ONE owner-bearer case below (§5), the real production
+// function, cased directly, without joining §18's completeness machinery.
+const RECALL_RUN = await import(pathToFileURL(join(API, "_recall-run.js")).href);
+const { runRecallMeasurement } = RECALL_RUN;
 const INVITES = await import(pathToFileURL(join(API, "_invites.js")).href);
 const { issueInvite, requireOperator, InvitesError, hashInviteCode, issueCreatorInvite, myInvites } = INVITES;
 const APPLY = await import(pathToFileURL(join(API, "_apply.js")).href);
@@ -930,6 +942,41 @@ console.log("\n── §5: an owner bearer reaching for someone else's replica/o
   // "404, never 403" — this file's own law: a Suite's EXISTENCE is not
   // disclosed to someone who is not on its own roster.
   okClass("e-owner-bearer", "org.js", "a NON-member's bearer against the same org_id is refused org_not_found (404, never a 403 that would confirm the org exists), never the roster", stolen instanceof OrgError && stolen.code === "org_not_found");
+}
+{
+  // WS-R101. `readiness.js`'s "measure_now" op, the real
+  // `runRecallMeasurement` (`api/_recall-run.js`), driven with a fake `db`
+  // that answers exactly the ONE query this function issues before it ever
+  // touches a replica's own sources: the ownership gate
+  // (`select r.replica_id from vy_replica r where replica_id=$1 and
+  // owner_user_id=$2 ...`). `RECALL_RUN` is turned on in `deps.env` so the
+  // call reaches the ownership check at all rather than refusing earlier
+  // with `recall_run_off` — a flag gate, not an identity boundary, and
+  // testing THIS class through it would prove nothing about the boundary.
+  //
+  // The three source queries (`generateRecallSet`) always answer empty, on
+  // purpose: this case exists to prove the OWNERSHIP gate, not to run a
+  // full recall (that is `evals/recall-run/run.mjs`'s job, over a real
+  // fixture with real sources). An empty source set means the LEGITIMATE
+  // owner is refused too — `recall_set_too_small`, a DIFFERENT, later, named
+  // reason — which is exactly what proves the ownership gate let them
+  // through: the two owners are refused for DIFFERENT reasons, not the same
+  // one, and only the stolen bearer's reason is the identity boundary.
+  const db = async (sql, params) => {
+    if (/select r\.replica_id from vy_replica r/.test(sql)) {
+      const [rid, owner] = params;
+      return String(rid) === REPLICA_ID && String(owner) === OWNER ? [{ replica_id: REPLICA_ID }] : [];
+    }
+    if (/from vy_context_item/.test(sql) || /from vy_review_card/.test(sql) || /from vy_interview_answer/.test(sql)) {
+      return [];
+    }
+    throw new Error(`readiness door e-owner-bearer case: unrecognized query: ${sql}`);
+  };
+  const deps = { env: { RECALL_RUN: "1" } };
+  const mine = await threw(() => runRecallMeasurement(db, OWNER, REPLICA_ID, deps));
+  okClass("e-owner-bearer", "readiness.js", "the real owner clears the ownership gate (refused later, for having no sources yet, never for ownership)", mine?.code === "recall_set_too_small");
+  const stolen = await threw(() => runRecallMeasurement(db, OWNER_B, REPLICA_ID, deps));
+  okClass("e-owner-bearer", "readiness.js", "a DIFFERENT owner's bearer against the same replica_id is refused replica_not_found (never reaching the source queries at all)", stolen?.code === "replica_not_found");
 }
 
 // ═════════════════════════════════════════════════════════════════════════

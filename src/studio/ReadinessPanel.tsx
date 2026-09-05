@@ -44,7 +44,7 @@
 import { useCallback, useEffect, useState } from "react";
 import "./readiness.css";
 import { ReplicaApiError } from "./replicaApi";
-import { readReadiness, type Readiness, type ReadinessAction, type ReadinessPart } from "./readinessApi";
+import { measureRecallNow, readReadiness, type Readiness, type ReadinessAction, type ReadinessPart } from "./readinessApi";
 import type { StepId } from "./wizardModel";
 import { jumpTo } from "./WizardRail";
 import { withCount } from "./copy";
@@ -66,7 +66,21 @@ function partState(part: ReadinessPart, floor: number): "measured" | "low" | "un
   return part.value < floor ? "low" : "measured";
 }
 
-function PartCard({ part, floor }: { part: ReadinessPart; floor: number }) {
+function PartCard({
+  part,
+  floor,
+  onMeasureNow,
+  measuring,
+  measureStatus,
+}: {
+  part: ReadinessPart;
+  floor: number;
+  /** WS-R101. Present only for `knows_your_material` — every other part has
+   *  no owner-triggered instrument, so no other card ever receives this. */
+  onMeasureNow?: () => void;
+  measuring?: boolean;
+  measureStatus?: string | null;
+}) {
   const { t } = useStudioLocale();
   const state = partState(part, floor);
   const when = shortDate(part.measured_at);
@@ -113,6 +127,22 @@ function PartCard({ part, floor }: { part: ReadinessPart; floor: number }) {
             </div>
           )}
         </dl>
+        {/* WS-R101. Only `knows_your_material` ever receives a handler here
+            — every other part is measured by something other than an owner
+            pressing a button, so no other card ever renders this. */}
+        {onMeasureNow && (
+          <div className="vy-readiness__measure-now">
+            <button
+              className="button secondary-button"
+              type="button"
+              onClick={onMeasureNow}
+              disabled={Boolean(measuring)}
+            >
+              {measuring ? t.recallRun.measuring : t.recallRun.button}
+            </button>
+            {measureStatus && <p className="vy-readiness__measure-status" role="status">{measureStatus}</p>}
+          </div>
+        )}
       </div>
     </details>
   );
@@ -135,6 +165,10 @@ export default function ReadinessPanel({
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // WS-R101. Local to this panel, never persisted: a run's own status line
+  // while it is in flight and immediately after, cleared on the next reload.
+  const [measuring, setMeasuring] = useState(false);
+  const [measureStatus, setMeasureStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,6 +189,40 @@ export default function ReadinessPanel({
   }, [onAuthError, onReadiness, replicaId, token, t]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // WS-R101. The "Measure now" control on the `knows_your_material` card.
+  // COMPUTES NOTHING: the resulting score comes back from the server, in a
+  // template already filled with server-given numbers, never assembled from
+  // a client-side guess — this file's own standing rule at the top applies
+  // to a result line exactly as it applies to the part cards themselves.
+  const measureRecall = useCallback(async () => {
+    setMeasuring(true);
+    setMeasureStatus(null);
+    try {
+      const result = await measureRecallNow(token, replicaId);
+      setMeasureStatus(
+        t.recallRun.resultTemplate.split("{score}").join(String(result.score)).split("{n}").join(String(result.n)),
+      );
+      // Re-read the whole screen so the part card, the overall and the
+      // publish lock all move together — the same reason `act()` never
+      // patches a single part in place.
+      await load();
+    } catch (cause) {
+      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      const code = cause instanceof ReplicaApiError ? String(cause.data?.error || "") : "";
+      setMeasureStatus(
+        code === "recall_run_off" ? t.recallRun.off
+          : code === "recall_run_rate_limited" ? t.recallRun.rateLimited
+          : code === "recall_set_too_small"
+            ? t.recallRun.tooSmall
+              .split("{n}").join(String(cause instanceof ReplicaApiError ? cause.data?.details?.found ?? 0 : 0))
+              .split("{min}").join(String(cause instanceof ReplicaApiError ? cause.data?.details?.min ?? 20 : 20))
+          : t.recallRun.genericError,
+      );
+    } finally {
+      setMeasuring(false);
+    }
+  }, [load, onAuthError, replicaId, t, token]);
 
   const act = useCallback((action: ReadinessAction) => {
     onGoStep(action.step);
@@ -210,7 +278,14 @@ export default function ReadinessPanel({
 
       <div className="vy-readiness__parts">
         {readiness.parts.map((part) => (
-          <PartCard key={part.id} part={part} floor={readiness.floors.part} />
+          <PartCard
+            key={part.id}
+            part={part}
+            floor={readiness.floors.part}
+            onMeasureNow={part.id === "knows_your_material" ? measureRecall : undefined}
+            measuring={part.id === "knows_your_material" ? measuring : undefined}
+            measureStatus={part.id === "knows_your_material" ? measureStatus : undefined}
+          />
         ))}
       </div>
 

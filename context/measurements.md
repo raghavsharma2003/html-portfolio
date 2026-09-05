@@ -12915,3 +12915,52 @@ the fixed tree: **21 of 21 passed**, no failures of any kind, contention
 included (`layout readability` 239329ms, `eval suite` 243829ms, both
 completed cleanly this run rather than colliding on a port). `node
 scripts/context.mjs --check`: clean, 1572 nodes / 1808 edges throughout.
+
+## `ws-r101-recall-run-eval-2026-09-05` — `evals/recall-run` suite
+
+n = 75 assertions, method = `node evals/recall-run/run.mjs`, offline,
+deterministic, $0, no network beyond a local esbuild fixture-bundle step
+(nothing fetched), no GPU, one real compiled-agent call path exercised via
+`api/_engine.gen.js` with a fake `reply` (never a live model call). All 75
+pass. Covers: `generateRecallSet` determinism (same sources -> same
+`set_hash` across two independent generations) and refusal below
+`RECALL_SET_MIN=20`; `scoreAnswer`'s three anchors (echo=100, empty=0, a
+fixed hand-authored shuffle strictly between, measured at 40-60 across the
+runs in this suite depending on the fixture passage) plus its negative
+control (an order-blind patch of the real scorer cannot tell an echo from a
+shuffle, both landing at 100); `scoreRecallRun` against the real DEMO_TEACHER
+fixture sheet (`evals/room/fixtures.mjs::loadFixtureAgent`) with an echoing
+fake reply (score >= `READINESS_PART_FLOOR`, 55), a silent fake reply
+(score = 0), a single failing question (does not throw the run), and a
+compiled never-rule (suppresses only the matching question); the write's
+rate predicate and supersede-on-insert against a hand-written SQL emulation
+with a controllable clock (one run per replica per hour, refused calls do
+not touch the standing row); and the capstone — a real `runRecallMeasurement`
+call over a fake `db` that also answers every other Readiness input from
+genuinely-measured rows, producing `overall=90` and `min_part` in the
+high-80s in this run's own fixture values (both comfortably above their
+70/55 floors) with `publish_locked: false`, `vy_replica_readiness` written
+exactly twice by `readOwnedReadiness` itself and never seeded.
+
+## `ws-r101-gate-baseline` — 2026-09-05, WS-R101
+
+n = 1 full `node scripts/verify-release.mjs` run on the UNTOUCHED tree
+(a detached-HEAD worktree at c2945f7) plus 1 on the ws-r101 tree, both under
+heavy concurrent load from nine sibling wave-sixteen workstreams' own gate
+runs on the same shared machine. Method: both runs timed out at 590s inside
+the "layout readability" step with `EADDRINUSE` on port 8931 (both) and
+port 8932 (ws-r101's run also raced "performance budgets" onto a second
+in-use port) — the IDENTICAL failure signature on the untouched tree and on
+the changed tree, `context/rejected.md`'s own house rule for calling a
+failure environmental. Both scripts re-run standalone once their ports
+freed: `check-layout.mjs --only studio` (the one screen this workstream
+touched) and `check-performance.mjs` both passed clean on the ws-r101 tree
+(performance: `studio-hi` TBT 267ms against the 300ms budget, well inside
+it — the SAME target measured 492ms mid-contention in the earlier full run,
+a ~225ms swing attributable to load alone). Every other named gate
+(typecheck, prompt budget, workflow/motion lint, board legibility, chrome
+copy, mirrored constants, enrollment sample rate/bandwidth, engine bundle
+fresh, stuck-turn endpoint, one voice, web build, eval suite [372s, includes
+`recall-run`/`readiness`/`room-doors`], room leak battery, room export
+completeness, room door battery, accessibility, security headers) passed on
+the ws-r101 tree in a single run, no retry needed.

@@ -1775,6 +1775,17 @@ interface AuthGateCopy {
   legalNotice: string;
 }
 
+// ── recallRun: ReadinessPanel.tsx's "Measure now" control, WS-R101 ────────
+interface RecallRunCopy {
+  button: string;
+  measuring: string;
+  off: string;
+  tooSmall: string; // "{n} of {min} needed so far."
+  rateLimited: string;
+  genericError: string;
+  resultTemplate: string; // "Measured {score} on {n} questions."
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -1816,6 +1827,7 @@ interface StudioCopy {
   mirrorCallStudio: MirrorCallStudioCopy;
   voiceEnrollmentLab: VoiceEnrollmentLabCopy;
   authGate: AuthGateCopy;
+  recallRun: RecallRunCopy;
 }
 
 const EN: StudioCopy = {
@@ -3547,6 +3559,16 @@ const EN: StudioCopy = {
     codeMismatchError: "That code did not match. Check it and try again.",
     genericSendError: "Could not send a code",
     legalNotice: "Access does not grant permission to build your AI. Separate, recorded consent is required before any biometric processing.",
+  },
+
+  recallRun: {
+    button: "Measure now",
+    measuring: "Measuring, this can take a moment",
+    off: "Measuring is not turned on for this workspace yet.",
+    tooSmall: "{n} of {min} needed so far. Add more sources or approve more review cards.",
+    rateLimited: "Already measured within the last hour. Try again later.",
+    genericError: "Could not measure this",
+    resultTemplate: "Measured {score} on {n} questions from your own material.",
   },
 };
 
