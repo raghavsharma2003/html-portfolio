@@ -1,24 +1,28 @@
 // The Hindi consent-ceremony review document, checked against the real
-// source it claims to translate (WS-R83, 2026-09-05).
+// source it claims to translate (WS-R83, 2026-09-05; widened to a seventh
+// file and a Verdict column by WS-R92, 2026-09-05).
 //
 //   node evals/consent-review/run.mjs
 //
-// `docs/legal/HINDI-CONSENT-REVIEW.md` proposes Hindi for the six studio
+// `docs/legal/HINDI-CONSENT-REVIEW.md` proposes Hindi for the seven studio
 // files `context/decisions.md#ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`,
-// `#ws-r61-identity-proofing-consent-statements-deferred-not-attempted` and
-// `#ws-r71-consent-ceremony-files-found-and-not-converted` held back from
-// Hindi conversion for legal review. This suite does not judge whether the
-// Hindi is GOOD Hindi (only a person can); it proves three narrower, purely
-// mechanical things the brief calls for:
+// `#ws-r61-identity-proofing-consent-statements-deferred-not-attempted`,
+// `#ws-r71-consent-ceremony-files-found-and-not-converted` and
+// `#ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted`
+// held back from Hindi conversion for legal review. This suite does not
+// judge whether the Hindi is GOOD Hindi (only a person can); it proves four
+// narrower, purely mechanical things the brief calls for:
 //
 // 1. COMPLETENESS. Every consent statement, checkbox label, ceremony
-//    heading, legend and boundary/refusal line the six files render (the
+//    heading, legend and boundary/refusal line the seven files render (the
 //    Methodology section of the document defines exactly which JSX/data
 //    anchors count, category by category) is re-extracted from the REAL
-//    six files on every run and asserted to appear in the document's own
+//    seven files on every run and asserted to appear in the document's own
 //    English column. A future edit to any ceremony's wording, statement
 //    array, heading id, legend or button label breaks this suite until the
 //    document is updated to match, which is the whole point (brief law 3).
+//    A negative control (section 2b) proves this comparison actually
+//    distinguishes present from absent text.
 // 2. THE COPY GATE, IN HINDI. Every proposed Hindi string in the document
 //    is run through the REAL `scanSource` from `scripts/check-copy.mjs`,
 //    the same function `evals/studio-locale/run.mjs` already uses for this
@@ -27,9 +31,17 @@
 //    the check actually bites rather than passing vacuously.
 // 3. STATEMENT-SET IDENTIFIERS. The `statement_set`/`policy_version` ids
 //    the document cites for each file are cross-checked against the REAL
-//    exported constants in the api/ modules that write them, so a reviewer
-//    following one of these ids back to a database row is following a
-//    string this suite has proven is not a typo.
+//    exported constants in the api/ modules that write them (File 7's
+//    `statement_set` is a bare string literal, not an export; it is
+//    extracted from the real source the same way section 1's JSX anchors
+//    are), so a reviewer following one of these ids back to a database row
+//    is following a string this suite has proven is not a typo.
+// 4. THE `Verdict` COLUMN (added WS-R92). Every one of the document's rows
+//    carries a per-row sign-off state, one of `pending`/`approved`/
+//    `changed`/`rejected`; this suite asserts every row has exactly one
+//    such verdict, that it is one of the closed four values (a hand-built
+//    `bogus` verdict must fail), and that no row marked `approved` has
+//    Hindi that trips the real copy gate.
 //
 // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
 import { dirname, join, resolve } from "node:path";
@@ -65,7 +77,7 @@ const docHas = (s) => joinedEN.includes(norm(s));
   ok("the document exists and is non-trivial", doc.length > 20_000);
   ok("every EN row has a matching HI row (same count)", enLines.length === hiLines.length,
     `${enLines.length} EN, ${hiLines.length} HI`);
-  ok("at least 80 rows (six ceremonies' worth)", enLines.length >= 80, String(enLines.length));
+  ok("at least 100 rows (seven ceremonies' worth)", enLines.length >= 100, String(enLines.length));
   ok("no blank EN row", enLines.every((l) => l.length > 0));
   ok("no blank HI row", hiLines.every((l) => l.length > 0));
 }
@@ -208,7 +220,67 @@ function extracted(label, value) {
   extracted("VIC privacy note", vicPrefix && vicRest ? `${vicPrefix}${vicRest}` : null);
 }
 
+// File 7: EnrollmentWorkspace.tsx (statement_set self-replica-enrollment-v1,
+// added WS-R92). Shape differs from Files 1-6 (see Methodology, category 5,
+// note added by WS-R92): the four statement LABELS are a plain inline string
+// array in the component itself with no [key, label] tuples; the KEYS live
+// separately in enrollmentApi.ts's ATTESTATIONS object, matched by position.
+{
+  const s = fileSrc("EnrollmentWorkspace.tsx");
+  extracted("EW eyebrow", one(s, /<p className="eyebrow">(Source permissions)<\/p>/));
+  extracted("EW h3 (pre-grant ceremony heading)", one(s, /<h3>\{consentActive \? "[^"]+" : "([^"]+)"\}<\/h3>/));
+  extracted("EW legend", one(s, /<legend>(Confirm each statement yourself)<\/legend>/));
+  const stmtBlock = one(s, /\{\[\s*([\s\S]*?)\]\.map\(\(label, index\) => \(/);
+  const statements = all(stmtBlock || "", /"([^"]+)"/g);
+  ok("EW statement label array has exactly 4 entries (structural sanity)", statements.length === 4, String(statements.length));
+  extracted("EW statements", statements);
+  extracted("EW boundary (pre-grant)", one(s, /<p className="consent-lede">\s*(These permissions cover only source intake\.[\s\S]*?)<\/p>/));
+  extracted("EW grant button", one(s, /\{consentBusy \? "Recording permission" : "([^"]+)"\}/));
+  extracted("EW boundary (post-grant)", one(s, /<p className="consent-lede">\s*(You permitted Vyakti[\s\S]*?)<\/p>/));
+  extracted("EW withdraw entry button", one(s, /onClick=\{\(\) => setWithdrawing\(true\)\}>([^<]+)<\/button>/));
+  extracted("EW withdraw modal heading", one(s, /<h2 id="withdraw-title">([^<]+)<\/h2>/));
+  extracted("EW withdraw modal body", one(s, /<p>\s*(Your AI becomes non-operational\.[\s\S]*?)<\/p>/));
+  extracted("EW withdraw field label", one(s, /<label className="field-label" htmlFor="withdraw-confirmation">([^<]+)<\/label>/));
+  extracted("EW keep-permissions (cancel) button", one(s, /<button className="button secondary-button" disabled=\{consentBusy\} onClick=\{\(\) => setWithdrawing\(false\)\}>([^<]+)<\/button>/));
+  extracted("EW withdraw-and-erase (confirm) button", one(s, /\{consentBusy \? "Withdrawing" : "([^"]+)"\}/));
+}
+
+// EW's statement keys (enrollmentApi.ts) must exist, in the same order the
+// labels above render in, and must match api/_replica-consent.js's own
+// required-attestation-key order -- proving the split-file shape actually
+// stays wired together rather than silently drifting apart.
+{
+  const apiClientSrc = readFileSync(join(STUDIO, "enrollmentApi.ts"), "utf8");
+  const attBlock = one(apiClientSrc, /const ATTESTATIONS = \{([\s\S]*?)\} as const;/);
+  const attKeys = all(attBlock || "", /^\s*([a-z_]+): true,/gm);
+  ok("EW enrollmentApi.ts ATTESTATIONS has exactly 4 keys, in the documented order",
+    JSON.stringify(attKeys) === JSON.stringify(["is_self", "is_adult", "has_source_rights", "understands_synthetic_disclosure"]),
+    JSON.stringify(attKeys));
+
+  const consentSrc = readFileSync(join(REPO, "api/_replica-consent.js"), "utf8");
+  const requiredBlock = one(consentSrc, /const required = \[([^\]]+)\];/);
+  const requiredKeys = all(requiredBlock || "", /"([a-z_]+)"/g);
+  ok("api/_replica-consent.js's accountAttestations required-key order matches enrollmentApi.ts's ATTESTATIONS order",
+    JSON.stringify(requiredKeys) === JSON.stringify(attKeys),
+    JSON.stringify(requiredKeys));
+}
+
 ok("zero extraction anchors moved or were renamed under this document", extractionFailures === 0);
+
+// ── 2b. NEGATIVE CONTROL: a consent string missing from the document fails ─
+// Proves the completeness mechanism (`docHas`, which every `extracted()`
+// call above is built on) actually distinguishes present from absent,
+// rather than passing vacuously. Law 4 of the WS-R92 brief: "a consent
+// string in any of the seven files that is missing from the document
+// fails".
+{
+  const neverWritten = docHas("This exact sentence was never written into the document, on purpose, for this negative control to prove docHas can fail.");
+  ok("negative control: a consent string absent from the document is correctly reported absent",
+    neverWritten === false);
+  const realOne = docHas("Source permissions");
+  ok("sanity check paired with the control above: a real, already-documented File 7 string ('Source permissions') is correctly reported present",
+    realOne === true);
+}
 
 // ── 3. STATEMENT-SET AND POLICY-VERSION IDS ARE NOT TYPOS ──────────────────
 {
@@ -232,6 +304,20 @@ ok("zero extraction anchors moved or were renamed under this document", extracti
   ];
   for (const [label, value] of ids) {
     ok(`document cites the real ${label} (\`${value}\`)`, doc.includes(`\`${value}\``), value);
+  }
+
+  // EnrollmentWorkspace.tsx's statement_set (WS-R92) is not an exported
+  // constant, unlike every id above; it is a bare string literal inline in
+  // makeConsentReceipt. Extract the literal itself from the real source
+  // (the same regex-extraction technique used throughout section 2, rather
+  // than an import) so a future rename still breaks this suite.
+  const consentSrc = readFileSync(join(REPO, "api/_replica-consent.js"), "utf8");
+  const literalStatementSet = one(consentSrc, /statement_set: "([^"]+)",/);
+  ok("extracted EnrollmentWorkspace.tsx's literal statement_set from api/_replica-consent.js",
+    typeof literalStatementSet === "string" && literalStatementSet.length > 0, String(literalStatementSet));
+  if (literalStatementSet) {
+    ok(`document cites the real EnrollmentWorkspace.tsx statement_set literal (\`${literalStatementSet}\`)`,
+      doc.includes(`\`${literalStatementSet}\``), literalStatementSet);
   }
 }
 
@@ -270,6 +356,59 @@ ok("zero extraction anchors moved or were renamed under this document", extracti
   });
   ok("negative control: a Hindi row with an em dash fails the dash rule",
     badDash.some((o) => o.rule === "dash"));
+}
+
+// ── 5. THE `Verdict` COLUMN (WS-R92) ────────────────────────────────────────
+// The document's own row-level sign-off state. A row's Hindi is allowed to
+// ship to hiCopy.ts only once its verdict here reads `approved` (see the
+// document's "The `Verdict` column, and after review" section); this suite
+// cannot judge the Hindi itself, but it can and does prove: every row has a
+// verdict from the closed list, the count of verdict lines matches the row
+// count exactly (so no row is silently missing one), and no `approved` row's
+// Hindi trips the real copy gate.
+const VERDICT_VALUES = ["pending", "approved", "changed", "rejected"];
+const isValidVerdict = (v) => VERDICT_VALUES.includes(v);
+{
+  const verdictLines = [...doc.matchAll(/^- \*\*Verdict:\*\* (\S+)/gm)].map((m) => m[1]);
+  ok("every row has exactly one Verdict line (count matches EN row count)",
+    verdictLines.length === enLines.length,
+    `${verdictLines.length} verdicts, ${enLines.length} EN rows`);
+  const invalid = verdictLines.filter((v) => !isValidVerdict(v));
+  ok(`every Verdict is one of the closed list (${VERDICT_VALUES.join("/")})`,
+    invalid.length === 0, invalid.length ? `invalid: ${invalid.join(", ")}` : "");
+
+  const reviewedByLines = (doc.match(/^\*\*Reviewed by \/ on:\*\*/gm) || []).length;
+  ok("every one of the seven files carries its own Reviewed by / on line",
+    reviewedByLines === 7, String(reviewedByLines));
+
+  // No `approved` row's Hindi may trip the real copy gate. All 104 rows are
+  // `pending` as of WS-R92 (2026-09-05), so this loop currently checks zero
+  // rows in practice; the check exists so the moment a future review flips a
+  // row to `approved` with Hindi that fails the gate, this suite catches it
+  // rather than the gate finding out only after hiCopy.ts is edited.
+  let approvedOffences = 0;
+  let approvedChecked = 0;
+  for (const [i, verdict] of verdictLines.entries()) {
+    if (verdict !== "approved") continue;
+    approvedChecked++;
+    const hits = scanSource(`approved-row-${i}.tsx`, `const z = <p>${hiLines[i]}</p>;`, {
+      rules: "full", codename: true, roomsVocab: true,
+    });
+    if (hits.length) {
+      approvedOffences += hits.length;
+      console.log(`FAIL  row ${i + 1} is marked approved but its Hindi trips the copy gate: ${hits.map((h) => h.rule).join(", ")}`);
+      fail++;
+    }
+  }
+  ok(`no approved row's Hindi trips the real copy gate (${approvedChecked} approved rows checked)`, approvedOffences === 0);
+}
+
+// ── 5b. NEGATIVE CONTROL: a verdict outside the closed list must fail ──────
+{
+  const fakeRow = "**R999.** `fake.tsx:1` (fake row for this negative control)\n- **EN:** fake\n- **HI (प्रस्तावित):** fake\n- **Back-translation:** fake\n- **Note:** none\n- **Verdict:** bogus\n";
+  const fakeVerdict = [...fakeRow.matchAll(/^- \*\*Verdict:\*\* (\S+)/gm)].map((m) => m[1])[0];
+  ok("negative control: a verdict outside the closed list (`bogus`) is rejected",
+    fakeVerdict === "bogus" && !isValidVerdict(fakeVerdict));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -11622,3 +11622,69 @@ binary happened to be the full build has not been proven for CI; when a
 Chromium gate depends on a browser SERVICE (notifications, permissions,
 push) and not only on rendering, the launch must name the build it needs
 and a control must prove the service is there.
+
+## `ws-r92-statement-set-constant-export-not-added` (2026-09-05, WS-R92)
+
+**Tried (as a considered alternative, not built).** Every other file's
+`statement_set` and `policy_version` id in `docs/legal/HINDI-CONSENT-REVIEW.md`
+is cross-checked in `evals/consent-review/run.mjs` against a real, exported
+JS constant (`VERIFIED_MODEL_STATEMENT_SET`, `IDENTITY_EVIDENCE_POLICY.version`,
+etc.). `EnrollmentWorkspace.tsx`'s account-attestation grant records
+`statement_set: "self-replica-enrollment-v1"` as a bare string literal inline
+in `api/_replica-consent.js`'s `makeConsentReceipt`, not an exported name.
+The tidy option was to export it as `ACCOUNT_ATTESTATION_STATEMENT_SET` (or
+similar) the way `VERIFIED_MODEL_STATEMENT_SET` already is, so File 7's row
+in the eval would follow the exact same import-and-compare shape as the other
+six instead of a special-cased regex extraction.
+
+**What broke, and it was not a code defect.** This workstream's own Build
+section names exactly three targets: `docs/legal/HINDI-CONSENT-REVIEW.md`,
+`evals/consent-review/run.mjs`, and `context/`. `api/_replica-consent.js` is
+not `src/`, so the brief's blanket "no `src/` change" would not itself have
+blocked this, but it is also not one of the three named files, and the
+common brief (`ws-common.md`) asks every workstream to keep its edits inside
+the files its own section names so a sibling's merge stays mechanical. Adding
+an export to a live, imported API module on the strength of a legal-review
+document's own tidiness is a wider blast radius than this workstream was
+scoped to carry, for a benefit (one fewer regex in an eval) that does not
+change what a reviewer sees.
+
+**What to do differently.** The eval instead extracts the literal string
+directly from `api/_replica-consent.js`'s real source with the same
+regex-extraction technique section 2 already uses for JSX anchors
+(`/statement_set: "([^"]+)",/`, verified unique to that one call site), so a
+future rename of the literal still breaks the suite exactly the way a moved
+JSX anchor would. Whether to promote it to a named export is left as a small
+code-cleanliness note in the document itself, for whichever workstream
+converts `EnrollmentWorkspace.tsx` to Tier 1 and is already touching that
+file's call sites.
+
+## `ws-r92-post-grant-heading-not-documented-as-ceremony-row` (2026-09-05, WS-R92)
+
+**Tried (as a considered alternative, not built).** `EnrollmentWorkspace.tsx`'s
+consent-panel `<h3>` is state-dependent:
+`{consentActive ? "Enrollment permission is active" : "Review and attest"}`.
+The thorough-looking option was to document BOTH strings as separate
+ceremony-heading rows (R90 for the pre-grant text, a new row for the
+post-grant text), the same way this document documents both the pre-grant and
+post-grant `consent-lede` boundary paragraphs as two separate rows (R96, R98)
+for this exact file.
+
+**What broke, and it was not a code defect.** Checked against precedent
+first: `ModelConsentGate.tsx` has an equivalent post-grant success state
+(`<div className="model-consent-active">` renders `<strong>Your AI is
+authorized to run</strong>`) and that heading is NOT documented as a row
+anywhere in Files 1-6, even though the boundary lines around it are. The
+distinction the existing six files already draw is: a boundary/refusal line
+states what the consent does or does not cover (legally load-bearing
+regardless of state), while a state-dependent SUCCESS heading is a status
+label read after the ceremony is already over, carrying no legal content of
+its own. Documenting the post-grant heading as a seventh-file-only row would
+have applied a stricter rule to File 7 than the document already applies to
+File 1, inconsistently.
+
+**What to do differently.** Only the pre-grant heading ("Review and attest")
+is documented and mechanically extracted as R90; the Methodology section's
+extended category-1 note says so explicitly, citing the `ModelConsentGate.tsx`
+precedent by name, so a future reader does not have to re-derive why the
+post-grant text is absent or assume it was missed.
