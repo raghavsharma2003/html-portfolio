@@ -197,6 +197,18 @@ export function roomEmbedSnippet(slug: string, origin = window.location.origin):
   return `<script src="${origin}/room-embed.js" data-room="${slug}" defer></script>`;
 }
 
+/** WS-R55. The story card the Share tab links to — `/r/<slug>/story.png`,
+ *  `vercel.json`'s own rewrite to `api/room-card.js`. Built from the
+ *  browser's own origin for the identical reason `roomLink` is — a preview
+ *  deployment prints a link to itself. The endpoint behind it reads the
+ *  SAME public row `roomLink`'s own page does (no follower data, no new
+ *  auth), so this needs no token; it is scoped to "the creator's own Room"
+ *  only by WHICH slug the Share tab already has in its own owner-scoped
+ *  `room` state, never by a check this function performs. */
+export function storyCardLink(slug: string, origin = window.location.origin): string {
+  return `${origin}/r/${slug}/story.png`;
+}
+
 // WS-R31. The one derived fact `StudioShell.tsx`'s Share tab needs from a
 // `RoomBlockers` read: the single next thing, waiting-on-you first, else
 // waiting-on-us, matching `RoomStudio.tsx`'s own "name the top one" rule

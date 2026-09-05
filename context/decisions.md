@@ -12810,3 +12810,97 @@ events at a volume that could starve the Subscriptions webhook's own share
 of the shared 240/min ceiling (unmeasurable without a live account), split
 a dedicated `payouts_webhook_ip` scope at that point rather than raising
 the shared ceiling, which would also raise it for the higher-volume door.
+
+## `ws-r55-canvas-not-resvg-for-devanagari` (2026-09-04, WS-R55)
+
+**Decision.** The Room's pictures (`og.png`/`story.png`) are rasterised with
+`@napi-rs/canvas` (Skia's own text shaper, drawn via `fillText`), not
+`@resvg/resvg-js` (SVG-to-raster) — the library WS-R55's own brief named.
+`api/_room-card.js` still exposes `renderRoomCard` returning an SVG string
+(used for the copy scan and as a human-inspectable artefact) alongside
+`computeCardLayout`, the one shared pure layout both the SVG string and the
+canvas draw calls read, so the two representations cannot draw a different
+picture from the same inputs.
+
+**Rationale.** Measured, not assumed: resvg-js 2.6.2 (and 2.7.0-alpha.2, the
+latest prerelease) corrupts the ordinary Devanagari consonant+matra+
+consonant cluster ("बात", "talk" — also the first content word of the
+Room's own Hindi disclosure sentence), and drops a space adjacent to
+certain vowel-sign clusters, with the identical current-release font bytes
+that render every one of the same strings correctly through
+`@napi-rs/canvas`. Full isolation steps in `context/rejected.md#ws-r55-resvg-devanagari-shaping`.
+A silently-wrong Hindi word on a card meant to be a creator's first
+impression on WhatsApp/Instagram is a correctness bug this product cannot
+ship, and the brief's own law ("Speed and quality are never traded away")
+makes the SVG-library choice a means, not the requirement — the actual
+requirement is "the Room's picture, in both locales, correct."
+
+**Reversal condition.** If a future `@resvg/resvg-js` release (tracked past
+2.7.0-alpha.2) is verified — by rendering this exact repo's own
+`roomDisclosureCard` Hindi sentence and diffing pixels, not by reading a
+changelog — to shape Devanagari clusters correctly AND its own font-loading
+API gains a first-class way to load a `.ttf`/`.woff2` buffer on the NATIVE
+(non-WASM) package (see `context/rejected.md#ws-r55-fontsource-woff2-unreadable-by-resvg-native-font-loader`),
+resvg-js becomes eligible again on the strength of a real measurement, not
+a version number. Until then, do not re-attempt resvg-js for any
+Devanagari-bearing render in this product without first reproducing this
+workstream's own three-word test (`बात` alone vs. as part of a sentence).
+
+## `ws-r55-font-package-choice` (2026-09-04, WS-R55)
+
+**Decision.** The bundled face is `@expo-google-fonts/noto-sans-devanagari`'s
+raw `400Regular.ttf` (221 KB), not `@fontsource/noto-sans-devanagari`
+(woff/woff2 only, Devanagari-only subset per file). Licence: `MIT AND
+OFL-1.1` — OFL-1.1 for the Noto Sans Devanagari font itself (the same
+licence every other Noto face already in this product carries), MIT for
+Expo's own npm packaging of it; both permissive, no attribution file this
+repo does not already carry for every other OFL Noto face it ships.
+
+**Rationale.** Two independent reasons converged on the same file: (1)
+`@napi-rs/canvas`'s Skia font manager DOES parse `.woff2` directly, so the
+"resvg can't read woff2" problem that first pointed away from `@fontsource`
+is moot for the shipped rasteriser — but (2) this card is always
+mixed-script (an English or Hindi name/bio, always an `AI`/`Vyakti` Latin
+brand mark and disclosure fragment), and `@fontsource`'s own Devanagari
+subset carries no Latin glyphs at all, which would need a SECOND bundled
+file (and font-fallback logic Skia's own registration order does not
+obviously guarantee) to cover. One raw `.ttf` with both scripts, verified
+by rendering "Anjali Sharma AI - प्रिया नहीं है Vyakti" through it
+end-to-end before this became the shipped choice, is simpler and smaller
+than two subset webfont files plus a fallback chain.
+
+**Reversal condition.** If the function bundle size (`context/measurements.md#ws-r55-function-bundle-size`)
+ever needs to shrink further and a Devanagari-only render becomes common
+enough to matter, split into `@fontsource`'s two subset `.woff2` files
+(devanagari + latin, both readable by `@napi-rs/canvas`) and register both
+with Skia — cutting roughly 120 KB versus the current single `.ttf`. Not
+done now because the font is a rounding error next to the ~34 MB the
+native canvas addon itself costs (see the bundle-size measurement).
+
+## `ws-r55-musl-binary-excluded-from-the-function` (2026-09-04, WS-R55)
+
+**Decision.** `vercel.json`'s `functions["api/room-card.js"].excludeFiles`
+strips `node_modules/@napi-rs/canvas-linux-x64-musl/**` from this one
+function's deployed bundle.
+
+**Rationale.** `@napi-rs/canvas` ships one native `.node` binary per
+platform+libc as an `optionalDependency`, loaded by a runtime
+platform/libc check its own `index.js` performs with a try/catch per
+candidate. `@vercel/nft` (the same tracer `vercel build` uses) cannot
+execute that check statically, so it conservatively includes EVERY
+candidate it can see a `require()` for. On this repo's `linux-x64` install
+that is both the glibc (`-gnu`, ~33.97 MB) and musl (`-musl`, ~30.32 MB)
+binaries — 66.3 MB total traced for `api/room-card.js` alone
+(`context/measurements.md#ws-r55-function-bundle-size`), over Vercel's 50 MB
+function limit. Vercel's own Node.js runtime is Amazon Linux (glibc), the
+same libc family as this development container (confirmed:
+`ldd --version` here reports glibc 2.39) — the musl binary can never be the
+one that actually loads in production, so excluding it costs nothing at
+runtime and removes ~29 MB from the deployed bundle, landing at roughly
+34.3 MB, comfortably under the limit.
+
+**Reversal condition.** If Vercel ever offers a musl-based (Alpine)
+Node.js runtime as a selectable target for this function, `excludeFiles`
+must be removed (or narrowed to exclude `-gnu` instead) before switching to
+it — this decision hard-codes an assumption about the deployment platform's
+libc that a runtime change would silently invalidate.

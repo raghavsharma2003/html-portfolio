@@ -86,18 +86,42 @@ export async function resolveRoomPage(db, slug) {
  * first sentence is the one clause that must survive that truncation
  * intact. The full card still renders wherever `RoomApp.tsx` itself does —
  * this page is read by a bot, never by the person who taps through.
+ *
+ * `og:image` (WS-R55): this file used to leave it out entirely — the
+ * comment that sat here said "no avatar field exists anywhere in this
+ * schema", true then and still true now, but the fix was never a picture
+ * FIELD, it was a picture RENDERED from the same three columns this
+ * function already reads. Every url built here, published Room or not,
+ * gets `/og.png` appended — `api/room-card.js` (via `vercel.json`'s own
+ * rewrite one path segment over) re-resolves the SAME slug independently
+ * and answers with the identical platform-only picture for an unpublished
+ * or unknown one, `api/_room-card.js`'s own restatement of this file's
+ * "a bot must never learn whether a slug exists" law. The width/height
+ * mirror `api/_room-card.js`'s `ROOM_CARD_SIZES.og` as a literal rather
+ * than an import, deliberately: that file already imports `PLATFORM_TITLE`/
+ * `PLATFORM_DESCRIPTION` FROM this one (the "one source of truth" reuse
+ * this function's own header names above), and importing back would make
+ * the two files a cycle — ES module cycles resolve, sometimes, in whichever
+ * order happens to load first, which is not a property to depend on
+ * deliberately. `evals/room-card/run.mjs` asserts these two literals equal
+ * `ROOM_CARD_SIZES.og`'s real values, so a future resize of the picture
+ * fails a test here rather than drifting silently.
  */
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 630;
+
 export function buildRoomPageHtml(row, { origin, slug } = {}) {
   const base = String(origin || "").replace(/\/+$/, "");
   const path = `/r/${encodeURIComponent(String(slug || ""))}`;
   const url = base ? `${base}${path}` : path;
+  const imageUrl = `${url}/og.png`;
 
   if (!row) {
     return renderHead({
       title: PLATFORM_TITLE,
       description: PLATFORM_DESCRIPTION,
       url,
-      imageUrl: null,
+      imageUrl,
     });
   }
 
@@ -114,10 +138,7 @@ export function buildRoomPageHtml(row, { origin, slug } = {}) {
     title,
     description,
     url,
-    // No avatar field exists on vy_room today — see this function's own
-    // header. Left wired for the column's future arrival rather than
-    // omitted outright.
-    imageUrl: row.avatar_url || null,
+    imageUrl,
   });
 }
 
@@ -126,8 +147,11 @@ function renderHead({ title, description, url, imageUrl }) {
   const d = esc(description);
   const u = esc(url);
   const image = imageUrl
-    ? `\n    <meta property="og:image" content="${esc(imageUrl)}" />`
-    : "";
+    ? `\n    <meta property="og:image" content="${esc(imageUrl)}" />
+    <meta property="og:image:width" content="${OG_IMAGE_WIDTH}" />
+    <meta property="og:image:height" content="${OG_IMAGE_HEIGHT}" />
+    <meta name="twitter:card" content="summary_large_image" />`
+    : `\n    <meta name="twitter:card" content="summary" />`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -139,7 +163,6 @@ function renderHead({ title, description, url, imageUrl }) {
     <meta property="og:title" content="${t}" />
     <meta property="og:description" content="${d}" />
     <meta property="og:url" content="${u}" />${image}
-    <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="${t}" />
     <meta name="twitter:description" content="${d}" />
   </head>

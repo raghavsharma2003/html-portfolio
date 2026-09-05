@@ -9779,3 +9779,50 @@ n = 1 migration (5 statements in one transaction), 4 API statements; method = ap
 | the widened statement read by payout id and owner | Index Scan on `vy_creator_payout_pkey`, owner as the filter |
 
 Not measured: no RazorpayX event has ever reached the door; the table has zero rows, so every plan is the planner's choice at zero rows; `scripts/relcheck.mjs` did not run at the merge (no `NEON_URL` in this environment).
+
+## `ws-r55-function-bundle-size` (2026-09-04, WS-R55)
+
+**n=1 trace, method: `@vercel/nft`'s `nodeFileTrace(["api/room-card.js"])`
+run against this worktree's real `node_modules` (`@vercel/nft@0.29.4`,
+installed with `--no-save`/removed after measuring, never committed),
+summing every traced file's real byte size on disk.** Total: 77 files,
+66,305,242 bytes (63.23 MiB) — over Vercel's 50 MB function limit. Broken
+down: `@napi-rs/canvas-linux-x64-gnu/skia.linux-x64-gnu.node` 33,974,784
+bytes, `@napi-rs/canvas-linux-x64-musl/skia.linux-x64-musl.node`
+30,315,608 bytes (both traced because `@vercel/nft` cannot statically
+determine which platform/libc branch a runtime `require()` check takes -
+`context/decisions.md#ws-r55-musl-binary-excluded-from-the-function`), the
+rest (`api/_room-surface.js`'s own transitive import chain, shared with
+every other Room door - `api/room-page.js`/`api/room-embed.js` already pay
+this same cost) under 1.5 MB combined. With the musl binary excluded via
+`vercel.json`'s `excludeFiles`: 66,305,242 - 30,315,608 = 35,989,634 bytes
+(~34.3 MiB), under the 50 MB limit with room to spare. NOT MEASURED: the
+actual bundle Vercel's own build produces (this environment has no Vercel
+CLI/account); the number above is `@vercel/nft`'s own trace, the same
+tracer Vercel's builder uses, applied by hand.
+
+## `ws-r55-render-time-and-output-size` (2026-09-04, WS-R55)
+
+**n=20 warm calls + 1 cold call, method: `Date.now()` deltas around
+`rasterizeRoomCard`, this machine (the dev container, not Vercel), a
+single Node process, `og` kind, the English fixture row, immediately after
+module load.** Cold (font file `readFileSync` + `GlobalFonts.register` +
+first canvas render, all lazy and cached after the first call): 380 ms.
+Warm (font already registered, n=20): mean 102.75 ms, min 76 ms, max 177 ms.
+NOT MEASURED: Vercel's own cold-start time (a fresh Lambda's own init
+overhead, network-adjacent I/O, and CPU class all differ from this
+container) - the number above is the RENDER cost alone, not an end-to-end
+request latency claim.
+
+**PNG byte sizes, n=1 each, method: `.length` of the `Buffer`
+`rasterizeRoomCard` returns**, English fixture ("Anjali Sharma", a 34-
+character bio), Hindi fixture ("प्रिया", a 27-character Devanagari bio),
+and the platform (no-row) card:
+
+| kind  | en     | hi     | platform |
+|-------|--------|--------|----------|
+| og    | 36,764 | 26,779 | 30,276   |
+| story | 57,833 | 42,933 | 52,965   |
+
+All comfortably inside `Cache-Control`'s own `stale-while-revalidate`
+window's practical size for a chat-app link preview fetch.

@@ -7180,6 +7180,54 @@
       "kind": "rejection",
       "title": "The door battery's calendar-date fixture clock went stale at 2026-09-05T00:00Z against resolvers defaulting to Date.now(), and the layout gate's fixed 120 ms pointerdown settle flaked under eight concurrent gates; both replaced (real clock read once; a bounded poll for the expected transform).",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r55-resvg-devanagari-shaping",
+      "kind": "rejection",
+      "title": "@resvg/resvg-js (2.6.2 stable and 2.7.0-alpha.2 prerelease alike) corrupts the ordinary Devanagari consonant+matra+consonant cluster (\"\u092c\u093e\u0924\") and drops spaces adjacent to certain vowel-sign clusters, with the identical current-release font bytes that render correctly through @napi-rs/canvas",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-fontsource-woff2-unreadable-by-resvg-native-font-loader",
+      "kind": "rejection",
+      "title": "@fontsource/noto-sans-devanagari ships only woff/woff2; resvg-js's native N-API fontFiles loader parses sfnt bytes only and failed silently (blank PNG, no error) - its documented fontBuffers option exists only on the WASM build, not this package",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-canvas-not-resvg-for-devanagari",
+      "kind": "decision",
+      "title": "The Room's og.png/story.png are rasterised with @napi-rs/canvas (Skia's own text shaper), not the @resvg/resvg-js the brief named, after measuring resvg-js corrupt ordinary Hindi text",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-font-package-choice",
+      "kind": "decision",
+      "title": "Bundled face is @expo-google-fonts/noto-sans-devanagari's raw 400Regular.ttf (MIT AND OFL-1.1), one file covering both Latin and Devanagari, over @fontsource's woff2-only Devanagari-only subset",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-musl-binary-excluded-from-the-function",
+      "kind": "decision",
+      "title": "vercel.json's functions[\"api/room-card.js\"].excludeFiles strips the musl @napi-rs/canvas native binary, since @vercel/nft traces both libc variants and Vercel's own Node runtime is glibc",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-room-card-pure-layout",
+      "kind": "component",
+      "title": "api/_room-card.js: computeCardLayout (pure) is the one shared layout renderRoomCard (SVG string) and rasterizeRoomCard (canvas PNG) both read, so the two representations cannot draw a different picture from the same inputs",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-function-bundle-size",
+      "kind": "measurement",
+      "title": "@vercel/nft trace of api/room-card.js: 66.3 MB with both @napi-rs/canvas libc binaries traced, ~34.3 MB with the musl one excluded (n=1 trace, this worktree's real node_modules)",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r55-render-time-and-output-size",
+      "kind": "measurement",
+      "title": "rasterizeRoomCard: 380ms cold (font read+register), 102.75ms mean warm (n=20, this dev container); PNG sizes 26.8KB-57.8KB across kind/locale/platform",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14392,6 +14440,36 @@
       "src": "wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time",
       "rel": "supersedes",
       "dst": "ws-r43-tap-target-floor-44px-across-room-controls"
+    },
+    {
+      "src": "ws-r55-canvas-not-resvg-for-devanagari",
+      "rel": "caused_by",
+      "dst": "ws-r55-resvg-devanagari-shaping"
+    },
+    {
+      "src": "ws-r55-canvas-not-resvg-for-devanagari",
+      "rel": "supersedes",
+      "dst": "ws-r55-fontsource-woff2-unreadable-by-resvg-native-font-loader"
+    },
+    {
+      "src": "ws-r55-font-package-choice",
+      "rel": "caused_by",
+      "dst": "ws-r55-fontsource-woff2-unreadable-by-resvg-native-font-loader"
+    },
+    {
+      "src": "ws-r55-musl-binary-excluded-from-the-function",
+      "rel": "measured_by",
+      "dst": "ws-r55-function-bundle-size"
+    },
+    {
+      "src": "ws-r55-room-card-pure-layout",
+      "rel": "constrains",
+      "dst": "ws-r55-canvas-not-resvg-for-devanagari"
+    },
+    {
+      "src": "ws-r55-font-package-choice",
+      "rel": "constrains",
+      "dst": "ws-r55-function-bundle-size"
     }
   ]
 }

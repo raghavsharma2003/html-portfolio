@@ -41,6 +41,7 @@ import {
   readOwnedRoomStats,
   roomLink,
   roomEmbedSnippet,
+  storyCardLink,
   firstRoomBlocker,
   RoomPublishApiError,
   type OwnedRoom,
@@ -675,6 +676,19 @@ export default function RoomStudio({
             {copied ? "Copied" : "Copy link"}
           </button>
         </div>
+        {/* WS-R55. The story card: the same public row this Room's own link
+            already carries, drawn as a picture sized for Instagram/WhatsApp
+            Status. Opens in a new tab so a creator can save it from there -
+            this is a plain same-origin image link, never a download this
+            page tries to trigger itself. */}
+        <a
+          className="button secondary-button vy-room__story-card-link"
+          href={storyCardLink(room.slug)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Download story card
+        </a>
         {suiteStatus && (
           <p className="field-note vy-room__suite-note">Part of {suiteStatus.name}.</p>
         )}

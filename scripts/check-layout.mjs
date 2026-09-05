@@ -40,11 +40,11 @@
 // you change the checks, re-run that. A gate whose negative control does not
 // fire is not a gate.
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, win32 } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 function rootFromModuleUrl(moduleUrl, options) {
   return fileURLToPath(new URL("..", moduleUrl), options);
@@ -634,6 +634,7 @@ const EXPLAIN = {
   "motion-not-reduced": "with prefers-reduced-motion: reduce active, an element still has a\n        transition-duration or animation-duration above 0s. tokens.css's own\n        reduced-motion block should have zeroed every --motion-* token; something\n        here is not reading from it.",
   "pointerdown-feedback": "DESIGN-LAW's press feedback did not fire: a real mouse down/up over an\n        enabled control produced no visible transform change, or it did not clear on release.",
   glyph: "a Hindi string measured no differently from the same number of tofu boxes\n        (U+25A1) in the page's own font stack - the glyph likely rendered as boxes,\n        not letters. Names the copy.ts key that failed.",
+  "room-card": "the Room's og.png/story.png (WS-R55, api/_room-card.js): either the\n        rasterised PNG's own dimensions or non-blank-pixel test failed, or the\n        bundled Devanagari face measured no differently from tofu boxes when the\n        card's own Hindi disclosure sentence was rendered through it - the\n        bundled font is missing, unreadable, or not the one actually shipping.",
 };
 
 /** WS-R43 law 3, the reduced-motion half. Runs INSIDE the page, after
@@ -942,6 +943,94 @@ async function main() {
         unit: "",
         text: r.s.slice(0, 44),
       });
+    }
+    await ctx.close();
+  }
+
+  // WS-R55: the Room's pictures. Not an HTML target (there is no page to
+  // navigate to - `renderRoomCard`/`rasterizeRoomCard` are pure/near-pure
+  // functions, `api/_room-card.js`), so this does not go through the
+  // TARGETS/VIEWPORTS loop above. It renders the REAL card through the REAL
+  // module and checks the one thing a missing or wrong font would break
+  // silently: dimensions, non-blank pixels (via `sharp`, `scripts/check-contrast.mjs`'s
+  // own decoder), and - reusing `glyphAudit` exactly as WS-R43 wrote it,
+  // fed this card's own Hindi disclosure sentence instead of
+  // `window.__ROOM_HI_STRINGS__` - that the BUNDLED face (loaded into a
+  // fresh page via a `data:` URI `@font-face`, never a system font) shapes
+  // that sentence into something measurably unlike a run of tofu boxes.
+  //
+  // Gated the same courtesy way the `room-hi` glyph pass above gates
+  // itself: a `--only <other-target>` run is an explicit request for a
+  // PARTIAL, fast run, and this block (a font decode plus a full page
+  // render) is not free.
+  if (!ONLY || ONLY === "room-card") {
+    const sharp = await import("sharp").then((m) => m.default, () => null);
+    const { ROOM_CARD_SIZES, ROOM_CARD_KINDS, cardInputFor, rasterizeRoomCard } = await import(
+      pathToFileURL(join(ROOT, "api/_room-card.js")).href
+    );
+    const rows = {
+      en: { display_name: "Anjali Sharma", one_line_bio: "JEE physics, one doubt at a time.", default_locale: "en" },
+      hi: { display_name: "प्रिया", one_line_bio: "हिन्दी में बात करें, हर दिन।", default_locale: "hi" },
+      platform: null,
+    };
+    for (const kind of ROOM_CARD_KINDS) {
+      const { width, height } = ROOM_CARD_SIZES[kind];
+      for (const [label, row] of Object.entries(rows)) {
+        const png = await rasterizeRoomCard(cardInputFor(row, kind));
+        if (!sharp) {
+          findings.push({ where: `room-card:${kind}/${label}`, kind: "room-card", el: "sharp",
+            n: 0, unit: "", text: "sharp not installed - cannot decode the PNG to check it" });
+          continue;
+        }
+        const meta = await sharp(png).metadata();
+        if (meta.width !== width || meta.height !== height) {
+          findings.push({ where: `room-card:${kind}/${label}`, kind: "room-card", el: "dimensions",
+            n: `${meta.width}x${meta.height}`, unit: "", text: `expected ${width}x${height}` });
+        }
+        const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+        let nonPaper = 0;
+        for (let i = 0; i < data.length; i += info.channels) {
+          // PAPER is #f4f1e9; anything meaningfully off that background
+          // (ink, the accent bar, glyph edges) counts as "drawn on".
+          if (Math.abs(data[i] - 0xf4) > 8 || Math.abs(data[i + 1] - 0xf1) > 8 || Math.abs(data[i + 2] - 0xe9) > 8) nonPaper++;
+        }
+        const totalPx = data.length / info.channels;
+        if (nonPaper < totalPx * 0.01) {
+          findings.push({ where: `room-card:${kind}/${label}`, kind: "room-card", el: "non-blank",
+            n: `${((nonPaper / totalPx) * 100).toFixed(2)}%`, unit: " of pixels drawn on", text: "card looks blank" });
+        }
+      }
+    }
+
+    const fontPath = join(
+      ROOT,
+      "node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf",
+    );
+    const fontBase64 = readFileSync(fontPath).toString("base64");
+    const hiDisclosure = "आप प्रिया AI से बात कर रहे हैं। यह प्रिया नहीं है।";
+    const ctx = await browser.newContext({ viewport: { width: 600, height: 200 } });
+    const page = await ctx.newPage();
+    await page.setContent(
+      `<!doctype html><html><head><style>
+        @font-face { font-family: "Noto Sans Devanagari"; src: url(data:font/ttf;base64,${fontBase64}) format("truetype"); }
+        body { font-family: "Noto Sans Devanagari", sans-serif; }
+      </style></head><body><p id="probe">${hiDisclosure}</p></body></html>`,
+    );
+    await page.evaluate(() => document.fonts.ready);
+    // This probe only ever measures ONE string, set directly rather than
+    // via a real `ROOM_COPY_TABLE` (this fixture has no import of one) -
+    // reusing `glyphAudit` unmodified means it still reads
+    // `window.__ROOM_HI_STRINGS__`, so it is set here to exactly the one
+    // pair this check needs before the SAME function WS-R43 wrote is called.
+    await page.evaluate((s) => { window.__ROOM_HI_STRINGS__ = [["room-card-disclosure", s]]; }, hiDisclosure);
+    const { results } = await page.evaluate(glyphAudit, {
+      fontStack: '"Noto Sans Devanagari"',
+      px: GLYPH_PROBE_PX,
+      minDiffPct: MIN_GLYPH_DIFF_PCT,
+    });
+    for (const r of results) {
+      findings.push({ where: "room-card:glyph", kind: "room-card", el: r.key,
+        n: r.fontsCheck ? `${r.diffPct}%` : "fonts.check=false", unit: "", text: r.s.slice(0, 60) });
     }
     await ctx.close();
   }

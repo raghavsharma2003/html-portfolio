@@ -170,8 +170,14 @@ console.log("\n── 1. the unfurl: published, paused, unknown ──");
   ok("no third sentence of the card leaks into the description",
     !html.includes("Anjali does not read these conversations"));
   ok("og:url is canonical", html.includes('<meta property="og:url" content="https://vyakti-silk.vercel.app/r/anjali" />'));
-  ok("no og:image tag when no avatar field exists", !html.includes("og:image"));
-  ok("twitter:card is summary", html.includes('<meta name="twitter:card" content="summary" />'));
+  // WS-R55: this used to assert NO og:image ("no avatar field exists"),
+  // which was true then — before this workstream rendered the picture
+  // instead of waiting for a field to upload one into. Superseded, not
+  // contradicted: still no avatar field, but a picture is drawn from the
+  // same three columns this test already reads above.
+  ok("og:image points at this Room's own /og.png", html.includes('<meta property="og:image" content="https://vyakti-silk.vercel.app/r/anjali/og.png" />'));
+  ok("og:image:width/height are set", html.includes('<meta property="og:image:width" content="1200" />') && html.includes('<meta property="og:image:height" content="630" />'));
+  ok("twitter:card is summary_large_image now a picture exists", html.includes('<meta name="twitter:card" content="summary_large_image" />'));
 
   const paused = await resolveRoomPage(db, "paused-room");
   ok("a paused Room resolves to null, same as unpublished", paused === null);
