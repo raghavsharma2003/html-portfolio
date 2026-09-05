@@ -25,6 +25,7 @@ import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
 import { verifyRoomTelegramWebhook, handleRoomTelegramUpdate } from "./_room-telegram.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
@@ -40,6 +41,14 @@ export default async function handler(req, res) {
   if (!gate.ok) {
     res.setHeader("Retry-After", String(gate.retryAfterSeconds));
     return res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+  }
+
+  // WS-R89: the one shared cap every POST door checks — this one has no
+  // raw-body reader of its own (unlike the three webhook doors, which cap
+  // at 1MB before `req.body` even exists), so it checks the parsed body
+  // directly, same as every other door.
+  if (bodyTooLarge(req.body || {}, ROOM_DOOR_BODY_CAP_BYTES)) {
+    return res.status(413).json({ error: "body_too_large" });
   }
 
   try {

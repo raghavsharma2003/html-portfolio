@@ -48,6 +48,7 @@ import { OrgError } from "./_org.js";
 import { isOpsOwner } from "./_ops.js";
 import { cancelCreatorRenewal } from "./_renewals.js";
 import { withDoor } from "./_incidents.js";
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -89,6 +90,8 @@ async function handler(req, res) {
     }
 
     const body = req.body || {};
+    // WS-R89: the one shared cap every POST door checks first.
+    if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
     const op = String(body.op || "");
     const replicaId = body.replica_id;
 

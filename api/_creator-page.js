@@ -74,7 +74,7 @@
 // SAME "the disclosure is RETURNED, never asked for" law `api/_room-embed.js`
 // states for its own script, restated a third surface over.
 import { readRoomShowcase } from "./_room-publish.js";
-import { roomDisclosureCard, normalizeLocale } from "./_room-surface.js";
+import { roomDisclosureCard, normalizeLocale, slugOf } from "./_room-surface.js";
 import { PLATFORM_TITLE, PLATFORM_DESCRIPTION } from "./_room-page.js";
 
 function esc(value) {
@@ -163,7 +163,14 @@ function jsonLdScript(obj) {
  */
 export async function publicCreatorPageRoomBySlug(db, slug) {
   if (typeof db !== "function") throw new Error("creator_page_db_required");
-  const s = String(slug || "").trim().toLowerCase();
+  // WS-R89: was `String(slug || "").trim().toLowerCase()` — a second,
+  // weaker slug shape than `api/_room-surface.js`'s own `slugOf` (no ASCII
+  // check, no NFKC normalisation, no length ceiling), so a homoglyph or an
+  // oversized slug reached this SELECT as a "near-miss lookup" (0 rows,
+  // indistinguishable from an ordinary unknown slug) rather than being
+  // refused BY NAME at the door — `context/decisions.md#ws-r89-creator-page-
+  // slug-read-shares-slugof`.
+  const s = slugOf(slug);
   if (!s) return null;
   const rows = await db(
     `select room_id, slug, display_name, one_line_bio, default_locale, listed_at, taste_enabled

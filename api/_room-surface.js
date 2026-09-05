@@ -138,6 +138,44 @@ export const ROOM_CONSENT_VERSION = 1;
  *  silently falling one of them back to English. */
 export const ROOM_LOCALES = ["en", "hi"];
 
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R89 (the second door battery): THE BODY CAP every POST door checks
+// before doing anything with a body — one mechanism, two named ceilings,
+// never a door's own hand-rolled check. Two ceilings rather than one because
+// `api/room.js`'s own "say"/"speak" carry a client-supplied `transcript`
+// array (ROOM_HISTORY_TURNS entries, each sliced to ROOM_TEXT_LIMIT chars —
+// 30 * 4000 = 120,000 chars, up to ~352KB of UTF-8 for an all-Devanagari
+// transcript, the one door whose legitimate body genuinely dwarfs every
+// other door's) — every OTHER door's largest legitimate field is a message,
+// a bio, a title, a phone number or a push endpoint URL, comfortably inside
+// 64KB with room to spare. `evals/room-doors/run.mjs`'s own §20 asserts
+// every POST-accepting door in `api/` either calls `bodyTooLarge` with one
+// of these two constants, or is one of the three webhook doors that already
+// enforce their OWN 1MB raw-body ceiling before `bodyTooLarge` would ever
+// see a parsed body (`api/payments-webhook.js`, `api/payout-webhook.js`,
+// `api/whatsapp.js`'s shared `rawBodyOf`, read by `api/room-wa.js`) — so no
+// door is silently unchecked by either mechanism.
+export const ROOM_DOOR_BODY_CAP_BYTES = 65_536;
+export const ROOM_TRANSCRIPT_BODY_CAP_BYTES = 786_432;
+
+/** True when `body` (already parsed by the platform's own body reader)
+ *  serialises to more bytes than `capBytes` — measured the way the wire
+ *  actually measured it, UTF-8 byte length, never JS string `.length`
+ *  (which undercounts Devanagari, and every non-Latin script, by roughly
+ *  half). A body that cannot be serialised at all (a shape no legitimate
+ *  JSON client could ever produce) is refused rather than trusted — the
+ *  same fail-closed posture `readRoomSession` already takes on an
+ *  unparseable payload. */
+export function bodyTooLarge(body, capBytes) {
+  let json;
+  try {
+    json = JSON.stringify(body ?? {});
+  } catch {
+    return true;
+  }
+  return Buffer.byteLength(json, "utf8") > capBytes;
+}
+
 /** Anything that is not exactly "hi" or a "hi-*" variant reads as "en" - a
  *  browser's `navigator.language`, a Telegram `language_code`, an absent
  *  value or garbage all fall back to the locale this product already ships,
@@ -343,10 +381,88 @@ export function mintFollowerSession(resolved, personId, { now = Date.now(), env,
 // RESOLUTION
 // ─────────────────────────────────────────────────────────────────────────
 
-const slugOf = (value) => {
-  const s = String(value || "").trim().toLowerCase();
+/**
+ * WS-R89: NFKC-normalised, then ASCII-only-or-refused — never the reverse
+ * order. `.normalize("NFKC")` runs FIRST so a COMPATIBILITY duplicate of an
+ * ASCII character (a fullwidth "ａ" U+FF41, a circled "①" U+2460, a "ﬁ"
+ * ligature) collapses to the ASCII form Unicode itself already defines it as
+ * equivalent to, before the shape check ever runs — this is exported so
+ * every slug-consuming door (`api/_creator-page.js`'s own read included, see
+ * `context/decisions.md#ws-r89-creator-page-slug-read-shares-slugof`) uses
+ * the SAME rule rather than restating a weaker one.
+ *
+ * A cross-script HOMOGLYPH — Cyrillic "а" (U+0430) styled to look like Latin
+ * "a" — is NOT a compatibility duplicate of anything: NFKC does not touch
+ * it, because the two characters are canonically unrelated, only visually
+ * similar. So a Cyrillic-lookalike slug still fails the ASCII-only regex
+ * below exactly as it always did, and is REFUSED HERE, at the door — it
+ * never reaches a SQL `where lower(slug) = $1`, where a refusal and an
+ * ordinary "no such room" would be indistinguishable from a "near-miss
+ * lookup" rather than a named validation failure.
+ * `evals/room-doors/run.mjs`'s own §21 proves both halves: a homoglyph is
+ * refused before any query runs, and a genuine compatibility form (which no
+ * real slug ever contains, since `normalizeSlug` in `api/_room-publish.js`
+ * only ever writes plain ASCII) normalises to the same bytes a plain-ASCII
+ * caller would have sent, never to a DIFFERENT real room's slug. */
+export const slugOf = (value) => {
+  const s = String(value || "").trim().toLowerCase().normalize("NFKC");
   return /^[a-z0-9][a-z0-9-]{0,62}$/.test(s) ? s : "";
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R89: CROSS-ORIGIN, for the ONE door this file's own header already
+// names as different from every other — `taste`. Every session-bearing op
+// in this product carries its credential in the BODY, never a cookie
+// (`api/room.js`'s own header: "this endpoint reads NO cookie and sets
+// `Access-Control-Allow-Credentials` nowhere, so a wildcard origin grants
+// exactly the ability to POST with a credential the caller already had") —
+// so a third-party page embedding a session-bearing fetch gains nothing a
+// legitimate holder of that session did not already have, and
+// `context/decisions.md#ws-r89-session-bearing-doors-stay-cors-open`
+// inherits that reasoning rather than re-deriving it. `taste` is the one
+// door reachable with NOTHING but a slug — no session, no bearer, nothing
+// the caller must already hold — and it is LLM-backed, so a third-party
+// page embedding it spends this deployment's own money on every visitor,
+// with zero credential required. That is a materially different risk, and
+// it is the one this file gates.
+function hostOf(headerValue) {
+  try {
+    return new URL(String(headerValue)).host;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when `header` (an `Origin` or `Referer` value) is either ABSENT — a
+ * non-browser caller, or a browser that stripped it under a strict referrer
+ * policy, both legitimate and left alone — or names the SAME host this
+ * request itself arrived on (`req.headers.host`, the platform's own
+ * self-reported address, correct for every deployment domain and preview
+ * URL with no configuration). Only a header that is PRESENT and names a
+ * DIFFERENT host is refused — the brief's own "present and not the
+ * deployment's own" test, applied without a hand-maintained allowlist of
+ * domains that would drift the day this deployment moves.
+ */
+export function sameOriginOrAbsent(header, requestHost) {
+  if (header === undefined || header === null || header === "") return true;
+  const host = hostOf(header);
+  return host !== null && host === String(requestHost || "");
+}
+
+/**
+ * THE DECISION, as one throwing call — `api/room.js`'s `taste` op calls this
+ * and nothing else, so the check is a decision-module function an offline
+ * eval can drive directly rather than logic embedded in the handler
+ * (`dead-writers`: logic in a handler is logic no offline eval can reach —
+ * this file's own header, restated for a check this workstream is the first
+ * to add). Both headers must independently pass `sameOriginOrAbsent`.
+ */
+export function assertTasteOriginAllowed(originHeader, refererHeader, requestHost) {
+  if (!sameOriginOrAbsent(originHeader, requestHost) || !sameOriginOrAbsent(refererHeader, requestHost)) {
+    throw new RoomError("room_taste_cross_origin", 403);
+  }
+}
 
 /**
  * slug -> the published, unpaused room row.
