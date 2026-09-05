@@ -12129,3 +12129,41 @@ statement the follower journey's own call graph issues:
 ## `ws-r100-receipt-suite-pass-counts-2026-09-05` — every offline battery this workstream touched or added, measured individually
 
 n = 1 run each, method: `node evals/<suite>/run.mjs` invoked directly (not through `evals/run.mjs`, to isolate each suite's own pass/fail count), 2026-09-05, this worktree, no `NEON_URL`. `evals/room-receipt/run.mjs` (new): 52 passed, 0 failed. `evals/payments/run.mjs` (extended, WS-R100's own §10 appended): 113 passed, 0 failed - 9 of those are this workstream's own, the other 104 are byte-identical to WS-R11/WS-R30/WS-R33/WS-R37/WS-R41/WS-R42/WS-R73's own pre-existing assertions, unchanged, still passing after `sub_update`'s `RETURNING` list was widened to carry `person_id` (a column added to a SELECT list, not a bound parameter - confirmed not to shift any existing test's `params[n]` indexing). `evals/room-doors/run.mjs` (extended, §17e appended, OP_COVERAGE widened by two ops): 703 passed, 0 failed. `evals/room-leak/run.mjs` (TABLE_ROLES widened by one entry): 235 passed, 0 failed, 336,323 retrieval row-scenario checks + 558 boundary checks. `evals/room-export/run.mjs` (untouched, `ROOM_EXPORT_EXTRA`'s own new `vy_receipt` entry proven separately in `room-receipt`'s own §5 rather than here - see `decisions.md#ws-r100-room-export-not-extended`): 47 passed, 0 failed, unchanged from its own pre-existing count. `scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls bite, unchanged. `npx tsc --noEmit`: clean, 0 errors, across every `.tsx`/`.ts` file this workstream touched (`src/room/AccountPage.tsx`, `src/room/roomApi.ts`, `src/room/copy.ts`). Not measured here: the full `verify-release.mjs` run on this tree (heavy concurrent sibling load on this shared machine held ports 8931-8935 for the whole session - see the final report for what that means and what is proven instead).
+
+## `rooms-migration-126-live-verification-2026-09-05` — the follower's receipt, applied live at the WS-R100 merge
+
+**n = 4 statements applied, 6 planned (method: Neon SQL-over-HTTP, one
+statement per request, `create ... if not exists` throughout; every new or
+changed statement `EXPLAIN`ed with `analyze:false`, never `EXPLAIN
+ANALYZE`; date 2026-09-05, main loop, at merge commit `313b201`).**
+
+Applied: `vy_receipt_counter`, `vy_receipt` (FK on `payment_event_id` to
+the ledger and on `room_id` to the Room, both `on delete cascade`, the 097
+precedent for `room_id`; `person_id` nullable, no FK), the unique
+`vy_receipt_payment_event_ix` and `vy_receipt_room_person_ix (room_id,
+person_id, issued_at desc)`.
+
+Planned, all on indexes:
+- `issueFollowerReceipt` (api/_payments.js): the counter claim is an index
+  scan on `vy_receipt_counter_pkey` with the `not exists` guard an
+  index-only scan on `vy_receipt_payment_event_ix`; the insert's conflict
+  arbiter is that same unique index.
+- `roomReceipts` and `roomReceipt` (api/_room-surface.js): index scan on
+  `vy_receipt_room_person_ix`, nested loop to `vy_payment_event_pkey`.
+- The account-wide nullify (api/memory.js): a bitmap scan of
+  `vy_receipt_room_person_ix` by its SECOND column (`person_id`), so the
+  whole index is read rather than a prefix. Accepted by name: it runs
+  once per whole-account forget, the table grows by one row per paid
+  month, and a dedicated `(person_id)` index would be a fifth structure
+  for a path measured in single digits a day. Reversal: a live plan on
+  this statement above 10 ms.
+- The erasure's `receipts` delete (api/_replica-full-erasure.js): index
+  scan on `vy_room_owner_ix`, bitmap on `vy_receipt_room_person_ix` by
+  its leading column.
+- `loadNeverRules`'s SELECT, now issued per Room reply by all three lanes
+  (`rejected.md#room-reply-lanes-carried-no-never-rules`): index scan on
+  `vy_review_never_rule_active_ix` on both key columns; no seq scan was
+  added to any reply.
+
+Not run: `scripts/relcheck.mjs`'s live manifest coverage (needs
+`NEON_URL` in the build container). No `vy_receipt` row exists yet.

@@ -9244,6 +9244,12 @@
       "kind": "measurement",
       "title": "room-receipt 52/52, payments 113/113 (9 new), room-doors 703/703, room-leak 235/235, room-export 47/47 unchanged, check-copy clean, tsc clean - each run individually, no NEON_URL.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-126-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 126 applied live at the WS-R100 merge, four statements one per request; six statements planned on their indexes, the account-wide nullify's second-column bitmap scan accepted by name.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18076,6 +18082,21 @@
       "src": "ws-r100-the-followers-receipt",
       "rel": "measured_by",
       "dst": "ws-r100-receipt-suite-pass-counts-2026-09-05"
+    },
+    {
+      "src": "rooms-migration-126-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r100-the-followers-receipt"
+    },
+    {
+      "src": "rooms-migration-126-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete"
+    },
+    {
+      "src": "rooms-migration-126-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "room-never-rules-one-reader-three-lanes"
     }
   ]
 }
