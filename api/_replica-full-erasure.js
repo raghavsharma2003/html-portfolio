@@ -815,6 +815,20 @@ export async function completeReplicaErasure(db, lease, receipt) {
      room_showcase as (delete from vy_room_showcase x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 123 (WS-R86), follower referrals. Reached by room_id via the SAME
+     -- vy_room subquery every block above uses, room_arrivals' own
+     -- reasoning several blocks up restated: no agent binding of its own.
+     -- Carries a real FK CASCADE from vy_room (migration 123's own
+     -- header), so this delete is a backstop rather than the only
+     -- mechanism - relying on a cascade means relying on an FK nobody
+     -- re-checks, restated again. No new entry in the deletedClasses list
+     -- below: this table holds no person column at all, a one-way hash
+     -- and a room id and a timestamp, room_arrivals' own content-free
+     -- reasoning restated for a referral count instead of an arrival
+     -- count.
+     room_referrals as (delete from vy_room_referral x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      rooms as (delete from vy_room x using target t
        where x.replica_id=t.replica_id and x.owner_user_id=t.owner_user_id),
      -- 091 (WS-R28), Suites v0. Reached by owner_user_id ALONE, creator_

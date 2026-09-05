@@ -740,8 +740,10 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
  *  this workstream did NOT repeat that asymmetry — law 1 of its own brief
  *  is to widen the CHECK in the SAME commit, never one without the other,
  *  so migration 121 (this workstream's own) ships beside this line rather
- *  than waiting for a future one. */
-export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search", "install", "poster"]);
+ *  than waiting for a future one. `friend` is WS-R86's own `?via=friend`
+ *  (a follower's own referral link, `roomReferralLink` below) — the SAME
+ *  law restated a third time, migration 123 shipping beside this line. */
+export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search", "install", "poster", "friend"]);
 
 /** Anything not exactly one of the four named values becomes 'direct' — a
  *  stray query param, an empty string, undefined, or a value with SQL-shaped
@@ -775,6 +777,81 @@ export async function recordRoomArrival(db, { roomId, via, now = Date.now() } = 
        set count = vy_room_arrival.count + 1`,
     [String(roomId), day, resolveArrivalVia(via)],
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// FOLLOWER REFERRALS (WS-R86, migration 123) — a follower can bring a
+// friend with a personal link; the creator learns only that referrals
+// happen, in counts under the floor (`api/_funnel.js`'s
+// `friendsBroughtThisWeek`); the follower is never named to anyone,
+// including to someone holding the table directly.
+//
+// `vy_room_referral` carries no person column at all — `referrer_hash` is
+// the ONLY thing that ties a row to a follower, and it is one-way: a
+// salted sha256 of (this Room, the referring follower's own person id),
+// `api/_rate-limit.js`'s `hashKey` salt shape (RATE_SALT, unset falls back
+// to a fixed per-deploy constant) restated WITHOUT that function's daily
+// rotation — a referral link has to keep comparing equal to itself for as
+// long as the follower who minted it keeps sharing it, not just for one
+// UTC day the way an abuse-limit counter does.
+// ─────────────────────────────────────────────────────────────────────────
+
+const REFERRAL_HASH_RE = /^[0-9a-f]{64}$/;
+
+// UNSET STILL WORKS, `api/_rate-limit.js`'s own posture restated: a real
+// deploy sets RATE_SALT so this cannot be guessed from source; a database
+// with no env configured yet still hashes consistently, just without the
+// extra guarantee an unguessable salt buys against a targeted collision.
+// A DIFFERENT fallback constant than `api/_rate-limit.js`'s own — sharing
+// one would let an operator who knows one module's fallback salt derive
+// the other's hashes for free the day RATE_SALT is finally set.
+const REFERRAL_FALLBACK_SALT = "vy-room-referral-fallback-salt-123";
+
+function referralSalt(env) {
+  const configured = String((env || process.env).RATE_SALT || "").trim();
+  return configured || REFERRAL_FALLBACK_SALT;
+}
+
+/**
+ * sha256(room, follower's own person id, salt), hex — never the day, never
+ * anything else about the follower. The SAME function mints a referrer's
+ * own link (`roomReferralLink` below) and recomputes a JOINER's own hash
+ * to refuse a self-referral (`joinRoom` below) and a follower's own count
+ * of who they brought in (`roomExport` above this file's own header
+ * names) — one definition, three callers, so the three can never silently
+ * disagree about what "this follower's hash in this Room" means.
+ */
+export function referralHashFor(roomId, personId, env = process.env) {
+  return createHash("sha256")
+    .update(`room_referral ${String(roomId)} ${String(personId)} ${referralSalt(env)}`)
+    .digest("hex");
+}
+
+/** Anything not exactly 64 lowercase hex characters is not a hash this
+ *  product ever minted — `resolveArrivalVia`'s own "validate before SQL
+ *  ever sees it" law, restated for a hash instead of an enum. Migration
+ *  123's own CHECK is a second, structural layer behind a value that was
+ *  already safe by the time it reached SQL. */
+function resolveReferralHash(value) {
+  const v = String(value || "").trim().toLowerCase();
+  return REFERRAL_HASH_RE.test(v) ? v : null;
+}
+
+/**
+ * The follower's own "Bring a friend" link — `selfScope`'s own gate (a
+ * fresh session, a REAL attested follower, the room re-validated against
+ * the token's own claim), the same door `roomCitations`/`followerFlags`
+ * open before answering. Rate limited by the caller (`api/room.js`'s
+ * `room_referral_follower` scope, `api/_rate-limit.js`). Returns a
+ * RELATIVE path — `/r/<slug>?via=friend&ref=<hash>` — never an absolute
+ * URL: the browser already knows its own origin,
+ * `roomPublishApi.ts`'s own client-side-composed share links one surface
+ * over, and this function has no request to read one from anyway.
+ */
+export async function roomReferralLink(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const hash = referralHashFor(who.roomId, who.personId, deps.env);
+  return { url: `/r/${who.slug}?via=friend&ref=${hash}`, hash };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -958,6 +1035,11 @@ export async function joinRoom(
     ageAttested,
     memoryConsent,
     locale: hintLocale = null,
+    // WS-R86 (migration 123): the referral hash a `?ref=` link carried, if
+    // any — `body.via`'s own shape one op over, read raw off the URL and
+    // handed straight through, validated here (never trusted) before it
+    // ever reaches SQL.
+    ref: hintRef = null,
   },
   deps = {},
 ) {
@@ -1016,7 +1098,18 @@ export async function joinRoom(
             dormancy_notice_at = null,
             updated_at = now()
      returning follower_id, room_id, person_id, agent_id, joined_at, age_attested_at,
-               memory_consent_at, tier, month_key, month_message_count, last_seen_at, locale`,
+               memory_consent_at, tier, month_key, month_message_count, last_seen_at, locale,
+               -- WS-R86: the canonical Postgres "was this row just INSERTED
+               -- or did it hit the UPDATE arm" idiom - xmax is 0 on a
+               -- tuple this same statement created, and the current
+               -- transaction's id on one it updated instead. This is what
+               -- gates the referral write below to a follower's FIRST-EVER
+               -- join: a repeat join (the memory toggle, a re-attestation)
+               -- must never mint a second referral row for the same event.
+               -- NOTE: no backticks in this SQL comment on purpose - see
+               -- rejected.md#ws-r37-sql-comment-backticks-terminate-the-
+               -- template-literal-a-third-time.
+               (xmax = 0) as newly_joined`,
     [
       randomUUID(),
       String(resolved.room.room_id),
@@ -1030,6 +1123,35 @@ export async function joinRoom(
   );
   const follower = rows[0];
   if (!follower) throw new RoomError("room_join_failed", 503);
+
+  // WS-R86 (migration 123). Best-effort, `recordRoomArrival`'s own posture:
+  // a write failure here must never turn a join into an error for a
+  // growth-counting reason. Gated three ways, all necessary: the table has
+  // to exist (`isTableAppliedFor`), the caller has to have handed a hash
+  // shaped like one this product ever minted (`resolveReferralHash`,
+  // never trusted raw), and this has to be the follower's OWN first-ever
+  // join to this Room (`follower.newly_joined`) — a referral is credited
+  // once, at the moment a NEW relationship starts, never again.
+  //
+  // SELF-REFERRAL IS REFUSED IN THE WHERE, never a JS `if`
+  // (`api/_disclosure.js`'s own standing rule, `consume()`'s own "the
+  // predicate IS the write" law, restated a third time): the joiner's OWN
+  // hash is recomputed with the IDENTICAL function that minted the link
+  // (`referralHashFor`), so a follower who joins through their own link
+  // produces a WHERE clause that can never match, and no row is written —
+  // structurally, not by a check somebody could forget to add later.
+  if (follower.newly_joined === true) {
+    const referrerHash = resolveReferralHash(hintRef);
+    if (referrerHash && (await isTableAppliedFor(deps)("vy_room_referral"))) {
+      const joinerHash = referralHashFor(resolved.room.room_id, personId, deps.env);
+      await db(
+        `insert into vy_room_referral (referral_id, room_id, referrer_hash, created_at)
+         select ($1)::uuid, ($2)::uuid, ($3)::text, now()
+         where ($3)::text <> ($4)::text`,
+        [randomUUID(), String(resolved.room.room_id), referrerHash, joinerHash],
+      ).catch(() => {});
+    }
+  }
 
   // The surface identity and the thread device. Both are agent-independent and
   // both exist so the rest of the stack can find this human: the identity is
@@ -2154,6 +2276,25 @@ export async function roomExport(db, { session }, deps = {}) {
       if (Number.isFinite(n) && n > 0) tables[e.table] = { count: n };
     }
   }
+  // WS-R86 (migration 123). Not one of the eleven `ROOM_EXPORT_EXTRA`
+  // entries above because `vy_room_referral` carries no `person_id` column
+  // for that loop's own generic shapes to key off — a count is still
+  // theirs to see, computed the ONE way it CAN be tied to this follower:
+  // recomputing their own hash (`referralHashFor`, the identical function
+  // that minted their link) and counting rows that match it. Nobody but
+  // this follower's own export process, which already knows their
+  // `personId`, can ever perform this recomputation — the hash itself is
+  // not data ABOUT them the platform holds in a form anyone else could
+  // reconstruct, `context/rejected.md`'s own standing law restated.
+  if (await isTableAppliedFor(deps)("vy_room_referral")) {
+    const ownHash = referralHashFor(who.roomId, who.personId, deps.env);
+    const rows = await db(
+      `select count(*)::int as n from vy_room_referral where room_id = ($1)::uuid and referrer_hash = ($2)::text`,
+      [who.roomId, ownHash],
+    ).catch(() => []);
+    const n = Number(rows[0]?.n);
+    if (Number.isFinite(n) && n > 0) tables.vy_room_referral = { count: n };
+  }
   return {
     format: "vyakti-room-export/1",
     exported_at: new Date(deps.now ?? Date.now()).toISOString(),
@@ -2181,7 +2322,14 @@ export async function roomExport(db, { session }, deps = {}) {
  */
 export async function roomExportManifest(deps = {}) {
   const scoped = await roomScopedTables(deps);
-  return [...scoped.map((t) => t.table), ...ROOM_EXPORT_EXTRA.map((e) => e.table)];
+  // WS-R86 (migration 123): `vy_room_referral` is not one of the eleven
+  // `ROOM_EXPORT_EXTRA` entries above (it carries no `person_id` column
+  // for that loop's generic shapes to key off, `roomExport`'s own header
+  // explains the special-cased read) but `roomExport` DOES reach it, so it
+  // is named here directly rather than left out of this manifest the way
+  // `vy_room_arrival` correctly is — that table is never read back to any
+  // one follower at all, and this one is.
+  return [...scoped.map((t) => t.table), ...ROOM_EXPORT_EXTRA.map((e) => e.table), "vy_room_referral"];
 }
 
 /** The ownership half of `wipeWhereSql`, and NOTHING else: the owning columns

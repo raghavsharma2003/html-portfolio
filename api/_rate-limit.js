@@ -132,6 +132,14 @@ export const DEFAULT_LIMITS = {
   // the abuse shape this bounds is one account hammering its OWN export,
   // never a cross-account concern the way `room_open_ip` guards against.
   creator_export_owner: { limit: 1, windowMs: 24 * 60 * 60_000 },
+  // WS-R86 (migration 123). Minting a referral link costs one SQL round
+  // trip and no model call - `room_flag_follower`'s own shape, keyed on
+  // the follower's own person id off the already-HMAC-verified session, a
+  // day rather than a minute because generating a link is an occasional,
+  // deliberate act, not a chat burst. 10/day is generous for a real
+  // follower sharing with a handful of friends and firm against a stolen
+  // session turning this op into an unbounded hash-generation engine.
+  room_referral_follower: { limit: 10, windowMs: 24 * 60 * 60_000 },
 };
 
 /**

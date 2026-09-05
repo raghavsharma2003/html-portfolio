@@ -582,3 +582,103 @@ export async function posterArrivalsThisWeek(db, now = Date.now(), deps = {}) {
   const belowFloor = n < SHARE_ARRIVAL_FLOOR;
   return { n: belowFloor ? null : n, below_floor: belowFloor, note: posterArrivalNote(n) };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// WS-R86 (migrations 102, 123, follower referrals). Two lines, one growth
+// loop, two different audiences:
+//
+//   - `friendArrivalsThisWeek` below is `shareArrivalsThisWeek`'s own
+//     shape, PLATFORM-WIDE, `via = 'friend'` over the SAME
+//     `vy_room_arrival` table every other arrival channel in this file
+//     already reads — an arrival counts here the instant somebody OPENS a
+//     referral link, whether or not they ever join, exactly like every
+//     other `via` value.
+//   - `friendsBroughtThisWeek` is a DIFFERENT count, over a DIFFERENT
+//     table (`vy_room_referral`, migration 123): a CREDITED referral, one
+//     row per follower who actually joined through a friend's link and
+//     was not the friend's own self-referral — scoped to ONE creator's
+//     own Room, for the Room Studio's own "Friends brought this week"
+//     card, `api/_pulse.js`'s `readPulse` its own per-room precedent one
+//     file over rather than `replicaFunnel`'s own eight-query shape
+//     (this is one statement, not a whole funnel).
+//
+// Same n>=5 anonymity floor every other Room-scoped growth count in this
+// file already carries: a bucket this small over ONE creator's own Room
+// could point at the one friend who scanned the one link.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Pure, `posterArrivalNote`'s own shape. */
+export function friendArrivalNote(n) {
+  if (n < SHARE_ARRIVAL_FLOOR) {
+    return "Fewer than five arrivals came from a friend's referral this week.";
+  }
+  return `${n} arrival${n === 1 ? "" : "s"} came from a friend's referral this week.`;
+}
+
+/**
+ * ONE statement, platform-wide, `via = 'friend'` over the same rolling
+ * 7-day window `shareArrivalsThisWeek`/`posterArrivalsThisWeek` use.
+ * Gated on migration 102 (`vy_room_arrival` itself, not 123 — the CHECK
+ * constraint 123 widens is a separate concern from whether the table
+ * exists at all, `posterArrivalsThisWeek`'s own header restated a second
+ * time) being applied.
+ */
+export async function friendArrivalsThisWeek(db, now = Date.now(), deps = {}) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied(ROOM_ARRIVAL_TABLE))) {
+    return { n: null, below_floor: true, note: friendArrivalNote(0) };
+  }
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString().slice(0, 10);
+  const [row] = await db(
+    `select coalesce(sum(count), 0)::int as n
+       from vy_room_arrival
+      where via = 'friend' and day >= ($1)::date`,
+    [since],
+  );
+  const n = Number(row?.n || 0);
+  const belowFloor = n < SHARE_ARRIVAL_FLOOR;
+  return { n: belowFloor ? null : n, below_floor: belowFloor, note: friendArrivalNote(n) };
+}
+
+const ROOM_REFERRAL_TABLE = "vy_room_referral";
+
+/** Pure, `shareArrivalNote`'s own shape, one word over — "friends", not
+ *  "arrivals": this counts CREDITED referrals (a joined follower, never a
+ *  bare visit), so the noun the Room Studio's own card names is the one
+ *  this note uses too. */
+export function friendsBroughtNote(n) {
+  if (n < SHARE_ARRIVAL_FLOOR) {
+    return "Fewer than five friends were brought in this week.";
+  }
+  return `${n} friend${n === 1 ? "" : "s"} were brought in this week.`;
+}
+
+/**
+ * ONE statement, scoped to ONE room by `room_id` — `api/_room-publish.js`'s
+ * `ownerRoomStats` is the one caller, having already resolved the
+ * creator's own room before calling this, so `roomId` here is trusted the
+ * SAME way every other per-room read in that file already trusts its own
+ * `ownedRoomRow`. `count(*)` only, never a raw column — `vy_room_referral`
+ * carries no content column to leak in the first place (migration 123's
+ * own header), but the select shape matches the discipline this file's
+ * own aggregate reads carry regardless. Gated on migration 123 actually
+ * being applied, `shareArrivalsThisWeek`'s own `tableApplied` seam.
+ */
+export async function friendsBroughtThisWeek(db, roomId, now = Date.now(), deps = {}) {
+  if (typeof db !== "function") throw new Error("funnel_database_required");
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied(ROOM_REFERRAL_TABLE))) {
+    return { n: null, below_floor: true, note: friendsBroughtNote(0) };
+  }
+  const since = new Date(now - WEEK_WINDOW_MS).toISOString();
+  const [row] = await db(
+    `select count(*)::int as n
+       from vy_room_referral
+      where room_id = ($1)::uuid and created_at >= ($2)::timestamptz`,
+    [String(roomId), since],
+  );
+  const n = Number(row?.n || 0);
+  const belowFloor = n < SHARE_ARRIVAL_FLOOR;
+  return { n: belowFloor ? null : n, below_floor: belowFloor, note: friendsBroughtNote(n) };
+}
