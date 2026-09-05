@@ -1888,4 +1888,12 @@ export const HI: StudioRestCopy = {
     sending: "भेजी जा रही है...",
     testSent: "टेस्ट जानकारी आपके अपने डिवाइस पर भेज दी गई है (इसे पाने के लिए ऊपर साप्ताहिक पुश चालू करें)।",
   },
+
+  // WS-R125 (migration 130). See copy.ts's own `roomStudioMandate` block.
+  roomStudioMandate: {
+    pausedLabel: "आपका भुगतान रुका हुआ है।",
+    pausedBody: "अपना टियर सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
+    haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
+    haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
+  },
 };

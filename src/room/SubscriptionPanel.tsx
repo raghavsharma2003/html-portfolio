@@ -84,6 +84,24 @@ export default function SubscriptionPanel({
       {status && (
         <>
           <p className="room-fine">{status.tier === "paid" ? copy.subscription.tierPaid : copy.subscription.tierFree}</p>
+          {/* WS-R125 (migration 130): access keeps working (tier stays
+              'paid') while a mandate is merely paused or halted, never
+              cancelled - `applyWebhook`'s own tier-flip predicate,
+              unchanged - but the follower needs to know why a renewal is
+              in doubt. Only `paused` names a working action: the follower
+              themselves, in their own UPI app - no button here can do it
+              FOR them (Razorpay's own FAQ, fetched 2026-09-05: "only they
+              can resume it"). `halted` names no button either, for the
+              same reason the studio card's own does not -
+              `context/rejected.md#ws-r125-halted-mandate-start-new-button-
+              would-have-been-a-silent-no-op`. */}
+          {sub && (sub.state === "paused" || sub.state === "halted") && (
+            <p className="room-fine">
+              {sub.state === "halted"
+                ? `${copy.subscriptionMandate.haltedLabel} ${copy.subscriptionMandate.haltedBody}`
+                : `${copy.subscriptionMandate.pausedLabel} ${copy.subscriptionMandate.pausedBody}`}
+            </p>
+          )}
           {status.tier === "paid" && sub && periodEnd && (
             <p className="room-fine">
               {sub.cancel_at_period_end

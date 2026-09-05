@@ -42,6 +42,7 @@ const {
   ownerRevenue,
   runPayoutRollup,
   KIND_TO_STATE,
+  MANDATE_KIND_TO_STATE,
   parseWebhookPayload,
 } = payments;
 const roomSurface = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
@@ -181,6 +182,10 @@ function makeDb(state) {
         provider, provider_subscription_ref: null, state: "created",
         current_period_start: null, current_period_end: null,
         created_at: new Date(NOW + state.subscriptions.length).toISOString(),
+        // WS-R125 (migration 130): the column's own default - 'none' for
+        // every subscription until a mandate-lifecycle webhook says
+        // otherwise, `mandate_state_at` null until it does.
+        mandate_state: "none", mandate_state_at: null,
       };
       state.subscriptions.push(row);
       return [{ subscription_id: row.subscription_id, state: row.state }];
@@ -212,7 +217,7 @@ function makeDb(state) {
 
     // ── applyWebhook: THE BIG WRITE ──
     if (has("with candidate as") && has("insert into vy_payment_event")) {
-      const [provider, ref, roomId, subId, kind, amountInr, takeInr, shareInr, payloadHash, nextState, periodStart, periodEnd] = params;
+      const [provider, ref, roomId, subId, kind, amountInr, takeInr, shareInr, payloadHash, nextState, periodStart, periodEnd, nextMandateState] = params;
       // migration 078's vy_payment_event_signature_verified CHECK: the SQL
       // literal is `true` here (see api/_payments.js), so this branch can
       // never be exercised via applyWebhook. Kept anyway — the negative
@@ -227,6 +232,16 @@ function makeDb(state) {
         if (periodStart) sub.current_period_start = periodStart;
         if (periodEnd) sub.current_period_end = periodEnd;
       }
+      // WS-R125 (migration 130): the SAME "leaving state" guard the real
+      // UPDATE's CASE expression carries — `mandate_state_at` only advances
+      // when the row is actually leaving a DIFFERENT stored mandate_state,
+      // so a replay (this branch is never reached twice for the same event
+      // anyway, `dup` above) or an out-of-order duplicate never fakes a new
+      // transition time.
+      if (sub && nextMandateState && sub.mandate_state !== nextMandateState) {
+        sub.mandate_state = nextMandateState;
+        sub.mandate_state_at = new Date(NOW + state.events.length).toISOString();
+      }
       let tier = null;
       if (sub && ["active", "cancelled", "expired"].includes(nextState)) {
         const follower = state.followers.find((f) => f.follower_id === sub.follower_id);
@@ -235,7 +250,10 @@ function makeDb(state) {
           tier = follower.tier;
         }
       }
-      return [{ event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null, person_id: sub ? sub.person_id : null, tier }];
+      return [{
+        event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null,
+        mandate_state: sub ? sub.mandate_state : null, person_id: sub ? sub.person_id : null, tier,
+      }];
     }
 
     // ── ownerRevenue ──
@@ -1006,6 +1024,94 @@ console.log("\n§10 WS-R100 (migration 126) — the follower's receipt, issued f
   const applied2 = await applyWebhook(db2, { rawBody: body2, signatureHeader: sig2, eventRef: "evt_r100_2" }, { env: ENV });
   ok("NEGATIVE CONTROL: migration 126 not applied - the SAME charge lands no receipt_id at all", applied2.receipt_id === null);
   ok("NEGATIVE CONTROL: migration 126 not applied - no vy_receipt row was ever attempted", state2.receipts.length === 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§17 WS-R125 (migration 130): mandate_state, THE STORED FACT §14 ONLY EVER DERIVED");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // §14's own two followers, restated: this time asserting on the SIBLING
+  // COLUMN directly, not the virtual `state` overlay it now backs.
+  const PERSON2 = "aa222222-2222-4222-8222-222222222222";
+  const state = freshState();
+  state.followers.push({
+    follower_id: "f1000000-0000-4000-8000-000000000002", room_id: ROOM, person_id: PERSON2, agent_id: AGENT,
+    age_attested_at: "2026-09-01T00:00:00.000Z", memory_consent_at: null, tier: "free",
+  });
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+  const sessionPaused = session();
+  const sessionHalted = session({ p: PERSON2 });
+  await startFollowerSubscription(db, { session: sessionPaused }, { env: ENV, loadAgent, now: NOW });
+  await startFollowerSubscription(db, { session: sessionHalted }, { env: ENV, loadAgent, now: NOW });
+  const refPaused = state.subscriptions[0].provider_subscription_ref;
+  const refHalted = state.subscriptions[1].provider_subscription_ref;
+  const fire = (ref, kind, tag) => {
+    const body = kind === "subscription.charged"
+      ? RAZORPAY_CHARGED(ref, 39900, 1690000000, 1692600000)
+      : RAZORPAY_EVENT(kind, ref);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_${tag}` }, { env: ENV });
+  };
+
+  ok("brand new: mandate_state defaults to 'none', matching migration 130's own column default",
+    state.subscriptions[0].mandate_state === "none" && state.subscriptions[1].mandate_state === "none");
+
+  await fire(refPaused, "subscription.charged", "m_p_activate");
+  await fire(refHalted, "subscription.charged", "m_h_activate");
+  ok("a plain charge never touches mandate_state — 'subscription.charged' is not a mandate-lifecycle kind",
+    state.subscriptions[0].mandate_state === "none" && state.subscriptions[1].mandate_state === "none");
+
+  const paused1 = await fire(refPaused, "subscription.paused", "m_pause");
+  const halted1 = await fire(refHalted, "subscription.halted", "m_halt");
+  ok("subscription.paused sets the STORED mandate_state to 'paused' (never just the virtual read)",
+    state.subscriptions[0].mandate_state === "paused");
+  ok("subscription.halted sets the STORED mandate_state to 'halted' — §14's virtual 'halted' now has a real column behind it",
+    state.subscriptions[1].mandate_state === "halted");
+  ok("applyWebhook's own return value carries mandate_state, so a caller never has to re-query it",
+    paused1.mandate_state === "paused" && halted1.mandate_state === "halted");
+  const firstMandateAt = state.subscriptions[1].mandate_state_at;
+  ok("mandate_state_at is set the moment the mandate actually changed", typeof firstMandateAt === "string" && firstMandateAt.length > 0);
+
+  // THE LEAVING-STATE GUARD, driven end to end: an out-of-order or
+  // differently-ref'd duplicate delivery of the SAME target must never
+  // advance mandate_state_at a second time — `applyWebhook`'s own CASE
+  // expression inside `sub_update`, `context/rejected.md#ws-r125-mandate-
+  // state-as-a-second-cte-on-the-same-table`'s rejected alternative would
+  // have made this untestable by construction (two competing UPDATEs on one
+  // row, unpredictable which wins).
+  await fire(refHalted, "subscription.halted", "m_halt_dup");
+  ok("a duplicate delivery of the SAME mandate target is a no-op — mandate_state_at does not move",
+    state.subscriptions[1].mandate_state_at === firstMandateAt);
+
+  // subscription.resumed -> 'active', never a literal 'resumed' (migration
+  // 130's own CHECK admits no such value; this file's own §12/§13 precedent,
+  // MANDATE_KIND_TO_STATE's own header explains the docs' own inconsistency
+  // here).
+  await fire(refPaused, "subscription.resumed", "m_resume");
+  ok("subscription.resumed sets mandate_state to 'active', matching KIND_TO_STATE's own reading of the identical event",
+    state.subscriptions[0].mandate_state === "active");
+  ok("MANDATE_KIND_TO_STATE never maps resumed to the literal string 'resumed' — this fails if it ever did",
+    MANDATE_KIND_TO_STATE["subscription.resumed"] === "active" && MANDATE_KIND_TO_STATE["subscription.resumed"] !== "resumed");
+
+  // subscription.completed -> mandate_state 'completed', a DIFFERENT value
+  // from `state`'s own terminal spelling (`KIND_TO_STATE` collapses
+  // 'completed' into the SAME 'cancelled' `state` value as an explicit
+  // cancellation) — the mandate ledger keeps the two apart even though the
+  // access-control column does not.
+  await fire(refPaused, "subscription.completed", "m_complete");
+  ok("subscription.completed sets mandate_state to 'completed', not 'cancelled' — a DIFFERENT value from `state`'s own collapse",
+    state.subscriptions[0].mandate_state === "completed" && state.subscriptions[0].state === "cancelled");
+
+  // NEGATIVE CONTROL: a non-mandate kind reaching this far (an unauthorised
+  // hand-typed one would already have been refused by KIND_TO_STATE's own
+  // membership check upstream) never appears in MANDATE_KIND_TO_STATE at
+  // all — asserted directly against the map so a future kind added to ONE
+  // map without the other fails loudly here.
+  for (const kind of ["subscription.authenticated", "subscription.activated", "subscription.charged", "payment.failed"]) {
+    ok(`NEGATIVE CONTROL: '${kind}' is not a mandate-lifecycle kind — MANDATE_KIND_TO_STATE has no entry for it`,
+      !Object.prototype.hasOwnProperty.call(MANDATE_KIND_TO_STATE, kind));
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════

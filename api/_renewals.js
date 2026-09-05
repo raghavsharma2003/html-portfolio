@@ -154,6 +154,21 @@ export function followerRenewalTelegramText({ name, periodEnd, amountInr, curren
  * `REMINDER_WINDOW_DAYS`, and carries no `vy_renewal_reminder` row yet for
  * that period (any channel). Returns `{follower, creator, org}`, each an
  * array tagged with `subject_kind`.
+ *
+ * WS-R125 (migration 130): the follower and creator selects ALSO require
+ * `mandate_state in ('none', 'active')` - a bank-side mandate the follower
+ * or creator themselves paused, or that their bank's own retry ladder
+ * halted, is never reminded about a renewal neither of them can control
+ * from here (Razorpay's own FAQ, fetched 2026-09-05 with the
+ * `preferred_country=IN` cookie, razorpay.com/docs/payments/subscriptions
+ * /faqs, dateModified 2026-08-31T07:20:58.370Z: "For UPI Subscriptions, you
+ * cannot resume a Subscription paused by your customer. If your customer
+ * pauses a Subscription, only they can resume it."). `'none'` stays
+ * eligible - a subscription with no mandate-lifecycle event yet observed is
+ * exactly as due as one confirmed `'active'`. The Suite lane (`vy_org
+ * _subscription`) carries no `mandate_state` column - migration 130's own
+ * header, out of this workstream's scope - so its own select below is
+ * unchanged.
  */
 export async function dueReminders(db, now = Date.now()) {
   const nowIso = new Date(now).toISOString();
@@ -169,6 +184,7 @@ export async function dueReminders(db, now = Date.now()) {
        join vy_room_follower f on f.follower_id = s.follower_id
        left join vy_room_price p on p.room_id = s.room_id
       where s.state = 'active'
+        and s.mandate_state in ('none', 'active')
         and s.cancel_at_period_end = false
         and s.current_period_end is not null
         and s.current_period_end >= ($1)::timestamptz
@@ -190,6 +206,7 @@ export async function dueReminders(db, now = Date.now()) {
             s.price_inr as amount_inr, s.currency
        from vy_creator_subscription s
       where s.state = 'active'
+        and s.mandate_state in ('none', 'active')
         and s.cancel_at_period_end = false
         and s.current_period_end is not null
         and s.current_period_end >= ($1)::timestamptz

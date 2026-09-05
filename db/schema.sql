@@ -4497,6 +4497,25 @@ alter table vy_review_card drop constraint if exists vy_review_card_kind_check;
 alter table vy_review_card add constraint vy_review_card_kind_check
   check (kind in ('question','claim','delta','follower_declined','instruction_shaped'));
 
+-- Migration 130 - the UPI Autopay mandate lifecycle (WS-R125). See
+-- db/migrations/130_mandate_state.sql for the full argument: a SIBLING
+-- column to `state`, never a widening of `vy_room_subscription_state_check`/
+-- `vy_creator_subscription_state_check` (`context/decisions.md#ws-r69-
+-- halted-is-a-derived-read-never-a-stored-value`'s own reversal condition,
+-- exercised here for a second reader rather than a third fifth-value-on-
+-- `state`). Default 'none': a subscription with no bank-side mandate event
+-- yet observed is exactly as renewal-eligible as one confirmed 'active'.
+alter table vy_room_subscription add column if not exists mandate_state text not null default 'none';
+alter table vy_room_subscription add column if not exists mandate_state_at timestamptz;
+alter table vy_room_subscription drop constraint if exists vy_room_subscription_mandate_state_check;
+alter table vy_room_subscription add constraint vy_room_subscription_mandate_state_check
+  check (mandate_state in ('none', 'pending', 'active', 'paused', 'halted', 'cancelled', 'completed'));
+
+alter table vy_creator_subscription add column if not exists mandate_state text not null default 'none';
+alter table vy_creator_subscription add column if not exists mandate_state_at timestamptz;
+alter table vy_creator_subscription drop constraint if exists vy_creator_subscription_mandate_state_check;
+alter table vy_creator_subscription add constraint vy_creator_subscription_mandate_state_check
+  check (mandate_state in ('none', 'pending', 'active', 'paused', 'halted', 'cancelled', 'completed'));
 -- Migration 132 - the Suite admin's weekly note (WS-R127). See
 -- db/migrations/132_org_weekly_note.sql for the full argument; mirrored
 -- here per this file's own convention. Content-free (org_id, week_start,

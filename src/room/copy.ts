@@ -606,6 +606,31 @@ const EN = {
     open: "Open a readable copy",
     openNote: "The same information as the download, laid out to read and print.",
   },
+
+  /** WS-R125 (migration 130). The mandate's own state, shown inside
+   *  `subscription` above the moment `state` is `'paused'` (which stays the
+   *  SAME stored value for both a customer's own UPI-app pause and a bank's
+   *  retry ladder giving up - `pausedOrHalted`'s own header, api/_payments.js
+   *  - so `mandate_state` on the client's own subscription object is what
+   *  picks the sentence, `roomPayApi.ts`'s own `RoomSubscriptionState.state`
+   *  already carrying the identical 'halted' overlay). A NEW top-level
+   *  section, never spliced into `subscription` above, per this wave's own
+   *  append-only rule for copy files. Only `paused` names a working action
+   *  (resume it yourself, in your own UPI app - Razorpay's own FAQ, fetched
+   *  2026-09-05: "For UPI Subscriptions, you cannot resume a Subscription
+   *  paused by your customer. If your customer pauses a Subscription, only
+   *  they can resume it.") - `halted` names no button here either, for the
+   *  SAME reason the studio card's own `roomStudioMandate` block does not:
+   *  `startSubscription` reuses any non-terminal row it finds, and a halted
+   *  mandate's `state` never becomes terminal on its own
+   *  (`context/rejected.md#ws-r125-halted-mandate-start-new-button-would-
+   *  have-been-a-silent-no-op`). */
+  subscriptionMandate: {
+    pausedLabel: "Your payment is paused.",
+    pausedBody: "Resume it in your UPI app to keep your subscription active.",
+    haltedLabel: "Your payment mandate needs attention.",
+    haltedBody: "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue.",
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -951,6 +976,14 @@ const HI: typeof EN = {
   exportReadable: {
     open: "पढ़ने लायक कॉपी खोलें",
     openNote: "डाउनलोड जैसी ही जानकारी, पढ़ने और प्रिंट करने के लिए तैयार।",
+  },
+
+  // WS-R125 (migration 130). See EN's own `subscriptionMandate` block.
+  subscriptionMandate: {
+    pausedLabel: "आपका भुगतान रुका हुआ है।",
+    pausedBody: "अपनी सदस्यता सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
+    haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
+    haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
   },
 };
 

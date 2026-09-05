@@ -36,9 +36,11 @@ const {
   updateOrgSeats,
   startCreatorSubscription,
   applyWebhook,
+  MANDATE_KIND_TO_STATE,
 } = payments;
 const org = await import(pathToFileURL(join(REPO, "api/_org.js")).href);
 const { OrgError, attachRoom, seatCoversCreatorTier } = org;
+const { readCreatorTier } = await import(pathToFileURL(join(REPO, "api/_creator-tier.js")).href);
 const fake = await import(pathToFileURL(join(REPO, "api/_payments/providers/fake.js")).href);
 
 // ── the fixture world ───────────────────────────────────────────────────
@@ -198,6 +200,8 @@ function makeDb(state) {
         subscription_id: nextSubId("f2"), owner_user_id: ownerId, replica_id: replicaId, plan, price_inr: priceInr,
         currency, provider, provider_subscription_ref: null, state: "created",
         created_at: new Date(NOW + state.creatorSubscriptions.length).toISOString(), updated_at: new Date(NOW).toISOString(),
+        // WS-R125 (migration 130): the column's own default.
+        mandate_state: "none", mandate_state_at: null,
       };
       state.creatorSubscriptions.push(row);
       return [{ subscription_id: row.subscription_id, state: row.state }];
@@ -256,15 +260,33 @@ function makeDb(state) {
       const row = state.creatorSubscriptions.find((s) => s.provider === provider && s.provider_subscription_ref === ref);
       return row ? [{ subscription_id: row.subscription_id }] : [];
     }
+    // ── readCreatorTier (api/_creator-tier.js) — the studio's own read,
+    //    WS-R125's own `mandate_state` addition included. ──
+    if (has("from vy_creator_subscription") && has("owner_user_id = ($1)::uuid and replica_id = ($2)::uuid")) {
+      const [ownerUserId, replicaId] = params.map(String);
+      const row = state.creatorSubscriptions
+        .filter((s) => s.owner_user_id === ownerUserId && s.replica_id === replicaId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+      return row ? [{ ...row }] : [];
+    }
     // ── applyWebhook: the creator lane's plain state flip ──
     if (has("update vy_creator_subscription s") && has("set state = case")) {
-      const [subId, nextState, periodStart, periodEnd] = params;
+      const [subId, nextState, periodStart, periodEnd, , , , , , nextMandateState] = params;
       const row = state.creatorSubscriptions.find((s) => s.subscription_id === subId);
       if (!row) return [];
       if (nextState !== "") row.state = nextState;
       if (periodStart) row.current_period_start = periodStart;
       if (periodEnd) row.current_period_end = periodEnd;
-      return [{ subscription_id: row.subscription_id, state: row.state }];
+      // WS-R125 (migration 130): the SAME "leaving state" guard the real
+      // UPDATE's CASE expression carries - `mandate_state_at` only advances
+      // when the row is actually leaving a DIFFERENT stored value, since
+      // (unlike the follower/org lanes) nothing dedupes a non-charge event
+      // on `(provider, provider_event_ref)` for this lane at all.
+      if (nextMandateState && row.mandate_state !== nextMandateState) {
+        row.mandate_state = nextMandateState;
+        row.mandate_state_at = new Date(NOW + state.creatorSubscriptions.length).toISOString();
+      }
+      return [{ subscription_id: row.subscription_id, state: row.state, mandate_state: row.mandate_state ?? null }];
     }
     // ── applyWebhook: the org lane's ledger write ──
     if (has("with candidate as") && has("insert into vy_payment_event") && has("org_subscription_id")) {
@@ -522,6 +544,74 @@ console.log("\n§4 THE WEBHOOK — three lanes, one door, verify then apply");
   ok("the creator lane resolves and applies", applied.applied === true && applied.lane === "creator");
   ok("the creator's own subscription flips to active", state.creatorSubscriptions[0].state === "active");
   ok("NO ledger row lands for a creator-tier charge (see migration 095's own scope decision)", state.paymentEvents.length === 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§4b WS-R125 (migration 130): the CREATOR'S OWN mandate lifecycle, told apart honestly");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // `readCreatorTier` never told a customer-paused creator mandate apart
+  // from a bank-halted one - WS-R69 only ever built that distinction for a
+  // FOLLOWER (`api/_payments.js`'s `pausedOrHalted`). This is the first
+  // offline proof the creator side gets it too, straight off the stored
+  // column, no ledger re-derivation needed.
+  const state = freshState();
+  const db = makeDb(state);
+  const replicaId = `${REPLICA_PREFIX}000000000097`;
+  const started = await startCreatorSubscription(db, { ownerUserId: CREATOR, replicaId, plan: "room" }, { env: ENV });
+  const ref = started.provider_subscription_ref;
+
+  const fire = (kind, tag, amountPaise = 0) => {
+    const body = RAZORPAY_EVENT(kind, ref, amountPaise);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_${tag}` }, { env: ENV });
+  };
+
+  ok("brand new: mandate_state defaults to 'none'", state.creatorSubscriptions[0].mandate_state === "none");
+
+  await fire("subscription.activated", "m5_activate", 499900);
+  const tierActive = await readCreatorTier(db, CREATOR, replicaId);
+  ok("readCreatorTier: active, mandate_state 'none' (never touched by a plain activation)",
+    tierActive.tier === "room" && tierActive.subscription.mandate_state === "none");
+
+  const paused = await fire("subscription.paused", "m5_pause");
+  ok("applyWebhook's own return carries the creator lane's mandate_state too", paused.mandate_state === "paused");
+  const tierPaused = await readCreatorTier(db, CREATOR, replicaId);
+  ok("readCreatorTier: state 'paused' AND mandate_state 'paused' - a customer-paused mandate",
+    tierPaused.subscription.state === "paused" && tierPaused.subscription.mandate_state === "paused");
+  ok("the tier flip demotes to 'free' the SAME as any non-active state (§/api/_creator-tier.js's own predicate, unmodified)",
+    tierPaused.tier === "free");
+
+  // A SECOND creator, halted instead of paused - same `state`, different
+  // `mandate_state`, `context/decisions.md#ws-r69-halted-is-a-derived-read-
+  // never-a-stored-value`'s own reversal condition exercised for the
+  // creator lane instead of the follower one.
+  const state2 = freshState();
+  const db2 = makeDb(state2);
+  const replicaId2 = `${REPLICA_PREFIX}000000000098`;
+  const started2 = await startCreatorSubscription(db2, { ownerUserId: CREATOR, replicaId: replicaId2, plan: "studio" }, { env: ENV });
+  const ref2 = started2.provider_subscription_ref;
+  const fire2 = (kind, tag, amountPaise = 0) => {
+    const body = RAZORPAY_EVENT(kind, ref2, amountPaise);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    return applyWebhook(db2, { rawBody: body, signatureHeader: sig, eventRef: `evt_${tag}` }, { env: ENV });
+  };
+  await fire2("subscription.activated", "m5b_activate", 1999900);
+  await fire2("subscription.halted", "m5b_halt");
+  const tierHalted = await readCreatorTier(db2, CREATOR, replicaId2);
+  ok("readCreatorTier: the SAME stored `state` ('paused') as the customer-paused creator above, but mandate_state 'halted'",
+    tierHalted.subscription.state === "paused" && tierHalted.subscription.mandate_state === "halted");
+  ok("NEGATIVE CONTROL: the stored `state` column never becomes the literal string 'halted' for the creator lane either",
+    state2.creatorSubscriptions[0].state !== "halted");
+
+  // A DUPLICATE delivery under a fresh event id is a no-op for mandate_state_at.
+  const at1 = state2.creatorSubscriptions[0].mandate_state_at;
+  await fire2("subscription.halted", "m5b_halt_dup");
+  ok("a duplicate halted delivery never advances mandate_state_at - the creator lane has NO ledger dedup for non-charge events, so this guard is load-bearing here",
+    state2.creatorSubscriptions[0].mandate_state_at === at1);
+
+  ok("MANDATE_KIND_TO_STATE agrees with both fixtures above: 'halted' -> 'halted', not 'paused'",
+    MANDATE_KIND_TO_STATE["subscription.halted"] === "halted");
 }
 
 {
