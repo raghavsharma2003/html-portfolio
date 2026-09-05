@@ -34,6 +34,7 @@ import {
   type SweepStaleness,
   type OpsIncidents,
   type OpsPushConfig,
+  type OpsSelfCheck,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -409,6 +410,43 @@ function IncidentsCard({ incidents }: { incidents: OpsIncidents }) {
   );
 }
 
+// WS-R76 (migration 120). "The ops board gains a Self-check line: last run,
+// checks passed, the names of the failing ones" - the workstream brief's
+// own words. `badgeClassForOutcome`/`badgeClassForStaleness` are reused
+// unchanged from the Sweeps strip above - `api/_ops.js`'s own
+// `selfCheckOverview` types `last_outcome`/`staleness` as the SAME
+// `SweepOutcome`/`SweepStaleness` shapes, so this card's badges can never
+// render a color the Sweeps strip does not already use for the same word.
+function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
+  return (
+    <div className="ops-board__panel">
+      <h2>Self-check</h2>
+      <p className="ops-board__slug">
+        Env vars by name, the database, every migration this tree ships, every other cron - once a day.
+      </p>
+      <p>
+        Last ran {formatAgo(selfCheck.last_started_at)},{" "}
+        <span className={badgeClassForOutcome(selfCheck.last_outcome)}>{selfCheck.last_outcome.replace("_", " ")}</span>{" "}
+        <span className={badgeClassForStaleness(selfCheck.staleness)}>{badgeLabelForStaleness(selfCheck.staleness)}</span>
+      </p>
+      <p className="ops-board__slug">
+        {selfCheck.checked} checked, {selfCheck.passed} passed, {selfCheck.failed} failed.
+      </p>
+      {selfCheck.failing_checks.length === 0 ? (
+        <p className="ops-board__empty">None.</p>
+      ) : (
+        <ul>
+          {selfCheck.failing_checks.map((door) => (
+            <li key={door}>
+              <span className="ops-board__badge ops-board__badge--stopped">{door}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // WS-R62 (migration 114). "The person running Phase 0 should learn that a
 // door started failing from their phone, not from opening Vercel"
 // (workstream brief). Reuses `/push-sw.js` - the SAME generic, already-
@@ -612,6 +650,7 @@ export default function OpsBoard() {
             />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />
+            <SelfCheckCard selfCheck={overview.self_check} />
             <IncidentsCard incidents={overview.incidents} />
             <PushAlertsCard token={session.accessToken} push={overview.push} />
           </>

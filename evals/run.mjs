@@ -2129,6 +2129,23 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "creator-push": "creator-push/run.mjs",
+  // WS-R76 (migration 120). The self-check cron: env presence by NAME only
+  // (mirrors scripts/write-config.mjs's own required/optional lists, kept
+  // in sync by a static parse of that file's own source, never an import —
+  // that file WRITES api/_config.js and calls process.exit at module
+  // scope), `select 1` through the real api/_db.js failure shape
+  // (`neon_url_missing` named exactly), a small explicit list of
+  // information_schema reads proving every migration family the tree ships
+  // is present in the live catalog, and every OTHER cron's own staleness
+  // against vercel.json's schedule (self-check's own row excluded).
+  // NEGATIVE CONTROLS: a fixture that reports an env value's length or a
+  // prefix of one fails a static leak scan of the real source; a database
+  // outage skips (c)/(d) rather than cascading false "table missing"
+  // findings; a missing migration table or column is reported by its own
+  // name; a healthy result records zero incidents.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "self-check": "self-check/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

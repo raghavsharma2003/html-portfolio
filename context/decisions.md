@@ -14972,3 +14972,71 @@ own room-scan WHERE (`published_at is not null and paused_at is null`
 gains a clause) or in a new column on `vy_room`, never retrofitted onto the
 subscription table's own WHERE — the subscription answers "can this device
 receive pushes for this owner", not "should this owner get one this week".
+
+## `ws-r76-self-check-reports-through-the-existing-incident-ledger-not-a-second-pipeline` (2026-09-05, WS-R76)
+
+**Decision.** `api/self-check.js` (migration 120) reports a failing check
+by calling `api/_incidents.js`'s own `recordIncident(db, {kind, door,
+status})` — one row per finding, `kind: "self_check"`, `door` the check's
+own name, `status: 0` (a fixed sentinel, since a self-check finding has no
+HTTP status code of its own to carry). It does not get a second table, a
+second board card wired independently of the Incidents card, or a second
+push-notification path.
+
+**Rationale.** WS-R58 already built the whole content-free-failure-as-a-row
+pipeline this exact need calls for: an upsert-by-(day, kind, door, status)
+table with a 90-day retention sweep, a board card that shows "last 7 days
+by kind and door, red on new-since-last-week", and an at-most-once-per-kind-
+per-day operator push through the real VAPID/webpush path (WS-R62). Every
+one of those pieces was designed to be kind-agnostic — `INCIDENT_KINDS` is
+already a closed, widenable list, `incidentsOverview` already groups by
+`(kind, door)` without a kind-specific branch, `notifyNewIncidentKinds`
+already claims and pushes for "any kind with a row today" — so a sixth kind
+is the ENTIRE integration surface, migration 120's one CHECK widening. A
+second pipeline (a dedicated `vy_self_check_finding` table, a bespoke board
+section reading it directly, a second push path) would duplicate a whole
+subsystem this repo already reviewed once, for a shape (name, count, day)
+identical to what the first one already stores.
+
+**Reversal condition.** If a self-check finding ever needs to carry
+something the incident ledger's schema cannot (a structured payload beyond
+a 100-character door name, a per-finding severity distinct from "it
+failed"), that is the signal to give self-check its own table — not before,
+and not merely because it FEELS like a different kind of thing from a
+`door_5xx` row, when the ops board treats both identically today.
+
+## `ws-r76-self-check-cron-path-is-the-one-named-exception-to-the-sweep-naming-convention` (2026-09-05, WS-R76)
+
+**Decision.** The workstream brief names the cron door `api/self-check.js`,
+not `api/self-check-sweep.js` — every other cron in `vercel.json` follows
+the `<name>-sweep` convention `api/_sweep-schedule.js`'s `sweepNameFromPath`
+depends on to derive a sweep's own name from its URL path. Rather than
+rename the file to fit the convention, `sweepNameFromPath` gained one named,
+literal exception (`"/api/self-check"` -> `"self-check"`), and
+`expectedIntervalMs` was generalized from requiring the schedule's minute
+field to be literally `"0"` to accepting any fixed single-digit minute value
+— needed because the chosen schedule (`30 2 * * *`, deliberately off the
+top-of-the-hour crowd every OTHER daily/hourly cron in this file fires on)
+does not fire at `:00`.
+
+**Rationale.** Every other cron in this repo genuinely IS a sweep over a
+table of rows (drift reports, check-ins due, renewals due); self-check
+probes the deployment itself and has no rows to sweep, so the brief's own
+choice of name is not an inconsistency to fix, it is the file correctly
+naming what it is. Widening the regex in `sweepNameFromPath` to accept ANY
+path shape (not ending in `-sweep`) was rejected in favor of one exact,
+named string match — a looser regex would silently accept a FUTURE cron
+that was never meant to fit the sweep-naming convention either, hiding a
+naming mistake instead of catching it. The `expectedIntervalMs` widening
+(literal `"0"` to `/^\d+$/`) is a strict superset of the old behavior — every
+existing schedule in `vercel.json` uses minute `"0"`, a subset of "any
+fixed minute", so nothing that parsed before parses differently now,
+proven by `evals/self-check/run.mjs` re-asserting the two named cases
+`evals/ops/run.mjs` already covered (`0 0 * * *`, `0 3 * * 1`) alongside
+the new `30 2 * * *` case.
+
+**Reversal condition.** If a future cron ever needs a schedule shape this
+parser still cannot read (a day-of-month or day-of-week list, for example),
+extend `expectedIntervalMs` the same way — widen what it can READ, never
+guess a number for a shape it cannot, per that function's own standing
+law ("return null for a shape this does not recognise, never guess").

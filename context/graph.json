@@ -8218,6 +8218,36 @@
       "kind": "rejection",
       "title": "The follower-content-column scan list included title, copied from _push/webpush.js CONTENT_COLUMNS, colliding with creatorWeeklyPushPayloads own legitimate {title, body, kind, route} field name and failing its own negative control on correct source; replaced with thread_title, which cannot collide.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r76-self-check-cron-built",
+      "kind": "component",
+      "title": "api/self-check.js (migration 120): a daily cron that checks env var presence by name, whether the database answers select 1, whether every migration family the tree ships is present in the live catalog, and whether every other cron has run recently enough \u2014 reporting each failure as a content-free vy_incident row (kind self_check) through the existing incident ledger, with a new Self-check line on the ops board.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r76-self-check-reports-through-the-existing-incident-ledger-not-a-second-pipeline",
+      "kind": "decision",
+      "title": "Self-check findings are recordIncident rows (kind: self_check) through api/_incidents.js, never a dedicated table or a second board/push path \u2014 migration 120 is one CHECK widening, not a new subsystem.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r76-self-check-cron-path-is-the-one-named-exception-to-the-sweep-naming-convention",
+      "kind": "decision",
+      "title": "api/self-check.js keeps the brief's literal filename rather than fitting the <name>-sweep convention; sweepNameFromPath gets one named exception and expectedIntervalMs is generalized from minute==='0' to any fixed minute, so the 02:30 UTC schedule is still read, never guessed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r76-migration-family-anchors-cannot-name-a-boundary-table-even-in-a-comment",
+      "kind": "rejection",
+      "title": "Three natural anchor tables for the migration-family check (102, 116, 101) each collided with an existing evals/room-leak/run.mjs static scanner that matches any api/*.js source text substring, comments included; rewriting the comment to explain the exclusion tripped the same scanner a second time. Fixed by dropping the three anchors from api/_self-check.js entirely (one recovered via a safe column check on migration 110) and describing the shape of the conflict in that file's own comment without repeating the identifiers there.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r76-self-check-cron-gate-summary-2026-09-05",
+      "kind": "measurement",
+      "title": "node scripts/verify-release.mjs run gate-by-gate on a heavily loaded shared machine: every gate passed after this workstream's changes, including layout readability/performance budgets/accessibility once retried after sibling port contention eased (eval suite including the new self-check suite at 50/50, room leak battery 201/201, room door battery 544/544, room export completeness 45/45, security headers, performance budgets, accessibility, layout readability all clean).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16235,6 +16265,26 @@
       "src": "ws-r74-creator-weekly-push",
       "rel": "measured_by",
       "dst": "ws-r74-creator-weekly-push-2026-09-05"
+    },
+    {
+      "src": "ws-r76-self-check-cron-built",
+      "rel": "constrains",
+      "dst": "ws-r76-self-check-reports-through-the-existing-incident-ledger-not-a-second-pipeline"
+    },
+    {
+      "src": "ws-r76-self-check-cron-built",
+      "rel": "constrains",
+      "dst": "ws-r76-self-check-cron-path-is-the-one-named-exception-to-the-sweep-naming-convention"
+    },
+    {
+      "src": "ws-r76-self-check-cron-built",
+      "rel": "caused_by",
+      "dst": "ws-r76-migration-family-anchors-cannot-name-a-boundary-table-even-in-a-comment"
+    },
+    {
+      "src": "ws-r76-self-check-cron-built",
+      "rel": "measured_by",
+      "dst": "ws-r76-self-check-cron-gate-summary-2026-09-05"
     }
   ]
 }

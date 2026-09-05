@@ -4326,3 +4326,11 @@ create unique index if not exists vy_creator_weekly_push_room_week_ix
   on vy_creator_weekly_push (room_id, week_start);
 create index if not exists vy_creator_weekly_push_room_sent_ix
   on vy_creator_weekly_push (room_id, sent_at desc);
+-- Migration 120 - the self-check cron needs one more incident kind
+-- (WS-R76). See db/migrations/120_incident_self_check.sql for the full
+-- argument: the 109 block above named five kinds; this widens the same
+-- named CHECK to six so `api/self-check.js` can report a failing check as
+-- an incident instead of being silently refused by the constraint.
+alter table vy_incident drop constraint if exists vy_incident_kind_check;
+alter table vy_incident add constraint vy_incident_kind_check
+  check (kind in ('door_5xx', 'provider_payments', 'provider_telegram', 'provider_whatsapp', 'provider_webpush', 'self_check'));

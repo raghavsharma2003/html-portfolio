@@ -453,15 +453,16 @@ const realSource = fs.readFileSync(join(REPO, "api/_incidents.js"), "utf8");
 ok("static scan: the REAL api/_incidents.js INSERT names only the allowed columns",
   insertColumnsOk(realSource));
 
-// The kind list this file exports must still be the exact five the CHECK
-// (migration 109) and this suite's own tests above agree on — a widening
-// here with no matching migration change is exactly the drift this repo
-// names everywhere else.
-ok("INCIDENT_KINDS is the exact five-member closed list",
+// The kind list this file exports must still be the exact set the CHECK
+// (migration 109, widened to six by migration 120's own `self_check` kind,
+// WS-R76) and this suite's own tests above agree on — a widening here with
+// no matching migration change is exactly the drift this repo names
+// everywhere else.
+ok("INCIDENT_KINDS is the exact six-member closed list",
   Array.isArray(INCIDENT_KINDS) &&
-  INCIDENT_KINDS.length === 5 &&
-  new Set(INCIDENT_KINDS).size === 5 &&
-  ["door_5xx", "provider_payments", "provider_telegram", "provider_whatsapp", "provider_webpush"]
+  INCIDENT_KINDS.length === 6 &&
+  new Set(INCIDENT_KINDS).size === 6 &&
+  ["door_5xx", "provider_payments", "provider_telegram", "provider_whatsapp", "provider_webpush", "self_check"]
     .every((k) => INCIDENT_KINDS.includes(k)));
 
 // NEGATIVE CONTROL: a helper that stores a message string. Two shapes, so

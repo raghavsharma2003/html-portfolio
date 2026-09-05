@@ -270,6 +270,14 @@ function opsDb(state) {
       return [...new Set(state.incidents.filter((r) => r.day >= floor && r.day < ceil).map((r) => r.kind))]
         .map((kind) => ({ kind }));
     }
+    // WS-R76 (migration 120): `api/_ops.js`'s own `selfCheckFailingToday` -
+    // TODAY only, kind = 'self_check', never the 7-day window the branch
+    // above reads for the general Incidents card.
+    if (has("select distinct door from vy_incident") && has("day = current_date") && has("kind = 'self_check'")) {
+      return [...new Set(state.incidents.filter((r) => r.day === state.today && r.kind === "self_check").map((r) => r.door))]
+        .sort()
+        .map((door) => ({ door }));
+    }
 
     return base(sql, params);
   };
@@ -329,7 +337,7 @@ ok("checkins is read as every 15 minutes", schedules["checkins"]?.expected_inter
 ok("pulse is read as weekly", schedules["pulse"]?.expected_interval_ms === 7 * 24 * 3_600_000);
 ok("consolidate is read as hourly", schedules["consolidate"]?.expected_interval_ms === 3_600_000);
 ok("replica-erasure is read as every 10 minutes", schedules["replica-erasure"]?.expected_interval_ms === 10 * 60_000);
-ok("every one of this repo's 12 crons resolves to a NON-NULL interval (no shape here goes unrecognised)",
+ok("every one of this repo's crons resolves to a NON-NULL interval (no shape here goes unrecognised)",
   Object.values(schedules).filter((s) => Number.isFinite(s.expected_interval_ms)).length === vercelJson.crons.length);
 ok("an unrecognised schedule shape (day-of-month) is null, never guessed",
   expectedIntervalMs("0 0 1 * *") === null);
@@ -545,7 +553,7 @@ console.log("\n── §4: opsOverview (real counts, honest empty states) ──
   ok("sweeps: pulse has never run at all and reports 'never_ran', not 'ok' - law 4 again",
     overview.sweeps.find((s) => s.sweep === "pulse").last_outcome === "never_ran" &&
     overview.sweeps.find((s) => s.sweep === "pulse").staleness === "never_ran");
-  ok("every one of this repo's 12 crons appears in the sweeps strip",
+  ok("every one of this repo's crons appears in the sweeps strip",
     overview.sweeps.length === vercelJson.crons.length);
 
   // WS-R29: platform-wide, THIS MONTH only, delivered only, never
@@ -619,6 +627,54 @@ console.log("\n── §5b: incidentsOverview (the Incidents card) ──");
     !card.new_kinds.includes("provider_telegram"));
   ok("provider_payments never appears in new_kinds either - it is outside the window entirely",
     !card.new_kinds.includes("provider_payments"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §5b2 — WS-R76 (migration 120). "Last run, checks passed, the names of
+// the failing ones" - api/_ops.js's own `self_check` field, derived from
+// the SAME `sweeps`/today's-own incidents this board already reads, never
+// a third query.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §5b2: self_check (WS-R76) ──");
+{
+  const state = opsState();
+  state.sweepRuns.push({
+    run_id: "sc1", sweep: "self-check",
+    started_at: `${state.today}T02:30:00Z`, finished_at: `${state.today}T02:30:04Z`,
+    outcome: "partial", counts: { checked: 20, passed: 18, failed: 2 }, error_code: "",
+  });
+  state.incidents.push(
+    { day: state.today, kind: "self_check", door: "env: NEON_URL missing", count: 1 },
+    { day: state.today, kind: "self_check", door: "sweep checkins: stale", count: 1 },
+    // A stray OTHER kind, and a self_check row from a PRIOR day - neither
+    // may leak into this board's own "today only" reading.
+    { day: state.today, kind: "door_5xx", door: "room.js", count: 4 },
+    { day: "2026-09-03", kind: "self_check", door: "db: select_1_failed", count: 1 },
+  );
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), { tableApplied: async () => false });
+  const sc = overview.self_check;
+  ok("self_check.last_started_at reflects the seeded self-check sweep row", sc.last_started_at === `${state.today}T02:30:00Z`);
+  ok("self_check.last_outcome reflects that row's own outcome", sc.last_outcome === "partial");
+  ok("self_check.checked/passed/failed come from that row's own counts, as plain numbers",
+    sc.checked === 20 && sc.passed === 18 && sc.failed === 2);
+  ok("self_check.failing_checks lists TODAY's own self_check-kind doors only, by name",
+    [...sc.failing_checks].sort().join("|") === ["env: NEON_URL missing", "sweep checkins: stale"].sort().join("|"));
+  ok("self_check.failing_checks never leaks a door_5xx-kind row seeded the same day", !sc.failing_checks.includes("room.js"));
+  ok("self_check.failing_checks never leaks a self_check row from a PRIOR day",
+    !sc.failing_checks.includes("db: select_1_failed"));
+}
+{
+  // NEGATIVE CONTROL / honest empty state: no self-check has ever run in
+  // this fixture at all - law 3's own "honest states everywhere" restated
+  // for this card.
+  const state = opsState();
+  const overview = await opsOverview(opsDb(state), Date.parse(`${state.today}T12:00:00Z`), { tableApplied: async () => false });
+  const sc = overview.self_check;
+  ok("self_check with no run ever reports never_ran, not a fabricated ok",
+    sc.last_outcome === "never_ran" && sc.last_started_at === null);
+  ok("self_check with no run ever reports zero checked/passed/failed, never omitted fields",
+    sc.checked === 0 && sc.passed === 0 && sc.failed === 0);
+  ok("self_check with no failing rows reports an empty list, not omitted", Array.isArray(sc.failing_checks) && sc.failing_checks.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
