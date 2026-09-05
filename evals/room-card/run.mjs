@@ -30,6 +30,22 @@
 //      fixture); (b) a bio carrying a banned Rooms-vocabulary word is
 //      caught by the real scanner when run through this file's own
 //      rendered text.
+//   6. THE POSTER'S QR, DECODED FROM REAL PIXELS (WS-R78, brief law 3).
+//      `jsqr` (npm, zero dependencies, a devDependency here, never
+//      imported by `api/`) decodes the QR from the ACTUAL rasterised
+//      poster PNG this file draws — never a matrix comparison — and
+//      asserts the recovered string against the exact expected
+//      `/r/<slug>?via=poster` URL, for both locales; a paused-or-unknown
+//      poster's QR points at the bare origin, revealing no slug (the
+//      identical-bytes law, restated for a QR payload); the same URL
+//      also appears as plain text under the QR (brief law 2, "for people
+//      who cannot scan"); no origin resolved degrades to no QR rather
+//      than a crash. The story card gains the SAME QR, small, in a
+//      corner clear of its own edges (brief law 2's own last sentence),
+//      meaningfully smaller than the poster's centrepiece one; the og
+//      card carries none. NEGATIVE CONTROL: erasing the finder pattern's
+//      own pixels in the real rendered PNG breaks the same real
+//      scanner's read.
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
@@ -64,11 +80,13 @@ const ROW_EN = {
   display_name: "Anjali Sharma",
   one_line_bio: "JEE physics, one doubt at a time.",
   default_locale: "en",
+  slug: "anjali",
 };
 const ROW_HI = {
   display_name: "प्रिया",
   one_line_bio: "हिन्दी में बात करें, हर दिन।",
   default_locale: "hi",
+  slug: "priya",
 };
 
 // ═══ 1. THE SVG, en AND hi ══════════════════════════════════════════════
@@ -157,7 +175,10 @@ console.log("\n── 5. negative controls ──");
 // a follower id, a follower count, or a memory-consent flag could enter
 // this file through — `cardInputFor` is the one function that reads `row`
 // at all, so scanning ITS OWN property access is exhaustive, not sampled.
-const ALLOWED_ROW_FIELDS = new Set(["display_name", "one_line_bio", "default_locale"]);
+// WS-R78: `slug` joined the allowed set for the poster's own QR (an
+// absolute `/r/<slug>?via=poster` URL) — still one of `publicRoomBySlug`'s
+// own four public columns, never a follower-shaped one.
+const ALLOWED_ROW_FIELDS = new Set(["display_name", "one_line_bio", "default_locale", "slug"]);
 function rowFieldOffences(src) {
   const found = [...src.matchAll(/row\.([a-zA-Z_]+)/g)].map((m) => m[1]);
   return found.filter((name) => !ALLOWED_ROW_FIELDS.has(name));
@@ -179,7 +200,7 @@ ok("NEGATIVE CONTROL (a): a poisoned fixture with row.follower_count is caught",
 const realCardSrc = readFileSync(join(REPO, "api/_room-card.js"), "utf8");
 const realDoorSrc = readFileSync(join(REPO, "api/room-card.js"), "utf8");
 const realOffences = [...rowFieldOffences(realCardSrc), ...rowFieldOffences(realDoorSrc)];
-ok("the REAL api/_room-card.js and api/room-card.js touch only display_name/one_line_bio/default_locale on `row`",
+ok("the REAL api/_room-card.js and api/room-card.js touch only display_name/one_line_bio/default_locale/slug on `row`",
   realOffences.length === 0, realOffences.join(", "));
 
 // (b) a bio carrying a banned Rooms-vocabulary word is caught by the real
@@ -191,6 +212,99 @@ const dirtyRow = { display_name: "Test Creator", one_line_bio: "I am a clone of 
 const dirtyOffences = scanRenderedLines(cardInputFor(dirtyRow, "og"));
 ok("NEGATIVE CONTROL (b): a bio containing the banned word 'clone' is caught by the real scanner",
   dirtyOffences.some((o) => o.rule === "rooms-vocabulary"));
+
+// ═══ 6. THE POSTER'S QR, DECODED FROM REAL RENDERED PIXELS (WS-R78) ══════
+console.log("\n── 6. the poster's QR: decoded from the real rasterised PNG, not compared as matrices ──");
+{
+  const jsQR = (await import("jsqr")).default;
+  const ORIGIN = "https://vyakti-rooms.vercel.app";
+
+  async function decodePosterQr(row, kind = "poster") {
+    const png = await rasterizeRoomCard(cardInputFor(row, kind, ORIGIN));
+    const sharp = await import("sharp").then((m) => m.default, () => null);
+    if (!sharp) return { png, decoded: null, skipped: true };
+    const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const result = jsQR(new Uint8ClampedArray(data.buffer, data.byteOffset, data.length), info.width, info.height);
+    return { png, decoded: result ? result.data : null, skipped: false };
+  }
+
+  const { decoded: enDecoded, skipped } = await decodePosterQr(ROW_EN);
+  if (skipped) {
+    ok("sharp not installed — cannot decode the poster's QR to check it", false);
+  } else {
+    ok("a real, independent scanner (jsqr) reads the poster's QR back to the exact expected URL",
+      enDecoded === `${ORIGIN}/r/anjali?via=poster`, `decoded: ${enDecoded}`);
+
+    const { decoded: hiDecoded } = await decodePosterQr(ROW_HI);
+    ok("the Hindi Room's poster encodes its OWN slug, not the English one's",
+      hiDecoded === `${ORIGIN}/r/priya?via=poster`, `decoded: ${hiDecoded}`);
+
+    // Law 2: a paused-or-unknown poster is byte-identical to the platform
+    // one — the QR must therefore point at the bare origin, never at a
+    // slug that would tell a scanner whether it existed.
+    const { decoded: platformDecoded } = await decodePosterQr(null);
+    ok("a paused-or-unknown poster's QR encodes the bare origin, revealing no slug",
+      platformDecoded === `${ORIGIN}/`, `decoded: ${platformDecoded}`);
+
+    // The URL is ALSO printed in plain text under the QR, for people who
+    // cannot scan (brief law 2) — asserted against the real SVG (the copy
+    // scan's own artefact, never re-rendered a second way).
+    const svg = renderRoomCard(cardInputFor(ROW_EN, "poster", ORIGIN));
+    ok("the same URL the QR encodes also appears as plain text on the poster",
+      svg.includes(`${ORIGIN}/r/anjali?via=poster`));
+
+    const layout = computeCardLayout(cardInputFor(ROW_EN, "poster", ORIGIN));
+    ok("the poster's own layout carries a qr field for a real Room with an origin", !!layout.qr);
+
+    // The story card gains the SAME QR, small, in a corner (brief law 2's
+    // own last sentence) — the identical `url` this workstream's
+    // `cardInputFor` resolves, so a story and a poster from the same Room
+    // always point at the same address.
+    const { decoded: storyDecoded } = await decodePosterQr(ROW_EN, "story");
+    ok("the story card's own corner QR reads back to the exact expected URL",
+      storyDecoded === `${ORIGIN}/r/anjali?via=poster`, `decoded: ${storyDecoded}`);
+    const storyLayout = computeCardLayout(cardInputFor(ROW_EN, "story", ORIGIN));
+    ok("the story card's QR sits inside the card, clear of its own edges (a real corner, not clipped)",
+      !!storyLayout.qr && storyLayout.qr.x >= 0 && storyLayout.qr.y >= 0 &&
+      storyLayout.qr.x + storyLayout.qr.size <= storyLayout.width &&
+      storyLayout.qr.y + storyLayout.qr.size <= storyLayout.height);
+    ok("the story card's own QR is meaningfully smaller than the poster's centrepiece one (a corner mark, not a second poster)",
+      storyLayout.qr.size < layout.qr.size);
+    const { decoded: ogDecoded } = await decodePosterQr(ROW_EN, "og");
+    ok("the og card carries NO QR — the brief names only the poster and the story card, never og:image",
+      ogDecoded === null);
+
+    // NEGATIVE CONTROL: corrupt the REAL rasterised poster's own pixels
+    // (not a hand-built fixture matrix) by painting over the finder
+    // pattern the QR's own layout coordinates name, and the same real
+    // scanner must fail to read it — `evals/qr/run.mjs`'s own §8 negative
+    // control, restated against the full poster this file actually ships
+    // rather than a bare QR test fixture.
+    const canvasMod = await import("@napi-rs/canvas");
+    const posterPng = await rasterizeRoomCard(cardInputFor(ROW_EN, "poster", ORIGIN));
+    const image = await canvasMod.loadImage(posterPng);
+    const canvas = canvasMod.createCanvas(image.width, image.height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+    ctx.fillStyle = "#f4f1e9"; // PAPER — erases rather than draws a new mark
+    ctx.fillRect(layout.qr.x, layout.qr.y, layout.qr.moduleSize * 10, layout.qr.moduleSize * 10);
+    const corrupted = canvas.toBuffer("image/png");
+    const sharp2 = await import("sharp").then((m) => m.default);
+    const { data: cData, info: cInfo } = await sharp2(corrupted).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const corruptedResult = jsQR(new Uint8ClampedArray(cData.buffer, cData.byteOffset, cData.length), cInfo.width, cInfo.height);
+    ok("NEGATIVE CONTROL: erasing the poster's own finder-pattern pixels breaks the real scanner's read",
+      !corruptedResult || corruptedResult.data !== `${ORIGIN}/r/anjali?via=poster`);
+  }
+
+  // No origin resolved (a caller that never had a request to derive one
+  // from) degrades to no QR rather than a thrown error — `computeCardLayout`'s
+  // own header on why.
+  const noOriginLayout = computeCardLayout(cardInputFor(ROW_EN, "poster"));
+  ok("with no origin, the poster layout carries no QR (a graceful degradation, never a crash)",
+    noOriginLayout.qr === null);
+  const noOriginPng = await rasterizeRoomCard(cardInputFor(ROW_EN, "poster"));
+  ok("with no origin, the poster still rasterises to a real, non-blank PNG", noOriginPng.length > 2000);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

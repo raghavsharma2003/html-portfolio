@@ -927,6 +927,12 @@ interface CreatorExportCopy {
   done: string;
 }
 
+// ── poster: the printable poster link in the Share tab (WS-R78), next to
+//    the existing story-card download. ───────────────────────────────────
+interface PosterCopy {
+  download: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -952,6 +958,7 @@ interface StudioCopy {
   processingReview: ProcessingReviewCopy;
   personModelStudio: PersonModelStudioCopy;
   showcase: ShowcaseCopy;
+  poster: PosterCopy;
 }
 
 const EN: StudioCopy = {
@@ -1869,6 +1876,9 @@ const EN: StudioCopy = {
     rateLimited: "You can request this once a day. Try again tomorrow.",
     error: "Could not prepare your download. Please try again.",
     done: "Your download has started.",
+  },
+  poster: {
+    download: "Download poster (A4)",
   },
 };
 
@@ -2788,6 +2798,9 @@ const HI: StudioCopy = {
     rateLimited: "आप यह दिन में एक बार मांग सकते हैं। कल फिर कोशिश करें।",
     error: "आपका डाउनलोड तैयार नहीं हो सका। कृपया फिर कोशिश करें।",
     done: "आपका डाउनलोड शुरू हो गया है।",
+  },
+  poster: {
+    download: "पोस्टर डाउनलोड करें (A4)",
   },
 };
 

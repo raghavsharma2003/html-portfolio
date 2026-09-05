@@ -729,15 +729,18 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
  *  write. `embed` is WS-R46's own `?via=embed` link (`api/_room-embed.js`'s
  *  script), uncounted until migration 102. `install` is WS-R59's own
  *  `?via=install` (an installed Room's `start_url`,
- *  `api/_room-manifest.js`) and is the ONE value here NOT also in migration
- *  102's `via in (...)` CHECK constraint — this workstream added no
- *  migration, so `recordRoomArrival`'s insert for an 'install' arrival is
- *  rejected by that constraint every time, and swallowed by the same
- *  `.catch(() => {})` a malformed `via` already relies on below. Nothing
- *  breaks (the write was always best-effort), but install arrivals are NOT
- *  counted until a future migration adds 'install' to the CHECK — see
- *  `context/decisions.md#ws-r59-install-via-not-yet-in-the-arrival-check-constraint`. */
-export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search", "install"]);
+ *  `api/_room-manifest.js`) — WS-R59 added it here WITHOUT its own
+ *  migration, on the deliberate posture that a rejected, best-effort write
+ *  is harmless and the CHECK could catch up later; the main loop wrote
+ *  migration 113 at that merge to close the gap
+ *  (`context/decisions.md#ws-r59-install-via-not-yet-in-the-arrival-check-constraint`,
+ *  superseded once 113 landed). `poster` is WS-R78's own `?via=poster`
+ *  (the printable poster's QR, `api/_room-card.js`'s `poster` kind) and
+ *  this workstream did NOT repeat that asymmetry — law 1 of its own brief
+ *  is to widen the CHECK in the SAME commit, never one without the other,
+ *  so migration 121 (this workstream's own) ships beside this line rather
+ *  than waiting for a future one. */
+export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search", "install", "poster"]);
 
 /** Anything not exactly one of the four named values becomes 'direct' — a
  *  stray query param, an empty string, undefined, or a value with SQL-shaped
