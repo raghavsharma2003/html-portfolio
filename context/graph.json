@@ -10510,6 +10510,66 @@
       "kind": "measurement",
       "title": "verify-release.mjs: 19/21 on this workstream's tree, same 2 failures (performance budgets, accessibility) reproduced in kind on the untouched base commit across 3 runs with 3 different specific pages/metrics failing - machine-load/port-collision signature, not a regression. All targeted offline suites (room-whatsapp-chat 103/103, room-card 81/81, share-kit 85/85, room-doors 803/803, room-leak 255/255, room-export 47/47, studio-locale 92/92) and tsc -b pass clean.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-door-observation-as-a-computed-property",
+      "kind": "component",
+      "title": "evals/incidents/run.mjs derives (mirrored from evals/room-doors/run.mjs, drift-checked against its real source) the 18 HTTP doors, 9 cron doors and 4 named page doors, and fails by name on any whose default export is not wrapped in withDoor",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-doors-wrapped-before-and-after",
+      "kind": "measurement",
+      "title": "withDoor coverage: 11 doors before this workstream, 31 after (18 HTTP + 9 cron + 4 page), every one asserted by evals/incidents/run.mjs's own static scan",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-provider-call-sites-discovered-and-covered",
+      "kind": "measurement",
+      "title": "25 files in api/ carry a real remote fetch(; 1 directly records an incident (_room-telegram.js), 4 are covered by a named caller (_payments.js for razorpay.js, _checkins.js for webpush.js, _room-whatsapp-chat.js + _checkins.js for _room-whatsapp.js, _room-surface.js + _checkins.js for _surface.js's reply seam), 20 excluded by name as Meera-only/platform infra",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-provider-incident-attributed-at-the-layer-that-knows-what-it-means",
+      "kind": "decision",
+      "title": "A provider's raw send function never calls recordIncident itself; the named caller that already classifies refusal-vs-error does, except api/_room-telegram.js's own shipping client, which IS that layer",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-reply-seam-failure-detected-via-gatedout-parsed-undefined",
+      "kind": "decision",
+      "title": "roomSay and the check-in sweep record a door_5xx incident when gatedOut.text is empty AND gatedOut.parsed is undefined, never merely !gatedOut.gated, which fires on nearly every path including a clean reply",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-gatedoutgated-does-not-mean-what-it-sounds-like-it-means",
+      "kind": "rejection",
+      "title": "gateReply returns gated:true on a clean reply, a never-rule suppression, AND a raw-empty-completion - only a missing engine bundle returns gated:false - so !gatedOut.gated cannot detect a dead reply seam",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-surfacejs-left-untouched-reply-seam-instrumented-one-layer-up",
+      "kind": "rejection",
+      "title": "Considered adding an explicit reason field inside api/_surface.js#gateReply itself; not built because that file is shared with Meera's own non-Room surfaces and outside this workstream's named file list",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-tgcall-shipping-client-had-no-http-status-to-record-against",
+      "kind": "rejection",
+      "title": "api/_room-telegram.js's real Telegram reply wire (tgCall/tgSendVoice/tgSendDocument) returned no HTTP status and no call site checked its result; fixed by adding status to all three and recording provider_telegram inside the ONE shipping client every reply already goes through",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-ops-board-doors-observed-denominator-english-only",
+      "kind": "decision",
+      "title": "The Incidents card's new N of N doors observed badge (api/_incidents.js#OBSERVED_DOOR_COUNT=18) is English-only, matching OpsBoard.tsx's own zero existing i18n wiring; the accessibility gate never renders OpsBoard at all",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r123-eval-suite-counts",
+      "kind": "measurement",
+      "title": "evals/incidents/run.mjs 87/0, evals/room-doors/run.mjs 799/0, evals/ops/run.mjs 152/0, the whole registry (node evals/run.mjs) exit 0, run after npm install + echosim build in a fresh worktree",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20362,6 +20422,46 @@
       "src": "ws-r126-gate-results-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value"
+    },
+    {
+      "src": "ws-r123-doors-wrapped-before-and-after",
+      "rel": "measured_by",
+      "dst": "ws-r123-door-observation-as-a-computed-property"
+    },
+    {
+      "src": "ws-r123-door-observation-as-a-computed-property",
+      "rel": "supersedes",
+      "dst": "ws-r58-withdoor-observes-status-never-rewrites-response"
+    },
+    {
+      "src": "ws-r123-provider-call-sites-discovered-and-covered",
+      "rel": "caused_by",
+      "dst": "ws-r123-provider-incident-attributed-at-the-layer-that-knows-what-it-means"
+    },
+    {
+      "src": "ws-r123-reply-seam-failure-detected-via-gatedout-parsed-undefined",
+      "rel": "caused_by",
+      "dst": "ws-r123-gatedoutgated-does-not-mean-what-it-sounds-like-it-means"
+    },
+    {
+      "src": "ws-r123-tgcall-shipping-client-had-no-http-status-to-record-against",
+      "rel": "caused_by",
+      "dst": "ws-r123-provider-call-sites-discovered-and-covered"
+    },
+    {
+      "src": "ws-r123-ops-board-doors-observed-denominator-english-only",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r123-provider-incident-attributed-at-the-layer-that-knows-what-it-means",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r123-eval-suite-counts",
+      "rel": "measured_by",
+      "dst": "ws-r123-door-observation-as-a-computed-property"
     }
   ]
 }

@@ -13,6 +13,7 @@
 // costs nothing that matters at this traffic. The WRITE this endpoint owns
 // is the creator's own topic list, never a follower's anything.
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { obsBestEffort } from "./_obs.js";
@@ -26,7 +27,7 @@ function cors(res) {
   res.setHeader("Cache-Control", "no-store");
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
   if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "GET or POST only" });
@@ -70,3 +71,5 @@ export default async function handler(req, res) {
     });
   }
 }
+
+export default withDoor(q, "pulse.js", handler);

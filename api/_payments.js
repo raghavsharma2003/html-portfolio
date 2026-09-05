@@ -155,6 +155,31 @@ export class PaymentsError extends Error {
   }
 }
 
+/**
+ * WS-R123. `sendPayout`'s own catch block (below) has recorded a
+ * `provider_payments` incident since WS-R58; every OTHER `provider.*` call
+ * site in this file (subscribe, get, update quantity, register a fund
+ * account) threw the SAME shape of provider error straight past this file's
+ * own door wrapper into a generic `door_5xx` with no `provider_payments`
+ * tag — real, but not attributable to "the provider" over "our own door" at
+ * a glance. This is the one seam every remaining call site runs through:
+ * fire-and-forget (never slows or masks the real failure), then rethrows
+ * UNCHANGED, so no caller's error handling below this point needed to
+ * change.
+ */
+async function withProviderIncident(db, fn) {
+  try {
+    return await fn();
+  } catch (error) {
+    recordIncident(db, {
+      kind: "provider_payments",
+      door: "_payments.js",
+      status: Number(error?.status) || 502,
+    });
+    throw error;
+  }
+}
+
 /** Which provider this deployment runs, resolved per call rather than cached
  *  at import - `_channel-secrets.js`'s `activeBackend`'s own reasoning: an eval
  *  can drive every arm in one process, and a serverless instance that warms
@@ -375,10 +400,10 @@ export async function startFollowerSubscription(db, { session }, deps = {}) {
   }
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
-  const created = await provider.createSubscription(
+  const created = await withProviderIncident(db, () => provider.createSubscription(
     { priceInr, label: room.slug, ref: String(follower.follower_id) },
     secrets,
-  );
+  ));
   providerRef = String(created.provider_subscription_ref || "");
   if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
 
@@ -583,10 +608,10 @@ export async function startOrgSubscription(db, { ownerUserId, orgId, plan, seats
   }
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
-  const created = await provider.createSubscription(
+  const created = await withProviderIncident(db, () => provider.createSubscription(
     { priceInr: pricePerSeatInr * seatCount, label: org.slug, ref: String(orgId) },
     secrets,
-  );
+  ));
   providerRef = String(created.provider_subscription_ref || "");
   if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
 
@@ -679,7 +704,7 @@ export async function updateOrgSeats(db, { ownerUserId, orgId, seats }, deps = {
   if (sub.provider_subscription_ref) {
     const secrets = deps.secrets ?? (await providerSecrets(sub.provider, env, deps.secretBackend));
     const provider = providerFor(sub.provider);
-    const info = await provider.getSubscription(sub.provider_subscription_ref, secrets);
+    const info = await withProviderIncident(db, () => provider.getSubscription(sub.provider_subscription_ref, secrets));
     const method = String(info?.payment_method || "").toLowerCase();
     if (SEAT_UPDATE_LOCKED_METHODS.has(method)) {
       throw new PaymentsError("org_seats_locked_by_mandate", 409, {
@@ -687,7 +712,7 @@ export async function updateOrgSeats(db, { ownerUserId, orgId, seats }, deps = {
         path: "cancel_and_create_new_subscription",
       });
     }
-    await provider.updateSubscriptionQuantity(sub.provider_subscription_ref, seatCount, secrets);
+    await withProviderIncident(db, () => provider.updateSubscriptionQuantity(sub.provider_subscription_ref, seatCount, secrets));
   }
 
   const updated = await db(
@@ -782,7 +807,7 @@ export async function startCreatorSubscription(db, { ownerUserId, replicaId, pla
   }
 
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
-  const created = await provider.createSubscription({ priceInr, label: `creator-tier:${plan}`, ref: String(replicaId) }, secrets);
+  const created = await withProviderIncident(db, () => provider.createSubscription({ priceInr, label: `creator-tier:${plan}`, ref: String(replicaId) }, secrets));
   providerRef = String(created.provider_subscription_ref || "");
   if (!providerRef) throw new PaymentsError("payments_provider_subscription_failed", 502);
 
@@ -2227,7 +2252,7 @@ export async function registerFundAccount(db, { ownerUserId, fundAccountRef }, d
   const providerName = activeProviderName(env);
   const provider = providerFor(providerName);
   const secrets = deps.secrets ?? (await providerSecrets(providerName, env, deps.secretBackend));
-  const result = await provider.registerFundAccount(ref, secrets);
+  const result = await withProviderIncident(db, () => provider.registerFundAccount(ref, secrets));
   if (!result?.verified) throw new PaymentsError("payout_fund_account_unverified", 502);
 
   const rows = await db(

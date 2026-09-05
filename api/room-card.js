@@ -14,6 +14,7 @@
 // instead of typeset as `<head>` tags — `publicRoomBySlug`'s own four
 // columns, nothing a follower ever said, nothing a follower ever will.
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { resolveRoomPage } from "./_room-page.js";
 import { ROOM_CARD_KINDS, rasterizeRoomCardForRoom, roomCardEtag } from "./_room-card.js";
@@ -36,7 +37,7 @@ function originFromRequest(req) {
   return host ? `${proto}://${host}` : "";
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return res.status(405).send("GET only");
   }
@@ -108,3 +109,5 @@ export default async function handler(req, res) {
     }
   }
 }
+
+export default withDoor(q, "room-card.js", handler);

@@ -714,6 +714,13 @@ console.log("\n── §5b: incidentsOverview (the Incidents card) ──");
     !card.new_kinds.includes("provider_telegram"));
   ok("provider_payments never appears in new_kinds either - it is outside the window entirely",
     !card.new_kinds.includes("provider_payments"));
+
+  // WS-R123, law 4: the derived door count, both halves the SAME literal
+  // (`api/_incidents.js#OBSERVED_DOOR_COUNT`) - a completeness badge, not
+  // computed from the incident rows seeded above (which is why it is 18/18
+  // even though this fixture seeded only 3 distinct doors).
+  ok("incidentsOverview carries the derived door count on both halves, equal (a completeness badge, not a live count)",
+    card.doors_observed === 18 && card.doors_total === 18 && card.doors_observed === card.doors_total);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

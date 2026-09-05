@@ -135,6 +135,10 @@ export interface OpsIncidentRow {
 export interface OpsIncidents {
   by_kind_door: OpsIncidentRow[];
   new_kinds: string[];
+  // WS-R123. `api/_incidents.js#OBSERVED_DOOR_COUNT` on both sides - a
+  // completeness badge ("N of N doors observed"), not a live count.
+  doors_observed: number;
+  doors_total: number;
 }
 
 // WS-R62 (migration 114). `api/_ops.js`'s own `operatorPushConfig` shape,

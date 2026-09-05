@@ -14290,3 +14290,99 @@ own entry takes toward a claim about a codec's behaviour — read the actual
 state of the system a change would touch, never trust a sentence describing
 it, even when that sentence is the very set of marching orders for the
 session.
+
+## `ws-r123-gatedoutgated-does-not-mean-what-it-sounds-like-it-means` (2026-09-05, WS-R123)
+
+**Tried:** recording a "the reply seam failed" incident in `roomSay`
+whenever `!said && !gatedOut.gated` — reasoning that `gated: false` would
+mean "nothing was there for the honesty pipeline to filter", i.e. the
+completion provider itself returned nothing.
+
+**What broke, before it ever ran:** reading `api/_surface.js#gateReply`
+line by line (never assumed from the name) shows this is backwards.
+`gated: true` is returned by THREE of its four return statements — a clean
+reply, a never-rule suppression, AND `if (!text) return {text:"",
+findings:[], gated:true}` (raw model text was empty). The ONLY path that
+returns `gated: false` is the completely separate "engine bundle carries no
+honesty gate" guard (a stale build, `docs/CONVERSATION-DEFECTS.md`'s own
+named failure mode, not a provider outage). So `!gatedOut.gated` would have
+fired for a missing engine bundle and NEVER for the actual case this
+workstream exists to catch — a live deployment whose `think()` genuinely
+gets nothing back from the completion provider, silently, every time,
+which is precisely the "obviously good idea, measurably wrong" shape this
+file exists to record before someone rebuilds it.
+
+**Found instead:** `gateReply`'s return object carries a `parsed: reply`
+key on every path that had real, non-empty raw text to work with (the
+clean-reply and never-rule-suppression paths both set it) and OMITS it
+entirely on the two paths that never got that far. `gatedOut.parsed ===
+undefined` is therefore the correct discriminator, and folds the "engine
+bundle missing" case in too — an equally real, equally silent failure
+class, not a reason to narrow the check. See
+`context/decisions.md#ws-r123-reply-seam-failure-detected-via-gatedout-parsed-undefined`
+for the fix actually shipped.
+
+## `ws-r123-surfacejs-left-untouched-reply-seam-instrumented-one-layer-up` (2026-09-05, considered)
+
+**Considered, not built.** The cleanest, most explicit fix for the reply
+seam gap would be one line in `api/_surface.js#gateReply`'s own "raw text
+was empty" branch: `reason: "empty_completion"` on the returned object,
+turning an implicit signal (`parsed === undefined`) into an explicit,
+named one — the same "an explicit signal over an implicit one" preference
+this repo states everywhere else.
+
+**Why not built.** `api/_surface.js` is shared infrastructure: it is
+imported by Meera's own non-Room surfaces (`api/discord.js`, `api/tg.js`,
+`api/whatsapp.js`) as well as every Room reply lane, and this workstream's
+own brief names only `api/_incidents.js`, the door files, `api/_ops.js`,
+`src/studio/OpsBoard.tsx` and the copy tables as the files it builds in —
+`api/_surface.js` is not among them. The change itself is additive (a new
+object key no existing caller reads, confirmed by grep across `api/`) and
+low-risk in isolation, but the blast radius of the FILE it lives in is
+large enough that a change to it belongs to whoever owns that file's own
+workstream, not one whose brief is scoped to the incident ledger. The
+existing `gatedOut.parsed === undefined` check is exact (proven against the
+real `gateReply` source, not assumed) and needs no change to `_surface.js`
+to work correctly today.
+
+**What would reverse it.** A future workstream that DOES touch
+`api/_surface.js` for its own reason should add the explicit `reason` field
+while it is in there, and update `api/_room-surface.js#roomSay` and
+`api/_checkins.js`'s own check-in delivery to key off `gatedOut.reason ===
+"empty_completion"` instead of the `parsed === undefined` proxy — cited in
+`context/decisions.md#ws-r123-reply-seam-failure-detected-via-gatedout-parsed-undefined`'s
+own reversal condition.
+
+## `ws-r123-tgcall-shipping-client-had-no-http-status-to-record-against` (2026-09-05, WS-R123, found and fixed)
+
+**Found:** `api/_room-telegram.js`'s own `tgCall`/`tgSendVoice`/
+`tgSendDocument` — the Room's ACTUAL Telegram reply wire, called from
+dozens of `tg.sendMessage(...)` sites throughout `handleRoomTelegramUpdate`
+— returned only `{ok, result}` or `{ok:false, error:"network"|"no bot
+token"}`, never Telegram's own HTTP status. Every one of those dozens of
+call sites `await`s the send and never checks the result at all. Until
+this workstream, a real Telegram outage was structurally invisible: no 5xx
+(the door already answers 200 for an ordinary update per this file's own
+webhook-replay posture), no incident, no trace — a follower on Telegram
+simply never heard back, silently, for as long as Telegram (or a revoked
+bot token) stayed broken.
+
+**What was tried and rejected:** auditing and fixing each of the ~20
+individual `tg.sendMessage(...)` call sites to check its own return value
+was considered and rejected as needlessly invasive — it would touch every
+conversational branch in a ~1000-line file for a fix that belongs at ONE
+seam. The shipping client itself (`defaultRoomTelegramClient`, the object
+every one of those call sites already goes through) is the right layer:
+wrapping its four methods once covers every existing and future call site
+with no change to any of them.
+
+**Fixed:** `tgCall`/`tgSendVoice`/`tgSendDocument` now return a `status`
+field (Telegram's own HTTP status, or `0` for "never reached Telegram at
+all" — no token, or a network failure `fetch` itself caught).
+`defaultRoomTelegramClient(token, deps)` takes `db`/`recordIncident` and
+records one `provider_telegram` incident per genuine failure (`status >
+0`, excluding the "no bot token" configuration gap, which is
+`_self-check.js`'s own surface, not a provider failure). `evals/room-
+telegram-voice/run.mjs`'s own "no calls to Telegram from any eval" law is
+unaffected — the shipping client is still never constructed by any eval,
+only by the one production call site in `handleRoomTelegramUpdate`.

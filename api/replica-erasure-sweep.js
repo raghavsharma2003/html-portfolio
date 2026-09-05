@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { runVoiceErasureSweep } from "./_replica-voice-erasure.js";
 import { runSourceErasureSweep } from "./_replica-source-erasure.js";
@@ -22,7 +23,7 @@ export function authorizedReplicaErasure(req, env = process.env) {
   return sameSecret(configured, supplied);
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "GET or POST only" });
   if (!allow(ipOf(req), "replica_erasure_sweep", 30)) return res.status(429).json({ error: "slow_down" });
@@ -63,3 +64,5 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: "replica_erasure_sweep_failed" });
   }
 }
+
+export default withDoor(q, "replica-erasure-sweep.js", handler);

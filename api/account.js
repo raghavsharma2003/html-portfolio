@@ -19,6 +19,7 @@
 import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
+import { withDoor } from "./_incidents.js";
 import { SB_URL, SB_KEY, authFetch, userFromToken } from "./_auth.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -62,7 +63,7 @@ async function passthrough(res, upstream) {
   return res.status(upstream.ok ? 200 : upstream.status >= 500 ? 502 : upstream.status).json(data);
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -353,3 +354,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "account failure" });
   }
 }
+
+export default withDoor(q, "account.js", handler);

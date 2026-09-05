@@ -20413,3 +20413,102 @@ one exists for this codebase to reuse (a follow-up should confirm with the
 owner whether the live `WHATSAPP_PHONE_NUMBER_ID` value is in fact dialable
 before this feature is treated as functional in production — NOT PROVEN
 either way by this workstream).
+
+## `ws-r123-provider-incident-attributed-at-the-layer-that-knows-what-it-means` (2026-09-05, WS-R123)
+
+**Decision.** A provider's raw send function (`api/_room-whatsapp.js`'s
+`sendTemplate`/`sendSessionMessage`, `api/_payments/providers/razorpay.js`'s
+seven calls, `api/_surface.js`'s `think()`) never calls `recordIncident`
+itself. The ONE (or two) named callers that already decide what a return
+shape MEANS for a real follower or creator — `api/_room-whatsapp-chat.js`'s
+`defaultRoomWhatsappChatClient` and `api/_checkins.js`'s own
+`deliverers.whatsappTemplate` for Meta, `api/_payments.js`'s new
+`withProviderIncident` wrapper for Razorpay, `api/_room-surface.js`'s
+`roomSay` and `api/_checkins.js`'s own check-in delivery for the reply seam
+— do. `api/_room-telegram.js` is the one exception: its own shipping client
+(`defaultRoomTelegramClient`) IS the layer that decides refusal-vs-error
+(the identical split `attemptRoomVoiceDelivery` already draws one function
+up), so it records directly.
+
+**Rationale.** `api/_payments/providers/razorpay.js` and `fake.js` are
+twins by design (`_payments.js`'s own header) — a provider module that
+knew about `INCIDENT_KINDS` would be a provider module that knew about this
+platform's own incident vocabulary, breaking that twin symmetry for no
+reason `fake.js` would ever need. `api/_surface.js#think()` is shared with
+Meera's own non-Room channels (`discord.js`/`tg.js`/`whatsapp.js`); Room-
+specific bookkeeping does not belong in a file neither product owns
+exclusively. Both reasons are the SAME shape: attribute a failure at the
+layer that can tell a genuine provider error apart from an ordinary,
+expected refusal (`notConfigured`, `skipped: "outside_window"`,
+`code === "room_voice_paid_only"` and its siblings) — never at the layer
+that only knows how to make the HTTP call.
+
+**What would reverse it.** If a provider module ever needs to distinguish
+MORE than one Room-specific failure meaning from inside itself (today it
+distinguishes none — every one of its own callers already does the
+classification), inlining `recordIncident` there stops being a layering
+violation and becomes the only way to keep the two decisions next to each
+other. `evals/incidents/run.mjs`'s own `PROVIDER_CALLER_MAPPED` table is
+where that change would need to move a file from "caller-mapped" to
+"direct".
+
+## `ws-r123-reply-seam-failure-detected-via-gatedout-parsed-undefined` (2026-09-05, WS-R123)
+
+**Decision.** `roomSay` (api/_room-surface.js) and the check-in sweep's own
+delivery (api/_checkins.js) each record one `door_5xx` incident
+(`door: "room-say-reply"` / `"checkins-reply"`) when `gatedOut.text` is
+empty AND `gatedOut.parsed === undefined` — never merely `!said`.
+
+**Rationale, and what was tried first.** The obvious-looking condition
+`!said && !gatedOut.gated` is WRONG: reading `api/_surface.js#gateReply`
+line by line shows `gated: true` is returned on every path that had model
+text to look at — a clean reply, a never-rule suppression, and the "raw
+model text was empty" early return ALL set `gated: true`; only the
+completely separate "engine bundle carries no honesty gate" guard sets
+`gated: false`. So `!gatedOut.gated` fires almost never in production, and
+never for the case this workstream exists to catch (`think()`'s own fetch
+to the completion provider returning nothing). Full trace logged at
+`context/rejected.md#ws-r123-gatedoutgated-does-not-mean-what-it-sounds-like-it-means`.
+The field that DOES discriminate correctly: `gateReply`'s return object
+carries `parsed: reply` on every path that had real, non-empty raw text to
+work with (a clean reply, a never-rule suppression) and OMITS it entirely
+on the two paths that never got that far (raw text empty; engine bundle
+missing) — exactly the two failure classes worth surfacing here, and nothing
+else.
+
+**Reversal condition.** If `api/_surface.js#gateReply` ever adds an
+explicit `reason` field to its "raw text was empty" branch (the honest fix
+would be one line: `return { text: "", findings: [], gated: true, reason:
+"empty_completion" }`), both call sites should switch to checking that
+`reason` directly rather than the absence of `parsed` — an explicit signal
+over an implicit one, the same preference this repo states everywhere else.
+Not done in this workstream because `api/_surface.js` is shared with
+Meera's own non-Room surfaces and touching it was judged out of this
+workstream's own scope (`context/rejected.md#ws-r123-surfacejs-left-untouched-reply-seam-instrumented-one-layer-up`).
+
+## `ws-r123-ops-board-doors-observed-denominator-english-only` (2026-09-05, WS-R123)
+
+**Decision.** The Incidents card's new "N of N doors observed" badge
+(law 4) is plain English, matching every other string on
+`src/studio/OpsBoard.tsx` — no `STUDIO_COPY_TABLE`/`hiCopy.ts` entry was
+added for it.
+
+**Rationale.** `OpsBoard.tsx` carries ZERO existing i18n wiring today —
+every string on the page, before this workstream and after, is a hardcoded
+English literal; there is no `ops` section in `src/studio/copy.ts` or
+`hiCopy.ts` for this one string to join. `scripts/check-accessibility.mjs`'s
+own bilingual sweep (`docs/gurukul/...`/CLAUDE.md's own words: "every
+follower and creator screen in both locales") never renders `OpsBoard.tsx`
+at all — confirmed by grep, neither `check-accessibility.mjs` nor
+`check-layout.mjs` names it — because it is platform-operator tooling, not
+a follower or creator screen, the same category boundary this repo already
+draws for Meera-only doors (`context/rejected.md
+#ws-38-door-list-completeness-rule`) restated for a screen instead of a
+door. Retrofitting the whole page's i18n for one denominator string would
+be a disproportionate, higher-risk change this workstream's brief did not
+ask for.
+
+**Reversal condition.** The day ANY other OpsBoard string gets a
+`STUDIO_COPY_TABLE` entry (an operator interface going bilingual is a real
+product decision, not one this workstream should make unilaterally), this
+badge's two words should move into the same table in the same commit.

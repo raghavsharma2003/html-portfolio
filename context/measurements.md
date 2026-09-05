@@ -13996,3 +13996,97 @@ if the main loop's own re-run of `verify-release.mjs` shows a STABLE
 performance-budget or accessibility failure on a page/screen this
 workstream's files touch, treat this entry's conclusion as superseded
 rather than authoritative.
+
+## `ws-r123-doors-wrapped-before-and-after` (2026-09-05, WS-R123)
+
+**Method:** `grep -rln "withDoor" api/` before and after this workstream's
+edits, on the real committed tree.
+
+**Before:** 11 doors carried `export default withDoor(...)` — `room.js`,
+`room-pay.js`, `room-publish.js`, `payments.js`, `org.js`, `invites.js`,
+`tg.js`, `whatsapp.js`, `checkins.js`, `handoff.js`, `apply.js` (WS-R58,
+migration 109).
+
+**After:** 31 doors — the 18 HTTP session-doors `evals/room-doors/run.mjs`'s
+own §0 derives and calls "the door list" (`account.js`, `apply.js`,
+`checkins.js`, `handoff.js`, `invites.js`, `ops.js`, `org.js`,
+`payments-webhook.js`, `payments.js`, `payout-webhook.js`, `pulse.js`,
+`readiness.js`, `replica.js`, `room-pay.js`, `room-publish.js`, `room-tg.js`,
+`room-wa.js`, `room.js`), the 9 cron doors that same file's §24 derives
+(`checkins-sweep.js`, `creator-push-sweep.js`, `drift-watch-sweep.js`,
+`operator-digest-sweep.js`, `pulse-sweep.js`, `receipt-sweep.js`,
+`renewals-sweep.js`, `replica-erasure-sweep.js`, `self-check.js`), and 4
+server-rendered page doors named by this workstream's own brief
+(`creator-page.js`, `room-about.js`, `suites-about.js`, `room-card.js`).
+`evals/incidents/run.mjs`'s new §DOORS section asserts this exactly, by
+walking the real source of every one (`/export default withDoor\(/`), with
+the frozen eleven as a superset negative control and a poisoned fixture
+proving the check itself discriminates.
+
+## `ws-r123-provider-call-sites-discovered-and-covered` (2026-09-05, WS-R123)
+
+**Method:** a static scan (`evals/incidents/run.mjs`'s new §PROVIDERS,
+mirrored as `discoverRemoteFetchFiles`) of every `.js` file under `api/`
+(recursive, including `_payments/providers/` and `_push/`) for a
+`fetch(`/`.fetch(` call whose own 200-character window names no loopback
+host — n = every file in the real committed tree, run offline, $0, no
+network, deterministic.
+
+**Result: 25 files carry a real remote fetch.** 1 is DIRECTLY covered
+(`_room-telegram.js`, wraps its own send functions — this workstream). 4
+are COVERED BY A NAMED CALLER (`_payments/providers/razorpay.js` by
+`_payments.js`'s new `withProviderIncident`; `_push/webpush.js` by
+`_checkins.js`'s existing `provider_webpush` record; `_room-whatsapp.js`
+by `_room-whatsapp-chat.js`'s new wrapper and `_checkins.js`'s existing
+`provider_whatsapp` record; `_surface.js` — the reply seam — by
+`_room-surface.js#roomSay` and `_checkins.js`'s own check-in delivery, both
+new this workstream). The remaining 20 are Meera-only surfaces or platform
+infra with no per-request "a provider failed" meaning an operator acts on
+through this board (`_azure.js`, `_channel-secrets.js`, `_db.js`,
+`_embed.js`, `_gcache.js`, `_push.js`, `_room-embed.js`, `account.js`,
+`chat.js`, `consolidate.js`, `culture.js`, `discord.js`, `embed.js`,
+`gif.js`, `live-token.js`, `memory.js`, `search.js`, `speech.js`, `tg.js`,
+`whatsapp.js`), named rather than silently dropped.
+
+**Before this workstream:** of the five call-site categories the brief
+names (Telegram, Meta, Razorpay, the push service, the reply seam), only
+the push service (via `_checkins.js`'s sweep) and part of Razorpay
+(`sendPayout` alone, WS-R58) recorded a `provider_*` incident on failure.
+Telegram and Meta's actual FOLLOWER-FACING reply lanes (as opposed to the
+check-in sweep's own broadcast lane) and the reply seam itself recorded
+nothing at all — a real, previously-invisible silent-failure class this
+workstream closes for all three at once (`roomSay` is the ONE reply door
+for web, Telegram and WhatsApp text replies, per `docs/SURFACES.md`).
+
+## `ws-r123-eval-suite-counts` (2026-09-05, WS-R123)
+
+Run on the tree with this workstream's own edits, after `npm install
+--no-audit --no-fund`, `CI=1 node scripts/write-config.mjs --stub`, and
+`node evals/echosim/build.mjs`:
+
+- `node evals/incidents/run.mjs`: 87 passed, 0 failed (was 62 before this
+  workstream's own §DOORS/§PROVIDERS additions — 25 new assertions).
+- `node evals/room-doors/run.mjs`: 799 passed, 0 failed (unchanged pass
+  count from before this workstream — this suite's own §0/§24 derivations
+  were read, not edited).
+- `node evals/ops/run.mjs`: 152 passed, 0 failed (151 before this
+  workstream's one new `doors_observed`/`doors_total` assertion).
+- `node evals/room-whatsapp-chat/run.mjs`: 83 passed, 0 failed.
+- `node evals/room-telegram-voice/run.mjs`: 62 passed, 0 failed.
+- `node evals/payments/run.mjs`: 113 passed, 0 failed.
+- `node evals/checkins/run.mjs`: 37 ok, 0 failed.
+- `node evals/room/run.mjs`, `room-adversarial`, `room-adversarial-creator`,
+  `room-telegram`, `room-telegram-checkins`, `room-whatsapp`, `room-card`,
+  `room-about`, `room-publish`, `org`, `org-billing`: all green, run
+  individually to confirm the new `_room-surface.js`/`_room-telegram.js`/
+  `_room-whatsapp-chat.js`/`_payments.js` edits broke nothing they already
+  covered.
+- `node evals/run.mjs` (the whole registry, no argument, per the import-
+  cycle law — this workstream added `_room-surface.js -> _incidents.js`
+  and `_room-whatsapp-chat.js -> _incidents.js`): exit 0, every suite green,
+  ending on `suites-about: 36 passed, 0 failed` with no "failed suites"
+  line.
+- `node scripts/verify-release.mjs`: see
+  `context/measurements.md#ws-r123-full-gate-result` immediately below for
+  the number this workstream actually got, and what in it predates this
+  workstream's own edits.

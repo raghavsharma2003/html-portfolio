@@ -934,6 +934,16 @@ async function deliverOne(db, row, deps) {
     state: "failed",
     reason: "gate suppressed the reply",
   });
+  // WS-R123, "the reply seam" - `api/_room-surface.js`'s own `roomSay` states
+  // the full reasoning (`gatedOut.parsed === undefined` is the one signal
+  // common to every path where there was never real model text to gate,
+  // never the honesty pipeline doing its job): the SAME check, restated for
+  // this file's own separate `gatedReply` call site, since a check-in that
+  // silently fails to generate a reply is exactly as invisible as a chat
+  // turn that does.
+  if (gatedOut.parsed === undefined) {
+    recordIncident(db, { kind: "door_5xx", door: "checkins-reply", status: 502 });
+  }
   return { claimed, delivered: false };
 }
 

@@ -61,7 +61,7 @@ import { reconciliationOverview } from "./_payments.js";
 // WS-R58 (migration 109). The incident ledger's own board read - reused
 // rather than re-derived, this file's own established pattern one import
 // list up.
-import { INCIDENT_KINDS } from "./_incidents.js";
+import { INCIDENT_KINDS, OBSERVED_DOOR_COUNT } from "./_incidents.js";
 // WS-R102. The one door name every optional-absent incident row is written
 // under - imported rather than restated, so this file's own partition of
 // today's self_check-kind doors can never drift from what api/_self-check.js
@@ -413,6 +413,14 @@ export async function incidentsOverview(db, now = Date.now()) {
   return {
     by_kind_door: byKindDoor.map((r) => ({ kind: r.kind, door: r.door, count: Number(r.n) || 0 })),
     new_kinds: newKinds,
+    // WS-R123, law 4: "the derived door count as its denominator". Both
+    // halves are the SAME literal (`api/_incidents.js#OBSERVED_DOOR_COUNT`)
+    // by construction - a completeness badge, not something this read
+    // computes from the rows above (a door with zero incidents this week is
+    // still wrapped, still observed; this number answers "is every door
+    // watched", never "did every door fail").
+    doors_observed: OBSERVED_DOOR_COUNT,
+    doors_total: OBSERVED_DOOR_COUNT,
   };
 }
 

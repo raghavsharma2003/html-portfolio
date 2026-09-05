@@ -141,6 +141,12 @@ import { activeProviderName } from "./_payments.js";
 import { consume } from "./_rate-limit.js";
 import { sendSessionMessage } from "./_room-whatsapp.js";
 import { noteInbound } from "./whatsapp.js";
+// WS-R123. `_incidents.js` also imports `_operator-telegram.js`, which
+// imports `_room-telegram.js`, which imports `_room-surface.js` — none of
+// which import THIS file, so this edge closes no cycle (`_room-telegram.js`
+// already imports `_incidents.js` directly and has since WS-R58 — the
+// identical shape, one file over).
+import { recordIncident } from "./_incidents.js";
 
 /** WhatsApp's own Cloud API text limit — `api/whatsapp.js`'s `WA_TEXT_LIMIT`,
  *  restated rather than imported (that constant is not exported for reuse
@@ -452,8 +458,27 @@ export function classifyRoomWhatsappChatMessage(m) {
  *  sends, at 24:01 it does not, a fresh inbound resets the timer, and a
  *  struck ledger (a cold start, this platform's own best-effort posture) is
  *  caught and refused rather than silently allowed through. */
+// WS-R123: `sendDeps.db` rides in already — `handleRoomWhatsappChatWebhook`'s
+// own `roomDeps = { ...deps, now, env }` spread already carries `deps.db`,
+// so no call site needed a new argument. A genuine provider refusal or
+// error (`!ok`, and NEITHER `notConfigured` — an unset credential pair, this
+// deployment's own gap, not Meta's — NOR `skipped: "outside_window"` — an
+// ordinary, expected refusal `sendSessionMessage`'s own header names, never
+// a failure) records one `provider_whatsapp` incident, fire-and-forget, the
+// SAME refusal-vs-error split `_room-telegram.js`'s own
+// `defaultRoomTelegramClient` draws one surface over. `evals/room-whatsapp-
+// chat/run.mjs`'s own §WS-R115 section calls this client directly with no
+// `db` at all — `db &&` below is the guard that keeps that call safe.
+function notedProviderFailure(db, result) {
+  if (db && result?.ok === false && !result.notConfigured && result.skipped !== "outside_window") {
+    recordIncident(db, { kind: "provider_whatsapp", door: "room-wa", status: Number(result.status) || 0 });
+  }
+  return result;
+}
+
 export function defaultRoomWhatsappChatClient(sendDeps) {
-  const send = (phone, messageBody) => sendSessionMessage(phone, messageBody, sendDeps);
+  const send = (phone, messageBody) =>
+    sendSessionMessage(phone, messageBody, sendDeps).then((result) => notedProviderFailure(sendDeps?.db, result));
   return {
     sendText: (phone, text) =>
       send(phone, { type: "text", text: { body: String(text).slice(0, ROOM_WA_TEXT_LIMIT) } }),
