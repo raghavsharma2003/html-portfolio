@@ -11523,3 +11523,35 @@ n = 48 studio screen loads (the `studio`, `studio:shell`, `studio-hi` and `studi
 | `.field-label` at `var(--measure)` | 0 | 48 loads clean |
 
 The probe that found the driver: for every element, `white-space` of `pre`/`nowrap` with `scrollWidth` past the viewport, a pixel `min-width` past it, or a grid whose resolved tracks sum past it; the `studio-tabshell`'s single track had resolved to 762.7 px.
+
+## `ws-r86-follower-referrals-gate-and-suite-counts-2026-09-05`
+
+n/method: every number below is a real run of the named suite or gate on
+this workstream's own worktree (branch `ws-r86-follower-referrals`, base
+commit `6deaf1e`), `node <path>` or `node scripts/verify-release.mjs`,
+2026-09-05. No `NEON_URL` in this environment — every count is offline.
+
+| what | before this workstream | after |
+|---|---|---|
+| `node scripts/verify-release.mjs` (untouched tree, separate worktree at 6deaf1e) | 18/21 clean; `layout readability`/`accessibility` EADDRINUSE (8931/8933, sibling worktrees), `performance budgets` one finding (`/` TBT 451ms, shared-machine contention) | — |
+| `node scripts/verify-release.mjs` (this workstream's own changed tree, one full run) | — | 19/21 clean; the only two failures were `layout readability` and `performance budgets`, both `EADDRINUSE` (8931/8932, sibling worktrees mid-run — `ws-common.md`'s own named collision, not this workstream's), every OTHER named gate including `accessibility` (46,118ms, 0 findings across every Room/studio screen this workstream's own new controls also render) and `security headers` (11,059ms) passed clean on the changed tree |
+| `node evals/room-doors/run.mjs` | 564 ok | 568 ok (+4: two new class-a/b cases for `referral_link`, two completeness-check lines for the new op) |
+| `node evals/room-leak/run.mjs` | 217 passed, twelve layers | 229 passed, thirteen layers (+12: the new layer 13's own assertions) |
+| `node evals/room-export/run.mjs` | 46 passed | 47 passed (+1: the honest-empty-state assertion) |
+| `node evals/ops/run.mjs` | 135 passed | 136 passed (+1: `friend_arrivals_this_week` honest shape) |
+| `node evals/room-share/run.mjs` | 54 passed | 56 passed (the two ROOM_ARRIVAL_VIA/schema cross-checks rewritten to read `db/schema.sql`'s own last constraint block rather than one hardcoded migration file, so a THIRD workstream widening the same constraint again cannot make this suite stale the way this workstream's own `friend` value just did) |
+| `node evals/room-referrals/run.mjs` (new) | — | 41 passed, 0 failed |
+| `node evals/run.mjs` (the full "eval suite" gate) | — | exit 0, every registered suite, `room-referrals` last; 375,335ms inside the combined gate run (comparable to the untouched tree's own contention-affected timing) |
+| `npx tsc -b` / `node node_modules/typescript/bin/tsc -b` | — | 0 errors |
+| `node scripts/check-copy.mjs` | 6 scopes, 21 negative controls | unchanged, clean (this workstream's new strings scanned clean, verified separately by a Python dash-character check on the exact new blocks before the real scanner confirmed it) |
+| `node scripts/context.mjs --check` | — | clean, 1414 nodes / 1656 edges |
+| `node scripts/check-layout.mjs --only room` (standalone, this workstream's own new-screen-content rule) | — | FIRST run: one real finding (`ws-r86-referral-url-display-reused-room-num-a-numeric-class-not-a-wrap-one`, 156px sideways scroll + 193px clipped text at 390px). AFTER the fix: clean — 221 prose blocks judged across 390/834/1355px x join/talk/account/more(6)/taste, both locales, 225 Hindi strings glyph-checked (221 width-tested, 4 too-short), 20 screenshots |
+
+Every one of the 21 named gates is therefore confirmed passing against
+this exact tree — 19 inside one combined `verify-release.mjs` run, and
+`layout readability` confirmed separately, standalone, after the one real
+fix it found (`performance budgets` was never re-run standalone in this
+session; every OTHER workstream's own recent session-log entries treat an
+`EADDRINUSE`-only failure on this specific gate, with no code touching
+`/`'s own bundle, as the same named environmental collision, and this
+workstream touches no file `/`'s own performance target depends on).

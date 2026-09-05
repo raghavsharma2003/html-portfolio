@@ -10950,3 +10950,125 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r86-sql-comment-backticks-terminate-the-template-literal-a-fifth-time`
+
+**What was tried.** `joinRoom`'s new `RETURNING` clause needed a comment
+explaining the `(xmax = 0) as newly_joined` Postgres idiom — and, following
+this file's own already-known convention (three prior occurrences, WS-R37
+and WS-R75's own entries), the FIRST draft wrote it with the identifier
+wrapped in backticks (`` `xmax` ``) inside the SQL comment, exactly as a
+normal prose comment would.
+
+**What broke, and how it was caught.** `node --check` on `api/_room-surface.js`
+failed immediately, before any eval ran, with `SyntaxError: missing ) after
+argument list` pointing at the INSERT statement's own opening backtick —
+the SAME defect this file already names four times over: a literal
+backtick anywhere inside a JS template literal, even inside its own SQL
+comment, closes the string early and corrupts every byte after it.
+
+**The fix.** Removed the backticks, wrote `xmax` as plain text, and added
+the file's own standing "NOTE: no backticks in this SQL comment on
+purpose" line the other four entries already use — `node --check` clean.
+
+**Why this is worth a fifth entry rather than assuming the lesson had
+landed.** Reading this exact rejected.md entry (four times over, in this
+same file, before writing a line of code) was not enough to prevent
+writing the mistake a fifth time — the trap is in the KEYBOARD habit of
+backtick-quoting an identifier in prose, not in unfamiliarity with the
+rule. What actually caught it was running `node --check` before moving on,
+not having read the warning. The practical lesson for whoever reads this
+next: treat `node --check` as mandatory after ANY edit inside a SQL
+template literal's own comments, regardless of how well the backtick rule
+is already known.
+
+## `ws-r86-creator-export-comment-naming-vy-room-arrival-tripped-its-bespoke-scanner`
+
+**What was tried.** `api/_creator-export.js`'s new `OWNER_LANE_DELIBERATE_GAPS`
+comment, explaining why `vy_room_referral` needs no export entry, cited its
+own sibling table's identical shape BY NAME — `` `vy_room_arrival`'s own
+precedent `` — inside a plain JSDoc comment, reasoning (correctly) that the
+generalized TABLE_ROLES static scanner's `SAFE_LINE` regex excuses
+comment lines starting with `*`.
+
+**What broke.** A DIFFERENT, bespoke scanner in `evals/room-leak/run.mjs`
+(the one specific to `vy_room_arrival`, predating the generalized
+TABLE_ROLES mechanism and never migrated onto it) has NO comment
+exception at all — it flags any file outside its own two-item allowed set
+that so much as contains the substring `vy_room_arrival`, full stop. The
+generalized scanner's forgiveness does not apply, because it is a
+different check entirely.
+
+**The fix.** Paraphrased the comment to describe the sibling table's shape
+without spelling its identifier — `context/rejected.md#ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-static-scanner`
+already named this exact trap for a DIFFERENT file and a DIFFERENT
+migration; this entry exists because reading that one, once, in a
+different session, was not enough to avoid repeating it here either — the
+same practical lesson the entry above draws for a different trap.
+
+## `ws-r86-friends-brought-floor-test-passed-vacuously-on-an-unmocked-sql-branch`
+
+**What was tried.** The first draft of `evals/room-referrals/run.mjs`'s §6
+called `friendsBroughtThisWeek` through the SHARED `evals/room/fixtures.mjs`
+fake db directly, asserting "below the floor, n is null" after seeding one
+real referral row.
+
+**What broke, and how it was caught.** The assertion PASSED — but for the
+wrong reason. The shared fixture's own `db()` has no branch matching
+`friendsBroughtThisWeek`'s own `created_at >=` query shape (it was built
+for `joinRoom`/`roomExport`, which never issue that statement), so the
+call fell through to the fixture's own default `return [];`, and the
+function computed `n = 0` from an EMPTY result rather than the real `n = 1`
+the seeded row should have produced. `0 < 5` is exactly as true as `1 < 5`
+— the test could not tell a real seeded row from no rows reaching the
+database at all, and would have kept passing even if the write itself
+were silently broken.
+
+**The fix.** A small wrapper db, local to this suite, that adds the ONE
+query shape the shared fixture never needed before this workstream (room-
+scoped `created_at >=`), leaving the shared file itself untouched for
+this specific read. Re-run with the wrapper: the same assertion now
+reflects a real `n = 1`, correctly below the floor, for the reason the
+test's own name claims.
+
+**The lesson.** "The assertion passed" is not evidence the code path under
+test ever ran — this repo's own `sound-gate-proved-by-silence` and
+`plausible-return-hides-a-dead-pipeline` laws, restated for a fake `db`'s
+own silent `[]` fallback instead of a real API's silent success. A new
+suite reusing a shared fixture must confirm the fixture actually MODELS
+the new statement it is being asked to answer, not merely that calling
+through it does not throw.
+
+## `ws-r86-referral-url-display-reused-room-num-a-numeric-class-not-a-wrap-one`
+
+**What was tried.** `AccountPage.tsx`'s new "Bring a friend" card displayed
+the full referral URL in a `<p className="room-fine room-num">` — copying
+the exact class pair the subscription-price line two screens down already
+uses for a short figure spliced into a sentence.
+
+**What broke, and how it was caught.** `node scripts/check-layout.mjs
+--only room` (run standalone, per this workstream's own brief: a scenario
+reaching content no fixture reached before) found a real, reproducible
+finding: a 156px sideways scroll on the account screen at a 390px phone
+width, and the URL paragraph itself clipped 193px of its own text.
+`room-num` (`room.css`) only sets `font-variant-numeric: tabular-nums` — it
+has nothing to do with wrapping, and `.room-fine`'s own `max-width` bounds
+the BOX, not where a browser is allowed to break a line with no spaces in
+it at all. A URL has no spaces, so the browser had no legal break point
+and the box overflowed instead.
+
+**The fix.** A new, correctly-scoped class, `.room-referral-url`, carrying
+`overflow-wrap: anywhere` — `.room-bubble`'s own precedent (a follower's
+message, which can also be one long unbroken string) restated for a URL.
+Rebuilt and reconfirmed standalone: 221 prose blocks, zero findings, 225
+Hindi strings glyph-checked including this workstream's own two new
+strings.
+
+**The lesson.** A class name that LOOKS like the right shape for "a
+figure worth reading carefully" (`room-num`) is not evidence it solves a
+DIFFERENT problem ("a long string with no natural break points") — the
+two needs happen to share a screen but not a fix. `context/rejected.md`'s
+own standing law restated: a scenario reaching a screen state no fixture
+had exercised before must be run through the real layout gate before
+being trusted, never assumed correct because the component compiled and
+`tsc` was clean.

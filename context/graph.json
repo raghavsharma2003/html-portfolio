@@ -8500,6 +8500,72 @@
       "kind": "measurement",
       "title": "The published Share tab under the layout gate: 12 findings, then 22 (777 px document), then 5 (150 cpl), then 0 across 48 screen loads as each cause was removed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-follower-referrals",
+      "kind": "component",
+      "title": "Follower referrals (migration 123): a follower's own 'Bring a friend' link, a room-aggregate vy_room_referral table with no person column, self-referral refused in the write's own WHERE, credited once via the xmax new-row idiom, the creator seeing only counts under the n>=5 floor.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-referral-link-fulfills-ws-r40-reversal-condition",
+      "kind": "decision",
+      "title": "The referral link is a NEW surface (its own op, its own hash) never a ref parameter silently added to the existing ?via=share url - ws-r40-share-url-carries-no-sender-identity's own reversal condition, fulfilled rather than reversed silently.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-referral-hash-reuses-rate-salt-without-daily-rotation",
+      "kind": "decision",
+      "title": "referralHashFor reuses RATE_SALT's own salt shape (a different fallback constant) but WITHOUT hashKey's daily rotation - a referral link must keep comparing equal to itself for as long as it is shared.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-referral-credited-on-xmax-new-row-not-a-session-flag",
+      "kind": "decision",
+      "title": "A referral is credited exactly once, gated on (xmax = 0) read off the SAME join upsert that creates or updates the follower row - never a second flag a repeat call could disagree with.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-self-referral-refused-in-the-insert-where-not-a-js-if",
+      "kind": "decision",
+      "title": "The referral INSERT is an INSERT-SELECT whose own WHERE clause (referrer_hash <> joiner_hash) is the entire self-referral guard, never a JS if wrapped around a plain INSERT.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-room-share-via-check-cross-check-reads-schema-not-a-migration-file",
+      "kind": "decision",
+      "title": "evals/room-share/run.mjs's ROOM_ARRIVAL_VIA cross-check now reads db/schema.sql's own LAST vy_room_arrival_via_check block instead of one hardcoded migration filename, which broke the first time this workstream widened the same constraint again.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-sql-comment-backticks-terminate-the-template-literal-a-fifth-time",
+      "kind": "rejection",
+      "title": "A backtick-quoted xmax inside joinRoom's own new SQL comment closed the template literal early; node --check caught it immediately, the fifth occurrence of this exact trap in this repo.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-creator-export-comment-naming-vy-room-arrival-tripped-its-bespoke-scanner",
+      "kind": "rejection",
+      "title": "A JSDoc comment in api/_creator-export.js naming a sibling room-aggregate table by name tripped that table's own bespoke, comment-blind scanner in evals/room-leak/run.mjs, WS-R70's own already-documented trap repeated a second time.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-friends-brought-floor-test-passed-vacuously-on-an-unmocked-sql-branch",
+      "kind": "rejection",
+      "title": "A first-draft assertion for friendsBroughtThisWeek's n>=5 floor passed for the wrong reason - the shared fixture had no branch for its created_at query shape, so n was always 0, not the seeded 1 - caught by inspecting the fixture rather than trusting a green result.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-referral-url-display-reused-room-num-a-numeric-class-not-a-wrap-one",
+      "kind": "rejection",
+      "title": "The Bring a friend card's URL used room-num (tabular numerals) instead of a wrap rule; the real layout gate found a 156px sideways scroll and clipped text on a 390px phone; fixed with a new overflow-wrap: anywhere class, reconfirmed clean.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r86-follower-referrals-gate-and-suite-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "Door battery 564 to 568, leak battery 217/12-layers to 229/13-layers, room-export 46 to 47, ops 135 to 136, room-share 54 to 56 (rewritten to read db/schema.sql's own last constraint block), room-referrals new at 41/41, full eval suite exit 0, tsc clean.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16737,6 +16803,56 @@
       "src": "wave-thirteen-merge-gate-first-published-share-tab-2026-09-05",
       "rel": "measured_by",
       "dst": "published-room-share-tab-never-rendered-under-the-layout-gate-until-wave-thirteen"
+    },
+    {
+      "src": "ws-r86-referral-link-fulfills-ws-r40-reversal-condition",
+      "rel": "supersedes",
+      "dst": "ws-r40-share-url-carries-no-sender-identity"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "constrains",
+      "dst": "ws-r86-referral-hash-reuses-rate-salt-without-daily-rotation"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "constrains",
+      "dst": "ws-r86-referral-credited-on-xmax-new-row-not-a-session-flag"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "constrains",
+      "dst": "ws-r86-self-referral-refused-in-the-insert-where-not-a-js-if"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "caused_by",
+      "dst": "ws-r86-room-share-via-check-cross-check-reads-schema-not-a-migration-file"
+    },
+    {
+      "src": "ws-r86-follower-referrals-gate-and-suite-counts-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "caused_by",
+      "dst": "ws-r86-sql-comment-backticks-terminate-the-template-literal-a-fifth-time"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "caused_by",
+      "dst": "ws-r86-creator-export-comment-naming-vy-room-arrival-tripped-its-bespoke-scanner"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "caused_by",
+      "dst": "ws-r86-friends-brought-floor-test-passed-vacuously-on-an-unmocked-sql-branch"
+    },
+    {
+      "src": "ws-r86-follower-referrals",
+      "rel": "caused_by",
+      "dst": "ws-r86-referral-url-display-reused-room-num-a-numeric-class-not-a-wrap-one"
     }
   ]
 }

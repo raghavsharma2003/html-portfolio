@@ -15714,3 +15714,124 @@ budget with a measurement, never silently. If the placeholder ever throws in
 production (an incident row naming `studio_copy_hi_not_loaded`), the provider
 gate has a hole and the fix is in `localeContext.tsx`, not a softer
 placeholder.
+
+## `ws-r86-referral-link-fulfills-ws-r40-reversal-condition` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** "Bring a friend" is a genuinely NEW, explicit surface — its
+own op (`referral_link`), its own hash, its own account-page card — never
+a `ref` parameter silently bolted onto the existing `?via=share` url
+`RoomApp.tsx`'s `shareUrl` already builds client-side with no server round
+trip at all. The two stay structurally separate: `shareUrl` still carries
+no identity of any kind and still needs no server call; `roomReferralLink`
+is a second, additional link a follower can choose to generate instead.
+
+**Rationale.** `ws-r40-share-url-carries-no-sender-identity`'s own reversal
+condition names this exact day: "the day this product needs to credit a
+specific follower for a referral... that is a new, explicit consent
+surface with its own opt-in and its own disclosure — not a silent
+parameter added to the existing share url." This workstream is that day.
+Its own guarantee — today's `?via=share` link carries no identity — stays
+true unchanged: nothing about `shareUrl`'s own code moved.
+
+**Reversal.** If a future workstream ever finds `ref` silently accepted on
+the plain `?via=share` path (not the follower's own separately-generated
+referral link), that is exactly the shape this decision refused — the fix
+is removing that acceptance, not documenting it as a feature.
+
+## `ws-r86-referral-hash-reuses-rate-salt-without-daily-rotation` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** `referralHashFor(roomId, personId, env)` is
+`sha256(room, person, salt)`, reading the SAME `RATE_SALT` env var
+`api/_rate-limit.js`'s `hashKey` already reads (with its own, DIFFERENT
+fallback constant so one module's fallback can never derive the other's
+hashes) — but WITHOUT that function's daily rotation. `hashKey` folds the
+UTC day into its hash on purpose (WS-R26: a leaked salt only deanonymizes
+one day's rows); `referralHashFor` deliberately does not.
+
+**Rationale.** A referral link is minted once and has to keep comparing
+EQUAL TO ITSELF for as long as a follower keeps sharing it — days, weeks,
+however long. A daily-rotating hash would make yesterday's link stop
+matching today's self-referral check and stop crediting today's join to
+the SAME referrer whose link it actually is, which is a correctness bug,
+not a privacy feature: the table already carries no person column, so
+there is no per-day blast radius a rotation could shrink the way it does
+for `vy_public_rate`.
+
+**Reversal.** If a future audit finds value in rotating this hash anyway
+(a compliance requirement that a referral link expire, say), that is a
+NEW product decision with its own migration (adding an expiry or a
+mint-timestamp column) — never a silent switch to `hashKey`'s own daily
+salt, which would break every outstanding link's own self-referral check
+the day it shipped.
+
+## `ws-r86-referral-credited-on-xmax-new-row-not-a-session-flag` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** `joinRoom`'s referral write is gated on
+`(xmax = 0) as newly_joined`, read straight off the SAME `insert ... on
+conflict ... do update` statement that already creates or updates the
+follower row — never a separate JS flag, a second SELECT, or a client-
+supplied "is this my first join" claim.
+
+**Rationale.** A referral must be credited exactly once, on the moment a
+NEW relationship starts, and never again on a repeat join (the memory-
+consent toggle, a re-attestation) that happens to still carry the same
+`ref` value sitting in a follower's browser history. `xmax = 0` is
+Postgres's own, race-safe answer to "did THIS statement just insert or
+update this row" — the same statement that decides membership decides
+credit, with no window for a second call to see a stale answer, `consume()`'s
+own "the predicate is the write" law (WS-R26) restated for a boolean
+instead of a count.
+
+**Reversal.** If a future Postgres version or a connection pooler is found
+to misreport `xmax` under some real workload (unlikely — this is a
+decades-old, documented idiom), the fallback is comparing
+`follower.joined_at` to the call's own `at` timestamp with a tolerance,
+logged as a measured, deliberate compromise, never silently.
+
+## `ws-r86-self-referral-refused-in-the-insert-where-not-a-js-if` (2026-09-05, WS-R86, migration 123)
+
+**Decision.** The referral INSERT is `insert into vy_room_referral (...)
+select ... where referrer_hash <> joiner_hash` — an INSERT-SELECT whose
+own WHERE clause is the entire self-referral guard, never a JS `if
+(referrerHash === joinerHash) return` wrapped around a plain INSERT.
+
+**Rationale.** `api/_disclosure.js`'s standing rule (a predicate belongs in
+the WHERE clause, never applied after) and `consume()`'s own "the write IS
+the check" law, both restated a third time: a JS guard can be refactored
+away by someone who does not know it is load-bearing; a guard that is
+STRUCTURALLY the only path to the INSERT's own SELECT cannot silently stop
+running. `evals/room-leak/run.mjs`'s own layer 13 negative control proves
+this directly — a version of the same statement with the WHERE clause
+removed DOES write a self-referral row, showing the real one is load-
+bearing rather than a shape that could never have been reached anyway.
+
+**Reversal.** None anticipated; if a future need arises to credit a
+self-referral deliberately (an incentive program, say), that is a new,
+named product decision with its own migration and its own copy, never a
+quiet removal of this WHERE clause.
+
+## `ws-r86-room-share-via-check-cross-check-reads-schema-not-a-migration-file` (2026-09-05, WS-R86)
+
+**Decision.** `evals/room-share/run.mjs`'s own cross-check (JS
+`ROOM_ARRIVAL_VIA` against the live SQL CHECK constraint) now reads
+`db/schema.sql`'s own LAST `vy_room_arrival_via_check` block, parsed by
+regex, rather than one specific migration file's own filename hardcoded
+into the suite.
+
+**Rationale.** WS-R78's own version of this test hardcoded
+`db/migrations/121_room_arrival_via_poster.sql` and asserted "exactly the
+six named values" — both true at WS-R78's own merge and both false the
+moment this workstream's migration 123 widened the SAME named constraint
+a value further. The suite failed on first run for exactly that reason,
+proven live rather than assumed. `db/schema.sql` is the one file every
+migration that touches this constraint already mirrors into (102, 113,
+121, 123 in order, each superseding the one before it per its own
+comment), so reading its LAST matching block is the one place this check
+can read from that stays correct across every future workstream widening
+the same constraint again, without needing its own edit each time.
+
+**Reversal.** If `db/schema.sql` is ever restructured so multiple
+migrations' constraint blocks are no longer emitted in chronological
+order (an unusual reorganization), this regex's "last match wins"
+assumption breaks and the fix is reading the migration NUMBER out of each
+block's own preceding comment instead of positional order.
