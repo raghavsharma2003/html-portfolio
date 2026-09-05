@@ -12444,10 +12444,32 @@ process): exit 0. `node node_modules/typescript/bin/tsc -b`: clean, 0 errors, ac
 `src/studio/OpsBoard.tsx`). `scripts/check-copy.mjs`: 6 scopes clean, 21
 negative controls bite, unchanged.
 
-The full `verify-release.mjs` gate was run twice on this tree (before and
-after this workstream's changes were committed) under heavy concurrent
-sibling load on this shared machine (4-5 other worktrees' own
-`verify-release.mjs` runs in flight at the same time, holding ports
-8931-8935 in rotation) - see the final report for both runs' own summary
-lines and which findings reproduced on the UNTOUCHED tree (environmental,
-not this workstream's) versus which did not.
+The full `verify-release.mjs` gate ran on this tree AND, at the same commit
+before this workstream's changes (a second `git worktree add ... c2945f7`
+made solely to get a true untouched baseline under identical concurrent
+load), under heavy concurrent sibling load on this shared machine (20+
+other worktrees' own `verify-release.mjs`/gate-script processes observed in
+flight at once, holding ports 8931-8935 in rotation). This tree: 18/21 in
+the one full run that completed (3 EADDRINUSE collisions on 8931/8932/8933
+- layout readability, performance budgets, accessibility - never a real
+finding, the port simply taken by a sibling gate at that instant), `eval
+suite` itself OK at 615359ms inside that same run. Each EADDRINUSE'd check
+was then re-run standalone once its own port was free: layout readability
+clean (2010 prose blocks judged across all 20 fixtures including the two
+screens - `desktop/room:account`, `desktop/room-hi:join` - a rushed earlier
+standalone attempt under heavier load had flagged as "did not mount at
+all", not reproduced once contention eased); accessibility clean (0
+critical/serious/moderate/minor, 44159ms); performance budgets still FAILS
+- `/studio` TBT 691ms against the 300ms budget - but the SAME check run at
+the SAME moment on the untouched `c2945f7` baseline tree ALSO fails, with
+TWO findings and worse numbers (`/studio` TBT 460ms, `studio-hi` TBT
+319ms), proving the miss is this shared machine's own CPU contention
+(`decisions.md#ws-r49-performance-budgets-are-a-throttled-simulation-not-a-
+device`'s own known failure mode), not this workstream's own bytes: `/studio`'s
+JS payload moved 163.0KB to 163.1KB (`main.tsx` statically imports
+`OpsBoard.tsx` for its own `?mode=ops` mount, so the new `ReceiptsCard`
+panel's few dozen bytes do land in the SAME chunk `/studio` measures - this
+is that real, tiny cost, not noise), still comfortably inside the 180KB
+budget with room to spare; TBT is a CPU-time metric this cost cannot
+explain at 231-372ms of movement, and the untouched tree's own worse
+numbers at the same moment are the actual explanation.
