@@ -9593,3 +9593,48 @@ comment describing an old SQL shape; here a check matches a comment
 describing an ABSENCE, and the fix is the same in both cases — describe
 the excluded thing in prose, never quote its literal identifier, in any
 file this class of scanner will ever read.
+
+## `ws-r70-shared-pixel-max-width-reused-for-a-longer-sentence-than-it-was-ever-measured-against` (2026-09-05, WS-R70)
+
+**What was tried.** The new "Download everything" control's body paragraph
+reused `.danger-zone p:last-child`'s existing CSS rule verbatim
+(`max-width: 640px`) by adding `.export-zone` to the same selector, on the
+reasoning that copying an already-shipped, already-passing rule for the
+identical visual role (a one-paragraph explanation under a section heading)
+could not introduce a new readability defect.
+
+**What specifically broke.** `node scripts/check-layout.mjs` (after a
+`vite build`, without which the gate serves a stale `dist/` and silently
+measures the WRONG bytes) failed with `LONG (4)`: the new paragraph wrapped
+at 116 characters per line in both English and Hindi, on desktop, at the
+`/studio` target. `640px` at this text's own font size was never actually
+a length cap in practice for `.danger-zone`'s own sentence - that sentence
+is short enough (about 100 characters) to plausibly render on one or two
+lines under 640px without ever approaching a readability problem, so the
+rule had never been tested against a LONGER sentence at the same width.
+This export's own body copy is roughly three times longer, and the SAME
+pixel cap that was harmless for one sentence produced an actual
+too-wide line for the other.
+
+**What replaced it.** `.export-zone p:last-child` was given its OWN rule
+using `var(--measure)` (68ch, `tokens.css`) instead of sharing `.danger-
+zone`'s selector — the same character-based cap `activity.css`/`drift-
+watch.css`/`readiness.css`/`studio-shell.css`/`studio.css`'s OWN other
+long-form paragraphs already use, and the reason a `ch`-based cap exists
+at all rather than a pixel one (it scales with the text's own font size
+instead of the container's, which is exactly the property a fixed-pixel
+cap does not have). `.danger-zone`'s own pre-existing rule was left
+untouched — this workstream's job was never to audit an unrelated
+control's copy, only to not introduce a new failure next to it.
+
+**The rule.** A pixel-based `max-width` copied from a sibling element for
+"the same visual role" is only proven safe for the TEXT LENGTH it was
+tested against, not for the role in the abstract - a longer sentence at
+the identical container width can cross a readability threshold the
+shorter one never got near, and the fix is to measure prose in the units
+its own gate measures it in (characters via `ch`), not to inherit a pixel
+number that happened to work for a shorter neighbour. Found only by
+running `scripts/check-layout.mjs` after rebuilding `dist/` - the gate
+serves a vite build, not the source tree, and a CSS edit with no rebuild
+is invisible to it, silently re-confirming the STALE bytes as if nothing
+had changed.

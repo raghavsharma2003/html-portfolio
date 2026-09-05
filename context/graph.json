@@ -7632,6 +7632,12 @@
       "at": "2026-09-05"
     },
     {
+      "id": "ws-r70-shared-pixel-max-width-reused-for-a-longer-sentence-than-it-was-ever-measured-against",
+      "kind": "rejection",
+      "title": "The new export control's paragraph reused .danger-zone's own 640px max-width and wrapped at 116 characters per line (scripts/check-layout.mjs, after a vite build) - the shorter sentence never actually tested that width; fixed with its own rule using var(--measure), the ch-based cap the rest of the studio already uses for long-form prose.",
+      "at": "2026-09-05"
+    },
+    {
       "id": "ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline",
       "kind": "decision",
       "title": "The Room's per-day arrival-source counts table is excluded from OWNER_LANE_TABLES entirely (not even in OWNER_LANE_DELIBERATE_GAPS) because creatorExport's generic select * shape collides with evals/room-leak/run.mjs's aggregate-only discipline for that one table; reversal: a table-specific aggregate query, never a widened generic path.",
@@ -15193,6 +15199,11 @@
       "src": "ws-r70-the-creators-export",
       "rel": "caused_by",
       "dst": "ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-static-scanner"
+    },
+    {
+      "src": "ws-r70-the-creators-export",
+      "rel": "caused_by",
+      "dst": "ws-r70-shared-pixel-max-width-reused-for-a-longer-sentence-than-it-was-ever-measured-against"
     },
     {
       "src": "ws-r70-room-arrival-excluded-generic-select-conflicts-with-a-sibling-gates-discipline",

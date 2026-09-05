@@ -1001,7 +1001,14 @@
 
   .danger-zone .eyebrow { color: var(--danger); }
   .danger-zone h2, .export-zone h2 { font-size: 24px; }
-  .danger-zone p:last-child, .export-zone p:last-child { max-width: 640px; margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+  .danger-zone p:last-child { max-width: 640px; margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+  /* WS-R70. `var(--measure)` (68ch, tokens.css), not the danger zone's own
+     640px: this control's own body sentence is longer than "Revoke"'s, and a
+     PIXEL cap the shorter sentence never actually wrapped against would let
+     this one run past the readability line-length scripts/check-layout.mjs
+     enforces everywhere else in the studio (found by running that gate, not
+     by inspection - 116 characters per line before this fix). */
+  .export-zone p:last-child { max-width: var(--measure); margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
 
   .stopped-panel {
     display: flex;
