@@ -248,6 +248,15 @@ function makeDb(state) {
       return r ? [{ ...r }] : [];
     }
 
+    // WS-R66: `getOwnedRoom` now also feeds the Share tab's showcase off the
+    // SAME read (`readRoomShowcase`, `api/_room-publish.js`) — this suite
+    // never seeds a showcase, so every Room here answers with none, the
+    // overwhelming-majority real case (`_creator-page.js`'s own comment,
+    // one surface over).
+    if (sql.includes("from vy_room_showcase") && sql.includes("order by position asc")) {
+      return [];
+    }
+
     throw new Error(`unmodelled statement: ${sql.slice(0, 80)}`);
   };
   db.calls = calls;

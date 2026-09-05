@@ -10317,3 +10317,58 @@ n = 1 migration (2 statements in one transaction), 1 API statement; method = the
 | `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
 
 Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.
+
+## `ws-r66-creator-page-performance-2026-09-05`
+
+n = 1 target (`/c/<slug>`, `creator-page-fixture.html` data: one Room, one
+bio, five showcase Q&A pairs), 3 cold-cache runs, median reported; method =
+`scripts/check-performance.mjs`'s existing harness (real Chromium over CDP,
+390x844, throttle CPU 4x / 1.6Mbps down / 750Kbps up / 150ms RTT, the
+DevTools "Fast 3G" preset), unchanged, with `/c/<slug>` added as a fifth
+target; date 2026-09-05, this workstream's own machine.
+
+| metric | value | budget |
+|---|---|---|
+| LCP | 448ms | 2500ms |
+| CLS | 0.000 | 0.1 |
+| TBT | 154ms | 300ms |
+| JS transferred | 0.0KB | 180KB |
+| CSS transferred | 0.0KB | none named |
+| font | 0.0KB | 120KB |
+| render-blocking requests | 0 | 0 |
+
+Zero JS by construction: the page ships no `<script>` beyond the inline
+`application/ld+json` block, which is not fetched or executed. Not
+measured: every number is this one machine's Chromium under a simulated
+throttle, never a real device on a real Indian mobile network — the same
+stated reversal condition every other row in this gate's table carries.
+
+## `ws-r66-security-headers-and-copy-gate-2026-09-05`
+
+n = 1 route (`/c/:slug`, `creator-page-fixture.html` data), method =
+`scripts/check-headers.mjs`'s existing harness (real Chromium on
+127.0.0.1:8934, `securitypolicyviolation` listener plus a console-message
+scan, `vercel.json`'s own headers array applied by request path), unchanged,
+with `/c/:slug` added as a seventh page target; date 2026-09-05.
+
+Result: 0 CSP violations, 0 findings across all 7 page targets plus the
+supply-chain half (`npm ci --dry-run`, `npm audit --omit=dev
+--audit-level=high`, the install-script allowlist scan), confirming
+empirically — not merely by reading the CSP spec — that this platform's
+inline `<script type="application/ld+json">` block (real, dynamic
+creator-authored content in this fixture, not a static placeholder) needs
+no `'unsafe-inline'` and no hash in `script-src`: a compliant browser never
+treats a non-JavaScript-MIME-type `<script>` element as subject to
+script-src at all, so `/c/:slug`'s CSP stays as tight as `/r/:slug`'s
+(`default-src 'self'; script-src 'self'`, no hash, no `unsafe-inline`).
+
+`node scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls,
+unchanged — `api/_creator-page.js`'s own inline `PAGE_COPY` (both locales)
+is platform-authored chrome outside this scanner's scope (`api/` is not a
+scanned directory, `api/_room-page.js`'s `PLATFORM_TITLE`/`_room-surface.js`'s
+`roomDisclosureCard` are the existing precedent for bilingual platform
+prose living there unscanned); the CREATOR-AUTHORED text a stranger reads
+(the bio, each showcase question and answer) is gated at WRITE TIME instead,
+via the real `scanSource` scanner, proven in `evals/creator-page/run.mjs`'s
+own copy-gate section (an em dash and the word "clone" each refused, named
+`room_showcase_copy_violation`).

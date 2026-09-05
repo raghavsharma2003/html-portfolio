@@ -140,6 +140,12 @@ const TARGETS = [
   { name: "/vyakti", path: "/vyakti", label: "Vyakti landing (site/vyakti.html)" },
   { name: "/r/<slug>", path: "/r/anjali?screen=join", label: "Room join screen (room-layout-fixture.html data)" },
   { name: "/studio", path: "/studio", label: "Studio, signed out" },
+  // WS-R66: the creator's public page — a stranger's search result, cold
+  // cache, on the same phone the four targets above already model. Static
+  // server-rendered HTML with zero client script, so this target exists
+  // mainly to prove that stays true rather than to catch a JS regression a
+  // page with no bundle cannot have.
+  { name: "/c/<slug>", path: "/c/anjali", label: "Creator public page (creator-page-fixture.html data)" },
 ];
 
 const MIME = {
@@ -165,6 +171,7 @@ async function resolveFile(pathname) {
   if (pathname === "/vyakti") return join(SITE, "vyakti.html");
   if (pathname === "/studio") return join(DIST, "studio.html");
   if (pathname.startsWith("/r/")) return join(DIST, "room-layout-fixture.html");
+  if (pathname.startsWith("/c/")) return join(DIST, "creator-page-fixture.html");
   const rel = normalize(pathname.slice(1)).replace(/^(\.\.(\/|\\|$))+/, "");
   const distPath = join(DIST, rel);
   if (existsSync(distPath)) return distPath;
@@ -412,7 +419,7 @@ async function main() {
     console.log("  skip  performance budgets: dist/ absent, run `npx vite build` first");
     return 0;
   }
-  const requiredFixtures = ["room-layout-fixture.html", "studio.html"];
+  const requiredFixtures = ["room-layout-fixture.html", "studio.html", "creator-page-fixture.html"];
   const absent = requiredFixtures.filter((f) => !existsSync(join(DIST, f)));
   if (absent.length) {
     console.log(`FAIL  performance budgets: dist/${absent.join(", dist/")} missing — vite inputs, restore rather than skip.`);
