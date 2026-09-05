@@ -1990,6 +1990,27 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
   // browser.
   "room-install": "room-install/run.mjs",
+  // WS-R70. The creator's export (api/_creator-export.js, over api/replica.js's
+  // `export` op) — the DSAR pair api/_replica-full-erasure.js's own erasure
+  // is the other half of. STATIC: OWNER_LANE_TABLES is compared against
+  // api/_replica-full-erasure.js's own source text (every table it reaches
+  // by name, minus PERSON_TABLES and four named, deliberate gaps) so a
+  // table added to either file and not the other fails the gate. DYNAMIC:
+  // two owners, one of them a published Room with a real follower in it,
+  // through the real `creatorExport` — Owner A's export carries Owner A's
+  // own rows in every one of the seven scopes this file's manifest uses,
+  // zero of Owner B's, and zero follower-lane rows at all, even though a
+  // follower's own thread, membership, subscription, conversation and
+  // handoff ask all live in the SAME room/replica the export is scoped to.
+  // FOUR NEGATIVE CONTROLS: (a) a follower-lane table added to a COPY of
+  // the manifest's table list is caught by the boundary scan; (b) a table
+  // dropped from a COPY of the manifest is caught by the completeness
+  // comparison; an owner with no replica yet gets an honest empty export,
+  // never a crash; the HTTP door's own wiring (the op, the rate scope, the
+  // authenticated-user-only id) is asserted against the real source.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call.
+  "creator-export": "creator-export/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

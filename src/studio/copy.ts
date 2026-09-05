@@ -401,6 +401,19 @@ interface SuiteCopy {
   autoStartLivePending: string; // "\"{name}\" is live. Start its subscription below when you are ready to charge seats."
 }
 
+// ── creatorExport: the "Download everything" control (WS-R70), next to the
+//    account surface's existing revoke/erasure control. ─────────────────
+interface CreatorExportCopy {
+  eyebrow: string;
+  title: string;
+  body: string;
+  button: string;
+  downloading: string;
+  rateLimited: string;
+  error: string;
+  done: string;
+}
+
 interface StudioCopy {
   classLabels: ClassLabels;
   shell: ShellCopy;
@@ -410,6 +423,7 @@ interface StudioCopy {
   reviewQueue: ReviewQueueCopy;
   payouts: PayoutsCopy;
   checkins: CheckinsCopy;
+  creatorExport: CreatorExportCopy;
   handoff: HandoffCopy;
   inviteCreator: InviteCreatorCopy;
   inviteGate: InviteGateCopy;
@@ -714,6 +728,17 @@ const EN: StudioCopy = {
     autoStartLiveStarted: "\"{name}\" is live, and its seat subscription has started.",
     autoStartLivePending: "\"{name}\" is live. Start its subscription below when you are ready to charge seats.",
   },
+
+  creatorExport: {
+    eyebrow: "Owner control",
+    title: "Download everything",
+    body: "Everything this platform holds about you and your AI: your archive, your voice, your Room's own settings, your payouts, your review decisions. Never anything a follower said to your AI in private, and never a follower's own data even as a count below five - that stays theirs.",
+    button: "Download everything",
+    downloading: "Preparing your download...",
+    rateLimited: "You can request this once a day. Try again tomorrow.",
+    error: "Could not prepare your download. Please try again.",
+    done: "Your download has started.",
+  },
 };
 
 const HI: StudioCopy = {
@@ -1013,6 +1038,17 @@ const HI: StudioCopy = {
     noticeWillNotRenewSimple: "मौजूदा अवधि खत्म होने के बाद नवीनीकृत नहीं होगी।",
     autoStartLiveStarted: "\"{name}\" लाइव है, और इसकी सीट सदस्यता शुरू हो गई है।",
     autoStartLivePending: "\"{name}\" लाइव है। जब सीटों के लिए भुगतान लेने के लिए तैयार हों, तब नीचे इसकी सदस्यता शुरू करें।",
+  },
+
+  creatorExport: {
+    eyebrow: "मालिक नियंत्रण",
+    title: "सब कुछ डाउनलोड करें",
+    body: "यह प्लेटफ़ॉर्म आपके और आपके AI के बारे में जो कुछ भी रखता है, वह सब: आपकी सामग्री, आपकी आवाज़, आपके रूम की अपनी सेटिंग्स, आपकी पेमेंट, आपके रिव्यू फ़ैसले। किसी फॉलोअर ने आपके AI से निजी तौर पर जो कहा, वह कभी नहीं, और किसी फॉलोअर का डेटा पांच से कम की गिनती में भी कभी नहीं, वह हमेशा उन्हीं का रहता है।",
+    button: "सब कुछ डाउनलोड करें",
+    downloading: "आपका डाउनलोड तैयार हो रहा है...",
+    rateLimited: "आप यह दिन में एक बार मांग सकते हैं। कल फिर कोशिश करें।",
+    error: "आपका डाउनलोड तैयार नहीं हो सका। कृपया फिर कोशिश करें।",
+    done: "आपका डाउनलोड शुरू हो गया है।",
   },
 };
 

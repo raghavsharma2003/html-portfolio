@@ -990,7 +990,7 @@
     letter-spacing: 0.16em;
   }
 
-  .danger-zone {
+  .danger-zone, .export-zone {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1000,8 +1000,8 @@
   }
 
   .danger-zone .eyebrow { color: var(--danger); }
-  .danger-zone h2 { font-size: 24px; }
-  .danger-zone p:last-child { max-width: 640px; margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
+  .danger-zone h2, .export-zone h2 { font-size: 24px; }
+  .danger-zone p:last-child, .export-zone p:last-child { max-width: 640px; margin: 8px 0 0; color: var(--ink-faint); font-size: 11px; line-height: 1.5; }
 
   .stopped-panel {
     display: flex;
@@ -2310,7 +2310,7 @@
     .stage-lock { min-width: 0; }
     .stage-next { left: 54px; }
     .stage-line { left: 34px; }
-    .danger-zone { align-items: stretch; flex-direction: column; }
+    .danger-zone, .export-zone { align-items: stretch; flex-direction: column; }
     .danger-button { width: 100%; }
     .empty-card { min-height: 0; padding: 30px 22px; }
     .portrait-placeholder { max-width: 205px; }

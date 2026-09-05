@@ -8,6 +8,7 @@ import {
 } from "./studioAuth";
 import {
   createReplica,
+  exportReplicaData,
   listReplicas,
   readErasureStatus,
   readReplica,
@@ -19,8 +20,11 @@ import {
 // `StudioCopy` interface -- src/studio/copy.ts's own `StudioCopy` never
 // enters this file, only the locale type and the provider do) plus the
 // provider StudioApp mounts once, at the top of the signed-in tree.
-import { normalizeStudioLocale, type StudioLocale as StudioChromeLocale } from "./copy";
-import { StudioLocaleProvider } from "./localeContext";
+// WS-R70 adds `STUDIO_COPY_TABLE` for the SAME reason, read directly by
+// `studioLocale` rather than through `useStudioLocale()` -- `handleExport`
+// below is a plain callback, not a component, so it cannot call a hook.
+import { normalizeStudioLocale, STUDIO_COPY_TABLE, type StudioLocale as StudioChromeLocale } from "./copy";
+import { StudioLocaleProvider, useStudioLocale } from "./localeContext";
 import { restoreSession, writeStoredSession } from "./session";
 import { friendlyError } from "./errorCopy";
 import { markFunnelStep } from "./funnelApi";
@@ -699,6 +703,8 @@ export function ReplicaWorkspace({
   onVerifiedConsentChanged,
   onRevoke,
   revoking,
+  onExport,
+  exporting,
   accessToken,
   onReviewAuthError,
   compact,
@@ -773,6 +779,8 @@ export function ReplicaWorkspace({
   onVerifiedConsentChanged: () => Promise<void>;
   onRevoke: () => Promise<void>;
   revoking: boolean;
+  onExport: () => Promise<void>;
+  exporting: boolean;
   accessToken: string;
   onReviewAuthError: (cause: unknown) => void;
   /** Phone-sized viewport. Structural, not cosmetic. See `useCompact.ts`. */
@@ -792,6 +800,14 @@ export function ReplicaWorkspace({
   onInterviewPreview?: (preview: InterviewPreview | null | undefined) => void;
   onRoomState?: (room: OwnedRoom | null, stats: RoomStats | null, blocker: { label: string; anchor: string; cls: "you" | "us" } | null) => void;
 }) {
+  // WS-R70. This is the ONE Tier 2 (allowlisted, deferred) read of `t` in
+  // this file's "Owner control" section -- the surrounding English strings
+  // in this section stay as they are (this workstream's scope cut, see
+  // context/rejected.md), but the new "Download everything" control this
+  // workstream adds is written properly bilingual from the start rather
+  // than joining the deferred pile. Never throws outside a provider
+  // (`useStudioLocale`'s own header): falls back to English.
+  const { t } = useStudioLocale();
   const [confirming, setConfirming] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const stopped = replica.lifecycle === "revoked" || replica.lifecycle === "purging";
@@ -1372,6 +1388,21 @@ export function ReplicaWorkspace({
                 title="Owner control, including erasure"
                 blurb="Revoking stops future use immediately and queues every stored artifact, derived AI and provider copy for verified deletion."
               >
+                <section className="export-zone" aria-labelledby="export-title">
+                  <div>
+                    <p className="eyebrow">{t.creatorExport.eyebrow}</p>
+                    <h2 id="export-title">{t.creatorExport.title}</h2>
+                    <p>{t.creatorExport.body}</p>
+                  </div>
+                  <button
+                    className="button secondary-button"
+                    type="button"
+                    disabled={exporting}
+                    onClick={() => void onExport()}
+                  >
+                    {exporting ? <><Spinner label={t.creatorExport.downloading} />{t.creatorExport.downloading}</> : t.creatorExport.button}
+                  </button>
+                </section>
                 <section className="danger-zone" aria-labelledby="control-title">
                   <div>
                     <p className="eyebrow">Owner control</p>
@@ -1443,6 +1474,7 @@ export default function StudioApp() {
   const [loadState, setLoadState] = useState<LoadState>("booting");
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   // WS-R31. Runtime-only, never persisted: the "All panels" link inside
   // `StudioShell` sets this true; the old rail view's own link back sets it
@@ -1946,6 +1978,48 @@ export default function StudioApp() {
     }
   }
 
+  // WS-R70. `t` read directly off `STUDIO_COPY_TABLE` (never `useStudioLocale()`
+  // -- this is a plain callback, not a component, so it cannot call a hook)
+  // by the SAME `studioLocale` every other locale-aware read in this
+  // component already uses. A client-side Blob download: the export
+  // response is one JSON document already in memory, and there is no
+  // server-side file to point a URL at (never the bytes, this workstream's
+  // own boundary law over `vy_replica_source` restated one layer up -- the
+  // creator's OWN document, once downloaded, is briefly a Blob in their own
+  // browser, never a second copy this platform stores).
+  async function handleExport() {
+    if (!session || !selected) return;
+    const t = STUDIO_COPY_TABLE[studioLocale].creatorExport;
+    setExporting(true);
+    setError(null);
+    try {
+      const fresh = await refreshForRequest(session);
+      const dump = await exportReplicaData(fresh.accessToken);
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `vyakti-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setNotice(t.done);
+    } catch (cause) {
+      // A 429 here is ALWAYS the once-a-day scope (this op has no other rate
+      // gate) - the specific, honest wait ("try again tomorrow") rather than
+      // `friendlyError`'s generic 429 text ("wait about a minute"), which
+      // would be wrong for a 24-hour window.
+      if (cause instanceof ReplicaApiError && cause.status === 429) {
+        setError({ headline: t.error, detail: t.rateLimited, canRetry: false });
+      } else {
+        handleApiError(cause, t.error);
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function handleGrantConsent() {
     if (!session || !selected) throw new Error("Your session is no longer available");
     try {
@@ -2445,6 +2519,8 @@ export default function StudioApp() {
                   onVerifiedConsentChanged: handleVerifiedConsentChanged,
                   onRevoke: handleRevoke,
                   revoking,
+                  onExport: handleExport,
+                  exporting,
                   accessToken: session.accessToken,
                   onReviewAuthError: handleReviewAuthError,
                   compact,

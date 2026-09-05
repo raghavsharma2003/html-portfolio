@@ -1866,6 +1866,17 @@ const OP_COVERAGE = {
     erasure_status: { classes: ["e"] },
     funnel_mark: { classes: ["e"] },
     set_locale: { classes: ["e"] },
+    // WS-R70. No cross-identity input for classes b/c/e at all: ownerUserId
+    // comes only from requireUser(req) above (api/replica.js's own line),
+    // never a body-supplied id, so there is no "another owner's id" for a
+    // stolen bearer to substitute the way revoke/erasure_status/funnel_mark
+    // take a body-supplied replica_id to attack. The export always returns
+    // the CALLER's own owner-lane data by construction. The dynamic,
+    // positive half of that claim (two owners, one export, zero rows or
+    // bytes of the other owner's data anywhere in it) is proven in
+    // evals/creator-export/run.mjs's own layer 2, over the real
+    // creatorExport rather than a second copy of it here.
+    export: { excluded: "no cross-identity input for classes b/c/e — ownerUserId comes only from requireUser(req), never a body-supplied id; own-data-only proven dynamically in evals/creator-export/run.mjs" },
   },
   "account.js": {
     send_otp: { classes: ["h"] },
