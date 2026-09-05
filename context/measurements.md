@@ -11951,3 +11951,34 @@ screen — `rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`).
 **Date:** 2026-09-05. **First run of this measurement ever** — WS-R71's own
 decision (`decisions.md#studio-hindi-table-is-its-own-chunk`) named it as an
 open reversal condition nobody had measured; this is that measurement.
+
+
+## `rooms-migrations-122-123-125-live-verification-2026-09-05` — wave fourteen's three migrations applied live and every new statement planned
+
+Method: each statement of `db/migrations/122_room_arrival_via_share_kit.sql`, `123_room_referral.sql` and `125_operator_digest.sql` run one per request against the live Neon database (project `lucky-sun-80291432`) at its merge, 2026-09-05; every new statement the merged API modules issue `EXPLAIN`ed (never `ANALYZE`) against the same catalog. n = 13 DDL statements, 12 plans. 124 is unused (WS-R87 needed no schema change: `vy_room_handoff.policy_version` already existed).
+
+| migration | statements | outcome |
+|---|---|---|
+| 122 (WS-R85) | `vy_room_arrival_via_check` widened to ten values (drop then add) | applied |
+| 123 (WS-R86) | `vy_room_referral` table, its room-and-time index, the same CHECK widened again | applied; the CHECK reconciled at the merge to the ELEVEN-value union of 122's four channels and 123's `friend`, in the migration file, the schema and the live catalog alike |
+| 125 (WS-R88) | `vy_operator_digest` table, unique `day`, two CHECKs (drop then add), a `day desc` index | applied |
+| 118 (WS-R74), at the WS-R89 merge | `vy_creator_push_subscription_endpoint_active_ix` | applied; the endpoint-alone pre-check WS-R89 added had planned as a bitmap over every active row through the owner-led partial index |
+
+| statement | plan |
+|---|---|
+| WS-R88 the digest claim | arbiter `vy_operator_digest_day_ix`, DO NOTHING |
+| WS-R88 the last digest | Index Scan on `vy_operator_digest_day_desc_ix` |
+| WS-R87 the answer's flag-gated pre-read | Index Scan on `vy_room_handoff_queue_ix` |
+| WS-R89 the cross-owner endpoint pre-check | before the index: Bitmap on `vy_creator_push_subscription_active_ix` with the endpoint as a filter; the endpoint index above now serves it |
+| WS-R85 the four channel sums | Bitmap on `vy_room_arrival_via_day_ix`, one per channel |
+| WS-R86 the referral insert-select | a Result under the INSERT, the self-referral guard as its own WHERE |
+| WS-R86 the follower's own referral count | Bitmap on `vy_room_referral_room_created_ix`, the hash as a filter |
+| WS-R86 friends brought this week | Index Only Scan on `vy_room_referral_room_created_ix` |
+| WS-R86 friend arrivals this week | the same shape as the poster's (WS-R78), planned at that merge |
+
+Not measured: `joinRoom`'s widened RETURNING (`(xmax = 0) as newly_joined`) is the existing upsert with one more output expression, not a new plan; WS-R81, WS-R82, WS-R83, WS-R84 and WS-R90 issue no new SQL.
+
+
+## `ci-release-gate-first-real-run-2026-09-05` — the 21-check gate in GitHub Actions, measured once
+
+n = 1 run (`release-gate.yml`, run 1, on `6deaf1e`), method: GitHub's own run record, 2026-09-05. Started 10:12:53Z, finished 10:21:27Z: 8 minutes 34 seconds wall clock for the Node 22 and Node 24 jobs in parallel, conclusion success on both. Below WS-R77's 25-minute trigger for splitting the browser checks into a parallel job (`decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet` stands). Not measured: per-check timing inside the runner (the job log was not read), a cold-cache run (this run downloaded Chromium for the first time and still fit).
