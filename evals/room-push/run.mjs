@@ -596,8 +596,21 @@ self.addEventListener("push", (event) => {
   });
   await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
 
+  // With no explicit binary, ask Playwright for its FULL chromium build by
+  // channel, never its default `chromium-headless-shell`: the shell
+  // registers workers and runs `push` handlers, but it has no notification
+  // service, so `showNotification` resolves and `getNotifications()` stays
+  // empty for every kind. That is exactly how this section passed on the
+  // build container (whose binary is the full build, found above) and
+  // failed on both CI runners for `04395e2` (`context/rejected.md#room-
+  // push-chromium-headless-shell-shows-no-notification`). The control
+  // below turns that shape into one named failure instead of eleven.
   const browser = await chromium
-    .launch(executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] })
+    .launch(
+      executablePath
+        ? { executablePath, args: ["--no-sandbox"] }
+        : { channel: "chromium", args: ["--no-sandbox"] },
+    )
     .catch(() => null);
   if (!browser) {
     server.close();
@@ -646,6 +659,33 @@ self.addEventListener("push", (event) => {
     const brokenRegId = registrations.get(`${origin}/broken-test/`);
     ok("§8 setup: the REAL room-sw.js registration was captured over CDP", Boolean(realRegId));
     ok("§8 setup: the BROKEN test worker's own registration was captured over CDP", Boolean(brokenRegId));
+
+    // ── CONTROL: this browser can show a notification AT ALL ──
+    // A page-side `showNotification` on the real registration, read back
+    // through `getNotifications()`. Fails by name on a build with no
+    // notification service (Playwright's `chromium-headless-shell`), so
+    // the eleven kind assertions below never fail for a reason that is
+    // not the worker's.
+    const control = await page.evaluate(async () => {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration("/room-sw.js");
+        if (!reg) return { shown: -1, error: "no registration" };
+        await reg.showNotification("control", { body: "control", tag: "control" });
+        const list = await reg.getNotifications({ tag: "control" });
+        for (const n of list) n.close();
+        return { shown: list.length, error: null, permission: Notification.permission };
+      } catch (err) {
+        return { shown: -1, error: String(err?.message || err), permission: Notification.permission };
+      }
+    });
+    ok(
+      "§8 CONTROL: this Chromium build has a notification service (a page-side showNotification is readable back)",
+      control.shown === 1,
+      control.shown === 1
+        ? "1"
+        : `${control.error || `getNotifications() returned ${control.shown}`} (Notification.permission=${control.permission}): ` +
+          "this is Playwright's chromium-headless-shell, which grants no notification permission; launch the full build (channel: \"chromium\")",
+    );
 
     async function notificationsFor(swPath) {
       return page.evaluate(async (p) => {

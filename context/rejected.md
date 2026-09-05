@@ -11581,3 +11581,44 @@ which is strong enough evidence to treat "run check-copy.mjs immediately
 after any text moves into a COPY_FILES match, before writing the
 translation" as a load-bearing step of the move itself, not an optional
 sanity check.
+
+## `room-push-chromium-headless-shell-shows-no-notification` (2026-09-05, main loop, at the CI run on `04395e2`)
+
+**Tried.** WS-R81's §8 (`evals/room-push/run.mjs`) launches Chromium the
+way every other Chromium gate in this repo does: an explicit binary if one
+of three known paths exists, else `chromium.launch({ args })` and let
+Playwright pick. On the build container the first path exists (the full
+`chromium-1194` build), the section passed 69 of 69, and the wave-fourteen
+tree was pushed as `04395e2` on that pass.
+
+**What broke.** Both CI runners (Node 22 and 24) failed the eval suite on
+`room-push` alone: eleven §8 assertions, every "shows a real notification"
+returned `[]`. None of the fallback paths exist on a GitHub runner, so
+Playwright's own default applied, and since Playwright 1.49 the default for
+a headless launch is `chromium-headless-shell`, a build that registers
+service workers and runs their `push` handlers but carries no notification
+or permission service: `Notification.permission` is `denied` regardless of
+the context's `permissions: ["notifications"]`, `showNotification` throws
+"No notification permission has been granted for this origin" inside the
+worker, and `getNotifications()` stays empty. Reproduced on the build
+container by pointing `CHROMIUM_PATH` at
+`/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`:
+the identical eleven failures. The other five Chromium gates never noticed
+because none of them shows a notification.
+
+**What to do differently.** Two changes, both in the suite. (1) With no
+explicit binary, launch with `channel: "chromium"`, which Playwright
+resolves to its FULL build's path (`chromium-<build>/chrome-linux64/chrome`,
+the path its own error message names when the build is absent), never the
+shell; CI's `npx playwright install --with-deps chromium` installs both. (2)
+A CONTROL before the kind assertions: a page-side `showNotification` on the
+real registration read back through `getNotifications()`, failing by name
+("this is Playwright's chromium-headless-shell ... launch the full build")
+so the next browser without a notification service produces one legible
+failure instead of eleven silent misses. Verified on the container: the
+full build passes 70 of 70, the shell fails 12 with the control's message
+first. The general law: a gate that passed locally only because the local
+binary happened to be the full build has not been proven for CI; when a
+Chromium gate depends on a browser SERVICE (notifications, permissions,
+push) and not only on rendering, the launch must name the build it needs
+and a control must prove the service is there.

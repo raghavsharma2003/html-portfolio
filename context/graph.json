@@ -8992,6 +8992,12 @@
       "kind": "measurement",
       "title": "The first real GitHub Actions run of the 21-check release gate took 8 minutes 34 seconds for Node 22 and 24 in parallel and passed; no job split needed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "room-push-chromium-headless-shell-shows-no-notification",
+      "kind": "rejection",
+      "title": "The CI release gate on 04395e2 failed room-push \u00a78 alone: with no known binary path on a GitHub runner Playwright launched its chromium-headless-shell, which grants no notification permission, so every showNotification produced nothing; fixed by launching the full build by channel plus a named notification-service control.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17614,6 +17620,21 @@
       "src": "rooms-migrations-122-123-125-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "room-push-chromium-headless-shell-shows-no-notification",
+      "rel": "caused_by",
+      "dst": "ws-r81-push-worker-every-kind"
+    },
+    {
+      "src": "room-push-chromium-headless-shell-shows-no-notification",
+      "rel": "measured_by",
+      "dst": "ci-release-gate-first-real-run-2026-09-05"
+    },
+    {
+      "src": "room-push-chromium-headless-shell-shows-no-notification",
+      "rel": "caused_by",
+      "dst": "ws-r77-ci-runs-the-whole-gate"
     }
   ]
 }
