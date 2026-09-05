@@ -13710,3 +13710,43 @@ follower's devices (today it is per-browser, per-slug, `localStorage`
 only), the `InstallStorage` interface and the three pure functions stay
 exactly as they are — only the concrete storage `RoomApp.tsx` passes in
 changes, from `window.localStorage` to a thin wrapper over a server call.
+
+## `ws-r63-dialog-in-view-one-hook-in-flow-not-overlay` (2026-09-05, WS-R63)
+
+**Decision.** `#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view`
+found and did not fix that every Room dialog (`.room-menu[role="dialog"]` —
+the data menu, check-ins, handoff, the subscription panel, the account
+page) opened without changing what a follower on a real phone could see,
+because each is a plain in-flow block appended after `.room-composer` with
+no scroll-into-view or focus call. The fix is a single hook,
+`src/room/useDialogInView.ts`, applied to all five components (not just the
+four WS-R43 named): on mount it scrolls the dialog into view
+(`scrollIntoView({block:"nearest"})`, instant under
+`prefers-reduced-motion: reduce`), focuses its first focusable control (or
+its heading, given `tabindex="-1"`, if it has none), listens for Escape,
+and on unmount returns focus to whatever had it before the dialog opened.
+This REPLACES five separate ad hoc `useEffect` Escape-close blocks (one
+per component, `DataMenu`/`CheckinsPanel`/`HandoffPanel`/
+`SubscriptionPanel`/`AccountPage`) with one implementation.
+
+**Rationale.** WS-R43's own note already rejected the other fix
+("make dialogs fixed overlays") for a reason that still holds: DESIGN-LAW
+and this product's own visual language treat `.room-menu`'s card shape as
+part of the document, not a layer stacked over it, and turning five
+in-flow blocks into overlays would be a much larger, riskier change for a
+bug that scroll-and-focus fixes completely. Five separate Escape effects
+were also a standing risk in their own right — nothing stopped one of them
+drifting from the other four the next time someone touched just one file;
+one hook removes that risk by construction. Proven with a negative control
+(`ws-r63-dialog-in-view-negative-control-2026-09-05`): disabling only the
+scroll/focus half of the hook (Escape/return-focus left wired) reproduces
+exactly the WS-R43 defect and trips the new layout-gate assertion; restoring
+it clears every finding.
+
+**Reversal condition.** If a future measurement shows scroll-and-focus is
+insufficient on some real device or interaction (for example, a follower's
+own manual scroll racing the effect, or a browser that ignores
+`scrollIntoView` under some condition this hook does not detect), promote
+the five dialogs to fixed overlays instead — the option WS-R43's own note
+raised and this decision declined only because scroll-and-focus already
+measured sufficient.

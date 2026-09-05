@@ -37,9 +37,18 @@
  * real refusal leaves it); `?screen=receipt` forces the "gone" phase with a
  * real-shaped `RoomForgetReceipt` (WS-R27 law 3's own point restated: there
  * is nothing to look this up by later, so a fixture is the ONLY way this
- * screen is ever measured again); `?screen=checkins` and `?screen=handoff`
- * open the two dialogs `RoomApp.tsx` otherwise only opens from a real
- * session. Both dialogs `load()` themselves on mount over `/api/checkins` and
+ * screen is ever measured again).
+ *
+ * `?screen=checkins` and `?screen=handoff` render the talk screen CLOSED,
+ * with `FIXTURE_TURNS_LONG` below rather than the ordinary conversation —
+ * `scripts/check-layout.mjs` (WS-R63) clicks the real header opener itself
+ * (`[data-dialog-open="checkins"]`/`"handoff"`, `RoomApp.tsx`'s own hook for
+ * exactly this) rather than a fixture prop pre-opening the panel, which is
+ * the whole point: `#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view`
+ * found that a real tap on this exact button, on a conversation this tall,
+ * left the panel entirely off screen, and a fixture that opens the dialog
+ * for the gate rather than making it click could never have caught that.
+ * Both dialogs `load()` themselves on mount over `/api/checkins` and
  * `/api/handoff` — `AccountPage.tsx`'s own `fixtureSettings` seam does not
  * reach either component, so rather than adding a third fixture-prop path
  * two components deep, `installFetchStub` below answers the exact three POST
@@ -119,6 +128,40 @@ const FIXTURE_TURNS = [
     role: "assistant" as const,
     content:
       "That is exactly it, and it is the single most common place this goes wrong in an exam. Write the maximum down as a separate line, compare it with the applied force, and only then decide which regime you are in. Two lines of working, and the whole family of questions collapses into one method you already know.",
+  },
+];
+
+/* WS-R63. `FIXTURE_TURNS` above already measured tall enough to push a
+ * dialog appended after `.room-composer` below a 390x844 fold
+ * (`#ws-r43-viewport-only-screenshot-missed-in-flow-dialogs`'s own
+ * measurement) — this extends it further anyway, so the `checkins`/
+ * `handoff` click-and-scroll assertion below stays true regardless of
+ * whether a later edit ever shortens `FIXTURE_TURNS` for some other reason.
+ * Real, distinct prose (continuing the same physics conversation), never
+ * `FIXTURE_TURNS` repeated - a screenshot of three identical exchanges would
+ * be confusing evidence for a human reading `evals/room-browser/shots`. */
+const FIXTURE_TURNS_LONG = [
+  ...FIXTURE_TURNS,
+  {
+    role: "user" as const,
+    content: "ok but why does the ceiling itself depend on the normal force and nothing else?",
+  },
+  {
+    role: "assistant" as const,
+    content:
+      "Because the two surfaces are only ever pressed together as hard as the normal force says, and how interlocked two rough surfaces are scales with how hard they are pressed together, not with anything about the force trying to slide them apart. Push two rough blocks together twice as hard and there is roughly twice as much microscopic interlocking to overcome, which is exactly what the coefficient times the normal force is counting.",
+  },
+  { role: "user" as const, content: "does the coefficient change if I flip the block onto a different face?" },
+  {
+    role: "assistant" as const,
+    content:
+      "Only if flipping it changes which two surfaces are actually touching, since the coefficient belongs to the PAIR of surfaces, not to the block. Flip it onto a face made of the same material and the number is unchanged; flip it onto a genuinely different surface (a rubber foot instead of a wooden edge, say) and you are measuring a different pair entirely, so of course the number moves.",
+  },
+  { role: "user" as const, content: "last one - is kinetic friction always less than static?" },
+  {
+    role: "assistant" as const,
+    content:
+      "Almost always, and it is worth knowing the one common exception: a few surface pairs measure the two coefficients as equal, and vanishingly few measure kinetic above static. Treat 'kinetic is less than or equal to static' as the safe default for an exam, and if a question hands you numbers where kinetic comes out larger, check you have not swapped the two labels before trusting the arithmetic.",
   },
 ];
 
@@ -286,7 +329,18 @@ function render() {
   // still in English - the one shape a real Room may never be in.
   const hindi = params.get("lang") === "hi";
   const base = hindi ? { ...FIXTURE_OPEN, locale: "hi" as const, disclosure: CARD_HI } : FIXTURE_OPEN;
-  const open = screen === "join" ? { ...base, joined: false, session: null } : base;
+  // WS-R63: `screen=checkins` needs the header's own "Check-ins" button to
+  // actually render (`canCheckin` in `RoomApp.tsx`: paid tier AND a
+  // remembered thread), which `FIXTURE_OPEN`'s ordinary free-tier follower
+  // never satisfies - the old `fixtureCheckinsOpen` prop bypassed the
+  // button entirely, which is exactly the gap this workstream closes. No
+  // change needed for `handoff`: `canHandoff` reads only
+  // `room.handoff_enabled`, already `true` on `FIXTURE_OPEN`.
+  const withFollowerTier =
+    screen === "checkins" && base.follower
+      ? { ...base, follower: { ...base.follower, tier: "paid" as const } }
+      : base;
+  const open = screen === "join" ? { ...withFollowerTier, joined: false, session: null } : withFollowerTier;
   // WS-R59: `?screen=install` forces the install card visible over the
   // ordinary talking screen (`fixtureInstallPrompt`, `RoomApp.tsx`'s own
   // prop for exactly this — the real gate that decides visibility needs a
@@ -296,10 +350,15 @@ function render() {
   // offline card (`fixturePhase: "offline"`, the same seam `receipt` below
   // already uses for a phase no real session can be driven into on demand).
   const ios = params.get("ios") === "1";
+  // WS-R63: `checkins`/`handoff` render the talk screen CLOSED, with the
+  // long conversation, so `scripts/check-layout.mjs` clicks the real opener
+  // itself — `layoutFixture.tsx`'s own header explains why a fixture that
+  // pre-opens the dialog could never have caught the bug this closes.
+  const longConvo = screen === "checkins" || screen === "handoff";
   ReactDOM.createRoot(document.getElementById("room-root")!).render(
     <RoomApp
       fixtureOpen={open}
-      fixtureTurns={screen === "join" ? [] : FIXTURE_TURNS}
+      fixtureTurns={screen === "join" ? [] : longConvo ? FIXTURE_TURNS_LONG : FIXTURE_TURNS}
       // WS-R39: the account page overlay, forced open with its own composed
       // read supplied — no network reachable from this fixture.
       fixtureAccountOpen={screen === "account"}
@@ -310,8 +369,11 @@ function render() {
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}
       fixturePhase={screen === "receipt" ? "gone" : screen === "offline" ? "offline" : undefined}
       fixtureForgetReceipt={screen === "receipt" ? FIXTURE_RECEIPT : null}
-      fixtureCheckinsOpen={screen === "checkins"}
-      fixtureHandoffOpen={screen === "handoff"}
+      // WS-R63: both start CLOSED now, even on `?screen=checkins`/`handoff`
+      // — the gate opens them with a real click (`data-dialog-open`,
+      // `RoomApp.tsx`) rather than a URL flag pre-opening them.
+      fixtureCheckinsOpen={false}
+      fixtureHandoffOpen={false}
       // WS-R59: the install card, both variants.
       fixtureInstallPrompt={screen === "install"}
       fixtureInstallPromptIOS={screen === "install" && ios}

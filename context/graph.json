@@ -7582,6 +7582,30 @@
       "kind": "measurement",
       "title": "Migration 113 widened vy_room_arrival's via CHECK to admit install (the value WS-R59's JS allowlist added) at the WS-R59 merge; applied live after reading the constraint's name back; the upsert plan is unchanged.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r63-dialog-in-view-one-hook-in-flow-not-overlay",
+      "kind": "decision",
+      "title": "Every Room dialog (data menu, check-ins, handoff, subscription, account) now scrolls itself into view and moves focus in on open via one shared hook, src/room/useDialogInView.ts, staying in-flow (never a fixed overlay) and replacing five separate ad hoc Escape-close effects with one implementation",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r63-dialog-in-view-negative-control-2026-09-05",
+      "kind": "measurement",
+      "title": "Disabling useDialogInView's scroll/focus half reproduces the WS-R43 defect exactly: 4 dialog-in-view + 4 dialog-focus findings across checkins/handoff x room:more/room-hi:more in scripts/check-layout.mjs; restoring it clears all 8",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r63-layout-gate-runtime-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "Full unfiltered check-layout.mjs runtime: 169.4s before this workstream, 174.3s after (+4.9s for four new click-and-assert checks folded into existing page loads, no new navigation), both under the brief's 165s-under-load budget concern given shared-machine noise",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r63-accessibility-keyboard-order-regression-and-fix-2026-09-05",
+      "kind": "measurement",
+      "title": "useDialogInView's mount-time focus() exposed a latent bug in check-accessibility.mjs's walkTabOrder: document.body.focus() is a no-op (no tabindex) and does not reset Chromium's own sequential-focus-navigation position either, causing a spurious keyboard-order finding on room:account; fixed by giving body a temporary tabindex=-1 for the one reset focus() call",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15104,6 +15128,31 @@
       "src": "rooms-migration-113-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
+    },
+    {
+      "src": "ws-r63-dialog-in-view-one-hook-in-flow-not-overlay",
+      "rel": "supersedes",
+      "dst": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view"
+    },
+    {
+      "src": "ws-r63-dialog-in-view-one-hook-in-flow-not-overlay",
+      "rel": "measured_by",
+      "dst": "ws-r63-dialog-in-view-negative-control-2026-09-05"
+    },
+    {
+      "src": "ws-r63-dialog-in-view-one-hook-in-flow-not-overlay",
+      "rel": "measured_by",
+      "dst": "ws-r63-layout-gate-runtime-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r63-dialog-in-view-one-hook-in-flow-not-overlay",
+      "rel": "caused_by",
+      "dst": "ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view"
+    },
+    {
+      "src": "ws-r63-accessibility-keyboard-order-regression-and-fix-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r63-dialog-in-view-one-hook-in-flow-not-overlay"
     }
   ]
 }

@@ -260,7 +260,10 @@ const TARGETS = [
     // (the shell's own honest offline card, `fixturePhase: "offline"`) —
     // same `room:more`/`onlyViewport: "phone"` target the brief's own law 4
     // points at ("wire it inside the existing... gate as one more target"),
-    // never a new named gate.
+    // never a new named gate. WS-R63: "checkins" and "handoff" load CLOSED
+    // now (`layoutFixture.tsx`'s own header) — the per-step loop below
+    // clicks the real opener before `audit()` runs, the law-2 assertion
+    // that catches a dialog opening off screen or unfocused.
     steps: ["checkins", "handoff", "capped", "receipt", "install", "offline"],
     mounted: ".room-shell",
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
@@ -664,6 +667,8 @@ const EXPLAIN = {
   "motion-not-reduced": "with prefers-reduced-motion: reduce active, an element still has a\n        transition-duration or animation-duration above 0s. tokens.css's own\n        reduced-motion block should have zeroed every --motion-* token; something\n        here is not reading from it.",
   "pointerdown-feedback": "DESIGN-LAW's press feedback did not fire: a real mouse down/up over an\n        enabled control produced no visible transform change, or it did not clear on release.",
   glyph: "a Hindi string measured no differently from the same number of tofu boxes\n        (U+25A1) in the page's own font stack - the glyph likely rendered as boxes,\n        not letters. Names the copy.ts key that failed.",
+  "dialog-in-view": "a Room dialog opened by a real click on its header button is not fully on\n        screen, or did not open at all - see the finding's own text. Every in-flow dialog\n        must scroll itself into view on open (`useDialogInView.ts`); it must never rely on\n        the opener already being scrolled to the right place.\n        See context/rejected.md#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view.",
+  "dialog-focus": "a Room dialog opened by a real click never received focus (`document.activeElement`\n        stayed outside it after the click). A keyboard or screen reader user gets no signal\n        the dialog opened at all - `useDialogInView.ts`'s own job.",
   "room-card": "the Room's og.png/story.png (WS-R55, api/_room-card.js): either the\n        rasterised PNG's own dimensions or non-blank-pixel test failed, or the\n        bundled Devanagari face measured no differently from tofu boxes when the\n        card's own Hindi disclosure sentence was rendered through it - the\n        bundled font is missing, unreadable, or not the one actually shipping.",
 };
 
@@ -841,6 +846,64 @@ async function main() {
           { waitUntil: "domcontentloaded" },
         );
         await page.waitForTimeout(1800);
+
+        // WS-R63 law 2: the "checkins"/"handoff" steps of `room:more`/
+        // `room-hi:more` now load CLOSED, on a conversation taller than the
+        // viewport (`FIXTURE_TURNS_LONG`, layoutFixture.tsx) — a REAL click
+        // on the header opener (`[data-dialog-open]`, locale-independent by
+        // design so `room-hi`'s Hindi label never has to be matched) is
+        // what opens the dialog every check below then measures, never a
+        // fixture prop pre-opening it. This is the assertion
+        // `#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view` asked
+        // for and no gate made before it: after the click, the opened
+        // dialog's own bounding box must intersect the viewport and
+        // `document.activeElement` must be inside it. No extra page load —
+        // the same already-open page every other check in this step already
+        // shares, per the brief's own runtime-budget law.
+        if (roomChecks && (step === "checkins" || step === "handoff")) {
+          const opener = page.locator(`[data-dialog-open="${step}"]`);
+          if (await opener.count().catch(() => 0)) {
+            await opener.click();
+            // A generous margin over a smooth scroll's own duration (the
+            // hook's default, `prefers-reduced-motion` unset at this point
+            // in the run) - the bounding-box check below depends on the
+            // scroll having actually finished, unlike the focus check,
+            // which is synchronous with the effect that starts it.
+            await page.waitForTimeout(700);
+            const seen = await page.evaluate((cls) => {
+              const el = document.querySelector(`.room-${cls}[role="dialog"]`);
+              if (!el) return { opened: false, inView: false, focusInside: false };
+              const r = el.getBoundingClientRect();
+              const inView = r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+              const focusInside = document.activeElement ? el.contains(document.activeElement) : false;
+              return { opened: true, inView, focusInside };
+            }, step);
+            if (!seen.opened) {
+              findings.push({
+                where, kind: "dialog-in-view", el: "dialog", n: 0, unit: "",
+                text: `clicking [data-dialog-open="${step}"] did not open .room-${step}[role="dialog"]`,
+              });
+            } else {
+              if (!seen.inView) {
+                findings.push({
+                  where, kind: "dialog-in-view", el: "dialog", n: 0, unit: "",
+                  text: "opened but its bounding box does not intersect the viewport",
+                });
+              }
+              if (!seen.focusInside) {
+                findings.push({
+                  where, kind: "dialog-focus", el: "dialog", n: 0, unit: "",
+                  text: "opened but document.activeElement is not inside it",
+                });
+              }
+            }
+          } else {
+            findings.push({
+              where, kind: "dialog-in-view", el: "opener", n: 0, unit: "",
+              text: `[data-dialog-open="${step}"] not found - the button this step depends on is gone`,
+            });
+          }
+        }
 
         const { findings: got, judged, mounted, panels, overflow } = await page.evaluate(
           audit,

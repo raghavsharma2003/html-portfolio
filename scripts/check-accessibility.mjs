@@ -296,7 +296,30 @@ async function walkTabOrder(page, where) {
     findings.push({ where, kind: "keyboard-coverage", detail: "no focusable elements found — the gate is blind here" });
     return findings;
   }
-  await page.evaluate(() => document.body.focus());
+  // WS-R63: `document.body.focus()` alone used to be enough to start every
+  // walk from a clean slate, because nothing in this app ever put focus
+  // anywhere on mount. Now that a Room dialog moves focus to its own first
+  // control the moment it opens (`useDialogInView.ts`), `room:account`'s own
+  // fixture opens the account page pre-focused, and two things had to be
+  // fixed, both found by measuring the actual sequence rather than guessing:
+  // (1) `<body>` carries no tabindex, so `.focus()` on it is a no-op per
+  // spec — the PREVIOUS real target stays `document.activeElement`, so
+  // `.blur()` on THAT (not body) is what is needed to actually drop focus;
+  // (2) blurring alone still was not enough — Chromium keeps its own
+  // "sequential focus navigation" position separate from `activeElement`,
+  // and the first Tab after a bare blur resumed from just past the
+  // PREVIOUSLY focused control rather than the top of the document (measured
+  // directly: it landed on a mid-list "Turn off" button, not the page's
+  // first control). Giving `<body>` a real, indexed focus target — a
+  // temporary `tabindex="-1"` for exactly the one `.focus()` call — is what
+  // actually resets that internal position; the attribute is removed
+  // immediately after so `<body>` never joins anyone's real Tab order.
+  await page.evaluate(() => {
+    document.activeElement?.blur();
+    document.body.setAttribute("tabindex", "-1");
+    document.body.focus();
+    document.body.removeAttribute("tabindex");
+  });
   const seen = new Set();
   let highestSeen = -1;
   let outOfOrder = 0;

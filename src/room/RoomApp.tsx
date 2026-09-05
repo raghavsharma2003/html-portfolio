@@ -54,6 +54,7 @@ import CheckinsPanel from "./CheckinsPanel";
 import SubscriptionPanel from "./SubscriptionPanel";
 import HandoffPanel from "./HandoffPanel";
 import AccountPage from "./AccountPage";
+import { useDialogInView } from "./useDialogInView";
 import {
   RoomApiError,
   dismissOffer,
@@ -886,12 +887,25 @@ export default function RoomApp({
             )}
             <LanguageSwitch locale={locale} busy={localeBusy} onSwitch={switchLocale} />
             {canCheckin && (
-              <button type="button" className="room-menu-open" onClick={() => setCheckinsOpen(true)}>
+              <button
+                type="button"
+                className="room-menu-open"
+                // WS-R63: a locale-independent hook for the layout gate's own
+                // click (`scripts/check-layout.mjs`) - never read by the app
+                // itself, so it carries no behaviour of its own.
+                data-dialog-open="checkins"
+                onClick={() => setCheckinsOpen(true)}
+              >
                 {copy.checkins.title}
               </button>
             )}
             {canHandoff && (
-              <button type="button" className="room-menu-open" onClick={() => setHandoffOpen(true)}>
+              <button
+                type="button"
+                className="room-menu-open"
+                data-dialog-open="handoff"
+                onClick={() => setHandoffOpen(true)}
+              >
                 {withName(copy.handoff.title, name || room?.room.display_name || "")}
               </button>
             )}
@@ -1680,22 +1694,14 @@ function DataMenu({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // WS-R50 (WCAG 2.1.2, no keyboard trap / a keyboard user must be able to
-  // dismiss what they opened). `AuthSheet.tsx`'s own pattern, one product
-  // over: Escape closes the panel that is open right now, same as every
-  // other `role="dialog"` this codebase already ships.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // WS-R63: scrolls into view, moves focus in, closes on Escape (WS-R50's
+  // own law, now this one hook's job rather than five ad hoc copies of it),
+  // returns focus to the opener on close - `useDialogInView`'s own header.
+  const dialogRef = useDialogInView(onClose);
 
   return (
-    <section className="room-menu" role="dialog" aria-modal="true" aria-label={copy.menu.title}>
+    <section className="room-menu" role="dialog" aria-modal="true" aria-label={copy.menu.title} ref={dialogRef}>
+
       <h2>{copy.menu.title}</h2>
       {/* WS-R19: real numbers from the follower's own row, never estimated -
           law 5. Renders only for a paid follower with the flag on; a free
