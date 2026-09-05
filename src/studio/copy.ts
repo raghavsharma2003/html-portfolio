@@ -1097,6 +1097,20 @@ interface ShareKitCopy {
   youtubeTemplate: string; // "{name}", "{url}"
   telegramTemplate: string; // "{name}", "{url}"
 }
+// ── shareKitWhatsappJoin: ShareKitCard.tsx's own FIFTH row (WS-R126, join
+//    from WhatsApp, migration 131) — its OWN closed section, never folded
+//    into ShareKitCopy above: that row's own `whatsapp` key already carries
+//    a different meaning (the web-link channel's label/template), and this
+//    is a genuinely separate thing (a direct wa.me deep link that opens THIS
+//    business number's chat with `join <slug>` already typed, structurally
+//    absent from the row list at all when no business number is configured
+//    or the WhatsApp chat lane itself is off — `api/_share-kit.js`'s own
+//    `whatsappJoinUrl` header states why). ──────────────────────────────────
+interface ShareKitWhatsappJoinCopy {
+  label: string;
+  caption: string;
+  button: string;
+}
 
 // ── activityPanel: ActivityPanel.tsx (WS-R71, tier 2 wave two). Server-sent
 //    fields (`job.state_reason`, `lane.label`, `lane.missing`,
@@ -2060,6 +2074,7 @@ interface StudioCopy {
   studioApp: StudioAppCopy;
   suiteWeeklyNote: SuiteWeeklyNoteCopy;
   roomStudioMandate: RoomStudioMandateCopy;
+  shareKitWhatsappJoin: ShareKitWhatsappJoinCopy;
 }
 
 // WS-R113. `authGate` and the shell section are the two the SIGNED-OUT
@@ -4012,6 +4027,15 @@ const EN: StudioCopy = {
     pausedBody: "Resume it in your UPI app to keep your tier active.",
     haltedLabel: "Your payment mandate needs attention.",
     haltedBody: "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue.",
+  },
+
+  // WS-R126 (join from WhatsApp, migration 131). Its own closed section --
+  // see ShareKitWhatsappJoinCopy's own header for why this is not folded
+  // into shareKit above.
+  shareKitWhatsappJoin: {
+    label: "Join on WhatsApp",
+    caption: "Opens WhatsApp with \"join {slug}\" already typed, so a follower just has to hit send.",
+    button: "Open WhatsApp",
   },
 };
 

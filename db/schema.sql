@@ -4516,6 +4516,18 @@ alter table vy_creator_subscription add column if not exists mandate_state_at ti
 alter table vy_creator_subscription drop constraint if exists vy_creator_subscription_mandate_state_check;
 alter table vy_creator_subscription add constraint vy_creator_subscription_mandate_state_check
   check (mandate_state in ('none', 'pending', 'active', 'paused', 'halted', 'cancelled', 'completed'));
+-- Migration 131 - join from WhatsApp (WS-R126). See
+-- db/migrations/131_arrival_via_whatsapp.sql for the full argument: 'whatsapp'
+-- is ALREADY a valid vy_room_arrival.via value as of migrations 122/123 (the
+-- share kit's own web-link channel); this workstream reuses that SAME value
+-- for a second, distinct arrival source (a follower opening the WhatsApp
+-- Business chat itself via a wa.me deep link, api/_room-whatsapp-chat.js's
+-- `handleJoin`) rather than adding a sibling one, so the two statements below
+-- are a defensive, idempotent reassertion of the unchanged 11-value list, not
+-- a genuine widening.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install', 'poster', 'whatsapp', 'instagram', 'youtube', 'telegram', 'friend'));
 -- Migration 132 - the Suite admin's weekly note (WS-R127). See
 -- db/migrations/132_org_weekly_note.sql for the full argument; mirrored
 -- here per this file's own convention. Content-free (org_id, week_start,

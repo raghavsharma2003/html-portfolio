@@ -31,14 +31,19 @@ import type { StudioCopy } from "./copy";
 
 /** `api/_share-kit.js`'s own `SHARE_KIT_CHANNELS` order, restated — the
  *  fixed row order this card renders in, independent of whatever order the
- *  server's array happens to arrive in. */
-const CHANNEL_ORDER = ["whatsapp", "instagram", "youtube", "telegram"] as const;
+ *  server's array happens to arrive in. "whatsapp_join" (WS-R126) is
+ *  deliberately LAST and outside `SHARE_KIT_CHANNELS`: it is the one row
+ *  that can be absent (`ShareKitRow`'s own header on why), and rendering it
+ *  after the always-present four means its absence never shifts anything
+ *  above it. */
+const CHANNEL_ORDER = ["whatsapp", "instagram", "youtube", "telegram", "whatsapp_join"] as const;
 
 function channelLabel(t: StudioCopy, channel: ShareKitRow["channel"]): string {
   const c = t.shareKit;
   if (channel === "whatsapp") return c.whatsappLabel;
   if (channel === "instagram") return c.instagramLabel;
   if (channel === "youtube") return c.youtubeLabel;
+  if (channel === "whatsapp_join") return t.shareKitWhatsappJoin.label;
   return c.telegramLabel;
 }
 
@@ -151,14 +156,20 @@ export default function ShareKitCard({
         <div className="vy-room__share-kit-rows">
           {orderedKit.map((row) => {
             const picture = pictureLink(row, slug);
+            const isJoinRow = row.channel === "whatsapp_join";
             return (
               <div key={row.channel} className="vy-room__share-kit-row">
                 <h4>{channelLabel(t, row.channel)}</h4>
+                {isJoinRow && (
+                  <p className="field-note">
+                    {t.shareKitWhatsappJoin.caption.split("{slug}").join(slug)}
+                  </p>
+                )}
                 <textarea
                   className="field vy-room__share-kit-text"
                   readOnly
                   value={row.text}
-                  rows={row.channel === "instagram" ? 2 : 4}
+                  rows={row.channel === "instagram" || isJoinRow ? 2 : 4}
                   aria-label={channelLabel(t, row.channel)}
                   ref={(el) => {
                     textareaRefs.current[row.channel] = el;
@@ -180,6 +191,15 @@ export default function ShareKitCard({
                       rel="noreferrer"
                     >
                       {c.openWhatsapp}
+                    </a>
+                  )}
+                  {isJoinRow && (
+                    // The row's own `url` IS the full wa.me deep link
+                    // already (`api/_share-kit.js`'s own header) — unlike
+                    // the "whatsapp" row above, nothing to wrap in a
+                    // second `?text=`.
+                    <a className="button secondary-button" href={row.url} target="_blank" rel="noreferrer">
+                      {t.shareKitWhatsappJoin.button}
                     </a>
                   )}
                   {picture && (

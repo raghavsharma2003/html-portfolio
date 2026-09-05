@@ -124,6 +124,19 @@ const BRAND_MARK = "Vyakti";
 
 const FONT_FAMILY = "Noto Sans Devanagari";
 
+/** WS-R126 (join from WhatsApp): the poster's `?channel=whatsapp` variant
+ *  encodes a wa.me deep link in its QR instead of this Room's own address —
+ *  the plain-text caption underneath a poster's QR (`for people who cannot
+ *  scan`, this file's own header on why one exists at all) cannot honestly
+ *  stay the raw URL once that URL is a `wa.me/<number>?text=join%20<slug>`
+ *  link nobody could usefully retype by hand. This sentence replaces it,
+ *  bilingual, `roomDisclosureCard`'s own precedent for the two locales this
+ *  product supports. */
+const WHATSAPP_POSTER_SENTENCE = {
+  en: "Scan with your phone's camera to open WhatsApp and say hi.",
+  hi: "अपने फोन के कैमरे से स्कैन करें और WhatsApp पर नमस्ते कहें।",
+};
+
 function esc(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -191,7 +204,7 @@ function wrapLines(text, maxChars, maxLines) {
  * `api/_qr.js`) is itself pure, so calling it here does not cost this
  * function its own purity.
  */
-export function computeCardLayout({ name, bio, locale, kind, url } = {}) {
+export function computeCardLayout({ name, bio, locale, kind, url, channel } = {}) {
   const size = ROOM_CARD_SIZES[kind] || ROOM_CARD_SIZES.og;
   const { width, height } = size;
   const isStory = kind === "story";
@@ -252,7 +265,14 @@ export function computeCardLayout({ name, bio, locale, kind, url } = {}) {
       qr = { matrix: encoded.matrix, moduleSize, quiet, x: qrX, y: qrY, size: qrPx };
       y = qrY + qrPx + 48;
 
-      const urlLines = wrapLines(qrText, 56, 2);
+      // WS-R126: a `channel === "whatsapp"` poster's QR encodes a wa.me deep
+      // link, not this Room's own address — the caption swaps to the
+      // sentence above rather than printing that link as text, `WHATSAPP_
+      // POSTER_SENTENCE`'s own header on why. Every other channel (still
+      // the vast majority: `channel` is `""`/undefined for the ordinary
+      // poster) keeps the exact bytes this block always rendered.
+      const captionText = channel === "whatsapp" ? (WHATSAPP_POSTER_SENTENCE[loc] || WHATSAPP_POSTER_SENTENCE.en) : qrText;
+      const urlLines = wrapLines(captionText, 56, 2);
       const urlGap = 32 * 1.4;
       blocks.push({
         id: "url", lines: urlLines, x: width / 2, y, fontSize: 32, color: FOREST,
@@ -374,20 +394,35 @@ export function renderRoomCard(input) {
  * all (a caller that never resolved one) degrades to no QR rather than a
  * thrown error — `computeCardLayout`'s own header on why.
  */
-export function cardInputFor(row, kind, origin = "") {
+/**
+ * `whatsappJoinUrl` (WS-R126) is the FIFTH input this file's own `origin`
+ * paragraph above names by precedent: read by NOTHING in this file (never an
+ * env var, never a request — `api/room-card.js`'s own door resolves it and
+ * hands it straight through, `origin`'s own header restated), and applied
+ * ONLY for `kind === "poster"` on a REAL, resolved Room — an unpublished,
+ * paused or unknown slug (`row` is `null`) ignores it entirely and renders
+ * the identical platform-only bytes regardless of `?channel=`, the same
+ * "a picture must never learn whether a slug exists" law this function's
+ * own header already states for `origin`, restated for a second query
+ * parameter rather than assumed to still hold.
+ */
+export function cardInputFor(row, kind, origin = "", whatsappJoinUrl = "") {
   const base = String(origin || "").replace(/\/+$/, "");
   if (!row) return { name: null, bio: null, locale: "en", kind, url: base ? `${base}/` : "" };
+  const joinUrl = String(whatsappJoinUrl || "").trim();
+  const useWhatsapp = kind === "poster" && Boolean(joinUrl);
   return {
     name: row.display_name || "",
     bio: row.one_line_bio || "",
     locale: row.default_locale,
     kind,
-    url: base ? `${base}/r/${encodeURIComponent(String(row.slug || ""))}?via=poster` : "",
+    channel: useWhatsapp ? "whatsapp" : "",
+    url: useWhatsapp ? joinUrl : (base ? `${base}/r/${encodeURIComponent(String(row.slug || ""))}?via=poster` : ""),
   };
 }
 
-export function buildRoomCardSvg(row, kind, origin = "") {
-  return renderRoomCard(cardInputFor(row, kind, origin));
+export function buildRoomCardSvg(row, kind, origin = "", whatsappJoinUrl = "") {
+  return renderRoomCard(cardInputFor(row, kind, origin, whatsappJoinUrl));
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -468,8 +503,8 @@ export async function rasterizeRoomCard(input) {
   return canvas.toBuffer("image/png");
 }
 
-export async function rasterizeRoomCardForRoom(row, kind, origin = "") {
-  return rasterizeRoomCard(cardInputFor(row, kind, origin));
+export async function rasterizeRoomCardForRoom(row, kind, origin = "", whatsappJoinUrl = "") {
+  return rasterizeRoomCard(cardInputFor(row, kind, origin, whatsappJoinUrl));
 }
 
 /**
@@ -483,9 +518,15 @@ export async function rasterizeRoomCardForRoom(row, kind, origin = "") {
  * draws that DOES vary by request origin — `og`/`story` never pass one, so
  * their own tags are unaffected (an empty string either way).
  */
-export function roomCardEtag(row, kind, origin = "") {
+export function roomCardEtag(row, kind, origin = "", whatsappJoinUrl = "") {
+  // `whatsappJoinUrl` folds in ONLY for a real row — the platform-only basis
+  // below deliberately omits it, `cardInputFor`'s own "ignores it entirely
+  // for an unknown/unpublished slug" law restated for a cache key instead of
+  // a pixel: a `?channel=whatsapp` request for a slug nobody has ever
+  // registered must hash IDENTICALLY to the same request with no `channel`
+  // at all, or the ETag itself would leak which slugs are real.
   const basis = row
-    ? JSON.stringify([row.display_name || "", row.one_line_bio || "", normalizeLocale(row.default_locale), kind, origin])
+    ? JSON.stringify([row.display_name || "", row.one_line_bio || "", normalizeLocale(row.default_locale), kind, origin, String(whatsappJoinUrl || "")])
     : JSON.stringify(["__platform__", kind, origin]);
   return `"${createHash("sha256").update(basis).digest("hex").slice(0, 32)}"`;
 }

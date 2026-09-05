@@ -10480,6 +10480,36 @@
       "kind": "rejection",
       "title": "rehearsal-creator's page.waitForFunction 20000ms Chromium timeout (walkLocale) reproduced on the completely untouched tree at genuinely low load (2 of 3 runs) before this workstream's code existed, and identically inside the new pool -- a pre-existing suite-level flake, not a scheduling defect this workstream introduced.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value",
+      "kind": "decision",
+      "title": "The WhatsApp chat join arrival (a wa.me join <slug> deep link) is counted under the SAME via=\"whatsapp\" value the share kit web-link channel already writes, not a new sibling value; migration 131 is a defensive reassertion, not a widening, since whatsapp was already valid (migrations 122/123).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r126-poster-whatsapp-channel-caption-replaces-the-url-not-appends-it",
+      "kind": "decision",
+      "title": "The poster's ?channel=whatsapp variant replaces the plain-text URL caption under the QR with a bilingual WhatsApp sentence, since the QR now encodes a wa.me deep link nobody could usefully retype from a wall.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r126-whatsapp-join-number-reuses-phone-number-id",
+      "kind": "decision",
+      "title": "whatsappJoinNumber reads WHATSAPP_PHONE_NUMBER_ID for the wa.me deep link's phone segment (no new env var, per brief); NOT PROVEN that this Graph API identifier is the same value as the line's dialable E.164 number under Meta's own Cloud API.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value",
+      "kind": "rejection",
+      "title": "The workstream brief instructed migration 131 to add 'whatsapp' to vy_room_arrival_via_check as if new; ROOM_ARRIVAL_VIA already carried it (migrations 122/123). Migration 131 was written as an explicit defensive reassertion instead of a false widening claim.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r126-gate-results-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release.mjs: 19/21 on this workstream's tree, same 2 failures (performance budgets, accessibility) reproduced in kind on the untouched base commit across 3 runs with 3 different specific pages/metrics failing - machine-load/port-collision signature, not a regression. All targeted offline suites (room-whatsapp-chat 103/103, room-card 81/81, share-kit 85/85, room-doors 803/803, room-leak 255/255, room-export 47/47, studio-locale 92/92) and tsc -b pass clean.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20302,6 +20332,36 @@
       "src": "ws-r128-eval-registry-wall-clock-and-parity-2026-09-05",
       "rel": "caused_by",
       "dst": "ws-r128-rehearsal-creator-chromium-timeout-flakes-under-load-in-both-modes"
+    },
+    {
+      "src": "ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value",
+      "rel": "supersedes",
+      "dst": "ws-r85-migration-122-ships-with-the-js-allowlist-in-one-commit"
+    },
+    {
+      "src": "ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value",
+      "rel": "caused_by",
+      "dst": "ws-r85-migration-122-ships-with-the-js-allowlist-in-one-commit"
+    },
+    {
+      "src": "ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value",
+      "rel": "measured_by",
+      "dst": "ws-r126-gate-results-2026-09-05"
+    },
+    {
+      "src": "ws-r126-poster-whatsapp-channel-caption-replaces-the-url-not-appends-it",
+      "rel": "part_of",
+      "dst": "ws-r78-qr-encoder"
+    },
+    {
+      "src": "ws-r126-whatsapp-join-number-reuses-phone-number-id",
+      "rel": "part_of",
+      "dst": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text"
+    },
+    {
+      "src": "ws-r126-gate-results-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value"
     }
   ]
 }

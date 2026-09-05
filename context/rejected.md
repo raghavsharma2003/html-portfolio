@@ -14240,3 +14240,53 @@ evidence your change did not cause it, not evidence you may ignore it
 silently — it is logged here, by name, with its reproduction conditions,
 so the next agent who sees `rehearsal-creator` fail does not re-spend a
 session re-deriving that this is pre-existing.
+
+## `ws-r126-migration-131-brief-assumed-whatsapp-was-not-yet-a-valid-arrival-value` (2026-09-05, WS-R126)
+
+**Tried, or rather, was told to try.** This workstream's own brief instructed
+"Migration 131 widens the arrival `via` CHECK to add `whatsapp`" as if that
+value did not yet exist. Before writing the migration, `api/_room-surface.js`'s
+`ROOM_ARRIVAL_VIA` was grepped (`AGENTS.md`'s own law: grep for a CALLER, not
+a definition — restated here for a schema value a brief merely ASSERTED
+rather than one this session derived itself) and found already frozen as
+`["share", "direct", "embed", "search", "install", "poster", "whatsapp",
+"instagram", "youtube", "telegram", "friend"]` — eleven values, `whatsapp`
+the seventh, added by WS-R85's migration 122 (the share kit's own per-channel
+`?via=whatsapp` web link) and reconciled again by WS-R86's migration 123. The
+same eleven-value count is independently named in `scratchpad/ws-common.md`
+itself ("the arrival via allowlist has eleven values (migration 123's
+CHECK)"), so this was not a live-database drift this session discovered —
+the fact was already sitting in the very brief file that then assumed the
+opposite two sentences later, most likely because the brief was drafted
+before, or without cross-referencing, the WS-R85/WS-R86 merge that actually
+landed the value.
+
+**What broke, or rather, what would have.** Writing migration 131 as
+literally instructed — "add whatsapp to the CHECK" — would have produced a
+migration whose own SQL comment claimed to be adding something the live
+database (and `db/schema.sql`) already had, misleading the NEXT session that
+reads this migration's history looking for "when did whatsapp become valid"
+into thinking it was 131, not 122/123. It would also have raised the
+question of what THIS workstream's own genuinely new WhatsApp-chat-join
+arrival source should be counted under, since a not-yet-invented value was
+implicitly assumed available for it.
+
+**The fix.** Migration 131 still exists (its own number was assigned and
+could not be reused elsewhere), written as an explicitly-labelled defensive
+reassertion of the SAME eleven-value list — safe to apply (idempotent,
+matches the live state), honest about being a no-op rather than a widening,
+and it still gives this workstream's own genuinely new write (the WhatsApp
+chat join arrival, `handleJoin`'s new `recordRoomArrival` call) something to
+point at in its own commit history. `context/decisions.md#ws-r126-whatsapp-chat-join-reuses-the-whatsapp-arrival-value`
+carries the decision this finding fed into.
+
+**The rule.** A brief's own factual claims about the CURRENT state of shared,
+frequently-touched schema (a CHECK constraint six prior workstreams have
+each added their own value to in the same wave shape) are themselves
+something to verify against the actual source before building on them, not
+just the PLAN they describe. A brief is a plan; `ROOM_ARRIVAL_VIA` is the
+truth. This is the identical posture `context/decisions.md#audio-protection-cpu`'s
+own entry takes toward a claim about a codec's behaviour — read the actual
+state of the system a change would touch, never trust a sentence describing
+it, even when that sentence is the very set of marching orders for the
+session.

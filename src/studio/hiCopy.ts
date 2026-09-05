@@ -1896,4 +1896,13 @@ export const HI: StudioRestCopy = {
     haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
     haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
   },
+
+  // WS-R126 (join from WhatsApp, migration 131). Its own closed section --
+  // copy.ts's own ShareKitWhatsappJoinCopy header states why this is not
+  // folded into shareKit above.
+  shareKitWhatsappJoin: {
+    label: "WhatsApp पर जुड़ें",
+    caption: "WhatsApp खुलेगा और \"join {slug}\" पहले से टाइप मिलेगा, बस भेजना है।",
+    button: "WhatsApp खोलें",
+  },
 };

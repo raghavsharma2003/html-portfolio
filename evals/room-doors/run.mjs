@@ -3834,6 +3834,84 @@ function wrapWhatsappChatDoorsDb(baseDb, state) {
     out.ok === true && out.statuses === 1 && out.replies === 0);
 }
 
+// (d11) WS-R126 (join from WhatsApp, migration 131) — the poster/share-kit's
+// wa.me deep link lands here as an ordinary `join <slug>` text on THIS door,
+// and now writes a `whatsapp` arrival on the first inbound message
+// (`handleJoin`'s own new `recordRoomArrival` call). Two attacks:
+//   - a `vy_room_arrival` write that FAILS must never take the follower-
+//     facing flow down with it (`recordRoomArrival`'s own `.catch(() => {})`
+//     — best-effort by construction, `api/_room-surface.js`'s own header on
+//     why a counting failure must never become a follower's error) — proven
+//     against a `db` that THROWS specifically on that one statement, never a
+//     `db` that merely ignores it (the room-doors/fixtures.mjs base fixture
+//     already does that silently, which would let this class pass
+//     vacuously).
+//   - the SAME injection/malformed-input discipline §0's own classes already
+//     hold for every other field proven here now transfers to the new
+//     smart-quote tolerance in `parseJoinCommand` — a slug-shaped payload
+//     that only LOOKS like an injection attempt because it hides behind a
+//     wrapping quote is still bound to the same `[a-z0-9-]{1,63}` charset
+//     the un-quoted form always was, never loosened by the quote-stripping.
+{
+  const state = freshDoorsState();
+  const throwingDb = async (sql, params = []) => {
+    if (sql.includes("insert into vy_room_arrival")) {
+      throw new Error("d11: the arrival write is poisoned on purpose");
+    }
+    return wrapWhatsappChatDoorsDb(doorsDb(state), state)(sql, params);
+  };
+  const roomDeps = { loadAgent, now: NOW, env: ENV };
+  const phone = "+919000090077";
+  const sent = [];
+  const fakeWa = {
+    sendText: async (p, text) => { sent.push({ phone: p, text }); return { ok: true }; },
+    sendButtons: async (p, text, buttons) => { sent.push({ phone: p, text, buttons }); return { ok: true }; },
+  };
+  const joinPayload = {
+    entry: [{ changes: [{ value: { messages: [{ from: phone.replace(/^\+/, ""), id: "wamid.d11.join", type: "text", text: { body: `join ${SLUG}` } }] } }] }],
+  };
+  const result = await handleRoomWhatsappChatWebhook(joinPayload, {
+    db: throwingDb, wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: async () => null, linkSurfacePerson: async () => null, ...roomDeps,
+  });
+  okClass("d11-whatsapp-join-arrival", "room-wa.js", "a `vy_room_arrival` write that THROWS never takes the join flow down with it — ok:true, one reply consumed",
+    result?.ok === true && result?.replies === 1);
+  okClass("d11-whatsapp-join-arrival", "room-wa.js", "...and the disclosure line + age gate still reach the follower, byte-identical to the write-succeeds path",
+    sent.length === 2 && sent[0].text === roomDisclosureCard("Anjali", "en"));
+
+  // NEGATIVE CONTROL: the poison is real — an ordinary (non-poisoned) `db`
+  // for the SAME payload does reach `insert into vy_room_arrival` at least
+  // once, proving the throw above was actually exercised rather than a
+  // statement this code path never reaches at all.
+  const calls = [];
+  const countingDb = async (sql, params = []) => {
+    calls.push(sql);
+    return wrapWhatsappChatDoorsDb(doorsDb(state), state)(sql, params);
+  };
+  await handleRoomWhatsappChatWebhook(
+    { entry: [{ changes: [{ value: { messages: [{ from: "919000090078", id: "wamid.d11.join2", type: "text", text: { body: `join ${SLUG}` } }] } }] }] },
+    { db: countingDb, wa: fakeWa, consume: async () => ({ ok: true }), personForSurfaceUser: async () => null, linkSurfacePerson: async () => null, ...roomDeps },
+  );
+  okClass("d11-whatsapp-join-arrival", "room-wa.js", "NEGATIVE CONTROL: an ordinary db call for the SAME join text DOES reach `insert into vy_room_arrival` — the throw above tested something real",
+    calls.some((s) => s.includes("insert into vy_room_arrival")));
+
+  // The smart-quote tolerance never widens the SLUG charset — a quote-
+  // wrapped payload carrying anything outside `[a-z0-9-]` still refuses,
+  // exactly like the un-quoted form always has (this door's own §0 charset
+  // discipline, restated for the new wrapping syntax rather than assumed to
+  // still hold).
+  sent.length = 0;
+  const injectionPayload = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000090079", id: "wamid.d11.inject", type: "text", text: { body: `join "${SLUG}; drop table vy_room"` } }] } }] }],
+  };
+  const injectResult = await handleRoomWhatsappChatWebhook(injectionPayload, {
+    db: throwingDb, wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: async () => null, linkSurfacePerson: async () => null, ...roomDeps,
+  });
+  okClass("d11-whatsapp-join-arrival", "room-wa.js", "a quote-wrapped payload with SQL-shaped content outside the slug charset is not a join command at all — the join instruction, never the disclosure line",
+    injectResult?.ok === true && sent.length === 1 && sent[0].text !== roomDisclosureCard("Anjali", "en"));
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // §24. WS-R89 (class e) — CRON DOORS. Every cron door reachable over HTTP
 // carries a shared secret this file's own §0 door list never attacked (cron
