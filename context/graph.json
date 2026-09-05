@@ -7654,6 +7654,12 @@
       "kind": "measurement",
       "title": "Main-loop probe of the a414c7c preview: headers, unfurl, images, manifest, worker and API refusals all as the tree states; sitemap and directory 500 because both Vercel projects build with the stub config (no NEON_URL set), every DB call failing as undici's bare 'fetch failed'; api/_db.js now throws neon_url_missing by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "accessibility-gate-never-saw-a-day-sky-until-06-00-ist",
+      "kind": "rejection",
+      "title": "The accessibility gate first ran on a day sky at 06:00 IST and failed the landing's dim ink at 4.35:1 on the raw morning stop, because axe never sees the scrim layer the contrast gate accounts for; the veiled ground is now the element's own background (5.68:1).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15211,6 +15217,11 @@
       "src": "live-probe-wave-eleven-preview-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r57-header-route-scope-is-the-six-named-targets-not-every-vercel-json-path"
+    },
+    {
+      "src": "accessibility-gate-never-saw-a-day-sky-until-06-00-ist",
+      "rel": "supersedes",
+      "dst": "wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time"
     }
   ]
 }

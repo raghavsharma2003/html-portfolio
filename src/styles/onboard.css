@@ -34,8 +34,13 @@
   overscroll-behavior: contain;
   padding: calc(var(--safe-top) + 20px) calc(var(--safe-right) + 26px)
     calc(var(--safe-bottom) + 18px) calc(var(--safe-left) + 26px);
-  /* the world is the ground; no --surface, no paper */
-  background: var(--sky-1);
+  /* the world is the ground; no --surface, no paper. The fallback colour is
+     the VEILED top stop (scrim over sky, WorldLayer's --world-ground), not
+     the raw stop: the world layer paints over it either way, but this is
+     the colour an accessibility scanner reads as the text's background, and
+     the raw morning stop measured 4.35:1 under the dim ink where the veiled
+     ground the eye sees is 5.8:1. */
+  background: var(--world-ground, var(--sky-1));
   isolation: isolate;
 }
 .onb > .world {
