@@ -67,6 +67,14 @@ import {
 // imported) so this module needs only a `db` and an optional `deps.memory`
 // to be driven offline, `api/_checkins.js`'s own stated reason.
 import { dmHistory } from "./_surface.js";
+// WS-R87: Handoff v1 on the relational kernel. `evaluateDisclosure` is the
+// dependency-free port of the sibling repo's disclosure-act evaluator
+// (api/_relational-core.js's own header names what carried over and what
+// did not). Imported directly, not re-derived - unlike `dmHistory` above,
+// this is a same-repo, dependency-free, side-effect-free module, so the
+// reason `_room-surface.js`'s helpers get re-derived (staying reachable
+// with only a fake `db`) does not apply here.
+import { evaluateDisclosure } from "./_relational-core.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -88,6 +96,39 @@ export class HandoffError extends Error {
     this.status = status;
     if (details) this.details = details;
   }
+}
+
+/** WS-R87. Off by default - `api/_replica-voice-identity.js`'s own
+ *  `voiceIdentityChallengeEnabled(env = process.env)` shape, restated:
+ *  production callers pass nothing and get `process.env`; an offline eval
+ *  passes `{ env: { ROOM_HANDOFF_KERNEL: "1" } }` in `deps` to turn it on
+ *  for one call without touching the process. Must equal the exact string
+ *  "1" - unset, "true", "0", anything else is off, this repo's own
+ *  boolean-flag convention throughout ENV-MANIFEST.md. */
+export function handoffKernelEnabled(env = process.env) {
+  return String(env?.ROOM_HANDOFF_KERNEL || "") === "1";
+}
+
+/**
+ * The kernel evaluation both `sendHandoffRequest` and `answerHandoff` run
+ * behind the flag, factored into one function so a refusal is named the
+ * SAME way on both sides of the exchange (law 5's own words: "a refusal
+ * names its rule"). `deps.handoffDenies`, if given, is an array of denies
+ * evaluated alongside the caller's own self-issued grant - v0 has no
+ * owner-facing deny list yet (Handoff carries no creator-side block list,
+ * `decisions.md#ws-r87-handoff-v0-grant-is-self-issued`), so this is a
+ * seam for a feature not yet built, never populated by production code
+ * today; every production call passes no `handoffDenies` and gets `[]`.
+ */
+function evaluateHandoffAct(deps, { from, to, roomId, policyVersion }) {
+  const request = { from, to, act: "verbatim", scope: roomId, policy_version: policyVersion };
+  const grants = [{ ...request, expires_at: null }];
+  const denies = Array.isArray(deps.handoffDenies) ? deps.handoffDenies : [];
+  const decision = evaluateDisclosure(request, grants, denies, { now: deps.now ?? Date.now() });
+  if (!decision.allowed) {
+    throw new HandoffError(`handoff_kernel_${String(decision.code).toLowerCase()}`, 403, { rule: decision.code });
+  }
+  return decision.receipt;
 }
 
 const sha256Hex = (s) => createHash("sha256").update(String(s), "utf8").digest("hex");
@@ -222,8 +263,19 @@ export async function handoffQueue(db, ownerUserId, replicaId) {
  * answered even by a caller who already had its `handoff_id` - the write
  * path is gated by the identical predicate as the read path, not a weaker
  * cousin of it.
+ *
+ * WS-R87: behind `ROOM_HANDOFF_KERNEL`, the creator's reply is evaluated
+ * through the kernel "the other way" from `sendHandoffRequest` below - `from`
+ * is the Room (the creator's own reply), `to` is the follower who asked,
+ * under the SAME `policy_version` already stored on the row being answered
+ * (never the current `HANDOFF_POLICY_VERSION` constant, which may have moved
+ * on since this row was sent - law 3's own words: "the policy version
+ * Handoff evaluates under is the one WS-R20 already stores on the row").
+ * That means a pre-read of the row is needed BEFORE the answering UPDATE
+ * when the flag is on - the one new SQL statement this workstream adds, and
+ * it never runs when the flag is off.
  */
-export async function answerHandoff(db, ownerUserId, replicaId, handoffId, { replyText } = {}) {
+export async function answerHandoff(db, ownerUserId, replicaId, handoffId, { replyText } = {}, deps = {}) {
   assertOwnerScope(ownerUserId, replicaId);
   if (!UUID.test(String(handoffId || ""))) throw new HandoffError("handoff_id_invalid", 400);
   const reply = String(replyText ?? "").trim();
@@ -231,6 +283,27 @@ export async function answerHandoff(db, ownerUserId, replicaId, handoffId, { rep
   if (reply.length > HANDOFF_REPLY_MAX) throw new HandoffError("handoff_reply_too_long", 400);
   const room = await ownedRoomHandle(db, ownerUserId, replicaId);
   if (!room) throw new HandoffError("room_not_found", 404);
+
+  if (handoffKernelEnabled(deps.env)) {
+    const pending = await db(
+      `select handoff_id, follower_id, policy_version
+         from vy_room_handoff
+        where handoff_id = ($1)::uuid and room_id = ($2)::uuid
+          and state = 'sent'
+          and payload_sha256 = encode(digest(payload_text, 'sha256'), 'hex')
+        limit 1`,
+      [handoffId, room.room_id],
+    );
+    const pendingRow = pending[0];
+    if (!pendingRow) throw new HandoffError("handoff_not_answerable", 404);
+    evaluateHandoffAct(deps, {
+      from: `room:${room.room_id}`,
+      to: String(pendingRow.follower_id),
+      roomId: String(room.room_id),
+      policyVersion: Number(pendingRow.policy_version),
+    });
+  }
+
   const rows = await db(
     `update vy_room_handoff
         set reply_text = $3, state = 'answered', answered_at = now(), updated_at = now()
@@ -307,6 +380,15 @@ export async function draftHandoffPayload(
  * preference, a predicate on the write is a guarantee." The pre-checks
  * below exist ONLY to refuse by name before spending a round trip; the
  * INSERT's own WHERE is what actually protects a race between two tabs.
+ *
+ * WS-R87: behind `ROOM_HANDOFF_KERNEL`, the follower's payload is evaluated
+ * as a `verbatim` act, follower to Room, before the INSERT below ever runs.
+ * Unlike `answerHandoff`, this needs no pre-read - every field the kernel's
+ * request shape needs (`who.followerId`, `who.roomId`,
+ * `HANDOFF_POLICY_VERSION`, the constant this same INSERT is about to write)
+ * is already in hand, so the INSERT itself is BYTE-IDENTICAL whether the
+ * flag is on or off (evals/handoff/run.mjs proves this by diffing the exact
+ * SQL text and params the fake `db` receives under both settings).
  */
 export async function sendHandoffRequest(
   db,
@@ -325,6 +407,16 @@ export async function sendHandoffRequest(
     // response to that, never "send what they typed instead."
     throw new HandoffError("handoff_payload_hash_mismatch", 400);
   }
+
+  if (handoffKernelEnabled(deps.env)) {
+    evaluateHandoffAct(deps, {
+      from: who.followerId,
+      to: `room:${who.roomId}`,
+      roomId: who.roomId,
+      policyVersion: HANDOFF_POLICY_VERSION,
+    });
+  }
+
   const thread = threadId ? await ownedThread(db, who.roomId, who.personId, who.agentId, threadId) : null;
   const monthKey = monthKeyOf(deps.now ?? Date.now());
 

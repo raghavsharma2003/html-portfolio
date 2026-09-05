@@ -8524,6 +8524,60 @@
       "kind": "measurement",
       "title": "755 offline checks across evals/operator-digest (49, new), evals/ops (137, was 135), evals/room-doors (569, was 566) - all passed, zero real db, zero network.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-relational-core",
+      "kind": "component",
+      "title": "api/_relational-core.js: dependency-free port of the sibling repo's disclosure-act evaluator (closed act list, deny-always-wins, a grant bound to an exact policy_version, expiry as an exclusive boundary, a named refusal). Wired into api/_handoff.js send/answer behind ROOM_HANDOFF_KERNEL.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-relational-core-is-evaluator-only-not-a-zod-port",
+      "kind": "decision",
+      "title": "api/_relational-core.js ports only the evaluator surface Handoff needs, not DisclosurePolicy/ConsentGrant/zod/deriveDisclosurePolicy - Handoff v0 has one policy version and one self-issued grant shape, so the sibling repo's full multi-owner policy model would be machinery ahead of any real caller.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-handoff-v0-grant-is-self-issued",
+      "kind": "decision",
+      "title": "Every kernel evaluation in api/_handoff.js uses a grant built from the SAME request it evaluates - the follower/creator's own explicit submission IS the grant. deps.handoffDenies is a seam for a future creator-side deny list; no production code populates it yet.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-oracle-cross-check-is-exhaustive-not-fast-check-sampled",
+      "kind": "decision",
+      "title": "evals/relational-core/run.mjs ports the sibling repo's 500-case fast-check property sweep as an exhaustive 256-case enumeration instead, since fast-check is not a dependency of this repo and the kernel port introduces none.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-answer-handoff-pre-read-only-when-kernel-on",
+      "kind": "decision",
+      "title": "answerHandoff issues one new SELECT (follower_id, policy_version, same hash-match predicate) only when ROOM_HANDOFF_KERNEL is on, to evaluate the creator's reply under the policy version already stored on the row rather than the current constant; the flag-off path is unchanged.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-explaining-vy-room-handoff-in-a-comment-tripped-the-leak-batterys-static-scan-a-fourth-time",
+      "kind": "rejection",
+      "title": "api/_relational-core.js first spelled vy_room_handoff literally in an explanatory comment, tripping evals/room-leak/run.mjs layer 6's static scan a fourth time (after WS-R54/WS-R70/WS-R76) even though the file issues no SQL at all; fixed by paraphrasing the comment, matching precedent rather than fighting it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-relational-core-ported-vectors-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/relational-core/run.mjs: 25/25 vectors ported by hand from the sibling repo's privacy.test.ts and privacy-matrix.test.ts (commit 9cdc1dc), including an exhaustive 256/256 independent-oracle cross-check.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-handoff-kernel-wiring-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/handoff/run.mjs: 40/40 (30 pre-existing + 10 new) - flag-off SQL byte-identical to flag-on for send; a crafted deny through deps.handoffDenies refuses both send and answer when the flag is on, named handoff_kernel_denied, and is never consulted when the flag is off.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r87-room-leak-layer6-flag-on-and-off-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-leak/run.mjs layer 6 world check run twice in one suite execution, ROOM_HANDOFF_KERNEL unset and \"1\", zero leaks both times; whole suite 223/223 assertions, 336,323 retrieval row-scenario checks, 546 boundary checks.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16776,6 +16830,36 @@
       "src": "ws-r88-ops-board-digest-copy-stays-english-inline",
       "rel": "caused_by",
       "dst": "ws-r62-ops-board-push-copy-stays-english-inline"
+    },
+    {
+      "src": "ws-r87-relational-core",
+      "rel": "part_of",
+      "dst": "ws-r20-handoff-v0"
+    },
+    {
+      "src": "ws-r87-relational-core-ported-vectors-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r87-relational-core-is-evaluator-only-not-a-zod-port"
+    },
+    {
+      "src": "ws-r87-handoff-kernel-wiring-eval-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r87-handoff-v0-grant-is-self-issued"
+    },
+    {
+      "src": "ws-r87-handoff-kernel-wiring-eval-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r87-answer-handoff-pre-read-only-when-kernel-on"
+    },
+    {
+      "src": "ws-r87-room-leak-layer6-flag-on-and-off-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r87-relational-core"
+    },
+    {
+      "src": "ws-r87-explaining-vy-room-handoff-in-a-comment-tripped-the-leak-batterys-static-scan-a-fourth-time",
+      "rel": "caused_by",
+      "dst": "ws-r87-relational-core"
     }
   ]
 }

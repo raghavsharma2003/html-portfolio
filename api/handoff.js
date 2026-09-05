@@ -15,6 +15,11 @@
 // Thin by construction: cors, rate limit, auth, dispatch, error shape. Every
 // decision lives in api/_handoff.js, where a fake `db` can reach it -
 // api/checkins.js is the shape this copies almost verbatim.
+//
+// WS-R87: "send" and "answer" pass `{ env: process.env }` so
+// `api/_handoff.js`'s own `handoffKernelEnabled` reads the real
+// `ROOM_HANDOFF_KERNEL` flag - off by default, no behaviour change on this
+// door's own request/response shape either way.
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { requireUser, AuthError } from "./_auth.js";
@@ -68,7 +73,7 @@ async function handler(req, res) {
       }
       const answered = await answerHandoff(q, user.id, body.replica_id, body.handoff_id, {
         replyText: body.reply_text,
-      });
+      }, { env: process.env });
       return res.status(200).json(answered);
     }
 
@@ -89,7 +94,7 @@ async function handler(req, res) {
         payloadText: body.payload_text,
         payloadSha256: body.payload_sha256,
         threadId: body.thread_id || null,
-      });
+      }, { env: process.env });
       return res.status(200).json(sent);
     }
 

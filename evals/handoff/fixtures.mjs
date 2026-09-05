@@ -76,6 +76,22 @@ export function handoffDb(state, base) {
         : [];
     }
 
+    // ── WS-R87: the kernel-on pre-read `answerHandoff` issues BEFORE the
+    // answering UPDATE, when ROOM_HANDOFF_KERNEL=1 - the SAME hash-match
+    // predicate as the write below, but a SELECT rather than an UPDATE, so
+    // it must be matched first (its own text is a strict subset of the
+    // UPDATE's own matched substrings otherwise).
+    if (has("select handoff_id, follower_id, policy_version") && has("from vy_room_handoff") &&
+        has("handoff_id = ($1)::uuid and room_id = ($2)::uuid")) {
+      const [handoffId, roomId] = p;
+      const row = state.roomHandoffs.find(
+        (h) =>
+          h.handoff_id === handoffId && h.room_id === roomId && h.state === "sent" &&
+          h.payload_sha256 === sha256Hex(h.payload_text),
+      );
+      return row ? [{ handoff_id: row.handoff_id, follower_id: row.follower_id, policy_version: row.policy_version }] : [];
+    }
+
     // ── the answer: the SAME hash-match predicate gates the write ───────────
     if (has("update vy_room_handoff") && has("set reply_text = $3")) {
       const [handoffId, roomId, replyText] = p;

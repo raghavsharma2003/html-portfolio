@@ -1257,3 +1257,23 @@ checkin-payload`. WhatsApp stays structurally present and inert: no
 dormancy-specific template is approved (this repo has only
 `vyakti_checkin_v1`, `api/_room-whatsapp.js`), and Meta refuses free-form
 text outside an approved template.
+
+## 31. Handoff v1 on the relational kernel (`vercel-app`, WS-R87, 2026-09-05)
+
+`api/_relational-core.js` is a new, dependency-free module (no imports at
+all) evaluating Handoff's disclosure act. No migration — the policy version
+it evaluates under already existed on migration 083's own table. See
+`docs/gurukul/HANDOFF-KERNEL.md` for the full mechanism and what was ported
+from, and left in, the sibling repo's kernel.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `ROOM_HANDOFF_KERNEL` | `api/_handoff.js:handoffKernelEnabled()`, read by `sendHandoffRequest` and `answerHandoff` | optional (switch) | must equal the exact string `"1"`; anything else (including unset, `"true"`, `"yes"`) is off | **off (default)**: `sendHandoffRequest`/`answerHandoff` run exactly as they did before this workstream — no new SQL statement, no new refusal code, byte-identical INSERT (proven by `evals/handoff/run.mjs`'s own SQL diff). **on**: both calls evaluate the act through `api/_relational-core.js`'s `evaluateDisclosure` before their own write — a follower's payload as `verbatim`, follower to Room, before the INSERT; the creator's reply the other way, under the policy version already stored on the row, before the answering UPDATE (one new pre-read SELECT, only when on). A refusal is named `handoff_kernel_<code>` (e.g. `handoff_kernel_denied`) |
+
+Not a build-time (`VITE_`) flag — a plain `process.env` var like
+`ROOM_DORMANCY` above, no frontend rebuild needed to flip it. In v0 the
+grant evaluated is always self-issued (the follower's or creator's own
+explicit submission), so a legitimate call can never be refused by turning
+this flag on alone; the one reachable refusal path is
+`deps.handoffDenies`, a seam no production code populates yet
+(`context/decisions.md#ws-r87-handoff-v0-grant-is-self-issued`).
