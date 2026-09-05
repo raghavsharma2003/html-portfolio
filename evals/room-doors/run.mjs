@@ -88,9 +88,9 @@
 // Offline, deterministic, $0, no DB, no network, no GPU, no model call.
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -126,6 +126,44 @@ const okClass = (klass, doorName, name, cond, extra = "") => {
 // ═════════════════════════════════════════════════════════════════════════
 console.log("── §0: the door list, enumerated and asserted complete ──");
 
+// WS-R120 (the door battery's third pass). Two separate widenings, both
+// needed, neither sufficient alone:
+//
+// (1) `DOOR_MODULES` itself now NAMES `api/readiness.js`'s own two decision
+// modules (`_readiness.js`, `_recall-run.js`) — ordinary curation, the same
+// act WS-R62/WS-R74/WS-R100/WS-R103/WS-R104 each did for their own new
+// module, closing exactly the gap WS-R101 found and left ("imports modules
+// not in the closed DOOR_MODULES set"). This alone is what admits
+// `readiness.js` below — a plain DIRECT match, nothing transitive required.
+//
+// (2) `touchesDoorModule` is now ALSO a bounded TWO-HOP walk (a door's own
+// direct `_`-file imports, and THOSE modules' own direct imports) —
+// generalising past (1) so a FUTURE door hiding behind its own small
+// decision module does not need to wait for a session to name it by hand,
+// evidenced by `operator-digest-sweep.js` on the cron side below (§24):
+// nothing in this file ever named it, and it is found through `_ops.js`
+// (an existing anchor) one hop further in.
+//
+// An UNBOUNDED transitive walk was tried FIRST, for BOTH widenings, and
+// rejected — logged in full at `context/rejected.md#ws-r120-unbounded-
+// transitive-door-discovery-explodes-through-hub-modules` because the
+// failure mode is exactly the kind this project's own rule (`rejected.md`
+// before `decisions.md`) exists to stop a future session re-discovering the
+// hard way: `_replica.js` is a platform-wide hub every Replica Lab /
+// Meera-only surface imports for nothing more than `replicaId()`, so ANY
+// depth of pure graph closure over it pulls in 24+ doors this battery has
+// never owned (`replica-voice.js`, `replica-claims.js`, `chat.js`'s own
+// siblings) — while EXCLUDING `_replica.js` from second-hop eligibility
+// (below) also removes the one supposedly-transitive path to `readiness.js`
+// that motivated trying this at all, since `_readiness.js`/`_recall-run.js`
+// reach NOTHING else on the anchor list. Topology alone cannot tell
+// "Room-scoped module that happens to call `replicaId()`" apart from
+// "platform module that happens to call `replicaId()`" — that is a fact
+// about WHAT the module is FOR, not the shape of its imports, which is
+// exactly why widening (1) is a NAMED addition rather than something the
+// graph walk was ever going to find on its own, and why widening (2) below
+// excludes hub modules from its own second hop rather than following the
+// graph forever.
 const DOOR_MODULES = [
   "./_room-surface.js", "./_room-publish.js", "./_room-telegram.js", "./_room-whatsapp.js",
   "./_room-push.js", "./_room-cohorts.js", "./_handoff.js", "./_checkins.js", "./_payments.js",
@@ -138,14 +176,77 @@ const DOOR_MODULES = [
   // through `_room-whatsapp.js` above regardless, so this entry is
   // documentation-complete rather than load-bearing for §0's discovery.
   "./_room-whatsapp-chat.js",
+  // WS-R120: readiness.js's own two decision modules — WS-R101 named these
+  // as the exact reason it could not join this list ("imports modules not in
+  // the closed DOOR_MODULES set"); named here now rather than left closed.
+  "./_readiness.js", "./_recall-run.js",
+];
+// The FROZEN pre-WS-R120 list, kept as a literal (never edited again) so the
+// new two-hop derivation below can be asserted against it directly: law 1's
+// own closing sentence ("the derivation must find every name they held plus
+// the ones they missed, name them in the entry") requires exactly this
+// comparison, not a paraphrase of it in a comment.
+const FROZEN_DOOR_MODULES_CONTROL = [
+  "./_room-surface.js", "./_room-publish.js", "./_room-telegram.js", "./_room-whatsapp.js",
+  "./_room-push.js", "./_room-cohorts.js", "./_handoff.js", "./_checkins.js", "./_payments.js",
+  "./_org.js", "./_replica.js", "./_apply.js", "./_invites.js", "./_pulse.js",
+  "./_ops.js", "./_room-whatsapp-chat.js",
 ];
 const EXPECTED_DOORS = [
+  "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
+  "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "readiness.js", "replica.js",
+  "room-pay.js", "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
+].sort();
+const FROZEN_EXPECTED_DOORS_CONTROL = [
   "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
   "payments-webhook.js", "payments.js", "payout-webhook.js", "pulse.js", "replica.js", "room-pay.js",
   "room-publish.js", "room-tg.js", "room-wa.js", "room.js",
 ].sort();
 
+// mirror of evals/room-leak/run.mjs's own `importsOf` (not exported there —
+// this workstream's own law 1 fallback, "reused by import if exported, else
+// restated with a `// mirror of` marker"): every NAMED import specifier's
+// source FILE (never the names themselves, §0 only needs the file graph).
+function importsOf(absFile) {
+  if (!existsSync(absFile)) return [];
+  const src = readFileSync(absFile, "utf8");
+  const dir = dirname(absFile);
+  const files = new Set();
+  for (const m of src.matchAll(/from\s+"(\.\.?\/[\w./-]+\.js)"/g)) {
+    files.add(normalize(join(dir, m[1])));
+  }
+  return [...files];
+}
+
+// The SECOND hop's own anchor set is DELIBERATELY narrower than the first:
+// `context/rejected.md#ws-r120-unbounded-transitive-door-discovery-
+// explodes-through-hub-modules` measured that admitting `_replica.js` at the
+// second hop pulls in 24+ doors this battery has never owned, because it is
+// a platform-wide hub every Replica Lab / Meera-only surface imports for
+// nothing more than `replicaId()`. `_readiness.js`/`_recall-run.js` turn out
+// to be the SAME shape one size down — `api/_clonechannel.js` (Meera's own
+// companion memory feature, reached from `clone-channel.js`/`tg.js`/
+// `whatsapp.js`, none of them Room doors) imports `_readiness.js` directly
+// for its own, unrelated readiness score, so admitting it at the second hop
+// pulls THOSE three in too. All three stay fully valid FIRST-hop (direct)
+// anchors — `readiness.js` itself is found that way, needing no second hop
+// at all — and are excluded ONLY from second-hop eligibility.
+const HUB_MODULES_EXCLUDED_FROM_SECOND_HOP = new Set(
+  ["_replica.js", "_readiness.js", "_recall-run.js"].map((m) => join(API, m)),
+);
+
+function touchesDoorModuleTransitively(absFile, anchorAbsPaths) {
+  const direct = importsOf(absFile);
+  if (direct.some((m) => anchorAbsPaths.has(m))) return true;
+  const secondHopAnchors = [...anchorAbsPaths].filter((a) => !HUB_MODULES_EXCLUDED_FROM_SECOND_HOP.has(a));
+  for (const dep of direct) {
+    if (importsOf(dep).some((m) => secondHopAnchors.includes(m))) return true;
+  }
+  return false;
+}
+
 function discoverDoors() {
+  const anchors = new Set(DOOR_MODULES.map((m) => join(API, m.replace(/^\.\//, ""))));
   const files = readdirSync(API).filter((f) => f.endsWith(".js") && !f.startsWith("_") && !f.includes("-sweep"));
   const doors = [];
   for (const f of files) {
@@ -154,7 +255,7 @@ function discoverDoors() {
       /req\.body/.test(src) || /rawBodyOf\(/.test(src) || /for await \(const c of req\)/.test(src) ||
       /bodyParser:\s*false/.test(src);
     if (!readsBody && f !== "account.js") continue;
-    const touchesDoorModule = DOOR_MODULES.some((m) => src.includes(`"${m}"`));
+    const touchesDoorModule = touchesDoorModuleTransitively(join(API, f), anchors);
     if (touchesDoorModule || f === "account.js") doors.push(f);
   }
   return doors.sort();
@@ -169,6 +270,38 @@ ok(
     : "",
 );
 console.log(`  door list (${discovered.length}): ${discovered.join(", ")}`);
+
+// LAW 1's own closing sentence, checked directly: the new derivation must
+// find every name the FROZEN pre-WS-R120 list held (superset) plus the one
+// it missed, named.
+ok(
+  "the new derivation finds every door the FROZEN pre-WS-R120 EXPECTED_DOORS held (superset, nothing lost)",
+  FROZEN_EXPECTED_DOORS_CONTROL.every((d) => discovered.includes(d)),
+);
+ok(
+  'the new derivation finds "readiness.js" — the exact door WS-R101 could not admit and the frozen control never held',
+  !FROZEN_EXPECTED_DOORS_CONTROL.includes("readiness.js") && discovered.includes("readiness.js"),
+);
+// NEGATIVE CONTROL, against a FROZEN LITERAL of readiness.js's own import
+// block AS IT STOOD BEFORE this workstream — never the live file, which has
+// since ALSO gained a `bodyTooLarge` import from `_room-surface.js` (a real
+// WS-R120 fix, §20's own finding once this door became visible at all) that
+// would otherwise make this control pass for the wrong reason, since
+// `_room-surface.js` has been a DOOR_MODULES anchor since before this
+// workstream. Proves the FROZEN pre-WS-R120 module list genuinely could not
+// see this door — the widening (naming `_readiness.js`/`_recall-run.js`) is
+// load-bearing, not vacuous.
+const PRE_WS_R120_READINESS_IMPORTS = [
+  'import { q } from "./_db.js";',
+  'import { requireUser, AuthError } from "./_auth.js";',
+  'import { allow, ipOf } from "./_ratelimit.js";',
+  'import { readOwnedReadiness } from "./_readiness.js";',
+  'import { runRecallMeasurement } from "./_recall-run.js";',
+].join("\n");
+ok(
+  "NEGATIVE CONTROL: the FROZEN pre-WS-R120 DOOR_MODULES list genuinely could not see readiness.js's own (frozen, pre-fix) imports",
+  !FROZEN_DOOR_MODULES_CONTROL.some((m) => PRE_WS_R120_READINESS_IMPORTS.includes(`"${m}"`)),
+);
 
 // ═════════════════════════════════════════════════════════════════════════
 // the fixture world
@@ -230,16 +363,16 @@ const { getOwnedRoom, listRoom, unlistRoom, setRoomBio, RoomPublishError } = ROO
 // are, without joining §18's completeness machinery.
 const REVIEW_QUEUE = await import(pathToFileURL(join(API, "_review-queue.js")).href);
 const { readEligibleShowcaseCards, dismissFlaggedReply, decideReviewCard, ReviewQueueError } = REVIEW_QUEUE;
-// WS-R101: `api/readiness.js` is NOT one of this file's DOOR_MODULES either
-// (it imports `./_readiness.js` and `./_recall-run.js`, neither in the
-// closed set §0 names) and is NOT added to one here - the SAME deliberate,
-// logged scope boundary WS-R72 states in full for `api/review-queue.js`
-// (`context/decisions.md#ws-r72-review-queue-js-kept-outside-the-door-
-// battery`), applied here rather than re-argued: adding it would make §18
-// enumerate `measure_now` alongside a GET-only read this file has no `op`
-// literal for, a real structural change out of this workstream's own scope.
-// This import is for ONE owner-bearer case below (§5), the real production
-// function, cased directly, without joining §18's completeness machinery.
+// WS-R101 excluded `api/readiness.js` here on exactly the grounds WS-R72
+// states for `api/review-queue.js` above — SUPERSEDED by WS-R120
+// (`context/decisions.md#ws-r120-readiness-js-joins-the-door-battery`):
+// `_readiness.js`/`_recall-run.js` are now named in §0's own `DOOR_MODULES`
+// (reached by the two-hop derivation), `readiness.js` is in `EXPECTED_DOORS`,
+// and `measure_now` joins §18's completeness machinery like any other op —
+// the "GET-only read this file has no op literal for" WS-R101 named is
+// `handleGet`, which reads no `op` literal at all and needs none (§18's own
+// extraction only ever looks for `op === "..."` literals; a GET dispatch has
+// none to miss).
 const RECALL_RUN = await import(pathToFileURL(join(API, "_recall-run.js")).href);
 const { runRecallMeasurement } = RECALL_RUN;
 const INVITES = await import(pathToFileURL(join(API, "_invites.js")).href);
@@ -294,6 +427,10 @@ const { loadAgent } = await loadFixtureAgent(ROOT);
 // own `personTablesFor` comment explains the seam itself).
 const { buildRoomExportReadableHtml } = await import(pathToFileURL(join(API, "_room-export-readable.js")).href);
 const { PERSON_TABLES } = await import(pathToFileURL(join(API, "memory.js")).href);
+// WS-R120: room.js's own `receipt` op has the SAME `format: "html"` branch
+// "export" got in WS-R108 (`buildReceiptHtml`, `api/_receipt.js`) — §18b's
+// own new derivation is what found it had no case anywhere in this file.
+const { buildReceiptHtml } = await import(pathToFileURL(join(API, "_receipt.js")).href);
 
 const SECRET = "s".repeat(48);
 const OTHER_SECRET = "t".repeat(48);
@@ -944,8 +1081,12 @@ console.log("\n── §5: an owner bearer reaching for someone else's replica/o
   okClass("e-owner-bearer", "org.js", "a NON-member's bearer against the same org_id is refused org_not_found (404, never a 403 that would confirm the org exists), never the roster", stolen instanceof OrgError && stolen.code === "org_not_found");
 }
 {
-  // WS-R101. `readiness.js`'s "measure_now" op, the real
-  // `runRecallMeasurement` (`api/_recall-run.js`), driven with a fake `db`
+  // WS-R101 wrote this case already, as a standalone proof outside §18's
+  // completeness machinery; WS-R120 admits `readiness.js` to `EXPECTED_DOORS`
+  // (see §0) so THIS is now the case §18's own `OP_COVERAGE["readiness.js"]`
+  // entry for `measure_now` points back to, unchanged. `readiness.js`'s
+  // "measure_now" op, the real `runRecallMeasurement` (`api/_recall-run.js`),
+  // driven with a fake `db`
   // that answers exactly the ONE query this function issues before it ever
   // touches a replica's own sources: the ownership gate
   // (`select r.replica_id from vy_replica r where replica_id=$1 and
@@ -2428,6 +2569,46 @@ console.log("\n── §17e: room.js receipt / receipts (WS-R100) ──");
   okClass("c-body-ids", "room.js", "receipts: follower B's own list carries none of A's receipts", listB.receipts.length === 0);
 }
 
+// WS-R120: room.js's own `format: "html"` branch on "receipt" — the ONE
+// op:format pair §18b's own new derivation found with no case anywhere in
+// this file before this workstream (unlike "export", which WS-R108 already
+// proved three ways in §3). Same shape, restated for `buildReceiptHtml`:
+// (1) statically, the branch is gated to the "receipt" op alone and calls
+// the builder on `ctx`, the SAME already-scoped `roomReceipt` result, never
+// a fresh read; (2) dynamically, the real builder composes with a real
+// `roomReceipt` result over one real follower's own session without error;
+// (3) dynamically, the cross-follower boundary §17e's own class-c case
+// already proved for the JSON response holds for the html branch too —
+// there is no second, less careful path a stolen `payment_event_id` could
+// reach only by asking for `format:"html"`.
+{
+  const src = readFileSync(join(API, "room.js"), "utf8");
+  const block = src.slice(src.indexOf('if (op === "receipt") {'), src.indexOf('if (op === "receipts") {'));
+  ok('[computed-format-list/room.js] receipt format:"html": the branch is gated to op==="receipt" alone', block.includes('body.format === "html"'));
+  ok('[computed-format-list/room.js] receipt format:"html": the branch calls the builder on `ctx` — the SAME already-scoped roomReceipt result, never a fresh read', block.includes("buildReceiptHtml(ctx)"));
+  const ctxIdx = block.indexOf("const ctx = await roomReceipt(");
+  const formatIdx = block.indexOf('body.format === "html"');
+  ok('[computed-format-list/room.js] receipt format:"html": the branch sits AFTER the scoped roomReceipt(q, ...) call, never before it', ctxIdx > -1 && formatIdx > ctxIdx);
+}
+{
+  const { db, session } = await setupFollower();
+  const ctx = await roomReceipt(db, { session, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV });
+  const html = buildReceiptHtml(ctx);
+  ok("[receipt-html/room.js] the real builder composes with a real roomReceipt result over one real follower's own session, with no throw", typeof html === "string" && html.length > 0);
+  ok("[receipt-html/room.js] the built page carries no <script> tag", !/<script/i.test(html));
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const joinedB = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const ctxA = await roomReceipt(db, { session: joinedA.session, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV });
+  const htmlA = buildReceiptHtml(ctxA);
+  const stolen = await threw(() => roomReceipt(db, { session: joinedB.session, paymentEventId: "e9000000-0000-4000-8000-000000000001" }, { loadAgent, now: NOW, env: ENV }));
+  okClass("c-body-ids", "room.js", 'receipt format:"html": follower B naming follower A\'s own payment_event_id is refused BEFORE buildReceiptHtml is ever reached — no second, less careful path behind format:"html"', stolen?.code === "room_receipt_not_found");
+  ok("[receipt-html/room.js] follower A's own rendered receipt is a real page (the fixture and the boundary are both sound)", typeof htmlA === "string" && htmlA.length > 0);
+}
+
 console.log("\n── §18: the computed op list — every op is cased or named ──");
 
 function computedOps(file) {
@@ -2435,6 +2616,32 @@ function computedOps(file) {
   const names = new Set();
   for (const m of src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)) names.add(m[1]);
   return [...names].sort();
+}
+
+// WS-R120: law 1's second half — a door can dispatch a SECOND time, inside
+// an already-cased op, on a body field other than `op` (room.js's own
+// `body.format === "html"` on both "export" and "receipt"). §18's own
+// extraction never saw this shape at all — an op-shaped literal it never
+// even looked for, not merely an op it looked for and excused. Each
+// `format === "x"` literal is attributed to the NEAREST PRECEDING
+// `op === "x"` literal in the same source (by byte offset) — sound for
+// every real case in this repo (checked below: both of room.js's own format
+// branches sit textually after their own enclosing `op === "..."` check,
+// never before it or inside a different op's block) and asserted, not
+// merely assumed, by the negative control this section's own law 4 adds.
+function computedFormats(file) {
+  const src = readFileSync(join(API, file), "utf8");
+  const opHits = [...src.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)].map((m) => ({ name: m[1], index: m.index }));
+  const pairs = [];
+  for (const m of src.matchAll(/(?:body\.)?format === "([a-z_]+)"/g)) {
+    let nearestOp = null;
+    for (const o of opHits) {
+      if (o.index <= m.index) nearestOp = o.name;
+      else break;
+    }
+    pairs.push({ op: nearestOp, format: m[1] });
+  }
+  return pairs;
 }
 
 // WS-R51 law 2's own check: the three webhook doors genuinely read no `op`
@@ -2479,13 +2686,21 @@ const OP_COVERAGE = {
     unflag: { classes: ["a", "b"] },
     flags: { classes: ["a", "b"] },
     stats: { excluded: "no session and no bearer — a public read by slug; resolveRoom's own WHERE already collapses paused/unpublished/unknown into the same answer" },
-    export: { classes: ["a", "b", "c"] },
+    // WS-R120: `formats` — the `body.format === "..."` literal(s) §18's own
+    // `computedFormats` finds nested inside this op's own dispatch, each
+    // needing a coverage entry the SAME way an op does. "html" on "export"
+    // was already proven three ways in §3 above (WS-R108) — this entry
+    // formalises that existing proof into the computed table rather than
+    // leaving it reachable only by reading the surrounding prose.
+    export: { classes: ["a", "b", "c"], formats: { html: { classes: ["a", "b", "c"] } } },
     forget: { classes: ["a", "c"] },
     // WS-R100 (migration 126). `receipt` carries a body-supplied
     // `payment_event_id` — class c — refused by the WHERE's own
     // `room_id`/`person_id` pair (§17e); `receipts` takes only the session,
-    // `flags`'/`citations`' own shape.
-    receipt: { classes: ["a", "b", "c"] },
+    // `flags`'/`citations`' own shape. WS-R120: `receipt`'s own
+    // `format: "html"` branch (`buildReceiptHtml`) had NO case anywhere in
+    // this file before this workstream — §18b below is the new one.
+    receipt: { classes: ["a", "b", "c"], formats: { html: { classes: ["a", "b", "c"] } } },
     receipts: { classes: ["a", "b"] },
   },
   "room-pay.js": {
@@ -2600,12 +2815,31 @@ const OP_COVERAGE = {
     push_subscribe: { classes: ["e"] },
     push_revoke: { classes: ["e"] },
   },
-  // ── WS-R62 (migration 114): the ops door's first `op`-shaped body. ──────
+  // ── WS-R62 (migration 114): the ops door's first `op`-shaped body. WS-R120
+  //    confirms all three still stand under the widened §0/§18 derivation —
+  //    `push_subscribe`/`push_revoke` (WS-R62) and `send_test_digest`
+  //    (WS-R88, the operator digest board WS-R98/WS-R102 built the Telegram
+  //    channel and the optional-absent tracking around) are exactly what
+  //    this workstream's own brief names as "the operator ops WS-R98 and
+  //    R102 added" — neither workstream added a NEW `op` literal (their own
+  //    work was the digest's Telegram channel and self-check's incident
+  //    rows, `context/decisions.md#ws-r98-operator-telegram-reuses-room-
+  //    telegram-checkin-sender` and `#ws-r102-optional-absent-incidents-
+  //    reuse-self-check-kind-with-a-door-prefix`), so this is a NON-
+  //    regression check: the derivation still finds and cases all three. ──
   "ops.js": {
     push_subscribe: { classes: ["e"] },
     push_revoke: { classes: ["e"] },
     // WS-R88 (migration 125). "Send a test digest now" - see §17d below.
     send_test_digest: { classes: ["e"] },
+  },
+  // WS-R120: `readiness.js` joins EXPECTED_DOORS (§0) — its one op,
+  // `measure_now`, was ALREADY cased by WS-R101 (§5 above, the case right
+  // after org.js's `list_mine`) as a standalone proof outside this table;
+  // this entry is what makes §18's own loop below find it, rather than the
+  // case existing but nothing pointing back at it.
+  "readiness.js": {
+    measure_now: { classes: ["e"] },
   },
   "account.js": {
     send_otp: { classes: ["h"] },
@@ -2647,6 +2881,30 @@ for (const [file, coverage] of Object.entries(OP_COVERAGE)) {
 }
 ok("the computed op list found ZERO ops with no OP_COVERAGE entry at all (every op is cased or named excluded)", uncasedOps === 0);
 ok('the "preexisting-uncased" class is GONE from OP_COVERAGE — every op WS-R44 left there now carries a real class or a safe exclusion (WS-R51 law 2)', preexistingGaps === 0);
+
+// ═════════════════════════════════════════════════════════════════════════
+// §18b. WS-R120 — THE COMPUTED FORMAT LIST. Law 1's second half: a
+// `body.format === "x"` literal nested inside an already-cased op is its own
+// dispatch and needs its own coverage entry, exactly `format:"html"` on
+// room.js's "export" (already proven in §3, formalised here) and "receipt"
+// (genuinely uncased anywhere in this file before this workstream — the new
+// dynamic case is right below).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §18b: the computed format list — every op:format pair is cased ──");
+
+let uncasedFormats = 0;
+for (const [file, coverage] of Object.entries(OP_COVERAGE)) {
+  const pairs = computedFormats(file);
+  for (const { op: opName, format } of pairs) {
+    const opEntry = opName ? coverage[opName] : null;
+    const known = Boolean(opEntry?.formats?.[format] &&
+      (opEntry.formats[format].excluded || (Array.isArray(opEntry.formats[format].classes) && opEntry.formats[format].classes.length > 0)));
+    if (!known) uncasedFormats++;
+    ok(`[computed-format-list/${file}] "${opName}:${format}" is cased`, known, known ? "" : "— UNCASED FORMAT, no entry in OP_COVERAGE[...].formats at all");
+  }
+  if (pairs.length) console.log(`  ${file.padEnd(18)} formats (${pairs.length}): ${pairs.map((p) => `${p.op}:${p.format}`).join(", ")}`);
+}
+ok("the computed format list found ZERO op:format pairs with no coverage entry at all", uncasedFormats === 0);
 
 // ═════════════════════════════════════════════════════════════════════════
 // §19. WS-R51 — NEGATIVE CONTROLS (law 4). Both MUST fail, or this
@@ -2716,6 +2974,43 @@ console.log("\n── §19: negative controls (both MUST fail) ──");
     ok(
       `NEGATIVE CONTROL (2): a "${sneakyOp}" op discovered in the mutated door has NO OP_COVERAGE entry — this is exactly the "UNCASED OP" failure §18 raises on a real door, proving the completeness check actually catches a new, uncovered op rather than passing on anything`,
       mutatedOps.includes(sneakyOp) && !known,
+    );
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+// Control (3): WS-R120's own new mechanism, §18b — a `format === "x"`
+// literal ADDED to a temp copy of a real door's source, nested inside an
+// op that already has an OP_COVERAGE entry but no `formats` sub-entry for
+// this new value, proving `computedFormats`'s own completeness check
+// (never merely its extraction) fails loudly rather than passing on
+// anything.
+{
+  const realSrc = readFileSync(join(API, "room.js"), "utf8");
+  const sneakyFormat = "totally_new_sneaky_format_added_by_negative_control";
+  const mutated = realSrc.replace(
+    'if (body.format === "html") {\n        res.setHeader("Content-Type", "text/html; charset=utf-8");\n        return res.status(200).send(buildReceiptHtml(ctx));\n      }',
+    `if (body.format === "${sneakyFormat}") { /* WS-R120 negative control: a format with no case and no OP_COVERAGE[...].formats entry at all */ }\n      if (body.format === "html") {\n        res.setHeader("Content-Type", "text/html; charset=utf-8");\n        return res.status(200).send(buildReceiptHtml(ctx));\n      }`,
+  );
+  ok("NEGATIVE CONTROL (3) fixture sanity: the injected format literal actually landed in the mutated copy", mutated.includes(`body.format === "${sneakyFormat}"`) && mutated !== realSrc);
+  const tmpDir = mkdtempSync(join(tmpdir(), "ws-r120-negctrl-"));
+  const tmpFile = join(tmpDir, "room.js");
+  try {
+    writeFileSync(tmpFile, mutated, "utf8");
+    const mutatedSrc = readFileSync(tmpFile, "utf8");
+    const opHits = [...mutatedSrc.matchAll(/(?:body\.)?op === "([a-z_]+)"/g)].map((m) => ({ name: m[1], index: m.index }));
+    const mutatedPairs = [];
+    for (const m of mutatedSrc.matchAll(/(?:body\.)?format === "([a-z_]+)"/g)) {
+      let nearestOp = null;
+      for (const o of opHits) { if (o.index <= m.index) nearestOp = o.name; else break; }
+      mutatedPairs.push({ op: nearestOp, format: m[1] });
+    }
+    const found = mutatedPairs.find((p) => p.format === sneakyFormat);
+    const known = Boolean(found && OP_COVERAGE["room.js"][found.op]?.formats?.[sneakyFormat]);
+    ok(
+      `NEGATIVE CONTROL (3): a "${sneakyFormat}" format discovered in the mutated door has NO OP_COVERAGE[...].formats entry — this is exactly the "UNCASED FORMAT" failure §18b raises on a real door, proving the completeness check catches a new, uncovered format rather than passing on anything`,
+      Boolean(found) && found.op === "receipt" && !known,
     );
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
@@ -3475,6 +3770,15 @@ function wrapWhatsappChatDoorsDb(baseDb, state) {
 // ═════════════════════════════════════════════════════════════════════════
 console.log("\n── §24: cron doors — the secret, never in a query or a body ──");
 
+// WS-R120: the SAME two-hop widening §0 gives the main door list — a cron
+// file whose own decision module is not literally named here (WS-R103's own
+// finding: "a sweep door that evaded discovery until it was added by hand")
+// is now found one hop further in too, by construction rather than by
+// waiting for the next hand-add. `operator-digest-sweep.js` is the one this
+// finds: it imports `_ops.js` (a §0 anchor, never a cron one) which itself
+// directly imports `_pulse.js`/`_dormancy.js`/`_payments.js` — three of
+// THIS list's own anchors — so it is Room-scoped exactly as directly as
+// `receipt-sweep.js` is, one hop further in.
 const CRON_ROOM_MODULES = [
   "./_checkins.js", "./_pulse.js", "./_dormancy.js", "./_drift-watch.js",
   "./_self-check.js", "./_creator-push.js", "./_replica-full-erasure.js",
@@ -3484,17 +3788,23 @@ const CRON_ROOM_MODULES = [
   // never in the excluded (Meera/Replica-Lab) bucket.
   "./_payments.js",
 ];
-const EXPECTED_CRON_DOORS = [
+// The FROZEN pre-WS-R120 list — law 1's own closing sentence, checked
+// directly below rather than paraphrased.
+const FROZEN_EXPECTED_CRON_DOORS_CONTROL = [
   "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js",
+  "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
+].sort();
+const EXPECTED_CRON_DOORS = [
+  "checkins-sweep.js", "creator-push-sweep.js", "drift-watch-sweep.js", "operator-digest-sweep.js",
   "pulse-sweep.js", "receipt-sweep.js", "renewals-sweep.js", "replica-erasure-sweep.js", "self-check.js",
 ].sort();
 
 function discoverCronDoors() {
+  const anchors = new Set(CRON_ROOM_MODULES.map((m) => join(API, m.replace(/^\.\//, ""))));
   const files = readdirSync(API).filter((f) => f.endsWith("-sweep.js") || f === "self-check.js");
   const doors = [];
   for (const f of files) {
-    const src = readFileSync(join(API, f), "utf8");
-    if (CRON_ROOM_MODULES.some((m) => src.includes(`"${m}"`))) doors.push(f);
+    if (touchesDoorModuleTransitively(join(API, f), anchors)) doors.push(f);
   }
   return doors.sort();
 }
@@ -3507,6 +3817,16 @@ ok(
     : "",
 );
 console.log(`  cron door list (${discoveredCronDoors.length}): ${discoveredCronDoors.join(", ")}`);
+ok(
+  "the new derivation finds every cron door the FROZEN pre-WS-R120 EXPECTED_CRON_DOORS held (superset, nothing lost — this is the SAME list WS-R103 already hand-completed, so this control's own value is proving the widened mechanism REPRODUCES a hand fix, not merely that it existed)",
+  FROZEN_EXPECTED_CRON_DOORS_CONTROL.every((d) => discoveredCronDoors.includes(d)),
+);
+ok(
+  'the new derivation finds "operator-digest-sweep.js" two hops in — the frozen control never held it, and the OLD direct-only check cannot see it either (NEGATIVE CONTROL)',
+  !FROZEN_EXPECTED_CRON_DOORS_CONTROL.includes("operator-digest-sweep.js") &&
+    discoveredCronDoors.includes("operator-digest-sweep.js") &&
+    !CRON_ROOM_MODULES.some((m) => readFileSync(join(API, "operator-digest-sweep.js"), "utf8").includes(`"${m}"`)),
+);
 
 // Named, not silently dropped: the Meera-only and Replica-Lab-only sweeps
 // this static sweep ALSO finds via a raw grep, and why each stays out —
@@ -3719,6 +4039,100 @@ for (const doorFile of discoveredOwnerSecretDoors) {
     offenders.length === 0,
     offenders.join(", "),
   );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §26. WS-R120 — THE WHATSAPP CHAT INBOUND BRANCH, WITH THE FLAG ON. The
+// door list (§0) already includes `room-wa.js` (through `_room-whatsapp.js`
+// directly, `_room-whatsapp-chat.js` restated behind ROOM_WHATSAPP_CHAT=1),
+// and (d5)/(d6)/(d7) above already drive `handleRoomWhatsappChatWebhook`
+// dynamically and prove the flag-branch ORDERING structurally. What none of
+// those cases compute is completeness over `classifyRoomWhatsappChatMessage`'s
+// own dispatch — its `kind: "x"` literals are §18's `op === "x"` shape one
+// classification function over, and this door's THIRD kind ("ignore" — no
+// sender, or an unsupported Cloud API message type) had never been driven
+// through the real webhook handler at all in this file: only the pure
+// classifier is tested for it, in `evals/room-whatsapp-chat/run.mjs`. An
+// attacker's own angle on "ignore" is exactly the one this suite exists to
+// ask: does an unsupported/malformed message type ever reach the database,
+// send an unintended reply, or throw — a poisoned `db`/`consume`/`wa` proves
+// none of the three.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §26: WhatsApp CHAT — the computed kind list, and 'ignore' through the real handler ──");
+
+// mirror of §18's own computedOps, restated for `kind: "x"` instead of
+// `op === "x"` — `classifyRoomWhatsappChatMessage` dispatches on message
+// TYPE, never a body `op`, so the same shape needs its own small extractor
+// rather than a parameter added to `computedOps` that every OTHER door
+// would then have to prove never matches by accident.
+function computedKinds(file) {
+  const src = readFileSync(join(API, file), "utf8");
+  const names = new Set();
+  for (const m of src.matchAll(/kind: "([a-z]+)"/g)) names.add(m[1]);
+  return [...names].sort();
+}
+// door -> kind -> the case(s) that exercise it through the REAL webhook
+// handler in THIS file (never the pure classifier alone — that is
+// evals/room-whatsapp-chat/run.mjs's own job).
+const KIND_COVERAGE = {
+  "_room-whatsapp-chat.js": {
+    message: "exercised at (d5)/(d6) above — a real text message reaches ordinary dispatch",
+    button: "exercised at (d6) above — a button tap (age-gate decline) reaches handleButton",
+    ignore: "exercised below — an unsupported message type and a message with no sender are both safe no-ops",
+  },
+};
+{
+  const kinds = computedKinds("_room-whatsapp-chat.js");
+  console.log(`  _room-whatsapp-chat.js kinds (${kinds.length}): ${kinds.join(", ")}`);
+  for (const kind of kinds) {
+    const known = Boolean(KIND_COVERAGE["_room-whatsapp-chat.js"][kind]);
+    ok(`[computed-kind-list/_room-whatsapp-chat.js] "${kind}" is cased`, known, known ? "" : "— UNCASED KIND, no entry in KIND_COVERAGE at all");
+  }
+  for (const kind of Object.keys(KIND_COVERAGE["_room-whatsapp-chat.js"])) {
+    ok(`[computed-kind-list/_room-whatsapp-chat.js] KIND_COVERAGE's "${kind}" entry still names a real kind in the file's own source`, kinds.includes(kind));
+  }
+}
+
+// The genuinely new dynamic case: an UNSUPPORTED message type (an image,
+// same shape evals/room-whatsapp-chat/run.mjs's own classifier-level case
+// uses) reaches the REAL webhook handler with `db`/`consume`/`wa` all
+// POISONED — `classifyRoomWhatsappChatMessage` returns `kind: "ignore"`
+// and the handler's own `continue` (before `replies++`, before any of the
+// three) never touches any of them, proven by NONE of the poisons firing.
+{
+  const poisonDb = async () => { throw new Error("an unsupported WhatsApp message type reached the database — 'ignore' must be a no-op before any read"); };
+  const poisonConsume = async () => { throw new Error("an unsupported WhatsApp message type reached the redelivery-dedup counter — 'ignore' must never consume a rate-limit slot"); };
+  const poisonWa = {
+    sendText: async () => { throw new Error("an unsupported WhatsApp message type triggered a reply — 'ignore' must send nothing"); },
+    sendButtons: async () => { throw new Error("an unsupported WhatsApp message type triggered a button send — 'ignore' must send nothing"); },
+  };
+  const payload = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000090001", id: "wamid.ignore.1", type: "image" } ] } }] }],
+  };
+  const result = await handleRoomWhatsappChatWebhook(payload, { db: poisonDb, consume: poisonConsume, wa: poisonWa, now: NOW, env: ENV });
+  ok("[ignore-kind/room-wa.js] an unsupported message type (image) is a genuine no-op — replies stays 0, and db/consume/wa are never touched", result?.ok === true && result?.replies === 0);
+
+  // NEGATIVE CONTROL: a message with no `from` at all (also classified
+  // "ignore", the file's own SECOND `kind: "ignore"` return) is the SAME
+  // safe no-op, not a crash from a missing field.
+  const payloadNoSender = {
+    entry: [{ changes: [{ value: { messages: [{ id: "wamid.ignore.2", type: "text", text: { body: "hi" } }] } }] }],
+  };
+  const result2 = await handleRoomWhatsappChatWebhook(payloadNoSender, { db: poisonDb, consume: poisonConsume, wa: poisonWa, now: NOW, env: ENV });
+  ok("[ignore-kind/room-wa.js] a message with no sender at all is ALSO a genuine no-op, never a crash", result2?.ok === true && result2?.replies === 0);
+
+  // NEGATIVE CONTROL: the poisons are real — an ORDINARY text message from a
+  // real sender DOES reach the wa client (proving the case above is not
+  // vacuously passing because the poisons never fire for any input).
+  const okWa = { sendText: async () => ({ ok: true }), sendButtons: async () => ({ ok: true }) };
+  const okConsume = async () => ({ ok: true });
+  const payloadOrdinary = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000090002", id: "wamid.ignore.3", type: "text", text: { body: "hi" } }] } }] }],
+  };
+  const result3 = await handleRoomWhatsappChatWebhook(payloadOrdinary, {
+    db: async () => [], wa: okWa, consume: okConsume, personForSurfaceUser: async () => null, linkSurfacePerson: async () => null, now: NOW, env: ENV,
+  });
+  ok("[ignore-kind/room-wa.js] NEGATIVE CONTROL: an ordinary message from a real sender DOES reach dispatch (replies===1) — the no-op above is real, not the poisons never firing at all", result3?.ok === true && result3?.replies === 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

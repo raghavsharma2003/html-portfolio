@@ -31,6 +31,15 @@ import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { readOwnedReadiness } from "./_readiness.js";
 import { runRecallMeasurement } from "./_recall-run.js";
+// WS-R120: the door battery's derivation (evals/room-doors/run.mjs §0/§20)
+// now finds this door once it is admitted to EXPECTED_DOORS (superseding
+// WS-R101's own exclusion, context/decisions.md#ws-r120-readiness-js-joins-
+// the-door-battery), and its §20 body-size law applies uniformly to every
+// admitted POST door — this file had never called the shared gate. Every
+// other owner-bearer POST door with a small JSON body (ops.js, pulse.js,
+// invites.js) already does exactly this, in exactly this position (after
+// auth, before the op is read).
+import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -55,7 +64,11 @@ async function handleMeasureNow(req, res, user) {
   // hour), this is only the cheap outer wall the GET side already has one
   // of, `readiness_user`'s own precedent one scope over.
   if (!allow(user.id, "readiness_measure_now", 10)) return res.status(429).json({ error: "slow_down" });
-  const result = await runRecallMeasurement(q, user.id, req.body?.replica_id);
+  const body = req.body || {};
+  // WS-R89: the one shared cap every POST door checks first (see the import
+  // above for why this door had never had it).
+  if (bodyTooLarge(body, ROOM_DOOR_BODY_CAP_BYTES)) return res.status(413).json({ error: "body_too_large" });
+  const result = await runRecallMeasurement(q, user.id, body.replica_id);
   return res.status(200).json({ recall_run: result });
 }
 

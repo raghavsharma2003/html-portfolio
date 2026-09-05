@@ -13338,3 +13338,52 @@ not evidence against the three qualifying batches above.
 not re-run here): 808ms, 572ms, 657ms — one of three batches over 700ms,
 which is the reason `FIRST_HINDI_PAINT_BUDGET_MS` stayed at 1000 through
 wave sixteen.
+
+## `ws-r120-door-battery-before-after-2026-09-05` — door battery before/after (2026-09-05, WS-R120)
+
+Method: `node evals/room-doors/run.mjs` run twice — once against the
+UNTOUCHED tree at commit `6fe96da` (via a temporary detached `git worktree
+add --detach /tmp/r120-baseline 6fe96da`, `node scripts/write-config.mjs
+--stub`, removed after measuring), once against this workstream's tree.
+Offline, deterministic, $0, both runs in the same container.
+
+| | before (6fe96da) | after (WS-R120) |
+|---|---|---|
+| doors (`EXPECTED_DOORS`) | 17 | 18 (+`readiness.js`) |
+| cron doors (`EXPECTED_CRON_DOORS`) | 8 | 9 (+`operator-digest-sweep.js`) |
+| total ops in `OP_COVERAGE` (sum across doors) | 117 | 118 (+`measure_now`) |
+| op:format pairs tracked (`OP_COVERAGE[...].formats`, new dimension) | 0 (not extracted at all) | 2 (`room.js` `export:html`, `receipt:html`) |
+| WhatsApp CHAT `kind` values tracked (`KIND_COVERAGE`, new dimension) | 0 (not extracted at all) | 3 (`button`, `message`, `ignore`) |
+| suite result | 746 ok, 0 failed | 779 ok, 0 failed |
+
+The op the derivation found uncovered before this workstream cased it:
+`readiness.js`'s `measure_now` (the door itself was outside `EXPECTED_DOORS`,
+so §18 never reached it at all). The format pair the NEW `computedFormats`
+derivation found with genuinely zero prior coverage anywhere in this file:
+`room.js`'s `receipt` op's own `format: "html"` branch (`export`'s matching
+branch already had prose coverage from WS-R108, §3 — `computedFormats`
+formalised that into the computed table rather than finding a gap in it).
+
+## `ws-r120-full-release-gate-before-after-2026-09-05` — full release gate before/after (2026-09-05, WS-R120)
+
+Method: `node scripts/verify-release.mjs`, no `NEON_URL` (21 checks), run to
+completion (background + poll, given this shared machine's port contention —
+see the session log). Two full clean runs recorded:
+
+- Untouched tree: not independently re-run in full (the door-battery
+  before/after above IS the untouched-tree measurement for this workstream's
+  own surface); `evals/run.mjs` alone (the whole registry, no live server) ran
+  clean at `6fe96da` per the wave-seventeen base's own prior session log
+  entries.
+- This workstream's tree, clean run: **21/21 checks passed** (`typecheck`
+  25154ms, `layout readability` 231783ms, `performance budgets` 73725ms,
+  `eval suite` 249825ms, `room leak battery` 16002ms, `room export
+  completeness` 1530ms, `room door battery` 2104ms, `accessibility` 43172ms,
+  `security headers` 8203ms, plus the other static gates). Two earlier
+  attempts on the same tree failed ONLY `layout readability` (port 8931) or
+  `accessibility` (port 8933) with `EADDRINUSE`, never a real assertion
+  failure — sibling worktree gates (11 other `ws-rNNN` worktrees were present
+  under `.claude/worktrees/` at measurement time) racing for the same fixed
+  ports, exactly the collision `scratchpad/ws-common.md` names as
+  environmental. Waiting for the port to free (an until-loop on
+  `/dev/tcp/127.0.0.1/<port>`) and rerunning produced the clean run above.
