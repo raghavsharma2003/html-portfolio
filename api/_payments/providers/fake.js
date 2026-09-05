@@ -146,3 +146,60 @@ export function signWebhookForTest(rawBody, secret) {
   const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody ?? ""), "utf8");
   return createHmac("sha256", secret).update(body).digest("hex");
 }
+
+/**
+ * A realistic UPI Autopay mandate's own event sequence (WS-R69), test-only -
+ * this workstream's own law 2: "make the fake twin emit the same event
+ * sequence a real mandate does... so the offline battery drives the real
+ * state machine." Razorpay's own documented order
+ * (razorpay.com/docs/payments/subscriptions/workflow/, fetched 2026-09-05 -
+ * see razorpay.js's own WS-R69 addendum for the full citation, quoted
+ * verbatim there): `authenticated` (the mandate itself, no charge lands yet)
+ * -> `activated` (the AUTHENTICATION TRANSACTION lands - for the immediate
+ * start this platform always uses, that is the FULL plan amount, never a
+ * token registration amount) -> `charged`, once per cycle, for as long as
+ * the mandate keeps collecting -> optionally `halted` at a named cycle, when
+ * Razorpay's own retry ladder gives up on a failed auto-charge (never
+ * `cancelled` — `api/_payments.js`'s own `KIND_TO_STATE` maps `halted` to
+ * `'paused'`, a decision this platform does not make final, that file's own
+ * header explains why).
+ *
+ * Returns `[{kind, body}]` IN FIRING ORDER, `body` a JSON string shaped
+ * exactly like `api/_payments.js`'s `parseWebhookPayload` expects
+ * (`payload.subscription.entity.{id,current_start,current_end}`,
+ * `payload.payment.entity.amount` in paise) - ready for `applyWebhook`'s
+ * `rawBody`, so a caller drives the REAL state machine through a REALISTIC
+ * multi-month lifecycle rather than one hand-picked kind in isolation.
+ * `haltAtCycle`, if given, REPLACES that cycle's `charged` event with a
+ * `halted` one and stops the sequence there - a halt is the mandate's own
+ * retry ladder exhausting itself, not a fact that repeats.
+ */
+export function mandateEventSequence(providerSubscriptionRef, { priceInr, cycles = 3, haltAtCycle = null, startUnix = 1_700_000_000 } = {}) {
+  const ref = String(providerSubscriptionRef);
+  const amountPaise = Math.round(Number(priceInr) * 100);
+  const cycleSeconds = 30 * 24 * 60 * 60; // one month, near enough for a fixture's own clock
+  const events = [];
+
+  const envelope = (kind, { start = null, end = null, paymentAmount = null } = {}) => {
+    const payload = { subscription: { entity: { id: ref, current_start: start, current_end: end } } };
+    if (paymentAmount != null) {
+      payload.payment = { entity: { id: `pay_${events.length + 1}`, amount: paymentAmount, currency: "INR", status: "captured" } };
+    }
+    return JSON.stringify({ event: kind, payload });
+  };
+
+  events.push({ kind: "subscription.authenticated", body: envelope("subscription.authenticated") });
+
+  for (let cycle = 1; cycle <= cycles; cycle++) {
+    const start = startUnix + (cycle - 1) * cycleSeconds;
+    const end = start + cycleSeconds;
+    if (haltAtCycle === cycle) {
+      events.push({ kind: "subscription.halted", body: envelope("subscription.halted", { start, end }) });
+      break;
+    }
+    const kind = cycle === 1 ? "subscription.activated" : "subscription.charged";
+    events.push({ kind, body: envelope(kind, { start, end, paymentAmount: amountPaise }) });
+  }
+
+  return events;
+}
