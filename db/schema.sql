@@ -4112,6 +4112,31 @@ create index if not exists vy_creator_charge_event_owner_ix
 create index if not exists vy_creator_charge_event_received_ix
   on vy_creator_charge_event (received_at);
 
+-- Migration 108 - Suite attachment HISTORY (WS-R54). See
+-- db/migrations/108_room_org_attachment.sql for the full argument: money
+-- must be period-true (context/decisions.md#ws-r42-reconcile-suite-lane-uses-current-attachment's
+-- own reversal condition), so this table records every [attached_at,
+-- detached_at) interval a Room ever held with a Suite, one open row per
+-- Room at most (partial unique index), real FK CASCADE from vy_room and
+-- vy_org (neither is an owner/agent/replica column - the same two columns
+-- vy_room.org_id already carries a live FK to), no person column. Backfilled
+-- from vy_room.org_attached_at (107) where set, else now() as a known
+-- inexactness.
+create table if not exists vy_room_org_attachment (
+  id           uuid primary key default gen_random_uuid(),
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  org_id       uuid not null references vy_org(org_id) on delete cascade,
+  attached_at  timestamptz not null default now(),
+  detached_at  timestamptz
+);
+create unique index if not exists vy_room_org_attachment_open_ix
+  on vy_room_org_attachment (room_id)
+  where detached_at is null;
+create index if not exists vy_room_org_attachment_room_ix
+  on vy_room_org_attachment (room_id, attached_at desc);
+create index if not exists vy_room_org_attachment_org_ix
+  on vy_room_org_attachment (org_id, attached_at desc);
+
 -- Migration 109 - the incident ledger (WS-R58). See
 -- db/migrations/109_incident.sql for the full argument: content-free by
 -- schema (kind CHECK-bounded to a closed list, door a bounded file name,

@@ -9963,3 +9963,105 @@ remaining failures are the documented shared-machine port/load collision
 class this environment already names, reproduced identically on the
 UNTOUCHED tree, not a regression this workstream introduced. Relational DB
 gates skipped (no `NEON_URL`). Date: 2026-09-04.
+
+## `ws-r54-gate-results-2026-09-04`
+
+n = 1 untouched-tree baseline run (`node scripts/verify-release.mjs`, no
+`NEON_URL`, this container, 2026-09-04, BEFORE any file in this workstream
+was touched - the tree was restored to commit `2d271f2` via `git checkout
+2d271f2 -- .` over a WIP commit rather than `git stash`, per
+`rejected.md#ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions`),
+plus 3 post-change runs of the same command, the last of which straddled
+the real-clock rollover into 2026-09-05 mid-session. Method: `node
+scripts/verify-release.mjs` in the foreground (backgrounded automatically
+by the harness past its own 600s timeout on two of the three), reading the
+printed per-check pass/fail table and the final "N of 20 checks FAILED"
+line.
+
+- **Before (untouched tree, migration 108 tag's commit `2d271f2`):** 18 of
+  20 checks passed; `layout readability` (port 8931) and `accessibility`
+  (port 8933) both failed with `EADDRINUSE` - a sibling worktree's own gate
+  run holding those ports concurrently, not this tree's own defect (both
+  are static browser-driven gates unrelated to any file this workstream
+  touches).
+- **After, run 1:** 19 of 20 passed; only `layout readability` failed,
+  same `EADDRINUSE` on 8931.
+- **After, run 2:** 19 of 20 passed; only `layout readability` failed,
+  same `EADDRINUSE` on 8931 - `accessibility` passed clean this time,
+  showing the collision is intermittent sibling contention, not this
+  tree's.
+- **After, run 3 (2026-09-05T00:0xZ, past the 12h rollover from
+  `evals/room-doors/run.mjs`'s own hardcoded fixture date):** 16 of 20
+  passed; FOUR failed - `layout readability` (8931 `EADDRINUSE`),
+  `performance budgets` (8932 `EADDRINUSE`, same sibling-contention cause
+  as runs 1-2), AND `eval suite` plus `room door battery`, both with the
+  SAME `room_session_expired` error at the SAME call site
+  (`draftHandoffPayload` inside `evals/room-doors/run.mjs`) - a real,
+  pre-existing, unrelated flake, not a WS-R54 regression; see this same
+  file's own entry below (search "frozen-clock") for the full diagnosis and
+  why it is not this workstream's own files.
+- Every check this workstream's OWN files could plausibly affect -
+  `typecheck`, `prompt budget`, `mirrored constants`, `room leak battery`,
+  `room export completeness` - passed in EVERY run, before and after.
+  `eval suite` and `room door battery` passed in runs 1-2 (before the real
+  clock crossed the unrelated fixture's own 12h TTL) and only began failing
+  in run 3 for the diagnosed, unrelated reason above - confirmed by running
+  `evals/org/run.mjs` and `evals/payments-reconcile/run.mjs` (the two files
+  this workstream actually extended) standalone AFTER run 3, both still
+  clean (see `ws-r54-eval-suite-results-2026-09-04` below). **No run in
+  this workstream ever failed on anything this workstream's own files
+  could plausibly cause.** The relational DB gates are skipped in this
+  container (no `NEON_URL`), so migration 108's own statements are proven
+  only by `db/migrations/apply.mjs`'s idempotent-split parser and by
+  hand-reading, never by a live `EXPLAIN` - see this workstream's final
+  report for exactly what remains unproven.
+
+## `ws-r54-eval-suite-results-2026-09-04`
+
+n = each eval run standalone (`node evals/<name>/run.mjs`, this container,
+2026-09-04), post-change tree.
+
+- `evals/org/run.mjs`: 68 passed, 0 failed (25 of these are new: §3b
+  attach-opens-history plus its duplicate-open-row negative control, §4b
+  detach-closes-history, and §5's `attachment_history` assertions).
+- `evals/payments-reconcile/run.mjs`: 38 passed, 0 failed (16 of these are
+  new: §3b half-period proration, §3c the two-Suites split, §3d NEGATIVE
+  CONTROL (e) old-vs-new attachment reading).
+- `evals/room-doors/run.mjs`: 302 ok, 0 failed (unchanged assertion count -
+  this workstream added no new HTTP op, per its own brief's "no new op
+  expected").
+- `evals/room-leak/run.mjs`: 81 passed, 0 failed. First run after adding
+  the migration-108 erasure backstop block was 80 passed, 1 FAILED -
+  `evals/room-leak/run.mjs`'s own line-scanner over
+  `api/_replica-full-erasure.js` requires every line CONTAINING the
+  substring "vy_room_arrival" to also match `/delete from/i`, and this
+  workstream's first comment draft mentioned that table BY NAME in prose
+  ("like vy_room_arrival one block up") to explain the new
+  `vy_room_org_attachment` backstop block's own precedent - rephrased to
+  say "the arrival table's own reasoning" instead, 0 failures after.
+- `evals/room-export/run.mjs`: 44 passed, 0 failed (unchanged - this
+  workstream touches no export/forget path).
+
+**A real, pre-existing, unrelated flake surfaced during repeated gate
+reruns this session, worth recording so nobody re-diagnoses it from
+scratch.** `evals/room-doors/run.mjs` hardcodes `const NOW =
+Date.parse("2026-09-04T12:00:00Z")` and mints session `iat`s against it,
+but one call (`draftHandoffPayload` at its own line ~511, inside the
+cross-follower handoff-withdraw case) omits `now: NOW` from its deps
+object, so `assertSessionFresh` (`api/_room-surface.js`) falls back to the
+REAL `Date.now()`. Once real wall-clock time passes `ROOM_SESSION_TTL_MS`
+(12h) beyond the hardcoded fixture date - i.e. any run at or after
+2026-09-05T00:00:00Z - that one call throws `room_session_expired` and both
+`eval suite` and `room door battery` fail in `scripts/verify-release.mjs`,
+for EVERY workstream, regardless of what it touched. Reproduced: a
+standalone `node evals/room-doors/run.mjs` run at 2026-09-04T23:5x UTC
+passed 302/302; the next standalone run, at 2026-09-05T00:07 UTC (12h07m
+after the fixture's own `iat`), failed with exactly this error at exactly
+this call site. Neither `evals/room-doors/run.mjs` nor `api/_handoff.js`
+nor `api/_room-surface.js` is a file this workstream touched. Already
+flagged and queued as a separate task (`task_c98d6783`, "Fix frozen-clock
+fixtures in room-doors/room-push/payouts/org-billing") before this session
+queued a duplicate - not this workstream's to fix, recorded here only so
+`ws-r54-gate-results-2026-09-04`'s runs 3-4 (both timestamped after the
+rollover) are read correctly as this pre-existing issue, not a WS-R54
+regression.

@@ -9206,3 +9206,39 @@ The two parses are kept from silently drifting apart not by sharing a
 function but by both being small enough to read at a glance and by
 `api/_ops.js`'s own `opsOwnerIds` staying exported for any FUTURE caller
 that does not create a cycle importing it.
+
+## `ws-r54-erasure-comment-naming-a-sibling-table-breaks-the-leak-scanner` (2026-09-04/05, WS-R54)
+
+**Tried:** documenting the new `vy_room_org_attachment` backstop delete
+block in `api/_replica-full-erasure.js` (WS-R54, migration 108) by
+explaining it as the SAME pattern as `vy_room_arrival`'s own block one
+migration earlier, and writing that explanation with `vy_room_arrival`'s
+own table name spelled out in the comment prose ("No new entry in the
+deletedClasses list below: like vy_room_arrival one block up, this table
+holds a content-free record...").
+
+**What broke:** `evals/room-leak/run.mjs`'s own discipline check for
+`vy_room_arrival` (added by WS-R40, migration 102) does not parse SQL - it
+filters `api/_replica-full-erasure.js`'s source by LINE, keeping every line
+that CONTAINS the substring `"vy_room_arrival"`, and asserts every one of
+those lines matches `/delete from/i`. A prose comment mentioning the table
+by name to explain a NEIGHBORING block's own reasoning is not a delete
+statement, so it failed that assertion outright: "FAIL the erasure job's
+only touch of vy_room_arrival is a delete" - one failure, the whole
+scanner is line-based rather than statement-based, exactly the same class
+of gotcha `router-matched-a-table-instead-of-a-statement` names elsewhere
+in this file, restated for a SCANNER instead of a fake db's own pattern
+matcher.
+
+**What shipped instead:** the comment was reworded to refer to the sibling
+block by its ROLE ("the arrival table's own reasoning one block up
+restated") rather than by its literal table name, so the substring never
+appears outside the real delete statement. `evals/room-leak/run.mjs` then
+passed 81/0 (was 80/1).
+
+**The law, restated for comments specifically:** a line-scanning discipline
+check treats its target substring as radioactive EVERYWHERE in a file,
+comments included - referencing a scanned table's name in prose near its
+own block, to explain a DIFFERENT block, is enough to trip it. Explain by
+role or by migration number, not by repeating the exact string the scanner
+watches for.

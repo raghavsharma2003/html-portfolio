@@ -7366,6 +7366,42 @@
       "kind": "rejection",
       "title": "api/_incidents.js importing api/_ops.js's opsOwnerIds would make a cycle (api/_ops.js already imports api/_incidents.js's INCIDENT_KINDS for the board card); fixed by re-deriving the same small parse locally instead",
       "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r54-suite-reconcile-reads-attachment-history-prorated",
+      "kind": "decision",
+      "title": "reconcileSuiteLane reads suiteRows as one row per vy_room_org_attachment (migration 108) interval overlapping the period, prorated by fractional days of overlap; a Room attached to two Suites in one period gets the sum of both intervals' own prorated shares, never a flat share from whichever Suite it holds at build time",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r54-attachment-history-written-in-same-statement-as-org-id-flip",
+      "kind": "decision",
+      "title": "attachRoom/detachRoom (api/_org.js) write vy_room_org_attachment in the SAME CTE as the vy_room.org_id flip - the UPDATE's own RETURNING feeds the history INSERT or the closing UPDATE, never a second round trip; a stray already-open row surfaces as a raw 23505 unique violation, not a swallowed refusal code",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r54-attachment-backfill-defaults-to-now-for-pre-107-rooms",
+      "kind": "decision",
+      "title": "Migration 108's backfill dates each currently-attached Room's one open history row at vy_room.org_attached_at (107) where set, else now() - a known inexactness for Rooms attached before migration 107 existed, understating their overlap with any pre-108 period reconciled after the fact",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r54-erasure-comment-naming-a-sibling-table-breaks-the-leak-scanner",
+      "kind": "rejection",
+      "title": "Explaining the new vy_room_org_attachment erasure backstop block by naming vy_room_arrival in prose broke evals/room-leak/run.mjs's own line-based scanner for that table (every line containing the substring must be a delete statement); fixed by referring to the sibling block by role instead of by table name",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r54-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "verify-release.mjs: untouched-tree baseline 18/20 (2 port collisions); post-change runs 19/20, 19/20, then 16/20 once real time crossed evals/room-doors/run.mjs's own unrelated 12h fixture TTL - every check this workstream's files could affect stayed clean throughout",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r54-eval-suite-results-2026-09-04",
+      "kind": "measurement",
+      "title": "evals/org 68/0 (25 new), evals/payments-reconcile 38/0 (16 new), evals/room-doors 302/0, evals/room-leak 81/0 (1 transient failure from the comment-naming rejection, fixed), evals/room-export 44/0, all standalone runs",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -14713,6 +14749,26 @@
       "src": "ws-r58-incidents-importing-opsownerids-from-ops-js-makes-a-cycle",
       "rel": "caused_by",
       "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r54-suite-reconcile-reads-attachment-history-prorated",
+      "rel": "supersedes",
+      "dst": "ws-r42-reconcile-suite-lane-uses-current-attachment"
+    },
+    {
+      "src": "ws-r54-suite-reconcile-reads-attachment-history-prorated",
+      "rel": "measured_by",
+      "dst": "ws-r54-eval-suite-results-2026-09-04"
+    },
+    {
+      "src": "ws-r54-attachment-history-written-in-same-statement-as-org-id-flip",
+      "rel": "measured_by",
+      "dst": "ws-r54-eval-suite-results-2026-09-04"
+    },
+    {
+      "src": "ws-r54-attachment-backfill-defaults-to-now-for-pre-107-rooms",
+      "rel": "constrains",
+      "dst": "ws-r54-suite-reconcile-reads-attachment-history-prorated"
     }
   ]
 }
