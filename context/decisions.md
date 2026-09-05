@@ -13710,3 +13710,204 @@ follower's devices (today it is per-browser, per-slug, `localStorage`
 only), the `InstallStorage` interface and the three pure functions stay
 exactly as they are — only the concrete storage `RoomApp.tsx` passes in
 changes, from `window.localStorage` to a thin wrapper over a server call.
+
+## `ws-r61-tier-2-first-wave-converted` (2026-09-05, WS-R61)
+
+**Decision.** Nine of `evals/studio-locale/run.mjs`'s 31 Tier 2 files move to
+Tier 1 this workstream, in this order: `RoomStudio.tsx` first (as the brief
+required), then `VideoLinkMount.tsx`, `RuntimeGate.tsx`, `TurnFeedback.tsx`,
+`ReplicaDialogueLab.tsx`, `CalibrationStudio.tsx`,
+`CandidateEvaluationLab.tsx`, `ProcessingReview.tsx` and
+`PersonModelStudio.tsx` — roughly 2,750 lines and 187 new `copy.ts` leaf
+strings per locale. `src/studio/copy.ts` gained ten new top-level sections
+(`roomStudio`, `videoLinkMount`, `runtimeGate`, `turnFeedback`,
+`replicaDialogueLab`, `calibrationStudio`, `candidateEvaluationLab`,
+`processingReview`, `personModelStudio`, plus the pre-existing sections
+untouched). `evals/studio-locale/run.mjs`'s `TIER_2_ALLOWLIST` shrank from 31
+entries to 20 (`ws-r52-tier-2-studio-files-not-localized`'s original 28
+"real" tier-2 candidates minus these nine, plus the three non-creator-facing
+entries WS-R52 already carried).
+
+**Rationale.** This is the same cut WS-R52 made one level down: convert the
+files with no honesty-gate, no frozen consent-ceremony wording, and no
+legal-review need first, in one session, rather than a shallower pass across
+every file. `RoomStudio.tsx` (1229 lines, the studio's single largest file
+before this workstream) needed the most care — see
+`ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved` below —
+so it went first per the brief's own instruction. `ProcessingReview.tsx`'s
+`SELF_TEST_NOTICE` (a `blockerClass.ts` `disabledReason(...)` call) is the
+one place in this wave that touches the honesty-gated surface
+`ws-r52-class-labels-split-from-blockerclass-ts-own-copy` protects: its
+`headline`/`next` stay literally untouched, and only its two-word class
+badge now reads `t.classLabels[SELF_TEST_NOTICE.kind]` instead of
+`SELF_TEST_NOTICE.classLabel`, the exact substitution `BlockerNotice.tsx`/
+`WizardRail.tsx` already make — proven by the same static scan (zero literal
+English JSX text nodes) that gates every other Tier 1 file, since the
+substituted expression carries braces and the frozen `headline`/`next`
+strings are never JSX text nodes to begin with (they are variable reads).
+
+**What was found and fixed along the way, worth its own note:** moving
+existing plain-English UI strings into `copy.ts` exposed two class of latent
+copy-gate violation that had never tripped `scripts/check-copy.mjs` before,
+because that gate only scans a bare string literal when it is a JSX text
+node or assigned to a "visible key" (`label:`, `title:`, ...) — a function
+argument like `setNotice("Draft voice model queued for building.")` is
+neither, so it was invisible to the scan. `copy.ts` matches
+`check-copy.mjs`'s own `COPY_FILES` regex, which marks EVERY string literal
+in the file visible regardless of context, so both classes surfaced the
+moment the literal moved: (1) `ProcessingReview.tsx`'s
+`"Draft voice model queued for building..."` carried the banned word
+"model" in both English and its own Hindi translation ("वॉइस मॉडल"),
+rewritten to "Draft voice build queued." / "ड्राफ्ट वॉइस बिल्ड क्यू में
+डाला गया।" with no change in meaning; (2) the same file's
+`genomeDraftDetail` template chained three clauses with two middots on one
+line (`"{n} independent voice-print families · {n2} target segments · {n3}
+private enrollment artifacts"`), tripping `check-copy.mjs`'s `middot-run`
+rule the instant it became a bare `copy.ts` string — split into
+`voicePrintFamiliesDetail`/`targetSegmentsDetail`/`enrollmentArtifactsDetail`,
+composed back together with a literal `" · "` written directly in the JSX
+(which the scan's own text-node regex excludes anything containing `{}`
+from, so a joined run built from `{expr} · {expr} · {expr}` in a component
+is invisible to the same rule that correctly bites a bare `copy.ts` string).
+Neither defect reached a real screen before this workstream — both were
+caught by `scripts/check-copy.mjs` and `evals/studio-locale/run.mjs`'s own
+real-Hindi-strings-through-the-real-scanner check before this commit.
+
+**Reversal condition.** A future workstream converting one of the 20
+remaining Tier 2 files removes its allowlist entry and adds the file to
+`TIER_1_FILES` in the same change, exactly as `ws-r52-tier-2-studio-files-not-localized`
+already states. If a review ever finds this wave's Hindi wording wrong for
+one of these nine files specifically, the fix is a `copy.ts` edit, not a
+re-litigation of which files were safe to move — none of these nine touch
+consent-ceremony or KYC-adjacent legal text.
+
+## `ws-r61-roomstudio-money-and-tds-copy-translated-meaning-preserved` (2026-09-05, WS-R61)
+
+**Decision.** `RoomStudio.tsx`'s pricing, tier-upgrade and Pulse copy is
+fully translated in `copy.ts`'s new `roomStudio` section, INCLUDING the
+follower-price band, the platform-take percentage sentence, and the two
+tier-upgrade price labels. Every number (₹299/₹599, ₹4,999/mo, ₹19,999/mo,
+the 25%/2500bp platform take) stays a template placeholder (`{min}`,
+`{max}`, `{pct}`, `{label}`) filled by the same `inr()`/percentage
+computation the English version already used — never a hand-typed number in
+either locale string. The one payments-adjacent sentence this file does NOT
+carry is the TDS disclosure itself (`t.payouts.tdsNote`), which is
+`PayoutsCard.tsx`'s own string, translated by WS-R52, untouched here; this
+workstream's `roomStudio.lastPayout` line reads the payout `state` back
+through `t.payouts.stateLabel[state]`, the SAME table `PayoutsCard.tsx`
+already uses, rather than inventing a second Hindi rendering of the same six
+state words.
+
+**Rationale.** The brief's own instruction ("those sentences are translated
+with the numbers untouched and the TDS disclosure sentence kept legally
+identical in meaning") is satisfied by construction here: no number is
+retyped by hand in Hindi, and the one sentence that states a legal/tax
+position (`tdsNote`) is not duplicated into a second string this workstream
+could get subtly wrong — it is read from the single existing table. This is
+the same "one table, not two copies of a sentence" law
+`ws-r52-existing-evals-updated-for-the-copy-ts-move` already applied to
+`PayoutsCard.tsx`'s own state labels.
+
+**Reversal condition.** If `PayoutsCard.tsx`'s `stateLabel` table or
+`tdsNote` sentence is ever found to be wrong in Hindi, the fix happens in
+`copy.ts`'s `payouts` section and is inherited automatically by
+`RoomStudio.tsx`'s `lastPayout` line — there is no second copy to also
+patch, by construction.
+
+## `ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text` (2026-09-05, WS-R61)
+
+**Decision.** `ModelConsentGate.tsx` was read in full and deliberately left
+entirely unconverted, including its chrome (headings, button labels,
+status badge) that carries no legal weight of its own. It stays in
+`TIER_2_ALLOWLIST` with a strengthened reason.
+
+**Rationale.** `scripts/roomsVocabAllowlist.mjs` — a file this workstream
+would have had to read regardless, since Rooms-vocabulary is a binding law —
+names four of this file's six `STATEMENTS` array entries BY EXACT ENGLISH
+SUBSTRING as pre-existing consent-ceremony legal text: "a teacher already
+affirmatively checked these exact words before any replica was built," and
+moving them "is the exact failure `safety-floor-teacher.md` §2.1 names."
+That reasoning does not carve out an exception for the surrounding chrome
+only, and splitting this file into "translate the chrome, leave the six
+statements" would have been a more invasive, riskier change than deferring
+the whole file for the same reason WS-R52 deferred it originally. This is a
+NEGATIVE FINDING worth recording on its own: it would have been easy to
+translate this file's headings and buttons while reusing the six
+`STATEMENTS` strings as opaque values, and that split was considered and
+rejected — see `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected`.
+
+**Reversal condition.** Unchanged from `ws-r52-class-labels-split-from-blockerclass-ts-own-copy`'s
+own reversal condition: a Hindi-language honesty/consent detector built for
+this exact ceremony, with legal sign-off on the translated wording, is what
+would let this file move.
+
+## `ws-r61-identity-proofing-consent-statements-deferred-not-attempted` (2026-09-05, WS-R61)
+
+**Decision.** `IdentityProofing.tsx` was read in full and left entirely in
+`TIER_2_ALLOWLIST`, with a reason naming the specific risk rather than the
+generic "deep wizard internal, deferred" WS-R52 used for it.
+
+**Rationale.** Unlike this workstream's nine converted files,
+`IdentityProofing.tsx`'s `STATEMENTS` array is the exact English wording a
+creator affirmatively checks (five checkboxes) before submitting a
+government-issued identity document for age and identity verification —
+KYC-adjacent, not merely functional UI copy. No document in this repo
+(unlike `ModelConsentGate.tsx`'s citation in `scripts/roomsVocabAllowlist.mjs`)
+names these specific five sentences as already-consented, frozen text, so
+this is not the SAME rule as `ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text`
+— it is a narrower, self-imposed caution: a translation error in a KYC
+consent statement carries real legal/compliance weight, and no legal review
+of the Hindi wording was in scope for or possible within this session. The
+brief's own law 1 only exempts server-authored prose and the honesty-gated
+`CLASS_COPY`; it does not explicitly cover this case, so this decision is
+this workstream's own judgment call, stated as such rather than implied.
+
+**Reversal condition.** A future workstream that gets the five identity
+statements' Hindi wording reviewed (by whoever owns compliance sign-off for
+this product) can convert this file exactly like the other nine — same
+`copy.ts` shape, same static-scan proof. Nothing about the code structure
+here blocks that; only the absence of a reviewed translation does.
+
+## `ws-r61-three-dedicated-evals-updated-for-the-copy-ts-move` (2026-09-05, WS-R61)
+
+**Decision.** `evals/person-model/run.mjs`, `evals/replica-review/run.mjs`
+and `evals/replica-calibration/run.mjs` — three pre-existing, backend-focused
+suites that each also carry ONE line reading their matching studio panel's
+raw source (`PersonModelStudio.tsx`, `ProcessingReview.tsx`,
+`CalibrationStudio.tsx` respectively) and asserting a literal English
+sentence appears in it — were updated to read `panel + copy.ts` concatenated,
+exactly the shape `evals/readiness/run.mjs` already established for this
+exact move (`ws-r52-existing-evals-updated-for-the-copy-ts-move`, which this
+entry is the direct sequel to, one tier lower).
+
+**Rationale.** `node scripts/verify-release.mjs`'s full run (not the
+isolated `evals/studio-locale/run.mjs` and `scripts/check-copy.mjs` checks
+this workstream ran after every file) is what caught this: its "eval suite"
+step failed with `failed suites: replicareview, personmodel,
+replicacalibration` the first time it ran against this workstream's edited
+tree, because these three suites' own literal-string assertions
+(`/Conflicts stay visible/.test(studio)`, `/Raw transcripts, voice vectors,
+storage locations, provider references, and durable download links/.test(studio)`,
+`/versioned preference evidence/.test(studio)`, and others) were reading
+ONLY the component file — which, after this workstream's edit, carries
+`c.<key>` references instead of the rendered English sentence. Neither
+`evals/studio-locale/run.mjs` (which only proves NO literal text remains,
+never that a SPECIFIC sentence a different suite depends on still renders)
+nor `scripts/check-copy.mjs` (which proves no BANNED word or dash, never
+that a required phrase is present) could have caught this — only running the
+full suite that actually asserts the phrase could. This is exactly the gap
+`ws-common.md`'s brief for this workstream named up front ("any eval that
+pinned a moved literal") and exactly why the fix is the same one: read
+`component + copy.ts` together, not the component alone, so a REAL
+regression (someone deleting the Hindi-aware string from `copy.ts` while a
+stray English fragment survives in a comment) still fails loudly, rather
+than the check quietly stopping to check the actual rendered product.
+
+**Reversal condition.** If any of these three studio panels is restructured
+so `copy.ts` no longer holds the exact phrase these three asserts name, the
+assert itself needs to change to match the new wording — not just the read
+path. A future workstream converting a Tier 2 file MUST grep `evals/`
+for the file's own filename AND for its own most distinctive literal
+sentences (a filename-only grep is not sufficient — see the "found and
+fixed" paragraph two entries up in `context/rejected.md`) before assuming a
+converted file's evals are limited to `evals/studio-locale/run.mjs`.

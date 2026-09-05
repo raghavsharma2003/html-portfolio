@@ -9494,3 +9494,142 @@ assume that check alone would catch every conceivable cache-write bug
 `req` verbatim) — the STATIC scan is what proves that class of bug is
 unreachable, by construction, regardless of what any individual browser API
 happens to refuse.
+
+## `ws-r61-partial-modelconsentgate-translation-considered-and-rejected` (2026-09-05, WS-R61)
+
+**Tried.** Translating only `ModelConsentGate.tsx`'s CHROME — the eyebrow,
+the two headings, the "Granted"/"Locked" status pill, the withdraw-flow
+labels and buttons — while leaving the six `STATEMENTS` array entries as
+opaque, unmodified English strings the checkboxes render next to.
+
+**What broke.** Nothing broke mechanically; the split is reasonable on its
+face and would have cleared the static scan (the six statements would sit
+in an allowlisted "reason" comment same as `blockerClass.ts`'s own prose).
+It was rejected on inspection of `scripts/roomsVocabAllowlist.mjs`, which
+frames this file's exemption as protecting the CEREMONY, not the six
+sentences in isolation: "a teacher already approved these exact words as
+what a student sees" (its own wording, about `DisclosurePreview.tsx`, but
+the identical clause covers `ModelConsentGate.tsx`'s entries) applies to the
+screen a person read while consenting, not merely the checkbox text by
+itself — a half-Hindi, half-English consent screen is a DIFFERENT ceremony
+from the one that was affirmatively approved, even if the six legal
+sentences are typographically unchanged. Translating the surrounding words
+changes what the whole screen communicates well before the American
+legal-text substring match in `roomsVocabAllowlist.mjs` would ever fire, so
+the copy gate itself would have stayed green while shipping the actual
+defect this file's allowlist entry exists to prevent — a gate passing while
+the real property it is a proxy for goes quiet is the same class of failure
+`docs/HONESTY.md` and this repo's other honesty-gate entries warn about
+generally, applied here to a consent surface instead of a blocker label.
+
+**What to do differently.** Do not split "the legal words" from "the screen
+around them" as if only the former carries risk. If this file is ever
+localized, treat it as one unit needing one legal review of the ENTIRE
+resulting Hindi screen, not a translation of the parts a scanner cannot
+object to.
+
+## `ws-r61-copy-ts-move-surfaced-latent-model-word-and-middot-run-violations` (2026-09-05, WS-R61)
+
+**Tried.** Moving `ProcessingReview.tsx`'s existing English strings verbatim
+into `copy.ts`, assuming that text already shipping on the real tree (and
+already passing `scripts/check-copy.mjs` on every prior run) needed no
+re-review before relocation.
+
+**What broke.** Two of those strings failed the FIRST run of
+`node scripts/check-copy.mjs` against the edited tree: (1)
+`"Draft voice model queued for building..."` (a `setNotice(...)` argument)
+carries the banned word "model", and its own Hindi translation used "वॉइस
+मॉडल" for the same reason; (2) `"{n} independent voice-print families ·
+{n2} target segments · {n3} private enrollment artifacts"` carries two
+middots on one line, tripping the `middot-run` rule. Neither had EVER been
+caught before, on any prior run of this gate, because both sat as bare
+function-call arguments inside a `.tsx` file — `scripts/check-copy.mjs`'s
+`isVisibleLiteral()` only treats a string literal as "visible" (and
+therefore scans it) when it is a JSX text node or assigned to a
+recognisable visible key (`label:`, `title:`, ...); a plain
+`setNotice("...")` call matches neither shape. `copy.ts` matches
+`check-copy.mjs`'s own `COPY_FILES` regex (`/(errorCopy|copy|strings|
+messages|labels)\.tsx?$/i`), which marks EVERY string literal in the file
+visible unconditionally — so the exact same words that had shipped
+invisibly for months tripped the gate the instant they moved into the one
+file that scans everything.
+
+**What to do differently.** Never assume text already on the tree is
+copy-gate-clean just because the gate has never failed on it — a string's
+visibility to `scripts/check-copy.mjs` depends on WHERE it sits, not what it
+says, and moving a string into a `COPY_FILES`-matched file is itself a
+scan-coverage change, not a no-op refactor. Any future workstream moving
+plain English strings out of inline JSX/function-call arguments and into
+`copy.ts` (or `src/room/copy.ts`, or any other `COPY_FILES` match) should
+run `scripts/check-copy.mjs` immediately after that move, before writing the
+Hindi translation, specifically because the move itself is what turns a
+previously-invisible defect visible — exactly what caught these two here,
+before either reached a real screen.
+
+## `ws-r61-assumed-studio-locale-and-check-copy-were-sufficient-gates-for-a-tier-2-move` (2026-09-05, WS-R61)
+
+**Tried.** After converting each of the nine Tier 2 files, running only
+`node evals/studio-locale/run.mjs` (zero literal English JSX text nodes) and
+`node scripts/check-copy.mjs` (no banned word, no dash) as the per-file
+proof, on the reasoning that these two together prove "no English text
+remains, and what replaced it is clean" — a check per file, not a search of
+every eval in the repo for one that might also read that file.
+
+**What broke.** Both checks passed clean on every one of the nine files,
+and yet `node scripts/verify-release.mjs`'s "eval suite" step still failed,
+naming three suites: `replicareview`, `personmodel`, `replicacalibration`.
+These three pre-existing, backend-focused suites (`evals/replica-review/
+run.mjs`, `evals/person-model/run.mjs`, `evals/replica-calibration/run.mjs`)
+each ALSO carry one assertion reading their matching panel's raw source and
+requiring a SPECIFIC English sentence to still be there — a check
+`evals/studio-locale/run.mjs` has no way to know exists, because it only
+proves the NEGATIVE (no stray literal text), never the positive (a named
+suite elsewhere still finds what it is looking for). A `grep -rl
+"ComponentName.tsx" evals/` catches a suite that names the file by path
+(this is how the three above were eventually found), but would have missed
+a suite that instead hardcodes one of the component's own distinctive
+SENTENCES without ever naming the file — this workstream additionally
+grepped `evals/` for a dozen of its most distinctive moved sentences,
+verbatim, to raise confidence past what the filename search alone gives,
+and found none, but that is a heuristic, not a proof of completeness.
+
+**What to do differently.** `node scripts/verify-release.mjs` — the full
+gate, not a subset believed to cover the change — is the only thing that
+actually proves a Tier 2 conversion did not silently break a sibling suite's
+literal-text assertion, because it is the only thing that RUNS every
+sibling suite. Treat `evals/studio-locale/run.mjs` and `scripts/
+check-copy.mjs` as necessary checks for a copy move, never as sufficient
+ones; budget time for at least one full `verify-release.mjs` pass before
+declaring a Tier 2 wave done, not only at the very end of a session.
+
+## `ws-r61-multiline-string-concatenation-broke-a-sibling-evals-regex-match` (2026-09-05, WS-R61)
+
+**Tried.** Writing `copy.ts`'s longer English strings as multi-line `+`
+concatenations for readability, e.g. `"...storage locations, provider " +
+"references, and durable download links..."`, matching the wrapping style
+already used elsewhere in the file for long sentences.
+
+**What broke.** `evals/replica-review/run.mjs`'s own assertion —
+`/Raw transcripts, voice vectors, storage locations, provider references, and durable download links/.test(studioWithCopy)`
+— tests the RAW SOURCE TEXT of `copy.ts` (via `readFileSync`, never the
+evaluated runtime string), and the concatenation above splits the exact
+phrase "provider references" across two separate quoted string literals
+joined by a `+` on the next line. The regex, which expects one unbroken
+run of characters, does not match text that is only contiguous after JS
+evaluation — it saw `...provider "` then, on the next source line,
+`"references,...`, with a newline and operator in between, and failed.
+This is a narrower instance of the same class of defect as this file's
+neighboring `middot-run` entry: a property that holds for the EVALUATED
+string does not automatically hold for the file's own bytes, and any eval
+that reads source as text (as several of this repo's copy-gate-adjacent
+evals deliberately do, to avoid needing a bundler) is checking the bytes.
+
+**What to do differently.** When a `copy.ts` string must wrap across source
+lines for readability, break the line at a point that does not bisect a
+phrase another eval might reasonably search for verbatim — or, when in
+doubt (as here, where the exact sentence was already known to be checked
+elsewhere in the codebase, just not yet found), keep the string as one
+unbroken line rather than risk splitting it at the wrong point. The
+general fix from this file's neighboring entry still applies: run the full
+suite of evals that read the moved file's source, not only the two
+studio-locale/check-copy checks, before treating a Tier 2 move as done.

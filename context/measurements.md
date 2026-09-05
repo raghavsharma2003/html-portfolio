@@ -10317,3 +10317,54 @@ n = 1 migration (2 statements in one transaction), 1 API statement; method = the
 | `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
 
 Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.
+
+## `ws-r61-studio-hindi-tier-2-first-wave-2026-09-05`
+
+n = 9 files; method = `node evals/studio-locale/run.mjs` and `node scripts/check-copy.mjs` run against the real tree after each file's conversion (not a sample); the leaf-string column counted programmatically, per section, by isolating each `copy.ts` section's brace-balanced body in the `EN` object and counting `key: "` occurrences after joining `"..." + "..."` continuation lines (a crude regex count, not a hand tally, but run against the real committed file, not estimated); date 2026-09-05, WS-R61, before push, offline (no `NEON_URL` in this worktree).
+
+| file | lines (English source, before) | new `copy.ts` leaf strings (English side; Hindi side is the same count, key-parity-checked) |
+|---|---|---|
+| `RoomStudio.tsx` | 1229 | 134 |
+| `ProcessingReview.tsx` | 195 | 82 |
+| `PersonModelStudio.tsx` | 231 | 47 |
+| `TurnFeedback.tsx` | 147 | 44 |
+| `CandidateEvaluationLab.tsx` | 193 | 40 |
+| `RuntimeGate.tsx` | 126 | 34 |
+| `CalibrationStudio.tsx` | 188 | 34 |
+| `ReplicaDialogueLab.tsx` | 154 | 21 |
+| `VideoLinkMount.tsx` | 51 | 5 |
+| **total** | **2514** | **441** |
+
+`TIER_2_ALLOWLIST` size: 31 entries before this workstream, 22 after (9
+removed: the nine files above; 0 added). `evals/studio-locale/run.mjs`:
+39/39 before this workstream's edits (WS-R52's own baseline, re-run
+unchanged to confirm), 48/48 after (the 9 new "carries zero literal English
+JSX text nodes" checks, one per converted file, plus the pre-existing 39 —
+all pass). `scripts/check-copy.mjs`: 6 scopes clean, 21 negative controls,
+both before and after (one intermediate run, mid-workstream, DID fail with
+2 findings — see `context/rejected.md`'s neighbor entry and
+`decisions.md#ws-r61-tier-2-first-wave-converted`'s "found and fixed along
+the way" paragraph for what those two findings were and how they were
+caught before this commit, not after). `node scripts/verify-release.mjs`'s
+full "eval suite" step: FAILED on its first post-conversion run
+(`failed suites: replicareview, personmodel, replicacalibration`, three
+pre-existing suites pinning a literal sentence in the converted component's
+raw source — `decisions.md#ws-r61-three-dedicated-evals-updated-for-the-copy-ts-move`,
+`rejected.md#ws-r61-assumed-studio-locale-and-check-copy-were-sufficient-gates-for-a-tier-2-move`),
+fixed by reading `component + copy.ts` together in those three files; a
+second, unrelated failure in the same fix cycle
+(`rejected.md#ws-r61-multiline-string-concatenation-broke-a-sibling-evals-regex-match`)
+came from a multi-line string concatenation splitting a phrase one of those
+same three evals checks. After both fixes: `node evals/run.mjs` standalone,
+full run, exit code 0, 0 lines matching `^FAIL` across its entire output
+(183 registered suites; method: `grep -c '^FAIL' /tmp/eval-run-final.log`
+against the complete captured stdout, date 2026-09-05) — `replicareview`
+36/36 ("36 replica review checks passed"), `personmodel` 30/30, `replicacalibration`
+31/31.
+
+Not measured: real-device Devanagari rendering of these nine files' new
+strings (the layout gate's `studio-hi` glyph pass covers the STUDIO_COPY_TABLE
+broadly per WS-R52's own mechanism, not a per-file screenshot this
+workstream took); a human Hindi speaker's read of the translations for
+register/tone (the same gap every prior Hindi workstream in this repo has
+stated plainly rather than implied coverage of).
