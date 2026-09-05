@@ -2207,6 +2207,22 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-dormancy": "room-dormancy/run.mjs",
+  // WS-R83. `docs/legal/HINDI-CONSENT-REVIEW.md` proposes Hindi for the six
+  // consent-ceremony studio files WS-R61/WS-R71 held back from Hindi
+  // conversion for legal review (context/decisions.md
+  // #ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text and
+  // #ws-r71-consent-ceremony-files-found-and-not-converted). This suite
+  // re-extracts every consent statement, checkbox label, ceremony heading,
+  // legend, primary action and boundary/refusal line from the REAL six
+  // files and asserts each lands in the document's English column (a future
+  // edit to a ceremony fails this suite until the document is updated), runs
+  // the REAL `scanSource` from scripts/check-copy.mjs over every proposed
+  // Hindi row (zero offences; a hand-built क्लोन row is the negative
+  // control), and cross-checks the document's cited statement_set/
+  // policy_version ids against the real exported constants that write them.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "consent-review": "consent-review/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;
