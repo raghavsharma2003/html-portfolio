@@ -174,7 +174,7 @@ except 100, 103, 117 and 124, which are unused (WS-R38 needed no new migration, 
 fixed was a missing check in existing JS, never a schema change; WS-R41's
 provider contracts, WS-R70's export and WS-R87's kernel port needed none either); 102 (WS-R40, share arrival) and 104
 (the creator-tier charge ledger, WS-R42) were applied live at their merges
-and read back from the catalog. **129 is the next free number.**
+and read back from the catalog. **130 is the next free number.**
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible

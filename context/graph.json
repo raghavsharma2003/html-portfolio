@@ -10306,6 +10306,12 @@
       "kind": "measurement",
       "title": "21/21 checks pass on the WS-R114 patched tree (one full run 20/21 plus one isolated layout-gate confirmation for the port-collision check); full eval registry (evals/run.mjs) exit 0; identical EADDRINUSE/TBT contention reproduced on the untouched tree across five attempts, confirmed environmental.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-129-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 129 (the instruction-shaped review card kind) applied live at its merge after reading the constraint name back from pg_constraint; three new statements planned, on indexes except two one-row-estimate scans accepted by name.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19998,6 +20004,16 @@
       "src": "ws-r114-lossy-telegram-voice-transcode-considered-and-not-built",
       "rel": "constrains",
       "dst": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle"
+    },
+    {
+      "src": "rooms-migration-129-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r112-instruction-shaped-material-card"
+    },
+    {
+      "src": "rooms-migration-129-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter"
     }
   ]
 }

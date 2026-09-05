@@ -13668,3 +13668,15 @@ checks (`ok` throughout; the several lines containing the literal word
 "FAIL" in the transcript are deliberate negative-control assertions
 PASSING, not real failures — verified by grep excluding every line
 containing "NEGATIVE CONTROL"/"FAILS"/"FAIL CLOSED"/"-> FAIL").
+
+### `rooms-migration-129-live-verification-2026-09-05` (main loop, wave seventeen)
+
+**Migration 129 (WS-R112, the instruction-shaped review card) applied to the live Neon database at its merge, 2026-09-05.** Method: the live constraint was read back first (`select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'vy_review_card'::regclass and contype = 'c'`): `vy_review_card_kind_check` existed under exactly the name the migration assumed, with the four-value list. The two statements were then sent one per request (`drop constraint if exists`, then `add constraint ... check (kind in (...))`) and the constraint read back with `instruction_shaped` in the list. n = 1 apply, 2 reads.
+
+**Fifteen new or changed statements planned with `EXPLAIN` (no ANALYZE) against the live database, three from WS-R112, the rest re-planned where a merge changed a statement's neighbours:**
+
+- `persistInstructionShapedCard` (api/_review-queue.js): the authorized CTE is a one-row-estimate scan over `vy_replica` (the tiny-table scan accepted since 073); the open-slot count uses `vy_review_card_owner_ix`; the insert's conflict arbiter is `vy_review_card_dedupe_ix`; the audit insert is gated on the inserted CTE.
+- `decideReviewCard`'s `remove_source` path: candidate and decided rows through `vy_review_card_open_ix` with the kind filter in the same index scan; `item_refused` is a seq scan over `vy_context_item` (cost 1.01, one-row estimate on a near-empty live table) joined to the single decided row. Accepted by name: one row per decision.
+- `applyIngestRunDelta`'s new guard (api/_channel-ingest.js): outer `vy_ingest_run_owner_recent_ix`; the anti-join over `vy_context_item` (owner, status = 'refused') is a seq scan because `item_id::text` is compared to `split_part(video_ref, ':', 2)`. Accepted by name: one run per call over one owner's refused items; an index would need an expression or a typed column, logged as the reversal.
+
+No other wave-seventeen workstream added SQL: WS-R115, R116, R117, R118, R113, R114 change no statement; WS-R119 and R120 add fixture matchers only; WS-R111 touches the compiler and the honesty gate only.
