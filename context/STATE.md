@@ -1204,3 +1204,49 @@ run.mjs`'s own RFC 8291 round-trip, reused unchanged, not re-measured here);
   workstream's brief did not authorize.
 - **WS-R114 (2026-09-05): the Telegram voice-note codec question is now answered, and the answer is "no."** `core.telegram.org/bots/api` was fetched in FULL this session via `curl` to a file (860,075 bytes, HTTP 200) rather than this session's own summarizing fetch tool, which truncates this exact URL before "Available methods" (the defect WS-R41/WS-R60 already logged) — the working method is now itself logged (`decisions.md#ws-r114-telegram-full-page-fetch-recovered-by-curl-to-file`). `sendVoice`'s own paragraph, cited verbatim: audio must be OGG/Opus, MP3, or M4A; WAV (this Room's own container) is none of the three, closing the format half of WS-R110's open mark (`decisions.md#ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant`). The obvious fix — transcode to a lossy format — was considered and NOT built: `docs/gurukul/AZURE-DEPLOY-STATE.md` §14.10 already states the AudioSeal watermark's survival through MP3/lossy re-encode has never been tested, this workstream has no GPU or paid-API budget to test it, and no surface in this product has ever sent a lossy-encoded watermarked clip before (the web Room path is WAV too). The WAV stays; the shortfall is now a structural fact (`ROOM_TELEGRAM_VOICE_CONTAINER`, api/_room-voice.js), not just a comment (`decisions.md#ws-r114-telegram-wav-kept-over-unverifiable-lossy-transcode`, `rejected.md#ws-r114-lossy-telegram-voice-transcode-considered-and-not-built`). No migration, no new dependency, no new env var. Gate: 21/21 on the patched tree (one full run 20/21 plus one isolated layout-gate pass closing the one port-collision gap; identical EADDRINUSE/TBT contention reproduced on the untouched tree across five attempts on this heavily-shared machine, confirmed environmental per `measurements.md#ws-r114-release-gate-runs`); full eval registry (`evals/run.mjs`) exit 0.
 - **Wave seventeen closed (main loop, 2026-09-05).** Ten workstreams merged in the order they reported: R115 (`c6e0fbb`), R116 (`a42ec92`), R112 (`9e05e97`, migration 129 live), R118 (`bb2e340`), R117 (`a229671`), R113 (`4c0aa2a`), R120 (`6926132`), R119 (`2f6e791`), R111 (`652c6a3`), R114 (`5a9ae71`). The compiler has its first material-instruction boundary (five of nine injectable fields, 25 of 41 hostile passages contained, secret-shaped leaks 2 of 5 to 0 of 5, Meera byte-identical; the boundary and stage fields stay enforced instructions by a logged product decision); instruction-shaped material is a review card the creator decides on; the self-check reports 127 names by manifest section; the recall scorer agrees with a 60-case keyed set 60 of 60 (49 before) and a Devanagari mark-stripping bug is gone; the sign-in screen's Hindi is a 5.6 KB chunk and the paint budget is back at 800 from measurement; the Suite has a transparency page; WhatsApp's shapes and window are pinned to Meta's document and `sendButtons` refuses more than three; Telegram's container is decided from its document (WAV named non-conforming, not transcoded, since the watermark's survival through a lossy encode is unmeasured); both rehearsals drive a real recall run, a WhatsApp join, a Telegram voice reply and the readable export; the door battery derives its doors by a bounded import walk and found three uncovered surfaces plus a missing body cap on the readiness door. At the merges: the R112 detector move and the R111 scanner rewrite met in one suite header (resolved by hand); the R112 `decideReviewCard` import and R120's door-battery comment met on one line (both kept). Before the wave: the release gate on `6fe96da` failed on the CI runner alone because the creator rehearsal counted the showcase picker's list before it loaded (`rejected.md#rehearsal-counted-the-picker-list-before-it-loaded`), fixed at `ff5c664`, green on both workflows. The whole eval registry ran after each merge that added an api-to-api import (R116, R118, R120) and passed. The eight-merge tree passed all 21 checks in one run (`gate8/gate-w11a-1.log`), and the ten-merge tree again (`gate-w11a-1.log`, EXIT 0). Live: migration 129 applied after reading the constraint name back, every new statement planned (`measurements.md#rooms-migration-129-live-verification-2026-09-05`). Open for wave eighteen: the four excluded sheet fields need a platform-owned boundary before they can join the material block; a Telegram voice note needs an OGG/Opus or MP3 transcode whose watermark survival is measured first; `ReadinessPanel.tsx` re-fetches readiness in a loop on a fresh `?step=meet` navigation (R119's finding, unfixed); both rehearsals' Hindi walks are not green under `--full` (a Context Locker click and a shared export-rate bucket); no real WhatsApp Business Account or Telegram bot has carried a Room conversation. **130 is the next free migration number.**
+- **WS-R122 (wave eighteen, 2026-09-05).** The `?step=meet` readiness fetch
+  loop (R119's own finding, 40+ real `GET /api/readiness` calls in under
+  two seconds) traced to `ReadinessPanel.tsx`'s `load` `useCallback`
+  closing directly over `onReadiness`/`onAuthError` — inline closures
+  `StudioShell.tsx` mints fresh on every render, including the render its
+  own `onReadiness` call triggers. Fixed inside `ReadinessPanel.tsx` alone
+  (refs updated in render, never touching the shared shell file): `load`'s
+  identity now depends only on `replicaId`/`token`. Real browser check (a
+  fresh `?step=meet` navigation right after replica creation, both
+  locales): 1 read each, well under the 2-read/2-second budget; a scaled
+  timed regression control proves the pre-fix dependency shape would still
+  fail the same budget (21-26 reads) while the fixed shape does not (1
+  read). Both rehearsals are now green under `REHEARSAL_FULL=1`: the
+  Hindi creator walk's Context Locker click (R119's own blocker) reads the
+  real Hindi label off `hiCopy.ts` instead of an English-only regex, which
+  let the walk run far enough to hit THREE more English-only locators
+  never exercised under `hi` before (the Meet tab, the "Your AIs" rail's
+  aria-label, the Owner-control band) — all four now read the real copy
+  tables. The Hindi follower walk's shared 3-per-minute export-rate bucket
+  (R119's own finding) is fixed by swapping which of the two known fixture
+  identities plays "the primary follower" per locale gate, the auth-
+  identity equivalent of R109's own distinct-IP-per-gate fix, never
+  widening the real limit. `.github/workflows/release-gate.yml` gains a
+  weekly (Sunday 04:37 UTC) + on-demand `hindi-rehearsals` job running both
+  walks under `--full`; the existing gate job gains one line excluding it
+  from that schedule. Creator: 37 checks/28.1s (en), 72/31.0-41.6s
+  (`--full`). Follower: 64 passed/33.8s (en), 102/34.4-47.8s (`--full`).
+  One real regression found and fixed in this workstream's OWN first
+  patched-tree gate run: a new `ReadinessPanel.tsx` comment's own short
+  backtick-quoted identifiers (`t`, `load`, `token`) cascaded
+  `evals/readiness/run.mjs`'s heuristic banned-word scanner into swallowing
+  an unrelated, pre-existing comment's word "clone" — not a real product-
+  copy change, fixed by lengthening the comment's own backtick spans
+  (`context/rejected.md#ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan`).
+  Gate: untouched tree 19/21 (performance budgets and eval suite both
+  failed under measured heavy sandbox contention, load average 9-20, many
+  concurrent sibling `verify-release.mjs` runs — confirmed environmental);
+  patched tree, after the fix above, **21/21 on a full run**, including
+  `eval suite` (277,883ms, both rehearsals clean), `room leak battery`,
+  `room export completeness`, `room door battery`, `accessibility`,
+  `security headers`, `layout readability` and `performance budgets` all
+  green. No migration, no new env var. Open for whoever picks up
+  `evals/readiness/run.mjs` next: its banned-word scanner's own header
+  claims comments are stripped before scanning; they are not, and the
+  backtick-pairing regex can cascade past a short span into unrelated
+  text — logged as a real, if narrow, test-infrastructure fragility.

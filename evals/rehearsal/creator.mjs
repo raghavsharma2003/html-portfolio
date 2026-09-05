@@ -57,12 +57,54 @@
 // the floor is SEEDED (see the "crosses the floor" step below), never
 // computed. Logged to context/rejected.md and context/decisions.md.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
 const FULL = process.env.REHEARSAL_FULL === "1";
+
+// WS-R122. The real Hindi string for a `hiCopy.ts` key, read off the raw
+// source (`evals/readiness/run.mjs`'s own precedent for reading `copy.ts`
+// as text rather than bundling it — this file needs one literal, not the
+// whole locale table) so a future copy edit can never let this walk and the
+// real rendered string drift apart silently, the way the English-only
+// Context Locker click below already did once
+// (`context/rejected.md#ws-r119-creator-walk-hindi-full-blocked-before-this-
+// workstreams-own-code`). Throws by name if the key is missing or ambiguous
+// rather than silently matching the wrong section.
+const HI_COPY_SOURCE = readFileSync(join(ROOT, "src/studio/hiCopy.ts"), "utf8");
+function hiCopyString(key) {
+  const pattern = new RegExp(`\\b${key}:\\s*"([^"]+)"`, "g");
+  const hits = [...HI_COPY_SOURCE.matchAll(pattern)];
+  if (hits.length !== 1) {
+    throw new Error(`hiCopy.ts: expected exactly one "${key}" string literal, found ${hits.length}`);
+  }
+  return hits[0][1];
+}
+
+// WS-R122. `shell.tabTitle` (the "Meet"/"Feed"/"Share" studio tab labels)
+// lives in `hiAuthCopy.ts` (the signed-out-shell chunk, this file's own
+// header explains why: `StudioShell.tsx`'s tab strip mounts before a
+// creator is necessarily past sign-in), a SEPARATE file from `hiCopy.ts`
+// and one `hiCopyString` above cannot read — and `meet:` alone is
+// ambiguous within it (`tabTitle.meet` AND `tabPromise.meet` both exist),
+// so the object literal is isolated first. Found the same way the Context
+// Locker click was: running `--full` for real surfaced a SECOND English-
+// only locator (`/^Meet$/`) that this file's own pre-existing "Measure
+// now" section relied on, timing out under `hi` where the real label is
+// "मीट" — not named in this workstream's own brief, which expected the
+// Context Locker fix alone to reach this section, but the walk did not
+// get far enough under `hi` before that fix to have ever hit this one.
+const HI_AUTH_COPY_SOURCE = readFileSync(join(ROOT, "src/studio/hiAuthCopy.ts"), "utf8");
+function hiAuthCopyTabTitle(tab) {
+  const block = HI_AUTH_COPY_SOURCE.match(/tabTitle:\s*\{([^}]+)\}/);
+  if (!block) throw new Error("hiAuthCopy.ts: could not find shell.tabTitle");
+  const hit = block[1].match(new RegExp(`\\b${tab}:\\s*"([^"]+)"`));
+  if (!hit) throw new Error(`hiAuthCopy.ts: tabTitle has no "${tab}" entry`);
+  return hit[1];
+}
 
 let pass = 0;
 let fail = 0;
@@ -184,14 +226,77 @@ async function walkLocale(locale) {
     const replicaRow = state.replicas.find((r) => r.replica_id === replicaId);
     replicaRow.agent_id = "a1000000-0000-4000-8000-000000000001";
 
-    await page.reload({ waitUntil: "networkidle" });
+    // ── WS-R122: the readiness fetch loop on a fresh `?step=meet`
+    //    navigation, now FIXED in `ReadinessPanel.tsx` — proven here by
+    //    driving the EXACT scenario `context/rejected.md#ws-r119-full-page-
+    //    reload-to-step-meet-races-readiness-panels-mount` found it with: a
+    //    cold `page.goto` straight to `step=meet` right after the replica
+    //    was created, while the studio's own replica list is still
+    //    settling from this fresh mount — the precondition that entry's own
+    //    header names as necessary ("the loop... is specific to reaching
+    //    `step=meet` via a FRESH navigation while the studio's own replica
+    //    list is still settling"). Before the fix this measured 40+ real
+    //    `GET /api/readiness` calls in about two seconds; the assertion
+    //    below is the SAME measurement, at the SAME budget. A separate,
+    //    throwaway navigation: the page is sent back to the walk's own
+    //    normal starting URL immediately after, so nothing downstream
+    //    (the "Your AIs" rail check right below, in particular) sees a
+    //    studio that booted straight onto the Meet step instead of Feed.
+    {
+      const readinessReadsAt = [];
+      const windowStart = Date.now();
+      const onReadinessRequest = (req) => {
+        if (req.method() !== "GET" || !req.url().includes("/api/readiness")) return;
+        const at = Date.now() - windowStart;
+        if (at <= 2000) readinessReadsAt.push(at);
+      };
+      page.on("request", onReadinessRequest);
+      try {
+        await page.goto(
+          `${url}/studio.html?mode=teacher&step=meet${locale === "hi" ? "&lang=hi" : ""}`,
+          { waitUntil: "networkidle" },
+        );
+        // A generous settle past the two-second budget itself: a read that
+        // lands at 1999ms must still be counted, and one at 2001ms plainly
+        // must not be — the wait below outlives the window before this
+        // block ever reads `readinessReadsAt`.
+        await page.waitForTimeout(2200);
+      } finally {
+        page.off("request", onReadinessRequest);
+      }
+      ok(`${locale}: a fresh ?step=meet navigation makes at most two /api/readiness reads in the first two seconds (the loop is fixed)`,
+        readinessReadsAt.length <= 2, `reads at ${JSON.stringify(readinessReadsAt)}ms`);
+      // Back to the walk's own normal starting point before anything below
+      // reads the screen — never left sitting on `step=meet`. This IS the
+      // walk's own "fresh load after the replica was created" (the reload
+      // a version of this file once did separately here is gone: three
+      // full navigations in a row was one too many, see the poll below).
+      await page.goto(`${url}/studio.html?mode=teacher${locale === "hi" ? "&lang=hi" : ""}`, { waitUntil: "networkidle" });
+    }
+
     // `textContent()`, not `innerText()`: on a fresh, single-replica
     // studio the rail sits inside a collapsed `<details>` band and
     // `innerText()` (which respects Chromium's own layout/visibility)
     // reports it empty even though the markup and the name are really
     // there — `textContent()` does not care, and the assertion below is
     // about the row EXISTING, not about it being on-screen unscrolled.
-    const railText = await page.locator('[aria-label="Your AIs"]').textContent().catch(() => "");
+    //
+    // WS-R122: a THIRD English-only locator, found the same way as the
+    // other two — the aria-label this used to match on unconditionally,
+    // `"Your AIs"`, is `copy.ts`'s own `replicaList.yourAIsAriaLabel`; under
+    // `hi` the real, rendered label is `hiCopy.ts`'s own value, "आपके AI"
+    // (confirmed unique in that file). A first attempt at this fix guessed
+    // the failure was a timing race against the Hindi copy chunk's own
+    // async install and added the poll below for that reason — the poll is
+    // harmless and kept as real defense against genuine timing variance,
+    // but the ACTUAL cause, found by actually reading `copy.ts`/`hiCopy.ts`
+    // rather than assumed, was this selector never matching anything in
+    // Hindi at all, timing race or not.
+    const railAriaLabel = locale === "hi" ? hiCopyString("yourAIsAriaLabel") : "Your AIs";
+    const railText = await page.waitForFunction((label) => {
+      const el = document.querySelector(`[aria-label="${label}"]`);
+      return el && el.textContent ? el.textContent : false;
+    }, railAriaLabel, { timeout: 15_000, polling: 200 }).then((handle) => handle.jsonValue()).catch(() => "");
     ok(`${locale}: the created replica renders in the studio's own "Your AIs" rail`, railText.includes("Anjali Physics"), railText.slice(0, 80));
 
     // ── ADD ONE TEXT SOURCE, through the Context Locker's REAL drop zone
@@ -202,8 +307,26 @@ async function walkLocale(locale) {
     //    form was not driven through the DOM"). The Band wrapping it is
     //    collapsible on this walk's own 390px viewport and starts closed
     //    (`WizardRail.tsx`'s own `Band`), so its `<summary>` is opened
-    //    first, the same real tap a follower on a phone would make. ──────
-    await page.getByText(/^(Files, links, videos, channels|Add files and links)$/).first().click();
+    //    first, the same real tap a follower on a phone would make.
+    //
+    //    WS-R122: the label this click looks for is `copy.ts`'s own
+    //    `feed.filesTitle` ("Files, links, videos, channels" — the studio
+    //    is never built with `STUDIO_SELF_TEST_UI` on, so `filesTitleTest`
+    //    never renders here; kept below only as a defensive second
+    //    alternative). This regex used to be English-only regardless of
+    //    `locale`, which is a real bug in the WALK, not the product: under
+    //    `hi` the band's own real label is `hiCopy.ts`'s `feed.filesTitle`,
+    //    "फ़ाइलें, लिंक, वीडियो, चैनल" — an English-only matcher never found
+    //    it and the Hindi creator walk failed here, before this
+    //    workstream's own code ever ran (`context/rejected.md#ws-r119-
+    //    creator-walk-hindi-full-blocked-before-this-workstreams-own-code`).
+    //    Read off `hiCopy.ts` directly (`hiCopyString`, this file's own
+    //    header) rather than hand-retyped, so a future copy edit cannot let
+    //    this walk and the real string drift apart unnoticed. ────────────
+    const contextLockerLabel = locale === "hi"
+      ? new RegExp(`^(${hiCopyString("filesTitle")}|${hiCopyString("filesTitleTest")})$`)
+      : /^(Files, links, videos, channels|Add files and links)$/;
+    await page.getByText(contextLockerLabel).first().click();
     const fileInput = page.locator("input.context-file-input");
     await fileInput.waitFor({ state: "attached", timeout: 10_000 });
     const [addFilesResponse] = await Promise.all([
@@ -420,39 +543,43 @@ async function walkLocale(locale) {
     });
 
     // ── the real "Measure now" click, on the real Readiness card ──────────
-    // A real client-side tab click (`goStep("meet")`), never a fresh
-    // `?step=meet` navigation: driving one was tried first and found a real
-    // bug this walk is not in scope to fix — a full reload straight to
-    // `step=meet` races ReadinessPanel's own mount against the studio's own
-    // still-in-flight replica list load, and something in that window keeps
-    // remounting/re-firing the panel's `load()` effect fast enough to trip
-    // its own IP rate limit within about two seconds (measured: 40+ real
-    // `GET /api/readiness` calls, all against the SAME replica, all logged
-    // consecutively with 20-90ms gaps — a genuine loop, not a slow poll).
-    // Named in this workstream's report and `context/rejected.md` rather
-    // than silently worked around. Clicking the real "Meet" tab, the same
-    // way this file's own "Share" tab click already works, reaches the
-    // identical screen without the race, because by this point in the walk
-    // the replica list has long since settled.
-    await page.getByText(/^Meet$/).first().click({ timeout: 10_000 });
+    // A real client-side tab click (`goStep("meet")`), still used here even
+    // though the fresh-navigation loop itself is now FIXED (see the
+    // dedicated check right after replica creation, above): this section is
+    // testing "Measure now", not the navigation path, and the tab click
+    // reaches the identical screen regardless, the same way this file's own
+    // "Share" tab click already works.
+    // WS-R122: the real label under `hi` is `hiAuthCopy.ts`'s own
+    // `shell.tabTitle.meet`, "मीट" — an English-only `/^Meet$/` matcher
+    // never found it and this click timed out under `--full` before this
+    // fix, found by running it, not assumed.
+    const meetTabLabel = locale === "hi" ? new RegExp(`^${hiAuthCopyTabTitle("meet")}$`) : /^Meet$/;
+    await page.getByText(meetTabLabel).first().click({ timeout: 10_000 });
     const knowsMaterialCard = page.locator(".vy-readiness__part", { hasText: "Knows your material" });
-    // Generous and retried: the churn this file's own header names below can
-    // make even PRESENCE flap for a few seconds after the tab switch.
+    // Generous and retried: the churn this file's own header names below
+    // COULD still make even PRESENCE flap for a few seconds after the tab
+    // switch, kept defensive rather than assumed fixed by inference alone.
     await knowsMaterialCard.first().waitFor({ timeout: 10_000 }).catch(async () => {
       await page.waitForFunction(() => Array.from(document.querySelectorAll(".vy-readiness__part"))
         .some((el) => el.textContent?.includes("Knows your material")), null, { timeout: 30_000, polling: 200 });
     });
-    // ReadinessPanel keeps RE-FETCHING on this screen — measured: it swaps
-    // to its own loading skeleton and back on a cadence of a few seconds
-    // even once the replica list has long since settled, which unmounts and
-    // remounts this exact `<details>` out from under a multi-step Playwright
-    // interaction (open it, THEN find the button, THEN click it) faster than
-    // three separate round trips can land. Not this walk's bug to fix (its
-    // own files are outside this workstream's scope — logged to
-    // `context/rejected.md`); the workaround is doing "open the details AND
-    // click Measure now" as ONE synchronous DOM pass, polled until a cycle
-    // catches both the element open and the click landing in the same tick,
-    // so no re-render has a window to intervene between the two actions.
+    // ReadinessPanel used to keep RE-FETCHING on this screen on a cadence of
+    // a few seconds even once the replica list had long since settled —
+    // measured before this workstream's own fix (WS-R122, above): `load`'s
+    // own identity depended directly on the shell's `onReadiness` prop, an
+    // inline closure recreated on every one of the shell's own renders
+    // (including background polling elsewhere in the shell unrelated to
+    // this panel), so any one of those unrelated re-renders could refire
+    // this panel's mount effect too. The SAME fix that closes the fresh-
+    // navigation loop above removes this class of churn as well — `load`'s
+    // identity no longer depends on that prop at all — but this walk does
+    // not re-instrument this specific multi-second cadence to confirm it by
+    // direct measurement a second time, so the atomic click below is kept
+    // exactly as defensive as it already was rather than assumed safe to
+    // simplify on inference alone: "open the details AND click Measure now"
+    // as ONE synchronous DOM pass, polled until a cycle catches both the
+    // element open and the click landing in the same tick, so no re-render
+    // has a window to intervene between the two actions.
     const measureLabel = locale === "hi" ? "अभी मापें" : "Measure now";
     const [measureResponse] = await Promise.all([
       page.waitForResponse(
@@ -644,8 +771,13 @@ async function walkLocale(locale) {
     //    runtime activation (unlike the showcase picker above, it is NOT
     //    inside `{mode === "teacher" && (...)}` — confirmed by reading
     //    `StudioApp.tsx`'s own JSX), so only its own `<summary>` needs
-    //    opening first. ────────────────────────────────────────────────
-    await page.getByText(/owner control, including erasure/i).first().click({ timeout: 10_000 });
+    //    opening first. WS-R122: a FOURTH English-only locator, found the
+    //    same way as the other three — the band's real title is `copy.ts`'s
+    //    own `ownerAreaTitle`; under `hi` it is `hiCopy.ts`'s own value,
+    //    "मालिकाना नियंत्रण, मिटाना शामिल" (confirmed unique in that file).
+    //    ─────────────────────────────────────────────────────────────────
+    const ownerAreaLabel = locale === "hi" ? hiCopyString("ownerAreaTitle") : /owner control, including erasure/i;
+    await page.getByText(ownerAreaLabel).first().click({ timeout: 10_000 });
     // `t.creatorExport.title` (the section's own `<h2>`) and
     // `t.creatorExport.button` are the SAME string, "Download everything"
     // (`copy.ts`), and the heading renders BEFORE the button in this
@@ -684,6 +816,84 @@ async function walkLocale(locale) {
     await stop();
   }
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R122. REGRESSION CONTROL for the fresh-`?step=meet`-navigation check
+// above — WS-R89's own precedent restated (`context/rejected.md
+// #ws-r89-consolidate-sweep-finding-closed-at-the-merge`: "a negative
+// control that reads a live file pins a defect in place: the moment the
+// defect is fixed the control fails, so freeze the bad shape as a literal
+// and hold the live file to the good one"). The real check above now
+// passes because the defect is fixed, which is exactly the situation that
+// makes it worth asking: would THIS SAME two-read, two-second budget have
+// actually caught the bug before the fix, or is it accidentally lenient?
+//
+// The PRE-FIX `load` in `ReadinessPanel.tsx` closed over its dependency
+// array VERBATIM as:
+//
+//   }, [onAuthError, onReadiness, replicaId, token, t]);
+//
+// with `onReadiness` supplied by `StudioShell.tsx` as a fresh inline arrow
+// on every one of the shell's own renders. `useCallback`'s own contract is
+// exactly this: a new function only when a dependency-array entry changes
+// by `Object.is`, so the causal shape that mattered is small enough to
+// freeze as a literal without a full React/DOM harness — reproduced below
+// as a real, timed simulation (never a synchronous loop counting to a
+// number: the real bug's own signature was real gaps between real network
+// round trips, so the model keeps that shape) rather than a static grep of
+// the dependency array text, because the loop is a property of RUNTIME
+// BEHAVIOUR over TIME, which a text match cannot stand in for. Timings are
+// scaled down 5x from the real measured shape (real: ~2000ms budget over
+// ~20-90ms round trips; here: 400ms over ~10-18ms) so this control costs
+// under half a second rather than two, while preserving the same ratio
+// (roughly 25-100 reads fit the window either way) — the REAL, unscaled
+// two-second budget is what the browser check above already proves.
+async function simulateReadinessMountLoop({ loadDependsOnUnstableCallback }) {
+  const WINDOW_MS = 400;
+  const ROUND_TRIP_MS = 14;
+  let reads = 0;
+  const deadline = Date.now() + WINDOW_MS;
+  // `load`'s own identity, modelled as a token that changes exactly when
+  // `useCallback` would recompute it — i.e. never, when its dependency
+  // array excludes the unstable prop (this workstream's fix), or every
+  // time the "parent" (`StudioShell.tsx`) re-renders, when it includes it
+  // (the frozen pre-fix shape).
+  let currentLoadToken = Symbol("load");
+  async function parentRerenderedWithFreshOnReadiness() {
+    // `StudioShell.tsx`'s own `onReadiness={(next) => {...}}` mints a NEW
+    // closure on literally every one of the shell's own renders — real,
+    // unconditional, unrelated to this fix (the shell is a shared file,
+    // out of this workstream's scope, and this comment's own header on the
+    // `load` callback names it as not wrong to write this way either).
+    const freshOnReadiness = Symbol("onReadiness");
+    const nextLoadToken = loadDependsOnUnstableCallback ? Symbol("load") : currentLoadToken;
+    if (nextLoadToken !== currentLoadToken) {
+      currentLoadToken = nextLoadToken;
+      await runLoad();
+    }
+  }
+  async function runLoad() {
+    if (Date.now() >= deadline) return;
+    reads += 1;
+    // The real network round trip `readReadiness()` makes.
+    await new Promise((resolve) => setTimeout(resolve, ROUND_TRIP_MS));
+    // `setReadiness(next)` (local) then `onReadiness?.(next)` (the prop) —
+    // the SECOND one is a real state write in the PARENT, so the parent
+    // re-renders for real, in both the pre-fix and fixed shape alike; only
+    // whether THAT re-render changes `load`'s own identity differs.
+    await parentRerenderedWithFreshOnReadiness();
+  }
+  await runLoad(); // the mount effect's own initial call
+  return reads;
+}
+
+const oldShapeReads = await simulateReadinessMountLoop({ loadDependsOnUnstableCallback: true });
+ok("NEGATIVE CONTROL — the frozen pre-fix `load` dependency shape (onReadiness included directly) exceeds the two-read budget",
+  oldShapeReads > 2, `${oldShapeReads} reads in the scaled window`);
+const fixedShapeReads = await simulateReadinessMountLoop({ loadDependsOnUnstableCallback: false });
+ok("the fixed `load` dependency shape (onReadiness read through a ref, never in the dependency array) stays within the two-read budget",
+  fixedShapeReads <= 2, `${fixedShapeReads} reads in the scaled window`);
+// ═════════════════════════════════════════════════════════════════════════
 
 const started = Date.now();
 await walkLocale("en");

@@ -13680,3 +13680,118 @@ containing "NEGATIVE CONTROL"/"FAILS"/"FAIL CLOSED"/"-> FAIL").
 - `applyIngestRunDelta`'s new guard (api/_channel-ingest.js): outer `vy_ingest_run_owner_recent_ix`; the anti-join over `vy_context_item` (owner, status = 'refused') is a seq scan because `item_id::text` is compared to `split_part(video_ref, ':', 2)`. Accepted by name: one run per call over one owner's refused items; an index would need an expression or a typed column, logged as the reversal.
 
 No other wave-seventeen workstream added SQL: WS-R115, R116, R117, R118, R113, R114 change no statement; WS-R119 and R120 add fixture matchers only; WS-R111 touches the compiler and the honesty gate only.
+
+### `ws-r122-readiness-fetch-loop-reads-before-after-2026-09-05` (WS-R122)
+
+**Before (unfixed, reproduced once more to confirm the baseline before
+touching the component):** `context/rejected.md
+#ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount`'s own
+number stands: 40+ real `GET /api/readiness` calls in under two seconds on
+a fresh `?step=meet` navigation, 20-90ms gaps, reproduced twice by that
+workstream. This workstream did not re-run the unfixed component a third
+time against the real browser (the fix was applied directly, then verified
+forward) — the pre-fix behaviour is instead reproduced as a timed
+simulation (below) that isolates the SAME causal mechanism the real bug
+had, run as this workstream's own regression control in
+`evals/rehearsal/creator.mjs`.
+
+**After (fixed, measured against the real browser and the real
+`api/readiness.js` door):** `evals/rehearsal/creator.mjs`'s new check —
+`page.goto(".../studio.html?mode=teacher&step=meet...")`, a fresh cold
+mount right after replica creation while the studio's own replica list is
+still settling (the exact precondition WS-R119's own entry names as
+necessary) — counted real `GET /api/readiness` requests in the first two
+seconds, both locales. n = 1 navigation per locale (2 total, en + hi).
+Method: `page.on("request", ...)` filtering `method === "GET"` and
+`url().includes("/api/readiness")`, timestamped from the `page.goto` call,
+counted against a 2000ms window, held open 2200ms to catch a boundary read.
+Result: 1 read per locale, both under the two-read budget (`ok` line:
+"a fresh ?step=meet navigation makes at most two /api/readiness reads in
+the first two seconds (the loop is fixed)", both `en` and `hi`).
+
+**Regression control (proves the check is discriminating, not vacuous),
+method: a timed JS simulation of the exact dependency-identity mechanism
+(never the real component, per `context/rejected.md
+#ws-r89-consolidate-sweep-finding-closed-at-the-merge`'s own rule — the
+real file cannot be "frozen" once fixed, so the bad shape is reproduced as
+a literal instead), scaled 5x down from the real measured timing (400ms
+window over ~14ms simulated round trips, versus the real ~2000ms over
+~20-90ms) to keep the control cheap while preserving the same ratio.
+n = 1 run per shape (2 total).**
+- Pre-fix shape (`load`'s identity recomputed whenever the simulated
+  parent mints a fresh `onReadiness` closure, exactly `StudioShell.tsx`'s
+  own inline arrow): read count exceeded 2 in the scaled window (order of
+  magnitude: dozens, matching the real bug's own measured order of
+  magnitude of 40+ in a ~5x longer real window).
+- Fixed shape (`load`'s identity independent of the callback prop): 1
+  read in the same scaled window.
+
+### `ws-r122-hindi-walks-wall-clocks-2026-09-05` (WS-R122)
+
+**Method:** `REHEARSAL_FULL=1 node evals/rehearsal/creator.mjs` and
+`node evals/rehearsal/follower.mjs --full`, run standalone (not inside the
+full `evals/run.mjs` registry, which never passes `--full`), each once, on
+this shared sandbox under heavy concurrent load (`uptime` load average
+9-12 across this session, many sibling `verify-release.mjs`/Chromium
+processes in `ps aux` throughout — see the untouched-tree baseline entry
+below for the same machine's own noise on an unrelated check). Wall clocks
+as printed by each file's own summary line; n = 1 run per file per gate
+shape (English-only, then `--full`).
+
+- Creator, English only (`evals/run.mjs`'s own registry shape): 37 checks,
+  37 passed, 28.1s wall clock — under the 40s per-walk budget the brief
+  names.
+- Creator, `--full` (en+hi): 72 checks, 72 passed, 41.6s wall clock (both
+  locales in one process, one shared vite build).
+- Follower, English only: 64 passed, wall clock 33,813ms
+  (`browserWalkEn` 16,895ms, `whatsappRehearsal` 383ms, `telegramRehearsal`
+  265ms).
+- Follower, `--full` (en+hi): 102 passed, wall clock 47,814ms
+  (`browserWalkEn` 14,165ms, `whatsappRehearsal` 248ms,
+  `telegramRehearsal` 294ms, `browserWalkHi` 16,068ms — the Telegram/
+  WhatsApp rehearsals run once, on `en` only, by design; see
+  `follower.mjs`'s own header).
+
+### `ws-r122-release-gate-untouched-vs-patched-2026-09-05` (WS-R122)
+
+**Untouched tree** (this workstream's own reset-to-HEAD baseline, per
+`ws-common.md`'s rule to run the gate before touching anything): one full
+`node scripts/verify-release.mjs` run, 19 of 21 checks passed. Two
+failures, both reproduced under measured heavy contention on this shared
+sandbox (`uptime` load average 9-12, 15+ concurrent `verify-release.mjs`/
+Chromium/esbuild processes from sibling worktrees in `ps aux` throughout
+the run):
+- `performance budgets`: `studio-hi` TBT 407ms > 300ms budget — the same
+  contention-caused shape `context/decisions.md
+  #ws-r107-first-hindi-paint-budget-left-at-1000-under-session-contention`
+  already documents (that entry measured a TBT miss on `/studio` itself,
+  untouched by any workstream, in an equally contended window, load
+  average 12-20).
+- `eval suite`: `rehearsal-creator`'s own English gate failed one
+  assertion (`readiness now reads open...`) — a retry-guarded assertion
+  (`evals/rehearsal/creator.mjs`'s own comment on this exact line: "a
+  short retry against a transient 429... found by running inside the full
+  registry, not assumed") that still lost to rate-limiter timing under
+  this session's own unusually heavy load.
+
+Neither failure touches any file this workstream changed. Confirmed
+environmental per `ws-common.md`'s own rule ("any failure that reproduces
+untouched is environmental, not yours").
+
+**Patched tree**: two full `node scripts/verify-release.mjs` runs on this
+same contended machine (load average 13-19 throughout). First run: `eval
+suite` failed with `failed suites: readiness` — traced to a bug THIS
+workstream's own new comment introduced (below), fixed, then a THIRD full
+run: **21 of 21 checks passed**, including `eval suite` (277,883ms, every
+suite green, `rehearsal-follower` and `rehearsal-creator` both clean),
+`room leak battery` (20,703ms), `room export completeness` (1,530ms),
+`room door battery` (2,001ms), `accessibility` (42,053ms), `security
+headers` (8,143ms), `layout readability` (243,004ms) and `performance
+budgets` (80,527ms) — the same two checks that failed on the untouched
+tree above passed cleanly here, further evidence their earlier failure was
+contention, not a regression.
+
+See `context/rejected.md#ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan`
+for the `eval suite` regression this workstream found and fixed in its own
+first patched-tree run (a comment-only cascade, not a real product-copy
+violation) before the clean run above.

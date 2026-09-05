@@ -32,6 +32,19 @@ on:
   push:
     branches: [main, "claude/**"]
   workflow_dispatch:
+  # WS-R122. Weekly, for the `hindi-rehearsals` job below only — the Hindi
+  # creator and follower rehearsals under `REHEARSAL_FULL=1` are not part of
+  # the 21/23-check gate `evals/run.mjs` registers by default (that registry
+  # runs the English gate of each rehearsal only, this workstream's own
+  # brief and `context/rejected.md`'s WS-R119 entries restate why: minutes
+  # and rate-limit budget a push-triggered gate cannot spend twice), so
+  # without a schedule the Hindi walks would run only when a human happens
+  # to invoke them by hand. Sunday 04:37 UTC: neither `drift.yml`'s existing
+  # weekly "15 3 * * 0" nor `culture.yml`'s existing daily "45 3 * * *"
+  # (`grep -rn "cron:" .github/workflows/*.yml`, checked before picking this
+  # so three schedules do not stack onto one runner-minute).
+  schedule:
+    - cron: "37 4 * * 0"
 
 # A newer push makes an in-flight gate run pointless before it finishes: the
 # gate is a pure function of the tree (no writes, no state), so the newest
@@ -45,6 +58,15 @@ concurrency:
 
 jobs:
   gate:
+    # WS-R122. The only line this workstream's brief allows to touch this
+    # job ("the existing job only, the existing job untouched" — this is
+    # the one line that is not a step, and it changes no gate LOGIC): the
+    # weekly `schedule:` trigger added above exists for `hindi-rehearsals`
+    # alone, and without this a bare schedule trigger would ALSO fire the
+    # full 21/23-check matrix here every week for no reason anyone asked
+    # for. `push`/`workflow_dispatch` are completely unaffected — this job
+    # runs on those exactly as it always did.
+    if: github.event_name != 'schedule'
     strategy:
       fail-fast: false
       matrix:
@@ -160,3 +182,78 @@ jobs:
       # step before this one is setup, and every step after it (none) would
       # be reporting, never gating.
       - run: node scripts/verify-release.mjs
+
+  # WS-R122. THE HINDI WALKS, on a schedule nobody has to remember. Both
+  # rehearsals (`evals/rehearsal/creator.mjs`, `follower.mjs`) are already
+  # locale-complete under `REHEARSAL_FULL=1` (WS-R122's own fix to the
+  # Context Locker click and the shared export-rate bucket — see
+  # `context/decisions.md` and `context/rejected.md`), but `evals/run.mjs`'s
+  # own registry runs the English gate of each ONLY (`creator.mjs`'s and
+  # `follower.mjs`'s own file headers restate this), so nothing before this
+  # job ever ran the Hindi creator or Hindi follower journey in CI at all —
+  # `gates-that-live-nowhere` one surface over: a suite exists, passes by
+  # hand, and gates nothing because nobody scheduled it.
+  hindi-rehearsals:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Local rehearsal of both walks under `REHEARSAL_FULL=1` (this
+    # workstream, see the wall clocks logged in `context/measurements.md`)
+    # is well under five minutes combined; 15 covers a cold Chromium
+    # download and a slower shared runner with real margin, the same
+    # "measured, then padded" posture `gate`'s own 30-minute cap uses above.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Same posture as `gate`, restated rather than shared: no secret
+      # reaches this job either.
+      - run: CI=1 node scripts/write-config.mjs --stub
+
+      - name: Assert no secret reaches this job
+        run: |
+          NEEDLE_A="secrets"
+          NEEDLE_B="."
+          HIT=$(grep -Fn -- "${NEEDLE_A}${NEEDLE_B}" .github/workflows/release-gate.yml || true)
+          if [ -n "$HIT" ]; then
+            echo "::error::this workflow references a secret; the release gate must stay stub-config-only (api/_config.js is gitignored and holds every key, AGENTS.md's own law)"
+            echo "$HIT"
+            exit 1
+          fi
+          echo "ok -- this workflow never references a live secret"
+
+      # `gate`'s own step, restated: the Hindi walks render real Devanagari
+      # text and this is the one face `.room-shell:lang(hi)`/the studio's
+      # own Hindi styles name first.
+      - name: Install the bundled Devanagari face as a system font
+        run: |
+          mkdir -p "$HOME/.local/share/fonts"
+          cp node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf "$HOME/.local/share/fonts/"
+          fc-cache -f "$HOME/.local/share/fonts"
+          fc-list | grep -qi "Noto Sans Devanagari" || { echo "::error::Noto Sans Devanagari did not register with fontconfig -- the Hindi walks would be blind on this runner"; exit 1; }
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-chromium-${{ runner.os }}-
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Each rehearsal builds its own `dist/` on first use
+      # (`evals/rehearsal/harness.mjs`'s own `startHarness`), so no separate
+      # build step — this mirrors running either file locally by hand.
+      - name: Creator rehearsal, English + Hindi (REHEARSAL_FULL=1)
+        run: REHEARSAL_FULL=1 node evals/rehearsal/creator.mjs
+
+      - name: Follower rehearsal, English + Hindi (REHEARSAL_FULL=1)
+        run: node evals/rehearsal/follower.mjs --full

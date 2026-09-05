@@ -296,6 +296,26 @@ async function runJourney({ harness, browser, locale, gate }) {
   const c = COPY[locale];
   const qs = "?via=search";
 
+  // WS-R122. `api/room.js`'s own `op === "export"`/`"forget"` key their
+  // 3-per-minute bucket (`allow(authUserId, "room_<op>_user", 3)`) on the
+  // resolved AUTH USER ID — and both locale gates of one `--full` run share
+  // the SAME Node process, so the SAME `api/_ratelimit.js` module singleton
+  // (`context/rejected.md#ws-r119-whatsapp-chat-export-rate-bucket-shared-
+  // across-full-locale-gates`: 2 export calls per gate x 2 gates = 4 against
+  // a cap of 3, all landing on `followerBearer.A`'s bucket because this
+  // function always used `.A` as "the" primary follower regardless of
+  // locale). WS-R109 already solved the identical shape for the IP-keyed
+  // doors with a distinct `x-real-ip` per gate; there is no header for an
+  // auth-user-keyed door, so this is the auth-identity equivalent — which of
+  // the two known fixture identities plays "the primary follower" (the one
+  // whose export/forget bucket this walk actually spends) SWAPS between
+  // gates, so `en`'s two export calls land on A's bucket and `hi`'s land on
+  // B's: two buckets, three-per-minute EACH, the real limit never widened.
+  const primaryBearer = gate === "hi" ? followerBearer.B : followerBearer.A;
+  const primaryPerson = gate === "hi" ? followerPerson.B : followerPerson.A;
+  const referredBearer = gate === "hi" ? followerBearer.A : followerBearer.B;
+  const referredPerson = gate === "hi" ? followerPerson.A : followerPerson.B;
+
   // ── /c/<slug>: the taste, through the static island ──────────────────────
   // Distinct synthetic per-visitor IPs (`x-real-ip`, `api/_ratelimit.js`
   // own `ipOf()` header): this harness has no reverse proxy in front of
@@ -355,13 +375,13 @@ async function runJourney({ harness, browser, locale, gate }) {
 
   // ── /r/<slug>?via=search: join, with age attestation and memory consent ──
   const context = await browser.newContext({ extraHTTPHeaders: { "x-real-ip": `10.94.${gateOffset + 2}.1` } });
-  await context.addInitScript(fixtureAuthScript(followerBearer.A));
+  await context.addInitScript(fixtureAuthScript(primaryBearer));
   await context.addInitScript(fakePushInitScript);
   await context.grantPermissions(["clipboard-read", "clipboard-write", "notifications"], { origin: baseUrl });
   const page = await context.newPage();
-  const sessionA = await joinFresh(page, baseUrl, "anjali", { qs, locale, checkAbout: true });
-  ok(`${gate}: the join op returned a real session token`, sessionA.length > 20);
-  const followerRow = () => state.followers.find((f) => f.person_id === followerPerson.A);
+  const primarySession = await joinFresh(page, baseUrl, "anjali", { qs, locale, checkAbout: true });
+  ok(`${gate}: the join op returned a real session token`, primarySession.length > 20);
+  const followerRow = () => state.followers.find((f) => f.person_id === primaryPerson);
   ok(`${gate}: the join wrote a real follower row (memory consent true)`,
     Boolean(followerRow()?.memory_consent_at));
 
@@ -401,7 +421,7 @@ async function runJourney({ harness, browser, locale, gate }) {
     ),
     page.locator(".room-rail button", { hasText: c.threadSave }).click(),
   ]);
-  const threadExists = state.threads.some((t) => t.title === "physics" && t.person_id === followerPerson.A);
+  const threadExists = state.threads.some((t) => t.title === "physics" && t.person_id === primaryPerson);
   ok(`${gate}: the new thread landed in the fixture`, threadExists);
 
   // ── the account page: switch locale, back, disclosure, referral ────────
@@ -472,7 +492,7 @@ async function runJourney({ harness, browser, locale, gate }) {
     pushSubscribeResponse.status() === 200 && typeof pushSubscribeBody.subscription_id === "string",
     JSON.stringify(pushSubscribeBody));
   ok(`${gate}: the fixture's own vy_room_push_sub row was written by the real op`,
-    state.roomPushSubs.some((s) => s.person_id === followerPerson.A
+    state.roomPushSubs.some((s) => s.person_id === primaryPerson
       && s.endpoint === "https://fake-push.rehearsal.internal/ep/1"));
 
   const referralUrlLocator = page.locator(".room-referral-url");
@@ -497,12 +517,12 @@ async function runJourney({ harness, browser, locale, gate }) {
 
   // ── a second browser context opens the referral link and joins ─────────
   const refContext = await browser.newContext({ extraHTTPHeaders: { "x-real-ip": `10.94.${gateOffset + 3}.1` } });
-  await refContext.addInitScript(fixtureAuthScript(followerBearer.B));
+  await refContext.addInitScript(fixtureAuthScript(referredBearer));
   const refPage = await refContext.newPage();
   const referralsBefore = state.referrals.length;
   await joinFresh(refPage, baseUrl, "anjali", { qs: referralPath.slice(referralPath.indexOf("?")), locale: "en" });
   ok(`${gate}: the referred follower's own row was written`,
-    state.followers.some((f) => f.person_id === followerPerson.B));
+    state.followers.some((f) => f.person_id === referredPerson));
   ok(`${gate}: exactly one new referral row was credited`,
     state.referrals.length === referralsBefore + 1);
   const referralRow = state.referrals[state.referrals.length - 1];
@@ -527,10 +547,16 @@ async function runJourney({ harness, browser, locale, gate }) {
   await selfRefPage.close();
 
   // NEGATIVE CONTROL (law 3b): a step that reads another follower's words
-  // must fail. Follower A's OWN session, presented with follower B's OWN
-  // bearer — the second, independent layer `export`/`forget` require
-  // (`api/room.js`'s own header: "a stolen session alone cannot download or
-  // destroy a follower's history").
+  // must fail. The primary follower's OWN session, presented with the
+  // REFERRED follower's OWN bearer — the second, independent layer
+  // `export`/`forget` require (`api/room.js`'s own header: "a stolen session
+  // alone cannot download or destroy a follower's history"). This call
+  // itself still spends one hit of the REFERRED identity's own
+  // `room_export_user` bucket (the rate-limit check runs before the mismatch
+  // check in `api/room.js`) — accounted for in this file's own header on
+  // `primaryBearer`/`referredBearer` above: across both gates every identity
+  // makes at most 3 `op:"export"` calls total (2 real + this one negative
+  // control, or vice versa), never 4.
   const crossRead = await page.evaluate(
     async ({ session, otherBearer }) => {
       const r = await fetch("/api/room", {
@@ -540,9 +566,9 @@ async function runJourney({ harness, browser, locale, gate }) {
       });
       return { status: r.status, body: await r.json().catch(() => ({})) };
     },
-    { session: sessionA, otherBearer: followerBearer.B },
+    { session: primarySession, otherBearer: referredBearer },
   );
-  ok(`${gate}: exporting follower A's session with follower B's bearer is refused (403 room_session_mismatch)`,
+  ok(`${gate}: exporting the primary follower's session with the referred follower's bearer is refused (403 room_session_mismatch)`,
     crossRead.status === 403 && crossRead.body.error === "room_session_mismatch", JSON.stringify(crossRead));
 
   // ── the sessionWorked offer state, after a session that worked (WS-R109
@@ -563,7 +589,7 @@ async function runJourney({ harness, browser, locale, gate }) {
   // running this walk for real and reading `sessionWorked`'s own `null`
   // offer, not assumed. Four fresh turns on the "physics" thread itself is
   // what a real >=4-message session on THIS thread actually takes.
-  const physicsThread = state.threads.find((t) => t.title === "physics" && t.person_id === followerPerson.A);
+  const physicsThread = state.threads.find((t) => t.title === "physics" && t.person_id === primaryPerson);
   physicsThread.created_at = new Date(Date.now() - 2 * 86_400_000).toISOString();
   followerRow().month_message_count = Math.max(followerRow().month_message_count, 16);
   await page.locator(".room-rail button", { hasText: "physics" }).click();
@@ -606,7 +632,7 @@ async function runJourney({ harness, browser, locale, gate }) {
   // SECRET` missing from a hand-built env object) — so `...process.env` is
   // spread first and `PAYMENTS_PROVIDER` only overrides the one key this
   // call actually needs to change.
-  const started = await startFollowerSubscription(db, { session: sessionA }, {
+  const started = await startFollowerSubscription(db, { session: primarySession }, {
     env: { ...process.env, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "rehearsal-wh-secret" },
   });
   const chargeBody = Buffer.from(JSON.stringify({
@@ -666,17 +692,15 @@ async function runJourney({ harness, browser, locale, gate }) {
   //    and failed honestly against the real door, 3 real tables against 47
   //    possible).
   //
-  //    NAMED under `--full`: `api/room.js`'s own `op === "export"` shares
-  //    ONE rate bucket (`room_export_user`, `allow(authUserId, ...,3)`) with
-  //    the "Download everything" step further down, keyed on the AUTH USER
-  //    ID — `followerBearer.A` is the SAME fixture constant across the en
-  //    AND hi gates in one `--full` process, so 2 export calls per gate x 2
-  //    gates = 4 hits a 3-per-minute cap the untouched walk never used to
-  //    reach (it only ever called this op once per gate). `evals/run.mjs`'s
-  //    own registry runs the en gate ONLY (this file's own header states
-  //    this, and `--full` is never passed there), so this is real, found-
-  //    by-running behaviour rather than a gate regression — logged to
-  //    `context/rejected.md` rather than silently worked around. ─────────
+  //    FIXED for `--full` (WS-R122, `context/rejected.md#ws-r119-whatsapp-
+  //    chat-export-rate-bucket-shared-across-full-locale-gates`): `api/
+  //    room.js`'s own `op === "export"` shares ONE rate bucket
+  //    (`room_export_user`, `allow(authUserId, ...,3)`) with the "Download
+  //    everything" step further down, keyed on the AUTH USER ID — this
+  //    function's own `primaryBearer` (this file's header) now differs
+  //    between gates, so the en gate's two export calls land on one
+  //    identity's bucket and the hi gate's land on the OTHER's, never
+  //    sharing one bucket across 4 calls against a 3-per-minute cap. ───────
   await page.getByRole("button", { name: c.accountOpen }).click();
   await page.waitForSelector(".room-account", { timeout: 10_000 });
   const [readablePopup, readableResponse] = await Promise.all([
@@ -742,15 +766,15 @@ async function runJourney({ harness, browser, locale, gate }) {
     page.getByRole("button", { name: c.forgetConfirm }).click(),
   ]);
   ok(`${gate}: forget removed the real follower row from the fixture`,
-    assertFollowerFullyForgotten(state, followerPerson.A, "real forget"));
+    assertFollowerFullyForgotten(state, primaryPerson, "real forget"));
 
   // NEGATIVE CONTROL (law 3, restated for forget): the completeness check
   // itself must be load-bearing, not vacuous — proven by mutating a COPY of
   // the (already-forgotten) state to reinsert a stray row and confirming
   // the SAME check now reports failure.
-  const mutated = { ...state, followers: [...state.followers, { person_id: followerPerson.A, stray: true }] };
+  const mutated = { ...state, followers: [...state.followers, { person_id: primaryPerson, stray: true }] };
   ok(`${gate}: NEGATIVE CONTROL — the forget-completeness check fails when a row is deliberately left behind`,
-    assertFollowerFullyForgotten(mutated, followerPerson.A, "mutated") === false);
+    assertFollowerFullyForgotten(mutated, primaryPerson, "mutated") === false);
 
   await context.close();
 }

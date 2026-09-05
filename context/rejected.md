@@ -13984,3 +13984,99 @@ never assume the arithmetic backend or the byte path leaves it intact):
 prefer an honest, narrower shortfall (a WAV clip that may not render as a
 voice bubble) to a broader, unverifiable claim (a clip that renders
 correctly but might silently carry a dead or degraded watermark).
+
+## `ws-r122-rail-hindi-failure-first-misdiagnosed-as-a-copy-chunk-race` (2026-09-05, WS-R122)
+
+**Tried.** After fixing the Context Locker click and the "Meet" tab click,
+the Hindi creator walk still failed at "the created replica renders in the
+studio's own 'Your AIs' rail" (`railText` empty). The first hypothesis,
+reasoned from `localeContext.tsx`'s own header ("renders NOTHING for a
+locale whose table is not fully ready yet... and re-renders once both
+chunks land") and this workstream's own new fresh-navigation check
+immediately above it in the same walk, was a timing race: three real page
+navigations in a row (the `?step=meet` check, the navigate-back, and the
+existing `page.reload()`) might outrun the async Hindi copy chunk install
+on this session's own heavily loaded sandbox. A `page.waitForFunction`
+poll (15s, 200ms interval) replaced the single immediate `textContent()`
+read on that theory, and the redundant third navigation was removed.
+
+**What broke.** Re-ran `REHEARSAL_FULL=1 node evals/rehearsal/creator.mjs`
+again: identical failure, same empty `railText`, now after waiting the
+FULL 15 seconds rather than failing instantly — proof the fix addressed
+nothing, since a genuine race would have resolved well inside 15s once
+padded.
+
+**Found instead, by reading `copy.ts`/`hiCopy.ts` directly rather than
+reasoning from the symptom a second time:** the locator itself,
+`[aria-label="Your AIs"]`, is `copy.ts`'s own `replicaList.yourAIsAriaLabel`
+— a THIRD hardcoded English string. Under `hi` the real, rendered
+aria-label is `hiCopy.ts`'s own value, "आपके AI". No amount of waiting
+finds an element with the wrong aria-label; the selector could never have
+matched, race or not.
+
+**What worked.** A locale-aware selector
+(`locale === "hi" ? hiCopyString("yourAIsAriaLabel") : "Your AIs"`), the
+same `hiCopyString` helper already built for the Context Locker fix. The
+poll from the wrong theory was kept (harmless, real defense against actual
+timing variance) but the fix that mattered was the selector.
+
+**The rule, restated from `ws-r119-creator-walk-hindi-full-blocked-before-
+this-workstreams-own-code`'s own lesson one layer deeper:** a Hindi walk
+failure that LOOKS like a timing symptom (an empty read, a slow settle)
+deserves the same "read the real copy table before touching the wait" test
+as an outright timeout does — guessing "it needs more time" and being wrong
+costs a full run's wall clock to discover, where `grep` costs nothing.
+
+## `ws-r122-readiness-comment-backtick-cascade-tripped-banned-word-scan` (2026-09-05, WS-R122)
+
+**Tried.** A long, prose comment added to `ReadinessPanel.tsx` (explaining
+the readiness fetch loop fix) referenced several short identifiers in
+backtick-quoted code style: `` `t` `` (the locale copy variable, 1
+character), `` `load` `` (4 characters, four times) and `` `token` `` (5
+characters), plus one bare `=>` arrow describing an inline callback.
+
+**What broke.** The first full `verify-release.mjs` run on the patched
+tree failed `eval suite` with `failed suites: readiness`:
+`AssertionError: no banned product word enters the text this panel
+renders`. `evals/readiness/run.mjs`'s own banned-word scanner extracts
+"rendered text" candidates from the WHOLE concatenated `ReadinessPanel.tsx`
++ `copy.ts` source with three regexes, one of them `` /`[^`]{6,}`/g `` —
+paired backticks with a 6-character minimum, applied to the raw source
+text with no actual comment-stripping despite that check's own comment
+claiming "comments... are stripped first". A backtick pair SHORTER than 6
+characters fails to match starting at either of its own two backtick
+positions (the content between is too short), so JavaScript's global regex
+scan does not skip that pair as a unit — it re-anchors on whichever
+backtick it reaches next as a FRESH opening delimiter and searches forward
+for the next actual backtick, however far away. Each of the short pairs
+above triggered exactly this re-anchoring, cascading until one span
+finally closed 1,085 characters later, deep inside an unrelated,
+PRE-EXISTING comment two hundred lines down ("a failed read... looking
+like a clone that scored nothing") — reading the word "clone" as if it
+were rendered product copy and failing the check, even though no user-
+visible string anywhere in this panel changed.
+
+**What worked.** Rewriting the new comment with zero backtick-quoted spans
+under 6 characters (dropping backticks around `t`, merging `` `load` ``
+references into longer phrasing, describing the callback in prose instead
+of a bare `=>` snippet) and confirming directly
+(`panelWithCopy.match(/`[^`]{6,}`/g)`, instrumented by hand against the
+real file) that the bogus long match was gone before re-running the suite:
+127/127 readiness checks pass.
+
+**The rule.** A heuristic text scanner that pairs delimiters across an
+entire file (not a real parser, and not actually comment-aware despite its
+own claim) can be tripped by ANY short backtick-quoted identifier anywhere
+in a file it scans, including in a comment nobody meant as user-visible
+copy — the failure this produces looks exactly like a real banned-word
+violation (same assertion, same error shape) and can only be told apart by
+instrumenting the scanner's own regex against the real file and reading
+what it actually matched, not by re-reading the new prose for banned words
+by eye. Keep every backtick-quoted span in `ReadinessPanel.tsx` (and any
+file `evals/readiness/run.mjs` concatenates) at 6 characters or longer, or
+avoid backticks for single short identifiers in prose entirely. This
+scanner itself (`evals/readiness/run.mjs`) is outside this workstream's
+file scope and was not hardened against the class of defect; a future
+session touching that file could make the comment-stripping the header
+already claims actually real, closing this class of false positive for
+good rather than requiring every future comment to dodge it by hand.

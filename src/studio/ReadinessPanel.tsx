@@ -41,7 +41,7 @@
 // without taking `onClick`'s semantics away from a keyboard. Only transform
 // and opacity animate. The per-part disclosure is a native `<details>`, which
 // is interruptible for free and which `jumpTo` already knows how to open.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./readiness.css";
 import { ReplicaApiError } from "./replicaApi";
 import { measureRecallNow, readReadiness, type Readiness, type ReadinessAction, type ReadinessPart } from "./readinessApi";
@@ -170,23 +170,61 @@ export default function ReadinessPanel({
   const [measuring, setMeasuring] = useState(false);
   const [measureStatus, setMeasureStatus] = useState<string | null>(null);
 
+  // WS-R122. THE LOOP THIS FIXES (`context/rejected.md#ws-r119-full-page-
+  // reload-to-step-meet-races-readiness-panels-mount`): the studio shell
+  // hands this panel its `onAuthError`/`onReadiness` callbacks as inline
+  // closures (`StudioShell.tsx`'s own inline `onReadiness` prop, calling
+  // `setReadiness` then `setReadinessChecked` on every invocation) that are
+  // a NEW function on every one of the SHELL's own renders — including the
+  // render this panel's own re-fetch triggers by calling `onReadiness`, a
+  // state set that reaches back into the very effect that set it in
+  // motion. Depending on either callback (or on the locale copy table,
+  // which also changes identity on a locale switch) directly inside the
+  // re-fetch function's own dependency array made that function itself a
+  // NEW function every time the PARENT re-rendered for any reason, so the
+  // mount effect below fired again, read the API again, called
+  // `onReadiness` again, and the parent re-rendered again — a fresh
+  // network round trip every 20-90ms, 40+ times in two seconds against the
+  // SAME replica, until the door's own IP rate limiter cut it off. Not a
+  // guess: traced by reading `ReadinessPanel`, `StudioApp.tsx` and
+  // `StudioShell.tsx` together, the loop's own two preconditions named in
+  // that rejected.md entry ("a dependency that is a new object every
+  // render" and "a state set inside its own effect") both present, one on
+  // each side of this same prop.
+  //
+  // The fix stays entirely inside THIS component, never touching
+  // `StudioShell.tsx` (a shared file, out of this workstream's scope, and
+  // arguably not wrong to write an inline callback either way — a panel's
+  // own effect should not need its caller to memoize anything to behave).
+  // Refs updated IN RENDER (never inside an effect, so catching up costs no
+  // extra render) hold the latest callbacks and copy table; the re-fetch
+  // function below reads them through the ref rather than closing over the
+  // prop, so its own identity depends on nothing but the replica id and
+  // access token — the two values a genuinely new read should follow.
+  const onAuthErrorRef = useRef(onAuthError);
+  onAuthErrorRef.current = onAuthError;
+  const onReadinessRef = useRef(onReadiness);
+  onReadinessRef.current = onReadiness;
+  const tRef = useRef(t);
+  tRef.current = t;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const next = await readReadiness(token, replicaId);
       setReadiness(next);
-      onReadiness?.(next);
+      onReadinessRef.current?.(next);
     } catch (cause) {
-      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
+      if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthErrorRef.current(cause);
       // "waiting on us", named. Never a blank card, and never a zero: a failed
       // read is a platform failure and it says so rather than looking like a
       // clone that scored nothing.
-      setError(cause instanceof Error ? cause.message : t.readiness.couldNotRead);
+      setError(cause instanceof Error ? cause.message : tRef.current.readiness.couldNotRead);
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, onReadiness, replicaId, token, t]);
+  }, [replicaId, token]);
 
   useEffect(() => { void load(); }, [load]);
 
