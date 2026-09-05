@@ -514,7 +514,7 @@ export default function AccountPage({
           turned dormancy on - `settings.room.dormancy_days` is null in that
           case, the same "null means off" contract the database column
           itself carries. */}
-      {settings.room.dormancy_days != null && (
+      {settings != null && settings.room.dormancy_days != null && (
         <p className="room-fine">
           {withDuration(copy.dormancy.note, dormancyDurationLabel(settings.room.dormancy_days, locale))}
         </p>

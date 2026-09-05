@@ -1001,12 +1001,15 @@ export async function joinRoom(
             -- WS-R75 (migration 119): a repeat join IS a visit, and a visit
             -- always clears a pending dormancy notice - the one column this
             -- workstream's own law 2 names. This is a defensive convenience,
-            -- never the correctness mechanism: `dormancyForgetDue`
-            -- (api/_dormancy.js) never trusts this column alone, it
-            -- re-checks `last_seen_at` against `dormancy_notice_at` directly,
-            -- so a follower who keeps talking without ever hitting `join`
-            -- again is provably safe even on a database where this line had
-            -- never shipped.
+            -- never the correctness mechanism: dormancyForgetDue in
+            -- api/_dormancy.js never trusts this column alone, it re-checks
+            -- last_seen_at against dormancy_notice_at directly, so a
+            -- follower who keeps talking without ever hitting join again is
+            -- provably safe even on a database where this line had never
+            -- shipped. NOTE: no backticks in this SQL comment on purpose -
+            -- see rejected.md#ws-r37-sql-comment-backticks-terminate-the-
+            -- template-literal-a-third-time, this workstream's own repeat of
+            -- that exact mistake, caught by node --check before commit.
             dormancy_notice_at = null,
             updated_at = now()
      returning follower_id, room_id, person_id, agent_id, joined_at, age_attested_at,

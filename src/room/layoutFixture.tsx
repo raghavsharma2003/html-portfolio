@@ -179,7 +179,10 @@ const FIXTURE_TURNS_LONG = [
  * `roomSettings` actually returns; not imported, for the same standalone
  * reason `CARD`/`CARD_HI` above are written out rather than imported. */
 const FIXTURE_SETTINGS: RoomSettings = {
-  room: { slug: "anjali", name: "Anjali", display_name: "Anjali" },
+  // WS-R75 (migration 119): a real value (not null) so the layout gate's
+  // own signed-in walk actually renders the retention sentence at least
+  // once, rather than only exercising the "off, render nothing" branch.
+  room: { slug: "anjali", name: "Anjali", display_name: "Anjali", dormancy_days: 365 },
   disclosure: CARD,
   locale: "en",
   follower: FIXTURE_OPEN.follower!,

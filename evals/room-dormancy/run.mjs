@@ -104,7 +104,14 @@ function freshState() {
         last_seen_at: isoBefore(10), dormancy_notice_at: isoBefore(31),
       },
       {
-        follower_id: "f0000000-0000-4000-8000-000000000006", room_id: ROOM_A, person_id: PERSON_NO_NOTICE_YET,
+        // room_id is ROOM_B (policy OFF) on purpose: this row's own
+        // last_seen_at is genuinely old (400 days), so it proves
+        // dormancyForgetDue's own negative control (a) meaningfully - "no
+        // prior notice" is structurally unreachable regardless of how old
+        // last_seen_at is - without ALSO tripping dormancyNoticeDue in
+        // section 1 (ROOM_B has no policy, so it is never noticed either,
+        // the identical reason PERSON_OFF_ROOM above is never noticed).
+        follower_id: "f0000000-0000-4000-8000-000000000006", room_id: ROOM_B, person_id: PERSON_NO_NOTICE_YET,
         agent_id: AGENT_ID, locale: "en", age_attested_at: isoBefore(500),
         last_seen_at: isoBefore(400), dormancy_notice_at: null,
       },

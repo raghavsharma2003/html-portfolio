@@ -10271,3 +10271,74 @@ header forbids.
 short run whose parts average to the reference; test the parts for
 uniformity too, and give every detector a control it must catch on every
 run, or its silence proves nothing.
+
+
+## `ws-r75-web-push-type-switch-drops-every-non-checkin-payload` — a renewal push, and every future one, is silently discarded on arrival
+
+**Tried.** Building the dormancy notice's own delivery channels
+(`api/_dormancy.js`, WS-R75), the plan was to reuse WS-R37's own precedent
+exactly: `api/_push/webpush.js`'s `renewalPushPayload` sends
+`{t:"renewal", r:<slug>, n:<display name>}` to a follower's browser, and a
+`t:"dormancy"` payload would have followed the identical shape.
+
+**What broke.** `public/room-sw.js`'s own push handler is a single, hard
+gate: `if (data.t !== "checkin") return;` - every payload whose `t` is not
+the literal string `"checkin"` is dropped before any notification is ever
+shown. This file's own header comment still calls `checkinPushPayload` "the
+ONLY function in this repo that builds a Room push body" - true when it was
+written, stale since WS-R37 added `renewalPushPayload` one file over, and
+nobody updated the service worker's own switch to match. The result: every
+renewal push WS-R37 has ever sent (or will send, until this is fixed) is
+silently discarded on the follower's own device. `context/STATE.md`'s own
+LIVE table already says "no reminder has ever reached a real... push
+subscription" - this is *why*, not merely an unproven claim.
+
+**The rule.** A payload-type contract has TWO ends, and this repo already
+had one workstream (WS-R37) add a new value to one end without touching the
+other - the service worker's own switch statement is not discoverable from
+`api/_push/webpush.js`'s side at all, since nothing there imports or checks
+against it. A sender-side payload builder function existing is not proof a
+receiver can render it; `grep for a CALLER, not a definition` (AGENTS.md)
+needs a sibling law for this shape specifically: when a payload carries a
+closed `type` tag, grep the RECEIVER's own switch on that tag before
+trusting a new sender-side builder does anything at all. This workstream did
+not fix `public/room-sw.js` (out of its own scope - it would touch a
+pre-existing, heavily-commented file this workstream's brief never named),
+and deliberately did not send a `t:"dormancy"` payload that would meet the
+identical fate silently. A future workstream fixing this should widen
+`room-sw.js`'s own switch to a small, explicit map of known types (checkin,
+renewal, dormancy) rather than one more `!==` check with a second value
+bolted on.
+
+
+## `ws-r75-sql-comment-backticks-terminate-the-template-literal-a-fourth-time` — the same defect shape, a fourth time
+
+**Tried.** Explaining `joinRoom`'s new `dormancy_notice_at = null` line
+(`api/_room-surface.js`) with a SQL comment that named the functions and
+columns involved in backticks, this file's own Markdown-adjacent habit for
+readability - `` `dormancyForgetDue` ``, `` `last_seen_at` ``,
+`` `dormancy_notice_at` `` - inside a `--`-prefixed SQL comment that itself
+sits inside a JS template literal.
+
+**What broke.** The first backtick pair closed the JS template literal
+early (SQL comments are opaque to the JS parser; JS backticks are not),
+turning everything after it - hundreds of lines of real code - into
+unparsed template-literal continuation until the NEXT backtick in the file
+closed it, at which point `node --check` reported a `SyntaxError: missing )
+after argument list` pointing at a completely unrelated line, several
+hundred lines later, with no hint the real fault was a stray pair of
+backticks in a comment far above it.
+
+**The rule.** `context/rejected.md#ws-r37-sql-comment-backticks-terminate-
+the-template-literal-a-third-time` already named this exact shape and it
+happened again anyway, in a DIFFERENT file, by a DIFFERENT workstream - the
+existing rule ("never a backtick inside a SQL-comment-inside-a-template-
+literal") is correct but has now failed to prevent the mistake four times
+because nothing enforces it mechanically; it depends on a person remembering
+a rule buried in a rejected.md entry while typing a comment. `node --check
+api/*.js` (or a lint rule matching a backtick between `--` and end-of-line
+inside a template literal) run as a matter of habit BEFORE the first eval
+attempt, not as a debugging step AFTER a confusing failure, is what actually
+catches it fast - this workstream's own instance cost under a minute once
+`node --check` was run, and would have cost much longer chasing the reported
+line number, which was nowhere near the real fault.

@@ -212,7 +212,7 @@ export default function RoomStudio({
   const [suiteStatus, setSuiteStatus] = useState<SuiteRoomStatus | null>(null);
   const [topicDraft, setTopicDraft] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | "bio" | "listed" | null>(null);
+  const [busy, setBusy] = useState<"create" | "slug" | "publish" | "pause" | "cap" | "dormancy" | "price" | "topics" | "paid_ceilings" | "locale" | "creator_tier" | "bio" | "listed" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [slugDraft, setSlugDraft] = useState("");

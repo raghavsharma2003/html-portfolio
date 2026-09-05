@@ -14710,3 +14710,81 @@ aggregate-only rule) rather than widening the generic `select *` path — and
 that future file's own identifier must still never appear as a literal
 string in `api/_creator-export.js`'s own source outside such a query, per
 the rejection entry this decision cites.
+
+## `ws-r75-dormancy-forget-predicate-is-self-contained` (2026-09-05, WS-R75)
+
+**Decision.** `dormancyForgetDue` (`api/_dormancy.js`) never trusts a cleared
+`dormancy_notice_at` column as its safety mechanism. Its own WHERE clause
+re-derives "has not visited since the notice" directly from two timestamps
+already on the row (`f.last_seen_at <= f.dormancy_notice_at`), so a follower
+who returns and keeps talking - without ever touching the `join` op again,
+which is the only place this workstream nulls the column - is provably safe
+regardless of whether that defensive clear ever fires for them.
+`joinRoom`'s own ON CONFLICT UPDATE (`api/_room-surface.js`) still nulls the
+column on a repeat join, as the workstream brief's own law 2 names ("the
+join or open op's UPDATE, one column"), but as a UX convenience (so the
+account page's sentence and the studio's own read stop showing a pending
+notice quickly), never as the mechanism that keeps a returning follower from
+being forgotten.
+
+**Rationale.** The brief's own law 2 splits into a PREDICATE ("who is due to
+be forgotten") and a MECHANISM ("a visit clears it"). Coupling correctness to
+the mechanism would mean: any future op that bumps `last_seen_at` without
+also nulling `dormancy_notice_at` (and today `roomSay`/`roomSpeak` already do
+exactly this - they update `last_seen_at` on every turn and were NOT touched
+by this workstream) silently reintroduces the exact failure the workstream's
+own negative control (b) exists to catch. A predicate that reads both
+timestamps directly is correct by construction, independent of how many
+other call sites remember to clear a column.
+
+**Reversal condition.** If a future audit finds the two-timestamp comparison
+itself too expensive to index well at scale (unlikely at Vyakti's current
+size - the partial index `vy_room_follower_dormancy_notice_ix`,
+migration 119, covers exactly this predicate), switching to "trust the
+cleared column alone" would require auditing EVERY existing and future
+writer of `last_seen_at` for the same discipline `joinRoom` now has - a much
+larger surface than this workstream chose to open.
+
+## `ws-r75-dormancy-sweep-folded-into-renewals-cron` (2026-09-05, WS-R75)
+
+**Decision.** `dormancySweep` (`api/_dormancy.js`) is called from
+`api/renewals-sweep.js`'s existing handler, alongside `api/_renewals.js`'s
+own `sweep()`, both summaries merged into the SAME `vy_sweep_run` row
+(`sweep = 'renewals'`). No new `vercel.json` crons entry was added.
+
+**Rationale.** The workstream brief's own words: "the daily sweep (WS-R37's
+own cron) gains two statements" - naming the EXISTING cron, not a new one.
+`dormancyThisWeek`'s own ops-board read then follows for free: a rolling
+7-day SUM over `vy_sweep_run.counts` for the same sweep name, no dedicated
+ledger table, matching this workstream's own law 1 ("no new person table, no
+new ledger") extended to the operational-visibility side too.
+
+**Reversal condition.** If dormancy notices/forgets ever need their own
+retry/backoff cadence independent of renewal reminders (e.g. a future
+workstream wants dormancy to run hourly while renewals stay daily), split it
+into its own `api/dormancy-sweep.js` door and its own `vercel.json` crons
+entry, and `dormancyThisWeek` would need to read `sweep = 'dormancy'`
+instead - a two-file change, not a schema change.
+
+## `ws-r75-dormancy-whatsapp-channel-left-inert` (2026-09-05, WS-R75)
+
+**Decision.** `dormancySweep` never calls `api/_room-whatsapp.js`'s
+`sendTemplate`. The workstream brief's own words already hedge this ("a
+WhatsApp template only if one is approved") - no dormancy-specific template
+exists in this repo (only `vyakti_checkin_v1`, `TEMPLATE_NAME`,
+`api/_room-whatsapp.js`), and Meta's WhatsApp Business API refuses free-form
+text outside an approved template, so sending one here would mean inventing
+an unapproved template that would 400 at Meta on the first real attempt.
+
+**Rationale.** `context/rejected.md`'s and `AGENTS.md`'s own law: "a
+plausible return hides a dead pipeline." Wiring a WhatsApp send path that
+cannot actually deliver (no approved template name to put on the wire) would
+be exactly that - code that reads as coverage and delivers nothing, silently,
+the day someone turns `ROOM_DORMANCY` on and wonders why WhatsApp opt-in
+followers never see a notice.
+
+**Reversal condition.** The owner (or a future workstream) gets a dormancy
+notice template approved by Meta and names it via a new env var (e.g.
+`ROOM_WHATSAPP_DORMANCY_TEMPLATE`); `dormancySweep`'s WhatsApp branch is then
+a small addition reusing `activeWhatsappFollower`/`sendTemplate` exactly as
+`api/_checkins.js`'s own `deliverers.whatsappTemplate` already does.
