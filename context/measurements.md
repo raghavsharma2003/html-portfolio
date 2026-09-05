@@ -10196,3 +10196,42 @@ f-rate-key 9, g-invite-guess 3, h-otp-brute-force 8 — 195 of the 478 total
 assertions are `okClass`-classed attack cases; the rest are fixture-soundness
 checks, static wiring proofs, and the computed-op-list's own completeness
 loop.
+
+## `rooms-migration-109-live-verification-2026-09-05`
+
+n = 1 migration (5 statements in one transaction), 7 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (the table did not exist), the catalog read back (nine columns, the five-value `kind` CHECK, the unique `(day, kind, door, status)` index and the `day desc` index), then `EXPLAIN` (never `EXPLAIN ANALYZE`) with typed literals; date 2026-09-05, at the WS-R58 merge (e1c9f94).
+
+| statement | plan |
+|---|---|
+| `recordIncident`'s upsert | Insert with `vy_incident_day_kind_door_status_ix` as the conflict arbiter |
+| `claimNewKindNotification` (one UPDATE, three init plans) | the representative row by Index Scan on the unique index (`day`, `kind`); the two NOT EXISTS as Index Scan and Index Only Scan on the same index; the row itself by `vy_incident_pkey` |
+| the sweep's distinct-kind scan for today | Bitmap on `vy_incident_day_ix` |
+| `pruneOldIncidents` (90 days) | Bitmap on `vy_incident_day_ix` by the day bound |
+| `incidentsOverview`: counts by kind and door over 7 days | Bitmap on `vy_incident_day_ix`, hashed aggregate, sort |
+| `incidentsOverview`: distinct kinds this week and the week before | Bitmap on `vy_incident_day_ix` with both day bounds |
+
+Not measured: the table has zero rows; no door has recorded a real 5xx; the new-kind push has no operator subscription store to reach (`decisions.md#ws-r58-operator-push-subscription-store-does-not-exist`).
+
+## `rooms-migration-108-live-verification-2026-09-05`
+
+n = 1 migration (5 statements in one transaction, the backfill included), 4 API statements; method = applied to the live Neon project through the Neon MCP after reading that zero Rooms were attached and `org_attached_at` (107) existed, the catalog read back (five columns, both FK CASCADEs, the partial unique open-row index, the room and org indexes; backfill inserted 0 rows, correctly), then `EXPLAIN` with typed literals; date 2026-09-05, at the WS-R54 merge (a317c58).
+
+| statement | plan |
+|---|---|
+| `attachRoom`'s CTE (the seat-cap UPDATE feeding the history INSERT) | `vy_room_pkey` for the Room, `vy_org_member_org_role_ix` for both membership predicates, `vy_room_org_ix` (index only) for the seat count, `vy_org_subscription_org_ix` and `vy_org_pkey` for the cap; the history INSERT fed from the CTE |
+| `detachRoom`'s CTE (the org_id clear closing the open row) | `vy_room_pkey`, the admin check on `vy_org_member_owner_ix`; the close by Index Scan on `vy_room_org_attachment_open_ix` |
+| `orgBoard`'s attachment history | Bitmap on `vy_room_org_attachment_org_ix`, sort by `attached_at desc` |
+| `reconcilePeriod`'s overlap read | Bitmap on `vy_org_subscription_org_live_ix` (active), Index Scan on `vy_room_org_attachment_org_ix` with the `attached_at` bound, `vy_room_pkey` for the owner |
+
+Not measured: no Room has ever been attached live, so the backfill's `now()` fallback has never fired and the proration has never touched a real row.
+
+## `rooms-migration-112-live-verification-2026-09-05`
+
+n = 1 migration (3 statements in one transaction), 1 API statement; method = applied to the live Neon project through the Neon MCP (31 replica rows, all defaulted to `en`), the catalog read back (`locale text default 'en'`, the two-value CHECK), then `EXPLAIN` of `setOwnedReplicaLocale`'s UPDATE and WS-R51's new ownership read on `vy_replica`; date 2026-09-05, at the WS-R52 merge (2e4d48f).
+
+| statement | plan |
+|---|---|
+| `setOwnedReplicaLocale`'s UPDATE by replica and owner | Seq Scan of `vy_replica` at 31 rows (cost 3.53); `vy_replica_owner_pair` is a unique index on exactly `(replica_id, owner_user_id)`, so this is the planner's choice at the table's size, not a missing index |
+| WS-R51's ownership read (`select replica_id ... limit 1`) | the same Seq Scan for the same reason |
+
+Not measured: no creator has switched the studio to Hindi; nobody has opened `/studio?lang=hi` in a real browser.

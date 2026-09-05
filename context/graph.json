@@ -7492,6 +7492,30 @@
       "kind": "rejection",
       "title": "Nine pre-existing calls in evals/room-doors/run.mjs omitted now: NOW, silently falling back to Date.now(); harmless for months, then a real room_session_expired crash the moment this session's own wall clock crossed the fixture's 12h freshness window mid-run; all nine fixed",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-109-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 109 (vy_incident) applied live in one transaction of five statements at the WS-R58 merge; seven statements EXPLAINed, all on the unique tuple index or the day index.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-108-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 108 (vy_room_org_attachment, backfill inserted 0 rows) applied live at the WS-R54 merge; attach and detach CTEs, the board read and the reconciliation overlap read all plan on their indexes.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-112-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 112 (vy_replica.locale) applied live to 31 rows at the WS-R52 merge; the owner-scoped UPDATE seq-scans at that size with the exact unique index present (planner's choice, not a gap).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r51-merge-rate-cases-straddled-a-calendar-minute-window",
+      "kind": "rejection",
+      "title": "With a real-clock fixture base, eleven consume() timestamps a second apart straddled a calendar-minute window 2 of 487 times; the rate cases now use a base one minute after the top of the hour.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -14934,6 +14958,26 @@
       "src": "ws-r51-fixture-deps-now-silently-fell-back-to-real-clock",
       "rel": "constrains",
       "dst": "ws-r51-every-door-cased"
+    },
+    {
+      "src": "rooms-migration-109-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r58-incident-kind-vocabulary-is-a-closed-five-value-list"
+    },
+    {
+      "src": "rooms-migration-108-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r54-suite-reconcile-reads-attachment-history-prorated"
+    },
+    {
+      "src": "rooms-migration-112-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r52-studio-locale-lives-on-vy-replica-not-a-new-table"
+    },
+    {
+      "src": "ws-r51-merge-rate-cases-straddled-a-calendar-minute-window",
+      "rel": "supersedes",
+      "dst": "wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time"
     }
   ]
 }

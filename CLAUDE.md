@@ -134,10 +134,11 @@ verbatim). The Room lives at `/r/<slug>`; `AGENTS.md` and `docs/gurukul/`
 carry the full detail, `context/STATE.md` the current LIVE state, and this
 file's rules (gates, `context/`, the copy ban, never claiming what you did not
 run) bind Vyakti work exactly as they bind Meera's. Migrations: **015 through
-065, 071 through 099 and 101 through 107 are applied live, except 100 and
-103, which are unused (WS-R38 and WS-R41 needed no schema change); 066-070
-are deliberately left unused** (another agent's unpushed tree already
-occupies those numbers live). **108 is the next free number.**
+065, 071 through 099, 101 through 109, 111 and 112 are applied live, except
+100 and 103, which are unused (WS-R38 and WS-R41 needed no schema change);
+066-070 are deliberately left unused** (another agent's unpushed tree already
+occupies those numbers live). **110 is reserved for WS-R53 (the taste) if it
+needs a table; 113 is the next free number after that.**
 `context/STATE.md`'s session log carries the live-verification entry for each.
 
 **Prompt budget:** `scripts/check-prompt-budget.mjs` fails the build if an

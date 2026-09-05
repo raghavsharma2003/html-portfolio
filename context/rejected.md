@@ -9437,3 +9437,7 @@ would merely default to a SECOND, millisecond-later `Date.now()` call rather
 than a stale pinned date, which is why the crash stopped reproducing either
 way) — kept for the same reason every other call in this file states its
 `now:` explicitly rather than relying on the default.
+
+## `ws-r51-merge-rate-cases-straddled-a-calendar-minute-window` (2026-09-05, main loop)
+
+After the fixture clock became the real clock (`#wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time`), the door battery's OTP floor cases ("the 11th verify attempt is refused") failed 2 of 487 on the WS-R51 merge tree and passed on the instrumented rerun. `consume()` buckets by calendar (`windowStartOf` is the floor of `now` over the window), so eleven timestamps a second apart starting at an arbitrary instant can straddle a minute boundary and the eleventh lands in a fresh window; the old fixed 12:00:00 base never could. Fixed by giving the eleven `consume()` call sites a `RATE_NOW` one minute after the top of the current hour (minute-aligned, an hour from the next hour boundary); 0 of 492 twice. What specifically broke: a real clock removes one class of flake (a stale calendar date) and exposes another (bucket edges), and a case that feeds a run of timestamps must pick its base relative to the window it tests.

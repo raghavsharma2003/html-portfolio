@@ -161,12 +161,12 @@ silently if the registry is unreachable, and an install-script scan against
 the named, justified allowlist in `scripts/installScriptAllowlist.mjs`) as
 named gates — and 23 with it, adding the zero-orphan sweep and citation
 discipline.
-Migrations 071 through 099 and 101 through 107 are applied live, except 100
-and 103, which are unused (WS-R38 needed no new migration, every finding it
+Migrations 071 through 099, 101 through 109, 111 and 112 are applied live,
+except 100 and 103, which are unused (WS-R38 needed no new migration, every finding it
 fixed was a missing check in existing JS, never a schema change; WS-R41's
 provider contracts needed none either); 102 (WS-R40, share arrival) and 104
 (the creator-tier charge ledger, WS-R42) were applied live at their merges
-and read back from the catalog. **108 is the next free number.**
+and read back from the catalog. **110 is reserved for WS-R53 if it needs a table; 113 is the next free number after that.**
 `scripts/check-copy.mjs` also gates a **Rooms
 vocabulary rule**: no `clone`, `replica`, `model`, `fine-tune`/`train`/
 `training`, `weights`, `embedding`, `LoRA` or `genome` in any user-visible
