@@ -57,6 +57,10 @@
 // for the decision this closes.
 import { randomUUID } from "node:crypto";
 import { send as webPushSend } from "./_push/webpush.js";
+// WS-R98. The incident alert's own Telegram fallback — safe to import
+// directly (see `api/_operator-telegram.js`'s own header on why THAT file
+// never imports this one back).
+import { sendOperatorTelegram, operatorTelegramConfigured } from "./_operator-telegram.js";
 
 // A local re-derivation of `api/_ops.js`'s own `opsOwnerIds`, not an import
 // of it - `api/_ops.js` imports THIS file (`incidentsOverview`, below) for
@@ -209,14 +213,20 @@ export function withDoor(db, door, handler) {
 // the ops board itself, never a specific incident row (there is no
 // per-incident route to point at — the board's own Incidents card is where
 // the real detail lives, behind the operator's own bearer).
+//
+// Returns the OBJECT, not a JSON string (WS-R98 widened this: the push
+// channel still stringifies it at its own call site below, one line, and
+// the Telegram channel — `api/_operator-telegram.js#sendOperatorTelegram` —
+// reads the same object directly, WS-R81's own push contract, never a
+// second payload shape).
 function incidentPushPayload(kind, count) {
   const n = Number.isFinite(count) ? count : 0;
-  return JSON.stringify({
+  return {
     t: "incident",
     title: "Vyakti ops alert",
     body: `${String(kind || "")}: ${n} today`,
     url: "/studio?mode=ops",
-  });
+  };
 }
 
 /**
@@ -287,20 +297,37 @@ export async function claimNewKindNotification(db, kind) {
  * deliverer's 404/410 handling for a follower, restated for the owner lane
  * (workstream law #3).
  *
+ * WS-R98, workstream law #2: the SAME claimed row also fires Telegram,
+ * beside the push, best-effort — `deps.sendTelegram` (default the real
+ * `sendOperatorTelegram`). The CLAIM itself (`pushConfigured ||
+ * telegramConfigured`, below) is widened from "push alone" to "either
+ * channel" for exactly the reason
+ * `context/decisions.md#ws-r58-notify-claim-only-marks-notified-with-a-
+ * configured-recipient` already gives for push alone: a claim is a promise
+ * an alert was ATTEMPTED for a real, configured audience, and an operator
+ * who has only pasted `OPS_TELEGRAM_CHAT_IDS` (no VAPID at all) is exactly
+ * as real an audience as one who has only enabled push — see
+ * `context/decisions.md#ws-r98-notify-claim-widened-to-either-channel` for
+ * the full reasoning and what would reverse it. Push and Telegram are each
+ * independently gated on their OWN config below (`pushConfigured`/
+ * `telegramConfigured`), never on each other's.
+ *
  * NEVER throws — every step inside is best-effort, the same posture
  * `_checkins.js`'s `deliverers.webPush` already takes for a single
- * subscription's own failure, restated for the whole sweep step.
+ * subscription's own failure, restated for the whole sweep step (and for
+ * the Telegram channel beside it).
  */
 export async function notifyNewIncidentKinds(db, deps = {}) {
-  const summary = { checked: 0, claimed: 0, pushed: 0 };
+  const summary = { checked: 0, claimed: 0, pushed: 0, telegramSent: 0 };
   if (typeof db !== "function") return summary;
   const env = deps.env || process.env;
   const vapidPublic = String(env.ROOM_PUSH_VAPID_PUBLIC || "");
   const vapidPrivate = String(env.ROOM_PUSH_VAPID_PRIVATE || "");
   const vapidSubject = String(env.ROOM_PUSH_VAPID_SUBJECT || "");
-  if (!vapidPublic || !vapidPrivate || !vapidSubject) return summary;
   const ownerIds = opsOwnerIdsLocal(env);
-  if (!ownerIds.length) return summary;
+  const pushConfigured = Boolean(vapidPublic && vapidPrivate && vapidSubject) && ownerIds.length > 0;
+  const telegramConfigured = operatorTelegramConfigured(env);
+  if (!pushConfigured && !telegramConfigured) return summary;
 
   let kindsToday;
   try {
@@ -318,6 +345,7 @@ export async function notifyNewIncidentKinds(db, deps = {}) {
   const revoke = typeof deps.revokeOperatorSubscription === "function"
     ? deps.revokeOperatorSubscription
     : async () => {};
+  const sendTelegram = deps.sendTelegram || sendOperatorTelegram;
 
   for (const row of kindsToday) {
     const kind = row?.kind;
@@ -338,34 +366,53 @@ export async function notifyNewIncidentKinds(db, deps = {}) {
     } catch (error) {
       console.error("[incidents] notify count read failure:", error?.message || "unknown");
     }
-    const payload = incidentPushPayload(kind, countToday);
-    for (const ownerId of ownerIds) {
-      let subs = [];
-      try {
-        subs = (await resolveSubs(ownerId)) || [];
-      } catch {
-        subs = [];
-      }
-      for (const sub of subs) {
+    const payloadObj = incidentPushPayload(kind, countToday);
+    if (pushConfigured) {
+      const payload = JSON.stringify(payloadObj);
+      for (const ownerId of ownerIds) {
+        let subs = [];
         try {
-          const result = await sendPush(sub, payload, {
-            fetch: deps.fetch,
-            vapidPublic,
-            vapidPrivate,
-            vapidSubject,
-            now: deps.now,
-          });
-          if (result?.ok) {
-            summary.pushed++;
-          } else if (result?.status === 404 || result?.status === 410) {
-            // Workstream law #3 — `_checkins.js`'s own `webPush` deliverer's
-            // 404/410 handling for a follower's subscription, restated for
-            // the operator's own.
-            await revoke(sub.id).catch(() => {});
-          }
-        } catch (error) {
-          console.error("[incidents] notify push send failure:", error?.message || "unknown");
+          subs = (await resolveSubs(ownerId)) || [];
+        } catch {
+          subs = [];
         }
+        for (const sub of subs) {
+          try {
+            const result = await sendPush(sub, payload, {
+              fetch: deps.fetch,
+              vapidPublic,
+              vapidPrivate,
+              vapidSubject,
+              now: deps.now,
+            });
+            if (result?.ok) {
+              summary.pushed++;
+            } else if (result?.status === 404 || result?.status === 410) {
+              // Workstream law #3 — `_checkins.js`'s own `webPush` deliverer's
+              // 404/410 handling for a follower's subscription, restated for
+              // the operator's own.
+              await revoke(sub.id).catch(() => {});
+            }
+          } catch (error) {
+            console.error("[incidents] notify push send failure:", error?.message || "unknown");
+          }
+        }
+      }
+    }
+    if (telegramConfigured) {
+      try {
+        const result = await sendTelegram(db, payloadObj, {
+          env,
+          fetch: deps.fetch,
+          now: deps.now,
+          // `recordIncident` is THIS file's own local function — no import
+          // needed, see `api/_operator-telegram.js`'s own header on why it
+          // never imports this file back.
+          recordIncident,
+        });
+        summary.telegramSent += result?.sent || 0;
+      } catch (error) {
+        console.error("[incidents] notify telegram send failure:", error?.message || "unknown");
       }
     }
   }

@@ -1068,6 +1068,10 @@ export async function sweep(deps, now = Date.now()) {
     });
     summary.incidentKindsChecked = notified.checked;
     summary.incidentKindsNotified = notified.claimed;
+    // WS-R98: one summary field per channel (workstream law #2) - the
+    // incident alert's own Telegram count, beside `notified.claimed`'s
+    // push-channel count above.
+    summary.incidentTelegramSent = notified.telegramSent || 0;
   } catch (error) {
     console.error("[checkins sweep] incident notify failure:", error?.message || "unknown");
   }

@@ -9280,6 +9280,60 @@
       "kind": "open",
       "title": "api/_room-surface.js roomSay never passes neverRules into gatedReply, unlike the widget (_clonechat.js) and Mirror Call lanes \u2014 a creator's Never-say-this rules do not protect the Room a follower actually talks to.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-operator-telegram-reuses-room-telegram-checkin-sender",
+      "kind": "decision",
+      "title": "api/_operator-telegram.js sends every message through api/_room-telegram.js's sendRoomCheckinMessage, never a new Telegram HTTP client; ROOM_TELEGRAM_BOT_TOKEN reused, no second bot.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-notify-claim-widened-to-either-channel",
+      "kind": "decision",
+      "title": "notifyNewIncidentKinds and sendOperatorDigest claim their ledger row when EITHER push OR Telegram is configured, then attempt each channel independently on its own config, widened from push-alone.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-operator-telegram-runtime-content-scan",
+      "kind": "decision",
+      "title": "sendOperatorTelegram runs a runtime content-name scan over the assembled title+body+url text, refusing the whole send on a hit, in addition to the existing build-time static scans on each payload builder.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-digest-telegram-last-delivery-read-from-sweep-run-not-a-ledger",
+      "kind": "decision",
+      "title": "opsOverview's digest.telegram reads the operator-digest sweep's own latest vy_sweep_run row for last-delivery info instead of a new migration; only the LATEST run is visible, named as the reversal condition.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-test-digest-stays-push-only",
+      "kind": "decision",
+      "title": "sendTestOperatorDigest deliberately left untouched, push-only; the workstream's three named integration points (digest sweep, incident alert, self-check failure path) do not include the test-send button.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-gate-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release.mjs before/after WS-R98: baseline 18/21 (3 EADDRINUSE, shared-machine port contention); after, all 21 non-DB checks independently confirmed passing (three full runs plus two isolated single-check reruns), no single run all-green due to recurring port contention.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-eval-suite-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/run.mjs run directly by name and in full after fixing an unregistered-suite gap: operator-telegram 30/0, operator-digest 54/0, incidents 43/0, self-check 57/0, ops 143/0, full suite exit 0 with no failed suites.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-unregistered-eval-suite-passes-silently",
+      "kind": "rejection",
+      "title": "A new eval suite not yet added to evals/run.mjs's own suites registry is silently skipped by both `node evals/run.mjs` and the gate's own wrapper - an unregistered eval is a green light that measures nothing.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r98-pkill-by-pattern-on-a-shared-machine-kills-a-sibling",
+      "kind": "rejection",
+      "title": "pkill -f verify-release.mjs, meant to clear this session's own stalled process, matched and killed the main tree's own release gate on the shared machine - never kill by pattern, only by a PID this session itself recorded.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18157,6 +18211,31 @@
       "src": "room-never-rules-one-reader-three-lanes",
       "rel": "supersedes",
       "dst": "ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply"
+    },
+    {
+      "src": "ws-r98-notify-claim-widened-to-either-channel",
+      "rel": "supersedes",
+      "dst": "ws-r58-notify-claim-only-marks-notified-with-a-configured-recipient"
+    },
+    {
+      "src": "ws-r98-operator-telegram-reuses-room-telegram-checkin-sender",
+      "rel": "part_of",
+      "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r98-gate-before-after-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r98-eval-suite-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r98-digest-telegram-last-delivery-read-from-sweep-run-not-a-ledger",
+      "rel": "constrains",
+      "dst": "ws-r88-operator-digest-never-imports-ops-js"
+    },
+    {
+      "src": "ws-r98-eval-suite-counts-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r98-unregistered-eval-suite-passes-silently"
     }
   ]
 }

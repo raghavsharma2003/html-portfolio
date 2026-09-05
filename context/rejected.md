@@ -12232,3 +12232,62 @@ into `roomSay` (the fix is almost certainly the same two-line shape
 get a `supersedes` edge from that workstream's own decision, and THAT
 workstream's own rehearsal should assert the bite on the real Room `say`
 lane directly, closing the gap this entry only named.
+
+## `ws-r98-unregistered-eval-suite-passes-silently` (2026-09-05, WS-R98)
+
+**Tried.** Wrote `evals/operator-telegram/run.mjs` (the new offline suite
+for the operator digest/incident/self-check Telegram fallback), ran the full
+release gate, and read "ok eval suite" as proof the new suite passed.
+
+**What broke.** The gate's own "ok" proved nothing about the new suite at
+all: `evals/run.mjs`'s own `suites` registry map had not yet been given an
+`"operator-telegram": "operator-telegram/run.mjs"` entry, so `node
+evals/run.mjs` (the exact command the gate wraps) silently never ran that
+file — `pick && pick !== name) continue` skips every entry when no name
+matches, and running with NO `pick` at all just iterates whatever IS
+registered, which at that point did not include the new file. A file that
+exists on disk, is syntactically valid, and asserts real things is
+completely invisible to the gate until its own registry line exists. Caught
+by running `node evals/run.mjs operator-telegram` directly, by name, AFTER
+adding the registry entry — which then surfaced two REAL failing assertions
+in the eval itself (see `context/measurements.md
+#ws-r98-eval-suite-counts-2026-09-05` for what they were and how they were
+fixed).
+
+**The fix, and the rule going forward.** Register a new suite in
+`evals/run.mjs`'s `suites` map in the SAME edit that creates the suite file,
+before ever running the full gate and reading its "ok" as evidence — and
+the first time any new suite is exercised, run it BY NAME
+(`node evals/run.mjs <name>`) at least once, reading its own printed
+pass/fail line directly, never only the outer gate's one-word summary for
+it. This is the "a plausible return hides a dead pipeline" law
+(`AGENTS.md`) restated for a test suite instead of a production code path:
+an unregistered eval is a green light that measures nothing.
+
+## `ws-r98-pkill-by-pattern-on-a-shared-machine-kills-a-sibling` (2026-09-05, WS-R98)
+
+**Tried.** A gate run stalled behind an EADDRINUSE port collision (a
+sibling worktree's own `verify-release.mjs` holding port 8931). Ran
+`pkill -f "verify-release.mjs"` intending to clear a lingering process this
+session itself had started.
+
+**What broke.** The pattern matched every `verify-release.mjs` process on
+the shared machine, not only this session's own — it reached and killed the
+MAIN TREE's own release gate (`/home/user/html-portfolio`, a checkout every
+sibling worktree and the main loop shares), which another agent was
+relying on, ending it with exit 143. The main loop caught this and named it
+a standing law before this session's own work continued: never `pkill -f`,
+`pkill -9 -f`, or `killall` by pattern on this machine — every worktree and
+the main tree are processes on the SAME box, and a pattern match cannot
+tell "mine" from "a sibling's" apart. `ps aux` (read-only) is always safe;
+killing is not.
+
+**The fix, and the rule going forward.** To stop a gate or check this
+session itself started: run it in the foreground with an explicit timeout
+and let it finish or time out on its own, or record the PID at the moment
+of starting it and kill exactly that PID, never a pattern. A port collision
+(EADDRINUSE on 8931-8935/8940/8941) is a sibling's gate genuinely in
+flight, not a stuck process to clear — wait for the port to free with a
+read-only until-loop (`echo > /dev/tcp/127.0.0.1/<port>` failing means
+free) and rerun, exactly `ws-common.md`'s own "wait 60 seconds and rerun"
+instruction, taken literally rather than worked around.

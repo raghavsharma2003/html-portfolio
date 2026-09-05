@@ -2426,6 +2426,26 @@ const suites = {
   // time budget). $0, no model call, no GPU; Chromium only (never
   // `playwright install` — /opt/pw-browsers is pre-installed).
   "rehearsal-creator": "rehearsal/creator.mjs",
+  // WS-R98. The operator digest/incident/self-check alert reaching
+  // Telegram, no migration: `api/_operator-telegram.js`'s
+  // `operatorTelegramChatIds`/`operatorTelegramConfigured` (pure, env
+  // only), `sendOperatorTelegram` over a fake Telegram client (`api/_room-
+  // telegram.js#sendRoomCheckinMessage`'s own fake-fetch shape reused, no
+  // new HTTP client), and the three real callers
+  // (`api/_operator-digest.js#sendOperatorDigest`,
+  // `api/_incidents.js#notifyNewIncidentKinds`,
+  // `api/_self-check.js#sendSelfCheckTelegramAlert`) each folding exactly
+  // one summary field into their own `withSweepRun` digest. THREE NEGATIVE
+  // CONTROLS: a chat id not on `OPS_TELEGRAM_CHAT_IDS` is never sent to
+  // (proven directly against every url a fake fetch was called with); a
+  // 429/5xx is never recorded as a `provider_telegram` incident (only
+  // 403/400 are, and they remove nothing from the env-backed list); a body
+  // carrying a forbidden content name (a Room's slug, among others) fails a
+  // runtime content scan and sends zero messages to any chat.
+  //
+  // Offline, deterministic, $0, no DB, no network (every fetch is a fake),
+  // no model call, no GPU.
+  "operator-telegram": "operator-telegram/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

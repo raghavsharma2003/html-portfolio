@@ -607,7 +607,19 @@ function DigestCard({ token, digest }: { token: string; digest: OpsDigest }) {
       <p className="ops-board__slug">
         One push a day: Rooms live, followers joined, messages, money moved, the self-check's verdict, incidents.
       </p>
-      <p>Last digest: {formatAgo(digest.sent_at)}</p>
+      <p>Last digest (push): {formatAgo(digest.sent_at)}</p>
+      {/* WS-R98, workstream law #3: "the ops board's digest card shows both
+          channels' last delivery." Telegram's own line reads honestly - see
+          api/_ops.js's own digestTelegramOverview header on why "never" here
+          can mean "not this run", not "never in this Room's history". */}
+      <p>
+        Last digest (Telegram):{" "}
+        {!digest.telegram.configured
+          ? "not set up"
+          : digest.telegram.last_sent_count > 0
+            ? `${formatAgo(digest.telegram.last_run_at)}, sent to ${digest.telegram.last_sent_count} chat${digest.telegram.last_sent_count === 1 ? "" : "s"}`
+            : "never"}
+      </p>
       <button type="button" disabled={busy} onPointerDown={sendTest}>
         {busy ? "Sending." : "Send a test digest now"}
       </button>

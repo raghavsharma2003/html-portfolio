@@ -1301,3 +1301,35 @@ platform's own identity rather than a rate. Setting them requires no
 frontend rebuild (not `VITE_`) and takes effect on the very next request -
 this deployment has never had either set, so every receipt issued so far
 carries the placeholder, honestly.
+## 33. The operator digest, incident alert and self-check verdict over Telegram (`vercel-app`, WS-R98, 2026-09-05)
+
+An operator who has never enabled browser push still gets the morning
+digest, a new-incident-kind alert and a failing self-check, in a Telegram
+chat they named, through the bot the Room already has
+(`ROOM_TELEGRAM_BOT_TOKEN`, already in this manifest, §15c — reused, never a
+second bot). `api/_operator-telegram.js` is the one sender; see that file's
+own header for the full mechanism, and `context/decisions.md
+#ws-r98-notify-claim-widened-to-either-channel` for why the digest/incident
+claim itself now fires on either channel being configured, not push alone.
+No migration.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `OPS_TELEGRAM_CHAT_IDS` | `api/_operator-telegram.js:operatorTelegramChatIds()`/`operatorTelegramConfigured()`, read by `sendOperatorDigest` (`api/_operator-digest.js`), `notifyNewIncidentKinds` (`api/_incidents.js`) and `sendSelfCheckTelegramAlert` (`api/_self-check.js`) | optional | a comma-separated list of Telegram chat ids (the operator's own private chat with the bot, after `/start`-ing it) | **unset (default)**: none of the three callers above attempts a Telegram send — each still runs exactly as it did before this workstream on the push channel alone. **set, together with the pre-existing `ROOM_TELEGRAM_BOT_TOKEN`**: each of the three sends one message per listed chat id, `title`+`body`+`url` on three lines, best-effort, beside whatever the push channel already does |
+
+Getting a chat id: the operator DMs the Room's own bot, sends `/start` (no
+slug payload — that path already answers with `welcomeNoSlugCard`,
+`api/_room-telegram.js`), and reads their own numeric chat id off Telegram's
+own "getUpdates" response or a "what's my id" bot the operator runs once —
+this workstream builds no new UI to surface it, since it is a value the
+operator reads OFF Telegram, not off this platform.
+
+A 403 (bot blocked) or 400 (chat no longer exists) removes nothing from
+`OPS_TELEGRAM_CHAT_IDS` — there is no row to delete, the env IS the list —
+it is recorded as one `provider_telegram` incident instead, visible on the
+ops board's own Incidents card; the operator edits the env var themselves.
+`api/_ops.js`'s own `digest.telegram` read shows this channel's last run
+time and how many chats it reached, derived from the existing
+`vy_sweep_run` heartbeat row rather than a new ledger table — see that
+function's own header on the one honest limitation this carries (only the
+LATEST run is visible, not a rolling history).

@@ -14,7 +14,7 @@
 // fake db and a fake env.
 import { timingSafeEqual } from "node:crypto";
 import { q } from "./_db.js";
-import { runSelfCheck, recordSelfCheckIncidents } from "./_self-check.js";
+import { runSelfCheck, recordSelfCheckIncidents, sendSelfCheckTelegramAlert } from "./_self-check.js";
 import { withSweepRun } from "./_sweep-run.js";
 
 // A handful of information_schema reads and, at most, a few dozen incident
@@ -41,9 +41,18 @@ export default async function handler(req, res) {
     // all, they go through `recordSelfCheckIncidents` below, one
     // `vy_incident` row per finding, `kind: "self_check"`.
     const summary = await withSweepRun(q, "self-check", async () => {
-      const result = await runSelfCheck({ db: q, env: process.env, now: Date.now() });
+      const now = Date.now();
+      const result = await runSelfCheck({ db: q, env: process.env, now });
       await recordSelfCheckIncidents(q, result);
-      return { checked: result.checked, passed: result.passed, failed: result.failed, ok: result.ok };
+      // WS-R98, workstream law #2: the failure path's own Telegram alert,
+      // best-effort, beside this cron's own incident-recording step above -
+      // `api/checkins-sweep.js`'s own `fetch: globalThis.fetch` line,
+      // restated.
+      const telegram = await sendSelfCheckTelegramAlert(q, result, { env: process.env, fetch: globalThis.fetch, now });
+      return {
+        checked: result.checked, passed: result.passed, failed: result.failed, ok: result.ok,
+        telegramSent: telegram.telegramSent,
+      };
     });
     return res.status(200).json({ ok: true, ...summary });
   } catch (error) {

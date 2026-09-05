@@ -411,6 +411,58 @@ function fakeRes() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// WS-R98: notifyNewIncidentKinds's own Telegram fallback, beside the push.
+// ═════════════════════════════════════════════════════════════════════════
+
+{
+  // Telegram alone (no VAPID, no OPS_OWNER_USER_IDS): still claims and
+  // sends - the widened claim gate, `context/decisions.md
+  // #ws-r98-notify-claim-widened-to-either-channel`.
+  const state = freshState("2026-09-04");
+  const db = fakeDb(state);
+  await recordIncident(db, { kind: "provider_payments", door: "payments.js", status: 500 });
+
+  let telegramPayload = null;
+  const result = await notifyNewIncidentKinds(db, {
+    env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111" },
+    sendTelegram: async (d, payload) => { telegramPayload = payload; return { sent: 1, failed: 0 }; },
+  });
+  ok("notifyNewIncidentKinds: Telegram alone (no VAPID, no operator allowlist) still claims and sends",
+    result.claimed === 1 && result.pushed === 0 && result.telegramSent === 1);
+  ok("notifyNewIncidentKinds: the Telegram sender receives the SAME incidentPushPayload shape the push channel would have",
+    telegramPayload?.t === "incident" && telegramPayload?.body.includes("provider_payments"));
+}
+{
+  // Both channels configured: both fire, each its own summary field.
+  const state = freshState("2026-09-04");
+  const db = fakeDb(state);
+  await recordIncident(db, { kind: "provider_webpush", door: "_push/webpush.js", status: 500 });
+
+  let telegramCalls = 0;
+  const result = await notifyNewIncidentKinds(db, {
+    env: {
+      ROOM_PUSH_VAPID_PUBLIC: "pub", ROOM_PUSH_VAPID_PRIVATE: "priv", ROOM_PUSH_VAPID_SUBJECT: "mailto:ops@example.test",
+      OPS_OWNER_USER_IDS: "op-1", ROOM_TELEGRAM_BOT_TOKEN: "tg-token", OPS_TELEGRAM_CHAT_IDS: "111",
+    },
+    fetch: async () => ({ ok: true, status: 201 }),
+    operatorSubscriptionsFor: async () => [{ id: "sub-1", endpoint: "https://push.example.test/x", p256dh: "a", auth: "b" }],
+    sendPush: async () => ({ ok: true, status: 201 }),
+    sendTelegram: async () => { telegramCalls++; return { sent: 1, failed: 0 }; },
+  });
+  ok("notifyNewIncidentKinds: both channels configured fire both, each its own field",
+    result.pushed === 1 && result.telegramSent === 1 && telegramCalls === 1);
+}
+{
+  // NEGATIVE CONTROL: a bot token with no chat ids is still unconfigured.
+  const state = freshState("2026-09-04");
+  const db = fakeDb(state);
+  await recordIncident(db, { kind: "provider_payments", door: "payments.js", status: 500 });
+  const result = await notifyNewIncidentKinds(db, { env: { ROOM_TELEGRAM_BOT_TOKEN: "tg-token" } });
+  ok("NEGATIVE CONTROL: a bot token with no OPS_TELEGRAM_CHAT_IDS is still unconfigured - claims nothing",
+    result.claimed === 0 && result.telegramSent === 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // pruneOldIncidents — 90 days, best-effort
 // ═════════════════════════════════════════════════════════════════════════
 

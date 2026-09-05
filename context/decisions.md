@@ -17383,3 +17383,148 @@ re-run this rehearsal's "cross the floor" step by feeding all SIX inputs
 (the fixture already supports five of them) rather than seeding the snapshot
 directly, and if it passes for real, this decision is superseded rather than
 edited in place.
+
+
+## `ws-r98-operator-telegram-reuses-room-telegram-checkin-sender` (2026-09-05, WS-R98)
+
+**Decision.** `api/_operator-telegram.js` (the operator digest/incident/
+self-check alert reaching Telegram) sends every message through
+`api/_room-telegram.js`'s own `sendRoomCheckinMessage` — the exact function
+`api/_checkins.js`'s `deliverers.telegram` already uses for a follower's
+check-in — never a new `fetch(...telegram.org...)` call, never a second
+Telegram client. `ROOM_TELEGRAM_BOT_TOKEN` (the Room's existing bot) is
+reused; no second bot token env var.
+
+**Rationale.** `sendRoomCheckinMessage` is the one function in this repo
+that already returns a real HTTP status code (not only Telegram's own `ok`
+boolean), which this workstream needs to tell "stop trying" (403/400) apart
+from "try again later" (429/5xx) — workstream law #1, verbatim. Writing a
+second Telegram HTTP call would duplicate that distinction and risk
+diverging from it the next time either file changes; reusing the exact
+function means both callers share one bug surface, not two.
+
+**Reversal condition.** If the operator channel ever needs a capability
+`sendRoomCheckinMessage` cannot provide (a different bot, a different
+Telegram API method), give the operator channel its own client at that
+point — but do not duplicate the 403/400-vs-429/5xx distinction by hand
+first; extract it into a shared helper both clients call.
+
+## `ws-r98-notify-claim-widened-to-either-channel` (2026-09-05, WS-R98)
+
+**Decision.** `api/_incidents.js#notifyNewIncidentKinds` and
+`api/_operator-digest.js#sendOperatorDigest` both widen their own claim gate
+from "push alone" to "push configured OR Telegram configured" — the ledger
+row (a `vy_incident.notified_at` claim; a `vy_operator_digest` day row) is
+now written whenever EITHER channel could actually deliver, and each
+channel is then independently attempted, gated on its OWN config
+(`pushConfigured` / `telegramConfigured`), never on the other's. An operator
+running Telegram alone (no VAPID at all) now gets the digest and the
+new-incident-kind alert exactly as an operator running push alone always
+has; an operator running push alone sees no change in behavior at all.
+
+**Rationale.** `context/decisions.md#ws-r58-notify-claim-only-marks-
+notified-with-a-configured-recipient` already states the law this widens:
+"`notified_at` is a promise that an alert was attempted for a real,
+configured audience, not a bookkeeping flag that a sweep tick merely ran."
+An operator who has only pasted `OPS_TELEGRAM_CHAT_IDS` is exactly as real
+an audience as one who has only enabled push — gating the claim on VAPID
+alone would mean a Telegram-only operator's digest/alert is silently never
+attempted at all, which is precisely the workstream's own opening sentence
+("an operator who has no push subscription gets the same... in a Telegram
+chat") failed to hold for an operator with NO push configuration
+whatsoever, not only no subscription.
+
+**Reversal condition.** If a third channel is ever added, extend the same
+pattern (`anyChannelConfigured = a || b || c`, each attempted independently
+on its own config) rather than nesting channel checks — `evals/operator-
+telegram/run.mjs`'s own §6 and the matching additions to `evals/operator-
+digest/run.mjs`'s §7 and `evals/incidents/run.mjs` prove the two-channel
+case; a third channel needs its own negative control proving the claim
+still fires with only IT configured, the same technique restated once more.
+
+## `ws-r98-operator-telegram-runtime-content-scan` (2026-09-05, WS-R98)
+
+**Decision.** `api/_operator-telegram.js`'s `sendOperatorTelegram` runs a
+RUNTIME scan (`operatorTelegramContentOk`) over the assembled
+title+body+url text before sending — checking for the same follower/Room-
+content column names `api/_operator-digest.js#OPERATOR_DIGEST_CONTENT_NAMES`
+already lists — and refuses the WHOLE send (to every configured chat, not a
+partial redaction) if any is found. This is IN ADDITION to, never instead
+of, the existing build-time static scans each payload builder's own source
+already passes (`operatorDigestPayload`, `incidentPushPayload`).
+
+**Rationale.** Every other content-free-payload guarantee in this repo
+(WS-R22's "the parameter list is the enforcement," WS-R88's static source
+scan) protects a payload BUILDER's own source code from ever having a
+variable in scope that could hold content. `sendOperatorTelegram` is
+different: it is the one place that concatenates three already-built fields
+into ONE free-text message for a channel with no structured display (unlike
+push, where `title`/`body` stay separate JSON fields the service worker
+renders). A runtime check on the ASSEMBLED text costs nothing (the three
+existing callers' payloads all pass it trivially) and catches a payload
+shape this file has never seen — a genuine second independent guarantee,
+not a redundant one, `evals/operator-telegram/run.mjs`'s own §4 proves both
+that it fires (a body carrying "slug" sends nothing) and that it is not
+vacuous (a clean payload of the identical shape still sends).
+
+**Reversal condition.** If a future legitimate payload ever needs to
+contain one of these words in ordinary English (unlikely, since none of
+"slug"/"person_id"/"follower_id" etc. are ordinary English), narrow the
+match from a substring to a word-boundary regex or a smaller list at that
+point — do not remove the runtime check itself without replacing it with an
+equally strong guarantee, since it is what makes this file safe for a
+FUTURE caller whose payload builder this workstream never reviewed.
+
+## `ws-r98-digest-telegram-last-delivery-read-from-sweep-run-not-a-ledger` (2026-09-05, WS-R98)
+
+**Decision.** `api/_ops.js#digestTelegramOverview` answers "the ops board's
+digest card shows both channels' last delivery" (workstream law #3) by
+reading the "operator-digest" sweep's own LATEST `vy_sweep_run` row (already
+fetched by `sweepsOverview` for the Sweeps strip) rather than adding a
+migration or a new column to `vy_operator_digest`. No migration this
+workstream (the brief's own default).
+
+**Rationale.** `sendOperatorDigest`'s own summary already carries
+`telegramSent` as a plain number (needed anyway for `withSweepRun`'s own
+heartbeat, workstream law #2's "one summary field per channel"), and
+`api/_sweep-run.js#sanitizeCounts` already keeps it on the `vy_sweep_run`
+row for free — reading it back costs zero new SQL. `selfCheckOverview`
+(WS-R76) already established the identical pattern one section up: derive a
+board card from the already-fetched `sweeps` array rather than a bespoke
+query.
+
+**Reversal condition, named honestly up front.** This is a WEAKER guarantee
+than the push ledger's own row-per-day history: `vy_sweep_run` keeps only
+the latest run per sweep, so a Telegram send that succeeded yesterday and
+failed this morning (config pulled, bot blocked) reads as "last delivery:
+never," not "yesterday." If an operator is ever confused by this — or a
+real incident needs "when did Telegram last actually work" answered beyond
+the latest run — build a real per-channel delivery ledger at that point;
+migration 126 is free for it (`vy_operator_digest` gaining a `telegram_sent_
+at`/`telegram_sent_count` pair, or a small dedicated table). Not built now
+because the brief named no such need and `evals/ops/run.mjs`'s own §5c3
+proves the honest-zero behavior this gap produces is at least never a LIE
+(a zero-send run never claims a nonzero count).
+
+## `ws-r98-test-digest-stays-push-only` (2026-09-05, WS-R98)
+
+**Decision.** `api/_operator-digest.js#sendTestOperatorDigest` ("send a test
+digest now," the ops board's own button) is deliberately left untouched —
+it still sends push only, never Telegram, even when
+`OPS_TELEGRAM_CHAT_IDS` is configured.
+
+**Rationale.** The workstream brief names exactly three integration points
+(law #2: "the digest sweep, the incident alert and the self-check's failure
+path") — the test-send button is a fourth path the brief does not name, and
+`context/decisions.md`'s own existing law for this function ("a test send
+can never consume the one real send/day the ledger's own unique day index
+protects... writes NO ledger row") is about the PUSH ledger specifically; a
+Telegram send has no ledger to protect either way, so extending it would be
+scope the brief did not ask for, not a bug it left behind.
+
+**Reversal condition.** If an operator ever wants to verify their Telegram
+setup the same way the push button lets them verify a browser subscription,
+add a second button (or a query param on the same op) that calls
+`sendOperatorTelegram` directly against the caller's own configured chat
+ids — a small, additive change, not a rewrite of this decision's own
+boundary.

@@ -69,6 +69,13 @@
 import { randomUUID } from "node:crypto";
 import { send as webPushSend } from "./_push/webpush.js";
 import { sanitizeCounts } from "./_sweep-run.js";
+// WS-R98. The digest's own Telegram fallback, plus `recordIncident` for
+// `sendOperatorTelegram`'s own 403/400 -> provider_telegram write. Safe to
+// import directly: `api/_incidents.js` never imports THIS file, and
+// `api/_operator-telegram.js` never imports EITHER of these back (see that
+// file's own header).
+import { sendOperatorTelegram, operatorTelegramConfigured } from "./_operator-telegram.js";
+import { recordIncident } from "./_incidents.js";
 
 const FOLLOWER_FLOOR = 5;
 
@@ -240,27 +247,34 @@ export async function lastOperatorDigest(db) {
  * exactly; production (`api/operator-digest-sweep.js`) wires the real
  * `api/_ops.js` functions in.
  *
- * Unset VAPID or an empty operator allowlist: nothing runs, honestly, and
- * NO ledger row is claimed - `api/_creator-push.js#sendCreatorWeeklyPushes`'s
- * own "(a) unset VAPID: nothing runs" posture restated, so the day either
- * gets configured mid-day the digest can still send for TODAY rather than
- * having silently used up its one claim against nobody
+ * Unset VAPID or an empty operator allowlist: push runs nothing, honestly.
+ * The ledger row is now claimed whenever EITHER channel is configured
+ * (WS-R98, `context/decisions.md#ws-r98-notify-claim-widened-to-either-
+ * channel` - the identical widening `notifyNewIncidentKinds`,
+ * api/_incidents.js, makes for the SAME reason) - so an operator running
+ * Telegram alone still gets today's digest, and an operator running push
+ * alone sees no change at all. `api/_creator-push.js#sendCreatorWeeklyPushes`'s
+ * own "(a) unset VAPID: nothing runs" posture is what this widens: the day
+ * a channel gets configured mid-day, THAT channel can still send for TODAY
+ * rather than having silently used up its one claim against nobody
  * (`context/decisions.md#ws-r58-notify-claim-only-marks-notified-with-a-
- * configured-recipient`'s own reasoning, restated a second time).
+ * configured-recipient`'s own reasoning, restated a third time).
  *
  * NEVER throws for one subscription's own send failure - every push is its
- * own try/catch, `notifyNewIncidentKinds`'s own posture.
+ * own try/catch, `notifyNewIncidentKinds`'s own posture (restated for the
+ * Telegram channel beside it).
  */
 export async function sendOperatorDigest(db, deps = {}) {
-  const summary = { sent_ledger: 0, pushed: 0 };
+  const summary = { sent_ledger: 0, pushed: 0, telegramSent: 0 };
   if (typeof db !== "function") return summary;
   if (typeof deps.opsOverviewFn !== "function") throw new Error("operator_digest_overview_required");
   const now = deps.now ?? Date.now();
   const env = deps.env || process.env;
   const config = operatorDigestConfig(env);
-  if (!config.configured) return summary;
   const ownerIds = opsOwnerIdsLocal(env);
-  if (!ownerIds.length) return summary;
+  const pushConfigured = config.configured && ownerIds.length > 0;
+  const telegramConfigured = operatorTelegramConfigured(env);
+  if (!pushConfigured && !telegramConfigured) return summary;
 
   const overview = await deps.opsOverviewFn(db, now);
   const counts = digestCounts(overview);
@@ -278,33 +292,53 @@ export async function sendOperatorDigest(db, deps = {}) {
   if (!claimed.length) return summary;
   summary.sent_ledger = 1;
 
-  const payload = JSON.stringify(operatorDigestPayload(counts));
-  const resolveSubs = typeof deps.operatorSubscriptionsFor === "function" ? deps.operatorSubscriptionsFor : async () => [];
-  const sendPush = deps.sendPush || webPushSend;
-  const revoke = typeof deps.revokeOperatorSubscription === "function" ? deps.revokeOperatorSubscription : async () => {};
+  const payloadObj = operatorDigestPayload(counts);
 
-  for (const ownerId of ownerIds) {
-    let subs = [];
-    try {
-      subs = (await resolveSubs(db, ownerId)) || [];
-    } catch {
-      subs = [];
-    }
-    for (const sub of subs) {
+  if (pushConfigured) {
+    const payload = JSON.stringify(payloadObj);
+    const resolveSubs = typeof deps.operatorSubscriptionsFor === "function" ? deps.operatorSubscriptionsFor : async () => [];
+    const sendPush = deps.sendPush || webPushSend;
+    const revoke = typeof deps.revokeOperatorSubscription === "function" ? deps.revokeOperatorSubscription : async () => {};
+
+    for (const ownerId of ownerIds) {
+      let subs = [];
       try {
-        const result = await sendPush(sub, payload, {
-          vapidPublic: config.vapid_public,
-          vapidPrivate: String(env.ROOM_PUSH_VAPID_PRIVATE || ""),
-          vapidSubject: String(env.ROOM_PUSH_VAPID_SUBJECT || ""),
-          now,
-        });
-        if (result?.ok) summary.pushed++;
-        else if (result?.status === 404 || result?.status === 410) await revoke(db, sub.id);
-      } catch (error) {
-        console.error("[operator-digest] send failure:", error?.message || "unknown");
+        subs = (await resolveSubs(db, ownerId)) || [];
+      } catch {
+        subs = [];
+      }
+      for (const sub of subs) {
+        try {
+          const result = await sendPush(sub, payload, {
+            vapidPublic: config.vapid_public,
+            vapidPrivate: String(env.ROOM_PUSH_VAPID_PRIVATE || ""),
+            vapidSubject: String(env.ROOM_PUSH_VAPID_SUBJECT || ""),
+            now,
+          });
+          if (result?.ok) summary.pushed++;
+          else if (result?.status === 404 || result?.status === 410) await revoke(db, sub.id);
+        } catch (error) {
+          console.error("[operator-digest] send failure:", error?.message || "unknown");
+        }
       }
     }
   }
+
+  if (telegramConfigured) {
+    try {
+      const sendTelegram = deps.sendTelegram || sendOperatorTelegram;
+      const result = await sendTelegram(db, payloadObj, {
+        env,
+        fetch: deps.fetch || globalThis.fetch,
+        now,
+        recordIncident,
+      });
+      summary.telegramSent = result?.sent || 0;
+    } catch (error) {
+      console.error("[operator-digest] telegram send failure:", error?.message || "unknown");
+    }
+  }
+
   return summary;
 }
 
