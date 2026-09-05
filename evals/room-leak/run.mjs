@@ -90,6 +90,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { AGENT_ID, ROOM_ID, OWNER, REPLICA_ID, SLUG, loadFixtureAgent, freshState, fakeDb } from "../room/fixtures.mjs";
 import { disclosurePredicate } from "../../api/_disclosure.js";
+import {
+  runFullWorld, staticReachProblems, undeclaredRoomPersonTables, classifyOneFile,
+  DEFAULT_SEED, ROOM_DEFS, roomForgetReceiptHash, survivorsFor, TABLE_ROLES,
+} from "./world.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -1213,6 +1217,224 @@ console.log("\n── layer 7: taste (guest lane, no follower writer reachable) 
   ok("api/room.js's taste op calls consume() BEFORE roomTaste() - the gate is the enforcement, textually first",
     tasteOpBlock.indexOf("await consume(") >= 0 &&
       tasteOpBlock.indexOf("await consume(") < tasteOpBlock.indexOf("await roomTaste("));
+}
+
+// (WS-R53's taste is layer 7 above; the full world is layer 8, renumbered at the merge.)
+// LAYER 8 — WS-R68. THE FULL WORLD. Five Rooms, two Suites, 100 followers
+// with overlapping memberships, every transport, every lane at once, one
+// seeded RNG. `evals/room-leak/world.mjs` is the generator and the driver;
+// this section is the assertions, `run.mjs`'s own established convention
+// (every layer above calls this SAME module-level `ok`). See that file's own
+// header for the world shape and for the fixture-composition ordering hazard
+// this workstream found and fixed (pulseDb/handoffDb had never been combined
+// before this suite).
+// ═════════════════════════════════════════════════════════════════════════
+console.log(`\n── layer 8: the full world (WS-R68) — seed ${DEFAULT_SEED} ──`);
+{
+  const t0 = Date.now();
+  const w = await runFullWorld(REPO);
+  const { world, state, compiledBy, sessionOf, threadOf, paidFollowers, checkinPicks,
+    roomExport, roomForget, roomExportManifest, roomStats, telegramChannelRoom, pulse } = w;
+
+  const key = (i, r) => `${i}:${r}`;
+  const allMembershipKeys = world.memberships.map((m) => key(m.followerIdx, m.roomIdx));
+
+  // token -> owning membership key, built once so the O(N^2) scan below is a
+  // set-difference per membership rather than a nested re-derivation.
+  const tokensOf = new Map();
+  for (const m of world.memberships) {
+    const k = key(m.followerIdx, m.roomIdx);
+    const toks = [`TOKFACT_W_${m.followerIdx}_${m.roomIdx}_xxxxxx`];
+    for (let t = 0; t < 3; t++) toks.push(`TOKMSG_W_${m.followerIdx}_${m.roomIdx}_${t}_yyyyyy`);
+    tokensOf.set(k, toks);
+  }
+  const allTokens = [...tokensOf.values()].flat();
+
+  // ── LAW 2 (retrieval): every read a follower's session can make returns
+  // only rows keyed to that follower — checked GLOBALLY: a token belonging to
+  // ANY other membership (a different follower, OR the SAME person's OTHER
+  // Room) must never appear in this membership's compiled prompt or recall.
+  let worldViolations = 0;
+  let worldRowChecks = 0;
+  const firstViolation = [];
+  for (const k of allMembershipKeys) {
+    const own = new Set(tokensOf.get(k));
+    const others = allTokens.filter((tok) => !own.has(tok));
+    for (const rec of compiledBy.get(k) || []) {
+      worldRowChecks += others.length * 2;
+      const factsText = JSON.stringify(rec.facts);
+      for (const tok of others) {
+        if (rec.system.includes(tok)) { worldViolations++; if (firstViolation.length < 3) firstViolation.push({ k, tok, surface: "compiled" }); }
+        if (factsText.includes(tok)) { worldViolations++; if (firstViolation.length < 3) firstViolation.push({ k, tok, surface: "recall" }); }
+      }
+    }
+  }
+  ok(`world: zero cross-membership leaks across ${allMembershipKeys.length} memberships x 3 turns (${worldRowChecks} checks)`,
+    worldViolations === 0, JSON.stringify(firstViolation));
+  rowChecks += worldRowChecks;
+
+  // Sanity: a membership's own fact really is retrieved (not vacuous).
+  const sampleKey = key(0, world.followers[0].primaryRoom);
+  const sampleOwnSeen = (compiledBy.get(sampleKey) || []).some((r) => JSON.stringify(r.facts).includes(tokensOf.get(sampleKey)[0]));
+  ok("world: a sampled membership's OWN fact is retrieved into its own turns (the scan is not vacuous)", sampleOwnSeen);
+
+  // ── the multi-room-per-person case: an overlap follower's TWO Rooms never
+  // see each other's content, in the compiled prompt OR in roomExport.
+  const overlapSample = [...world.overlapPicks].slice(0, 5);
+  for (const i of overlapSample) {
+    const f = world.followers[i];
+    const kA = key(i, f.primaryRoom);
+    const kB = key(i, f.secondaryRoom);
+    const dumpA = await roomExport(w.db, { session: sessionOf.get(kA) }, w.deps);
+    const dumpB = await roomExport(w.db, { session: sessionOf.get(kB) }, w.deps);
+    boundaryChecks += 4;
+    ok(`world: follower ${i}'s export of Room A carries Room A's own fact token`,
+      JSON.stringify(dumpA.tables).includes(tokensOf.get(kA)[0]));
+    ok(`world: follower ${i}'s export of Room A does NOT carry Room B's fact token (same person, different Room)`,
+      !JSON.stringify(dumpA.tables).includes(tokensOf.get(kB)[0]));
+    ok(`world: follower ${i}'s export of Room B carries Room B's own fact token`,
+      JSON.stringify(dumpB.tables).includes(tokensOf.get(kB)[0]));
+    ok(`world: follower ${i}'s export of Room B does NOT carry Room A's fact token`,
+      !JSON.stringify(dumpB.tables).includes(tokensOf.get(kA)[0]));
+  }
+
+  // ── forgetting one Room leaves the SAME person's OTHER Room untouched —
+  // the invariant only a multi-Room world can even state, let alone prove.
+  for (const i of overlapSample) {
+    const f = world.followers[i];
+    const kA = key(i, f.primaryRoom);
+    const kB = key(i, f.secondaryRoom);
+    const personId = state.followers.find((x) => x.follower_id === w.followerIdOf.get(kA))?.person_id;
+    const receipt = await roomForget(w.db, { session: sessionOf.get(kA) }, w.deps);
+    boundaryChecks += 4;
+    ok(`world: follower ${i}'s forget of Room A wrote a receipt naming Room A's own slug`,
+      Boolean(receipt.receipt) && receipt.receipt.room === ROOM_DEFS[f.primaryRoom].slug);
+    const expectedHash = roomForgetReceiptHash(ROOM_DEFS[f.primaryRoom].room_id, personId, receipt.receipt.policy_version);
+    ok(`world: follower ${i}'s receipt hash is scoped by ROOM+person — recomputed for Room A matches, and would differ for Room B`,
+      receipt.receipt.person_hash === expectedHash &&
+        expectedHash !== roomForgetReceiptHash(ROOM_DEFS[f.secondaryRoom].room_id, personId, receipt.receipt.policy_version));
+    const stillHasB = state.facts.some((x) => x.agent_id === ROOM_DEFS[f.secondaryRoom].agent_id &&
+      JSON.stringify(x).includes(tokensOf.get(kB)[0]));
+    ok(`world: follower ${i}'s Room B fact SURVIVES their Room A forget (per-Room scope, not per-person)`, stillHasB);
+    const dumpB = await roomExport(w.db, { session: sessionOf.get(kB) }, w.deps);
+    ok(`world: follower ${i}'s Room B export still works after their Room A forget`,
+      JSON.stringify(dumpB.tables).includes(tokensOf.get(kB)[0]));
+
+    // ZERO SURVIVORS across every extra-lane table this follower may have
+    // populated for Room A (thread, pulse-optin — every membership gets
+    // both — plus whichever of checkin/whatsapp/push/telegram/handoff their
+    // own transport or pick assigned), and Room B's OWN row in each of those
+    // same tables is untouched — `evals/room-export/run.mjs`'s own
+    // completeness law, extended to a world where the same person has a
+    // second Room's rows sitting right next to the ones just deleted.
+    const survivorsA = survivorsFor(state, ROOM_DEFS[f.primaryRoom].room_id, personId);
+    boundaryChecks++;
+    ok(`world: follower ${i}'s Room A forget leaves ZERO survivors across every extra-lane table`,
+      survivorsA.length === 0, survivorsA.join(","));
+    const survivorsB = survivorsFor(state, ROOM_DEFS[f.secondaryRoom].room_id, personId);
+    boundaryChecks++;
+    ok(`world: follower ${i}'s Room B rows in those SAME tables are untouched by the Room A forget`,
+      survivorsB.length > 0, survivorsB.join(","));
+  }
+
+  // ── LAW 2 (export completeness, extended to the world): every table this
+  // battery's own generalized reach layer knows about is actually named by
+  // the REAL export manifest — `evals/room-export/run.mjs`'s own layer 1
+  // comparison (PERSON_TABLES vs roomExportManifest), cross-checked here
+  // against THIS layer's own table list so the two completeness checks can
+  // never silently disagree about which tables exist.
+  {
+    const manifest = await roomExportManifest(w.deps);
+    const missing = Object.keys(TABLE_ROLES).filter((t) => !manifest.includes(t));
+    boundaryChecks++;
+    ok("world: every table this layer's static reach check knows about is named by the REAL roomExportManifest()",
+      missing.length === 0, missing.join(","));
+  }
+
+  // ── LAW 2 (creator-side reads): roomStats and Pulse never carry a token,
+  // across every Room in the world — extends layers 1c/5 from one Room to all
+  // five, and to the 100-follower scale rather than N<=5.
+  for (const r of ROOM_DEFS) {
+    const stats = await roomStats(w.db, { slug: r.slug }, w.deps);
+    boundaryChecks++;
+    ok(`world: roomStats for ${r.slug} returns exactly one key (talked_today)`, Object.keys(stats).join(",") === "talked_today");
+    const weekStart = "2026-09-01";
+    const snapshot = await pulse.computeSnapshot(w.db, r.room_id, weekStart);
+    const owner = await pulse.readPulse(w.db, r.owner, r.replica_id);
+    const surface = JSON.stringify({ snapshot, owner });
+    const roomTokens = world.memberships.filter((m) => m.roomIdx === r.idx).flatMap((m) => tokensOf.get(key(m.followerIdx, m.roomIdx)) || []);
+    const leaked = roomTokens.filter((tok) => surface.includes(tok));
+    boundaryChecks++;
+    ok(`world: Pulse for ${r.slug} carries no follower token in computeSnapshot or readPulse`,
+      leaked.length === 0, leaked.slice(0, 3).join(","));
+  }
+
+  // ── Telegram: each bound follower's channel resolves to THEIR OWN Room's
+  // slug and no other — the isolation `evals/room-telegram/run.mjs` proves
+  // for one follower, extended to every telegram-transport follower at once.
+  const telegramFollowers = world.followers.filter((f) => f.transport === "telegram");
+  let telegramBad = 0;
+  for (const f of telegramFollowers) {
+    const slug = await telegramChannelRoom(w.db, `tg-${f.idx}`);
+    if (slug !== ROOM_DEFS[f.primaryRoom].slug) telegramBad++;
+  }
+  boundaryChecks++;
+  ok(`world: every one of ${telegramFollowers.length} Telegram-bound followers resolves to their OWN Room's slug`, telegramBad === 0);
+
+  // ── WhatsApp / push / check-ins really landed somewhere real (not vacuous
+  // lanes nobody actually drove) ────────────────────────────────────────────
+  ok(`world: at least one follower per new transport was actually driven (telegram=${telegramFollowers.length}, whatsapp=${state.waOptins.length}, push=${state.pushSubs.length}, checkins=${checkinPicks.size})`,
+    telegramFollowers.length > 0 && state.waOptins.length > 0 && state.pushSubs.length > 0 && checkinPicks.size > 0);
+  ok("world: at least one Suite-crossing creator-as-follower membership exists (OWNER_B in R3)",
+    world.memberships.some((m) => m.uidOverride));
+
+  console.log(`  world runtime: ${Date.now() - t0}ms, ${world.memberships.length} memberships, ${world.followers.length} followers, seed ${world.seed}`);
+}
+
+// ── LAYER 8, NEGATIVE CONTROL A (law 4): a struck WHERE in a fixture copy of
+// one reader leaks and is caught, at world scale rather than the 2-follower
+// scale layer 4 above already proves it at.
+{
+  const w2 = await runFullWorld(REPO);
+  const { world, sessionOf, room } = w2;
+  const unscopedRecall = async (_personId, agentId) => w2.state.facts.filter((f) => f.agent_id === agentId);
+  const attackerIdx = world.followers.find((f) => f.idx !== 0 && f.primaryRoom === world.followers[0].primaryRoom).idx;
+  const attackerKey = `${attackerIdx}:${world.followers[0].primaryRoom}`;
+  let compiledAttacker = null;
+  await room.roomSay(w2.db, { session: sessionOf.get(attackerKey), message: "hi" }, {
+    loadAgent: w2.loadAgent, memory: { openEpisode: async () => ({}), logTurn: async () => {}, history: async () => [], recall: unscopedRecall },
+    reply: (c) => { compiledAttacker = c; return "ok"; },
+  });
+  const victimToken = `TOKFACT_W_0_${world.followers[0].primaryRoom}_xxxxxx`;
+  const leaked = (compiledAttacker?.system ?? "").includes(victimToken);
+  ok("NEGATIVE CONTROL (world, A): striking the person clause from recall DOES leak a victim's fact across the full world",
+    leaked, leaked ? "" : "control did not fire — the world-scale scan above would prove nothing");
+}
+
+// ── LAYER 8, NEGATIVE CONTROL B (law 4): a writer added to a temp copy of a
+// module without a reach entry is caught by the generalized static layer.
+{
+  const fakeSrc = `export async function creatorDump(db, roomId) {\n  return db(\`select payload_text, phone_e164 from vy_room_handoff where room_id = ($1)::uuid\`, [roomId]);\n}\n`;
+  const result = classifyOneFile("_fake-new-module.js", fakeSrc, "vy_room_handoff");
+  ok("NEGATIVE CONTROL (world, B): a temp module reading vy_room_handoff's payload_text with no reach entry is CAUGHT",
+    result.touches && result.problems.length > 0,
+    result.problems.join(","));
+  const safeSrc = `// this module never touches vy_room_handoff at all\n`;
+  const safeResult = classifyOneFile("_fake-new-module.js", safeSrc, "vy_room_handoff");
+  ok("...and a file that only comments on the table without a real statement raises no problem (it is registered as touching, honestly, but the comment is a safe line)",
+    safeResult.touches === true && safeResult.problems.length === 0);
+}
+
+// ── LAYER 8, STATIC: the generalized reach layer over the real api/ tree —
+// zero problems, and every PERSON_TABLES room+person table has a role.
+{
+  const problems = staticReachProblems(REPO);
+  const flat = Object.entries(problems).flatMap(([t, ps]) => ps.map((p) => `${t}:${p}`));
+  ok(`world: the generalized static reach layer finds zero problems across every table it knows about`,
+    flat.length === 0, flat.join(" | "));
+  const undeclared = undeclaredRoomPersonTables(REPO);
+  ok("world: every PERSON_TABLES room+person table (besides layer 1c's own two) has a TABLE_ROLES entry",
+    undeclared.length === 0, undeclared.join(","));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

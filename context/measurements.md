@@ -10583,3 +10583,71 @@ n = 1 migration (3 statements in one transaction), 6 API statements; method = ap
 | the erasure delete by owner | Bitmap on `vy_operator_push_subscription_owner_endpoint_ix` by owner |
 
 Not measured: no operator has subscribed; no push has been sent; VAPID is unset on both projects.
+
+## `ws-r68-full-world-leak-battery-2026-09-05`
+
+n = 1 generated world, method = `node evals/room-leak/run.mjs` (the new
+layer 7 section, `evals/room-leak/world.mjs`'s `runFullWorld`), seed
+20260905 (`ROOM_WORLD_SEED` overrides it; printed on every run so a failing
+seed is reproducible), date 2026-09-05, offline/deterministic/$0.
+
+World shape: 5 Rooms across 2 owner-grouped Suites, 100 followers, 116
+memberships (100 primary + 15 RNG-picked followers with a second Room + 1
+cross-Suite creator-as-follower membership), 3 chat turns per membership in
+GLOBALLY SHUFFLED order (348 total turns). Transports actually driven:
+web (the remainder), Telegram = 16 followers bound and each resolved back
+to their OWN Room's slug, WhatsApp = 7 (paid-tier, opted in via the real
+`api/_room-whatsapp.js` gate), web push = 12 (real `setSubscription`),
+"installed" is metadata only (no separate server-side lane, see
+`world.mjs`'s own header for why). A separate RNG-picked 10 followers
+opted into a real check-in design (paid tier). 15 memberships (RNG-picked)
+sent a real Handoff request. Every one of the 116 memberships created a
+thread and opted into Pulse.
+
+Checks: 320,160 cross-membership token-leak checks (compiled prompt + fact
+recall, every membership scanned against every OTHER membership's tokens —
+both a different follower AND the SAME follower's OTHER Room), all zero
+violations. 5 overlap followers sampled for the harder multi-Room-per-person
+proof: their two Rooms' `roomExport`s never share a fact token in either
+direction (20 checks), and forgetting Room A leaves Room B's fact, thread,
+pulse-optin and (where populated) Handoff row standing, with zero survivors
+in Room A across every extra-lane table (`vy_room_thread`,
+`vy_room_follower`, `vy_fact`, `vy_room_pulse_optin`, `vy_room_checkin`,
+`vy_room_follower_whatsapp`, `vy_room_push_subscription`,
+`vy_room_follower_channel`, `vy_room_handoff`) and Room B's OWN rows in
+those same tables untouched (2 checks per follower). The forget receipt's
+`person_hash` is independently recomputed via `roomForgetReceiptHash` and
+shown to differ between Room A and Room B for the identical person (proving
+the hash is ROOM-scoped, not just person-scoped). roomStats and Pulse
+(computeSnapshot + readPulse) checked across all 5 Rooms carry zero
+follower tokens. Total new assertions this layer adds: 71 (152 total in the
+whole `room-leak` battery, up from 81 before this workstream, both counts
+taken from the SAME committed `run.mjs` before/after via `node evals/
+room-leak/run.mjs`'s own printed "total assertions" line).
+
+The generalized static reach layer (`TABLE_ROLES` in `world.mjs`) scans
+every `api/*.js` file for 12 person-lane tables (every `PERSON_TABLES`
+room+person entry besides the two `run.mjs`'s own layer 1c already covers)
+via a live grep at run time, not a hand-typed file list — zero problems
+found on the shipping tree. Two negative controls, both fired: (A) a
+struck-person-clause recall run through the full 100-follower world leaks a
+victim's fact to an attacker in the same Room; (B) a synthetic module
+string reading `vy_room_handoff.payload_text` with no `TABLE_ROLES` entry
+is caught by `classifyOneFile` without writing anything to disk.
+
+Runtime: the whole `room-leak` battery (all 7 layers) ran in **27.5s wall
+clock** (was 7.8s before this workstream, on the SAME untouched-tree
+baseline run recorded at the top of this workstream's session log entry in
+`context/STATE.md`); layer 7 alone (one `runFullWorld` build-and-drive
+pass) measured **6.3-11.1s** across repeated runs on a loaded machine — well
+inside the workstream brief's own 60s budget for the new section.
+
+Not measured: the two extra `PERSON_TABLES` entries this workstream's
+`TABLE_ROLES` does NOT drive dynamically, `vy_room_upgrade_offer` (WS-R30)
+and `vy_renewal_reminder` (WS-R37) — both have a `TABLE_ROLES` role (so the
+STATIC reach layer covers them) but this world never populates either
+table, so no dynamic export/forget/leak proof exists for them from this
+workstream. `evals/room-export/run.mjs`'s own dynamic layer 2 does not
+cover them either (its `EXPECT_IN_EXPORT` list predates both) — a real,
+pre-existing gap this workstream found but did not close, named rather than
+silently inherited.

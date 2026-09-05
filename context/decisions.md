@@ -13977,3 +13977,89 @@ they are both wins for `context/`.
 as a side effect), move this card's copy into `src/studio/copy.ts` at that
 point — the card's own structure does not need to change, only where its
 strings live.
+
+## `ws-r68-full-world-shape-two-suites-by-owner-not-by-vy-org-row` (2026-09-05, WS-R68)
+
+**Decision.** WS-R68's full-world leak battery (`evals/room-leak/world.mjs`)
+groups its five Rooms into "two Suites" by `owner_user_id` alone (Suite
+alpha: R0/R1 same owner, R2 a second owner; Suite beta: R3, R4 two more
+owners) rather than inserting real `vy_org`/`vy_org_member` rows. A creator
+who owns two Rooms in the same group stands in for the workstream brief's
+"a Suite admin who is a creator"; a third owner's Room is also joined, as a
+follower, by the SECOND owner (a creator following a Room in the OTHER
+Suite) for "a creator who is also a follower elsewhere."
+
+**Rationale.** `vy_org`/`vy_org_member` hold no follower content at all —
+every read of them is already aggregate-only (`api/_org.js`'s own header,
+`evals/room-leak/run.mjs`'s own `AGGREGATE_ONLY` set). Building real Suite
+rows would add fixture surface (`api/_org.js`'s own SQL shapes) that proves
+nothing this battery's actual question — do follower-scoped and Room-scoped
+reads/writes cross a boundary they must not — depends on. The membership
+overlaps the brief actually cares about (a follower in two Rooms, a creator
+who is also a follower, one owner running multiple Rooms) are all expressed
+through `vy_room`/`vy_room_follower` directly, which is where every leak
+this battery has ever found or could find actually lives.
+
+**Reversal condition.** If a future workstream gives Suites their own
+follower-visible surface (a shared subgraph across a Suite's Rooms, say —
+explicitly out of scope per `docs/gurukul` today, "Bridge stays locked"),
+this world should grow real `vy_org`/`vy_org_member` rows and its own
+Suite-boundary checks; until then, a fixture `vy_org` row would be
+decoration, not proof.
+
+## `ws-r68-fixture-composition-order-owner-scope-shadowing` (2026-09-05, WS-R68)
+
+**Decision.** In `evals/room-leak/world.mjs`'s composed fake `db`, wrappers
+are layered `handoffDb` OUTSIDE `pulseDb` OUTSIDE the base `fakeDb`, and
+this file's own whatsapp/push/check-in additions are layered outside both
+— tried in that order, base last.
+
+**Rationale.** `pulseDb`'s owner-scoped room-handle match (`"from vy_room"`
++ `"owner_user_id = ($1)::uuid and replica_id = ($2)::uuid"`) is a strict
+substring subset of `handoffDb`'s own (which additionally requires
+`"handoff_enabled, handoff_monthly_cap"` in the select list). `evals/pulse/
+fixtures.mjs` and `evals/handoff/fixtures.mjs` had never been composed
+together before this workstream — every existing suite uses exactly one of
+them — so this collision could not have been found without a world that
+drives both Pulse and Handoff through the SAME fake `db`. Tried in the
+wrong order, `pulseDb` silently answers `handoffDb`'s own config lookup
+with a row missing `handoff_enabled`/`handoff_monthly_cap`, and every
+handoff call in the world breaks with no thrown error at the shadowing
+site — `plausible-return-hides-a-dead-pipeline`, one layer down in a shared
+TEST fixture rather than in shipping code. See
+`context/rejected.md#ws-r68-composed-fixture-owner-scope-shadowing`.
+
+**Reversal condition.** If either `pulseDb` or `handoffDb` ever narrows its
+own owner-scoped match to include a table-specific column (mirroring
+`handoffDb`'s own `"handoff_enabled, handoff_monthly_cap"` guard), the
+order stops being load-bearing and either composition order would be safe
+— worth revisiting the comment in `world.mjs` at that point so a future
+reader is not solving an already-fixed problem again.
+
+## `ws-r68-static-reach-layer-checks-content-columns-not-strict-aggregate-shape` (2026-09-05, WS-R68)
+
+**Decision.** The full-world battery's generalized static reach layer
+(`TABLE_ROLES`/`staticReachProblems` in `evals/room-leak/world.mjs`) admits
+an `aggregateOnly` file's statement as safe when its select list names no
+raw content column (`title`, `payload_text`, `phone_e164`, `local_time`,
+...), rather than requiring every item match a narrow `count`/`sum`/`min`
+regex the way `evals/room-leak/run.mjs`'s own pre-existing layer 1c does.
+
+**Rationale.** Real, already-shipped, already-suite-proven creator/
+platform-facing aggregate reads in this repo use `date_trunc(...)`,
+`exists(select 1 from ...)` and multi-CTE window functions
+(`api/_phase-gate.js`, `api/_room-cohorts.js`) that a strict
+count/sum/min-only check flags as false positives — a generalized check
+strict enough to break TODAY'S clean tree would have failed before it ever
+caught a real bug, `sound-gate-proved-by-silence` read the other way. The
+actual threat this layer exists to catch is a follower's own WORDS reaching
+a creator- or platform-facing surface, and a content-column check targets
+exactly that without needing to re-litigate every legitimate aggregate
+shape this codebase already uses.
+
+**Reversal condition.** If a future finding shows a non-aggregate,
+non-content-column read still leaking follower-identifying structure (a
+`group by person_id` with no aggregate function at all, say — content-free
+but still a per-person row), tighten this check to also require an
+aggregate GROUP BY or a hard row-count cap, rather than loosening the
+content-column list further.

@@ -9663,3 +9663,98 @@ before being trusted, not only against a deliberately mutated copy. This
 one's own offline eval (`evals/probe-live/run.mjs`) now asserts BOTH
 directions — the real, unmutated file must pass, and a mutated copy with a
 disallowed op must fail — for exactly this reason.
+
+## `ws-r68-composed-fixture-owner-scope-shadowing` (2026-09-05, WS-R68)
+
+**What was tried.** Composing `evals/pulse/fixtures.mjs`'s `pulseDb` and
+`evals/handoff/fixtures.mjs`'s `handoffDb` together for the first time — the
+full-world battery needs BOTH lanes on one world, and every prior suite
+uses exactly one of them — by wrapping in the "obvious" order: base
+`fakeDb`, then `pulseDb(state, base)`, then `handoffDb(state, pulseLayer)`,
+reading top to bottom as "pulse first, handoff second" the way the two
+imports were written.
+
+**What broke.** `handoffQueue`/`setHandoffConfig`/`sendHandoffRequest`'s own
+owner-scoped room-handle lookup (`select room_id, owner_user_id,
+handoff_enabled, handoff_monthly_cap from vy_room where owner_user_id =
+($1)::uuid and replica_id = ($2)::uuid`) never reached `handoffDb`'s own
+matcher at all. `pulseDb`'s matcher for ITS OWN, unrelated owner-scoped
+lookup is `has("from vy_room") && has("owner_user_id = ($1)::uuid and
+replica_id = ($2)::uuid")` — two bare substring checks, satisfied by
+handoff's statement too, since handoff's statement is a strict superset of
+pulse's. Composed with `pulseDb` OUTSIDE (tried first), it silently
+answered handoff's own lookup with `{room_id, created_at, published_at}` —
+missing `handoff_enabled`/`handoff_monthly_cap` entirely — and every
+handoff call in the world failed downstream with no error at the shadowing
+site itself: a stripped row, not a thrown one. First surfaced as `room_id`
+being present-but-wrong-shaped several calls later, not as an obvious
+"wrong branch fired" signal.
+
+**Fix.** Composed `handoffDb` OUTSIDE `pulseDb` instead (`handoffDb(state,
+pulseDb(state, base))`) — its own matcher is a strict superset condition
+(pulse's two substrings PLUS `"handoff_enabled, handoff_monthly_cap"`), so
+trying it first correctly narrows to only ITS OWN statement and falls
+through to `pulseDb` for everything else, unchanged. `context/
+decisions.md#ws-r68-fixture-composition-order-owner-scope-shadowing` records
+the decision and its reversal condition.
+
+**Rule.** Two fixture wrappers that each match on bare SQL-text substrings
+(this repo's own established technique, not itself the defect) are safe
+individually because nothing before this workstream ever composed them.
+Before composing ANY two `xDb(state, base)`-shaped fixture wrappers from
+different suites, check whether either's matcher condition is a SUBSET of
+the other's — if so, the narrower one must be OUTSIDE (tried first), or it
+will never fire at all, silently, on real production call shapes that
+happen to satisfy the wider fixture's weaker test too.
+
+## `ws-r68-strict-aggregate-only-select-list-check-false-positives-on-shipped-sql` (2026-09-05, WS-R68)
+
+**What was tried.** Generalizing `evals/room-leak/run.mjs`'s own layer 1c
+aggregate-only check (every select-list item must match `/count|sum|min/`)
+across every `PERSON_TABLES` room+person table rather than the two it
+already covers, reusing the identical regex.
+
+**What broke.** `api/_phase-gate.js`'s real `vy_room_follower_day` read
+selects `date_trunc('month', d.day) as month_start, sum(d.turns) as
+turns_sum` — the FIRST item is a bucket key, not an aggregate function, and
+the strict regex flagged it as `non-aggregate-read` on the untouched,
+already-shipped, already-suite-proven tree. `api/_room-cohorts.js`'s
+`exists (select 1 from vy_room_follower_day d where ...)` failed the same
+way — a bare `1` is the standard SQL idiom for an existence check and
+carries zero follower content, but does not match `count`/`sum`/`min`
+either.
+
+**Fix.** Replaced the strict shape check with a content-column check (see
+`context/decisions.md#ws-r68-static-reach-layer-checks-content-columns-not-strict-aggregate-shape`)
+— the select list must name no raw content column
+(`title`/`payload_text`/`phone_e164`/`local_time`/...), which both
+statements above pass honestly (neither selects anything a follower wrote).
+
+**Rule.** A generalized version of an existing scanner is not automatically
+safe just because the original, narrower scanner was — run it against the
+WHOLE tree it will now cover before trusting it, `sound-gate-proved-by-
+silence`'s standing law restated for "a stricter check than the one already
+proven out" rather than only for "no check at all."
+
+## `ws-r68-line-scanner-did-not-know-sql-comments` (2026-09-05, WS-R68)
+
+**What was tried.** The full-world battery's generalized per-line
+`SAFE_LINE` check (every line naming a guarded table outside its owner/
+aggregate-only set must be a delete, a JS comment, or a manifest entry)
+reused `evals/room-leak/run.mjs`'s own precedent verbatim: `^\s*//` and
+`^\s*\*` for a comment line.
+
+**What broke.** `api/_replica-full-erasure.js` names `vy_room_checkin` and
+`vy_room_subscription` once each inside SQL **`--`** line comments, embedded
+inside its own multi-line template-literal CTEs (`-- references
+vy_room_checkin, design_id/follower_id reference their own`) — a real SQL
+comment, not a JS one, and `^\s*//`/`^\s*\*` do not match a line starting
+with `--`. Both lines failed the new check on the untouched tree.
+
+**Fix.** Added `^\s*--` to `SAFE_LINE`. `context/rejected.md#ws-r28-leak-
+battery-scanner-matches-prose-not-only-sql` and its siblings already
+established that a line-scanning discipline check treats its target
+substring as radioactive everywhere in a file, JS comments included; this
+is the identical class one comment-syntax over — a check built for JS
+source that ALSO scans template-literal SQL bodies must know both
+languages' comment syntax, not just the host language's.
