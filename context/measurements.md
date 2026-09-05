@@ -11870,3 +11870,35 @@ session; every OTHER workstream's own recent session-log entries treat an
 `EADDRINUSE`-only failure on this specific gate, with no code touching
 `/`'s own bundle, as the same named environmental collision, and this
 workstream touches no file `/`'s own performance target depends on).
+
+## `ws-r83-hindi-consent-review-coverage-2026-09-05` (WS-R83)
+
+**n and method.** `docs/legal/HINDI-CONSENT-REVIEW.md` carries **88 rows**
+across the six files named in `ws-r83-consent-ceremony-hindi-review-document-before-conversion`:
+16 (`ModelConsentGate.tsx`), 14 (`IdentityProofing.tsx`), 11
+(`VideoEnrollPanel.tsx`), 12 (`IngestChannelStudio.tsx`), 17
+(`LivenessCapture.tsx`), 18 (`VoiceIdentityChallenge.tsx`). Of those, **26
+are the actual consent statements/checkbox labels** a person affirmatively
+checks (6 + 5 + 5 + 5 + 5 + 0; `VoiceIdentityChallenge.tsx` has none of its
+own, see the document's Methodology section), and **8 are `REASON` map
+title/note pairs** standing in for File 6's own refusal lines. **4 distinct
+`statement_set` ids are covered** (`verified-model-consent/v1`,
+`identity-proofing-consent/v1`, `channel-ownership-attestation/v1` shared by
+two files, `biometric-verification-consent/v1`) plus one file
+(`VoiceIdentityChallenge.tsx`) with no `statement_set` of its own, gated
+instead by `policy_version: voice-identity-challenge/v1`. Method:
+`evals/consent-review/run.mjs` re-extracts every row's source text from the
+real six files by structural regex (anchored on named statement arrays,
+heading `id`s, `<legend>` text, ternary button labels and `*-boundary`
+class names) and asserts each appears in the document's English column;
+run 2026-09-05 against the committed tree, **116 of 116 assertions passed**,
+0 extraction-anchor failures (nothing the regexes target has silently moved
+or been renamed since the rows were written), 0 statement-set/policy-version
+id mismatches against the real exported constants, and **0 of the 88
+proposed Hindi rows trip `scripts/check-copy.mjs`'s real `scanSource`**
+(dash rule + Rooms vocabulary rule, `roomsVocab: true`), with the suite's own
+three negative controls (a क्लोन row, a मॉडल row, an em-dash row) each
+firing the rule they are supposed to. This is a coverage/consistency
+measurement of the DOCUMENT, not a measurement of Hindi quality; no claim is
+made here about translation fluency, which is exactly what the document asks
+a person to judge.

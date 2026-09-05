@@ -8890,6 +8890,30 @@
       "kind": "measurement",
       "title": "Door battery 564 to 568, leak battery 217/12-layers to 229/13-layers, room-export 46 to 47, ops 135 to 136, room-share 54 to 56 (rewritten to read db/schema.sql's own last constraint block), room-referrals new at 41/41, full eval suite exit 0, tsc clean.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r83-consent-ceremony-hindi-review-document-before-conversion",
+      "kind": "decision",
+      "title": "Hindi for the six consent-ceremony studio files goes into a standalone legal-review document (docs/legal/HINDI-CONSENT-REVIEW.md) before any of them convert; no src/ change this session.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r83-hindi-consent-review-coverage-2026-09-05",
+      "kind": "measurement",
+      "title": "88 rows, 26 consent statements, 4 statement_set ids; 116/116 eval assertions pass; 0 of 88 Hindi rows trip the real copy-gate scanner.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r83-whole-file-jsx-text-node-scan-rejected-as-the-block-boundary",
+      "kind": "rejection",
+      "title": "Reusing the studio-locale literalEnglishTextNode scan verbatim (or, at the other extreme, gating only the named statement arrays) as the document row boundary; replaced by a five-category structural boundary.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r83-modelconsentgate-partial-translation-still-rejected-see-ws-r61",
+      "kind": "rejection",
+      "title": "Cross-reference: ws-r61s partial-translation finding (chrome vs statements) generalises to all six files here; nothing new tried.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17452,6 +17476,16 @@
       "src": "ws-r86-follower-referrals",
       "rel": "caused_by",
       "dst": "ws-r86-referral-url-display-reused-room-num-a-numeric-class-not-a-wrap-one"
+    },
+    {
+      "src": "ws-r83-consent-ceremony-hindi-review-document-before-conversion",
+      "rel": "measured_by",
+      "dst": "ws-r83-hindi-consent-review-coverage-2026-09-05"
+    },
+    {
+      "src": "ws-r83-consent-ceremony-hindi-review-document-before-conversion",
+      "rel": "caused_by",
+      "dst": "ws-r83-whole-file-jsx-text-node-scan-rejected-as-the-block-boundary"
     }
   ]
 }
