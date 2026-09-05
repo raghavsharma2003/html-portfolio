@@ -18455,3 +18455,85 @@ Meta"). If a live WABA turns out not to support reply buttons on this
 number's own messaging tier, the gate needs a text-based fallback and,
 likely, a real migration for pending-join state — ticketed here rather than
 guessed at.
+
+## `ws-r105-boundary-injection-fields-verified-not-assumed` (2026-09-05, WS-R105)
+
+**Decision.** `evals/room-adversarial-creator/run.mjs` injects hostile
+creator material into exactly nine sheet fields (`identityWho`,
+`identityLife`, `lifeTexture`, `curiosityTopics`, `tasteTopics`,
+`boundaryParagraph`, `stageEarly`, `stageGettingClose`, `stageEstablished`)
+rather than the thirteen this suite tried first. `languageVoiceRule`,
+`voiceIdentityPhrase` and `shareSuggestLine` were dropped after a first run
+measured them as `"not_found"` in the compiled prompt; reading
+`src/engine/persona.ts` and `src/engine/compiler.ts` explained why each
+one is unreachable on `/r/<slug>`'s own text lane specifically
+(`languageVoiceRule` and `voiceIdentityPhrase` are voice-medium/call-mode
+only, `api/_room-surface.js::roomSay` always compiles `medium: "text"`,
+`mode: "chat"`; `shareSuggestLine` fires only when `input.watching` is
+true, and `roomSay` always passes `false`). `stageNickname` was dropped for
+a different reason: `src/engine/agents/characters/demoTeacher.ts`'s own
+header comment already states it is dead for this exact fixture
+("Deliberately carrying NO trailing sheet slot, so the teacher module does
+not inherit the `${C.stageNickname}` seam defect").
+
+**Rationale.** `dead-writers`'s own lesson, restated one layer over: a field
+being present in `CHARACTER_STRING_FIELDS` (the generated bundle's own list)
+proves the COMPILER can read it in principle, not that THIS surface's own
+call shape ever reaches the branch that does. Asserting "the passage reaches
+the compiled prompt" against a field that is structurally unreachable on
+`roomSay`'s call shape would have been a plausible-looking green check
+measuring nothing — exactly the failure `AGENTS.md`'s "a plausible return
+hides a dead pipeline" law names. Running first and reading the failure
+second, rather than assuming the field list was the whole story, is what
+caught it (`measurements.md#ws-r105-corpus-injection-first-run-18-of-41-not-found`).
+
+**Reversal condition.** If `roomSay` (or a sibling Room reply lane) is ever
+given a voice medium, call mode, or a watching flag of its own, re-run this
+suite with the dropped three fields restored to `INJECTION_FIELDS` and
+confirm they now reach — do not restore them speculatively ahead of that
+call-shape change actually landing.
+
+## `ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime` (2026-09-05, WS-R105)
+
+**Decision.** This workstream does NOT add a runtime containment mechanism
+(a labelled material block, a compiler-level escape) for creator-authored
+sheet content. It ships an ingest-time, pure-regex detector
+(`evals/room-adversarial-creator/detector.mjs`) instead, and does not wire
+it into a review-queue card kind.
+
+**Rationale.** Reading `src/engine/persona.ts` end to end (the caller of
+every sheet field `sheetToModule -> buildSystemPromptParts` touches) finds
+every field concatenated directly into an instruction sentence
+(`persona.ts:197`, `identityWho`/`identityLife`) or appended as a bare,
+unlabelled paragraph (`persona.ts:370`, `boundaryParagraph`) — there is no
+compiler-level boundary to enforce, for ANY sheet, hostile or benign, on
+this product's text lane today. Building one is a real compiler change with
+its own charm-gate risk (`SPEC.md §0.3`'s "no content cut happens at
+extraction" law, cited in `compiler.ts`'s own header) and is out of this
+workstream's scope (`api/chat.js`/`persona.ts`/`compiler.ts` are not named
+in WS-R105's Build section). The one place this platform CAN intervene
+without touching the compiler is before a hostile passage ever becomes a
+sheet field's value at all: the review queue, at the moment a creator is
+asked to approve a mined proposal. `detector.mjs` measures cleanly there —
+100% recall on the 41-entry corpus, 0% false positives on a benign-source
+sample built specifically to trap a naive keyword match
+(`measurements.md#ws-r105-detector-recall-and-false-positive-rate`) — but
+shipping it as a NEW review-card `kind` needs a value migration 074's
+`vy_review_card_kind_check` CHECK constraint (`db/migrations/074_review_queue.sql`,
+closed to `question`/`claim`/`delta`/`follower_declined`) does not carry,
+and this workstream's brief names no migration number. Law 4's own
+contingency ("if a migration would be needed, do not add the card, log
+why") applies regardless of the measured rate, so the card does not ship
+this session even though the number that would have gated it is clean.
+
+**Reversal condition.** The day this workstream (or a successor) has a real
+migration number, add `'instruction_shaped_material'` to migration 074's
+`kind` CHECK, wire `detector.mjs`'s verdict into whatever mines a context
+item into a sheet-draft proposal (`api/_context-mining.js`), and re-run
+this suite's §4 to confirm the rate still holds against a larger, real
+benign corpus before shipping — not against this suite's own 15-line
+sample alone. Separately, if `src/engine/compiler.ts` is ever given a real
+labelled material block for sheet-authored content (the fix this decision
+explicitly does NOT attempt), re-run `materialBoundaryStatus` against the
+real compiled prompt and expect `"contained"` rather than `"fused"` — a
+change from today's 0/41 would be the signal that fix landed.

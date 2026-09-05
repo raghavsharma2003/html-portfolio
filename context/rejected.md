@@ -12798,3 +12798,57 @@ new `TABLE_ROLES`-keyed scan added to this codebase from here on should use
 `.includes()`, UNLESS the substring behaviour is deliberately exploited and
 stated as such in a comment next to it, the way `evals/room-doors/run.mjs`'s
 own follower/thread family check already is.
+
+## `ws-r105-no-material-instruction-boundary-in-the-compiler` (WS-R105, 2026-09-05)
+
+**What was expected.** The workstream brief (law 2) asked for a suite that
+finds "the material block's boundaries from the real compiler's own
+markers" and proves an injected passage in a creator's own archive stays
+inside them — a labelled, data-only region of the compiled prompt,
+structurally distinct from the instruction text around it, the same way
+`compiler.ts`'s T5 block ("WHAT YOU REMEMBER ABOUT THEM — from your earlier
+conversations...") wraps a FOLLOWER's own recalled facts.
+
+**What is actually there.** No such block exists for CREATOR material on
+`/r/<slug>`'s own text lane. Read end to end (not guessed): `api/_room-
+surface.js::roomSay` calls `engine.compile()` with `herLife: ""` and
+`memories` set to the FOLLOWER's own private facts only — the ONLY path
+creator material reaches the compiled prompt on this lane is the SHEET
+itself, via `sheetToModule(sheet) -> buildSystemPromptParts(...)`. Every
+sheet field that function reads is either concatenated directly into an
+instruction sentence (`persona.ts:197`: `` `You are ${C.name} — ${C.identityWho}
+... ${C.identityLife} You genuinely like this person as a FRIEND...` ``) or
+appended as a bare paragraph with nothing marking it apart from the
+paragraphs on either side (`persona.ts:370`: `` `${C.boundaryParagraph ??
+ROMANCE_BOUNDARY}` `` between two other unlabelled paragraphs). Separately,
+`src/engine/agents/teacher.ts`'s OWN header comment already says the one
+field SHAPE that was designed to get a real, budgeted, match-then-inject
+TAIL block (`commonMistakeBank`, `analogyBank` — `teacher-sheet-spec.md`
+§3.1) is "NOT compiled into the prompt by this module" — so even the
+field this product's own spec already gave a boundary design to does not
+reach the compiled prompt at all today, hostile or benign.
+
+**Measured, not argued.** `evals/room-adversarial-creator/run.mjs` §1
+compiled all 41 corpus entries through the real, freshly-bundled compiler:
+41/41 reached the compiled prompt, 0/41 landed inside anything the suite's
+own boundary scanner (validated first, in §2, against two toy compiler
+twins built for exactly this — the real compiler has no block to twin)
+would call "contained"
+(`measurements.md#ws-r105-boundary-status-and-clean-diff-41-of-41`).
+
+**Why this is filed here rather than "fixed here."** Building a real
+material block is a compiler change (`src/engine/persona.ts` /
+`src/engine/compiler.ts`), out of this workstream's own Build section, and
+carries its own charm-gate risk `compiler.ts`'s header already names
+(`SPEC.md §0.3`, "no content cut happens at extraction, so no charm gate is
+needed there" — a boundary that CHANGES what reaches the model is exactly
+the kind of cut that law exists to gate). This workstream instead shipped
+the mitigation that IS in scope and does not touch the compiler: an
+ingest-time detector (`decisions.md#ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime`).
+
+**What would reverse this entry.** A future workstream that gives
+`persona.ts`'s sheet-field interpolations a real labelled block (T5's own
+shape is the existing precedent to copy) and re-runs
+`materialBoundaryStatus` against the real compiled prompt, measuring
+`"contained"` rather than `"fused"` on some non-zero fraction of the 41
+entries.
