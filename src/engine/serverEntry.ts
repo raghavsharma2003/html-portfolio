@@ -41,6 +41,18 @@ export {
   renderCreatorMaterial,
   type MaterialLine,
 } from "./compiler";
+// WS-R121: the platform-owned boundary/stage shapes, exported for the same
+// standing reason as the two markers above — `evals/room-adversarial-
+// creator/run.mjs` needs the REAL platform text to assert it (not a
+// creator's own sheet value) sits in the compiled prompt's INSTRUCTION
+// section, outside the material block, regardless of what a hostile sheet's
+// `boundaryParagraph`/stage fields say.
+export {
+  PLATFORM_BOUNDARY,
+  PLATFORM_STAGE_EARLY,
+  PLATFORM_STAGE_GETTING_CLOSE,
+  PLATFORM_STAGE_ESTABLISHED,
+} from "./compiler";
 export {
   renderMpRoster,
   renderMpBridge,

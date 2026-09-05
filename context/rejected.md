@@ -14554,3 +14554,94 @@ carries the identical risk, and the only thing that catches it is running
 `node evals/run.mjs` with no argument, never a single suite in isolation,
 after ANY new import lands anywhere in this repo's tree — not only inside
 `api/`.
+
+## `ws-r121-all-three-stage-texts-as-static-material-every-turn` (2026-09-05, WS-R121)
+
+**Considered, and not built.** The obvious first shape for demoting the
+three stage fields to material was to copy WS-R111's own pattern exactly:
+compute `staticMaterial` ONCE outside the returned closure, listing
+`stageEarly`/`stageGettingClose`/`stageEstablished` alongside
+`boundaryParagraph`, so all four ride as static lines the same way the five
+descriptive fields already do.
+
+**Why it was rejected before being written.** `persona.ts`'s own
+`stageFor`/`stageParagraphFor` select exactly ONE of the three stage
+paragraphs per call, keyed on `messageCount`/`dimsStage` — only that one
+ever reaches a compiled prompt on a given turn, by design (the fused
+position). Surfacing all three as material every turn would (a) hand the
+model two stage descriptions that do not describe the current turn at all,
+which is worse than the fused shape it replaces — the fused version at
+least never shows a stage that isn't active — and (b) roughly TRIPLE this
+block's per-turn byte cost (three ~700-900 B paragraphs instead of one) for
+zero reachability gain, on top of the ceiling raises this workstream
+already needed for one active-stage line (`measurements.md
+#ws-r121-demo-teacher-core-growth-1509-bytes`).
+
+**What replaced it.** `stageParagraphFor` — the exact function
+`buildSystemPromptParts` calls internally to pick the fused paragraph — is
+called a SECOND time, against the RAW (unsanitized) sheet, inside the
+returned `buildSystemPromptParts` closure, at the SAME `messageCount`/
+`dimsStage` the compiled prompt itself is being built with. This produces
+exactly the one raw stage text that governs THIS turn, with no re-derived
+threshold (`persona.ts:150-152`'s `30`/`150` magic numbers stay owned by
+one file) and a byte cost matching the fused shape it replaces rather than
+tripling it.
+
+**The rule.** When demoting a sheet field to material and the field is
+itself selected by a runtime branch (stage, dims, medium, mode — anything
+`buildSystemPromptParts`'s own parameters gate), reuse the SAME selector
+function against the raw sheet inside the per-call closure rather than
+surfacing every branch's value unconditionally. A material line that
+doesn't correspond to the current turn is not merely wasted bytes: it is a
+description the model has no reason to believe describes now, which is a
+smaller version of the exact "recited/stale" failure shape this repo's
+`recited-prompt` and `life-per-person` entries already document from other
+angles.
+
+## `ws-r121-rehearsal-creator-walkFunction-timeout-under-shared-machine-load` (2026-09-05, WS-R121)
+
+**Found, not fixed — filed for whoever next sees `evals/rehearsal/
+creator.mjs` fail in `verify-release.mjs`'s "eval suite" gate.** Two
+consecutive runs of `node evals/run.mjs` (and one run of `node
+scripts/verify-release.mjs`) on THIS workstream's own tree failed inside
+`rehearsal-creator`'s English walk, both times at the SAME point:
+`walkLocale`'s `page.waitForFunction` waiting for the Readiness panel's
+"Knows your material" value to re-render to `"100"` after a real "Measure
+now" recall run (`creator.mjs:484`), `Timeout 20000ms exceeded`. Neither
+failure is this workstream's own code: `src/engine/agents/fromSheet.ts`,
+`teacher.ts` and `compiler.ts` touch the ENGINE's teacher module, never the
+studio's React readiness screen, its re-render timing, or anything on this
+walk's own path.
+
+**Confirmed environmental, not guessed.** `ps aux` during both failures
+showed 15-40 concurrent `verify-release.mjs`/`check-layout.mjs`/Chromium
+processes from SIBLING worktrees (`ws-r122` through `ws-r130`, all wave-
+eighteen workstreams on the SAME shared machine, running their own full
+gates at the same time). A `git worktree add --detach` at the UNTOUCHED
+base commit (`1a0367a`) run through the identical `node evals/rehearsal/
+creator.mjs` under the same concurrent load ALSO failed — not at the same
+line (a 429 from the studio's own rate limiter on a DIFFERENT read,
+`readiness now reads open`, rather than a `waitForFunction` timeout), but
+at the same immediate neighbourhood of the walk (right after the same
+"Measure now" step), which is exactly the shape a CPU-starved run takes
+when the specific step that stalls depends on which request happens to be
+mid-flight when the CPU gets scheduled away. Re-running the full gate TWO
+more times on this workstream's own tree, spaced out and with the shared
+gate ports (8931-8935) confirmed free first, passed cleanly both times
+(`eval suite` at 845,848ms and 400,695ms respectively — both roughly 10x
+this suite's normal ~30s wall clock on an idle machine, consistent with
+severe scheduling contention rather than a hang).
+
+**The rule.** A tight (20s) DOM-polling `waitForFunction` timeout in a
+Playwright suite is not a reliable pass/fail signal when `verify-release.mjs`
+runs on a shared machine with several sibling worktrees' own full gates in
+flight at once. Before attributing a failure at this exact step to a code
+change: (1) check `ps aux` for concurrent `verify-release`/Chromium
+processes from OTHER worktrees; (2) if found, re-run the SAME suite (or, if
+time allows, the same suite on a detached worktree at the untouched base
+commit) rather than assuming the failure is real; a failure that reproduces
+on the untouched tree under the same load is environmental
+(`ws-common.md`'s own rule, restated here with the concrete evidence this
+session gathered for it). Do not raise this suite's own timeout to paper
+over contention that is a property of the MACHINE at a given moment, not
+of the suite.

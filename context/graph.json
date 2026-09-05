@@ -10642,6 +10642,48 @@
       "kind": "measurement",
       "title": "verify-release.mjs: 19/21 checks pass. layout readability and performance budgets both failed inside the combined run (EADDRINUSE 8931; studio-hi paint 961ms) and both confirmed environmental by an immediate standalone re-run: layout 0 findings, performance 8/8 targets within budget (studio-hi 568ms).",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-platform-owned-boundary-and-stage-shapes",
+      "kind": "decision",
+      "title": "The platform now owns the mentor boundary and the three stage paragraphs (PLATFORM_BOUNDARY/PLATFORM_STAGE_EARLY/PLATFORM_STAGE_GETTING_CLOSE/PLATFORM_STAGE_ESTABLISHED, compiler.ts), compiled unconditionally for every Room; a creator sheet's own text for these four fields becomes material-block data instead of the enforced instruction.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-boundary-containment-41-of-41",
+      "kind": "measurement",
+      "title": "evals/room-adversarial-creator/run.mjs \u00a71: boundary status \"contained\" 25/41 -> 41/41, \"fused\" 16/41 -> 0/41, n=41 corpus entries, all nine injectable fields now covered.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-secret-shaped-leak-rate-0-of-9-all-nine-injectable-fields",
+      "kind": "measurement",
+      "title": "Secret-shaped material placed in any of the nine injectable sheet fields (5 via the existing corpus suite, 4 via a supplementary one-off script) produces 0/9 delivered-reply leaks through the real roomSay gate.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-demo-teacher-core-growth-1509-bytes",
+      "kind": "measurement",
+      "title": "sheetToModule(DEMO_TEACHER).buildSystemPromptParts(...).core.length grew 50,162 B -> 51,671 B (+1,509 B) for the two new material lines (boundaryParagraph + the active stage paragraph); the fused position is byte-identical since the demo teacher's own authored text already matched the new platform constants.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-meera-byte-identity-unchanged-83-of-83",
+      "kind": "measurement",
+      "title": "node src/engine/__fixtures__/byte-identity.mjs: 83/83 after this workstream's edits, plus a new direct assertion (evals/room-leak/run.mjs layer 15) that Meera's compiled output carries zero occurrences of PLATFORM_BOUNDARY/PLATFORM_STAGE_*.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-all-three-stage-texts-as-static-material-every-turn",
+      "kind": "rejection",
+      "title": "Surfacing all three stage paragraphs as static material every turn (mirroring the five WS-R111 fields exactly) was considered and rejected: only one stage is ever active per turn, so this would triple the block's byte cost and show two stage descriptions that do not describe the current turn. Replaced by calling stageParagraphFor against the raw sheet inside the per-call closure.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r121-rehearsal-creator-walkFunction-timeout-under-shared-machine-load",
+      "kind": "rejection",
+      "title": "evals/rehearsal/creator.mjs failed twice at the same waitForFunction step under heavy concurrent sibling-worktree load; reproduced (a different failure at the same neighbourhood) on a detached worktree at the untouched base commit under the same load, confirming the failure is environmental (shared-machine contention), not a WS-R121 regression.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20599,6 +20641,56 @@
       "src": "ws-r130-verify-release-gate-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r121-platform-owned-boundary-and-stage-shapes",
+      "rel": "supersedes",
+      "dst": "ws-r111-material-block-covers-five-of-nine-injectable-fields"
+    },
+    {
+      "src": "ws-r121-platform-owned-boundary-and-stage-shapes",
+      "rel": "measured_by",
+      "dst": "ws-r121-boundary-containment-41-of-41"
+    },
+    {
+      "src": "ws-r121-platform-owned-boundary-and-stage-shapes",
+      "rel": "measured_by",
+      "dst": "ws-r121-secret-shaped-leak-rate-0-of-9-all-nine-injectable-fields"
+    },
+    {
+      "src": "ws-r121-platform-owned-boundary-and-stage-shapes",
+      "rel": "measured_by",
+      "dst": "ws-r121-demo-teacher-core-growth-1509-bytes"
+    },
+    {
+      "src": "ws-r121-platform-owned-boundary-and-stage-shapes",
+      "rel": "measured_by",
+      "dst": "ws-r121-meera-byte-identity-unchanged-83-of-83"
+    },
+    {
+      "src": "ws-r121-boundary-containment-41-of-41",
+      "rel": "supersedes",
+      "dst": "ws-r111-boundary-containment-25-of-41"
+    },
+    {
+      "src": "ws-r121-secret-shaped-leak-rate-0-of-9-all-nine-injectable-fields",
+      "rel": "supersedes",
+      "dst": "ws-r111-secret-shaped-leak-rate-0-of-5"
+    },
+    {
+      "src": "ws-r121-demo-teacher-core-growth-1509-bytes",
+      "rel": "supersedes",
+      "dst": "ws-r111-demo-teacher-core-growth-453-bytes"
+    },
+    {
+      "src": "ws-r121-meera-byte-identity-unchanged-83-of-83",
+      "rel": "supersedes",
+      "dst": "ws-r111-meera-byte-identity-unchanged-83-of-83"
+    },
+    {
+      "src": "ws-r121-all-three-stage-texts-as-static-material-every-turn",
+      "rel": "constrains",
+      "dst": "ws-r121-platform-owned-boundary-and-stage-shapes"
     }
   ]
 }

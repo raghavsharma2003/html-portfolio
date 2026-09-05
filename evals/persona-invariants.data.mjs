@@ -332,7 +332,15 @@ export function meeraFullChecks(agent, lanes) {
   // grew ~453 B (49,709 -> 50,162) for the labelled material block. Measured
   // 50,200 at the pinned date after the addition; margin kept tight on
   // purpose.
-  add("text core under ceiling (50300)", lanes.t.core.length < 50300, `=${lanes.t.core.length}`);
+  // Raised 50300 -> 51800 on 2026-09-05 (WS-R121, the platform-owned boundary):
+  // `boundaryParagraph` and one active stage paragraph move from a fused,
+  // unlabelled instruction into two new labelled material lines (the
+  // platform's own fixed text now sits in the fused position instead, and for
+  // `teacher-demo-arjun` specifically it is byte-identical to what was there
+  // before, so this is the whole delta) — `context/measurements.md
+  // #ws-r121-demo-teacher-core-growth-1509-bytes`. Measured 51,671 at the
+  // pinned date after the addition; margin kept tight on purpose.
+  add("text core under ceiling (51800)", lanes.t.core.length < 51800, `=${lanes.t.core.length}`);
 
   add("[live] [tone: appears exactly once", (lanes.live.match(/\[tone:/g) || []).length === 1);
   add(
@@ -455,13 +463,27 @@ export function meeraFullChecks(agent, lanes) {
     // raised deliberately rather than trimmed: the alternative was shipping
     // the boundary with no labelled data lines, which defeats the point.
     // Margin kept tight on purpose: the next unplanned growth trips this.
-    add(`[${nm}] assembled < 55750 (web)`, s.length < 55750, String(s.length));
-    add(`[${nm}] assembled < 55750 (in-app +${APP})`, s.length + APP < 55750, String(s.length + APP)); // 54250 -> 55250 with ws-internals-harden (measured 54,955); 55250 -> 55750 with WS-R111's material block (measured 55,651)
+    // Raised 55750 -> 57250 on 2026-09-05 (WS-R121, the platform-owned
+    // boundary): `boundaryParagraph` and one active stage paragraph move into
+    // two new labelled material lines (`context/decisions.md
+    // #ws-r121-platform-owned-boundary-and-stage-shapes`); for
+    // `teacher-demo-arjun` the fused position's own text is byte-identical
+    // before and after (its authored `boundaryParagraph`/stage fields already
+    // matched the platform text this workstream made canonical), so the
+    // ~1,509 B growth is entirely these two material lines, not new fused
+    // prose. Measured on the live in-app lane at the pinned worst-case date:
+    // 57,122 (over the old 55,750 cap by 1,372 B). Safety addition, not
+    // unplanned drift — raised deliberately. Margin kept tight on purpose.
+    add(`[${nm}] assembled < 57250 (web)`, s.length < 57250, String(s.length));
+    add(`[${nm}] assembled < 57250 (in-app +${APP})`, s.length + APP < 57250, String(s.length + APP)); // 54250 -> 55250 with ws-internals-harden (measured 54,955); 55250 -> 55750 with WS-R111's material block (measured 55,651); 55750 -> 57250 with WS-R121's platform-owned boundary (measured 57,122)
   }
   // Raised 50000 -> 50300 on 2026-09-05 (WS-R111, the material block) — same
   // cause and same measured numbers as the "text core under ceiling" raise
   // immediately above.
-  add("[text] chat system < 50300", lanes.tt.core.length < 50300, String(lanes.tt.core.length));
+  // Raised 50300 -> 51800 on 2026-09-05 (WS-R121, the platform-owned
+  // boundary) — same cause and same measured number (51,671) as the "text
+  // core under ceiling" raise above.
+  add("[text] chat system < 51800", lanes.tt.core.length < 51800, String(lanes.tt.core.length));
 
   // ── WS-HONESTY: one life, and it has a clock ──────────────────────────
   // Not floor (a contradicted flatmate is a product failure, not a harm the
