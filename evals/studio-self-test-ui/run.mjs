@@ -90,8 +90,18 @@ ok("YouTube video and channel intake remain mounted in test mode",
   && !/!testEnvironment && <VideoEnrollPanel/.test(studio)
   && !/!testEnvironment && <IngestChannelStudio/.test(studio));
 ok("the test guide exposes the five source types without an item-count gate",
+  // WS-R106: the five labels moved from a literal `TEST_SOURCE_TYPES` array
+  // in `StudioApp.tsx` into `copy.ts#studioApp.testSourceGuide` (both
+  // locales) -- `TestSourceGuide`'s own component now names the five
+  // ANCHORS (`TEST_SOURCE_ANCHORS`, unchanged targets, never translated)
+  // while the labels it reads for each are locale-aware, `copyTs`'s own
+  // split from `studio` this file already draws one check up
+  // ("the Studio experiment... ENGLISH WORDING (now in copy.ts)"). The
+  // five ENGLISH words still live in `copy.ts`'s source text, just no
+  // longer in `StudioApp.tsx`'s.
   ["Audio or video file", "Screenshot, document, or text file", "Text or web link", "YouTube video", "YouTube channel"]
-    .every((label) => studio.includes(label))
+    .every((label) => copyTs.includes(label))
+  && /TEST_SOURCE_ANCHORS/.test(studio)
   && !/TEST_SOURCE_TARGET|testSourceCount|five-source target/i.test(studio));
 ok("testing removes the Context Locker acknowledgement click without blocking exports",
   /useState\(testEnvironment\)/.test(contextLocker)

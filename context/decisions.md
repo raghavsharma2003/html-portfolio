@@ -18720,3 +18720,211 @@ would make this contract self-enforcing rather than a convention every
 caller has to remember — a real simplification, not attempted here because
 it touches the one door every surface's replies leave by and this
 workstream's brief did not ask for that file to change.
+
+## `ws-r106-studioapp-tsx-converted-tier-1` (2026-09-05, WS-R106)
+
+**Decision.** `StudioApp.tsx` (the studio's single largest file, ~2600
+lines) moves from `TIER_2_ALLOWLIST` to `TIER_1_FILES` in
+`evals/studio-locale/run.mjs`. Every string the static scan can see
+(`CreateReplicaCard`'s own copy — `GENERIC_COPY`/`TEACHER_COPY`/`TEST_COPY`,
+the local, unrelated `StudioCopy` shape WS-R91's own header already
+distinguished from `copy.ts`'s own `StudioCopy` — plus `TestSourceGuide`,
+`ReplicaList`, `VoiceUnlockNotice`, every Feed/Meet/Share `Band` title and
+blurb inside `ReplicaWorkspace`, the disclosure/channels empty states, the
+revoke confirmation dialog, the owner-control section, every `Suspense`
+loading fallback, and the signed-in shell's own header/workspace-switch
+chrome) now reads `copy.ts#studioApp` in both locales. `copy` itself (the
+prop `CreateReplicaCard` and `ReplicaWorkspace` both still take, typed by
+the SAME local `StudioCopy` interface WS-R91 left in place) is now selected
+locale-aware inside `StudioApp()`: `sa.createReplica[STUDIO_SELF_TEST_UI ?
+"test" : mode === "teacher" ? "teacher" : "generic"]`, where `sa =
+STUDIO_COPY_TABLE[studioLocale].studioApp` — the exact
+`STUDIO_COPY_TABLE[studioLocale]` direct-read `handleExport` already used
+one function over (`StudioApp` itself mounts `StudioLocaleProvider` below
+its own return, so it cannot call `useStudioLocale()` on itself; `sa` is
+that same seam generalised to the whole new block, read once and passed
+nowhere — every handler in the component reads it as a closure variable).
+
+**What stays deliberately English, inside this now-Tier-1 file.** Two
+classes, both pre-existing constraints unrelated to this workstream's own
+scope: (1) every `handleApiError(cause, "fallback headline")` call's
+fallback string — these flow into `friendlyError()` (`errorCopy.ts`, a
+`.ts` file, never a `.tsx`, so outside `evals/studio-locale/run.mjs`'s own
+`.tsx`-only scan and outside this workstream's file list), which ALSO
+renders `REFUSAL_COPY`'s own English headlines/details and a raw `"The
+server said: ..."` quoted detail for the general case — translating only
+the one-line fallback while the rest of that same error banner stays
+English would ship a mixed-language banner, the same "splitting a screen's
+chrome from its meaning-bearing prose" failure `context/rejected.md#ws-r61-
+partial-modelconsentgate-translation-considered-and-rejected` already
+argues against, one surface over; (2) the workspace status/stopped-panel
+micro-labels this file's own render still computes from server enums
+(`lifecycleLabel()`, the `STOPPED`/`OWNER CONTROLLED`/`Erasure verified`/
+`Erasure in progress` badges, "Step {n} of {total}", "Created {date} ·
+Policy {version}") — the SAME "server-computed prose" exclusion class
+`copy.ts`'s own file header already names for `ReadinessPanel.tsx`'s
+`part.label` and `RoomStudio.tsx`'s `blocker.headline`, restated here for a
+different file. Neither is silent: both are named, with their reason, in
+this file's own `TIER_1_FILES` comment in `evals/studio-locale/run.mjs`.
+
+**One content fix this move forced.** The signed-in header's small label
+under the VYAKTI wordmark read "REPLICA STUDIO" in generic/self mode
+(`"GURUKUL STUDIO"` in teacher mode, unchanged). That string sat in a bare,
+unbound JSX ternary branch — `scripts/check-copy.mjs`'s PASS 2 extracts
+only JSX text NODES and string literals bound to a visible-prop name or a
+`COPY_FILES`-matched module, and a ternary branch that is neither of those
+is invisible to it — so the word "replica" in it never tripped the
+rooms-vocabulary rule while it lived inline. Moving it into `copy.ts` (a
+`COPY_FILES` match, `roomsVocab: true` for all of `src/studio/`) puts it in
+front of that rule for the first time, and it failed:
+`\breplica[s]?\b` matches "REPLICA" exactly. Renamed to "AI STUDIO" in
+both locales (`header.genericStudio`) — the same short, two-word badge
+shape the teacher variant already used, just without the banned word. See
+`context/rejected.md#ws-r10-check-copy-apostrophe-parity` for the SAME
+"moving a string into a scanned file changes what fires on it" mechanism,
+restated for a banned word instead of a dash.
+
+**Reversal condition.** If a future workstream splits `StudioApp.tsx` (the
+brief-planning session already flags it as oversized), the `studioApp`
+copy block splits along the same seams and each new file's own
+`TIER_1_FILES` entry replaces this one; nothing about the underlying copy
+changes. If `errorCopy.ts` is ever localized in full (a real workstream of
+its own — a parallel `REFUSAL_COPY` table per locale, not a translation of
+one fallback string), the `handleApiError` fallback strings named above can
+move into `copy.ts#studioApp` in the same change, with the mixed-language
+risk gone.
+
+## `ws-r106-disclosurepreview-stays-tier-2-roomsvocaballowlist-evidence` (2026-09-05, WS-R106)
+
+**Decision.** `DisclosurePreview.tsx` stays in `TIER_2_ALLOWLIST`,
+unconverted, despite this workstream's own brief naming it (by omission —
+"everything outside the six ceremonies converts") as a file expected to
+move to Tier 1 this session.
+
+**Rationale.** Reading the file before touching it (this workstream's own
+law 1, and `AGENTS.md`'s standing rule) surfaced hard evidence the brief's
+author did not have in view: `scripts/roomsVocabAllowlist.mjs` — the
+repo's own named, exhaustive list of every exception to the rooms-vocabulary
+rule, checked by exact substring match — carries two entries scoped BY
+EXACT STRING to this exact file: `"You're talking with an AI clone of"` and
+`"I'm an AI clone of"`, both stated to be copied verbatim from
+`safety-floor-teacher.md` §1.1-§1.2. That file's own header states the law
+plainly: "Renaming the words under a live consent artifact is the exact
+failure `safety-floor-teacher.md` §2.1 names... a fixture (or a rewrite)
+may never stand in on a consent surface." A Hindi translation of this card
+is precisely that rewrite — it would move the exact words a teacher already
+approved as what a student sees and hears, under an existing consent
+receipt, the identical risk `context/decisions.md#ws-r61-modelconsentgate-
+left-untouched-consent-ceremony-legal-text` already carves `ModelConsentGate
+.tsx` out for. This file's own existing `TIER_2_ALLOWLIST` reason (WS-R61)
+already argued the softer version of this point (a fixed, per-creator-
+identical floor, deferred as a unit); this session adds the harder,
+name-checked evidence that converting it is not merely undesirable but
+would collide with a mechanism the codebase already built specifically to
+prevent it.
+
+**Reversal condition.** If `safety-floor-teacher.md` §1.1-§1.2 is ever
+formally re-approved in Hindi (a legal/safety review this workstream did
+not have the standing to perform) and `scripts/roomsVocabAllowlist.mjs`
+gains matching Hindi-string entries for the translated wording, this file
+converts along with that change, in the same commit — never ahead of it.
+
+## `ws-r106-quickstartpath-and-opsboard-stay-tier-2` (2026-09-05, WS-R106)
+
+**Decision.** `QuickStartPath.tsx` and `OpsBoard.tsx` also stay in
+`TIER_2_ALLOWLIST`, reaffirmed rather than converted, despite the same
+brief-naming gap `DisclosurePreview.tsx`'s own entry above describes.
+
+**Rationale.** Both carry a PRE-EXISTING, independently-reasoned constraint
+this session re-read in full rather than took on faith (this workstream's
+own law 1): `QuickStartPath.tsx`'s `BLOCKER_META.note` strings are read
+directly by `evals/studiowizard.mjs`'s English-only `BLAME_PATTERNS`
+honesty check (the same constraint `context/decisions.md#ws-r52-class-
+labels-split-from-blockerclass-ts-own-copy` already states for the sibling
+file `blockerClass.ts`, and names the exact reversal: a Hindi-language
+`BLAME_PATTERNS` equivalent, wired into `evals/studiowizard.mjs`, is a real
+workstream of its own, not a translation this brief budgeted for).
+`OpsBoard.tsx` is a standalone `?mode=ops` mount (`main.tsx`'s own routing,
+never wrapped in `StudioLocaleProvider`) with no locale state and no
+language switcher at all — `context/decisions.md#ws-r62-ops-board-push-
+copy-stays-english-inline` and its own restatement
+`#ws-r88-ops-board-digest-copy-stays-english-inline` already made this call
+twice; converting its copy without first building locale infrastructure for
+a screen the product has no reason to localize (its own readers are the
+platform's operators, not a follower or creator) would ship dead-weight
+`copy.ts` entries nothing could ever read — `AGENTS.md`'s own "a plausible
+return hides a dead pipeline" law, restated for a translation table instead
+of a function return.
+
+**Reversal condition.** Identical to the decisions these restate: a Hindi
+honesty detector for `QuickStartPath.tsx`, and a locale switcher plus
+`StudioLocaleProvider` mount for `OpsBoard.tsx`.
+
+## `ws-r106-check-copy-generic-angle-bracket-parity` (2026-09-05, WS-R106)
+
+**Decision.** Two `copy-ok:` exemption comments were added to
+`StudioApp.tsx` (on the `useState<StudioSession | null>` line and on a
+`</div>` closing a loading skeleton) rather than editing
+`scripts/check-copy.mjs`'s own extraction, and rather than renaming the
+pre-existing `replicas`/`replicas.length` identifiers those two lines
+happened to fall near.
+
+**Rationale.** `scripts/check-copy.mjs`'s `textNodes()` finds JSX text by
+pairing a bare `>` with the next `<`, with no awareness that a TS generic
+(`useState<Replica[]>`) produces the identical characters outside any JSX
+tag. Restructuring `StudioApp.tsx` (removing the old `GENERIC_COPY`/
+`TEACHER_COPY`/`TEST_COPY` block, moving the `copy` assignment) shifted
+WHICH stretches of plain `const [x, setX] = useState(...)` declarations
+sit between two REAL `<`/`>` occurrences elsewhere in the file, and two of
+those stretches now happen to contain the plain, pre-existing variable name
+`replicas` — which `\breplica[s]?\b` matches exactly, a real rule
+firing on code, not copy. This is the SAME mechanism
+`context/rejected.md#ws-r10-check-copy-apostrophe-parity` already
+documented and named a rule for ("do not trust a check-copy line number or
+snippet as the literal location of a hit; trace it before editing") —
+restated here for angle brackets rather than apostrophes, and confirmed by
+running the SAME file through the untouched tree first (zero hits) before
+concluding the two hits were mechanical, not content. Renaming `replicas`
+throughout a 2600-line file that predates this workstream to satisfy a
+regex quirk would be a large, out-of-scope, purely mechanical refactor for
+zero user-facing benefit; `copy-ok:` is the tool's own documented escape
+hatch for exactly this class of false positive ("ESCAPE HATCH. `copy-ok:
+<reason>` on the same line... exempts that line", this file's own header).
+
+**Reversal condition.** If `scripts/check-copy.mjs`'s own extraction is
+ever taught to recognise a TS generic's `<...>` (the same class of fix
+`ws-r10`'s own entry asks for on the apostrophe side — "track that
+distinction rather than blanking quotes file-wide"), both `copy-ok:`
+comments can be removed in the same change that lands the fix.
+
+## `ws-r106-hindi-chunk-wait-miss-flagged-not-fixed` (2026-09-05, WS-R106)
+
+**Decision.** `scripts/check-performance.mjs`'s `HINDI_CHUNK_WAIT_BUDGET_MS`
+(800ms) stays at 800, unchanged, even though this workstream's own tree
+measured `studio-hi`'s Hindi chunk wait over it twice in isolation (870ms,
+879ms, `context/rejected.md#ws-r106-studio-hindi-chunk-wait-measured-870-
+879ms-against-800-budget`). The gate is left reporting this as a real,
+open finding for the main loop rather than adjusted by this workstream.
+
+**Rationale.** This workstream's brief named the studio's Tier-2 English
+strings as its scope, never a performance budget; changing a shipping gate
+is a decision with wider consequences (every other workstream this wave
+is held to the SAME 21/23-check contract) than one workstream has standing
+to make unilaterally, even when its own change is the direct, measured
+cause. `first-hindi-paint-budget-set-from-measurement` is the precedent
+for how this project actually handles a budget a legitimate content
+addition pushes over: measure it, name the new number FROM the
+measurement (never copy an adjacent budget's number), and name what would
+put it back. This entry does the measuring and the naming; the main loop
+decides whether 800 moves.
+
+**Reversal condition.** If a future workstream (a) preloads the Hindi
+chunk from the built page the way `context/decisions.md#first-hindi-paint-
+budget-set-from-measurement`'s own reversal already names for the
+SIBLING `firstHindiPaintMs` metric, closing the gap the same way, or (b)
+splits `copy.ts#studioApp` into its own smaller chunk rather than growing
+the single `hiCopy.ts` chunk further, three consecutive gate runs
+measuring under 800ms would confirm either fix; absent either, the honest
+move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
+(not copied from this one) the same way the sibling budget was raised, and
+record the new number's own reversal condition in the same commit.

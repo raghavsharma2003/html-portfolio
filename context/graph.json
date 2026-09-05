@@ -9844,6 +9844,60 @@
       "kind": "rejection",
       "title": "WS-R102's import of the self-check module from the ops module closed a seven-file cycle starting at the incidents module, whose kind list the self-check module reads at module scope; two suites crashed only when their first import entered the cycle at the top. The prefix constant moved to the incidents module.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-studioapp-tsx-converted-tier-1",
+      "kind": "decision",
+      "title": "StudioApp.tsx (the studio's largest file) moves from TIER_2_ALLOWLIST to TIER_1_FILES in evals/studio-locale/run.mjs; every string the static scan can see now reads copy.ts#studioApp in both locales; errorCopy.ts's fallback headlines and the server-computed status/lifecycle micro-labels stay English, named and reasoned.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-disclosurepreview-stays-tier-2-roomsvocaballowlist-evidence",
+      "kind": "decision",
+      "title": "DisclosurePreview.tsx stays Tier 2 despite the brief naming it as a conversion candidate: scripts/roomsVocabAllowlist.mjs carries two entries scoped by exact string to this file, copied verbatim from safety-floor-teacher.md 1.1-1.2, and its own header forbids renaming the words under a live consent artifact.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-quickstartpath-and-opsboard-stay-tier-2",
+      "kind": "decision",
+      "title": "QuickStartPath.tsx and OpsBoard.tsx stay Tier 2, reaffirming pre-existing constraints (the English-only BLAME_PATTERNS honesty check, and no locale infrastructure at all on the ops-only ?mode=ops mount) rather than converting them despite the brief's own instruction.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-check-copy-generic-angle-bracket-parity",
+      "kind": "rejection",
+      "title": "Two check-copy.mjs rooms-vocabulary hits inside StudioApp.tsx traced to a phantom text node (a TS generic's \">\" paired with a distant \"<\" by textNodes()'s bracket-only heuristic), the same failure class as ws-r10-check-copy-apostrophe-parity restated for angle brackets; fixed with two copy-ok: exemptions rather than renaming the pre-existing replicas identifier the phantom crossed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-studio-strings-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "Studio copy table leaf-string count: 1506 to 1641 per locale (+135, all in copy.ts#studioApp), n=1 full recount each side, method esbuild bundle + recursive leaf walk, before = untouched c2945f7 worktree, after = this workstream's tree.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-studioapp-own-copy-read-crashed-before-the-hindi-chunk-loaded",
+      "kind": "rejection",
+      "title": "First cut of the sa/copy seam read STUDIO_COPY_TABLE[studioLocale].studioApp unconditionally in StudioApp(), crashing on the throwing Hindi Proxy before StudioLocaleProvider ever got to withhold its children; fixed with an English fallback plus a useReducer/useEffect pair mirroring the provider's own not-ready-yet pattern one component up.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-two-evals-hardcoded-english-literals-against-studioapp-source",
+      "kind": "rejection",
+      "title": "evals/studio-self-test-ui/run.mjs and evals/voice-preview-ui.mjs regex-matched English literals directly against StudioApp.tsx's raw source; both moved into copy.ts as part of this workstream's Tier-1 conversion, so both evals were updated to check copy.ts (or the binding expression) instead, the established WS-R52/WS-R71 pattern for a literal that moves file.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed",
+      "kind": "decision",
+      "title": "HINDI_CHUNK_WAIT_BUDGET_MS stays 800 despite this workstream's own measured 870-879ms miss (hiCopy.ts grew 11.9% from 135 new Hindi strings); flagged for the main loop rather than adjusted unilaterally, with the reversal condition (a chunk preload or a smaller split, confirmed by three clean sub-800ms runs) named.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r106-studio-hindi-chunk-wait-measured-870-879ms-against-800-budget",
+      "kind": "measurement",
+      "title": "studio-hi Hindi chunk wait measured 870ms then 879ms in isolation (ports confirmed free, load average 2.5-2.8), n=2 full check-performance.mjs runs each a 3-run median, both over the 800ms budget; hiCopy.ts grew 184309 to 206298 bytes (+11.9%) from this workstream's 135 new Hindi strings.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19156,6 +19210,61 @@
       "src": "ops-importing-self-check-closed-a-load-order-cycle-on-the-incident-kinds",
       "rel": "caused_by",
       "dst": "ws-r58-incidents-importing-opsownerids-from-ops-js-makes-a-cycle"
+    },
+    {
+      "src": "ws-r106-studioapp-tsx-converted-tier-1",
+      "rel": "supersedes",
+      "dst": "ws-r91-authgate-reads-locale-before-sign-in"
+    },
+    {
+      "src": "ws-r106-studioapp-tsx-converted-tier-1",
+      "rel": "constrains",
+      "dst": "ws-r61-partial-modelconsentgate-translation-considered-and-rejected"
+    },
+    {
+      "src": "ws-r106-disclosurepreview-stays-tier-2-roomsvocaballowlist-evidence",
+      "rel": "constrains",
+      "dst": "ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text"
+    },
+    {
+      "src": "ws-r106-quickstartpath-and-opsboard-stay-tier-2",
+      "rel": "constrains",
+      "dst": "ws-r52-class-labels-split-from-blockerclass-ts-own-copy"
+    },
+    {
+      "src": "ws-r106-check-copy-generic-angle-bracket-parity",
+      "rel": "caused_by",
+      "dst": "ws-r10-check-copy-apostrophe-parity"
+    },
+    {
+      "src": "ws-r106-studio-strings-before-after-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r106-studioapp-tsx-converted-tier-1"
+    },
+    {
+      "src": "ws-r106-studioapp-own-copy-read-crashed-before-the-hindi-chunk-loaded",
+      "rel": "caused_by",
+      "dst": "ws-r106-studioapp-tsx-converted-tier-1"
+    },
+    {
+      "src": "ws-r106-two-evals-hardcoded-english-literals-against-studioapp-source",
+      "rel": "caused_by",
+      "dst": "ws-r106-studioapp-tsx-converted-tier-1"
+    },
+    {
+      "src": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed",
+      "rel": "measured_by",
+      "dst": "ws-r106-studio-strings-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed",
+      "rel": "constrains",
+      "dst": "first-hindi-paint-budget-set-from-measurement"
+    },
+    {
+      "src": "ws-r106-hindi-chunk-wait-miss-flagged-not-fixed",
+      "rel": "measured_by",
+      "dst": "ws-r106-studio-hindi-chunk-wait-measured-870-879ms-against-800-budget"
     }
   ]
 }

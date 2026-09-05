@@ -110,19 +110,37 @@ await installStudioCopy("hi");
   );
   ok("neither locale table is empty", enPaths.length > 50);
 
+  // WS-R106: the ONE deliberate blank in the whole table, in BOTH locales --
+  // `studioApp.createReplica.test.firstEyebrow` mirrors the pre-existing
+  // (untouched) `TEST_COPY.firstEyebrow: ""` this workstream moved out of
+  // `StudioApp.tsx`: `CreateReplicaCard` renders `{copy.firstEyebrow && <p>
+  // ...}`, so an intentionally empty eyebrow is "render nothing here", the
+  // same shape `authGate.variant.test` uses one section below (there, the
+  // KEY itself is absent rather than blank, because AuthGate's own variant
+  // type has no eyebrow field for "test" at all; here the shared
+  // `CreateReplicaVariantCopy` interface names the field for all three
+  // variants, so "test" carries it deliberately empty instead).
+  const KNOWN_BLANK_KEYS = new Set(["studioApp.createReplica.test.firstEyebrow"]);
+
   const blankHi = hiPaths.filter((p) => {
+    if (KNOWN_BLANK_KEYS.has(p)) return false;
     const leafKey = p.replace(/\[\d+\]$/, "");
     const val = leafKey.split(".").reduce((o, k) => o?.[k], STUDIO_COPY_TABLE.hi);
     return Array.isArray(val) ? val.some((s) => !String(s).trim()) : !String(val ?? "").trim();
   });
-  ok("no blank Hindi string anywhere in the table", blankHi.length === 0, blankHi.join(", "));
+  ok("no blank Hindi string anywhere in the table (besides the one named deliberate blank)", blankHi.length === 0, blankHi.join(", "));
 
   const blankEn = enPaths.filter((p) => {
+    if (KNOWN_BLANK_KEYS.has(p)) return false;
     const leafKey = p.replace(/\[\d+\]$/, "");
     const val = leafKey.split(".").reduce((o, k) => o?.[k], STUDIO_COPY_TABLE.en);
     return Array.isArray(val) ? val.some((s) => !String(s).trim()) : !String(val ?? "").trim();
   });
-  ok("no blank English string anywhere in the table", blankEn.length === 0, blankEn.join(", "));
+  ok("no blank English string anywhere in the table (besides the one named deliberate blank)", blankEn.length === 0, blankEn.join(", "));
+
+  ok("the one deliberate blank is blank in BOTH locales (not an accidental Hindi-only or English-only gap)",
+    STUDIO_COPY_TABLE.en.studioApp.createReplica.test.firstEyebrow === "" &&
+    STUDIO_COPY_TABLE.hi.studioApp.createReplica.test.firstEyebrow === "");
 
   ok("normalizeStudioLocale falls back to en for anything unrecognised",
     normalizeStudioLocale("fr") === "en" && normalizeStudioLocale(undefined) === "en" && normalizeStudioLocale("hi") === "hi");
@@ -236,6 +254,31 @@ await installStudioCopy("hi");
     // no literal English text of its own (`label` is always a caller's own
     // prop, an `aria-label` attribute value rather than a JSX text node).
     "StudioChrome.tsx",
+    // WS-R106: the studio's last remaining Tier-2 file, converted whole.
+    // `CreateReplicaCard`/`ReplicaList`/`TestSourceGuide`/`VoiceUnlockNotice`
+    // and every string `ReplicaWorkspace` renders (Feed/Meet/Share bands,
+    // the disclosure/channels empty states, the revoke dialog, the owner
+    // control section, every loading fallback) and the signed-in shell's own
+    // chrome (header, workspace switch, the plain `setNotice`/`setInviteError`
+    // strings that do not route through `errorCopy.ts`) all now read
+    // `copy.ts#studioApp` -- see context/decisions.md#ws-r106-studioapp-tsx-
+    // converted-tier-1. `TEACHER_COPY`/`GENERIC_COPY`/`TEST_COPY` (the local,
+    // unrelated `StudioCopy` this file's own header still names) are GONE:
+    // `copy` is now selected locale-aware from `copy.ts#studioApp.
+    // createReplica` at the one call site inside `StudioApp()`, the same
+    // `STUDIO_COPY_TABLE[studioLocale]` direct-read pattern `handleExport`
+    // already used (this component wraps `StudioLocaleProvider`, so it
+    // cannot call `useStudioLocale()` itself). What stays deliberately
+    // English inline, and why, is named by this file's own comment two
+    // lines up (`errorCopy.ts`'s fallback-headline strings and the
+    // status-badge/lifecycle micro-labels) -- see
+    // context/decisions.md#ws-r106-studioapp-tsx-converted-tier-1 for the
+    // full boundary and context/rejected.md#ws-r10-check-copy-apostrophe-
+    // parity for the two `copy-ok:` lines this conversion needed (a TS
+    // generic's `<`/`>` colliding with `scripts/check-copy.mjs`'s own
+    // text-node heuristic, the same documented failure mode restated for
+    // angle brackets rather than apostrophes).
+    "StudioApp.tsx",
   ];
 
   // Every file this workstream did NOT convert, one line each. See
@@ -249,15 +292,14 @@ await installStudioCopy("hi");
   // below) -- context/rejected.md for what was tried and why a full pass in
   // one session was rejected (all three sessions).
   const TIER_2_ALLOWLIST = {
-    "DisclosurePreview.tsx": "Renders the FIXED disclosure card text a follower reads (never translated per-creator; it is the platform's own floor, identical for every published AI) alongside its own chrome; deferred as a unit rather than split (WS-R61's own `ModelConsentGate.tsx` finding applies here too: `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues splitting a consent-adjacent screen's chrome from its frozen wording changes what the WHOLE screen communicates, so this file is left whole rather than split).",
+    "DisclosurePreview.tsx": "Renders the FIXED disclosure card text a follower reads (never translated per-creator; it is the platform's own floor, identical for every published AI) alongside its own chrome; deferred as a unit rather than split (WS-R61's own `ModelConsentGate.tsx` finding applies here too: `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues splitting a consent-adjacent screen's chrome from its frozen wording changes what the WHOLE screen communicates, so this file is left whole rather than split). WS-R106 re-read this file against this workstream's own brief (which named it as a candidate to convert) and found HARD evidence it must stay: `scripts/roomsVocabAllowlist.mjs` -- the repo's own named list of the ONLY rooms-vocabulary exceptions -- carries two entries scoped by exact string to this exact file (\"You're talking with an AI clone of\", \"I'm an AI clone of\"), copied verbatim from `safety-floor-teacher.md` §1.1-§1.2, with that file's own header stating plainly: \"Renaming the words under a live consent artifact is the exact failure safety-floor-teacher.md §2.1 names... a fixture (or a rewrite) may never stand in on a consent surface.\" Translating this card is precisely that rewrite. See context/decisions.md#ws-r106-disclosurepreview-stays-tier-2-roomsvocaballowlist-evidence.",
     "EnrollmentWorkspace.tsx": "WS-R82 read this file in full (it was one of this workstream's own four named files) and found its consent-panel article carries a live, FOUR-statement `attestations` array a creator affirmatively checks -- an identity claim (\"I am creating a replica of myself, not another person\"), an age claim, a rights claim, and an understanding of the synthetic-disclosure requirement -- the SAME formal consent-ceremony shape as `ModelConsentGate.tsx`'s six `STATEMENTS`, not the lighter feature-gating shape `ContextLockerPanel.tsx`'s one checkbox turned out to be. This makes it a SEVENTH consent-ceremony file, found after WS-R83's own brief had already fixed its scope at the six WS-R61/WS-R71 found (`ModelConsentGate`, `IdentityProofing`, `VideoEnrollPanel`, `IngestChannelStudio`, `LivenessCapture`, `VoiceIdentityChallenge`) -- extracting this ceremony into its own file this session, the way `PayoutsCard.tsx` etc. were carved out of `RoomStudio.tsx`, was built, type-checked clean, and then DELIBERATELY REVERTED once this finding surfaced, specifically so it would not silently widen WS-R83's fixed six-file scope out from under a sibling workstream that names that exact count in its own eval's completeness proof. Left whole and entirely unconverted this session, matching every other file in this list. See context/decisions.md#ws-r82-enrollment-workspace-is-a-seventh-consent-ceremony-not-converted.",
     "IdentityProofing.tsx": "WS-R61 read this file and chose NOT to convert it: its `STATEMENTS` array is the exact English wording a creator affirmatively checks before submitting a government ID for age/identity verification (KYC-adjacent). Unlike this workstream's other wave-one files, a mistranslation here has real legal/compliance weight and no dedicated legal review was in scope for this session -- same caution `ModelConsentGate.tsx`'s own entry below states for a similar reason, see context/decisions.md#ws-r61-identity-proofing-consent-statements-deferred-not-attempted.",
     "IngestChannelStudio.tsx": "WS-R71 read this file in full: `STATEMENT_COPY` is a FIVE-statement YouTube channel-ownership/audio-extraction consent ceremony, a teacher affirmatively checks each one before any video is read -- the same shape and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are already carved out for, extended here to a THIRD screen this wave found. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "LivenessCapture.tsx": "WS-R71 read this file in full: its `consentActive`-gated fieldset (`biometric-consent-list`) is a biometric-data consent ceremony, the single most legally sensitive class of consent text in this product (per `docs/gurukul` and India's DPDP Act's own biometric-data provisions) -- left with the SAME reasoning as `ModelConsentGate.tsx`/`IdentityProofing.tsx`. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "ModelConsentGate.tsx": "Its six `STATEMENTS` are pre-existing consent-ceremony legal text: four of them are named BY STRING, in this exact English wording, in scripts/roomsVocabAllowlist.mjs's own escape hatch (a teacher already affirmatively checked these exact words before any replica was built). WS-R61 read that file before touching this one and stopped: translating the ceremony would move the words a person already consented to, the precise failure roomsVocabAllowlist.mjs's own header names (`safety-floor-teacher.md` §2.1). See context/decisions.md#ws-r61-modelconsentgate-left-untouched-consent-ceremony-legal-text.",
-    "OpsBoard.tsx": "Internal operator dashboard (`?mode=ops`), never a creator-facing screen at all.",
-    "QuickStartPath.tsx": "Owns BLOCKER_META, honesty-gated prose checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS regex (copy.ts's own header); localizing it without a parallel Hindi honesty check would ship an ungated safety-adjacent surface.",
-    "StudioApp.tsx": "Owns TEACHER_COPY/GENERIC_COPY/TEST_COPY (pre-existing, unrelated local `StudioCopy` -- WS-R31 era, `CreateReplicaCard`'s own copy only since WS-R91 moved the sign-in fields out, see `context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`) plus every lazy-mounted Tier 2 panel's wiring; the shell mount, locale provider and language-switch wiring this workstream added ARE converted (see StudioShell.tsx), and the sign-in screen itself moved out entirely to its own Tier 1 file, `AuthGate.tsx` (WS-R91).",
+    "OpsBoard.tsx": "Internal operator dashboard (`?mode=ops`), never a creator-facing screen at all -- WS-R106 re-read this file against its own brief's \"everything outside the six ceremonies converts\" instruction and reaffirms the standing decision (`context/decisions.md#ws-r62-ops-board-push-copy-stays-english-inline`, restated a second time in `#ws-r88-ops-board-digest-copy-stays-english-inline`): this page is never mounted under `StudioLocaleProvider` at all (it is `main.tsx`'s own standalone `?mode=ops` mount, a deliberately separate product this file's own header says never grafts onto the studio), carries no locale state and no language switcher, and its own operators are the platform team, not a follower or creator this repo's Hindi work is for. Converting it would need building locale infrastructure for a screen the product has no reason to localize, not translating strings that already exist -- a different, larger, out-of-scope change this workstream's brief did not ask for either.",
+    "QuickStartPath.tsx": "Owns BLOCKER_META, honesty-gated prose checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS regex (copy.ts's own header); localizing it without a parallel Hindi honesty check would ship an ungated safety-adjacent surface. WS-R106 re-read this file against its own brief's \"everything outside the six ceremonies converts\" instruction and reaffirms the standing decision (`context/decisions.md#ws-r52-class-labels-split-from-blockerclass-ts-own-copy` states the same honesty-gate constraint for the sibling file `blockerClass.ts`, and names the exact reversal condition: a future workstream that builds a Hindi-language `BLAME_PATTERNS` equivalent and extends `evals/studiowizard.mjs` to run it against this file's own `BLOCKER_META.note` strings can convert both in the same change).",
     "VideoEnrollPanel.tsx": "WS-R71 read this file in full: `ATTESTATION_COPY` is a FIVE-statement YouTube channel-ownership/rights/audio-extraction consent ceremony a teacher affirmatively checks (`owns_or_controls_channel`, `is_rights_holder_of_uploads`, `authorizes_audio_extraction_for_own_replica`, `understands_tos_exposure_is_not_copyright_permission`, `understands_revocation_stops_extraction`) -- essentially the same statement set as `IngestChannelStudio.tsx`'s own consent ceremony below, and the same risk `ModelConsentGate.tsx`/`IdentityProofing.tsx` are carved out for. `context/rejected.md#ws-r61-partial-modelconsentgate-translation-considered-and-rejected` argues against splitting a consent screen's chrome from its statements, so this file is left whole. See context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
     "VoiceIdentityChallenge.tsx": "WS-R71 read this file in full: it shares `LivenessCapture.tsx`'s own `consentActive`-gated biometric consent shape (voice identity is biometric data), so it carries the SAME reasoning -- see that entry and context/decisions.md#ws-r71-consent-ceremony-files-found-and-not-converted.",
   };

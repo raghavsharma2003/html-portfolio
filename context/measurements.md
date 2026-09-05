@@ -12964,3 +12964,29 @@ fresh, stuck-turn endpoint, one voice, web build, eval suite [372s, includes
 `recall-run`/`readiness`/`room-doors`], room leak battery, room export
 completeness, room door battery, accessibility, security headers) passed on
 the ws-r101 tree in a single run, no retry needed.
+
+## `ws-r106-studio-strings-before-after-2026-09-05`
+
+**Method.** `STUDIO_COPY_TABLE.en`/`.hi` bundled with esbuild and walked
+recursively counting leaf strings (arrays counted by element), the SAME
+method `evals/studio-locale/run.mjs`'s own key-parity check uses, run once
+against the untouched tree (`git worktree add` of base commit `c2945f7`,
+`npm install`, no other change) and once against this workstream's tree.
+n = 1 (each side is a full deterministic recount of the real table, not a
+sample).
+
+| | before (c2945f7) | after (WS-R106) | delta |
+|---|---|---|---|
+| leaf strings, English table | 1506 | 1641 | +135 |
+| leaf strings, Hindi table | 1506 | 1641 | +135 |
+| `src/studio/*.tsx` files, total | 50 | 50 | 0 |
+| Tier 1 (converted) files | 39 | 40 | +1 (`StudioApp.tsx`) |
+| Tier 2 (allowlisted, unconverted) files | 11 | 10 | -1 |
+
+The 135 new leaves are entirely `copy.ts#studioApp` (measured directly:
+`countLeaves(STUDIO_COPY_TABLE.en.studioApp)` also returns 135 in both
+locales), the whole of what `StudioApp.tsx`'s move to Tier 1 needed.
+`evals/studio-locale/run.mjs`'s own suite (`node evals/studio-locale/run.mjs`)
+independently re-derives the 1641 figure and runs the real
+`scripts/check-copy.mjs` scanner against every one of the 1641 Hindi
+strings directly (not a sample) as its own check; both counts agree.
