@@ -18243,3 +18243,89 @@ a bearer, anything naming someone other than the sender — build the
 Telegram identity bridge into `evals/room-doors/fixtures.mjs` for real
 rather than routing around it a second time, and add that command's own
 class there.
+
+## `ws-r109-fold-rehearsal-harnesses-onto-one-contract` (2026-09-05, WS-R109)
+
+**Decision.** `evals/rehearsal/harness-creator.mjs` (WS-R95's own fetch-intercept
+seam over fixed fake Neon/Supabase hosts) is retired. `evals/rehearsal/
+harness.mjs` (WS-R94's own module-resolution redirect) now serves BOTH
+rehearsals: `startHarness({kind: "follower" | "creator"})` builds the matching
+fixture world and mounts the five creator doors plus `api/checkins.js`
+alongside the existing follower/creator-page/room-about routes. The auth
+stub (`stubs/auth-with-fake-user.mjs`) gained its own small `requireUser`
+reimplementation (over the SAME stub `userFromToken`) rather than
+re-exporting the real one, because the real `requireUser` calls the real
+module's own `userFromToken` by a same-module lexical reference that
+re-exporting cannot override — the actual reason the two harnesses needed
+different mechanisms was never "the studio needs a real NEON_URL/
+SUPABASE_URL fetch", confirmed false by grep across every module the five
+creator doors' call graph reaches (none reads those env vars directly
+outside `_db.js`/`_auth.js`), it was this one auth-call-shape difference.
+A network guard (loopback only, everything else throws by name) was added
+to `harness.mjs` to keep the fetch-interceptor's "never a real network
+call" safety property without reintroducing the fake-host mechanism.
+
+**Rationale.** The wave-sixteen brief's own law 1 required this fold
+conditioned on exactly this check; doing it removes a second, drifting copy
+of the Vercel req/res shim (`harness-creator.mjs` duplicated ~285 lines
+`harness.mjs` already had shapes for) and lets the follower harness's own
+`/r/<slug>/about` and `/api/checkins` routes serve the creator walk too
+for free, should a future workstream need them there.
+
+**What would reverse it.** If a creator door's OWN call graph grows a
+direct `process.env.NEON_URL`/`SUPABASE_URL` read that bypasses `_db.js`/
+`_auth.js` entirely (the loader redirect cannot catch a fetch a module
+makes to those hosts itself), the fold breaks silently unless the network
+guard's own "unmodelled fetch target" throw catches it first — which it
+will, loudly, rather than the wrong-but-quiet behavior a fake-host
+interceptor would have let through. That throw is the trip wire; if it
+ever fires for a legitimate reason, harness-creator.mjs's own fetch-
+intercept mechanism (in git history at c2945f7) is the fallback shape to
+restore, not a guess at a new one.
+
+## `ws-r109-share-tab-gate-is-mode-teacher-not-runtime-activation` (2026-09-05, WS-R109)
+
+**Decision.** `evals/rehearsal/creator.mjs` now navigates to
+`/studio.html?mode=teacher` (both locales). WS-R95's own header attributed
+the Share tab's showcase picker and share kit never mounting to a runtime-
+activation gate ("Your AI is not active yet... `RoomStudio` does not mount
+AT ALL behind that gate"). Driving the picker and share kit for real this
+session found the actual mechanism: `RoomStudio` (and everything inside it)
+is wrapped in `{mode === "teacher" && (...)}` in `StudioApp.tsx`, and `mode`
+is read ONCE from `?mode=teacher` in the URL at mount
+(`StudioApp.tsx#readStudioMode`), never from anything runtime-related. The
+picker's and share kit's own gates are `roomPublished` alone
+(`ShowcaseCard.tsx`/`ShareKitCard.tsx`), which this walk already satisfies
+by publishing for real before this step.
+
+**Rationale.** Grep confirmed no other reference to a runtime-activation
+check inside `RoomStudio`, `ShowcaseCard`, or `ShareKitCard`; the mount gate
+is textually and exclusively `mode === "teacher"`. Adding the query param
+is a one-line fix that turns two previously-unreachable, HTTP-fallback-only
+assertions into real DOM-driven ones.
+
+**What would reverse it.** If a future workstream adds a genuine runtime-
+activation gate INSIDE `RoomStudio` (reproducing the identity/liveness
+pipeline this rehearsal still names as out of scope), this navigation step
+alone would stop being sufficient and the picker/share-kit steps would need
+a real or faked activation signal on top of `?mode=teacher`.
+
+## `ws-r109-sessionworked-driven-from-the-follower-walk-not-the-creator-one` (2026-09-05, WS-R109)
+
+**Decision.** The brief's law 3 (creator walk) named "the sessionWorked
+offer state after a session that worked" among the creator walk's gains,
+but `sessionWorked`'s own offer rides on a real `roomSay` turn
+(`api/_room-surface.js`), and `evals/rehearsal/creator.mjs`'s own header
+states plainly it "drives no room 'say' turn" — a structural fact, not a
+choice this workstream could route around without breaking that walk's own
+documented scope. This step is implemented in `evals/rehearsal/follower.mjs`
+instead, the only one of the two walks that ever calls `roomSay`.
+
+**Rationale.** Honoring the brief's actual intent (drive `sessionWorked`'s
+offer state for real) over its literal file placement, which reads as a
+drafting slip given the walks' own documented boundaries.
+
+**What would reverse it.** If a future creator-side surface (an activity
+feed, an ops card) renders `sessionWorked`'s own offer state for the
+CREATOR to see, that would be the genuine creator-walk gain the brief may
+have meant, and this decision's placement should be revisited then.

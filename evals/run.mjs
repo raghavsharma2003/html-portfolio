@@ -2392,10 +2392,13 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-receipt": "room-receipt/run.mjs",
-  // WS-R95 (wave fifteen). The creator's journey rehearsed end to end: a
-  // real Chromium drives the REAL built studio (`dist/studio.html`) against
-  // `evals/rehearsal/harness-creator.mjs`'s real local HTTP server, which
-  // routes to the REAL `api/replica.js`, `api/context-items.js`,
+  // WS-R95 (wave fifteen), folded onto `evals/rehearsal/harness.mjs` by
+  // WS-R109 (wave sixteen) — the separate `harness-creator.mjs` this
+  // comment used to name is retired, see that file's own header. The
+  // creator's journey rehearsed end to end: a real Chromium drives the REAL
+  // built studio (`dist/studio.html`) against `evals/rehearsal/harness.mjs`'s
+  // real local HTTP server (`kind: "creator"`), which routes to the REAL
+  // `api/replica.js`, `api/context-items.js`,
   // `api/review-queue.js`, `api/readiness.js` and `api/room-publish.js`
   // handlers over `evals/room-doors/fixtures.mjs`'s `rehearsalCreatorDb`
   // fixture — sign in (a seeded session, never a real OTP), create a
@@ -2419,12 +2422,15 @@ const suites = {
   // one. See `evals/rehearsal/creator.mjs`'s own header for the full list
   // of what is driven through the browser's DOM versus through the
   // harness's own HTTP door directly (both reach the identical real
-  // handler), and for the UI gate this suite found (the Share tab's
-  // showcase picker does not mount for a replica whose runtime is not
-  // active). Runs the English walk only; set `REHEARSAL_FULL=1` to also
-  // run the Hindi walk (both locales pass; Hindi is not in this gate's own
-  // time budget). $0, no model call, no GPU; Chromium only (never
-  // `playwright install` — /opt/pw-browsers is pre-installed).
+  // handler). WS-R109 (wave sixteen) found the Share tab's own real gate:
+  // `?mode=teacher` on the studio URL, not runtime activation (the earlier
+  // note here was wrong about the mechanism, right that something gated
+  // it) — with that query param set, the picker and the share kit's own
+  // "Copy" button are both driven through a real click. Runs the English
+  // walk only; set `REHEARSAL_FULL=1` to also run the Hindi walk (both
+  // locales pass; Hindi is not in this gate's own time budget). $0, no
+  // model call, no GPU; Chromium only (never `playwright install` —
+  // /opt/pw-browsers is pre-installed).
   "rehearsal-creator": "rehearsal/creator.mjs",
   // WS-R98. The operator digest/incident/self-check alert reaching
   // Telegram, no migration: `api/_operator-telegram.js`'s

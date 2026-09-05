@@ -17,8 +17,27 @@
 // English, the disclosure, the referral link) -> a SECOND browser context
 // opens the referral link and joins (the referral row lands, self-referral
 // is refused) -> export -> forget.
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { startHarness } from "./harness.mjs";
 import { launchRehearsalBrowser } from "./browser.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(HERE, "..", "..");
+
+// WS-R109. The receipts step's own three real modules — `api/_payments.js`
+// (`setRoomPrice`/`startFollowerSubscription`/`applyWebhook`, every one
+// function-level DI, `db` passed as an explicit first argument rather than
+// through the `./_db.js` redirect, `evals/room-doors/run.mjs`'s own §4
+// precedent for this exact call shape), the fake payments provider
+// (`signWebhookForTest`, the SAME fixture twin that suite's own webhook
+// cases sign against — never a real Razorpay call), and `OWNER`/`REPLICA_ID`
+// (the fixture's own owner identity, needed to set a price on the Room this
+// walk's follower already joined).
+const paymentsModule = await import(pathToFileURL(join(ROOT, "api/_payments.js")).href);
+const { setRoomPrice, startFollowerSubscription, applyWebhook } = paymentsModule;
+const FAKE_PROVIDER = await import(pathToFileURL(join(ROOT, "api/_payments/providers/fake.js")).href);
+const { OWNER, REPLICA_ID } = await import(pathToFileURL(join(ROOT, "evals/room-doors/fixtures.mjs")).href);
 
 const FULL = process.argv.includes("--full");
 const STATE_KEY = "meera.state.v1";
@@ -65,6 +84,8 @@ const COPY = {
     referralCopied: "Copied",
     age: "I am 18 or older.",
     close: "Close",
+    aboutHeading: "What this AI knows about you",
+    pushEnable: "Allow check-ins on this phone",
   },
   hi: {
     tasteJoin: "बात जारी रखने के लिए जुड़ें",
@@ -81,8 +102,57 @@ const COPY = {
     referralCopied: "कॉपी हो गया",
     age: "मेरी उम्र 18 साल या उससे ज़्यादा है।",
     close: "बंद करें",
+    aboutHeading: "यह AI आपके बारे में क्या जानता है",
+    pushEnable: "इस फ़ोन पर चेक-इन की अनुमति दें",
   },
 };
+
+/**
+ * WS-R109. A page-level fake `PushManager`, installed BEFORE any script on
+ * the page runs (`context.addInitScript`). A real `pushManager.subscribe()`
+ * call in Chromium reaches a real push service over the real internet — a
+ * network call this harness's own guard (`evals/rehearsal/harness.mjs`) and
+ * `ws-common.md`'s own "no network beyond 127.0.0.1" law both forbid, and
+ * the reason `AccountPage.tsx`'s own push-enable control cannot be rehearsed
+ * against the REAL browser Push API at all. This fake replaces
+ * `navigator.serviceWorker.register`/`getRegistration`/`ready` entirely
+ * (never the real `/room-sw.js` mechanics — the point is that nothing here
+ * reaches a real service, not that the fake is layered under a real
+ * registration), so `togglePush()`'s own call shape —
+ * `register("/room-sw.js")` -> `ready` -> `pushManager.getSubscription()` /
+ * `.subscribe(...)` / `.getKey(...)` -> `pushSubscribe(session, endpoint,
+ * p256dh, auth256)` (the REAL `api/room.js` `push_subscribe` op, unfaked) —
+ * runs unmodified against a fake service worker registration and a real
+ * server-side write.
+ */
+function fakePushInitScript() {
+  window.__rehearsalPushState = { subscription: null, counter: 0 };
+  const state = window.__rehearsalPushState;
+  const fakeRegistration = {
+    pushManager: {
+      getSubscription: async () => state.subscription,
+      subscribe: async () => {
+        state.counter += 1;
+        state.subscription = {
+          endpoint: `https://fake-push.rehearsal.internal/ep/${state.counter}`,
+          getKey: (name) => {
+            const bytes = new Uint8Array(name === "p256dh" ? 65 : 16).fill(name === "p256dh" ? 4 : 9);
+            return bytes.buffer;
+          },
+          unsubscribe: async () => { state.subscription = null; return true; },
+        };
+        return state.subscription;
+      },
+    },
+  };
+  navigator.serviceWorker.register = async () => fakeRegistration;
+  navigator.serviceWorker.getRegistration = async () => fakeRegistration;
+  Object.defineProperty(navigator.serviceWorker, "ready", {
+    configurable: true,
+    get: () => Promise.resolve(fakeRegistration),
+  });
+  if (window.Notification) window.Notification.requestPermission = async () => "granted";
+}
 
 /**
  * Steps a fixture-authenticated browser page all the way from a fresh
@@ -90,7 +160,24 @@ const COPY = {
  * Shared by the primary follower AND the referred second follower — the
  * exact same real screens, the exact same real clicks.
  */
-async function joinFresh(page, baseUrl, slug, { qs = "?via=search", locale = "en" } = {}) {
+/**
+ * WS-R109. Opens whatever `/r/<slug>/about` link `linkSelector` names, in a
+ * SEPARATE page of the SAME context (never navigating `page` itself away —
+ * the caller's own screen state, mid-join or mid-account-page, must survive
+ * this check untouched), and returns its `<h1>` text. Closes the tab before
+ * returning, `follower.mjs`'s own `refPage`/`selfRefPage` precedent for a
+ * scratch tab that exists only to prove one thing.
+ */
+async function checkAboutLink(page, context, baseUrl, linkSelector) {
+  const href = await page.locator(linkSelector).getAttribute("href");
+  const aboutPage = await context.newPage();
+  await aboutPage.goto(`${baseUrl}${href}`, { waitUntil: "networkidle" });
+  const heading = await aboutPage.locator("h1").first().innerText().catch(() => "");
+  await aboutPage.close();
+  return { href, heading };
+}
+
+async function joinFresh(page, baseUrl, slug, { qs = "?via=search", locale = "en", checkAbout = false } = {}) {
   if (process.env.REHEARSAL_DEBUG) {
     page.on("requestfinished", async (req) => {
       if (req.url().includes("/api/room")) {
@@ -122,6 +209,20 @@ async function joinFresh(page, baseUrl, slug, { qs = "?via=search", locale = "en
   } catch (e) {
     console.log("[joinFresh debug] body:", (await page.locator("body").innerText().catch(() => "")).slice(0, 800));
     throw e;
+  }
+  // WS-R109 law 2: `/r/<slug>/about`, opened from the join screen — the
+  // taste screen's own "Join to keep talking" transitions to `.room-join`
+  // (the disclosure, the age checkbox, the memory question), which is where
+  // the about link actually lives (`RoomApp.tsx`'s own `.room-about-link`,
+  // WS-R97) — not on the taste screen itself, found the hard way (a 30s
+  // timeout against the wrong screen) rather than assumed. Checked before
+  // ever answering the memory question below. A SEPARATE tab, never `page`
+  // itself, so the join screen's own state is untouched.
+  if (checkAbout) {
+    await page.waitForSelector(".room-join", { timeout: 10_000 });
+    const about = await checkAboutLink(page, page.context(), baseUrl, ".room-about-link");
+    ok(`joinFresh(${locale}): the about link from the join screen opens a real /r/<slug>/about page in ${locale}`,
+      about.heading === c.aboutHeading, JSON.stringify(about));
   }
   await page.locator('input[type="checkbox"]').check();
   // The real `join` op's own response body carries the session — the ONLY
@@ -163,7 +264,7 @@ function assertFollowerFullyForgotten(state, personId, label) {
 }
 
 async function runJourney({ harness, browser, locale, gate }) {
-  const { url: baseUrl, state, followerBearer, followerPerson } = harness;
+  const { url: baseUrl, state, db, followerBearer, followerPerson } = harness;
   const c = COPY[locale];
   const qs = "?via=search";
 
@@ -227,9 +328,10 @@ async function runJourney({ harness, browser, locale, gate }) {
   // ── /r/<slug>?via=search: join, with age attestation and memory consent ──
   const context = await browser.newContext({ extraHTTPHeaders: { "x-real-ip": `10.94.${gateOffset + 2}.1` } });
   await context.addInitScript(fixtureAuthScript(followerBearer.A));
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseUrl });
+  await context.addInitScript(fakePushInitScript);
+  await context.grantPermissions(["clipboard-read", "clipboard-write", "notifications"], { origin: baseUrl });
   const page = await context.newPage();
-  const sessionA = await joinFresh(page, baseUrl, "anjali", { qs, locale });
+  const sessionA = await joinFresh(page, baseUrl, "anjali", { qs, locale, checkAbout: true });
   ok(`${gate}: the join op returned a real session token`, sessionA.length > 20);
   const followerRow = () => state.followers.find((f) => f.person_id === followerPerson.A);
   ok(`${gate}: the join wrote a real follower row (memory consent true)`,
@@ -315,6 +417,36 @@ async function runJourney({ harness, browser, locale, gate }) {
   );
   ok(`${gate}: switching back to ${locale} restores the original disclosure`, true);
 
+  // WS-R109 law 2: `/r/<slug>/about`, opened a SECOND time from the account
+  // page itself (`AccountPage.tsx`'s own `.room-about-link`, WS-R97) — the
+  // same real page a stranger read before joining, still reachable once a
+  // follower has settled in.
+  const aboutFromAccount = await checkAboutLink(page, context, baseUrl, ".room-account .room-about-link");
+  ok(`${gate}: the about link from the account page opens the same real /r/<slug>/about page in ${locale}`,
+    aboutFromAccount.heading === c.aboutHeading, JSON.stringify(aboutFromAccount));
+
+  // WS-R109 law 2: a push subscription through the account page's own real
+  // control (`togglePush()`), over the page-level fake `PushManager`
+  // (`fakePushInitScript`, this file's own header) — no real network, a
+  // real `push_subscribe` write through the real `/api/room` door.
+  const pushToggle = page.locator(".room-checkins-push:not(.room-checkins-wa):not(.room-checkins-tg)");
+  ok(`${gate}: the push-enable control renders (ROOM_PUSH_VAPID_PUBLIC is set on this harness)`,
+    await pushToggle.count() === 1);
+  const [pushSubscribeResponse] = await Promise.all([
+    page.waitForResponse(
+      (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "push_subscribe",
+      { timeout: 10_000 },
+    ),
+    pushToggle.getByRole("button", { name: c.pushEnable }).click(),
+  ]);
+  const pushSubscribeBody = await pushSubscribeResponse.json().catch(() => ({}));
+  ok(`${gate}: the real push_subscribe op returns 200 with a subscription id`,
+    pushSubscribeResponse.status() === 200 && typeof pushSubscribeBody.subscription_id === "string",
+    JSON.stringify(pushSubscribeBody));
+  ok(`${gate}: the fixture's own vy_room_push_sub row was written by the real op`,
+    state.roomPushSubs.some((s) => s.person_id === followerPerson.A
+      && s.endpoint === "https://fake-push.rehearsal.internal/ep/1"));
+
   const referralUrlLocator = page.locator(".room-referral-url");
   await referralUrlLocator.waitFor({ timeout: 10_000 });
   const referralPath = (await referralUrlLocator.innerText()).trim().replace(/^https?:\/\/[^/]+/, "");
@@ -332,7 +464,7 @@ async function runJourney({ harness, browser, locale, gate }) {
   // and awaited (not `.catch`-swallowed) so a real failure here is loud
   // rather than silently leaving TWO dialogs mounted for the data-menu step
   // below to trip over.
-  await page.locator(".room-account").getByRole("button", { name: c.close, exact: true }).click();
+  await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
   await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
 
   // ── a second browser context opens the referral link and joins ─────────
@@ -384,6 +516,118 @@ async function runJourney({ harness, browser, locale, gate }) {
   );
   ok(`${gate}: exporting follower A's session with follower B's bearer is refused (403 room_session_mismatch)`,
     crossRead.status === 403 && crossRead.body.error === "room_session_mismatch", JSON.stringify(crossRead));
+
+  // ── the sessionWorked offer state, after a session that worked (WS-R109
+  //    law 3, driven here since it rides on a real `roomSay` turn — the
+  //    creator walk's own header states it never drives one) — fixture
+  //    rows for the two clauses a real conversation cannot reach in this
+  //    gate's own 30-second budget (a thread genuinely continued from an
+  //    earlier CALENDAR day, and a near-cap month), the real THIRD clause
+  //    (four-plus messages in one 30-minute session) driven for real by
+  //    the messages already sent this walk plus one more. BEFORE the
+  //    receipts step below on purpose: `sessionWorked`'s own first clause
+  //    is `tier = 'free'`, and the receipts step's own webhook flips this
+  //    follower to paid. ────────────────────────────────────────────────
+  // `roomThreadDevice(roomId, personId, threadId)` folds the thread id into
+  // the memory device id (`api/_room-surface.js`'s own derivation), so the
+  // THREE turns `sayThree` already sent (to the general thread, before
+  // "physics" existed) sit in a DIFFERENT session lane entirely — found by
+  // running this walk for real and reading `sessionWorked`'s own `null`
+  // offer, not assumed. Four fresh turns on the "physics" thread itself is
+  // what a real >=4-message session on THIS thread actually takes.
+  const physicsThread = state.threads.find((t) => t.title === "physics" && t.person_id === followerPerson.A);
+  physicsThread.created_at = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  followerRow().month_message_count = Math.max(followerRow().month_message_count, 16);
+  await page.locator(".room-rail button", { hasText: "physics" }).click();
+  let sayBody = {};
+  for (const text of ["does this apply to inclined planes too?", "and what about friction there?", "one more example, please", "got it, thank you"]) {
+    const [sayResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "say",
+        { timeout: 15_000 },
+      ),
+      (async () => {
+        await page.locator(".room-composer textarea").fill(text);
+        await page.locator(".room-send").click();
+      })(),
+    ]);
+    sayBody = await sayResponse.json().catch(() => ({}));
+  }
+  ok(`${gate}: a session that worked carries the real offer on the reply`,
+    sayBody?.offer?.reason === "session_worked", JSON.stringify(sayBody?.offer));
+  await page.waitForFunction(
+    () => document.body.innerText.includes("That felt like a real conversation")
+      || document.body.innerText.includes("असली बातचीत"),
+    null,
+    { timeout: 10_000 },
+  ).catch(() => {});
+  ok(`${gate}: the Room's own offer card renders on screen after the offer-bearing reply`,
+    await page.getByText(/felt like a real conversation|असली बातचीत/).count() > 0);
+
+  // ── receipts, after a fake landed charge (WS-R109 law 2) ──────────────────
+  // A real charge, landed through the REAL webhook-apply function and the
+  // fake payments provider's own signing twin — never a seeded
+  // `state.receipts` row, `evals/room-doors/run.mjs`'s own §4 precedent for
+  // the call shape, driven here for the first time against a follower who
+  // ALREADY exists through the real join above rather than a fresh fixture
+  // follower built just for this suite.
+  await setRoomPrice(db, OWNER, REPLICA_ID, 349);
+  // `env` REPLACES `process.env` for this call (`readRoomSession`'s own
+  // `deps.env` seam, `_room-surface.js#sessionSecret`), never merges with
+  // it — found the hard way (a `room_unconfigured` throw, `ROOM_SESSION_
+  // SECRET` missing from a hand-built env object) — so `...process.env` is
+  // spread first and `PAYMENTS_PROVIDER` only overrides the one key this
+  // call actually needs to change.
+  const started = await startFollowerSubscription(db, { session: sessionA }, {
+    env: { ...process.env, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "rehearsal-wh-secret" },
+  });
+  const chargeBody = Buffer.from(JSON.stringify({
+    event: "subscription.charged",
+    payload: {
+      subscription: { entity: { id: started.provider_subscription_ref, current_start: Math.floor(Date.now() / 1000), current_end: Math.floor(Date.now() / 1000) + 30 * 86_400 } },
+      payment: { entity: { amount: 34900 } },
+    },
+  }));
+  const chargeSig = FAKE_PROVIDER.signWebhookForTest(chargeBody, "rehearsal-wh-secret");
+  const applied = await applyWebhook(db, { rawBody: chargeBody, signatureHeader: chargeSig, eventRef: `evt_rehearsal_${gate}_1` }, {
+    env: { ...process.env, PAYMENTS_PROVIDER: "fake", PAYMENTS_FAKE_WEBHOOK_SECRET: "rehearsal-wh-secret" },
+  });
+  ok(`${gate}: the fake landed charge applies for real (a NEW split, not a replay)`,
+    applied.applied === true && applied.replay === false, JSON.stringify(applied));
+  ok(`${gate}: the real webhook apply issued a real receipt`, typeof applied.receipt_id === "string" && applied.receipt_id.length > 0);
+
+  // Read the receipts list and open one receipt's own print HTML, through
+  // the account page's real controls — the follower is now a PAID tier
+  // (the webhook's own tier flip), so the account page is re-opened to see
+  // the section render with a real row rather than the empty state.
+  await page.getByRole("button", { name: c.accountOpen }).click();
+  await page.waitForSelector(".room-account", { timeout: 10_000 });
+  const receiptRow = page.locator(".room-checkins-list .room-checkins-row").first();
+  await receiptRow.waitFor({ timeout: 10_000 });
+  ok(`${gate}: the receipts list shows a real row after the fake landed charge`, await receiptRow.count() === 1);
+  const [printPopup] = await Promise.all([
+    context.waitForEvent("page", { timeout: 10_000 }),
+    receiptRow.getByRole("button").click(),
+  ]);
+  // `printReceipt()` (AccountPage.tsx) opens the popup with `window.open("",
+  // "_blank")` (no URL, so `waitForLoadState` alone can resolve before the
+  // fetched HTML is actually `document.write()`-ten into it) THEN writes
+  // the fetched HTML in — polling the popup's own body text is what makes
+  // this wait honest rather than a race.
+  await printPopup.waitForLoadState("load");
+  await printPopup.waitForFunction(() => document.body && document.body.innerText.trim().length > 0, null, { timeout: 10_000 }).catch(() => {});
+  const printText = await printPopup.locator("body").innerText().catch(() => "");
+  ok(`${gate}: the receipt's own print HTML opened in a real new window and names a real amount`,
+    /349|₹349/.test(printText), printText.slice(0, 200));
+  await printPopup.close();
+  await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
+  await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
+
+  // ── readable export (WS-R108) — a NAMED step, not landed on this
+  //    worktree's wave-sixteen base at the time this walk was written
+  //    (`git log --oneline -1` and a repo-wide grep for "readable" found no
+  //    such module — see this workstream's final report). ────────────────
+  console.log(`  ${gate}: (named step, not driven — R108's readable export had not landed on this worktree's base)`);
 
   // ── export ───────────────────────────────────────────────────────────────
   await page.getByRole("button", { name: c.dataMenuOpen }).click();

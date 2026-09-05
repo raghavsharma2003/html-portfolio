@@ -9586,6 +9586,72 @@
       "kind": "decision",
       "title": "/voice on|off's no-quota-spend property is proven in evals/room-telegram(-voice)/run.mjs against the real Telegram fixture world, not added to evals/room-doors/run.mjs \u2014 room-tg.js reads no op literal (OP_COVERAGE has no seam) and /voice takes no cross-identity input.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-fold-rehearsal-harnesses-onto-one-contract",
+      "kind": "decision",
+      "title": "Fold evals/rehearsal/harness-creator.mjs onto evals/rehearsal/harness.mjs as ONE contract (kind: follower|creator); the auth stub gets its own requireUser rather than re-exporting the real one; a network guard replaces the fake-host fetch intercept.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-share-tab-gate-is-mode-teacher-not-runtime-activation",
+      "kind": "decision",
+      "title": "The Share tab (showcase picker, share kit) mounts on ?mode=teacher alone (StudioApp.tsx readStudioMode); its own internal gate is roomPublished, never runtime activation. evals/rehearsal/creator.mjs now navigates with ?mode=teacher.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-sessionworked-driven-from-the-follower-walk-not-the-creator-one",
+      "kind": "decision",
+      "title": "The sessionWorked offer state (brief law 3) is driven from evals/rehearsal/follower.mjs, the only walk that ever calls roomSay, not evals/rehearsal/creator.mjs which the brief listed it under.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-fixture-event-id-not-uuid-shaped-broke-a-real-uuid-validating-read",
+      "kind": "rejection",
+      "title": "evals/room-doors/fixtures.mjs generated vy_payment_event.event_id as e1/e2/...; api/_room-surface.js#roomReceipt UUID-validates it and 404d. Fixed: randomUUID().",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-share-tab-download-button-text-collided-with-its-own-section-heading",
+      "kind": "rejection",
+      "title": "creatorExport.title (the h2) and creatorExport.button share the string 'Download everything'; getByText matched the heading first. Fixed: getByRole(button).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-export-op-is-rate-limited-once-a-day-two-calls-in-one-walk-collide",
+      "kind": "rejection",
+      "title": "api/replica export op is once-a-day rate limited; a fetch-based pre-check plus a real-click download in the same walk collided (429). Fixed: one real click, manifest read off its own response.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-shared-unknown-ip-bucket-exhausted-room-publish-across-the-creator-walks-locale-gates",
+      "kind": "rejection",
+      "title": "evals/rehearsal/creator.mjs --full shared one unknown-IP bucket across en+hi, exhausting api/room-publish.js rate limit on the Hindi gate. Fixed: distinct x-real-ip per locale context, follower.mjs precedent restated.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r95-share-tab-mount-blamed-on-runtime-not-on-the-missing-mode-teacher-param",
+      "kind": "rejection",
+      "title": "WS-R95 attributed the unreachable showcase picker to a runtime-activation gate never actually observed (the click never reached it); the real mechanism, found by WS-R109 driving it for real, is the missing ?mode=teacher.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-background-baseline-gate-read-a-file-mid-edit",
+      "kind": "rejection",
+      "title": "A background baseline verify-release.mjs run in the SAME worktree read evals/rehearsal/creator.mjs mid-edit before reaching the eval suite; the result was discarded and an isolated git-worktree checkout used instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-rehearsal-second-pass-wall-clock",
+      "kind": "measurement",
+      "title": "follower.mjs 26.6-29.3s (en), 40.2s (--full); creator.mjs 19.2-22.6s (en), 15.8s (--full) - n=5 direct runs each, 2026-09-05.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r109-untouched-tree-baseline-isolated-checkout",
+      "kind": "measurement",
+      "title": "Isolated git-worktree checkout of c2945f7: 19/21 gate checks pass; the 2 failures are a documented port collision (8931/8932), not a real defect. eval suite passes whole (520s) on the untouched tree.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18718,6 +18784,36 @@
       "src": "ws-r110-voice-command-coverage-lives-in-room-telegram-not-room-doors",
       "rel": "part_of",
       "dst": "ws-r18-room-telegram"
+    },
+    {
+      "src": "ws-r109-fold-rehearsal-harnesses-onto-one-contract",
+      "rel": "supersedes",
+      "dst": "ws-r95-creator-rehearsal-harness-over-fixture-db-not-a-mocked-fetch-layer"
+    },
+    {
+      "src": "ws-r95-share-tab-mount-blamed-on-runtime-not-on-the-missing-mode-teacher-param",
+      "rel": "supersedes",
+      "dst": "ws-r109-share-tab-gate-is-mode-teacher-not-runtime-activation"
+    },
+    {
+      "src": "ws-r109-share-tab-gate-is-mode-teacher-not-runtime-activation",
+      "rel": "caused_by",
+      "dst": "ws-r95-share-tab-mount-blamed-on-runtime-not-on-the-missing-mode-teacher-param"
+    },
+    {
+      "src": "ws-r109-rehearsal-second-pass-wall-clock",
+      "rel": "measured_by",
+      "dst": "ws-r109-fold-rehearsal-harnesses-onto-one-contract"
+    },
+    {
+      "src": "ws-r109-untouched-tree-baseline-isolated-checkout",
+      "rel": "caused_by",
+      "dst": "ws-r109-background-baseline-gate-read-a-file-mid-edit"
+    },
+    {
+      "src": "ws-r109-sessionworked-driven-from-the-follower-walk-not-the-creator-one",
+      "rel": "constrains",
+      "dst": "ws-r30-session-worked-one-statement-follower-scope-first"
     }
   ]
 }

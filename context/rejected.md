@@ -12614,3 +12614,119 @@ workstream editing this file's comments should grep
 `evals/room-leak/run.mjs`'s own `ALLOWED`/`AGGREGATE_ONLY` sets before
 writing prose that names either table, not only before writing SQL that
 queries it.
+
+## `ws-r109-fixture-event-id-not-uuid-shaped-broke-a-real-uuid-validating-read` (2026-09-05, WS-R109, found and fixed)
+
+**Tried.** Drove a real landed charge through `applyWebhook` end to end
+(`evals/rehearsal/follower.mjs`'s own receipts step) and then read the
+resulting receipt back through the REAL `api/room.js` `receipt` op
+(`format: "html"`), the first caller of that specific door ever to reach a
+fixture-GENERATED payment event rather than a hand-seeded one.
+
+**What broke.** `evals/room-doors/fixtures.mjs`'s own `insert into
+vy_payment_event` pattern minted `event_id` as `` `e${state.events.length +
+1}` `` (e.g. `"e2"`) — fine for every existing reader, which only ever
+compared it for relational equality, never format. `api/_room-surface.js#
+roomReceipt` validates `UUID.test(paymentEventId)` before its own WHERE
+clause runs (a real, correct guard against a garbage id), and refused the
+non-UUID generated id with a 404 regardless of whether a matching row
+existed. Fixed by generating the event id with `randomUUID()` instead — a
+real Postgres `event_id` column is `uuid` in production, so this is
+correcting a fixture artifact to match reality, not loosening a real check.
+
+## `ws-r109-share-tab-download-button-text-collided-with-its-own-section-heading` (2026-09-05, WS-R109, found and fixed)
+
+**Tried.** Drove the studio's "Download everything" button through a real
+click (`evals/rehearsal/creator.mjs`), reachable for the first time once
+`?mode=teacher` and `roomPublished` were both satisfied.
+
+**What broke.** `copy.ts`'s `creatorExport.title` (the section's own
+`<h2>`) and `creatorExport.button` (the button's own label) are the exact
+same string, "Download everything", and the heading renders BEFORE the
+button in `StudioApp.tsx`'s own JSX. `page.getByText(/^download
+everything$/i).first()` matched the heading, and clicking a non-interactive
+`<h2>` does nothing — a real 15-second download-event timeout with no
+error banner, found by running the step, not by reading the JSX first.
+Fixed by matching the interactive element itself,
+`getByRole("button", {name: ...})`, which cannot match a heading.
+
+## `ws-r109-export-op-is-rate-limited-once-a-day-two-calls-in-one-walk-collide` (2026-09-05, WS-R109, found and fixed)
+
+**Tried.** Kept WS-R95's original `page.evaluate(fetch(...))` manifest
+check AND added a real-click download step reading the SAME `/api/replica
+{op:"export"}` door, both in the same `walkLocale` run.
+
+**What broke.** `handleExport`'s own code comment already named the shape
+("A 429 here is ALWAYS the once-a-day scope") but nothing in this repo had
+ever driven BOTH calls in the same walk before, because the real-click
+download step was unreachable (the `mode`/heading-vs-button gaps above)
+until this session fixed both. The second call landed a real 429. Fixed by
+removing the separate fetch-based pre-check and reading the manifest off
+the SAME real click's own network response instead (`page.waitForResponse`
+raced against `page.waitForEvent("download")`) — one real interaction
+proving both properties, never two calls to a once-a-day door.
+
+## `ws-r109-shared-unknown-ip-bucket-exhausted-room-publish-across-the-creator-walks-locale-gates` (2026-09-05, WS-R109, found and fixed)
+
+**Tried.** Ran `evals/rehearsal/creator.mjs --full` (English then Hindi,
+one process, one harness per locale) after the mode/heading fixes above
+made the Share tab's own `room-publish`-backed steps reachable for both
+locales for the first time.
+
+**What broke.** `evals/rehearsal/creator.mjs`'s `browser.newContext()` set
+no `x-real-ip` header, unlike `follower.mjs`'s own established fix for the
+identical defect class
+(`rejected.md#ws-r94-shared-unknown-ip-bucket-exhausted-the-90-per-minute-room-ip-gate-across-both-locale-gates`).
+With no reverse proxy in front of this harness, every request from both
+locale gates in the same process shares the single "unknown" IP bucket, and
+`api/room-publish.js`'s own rate limiter — never previously reached twice
+in one process before this session's fixes made the Hindi gate exercise it
+for real — refused the Hindi gate's `showcase_set` with a real 429 after
+the English gate had already spent that bucket's budget. Fixed with a
+distinct synthetic `x-real-ip` per locale context, `follower.mjs`'s own
+precedent restated a second file over.
+
+## `ws-r95-share-tab-mount-blamed-on-runtime-not-on-the-missing-mode-teacher-param` (2026-09-05, WS-R109, superseding a WS-R95 finding)
+
+WS-R95's own header and `evals/run.mjs`'s registry comment stated the
+Share tab's showcase picker "never mounts for a replica whose runtime is
+not active" and attributed this to a genuine, unreproduced identity/
+liveness gate. Driving the picker for real this session
+(`decisions.md#ws-r109-share-tab-gate-is-mode-teacher-not-runtime-activation`)
+found the real mechanism was `?mode=teacher` missing from the studio URL —
+`RoomStudio` mounts on `mode === "teacher"` alone, and the picker's own gate
+inside it is `roomPublished`, nothing runtime-related. WS-R95's own
+diagnosis was itself never verified against the actual JSX at the time (the
+picker click never even reached the code, so nothing about it could have
+been directly observed) — a plausible-sounding but wrong explanation for a
+real, correctly-observed symptom. Logged as its own entry rather than
+silently editing WS-R95's own STATE.md paragraph, per this project's
+"supersedes an edge, never deletes" law.
+
+## `ws-r109-background-baseline-gate-read-a-file-mid-edit` (2026-09-05, WS-R109, process note)
+
+**Tried.** Started `node scripts/verify-release.mjs` as a background
+process in THIS session's own worktree, immediately after `npm install`/
+config-stub/echosim-build but BEFORE any file edit, intending it as the
+untouched-tree baseline `ws-common.md` requires — then continued reading
+and editing files while it ran in the background, reasoning that the gate
+would only read files at the moment each check started.
+
+**What broke.** `verify-release.mjs`'s own static-gate phase alone took
+over two minutes before reaching `evals/run.mjs`'s eval suite, and this
+session's own edits to `evals/rehearsal/creator.mjs` were already underway
+by the time that suite ran — so the "baseline" run's own `eval suite`
+failure (a `waiting for event "download"` timeout inside `creator.mjs`) was
+against a HALF-EDITED file, not the untouched tree, and could not honestly
+be reported as either "pre-existing" or "caused by this session". Recovered
+by discarding that run's result entirely and building a truly isolated
+baseline instead: a SEPARATE `git worktree add` checkout of the same base
+commit, set up and gated independently, never touched again after the gate
+started (`measurements.md
+#ws-r109-untouched-tree-baseline-isolated-checkout`). The general lesson,
+worth carrying forward: "run the baseline before you change anything"
+means before the gate PROCESS FINISHES reading the tree, not merely before
+the command starts — a background gate on the working worktree is not safe
+to edit against until it is known to be well past the phase that touches
+the files being edited, and an isolated checkout is the only fully safe way
+to run a baseline gate in parallel with real work.

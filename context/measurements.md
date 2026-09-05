@@ -12590,3 +12590,54 @@ before this workstream; with the new `/voice` section appended, n = 67
 assertions total (was 61 before this workstream — 6 new checks: parsing,
 the honest card, no quota spent by either command, and the model never
 reached), 0 failures.
+
+## `ws-r109-rehearsal-second-pass-wall-clock` (2026-09-05, WS-R109)
+
+n=5 direct runs of each rehearsal on this session's own worktree
+(`node evals/rehearsal/follower.mjs`, `node evals/rehearsal/creator.mjs`,
+each including a fresh `npx vite build`), timed with the shell's own
+`time`, no `NEON_URL`, real Chromium at `/opt/pw-browsers`, 2026-09-05.
+
+- `follower.mjs` (English gate, 33 checks): 26.6s-29.3s wall clock
+  (median ~28s), comfortably under the brief's own 30-second-per-walk
+  budget named in law 4, though closer to it than before this session
+  (WS-R94's own n=2 English-only measurement was 15.9s-20.8s,
+  `measurements.md#ws-r94-rehearsal-wall-clock-2026-09-05`) — the eight new
+  steps (the about link twice, the push subscription, the receipts flow's
+  three real network round trips plus a real popup window, four extra
+  `roomSay` turns for `sessionWorked`) added roughly 8-10s.
+- `follower.mjs --full` (English + Hindi, 66 checks): 40.2s total.
+- `creator.mjs` (English gate, 31 checks): 19.2s-22.6s wall clock — FASTER
+  than WS-R95's own original despite three new real DOM interactions (the
+  Context Locker drop zone, the showcase picker, the share kit copy, the
+  download button), because the two fetch-based HTTP-door fallbacks it
+  replaced (a redundant `page.evaluate(fetch(...))` export pre-check, and a
+  hand-built `showcase_set` POST) were removed at the same time
+  (`rejected.md#ws-r109-export-op-is-rate-limited-once-a-day-two-calls-in-one-walk-collide`).
+- `creator.mjs --full` (English + Hindi, 62 checks): 15.8s total (second
+  locale reuses the first's `dist/` build, `build: !builtOnce`).
+
+Method: direct `node` invocation, not through `evals/run.mjs` (which adds
+its own per-suite overhead); the release gate's own "eval suite" line will
+differ by that overhead plus whatever else runs in the same `node
+evals/run.mjs` process. Not measured: wall clock under `evals/run.mjs`
+itself, or on a loaded machine with sibling worktree gates competing for
+CPU (this session's own isolated baseline run — see
+`ws-r109-untouched-tree-baseline-isolated-checkout` below — measured every
+gate slower than this worktree's own direct runs for that reason, so these
+numbers are a floor, not a guarantee, under contention).
+
+## `ws-r109-untouched-tree-baseline-isolated-checkout` (2026-09-05, WS-R109)
+
+Method: `git worktree add` a SEPARATE checkout of c2945f7 (this workstream's
+own wave-sixteen base) into the scratchpad, `npm install` + config stub +
+echosim build there independently, then `node scripts/verify-release.mjs`
+in that isolated directory — done after this session's OWN worktree's first
+baseline attempt was found to be contaminated (see `rejected.md
+#ws-r109-background-baseline-gate-read-a-file-mid-edit`). Result: 19 of 21
+checks passed; the 2 failures (`layout readability`, `performance budgets`)
+were both `EADDRINUSE` on 127.0.0.1:8931/8932, a documented sibling-
+worktree port collision (`ws-common.md`'s own law), not a real defect.
+`eval suite` (520,095ms) passed whole, including both rehearsals
+UNMODIFIED — confirming the two rehearsals' pre-existing state on the
+untouched tree was healthy before this workstream's changes.
