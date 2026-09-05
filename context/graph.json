@@ -9904,6 +9904,12 @@
       "kind": "measurement",
       "title": "Migrations 127 (the recall run) and 128 (the WhatsApp pointer) applied live at their merges, five statements one per request; fifteen new statements planned, all on indexes except the backfill sweep's ledger scan and two one-row-estimate scans, each accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rehearsal-counted-the-picker-list-before-it-loaded",
+      "kind": "rejection",
+      "title": "The creator rehearsal counted the showcase picker's list at the instant its title appeared; the title renders while the list is still loading, so CI lost the race on both Node versions after every local gate had passed. Fixed by waiting for the item itself, bounded.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19286,6 +19292,11 @@
       "src": "rooms-migrations-127-128-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r103-backfill-sweep-closes-the-named-gap"
+    },
+    {
+      "src": "rehearsal-counted-the-picker-list-before-it-loaded",
+      "rel": "caused_by",
+      "dst": "ws-r109-fold-rehearsal-harnesses-onto-one-contract"
     }
   ]
 }

@@ -381,7 +381,15 @@ async function walkLocale(locale) {
     await page.getByText(new RegExp(`^${shareCopy.tab}$`)).first().click({ timeout: 10_000 });
     await page.getByRole("button", { name: shareCopy.pick }).first().click({ timeout: 10_000 });
     await page.getByText(shareCopy.pickTitle).waitFor({ timeout: 10_000 });
+    // The picker's title renders while `pickerLoading` is still true
+    // (`ShowcaseCard.tsx`: the title, then a loading note, then the list
+    // once `showcase_eligible` answers). Counting the item at the instant
+    // the title appeared was a race a fast machine always won and the CI
+    // runner lost on both Node versions at 6fe96da (`context/rejected.md
+    // #rehearsal-counted-the-picker-list-before-it-loaded`), so wait for
+    // the item itself, bounded, then count.
     const pickerItem = page.locator(".vy-room__showcase-picker-item", { hasText: "What do you teach?" });
+    await pickerItem.first().waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
     ok(`${locale}: the picker's own list shows the seeded, decided card`, await pickerItem.count() === 1);
     const [showcaseSetResponse] = await Promise.all([
       page.waitForResponse(

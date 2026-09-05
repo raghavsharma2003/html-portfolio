@@ -13187,3 +13187,27 @@ family of budget -- raise it FROM A MEASUREMENT, name the reversal
 condition, never copy a number). Flagged for the main loop rather than
 silently worked around; see `context/decisions.md#ws-r106-hindi-chunk-
 wait-miss-flagged-not-fixed` for the reversal condition.
+
+### `rehearsal-counted-the-picker-list-before-it-loaded` (2026-09-05, main loop, wave sixteen close)
+
+**Tried:** `evals/rehearsal/creator.mjs` waited for the showcase picker's
+TITLE and then, in the same tick, counted `.vy-room__showcase-picker-item`
+and asserted exactly one ("the picker's own list shows the seeded, decided
+card").
+
+**What broke:** the release gate on `6fe96da` failed that one assertion on
+both Node versions (runs 33981037539, `gate (22)` and `gate (24)`), after
+the same suite had passed every local gate this wave, including the
+21-of-21 batch gate on `8557f8a`. `src/studio/ShowcaseCard.tsx` renders
+the title while `pickerLoading` is still true, then a loading note, and
+the list only once `showcase_eligible` answers: the count taken at the
+instant the title appeared is a race a fast machine always wins and a
+GitHub runner lost twice. A local pass is not evidence against a race
+that only a slower machine loses.
+
+**Fix:** wait for the item itself, bounded (`waitFor({ state: "visible",
+timeout: 10_000 })`, swallowed so the named assertion still reports), and
+count after. rehearsal-creator 31 of 31 locally; CI on the fixing commit
+is the proof. Law restated for every rehearsal step: never count a list
+that loads after its heading at the instant the heading appears; wait for
+the first item or the empty note.
