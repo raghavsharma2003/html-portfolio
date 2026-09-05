@@ -29,6 +29,8 @@ import {
 // card is where they turn into an actual Suite, reusing `createSuite`/
 // `startSuiteSubscription` above verbatim - never a second write path.
 import { takeStartSuiteDraft } from "./startSuiteDraft";
+import { useStudioLocale } from "./localeContext";
+import { withCount, withLabel } from "./copy";
 
 const NAME_MAX = 120;
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -59,6 +61,8 @@ export default function SuiteCard({
    *  refresh its own "Part of <Suite>" line without a second poll. */
   onRoomSuiteChange?: (orgId: string | null) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.suite;
   const [suites, setSuites] = useState<MySuite[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -128,14 +132,14 @@ export default function SuiteCard({
       try {
         await startSuiteSubscription(token, org.org_id, draft.plan, draft.seats);
         await load();
-        setNotice(`"${draft.name}" is live, and its seat subscription has started.`);
+        setNotice(c.autoStartLiveStarted.split("{name}").join(draft.name));
       } catch {
-        setNotice(`"${draft.name}" is live. Start its subscription below when you are ready to charge seats.`);
+        setNotice(c.autoStartLivePending.split("{name}").join(draft.name));
       } finally {
         setAutoStart(null);
       }
     })();
-  }, [token, load]);
+  }, [token, load, c.autoStartLiveStarted, c.autoStartLivePending]);
 
   const create = useCallback(async () => {
     const name = nameDraft.trim();
@@ -147,13 +151,13 @@ export default function SuiteCard({
       await createSuite(token, { name, plan: planDraft, seatLimit: seatDraft });
       setNameDraft("");
       await load();
-      setNotice("Suite created. You are its admin.");
+      setNotice(c.noticeCreated);
     } catch (e) {
       setError(readableError(e, "could not create this Suite"));
     } finally {
       setBusy(null);
     }
-  }, [token, nameDraft, planDraft, seatDraft, load]);
+  }, [token, nameDraft, planDraft, seatDraft, load, c.noticeCreated]);
 
   const invite = useCallback(
     async (orgId: string) => {
@@ -162,14 +166,16 @@ export default function SuiteCard({
       setNotice("");
       try {
         const inv = await inviteToSuite(token, orgId);
-        setNotice(`Share this Suite's id with the creator: ${inv.org_id}. ${inv.instructions}`);
+        // `inv.instructions` is server-authored and stays English -- copy.ts's
+        // own header names this exception.
+        setNotice(`${c.inviteNotice.split("{orgId}").join(inv.org_id)} ${inv.instructions}`);
       } catch (e) {
         setError(readableError(e, "could not prepare an invite"));
       } finally {
         setBusy(null);
       }
     },
-    [token],
+    [token, c.inviteNotice],
   );
 
   const join = useCallback(async () => {
@@ -182,13 +188,13 @@ export default function SuiteCard({
       await acceptSuiteInvite(token, orgId);
       setJoinOrgId("");
       await load();
-      setNotice("You have joined this Suite as a creator.");
+      setNotice(c.noticeJoined);
     } catch (e) {
       setError(readableError(e, "could not join this Suite"));
     } finally {
       setBusy(null);
     }
-  }, [token, joinOrgId, load]);
+  }, [token, joinOrgId, load, c.noticeJoined]);
 
   const attach = useCallback(
     async (orgId: string) => {
@@ -200,14 +206,14 @@ export default function SuiteCard({
         await attachRoomToSuite(token, orgId, roomId);
         await load();
         onRoomSuiteChange?.(orgId);
-        setNotice("This Room is now part of the Suite.");
+        setNotice(c.noticeAttached);
       } catch (e) {
         setError(readableError(e, "could not attach this Room"));
       } finally {
         setBusy(null);
       }
     },
-    [token, roomId, load, onRoomSuiteChange],
+    [token, roomId, load, onRoomSuiteChange, c.noticeAttached],
   );
 
   const detach = useCallback(async () => {
@@ -219,13 +225,13 @@ export default function SuiteCard({
       await detachRoomFromSuite(token, roomId);
       await load();
       onRoomSuiteChange?.(null);
-      setNotice("This Room is no longer part of that Suite.");
+      setNotice(c.noticeDetached);
     } catch (e) {
       setError(readableError(e, "could not remove this Room from its Suite"));
     } finally {
       setBusy(null);
     }
-  }, [token, roomId, load, onRoomSuiteChange]);
+  }, [token, roomId, load, onRoomSuiteChange, c.noticeDetached]);
 
   const toggleMembers = useCallback(
     async (orgId: string) => {
@@ -271,14 +277,14 @@ export default function SuiteCard({
       try {
         const sub = await startSuiteSubscription(token, orgId, plan, seats);
         setSubscription(sub);
-        setNotice("Suite subscription started.");
+        setNotice(c.noticeSubscriptionStarted);
       } catch (e) {
         setError(readableError(e, "could not start this Suite's subscription"));
       } finally {
         setBusy(null);
       }
     },
-    [token],
+    [token, c.noticeSubscriptionStarted],
   );
 
   const addSeat = useCallback(
@@ -290,14 +296,14 @@ export default function SuiteCard({
         const sub = await updateSuiteSeats(token, orgId, seats);
         setSubscription(sub);
         await load();
-        setNotice("Seats updated.");
+        setNotice(c.noticeSeatsUpdated);
       } catch (e) {
         setError(readableError(e, "could not update seats"));
       } finally {
         setBusy(null);
       }
     },
-    [token, load],
+    [token, load, c.noticeSeatsUpdated],
   );
 
   // WS-R37: cancel at period end - never immediately, api/_renewals.js's own
@@ -311,28 +317,26 @@ export default function SuiteCard({
       try {
         const sub = await cancelSuiteSubscription(token, orgId);
         setSubscription(sub);
-        setNotice("Will not renew after the current period ends.");
+        setNotice(c.noticeWillNotRenewSimple);
       } catch (e) {
         setError(readableError(e, "could not cancel this Suite's subscription"));
       } finally {
         setBusy(null);
       }
     },
-    [token],
+    [token, c.noticeWillNotRenewSimple],
   );
 
   return (
     <article className="teacher-sheet-card vy-room__suite-card">
-      <h3>Suites</h3>
+      <h3>{c.title}</h3>
       <p className="field-note">
-        A Suite is an organisation that pays for seats - one seat per Room. Create one to bring several Rooms
-        (a coach, a teacher, a doctor) under one roster; an admin sees only counts for each Room, never what a
-        follower said.
+        {c.intro}
       </p>
 
       {autoStart && (
         <p className="field-note" role="status">
-          {autoStart === "creating" ? "Creating your Suite." : "Starting its seat subscription."}
+          {autoStart === "creating" ? c.creating : c.starting}
         </p>
       )}
 
@@ -343,7 +347,10 @@ export default function SuiteCard({
               <div className="vy-room__suite-row-head">
                 <span className="vy-room__suite-name">{s.name}</span>
                 <span className="vy-room__suite-seats">
-                  {s.seats_used} of {s.seats_paid} seats used - {s.role === "admin" ? "you administer this Suite" : "you are a member"}
+                  {withCount(
+                    s.role === "admin" ? c.seatsUsedAdmin : c.seatsUsedMember,
+                    s.seats_used,
+                  ).split("{n2}").join(String(s.seats_paid))}
                 </span>
               </div>
               <div className="vy-room__suite-actions">
@@ -355,21 +362,21 @@ export default function SuiteCard({
                       disabled={busy === `invite-${s.org_id}`}
                       onPointerDown={() => void invite(s.org_id)}
                     >
-                      {busy === `invite-${s.org_id}` ? "Working..." : "Invite a creator"}
+                      {busy === `invite-${s.org_id}` ? c.working : c.inviteCreator}
                     </button>
                     <button
                       className="button secondary-button"
                       type="button"
                       onPointerDown={() => void toggleMembers(s.org_id)}
                     >
-                      {openMembers === s.org_id ? "Hide members" : "Show members"}
+                      {openMembers === s.org_id ? c.hideMembers : c.showMembers}
                     </button>
                     <button
                       className="button secondary-button"
                       type="button"
                       onPointerDown={() => void toggleMoney(s.org_id, s.seats_used)}
                     >
-                      {openMoney === s.org_id ? "Hide money" : "Show money"}
+                      {openMoney === s.org_id ? c.hideMoney : c.showMoney}
                     </button>
                     {roomId && roomOrgId !== s.org_id && (
                       <button
@@ -379,10 +386,10 @@ export default function SuiteCard({
                         onPointerDown={() => void attach(s.org_id)}
                       >
                         {busy === `attach-${s.org_id}`
-                          ? "Working..."
+                          ? c.working
                           : s.seats_used >= s.seats_paid
-                            ? "No seat free"
-                            : "Attach this Room"}
+                            ? c.noSeatFree
+                            : c.attachThisRoom}
                       </button>
                     )}
                   </>
@@ -394,7 +401,7 @@ export default function SuiteCard({
                     disabled={busy === "detach"}
                     onPointerDown={() => void detach()}
                   >
-                    {busy === "detach" ? "Working..." : "Remove this Room from this Suite"}
+                    {busy === "detach" ? c.working : c.removeFromSuite}
                   </button>
                 )}
               </div>
@@ -402,11 +409,11 @@ export default function SuiteCard({
                 members ? (
                   <ul className="vy-room__suite-members">
                     {members.map((m) => (
-                      <li key={m.owner_user_id}>{m.role === "admin" ? "Admin" : "Creator"} - {m.owner_user_id}</li>
+                      <li key={m.owner_user_id}>{m.role === "admin" ? c.memberAdmin : c.memberCreator} - {m.owner_user_id}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="field-note" role="status">Loading members.</p>
+                  <p className="field-note" role="status">{c.loadingMembers}</p>
                 )
               )}
               {openMoney === s.org_id && (
@@ -415,16 +422,21 @@ export default function SuiteCard({
                     {subscription ? (
                       <>
                         <p className="field-note">
-                          {subscription.seats} seats at {inr(subscription.price_per_seat_inr)} a month each - state: {subscription.state}.
+                          {c.seatsAtPrice
+                            .split("{n}").join(String(subscription.seats))
+                            .split("{label}").join(inr(subscription.price_per_seat_inr))
+                            .split("{label2}").join(subscription.state)}
                         </p>
                         {subscription.state === "active" && subscription.current_period_end && (
                           <p className="field-note">
                             {subscription.cancel_at_period_end
-                              ? `Will not renew after ${new Date(subscription.current_period_end).toLocaleDateString()}. Every attached Room keeps its seat until then.`
-                              : `Next charge: ${inr(subscription.seats * subscription.price_per_seat_inr)} on ${new Date(subscription.current_period_end).toLocaleDateString()}.`}
+                              ? withLabel(c.willNotRenew, new Date(subscription.current_period_end).toLocaleDateString())
+                              : c.nextCharge
+                                .split("{label}").join(inr(subscription.seats * subscription.price_per_seat_inr))
+                                .split("{label2}").join(new Date(subscription.current_period_end).toLocaleDateString())}
                           </p>
                         )}
-                        <p className="field-note">Vyakti's platform take is {PLATFORM_TAKE_PERCENT}%, the same as every Room's own follower price.</p>
+                        <p className="field-note">{withCount(c.platformTake, PLATFORM_TAKE_PERCENT)}</p>
                         {subscription.state === "active" && !subscription.cancel_at_period_end && (
                           <button
                             className="button secondary-button"
@@ -432,7 +444,7 @@ export default function SuiteCard({
                             disabled={busy === `cancel-money-${s.org_id}`}
                             onPointerDown={() => void cancelMoney(s.org_id)}
                           >
-                            {busy === `cancel-money-${s.org_id}` ? "Working..." : "Cancel"}
+                            {busy === `cancel-money-${s.org_id}` ? c.working : c.cancel}
                           </button>
                         )}
                         <div className="vy-room__cap-row" role="group" aria-label="Add seats">
@@ -450,27 +462,27 @@ export default function SuiteCard({
                             disabled={busy === `seats-${s.org_id}` || seatEditDraft === subscription.seats}
                             onPointerDown={() => void addSeat(s.org_id, seatEditDraft)}
                           >
-                            {busy === `seats-${s.org_id}` ? "Working..." : "Update seats"}
+                            {busy === `seats-${s.org_id}` ? c.working : c.updateSeats}
                           </button>
                         </div>
                       </>
                     ) : (
                       <>
-                        <p className="field-note">No Suite subscription yet. Seats stay capped at this Suite's own free seat limit until one starts.</p>
-                        <p className="field-note">Vyakti's platform take is {PLATFORM_TAKE_PERCENT}%, the same as every Room's own follower price.</p>
+                        <p className="field-note">{c.noSubscriptionYet}</p>
+                        <p className="field-note">{withCount(c.platformTake, PLATFORM_TAKE_PERCENT)}</p>
                         <button
                           className="button primary-button"
                           type="button"
                           disabled={busy === `start-money-${s.org_id}`}
                           onPointerDown={() => void startMoney(s.org_id, s.plan, Math.max(s.seats_used, 1))}
                         >
-                          {busy === `start-money-${s.org_id}` ? "Working..." : "Start Suite subscription"}
+                          {busy === `start-money-${s.org_id}` ? c.working : c.startSubscription}
                         </button>
                       </>
                     )}
                   </div>
                 ) : (
-                  <p className="field-note" role="status">Loading money.</p>
+                  <p className="field-note" role="status">{c.loadingMoney}</p>
                 )
               )}
             </li>
@@ -478,29 +490,29 @@ export default function SuiteCard({
         </ul>
       )}
       {suites && suites.length === 0 && (
-        <p className="field-note">No Suites yet. Create one below, or join one a Suite admin invited you to.</p>
+        <p className="field-note">{c.noSuitesYet}</p>
       )}
 
-      <label className="field-label" htmlFor="suite-name">New Suite name</label>
+      <label className="field-label" htmlFor="suite-name">{c.newSuiteName}</label>
       <input
         id="suite-name"
         className="field"
         value={nameDraft}
         maxLength={NAME_MAX}
-        placeholder="North Coaching"
+        placeholder={c.namePlaceholder}
         onChange={(event) => setNameDraft(event.target.value)}
       />
-      <label className="field-label" htmlFor="suite-plan">Plan</label>
+      <label className="field-label" htmlFor="suite-plan">{c.plan}</label>
       <select
         id="suite-plan"
         className="field"
         value={planDraft}
         onChange={(event) => setPlanDraft(event.target.value === "institute" ? "institute" : "starter")}
       >
-        <option value="starter">Starter</option>
-        <option value="institute">Institute</option>
+        <option value="starter">{c.planStarter}</option>
+        <option value="institute">{c.planInstitute}</option>
       </select>
-      <label className="field-label" htmlFor="suite-seats">Seats</label>
+      <label className="field-label" htmlFor="suite-seats">{c.seats}</label>
       <input
         id="suite-seats"
         className="field"
@@ -516,16 +528,16 @@ export default function SuiteCard({
         disabled={busy === "create" || !nameDraft.trim()}
         onPointerDown={() => void create()}
       >
-        {busy === "create" ? "Saving..." : "Create Suite"}
+        {busy === "create" ? c.saving : c.createSuite}
       </button>
 
-      <label className="field-label" htmlFor="suite-join">Join a Suite (paste the id an admin shared with you)</label>
+      <label className="field-label" htmlFor="suite-join">{c.joinSuite}</label>
       <div className="vy-room__suite-join">
         <input
           id="suite-join"
           className="field"
           value={joinOrgId}
-          placeholder="Suite id"
+          placeholder={c.joinPlaceholder}
           onChange={(event) => setJoinOrgId(event.target.value)}
         />
         <button
@@ -534,7 +546,7 @@ export default function SuiteCard({
           disabled={busy === "join" || !joinOrgId.trim()}
           onPointerDown={() => void join()}
         >
-          {busy === "join" ? "Working..." : "Join"}
+          {busy === "join" ? c.working : c.join}
         </button>
       </div>
 

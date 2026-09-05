@@ -578,20 +578,36 @@ console.log("\n── 7. migration 074, erasure reach, and the copy ──");
 {
   // The empty state is the brief's own sentence, and the copy gate's rules
   // apply to every string on this screen.
+  //
+  // WS-R52: this component's own literal strings moved into
+  // src/studio/copy.ts (a locale table, English and Hindi) - `component`
+  // alone no longer carries the rendered English text, only
+  // `t.reviewQueue.<key>` references. `componentWithCopy` is what every
+  // rendered-text check below actually reads, matching
+  // `evals/readiness/run.mjs`'s own fix for the identical shape.
   const component = read("src/studio/ReviewQueue.tsx");
-  ok(component.includes("Nothing to review yet."), "the empty state is honest about being empty");
-  ok(component.includes("It fills itself from real conversations once your Room is open."),
+  const copyTs = read("src/studio/copy.ts");
+  const componentWithCopy = `${component}\n${copyTs}`;
+  ok(componentWithCopy.includes("Nothing to review yet."), "the empty state is honest about being empty");
+  ok(componentWithCopy.includes("It fills itself from real conversations once your Room is open."),
     "...and says what will fill it");
   ok(/onPointerDown/.test(component), "feedback fires on pointerdown, never on release");
   ok(!/onClick=/.test(component), "...and there is no onClick left on a decision path");
-  ok(/Card \{Math\.min\(position, total\)\} of \{total\}/.test(component),
-    "the progress line is a real count of real rows");
-  ok(!/[—–]/.test(component.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "")),
+  ok(/Math\.min\(position, total\)/.test(component) && /\btotal\b/.test(component),
+    "the progress line is a real count of real rows (Math.min(position, total) of total, never a fabricated number)");
+  const componentWithCopyNoComments = componentWithCopy
+    .replace(/\/\/[^\n]*/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  ok(!/[—–]/.test(componentWithCopyNoComments),
     "no em-dash or en-dash in any user-visible string");
   for (const label of ["Sounds right", "Close, fix it", "Never say this"]) {
-    ok(component.includes(label), `the button copy is the product's own: "${label}"`);
+    ok(componentWithCopy.includes(label), `the button copy is the product's own: "${label}"`);
   }
-  ok(!/\bclone\b/i.test(component), "the word 'clone' appears in no user-visible string");
+  // Comments stripped first: copy.ts's own file header explains the "never
+  // the word clone" rule IN PROSE, which is not a user-visible string -
+  // `evals/drift-watch/run.mjs`'s own comment-stripping precedent, applied
+  // here for the same reason.
+  ok(!/\bclone\b/i.test(componentWithCopyNoComments), "the word 'clone' appears in no user-visible string");
 }
 
 console.log(`\nreview-queue: ${checks - failed}/${checks} checks passed`);

@@ -76,6 +76,22 @@ export async function revokeReplica(
   });
 }
 
+/**
+ * WS-R52 (migration 112). The studio's own chrome language, set through the
+ * same owner-scoped op family as `revokeReplica`/`createReplica` above --
+ * never a second endpoint. `api/_replica.js`'s `setOwnedReplicaLocale`
+ * refuses an unrecognised value by name (`studio_locale_invalid`), so a
+ * caller passing anything outside `STUDIO_LOCALES` sees a `ReplicaApiError`
+ * rather than a silent no-op.
+ */
+export async function setReplicaLocale(token: string, id: string, locale: "en" | "hi"): Promise<Replica> {
+  const data = await replicaRequest<{ replica: Replica }>(token, "/api/replica", {
+    method: "POST",
+    body: JSON.stringify({ op: "set_locale", replica_id: id, locale }),
+  });
+  return data.replica;
+}
+
 export async function readErasureStatus(token: string, requestId: string): Promise<ReplicaErasureStatus> {
   const data = await replicaRequest<{ erasure: ReplicaErasureStatus }>(token, "/api/replica", {
     method: "POST",

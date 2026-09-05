@@ -13338,3 +13338,166 @@ mismatch" confusion from scratch: if `reconciliationOverview`'s
 flagged period predates 2026-09 (this migration's own apply date) and the
 owner's Room predates migration 107 before treating the finding as a real
 payout bug.
+
+## `ws-r52-studio-locale-lives-on-vy-replica-not-a-new-table` (2026-09-04, WS-R52)
+
+**Decision.** The creator's own chrome locale (Feed/Meet/Share, Readiness,
+the review queue, Payouts, the Suite card) is `vy_replica.locale` (migration
+112), a new CHECK-bounded `text` column on the existing owner-keyed table,
+not a new table and not `vy_replica.metadata`'s existing jsonb column.
+
+**Rationale.** WS-R47 already found and logged that the studio had "no
+locale mechanism at all"
+(`context/decisions.md#ws-r47-studio-card-is-english-only-no-locale-mechanism-exists`).
+This workstream's brief pointed at the fix directly: grep for
+`owner_user_id` on a settings-shaped table before adding a new one.
+`vy_replica` (migration 015) is exactly that table - every owner-scoped
+studio read already goes through it (`api/_replica.js`'s `RETURNING`,
+`clientReplica`), one row per creator's own AI. `vy_room_follower.locale`
+and `vy_room.default_locale` (migration 087) already solved the identical
+decision one surface over with a CHECK-bounded column rather than a jsonb
+key, for a reason that transfers exactly: a jsonb key cannot carry a CHECK
+constraint, so a typo or a stray third value would read silently as "no
+locale" downstream instead of failing at the database. Using the same shape
+here means one pattern for "where does a two-value locale choice live",
+not two.
+
+**Reversal condition.** If a creator ever owns more than one replica with
+different chrome languages desired per replica (today `subject_mode` is
+CHECK-bounded to `'self'` alone, so this is not a case that exists yet),
+revisit whether locale belongs on the account instead of the replica - but
+that is a different decision, not evidence this one was wrong for the
+product as it ships.
+
+## `ws-r52-studio-locale-plumbed-through-a-react-context-not-props` (2026-09-04, WS-R52)
+
+**Decision.** `src/studio/localeContext.tsx`'s `StudioLocaleProvider`/
+`useStudioLocale()`, mounted once around `StudioApp.tsx`'s whole signed-in
+tree, is how every converted panel reads the creator's chrome locale -
+never a `locale`/`t` prop threaded through each panel's own interface the
+way `src/room/copy.ts`'s `copy` object is threaded through `RoomApp.tsx`.
+
+**Rationale.** The Room is one component reading `ROOM_COPY_TABLE[locale]`
+once and passing the result down its own single tree. The studio is a
+different shape: `StudioApp.tsx` lazy-mounts roughly thirty independent
+panel components, each with a prop interface an earlier workstream already
+defined, and this workstream deliberately does not touch about two-thirds
+of them (see the Tier 2 rejection below). A context lets the two
+lowest-level shared components - `BlockerNotice.tsx` and `WizardRail.tsx`,
+rendered by EVERY panel, converted and unconverted alike - read the
+two-word "Waiting on you"/"Waiting on us" badge in Hindi with no change to
+either component's exported signature, which means even an unconverted
+Tier 2 panel's blocker badge renders in the creator's own language for
+free. Prop-threading `t` through thirty independent interfaces to get that
+same two-label win would have been the wrong shape for what it bought.
+
+**Reversal condition.** If a future workstream converts every remaining
+Tier 2 panel and the context's only remaining job is passing `t` to files
+that could just as easily receive it as a prop from `StudioApp.tsx`
+directly, collapsing back to explicit props is a reasonable simplification
+- but that is a cleanup of a completed job, not evidence the context was
+the wrong call while the job was two-thirds undone.
+
+## `ws-r52-class-labels-split-from-blockerclass-ts-own-copy` (2026-09-04, WS-R52)
+
+**Decision.** `src/studio/copy.ts` carries its own two-entry `classLabels`
+table ("Waiting on you"/"Waiting on us", translated), read by
+`BlockerNotice.tsx` and `WizardRail.tsx` for the on-screen badge.
+`blockerClass.ts`'s own `CLASS_COPY` (the same two labels, plus the
+`lead` sentence and the `blamesThePerson`/`countsOpaqueThings` honesty
+checks) is completely untouched and stays English.
+
+**Rationale.** `blockerClass.ts`'s own header states its contract plainly:
+a dependency-free module `evals/studiowizard.mjs` (not named in this
+workstream's file list) imports directly and checks every `us`-class
+reason against `BLAME_PATTERNS`, a set of ENGLISH regexes, as the
+mechanical proof behind `docs/HONESTY.md`'s "never blame the person for our
+failure" law. Localizing `CLASS_COPY` itself would either (a) silently stop
+the honesty eval from checking the Hindi strings it now ships, which is
+shipping an ungated safety-adjacent surface, or (b) require building a
+parallel Hindi blame-language detector in the same change - a real
+workstream of its own, not a translation, and one this brief did not scope
+or budget for. Splitting the two-word BADGE (safe to translate: it names a
+class, not a claim) from the REASON sentence next to it (honesty-gated,
+stays English) is not a compromise invented for this decision; it is the
+same split `context/decisions.md`'s account of `blockerClass.ts` already
+draws between the class and its prose.
+
+**Reversal condition.** If a future workstream builds a Hindi-language
+honesty detector (a `BLAME_PATTERNS`-equivalent for Hindi grammar) and
+extends `evals/studiowizard.mjs` to run it, `CLASS_COPY.lead` and every
+`DisabledReason.headline`/`.next` this repo produces (blockerClass.ts's
+`disabledReason`, QuickStartPath.tsx's `BLOCKER_META`,
+`WizardRail.tsx`'s `PlatformWorkBanner`) can move into `copy.ts` in the
+same change, with the same proof the English strings already have.
+
+## `ws-r52-tier-2-studio-files-not-localized` (2026-09-04, WS-R52)
+
+**Decision.** 12 of `src/studio/`'s roughly 40 `.tsx` files are fully
+converted to `t()` this workstream (the studio's shell, the review queue,
+Readiness, Drift watch, and the Payouts/Check-ins/Handoff/Suite/invite
+cards - the brief's own two named examples, "the Payouts card and the
+Suite card," are among them). The remaining files - every enrollment/
+voice-lab/identity/liveness/ops wizard-step panel, plus `RoomStudio.tsx`
+itself (the studio's single largest file, carrying money and tax-adjacent
+copy) - are NOT converted, and are named one by one, with a specific
+reason each, in `evals/studio-locale/run.mjs`'s own `TIER_2_ALLOWLIST`.
+
+**Rationale.** These files total roughly two-thirds of `src/studio/`'s
+line count; a careful, correct Hindi rendering of a coach's identity-
+verification flow, a voice-consent ceremony, or a tax note deserves
+dedicated review, not the twentieth file translated in one session that
+already converted twelve others. Converting the CHROME a creator sees
+every visit (Feed/Meet/Share, Readiness, the review queue's three
+verdicts, the money cards) first, and building the mechanism (`copy.ts`'s
+locale table, the context/provider, migration 112, the eval, both gates'
+`*-hi` targets) so a future workstream can extend it file by file without
+re-deriving any of it, is the higher-value cut for one session than a
+shallower pass across every file. `blockerClass.ts`'s own honesty-gate
+constraint (the decision above this one) applies independently to some of
+these files too (`QuickStartPath.tsx` specifically) and would have bounded
+them regardless of session length.
+
+**Reversal condition.** A future workstream converting any Tier 2 file
+removes its entry from `evals/studio-locale/run.mjs`'s `TIER_2_ALLOWLIST`
+and adds the file to `TIER_1_FILES` in the same change - the eval fails
+loudly (`every src/studio/*.tsx file is either Tier 1 or in the justified
+Tier 2 allowlist`) if a file is converted but the allowlist entry is left
+standing, or if a file is removed from the allowlist without actually
+being converted (its own zero-literal-text-nodes check would then fail).
+
+## `ws-r52-existing-evals-updated-for-the-copy-ts-move` (2026-09-05, WS-R52)
+
+**Decision.** `evals/readiness/run.mjs`, `evals/drift-watch/run.mjs` and
+`evals/review-queue/run.mjs` - three pre-existing gates, each reading its
+own component's `.tsx` source directly (`readFileSync`) and asserting a
+literal English string appears in it ("Still an apprentice", "Not measured
+yet", "Sounds right"/"Close, fix it"/"Never say this", the em-dash and
+banned-word scans) - were updated to also read `src/studio/copy.ts` and
+check the CONCATENATION of the component plus the copy table, rather than
+the component alone.
+
+**Rationale.** These three checks are still correct in what they assert
+("the word for an incomplete AI is apprentice, never broken"; "no banned
+product word reaches the screen"); what changed is WHERE the string that
+proves it lives, because this workstream moved it there on purpose (law 1:
+"existing components import `t()`; no component keeps a literal English
+sentence"). Leaving the checks reading the component alone would not have
+caught a REAL regression (a future edit deleting the Hindi-aware string
+from `copy.ts` while leaving the English word in a code comment, say) - it
+would have quietly stopped checking the actual rendered product, which is
+worse than failing loudly, exactly the `evals/room-locale/run.mjs`
+precedent this workstream's own copy.ts header cites. One check
+(`evals/review-queue/run.mjs`'s progress-line assertion) could not simply
+concatenate copy.ts, because the literal JSX shape it matched
+(`Card {Math.min(position, total)} of {total}`) no longer exists verbatim
+- rewritten to assert the same underlying fact (a real `Math.min(position,
+total)` and a real `total`, never a fabricated number) against the
+component's own source, which still contains that expression.
+
+**Reversal condition.** If a future workstream removes `copy.ts` or
+restructures where studio strings live again, these three checks move with
+it in the same change - the pattern to follow is "read what actually
+renders," not "read this one file," which is the reason `panelWithCopy`/
+`cardWithCopy`/`componentWithCopy` are named for what they check rather
+than where they came from.

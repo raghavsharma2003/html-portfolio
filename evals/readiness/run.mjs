@@ -541,6 +541,15 @@ console.log("\n\u2500\u2500 10. the screen \u2500\u2500");
 const panel = readFileSync(join(ROOT, "src/studio/ReadinessPanel.tsx"), "utf8");
 const panelCss = readFileSync(join(ROOT, "src/studio/readiness.css"), "utf8");
 const app = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
+// WS-R52: this panel's own literal strings moved into src/studio/copy.ts
+// (a locale table, English and Hindi) — `panel` alone no longer carries the
+// rendered English text, only `t.readiness.<key>` references. The checks
+// below that read rendered copy ("Still an apprentice", the banned-word
+// scan) now read `panel + copy` together, so they keep checking what a
+// creator actually sees rather than a snapshot of where the string used to
+// live.
+const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const panelWithCopy = `${panel}\n${copyTs}`;
 
 ok("the panel renders words, not a zero, when a part is unmeasured",
   /Not measured yet/.test(panel));
@@ -568,7 +577,7 @@ ok("no ad-hoc pixel or hex value in the stylesheet outside the media queries",
   && (panelCss.match(/\b\d+px\b/g) || []).every((v) => v === "760px" || v === "92px"));
 
 // The word for an incomplete AI, and the words that are banned.
-ok("an incomplete AI is an apprentice, never broken", /Still an apprentice/.test(panel));
+ok("an incomplete AI is an apprentice, never broken", /Still an apprentice/.test(panelWithCopy));
 // Checked on the RENDERED text only. Import paths, prop names and comments are
 // not user-visible and are stripped first, which is the same distinction
 // scripts/check-copy.mjs draws for its own rules ("code comments are
@@ -576,9 +585,9 @@ ok("an incomplete AI is an apprentice, never broken", /Still an apprentice/.test
 // the common brief's: an AI version of a person is "your AI", never a clone,
 // a replica, a model or a fine-tune.
 const renderedText = [
-  ...(panel.match(/>[^<>{}]{3,}</g) || []),
-  ...(panel.match(/: "[^"]{6,}"/g) || []),
-  ...(panel.match(/`[^`]{6,}`/g) || []),
+  ...(panelWithCopy.match(/>[^<>{}]{3,}</g) || []),
+  ...(panelWithCopy.match(/: "[^"]{6,}"/g) || []),
+  ...(panelWithCopy.match(/`[^`]{6,}`/g) || []),
 ].join(" ");
 ok("no banned product word enters the text this panel renders",
   !/\b(clone|replica|fine-?tune)s?\b/i.test(renderedText));

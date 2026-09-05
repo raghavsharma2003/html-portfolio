@@ -4166,3 +4166,14 @@ create unique index if not exists vy_incident_day_kind_door_status_ix
   on vy_incident (day, kind, door, status);
 create index if not exists vy_incident_day_ix
   on vy_incident (day desc);
+-- Migration 112 - the studio in Hindi (WS-R52). See
+-- db/migrations/112_replica_locale.sql for the full argument: the CREATOR's
+-- own chrome language, CHECK-bounded like vy_room_follower.locale and
+-- vy_room.default_locale one surface over. Never the AI's own replies, never
+-- the Room a follower sees.
+alter table vy_replica
+  add column if not exists locale text not null default 'en';
+alter table vy_replica
+  drop constraint if exists vy_replica_locale_check;
+alter table vy_replica
+  add constraint vy_replica_locale_check check (locale in ('en', 'hi'));

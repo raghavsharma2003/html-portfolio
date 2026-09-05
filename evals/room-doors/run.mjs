@@ -473,7 +473,7 @@ function withSecondRoom(state) {
   const hoDb = doorsDb(hoState);
   const hoJoined = await joinRoom(hoDb, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
   const hoCross = mintRoomSession({ ...reencodeWithSameSig(hoJoined.session).payload, r: "kabir" }, ENV);
-  const hoErr = await threw(() => draftHandoffPayload(hoDb, { session: hoCross, note: "hi" }, { loadAgent: loadAgentTwoRooms, env: ENV }));
+  const hoErr = await threw(() => draftHandoffPayload(hoDb, { session: hoCross, note: "hi" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "handoff.js", "draft: cross-room session refused room_unavailable", hoErr?.code === "room_unavailable");
 
   const ciState = withSecondRoom(freshDoorsState());
@@ -481,7 +481,7 @@ function withSecondRoom(state) {
   const ciJoined = await joinRoom(ciDb, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
   const design = await createDesign(ciDb, OWNER, REPLICA_ID, { title: "Walk", promptShape: "x" });
   const ciCross = mintRoomSession({ ...reencodeWithSameSig(ciJoined.session).payload, r: "kabir" }, ENV);
-  const ciErr = await threw(() => optIn(ciDb, { session: ciCross, designId: design.design_id, daysOfWeek: [1], localTime: "09:00", timezone: "Asia/Kolkata" }, { loadAgent: loadAgentTwoRooms, env: ENV }));
+  const ciErr = await threw(() => optIn(ciDb, { session: ciCross, designId: design.design_id, daysOfWeek: [1], localTime: "09:00", timezone: "Asia/Kolkata" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "checkins.js", "opt_in: cross-room session refused room_unavailable", ciErr?.code === "room_unavailable");
 
   // room-pay.js — the disclosure card is bound too: room A's disclosure
@@ -491,7 +491,7 @@ function withSecondRoom(state) {
   // `resolveRoom`+id-match sequence and does not read `dd` at all (that
   // predicate is `roomSay`/`roomSpeak`'s own, see this file's header on
   // why it is scoped to ops where the AI speaks).
-  const payErr = await threw(() => followerSubscriptionStatus(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, env: ENV }));
+  const payErr = await threw(() => followerSubscriptionStatus(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "room-pay.js", "status: cross-room session refused room_unavailable", payErr?.code === "room_unavailable");
 
   // (b3) THE DISCLOSURE DIGEST, roomSay/roomSpeak's own extra binding: an
@@ -517,13 +517,13 @@ console.log("\n── §3: body-supplied ids belonging to someone else ──");
   const db = doorsDb(state);
   const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
   const joinedB = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
-  const draftB = await draftHandoffPayload(db, { session: joinedB.session, note: "B's own note" }, { loadAgent, env: ENV });
+  const draftB = await draftHandoffPayload(db, { session: joinedB.session, note: "B's own note" }, { loadAgent, now: NOW, env: ENV });
   const sentB = await sendHandoffRequest(db, { session: joinedB.session, payloadText: draftB.payload_text, payloadSha256: draftB.payload_sha256 }, { loadAgent, now: NOW, env: ENV });
   ok("fixture: follower B's own handoff request exists", Boolean(sentB.handoff_id));
 
-  const crossWithdraw = await threw(() => withdrawHandoffRequest(db, { session: joinedA.session, handoffId: sentB.handoff_id }, { loadAgent, env: ENV }));
+  const crossWithdraw = await threw(() => withdrawHandoffRequest(db, { session: joinedA.session, handoffId: sentB.handoff_id }, { loadAgent, now: NOW, env: ENV }));
   okClass("c-body-ids", "handoff.js", "withdraw: follower A naming follower B's own handoff_id is refused by name, never A's row", crossWithdraw?.code === "handoff_not_withdrawable");
-  const stillSent = (await myHandoffs(db, { session: joinedB.session }, { loadAgent, env: ENV }))[0];
+  const stillSent = (await myHandoffs(db, { session: joinedB.session }, { loadAgent, now: NOW, env: ENV }))[0];
   okClass("c-body-ids", "handoff.js", "withdraw: follower B's request is UNCHANGED by A's attempt", stillSent.state === "sent");
 }
 
@@ -540,9 +540,9 @@ console.log("\n── §3: body-supplied ids belonging to someone else ──");
   const design = await createDesign(db, OWNER, REPLICA_ID, { title: "Walk", promptShape: "x" });
   const optB = await optIn(db, { session: joinedB.session, designId: design.design_id, daysOfWeek: [1], localTime: "09:00", timezone: "Asia/Kolkata" }, { loadAgent, now: NOW, env: ENV });
 
-  const crossStop = await threw(() => stop(db, { session: joinedA.session, checkinId: optB.checkin_id }, { loadAgent, env: ENV }));
+  const crossStop = await threw(() => stop(db, { session: joinedA.session, checkinId: optB.checkin_id }, { loadAgent, now: NOW, env: ENV }));
   okClass("c-body-ids", "checkins.js", "stop: follower A naming follower B's own checkin_id is refused by name", crossStop?.code === "checkin_not_found");
-  const stillActive = (await listMine(db, { session: joinedB.session }, { loadAgent, env: ENV }))[0];
+  const stillActive = (await listMine(db, { session: joinedB.session }, { loadAgent, now: NOW, env: ENV }))[0];
   okClass("c-body-ids", "checkins.js", "stop: follower B's own check-in is UNCHANGED by A's attempt", stillActive.state === "active");
 }
 
@@ -582,7 +582,7 @@ console.log("\n── §4: webhook replay and tampered signatures ──");
   const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
   await setRoomPrice(db, OWNER, REPLICA_ID, 299);
   const started = await startFollowerSubscription(db, { session: joined.session }, {
-    loadAgent, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" },
+    loadAgent, now: NOW, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" },
   });
   const ref = started.provider_subscription_ref;
 
@@ -959,7 +959,7 @@ console.log("\n── §10: room-pay.js cancel (WS-R44) ──");
 {
   const { db, session } = await setupFollower({ tier: "paid" });
   await setRoomPrice(db, OWNER, REPLICA_ID, 299);
-  const started = await startFollowerSubscription(db, { session }, { loadAgent, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" } });
+  const started = await startFollowerSubscription(db, { session }, { loadAgent, now: NOW, env: { ...ENV, PAYMENTS_PROVIDER: "fake" }, secrets: { webhookSecret: "wh" } });
   ok("[c-body-ids/room-pay.js] fixture: a real subscription exists to cancel", Boolean(started.subscription_id));
 
   await assertForgeryRefused("room-pay.js", "cancel", () => session);

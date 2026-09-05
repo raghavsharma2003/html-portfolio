@@ -4,6 +4,7 @@
 // POST /api/replica {op:create, display_name}
 // POST /api/replica {op:revoke, replica_id}
 // POST /api/replica {op:erasure_status, erasure_request_id}
+// POST /api/replica {op:set_locale, replica_id, locale}   -- WS-R52, studio chrome only
 import { q } from "./_db.js";
 import { requireUser, AuthError } from "./_auth.js";
 import { allow, ipOf } from "./_ratelimit.js";
@@ -12,6 +13,7 @@ import {
   getOwnedReplica,
   listOwnedReplicas,
   requestOwnedReplicaErasure,
+  setOwnedReplicaLocale,
 } from "./_replica.js";
 import { getReplicaErasureStatus } from "./_replica-full-erasure.js";
 import { configuredFaceSessionErasureBroker } from "./_face-session/registry.js";
@@ -84,6 +86,17 @@ export default async function handler(req, res) {
       return status
         ? res.status(200).json({ erasure: status })
         : res.status(404).json({ error: "erasure_request_not_found" });
+    }
+    if (body.op === "set_locale") {
+      // WS-R52 (migration 112). The studio's own chrome language, the
+      // creator-facing analog of api/_room-surface.js's roomSetLocale --
+      // same "invalid value is refused by name" rule, own owner-scoped
+      // WHERE clause rather than a shared helper (this table has no
+      // session-token layer to read the owner off; requireUser() above
+      // already is that layer for the whole endpoint).
+      const replica = await setOwnedReplicaLocale(q, user.id, body.replica_id, body.locale);
+      if (!replica) return res.status(404).json({ error: "replica_not_found" });
+      return res.status(200).json({ replica });
     }
     if (body.op === "funnel_mark") {
       // WS-R25 (migration 088). The two studio-only funnel moments -

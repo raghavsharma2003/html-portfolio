@@ -30,24 +30,27 @@ import {
   readReviewQueue,
   uploadCorrection,
 } from "./reviewQueueApi";
-import type { ReviewCard, ReviewQueue as ReviewQueueShape } from "./types";
+import type { ReviewQueue as ReviewQueueShape } from "./types";
+import { useStudioLocale } from "./localeContext";
+import { withCount, type StudioCopy } from "./copy";
 
-const KIND_LABEL: Record<ReviewCard["kind"], string> = {
-  question: "A question people will ask",
-  claim: "Something we think we learned",
-  delta: "A habit we heard on a call",
-  follower_declined: "A question your AI would not answer",
-};
-
-/** The three buttons, in the order the keys and the DOM agree on. The copy is
- *  the product's own vocabulary and is fixed by the common brief. */
-const BUTTONS = [
-  { decision: "sounds_right", label: "Sounds right", hint: "1" },
-  { decision: "fixed", label: "Close, fix it", hint: "2" },
-  { decision: "never", label: "Never say this", hint: "3" },
+/** The three buttons, in the order the keys and the DOM agree on. The
+ *  DECISION and the HINT key are the product's own vocabulary, fixed by the
+ *  common brief; the LABEL is read from `t.reviewQueue` below so it renders
+ *  in the creator's own chrome language. */
+const BUTTON_ORDER = [
+  { decision: "sounds_right", hint: "1" },
+  { decision: "fixed", hint: "2" },
+  { decision: "never", hint: "3" },
 ] as const;
 
-type Decision = (typeof BUTTONS)[number]["decision"];
+type Decision = (typeof BUTTON_ORDER)[number]["decision"];
+
+function buttonLabel(t: StudioCopy, decision: Decision): string {
+  if (decision === "sounds_right") return t.reviewQueue.buttonSoundsRight;
+  if (decision === "fixed") return t.reviewQueue.buttonFixed;
+  return t.reviewQueue.buttonNever;
+}
 
 /** Recording state, kept as a discriminated string rather than three booleans:
  *  three booleans admit "recording and idle at the same time", which is how a
@@ -63,6 +66,7 @@ export default function ReviewQueue({
   replicaId: string;
   onAuthError: (cause: unknown) => void;
 }) {
+  const { t } = useStudioLocale();
   const [queue, setQueue] = useState<ReviewQueueShape | null>(null);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -79,9 +83,9 @@ export default function ReviewQueue({
       setQueue(await readReviewQueue(token, replicaId));
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "The review queue could not be read");
+      setError(cause instanceof Error ? cause.message : t.reviewQueue.errorLoad);
     }
-  }, [onAuthError, replicaId, token]);
+  }, [onAuthError, replicaId, token, t]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => { mediaRef.current?.stream?.getTracks?.().forEach((track) => track.stop()); }, []);
@@ -108,13 +112,13 @@ export default function ReviewQueue({
       setDraft("");
       setIndex(0);
       setNotice(decision === "fixed"
-        ? "Saved. Anything built from the old answer will be rebuilt, not patched."
+        ? t.reviewQueue.noticeFixed
         : decision === "never"
-          ? "Saved. Your AI is now blocked from saying this, on every surface."
-          : "Saved.");
+          ? t.reviewQueue.noticeNever
+          : t.reviewQueue.noticeSaved);
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "That decision could not be saved");
+      setError(cause instanceof Error ? cause.message : t.reviewQueue.errorSave);
     } finally {
       setBusy(false);
     }
@@ -135,7 +139,7 @@ export default function ReviewQueue({
     } catch (cause) {
       setBusy(false);
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "That correction could not be saved");
+      setError(cause instanceof Error ? cause.message : t.reviewQueue.errorCorrection);
     }
   }
 
@@ -156,7 +160,7 @@ export default function ReviewQueue({
       setRecorder("recording");
     } catch {
       // The honest split: this is waiting on YOU, not on us.
-      setError("Your browser did not give us the microphone. Type the fix instead.");
+      setError(t.reviewQueue.micDenied);
     }
   }
 
@@ -170,7 +174,7 @@ export default function ReviewQueue({
     if (!card) { setRecorder("idle"); return; }
     try {
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      if (!bytes.byteLength) throw new Error("Nothing was recorded. Hold the button while you speak.");
+      if (!bytes.byteLength) throw new Error(t.reviewQueue.nothingRecorded);
       const sourceId = await uploadCorrection(token, replicaId, card.card_id, {
         bytes,
         mime: (blob.type || "audio/webm").split(";", 1)[0],
@@ -181,7 +185,7 @@ export default function ReviewQueue({
     } catch (cause) {
       setRecorder("idle");
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "That recording could not be saved");
+      setError(cause instanceof Error ? cause.message : t.reviewQueue.errorRecording);
     }
   }
 
@@ -194,11 +198,11 @@ export default function ReviewQueue({
       setIndex(0);
       setNotice(result.questions_unavailable
         // "Waiting on us", named, never a shorter list wearing a green tick.
-        ? `Added ${result.written}. The question generator is not available on this deployment yet, so only your own material was used.`
-        : `Added ${result.written}.`);
+        ? withCount(t.reviewQueue.addedWithGenerator, result.written)
+        : withCount(t.reviewQueue.addedPlain, result.written));
     } catch (cause) {
       if (cause instanceof ReplicaApiError && cause.status === 401) return onAuthError(cause);
-      setError(cause instanceof Error ? cause.message : "The queue could not be filled");
+      setError(cause instanceof Error ? cause.message : t.reviewQueue.errorFill);
     } finally {
       setBusy(false);
     }
@@ -210,7 +214,7 @@ export default function ReviewQueue({
     if (composing || busy || !card) return;
     const target = event.target as HTMLElement;
     if (target.tagName === "TEXTAREA" || target.tagName === "INPUT") return;
-    const button = BUTTONS.find((row) => row.hint === event.key);
+    const button = BUTTON_ORDER.find((row) => row.hint === event.key);
     if (!button) return;
     event.preventDefault();
     if (button.decision === "fixed") { setComposing(true); return; }
@@ -221,15 +225,15 @@ export default function ReviewQueue({
     <section className="review-queue" aria-labelledby="review-queue-title" onKeyDown={onKey} tabIndex={-1}>
       <div className="review-queue-head">
         <div>
-          <p className="eyebrow">Review</p>
-          <h3 id="review-queue-title">Check what your AI says</h3>
+          <p className="eyebrow">{t.reviewQueue.eyebrow}</p>
+          <h3 id="review-queue-title">{t.reviewQueue.title}</h3>
           <p className="review-queue-lede">
-            One answer at a time. Say whether it sounds like you, fix it in your own words, or block it outright.
+            {t.reviewQueue.lede}
           </p>
         </div>
         {total > 0 && (
           <p className="review-queue-count" aria-live="polite">
-            Card {Math.min(position, total)} of {total}
+            {t.reviewQueue.cardOf.split("{n}").join(String(Math.min(position, total))).split("{n2}").join(String(total))}
           </p>
         )}
       </div>
@@ -238,33 +242,36 @@ export default function ReviewQueue({
       {error ? (
         <div className="review-queue-error" role="alert">
           <span>{error}</span>
-          <button type="button" onPointerDown={() => setError("")}>Dismiss</button>
+          <button type="button" onPointerDown={() => setError("")}>{t.reviewQueue.dismiss}</button>
         </div>
       ) : null}
 
       {!card ? (
         <div className="review-queue-empty">
-          <strong>Nothing to review yet.</strong>
-          <p>It fills itself from real conversations once your Room is open.</p>
+          <strong>{t.reviewQueue.emptyTitle}</strong>
+          <p>{t.reviewQueue.emptyBody}</p>
           <button className="button" type="button" disabled={busy} onPointerDown={() => void fill()}>
-            {busy ? "Looking..." : "Look for something to review"}
+            {busy ? t.reviewQueue.looking : t.reviewQueue.lookForSomething}
           </button>
         </div>
       ) : (
         <article className="review-card">
-          <p className="review-card-kind">{KIND_LABEL[card.kind]}</p>
+          <p className="review-card-kind">{t.reviewQueue.kindLabel[card.kind]}</p>
+          {/* card.prompt_text/card.answer_text are the AI's own material
+              (a question people asked, an answer it gave) -- never chrome,
+              never moved here. copy.ts's own header names this exception. */}
           <p className="review-card-prompt">{card.prompt_text}</p>
           {card.answer_text ? (
             <p className="review-card-answer">{card.answer_text}</p>
           ) : (
             <p className="review-card-answer review-card-answer-absent">
-              Your AI has not answered this one yet. Write what you would say and it becomes the answer.
+              {t.reviewQueue.noAnswerYet}
             </p>
           )}
 
           {!composing ? (
             <div className="review-card-actions">
-              {BUTTONS.map((button) => (
+              {BUTTON_ORDER.map((button) => (
                 <button
                   key={button.decision}
                   className={`review-choice review-choice-${button.decision}`}
@@ -276,14 +283,14 @@ export default function ReviewQueue({
                     void submit(button.decision);
                   }}
                 >
-                  <span>{button.label}</span>
+                  <span>{buttonLabel(t, button.decision)}</span>
                   <small aria-hidden="true">{button.hint}</small>
                 </button>
               ))}
             </div>
           ) : (
             <div className="review-fix">
-              <label htmlFor="review-fix-text">What would you actually say?</label>
+              <label htmlFor="review-fix-text">{t.reviewQueue.fixQuestionLabel}</label>
               <textarea
                 id="review-fix-text"
                 rows={4}
@@ -291,10 +298,10 @@ export default function ReviewQueue({
                 value={draft}
                 autoFocus
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Answer it the way you would answer it."
+                placeholder={t.reviewQueue.fixPlaceholder}
               />
               <p className="review-fix-note">
-                This is stored as your own source and cited. It is never pasted into your AI as a script.
+                {t.reviewQueue.fixNote}
               </p>
               <div className="review-fix-actions">
                 <button
@@ -303,7 +310,7 @@ export default function ReviewQueue({
                   disabled={busy || !draft.trim()}
                   onPointerDown={() => void saveTypedFix()}
                 >
-                  {busy ? "Saving..." : "Save this answer"}
+                  {busy ? t.reviewQueue.saving : t.reviewQueue.saveThisAnswer}
                 </button>
                 <button
                   className={`review-hold ${recorder === "recording" ? "recording" : ""}`}
@@ -313,7 +320,7 @@ export default function ReviewQueue({
                   onPointerUp={() => stopRecording()}
                   onPointerLeave={() => stopRecording()}
                 >
-                  {recorder === "recording" ? "Listening, let go when done" : recorder === "encoding" ? "Saving..." : "Hold to say it"}
+                  {recorder === "recording" ? t.reviewQueue.listening : recorder === "encoding" ? t.reviewQueue.savingHold : t.reviewQueue.holdToSayIt}
                 </button>
                 <button
                   className="text-button"
@@ -321,7 +328,7 @@ export default function ReviewQueue({
                   disabled={busy}
                   onPointerDown={() => { setComposing(false); setDraft(""); }}
                 >
-                  Back
+                  {t.reviewQueue.back}
                 </button>
               </div>
             </div>
@@ -331,7 +338,10 @@ export default function ReviewQueue({
 
       {queue && queue.active_never_rules > 0 ? (
         <p className="review-queue-rules">
-          {queue.active_never_rules} blocked {queue.active_never_rules === 1 ? "answer" : "answers"} in force on every surface.
+          {withCount(
+            queue.active_never_rules === 1 ? t.reviewQueue.blockedAnswerOne : t.reviewQueue.blockedAnswerMany,
+            queue.active_never_rules,
+          )}
         </p>
       ) : null}
     </section>

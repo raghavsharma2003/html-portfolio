@@ -92,6 +92,7 @@
   }
   .studio-shell-promise {
     margin: 0;
+    max-width: var(--measure);
     color: var(--ink-soft);
     font-size: var(--text-small);
   }
@@ -157,5 +158,40 @@
     width: auto;
     justify-self: start;
     font-size: var(--text-small);
+  }
+
+  /* ── the language switch (WS-R52) ─────────────────────────────────────
+   * `src/room/room.css`'s `.room-lang-switch`/`.room-lang-btn`, same shape,
+   * same 44px floor (WS-R43's own reason: reachable on every screen, no
+   * smaller-because-it's-small exception for a control this load-bearing). */
+  .studio-lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    justify-self: start;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-pill);
+    padding: 2px;
+  }
+
+  .studio-lang-btn {
+    min-height: 44px;
+    min-width: 44px;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0 10px;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit;
+  }
+
+  .studio-lang-btn[aria-pressed="true"] {
+    background: var(--paper);
+    color: var(--ink);
+    font-weight: var(--weight-strong);
+  }
+
+  .studio-lang-btn[disabled] {
+    opacity: 0.6;
   }
 }

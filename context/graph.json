@@ -7402,6 +7402,72 @@
       "kind": "measurement",
       "title": "evals/org 68/0 (25 new), evals/payments-reconcile 38/0 (16 new), evals/room-doors 302/0, evals/room-leak 81/0 (1 transient failure from the comment-naming rejection, fixed), evals/room-export 44/0, all standalone runs",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r52-studio-locale-lives-on-vy-replica-not-a-new-table",
+      "kind": "decision",
+      "title": "The studio's own chrome locale is vy_replica.locale (migration 112), a CHECK-bounded column on the existing owner-keyed table, not a new table and not the metadata jsonb column",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-studio-locale-plumbed-through-a-react-context-not-props",
+      "kind": "decision",
+      "title": "src/studio/localeContext.tsx's StudioLocaleProvider/useStudioLocale(), mounted once around StudioApp.tsx, not a locale/t prop threaded through ~30 independent panel interfaces",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-class-labels-split-from-blockerclass-ts-own-copy",
+      "kind": "decision",
+      "title": "copy.ts carries its own two-entry classLabels table (translated); blockerClass.ts's CLASS_COPY (the lead sentence, honesty-checked by evals/studiowizard.mjs's English-only BLAME_PATTERNS) stays untouched and English",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-tier-2-studio-files-not-localized",
+      "kind": "decision",
+      "title": "12 of ~40 src/studio/*.tsx files converted this workstream (the shell, review queue, Readiness, Drift watch, Payouts/Check-ins/Handoff/Suite/invite cards); every enrollment/voice-lab wizard panel plus RoomStudio.tsx itself named individually, not converted, in evals/studio-locale/run.mjs's TIER_2_ALLOWLIST",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-studio-copy-string-count-2026-09-04",
+      "kind": "measurement",
+      "title": "251 leaf strings per locale (502 total) in STUDIO_COPY_TABLE, counted by evals/studio-locale/run.mjs's own collectStrings() over the real export; 12 files carry zero literal English JSX text nodes, proven by the same eval's static scan",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-gate-results-2026-09-04",
+      "kind": "measurement",
+      "title": "tsc clean; sqlcast 169 tables/0 uncast unchanged; persontables 135/57 unchanged; replica/invites/creator-invites/room-doors/studio-shell evals all passing; new studio-locale eval 39/39; full verify-release.mjs hit the documented shared-machine EADDRINUSE port collision on 8931/8932 before reaching the browser gates",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-consuming-the-trailing-tag-boundary-in-a-jsx-text-scan",
+      "kind": "rejection",
+      "title": "A JSX-text-node regex anchored on an opening tag but consuming its own trailing '<' silently skipped every text node between two adjacent tags (<section><h3>text</h3>), passing a negative control that should have failed; fixed with a lookahead instead of a consumed terminator",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r52-room-doors-fixture-omitted-now-drifted-into-a-real-failure",
+      "kind": "rejection",
+      "title": "Six evals/room-doors/run.mjs call sites omitted now: NOW from their deps, silently falling back to real Date.now() against a session minted at the fixture's fixed clock; harmless until the gap crossed the freshness window mid-session, then failed with room_session_expired; fixed, unrelated to this workstream's own files",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r52-existing-evals-updated-for-the-copy-ts-move",
+      "kind": "decision",
+      "title": "evals/readiness, evals/drift-watch and evals/review-queue each read their own component's .tsx source directly for literal English strings; updated to read component+copy.ts together rather than the component alone, restoring 120/120, 89/89, 117/117",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r52-explanatory-comment-named-the-guarded-tables-a-fifth-time",
+      "kind": "rejection",
+      "title": "api/_replica.js's new STUDIO_LOCALES comment named vy_room_follower/vy_room by name as a design precedent citation, tripping evals/room-leak/run.mjs's blunt raw-text scanner a fifth documented time in this repo's history; fixed by paraphrasing, never naming either table in api/ prose",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r52-gate-results-final-2026-09-05",
+      "kind": "measurement",
+      "title": "Layout gate clean standalone (1174 blocks, 251 Hindi strings glyph-checked, 0 tofu) after fixing .studio-shell-promise's missing max-width; accessibility clean (16 pages, 0 findings); performance clean (48.4s); every suite touching a changed file re-confirmed after fixing two unrelated pre-existing defects (room-doors missing now:NOW, a guarded-table-name comment)",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -14769,6 +14835,61 @@
       "src": "ws-r54-attachment-backfill-defaults-to-now-for-pre-107-rooms",
       "rel": "constrains",
       "dst": "ws-r54-suite-reconcile-reads-attachment-history-prorated"
+    },
+    {
+      "src": "ws-r52-studio-locale-lives-on-vy-replica-not-a-new-table",
+      "rel": "supersedes",
+      "dst": "ws-r47-studio-card-is-english-only-no-locale-mechanism-exists"
+    },
+    {
+      "src": "ws-r52-studio-locale-plumbed-through-a-react-context-not-props",
+      "rel": "constrains",
+      "dst": "ws-r52-tier-2-studio-files-not-localized"
+    },
+    {
+      "src": "ws-r52-class-labels-split-from-blockerclass-ts-own-copy",
+      "rel": "constrains",
+      "dst": "ws-r52-tier-2-studio-files-not-localized"
+    },
+    {
+      "src": "ws-r52-studio-locale-lives-on-vy-replica-not-a-new-table",
+      "rel": "measured_by",
+      "dst": "ws-r52-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r52-tier-2-studio-files-not-localized",
+      "rel": "measured_by",
+      "dst": "ws-r52-studio-copy-string-count-2026-09-04"
+    },
+    {
+      "src": "ws-r52-consuming-the-trailing-tag-boundary-in-a-jsx-text-scan",
+      "rel": "caused_by",
+      "dst": "ws-r52-studio-copy-string-count-2026-09-04"
+    },
+    {
+      "src": "ws-r52-existing-evals-updated-for-the-copy-ts-move",
+      "rel": "caused_by",
+      "dst": "ws-r52-studio-copy-string-count-2026-09-04"
+    },
+    {
+      "src": "ws-r52-room-doors-fixture-omitted-now-drifted-into-a-real-failure",
+      "rel": "constrains",
+      "dst": "ws-r52-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r52-gate-results-final-2026-09-05",
+      "rel": "supersedes",
+      "dst": "ws-r52-gate-results-2026-09-04"
+    },
+    {
+      "src": "ws-r52-gate-results-final-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r52-room-doors-fixture-omitted-now-drifted-into-a-real-failure"
+    },
+    {
+      "src": "ws-r52-gate-results-final-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r52-explanatory-comment-named-the-guarded-tables-a-fifth-time"
     }
   ]
 }

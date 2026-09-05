@@ -17,12 +17,15 @@ import {
   type HandoffConfig,
   type HandoffQueue,
 } from "./handoffApi";
+import { useStudioLocale } from "./localeContext";
 
 const REPLY_MAX = 4000;
 const CAP_MIN = 0;
 const CAP_MAX = 50;
 
 export default function HandoffCard({ token, replicaId }: { token: string; replicaId: string }) {
+  const { t } = useStudioLocale();
+  const c = t.handoff;
   const [config, setConfig] = useState<HandoffConfig | null>(null);
   const [queue, setQueue] = useState<HandoffQueue | null>(null);
   const [reply, setReply] = useState("");
@@ -90,29 +93,27 @@ export default function HandoffCard({ token, replicaId }: { token: string; repli
 
   return (
     <article className="teacher-sheet-card vy-room__handoff-card">
-      <h3>Handoff</h3>
+      <h3>{c.title}</h3>
       <p className="field-note">
-        Off by default. When it is on, a follower can ask to hear from you directly - they choose exactly what gets
-        sent, see it byte for byte before it goes, and your reply lands only in their own thread, marked as you, never
-        as your AI.
+        {c.intro}
       </p>
 
       {config && (
         <>
           <div className="vy-room__cap-row" role="group" aria-label="Handoff switch">
-            <span>{config.enabled ? "On" : "Off"} for this Room</span>
+            <span>{(config.enabled ? c.on : c.off)} {c.forThisRoom}</span>
             <button
               className="button secondary-button"
               type="button"
               disabled={busy === "toggle"}
               onPointerDown={() => void toggle()}
             >
-              {busy === "toggle" ? "Working..." : config.enabled ? "Turn off" : "Turn on"}
+              {busy === "toggle" ? c.working : config.enabled ? c.turnOff : c.turnOn}
             </button>
           </div>
 
           <label className="field-label" htmlFor="handoff-cap">
-            Requests one follower may send in a month (0-50)
+            {c.capLabel}
           </label>
           <input
             id="handoff-cap"
@@ -131,27 +132,27 @@ export default function HandoffCard({ token, replicaId }: { token: string; repli
         <>
           <ul className="vy-room__checkins-list" aria-label="Handoff counts">
             <li className="vy-room__checkins-row">
-              <span>Waiting</span>
+              <span>{c.waiting}</span>
               <span className="vy-room__checkins-cadence">{queue.counts.sent}</span>
             </li>
             <li className="vy-room__checkins-row">
-              <span>Answered</span>
+              <span>{c.answered}</span>
               <span className="vy-room__checkins-cadence">{queue.counts.answered}</span>
             </li>
           </ul>
 
           {queue.next ? (
             <div className="vy-room__handoff-next">
-              <p className="field-label">What they sent, exactly as they sent it</p>
+              <p className="field-label">{c.whatTheySent}</p>
               <p className="vy-room__handoff-payload">{queue.next.payload_text}</p>
-              <label className="field-label" htmlFor="handoff-reply">Your reply</label>
+              <label className="field-label" htmlFor="handoff-reply">{c.yourReply}</label>
               <textarea
                 id="handoff-reply"
                 className="field"
                 rows={4}
                 value={reply}
                 maxLength={REPLY_MAX}
-                placeholder="Answer in your own words - this reaches only them, marked as you."
+                placeholder={c.replyPlaceholder}
                 onChange={(event) => setReply(event.target.value)}
               />
               <button
@@ -160,11 +161,11 @@ export default function HandoffCard({ token, replicaId }: { token: string; repli
                 disabled={busy === "answer" || !reply.trim()}
                 onPointerDown={() => void send()}
               >
-                {busy === "answer" ? "Sending..." : "Send reply"}
+                {busy === "answer" ? c.sending : c.sendReply}
               </button>
             </div>
           ) : (
-            <p className="field-note">Nothing waiting right now.</p>
+            <p className="field-note">{c.nothingWaiting}</p>
           )}
         </>
       )}

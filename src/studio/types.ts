@@ -18,6 +18,12 @@ export interface Replica {
   age_verified: boolean;
   identity_verified: boolean;
   liveness_verified: boolean;
+  /** WS-R52 (migration 112). The STUDIO's own chrome language -- never the
+   *  AI's own replies, never the Room a follower sees (that is
+   *  src/room/copy.ts's business). Read from `?lang=` first, then this
+   *  stored value; src/studio/copy.ts's STUDIO_LOCALES is the source of
+   *  truth for what values are valid. */
+  locale: "en" | "hi";
   created_at: string;
   updated_at: string;
 }

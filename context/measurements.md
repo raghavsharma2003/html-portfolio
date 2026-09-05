@@ -10065,3 +10065,108 @@ queued a duplicate - not this workstream's to fix, recorded here only so
 `ws-r54-gate-results-2026-09-04`'s runs 3-4 (both timestamped after the
 rollover) are read correctly as this pre-existing issue, not a WS-R54
 regression.
+
+## `ws-r52-studio-copy-string-count-2026-09-04`
+
+**n = 251 leaf strings per locale** (502 total, English and Hindi), method:
+`evals/studio-locale/run.mjs`'s own `collectStrings()` walked over the real
+`STUDIO_COPY_TABLE.hi` export (not a hand count), same run that also proves
+every one of the 251 passes the real `scripts/check-copy.mjs` scanner. Every
+leaf has a non-blank counterpart in the other locale (`evals/studio-locale/
+run.mjs`'s key-parity check, `en and hi carry the exact same key set`).
+`src/studio/copy.ts` is 1015 lines; `src/studio/localeContext.tsx` (the
+context/provider) is 60. 12 of `src/studio/`'s ~40 `.tsx` files (BlockerNotice,
+WizardRail, StudioShell, ReadinessPanel, DriftWatchCard, ReviewQueue,
+PayoutsCard, CheckinsCard, HandoffCard, InviteCreatorCard, InviteGate,
+SuiteCard) were converted to read every literal string through `t.`; each
+carries zero literal English JSX text nodes of three or more words, proven
+by `evals/studio-locale/run.mjs`'s own static scan (method: a regex anchored
+on a real opening tag, `<[A-Za-z][A-Za-z0-9.]*(?:\s[^<>]*)?>([^<>{}]+)(?=<)`,
+filtered against a small code-token blocklist to drop TS-generic false
+positives - see `rejected.md#ws-r52-consuming-the-trailing-tag-boundary-in-a-jsx-text-scan`
+for how that regex was proven against a real negative control rather than
+trusted on sight). Not measured, stated plainly: no "before" count of
+literal strings in these 12 files exists (they were edited directly, not
+diffed against a saved snapshot), so this entry reports the AFTER state and
+the mechanism that keeps it there, not a before/after delta for the
+converted files themselves.
+
+## `ws-r52-gate-results-2026-09-04`
+
+`node scripts/verify-release.mjs` was NOT run on the untouched tree before
+this workstream's first edit (a process deviation from the common brief's
+own instruction, logged rather than hidden) - by the time this was noticed,
+substantial edits already existed and `git stash` is repo-law-forbidden
+across concurrent worktrees
+(`rejected.md#ws-r21-git-stash-is-shared-across-concurrent-worktree-sessions`).
+What IS proven, all standalone and offline (no `NEON_URL`): `npx tsc -b
+--noEmit` clean (0 errors) after a full `node_modules/.tmp` cache clear;
+`node evals/sqlcast.mjs` unchanged at 169 tables / 0 conflicts / 0 uncast
+sites; `node evals/persontables.mjs` unchanged at 135 person-keyed tables,
+57 manifest entries (no new person column - migration 112 is a column on an
+already-covered owner-lane table); `node evals/replica/run.mjs` ALL PASS;
+`node evals/invites/run.mjs` 57/57; `node evals/creator-invites/run.mjs`
+46/46; `node evals/room-doors/run.mjs` 302/302 (`replica.js` covered under
+classes e/g; the new `set_locale` op is NOT in `OP_COVERAGE`'s computed
+list, because `replica.js` is one of the five doors that mechanism
+already, pre-this-workstream, does not cover -
+`context/STATE.md`'s WS-R44 entry names the same five by name); `node
+evals/studio-shell/run.mjs` 65/65 (no orphan/regression from the shell's
+locale-switch addition); `node evals/studio-locale/run.mjs` (new) 39/39.
+`node scripts/verify-release.mjs`'s own full run hit the documented
+shared-machine port collision on 8931/8932 (`EADDRINUSE`, many concurrent
+sibling worktrees observed in `ps -ef` at the same wall-clock moment) before
+reaching the browser-driven layout/accessibility/performance gates; a
+standalone rerun of those three, isolated from the full-suite run, is the
+open item this entry will be superseded by once the port frees.
+
+## `ws-r52-gate-results-final-2026-09-05` (supersedes `ws-r52-gate-results-2026-09-04`)
+
+The port freed. `node scripts/check-layout.mjs --only studio`, standalone:
+**clean** - 1174 prose blocks judged across four targets (`studio`,
+`studio:shell`, `studio-hi`, `studio:shell-hi`) at 390/834/1355px, plus 251
+Hindi strings glyph-checked (246 width-tested against the real Devanagari
+face, 0 tofu findings). One real finding on the FIRST run of this target,
+fixed before the clean rerun: `.studio-shell-promise` had no `max-width`,
+so the Hindi Share-tab promise line ("अपना रूम पब्लिश करें...") wrapped to
+146 characters per line at desktop width, over the readability ceiling;
+`max-width: var(--measure)` (the same token every other body paragraph in
+`studio-shell.css`/`studio.css` already uses) fixed it, confirmed by the
+rerun. `node scripts/check-accessibility.mjs`, standalone: **clean** - 16
+pages, 0 critical/serious, 0 keyboard findings, 43982ms (includes the new
+`studio:shell-hi` target - same fixture/query shapes the layout gate uses,
+per this file's own header). `node scripts/check-performance.mjs`,
+standalone (inside a full `verify-release.mjs` run): **clean**, 48377ms,
+budgets unchanged (the studio's new `localeContext`/`copy.ts` chunk is
+11.07 KB gzipped, well inside the existing JS budget).
+
+Two additional real, pre-existing defects (unrelated to this workstream's
+own files, found while reconfirming `evals/room-doors/run.mjs` and
+`evals/room-leak/run.mjs` still passed) were fixed and are logged in
+`rejected.md`: six `evals/room-doors/run.mjs` call sites missing `now: NOW`
+in their deps (`rejected.md#ws-r52-room-doors-fixture-omitted-now-drifted-into-a-real-failure`,
+restoring 302/302, verified stable across 3 reruns); and a comment in
+`api/_replica.js` naming `vy_room_follower`/`vy_room` by name, tripping
+`evals/room-leak/run.mjs`'s raw-text scanner a fifth documented time in
+this repo's history
+(`rejected.md#ws-r52-explanatory-comment-named-the-guarded-tables-a-fifth-time`,
+restoring 81/81).
+
+Every suite touching a changed file, standalone, method = re-run to
+completion after every fix above, n = 1 run each unless noted: `npx tsc -b
+--noEmit` clean; `node evals/sqlcast.mjs` 169 tables / 0 uncast (unchanged);
+`node evals/persontables.mjs` 135/57 (unchanged); `node scripts/check-mirrors.mjs`
+clean; `node evals/replica/run.mjs` ALL PASS; `node evals/invites/run.mjs`
+57/57; `node evals/creator-invites/run.mjs` 46/46; `node evals/room-doors/run.mjs`
+302/302 (stable across 3 reruns after the fix); `node evals/room-leak/run.mjs`
+81/81 (after the fix); `node evals/room-publish/run.mjs` 39/39; `node evals/room-export/run.mjs`
+44/44; `node evals/org/run.mjs` 54/54; `node evals/suites-self-serve/run.mjs`
+60/60; `node evals/voice-preview-ui.mjs` 9/9; `node evals/studio-shell/run.mjs`
+65/65; `node evals/studio-locale/run.mjs` 39/39; `node evals/readiness/run.mjs`
+120/120 (after updating the eval for the copy.ts move); `node evals/drift-watch/run.mjs`
+89/89 (same); `node evals/review-queue/run.mjs` 117/117 (same). A full
+end-to-end `node scripts/verify-release.mjs` run (all gates, one process,
+no `--only` filtering) was ALSO launched to confirm the combined tree;
+its result is reported alongside this entry in the final report rather than
+retyped here, since a background run in this environment cannot be
+guaranteed to finish before this file is read.

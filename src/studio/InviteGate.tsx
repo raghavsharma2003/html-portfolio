@@ -12,6 +12,7 @@
 // button primary-button) rather than inventing new chrome for a screen a
 // person sees exactly once.
 import { useState } from "react";
+import { useStudioLocale } from "./localeContext";
 
 export function InviteGate({
   onContinue,
@@ -24,6 +25,8 @@ export function InviteGate({
   error?: string | null;
   applyHref?: string;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.inviteGate;
   const [code, setCode] = useState("");
   return (
     <section className="empty-card" aria-labelledby="invite-title">
@@ -32,9 +35,9 @@ export function InviteGate({
         <div className="portrait-core">KEY</div>
       </div>
       <div>
-        <p className="eyebrow">Invitation only, for now</p>
-        <h2 id="invite-title">Vyakti is invitation only while the first Rooms are built by hand.</h2>
-        <p>If someone here already sent you a code, enter it below. If not, you can apply, and we will reach out.</p>
+        <p className="eyebrow">{c.eyebrow}</p>
+        <h2 id="invite-title">{c.headline}</h2>
+        <p>{c.lede}</p>
         <form
           className="create-form"
           onSubmit={(event) => {
@@ -43,13 +46,13 @@ export function InviteGate({
             if (trimmed) onContinue(trimmed);
           }}
         >
-          <label className="field-label" htmlFor="invite-code">Invite code</label>
+          <label className="field-label" htmlFor="invite-code">{c.codeLabel}</label>
           <div className="create-row">
             <input
               id="invite-code"
               className="field"
               maxLength={40}
-              placeholder="XXXX-XXXX-XXXX"
+              placeholder={c.codePlaceholder}
               value={code}
               onChange={(event) => setCode(event.target.value)}
               autoCapitalize="characters"
@@ -58,14 +61,14 @@ export function InviteGate({
               spellCheck={false}
             />
             <button className="button primary-button" disabled={Boolean(busy) || !code.trim()}>
-              {busy ? "Checking" : "Continue"}
+              {busy ? c.checking : c.continueLabel}
             </button>
           </div>
           {error && (
             <p className="field-note" role="alert">{error}</p>
           )}
           <p className="field-note">
-            No code yet? <a href={applyHref ?? "/vyakti.html#apply"}>Apply for one of the first Rooms</a>.
+            {c.noCodeYet} <a href={applyHref ?? "/vyakti.html#apply"}>{c.applyLink}</a>.
           </p>
         </form>
       </div>
