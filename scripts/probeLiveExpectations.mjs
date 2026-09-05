@@ -242,10 +242,11 @@ export function roomEmbedUnknownExpectation() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// The 12 cron sweeps in vercel.json's `crons` array -- each file's OWN
+// The 13 cron sweeps in vercel.json's `crons` array -- each file's OWN
 // `authorized(req)` failure line, parsed rather than assumed uniform: two
-// of the twelve answer 403 with a different error string than the other
-// ten's 401, and both are correct per that file's own choice.
+// of the thirteen answer 403 with a different error string than the other
+// eleven's 401 (WS-R103's own `api/receipt-sweep.js` among them), and both
+// are correct per that file's own choice.
 // ─────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────
 // WS-R90: the creator page's <head> literals — hreflang codes, the "hi"

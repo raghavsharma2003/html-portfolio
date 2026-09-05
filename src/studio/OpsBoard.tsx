@@ -40,6 +40,8 @@ import {
   type OpsDigest,
   type OpsShareKitArrivals,
   type OpsFriendArrivals,
+  type OpsReconciliation,
+  type OpsReceiptsLate,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -633,6 +635,30 @@ function DigestCard({ token, digest }: { token: string; digest: OpsDigest }) {
   );
 }
 
+// WS-R103 (no migration). "A count on the ops board" (this workstream's own
+// law 2) plus `reconcilePeriod`'s own `charges_without_receipt` (law 3) -
+// two platform-wide totals, neither a follower nor a Room, so neither needs
+// the anonymity floor `FunnelCard`'s own growth lines carry. Zero on both,
+// any time after the daily sweep has run, is the proof the backfill caught
+// up - the workstream brief's own words.
+function ReceiptsCard({
+  receiptsLate,
+  reconciliation,
+}: {
+  receiptsLate: OpsReceiptsLate;
+  reconciliation: OpsReconciliation;
+}) {
+  return (
+    <div className="ops-board__panel">
+      <h2>Receipts</h2>
+      <div className="ops-board__stats">
+        <Stat label="issued late this week" value={receiptsLate.issued} />
+        <Stat label="charges without a receipt" value={reconciliation.charges_without_receipt} />
+      </div>
+    </div>
+  );
+}
+
 export default function OpsBoard() {
   const [session, setSession] = useState<StudioSession | null>(null);
   const [checkedSession, setCheckedSession] = useState(false);
@@ -742,6 +768,7 @@ export default function OpsBoard() {
             <IncidentsCard incidents={overview.incidents} />
             <PushAlertsCard token={session.accessToken} push={overview.push} />
             <DigestCard token={session.accessToken} digest={overview.digest} />
+            <ReceiptsCard receiptsLate={overview.receipts_issued_late_this_week} reconciliation={overview.reconciliation} />
           </>
         )}
       </div>

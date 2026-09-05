@@ -37,6 +37,7 @@ const payments = await import(pathToFileURL(join(REPO, "api/_payments.js")).href
 const {
   PaymentsError,
   reconcile,
+  reconcilePeriod,
   SUITE_SEAT_SHARE_BP,
   CREATOR_CHARGE_KINDS,
   startCreatorSubscription,
@@ -417,6 +418,72 @@ console.log("\n§6 NEGATIVE CONTROL (d) - check-mirrors fails on a fixture pair 
   ok("a pair that differs by exactly one is caught", drifted.mismatches.length === 1,
     JSON.stringify(drifted.mismatches));
   ok("the mismatch names both sides' values", drifted.mismatches[0]?.reason.includes("12") && drifted.mismatches[0]?.reason.includes("13"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§7 (WS-R103, no migration) - reconcilePeriod gains charges_without_receipt; zero after a sweep");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const PERIOD_START = "2026-09-01T00:00:00.000Z";
+  const PERIOD_END = "2026-10-01T00:00:00.000Z";
+  // Two landed follower-lane charges inside the period, no receipt yet - the
+  // SAME shape `evals/receipt-sweep/run.mjs` drives `backfillReceipts`
+  // against; this suite's own subject is `reconcilePeriod`'s NEW count, not
+  // the sweep itself, so every OTHER query it issues (follower/creator/
+  // suite/payout) is fed empty rows on purpose - this section is isolated
+  // to the one new statement.
+  const chargeEvents = [
+    { event_id: "g1", room_id: ROOM_A, kind: "subscription.charged", amount_inr: 399, received_at: "2026-09-05T00:00:00.000Z" },
+    { event_id: "g2", room_id: ROOM_B, kind: "subscription.activated", amount_inr: 599, received_at: "2026-09-06T00:00:00.000Z" },
+  ];
+  const receiptedEventIds = new Set(); // mutated between the two calls below - "the sweep runs"
+
+  function makeDb() {
+    let receiptQueryRan = false;
+    const db = async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      if (has("from vy_payment_event e") && has("join vy_room r on r.room_id = e.room_id")) return []; // followerRows
+      if (has("from vy_creator_charge_event")) return []; // creatorRows
+      if (has("from vy_room_org_attachment a")) return []; // suiteRows
+      if (has("from vy_creator_payout")) return []; // payoutRows
+      if (has("count(*)::int as n") && has("from vy_payment_event e") && has("not exists")) {
+        receiptQueryRan = true;
+        const [kinds, start, end] = params;
+        const kindSet = new Set(kinds);
+        const n = chargeEvents.filter((e) =>
+          e.room_id != null && kindSet.has(e.kind) && e.amount_inr > 0 &&
+          e.received_at >= start && e.received_at < end && !receiptedEventIds.has(e.event_id)).length;
+        return [{ n }];
+      }
+      throw new Error(`payments-reconcile §7: unmodelled statement: ${sql.slice(0, 140)}`);
+    };
+    return { db, ranFlag: () => receiptQueryRan };
+  }
+
+  // `tableApplied` (api/memory.js) reads the REAL database when not
+  // injected - `evals/room-receipt/run.mjs`'s own `deps()` precedent,
+  // restated: every call below meaning to exercise the real new query
+  // passes `tableApplied: async () => true` explicitly.
+  const RECEIPT_APPLIED = { tableApplied: async () => true };
+  const { db } = makeDb();
+  const before = await reconcilePeriod(db, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, RECEIPT_APPLIED);
+  ok("§7 two unreceipted landed charges in the period are counted", before.charges_without_receipt === 2, JSON.stringify(before));
+  ok("§7 the count sits ALONGSIDE the existing reconciliation shape, not instead of it",
+    before.ok === true && Array.isArray(before.findings) && before.creator_lane_total_inr === 0);
+
+  // "the sweep runs": both charges get receipts.
+  receiptedEventIds.add("g1");
+  receiptedEventIds.add("g2");
+  const after = await reconcilePeriod(db, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, RECEIPT_APPLIED);
+  ok("§7 zero after a sweep is the proof (this workstream's own law 3)", after.charges_without_receipt === 0, JSON.stringify(after));
+
+  // Gated on vy_receipt being applied - `backfillReceipts`'s own gate,
+  // restated: a database that has not run migration 126 reports zero
+  // without ever running the new query at all.
+  const { db: gatedDb, ranFlag: gatedRanFlag } = makeDb();
+  const ungated = await reconcilePeriod(gatedDb, { periodStart: PERIOD_START, periodEnd: PERIOD_END }, { tableApplied: async () => false });
+  ok("§7 an unapplied vy_receipt reports zero without ever running that query",
+    ungated.charges_without_receipt === 0 && gatedRanFlag() === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

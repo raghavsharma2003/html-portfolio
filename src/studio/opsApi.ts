@@ -223,6 +223,9 @@ export interface OpsOverview {
   share_kit_arrivals_this_week: OpsShareKitArrivals;
   // WS-R86 (migration 123).
   friend_arrivals_this_week: OpsFriendArrivals;
+  // WS-R103 (no migration).
+  reconciliation: OpsReconciliation;
+  receipts_issued_late_this_week: OpsReceiptsLate;
 }
 
 // WS-R85 (migration 122). `api/_funnel.js`'s own `shareKitArrivalsThisWeek`
@@ -237,6 +240,24 @@ export interface OpsShareKitArrivals {
     youtube: OpsShareArrivals;
     telegram: OpsShareArrivals;
   };
+}
+
+// WS-R103 (no migration). `api/_payments.js`'s own `reconciliationOverview`
+// shape - "the money reconciles" (WS-R42) plus this workstream's own
+// `charges_without_receipt`, both read straight through, never recomputed
+// here (`opsApi.ts`'s own header rule).
+export interface OpsReconciliation {
+  periods_checked: number;
+  periods_with_findings: number;
+  charges_without_receipt: number;
+  generated_at: string;
+}
+
+// WS-R103. `api/_ops.js`'s own `receiptsIssuedLateThisWeek` - a platform-wide
+// total, never a follower or a Room, so unlike several lines elsewhere on
+// this board there is no anonymity floor here to apply.
+export interface OpsReceiptsLate {
+  issued: number;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

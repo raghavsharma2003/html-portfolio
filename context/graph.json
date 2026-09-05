@@ -9478,6 +9478,42 @@
       "kind": "measurement",
       "title": "self-check/ops/operator-digest/day-one eval suites, before (c2945f7, git archive baseline) vs after this workstream: 57->69, 143->147, 54->62, 39->45 passed, 0 failed throughout.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r103-receipt-backfill-sweep",
+      "kind": "component",
+      "title": "The receipt backfill sweep (no migration): backfillReceipts/RECEIPT_SWEEP_DEFAULT_LIMIT (api/_payments.js), the daily api/receipt-sweep.js cron, reconcilePeriod/reconciliationOverview's new charges_without_receipt count, api/_ops.js's receiptsIssuedLateThisWeek and the studio ReceiptsCard.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r103-backfill-sweep-closes-the-named-gap",
+      "kind": "decision",
+      "title": "backfillReceipts is the retry ws-r100-receipt-issued-alongside-not-inside-the-ledger-write named on paper but did not build; reuses issueFollowerReceipt as the SAME arbiter, carries the charge's own received_at as issued_at.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r103-kept-in-payments-js-not-a-new-file",
+      "kind": "decision",
+      "title": "backfillReceipts and reconcilePeriod's charges_without_receipt live in api/_payments.js, not a new api/_receipt-sweep.js, to avoid widening evals/room-leak/world.mjs's hand-maintained TABLE_ROLES owners list for vy_receipt.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r103-receipts-issued-late-read-from-sweep-run-not-a-new-column",
+      "kind": "decision",
+      "title": "receiptsIssuedLateThisWeek sums the receipt cron's own vy_sweep_run history over a rolling 7 days, dormancyThisWeek's own precedent, rather than a new column marking a receipt as inline vs backfilled.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r103-first-backfill-receipts-run-silently-scanned-zero",
+      "kind": "rejection",
+      "title": "evals/receipt-sweep/run.mjs's first draft called backfillReceipts with no tableApplied override; the real tableApplied hit the absent database, caught its own error, and resolved false, so every call returned an all-zero summary until deps.tableApplied was threaded through explicitly.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r103-receipt-sweep-suite-pass-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/receipt-sweep 23/23 (new), evals/payments-reconcile 42/42 (4 new), evals/room-receipt 52/52 and evals/ops 143/143 unchanged, evals/probe-live 0 findings (new cron door auto-covered), full eval suite exit 0, tsc clean.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18505,6 +18541,46 @@
       "src": "ws-r102-self-check-optional-absent",
       "rel": "measured_by",
       "dst": "ws-r102-self-check-every-name-eval-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "caused_by",
+      "dst": "ws-r103-backfill-sweep-closes-the-named-gap"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "caused_by",
+      "dst": "ws-r103-kept-in-payments-js-not-a-new-file"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "caused_by",
+      "dst": "ws-r103-receipts-issued-late-read-from-sweep-run-not-a-new-column"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "caused_by",
+      "dst": "ws-r103-first-backfill-receipts-run-silently-scanned-zero"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "measured_by",
+      "dst": "ws-r103-receipt-sweep-suite-pass-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "part_of",
+      "dst": "ws-r100-the-followers-receipt"
+    },
+    {
+      "src": "ws-r103-receipt-backfill-sweep",
+      "rel": "part_of",
+      "dst": "ws-r42-money-reconciles"
+    },
+    {
+      "src": "ws-r103-backfill-sweep-closes-the-named-gap",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-issued-alongside-not-inside-the-ledger-write"
     }
   ]
 }

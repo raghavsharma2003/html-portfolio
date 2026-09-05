@@ -498,7 +498,7 @@ async function main() {
     }
   }
 
-  // ── 9. the twelve cron endpoints, no secret ─────────────────────────────
+  // ── 9. the thirteen cron endpoints, no secret ───────────────────────────
   for (const path of cronPaths(config)) {
     const expected = cronAuthExpectation(path);
     const res = await client.request("GET", path);

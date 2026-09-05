@@ -12428,3 +12428,69 @@ plus this workstream's own changes only.
 across this clone's concurrent worktrees), then each suite run there
 unmodified. New checks added by this workstream: self-check +12, ops +4,
 operator-digest +8, day-one +6.
+
+## `ws-r103-receipt-sweep-suite-pass-counts-2026-09-05` — every offline battery this workstream touched or added, measured individually
+
+n = 1 run each, method: `node evals/<suite>/run.mjs` invoked directly (not
+through `evals/run.mjs`, to isolate each suite's own pass/fail count),
+2026-09-05, this worktree, no `NEON_URL`. `evals/receipt-sweep/run.mjs`
+(new): 23 passed, 0 failed. `evals/payments-reconcile/run.mjs` (extended,
+new §7 appended): 42 passed, 0 failed - 4 of those are this workstream's
+own, the other 38 are byte-identical to WS-R42/WS-R54's own pre-existing
+assertions, unchanged. `evals/room-receipt/run.mjs` (untouched by this
+workstream, re-run to confirm `issueFollowerReceipt`'s own shape was not
+disturbed by `backfillReceipts` calling it): 52 passed, 0 failed, unchanged
+from WS-R100's own count. `evals/ops/run.mjs` (untouched fixture -
+`opsOverview`'s new `receipts_issued_late_this_week` field and
+`reconciliation`'s new `charges_without_receipt` field are both exercised
+only inside `reconcilePeriod`'s per-period loop, which stays empty in this
+suite's own fixture with no `vy_creator_payout` rows, so neither new field
+changes this suite's own count): 143 passed, 0 failed, unchanged.
+`evals/probe-live/run.mjs` (untouched - the new `/api/receipt-sweep` cron
+door is picked up automatically by `cronPaths(vercel.json)` and
+`cronAuthExpectation`'s own static parse of `api/receipt-sweep.js`'s
+`authorized(req)` failure line, no suite edit needed): 0 findings across
+every check, unchanged shape, one more cron door covered than before.
+`evals/room-doors/run.mjs` (extended - `api/receipt-sweep.js` imports
+`./_payments.js`, so §24's `CRON_ROOM_MODULES` gained that module and
+`EXPECTED_CRON_DOORS` gained the file name, or the new door would have
+silently landed in the EXCLUDED (non-Room) bucket instead of being
+attacked): 724 passed, 0 failed (721 on this SAME commit's untouched tree,
+measured directly rather than trusted from an older report - the +3 is
+exactly the new `e-cron-secret/receipt-sweep.js` class). `node evals/run.mjs`
+(the full registry, all suites in one
+process): exit 0. `node node_modules/typescript/bin/tsc -b`: clean, 0 errors, across every
+`.ts`/`.tsx` file this workstream touched (`api/_payments.js`,
+`api/_ops.js`, `api/receipt-sweep.js`, `src/studio/opsApi.ts`,
+`src/studio/OpsBoard.tsx`). `scripts/check-copy.mjs`: 6 scopes clean, 21
+negative controls bite, unchanged.
+
+The full `verify-release.mjs` gate ran on this tree AND, at the same commit
+before this workstream's changes (a second `git worktree add ... c2945f7`
+made solely to get a true untouched baseline under identical concurrent
+load), under heavy concurrent sibling load on this shared machine (20+
+other worktrees' own `verify-release.mjs`/gate-script processes observed in
+flight at once, holding ports 8931-8935 in rotation). This tree: 18/21 in
+the one full run that completed (3 EADDRINUSE collisions on 8931/8932/8933
+- layout readability, performance budgets, accessibility - never a real
+finding, the port simply taken by a sibling gate at that instant), `eval
+suite` itself OK at 615359ms inside that same run. Each EADDRINUSE'd check
+was then re-run standalone once its own port was free: layout readability
+clean (2010 prose blocks judged across all 20 fixtures including the two
+screens - `desktop/room:account`, `desktop/room-hi:join` - a rushed earlier
+standalone attempt under heavier load had flagged as "did not mount at
+all", not reproduced once contention eased); accessibility clean (0
+critical/serious/moderate/minor, 44159ms); performance budgets still FAILS
+- `/studio` TBT 691ms against the 300ms budget - but the SAME check run at
+the SAME moment on the untouched `c2945f7` baseline tree ALSO fails, with
+TWO findings and worse numbers (`/studio` TBT 460ms, `studio-hi` TBT
+319ms), proving the miss is this shared machine's own CPU contention
+(`decisions.md#ws-r49-performance-budgets-are-a-throttled-simulation-not-a-
+device`'s own known failure mode), not this workstream's own bytes: `/studio`'s
+JS payload moved 163.0KB to 163.1KB (`main.tsx` statically imports
+`OpsBoard.tsx` for its own `?mode=ops` mount, so the new `ReceiptsCard`
+panel's few dozen bytes do land in the SAME chunk `/studio` measures - this
+is that real, tiny cost, not noise), still comfortably inside the 180KB
+budget with room to spare; TBT is a CPU-time metric this cost cannot
+explain at 231-372ms of movement, and the untouched tree's own worse
+numbers at the same moment are the actual explanation.
