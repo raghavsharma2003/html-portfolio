@@ -318,9 +318,19 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // (marking their own notice, or handing their own scope to the REAL
   // `roomForgetForFollower`) and deliver nothing back to the creator or to
   // any other follower.
+  // WS-R104: `api/_room-whatsapp-chat.js` owns every statement against
+  // `vy_room_follower_whatsapp_chat` itself (insert/upsert the pointer,
+  // select-and-join it to resolve a slug, update it to `stop` a phone) -
+  // `_room-whatsapp.js`'s own admission immediately above, on the IDENTICAL
+  // reason: that file owns every statement against its own table
+  // (`vy_room_follower_whatsapp`) the same way, rather than routing them
+  // through `_room-surface.js` the way `_room-telegram.js`'s pointer table
+  // does. Both are read/write access to the file's OWN table, never a
+  // creator-facing read of another follower's content, so both get the
+  // full-access admission rather than AGGREGATE_ONLY's narrower one.
   const ALLOWED = new Set([
     "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
-    "_renewals.js", "_dormancy.js",
+    "_renewals.js", "_dormancy.js", "_room-whatsapp-chat.js",
   ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
@@ -2118,6 +2128,243 @@ console.log("\n── layer 13: follower referrals (isolation and the hash never
   boundaryChecks++;
   ok("...and a version that only counts (never selects the hash itself) raises no problem",
     safeResult13.touches === true && safeResult13.problems.length === 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 14 (WS-R104, migration 128) — THE ROOM ON WHATSAPP. Two followers,
+// two phones, ONE Room: the phone-hash lookup this transport adds is the one
+// genuinely NEW way to pick "which follower's session does this inbound
+// message belong to" (Telegram's chat id and the web's bearer session are
+// both already proven elsewhere) — this layer proves that lookup never
+// crosses two phones bound to the same Room, at both surfaces a cross-wire
+// could show up: the RECALLED FACTS (a `memory.recall` scoped by the wrong
+// person would hand phone A's own long-term fact to phone B) and the SENT
+// REPLY (a session built for the wrong follower would answer phone A with
+// content meant for phone B). "Byte-checked": every assertion below is a
+// literal substring test against the exact text sent to a phone, never a
+// shape or a count.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 14: the Room on WhatsApp (WS-R104) — two phones, one Room ──");
+{
+  const wa = await import(pathToFileURL(join(REPO, "api/_room-whatsapp-chat.js")).href);
+  const { handleRoomWhatsappChatWebhook, parseButtonId } = wa;
+  const { loadAgent: loadAgent14 } = await loadFixtureAgent(REPO);
+
+  const state14 = freshState();
+  // The ONE extra shape this layer's fake db needs beyond the shared base
+  // fixture — `evals/room-whatsapp/run.mjs`'s own `withWhatsapp` precedent,
+  // restated for THIS table's own three statements
+  // (`api/_room-whatsapp-chat.js`'s own bind/lookup/stop, plus
+  // `roomForgetCore`'s room+person delete and the forget receipt insert).
+  state14.waChatPointers = [];
+  state14.forgetReceipts14 = [];
+  function withWhatsappChat14(base) {
+    return async (sql, params = []) => {
+      const has = (s) => sql.includes(s);
+      const p = (params || []).map((v) => (v == null ? null : String(v)));
+      if (has("insert into vy_room_follower_whatsapp_chat")) {
+        const [hash, roomId, personId, followerId, locale] = p;
+        const existing = state14.waChatPointers.find((c) => c.phone_hash === hash);
+        if (existing) Object.assign(existing, { room_id: roomId, person_id: personId, follower_id: followerId, locale, stopped_at: null, stopped_code: null });
+        else state14.waChatPointers.push({ phone_hash: hash, room_id: roomId, person_id: personId, follower_id: followerId, locale, stopped_at: null, stopped_code: null });
+        return [];
+      }
+      if (has("from vy_room_follower_whatsapp_chat c") && has("join vy_room r")) {
+        const [hash] = p;
+        const row = state14.waChatPointers.find((c) => c.phone_hash === hash && !c.stopped_at);
+        if (!row) return [];
+        const r = state14.rooms.find((x) => x.room_id === row.room_id);
+        return r ? [{ slug: r.slug }] : [];
+      }
+      if (has("update vy_room_follower_whatsapp_chat") && has("set stopped_at = now()")) {
+        const [hash, code] = p;
+        const row = state14.waChatPointers.find((c) => c.phone_hash === hash && !c.stopped_at);
+        if (row) { row.stopped_at = "2026-09-05T00:00:00.000Z"; row.stopped_code = code; }
+        return [];
+      }
+      if (has("vy_room_follower_whatsapp_chat") && has("room_id = ($1)::uuid and person_id = ($2)::uuid")) {
+        const [roomId, personId] = p;
+        if (has("delete from")) {
+          const gone = state14.waChatPointers.filter((c) => c.room_id === roomId && c.person_id === personId);
+          state14.waChatPointers = state14.waChatPointers.filter((c) => !gone.includes(c));
+          return gone.map(() => ({ gone: 1 }));
+        }
+      }
+      if (has("insert into vy_room_forget_receipt")) {
+        state14.forgetReceipts14.push(params);
+        return [];
+      }
+      return base(sql, params);
+    };
+  }
+  const db14 = withWhatsappChat14(fakeDb(state14));
+
+  // The identity bridge — `evals/room-telegram/run.mjs`'s own `fakePersonBridge`
+  // restated verbatim: `personForSurfaceUser`/`linkSurfacePerson` call the
+  // REAL `q()` directly and are not `db`-injectable, so this layer's own
+  // deps seam replaces them, backed by the SAME `state14.surfaceIdentities`/
+  // `state14.persons` the base fixture already owns.
+  function personBridge14(state) {
+    const findPerson = async (surface, surfaceUserId) => {
+      const key = String(surfaceUserId);
+      const row = state.surfaceIdentities.find((r) => r.surface === surface && r.surface_user_id === key);
+      return row ? { person_id: row.person_id, username: row.handle || "", via: "vy_surface_identity" } : null;
+    };
+    const linkPerson = async (surface, surfaceUserId, { handle = "", personId = null } = {}) => {
+      const existing = await findPerson(surface, surfaceUserId);
+      if (existing) return { personId: existing.person_id, created: false };
+      const key = String(surfaceUserId);
+      const pid = personId || `pp14-${surface}-${key}`;
+      if (!state.persons.some((x) => x.person_id === pid)) state.persons.push({ person_id: pid, age_tier: "unverified" });
+      state.surfaceIdentities.push({ surface, surface_user_id: key, person_id: pid, handle: String(handle || "") });
+      return { personId: pid, created: true };
+    };
+    return { findPerson, linkPerson };
+  }
+  const bridge14 = personBridge14(state14);
+
+  // A real, person-scoped recall — `evals/room-leak/world.mjs`'s own
+  // `scopedRecall` restated: THIS is the exact surface a wrong phone->session
+  // mapping would leak phone A's long-term fact into phone B's turn through,
+  // and `fakeMemory`'s own always-empty `recall` (the shared base fixture's
+  // default) would hide that leak rather than reveal it.
+  const memLog = new Map();
+  const memory14 = {
+    openEpisode: async () => ({ id: 1, extended: false }),
+    logTurn: async ({ device, role, content }) => {
+      if (!memLog.has(device)) memLog.set(device, []);
+      memLog.get(device).push({ role, content });
+    },
+    history: async (device) => memLog.get(device) || [],
+    recall: async (personId, agentId) => state14.facts.filter((f) => f.person_id === personId && f.agent_id === agentId),
+  };
+
+  const waSent = {}; // phone -> [{kind, text}]
+  const waClient14 = {
+    sendText: async (phone, text) => { (waSent[phone] ??= []).push({ kind: "text", text: String(text) }); return { ok: true }; },
+    sendButtons: async (phone, bodyText, buttons) => { (waSent[phone] ??= []).push({ kind: "buttons", text: String(bodyText), buttons }); return { ok: true }; },
+  };
+  const waTexts14 = (phone) => (waSent[phone] || []).filter((m) => m.kind === "text").map((m) => m.text);
+  const lastButtonSent14 = (phone) => [...(waSent[phone] || [])].reverse().find((m) => m.kind === "buttons");
+
+  const depsFor14 = (extra = {}) => ({
+    db: db14, wa: waClient14, loadAgent: loadAgent14, memory: memory14,
+    personTables: async () => [{ table: "vy_fact", key: "person_id", lane: "relational", agent: true, wipeWhere: "group_id is null" }],
+    tableApplied: async (name) => name === "vy_room_follower_whatsapp_chat" || name === "vy_room_forget_receipt",
+    personForSurfaceUser: bridge14.findPerson,
+    linkSurfacePerson: bridge14.linkPerson,
+    // No `vy_public_rate` table in this layer's fake db — a fake that always
+    // says "not seen before" is correct here, `evals/room-whatsapp-chat/
+    // run.mjs`'s own dedup-door test is where a redelivered id is exercised.
+    consume: async () => ({ ok: true }),
+    env: { ROOM_SESSION_SECRET: process.env.ROOM_SESSION_SECRET },
+    ...extra,
+  });
+
+  const oneMessagePayload = (message) => ({
+    entry: [{ changes: [{ value: { messages: [message] } }] }],
+  });
+  const msgFrom = (phone, text, id) =>
+    oneMessagePayload({ from: phone.replace(/^\+/, ""), id, type: "text", text: { body: text } });
+  const buttonFrom = (phone, buttonId, id) =>
+    oneMessagePayload({
+      from: phone.replace(/^\+/, ""),
+      id,
+      type: "interactive",
+      interactive: { type: "button_reply", button_reply: { id: buttonId } },
+    });
+
+  const PHONE_A = "+919000010001";
+  const PHONE_B = "+919000010002";
+  const TOKEN_A = "TOKWA14_A_zzqqxx";
+  const TOKEN_B = "TOKWA14_B_zzqqxx";
+
+  async function fullJoin14(phone, msgIdBase) {
+    await handleRoomWhatsappChatWebhook(msgFrom(phone, `join ${SLUG}`, `${msgIdBase}-1`), depsFor14());
+    const gate = lastButtonSent14(phone);
+    boundaryChecks++;
+    ok(`layer 14: ${phone}'s "join" reaches the age gate as a reply-button message`,
+      Boolean(gate) && parseButtonId(gate.buttons[0].id)?.step === "a1");
+    await handleRoomWhatsappChatWebhook(buttonFrom(phone, `a1:${SLUG}`, `${msgIdBase}-2`), depsFor14());
+    await handleRoomWhatsappChatWebhook(buttonFrom(phone, `m1:${SLUG}`, `${msgIdBase}-3`), depsFor14());
+  }
+
+  await fullJoin14(PHONE_A, "wa14a");
+  await fullJoin14(PHONE_B, "wa14b");
+
+  boundaryChecks++;
+  ok("layer 14: two DIFFERENT phones joining the SAME Room produce two DIFFERENT pointer rows",
+    state14.waChatPointers.length === 2 &&
+      state14.waChatPointers[0].person_id !== state14.waChatPointers[1].person_id);
+  boundaryChecks++;
+  ok("layer 14: both pointers name the SAME Room (this is a one-Room scenario, not an accidental split)",
+    state14.waChatPointers.every((c) => c.room_id === ROOM_ID));
+
+  const followerA = state14.followers.find((f) => f.person_id === state14.waChatPointers[0].person_id);
+  const followerB = state14.followers.find((f) => f.person_id === state14.waChatPointers[1].person_id);
+  state14.facts.push({ person_id: followerA.person_id, agent_id: AGENT_ID, body: `note about A: ${TOKEN_A}` });
+  state14.facts.push({ person_id: followerB.person_id, agent_id: AGENT_ID, body: `note about B: ${TOKEN_B}` });
+
+  waSent[PHONE_A] = [];
+  waSent[PHONE_B] = [];
+  const replyA = async () => `the reply for A, mentions ${TOKEN_A}`;
+  const replyB = async () => `the reply for B, mentions ${TOKEN_B}`;
+  await handleRoomWhatsappChatWebhook(msgFrom(PHONE_A, "what did we last talk about?", "wa14a-4"), depsFor14({ reply: replyA }));
+  await handleRoomWhatsappChatWebhook(msgFrom(PHONE_B, "what did we last talk about?", "wa14b-4"), depsFor14({ reply: replyB }));
+
+  const sentToA = waTexts14(PHONE_A).join("\n");
+  const sentToB = waTexts14(PHONE_B).join("\n");
+  boundaryChecks++;
+  ok("layer 14: A's own reply reaches A's own phone (the scan below is not vacuous)", sentToA.includes(TOKEN_A));
+  boundaryChecks++;
+  ok("layer 14: B's own reply reaches B's own phone (the scan below is not vacuous)", sentToB.includes(TOKEN_B));
+  boundaryChecks++;
+  ok("layer 14 BYTE-CHECK: A's phone NEVER receives B's token, in any message sent to it", !sentToA.includes(TOKEN_B));
+  boundaryChecks++;
+  ok("layer 14 BYTE-CHECK: B's phone NEVER receives A's token, in any message sent to it", !sentToB.includes(TOKEN_A));
+
+  // The recall surface itself, not merely the sent reply — the exact `memory
+  // .recall` call `roomSay` made for A's turn must never have returned B's
+  // fact (`memory14.recall` above is real, scoped by person+agent, not a
+  // pass-through), checked directly rather than only inferred from the
+  // reply text.
+  const recallA = await memory14.recall(followerA.person_id, AGENT_ID);
+  const recallB = await memory14.recall(followerB.person_id, AGENT_ID);
+  boundaryChecks++;
+  ok("layer 14 BYTE-CHECK: A's own recall carries A's fact and only A's fact",
+    JSON.stringify(recallA).includes(TOKEN_A) && !JSON.stringify(recallA).includes(TOKEN_B));
+  boundaryChecks++;
+  ok("layer 14 BYTE-CHECK: B's own recall carries B's fact and only B's fact",
+    JSON.stringify(recallB).includes(TOKEN_B) && !JSON.stringify(recallB).includes(TOKEN_A));
+
+  // `stop` (A only) — the pointer STOPS, never deletes; B is untouched.
+  waSent[PHONE_A] = [];
+  await handleRoomWhatsappChatWebhook(msgFrom(PHONE_A, "stop", "wa14a-5"), depsFor14());
+  boundaryChecks++;
+  ok("layer 14: A's own 'stop' marks ONLY A's pointer stopped, B's pointer is untouched",
+    state14.waChatPointers.find((c) => c.person_id === followerA.person_id)?.stopped_at != null &&
+      state14.waChatPointers.find((c) => c.person_id === followerB.person_id)?.stopped_at == null);
+  waSent[PHONE_A] = [];
+  await handleRoomWhatsappChatWebhook(msgFrom(PHONE_A, "hello again", "wa14a-6"), depsFor14());
+  boundaryChecks++;
+  ok("layer 14: after 'stop', an ordinary message from A gets the join instruction, never a creator-voiced reply",
+    waTexts14(PHONE_A).length === 1 && !waTexts14(PHONE_A)[0].includes(TOKEN_A));
+
+  // `forget` (A only, after re-joining) — the pointer ROW is gone (not merely
+  // stopped) and B's own row survives untouched, `survivorsFor`'s own
+  // per-person scoping restated for this table.
+  await fullJoin14(PHONE_A, "wa14a7");
+  const receiptsBefore = state14.forgetReceipts14.length;
+  waSent[PHONE_A] = [];
+  await handleRoomWhatsappChatWebhook(msgFrom(PHONE_A, "forget", "wa14a-8"), depsFor14());
+  boundaryChecks++;
+  ok("layer 14: 'forget' deletes A's own WhatsApp pointer row entirely (gone, not merely stopped)",
+    !state14.waChatPointers.some((c) => c.person_id === followerA.person_id));
+  boundaryChecks++;
+  ok("layer 14: 'forget' issues a receipt", state14.forgetReceipts14.length === receiptsBefore + 1);
+  boundaryChecks++;
+  ok("layer 14: B's own pointer row survives A's forget untouched",
+    state14.waChatPointers.some((c) => c.person_id === followerB.person_id && c.stopped_at == null));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

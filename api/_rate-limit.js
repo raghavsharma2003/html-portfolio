@@ -158,6 +158,16 @@ export const DEFAULT_LIMITS = {
   // follower sharing with a handful of friends and firm against a stolen
   // session turning this op into an unbounded hash-generation engine.
   room_referral_follower: { limit: 10, windowMs: 24 * 60 * 60_000 },
+  // WS-R104. A WhatsApp Cloud API redelivery of the SAME message id —
+  // `room_tg_update_seen`'s own law, restated one transport over: real,
+  // correctly-signed (the HMAC already refused anyone else before this
+  // scope is ever consulted), Meta's own retry policy on a slow or non-2xx
+  // response, never a third party. Keyed on `id` with limit 1: the FIRST
+  // delivery consumes the slot, every later one this window is a no-op —
+  // the SAME bounded-mitigation-not-permanent-ledger honesty
+  // `room_tg_update_seen`'s own comment states, restated rather than
+  // claiming a stronger guarantee this table does not have.
+  room_wa_chat_seen: { limit: 1, windowMs: 3 * 60 * 60_000 },
 };
 
 /**

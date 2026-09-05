@@ -674,6 +674,19 @@ const TABLE_ROLES = {
   // call); `memory.js` nulls its `person_id` on a whole-account wipe;
   // `_replica-full-erasure.js` deletes it by name on a full Room erasure.
   vy_receipt: { owners: ["_room-surface.js", "_payments.js", "memory.js", "_replica-full-erasure.js"] },
+  // WS-R104 (migration 128). Which WhatsApp phone currently means this Room,
+  // for this follower - `vy_room_follower_channel`'s own two-owner shape
+  // (the new transport file plus `_room-surface.js`'s own export/forget
+  // reads) restated one transport over. `_replica-full-erasure.js` is
+  // deliberately ABSENT from this owner list, on `vy_room_follower_channel`'s
+  // and `vy_room_follower_whatsapp`'s own precedent (neither appears there
+  // either): the table carries a real `room_id references vy_room(room_id)
+  // on delete cascade` (migration 128's own header), so a full replica
+  // erasure reaches it through that FK alone, the identical posture this
+  // codebase already ships for its two closest siblings
+  // (`context/decisions.md#ws-r104-no-explicit-replica-erasure-backstop-for-
+  // the-whatsapp-chat-pointer`).
+  vy_room_follower_whatsapp_chat: { owners: ["_room-whatsapp-chat.js", "_room-surface.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,
@@ -691,6 +704,27 @@ const SAFE_LINE = new RegExp(
   "delete from|^\\s*//|^\\s*\\*|^\\s*--|isTableAppliedFor\\(deps\\)\\(|" +
     "table:\\s*\"vy_|^\\s*\"vy_[a-z_]+\",?\\s*$|deleted\\.vy_[a-z_]+\\s*=",
 );
+
+// WS-R104. `src.includes(table)`/`line.includes(table)` below used to be a
+// PLAIN substring test - correct for every table name in this manifest until
+// migration 128 added `vy_room_follower_whatsapp_chat`, which is itself a
+// SUPERSTRING of the already-tracked `vy_room_follower_whatsapp` (WS-R29).
+// Under the old plain-substring test, `api/_room-whatsapp-chat.js` - a file
+// that OWNS `vy_room_follower_whatsapp_chat` and never once reads or writes
+// `vy_room_follower_whatsapp` - was reported as touching THAT table's own
+// role (no owner entry for it there) purely because the shorter name sits
+// inside the longer one on every line, `context/rejected.md#ws-r28-leak-
+// battery-scanner-matches-prose-not-only-sql`'s own class of near-miss,
+// found by name rather than guessed at. `tableTouch` makes every "does this
+// source touch this table" test word-boundary aware — `_` counts as a word
+// character in JS regex, so `\bvy_room_follower_whatsapp\b` correctly
+// refuses to match inside `vy_room_follower_whatsapp_chat` (no boundary
+// between the shared `p` and the following `_`) while still matching every
+// real, standalone mention. Table names in this manifest are closed
+// identifiers (`[a-z0-9_]+`, no regex metacharacters), so interpolating one
+// straight into a `RegExp` is safe.
+const tableTouchRe = (table) => new RegExp(`\\b${table}\\b`);
+const tableTouch = (text, table) => tableTouchRe(table).test(text);
 
 /** Raw follower/creator content this codebase never puts on a creator- or
  *  platform-facing surface — the actual threat this layer guards against,
@@ -713,6 +747,14 @@ const CONTENT_COLUMNS = [
   // this table exists to make structurally impossible, so it is guarded
   // exactly like a content column would be.
   "referrer_hash",
+  // WS-R104 (migration 128). `vy_room_follower_whatsapp_chat.phone_hash` is
+  // the ONLY thing in that table that ties a row to a specific phone —
+  // `referrer_hash`'s own reasoning restated one table over: it carries no
+  // digits (the raw number is never written at all, migration 128's own
+  // header), but a stable pseudonymous handle selected out to a reader
+  // besides its two named owners would still be the correlation this table
+  // exists to avoid, so it is guarded exactly like a content column would be.
+  "phone_hash",
 ];
 const CONTENT_COLUMN_RE = new RegExp("\\b(" + CONTENT_COLUMNS.join("|") + ")\\b", "i");
 
@@ -742,7 +784,7 @@ export function staticReachProblems(REPO, tables = TABLE_ROLES) {
     const found = [];
     for (const f of files) {
       const src = fs.readFileSync(join(apiDir, f), "utf8");
-      if (!src.includes(table)) continue;
+      if (!tableTouch(src, table)) continue;
       found.push(f);
       if (owners.has(f)) continue;
       if (aggregateOnly.has(f)) {
@@ -750,7 +792,7 @@ export function staticReachProblems(REPO, tables = TABLE_ROLES) {
         if (probs.length) problems[table] = [...(problems[table] || []), ...probs.map((p) => `${f}:${p}`)];
         continue;
       }
-      const badLines = src.split("\n").filter((l) => l.includes(table) && !SAFE_LINE.test(l.trim()));
+      const badLines = src.split("\n").filter((l) => tableTouch(l, table) && !SAFE_LINE.test(l.trim()));
       if (badLines.length) problems[table] = [...(problems[table] || []), `${f}:unsafe-line(${badLines.length})`];
     }
     if (!found.length) problems[table] = [...(problems[table] || []), "no-file-touches-this-table-at-all"];
@@ -768,12 +810,12 @@ export function staticReachProblems(REPO, tables = TABLE_ROLES) {
 export function classifyOneFile(filename, source, table, tables = TABLE_ROLES) {
   const role = tables[table];
   if (!role) throw new Error(`no TABLE_ROLES entry for ${table}`);
-  if (!source.includes(table)) return { touches: false, problems: [] };
+  if (!tableTouch(source, table)) return { touches: false, problems: [] };
   if ((role.owners || []).includes(filename)) return { touches: true, problems: [] };
   if ((role.aggregateOnly || []).includes(filename)) {
     return { touches: true, problems: contentColumnLeaks(source, table) };
   }
-  const badLines = source.split("\n").filter((l) => l.includes(table) && !SAFE_LINE.test(l.trim()));
+  const badLines = source.split("\n").filter((l) => tableTouch(l, table) && !SAFE_LINE.test(l.trim()));
   return { touches: true, problems: badLines.length ? [`unsafe-line(${badLines.length})`] : [] };
 }
 

@@ -1333,3 +1333,37 @@ time and how many chats it reached, derived from the existing
 `vy_sweep_run` heartbeat row rather than a new ledger table — see that
 function's own header on the one honest limitation this carries (only the
 LATEST run is visible, not a rolling history).
+
+## 34. The Room on WhatsApp (`vercel-app`, WS-R104, migration 128, 2026-09-05)
+
+A follower talks to a creator's AI inside WhatsApp the way they already can
+on Telegram (§15c, §30's own Telegram-first precedent): a one-Room-per-phone
+pointer (`vy_room_follower_whatsapp_chat`), inbound messages through the
+SAME follower lane and the ONE reply door (`gatedReply`, reached inside
+`roomSay`), replies as session messages inside Meta's 24-hour customer-
+service window, never a template spend without opt-in. `api/_room-whatsapp-
+chat.js` is the one new decision module; `api/room-wa.js`'s existing inbound
+branch (unchanged when this var is unset) is the door. Reuses the SAME
+WhatsApp Business number and webhook verify `api/_room-whatsapp.js` (§25,
+the check-in template lane) already has — `WHATSAPP_ACCESS_TOKEN`/
+`WHATSAPP_PHONE_NUMBER_ID`/`WHATSAPP_APP_SECRET`/`WHATSAPP_VERIFY_TOKEN`,
+all already in this manifest (§22/§25) — never a second credential pair. No
+new credential of any kind; the one new var is a plain feature flag.
+
+| Var | Read by | Required? | Exact value | What changes with it |
+|---|---|---|---|---|
+| `ROOM_WHATSAPP_CHAT` | `api/_room-whatsapp-chat.js:whatsappChatEnabled()`, read by `api/room-wa.js`'s inbound branch | optional | the literal string `"1"` (anything else, including unset, reads as off) | **unset (default)**: `api/room-wa.js`'s inbound branch is byte-for-byte what it always was — `handleStatusWebhook`'s content-free auto-reply (workstream law #6, `api/_room-whatsapp.js`'s own header: "no conversation on this wire"), and `vy_room_follower_whatsapp_chat` is never written to. **set to `"1"`**: an inbound text message from a phone with no pointer gets the join flow (`join <slug>` resolves the Room, sends the disclosure line, then the age/memory gate as WhatsApp reply-button messages — Telegram's own inline-keyboard callback-data shape, `a1`/`a0`/`m1`/`m0:<slug>`, restated over Meta's own interactive-button id, since this table carries no "pending step" column at all); a bound phone's ordinary message reaches the REAL follower lane (`roomSay`, the free cap, the never-rules, memory by the follower's own consent) and the reply leaves as a session message via `api/_room-whatsapp.js`'s new `sendSessionMessage` sender, only inside the 24-hour window Meta's own inbound delivery just opened — outside it (a rare, best-effort-ledger-lost-on-cold-start case, `api/whatsapp.js`'s own documented limitation) the follower gets nothing until they write again, counted as a content-free skip rather than a silent drop or a template substituted on their behalf. `hindi`/`english`/`stop`/`forget` are the command set (no leading slash — a WhatsApp business number's own idiom, unlike Telegram's `/command`), deliberately smaller than Telegram's five (no `export`, this workstream's brief's own scope). |
+
+The phone number itself is NEVER written to `vy_room_follower_whatsapp_chat`
+— `phone_hash` is a salted sha256 (`api/_room-whatsapp-chat.js:phoneHash()`,
+reusing `api/_rate-limit.js`'s salted-sha256 SHAPE but never its daily
+rotation, since this hash is a durable lookup key rather than a rate-limit
+bucket), reusing the SAME `RATE_SALT` this manifest already documents for
+`api/_rate-limit.js` (§25) rather than a new salt of its own. Every reply is
+sent to the number Meta's own webhook payload just supplied in the same
+request — this file never reverses the hash and never needs to. `stop`
+marks the pointer stopped (never deletes — migration 128's own header states
+why: unlike Telegram's channel pointer, this row is the only surviving
+record this channel ever existed for this phone); `forget` deletes it for
+real, through `api/_room-surface.js`'s `roomForgetCore`, by name, alongside
+the receipt migration 090 already issues.

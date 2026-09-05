@@ -2380,6 +2380,18 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   // "voluntary extra" shape every OTHER row on this list already is.
   { table: "vy_receipt", shape: "rows",
     reason: "the follower's own payment receipts for this room - theirs to see in full" },
+  // WS-R104 (migration 128). Neither `rows` nor `masked_phone`: this table
+  // never stores the follower's own number at all (`phone_hash` is a salted
+  // sha256, migration 128's own header), so there are no digits this export
+  // could ever mask-and-show the way `vy_room_follower_whatsapp` does two
+  // rows up - a follower's export is theirs to read, but a one-way hash of
+  // their own number proves nothing to them that the state and timestamps
+  // below do not already say more plainly. `shape: "whatsapp_chat_pointer"`
+  // reads locale/joined_at/stopped_at/stopped_code and the row's own
+  // presence (whether this phone is currently bound to THIS Room), never
+  // `phone_hash` itself.
+  { table: "vy_room_follower_whatsapp_chat", shape: "whatsapp_chat_pointer",
+    reason: "the follower's own WhatsApp chat binding - joined/left and locale, never the phone hash itself" },
 ]);
 
 /** `api/_room-whatsapp.js`'s own function, re-derived here rather than
@@ -2441,6 +2453,26 @@ export async function roomExport(db, { session }, deps = {}) {
       ).catch(() => []);
       if (rows.length) {
         tables[e.table] = { count: rows.length, state: rows[0].state, phone_masked: maskPhoneForExport(rows[0].phone_e164) };
+      }
+    } else if (e.shape === "whatsapp_chat_pointer") {
+      // WHATSAPP_CHAT_POINTER shape (WS-R104): locale/joined/left state,
+      // NEVER `phone_hash` - `e.reason` states why there is nothing to mask
+      // in the first place. At most one row (migration 128's own primary
+      // key is the hash, not room+person, but one phone means one Room at a
+      // time so this follower can have at most one CURRENT row here).
+      const rows = await db(
+        `select locale, joined_at, stopped_at, stopped_code
+           from ${e.table} where room_id = ($1)::uuid and person_id = ($2)::uuid limit 1`,
+        [who.roomId, who.personId],
+      ).catch(() => []);
+      if (rows.length) {
+        tables[e.table] = {
+          count: rows.length,
+          locale: rows[0].locale,
+          joined_at: rows[0].joined_at,
+          stopped_at: rows[0].stopped_at,
+          stopped_code: rows[0].stopped_code,
+        };
       }
     } else {
       // COUNT shape: one number, never the rows themselves - `e.reason`
@@ -2718,6 +2750,28 @@ async function roomForgetCore(db, who, deps = {}) {
       [who.roomId, who.personId],
     );
     deleted.vy_room_follower_whatsapp = waRows.length;
+  }
+
+  if (await isTableAppliedFor(deps)("vy_room_follower_whatsapp_chat")) {
+    // WS-R104 (migration 128): which WhatsApp phone currently means this
+    // Room, for this follower. UNLIKE every table above, this one carries NO
+    // `follower_id references vy_room_follower(follower_id) on delete
+    // cascade` at all (migration 128's own header: 009's WHERE-clause-
+    // binding law, restated rather than the 082 exception repeated a third
+    // time) - so this explicit delete is not "previously cascade-only, now
+    // named" the way its siblings above are, it is the ONLY door that ever
+    // reaches this row at all. Ordering relative to the follower delete
+    // below is therefore not load-bearing the way it is for a cascading
+    // table, but it runs here anyway, in the same place its siblings do, so
+    // a future reader never has to ask why this one table alone sits
+    // somewhere else.
+    const waChatRows = await db(
+      `delete from vy_room_follower_whatsapp_chat
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_whatsapp_chat = waChatRows.length;
   }
 
   if (await isTableAppliedFor(deps)("vy_room_handoff")) {
