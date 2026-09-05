@@ -16768,3 +16768,200 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `vy_receipt` carries `person_id` but is deliberately NOT a
+`PERSON_TABLES` (api/memory.js) entry. `scripts/relcheck.mjs`'s `EXEMPT` map
+carries the written reason instead (the same escape hatch
+`meera_consolidate_lease` already uses). An account-wide "forget everything"
+reaches this table through its own explicit door in `purgeRelational` (right
+beside `vy_room_forget_receipt`'s own), which runs `update vy_receipt set
+person_id = null where person_id = $1` - never the generic manifest loop's
+`delete from ... where ...`. The narrow, per-Room `roomForget` does not touch
+this table at all.
+
+**Rationale.** `PERSON_TABLES` membership means "wiped by the generic DELETE
+loop" (api/memory.js's own header). A receipt must survive that wipe with its
+`receipt_no` and its ledger-linked amount intact - it is proof a follower paid
+real money, and forgetting what an AI remembers about someone is a different
+request in kind from forgetting that they paid it
+(`#ws-r11-subscription-survives-forget-until-terminal`'s own argument,
+restated for a receipt instead of a mandate). A blind DELETE would make an
+accountant's or a parent's copy of that proof retroactively inaccurate the
+moment a follower asks to be forgotten - the opposite of what a receipt is
+for. The narrower per-Room `roomForget` is left alone entirely on the
+identical precedent: forgetting a Room's own memory of you is not forgetting
+that you paid it.
+
+**Reverses if.** A future workstream needs `vy_receipt` reachable by the
+generic manifest loop for some OTHER reason (a bulk operation across every
+`PERSON_TABLES` entry, say) - at which point the table needs a `wipeMode`
+field the manifest loop does not have today (a nullify mode, not only a
+delete mode), and this decision's own explicit-door mechanism is superseded
+by that generic one rather than kept as a second, parallel path.
+
+## `ws-r100-receipt-issued-alongside-not-inside-the-ledger-write` (2026-09-05, WS-R100)
+
+**Decision.** `issueFollowerReceipt` (api/_payments.js) is a SECOND
+statement, called from `applyWebhook` right after the ledger's own
+`vy_payment_event` INSERT lands a NEW row - never a fifth CTE folded into
+that INSERT's own statement.
+
+**Rationale.** That ledger write is a heavily fixture-modelled statement
+several sibling suites drive byte-exactly by matching its own SQL text and
+positional `params` array (`evals/payments/run.mjs`, `evals/room-doors/
+fixtures.mjs`, and by extension anything `evals/org-billing` or a future
+suite adds against the identical text). Folding a THIRD table's writes into
+it would renumber every one of that statement's bound parameters for every
+one of those suites at once - a blast radius this workstream's own receipt
+has no business opening for a table none of them need to know about. Two
+statements, gated behind `isTableAppliedFor(deps)("vy_receipt")` (the SAME
+seam `offerTableReady` already uses two sections up in the same file), means
+every existing test that never overrides `tableApplied` reaches this new
+code path exactly zero times - proven directly:
+`evals/payments/run.mjs`'s own new §10 states this as an assertion, not an
+assumption.
+
+**Reverses if.** A real production incident is ever traced to the gap this
+choice accepts (a process crashing between the two statements, leaving a
+landed charge with no receipt) - at which point either a retry sweep is
+built (matching `evals/room-dormancy`'s own precedent for a different gap)
+or the two statements are unified into one CTE chain, accepting the
+fixture-renumbering cost this decision avoided today.
+
+## `ws-r100-receipt-number-bounded-by-rule-46b` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `formatReceiptNumber` (api/_receipt.js) renders `VY/<FY>/<n>`
+and THROWS (`receipt_number_over_rule_46b_cap`) rather than emitting a string
+over sixteen characters - CGST Rule 46(b)'s own cap on a tax invoice's serial
+number. `"VY/2026-27/"` alone spends eleven of the sixteen, leaving five
+digits: this format is good for 99,999 receipts in one financial year.
+
+**Rationale.** Verified against gstzen.in and studycafe.in (both quoting the
+rule's own clause text, cross-checked against each other, 2026-09-05):
+`context/rejected.md`'s no-fake-numbers law applied to a STRING LENGTH rather
+than a number - a receipt number this platform prints that violates the rule
+it is trying to satisfy is worse than one that refuses to exist, the same
+"unrepresentable, not merely unproduced" discipline migration 078's
+`vy_payment_event_signature_verified` CHECK already uses for a boolean.
+99,999 receipts in one financial year is not a real constraint at this
+platform's current stage (`context/STATE.md`: no real `vy_room` row has ever
+received a real payment outside a fake `db`), so the format was chosen for
+human readability (the SAME "FY" string an Indian accountant already reads
+on every invoice they see) over a denser encoding that would raise the
+ceiling at the cost of that readability.
+
+**Reverses if.** This platform's own real receipt volume approaches 99,999 in
+one financial year (a very large business by this platform's current stage)
+- at which point either the `VY/` prefix drops, the FY encodes as four digits
+instead of seven (`"2627"` instead of `"2026-27"`), or Rule 46(b) is
+re-read for a still-current cap that may itself have changed since this
+citation's own date.
+
+## `ws-r100-follower-state-gst-split-undifferentiated` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `gstSplit` (api/_receipt.js) only ever returns its
+`unknown_state` shape (one undifferentiated GST line) unless BOTH a
+follower's own billing state AND the platform's registered state are
+supplied - and nothing in this product collects a follower's billing state
+anywhere, so every real receipt issued today renders `unknown_state`. The
+`cgst_sgst`/`igst` branches are real, tested code (`evals/room-receipt/
+run.mjs`'s own §2), structurally reachable the day a follower's state is
+known, never exercised by anything that calls this file in production.
+
+**Rationale.** Splitting a GST-inclusive amount into CGST+SGST (same state)
+versus IGST (different state) requires knowing WHICH of the two applies.
+Guessing - defaulting to CGST+SGST as though every follower shared the
+platform's own state, say - would be exactly the fabricated precision
+`context/rejected.md`'s no-fake-numbers law forbids, applied to a tax
+jurisdiction instead of a number: a wrong split on a document meant to prove
+a payment to a tax authority is a worse failure than an honest,
+undifferentiated line.
+
+**Reverses if.** A future workstream collects a follower's own billing state
+(an address field, a state selector at signup) - at which point `roomReceipt`
+(api/_room-surface.js) passes it through to `buildReceiptContext`'s own
+`followerState` parameter, which this decision's own code already accepts
+and already splits correctly; nothing in `gstSplit` itself needs to change.
+
+## `ws-r100-sac-code-left-as-a-placeholder` (2026-09-05, WS-R100, migration 126)
+
+**Decision.** `SAC_PLACEHOLDER` (api/_receipt.js) renders "to be confirmed
+with an accountant" (both locales) instead of a Services Accounting Code -
+no SAC has been confirmed for a Room membership.
+
+**Rationale.** `TDS_RATE_BP_DEFAULT`/`TDS_DISCLOSURE_SENTENCE`
+(api/_payments.js) already made this exact call for a withholding rate;
+this is the identical call for a tax classification. A plausible-looking SAC
+(998439 "online content", or 9997 "other services", both real codes that
+LOOK like they could apply) would be a guess dressed as a fact on a document
+whose whole purpose is to be trusted by a tax authority or an accountant -
+worse than stating plainly that nobody has confirmed it yet.
+
+**Reverses if.** The owner confirms a real SAC with an accountant - at which
+point `SAC_PLACEHOLDER` is replaced by a real `SAC_CODE` constant and the
+receipt's own SAC line renders it instead of the caveat sentence.
+
+## `ws-r100-room-export-not-extended` (2026-09-05, WS-R100)
+
+**Decision.** `evals/room-export/run.mjs` (WS-R27's export completeness
+battery) is left untouched by this workstream. The proof that `vy_receipt`
+appears in a real `roomExport()` call lives in `evals/room-receipt/run.mjs`'s
+own §5 instead.
+
+**Rationale.** `vy_receipt` is added to `ROOM_EXPORT_EXTRA`
+(api/_room-surface.js), which `roomExportManifest()` already folds into its
+own returned list unconditionally - `evals/room-export/run.mjs`'s own layer-1
+static check (`EXPECTED.filter((t) => !realCovered.includes(t))`) only ever
+fails on a table MISSING from `roomExportManifest()`'s coverage, never on one
+gaining a new, voluntary member, so nothing there needed to change for
+correctness. `vy_receipt` is deliberately NOT a `PERSON_TABLES` entry
+(`#ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete`), so that
+battery's own STATIC layer (DDL scan vs `PERSON_TABLES`) was never going to
+require it either way - extending that file would have meant inventing a
+THIRD kind of coverage assertion (a voluntary, non-`PERSON_TABLES` extra)
+for a battery whose whole design is built around the `PERSON_TABLES`
+manifest being the single source of truth. `evals/room-receipt/run.mjs`
+already proves the real thing that matters (a follower's own receipt
+actually appears in their own `roomExport()` output) against the real
+function, so building a second proof of the identical fact in a different
+file would be redundant coverage, not new coverage.
+
+**Reverses if.** A future table is added to `ROOM_EXPORT_EXTRA` that IS also
+a `PERSON_TABLES` entry (most of the other ten already are) and needs the
+SAME completeness guarantee `evals/room-export/run.mjs` gives those - at
+which point that battery is the right place for it, and this decision's own
+reasoning ("nothing there needed to change") stops applying to that new
+table specifically, though it remains true for `vy_receipt` itself.
+
+## `ws-r100-no-dedicated-room-leak-layer-14` (2026-09-05, WS-R100)
+
+**Decision.** `vy_receipt` gets a `TABLE_ROLES` entry in `evals/room-leak/
+world.mjs` (so the existing, generic layer 8 static reach scan covers it -
+`vy_room_referral`'s own precedent), but this workstream does NOT add a
+dedicated dynamic "layer 14" world scenario to `evals/room-leak/run.mjs`
+proving cross-follower isolation a second time.
+
+**Rationale.** Every prior numbered layer (1 through 13) earned its own
+dynamic world because it exercised a code path NO OTHER offline suite in
+this repository touched at all before that layer existed. `roomReceipt`'s
+own cross-follower refusal is not in that position: `evals/room-doors/
+run.mjs`'s new §17e (class c) proves a follower naming another follower's
+real `payment_event_id` is refused by the WHERE, and `evals/room-receipt/
+run.mjs`'s own §5 proves the identical property again through a second,
+independent fixture. A third proof of the SAME isolation fact, in a THIRD
+suite, at the cost of seeding `vy_receipt`/`vy_payment_event` fixture data
+into `evals/room-leak/world.mjs`'s own considerably heavier N-follower
+world generator, would be redundant coverage dressed as a new layer -
+`context/rejected.md`'s own standing preference for a real, distinguishing
+proof over a repeated one, applied to test coverage rather than a product
+claim.
+
+**Reverses if.** A future workstream finds a leak class the two existing
+proofs cannot express - retrieval-compilation-level leakage (a receipt's
+own number or amount surfacing inside a compiled prompt or a creator-facing
+aggregate, the actual shape every OTHER numbered layer in this battery
+guards against) rather than a simple WHERE-clause row-ownership check. That
+IS a real, distinguishing question this workstream never asked, and it
+would earn a genuine layer 14.

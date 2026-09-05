@@ -8992,6 +8992,72 @@
       "kind": "measurement",
       "title": "The first real GitHub Actions run of the 21-check release gate took 8 minutes 34 seconds for Node 22 and 24 in parallel and passed; no job split needed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-the-followers-receipt",
+      "kind": "component",
+      "title": "The follower's receipt (migration 126): vy_receipt / vy_receipt_counter, api/_receipt.js's pure builder, api/_payments.js's issueFollowerReceipt, api/_room-surface.js's roomReceipt/roomReceipts, api/room.js's receipt/receipts ops.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete",
+      "kind": "decision",
+      "title": "vy_receipt is EXEMPT from PERSON_TABLES; an account-wide forget NULLS person_id (api/memory.js's own explicit door) rather than deleting the row, so the number and amount survive.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-receipt-issued-alongside-not-inside-the-ledger-write",
+      "kind": "decision",
+      "title": "issueFollowerReceipt is a second statement after the ledger INSERT, never a fifth CTE folded into it, to avoid renumbering bound parameters several sibling suites fixture-match by position.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-receipt-number-bounded-by-rule-46b",
+      "kind": "decision",
+      "title": "VY/<FY>/<n> throws over sixteen characters (CGST Rule 46(b)'s own cap) rather than silently emitting an invalid invoice number; good for 99,999 receipts per financial year.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-follower-state-gst-split-undifferentiated",
+      "kind": "decision",
+      "title": "gstSplit only splits CGST+SGST/IGST when both the follower's and the platform's states are known (never true today); otherwise one undifferentiated GST line.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-sac-code-left-as-a-placeholder",
+      "kind": "decision",
+      "title": "No Services Accounting Code is confirmed for a Room membership; the receipt states this honestly rather than printing a guessed code.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-room-export-not-extended",
+      "kind": "decision",
+      "title": "evals/room-export/run.mjs is left untouched; vy_receipt's presence in roomExport() is proven in evals/room-receipt/run.mjs's own suite instead, since vy_receipt is not a PERSON_TABLES entry that battery's completeness check requires.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-no-dedicated-room-leak-layer-14",
+      "kind": "decision",
+      "title": "vy_receipt gets a TABLE_ROLES entry (covered by the existing generic static layer 8) but no dedicated dynamic layer 14 - the cross-follower isolation it would prove is already proven twice, by room-doors §17e and room-receipt §5.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-receipt-single-cte-with-the-ledger-write-rejected-on-paper",
+      "kind": "rejection",
+      "title": "Folding the counter claim and receipt insert into applyWebhook's own multi-CTE ledger statement was reasoned through and rejected before being built: it would renumber positional bound parameters several sibling suites fixture-match by index.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-fixture-list-query-swallowed-by-single-row-query-same-substring",
+      "kind": "rejection",
+      "title": "A fixture checked roomReceipt's own single-row SQL pattern before roomReceipts' list pattern; both share the substring \"r.payment_event_id\", so the list query was silently misread as a single-row one and returned an empty list. Fixed by checking the more specific pattern first.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r100-receipt-suite-pass-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "room-receipt 52/52, payments 113/113 (9 new), room-doors 703/703, room-leak 235/235, room-export 47/47 unchanged, check-copy clean, tsc clean - each run individually, no NEON_URL.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17614,6 +17680,56 @@
       "src": "rooms-migrations-122-123-125-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-issued-alongside-not-inside-the-ledger-write"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-number-bounded-by-rule-46b"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-follower-state-gst-split-undifferentiated"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-sac-code-left-as-a-placeholder"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-room-export-not-extended"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-no-dedicated-room-leak-layer-14"
+    },
+    {
+      "src": "ws-r100-receipt-issued-alongside-not-inside-the-ledger-write",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-single-cte-with-the-ledger-write-rejected-on-paper"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "caused_by",
+      "dst": "ws-r100-fixture-list-query-swallowed-by-single-row-query-same-substring"
+    },
+    {
+      "src": "ws-r100-the-followers-receipt",
+      "rel": "measured_by",
+      "dst": "ws-r100-receipt-suite-pass-counts-2026-09-05"
     }
   ]
 }
