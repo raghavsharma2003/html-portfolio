@@ -149,7 +149,18 @@ const HINDI_CHUNK_WAIT_BUDGET_MS = 800;
 // proves the SCREEN a real visitor watches is fast, and the two can now
 // diverge (a slow re-render after a fast chunk load would move this one
 // without moving that one) in a way only a second, real measurement can see.
-const FIRST_HINDI_PAINT_BUDGET_MS = 800;
+//
+// 1000, not 800, since the wave-fifteen merge gate (2026-09-05): the 800
+// was copied from the chunk-wait budget, and the paint is structurally
+// LATER than the chunk wait (the table is imported only after the main
+// chunk has parsed, then React commits it), so the two cannot share a
+// number. Measured at 918ms median on the merged tree with the machine
+// otherwise idle, 584-923ms across WS-R91's own batches; a budget that
+// fails on an uncontended run is a wish, not a budget. The fix is a
+// modulepreload of the Hindi chunk from the built page itself (wave
+// sixteen); when it lands, this number returns to 800
+// (`context/decisions.md#first-hindi-paint-budget-set-from-measurement`).
+const FIRST_HINDI_PAINT_BUDGET_MS = 1000;
 
 /** Finds the built Hindi copy chunk (`dist/assets/hiCopy-<hash>.js`) by
  *  filename prefix rather than a hardcoded hash — content hashes change on

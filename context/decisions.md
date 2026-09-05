@@ -17800,3 +17800,24 @@ moves to a `.ts` file under `src/` (the same boundary `api/_creator-page.js`'s
 own `TASTE_COPY` crosses for `src/room/copy.ts`), add real `// mirror of`
 markers at that point — this decision holds only while the numbers and the
 page that renders them live on the same side of the `api/`/`src/` line.
+
+## `first-hindi-paint-budget-set-from-measurement` (2026-09-05, main loop, at the wave-fifteen merge gate)
+
+**Decision.** `FIRST_HINDI_PAINT_BUDGET_MS` is 1000, not the 800 WS-R91
+copied from the chunk-wait budget. The chunk-wait number stays 800.
+
+**Why.** The paint is structurally later than the chunk wait (a dynamic
+import after the main chunk's parse, then a commit), so the two metrics
+cannot share a budget, and the merged tree measured 918 ms median with the
+machine idle (`measurements.md#first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05`).
+A budget that fails on an uncontended run of the current tree is not a
+budget; 1000 is above every observation (584-923 ms) with the margin a
+median-of-three needs, and still a third of the English screen's LCP
+budget.
+
+**Reversal.** The real fix is a `modulepreload` of the Hindi chunk emitted
+into the built `studio.html` at build time so the fetch starts with the
+main chunk, not after it (wave sixteen, WS-R107). When it lands and three
+consecutive gate runs measure under 700 ms, the budget returns to 800; if
+the preload lands and the paint does not move, the parse and commit are
+the cost and the studio's signed-out shell needs its own smaller entry.

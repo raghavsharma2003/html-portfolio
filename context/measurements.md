@@ -12385,3 +12385,25 @@ Not measured: a real phone, a real cold cache beyond this gate's own throttle em
 ## `ws-r97-room-about-eval-2026-09-05` — the offline suite's own count
 
 Method: `node evals/room-about/run.mjs` and `node evals/run.mjs room-about`, both run directly, 2026-09-05, offline, deterministic, $0. n = 48 assertions, 0 failures, runtime under 200ms. Covers: the predicate (published+unpaused, never `listed_at`), purity in both locales, every rendered number checked both by value and by a static import-source scan (`decisions.md#ws-r97-page-numbers-are-api-to-api-imports-not-mirror-markers`), the retention section's two render paths, the WS-R90 hreflang/x-default/og:locale shape, one byte-identical negative control across unpublished/paused/unknown, one differential control proving an unlisted-but-published Room is NOT collapsed into that same card, the vercel.json rewrite/headers wiring, and a direct scan for em/en dash in both locales' rendered body. `evals/probe-live/run.mjs` adds 8 more checks (a clean `--creator-slug` run, a `--creator-slug`-omitted skip, and a dropped-hreflang negative control against a real fake HTTP server) — full suite `node evals/run.mjs`: exit 0.
+
+## `first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05` — 918ms median on an idle machine
+
+**n = 3 cold runs, median (method: `scripts/check-performance.mjs`'s own
+studio-hi target inside the full release gate on the ten-merge tree at
+`1d75130`, 4x CPU and the gate's 4G throttle, load average under 1 with no
+sibling gate running; date 2026-09-05).**
+
+| metric | value | budget |
+|---|---|---|
+| Hindi chunk wait | 661 ms | 800 ms |
+| First Hindi paint | 918 ms | 800 ms (now 1000) |
+| studio-hi JS | 163.0 KB | 180 KB |
+| LCP | 1748 ms | 2500 ms |
+
+The chunk wait is inside its budget; the paint is not, on a run with no
+contention to blame. WS-R91's own batches (`ws-r91-first-hindi-paint-2026-09-05`)
+ranged 584-923 ms and attributed the misses to load; this run says the
+median sits near the budget even without it. The mechanism is structural:
+the Hindi table is a dynamic import issued only after the main chunk has
+parsed and run (`main.tsx`'s early `loadStudioCopy("hi")` is still
+downstream of that parse), then React commits it.

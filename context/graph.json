@@ -9436,6 +9436,18 @@
       "kind": "measurement",
       "title": "evals/room-about/run.mjs: 48 assertions, 0 failures, offline, deterministic, plus 8 probe-live checks.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05",
+      "kind": "measurement",
+      "title": "First Hindi paint 918 ms median (chunk wait 661 ms, JS 163.0 KB) on the ten-merge tree with the machine idle; the 800 ms budget copied from the chunk-wait metric fails without contention.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "first-hindi-paint-budget-set-from-measurement",
+      "kind": "decision",
+      "title": "The first-Hindi-paint budget is 1000 ms, set from measurement rather than copied from the chunk-wait budget; returns to 800 once the Hindi chunk is preloaded from the built page and three gate runs measure under 700 ms.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18413,6 +18425,21 @@
       "src": "ws-r97-room-about-page-budget-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r97-room-about-eval-2026-09-05"
+    },
+    {
+      "src": "first-hindi-paint-budget-set-from-measurement",
+      "rel": "caused_by",
+      "dst": "first-hindi-paint-on-the-wave-fifteen-merge-gate-2026-09-05"
+    },
+    {
+      "src": "first-hindi-paint-budget-set-from-measurement",
+      "rel": "supersedes",
+      "dst": "ws-r91-first-hindi-paint-2026-09-05"
+    },
+    {
+      "src": "first-hindi-paint-budget-set-from-measurement",
+      "rel": "constrains",
+      "dst": "ws-r91-authgate-reads-locale-before-sign-in"
     }
   ]
 }
