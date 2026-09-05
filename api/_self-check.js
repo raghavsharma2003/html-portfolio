@@ -31,6 +31,10 @@ import { sweepSchedules } from "./_sweep-schedule.js";
 // `api/_operator-telegram.js` never imports this file back (see that file's
 // own header).
 import { sendOperatorTelegram } from "./_operator-telegram.js";
+// WS-R116. `docs/gurukul/ENV-MANIFEST.md`'s own ~90 Rooms/replica-specific
+// vercel-app names, generated at build time - a LEAF module (imports
+// nothing from api/), safe beside the two imports above with no cycle risk.
+import { ENV_MANIFEST_ENTRIES, groupAbsentBySection } from "./_env-manifest.js";
 
 // ═════════════════════════════════════════════════════════════════════════
 // (a) env presence, by NAME only
@@ -73,16 +77,45 @@ export const OPTIONAL_ENV = Object.freeze([
   "GOOGLE_KEYS",
 ]);
 
+// WS-R116. Every name `docs/gurukul/ENV-MANIFEST.md` documents for THIS
+// deployment (`api/_env-manifest.js`'s own `vercel-app`-target filter),
+// minus whatever `REQUIRED_ENV`/`OPTIONAL_ENV` above already cover — a
+// name like `SUPABASE_URL` is on BOTH the old write-config mirror AND the
+// manifest (§7/§12), and the exclusion is what keeps `envPresence` from
+// ever checking or listing it twice; `groupAbsentBySection` (below, via
+// `runSelfCheck`) still finds it by its real manifest section when it
+// reaches this file FROM `OPTIONAL_ENV` instead, since that lookup is by
+// NAME alone and does not care which list originally named it.
+// `MANIFEST_ONLY_ENV` is the ~90-name residual `docs/gurukul/DAY-ONE.md`'s
+// own gap 1 named as still open before this workstream: `CRON_SECRET`,
+// every `AZURE_FOUNDRY_*`, `SARVAM_*`, and the rest. Computed once at
+// module load, not per call — `ENV_MANIFEST_ENTRIES` is itself frozen
+// build-time data, so there is nothing to recompute on a later call.
+const EXISTING_ENV_NAMES = new Set([...REQUIRED_ENV, ...OPTIONAL_ENV]);
+export const MANIFEST_ONLY_ENV = Object.freeze(
+  ENV_MANIFEST_ENTRIES.filter((e) => !EXISTING_ENV_NAMES.has(e.name)).map((e) => e.name),
+);
+
 /**
- * One entry per name in `REQUIRED_ENV` then `OPTIONAL_ENV`, `present` a
- * plain boolean — never the value, never `.length`, never a prefix.
- * `Boolean(env[name])` is the WHOLE read; nothing downstream of this
- * function ever sees the string itself.
+ * One entry per name in `REQUIRED_ENV`, then `OPTIONAL_ENV`, then
+ * `MANIFEST_ONLY_ENV` (WS-R116) — `present` a plain boolean, never the
+ * value, never `.length`, never a prefix. `Boolean(env[name])` is the WHOLE
+ * read; nothing downstream of this function ever sees the string itself.
+ *
+ * Every `MANIFEST_ONLY_ENV` row is `required: false` unconditionally —
+ * widening WHICH names this file can report on is this workstream's whole
+ * point; widening WHICH names can fail the morning check is a different,
+ * deliberately untouched decision (workstream law 1, WS-R102's own
+ * precedent restated: `REQUIRED_ENV` is a hand-picked "the site cannot run
+ * at all" list, and the manifest's own per-row `required` column means "the
+ * FEATURE breaks", a different, narrower claim this file does not promote
+ * into a deploy-blocking check on its own).
  */
 export function envPresence(env = process.env) {
   const out = [];
   for (const name of REQUIRED_ENV) out.push({ name, required: true, present: Boolean(env[name]) });
   for (const name of OPTIONAL_ENV) out.push({ name, required: false, present: Boolean(env[name]) });
+  for (const name of MANIFEST_ONLY_ENV) out.push({ name, required: false, present: Boolean(env[name]) });
   return out;
 }
 
@@ -269,14 +302,20 @@ export async function checkSiblingSweeps(db, now, deps = {}) {
  * tautology" law restated for the whole section rather than one row.
  *
  * Returns `{checks, checked, passed, failed, ok, failing_doors,
- * optional_absent}` — `failing_doors` and `optional_absent` (both lists of
- * content-free NAMES only, never anything read off a value) are meant to
- * leave this process, via `recordSelfCheckIncidents`/
- * `recordOptionalAbsentIncidents` respectively, below. `optional_absent` is
- * NEVER folded into `checks`/`failing_doors`/`failed`/`ok` — workstream law
- * 1 (WS-R102): an absent OPTIONAL name is not a failing check, it is a
- * separate, honest "not set" list the ops board and digest surface on
- * their own terms.
+ * optional_absent, optional_absent_by_section}` — `failing_doors` and
+ * `optional_absent` (both lists of content-free NAMES only, never anything
+ * read off a value) are meant to leave this process, via
+ * `recordSelfCheckIncidents`/`recordOptionalAbsentIncidents` respectively,
+ * below. `optional_absent` is NEVER folded into
+ * `checks`/`failing_doors`/`failed`/`ok` — workstream law 1 (WS-R102): an
+ * absent OPTIONAL name is not a failing check, it is a separate, honest
+ * "not set" list the ops board and digest surface on their own terms.
+ *
+ * `optional_absent_by_section` (WS-R116) is the SAME names, `api/_env-
+ * manifest.js#groupAbsentBySection`'s own grouping, never a THIRD source of
+ * truth: it exists so a caller that wants "how many capability areas are
+ * dark" (the ops board's card, the digest's per-section count) does not
+ * have to re-derive the grouping from a flat name list itself.
  */
 export async function runSelfCheck(deps = {}) {
   const db = deps.db;
@@ -310,6 +349,7 @@ export async function runSelfCheck(deps = {}) {
     ok: failing.length === 0,
     failing_doors: failing.map((c) => c.door),
     optional_absent: optionalAbsent,
+    optional_absent_by_section: groupAbsentBySection(optionalAbsent),
   };
 }
 

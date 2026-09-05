@@ -13067,3 +13067,67 @@ rule text at the new URL was independently re-read and matches, per
 Full `node scripts/verify-release.mjs` gate results (before and after this
 workstream's changes) are recorded in `context/STATE.md`'s session log
 entry for this workstream, appended after this run completed.
+
+## `ws-r116-env-manifest-names-before-and-after` (2026-09-05, WS-R116)
+
+**n:** the whole real `docs/gurukul/ENV-MANIFEST.md` document as it stood
+at this workstream's commit, parsed by `scripts/envManifest.mjs#parseEnvManifest`
+(`node evals/env-manifest/run.mjs` proves the parse; the exact numbers
+below were also read directly from `node scripts/build-env-manifest.mjs`'s
+own stdout). **Method:** count distinct env var NAMES `api/_self-check.js#envPresence`
+reports on, before this workstream's commit versus after, both read
+directly from the module's own exported arrays (`REQUIRED_ENV.length +
+OPTIONAL_ENV.length` before; `+ MANIFEST_ONLY_ENV.length` after) — never
+estimated from prose.
+
+- **Before:** `REQUIRED_ENV` (2: `OPENROUTER_KEY`, `NEON_URL`) +
+  `OPTIONAL_ENV` (15, `scripts/write-config.mjs`'s pre-Rooms mirror) =
+  **17 names total**.
+- **The manifest document itself, parsed whole:** 162 distinct env var
+  names across 36 env-var tables (30 in the original `| name | consumed
+  at | required | fallback | breaks without it |` header shape, 6 more in
+  a later `| Var | Read by | Required? | Exact value | What changes with
+  it |` shape — `ws-r116-env-manifest-md-carries-two-header-shapes` below), every
+  one of the six deployment targets counted.
+- **Filtered to `vercel-app`-target names** (the ONE deployment
+  `api/_self-check.js` itself ever runs inside, so the only environment a
+  presence check can honestly answer for): **112 names**
+  (`api/_env-manifest.gen.json`'s own array length).
+- **`MANIFEST_ONLY_ENV`** (the 112 above, minus 2 that were already on
+  `OPTIONAL_ENV` — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — so a name
+  is never checked or listed twice): **110 names**.
+- **After:** 17 (unchanged `REQUIRED_ENV`/`OPTIONAL_ENV`) + 110
+  (`MANIFEST_ONLY_ENV`) = **127 names total** `envPresence()` now reports
+  on, a **7.5x** increase in coverage from the pre-workstream 17.
+
+**Day-one runbook rows.** Of the runbook's 23 steps, 4 (steps 4, 9, 10,
+12) were audited against the widened check and converted from `manual:`
+to a `self-check:env:`/`self-check:env-all:` proving command (17 real env
+var names moved from unprovable-by-day-one.mjs to provable, across those
+four rows: 1 + 6 + 3 + 7). 4 more (5, 6, 8, 11) were re-audited and
+deliberately stayed `manual:` — see `context/decisions.md#ws-r116-day-
+one-rows-convert-only-when-presence-was-the-whole-proof` for why each one
+specifically did not qualify.
+
+## `ws-r116-env-manifest-md-carries-two-header-shapes` (2026-09-05, WS-R116)
+
+**n:** all 36 env-var tables in `docs/gurukul/ENV-MANIFEST.md`, read by
+hand and cross-checked by `scripts/envManifest.mjs`'s own parse (its
+`ENV_TABLE_HEADERS` constant names both). **Method:** `grep -n "| name
+\||Var \|"` over the whole document, every match's line read.
+
+30 tables (§1 through §27) use `| name | consumed at | required |
+fallback | breaks without it |`; 6 later tables (§30 Dormancy, §31
+Handoff, §32 the follower's receipt, §33 the operator digest/incident/
+self-check Telegram alert, §34 the Room on WhatsApp, §35 the recall run —
+every one of them a later, Rooms-era workstream's own addition) use `|
+Var | Read by | Required? | Exact value | What changes with it |`
+instead — same five-column shape, different column names, no functional
+difference. First found via a NEGATIVE result: an assertion that
+`ROOM_WHATSAPP_CHAT` (§34) would parse from the document failed against a
+parser that only recognised the first header shape, because that row's
+own table uses the second one. Matters for anyone writing a THIRD parser
+against this document by hand: `grep` for `| name |` alone undercounts by
+6 tables and 7 names (`ROOM_DORMANCY`, `ROOM_HANDOFF_KERNEL`,
+`PLATFORM_LEGAL_NAME`, `PLATFORM_GSTIN`, `OPS_TELEGRAM_CHAT_IDS`,
+`ROOM_WHATSAPP_CHAT`, `RECALL_RUN`).

@@ -154,6 +154,21 @@ export interface OpsPushConfig {
 // a value. NEVER a failing check (workstream law 1): a name here is honest,
 // not red - `OpsSelfCheck.failing_checks` above is the only field that ever
 // drives a "stopped" badge.
+// WS-R116. `api/_env-manifest.js#groupAbsentBySection`'s own shape, typed
+// here unchanged - `optional_absent`'s own names, grouped by the manifest
+// section that documents each one, plus an `ungrouped` bucket for a name
+// (the pre-Rooms write-config mirror) the manifest itself does not carry a
+// section for.
+export interface OpsSelfCheckSection {
+  section: string;
+  sectionTitle: string;
+  names: string[];
+}
+export interface OpsSelfCheckAbsentBySection {
+  sections: OpsSelfCheckSection[];
+  ungrouped: string[];
+}
+
 export interface OpsSelfCheck {
   last_started_at: string | null;
   last_outcome: SweepOutcome;
@@ -163,6 +178,7 @@ export interface OpsSelfCheck {
   failed: number;
   failing_checks: string[];
   optional_absent: string[];
+  optional_absent_by_section: OpsSelfCheckAbsentBySection;
 }
 
 // WS-R78 (migration 121). `api/_funnel.js`'s own `posterArrivalsThisWeek`

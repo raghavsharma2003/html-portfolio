@@ -2642,6 +2642,28 @@ const suites = {
   // step (fixture-only, no external fetch), one real compiled-agent call
   // path exercised with a fake reply — no live model call, no GPU.
   "recall-run": "recall-run/run.mjs",
+  // WS-R116. `scripts/envManifest.mjs`'s own parser of `docs/gurukul/
+  // ENV-MANIFEST.md`'s markdown tables into `{name, section, sectionTitle,
+  // target, required}`: the real document parses to n names with no
+  // duplicates, every name matching `^[A-Z][A-Z0-9_]+$`, a hand-verified
+  // sample of known names present with the right section/target, a
+  // multi-name cell (`REPLICA_PROVIDER_CONSENT_KEK_ID` / `..._KEK_B64`)
+  // splitting into two entries sharing one row's `required`, and a name
+  // documented in more than one section (`AZURE_FACE_LIVENESS_LIMITED_
+  // ACCESS_APPROVED`, §4 and §5) collapsing to ONE entry whose `target` is
+  // the union of both. `scripts/build-env-manifest.mjs`'s own freshness
+  // check (`--check`) against the real committed `api/_env-manifest.gen.
+  // json` — this suite's own "generated file must be fresh" gate, folded
+  // into the existing `eval suite` check per this workstream's brief rather
+  // than a new named gate in `scripts/verify-release.mjs`. THREE NEGATIVE
+  // CONTROLS: an env-var table header appearing before any section heading
+  // throws; a row with the wrong cell count throws; a malformed name cell
+  // (unbalanced backtick, a name not matching the NAME_RE) throws; a
+  // document with zero env-var tables throws rather than returning `[]`
+  // silently.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "env-manifest": "env-manifest/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

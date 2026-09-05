@@ -9940,6 +9940,48 @@
       "kind": "rejection",
       "title": "d9-join-paused-room's button-path case first sent a1:<slug> expecting a refusal for a paused Room; handleButton's a1/a0 steps never call resolveRoom (only m1/m0 does) so it sent the memory gate instead - the test was fixed to use m1, not the code.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-self-check-reads-the-manifest",
+      "kind": "component",
+      "title": "scripts/envManifest.mjs parses docs/gurukul/ENV-MANIFEST.md's own tables (36 env-var tables, two literal header shapes, 162 distinct names, deduped); scripts/build-env-manifest.mjs writes the committed api/_env-manifest.gen.json, filtered to the 112 names whose target includes vercel-app; api/_env-manifest.js loads it at module scope and exposes groupAbsentBySection. api/_self-check.js#envPresence gains MANIFEST_ONLY_ENV (110 names, REQUIRED_ENV/OPTIONAL_ENV unchanged and never duplicated), all required:false. api/_ops.js and api/_operator-digest.js group/count the widened optional_absent by manifest section instead of a flat name count.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-env-manifest-names-before-and-after",
+      "kind": "measurement",
+      "title": "api/_self-check.js#envPresence reported on 17 names before this workstream (REQUIRED_ENV 2 + OPTIONAL_ENV 15) and 127 after (+MANIFEST_ONLY_ENV 110) \u2014 a 7.5x widening, n = the real docs/gurukul/ENV-MANIFEST.md document parsed by scripts/envManifest.mjs, method in context/measurements.md#ws-r116-env-manifest-names-before-and-after.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-env-manifest-md-carries-two-header-shapes",
+      "kind": "measurement",
+      "title": "36 env-var tables in docs/gurukul/ENV-MANIFEST.md use two different literal five-column headers (30 name|consumed at|required|fallback|breaks without it, 6 later Var|Read by|Required?|Exact value|What changes with it) \u2014 a grep for the first shape alone undercounts by 6 tables, 7 names.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-manifest-names-never-promote-to-required-env",
+      "kind": "decision",
+      "title": "The ~90-plus new manifest-derived names envPresence reports on are all required:false and can never enter checks/failing_doors; REQUIRED_ENV stays exactly OPENROUTER_KEY/NEON_URL. Reversal: a deliberate, named, one-at-a-time promotion of a specific name, never a bulk change.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-manifest-names-dedup-to-first-section",
+      "kind": "decision",
+      "title": "A manifest name documented in more than one section (target is the union) is grouped under the FIRST section it is declared in for the ops board's per-section card, an arbitrary but fixed tie-break. Reversal: if the board is ever asked to show every section a name belongs to.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-day-one-rows-convert-only-when-presence-was-the-whole-proof",
+      "kind": "decision",
+      "title": "Day-one runbook steps 4, 9, 10, 12 converted from manual: to self-check:env:/self-check:env-all: (their original manual proof, scripts/check-replica-env.mjs, was itself a pure presence check). Steps 5, 6, 8, 11 stayed manual: two (5, 6) are not in ENV-MANIFEST.md at all, two (8, 11) need a value's correctness, not just presence.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r116-one-literal-header-shape-assumed-universal",
+      "kind": "rejection",
+      "title": "envManifest.mjs's first draft matched only one of the manifest's two literal env-var-table header shapes, checked against 30 of 36 tables and documented as universal; ROOM_WHATSAPP_CHAT (a later, second-shape table) silently failed to parse until an eval assertion caught it.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19357,6 +19399,51 @@
       "src": "ws-r115-age-gate-yes-does-not-recheck-room-availability",
       "rel": "caused_by",
       "dst": "ws-r115-paused-room-button-test-assumed-a1-rechecks-availability"
+    },
+    {
+      "src": "ws-r116-self-check-reads-the-manifest",
+      "rel": "part_of",
+      "dst": "ws-r21-ops-board-component"
+    },
+    {
+      "src": "ws-r116-self-check-reads-the-manifest",
+      "rel": "supersedes",
+      "dst": "ws-r102-self-check-optional-absent"
+    },
+    {
+      "src": "ws-r116-self-check-reads-the-manifest",
+      "rel": "part_of",
+      "dst": "ws-r76-self-check-cron-built"
+    },
+    {
+      "src": "ws-r116-manifest-names-never-promote-to-required-env",
+      "rel": "measured_by",
+      "dst": "ws-r116-env-manifest-names-before-and-after"
+    },
+    {
+      "src": "ws-r116-manifest-names-never-promote-to-required-env",
+      "rel": "constrains",
+      "dst": "ws-r116-self-check-reads-the-manifest"
+    },
+    {
+      "src": "ws-r116-manifest-names-dedup-to-first-section",
+      "rel": "constrains",
+      "dst": "ws-r116-self-check-reads-the-manifest"
+    },
+    {
+      "src": "ws-r116-day-one-rows-convert-only-when-presence-was-the-whole-proof",
+      "rel": "caused_by",
+      "dst": "ws-r116-self-check-reads-the-manifest"
+    },
+    {
+      "src": "ws-r116-one-literal-header-shape-assumed-universal",
+      "rel": "caused_by",
+      "dst": "ws-r116-env-manifest-md-carries-two-header-shapes"
+    },
+    {
+      "src": "ws-r116-env-manifest-names-before-and-after",
+      "rel": "caused_by",
+      "dst": "ws-r116-env-manifest-md-carries-two-header-shapes"
     }
   ]
 }

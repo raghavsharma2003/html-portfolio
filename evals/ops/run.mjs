@@ -740,6 +740,18 @@ console.log("\n── §5b2: self_check (WS-R76) ──");
     !sc.failing_checks.some((d) => d.includes("AZURE_KEY") || d.includes("SUPABASE_URL") || d.includes("optional_absent")));
   ok("self_check.failing_checks NEVER leaks into optional_absent either, both directions proven",
     !sc.optional_absent.some((d) => d.includes("NEON_URL") || d.includes("checkins")));
+  // WS-R116. SUPABASE_URL is documented in the manifest (§7); AZURE_KEY is
+  // not (it is the pre-Rooms write-config mirror only) - one groups by
+  // section, the other lands in ungrouped, same
+  // `api/_env-manifest.js#groupAbsentBySection` reducer `api/_self-
+  // check.js#runSelfCheck` itself uses, proven here over the ops door's own
+  // read of `vy_incident` instead of over `envPresence`.
+  ok("self_check.optional_absent_by_section groups SUPABASE_URL under its real manifest section",
+    sc.optional_absent_by_section.sections.some((s) => s.names.includes("SUPABASE_URL")));
+  ok("self_check.optional_absent_by_section puts AZURE_KEY in ungrouped (no manifest section documents it)",
+    sc.optional_absent_by_section.ungrouped.includes("AZURE_KEY"));
+  ok("self_check.optional_absent_by_section never double-counts a name across sections/ungrouped",
+    sc.optional_absent_by_section.sections.reduce((n, s) => n + s.names.length, 0) + sc.optional_absent_by_section.ungrouped.length === sc.optional_absent.length);
 }
 {
   // NEGATIVE CONTROL / honest empty state: no self-check has ever run in
@@ -755,6 +767,8 @@ console.log("\n── §5b2: self_check (WS-R76) ──");
   ok("self_check with no failing rows reports an empty list, not omitted", Array.isArray(sc.failing_checks) && sc.failing_checks.length === 0);
   ok("self_check with nothing seeded reports an empty optional_absent list too, not omitted (WS-R102)",
     Array.isArray(sc.optional_absent) && sc.optional_absent.length === 0);
+  ok("self_check with nothing seeded reports zero sections and zero ungrouped (WS-R116)",
+    sc.optional_absent_by_section.sections.length === 0 && sc.optional_absent_by_section.ungrouped.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

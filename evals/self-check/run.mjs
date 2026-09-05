@@ -29,6 +29,7 @@ const ok = (name, cond, extra = "") => {
 const {
   REQUIRED_ENV,
   OPTIONAL_ENV,
+  MANIFEST_ONLY_ENV,
   envPresence,
   checkDatabase,
   MIGRATION_FAMILY_TABLES,
@@ -44,6 +45,7 @@ const {
   SELF_CHECK_KIND_REGISTERED,
 } = await import(pathToFileURL(join(REPO, "api/_self-check.js")).href);
 const { INCIDENT_KINDS } = await import(pathToFileURL(join(REPO, "api/_incidents.js")).href);
+const { ENV_MANIFEST_BY_NAME } = await import(pathToFileURL(join(REPO, "api/_env-manifest.js")).href);
 const { sweepSchedules, sweepNameFromPath, expectedIntervalMs } = await import(
   pathToFileURL(join(REPO, "api/_sweep-schedule.js")).href
 );
@@ -93,8 +95,8 @@ ok("REQUIRED_ENV and OPTIONAL_ENV never overlap", REQUIRED_ENV.every((n) => !OPT
 {
   const env = { OPENROUTER_KEY: "x", NEON_URL: "y", SUPABASE_URL: "z" };
   const rows = envPresence(env);
-  ok("envPresence returns one row per name, required flagged correctly",
-    rows.length === REQUIRED_ENV.length + OPTIONAL_ENV.length &&
+  ok("envPresence returns one row per name (REQUIRED_ENV + OPTIONAL_ENV + MANIFEST_ONLY_ENV), required flagged correctly",
+    rows.length === REQUIRED_ENV.length + OPTIONAL_ENV.length + MANIFEST_ONLY_ENV.length &&
     rows.filter((r) => r.required).every((r) => REQUIRED_ENV.includes(r.name)));
   const openrouter = rows.find((r) => r.name === "OPENROUTER_KEY");
   const azure = rows.find((r) => r.name === "AZURE_KEY");
@@ -102,6 +104,33 @@ ok("REQUIRED_ENV and OPTIONAL_ENV never overlap", REQUIRED_ENV.every((n) => !OPT
   ok("an unset var reports present: false", azure?.present === false);
   ok("every row's own value is a boolean, never the string itself",
     rows.every((r) => typeof r.present === "boolean"));
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// §1b — WS-R116: MANIFEST_ONLY_ENV, the ~90-plus new names
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §1b: MANIFEST_ONLY_ENV (WS-R116) ──");
+
+ok("MANIFEST_ONLY_ENV is non-empty (the manifest half was closed, not left empty)", MANIFEST_ONLY_ENV.length > 50, `${MANIFEST_ONLY_ENV.length} names`);
+ok("MANIFEST_ONLY_ENV never overlaps REQUIRED_ENV", MANIFEST_ONLY_ENV.every((n) => !REQUIRED_ENV.includes(n)));
+ok("MANIFEST_ONLY_ENV never overlaps OPTIONAL_ENV — a name checked once, never twice",
+  MANIFEST_ONLY_ENV.every((n) => !OPTIONAL_ENV.includes(n)));
+ok("MANIFEST_ONLY_ENV has no duplicate names of its own", new Set(MANIFEST_ONLY_ENV).size === MANIFEST_ONLY_ENV.length);
+ok("MANIFEST_ONLY_ENV includes CRON_SECRET — the workstream's own headline example", MANIFEST_ONLY_ENV.includes("CRON_SECRET"));
+ok("MANIFEST_ONLY_ENV includes a Foundry name", MANIFEST_ONLY_ENV.includes("AZURE_FOUNDRY_ENDPOINT"));
+ok("MANIFEST_ONLY_ENV includes a Sarvam name", MANIFEST_ONLY_ENV.includes("SARVAM_API_KEY"));
+
+{
+  const rows = envPresence({});
+  const manifestRows = rows.filter((r) => MANIFEST_ONLY_ENV.includes(r.name));
+  ok("every MANIFEST_ONLY_ENV row from envPresence is required: false — widening WHICH names are reported, never WHICH can fail",
+    manifestRows.length === MANIFEST_ONLY_ENV.length && manifestRows.every((r) => r.required === false));
+  ok("an unset manifest-only name reports present: false", manifestRows.every((r) => r.present === false));
+}
+{
+  const rows = envPresence(Object.fromEntries(MANIFEST_ONLY_ENV.map((n) => [n, "x"])));
+  const manifestRows = rows.filter((r) => MANIFEST_ONLY_ENV.includes(r.name));
+  ok("a SET manifest-only name reports present: true", manifestRows.every((r) => r.present === true));
 }
 
 // NEGATIVE CONTROL: a check that could log a value's length or prefix must
@@ -308,8 +337,25 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   ok("a fully healthy world passes every check", result.ok === true && result.failed === 0 && result.checked === result.passed);
   ok("checked/passed/failed are plain numbers (survive api/_sweep-run.js's own sanitizeCounts)",
     typeof result.checked === "number" && typeof result.passed === "number" && typeof result.failed === "number");
-  ok("WS-R102: a world with NO env at all still reports every OPTIONAL_ENV name absent",
-    [...result.optional_absent].sort().join("|") === [...OPTIONAL_ENV].sort().join("|"));
+  ok("WS-R102/WS-R116: a world with NO env at all reports every OPTIONAL_ENV name AND every MANIFEST_ONLY_ENV name absent",
+    [...result.optional_absent].sort().join("|") === [...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV].sort().join("|"));
+  ok("WS-R116: optional_absent_by_section groups the SAME names groupAbsentBySection would over this exact list",
+    result.optional_absent_by_section.sections.reduce((s, sec) => s + sec.names.length, 0) + result.optional_absent_by_section.ungrouped.length
+      === result.optional_absent.length);
+  // `groupAbsentBySection` looks up every absent NAME against the manifest,
+  // regardless of whether `envPresence` learned that name from `OPTIONAL_ENV`
+  // or `MANIFEST_ONLY_ENV` — a name like `SUPABASE_URL` is BOTH an
+  // `OPTIONAL_ENV` member (the pre-Rooms write-config mirror) AND documented
+  // in the manifest (§7/§12), and groups by its real manifest section rather
+  // than being forced into `ungrouped` just because of which list happened
+  // to name it first — the more useful, more honest behaviour for a human
+  // reading the board by capability area.
+  const optionalOnlyNoManifestSection = OPTIONAL_ENV.filter((n) => !ENV_MANIFEST_BY_NAME.has(n));
+  ok("WS-R116: optional_absent_by_section's ungrouped bucket is exactly the OPTIONAL_ENV names the manifest itself does not document",
+    [...result.optional_absent_by_section.ungrouped].sort().join("|") === [...optionalOnlyNoManifestSection].sort().join("|"));
+  ok("WS-R116: an OPTIONAL_ENV name the manifest DOES also document (SUPABASE_URL) groups under its real section, not ungrouped",
+    !result.optional_absent_by_section.ungrouped.includes("SUPABASE_URL") &&
+    result.optional_absent_by_section.sections.some((s) => s.names.includes("SUPABASE_URL")));
 }
 {
   // A required env var missing, everything else fine.
@@ -325,14 +371,17 @@ const ALL_COLS = new Set(MIGRATION_FAMILY_COLUMNS.map((f) => `${f.table}:${f.col
   ok("WS-R102: optional_absent is sorted", JSON.stringify(result.optional_absent) === JSON.stringify([...result.optional_absent].sort()));
 }
 {
-  // WS-R102 workstream law 1: every OPTIONAL_ENV name PRESENT is absent from
-  // optional_absent, and result.ok/result.failed are UNCHANGED by which
-  // optional names are set - the whole point of the "not a failing check" law.
-  const env = Object.fromEntries([...REQUIRED_ENV, ...OPTIONAL_ENV].map((n) => [n, "x"]));
+  // WS-R102/WS-R116 workstream law 1: every OPTIONAL_ENV/MANIFEST_ONLY_ENV
+  // name PRESENT is absent from optional_absent, and result.ok/result.failed
+  // are UNCHANGED by which optional names are set - the whole point of the
+  // "not a failing check" law, now proven over the widened list too.
+  const env = Object.fromEntries([...REQUIRED_ENV, ...OPTIONAL_ENV, ...MANIFEST_ONLY_ENV].map((n) => [n, "x"]));
   const db = worldDb({ tablesPresent: ALL_TABLES, colsPresent: ALL_COLS });
   const result = await runSelfCheck({ db, env, now: NOW, sweepSchedulesFn: () => ({}) });
-  ok("WS-R102: every OPTIONAL_ENV name set reports an empty optional_absent, not omitted",
+  ok("WS-R102/WS-R116: every OPTIONAL_ENV and MANIFEST_ONLY_ENV name set reports an empty optional_absent, not omitted",
     Array.isArray(result.optional_absent) && result.optional_absent.length === 0);
+  ok("WS-R116: an empty optional_absent groups to zero sections and zero ungrouped",
+    result.optional_absent_by_section.sections.length === 0 && result.optional_absent_by_section.ungrouped.length === 0);
   ok("WS-R102: a fully-optional-configured world still passes every check (law 1)",
     result.ok === true && result.failed === 0);
 }

@@ -167,6 +167,14 @@ await gate("performance budgets", NODE, ["scripts/check-performance.mjs"]);
 // integrity checks. run.mjs re-bundles from the REAL source on every run, so
 // this is a gate on the tree being shipped, not on a frozen copy — the same
 // reason tsc runs even though vite exits 0 with type errors.
+//
+// WS-R116: this is also where `api/_env-manifest.gen.json`'s own freshness
+// against `docs/gurukul/ENV-MANIFEST.md` is proven (`evals/env-manifest/
+// run.mjs`'s own §5, `scripts/build-env-manifest.mjs --check`'s same
+// assertion run through the suite) — folded into this EXISTING check rather
+// than a new named gate, the same "generated file must be fresh" law the
+// engine bundle gate states two entries up, applied through the registry
+// this file already runs instead of a second bespoke `await gate(...)` line.
 await gate("eval suite", NODE, ["evals/run.mjs"]);
 // WS-R8. Vyakti Rooms' Phase 1 hard rule, named as its own gate rather than
 // left to ride inside "eval suite": "the leak battery runs clean before a

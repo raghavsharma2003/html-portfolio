@@ -167,6 +167,22 @@
   .ops-board__table td.ops-board__num { text-align: right; }
   .ops-board__table tbody tr:last-child td { border-bottom: none; }
 
+  /* WS-R116. The Self-check card's optional-absent names, grouped by
+   * manifest section - `.wizard-blockers-rest`'s own summary shape
+   * (honesty.css) restated for this card's own list rather than imported,
+   * `OpsBoard.tsx`'s own header rule: this file is a standalone mount that
+   * does not depend on another surface's file. */
+  .ops-board__self-check-optional { margin-top: var(--space-item); }
+  .ops-board__self-check-section { margin-top: var(--space-hair); }
+  .ops-board__self-check-section > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: var(--text-small);
+    color: var(--ink-soft);
+  }
+  .ops-board__self-check-section > summary::-webkit-details-marker { display: none; }
+  .ops-board__self-check-section[open] > summary { color: var(--ink); }
+
   .ops-board__empty, .ops-board__error, .ops-board__loading {
     font-size: var(--text-body);
     color: var(--ink-soft);

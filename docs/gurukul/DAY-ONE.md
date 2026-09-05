@@ -43,7 +43,7 @@ independent env var settings pointing at them.
 
 ## The two gaps this file exists to name loudly
 
-### 1. Self-check only ever reports two names, out of about a hundred (the OPTIONAL_ENV half closed WS-R102, 2026-09-05)
+### 1. Self-check only ever reports two names, out of about a hundred (CLOSED, 2026-09-05 — WS-R102 the OPTIONAL_ENV half, WS-R116 the manifest half)
 
 `api/_self-check.js` (WS-R76) is the deployment's own "which env values are
 missing, by name" instrument, read through the ops door
@@ -61,12 +61,15 @@ OPTIONAL_ENV: OPENROUTER_RESEARCH_KEY, GOOGLE_KEY, GOOGLE_PAID_KEY,
               FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY, GOOGLE_KEYS
 ```
 
-**None of the ~90 replica/Rooms-specific names `ENV-MANIFEST.md` catalogs are
-on either list** — not `CRON_SECRET`, not `OPS_OWNER_USER_IDS` itself, not any
-`AZURE_FOUNDRY_*`/`AZURE_OPEN_VOICE_*`/`AZURE_AUDIO_PROTECTION_*`/
-`AZURE_VOICE_EVIDENCE_*`/`SARVAM_*`/`REPLICA_SELF_TEST_*`/
-`REPLICA_STORAGE_BUCKET`. **And even the `OPTIONAL_ENV` list above never
-produces a finding at all**, checked directly in `runSelfCheck()`'s own body:
+**As first found (2026-09-05, before WS-R102/WS-R116), none of the ~90
+replica/Rooms-specific names `ENV-MANIFEST.md` catalogs were on either
+list** — not `CRON_SECRET`, not any `AZURE_FOUNDRY_*`/`AZURE_OPEN_VOICE_*`/
+`AZURE_AUDIO_PROTECTION_*`/`AZURE_VOICE_EVIDENCE_*`/`SARVAM_*`/
+`REPLICA_SELF_TEST_*`/`REPLICA_STORAGE_BUCKET`. (`OPS_OWNER_USER_IDS` is a
+separate, narrower gap named at the end of this section — it never appears
+in `ENV-MANIFEST.md` at all, so no manifest-driven fix can reach it.) **And
+even the `OPTIONAL_ENV` list above never produced a finding at all**, checked
+directly in `runSelfCheck()`'s own body at the time:
 
 ```js
 for (const entry of envPresence(env)) {
@@ -74,44 +77,89 @@ for (const entry of envPresence(env)) {
 }
 ```
 
-Only `entry.required` entries are ever pushed into `checks` — `OPTIONAL_ENV`
-is computed by `envPresence()` and then simply never read again in this
-function. So `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`, `AZURE_KEY` and
-every other optional name can be completely unset and self-check reports
-exactly the same clean line it would with all of them set. A capability
-complete at both ends and still dead, per `AGENTS.md`'s own law, found here
-rather than assumed. **In practice self-check's env check was useful for
-exactly two names in this whole runbook: `OPENROUTER_KEY` and `NEON_URL`.**
+Only `entry.required` entries were ever pushed into `checks` at the time —
+`OPTIONAL_ENV` was computed by `envPresence()` and then simply never read
+again in that function. So `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`,
+`AZURE_KEY` and every other optional name could be completely unset and
+self-check reported exactly the same clean line it would with all of them
+set. A capability complete at both ends and still dead, per `AGENTS.md`'s own
+law, found here rather than assumed. **In practice self-check's env check was
+useful for exactly two names in this whole runbook: `OPENROUTER_KEY` and
+`NEON_URL`.**
 
-**CLOSED, the `OPTIONAL_ENV` half only, 2026-09-05 (WS-R102):** `runSelfCheck`
-now returns a THIRD, separate field, `optional_absent` — the sorted names of
+**CLOSED, the `OPTIONAL_ENV` half, 2026-09-05 (WS-R102):** `runSelfCheck`
+gained a THIRD, separate field, `optional_absent` — the sorted names of
 every `OPTIONAL_ENV` entry not set, read alongside `checks`/`failing_doors`
 but never folded into either (an absent optional name is still not a failing
 check — `ok`/`failed` are unchanged, exactly WS-R76's original design). It
 reaches the ops board's `self_check.optional_absent` field (`api/_ops.js`),
-the board's own Self-check card ("Optional, not set: NAME, NAME"), and the
-operator digest as a COUNT only, never the names (`api/_operator-digest.js`).
-`scripts/day-one.mjs`'s `self-check:env:<NAME>` proving command now checks
-BOTH lists, so a future runbook row naming an `OPTIONAL_ENV` member can be
-proven the same way a `REQUIRED_ENV` row already is.
+the board's own Self-check card, and the operator digest as a COUNT only,
+never the names (`api/_operator-digest.js`). `scripts/day-one.mjs`'s
+`self-check:env:<NAME>` proving command checks BOTH lists, so a runbook row
+naming an `OPTIONAL_ENV` member can be proven the same way a `REQUIRED_ENV`
+row already is.
 
-**What this does NOT close, named honestly rather than implied fixed:**
-auditing every row in the table below against the now-widened check found
-**zero rows whose only blocker was this gap** — converting one from `manual:`
-to `self-check:env:<NAME>` would have overclaimed. Step 8 is the ONLY row in
-this whole table naming any `OPTIONAL_ENV` member at all (`SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`); its own Proving Command still asks for a real
-signed PUT, because presence alone was never the thing step 8 needed proof
-of — a key can be SET and still be wrong, and only a real upload tells the
-two apart. Every other `manual:` row's env vars (`CRON_SECRET`,
-`OPENROUTER_API_KEY`, every `AZURE_FOUNDRY_*`/`AZURE_OPEN_VOICE_*`/
-`AZURE_AUDIO_PROTECTION_*`/`AZURE_VOICE_EVIDENCE_*`/`SARVAM_*`/
-`REPLICA_SELF_TEST_*`/`REPLICA_STORAGE_BUCKET`, and more) are still among the
-~90 Rooms-specific names `OPTIONAL_ENV` itself was never widened to include —
-widening that list is a SEPARATE, much larger, still-open item this
-workstream did not attempt (its own brief: "No migration; no new env var").
-See `context/decisions.md#ws-r102-no-day-one-row-converts-from-manual` for
-the full accounting and what would reverse it.
+**CLOSED, the manifest half, 2026-09-05 (WS-R116):** `envPresence()` now
+ALSO reports on `MANIFEST_ONLY_ENV` — every name `docs/gurukul/
+ENV-MANIFEST.md`'s own tables document for the `vercel-app` target
+(`scripts/envManifest.mjs` parses the doc's own markdown tables;
+`scripts/build-env-manifest.mjs` writes the committed, build-time-fresh
+`api/_env-manifest.gen.json` `api/_self-check.js` loads at module scope),
+minus whatever `REQUIRED_ENV`/`OPTIONAL_ENV` already cover so a name is
+never checked or listed twice. **110 names** were added this way (162
+manifest names total, 112 whose target list includes `vercel-app` — the
+ONE deployment this process can ever answer a presence check for, minus
+2 already on `OPTIONAL_ENV` — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+— which stay checked exactly once, via the list they were already on; a
+name
+whose every occurrence is a standalone service's own deployment, e.g.
+`services/azure-verifier`'s `AZURE_DOCUMENT_REVIEW_ENDPOINT`, is real and
+documented but NOT on this list, since checking it from inside the studio
+Vercel app would always read absent regardless of that other deployment's
+own state — a plausible return hiding a fact this process cannot know,
+`AGENTS.md`'s own law). Every one of these 110 new names is still
+`required: false` in `envPresence()`'s own sense — this workstream widens
+WHICH names self-check can report on, never WHICH names can fail the
+morning check (`context/decisions.md#ws-r116-manifest-names-never-promote-
+to-required-env` states the reversal condition). `optional_absent` now
+carries every one of them, unset; the ops board's Self-check card groups
+them by manifest section (a count per section, names on expand, so a
+follower-facing screen never has to scroll a 100-name wall of text) and the
+operator digest's own count is now "how many manifest SECTIONS have a gap",
+not a raw name count that would otherwise read as "100+ things are wrong"
+on a deployment whose actual dark surface is unchanged.
+
+**Every row in the table below was re-audited against the now-widened
+check.** Four converted from `manual:` to a `self-check:env:`/
+`self-check:env-all:` proving command (steps 4, 9, 10, 12) — every one of
+them a row whose ORIGINAL manual instruction was itself nothing more than a
+presence check (`node scripts/check-replica-env.mjs`, which its own header
+says explicitly: "LIVE: every required var for this subsystem is set...
+this script does not validate VALUE shape"), so the ops door proves the
+IDENTICAL fact over HTTP that the script proved by reading a local shell's
+env — a strictly BETTER proof (works against a live deployment with no
+`vercel env pull`, no SSH), never a weaker stand-in. Two more (rows 5, 6)
+still cannot convert at all: `OPS_OWNER_USER_IDS` and `OPENROUTER_API_KEY`
+are genuinely absent from `ENV-MANIFEST.md` itself (a separate, narrower
+gap this workstream did not attempt to close — widening the manifest
+document is out of its own brief, "no migration, no new env var"), and row
+5 has a second, structural reason it never could: the ops door this whole
+mechanism reads THROUGH requires `OPS_OWNER_USER_IDS` to already be
+correctly set before it will answer at all, so a check that reads that
+name's own presence via the ops door is circular by construction. Two rows
+(8, 11) stay `manual:` for the SAME reason WS-R102 already named for step
+8 — presence alone was never the thing they needed proof of. Step 8's three
+names (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET`)
+are now presence-checkable via `self-check:env-all:`, but a key can be SET
+and still be wrong, and only a real signed upload tells the two apart. Step
+11's `REPLICA_SELF_TEST_OWNER_USER_ID` must not merely be SET but must
+equal the exact leased owner's UUID — a wrong value and an absent value both
+show as "present" to a check that only asks `Boolean(env[name])`, and only
+the real `GET /api/replica-runtime` call the row already used tells them
+apart. See `context/decisions.md#ws-r116-day-one-rows-convert-only-when-
+presence-was-the-whole-proof` for the full accounting and what would
+reverse the two that stayed manual for a correctness, not a coverage,
+reason.
 
 ### 2. The one name that IS checked was not the one the product actually called (closed at this runbook's merge, 2026-09-05)
 
@@ -183,15 +231,15 @@ script by design, not a defect the script found).
 | 1 | Confirm the stub baseline on both projects | none | both | $0 | probe-live | `probe-live.mjs` reports 0 findings against each project's own URL — every static route, the cron refusal shapes, the two safe `POST /api/room` refusals | every later step's "did this env batch break something" question has no baseline to compare against, and a pre-existing defect gets blamed on the wrong change |
 | 2 | `NEON_URL` | `NEON_URL` | both | $0 (Neon free tier covers Phase 0's single database) | self-check:env:NEON_URL | ops door reports no `env: NEON_URL missing` finding | every replica/Room API 500s on its first query; self-check itself reports `db: neon_url_missing` and skips step 3's own migration check entirely, not merely failing it |
 | 3 | Migrations 015 through 125 applied | none (schema, not env) | the Neon database step 2 points at | $0 | self-check:door:vy_room missing | ops door reports no `migration 071: vy_room missing` finding (`node db/migrations/apply.mjs` plus `node scripts/relcheck.mjs`, per `docs/gurukul/DEPLOY.md` Phase 1); this door only appears at all once step 2's own database answers `select 1` | every Room-specific API 500s even though generic ones (auth, Meera) work; the exact half-migrated state `relcheck.mjs` exists to catch |
-| 4 | `CRON_SECRET` | `CRON_SECRET` | html-portfolio (where the cron schedule actually runs, per this file's own Vercel-projects section) | $0 | manual: open the Vercel dashboard's Cron Jobs tab for html-portfolio (self-check's REQUIRED_ENV/OPTIONAL_ENV lists deliberately exclude CRON_SECRET, ENV-MANIFEST §15, and probe-live's cron section proves only the REFUSAL SHAPE, never that a secret is configured, since it never sends one) | the last invocation of each of the twelve `vercel.json` cron entries reads 200, not 401/403 | all five replica sweeps, the self-check sweep itself, and every other cron 401 forever, on schedule, with nothing surfaced anywhere but a Vercel invocation log nobody is watching (the exact failure `SPEC-GURUKUL.md` §4 named) |
-| 5 | `OPS_OWNER_USER_IDS`, plus a real sign-in for that account | `OPS_OWNER_USER_IDS` | html-portfolio (or wherever the operator actually signs in and calls `/api/ops`) | $0 | manual: sign in as the allowlisted account, then call `GET /api/ops` with that session's bearer | the response is 200 rather than the courtesy 404 an unconfigured or non-allowlisted caller gets | every `self-check:` row below this one stays `unknown: no operator bearer given` forever, and the ops board itself (funnel, incidents, sweeps) has no reader |
-| 6 | `OPENROUTER_API_KEY` — an optional override for the completion door every Room reply uses; since 2026-09-05 `think()` falls back to step 7's `OPENROUTER_KEY`, the same read every other door makes (this file's own section 2) | `OPENROUTER_API_KEY` (optional) | vyakti-replica-lab | $0 to configure; per-token spend once real traffic runs, no budget fence on this specific path today | manual: run `node scripts/first-room.mjs` through to `follower-say` once step 7 is done — the one proof that a reply actually comes back | the follower-say stage's `reply` field is non-empty | nothing on its own: with step 7 set, `api/_surface.js`'s `think()` has a key; with BOTH unset it returns an empty string on every call and a Room, a Mirror Call reply and every channel message go silent with no named error anywhere |
+| 4 | `CRON_SECRET` (WS-R116, 2026-09-05: converted from `manual:` — it is on `ENV-MANIFEST.md` §15's own `vercel-app`-target table, so `envPresence()` now reports it by name, and presence is exactly what this row needs proof of, `timingSafeEqual`'s own comparator has no shape beyond length, so there is no "set but wrong" state the way step 8's storage keys have) | `CRON_SECRET` | html-portfolio (where the cron schedule actually runs, per this file's own Vercel-projects section) | $0 | self-check:env:CRON_SECRET | ops door reports no `env: CRON_SECRET missing` finding, and `CRON_SECRET` is not on `optional_absent` — the last invocation of each of the twelve `vercel.json` cron entries reads 200, not 401/403 | all five replica sweeps, the self-check sweep itself, and every other cron 401 forever, on schedule, with nothing surfaced anywhere but a Vercel invocation log nobody is watching (the exact failure `SPEC-GURUKUL.md` §4 named) |
+| 5 | `OPS_OWNER_USER_IDS`, plus a real sign-in for that account (re-audited WS-R116, 2026-09-05: still cannot convert — `OPS_OWNER_USER_IDS` does not appear in `ENV-MANIFEST.md` at all, a separate, narrower gap in the DOCUMENT itself this workstream's own brief did not extend to, and there is a second, structural reason it never could: every `self-check:` proving command reads THROUGH the ops door this very name gates, so a check that reads this name's own presence via that door would be circular by construction) | `OPS_OWNER_USER_IDS` | html-portfolio (or wherever the operator actually signs in and calls `/api/ops`) | $0 | manual: sign in as the allowlisted account, then call `GET /api/ops` with that session's bearer | the response is 200 rather than the courtesy 404 an unconfigured or non-allowlisted caller gets | every `self-check:` row below this one stays `unknown: no operator bearer given` forever, and the ops board itself (funnel, incidents, sweeps) has no reader |
+| 6 | `OPENROUTER_API_KEY` — an optional override for the completion door every Room reply uses; since 2026-09-05 `think()` falls back to step 7's `OPENROUTER_KEY`, the same read every other door makes (this file's own section 2). Re-audited WS-R116, 2026-09-05: still cannot convert — `OPENROUTER_API_KEY` does not appear in `ENV-MANIFEST.md` at all (it is `api/_surface.js`'s own internal read, never documented as its own row), and even if it were, this row's own proof is "a real reply comes back", which mere presence cannot show — `think()`'s own honesty gate on an EMPTY completion has no way to tell a missing/rejected key apart from a real, considered silence, this file's own section 2 above | `OPENROUTER_API_KEY` (optional) | vyakti-replica-lab | $0 to configure; per-token spend once real traffic runs, no budget fence on this specific path today | manual: run `node scripts/first-room.mjs` through to `follower-say` once step 7 is done — the one proof that a reply actually comes back | the follower-say stage's `reply` field is non-empty | nothing on its own: with step 7 set, `api/_surface.js`'s `think()` has a key; with BOTH unset it returns an empty string on every call and a Room, a Mirror Call reply and every channel message go silent with no named error anywhere |
 | 7 | `OPENROUTER_KEY` — the name self-check actually checks, and `api/chat.js`'s own fallback | `OPENROUTER_KEY` | vyakti-replica-lab | same budget as step 6 | self-check:env:OPENROUTER_KEY | ops door reports no `env: OPENROUTER_KEY missing` finding | `api/chat.js`'s direct chat endpoint answers `500 {"error":"no key configured"}` by name; unrelated to step 6's failure mode, and both are real gaps at once until both names are set |
-| 8 | Replica private storage: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` (optional, defaults to `vyakti-replica-private`) | vyakti-replica-lab | $0 on the existing Supabase project's free storage tier for Phase 0's volumes | manual: NAMED SELF-CHECK BLIND SPOT, see this file's own section 1 above — run `node scripts/first-room.mjs`'s `upload` stage through to a real signed PUT, or `node scripts/check-replica-env.mjs` | the `upload` stage reports `ok`, or `check-replica-env.mjs` shows `replica_storage` LIVE | enrollment, evidence and voice-preview uploads all fail at the signed-upload step; `first-room.mjs`'s own `upload` stage is the first thing that would show this, since self-check never will |
-| 9 | The Chatterbox voice preview lane: `AZURE_OPEN_VOICE_ORIGIN`, `OPEN_VOICE_HMAC_SECRET`, `AZURE_AUDIO_PROTECTION_ORIGIN`, `AZURE_AUDIO_PROTECTION_HMAC_SECRET`, `REPLICA_WATERMARK_TOKEN_SECRET`, `REPLICA_COMMITMENT_SECRET` | same six names | vyakti-replica-lab, plus deploying the `open-voice-runtime` and `audio-protection` standalone services first (`docs/gurukul/DEPLOY.md` Phase 3) | Azure Container Apps GPU compute, scale-to-zero (near $0 idle; real $ per warm synthesis) | manual: `node scripts/check-replica-env.mjs`, per `docs/gurukul/DEPLOY.md` Phase 2b's own verify step — self-check does not list any of these six names | `voice_chatterbox_preview` shows LIVE | `/api/replica-voice-preview` answers `503 open_voice_origin_required`; the studio's voice panel can never produce audio, which `context/STATE.md`'s START HERE block already names as the single blocker on the first owner ever hearing their own clone in a browser |
-| 10 | Voice evidence and transcription: `AZURE_VOICE_EVIDENCE_ORIGIN`, `AZURE_VOICE_EVIDENCE_HMAC_SECRET`, `SARVAM_API_KEY` | same three names | vyakti-replica-lab, plus the `voice-evidence` standalone GPU service deployed | `voice-evidence` GPU compute, scale-to-zero; Sarvam per-hour ASR spend, rate unresolved (ENV-MANIFEST §15b names a 3x conflict in the source figures) | manual: `node scripts/check-replica-env.mjs` for `voice_evidence_client` | the processing DAG's `transcribe` stage stops naming `sarvam_asr_config_missing` | the processing DAG stalls at `transcribe`; `voice_quality` never runs, so `sounds_like_you` in Readiness stays unmeasured for every replica behind this gap |
-| 11 | The owner-only bypass: `REPLICA_SELF_TEST_MODE`, `REPLICA_SELF_TEST_ENVIRONMENT`, `REPLICA_SELF_TEST_OWNER_USER_ID` | same three names, ALL required together | vyakti-replica-lab and the `processing-worker` service | $0 | manual: `GET /api/replica-runtime` for the named owner — self-check does not list any of these three names | `voice_not_ready`/`production_voice_required` blockers are cleared | a second real creator (not the allowlisted owner id) cannot pass the production voice path in "the first ten minutes" at all, per `docs/gurukul/PHASE-0-RUNBOOK.md` step 3 |
-| 12 | `AZURE_FOUNDRY_ENDPOINT`, `AZURE_FOUNDRY_API_KEY`, `AZURE_FOUNDRY_CLAIM_MODEL`, `AZURE_FOUNDRY_DIALOGUE_MODEL`, `AZURE_REPLICA_APP_BUDGET_USD`, `AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS`, `AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS` | same seven names | vyakti-replica-lab | Azure AI Foundry token spend, fenced by `AZURE_REPLICA_APP_BUDGET_USD` | manual: `node scripts/check-replica-env.mjs` | `foundry_claim_extraction`/`foundry_dialogue_generation`/`foundry_spend_budget` all show LIVE | optional — the review queue's `generate` op still runs without these and reports `questions_unavailable` by name, an honest empty rather than a silent one, per `docs/gurukul/PHASE-0-RUNBOOK.md` step 6; claim extraction and the dialogue-authoring assist are simply off |
+| 8 | Replica private storage: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` (re-audited WS-R116, 2026-09-05: still cannot convert, for a DIFFERENT reason than before — `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` are already checkable via `self-check:env:` today, `OPTIONAL_ENV`, unchanged since WS-R76; the gap was never coverage, it is that a key can be SET and still be wrong, and only a real signed upload tells the two apart, `self-check:env:` was never going to close that) | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REPLICA_STORAGE_BUCKET` (optional, defaults to `vyakti-replica-private`) | vyakti-replica-lab | $0 on the existing Supabase project's free storage tier for Phase 0's volumes | manual: run `node scripts/first-room.mjs`'s `upload` stage through to a real signed PUT, or `node scripts/check-replica-env.mjs` | the `upload` stage reports `ok`, or `check-replica-env.mjs` shows `replica_storage` LIVE | enrollment, evidence and voice-preview uploads all fail at the signed-upload step; `first-room.mjs`'s own `upload` stage is the first thing that would show this, since self-check's own presence check cannot |
+| 9 | The Chatterbox voice preview lane (WS-R116, 2026-09-05: converted from `manual:` — all six names are on `ENV-MANIFEST.md`'s own `vercel-app`-target tables, §6-7, and `scripts/check-replica-env.mjs`'s own header says its LIVE/DARK/BROKEN-HALFWAY states are a pure presence check, "does not validate VALUE shape" — the ops door now proves the identical fact over HTTP): `AZURE_OPEN_VOICE_ORIGIN`, `OPEN_VOICE_HMAC_SECRET`, `AZURE_AUDIO_PROTECTION_ORIGIN`, `AZURE_AUDIO_PROTECTION_HMAC_SECRET`, `REPLICA_WATERMARK_TOKEN_SECRET`, `REPLICA_COMMITMENT_SECRET` | same six names | vyakti-replica-lab, plus deploying the `open-voice-runtime` and `audio-protection` standalone services first (`docs/gurukul/DEPLOY.md` Phase 3) | Azure Container Apps GPU compute, scale-to-zero (near $0 idle; real $ per warm synthesis) | self-check:env-all:AZURE_OPEN_VOICE_ORIGIN,OPEN_VOICE_HMAC_SECRET,AZURE_AUDIO_PROTECTION_ORIGIN,AZURE_AUDIO_PROTECTION_HMAC_SECRET,REPLICA_WATERMARK_TOKEN_SECRET,REPLICA_COMMITMENT_SECRET | ops door reports no finding for any of the six names — the SAME fact `voice_chatterbox_preview`/`provenance_protection_client` showing LIVE in `scripts/check-replica-env.mjs` would report, proven without local shell access to the deployment's env | `/api/replica-voice-preview` answers `503 open_voice_origin_required`; the studio's voice panel can never produce audio, which `context/STATE.md`'s START HERE block already names as the single blocker on the first owner ever hearing their own clone in a browser |
+| 10 | Voice evidence and transcription (WS-R116, 2026-09-05: converted from `manual:` — same reasoning as step 9, `ENV-MANIFEST.md` §10/§15b, `scripts/check-replica-env.mjs`'s `voice_evidence_client`/`asr_sarvam` are both pure presence checks): `AZURE_VOICE_EVIDENCE_ORIGIN`, `AZURE_VOICE_EVIDENCE_HMAC_SECRET`, `SARVAM_API_KEY` | same three names | vyakti-replica-lab, plus the `voice-evidence` standalone GPU service deployed | `voice-evidence` GPU compute, scale-to-zero; Sarvam per-hour ASR spend, rate unresolved (ENV-MANIFEST §15b names a 3x conflict in the source figures) | self-check:env-all:AZURE_VOICE_EVIDENCE_ORIGIN,AZURE_VOICE_EVIDENCE_HMAC_SECRET,SARVAM_API_KEY | ops door reports no finding for any of the three names — the same fact naming `sarvam_asr_config_missing` at the processing DAG's `transcribe` stage would eventually surface, proven up front instead of after a real upload reaches that stage | the processing DAG stalls at `transcribe`; `voice_quality` never runs, so `sounds_like_you` in Readiness stays unmeasured for every replica behind this gap |
+| 11 | The owner-only bypass: `REPLICA_SELF_TEST_MODE`, `REPLICA_SELF_TEST_ENVIRONMENT`, `REPLICA_SELF_TEST_OWNER_USER_ID` (re-audited WS-R116, 2026-09-05: still cannot convert — all three ARE now presence-checkable, `ENV-MANIFEST.md` §12b, but `REPLICA_SELF_TEST_OWNER_USER_ID` must not merely be SET, it must equal the exact leased owner's UUID; a wrong value and an absent value both read as "present" to `Boolean(env[name])`, and only the real `GET /api/replica-runtime` call this row already uses tells them apart, the SAME "presence was never the whole proof" reasoning as step 8) | same three names, ALL required together | vyakti-replica-lab and the `processing-worker` service | $0 | manual: `GET /api/replica-runtime` for the named owner | `voice_not_ready`/`production_voice_required` blockers are cleared | a second real creator (not the allowlisted owner id) cannot pass the production voice path in "the first ten minutes" at all, per `docs/gurukul/PHASE-0-RUNBOOK.md` step 3 |
+| 12 | Foundry claim extraction + dialogue generation + spend budget (WS-R116, 2026-09-05: converted from `manual:` — same reasoning as step 9, `ENV-MANIFEST.md` §1-2, `scripts/check-replica-env.mjs`'s three `foundry_*` subsystems are all pure presence checks): `AZURE_FOUNDRY_ENDPOINT`, `AZURE_FOUNDRY_API_KEY`, `AZURE_FOUNDRY_CLAIM_MODEL`, `AZURE_FOUNDRY_DIALOGUE_MODEL`, `AZURE_REPLICA_APP_BUDGET_USD`, `AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS`, `AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS` | same seven names | vyakti-replica-lab | Azure AI Foundry token spend, fenced by `AZURE_REPLICA_APP_BUDGET_USD` | self-check:env-all:AZURE_FOUNDRY_ENDPOINT,AZURE_FOUNDRY_API_KEY,AZURE_FOUNDRY_CLAIM_MODEL,AZURE_FOUNDRY_DIALOGUE_MODEL,AZURE_REPLICA_APP_BUDGET_USD,AZURE_FOUNDRY_INPUT_USD_PER_MTOKENS,AZURE_FOUNDRY_OUTPUT_USD_PER_MTOKENS | ops door reports no finding for any of the seven names — the same fact `foundry_claim_extraction`/`foundry_dialogue_generation`/`foundry_spend_budget` all showing LIVE would report | optional — the review queue's `generate` op still runs without these and reports `questions_unavailable` by name, an honest empty rather than a silent one, per `docs/gurukul/PHASE-0-RUNBOOK.md` step 6; claim extraction and the dialogue-authoring assist are simply off |
 | 13 | Supabase Auth SMTP (a Google Workspace app password) | none — a Supabase project dashboard setting, not a repo env var read by any file in this tree | Supabase project (shared by both Vercel projects) | $0, a Google Workspace account the owner already has | manual: send two sign-in OTP emails inside one hour | the second email is not rate-limited | the built-in Supabase mailer caps at about 2 sign-in emails per hour; a creator who is invited and loses the first OTP has no recovery path other than Google sign-in |
 | 14 | `/r/*` on the Supabase OAuth redirect allow list | none — a Supabase Auth dashboard setting | Supabase project | $0 | manual: sign in with Google from inside a Room via `googleSignIn()` (`src/studio/studioAuth.ts`) | sign-in completes without a redirect_uri_mismatch error | Google sign-in from inside a Room fails; email OTP and the studio's own Google sign-in, whose return path is already allow-listed, are unaffected |
 | 15 | Application: the creator signs in | none (uses steps 2, 13, 14 above) | vyakti-replica-lab | $0 | manual: complete `src/studio/studioAuth.ts`'s own sign-in flow; `docs/gurukul/PHASE-0-RUNBOOK.md` step 1 has the full detail | a bearer session token is returned | no `VYAKTI_SESSION` exists for `scripts/first-room.mjs` to use, and nothing downstream of this step can run |
@@ -207,15 +255,17 @@ script by design, not a defect the script found).
 
 ## What `day-one.mjs` can and cannot tell you
 
-**Provable for free, today, against a real deployment:** steps 1, 2, 3 and 7
-(via `probe-live` and, with an operator bearer, the ops door's self-check
-line — only `REQUIRED_ENV` names ever surface there, see this file's own
-section 1 above). Every `manual:` row (4, 5, 6, 8 through 23) is printed as
-`unknown` by design — this script never makes a paid call, never signs in,
-never uploads a file, and never runs `scripts/first-room.mjs` itself. Running
-that script for real, with a real owner session and a real audio file,
-remains the only thing that can close steps 15 through 23, exactly as
-`docs/gurukul/PHASE-0-RUNBOOK.md` already states.
+**Provable for free, today, against a real deployment:** steps 1, 2, 3, 4, 7,
+9, 10 and 12 (via `probe-live` and, with an operator bearer, the ops door's
+self-check line — as of WS-R116, both `REQUIRED_ENV` names AND the ~90
+manifest names surface there, see this file's own section 1 above; steps 4,
+9, 10 and 12 are the ones this widening newly closed). Every remaining
+`manual:` row (5, 6, 8, 11, 13 through 23) is printed as `unknown` by
+design — this script never makes a paid call, never signs in, never uploads
+a file, and never runs `scripts/first-room.mjs` itself. Running that script
+for real, with a real owner session and a real audio file, remains the only
+thing that can close steps 15 through 23, exactly as `docs/gurukul/
+PHASE-0-RUNBOOK.md` already states.
 
 **Not proven by anything in this repository, named here because forgetting it
 would defeat the point of a runbook that tries to be honest:** the false-accept

@@ -474,7 +474,31 @@ function SelfCheckCard({ selfCheck }: { selfCheck: OpsSelfCheck }) {
         </ul>
       )}
       {selfCheck.optional_absent.length > 0 && (
-        <p className="ops-board__slug">Optional, not set: {selfCheck.optional_absent.join(", ")}</p>
+        <div className="ops-board__self-check-optional">
+          <p className="ops-board__slug">
+            {selfCheck.optional_absent.length} optional name{selfCheck.optional_absent.length === 1 ? "" : "s"} not set, by area:
+          </p>
+          {/* WS-R116. `docs/gurukul/ENV-MANIFEST.md`'s own ~90 names grouped
+              by section - counts closed, names on expand, a native
+              <details>/<summary> pair so the toggle is keyboard-reachable
+              with no extra JS (`docs/gurukul/DESIGN-LAW.md`'s own
+              "interruptible, no bespoke widget where a native one already
+              does the job" restated). */}
+          {selfCheck.optional_absent_by_section.sections.map((section) => (
+            <details key={section.section} className="ops-board__self-check-section">
+              <summary>
+                {section.sectionTitle} ({section.names.length})
+              </summary>
+              <p className="ops-board__slug">{section.names.join(", ")}</p>
+            </details>
+          ))}
+          {selfCheck.optional_absent_by_section.ungrouped.length > 0 && (
+            <details className="ops-board__self-check-section">
+              <summary>Other ({selfCheck.optional_absent_by_section.ungrouped.length})</summary>
+              <p className="ops-board__slug">{selfCheck.optional_absent_by_section.ungrouped.join(", ")}</p>
+            </details>
+          )}
+        </div>
       )}
     </div>
   );
