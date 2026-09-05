@@ -17,6 +17,10 @@
       "destination": "/api/room-page?slug=:slug"
     },
     { "source": "/r/:slug", "destination": "/room.html" },
+    {
+      "source": "/r/:slug/manifest.webmanifest",
+      "destination": "/api/room-manifest?slug=:slug"
+    },
     { "source": "/suites", "destination": "/suites.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },

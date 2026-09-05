@@ -8830,3 +8830,56 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r59-post-only-api-cannot-be-cache-put-anyway-so-my-first-negative-control-proved-nothing` (2026-09-04)
+
+**Tried:** to hand-verify `scripts/check-install.mjs`'s runtime "no `/api/`
+URL is ever cached after a scripted turn" assertion would actually CATCH a
+real regression, by editing the BUILT `dist/room-sw.js` to inject a naive
+bug — remove the `/api/` guard entirely and unconditionally
+`cache.put(req, res.clone())` every response — then re-ran the check's own
+scripted turn (a same-origin `fetch("/api/room", {method:"POST", ...})`
+issued from inside the page) against the buggy worker.
+
+**What broke:** nothing. The check still reported `ok`, with zero entries
+found under `/api/` in Cache Storage — a false negative on the injected
+bug, discovered before it shipped.
+
+**Why:** the Cache API's `Cache.put()` throws for any request whose method
+is not `GET` (a fetch/service-worker platform rule, not something this
+worker's own code controls), and every single call this repo's Room surface
+ever makes to `/api/room` is a `POST` (`src/room/roomApi.ts`'s `post()`,
+the one function every op — `open`/`join`/`say`/`history`/... — goes
+through). So a naive "cache everything" bug against THIS specific request
+shape fails silently at the browser platform level regardless of whether
+the worker's own source guards against it at all — my injected bug was
+inert for the exact request I used to probe it, which made the check look
+like it had confirmed something it had not.
+
+**What actually proves detection:** two things, done AFTER this was found.
+First, `evals/room-install/run.mjs` §3's static scan (regex over the REAL
+`public/room-sw.js` SOURCE TEXT, never executed) has its own negative
+control — a SYNTHETIC broken worker string with a `cache.put(` call
+reachable before an `/api/` guard — and that one correctly fails, because
+it is architecture-independent text analysis, not a live Cache API call.
+Second, `scripts/check-install.mjs`'s own runtime detection/read logic
+(the loop over `caches.keys()`/`cache.keys()` matching `/api/` pathnames)
+was separately confirmed to work by seeding a cache directly with a
+GET-shaped `Request` for an `/api/` path via `page.evaluate` (bypassing any
+service worker entirely) and confirming it WAS found — proving the read
+side is sound, decoupled from whether a realistic POST-only bug could ever
+populate it in the first place.
+
+**The actual, useful finding:** this repo's `/api/room` surface being
+POST-only is itself a real, if incidental, defense-in-depth layer against
+exactly the failure this workstream's law exists to prevent — a bug that
+tries to cache a follower's own words via the ordinary `Cache.put(req, ...)`
+path fails at the platform level before it could ever succeed, for THIS
+specific API shape. The runtime check in `scripts/check-install.mjs`
+remains worthwhile as an integration-level confirmation that the real,
+shipped code behaves — but a future agent modifying this SW should not
+assume that check alone would catch every conceivable cache-write bug
+(one built around a rewritten `GET`-method `Request` key, say, rather than
+`req` verbatim) — the STATIC scan is what proves that class of bug is
+unreachable, by construction, regardless of what any individual browser API
+happens to refuse.

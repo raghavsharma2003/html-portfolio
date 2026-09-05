@@ -724,11 +724,20 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
 // whether or not the visitor ever joins.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** The whole set `vy_room_arrival.via` may carry — matches migration 102's
- *  CHECK constraint byte for byte, so a value this list rejects can never
- *  reach the table either. `embed` is WS-R46's own `?via=embed` link
- *  (`api/_room-embed.js`'s script), uncounted until this migration. */
-export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search"]);
+/** The whole set this allowlist accepts. A value this list rejects can never
+ *  reach the table either way, since `resolveArrivalVia` runs before every
+ *  write. `embed` is WS-R46's own `?via=embed` link (`api/_room-embed.js`'s
+ *  script), uncounted until migration 102. `install` is WS-R59's own
+ *  `?via=install` (an installed Room's `start_url`,
+ *  `api/_room-manifest.js`) and is the ONE value here NOT also in migration
+ *  102's `via in (...)` CHECK constraint — this workstream added no
+ *  migration, so `recordRoomArrival`'s insert for an 'install' arrival is
+ *  rejected by that constraint every time, and swallowed by the same
+ *  `.catch(() => {})` a malformed `via` already relies on below. Nothing
+ *  breaks (the write was always best-effort), but install arrivals are NOT
+ *  counted until a future migration adds 'install' to the CHECK — see
+ *  `context/decisions.md#ws-r59-install-via-not-yet-in-the-arrival-check-constraint`. */
+export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search", "install"]);
 
 /** Anything not exactly one of the four named values becomes 'direct' — a
  *  stray query param, an empty string, undefined, or a value with SQL-shaped

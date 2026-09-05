@@ -8,9 +8,12 @@
     <!--
       WS-R22: the installable Room. This static file is the fallback every
       visitor gets before any JS runs; `RoomApp.tsx` swaps this link's `href`
-      to a per-room Blob URL once it knows which creator's Room this tab is
-      on, so "Add to Home Screen" opens back to THIS room rather than the
-      unrouted `/r/` this static manifest's own `start_url` names.
+      once it knows which creator's Room this tab is on, so "Add to Home
+      Screen" opens back to THIS room rather than the unrouted `/r/` this
+      static manifest's own `start_url` names. WS-R59 points that swap at a
+      real per-Room route (`api/_room-manifest.js`,
+      `/r/<slug>/manifest.webmanifest`) rather than a client-built Blob URL —
+      see `RoomApp.tsx`'s own comment on that effect.
     -->
     <link rel="manifest" href="/room.webmanifest" />
     <!--

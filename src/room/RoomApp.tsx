@@ -83,9 +83,22 @@ import {
   type RoomThread,
 } from "./roomApi";
 import { RoomPayApiError, startSubscription, type RoomPaymentStatus } from "./roomPayApi";
+import { noteInstallVisit, markInstallDismissed, shouldShowInstallCard } from "./installPrompt";
 
 type Turn = { role: "user" | "assistant"; content: string; fresh?: boolean };
-type Phase = "loading" | "unavailable" | "join" | "talking" | "gone";
+/** The one shape this file needs off a captured `beforeinstallprompt` event
+ *  (WS-R59) — typed loosely rather than importing a DOM lib type, since none
+ *  ships with this project's `lib` and every browser that fires the real
+ *  event satisfies this shape regardless. */
+type InstallPromptEvent = {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+// "offline" (WS-R59) is distinct from "unavailable": the initial open failed
+// because the BROWSER itself reports no connection, never because a Room's
+// own status is in question — see `copy.offline`'s own comment for why the
+// two must never share one message.
+type Phase = "loading" | "unavailable" | "join" | "talking" | "gone" | "offline";
 
 /** WS-R50 (WCAG 2.1.1, keyboard). A handful of controls in this file fire
  *  their action on `onPointerDown` rather than `onClick` — DESIGN-LAW's own
@@ -132,6 +145,15 @@ interface Props {
   fixtureForgetReceipt?: RoomForgetReceipt | null;
   fixtureCheckinsOpen?: boolean;
   fixtureHandoffOpen?: boolean;
+  /** WS-R59. Forces the install card visible, bypassing the real-world gate
+   *  (`installPrompt.ts`'s `shouldShowInstallCard`) entirely — the layout
+   *  fixture has no `beforeinstallprompt` event, no `localStorage` visit
+   *  count, and no real sign-in to drive that gate with.
+   *  `?ios=1` alongside it renders the iOS "Add to Home Screen" hint variant
+   *  instead of the working button, so both variants are reachable by the
+   *  same layout-gate target this one prop adds. */
+  fixtureInstallPrompt?: boolean;
+  fixtureInstallPromptIOS?: boolean;
 }
 
 export default function RoomApp({
@@ -146,6 +168,8 @@ export default function RoomApp({
   fixtureForgetReceipt,
   fixtureCheckinsOpen,
   fixtureHandoffOpen,
+  fixtureInstallPrompt,
+  fixtureInstallPromptIOS,
 }: Props) {
   const slug = useMemo(() => (fixtureOpen ? fixtureOpen.room.slug : slugFromPath()), [fixtureOpen]);
   const [phase, setPhase] = useState<Phase>(
@@ -204,6 +228,15 @@ export default function RoomApp({
   // brief's own law ("renders only when both the refusal and the offer row
   // exist").
   const [capOffer, setCapOffer] = useState<RoomOffer | null>(fixtureCapOffer ?? null);
+  // WS-R59: the install card's own state. `installEvent` is the captured
+  // `beforeinstallprompt` (typed loosely — no such DOM type ships with this
+  // project's `lib`), null on every browser that never fires one, iOS
+  // included by design (`installPrompt.ts`'s own comment). `installReady`/
+  // `installDismissed` come from `noteInstallVisit` below, off THIS slug's
+  // own `localStorage` keys — never a guess, never re-derived here.
+  const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
+  const [installReady, setInstallReady] = useState(false);
+  const [installDismissed, setInstallDismissed] = useState(false);
   const foot = useRef<HTMLDivElement | null>(null);
   // WS-R50: whether the scroll-to-bottom effect below has already run once.
   // See that effect's own comment for why this exists.
@@ -255,6 +288,41 @@ export default function RoomApp({
         year: "numeric",
       })
     : "";
+
+  // WS-R59: the install card's own derived state — `isIOS` and
+  // `alreadyInstalled` are read straight off the platform once, `showInstall`
+  // is `installPrompt.ts`'s real `shouldShowInstallCard`, never a
+  // second copy of that predicate written out here. `fixtureInstallPrompt`
+  // short-circuits all of it for the layout gate, which has no
+  // `beforeinstallprompt`, no visit count, and no real sign-in to drive the
+  // real gate with — see the prop's own comment.
+  const isIOS =
+    !fixtureOpen && typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const alreadyInstalled =
+    !fixtureOpen &&
+    typeof window !== "undefined" &&
+    (() => {
+      try {
+        return (
+          window.matchMedia?.("(display-mode: standalone)").matches === true ||
+          (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+        );
+      } catch {
+        return false;
+      }
+    })();
+  const showInstall = fixtureOpen
+    ? Boolean(fixtureInstallPrompt)
+    : shouldShowInstallCard({
+        signedIn: !!auth,
+        talking: phase === "talking",
+        readyBySecondVisit: installReady,
+        dismissed: installDismissed,
+        alreadyInstalled,
+        hasPromptEvent: !!installEvent,
+        isIOS,
+      });
+  const showInstallIOS = fixtureOpen ? Boolean(fixtureInstallPromptIOS) : isIOS;
 
   const playReply = useCallback(
     async (index: number, text: string) => {
@@ -313,7 +381,16 @@ export default function RoomApp({
         setThreads(opened.threads ?? []);
         setPhase(opened.joined ? "talking" : "join");
       } catch {
-        if (live) setPhase("unavailable");
+        if (!live) return;
+        // WS-R59: distinguish "the browser has no connection" from every
+        // other reason `openRoom` can fail — `copy.offline`'s own comment on
+        // why the two must never share one message. `navigator.onLine` is a
+        // real, first-class signal here (not a guess): this catch only runs
+        // once the fetch itself already failed, so a browser reporting
+        // `false` at that exact moment is reporting the actual cause, never
+        // a coincidence.
+        const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+        setPhase(offline ? "offline" : "unavailable");
       }
     })();
     return () => {
@@ -389,7 +466,7 @@ export default function RoomApp({
   /* The one statistic, and only when it is real. A null renders nothing rather
    * than a zero that looks like a measurement. */
   useEffect(() => {
-    if (fixtureOpen || phase === "loading" || phase === "unavailable") return;
+    if (fixtureOpen || phase === "loading" || phase === "unavailable" || phase === "offline") return;
     roomStats(slug)
       .then((s) => setTalkedToday(typeof s.talked_today === "number" ? s.talked_today : null))
       .catch(() => setTalkedToday(null));
@@ -414,52 +491,116 @@ export default function RoomApp({
     void loadHistory(session, thread);
   }, [phase, session, thread, remembers, loadHistory, fixtureOpen]);
 
-  /* WS-R22: the installable Room. `public/room.webmanifest` (linked from
-   * room.html) is ONE static file shared by every creator's Room — its own
-   * `start_url` can only ever be a placeholder, because the Room is
-   * multi-tenant and a manifest file has no way to know which `/r/<slug>` a
-   * given browser tab is even on. So once THIS tab knows its own slug and
-   * the creator's own PUBLIC name (`room.name`/`display_name` — never a
-   * word this follower said), it swaps the manifest link to an in-memory
-   * Blob URL carrying THIS room's `start_url` — the standard "dynamic web
-   * app manifest" technique, no server route needed. A browser that installs
-   * before this effect runs (or with JS disabled) still gets the static
-   * fallback rather than nothing; this only makes "Add to Home Screen" land
+  /* WS-R22 built this as a client-side Blob-URL swap, because no server
+   * route for a per-Room manifest existed yet. WS-R59 adds one
+   * (`api/_room-manifest.js` over `api/_room-publish.js`'s own
+   * unpublished/paused/unknown collapse, `vercel.json`'s
+   * `/r/:slug/manifest.webmanifest` rewrite) and this effect now just points
+   * the `<link>` at it — no manifest object built here to drift from what
+   * the server already builds, and the server's own version carries
+   * `?via=install` on `start_url` (this workstream's own arrival channel,
+   * `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA`) which a client-built object
+   * never did. A browser that installs before this effect runs (or with JS
+   * disabled) still gets the static `room.webmanifest` fallback
+   * `room.html` already links — this only makes "Add to Home Screen" land
    * back on the right creator instead of a generic, unrouted `/r/`. Never
    * runs for the layout fixture — it touches `document.head`, not this
-   * component's own rendered DOM, and the gate has no `URL.createObjectURL`
-   * expectation to keep honest either way. */
+   * component's own rendered DOM. */
   useEffect(() => {
     if (fixtureOpen || !slug) return;
-    let href = "";
     try {
-      const manifest = {
-        name: name ? `${name} AI` : "The Room",
-        short_name: "Room",
-        description: "A private, continuing conversation with a creator's AI.",
-        start_url: `/r/${slug}`,
-        display: "standalone",
-        background_color: "#f4f1e9",
-        theme_color: "#f4f1e9",
-        icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml" }],
-      };
-      const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
-      href = URL.createObjectURL(blob);
       let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
       if (!link) {
         link = document.createElement("link");
         link.rel = "manifest";
         document.head.appendChild(link);
       }
-      link.href = href;
+      link.href = `/r/${encodeURIComponent(slug)}/manifest.webmanifest`;
     } catch {
       // Best effort only — a browser that cannot do this still has the
       // static room.webmanifest room.html already links.
     }
-    return () => {
-      if (href) URL.revokeObjectURL(href);
+  }, [slug, fixtureOpen]);
+
+  /* WS-R59: register the Room's service worker unconditionally on every real
+   * mount, not only when a follower turns on push (`AccountPage.tsx`'s own
+   * `togglePush`, unchanged) — precaching the shell needs the worker
+   * installed BEFORE a follower ever goes offline, not the first time they
+   * happen to open the account page. `register` on an already-registered
+   * scriptURL+scope is a no-op per spec, so this cannot conflict with that
+   * later call. Never runs for the layout fixture (no real page, nothing to
+   * register against) or off `serviceWorker`-less browsers. */
+  useEffect(() => {
+    if (fixtureOpen || typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/room-sw.js").catch(() => {
+      // Best effort — a browser that refuses (private mode, a disabled
+      // setting) still gets the full Room over the network exactly as
+      // before this workstream; only the offline/instant-open benefit is
+      // lost, never the Room itself.
+    });
+  }, [fixtureOpen]);
+
+  /* WS-R59: capture `beforeinstallprompt` once, this tab's own lifetime.
+   * `preventDefault` stops the browser's own default mini-infobar so the
+   * card below (`installPrompt.ts`'s own second-visit rule) is the only UI
+   * that ever offers this — never a browser-native prompt racing a
+   * product one. iOS never fires this event at all
+   * (`installPrompt.ts`'s own comment); this effect simply never captures
+   * anything there; `showInstallIOS` is not gated on it. */
+  useEffect(() => {
+    if (fixtureOpen) return;
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallEvent(e as unknown as InstallPromptEvent);
     };
-  }, [slug, name, fixtureOpen]);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+  }, [fixtureOpen]);
+
+  /* WS-R59: the visit count and any live dismissal, read (and the count
+   * incremented) once per real mount — `installPrompt.ts`'s `noteInstallVisit`
+   * is the ONLY place this file touches its own `localStorage` keys, keyed
+   * per slug so a second visit to Anjali's Room says nothing about Priya's. */
+  useEffect(() => {
+    if (fixtureOpen || !slug) return;
+    const storage = (() => {
+      try {
+        return window.localStorage;
+      } catch {
+        return null;
+      }
+    })();
+    const state = noteInstallVisit(storage, slug, Date.now());
+    setInstallReady(state.readyBySecondVisit);
+    setInstallDismissed(state.dismissed);
+  }, [slug, fixtureOpen]);
+
+  const dismissInstall = useCallback(() => {
+    setInstallEvent(null);
+    setInstallDismissed(true);
+    if (fixtureOpen || !slug) return;
+    try {
+      markInstallDismissed(window.localStorage, slug, Date.now());
+    } catch {
+      // Best effort — see `noteInstallVisit`'s own header.
+    }
+  }, [fixtureOpen, slug]);
+
+  const doInstall = useCallback(async () => {
+    if (!installEvent) {
+      dismissInstall(); // iOS's "Got it" — nothing to prompt, only to dismiss.
+      return;
+    }
+    try {
+      await installEvent.prompt();
+      await installEvent.userChoice;
+    } catch {
+      // Best effort — a prompt already consumed (a second tap, or the
+      // browser revoked it between capture and tap) fails silently; the
+      // dismiss below still runs so the card does not linger either way.
+    }
+    dismissInstall();
+  }, [installEvent, dismissInstall]);
 
   // WS-R50 (WCAG 2.4.3, focus order): this used to fire on the FIRST paint
   // too, whenever `turns` already held anything at mount — every returning
@@ -652,6 +793,27 @@ export default function RoomApp({
     );
   }
 
+  /* WS-R59: the shell's own honest offline card — `copy.offline`'s own
+   * comment on why it is a SEPARATE message from `unavailable` above, never
+   * that one repurposed. "Try again" reloads rather than re-running the open
+   * effect in place: a reload also re-asks the precached service worker for
+   * `room.html` (public/room-sw.js's own navigate handler), which is the
+   * one path that recovers cleanly whether the reload lands back online or
+   * still offline. */
+  if (phase === "offline") {
+    return (
+      <main className="room-shell" lang={locale}>
+        <section className="room-gone">
+          <h2>{copy.offline.title}</h2>
+          <p className="room-lede">{copy.offline.body}</p>
+          <button type="button" className="room-btn primary" onClick={() => window.location.reload()}>
+            {copy.offline.retry}
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   if (phase === "gone") {
     return (
       <main className="room-shell" lang={locale}>
@@ -773,6 +935,51 @@ export default function RoomApp({
           </p>
         )}
       </header>
+
+      {/* WS-R59: the install card. `installPrompt.ts`'s own predicate
+          (`shouldShowInstallCard`) decides whether this renders at all;
+          this block only decides which of the two variants — a browser with
+          a captured `beforeinstallprompt` gets a working button, iOS gets
+          static "Add to Home Screen" instructions instead, since no button
+          can ever exist there. `room-cap`/`room-btn` are the SAME classes
+          `capOffer`'s own card below already uses — one visual language for
+          every dismissible card this screen shows, not a second one
+          invented for this workstream. */}
+      {showInstall && (
+        <section className="room-cap" role="note">
+          <h2>{withName(showInstallIOS ? copy.install.iosTitle : copy.install.title, name)}</h2>
+          <p className="room-lede">{showInstallIOS ? copy.install.iosBody : copy.install.body}</p>
+          {showInstallIOS ? (
+            <button
+              type="button"
+              className="room-btn"
+              onPointerDown={dismissInstall}
+              onKeyDown={activateOnKey(dismissInstall)}
+            >
+              {copy.install.iosDismiss}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="room-btn primary"
+                onPointerDown={() => void doInstall()}
+                onKeyDown={activateOnKey(() => void doInstall())}
+              >
+                {copy.install.cta}
+              </button>
+              <button
+                type="button"
+                className="room-btn"
+                onPointerDown={dismissInstall}
+                onKeyDown={activateOnKey(dismissInstall)}
+              >
+                {copy.install.dismiss}
+              </button>
+            </>
+          )}
+        </section>
+      )}
 
       <ThreadRail
         copy={copy}

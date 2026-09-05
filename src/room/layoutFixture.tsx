@@ -287,6 +287,15 @@ function render() {
   const hindi = params.get("lang") === "hi";
   const base = hindi ? { ...FIXTURE_OPEN, locale: "hi" as const, disclosure: CARD_HI } : FIXTURE_OPEN;
   const open = screen === "join" ? { ...base, joined: false, session: null } : base;
+  // WS-R59: `?screen=install` forces the install card visible over the
+  // ordinary talking screen (`fixtureInstallPrompt`, `RoomApp.tsx`'s own
+  // prop for exactly this — the real gate that decides visibility needs a
+  // `beforeinstallprompt` event, a visit count, and a real sign-in this
+  // fixture has none of); `&ios=1` alongside it renders the iOS hint variant
+  // instead of the working button. `?screen=offline` forces the shell's own
+  // offline card (`fixturePhase: "offline"`, the same seam `receipt` below
+  // already uses for a phase no real session can be driven into on demand).
+  const ios = params.get("ios") === "1";
   ReactDOM.createRoot(document.getElementById("room-root")!).render(
     <RoomApp
       fixtureOpen={open}
@@ -299,10 +308,13 @@ function render() {
       // WS-R43: the three screens no fixture reached before.
       fixtureCapped={screen === "capped"}
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}
-      fixturePhase={screen === "receipt" ? "gone" : undefined}
+      fixturePhase={screen === "receipt" ? "gone" : screen === "offline" ? "offline" : undefined}
       fixtureForgetReceipt={screen === "receipt" ? FIXTURE_RECEIPT : null}
       fixtureCheckinsOpen={screen === "checkins"}
       fixtureHandoffOpen={screen === "handoff"}
+      // WS-R59: the install card, both variants.
+      fixtureInstallPrompt={screen === "install"}
+      fixtureInstallPromptIOS={screen === "install" && ios}
     />,
   );
   window.__ROOM_HI_STRINGS__ = (() => {

@@ -1919,6 +1919,22 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-share": "room-share/run.mjs",
+  // WS-R59: the installable Room. The per-Room manifest builder
+  // (`api/_room-manifest.js` over `api/_room-publish.js`'s `publicRoomBySlug`)
+  // for English and Hindi, proven byte-identical (SHA-256) to
+  // `public/room.webmanifest` for the unpublished/paused/unknown case; the
+  // REAL `public/room-sw.js` source statically scanned for the one law that
+  // must never break (no `/api/` response is ever reachable by a cache
+  // write), with a NEGATIVE CONTROL worker that does cache one; the
+  // second-visit/30-day-dismiss rule (`src/room/installPrompt.ts`, bundled
+  // from source with esbuild) driven with a fake storage, THROWING storage
+  // included; and the manifest builder's own copy against the real
+  // `scripts/check-copy.mjs` scanner, with a NEGATIVE CONTROL manifest
+  // string carrying a banned word.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU, no
+  // browser.
+  "room-install": "room-install/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

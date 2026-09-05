@@ -9661,3 +9661,75 @@ sites are exercised by the current fixtures: `.room-stat` (talked-today
 count) needs `talked_today > 0`, `.room-upgrade` needs `upgrade_prompt`
 true, neither of which this workstream's static fixtures set - stated
 plainly rather than implying wider coverage than this run actually proves.
+
+## `ws-r59-precache-bytes-2026-09-04`
+
+**n = 1 real build** (`npx vite build`, this workstream's committed tree).
+The Room's own precache (`public/room-sw.js`'s `derivePrecacheList`,
+discovered by parsing `dist/room.html`'s own `src=`/`href=` attributes,
+never a hand-typed list) covers 9 files, **432.2 KB total, on-disk/decoded
+size** (Cache Storage stores decoded bytes; the actual over-the-wire
+transfer through Vercel's gzip/brotli is smaller — `scripts/check-performance.mjs`'s
+own comment on why it re-gzips text assets for ITS OWN measurement, which
+this precache-byte figure deliberately does not, since Cache Storage size
+is the honest number for "what a follower's phone stores", not "what it
+downloaded"):
+
+| file | bytes |
+|---|---|
+| `/room.html` | 2,525 |
+| `/favicon.svg` | 1,845 |
+| `/room.webmanifest` | 324 |
+| `/assets/room-<hash>.js` (entry, hash changes per build) | 316 |
+| `/assets/rolldown-runtime-<hash>.js` | 589 |
+| `/assets/jsx-runtime-<hash>.js` | 190,266 |
+| `/assets/studio-<hash>.js` (a shared vendor chunk `room.html` preloads) | 2,845 |
+| `/assets/room-<hash>.js` (the real component chunk) | 78,188 |
+| `/assets/studio-<hash>.css` | 151,307 |
+| `/assets/room-<hash>.css` | 14,369 |
+
+`public/room-sw.js` itself is 10,439 bytes (not precached — a service
+worker script is never fetched through its own cache). Zero font files
+(`src/room/room.css`'s own comment: the Room relies on the platform's own
+Noto Sans Devanagari face, never a downloaded one — confirmed again here,
+since the discovery scan finds nothing under `/assets/*.woff2`). Method: a
+Python script summing `os.path.getsize` over the exact URL set
+`scripts/check-install.mjs`'s own `shellAssetsFromHtml` computes from the
+real built `dist/room.html`, never estimated.
+
+## `ws-r59-performance-budgets-before-after-2026-09-04`
+
+**n = 1 run each, method: `node scripts/check-performance.mjs`, same
+THROTTLE/BUDGETS table both times (4x CPU, 1.6 Mbps down / 750 Kbps up /
+150 ms RTT, RUNS=3 median per target).**
+
+BEFORE (untouched tree, this workstream's own first gate run before any
+edit): `performance budgets` passed in **47,545 ms** total gate time; the
+per-target LCP/CLS/TBT table itself was not separately captured that run
+(only the pass/fail summary line was) — stated plainly rather than implying
+a table this session does not have.
+
+AFTER (this workstream's full change set, service worker now registering
+on every real Room mount):
+
+| target | LCP | CLS | TBT | JS | CSS | font | render-blocking |
+|---|---|---|---|---|---|---|---|
+| `/` | 1056ms | 0.001 | 186ms | 0.0K | 10.7K | 0.0K | 1 |
+| `/vyakti` | 496ms | 0.000 | 197ms | 0.0K | 0.0K | 0.0K | 0 |
+| `/r/<slug>` (join screen) | 1280ms | 0.000 | 95ms | 82.3K | 29.9K | 0.0K | 2 |
+| `/studio` | 1592ms | 0.000 | 144ms | 135.1K | 33.7K | 0.0K | 3 |
+
+All four targets stayed inside every budget (LCP<2500ms, CLS<0.1,
+TBT<300ms, JS<180KB, font<120KB) after this workstream's changes. **The
+`/r/<slug>` target is measured through `room-layout-fixture.html`**
+(`scripts/check-performance.mjs`'s own long-standing reason: no live
+backend for a signed-in screen), which `RoomApp.tsx`'s `fixtureOpen` guard
+skips the service-worker registration effect on entirely — so this table
+does NOT exercise the SW's own registration cost on that target at all.
+`scripts/check-install.mjs`, wired into this same gate as one more target
+(never a new named gate), is what actually exercises registration against
+the REAL, unfixtured `room.html` — it collects no LCP/CLS/TBT, only
+pass/fail on worker-registers / precache-complete / no-api-caching, so a
+registration TIME figure is not established anywhere in this workstream —
+stated plainly as NOT MEASURED rather than implied by the precache-byte
+figure above.
