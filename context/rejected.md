@@ -11581,3 +11581,37 @@ which is strong enough evidence to treat "run check-copy.mjs immediately
 after any text moves into a COPY_FILES match, before writing the
 translation" as a load-bearing step of the move itself, not an optional
 sanity check.
+
+## `ws-r96-self-check-optional-env-never-becomes-a-finding` (2026-09-05, WS-R96)
+
+**Tried.** Designing `docs/gurukul/DAY-ONE.md`'s storage step (originally
+step 6, later renumbered step 8: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`REPLICA_STORAGE_BUCKET`) as a `self-check:env:<NAME>` row, on the assumption
+that anything on `api/_self-check.js`'s own `OPTIONAL_ENV` list would show up
+as an `env: <NAME> missing` finding through the ops door the same way the two
+`REQUIRED_ENV` names do.
+
+**What broke.** Read `api/_self-check.js#runSelfCheck` directly rather than
+assuming: `for (const entry of envPresence(env)) { if (entry.required)
+checks.push({ door: \`env: ${entry.name} missing\`, ok: entry.present }); }`
+— only `entry.required` entries are ever pushed into the `checks` array.
+`envPresence()` computes presence for every name on `OPTIONAL_ENV` too
+(`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `AZURE_KEY`, `AZURE_ENDPOINT`,
+the Telegram/FCM names, `GOOGLE_KEYS`), and the result is simply never read
+again in that function. A `day-one.mjs` row written against this assumption
+would report `done` — no `env: SUPABASE_SERVICE_ROLE_KEY missing` finding
+ever fires, regardless of whether the var is actually set — proving nothing
+while looking exactly like every other passing self-check row. A capability
+complete at both ends (`envPresence()` computes it, `OPTIONAL_ENV` names it)
+and still dead (`runSelfCheck()` discards it), per `AGENTS.md`'s own law.
+
+**What to do differently.** Every row whose only real proof would have relied
+on an `OPTIONAL_ENV` name is `manual:` in the shipped runbook instead, with
+the gap named explicitly in `DAY-ONE.md`'s own section 1 so the next session
+does not repeat the same wrong assumption inside `day-one.mjs`'s judgment
+logic. If `api/_self-check.js` is ever changed to also report optional-env
+absence (a small, mechanical change — push every `envPresence()` entry into
+`checks`, not only the required ones, since the door name is already keyed
+by `entry.name`), the reversal condition named in
+`context/decisions.md#ws-r96-day-one-runbook-parses-its-own-table` says to
+re-classify those rows back to `self-check:env:<NAME>`.

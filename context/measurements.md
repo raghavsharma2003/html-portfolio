@@ -11982,3 +11982,31 @@ Not measured: `joinRoom`'s widened RETURNING (`(xmax = 0) as newly_joined`) is t
 ## `ci-release-gate-first-real-run-2026-09-05` — the 21-check gate in GitHub Actions, measured once
 
 n = 1 run (`release-gate.yml`, run 1, on `6deaf1e`), method: GitHub's own run record, 2026-09-05. Started 10:12:53Z, finished 10:21:27Z: 8 minutes 34 seconds wall clock for the Node 22 and Node 24 jobs in parallel, conclusion success on both. Below WS-R77's 25-minute trigger for splitting the browser checks into a parallel job (`decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet` stands). Not measured: per-check timing inside the runner (the job log was not read), a cold-cache run (this run downloaded Chromium for the first time and still fit).
+
+## `ws-r96-day-one-eval-offline-2026-09-05`
+
+n = 37 checks, method: `node evals/day-one/run.mjs` (also reachable as
+`node evals/run.mjs day-one`), offline, deterministic, $0, no DB, no real
+network beyond 127.0.0.1, no model call, date 2026-09-05. Breakdown: 6 checks
+on `scripts/dayOneRunbook.mjs#parseRunbook` against the REAL
+`docs/gurukul/DAY-ONE.md` table (23 steps, sequentially numbered, every
+proving-command kind recognised); 5 checks across two required negative
+controls (a blanked Proving Command cell, a dropped table column — both fail
+the WHOLE parse); 18 checks running the REAL `scripts/day-one.mjs` as a
+subprocess against `evals/day-one/fakeServer.mjs` (itself a thin wrapper
+around the REAL `evals/probe-live/fakeServer.mjs`) in three self-check
+states — stub config, half configured, complete — asserting the exact
+per-step done/blocked verdict each state should produce and that every
+`manual:` row is always `unknown`, never silently `done`; 5 checks with no
+operator bearer given (every `self-check:` row degrades to `unknown`,
+`probe-live` rows unaffected) and against an unreachable base URL (no crash,
+no step ever reported `done`). All 37 pass.
+
+**Not measured, and not measurable offline:** whether the runbook's own
+sequencing is correct against a REAL deployment — no step in this suite ever
+talks to a real Vercel project, a real Neon database, or a real `/api/ops`.
+That is exactly what `docs/gurukul/DAY-ONE.md`'s own closing section names as
+unproven: running `node scripts/day-one.mjs <base-url>` against the real
+`html-portfolio` and `vyakti-replica-lab` deployments, with a real operator
+bearer, is the only thing that can close that gap, and nobody has done it as
+of this writing.

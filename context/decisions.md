@@ -16768,3 +16768,38 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r96-day-one-runbook-parses-its-own-table`
+
+**Decision.** `docs/gurukul/DAY-ONE.md`'s numbered path and `scripts/day-one.mjs`
+(the script that checks it against a real deployment) never hold two copies
+of the same steps: `scripts/dayOneRunbook.mjs#parseRunbook` is the ONE parser
+of the runbook's own markdown table, imported by both the CLI and
+`evals/day-one/run.mjs`, the same discipline `scripts/probeLiveExpectations.mjs`
+already holds for `vercel.json` and the Room's literals (`ws-r64-live-probe`)
+— restated here for a doc instead of code. Every row's Proving Command cell must
+start with one of three prefixes (`probe-live`, `self-check:`, `manual:`),
+and a row that does not is a parse error, not a silently-skipped row — the
+workstream's own required negative control, proven in
+`evals/day-one/run.mjs`.
+
+**Why not let `day-one.mjs` run `scripts/first-room.mjs` itself for the
+product steps.** It would prove more, faster, on a real deployment. It was
+rejected because `first-room.mjs` signs in, uploads a real file, and writes
+real rows — the opposite of "free, offline-safe by construction" this
+script's whole value rests on (`docs/gurukul/DAY-ONE.md`'s own network law:
+GET/HEAD plus the two probe-live refusals, nothing else, ever). Every step
+whose only real proof is `first-room.mjs` is `manual:` and reported
+`unknown`, on purpose, forever, until a human runs that script with a real
+session.
+
+**Reversal condition.** If the runbook ever needs a proving-command shape
+that does not fit `probe-live` / `self-check:env:<NAME>` /
+`self-check:door:<substring>` / `manual:<instruction>`, extend the grammar in
+`scripts/dayOneRunbook.mjs` (and its own header comment) rather than let
+`scripts/day-one.mjs` interpret a fourth, undocumented shape by convention.
+If `api/_self-check.js` is ever changed to also report `OPTIONAL_ENV`
+absences (see `context/rejected.md#ws-r96-self-check-optional-env-never-becomes-a-finding`),
+re-classify the steps that are `manual:` for that reason back to
+`self-check:env:<NAME>` and delete the corresponding blind-spot paragraph
+from `DAY-ONE.md` rather than leaving a now-false caveat in place.
