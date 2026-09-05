@@ -134,6 +134,24 @@ const EN = {
     working: "One moment",
   },
 
+  /** WS-R53. The taste: three questions, answered by the creator's AI, from
+   *  their own material alone, before the sign-in wall - `join` above is
+   *  what a stranger reaches once these run out or they tap `join` early.
+   *  Never a promise of what happens after joining (that promise is
+   *  `join.lede`'s own job) - these words describe only what THIS screen
+   *  is. */
+  taste: {
+    lede: "Ask {name} AI a question before you sign in. Nothing you say here is kept.",
+    placeholder: "Ask something",
+    send: "Send",
+    thinking: "Typing",
+    join: "Join to keep talking",
+    turnsLeftOne: "One more question before you join.",
+    turnsLeft: "{n} more questions before you join.",
+    spent: "That is three for today. Join to keep talking.",
+    rateLimited: "That is enough taste questions from this connection for today. Join to keep talking.",
+  },
+
   /** The memory question. Asked once, on its own, in plain words. */
   memory: {
     title: "Should it remember you?",
@@ -461,6 +479,18 @@ const HI: typeof EN = {
     ageWhy: "यह रूम वयस्कों के लिए है। सही सुरक्षा वाला छात्र ऐप एक अलग उत्पाद है।",
     submit: "बात शुरू करें",
     working: "एक पल",
+  },
+
+  taste: {
+    lede: "साइन इन करने से पहले {name} AI से एक सवाल पूछें। यहां कही बात रखी नहीं जाती।",
+    placeholder: "कुछ पूछें",
+    send: "भेजें",
+    thinking: "लिख रहे हैं",
+    join: "बात जारी रखने के लिए जुड़ें",
+    turnsLeftOne: "जुड़ने से पहले एक और सवाल बचा है।",
+    turnsLeft: "जुड़ने से पहले {n} और सवाल बचे हैं।",
+    spent: "आज के लिए तीन सवाल हो गए। बात जारी रखने के लिए जुड़ें।",
+    rateLimited: "इस कनेक्शन से आज के लिए इतने सवाल काफ़ी हैं। बात जारी रखने के लिए जुड़ें।",
   },
 
   memory: {

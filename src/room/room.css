@@ -434,7 +434,8 @@
   .room-join,
   .room-cap,
   .room-menu,
-  .room-gone {
+  .room-gone,
+  .room-taste {
     box-sizing: border-box;
     margin: var(--space-item);
     border: var(--hairline) solid var(--line);
@@ -507,6 +508,83 @@
 
   .room-keeps li {
     margin-bottom: var(--space-hair);
+  }
+
+  /* ── the taste (WS-R53) ──────────────────────────────────────────────── */
+
+  .room-taste h1 {
+    margin: 0;
+    font-size: var(--text-title);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-heading);
+    line-height: var(--leading-tight);
+  }
+
+  .room-taste-turns {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-row);
+    margin: 0 0 var(--space-item);
+  }
+
+  .room-taste-turn {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-hair);
+  }
+
+  .room-taste-q,
+  .room-taste-a {
+    max-width: var(--measure);
+    margin: 0;
+    line-height: var(--leading-body);
+    overflow-wrap: anywhere;
+  }
+
+  .room-taste-q {
+    color: var(--ink-soft);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+  }
+
+  .room-taste-a {
+    color: var(--ink);
+    font-size: var(--text-body);
+  }
+
+  /* WS-R53 law 4: "three dots that empty." A spent question turns its dot
+   * hollow rather than removing it, so the count of three is always visible
+   * regardless of how many have been asked - never a number a follower has
+   * to do the subtraction on. */
+  .room-taste-dots {
+    display: flex;
+    gap: var(--space-hair);
+    margin: 0 0 var(--space-item);
+  }
+
+  .room-taste-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: var(--hairline) solid var(--line-strong);
+    background: var(--forest);
+  }
+
+  .room-taste-dot-spent {
+    background: transparent;
+  }
+
+  .room-taste-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 46px;
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: var(--radius-control);
+    padding: 0 14px;
+    background: var(--panel-solid);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
   }
 
   .room-field {

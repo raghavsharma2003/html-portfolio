@@ -1,6 +1,9 @@
 // The Room's endpoint - the HTTP half of WS-R1.
 //
 //   POST /api/room {op:"open",   room:"<slug>"}                -> card + state
+//   POST /api/room {op:"taste",  room:"<slug>", message, locale} -> a stranger's
+//                                                    three questions before the
+//                                                    sign-in wall (WS-R53)
 //   POST /api/room {op:"join",   room, age_18, remember}       -> session
 //   POST /api/room {op:"say",    session, message, thread, transcript}
 //   POST /api/room {op:"speak",  session, text}                -> paid voice (WS-R19)
@@ -76,6 +79,13 @@
 import { q } from "./_db.js";
 import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
+// WS-R53: a SEPARATE import statement rather than widening the line above -
+// evals/rate-limit/run.mjs's own static proof reads that exact line
+// (`import { consume } from "./_rate-limit.js"`) to confirm this door goes
+// through the one rate gate, and a second name folded into the same braces
+// would fail that check for a reason having nothing to do with the taste op.
+import { limitsFor } from "./_rate-limit.js";
+import { roomTaste } from "./_room-taste.js";
 import { obsBestEffort } from "./_obs.js";
 import { AuthError, bearerToken, userFromToken } from "./_auth.js";
 import {
@@ -173,6 +183,38 @@ export default async function handler(req, res) {
       });
       obsBestEffort("room.open", { joined: opened.joined });
       return res.status(200).json(opened);
+    }
+
+    if (op === "taste") {
+      // WS-R53. Keyed by (slug, IP) rather than (room_id, IP) - `room_open_ip`'s
+      // own reasoning: the gate must cost nothing extra when a slug does not
+      // even resolve, and slug is exactly what a stranger's browser has
+      // before any resolution happens. `consume()` IS the check (this file's
+      // header, `refused()` above) - a caller at the daily limit gets zero
+      // rows back, and `roomTaste` is never even called for it, so the
+      // model is never reached for a refused turn.
+      const slug = String(body.room || "").trim().toLowerCase();
+      const gate = await consume(q, { scope: "room_taste", key: `${slug}:${ipOf(req)}` });
+      if (!gate.ok) {
+        res.setHeader("Retry-After", String(gate.retryAfterSeconds));
+        return res.status(429).json({ error: gate.code, retry_after_seconds: gate.retryAfterSeconds });
+      }
+      // `turnIndex` is derived from the SAME predicate that just enforced
+      // the limit - `limit - gate.remaining` - never a second counter this
+      // handler would have to keep in sync with it. `roomTaste` (api/_room-
+      // taste.js) enforces no ceiling of its own on `turnIndex` - the gate
+      // above IS the whole enforcement, so an operator's `RATE_LIMITS_JSON`
+      // override takes effect immediately with nothing else to update.
+      const limit = limitsFor(process.env).room_taste?.limit ?? 3;
+      const turnIndex = limit - gate.remaining;
+      const turn = await roomTaste(q, {
+        slug: body.room,
+        message: body.message,
+        locale: body.locale,
+        turnIndex,
+      });
+      obsBestEffort("room.taste", { turn_index: turn.turn_index, gate_findings: turn.gate.findings });
+      return res.status(200).json(turn);
     }
 
     if (op === "join") {

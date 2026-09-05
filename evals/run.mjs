@@ -1919,6 +1919,26 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-share": "room-share/run.mjs",
+  // WS-R53, migration 110. The taste: three questions a stranger may ask a
+  // creator's AI before the sign-in wall, from creator material alone,
+  // remembering nothing. `roomTaste` (`api/_room-taste.js`) over the REAL
+  // `resolveRoom`/`gatedReply`/engine compile — three accepted turns then a
+  // named 429 from `api/_rate-limit.js`'s own `room_taste` scope, the
+  // disclosure carried on turn one only, the per-Room `taste_enabled` switch
+  // (migration 110), and a byte-diff proving the compiled prompt differs
+  // from a remembering follower's ONLY in the absence of follower memory —
+  // never in the agent material both lanes compile from. FOUR NEGATIVE
+  // CONTROLS: (a) a taste turn built to call a real follower-lane writer
+  // (`joinRoom`) fails the reach proof `evals/room-leak/run.mjs` runs, so
+  // this suite re-derives the identical proof rather than trusting a
+  // sibling file's result silently; (b) a fourth answer past the 3/day limit
+  // is refused before the model is ever reached; (c) a compiled prompt
+  // seeded with a fake follower memory string is caught by the byte-diff;
+  // (d) a Hindi disclosure string with an em dash fails the real
+  // `scripts/check-copy.mjs` scanner.
+  //
+  // Offline, deterministic, $0, no DB, no network, no GPU.
+  "room-taste": "room-taste/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

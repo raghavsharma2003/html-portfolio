@@ -214,7 +214,7 @@ const { loadAgent } = await loadFixtureAgent(ROOT);
 const SECRET = "s".repeat(48);
 const OTHER_SECRET = "t".repeat(48);
 const ENV = { ROOM_SESSION_SECRET: SECRET };
-const NOW = Date.parse("2026-09-04T12:00:00Z");
+const NOW = Date.now();
 
 async function setupFollower({ tier = "free", memoryConsent = true, authUserId = USER_A } = {}) {
   const state = freshDoorsState();
@@ -1197,6 +1197,7 @@ function computedOps(file) {
 const OP_COVERAGE = {
   "room.js": {
     open: { excluded: "no session and no bearer — the bearer it optionally reads is looked up only for the caller's OWN account continuity, never another follower's; no cross-identity input for classes b/c/e" },
+    taste: { excluded: "no session and no bearer at all (WS-R53) — a stateless guest-lane turn keyed only by (slug, IP) through api/_rate-limit.js's own room_taste scope; no cross-identity input for classes b/c/e, and evals/room-taste/run.mjs and evals/room-leak/run.mjs's own layer 7 attack the boundary this op actually has (creator-material only, no follower row reachable)" },
     join: { excluded: "no session (none exists yet — join MINTS one) and no cross-person id in the body; the follower row created is always the bearer's own (evals/room/run.mjs's own join suite covers the happy path)" },
     say: { classes: ["a", "b"] },
     speak: { classes: ["a", "b"] },
@@ -1259,6 +1260,7 @@ const OP_COVERAGE = {
     set_paid_ceilings: { excluded: "preexisting-uncased" },
     set_default_locale: { excluded: "preexisting-uncased" },
     set_bio: { classes: ["e"] },
+    set_taste_enabled: { classes: ["e"] },
     list: { classes: ["e"] },
     unlist: { classes: ["e"] },
     stats: { excluded: "preexisting-uncased" },

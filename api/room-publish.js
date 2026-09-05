@@ -13,6 +13,8 @@
 //                                                    CHROME language (WS-R24)
 //   POST /api/room-publish {op:"set_bio"}        the directory's one-line
 //                                                    bio (WS-R45)
+//   POST /api/room-publish {op:"set_taste_enabled"} the three-question taste
+//                                                    switch, per Room (WS-R53)
 //   POST /api/room-publish {op:"list"}           opt in to the creator
 //                                                    directory, refused
 //                                                    unless published (WS-R45)
@@ -39,6 +41,7 @@ import {
   setRoomPaidCeilings,
   setRoomDefaultLocale,
   setRoomBio,
+  setRoomTasteEnabled,
   listRoom,
   unlistRoom,
   ownerRoomStats,
@@ -142,6 +145,13 @@ export default async function handler(req, res) {
       const room = await setRoomBio(q, user.id, replicaId, body.bio);
       if (!room) return notFound(res);
       obsBestEffort("room_publish.set_bio", {});
+      return res.status(200).json({ room });
+    }
+
+    if (op === "set_taste_enabled") {
+      const room = await setRoomTasteEnabled(q, user.id, replicaId, body.enabled === true);
+      if (!room) return notFound(res);
+      obsBestEffort("room_publish.set_taste_enabled", { enabled: room.taste_enabled });
       return res.status(200).json({ room });
     }
 

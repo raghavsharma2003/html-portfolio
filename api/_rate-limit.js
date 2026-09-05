@@ -100,6 +100,17 @@ export const DEFAULT_LIMITS = {
   // connection can probe verification codes for in an hour - same order of
   // magnitude as the send-side IP ceiling, for the same reason.
   otp_verify_ip: { limit: 30, windowMs: 60 * 60_000 },
+  // WS-R53: the taste - three questions a stranger may ask a creator's AI
+  // before the sign-in wall, enforced WITHOUT a person (`api/_room-taste.js`).
+  // Keyed by (room slug, caller IP), never a person or device id - there is
+  // no follower row yet for a taste turn to belong to, by construction
+  // (`context/decisions.md#ws-r53-taste-is-stateless-across-turns`). One day,
+  // not one minute: the product number is "three a day", not "three a
+  // burst", so the window is the workstream brief's own unit rather than
+  // this file's usual per-minute shape - `room_say_follower`'s burst limit is
+  // a DIFFERENT ceiling (above an already-metered monthly cap) and this is
+  // the WHOLE story for a stranger, not a second layer over one.
+  room_taste: { limit: 3, windowMs: 24 * 60 * 60_000 },
 };
 
 /**

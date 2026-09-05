@@ -12653,3 +12653,125 @@ collapsed column, an overflowing dialog), widen `room:more`/`room-hi:more`
 to the full `VIEWPORTS` array like `room`/`room-hi` already are - the
 runtime budget is a reason to scope narrowly by default, not a reason to
 stay narrow once there is a real defect to catch.
+
+## `ws-r53-taste-is-stateless-across-turns-by-construction` (2026-09-05, WS-R53)
+
+**Decision.** `api/_room-taste.js` (`roomTaste`) accepts no session, no
+thread, no client-carried history and no memory of any kind - every call
+recompiles from nothing but the message just sent. It imports ONLY a
+closed, read-only/pure allowlist from `api/_room-surface.js`
+(`RoomError`, `roomUnavailable`, `resolveRoom`, `roomNameFor`,
+`roomDisclosureCard`, `normalizeLocale`, `collector`,
+`ROOM_INBOUND_LIMIT`) and one pure helper from `memory.js`
+(`tableApplied`) - never `joinRoom`, `roomSay`, `createThread`,
+`createFollowerThread`, `bindThreadDevice`, `touchThread`,
+`recordRoomConsent`, or any other follower-scope writer, by name, anywhere
+in its own source.
+
+**Rationale.** The workstream brief's law 1 states the boundary directly:
+"the taste is stateless across turns by construction, so the follower
+lane's own writer functions must be unreachable from it." Unreachable-by-
+construction (no import exists to misuse) is a structurally stronger
+guarantee than unreachable-by-discipline (an import exists but nobody
+calls it) - the same standing distinction `structural-disclosure` already
+draws for the disclosure card, applied here to an entire lane rather than
+one string. `evals/room-leak/run.mjs`'s new layer 7 re-derives the
+follower-writer symbol set from `api/_room-surface.js`'s own source (the
+identical fixed-point technique layer 1a already uses for creator-material
+writers, pointed the other direction) and asserts none of them are ever
+imported by `_room-taste.js` - a future edit that imported one fails that
+line the day it lands, without the eval needing to know why the import was
+added.
+
+**Reversal condition.** If a future product need requires a taste turn to
+remember something ACROSS its own three questions (not across a visit -
+that would cross into follower scope entirely, a different feature with
+its own consent question), that memory must live in a value the CLIENT
+carries and the server treats as untrusted input to be re-validated every
+turn (the follower lane's own `transcriptDigest`-bound memory-free branch
+is the precedent), never a server-side write to any table this decision's
+own import allowlist currently excludes - a new write of that shape is a
+new decision, not a loosened version of this one.
+
+## `ws-r53-taste-turn-is-not-a-fifth-arrival-via` (2026-09-05, WS-R53, migration 110)
+
+**Decision.** "Taste turns this week" (the workstream brief's own law 5)
+is counted by a NEW, dedicated table (`vy_room_taste_turn`, one row per
+(room, day), no `via` column at all) rather than by adding `'taste'` as a
+fifth value to `vy_room_arrival.via`'s CHECK constraint (migration 102).
+
+**Rationale.** `via` answers one question - how a visitor ARRIVED (share,
+direct, embed, search) - and a taste turn answers a different one: what an
+already-arrived visitor DID. Folding the second question into the first
+column would have meant either recording a taste turn under the visitor's
+ORIGINAL arrival source (losing "how many taste turns happened" as its own
+number entirely) or minting `'taste'` as a literal fifth source (which is
+not a source at all, and would have made
+`evals/room-share/run.mjs`'s own fixed assertion - `ROOM_ARRIVAL_VIA is
+exactly the four values the CHECK constraint names` - silently wrong for a
+reason that eval was never told about, since `resolveArrivalVia`'s
+external-only allowlist and `recordRoomArrival`'s own sanitization would
+then need a second, internal-only allowance to keep a client-supplied
+`?via=taste` from being accepted as a real arrival source). A dedicated
+table costs one migration (110, already needed for the `taste_enabled`
+switch) and keeps `vy_room_arrival` meaning exactly one thing.
+
+**Reversal condition.** If a future need arises to cross-tabulate "which
+arrival source produces the most taste turns" (a real, plausible growth
+question this decision's shape cannot answer), the fix is adding a
+nullable `via` column to `vy_room_taste_turn` itself, populated from the
+SAME hint `openRoom` already reads - never retrofitting `vy_room_arrival`
+to carry a second dimension it was not designed for.
+
+## `ws-r53-taste-enforces-no-hardcoded-turn-ceiling` (2026-09-05, WS-R53)
+
+**Decision.** `api/_room-taste.js`'s `roomTaste` enforces NO ceiling of
+its own on the `turnIndex` a caller passes it. `ROOM_TASTE_TURNS` (= 3) is
+a display constant only, read by `turns_left`'s clamp and by the client's
+own three-dot indicator; the actual daily limit lives entirely in
+`api/_rate-limit.js`'s configurable `DEFAULT_LIMITS.room_taste`, read
+through `api/room.js`'s `consume()` call BEFORE `roomTaste` is ever
+invoked.
+
+**Rationale.** An earlier draft of this file threw a named
+`room_taste_limit_reached` error when `turnIndex > ROOM_TASTE_TURNS`,
+intended as defence in depth. `evals/room-taste/run.mjs`'s own negative
+control (b) - striking the configured limit to 4 via `RATE_LIMITS_JSON`
+and confirming the fourth call succeeds - caught it immediately: the
+hardcoded wall fired regardless of the operator's own configured limit,
+silently overriding `RATE_LIMITS_JSON`'s own escape hatch
+(`context/decisions.md#ws-r26-limits-are-code-constants-not-a-database-
+table`) for this one scope only. Two names for one number drift the day
+either changes alone - this repo's own standing lesson, caught here by a
+negative control before it shipped rather than after.
+
+**Reversal condition.** None anticipated: a second ceiling here is
+strictly worse than the single source of truth in `_rate-limit.js`,
+never better, so this is closer to a bug fix than a decision with a real
+opposing case. If a future need arises for a HARD platform-wide maximum
+independent of any operator override (a genuine different requirement),
+it belongs in `_rate-limit.js` itself as a floor `limitsFor`'s override
+merge respects, not as a second check in this file.
+
+## `ws-r53-taste-switch-is-a-new-column-not-a-fitting-existing-one` (2026-09-05, WS-R53, migration 110)
+
+**Decision.** `vy_room.taste_enabled` (migration 110) is a new boolean
+column, `not null default true`, rather than reusing any column migrations
+071 or 105 already added.
+
+**Rationale.** The workstream brief's own law 4 required reading both
+migrations first. 071's columns are the room's identity and its free-tier
+cap; 105's (`listed_at`, `one_line_bio`) are the directory opt-in and its
+bio - neither means "does this Room offer three questions before the
+sign-in wall." Defaulting `true` is the product's own posture: the taste
+exists to give every Room a free thirty seconds before the wall, so a
+creator who never touches the switch gets it on, `handoff_enabled`'s
+default-`false` posture deliberately NOT copied - Handoff and the taste
+are opposite defaults for opposite reasons (one is a cost/attention
+surface a creator opts INTO, the other is the product's own on-ramp).
+
+**Reversal condition.** If real usage shows most creators turning taste
+off (a signal that the default should have been off), retune the column
+default in a follow-up migration - existing rows already have `true` from
+this migration's own default and would need an explicit backfill decision
+of their own, stated separately rather than silently reinterpreted.
