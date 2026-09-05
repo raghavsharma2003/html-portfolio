@@ -10316,4 +10316,46 @@ n = 1 migration (2 statements in one transaction), 1 API statement; method = the
 |---|---|
 | `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
 
+## `ws-r70-creator-export-manifest-coverage-2026-09-05`
+
+n = 1 (the module's own static `OWNER_LANE_TABLES` array, counted directly);
+method = `import()` of the real `api/_creator-export.js` and
+`OWNER_LANE_TABLES.length`/a group-by on `.scope`, no live database; date
+2026-09-05, WS-R70.
+
+**51 owner-lane tables**, by scope: `replica` (replica_id + owner_user_id
+direct) 38, `room_agg` (content-free aggregate, no owning column, the
+workstream brief's own carve-out) 4, `room_owner` (owner_user_id + this
+owner's own room_id) 3, `owner` (owner_user_id alone, no replica_id column)
+3, `agent` (joined through this owner's own replica) 1, `invite_redeemed`
+(`redeemed_by_user_id`) 1, `renewal_creator` (one disjoint predicate over a
+three-lane table) 1. `evals/creator-export/run.mjs`'s own layer 1 proves
+this set equals exactly the owner-lane subset of what
+`api/_replica-full-erasure.js` reaches by name, computed from the checked-in
+DDL (`evals/sqlcast/schema.mjs`'s parse) rather than asserted by inspection.
+The Room's per-day arrival-source counts (`vy_room_arrival`) qualify on the
+identical "content-free aggregate" reasoning but are deliberately excluded:
+`evals/room-leak/run.mjs`'s own repo-wide static scan holds every reader of
+that ONE table to a stricter "single rolled-up SQL aggregate, never a
+per-row dump" discipline this export's generic per-table `select *` shape
+cannot satisfy (found by running that gate, not by inspection —
+`rejected.md#ws-r70-mentioning-a-boundary-tables-name-in-a-comment-trips-a-repo-wide-static-scanner`).
+
+## `ws-r70-creator-export-seeded-size-2026-09-05`
+
+n = 1 seeded owner, offline, no live database; method = the real
+`creatorExport()` driven with a fake `db` seeding exactly four tables (one
+replica row, one agent row, one room row, one 4096-byte source row) for one
+owner, `Buffer.byteLength(JSON.stringify(dump))`; date 2026-09-05, WS-R70.
+
+**3,679 bytes** for this narrow, four-table seed (51 manifest entries
+returned, 4 carrying rows, 47 honestly zero). This is NOT a realistic
+creator's export size — a real creator with dozens of context items, a
+Mirror Call history and months of Pulse snapshots would be far larger — it
+is stated here only as a lower-bound sanity figure and to record the
+method, since no real `vy_replica` row has ever produced a real export (no
+live database in this worktree, `NEON_URL` absent). What a REAL creator's
+export weighs is NOT MEASURED and would need a live database with a
+populated replica to establish.
+
 Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.
