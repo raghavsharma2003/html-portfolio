@@ -40,6 +40,39 @@
 //
 // `db` is a parameter, `api/_creators.js`'s own shape, so a fake `db` in an
 // offline eval can reach every line below it.
+//
+// ── WS-R80: THE TASTE, RIGHT HERE ───────────────────────────────────────
+//
+// A search visitor used to have to click through to `/r/<slug>` before they
+// could ask anything. Below, `publicCreatorPageRoomBySlug`'s own SELECT now
+// carries `taste_enabled` (migration 110's column, already read by
+// `roomBySlug` for the follower lane) so this page can decide, from the SAME
+// row the follower lane trusts, whether to render the island at all — never
+// a second, JS-side guess. Nothing on the server is new: `buildTasteSection`
+// below only emits markup and copy; the actual turn is the SAME `taste` op
+// on `api/room.js`, through the SAME `roomTaste` (`api/_room-taste.js`) and
+// the SAME 3-a-day `room_taste` rate scope every other taste caller already
+// goes through. The island's own script (`public/creator-taste.js`) is a
+// STATIC file served under `script-src 'self'` — never inline — so the
+// `/c/:slug` CSP (`vercel.json`) needs no widening at all
+// (`context/decisions.md#ws-r80-island-not-a-second-app`).
+//
+// THE COPY is `src/room/copy.ts`'s own `taste` section (and its shared
+// `errors.generic`), restated here as `TASTE_COPY` rather than imported —
+// this file runs as a plain Vercel Node function and cannot import a `.ts`
+// module the way `src/studio/pulseApi.ts`'s own header already explains the
+// front end cannot import a server module (the identical import boundary,
+// crossed in the other direction). `evals/creator-page/run.mjs` bundles the
+// REAL `src/room/copy.ts` with esbuild (`evals/room-locale/run.mjs`'s own
+// technique) and asserts `TASTE_COPY` is byte-identical to it, both locales
+// — a real proof, not a comment promising one, so a future edit to the
+// Room's own taste copy that forgets this page is caught mechanically
+// rather than trusted. `public/creator-taste.js` itself carries NONE of
+// this text: every string it renders is either read off a `data-*`
+// attribute this file already wrote into the HTML, or comes back verbatim
+// in the server's own JSON reply (`turn.reply`, `turn.disclosure`) — the
+// SAME "the disclosure is RETURNED, never asked for" law `api/_room-embed.js`
+// states for its own script, restated a third surface over.
 import { readRoomShowcase } from "./_room-publish.js";
 import { roomDisclosureCard, normalizeLocale } from "./_room-surface.js";
 import { PLATFORM_TITLE, PLATFORM_DESCRIPTION } from "./_room-page.js";
@@ -50,6 +83,13 @@ function esc(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** `src/room/copy.ts`'s own `withName`, restated (the trivial one-liner it
+ *  is) rather than imported — see this file's own header for why a `.ts`
+ *  module cannot be imported here. */
+function withName(template, name) {
+  return String(template || "").split("{name}").join(name);
 }
 
 /** Escapes a JSON-LD payload for embedding inside a `<script>` element: `<`
@@ -80,7 +120,7 @@ export async function publicCreatorPageRoomBySlug(db, slug) {
   const s = String(slug || "").trim().toLowerCase();
   if (!s) return null;
   const rows = await db(
-    `select room_id, slug, display_name, one_line_bio, default_locale, listed_at
+    `select room_id, slug, display_name, one_line_bio, default_locale, listed_at, taste_enabled
        from vy_room
       where lower(slug) = $1
         and published_at is not null
@@ -115,14 +155,97 @@ const PAGE_COPY = {
     showcaseLabel: (name) => `Questions ${name} chose to answer`,
     joinLabel: (name) => `Talk to ${name} AI`,
     poweredBy: "An AI built from this creator's own material.",
+    askTitle: "Ask a question",
   },
   hi: {
     aboutLabel: "परिचय",
     showcaseLabel: (name) => `${name} ने जिन सवालों के जवाब चुने`,
     joinLabel: (name) => `${name} AI से बात करें`,
     poweredBy: "यह इस क्रिएटर की अपनी सामग्री से बनाया गया AI है.",
+    askTitle: "एक सवाल पूछें",
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE TASTE COPY — `src/room/copy.ts`'s `taste` section plus its shared
+// `errors.generic`, restated (see this file's own header for why). Every
+// field here is asserted byte-identical to the real, bundled `copy.ts`
+// export in `evals/creator-page/run.mjs` — never trust this comment alone.
+// ─────────────────────────────────────────────────────────────────────────
+export const TASTE_COPY = {
+  en: {
+    lede: "Ask {name} AI a question before you sign in. Nothing you say here is kept.",
+    placeholder: "Ask something",
+    send: "Send",
+    thinking: "Typing",
+    join: "Join to keep talking",
+    turnsLeftOne: "One more question before you join.",
+    turnsLeft: "{n} more questions before you join.",
+    spent: "That is three for today. Join to keep talking.",
+    rateLimited: "That is enough taste questions from this connection for today. Join to keep talking.",
+    errorGeneric: "That did not go through. Try again.",
+  },
+  hi: {
+    lede: "साइन इन करने से पहले {name} AI से एक सवाल पूछें। यहां कही बात रखी नहीं जाती।",
+    placeholder: "कुछ पूछें",
+    send: "भेजें",
+    thinking: "लिख रहे हैं",
+    join: "बात जारी रखने के लिए जुड़ें",
+    turnsLeftOne: "जुड़ने से पहले एक और सवाल बचा है।",
+    turnsLeft: "जुड़ने से पहले {n} और सवाल बचे हैं।",
+    spent: "आज के लिए तीन सवाल हो गए। बात जारी रखने के लिए जुड़ें।",
+    rateLimited: "इस कनेक्शन से आज के लिए इतने सवाल काफ़ी हैं। बात जारी रखने के लिए जुड़ें।",
+    errorGeneric: "वह नहीं भेजा जा सका। फिर कोशिश करें।",
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE TASTE WIDGET — the island's markup and its no-JS form. Absent
+// entirely (both the section and the deferred script tag) when the Room's
+// own `taste_enabled` switch is off — never rendered-then-hidden, so an
+// operator who turns it off ships zero extra bytes to this page, not a
+// dead form.
+//
+// THE FORM'S `action` carries NO query string on purpose: a GET form
+// submission replaces whatever query string `action` had with the
+// serialized form fields (the HTML living standard's own rule for
+// `<form method="get">`), so `via=search` rides as a HIDDEN FIELD instead —
+// the only way it survives into the no-JS navigation to
+// `/r/<slug>?via=search`, the Room's own taste screen for a signed-out
+// visitor (`RoomApp.tsx`'s default `phase === "join"` branch, `WS-R53`'s own
+// screen, no query param this page invents).
+// ─────────────────────────────────────────────────────────────────────────
+function buildTasteSection(room, name, locale, slugParam) {
+  if (room.taste_enabled === false) return "";
+  const t = TASTE_COPY[locale];
+  const c = PAGE_COPY[locale];
+  // The outer `slug` (the URL's own `/c/<slug>`), never `room.slug` — the
+  // SAME choice `joinUrl`/`roomImageUrl` already make a few lines above this
+  // function's own call site, restated so this page never carries two
+  // different ideas of "this Room's slug".
+  const slugRaw = String(slugParam || "");
+  const slug = encodeURIComponent(slugRaw);
+  const lede = withName(t.lede, name);
+  return `<section class="taste" aria-labelledby="taste-title">
+      <h2 id="taste-title">${esc(c.askTitle)}</h2>
+      <p class="room-lede" id="vy-taste-lede">${esc(lede)}</p>
+      <p class="disclosure" id="vy-taste-disclosure" hidden></p>
+      <div id="vy-taste-turns" aria-live="polite"></div>
+      <form id="vy-taste-form" method="get" action="/r/${slug}" data-room="${esc(slugRaw)}" data-locale="${locale}">
+        <input type="hidden" name="via" value="search" />
+        <label class="sr-only" for="vy-taste-input">${esc(t.placeholder)}</label>
+        <input id="vy-taste-input" name="q" type="text" placeholder="${esc(t.placeholder)}" autocomplete="off" required />
+        <button id="vy-taste-submit" type="submit" data-send="${esc(t.send)}" data-thinking="${esc(t.thinking)}">${esc(t.send)}</button>
+      </form>
+      <p id="vy-taste-status" aria-live="polite"
+         data-turns-left-one="${esc(t.turnsLeftOne)}"
+         data-turns-left="${esc(t.turnsLeft)}"
+         data-spent="${esc(t.spent)}"
+         data-rate-limited="${esc(t.rateLimited)}"
+         data-generic-error="${esc(t.errorGeneric)}"></p>
+      <p><a id="vy-taste-join" href="/r/${slug}?via=search" hidden>${esc(t.join)}</a></p>
+    </section>`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // THE JSON-LD — Person + FAQPage, built from exactly what the page shows
@@ -207,6 +330,8 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
   </section>`
     : "";
 
+  const tasteHtml = buildTasteSection(room, name, locale, slug);
+
   const body = `<main>
     <h1>${esc(title)}</h1>
     <section aria-labelledby="about-title">
@@ -214,6 +339,7 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
       <p>${esc(description)}</p>
       <p class="disclosure">${esc(c.poweredBy)}</p>
     </section>
+    ${tasteHtml}
     ${showcaseHtml}
     <p><a href="${esc(joinUrl)}">${esc(c.joinLabel(name))}</a></p>
   </main>`;
@@ -221,15 +347,27 @@ export function buildCreatorPageHtml(data, { origin, slug, lang } = {}) {
   const ld = buildCreatorPageJsonLd({ room, showcase: items, url });
   const jsonLd = [jsonLdScript(ld.person), jsonLdScript(ld.faq)].join("");
 
-  return renderPage({ title, description, url, imageUrl: roomImageUrl, locale, body, jsonLd });
+  return renderPage({
+    title, description, url, imageUrl: roomImageUrl, locale, body, jsonLd,
+    // The deferred island script, only when there is a form on the page for
+    // it to enhance — `buildTasteSection` returns "" the instant
+    // `taste_enabled` is false, and this line reads that same absence
+    // rather than re-deciding it.
+    tasteScript: Boolean(tasteHtml),
+  });
 }
 
-function renderPage({ title, description, url, imageUrl, locale, body, jsonLd }) {
+function renderPage({ title, description, url, imageUrl, locale, body, jsonLd, tasteScript = false }) {
   const t = esc(title);
   const d = esc(description);
   const u = esc(url);
   const i = esc(imageUrl);
   const htmlLang = locale === "hi" ? "hi" : "en";
+  // `defer`, never inline: `/creator-taste.js` is a static file the `/c/:slug`
+  // CSP already admits under `script-src 'self'` — WS-R80's own law 2 — and
+  // `defer` executes it after parsing, before `load`, without blocking the
+  // render this page exists to serve fast.
+  const script = tasteScript ? '\n    <script src="/creator-taste.js" defer></script>' : "";
   return `<!doctype html>
 <html lang="${htmlLang}">
   <head>
@@ -246,7 +384,7 @@ function renderPage({ title, description, url, imageUrl, locale, body, jsonLd })
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${t}" />
     <meta name="twitter:description" content="${d}" />
-    <style>${PAGE_STYLE}</style>
+    <style>${PAGE_STYLE}</style>${script}
   </head>
   <body>
     ${body}
@@ -277,4 +415,29 @@ const PAGE_STYLE = `
   .qa dt { font-weight: 600; margin-bottom: 0.4rem; }
   .qa dd { margin: 0; color: #292c26; }
   a { color: #17493b; font-weight: 600; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .taste { margin-top: 1.5rem; }
+  .taste form { display: flex; gap: 0.5rem; margin: 0.75rem 0; flex-wrap: wrap; }
+  .taste input[type="text"] {
+    flex: 1 1 auto; min-width: 0; padding: 0.6rem 0.75rem; font: inherit;
+    border: 1px solid rgba(28, 32, 26, 0.25); border-radius: 0.5rem;
+    background: #fff; color: #171915;
+  }
+  .taste button {
+    padding: 0.6rem 1.1rem; border: none; border-radius: 0.5rem;
+    background: #17493b; color: #fff; font: 600 1em/1.2 inherit; cursor: pointer;
+  }
+  .taste button:disabled { opacity: 0.6; cursor: default; }
+  @media (prefers-reduced-motion: no-preference) {
+    .taste button { transition: background 0.15s ease; }
+  }
+  .taste button:hover:not(:disabled) { background: #123a2f; }
+  .room-taste-turn { border-top: 1px solid rgba(28, 32, 26, 0.12); padding: 0.75rem 0; }
+  .room-taste-q { font-weight: 600; margin: 0 0 0.35rem; }
+  .room-taste-a { margin: 0; color: #292c26; }
+  #vy-taste-status { font-size: 0.85rem; color: #52564e; min-height: 1.2em; }
+  #vy-taste-join { display: inline-block; margin-top: 0.5rem; }
 `;

@@ -11061,3 +11061,66 @@ n = 979 Hindi strings (759 studio, 220 Room), method: `node scripts/check-layout
 | U+FDD0 U+FDD1 U+FDD2 (control) | none | not applicable | yes | not run | uniform, as required |
 
 Every other string: unchanged (the uniformity half only narrows findings; a string the width diff passed is untouched). The finding reproduced identically on two runs 20 minutes apart, so it was not a load or font-loading flake (`rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words`). Not measured: real tofu on this machine (every installed face has Devanagari, so a missing webfont still renders letters here; the control is the only proof the detector would see it).
+
+## `ws-r80-creator-page-performance-2026-09-05`
+
+n = 1 target (`/c/<slug>`, `creator-page-fixture.html` data, same fixture
+WS-R66 measured, now carrying the taste island), 3 cold-cache runs, method:
+`scripts/check-performance.mjs`'s existing harness (real Chromium over CDP,
+390x844, throttle CPU 4x / 1.6Mbps down / 750Kbps up / 150ms RTT), date
+2026-09-05, this workstream's own machine.
+
+| metric | before (WS-R66, `ws-r66-creator-page-performance-2026-09-05`) | after (WS-R80) | budget |
+|---|---|---|---|
+| LCP | 448ms | 344ms | 2500ms |
+| CLS | 0.000 | 0.000 | 0.1 |
+| TBT | 154ms | 40ms | 300ms |
+| JS transferred | 0.0KB | 2.2KB | 180KB |
+| CSS transferred | 0.0KB | 0.0KB | none named |
+| font | 0.0KB | 0.0KB | 120KB |
+| render-blocking requests | 0 | 0 | 0 |
+
+The LCP/TBT drop between runs is ordinary run-to-run noise on this one
+machine (n=3 cold runs, no fixed seed), not a claimed improvement from the
+island — the number that matters here is that 2.2KB against a 180KB budget
+leaves no realistic path to a regression from this workstream alone. Not
+measured: a real device on a real Indian mobile network, same reversal
+condition WS-R66's own row already carries.
+
+## `ws-r80-creator-taste-js-size-2026-09-05`
+
+n = 1 file (`public/creator-taste.js`), method: `Buffer.byteLength` on the
+raw source and on `esbuild --minify` output, both asserted in
+`evals/room-taste/run.mjs` §6, date 2026-09-05.
+
+| | bytes |
+|---|---|
+| raw | 5722 |
+| minified (esbuild --minify) | 2128 |
+| budget (WS-R46's own `room-embed.js` cap) | 6144 (6KB) |
+
+For comparison, `api/_room-embed.js`'s `ROOM_EMBED_JS` (the precedent this
+budget is named after) minifies smaller still; both sit well under the cap.
+Not measured: gzip/brotli transfer size (the performance gate's JS budget
+above is measured as bytes served, uncompressed, the same method WS-R66's
+own row used, so the two numbers are comparable to each other but not to a
+gzip-aware CDN metric).
+
+## `ws-r80-creator-page-eval-2026-09-05`
+
+n = 89 assertions, `evals/creator-page/run.mjs`, offline, deterministic,
+$0, no DB, no network, no model call; date 2026-09-05. Includes a real
+esbuild bundle of `src/room/copy.ts` (`evals/room-locale/run.mjs`'s own
+technique) compared field-by-field against `TASTE_COPY`, both locales, and
+one negative control that a drifted string is caught. All 89 pass.
+
+## `ws-r80-room-taste-eval-2026-09-05`
+
+n = 32 assertions, `evals/room-taste/run.mjs` (extended with a new §6 for
+this workstream), offline, deterministic, $0; date 2026-09-05. The new §6
+(9 assertions): the island source parses (`new Function`), is
+dependency-free, fits the 6KB cap, sends exactly one fetch (to
+`/api/room`) and exactly one op literal (`"taste"`, never a follower op),
+never assigns `.innerHTML`, and two negative controls (a second fetch
+target, a follower op swapped in for `"taste"`) are both caught. All 32
+pass.
