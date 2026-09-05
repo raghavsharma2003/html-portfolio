@@ -8482,6 +8482,12 @@
       "kind": "measurement",
       "title": "The merged wave-thirteen studio entry went from 186.1 KB to 157.8 KB gzipped JS under the 4G budget after the Hindi table split, no string changed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migrations-118-to-121-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migrations 118 to 121 applied live one statement per request at their merges; 23 new or changed statements EXPLAINed, all on their indexes except three bounded sequential scans accepted by name.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16709,6 +16715,11 @@
       "src": "studio-hindi-table-is-its-own-chunk",
       "rel": "supersedes",
       "dst": "ws-r71-studio-js-budget-overage-2026-09-05"
+    },
+    {
+      "src": "rooms-migrations-118-to-121-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r75-dormancy"
     }
   ]
 }

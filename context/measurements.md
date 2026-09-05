@@ -11475,3 +11475,37 @@ n = 5 targets x 3 cold runs, method: `node scripts/check-performance.mjs` on the
 | /c/<slug> | 2.2 KB | 2.2 KB | 180 KB | 268 ms |
 
 Chunks: `localeContext-*.js` 197.5 KB raw / 52.7 KB gz before, 65.7 KB raw / 23.5 KB gz after; `hiCopy-*.js` 132.4 KB raw / 29.4 KB gz, loaded only for `hi`. Source: `src/studio/hiCopy.ts` 142,139 bytes, 30,677 gzipped. Every copy-reading eval unchanged in count after the split: studio-locale 57/57, lang-tag 31/31, copy gate 6 scopes clean. Not measured: a Hindi creator's first paint with the extra chunk (no `studio-hi` performance target exists yet; the layout and accessibility gates render the Hindi studio but do not time it).
+
+
+## `rooms-migrations-118-to-121-live-verification-2026-09-05` — wave thirteen's four migrations applied live and every new statement planned
+
+Method: each statement of `db/migrations/118_creator_weekly_push.sql`, `119_dormancy.sql`, `120_incident_self_check.sql` and `121_room_arrival_via_poster.sql` run one per request against the live Neon database (project `lucky-sun-80291432`) at its merge, 2026-09-05; every new or changed statement the merged API modules issue `EXPLAIN`ed (never `ANALYZE`) against the same catalog. n = 17 DDL statements, 23 plans.
+
+| migration | statements | outcome |
+|---|---|---|
+| 118 (WS-R74) | 2 tables, 2 unique indexes, 2 indexes | all applied; `vy_creator_weekly_push.room_id` carries the same `references vy_room on delete cascade` as 097's pulse tables |
+| 119 (WS-R75) | 2 columns, 1 CHECK (drop then add), 2 partial indexes | all applied |
+| 120 (WS-R76) | the `vy_incident_kind_check` widened to six kinds (drop then add) | applied; the constraint name read back matched 109's |
+| 121 (WS-R78) | the `vy_room_arrival_via_check` widened to six values (drop then add) | applied; the constraint name read back matched 113's |
+
+| statement | plan |
+|---|---|
+| WS-R80 `/c/<slug>` room read (`taste_enabled` added) | Index Scan on `vy_room_slug_ix` |
+| WS-R74 subscribe upsert | arbiter `vy_creator_push_subscription_owner_endpoint_ix` |
+| WS-R74 revoke by owner and endpoint; subscriptions for owner | Index Scan on `vy_creator_push_subscription_active_ix` |
+| WS-R74 the weekly Room scan | Seq Scan on `vy_room` under a sort by `published_at`, bounded by the limit and the table's size, once a week; accepted |
+| WS-R74 followers this week | Index Scan on `vy_room_follower_room_seen_ix` |
+| WS-R74 messages this week | Index Scan on `vy_room_follower_day_scope_ix` with both day bounds in the index condition |
+| WS-R74 the ledger claim | arbiter `vy_creator_weekly_push_room_week_ix`, DO NOTHING |
+| WS-R76 `information_schema.tables` anchor read | `pg_class_relname_nsp_index` |
+| WS-R76 last run per sweep (`distinct on`) | Seq Scan on `vy_sweep_run` under a sort, bounded by the 30-day prune; accepted |
+| WS-R76 today's failing checks | Index Only Scan on `vy_incident_day_kind_door_status_ix` |
+| WS-R72 eligible showcase cards | Index Scan on `vy_review_card_owner_ix`, state and kind as filters |
+| WS-R72 dismiss a flag | Nested Loop over `vy_room_owner_ix` and `vy_room_reply_flag_room_reply_ix` |
+| WS-R78 poster arrivals this week | Bitmap on `vy_room_arrival_via_day_ix` |
+| WS-R75 the notice UPDATE | Index Scan on `vy_room_follower_dormancy_due_ix`, `vy_room_pkey` for the policy |
+| WS-R75 the forget-due SELECT | Hash Join of two Seq Scans at the tables' current size (the partial `vy_room_follower_dormancy_notice_ix` exists and will be chosen once the table has rows); accepted, once a day |
+| WS-R75 notices and forgets this week | Index Scan on `vy_sweep_run_sweep_started_ix` |
+| WS-R75 set dormancy days | Index Scan on `vy_room_owner_ix` |
+
+Not measured: WS-R76's `information_schema.columns` read (the same catalog index family as the tables read); WS-R73, WS-R77 and WS-R79 issue no new SQL.
