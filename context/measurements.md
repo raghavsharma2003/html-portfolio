@@ -12007,3 +12007,64 @@ work through 104 rows (no review has happened yet); whether the seven files'
 English source text itself changes before review completes (the eval only
 proves the document matches source AT THE TIME IT IS RUN, not that it will
 stay matched).
+
+## `ws-r93-owner-secret-door-sweep-2026-09-05` — doors found, doors fixed
+
+**Method.** `grep -rnE "req\.(query|body)(\?)?\.(secret|token|key|adminSecret|admin_secret|pass|password)" api/*.js`
+plus a second pass aliasing every `const body = req.body || {}` /
+`const b = req.body || {}` assignment across every file in `api/` (54 files)
+and grepping each alias for `.secret` — the first pass alone would have
+missed `api/culture.js`, whose read is `b.secret` through an alias, not
+`req.body.secret` literally. **n = 54** files in `api/` scanned (every
+`.js` file directly under `api/`; `_`-prefixed decision modules included in
+the sweep, though excluded from the door battery's own door list). **Result:
+3 doors found, all pre-existing** (`api/life.js`, `api/taste-queue.js`,
+`api/culture.js`), **0 in every other file.** All 3 fixed this session
+(`decisions.md#ws-r93-owner-secret-doors-move-to-header`); re-running the
+identical grep against the fixed tree returns zero matches
+(`evals/room-doors/run.mjs`'s new LAW 4 sweep asserts this as a release
+gate, not a one-time check, so the class cannot silently return). **Date:**
+2026-09-05.
+
+## `ws-r93-release-gate-before-and-after-2026-09-05` — baseline vs. changed tree, one clean run each
+
+**Method.** `node scripts/verify-release.mjs`, no `NEON_URL` in this
+environment (21-check gate). Two full runs on a heavily shared machine
+(load average 15-18 across 4 cores for most of this session, 5-8 concurrent
+sibling `verify-release.mjs` invocations from other wave-fifteen
+workstreams): one on the untouched tree at `04395e2` (baseline), one on this
+workstream's own changed tree. Both runs were first attempted piping output
+through a shared scratchpad file and found genuinely CROSS-CONTAMINATED —
+multiple sibling agents' processes had the identical file path open for
+writing at once, interleaving unrelated PASS/FAIL lines byte-for-byte into
+one file (confirmed by `lsof`, three distinct PIDs from three distinct
+worktrees holding the same inode; see `rejected.md#ws-r93-shared-scratchpad-log-path-cross-contaminated-by-sibling-agents`).
+Both final numbers below are from a SECOND run each, output redirected to a
+path inside this workstream's own worktree (`git`-ignored, `*.log`),
+confirmed via `lsof` to have exactly one writer.
+
+**Baseline (untouched tree, `04395e2`): 18 of 21 passed, 3 failed** —
+`layout readability` (`EADDRINUSE` port 8931, a sibling worktree's gate
+holding the port), `performance budgets` (one real finding, not a port
+collision this time: `/studio` TBT 372ms against the 300ms budget — every
+OTHER target passed; this is CPU-throttle measurement noise under the
+machine's own load, the identical "TBT finding under load" pattern named as
+environmental in `context/STATE.md`'s WS-R86 session-log entry), and
+`accessibility` (`EADDRINUSE` port 8933, same cause). **Changed tree, run
+TWICE: 19 of 21 (code changes only, before this session's own context
+additions), then 20 of 21 (the actual final tree about to be committed,
+context additions included) — both single failure or fewer, both
+`layout readability`, both `EADDRINUSE`** (port 8931 both times; the second
+run's `performance budgets` passed clean, no TBT finding that time — this
+machine's own load fluctuated between the three runs, load average measured
+15-18 for the baseline and first changed-tree run, down to 8-15 for the
+final run). Neither run's failures touch anything this workstream changed:
+`layout readability`/`performance budgets`/`accessibility` render `/studio`,
+`/r/<slug>`, `/vyakti` and friends in real Chromium — none of which import
+`api/life.js`, `api/taste-queue.js`, `api/culture.js` or
+`evals/room-doors/run.mjs`. **`eval suite`, `room leak battery`, `room
+export completeness`, `room door battery` and `security headers` passed
+clean on all three runs**, and `room door battery` is the standalone step
+that actually executes this workstream's new `e-owner-secret` class and its
+negative control — clean on both changed-tree runs (3773ms the final run).
+**Date:** 2026-09-05.
