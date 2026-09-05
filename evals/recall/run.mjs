@@ -607,6 +607,18 @@ const FATE = {
   // proven below) or the Room's own "op":"forget" (`roomForget`'s explicit
   // room_id+person_id delete, added in the same change as this migration).
   vy_room_follower_whatsapp: "forget-only",
+  // ── WS-R104: which room a WhatsApp phone currently means (migration 128) ──
+  // `vy_room_follower_channel`'s own pointer above, one transport further -
+  // a phone hash, a locale, two timestamps and a short code, no words in it
+  // a scoped "forget priya" could ever match. UNLIKE that table this one
+  // carries no `follower_id references vy_room_follower(follower_id) on
+  // delete cascade` at all (migration 128's own header states why: 009's
+  // WHERE-clause-binding law, restated rather than 082's own exception
+  // repeated a third time) - so the account-level whole wipe (lane
+  // "relational", proven below) and the Room's own "op":"forget"
+  // (`roomForget`'s explicit room_id+person_id delete, api/_room-surface.js)
+  // are the ONLY two doors that reach it at all, neither one a cascade.
+  vy_room_follower_whatsapp_chat: "forget-only",
   // ── Handoff (WS-R20; migration 083) ──
   // A follower's own verbatim ask and the creator's own verbatim reply -
   // unlike every Room table above, this one DOES hold words (083's own

@@ -2534,6 +2534,30 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no Telegram call, no
   // model call, no GPU.
   "room-telegram-voice": "room-telegram-voice/run.mjs",
+  // WS-R104, migration 128 (`vy_room_follower_whatsapp_chat`). The Room on
+  // WhatsApp: `api/_room-telegram.js`'s own design over the Cloud API,
+  // reusing `api/_room-whatsapp.js`'s webhook verify and the ONE WhatsApp
+  // Business number. The phone number is never written — `phoneHash` is a
+  // salted sha256, stable (never rotated the way `api/_rate-limit.js`'s own
+  // hash is), proven deterministic and salt-sensitive. The join flow over
+  // WhatsApp reply buttons (`a1`/`a0`/`m1`/`m0:<slug>`, Telegram's own
+  // callback-data shape restated on a wire with no persisted "pending step"
+  // column at all), the two-question gate's atomicity, a phone with no
+  // pointer NEVER creating a person before `join <slug>` completes it, three
+  // ordinary turns through the REAL follower lane and the free cap (both
+  // PAYMENTS_PROVIDER states), the 24-hour session window driven through the
+  // SHIPPING sender (`api/_room-whatsapp.js`'s new `sendSessionMessage`) with
+  // a fake fetch and a fake clock — proving zero network calls outside the
+  // window and a real Cloud API body inside it — a redelivered message id
+  // being a database-free no-op (with a negative control proving a DIFFERENT
+  // id from the same phone is not), and `stop` (marks, never deletes) versus
+  // `forget` (the pointer row gone for real, the receipt issued). The
+  // cross-follower isolation proof for this transport (two phones, one Room,
+  // byte-checked) is layer 14 of the room-leak battery, not duplicated here.
+  //
+  // Offline, deterministic, $0, no DB, no network, no Meta call, no model
+  // call.
+  "room-whatsapp-chat": "room-whatsapp-chat/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

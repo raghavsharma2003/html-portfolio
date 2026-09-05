@@ -24,6 +24,13 @@ import { allow, ipOf } from "./_ratelimit.js";
 import { consume } from "./_rate-limit.js";
 import { q } from "./_db.js";
 import { verifyRoomWhatsappWebhook, handleStatusWebhook } from "./_room-whatsapp.js";
+// WS-R104. Behind ROOM_WHATSAPP_CHAT=1 only — unset, this file's own inbound
+// branch is byte-for-byte what it always was (`handleStatusWebhook`'s auto
+// reply, api/_room-whatsapp.js's own workstream law #6: no conversation on
+// this wire). `whatsappChatEnabled` reads the SAME env var
+// `api/_room-whatsapp-chat.js` itself gates every entry point on, so this
+// file can never disagree with that module about whether the lane exists.
+import { whatsappChatEnabled, handleRoomWhatsappChatWebhook } from "./_room-whatsapp-chat.js";
 
 /** Raw bytes are required for the HMAC - see api/whatsapp.js's own config,
  *  reused verbatim: this webhook needs Vercel's body parser disabled. */
@@ -56,7 +63,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const out = await handleStatusWebhook(auth.payload, { db: q });
+    // WS-R104: the SAME return shape either way (`{statuses, replies}`), so
+    // this response body never has to know which branch answered it —
+    // `handleRoomWhatsappChatWebhook`'s own header states why it was built
+    // to match. `fetch: globalThis.fetch` threaded explicitly, this
+    // platform's own standing convention (`api/checkins-sweep.js`'s
+    // identical line) rather than a business-logic module ever assuming a
+    // global.
+    const out = whatsappChatEnabled(process.env)
+      ? await handleRoomWhatsappChatWebhook(auth.payload, { db: q, fetch: globalThis.fetch })
+      : await handleStatusWebhook(auth.payload, { db: q });
     return res.status(200).json({ ok: true, statuses: out.statuses, replies: out.replies });
   } catch (e) {
     console.error("[room-wa] handler failure:", e?.message || "unknown");

@@ -12641,3 +12641,76 @@ worktree port collision (`ws-common.md`'s own law), not a real defect.
 `eval suite` (520,095ms) passed whole, including both rehearsals
 UNMODIFIED — confirming the two rehearsals' pre-existing state on the
 untouched tree was healthy before this workstream's changes.
+
+## `ws-r104-room-on-whatsapp-eval-counts-2026-09-05`
+
+Method: each suite run standalone with `node <path>`, offline, deterministic,
+$0, no DB, no network, no Meta call, no model call, 2026-09-05.
+
+| suite | n (assertions) | result |
+|---|---|---|
+| `node evals/room-whatsapp-chat/run.mjs` | 64 | 64 passed, 0 failed |
+| `node evals/room-leak/run.mjs` (all 14 layers, layer 14 is this workstream's own addition) | 251 total assertions (336,323 retrieval row-scenario checks + 574 boundary checks folded into that total, per the suite's own printed breakdown) | 251 passed, 0 failed |
+| `node evals/room-doors/run.mjs` (735 total across every class, three of which — `d6-unknown-number-no-person`, `d7-forged-signature-refused-first`, and the WhatsApp-chat cases folded into `d-replay-reuse` — are this workstream's own additions) | 733 | 733 passed, 0 failed |
+
+Layer 14's own count: 16 assertions (two phones, one Room — join,
+cross-phone byte-check on both the sent reply and the raw `memory.recall`
+surface, `stop`, re-join, `forget`). `d6`'s own count: 4 assertions across
+two scenarios (an ordinary message and a declined age gate, both from
+unbound phones, neither ever calling a poisoned `linkPerson`). `d7`'s own
+count: 5 assertions (source-order, `signatureOk` forged/genuine, the
+db-parameter-free structural check).
+
+Not measured: anything requiring a live WhatsApp Business Account —
+`api/whatsapp.js`'s own standing honesty ("NOT WIRED. No credentials, no
+registered webhook, never contacted Meta") applies identically to this
+workstream's own sender and webhook, and no live WABA was connected to
+prove it. See `decisions.md#ws-r104-whatsapp-join-gate-uses-reply-buttons-
+not-free-text`'s own NOT PROVEN note on interactive reply buttons
+specifically.
+
+**A real gap the gate caught, fixed in the same session.** The first full
+`node evals/run.mjs` run failed one pre-existing suite this workstream had
+not touched directly: `evals/recall/run.mjs`'s own FATE table (§8, the
+per-`PERSON_TABLES`-table forget verdict — "clear+forget"/"forget-only"/
+"exempt") had no entry for the newly added `vy_room_follower_whatsapp_chat`,
+which `api/memory.js`'s `PERSON_TABLES` array now lists. Fixed by adding
+`vy_room_follower_whatsapp_chat: "forget-only"` there, on `vy_room_follower_
+whatsapp`'s own exact precedent one row up (a pointer with no words, reached
+only by the whole wipe or `roomForget`'s own explicit delete, never a scoped
+"forget priya"). Re-run: `node evals/recall/run.mjs` — 275 assertions, ALL
+PASS (was 272 passed, 1 failure). `node evals/run.mjs` full registry after
+the fix — exit 0, zero `FAIL` lines across the entire run (grep-verified;
+the six literal occurrences of the string "FAIL" in the log are all test
+NAMES, e.g. "G5.8 FAIL CLOSED", not failures).
+
+**`node scripts/verify-release.mjs`, this session, 2026-09-05, heavily
+contended shared machine (18-22 concurrent sibling `verify-release.mjs`/
+`evals/run.mjs` processes observed via `ps aux` at various points).** Two
+full combined runs both failed only on `EADDRINUSE` for `layout readability`
+(8931), `performance budgets` (8932) and `security headers` (8934/8933 at
+different moments) — never a finding this workstream's own changes could
+plausibly cause (none of the three checks walk any surface this workstream
+touches: no `src/`, no `site/`, no `studio.html`/`room.html`). The FIRST
+combined run also showed `eval suite` failing on the `recall` gap above,
+before it was fixed. After the fix, each of the three port-contended checks
+was re-run STANDALONE once its own port came free (`check-layout.mjs`,
+`check-headers.mjs`, `check-performance.mjs`, each waited for with a real
+`/dev/tcp` port-busy check, never killing a holder) — all three clean:
+`layout readability` (2010 prose blocks, 1736 Hindi strings glyph-checked,
+0 findings), `security headers` (0 findings across 8 page targets + supply
+chain, `npm audit`: 4 moderate/low findings below the `--audit-level=high`
+floor, not blocking), `performance budgets` (7 targets x 3 runs, all within
+budget, studio-hi's own Hindi-paint metrics unaffected: 646ms chunk wait /
+811ms first paint, both under their own budgets). Combined with `typecheck`
+(clean in both full runs), the full `eval suite`/`room leak battery`/`room
+export completeness`/`room door battery`/`accessibility` (all clean in the
+second full run, after the recall fix), this is 21 of 21 checks proven
+individually clean this session — never all 21 in ONE single combined run,
+purely from recurring shared-machine port contention (the SAME class of
+result `STATE.md`'s own WS-R88/WS-R91/WS-R96/WS-R98 session-log entries
+already document on this identical machine). No untouched-tree baseline was
+captured separately this session (time constraint); the ONE real failure
+found (`recall`'s FATE gap) is, by construction, not a baseline issue — it
+exists only because this workstream's own migration added a table that did
+not exist on the baseline tree at all.

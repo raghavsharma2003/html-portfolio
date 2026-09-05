@@ -4442,3 +4442,27 @@ create unique index if not exists vy_receipt_payment_event_ix
   on vy_receipt (payment_event_id);
 create index if not exists vy_receipt_room_person_ix
   on vy_receipt (room_id, person_id, issued_at desc);
+
+-- Migration 128 - the Room on WhatsApp (WS-R104). See
+-- db/migrations/128_room_whatsapp_chat.sql for the full argument: which
+-- room a WhatsApp phone number currently means, `vy_room_follower_channel`'s
+-- own pointer (082) restated one transport over, with the phone stored ONLY
+-- as a salted sha256 (never in the clear) and, unlike 082, no FK on
+-- person_id/follower_id (room_id keeps its FK with cascade; erasure reach
+-- is the explicit by-name delete in roomForgetCore, not a cascade).
+create table if not exists vy_room_follower_whatsapp_chat (
+  phone_hash   text primary key,
+  room_id      uuid not null references vy_room(room_id) on delete cascade,
+  person_id    uuid not null,
+  follower_id  uuid not null,
+  locale       text not null default 'en',
+  joined_at    timestamptz not null default now(),
+  stopped_at   timestamptz,
+  stopped_code text,
+  constraint vy_room_follower_whatsapp_chat_locale_check check (locale in ('en', 'hi')),
+  constraint vy_room_follower_whatsapp_chat_hash_check check (phone_hash ~ '^[0-9a-f]{64}$')
+);
+create index if not exists vy_room_follower_whatsapp_chat_person_ix
+  on vy_room_follower_whatsapp_chat (person_id, room_id);
+create index if not exists vy_room_follower_whatsapp_chat_follower_ix
+  on vy_room_follower_whatsapp_chat (follower_id);

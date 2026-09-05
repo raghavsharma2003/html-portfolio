@@ -9652,6 +9652,48 @@
       "kind": "measurement",
       "title": "Isolated git-worktree checkout of c2945f7: 19/21 gate checks pass; the 2 failures are a documented port collision (8931/8932), not a real defect. eval suite passes whole (520s) on the untouched tree.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-room-on-whatsapp",
+      "kind": "component",
+      "title": "The Room on WhatsApp (WS-R104, migration 128): a one-Room-per-phone pointer (vy_room_follower_whatsapp_chat, phone stored only as a salted sha256), api/_room-whatsapp-chat.js as the one new decision module (join via Cloud API reply buttons mirroring Telegram's callback-data trick, ordinary messages through the real roomSay, replies as session messages within Meta's 24-hour window via api/_room-whatsapp.js's new sendSessionMessage), api/room-wa.js's inbound branch gated behind ROOM_WHATSAPP_CHAT=1 (unset: byte-identical to before this workstream).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-whatsapp-chat-identity-is-its-own-surface",
+      "kind": "decision",
+      "title": "The WhatsApp chat lane's identity bridge uses its own vy_surface_identity surface (\"room_whatsapp\", keyed on the phone hash), never the literal \"whatsapp\" surface Telegram's own bridge reuse would suggest by analogy.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-whatsapp-chat-owns-its-own-table-sql",
+      "kind": "decision",
+      "title": "Every statement against vy_room_follower_whatsapp_chat lives in api/_room-whatsapp-chat.js itself, following api/_room-whatsapp.js's own precedent (092) rather than Telegram's shared-in-_room-surface.js one (082).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-no-explicit-replica-erasure-backstop-for-the-whatsapp-chat-pointer",
+      "kind": "decision",
+      "title": "api/_replica-full-erasure.js gains no explicit CTE for vy_room_follower_whatsapp_chat, matching vy_room_follower_channel's and vy_room_follower_whatsapp's own precedent of relying on the room_id cascade alone.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text",
+      "kind": "decision",
+      "title": "The WhatsApp age/memory gate is built on Meta Cloud API interactive reply buttons carrying Telegram's own a1/a0/m1/m0:<slug> ids, not free-text parsing across messages, since migration 128's column list carries no pending-step state.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-leak-battery-scanner-substring-collision-on-a-superstring-table-name",
+      "kind": "rejection",
+      "title": "evals/room-leak/world.mjs's staticReachProblems()/classifyOneFile() used plain src.includes(table); vy_room_follower_whatsapp_chat (128) is a superstring of vy_room_follower_whatsapp (092), so every line of the new file's own source falsely matched the OLD table's TABLE_ROLES entry. Fixed with a word-boundary-aware tableTouch().",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r104-room-on-whatsapp-eval-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-whatsapp-chat/run.mjs 64/64, evals/room-leak/run.mjs 251/251 (layer 14 is this workstream's own two-phone-one-Room isolation proof), evals/room-doors/run.mjs 733/733 (d6 unknown-number-no-person, d7 forged-signature-refused-first, and WhatsApp-chat cases folded into d-replay-reuse are this workstream's own additions) - all offline, $0, no DB, no network.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18814,6 +18856,41 @@
       "src": "ws-r109-sessionworked-driven-from-the-follower-walk-not-the-creator-one",
       "rel": "constrains",
       "dst": "ws-r30-session-worked-one-statement-follower-scope-first"
+    },
+    {
+      "src": "ws-r104-whatsapp-chat-identity-is-its-own-surface",
+      "rel": "part_of",
+      "dst": "ws-r104-room-on-whatsapp"
+    },
+    {
+      "src": "ws-r104-whatsapp-chat-owns-its-own-table-sql",
+      "rel": "part_of",
+      "dst": "ws-r104-room-on-whatsapp"
+    },
+    {
+      "src": "ws-r104-no-explicit-replica-erasure-backstop-for-the-whatsapp-chat-pointer",
+      "rel": "part_of",
+      "dst": "ws-r104-room-on-whatsapp"
+    },
+    {
+      "src": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text",
+      "rel": "part_of",
+      "dst": "ws-r104-room-on-whatsapp"
+    },
+    {
+      "src": "ws-r104-leak-battery-scanner-substring-collision-on-a-superstring-table-name",
+      "rel": "caused_by",
+      "dst": "ws-r104-room-on-whatsapp"
+    },
+    {
+      "src": "ws-r104-room-on-whatsapp-eval-counts-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r104-room-on-whatsapp"
+    },
+    {
+      "src": "ws-r104-room-on-whatsapp",
+      "rel": "constrains",
+      "dst": "ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text"
     }
   ]
 }

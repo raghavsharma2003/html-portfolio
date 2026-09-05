@@ -12730,3 +12730,71 @@ the command starts — a background gate on the working worktree is not safe
 to edit against until it is known to be well past the phase that touches
 the files being edited, and an isolated checkout is the only fully safe way
 to run a baseline gate in parallel with real work.
+
+## `ws-r104-leak-battery-scanner-substring-collision-on-a-superstring-table-name` (2026-09-05, WS-R104)
+
+**Tried.** Adding `vy_room_follower_whatsapp_chat` (migration 128) to
+`evals/room-leak/world.mjs`'s `TABLE_ROLES` and shipping `api/_room-
+whatsapp-chat.js` as its owner, trusting that `staticReachProblems()`'s
+existing per-table scan (`src.includes(table)`, a plain substring test —
+`evals/room-leak/world.mjs`'s own established shape since WS-R28 first
+built it) would classify the new file correctly the same way it already
+classifies every other table's owner.
+
+**What broke.** `node evals/room-leak/run.mjs`'s layer 8 static check
+failed: `vy_room_follower_whatsapp:_room-whatsapp-chat.js:unsafe-line(3)`.
+`api/_room-whatsapp-chat.js` was being reported as an UNSAFE, uncredited
+reader of `vy_room_follower_whatsapp` — a table it never once references.
+The cause: `vy_room_follower_whatsapp_chat` is a literal SUPERSTRING of the
+already-tracked `vy_room_follower_whatsapp` (the WS-R29 check-in opt-in
+table) — every line of source naming the NEW table also contains the OLD
+table's full name as a substring, so the plain `.includes()` check matched
+it under the WRONG table's `TABLE_ROLES` entry, which names different
+owners. `context/rejected.md#ws-r28-leak-battery-scanner-matches-prose-not-
+only-sql`'s own class of near-miss, restated: not prose this time, but two
+otherwise-unrelated tables whose real, migration-assigned names happen to
+share a prefix.
+
+**Why it had not bitten before.** Every table name added to this manifest
+before migration 128 was either unrelated to every other name at the
+character level, or a genuine SUB-table sharing a real relationship the
+scanner's substring behaviour is DELIBERATELY exploited for elsewhere
+(`evals/room-doors/run.mjs`'s own `ALLOWED`-set check at line ~330 states
+this outright: `.includes("vy_room_follower")` is meant to catch `vy_room_
+follower_day`/`_channel`/`_whatsapp`/`_reply_flag` too, since all of those
+ARE the follower lane). Migration 128 is the first table whose name is a
+superstring of an EARLIER, DIFFERENTLY-OWNED table purely by naming
+coincidence — `vy_room_follower_whatsapp` (092) and `vy_room_follower_
+whatsapp_chat` (128) are siblings in spirit (both WhatsApp, both pointer/
+opt-in shaped) but NOT in `TABLE_ROLES`, where they carry different owner
+sets on purpose (`decisions.md#ws-r104-whatsapp-chat-owns-its-own-table-
+sql`).
+
+**The fix.** `evals/room-leak/world.mjs` gained `tableTouch(text, table)`, a
+word-boundary-aware replacement (`\\b${table}\\b`) for the four internal
+`.includes(table)` call sites in `staticReachProblems()`/`classifyOneFile()`
+— `_` counts as a word character in JS regex, so `\bvy_room_follower_
+whatsapp\b` correctly refuses to match inside `vy_room_follower_whatsapp_
+chat` (no boundary between the shared `p` and the following `_`) while
+still matching every real, standalone mention. `contentColumnLeaks()` did
+NOT need the same fix — its own statement-extraction filter already reads
+`\\bfrom\\s+${table}\\b`, word-boundary-aware from the day it was written,
+for an unrelated reason (isolating the FROM clause inside a multi-statement
+template literal), which happened to also make it immune to this exact bug.
+`evals/room-doors/run.mjs`'s OWN plain-substring check (the `ALLOWED`-set
+one, `vy_room_follower`/`vy_room_thread`) was deliberately left alone: that
+check's substring behaviour is stated as intentional in its own comment
+(catching every `vy_room_follower_*`-prefixed table as one family), and
+`api/_room-whatsapp-chat.js` genuinely DOES need admission to that door's
+`ALLOWED` set on its own merits — `decisions.md#ws-r104-whatsapp-chat-owns-
+its-own-table-sql` covers that admission.
+
+**The rule.** A table-name scanner built on plain substring matching is
+correct only until two UNRELATED table names happen to share a prefix —
+which is not a defect anyone can see coming from either table's own
+migration, only from the day a THIRD migration adds the second one. Every
+new `TABLE_ROLES`-keyed scan added to this codebase from here on should use
+`tableTouch()` (or an equivalent word-boundary test) rather than a bare
+`.includes()`, UNLESS the substring behaviour is deliberately exploited and
+stated as such in a comment next to it, the way `evals/room-doors/run.mjs`'s
+own follower/thread family check already is.

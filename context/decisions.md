@@ -18329,3 +18329,129 @@ drafting slip given the walks' own documented boundaries.
 feed, an ops card) renders `sessionWorked`'s own offer state for the
 CREATOR to see, that would be the genuine creator-walk gain the brief may
 have meant, and this decision's placement should be revisited then.
+
+## `ws-r104-whatsapp-chat-identity-is-its-own-surface` (2026-09-05, WS-R104)
+
+**Decision.** `api/_room-whatsapp-chat.js`'s identity bridge into
+`vy_surface_identity` uses its own surface string, `"room_whatsapp"`, keyed
+on the phone HASH (`phoneHash()`, migration 128's own salted sha256) —
+never the literal `"whatsapp"` surface, and never bridged with any future
+raw-number-keyed WhatsApp identity another file might add.
+
+**Rationale.** Telegram's own Room lane (`_room-telegram.js`) reuses the
+literal `"telegram"` surface Meera's base bot already writes to, and that
+reuse is correct there: one bot token serves both Meera's DMs and every
+Room, so bridging the two into the same person is the intended behaviour,
+stated in that file's own header. WhatsApp's Room lane shares the identical
+argument at the CREDENTIAL level (this table's WABA number is the same
+`WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` Meera's base
+`api/whatsapp.js` reads) but NOT at the key-shape level: this file's own key
+is a one-way hash of the number, never the raw E.164 (migration 128's own
+header states why: a second independent copy of a real-world identifier at
+rest is a cost this table does not need to pay). A `grep` across every
+`api/*.js` file at the time this was written found no existing
+`personForSurfaceUser("whatsapp", ...)` caller at all, so sharing the string
+today would create no live bridge — but reusing "whatsapp" anyway would
+still be wrong going forward: a future raw-number-keyed WhatsApp identity
+reader sharing that literal string with this hash-keyed one is a silent
+key-shape collision waiting to happen, not a bridge, since the two key
+spaces (a hash, a raw number) can never actually match. A dedicated surface
+name makes the mismatch structurally impossible rather than merely
+undiscovered.
+
+**Reversal condition.** If a future workstream deliberately wants a WhatsApp
+follower recognised as the SAME person across the Room lane and Meera's own
+WhatsApp DMs (Telegram's own bridged behaviour, restated for this
+transport), the fix is not to rename this surface back to `"whatsapp"` — it
+is to key BOTH readers on the hash (changing Meera's own DM-side bridge, if
+one is ever added, to hash its number the same way `phoneHash()` does)
+after a careful audit of every existing `vy_surface_identity` reader/writer
+confirms no caller anywhere still assumes a raw E.164 under that surface.
+This workstream did not have the scope to perform that audit.
+
+## `ws-r104-whatsapp-chat-owns-its-own-table-sql` (2026-09-05, WS-R104)
+
+**Decision.** Every SQL statement against `vy_room_follower_whatsapp_chat`
+(bind/upsert the pointer, the slug lookup joined to `vy_room`, the `stop`
+update) lives in `api/_room-whatsapp-chat.js` itself — never routed through
+`api/_room-surface.js`'s own exported functions the way Telegram's channel
+pointer (`bindTelegramChannel`/`telegramChannelRoom`/`unbindTelegramChannel`)
+is.
+
+**Rationale.** Two precedents exist in this codebase and they disagree:
+Telegram's own pointer (082) keeps its SQL in `_room-surface.js`; WhatsApp's
+check-in opt-in (`vy_room_follower_whatsapp`, 092, `api/_room-whatsapp.js`)
+keeps ALL of its own SQL (`optIn`/`stop`/`status`/`activeWhatsappFollower`/
+`markFollowerWhatsappFailed`) in the transport-specific file instead, and is
+already admitted to `evals/room-leak/run.mjs`'s own layer-1 `ALLOWED` set for
+exactly that reason. This workstream's own brief names the new file "every
+decision" — the same self-contained shape WS-R29's file already has, not
+Telegram's shared one — so this decision follows the CLOSER, more recent
+precedent rather than the older one, and `api/_room-whatsapp-chat.js` was
+added to that same `ALLOWED` set alongside `_room-whatsapp.js`, with the
+reason written at both admissions.
+
+**Reversal condition.** If a THIRD caller ever needs to read or write this
+table directly (today only `_room-whatsapp-chat.js` and `_room-surface.js`'s
+own generic `roomForgetCore`/`ROOM_EXPORT_EXTRA` machinery touch it), move
+the pointer CRUD into `_room-surface.js` at that point, Telegram's own shape
+— a second bespoke reader duplicating this file's SQL is the drift risk a
+shared location exists to avoid, and one caller is not yet that risk.
+
+## `ws-r104-no-explicit-replica-erasure-backstop-for-the-whatsapp-chat-pointer` (2026-09-05, WS-R104)
+
+**Decision.** `api/_replica-full-erasure.js` gains NO explicit CTE for
+`vy_room_follower_whatsapp_chat`. A full replica erasure reaches this
+table's rows only through the real `room_id references vy_room(room_id) on
+delete cascade` (migration 128's own FK), never a named backstop statement.
+
+**Rationale.** That file's own header states its general policy as "relying
+on a cascade means relying on an FK nobody re-checks" and backs it with
+explicit backstop CTEs for several room-scoped tables even where a real FK
+already covers them — but NOT uniformly: `vy_room_follower_channel`
+(Telegram's pointer, 082) and `vy_room_follower_whatsapp` (the check-in
+opt-in, 092) — this table's two closest siblings, both content-free
+transport pointers with the identical `room_id` cascade shape — carry no
+explicit statement there either, confirmed by grep before this decision was
+made rather than assumed. This decision follows THAT precedent rather than
+the money/content-bearing tables' stricter one (`vy_receipt`, `vy_room_
+referral`), since this table shares their shape, not those tables'.
+
+**Reversal condition.** If a future audit adds explicit backstop CTEs to
+`vy_room_follower_channel` and `vy_room_follower_whatsapp` (closing the gap
+their own header already argues against leaving open), add one for this
+table in the SAME change, on the identical reasoning — not before, and not
+alone, since a single table getting the stricter treatment while its two
+nearest siblings do not would be an unexplained inconsistency rather than a
+considered choice.
+
+## `ws-r104-whatsapp-join-gate-uses-reply-buttons-not-free-text` (2026-09-05, WS-R104)
+
+**Decision.** The age/memory two-question gate on WhatsApp is built on
+Meta's Cloud API interactive reply-button messages (`a1`/`a0`/`m1`/
+`m0:<slug>` button ids, byte-identical to Telegram's own callback-data
+values), not free-text parsing across multiple inbound messages.
+
+**Rationale.** Migration 128's own column list is closed by the workstream
+brief (`phone_hash`, `room_id`, `person_id`, `follower_id`, `locale`,
+`joined_at`, `stopped_at`, `stopped_code` — no "pending step" column), and
+this file keeps nothing in memory between one webhook delivery and the
+next. Telegram's own gate solves the identical problem by carrying the
+state (which slug, which step) IN the button itself via `callback_data`;
+WhatsApp's Cloud API offers the same mechanism (an opaque `id` string
+returned on `interactive.button_reply`), so reusing it needed no new schema
+and no new persisted state at all — the alternative (asking the two
+questions as plain text and parsing a combined reply, or inventing a
+"pending join" row) would have required either a schema change this
+workstream was not given a migration number for, or a materially weaker
+product (collapsing two distinct consent questions into one guessed
+sentence).
+
+**Reversal condition.** NOT PROVEN: no live WhatsApp Business Account has
+ever sent or received an interactive button message through this code path
+(`api/whatsapp.js`'s own header states the identical honesty about its own
+wire — "NOT WIRED. No credentials, no registered webhook, never contacted
+Meta"). If a live WABA turns out not to support reply buttons on this
+number's own messaging tier, the gate needs a text-based fallback and,
+likely, a real migration for pending-join state — ticketed here rather than
+guessed at.

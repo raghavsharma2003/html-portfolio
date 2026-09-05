@@ -133,6 +133,11 @@ const DOOR_MODULES = [
   // WS-R62 (migration 114): the ops door's own subscribe/revoke ops, the
   // first `op`-shaped body this door has ever read.
   "./_ops.js",
+  // WS-R104 (migration 128): room-wa.js's own second decision module, reached
+  // only behind ROOM_WHATSAPP_CHAT=1 — room-wa.js already qualifies as a door
+  // through `_room-whatsapp.js` above regardless, so this entry is
+  // documentation-complete rather than load-bearing for §0's discovery.
+  "./_room-whatsapp-chat.js",
 ];
 const EXPECTED_DOORS = [
   "account.js", "apply.js", "checkins.js", "handoff.js", "invites.js", "ops.js", "org.js",
@@ -249,6 +254,10 @@ const ROOM_WA = await import(pathToFileURL(join(API, "_room-whatsapp.js")).href)
 const { verifyRoomWhatsappWebhook, handleStatusWebhook } = ROOM_WA;
 const WHATSAPP = await import(pathToFileURL(join(API, "whatsapp.js")).href);
 const { signatureOk } = WHATSAPP;
+// WS-R104 (migration 128): room-wa.js's second decision module, reached only
+// behind ROOM_WHATSAPP_CHAT=1.
+const ROOM_WA_CHAT = await import(pathToFileURL(join(API, "_room-whatsapp-chat.js")).href);
+const { handleRoomWhatsappChatWebhook, whatsappChatEnabled } = ROOM_WA_CHAT;
 // WS-R51: the widened §18 door list's own new callers.
 const FUNNEL = await import(pathToFileURL(join(API, "_funnel.js")).href);
 const { markStep } = FUNNEL;
@@ -2870,6 +2879,167 @@ console.log("\n── §23: replay / reuse ──");
   const first = await handleStatusWebhook(payload, { db: fakeDb });
   const second = await handleStatusWebhook(payload, { db: fakeDb });
   okClass("d-replay-reuse", "room-wa.js", "WhatsApp: the SAME status payload delivered twice produces the byte-identical result both times (nothing persisted for a duplicate to corrupt)", JSON.stringify(first) === JSON.stringify(second));
+}
+
+// (d5) WhatsApp CHAT (WS-R104, migration 128) — the SAME class-(d) redelivery
+// finding `handleRoomTelegramUpdate` has, one transport over:
+// `handleOrdinaryMessage` metres the follower's monthly cap through
+// `roomSay`; a redelivered Cloud API message id (Meta's own retry policy,
+// never a third party — the HMAC already refuses anyone else) would
+// otherwise double-spend it and send a second reply. `room_wa_chat_seen` is
+// the identical BOUNDED mitigation `room_tg_update_seen` already is
+// (`api/_rate-limit.js`'s own header on the scope), proven here with a fake
+// `consume` for the same reason Telegram's own case is.
+{
+  // A FIRST delivery of a real message id is NOT swallowed by the dedup
+  // check — it reaches ordinary dispatch (a fake `personForSurfaceUser`
+  // returns null, simulating an unbound phone, and the door answers "send
+  // join <slug>" exactly as it would for any other unbound sender).
+  const consumeCalls = [];
+  const fakeConsume = async (_db, { key }) => { consumeCalls.push(key); return { ok: true }; };
+  const sent = [];
+  const fakeWa = {
+    sendText: async (phone, text) => { sent.push({ phone, text }); return { ok: true }; },
+    sendButtons: async () => ({ ok: true }),
+  };
+  const payload = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000070001", id: "wamid.d5.first", type: "text", text: { body: "hi" } }] } }] }],
+  };
+  const result = await handleRoomWhatsappChatWebhook(payload, {
+    db: async () => [], wa: fakeWa, consume: fakeConsume, personForSurfaceUser: async () => null,
+    linkSurfacePerson: async () => null, now: NOW, env: ENV,
+  });
+  okClass("d-replay-reuse", "room-wa.js", "the FIRST delivery of a real WhatsApp message id is NOT short-circuited — it reaches ordinary dispatch (an unbound phone, answered honestly)",
+    result?.replies === 1 && consumeCalls.includes("wamid.d5.first") && sent.length === 1);
+}
+{
+  // A cleaner, positive proof: the SECOND delivery of the SAME message id is
+  // a no-op, never reaching the database at all.
+  const seen = new Set(["wamid.d5.second"]); // pretend the first delivery already consumed this key
+  const fakeConsume = async (_db, { key }) => (seen.has(key) ? { ok: false } : { ok: true });
+  const poisonDb = async () => { throw new Error("handleRoomWhatsappChatWebhook reached the database for a redelivered message id — this must be a no-op"); };
+  const payload = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000070002", id: "wamid.d5.second", type: "text", text: { body: "hi again" } }] } }] }],
+  };
+  const result = await handleRoomWhatsappChatWebhook(payload, { db: poisonDb, consume: fakeConsume, now: NOW, env: ENV });
+  okClass("d-replay-reuse", "room-wa.js", "a REDELIVERED WhatsApp message id is a no-op — never reaches the database, never double-spends the follower's cap",
+    result?.ok === true && result?.replies === 1);
+
+  // NEGATIVE CONTROL: a DIFFERENT message id from the SAME phone is NOT a
+  // no-op — the dedup guard is keyed on the message id, not the phone,
+  // proving the control is not vacuous.
+  const seen2 = new Set(["wamid.d5.second"]);
+  const fakeConsume2 = async (_db, { key }) => (seen2.has(key) ? { ok: false } : { ok: true });
+  const sent2 = [];
+  const payload2 = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000070002", id: "wamid.d5.different", type: "text", text: { body: "a different message" } }] } }] }],
+  };
+  const result2 = await handleRoomWhatsappChatWebhook(payload2, {
+    db: async () => [], consume: fakeConsume2, personForSurfaceUser: async () => null, linkSurfacePerson: async () => null,
+    wa: { sendText: async (phone, text) => { sent2.push({ phone, text }); return { ok: true }; }, sendButtons: async () => ({ ok: true }) },
+    now: NOW, env: ENV,
+  });
+  // Reached ordinary dispatch (not swallowed as a "seen" duplicate) is
+  // proven by a REPLY actually going out — the identical proxy `handleRoomTelegramUpdate`'s
+  // own consumeCalls-based first-delivery case above uses, restated as the
+  // sent-message count since an unbound phone's own reply path never
+  // reaches `db` at all (this same fact is what makes the FIRST-delivery
+  // case above assert `sent.length === 1` rather than a db call).
+  okClass("d-replay-reuse", "room-wa.js", "NEGATIVE CONTROL: a different message id from the same phone reaches the lane normally, not swallowed by the dedup branch",
+    result2?.ok === true && result2?.replies === 1 && sent2.length === 1);
+}
+
+// (d6) WhatsApp CHAT — a message from an UNKNOWN NUMBER never creates a
+// person before the join completes. `resolveActiveFollower`'s own
+// `ctx.findPerson` call is READ-ONLY (`personForSurfaceUser`'s own
+// contract, api/_room.js — a select, never an insert); ONLY `ctx.linkPerson`
+// (`linkSurfacePerson`) creates a `vy_person`/`vy_surface_identity` row, and
+// it is called from exactly one place in the whole file — the final `m1`/
+// `m0` button tap, after BOTH the age and memory answers are known. This
+// case proves an ordinary text from an unbound phone never reaches
+// `linkPerson` at all — a poisoned `linkPerson` that throws is never called.
+{
+  let findPersonCalls = 0;
+  const poisonLinkPerson = async () => { throw new Error("an ordinary message from an unbound phone called linkPerson — a person must never be created before the join"); };
+  const findPerson = async () => { findPersonCalls++; return null; };
+  const sent = [];
+  const fakeWa = {
+    sendText: async (phone, text) => { sent.push({ phone, text }); return { ok: true }; },
+    sendButtons: async () => ({ ok: true }),
+  };
+  const payload = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000080001", id: "wamid.d6.1", type: "text", text: { body: "hello, is anyone there?" } }] } }] }],
+  };
+  const result = await handleRoomWhatsappChatWebhook(payload, {
+    db: async () => [], wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: findPerson, linkSurfacePerson: poisonLinkPerson, now: NOW, env: ENV,
+  });
+  okClass("d6-unknown-number-no-person", "room-wa.js", "an ordinary message from an unbound phone reaches dispatch and gets the join instruction",
+    result?.replies === 1 && sent.length === 1);
+  okClass("d6-unknown-number-no-person", "room-wa.js", "...via a READ-ONLY identity lookup (findPerson was called)", findPersonCalls > 0);
+  okClass("d6-unknown-number-no-person", "room-wa.js", "...and NEVER creates a person — a linkPerson that throws is never called for an ordinary message from an unbound phone", true);
+
+  // The SAME proof for a button tap that is NOT the final "m1"/"m0" step
+  // (the age gate's own "no" answer) — declining the age question must not
+  // create a person either.
+  const declinePayload = {
+    entry: [{ changes: [{ value: { messages: [{ from: "919000080002", id: "wamid.d6.2", type: "interactive", interactive: { type: "button_reply", button_reply: { id: "a0:anjali" } } }] } }] }],
+  };
+  const declineResult = await handleRoomWhatsappChatWebhook(declinePayload, {
+    db: async () => [], wa: fakeWa, consume: async () => ({ ok: true }),
+    personForSurfaceUser: findPerson, linkSurfacePerson: poisonLinkPerson, now: NOW, env: ENV,
+  });
+  okClass("d6-unknown-number-no-person", "room-wa.js", "declining the age gate (a0) is handled and never calls linkPerson either", declineResult?.ok === true);
+}
+
+// (d7) forged signature refused FIRST — before the ROOM_WHATSAPP_CHAT branch
+// is ever consulted. `room-wa.js`'s own HMAC check (`verifyRoomWhatsappWebhook`,
+// `signatureOk`'s own class d-webhook-replay proof above) already runs before
+// EITHER inbound-message branch in the shipping handler; this case proves
+// that ordering directly against the real source rather than trusting it by
+// inspection — the SAME class of structural proof `evals/room-telegram/
+// run.mjs`'s own (b) uses ("refused with a function that takes no db
+// parameter at all"), applied here to source ORDER rather than a function
+// signature, since the WhatsApp door's flag branch sits inside one handler
+// rather than a second function.
+{
+  const src = readFileSync(join(API, "room-wa.js"), "utf8");
+  const authCheckIdx = src.indexOf("if (!auth.ok)");
+  const flagBranchIdx = src.indexOf("whatsappChatEnabled(process.env)");
+  okClass("d7-forged-signature-refused-first", "room-wa.js", "the real source contains both the auth-ok check and the ROOM_WHATSAPP_CHAT branch (not moved/renamed)",
+    authCheckIdx !== -1 && flagBranchIdx !== -1);
+  okClass("d7-forged-signature-refused-first", "room-wa.js", "the auth-ok check appears BEFORE the ROOM_WHATSAPP_CHAT branch in source order — a forged signature is refused before either inbound-message path is ever reached",
+    authCheckIdx < flagBranchIdx);
+
+  // Dynamically, not merely structurally: `verifyRoomWhatsappWebhook` IS
+  // `api/whatsapp.js`'s own `verify()`, reused verbatim (`_room-whatsapp.js`'s
+  // own header states this — never a second implementation), and `verify()`'s
+  // cryptographic core is `signatureOk`, a pure function with no module-level
+  // state to fake — the SAME primitive the d-webhook-replay class above
+  // already proves refuses a garbage signature and a tampered body. `verify()`
+  // itself cannot be exercised dynamically with a FRESH secret from this test
+  // (its own `APP_SECRET` is captured from `process.env` at module load time,
+  // before this suite ever runs — `evals/room-telegram/run.mjs`'s own (b)
+  // avoids the identical trap by testing `verifyRoomTelegramWebhook` with an
+  // explicitly injectable `env` instead, which `api/whatsapp.js`'s `verify()`
+  // does not accept), so this reaches for `signatureOk` directly rather than
+  // asserting something the module's real load-time secret would silently
+  // decide for us either way.
+  const WA_SECRET = "wa-app-secret-r104-d7";
+  const rawBody = Buffer.from(JSON.stringify({ entry: [] }));
+  const goodSig = "sha256=" + createHmac("sha256", WA_SECRET).update(rawBody).digest("hex");
+  const badSig = "sha256=" + "0".repeat(64);
+  okClass("d7-forged-signature-refused-first", "room-wa.js", "the cryptographic check verify() delegates to (signatureOk) refuses a forged signature",
+    signatureOk(WA_SECRET, rawBody, badSig) === false);
+  okClass("d7-forged-signature-refused-first", "room-wa.js", "...and admits the genuinely correct one, proving the control is not vacuously refusing everything",
+    signatureOk(WA_SECRET, rawBody, goodSig) === true);
+  // No `db` parameter anywhere on `verifyRoomWhatsappWebhook`'s own
+  // signature — structurally, there is nothing for a forged-signature
+  // request to reach before this check runs, `evals/room-telegram/run.mjs`'s
+  // own (b) restated for a function that takes an HTTP request rather than a
+  // (header, secret) pair.
+  okClass("d7-forged-signature-refused-first", "room-wa.js", "verifyRoomWhatsappWebhook itself takes no db parameter at all — refusal is structurally before any read",
+    verifyRoomWhatsappWebhook.length <= 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

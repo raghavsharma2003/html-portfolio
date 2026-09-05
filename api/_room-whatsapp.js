@@ -79,7 +79,7 @@
 // ONE MORE WIRE inside a workstream scoped to a delivery channel is exactly
 // the shortcut that law exists to refuse.
 import { RoomError, readRoomSession, assertSessionFresh, resolveRoom, followerRow } from "./_room-surface.js";
-import { verify as verifyWhatsappWebhook, send as whatsappSend, noteInbound } from "./whatsapp.js";
+import { verify as verifyWhatsappWebhook, send as whatsappSend, noteInbound, windowOpen } from "./whatsapp.js";
 
 /** The named template. A constant, never a request field and never an env
  *  var — workstream law #3. Its language is a constant for the identical
@@ -332,6 +332,70 @@ export async function sendTemplate(phoneE164, payload, deps = {}) {
       language: { code: TEMPLATE_LANG },
       components: templateComponents(payload, env),
     },
+  };
+  const res = await deps
+    .fetch(`${CLOUD_API}/${phoneId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    })
+    .catch(() => null);
+  if (!res) return { ok: false, status: 0, errorCode: "network" };
+  let errorCode = "";
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    errorCode = String(data?.error?.code ?? data?.error?.error_subcode ?? res.status);
+  }
+  return { ok: Boolean(res.ok), status: Number(res.status) || 0, errorCode };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE SESSION-MESSAGE SENDER (WS-R104) — beside the template sender above,
+// the SAME fetch seam: `deps.fetch` REQUIRED, no fallback to a global
+// `fetch`, so an eval that forgets to inject one gets a loud error rather
+// than a silent real HTTP request; `deps.accessToken`/`deps.phoneId` default
+// to the SAME `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` env names
+// every other sender in this file already reads — one WhatsApp Business
+// number, never a second credential pair.
+//
+// A TEMPLATE ALWAYS OPENS THE WINDOW; A SESSION MESSAGE MAY ONLY RIDE ONE
+// ALREADY OPEN. `sendTemplate` above exists because a proactive check-in has
+// no inbound message to open a window with. `api/_room-whatsapp-chat.js`'s
+// whole lane is the opposite shape: every send it makes is a REPLY to a
+// message that just arrived, so the window this function checks
+// (`windowOpen`, api/whatsapp.js's own ledger — reused, never
+// re-implemented, that file's own header states why: it is the ONE place
+// this platform's best-effort mirror of Meta's real 24-hour clock lives) is
+// the same one the caller's own `noteInbound` call for that inbound message
+// just opened. The rare case this branch actually refuses — a cold start
+// losing the in-memory ledger between the inbound webhook and this call —
+// is the honest, named failure the caller reports as a content-free skip
+// count, never a silent drop and never a template substituted on the
+// follower's behalf (`api/whatsapp.js`'s own `send()` states the identical
+// law one file over).
+//
+// `messageBody` is Meta's own per-type payload shape MINUS the envelope
+// (`messaging_product`/`recipient_type`/`to`, which this function fills in)
+// — `{type: "text", text: {body}}` or `{type: "interactive", interactive:
+// {...}}`, so ONE sender carries every message shape the chat lane needs
+// (a plain reply, the age/memory gate's own reply buttons) rather than one
+// function per shape.
+export async function sendSessionMessage(phoneE164, messageBody, deps = {}) {
+  const env = deps.env || process.env;
+  const accessToken = deps.accessToken ?? env.WHATSAPP_ACCESS_TOKEN ?? "";
+  const phoneId = deps.phoneId ?? env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+  if (!accessToken || !phoneId) return { ok: false, status: 0, notConfigured: true };
+  if (typeof deps.fetch !== "function") throw new Error("room_whatsapp_session_send_fetch_required");
+  const now = deps.now ?? Date.now();
+  const isWindowOpen = deps.windowOpen ?? windowOpen;
+  if (!isWindowOpen(phoneE164, now)) return { ok: false, status: 0, skipped: "outside_window" };
+
+  const body = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: String(phoneE164).replace(/^\+/, ""),
+    ...messageBody,
   };
   const res = await deps
     .fetch(`${CLOUD_API}/${phoneId}/messages`, {

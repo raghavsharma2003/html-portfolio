@@ -3062,6 +3062,25 @@ export const PERSON_TABLES = [
   // reached only by cascade is a row deleted but never counted). Reached by
   // the account-wide whole wipe through the "relational" lane alone.
   { table: "vy_room_follower_whatsapp", key: "person_id", lane: "relational" },
+  // ── WS-R104: which room a WhatsApp phone currently means (migration 128) ──
+  //
+  // `vy_room_follower_channel`'s own pointer above, one transport further -
+  // NOT `agent: true` (no `agent_id` column, the same reasoning restated a
+  // further time). UNLIKE that table and `vy_room_follower_whatsapp` right
+  // above it, this one carries NO `follower_id references
+  // vy_room_follower(follower_id) on delete cascade` at all - migration 128's
+  // own header states why (009's own WHERE-clause-binding law, restated
+  // rather than the 082 exception repeated a third time): `room_id`
+  // carries the FK (with cascade), `person_id`/`follower_id` do not, so this
+  // row is reached ONLY by the account-wide whole wipe below (lane
+  // "relational") and `roomForget`'s own explicit room_id+person_id delete,
+  // never by a cascade a caller could forget to name. The phone number
+  // itself was never written here at all (`phone_hash` is a salted sha256,
+  // migration 128's own header) - the whole-account wipe below still reaches
+  // this table by person_id exactly as it reaches every sibling above, since
+  // deleting the row is deleting the row whether or not it ever held the
+  // number in the clear.
+  { table: "vy_room_follower_whatsapp_chat", key: "person_id", lane: "relational" },
   // ── Handoff (WS-R20; migration 083) ──
   //
   // A follower's own verbatim ask and the creator's own verbatim reply to
@@ -3321,6 +3340,10 @@ export const REPLICA_PERSON_TABLES = [
   "vy_renewal_reminder",
   // Arrives with 116 (WS-R67), on the identical reasoning.
   "vy_room_follower_reply_flag",
+  // Arrives with 128 (WS-R104), on the identical reasoning: a database
+  // between the code push and the migration landing must not have the
+  // account-wide whole wipe 500 on a table it does not have yet.
+  "vy_room_follower_whatsapp_chat",
 ];
 
 // tables and columns that migration 008 introduces
