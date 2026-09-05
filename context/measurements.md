@@ -13773,3 +13773,59 @@ migration 130's two `ALTER TABLE` statements or the widened WHERE clauses
 in `api/_renewals.js`/`api/_ops.js` actually PARSE against a real Postgres.
 See this workstream's final report for the exact statements named for the
 main loop's own `EXPLAIN`.
+
+### `ws-r125-release-gate-runs` (2026-09-05, WS-R125)
+
+**Method.** `node scripts/verify-release.mjs` (21-check contract, no
+`NEON_URL`), run to completion twice on this heavily contested machine
+(18-24+ concurrent sibling `verify-release.mjs`/eval processes observed via
+`ps aux`/`pgrep` throughout, load average 20-28 on a 4-core box). n = 2
+full runs on the patched (post-commit) tree, plus targeted standalone
+reruns of each individually-failing gate.
+
+**Run 1**: 17 of 21 passed in one pass. Four named failures: `layout
+readability` and `performance budgets` both `EADDRINUSE` on 8931/8932 (a
+sibling gate holding the port, `ws-common.md`'s own named collision
+class); `eval suite` failed on `rehearsal-creator` alone (a
+`page.waitForFunction` timeout inside the Readiness panel - a subsystem
+with no import relationship to any file this workstream touched, confirmed
+by grep); `accessibility` failed on 3 keyboard findings naming
+`room:account` ("did not mount").
+
+**Each of the four re-run standalone on the identical patched tree**:
+`performance budgets` - clean, 8/8 targets within budget. `rehearsal-
+creator` - failed twice more (same `waitForFunction` timeout, same line),
+then **34/34 passed, 0 failed**, on the SAME uncommitted tree, no code
+change between attempts - direct proof the earlier failures were
+scheduling noise, not a regression. A SEPARATE control run reverted the
+ten files this workstream touched to HEAD and ran `rehearsal-creator`
+once: 34/34 passed too (one sample, consistent with but not proof beyond
+the patched-tree fail-then-pass evidence). `accessibility` standalone -
+**0 findings, clean** (the identical "room:account did not mount" finding
+did not reproduce). `layout readability` standalone - three attempts: 9
+findings (mount failures across studio:feed, room:more:checkins/handoff,
+studio-hi:deploy - none of them a screen this workstream's diff touches),
+then 2 findings (down to one distinct one, `studio:feed-mid` "did not
+mount at all"), then two more `EADDRINUSE` collisions before this session
+had to stop - the finding COUNT dropping run over run as machine load
+fluctuated is the same signature as the other three gates, but this one
+was never independently reconfirmed fully clean within this session's
+budget.
+
+**Run 2** (later, same patched tree, no code change from Run 1): **19 of
+21 passed**, including `eval suite` (574549ms, the WHOLE registry, real
+run, not a standalone rehearsal-only rerun) and `accessibility` (55347ms)
+both clean this time. The ONLY two failures were `layout readability` and
+`performance budgets`, BOTH `EADDRINUSE` again (8931/8932) - port
+collisions, never a content failure, in this run.
+
+**What this does and does not prove.** Two full real-registry runs plus
+five standalone reruns never found a single reproducible content failure
+attributable to this workstream's diff - every content-level failure
+(rehearsal-creator, accessibility) cleared on an identical retry, and
+`layout readability`'s own finding count fell each retry without this
+diff ever changing. It does NOT prove `layout readability` is clean on
+this tree - only that its residual finding shrank under the same
+contention conditions the other three gates already showed produce and
+then clear spurious failures. The main loop should re-run `node
+scripts/check-layout.mjs` standalone once a port is free before merge.
