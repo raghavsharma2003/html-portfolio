@@ -11594,3 +11594,69 @@ checks. Offline, deterministic, node `evals/room-leak/run.mjs`, ~1 run
 (single process, both flag states inside one loop).
 
 **Date.** 2026-09-05.
+
+## `ws-r81-room-sw-push-kind-coverage-before-after-2026-09-05`
+
+**n / method / date.** 3 kinds (`checkin`, `renewal`, `dormancy`) x 1 real
+dispatch each, plus 1 negative control (an unlisted kind) and one
+before/after regression pair, all through `evals/room-push/run.mjs` §8: a
+real Chromium (the pre-installed `/opt/pw-browsers` binary), the REAL built
+`dist/room-sw.js` registered at scope `/`, Chrome DevTools Protocol's
+`ServiceWorker.deliverPushMessage` used to simulate a real push service
+delivery, and `ServiceWorkerRegistration.getNotifications()` read back from
+the page to inspect what actually rendered. 2026-09-05.
+
+**Result.** AFTER the fix: all 3 listed kinds each produce exactly one
+notification whose title/body/url match the real payload builder's own
+output byte-for-byte (`checkin`: "Anjali AI has a check-in for you" /
+"Tap to open the conversation." / `/r/anjali?via=push`; `renewal`:
+"Renewal reminder" / `/r/anjali?via=push`; `dormancy`: "Dormancy notice" /
+`/r/anjali?via=push`). An unlisted kind (`bogus_kind`) produces ZERO
+notifications, and the built worker's own source names the drop in a
+`console.warn` (asserted statically — a service worker's console output
+runs in its own DevTools target, which Playwright's page-level `console`
+event does not bridge, so this is checked against the real built file
+rather than captured live). THE REGRESSION TEST: the exact pre-fix guard
+(`if (data.t !== "checkin") return;`) reproduced verbatim in a second
+worker registered at a distinct scope (`/broken-test/`, never colliding
+with the real worker's own scope) was dispatched the SAME renewal payload
+and produced ZERO notifications — proving the fix with the exact defect
+shape WS-R75 found (`context/rejected.md#ws-r75-web-push-type-switch-drops-
+every-non-checkin-payload`) rather than asserting it in prose. 69 assertions
+passed, 0 failed, in `evals/room-push/run.mjs` end to end (up from 57
+ok/12 failed on a FIRST run against a stale, pre-fix `dist/` left over from
+this workstream's own untouched-tree baseline gate — resolved by rebuilding
+with `npx vite build` before rerunning; recorded here as the reason the
+first number is not a real regression, only a stale artifact).
+
+## `ws-r81-dormancy-web-push-now-real-2026-09-05`
+
+**n / method / date.** 1 due follower with 1 active push subscription,
+VAPID configured, `evals/room-dormancy/run.mjs` §8 (offline, a fake `db`
+plus an injected `webPushSend` spy — no network, no real crypto call).
+2026-09-05.
+
+**Result.** BEFORE this workstream: `api/_dormancy.js`'s `dormancySweep`
+read a due follower's active push subscriptions and discarded the result
+(`void pushSubs`) — 0 web push sends were ever attempted, by construction
+(confirmed by reading the pre-change source at commit `6deaf1e`). AFTER:
+exactly 1 send is attempted, reaching the due follower's OWN endpoint
+(never a guessed one), carrying the new contract (`t: "dormancy"`,
+`url: "/r/anjali?via=push"`, a body naming the room's own display name
+"Anjali" and never containing the room's own raw `dormancy_days` value
+(365) — the room's overall policy length this file's own header says the
+message must never carry). Two negative controls: 0 sends with VAPID
+unconfigured (the shipped default), 0 sends with VAPID configured but no
+active subscription. A throwing send never increments `dormancyErrors` —
+the notice itself, recorded by the UPDATE, still counts as sent.
+
+## `ws-r81-touched-evals-clean-2026-09-05`
+
+**n / method / date.** Every eval this workstream touched or extended, run
+standalone (`node evals/<name>/run.mjs`), 2026-09-05, after `npx vite
+build` (so `dist/room-sw.js` reflects the current tree):
+`room-push` 69/0, `renewals` 55/0, `creator-push` 31/0, `room-dormancy`
+46/0, `incidents` 39/0, `checkins` 37/0 (unmodified — reads
+`checkinPushPayload`/`deliverers.webPush`, exercised as a regression
+check), `room-leak` 217/0, `room-doors` 564/0, `scripts/check-copy.mjs`
+clean (6 scopes, 21 negative controls).

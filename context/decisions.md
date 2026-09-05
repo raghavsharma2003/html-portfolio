@@ -15931,3 +15931,72 @@ evaluating AFTER the write instead — but that would move the kernel's own
 refusal to a point where the write has already happened, which is a
 strictly worse position for a "before it moves" gate to sit at, so this is
 not expected to happen without a very good reason.
+
+## `ws-r81-push-worker-one-contract-closed-kinds` — one payload contract, one closed kind list, in `public/room-sw.js`
+
+**Decision (2026-09-05, WS-R81).** `public/room-sw.js`'s `push` handler no
+longer hard-codes `if (data.t !== "checkin") return;`. It now reads a single
+wire contract, `{t, title, body, url}`, against a closed `Set` of
+recognised `t` values (`checkin`, `renewal`, `dormancy`) documented at the
+top of the file. A `t` outside that set is dropped, named once in a
+`console.warn`, never guessed at and never shown as a placeholder.
+`title`/`body`/`url` are pre-assembled, fixed, content-free strings the
+SENDER builds (`api/_push/webpush.js`'s `checkinPushPayload`/
+`renewalPushPayload`/`dormancyPushPayload`) — the worker itself no longer
+composes any notification text, only displays what it is handed.
+`notificationclick` reads `data.url` instead of reconstructing a route from
+`data.r`/`data.th`.
+
+**Why.** WS-R75 found and named, but did not fix (out of its own scope),
+that this single-value guard silently discarded every push whose `t` was
+not literally `"checkin"` — `context/rejected.md#ws-r75-web-push-type-
+switch-drops-every-non-checkin-payload`. That made WS-R37's renewal push
+(shipped) and WS-R75's own dormancy notice (never even attempted, because
+sending into a known-dead path is worse than not sending) both invisible on
+a follower's real device. A closed `Set` checked before any other field is
+read is the smallest change that (a) fixes both, (b) keeps the "never show
+a placeholder for something unrecognised" property the single-value guard
+already had, and (c) makes the NEXT kind a one-line addition to a Set plus
+a payload builder, rather than a second hard-coded `!==` check bolted onto
+the first (the shape WS-R75's own rejected-entry named as the wrong fix).
+
+**Reversal.** If a future kind needs to reach a follower's device often
+enough that editing this Set every time becomes real friction, consider
+`public/push-sw.js`'s own posture instead (show anything with a non-empty
+title and body, no kind list at all) — but that trades away the specific
+guarantee this list buys: an unrecognised or malformed payload can never
+render a bare, undifferentiated notification. Do not make that trade
+silently; it needs its own measurement of how often a genuinely bad payload
+would otherwise have shown something confusing.
+
+## `ws-r81-push-sw-shared-with-meera-no-closed-list` — `push-sw.js` aliases the new field names, never adopts the closed list
+
+**Decision (2026-09-05, WS-R81).** `public/push-sw.js` (the creator's
+weekly note, `api/_creator-push.js`'s `t: "creator_week"`; the operator's
+incident alert, `api/_incidents.js`'s `t: "incident"`) reads the SAME
+`{t, title, body, url}` shape `room-sw.js` now documents, but `t`/`url` are
+read as ALIASES of this file's older `kind`/`route` field names
+(`data.t ?? data.kind`, `data.url ?? data.route`) rather than those older
+names being retired, and the file keeps its existing permissive rule — show
+any payload carrying a non-empty title and body, regardless of what
+`t`/`kind` says — rather than adopting `room-sw.js`'s closed-kind drop.
+
+**Why.** `push-sw.js` is ALSO Meera's own push worker: `api/_push.js` sends
+`{kind: "reply"|"missedCall"|"story", route}` through the identical file
+(gated off by `pushConfigured()` in the shipping tree today, but not this
+workstream's to assume will stay off forever). Meera is a different product
+built in this same repo and explicitly out of WS-R81's brief to touch.
+Imposing this workstream's Rooms-specific closed list (`checkin`/
+`renewal`/`dormancy`/`creator_week`/`incident`) on a shared file would mean
+any FUTURE Meera kind this workstream has no way to enumerate gets silently
+dropped by a Vyakti workstream's own list — the exact failure class this
+whole workstream exists to close, inflicted on the other product instead.
+Aliasing the field names costs nothing (both builders already wrote fixed,
+non-empty title/body strings) and needed no change to `api/_push.js` at
+all.
+
+**Reversal.** If a future workstream is explicitly asked to unify Meera's
+and Vyakti's push kind vocabularies under one closed list (both products,
+one owner decision), fold Meera's three kinds into `push-sw.js`'s own list
+by name rather than leaving this split standing — and update this entry to
+`supersedes` this one when that happens.

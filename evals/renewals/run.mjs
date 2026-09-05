@@ -515,8 +515,27 @@ console.log("\n── §7: NEGATIVE CONTROL (c) — a follower's reminder carrie
   const fCols = [...src.matchAll(/\bf\.([a-z_]+)/g)].map((m) => m[1]).filter((c) => c !== "follower_id");
   ok("the only follower column the due-select reads is locale", fCols.length === 1 && fCols[0] === "locale");
   const webpushSrc = readFileSync(join(REPO, "api/_push/webpush.js"), "utf8");
-  const renewalPayloadFn = webpushSrc.slice(webpushSrc.indexOf("export function renewalPushPayload"));
-  ok("renewalPushPayload's own body never mentions a date, an amount or a message", !/date|amount|message|body/i.test(renewalPayloadFn.slice(0, 400)));
+  const renewalStart = webpushSrc.indexOf("export function renewalPushPayload");
+  const renewalEnd = webpushSrc.indexOf("\n}\n", renewalStart);
+  const renewalPayloadFn = webpushSrc.slice(renewalStart, renewalEnd < 0 ? webpushSrc.length : renewalEnd + 2);
+  // WS-R81: the wire contract now legitimately carries `body:`/`title:`
+  // FIELD KEYS (the bare words this check used to ban outright), so the
+  // banned list is now the actual CONTENT a renewal must never carry - a
+  // date, an amount, a currency - never the field names the contract itself
+  // requires. `periodEnd`/`amount`/`currency` are the exact identifiers
+  // `dueReminders` (this same file) hands a caller that DOES need them
+  // (the Telegram text, the studio card); their total absence here is what
+  // proves this function never reaches for them.
+  const banned = ["periodEnd", "amountInr", "amount_inr", "currency", "₹", "\\bRs\\b"];
+  const bannedRegex = new RegExp(banned.join("|"), "i");
+  const clean = !bannedRegex.test(renewalPayloadFn);
+  ok("renewalPushPayload's own source never mentions a date, an amount or a currency",
+    clean, clean ? "" : renewalPayloadFn);
+  // NEGATIVE CONTROL: the same scan DOES flag a version that reaches for
+  // the amount.
+  const poisoned = 'export function renewalPushPayload(slug, displayName, amountInr) {\n  return JSON.stringify({ body: `Rs ${amountInr}` });\n}';
+  ok("NEGATIVE CONTROL: the same scan DOES flag a poisoned version that carries amountInr",
+    bannedRegex.test(poisoned));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

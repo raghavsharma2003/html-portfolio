@@ -357,5 +357,94 @@ console.log("\n── §7: dormancyThisWeek — n>=5 floored, honest empty state
   ok("exactly one query was run (a single rolling-sum read, no per-Room loop)", calls === 1);
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §8: dormancy WEB PUSH — now real (WS-R81 fixed room-sw.js) ──");
+// ═════════════════════════════════════════════════════════════════════════
+// Before this workstream, `dormancySweep` never even tried a web push send
+// — it read `activeSubscriptionsFor` only to keep the seam exercised, then
+// discarded the result (`context/rejected.md#ws-r75-web-push-type-switch-
+// drops-every-non-checkin-payload` explains why: `public/room-sw.js` would
+// have dropped it silently on arrival regardless). Now that worker
+// recognises `t: "dormancy"`, so this section proves the send actually
+// fires — configured, with an active subscription — and stays silent
+// exactly where it always has (unconfigured, or no subscription).
+{
+  const state = freshState();
+  const baseDb = fakeDb(state);
+  const pushCalls = [];
+  // Wraps the SAME fixture db, answering the one new query
+  // (`activeSubscriptionsFor`'s own SELECT, already matched by the base
+  // fixture's line 182 branch — but that branch always returns `[]`) with a
+  // real row for the due-notice follower ONLY, so this section proves the
+  // send targets the RIGHT follower's own subscription, never a blanket one.
+  const db = async (sql, params = []) => {
+    if (sql.includes("from vy_room_push_subscription") && sql.includes("revoked_at is null")) {
+      const [followerId] = (params || []).map(String);
+      if (followerId === "f0000000-0000-4000-8000-000000000001") { // PERSON_DUE_NOTICE's own row
+        return [{ subscription_id: "sub-1", endpoint: "https://push.example.test/x", p256dh: "a", auth: "b" }];
+      }
+      return [];
+    }
+    return baseDb(sql, params);
+  };
+  const env = {
+    ROOM_DORMANCY: "1",
+    ROOM_PUSH_VAPID_PUBLIC: "pub", ROOM_PUSH_VAPID_PRIVATE: "priv", ROOM_PUSH_VAPID_SUBJECT: "mailto:ops@example.test",
+  };
+  const webPushSend = async (sub, payload) => { pushCalls.push({ sub, payload }); return { ok: true, status: 201 }; };
+  const summary = await dormancySweep({ db, env, ...DEPS, webPushSend }, NOW);
+  ok("with VAPID configured and an active subscription, the due follower gets exactly one web push send",
+    pushCalls.length === 1, JSON.stringify(summary));
+  ok("the send reached the due follower's OWN endpoint, not a guessed one",
+    pushCalls[0]?.sub?.endpoint === "https://push.example.test/x");
+  const parsed = pushCalls[0] ? JSON.parse(pushCalls[0].payload) : {};
+  ok("the send carries the WS-R81 {t,title,body,url} contract, t === 'dormancy'",
+    parsed.t === "dormancy", JSON.stringify(parsed));
+  ok("the url points at the Room, via=push", parsed.url === "/r/anjali?via=push", parsed.url);
+  ok("the body names the Room's own display name and never a raw dormancy_days number (365)",
+    parsed.body.includes("Anjali") && !parsed.body.includes("365"), parsed.body);
+  ok("summary counts are unaffected by the push attempt (one notice, same as §4's own unconfigured run)",
+    summary.dormancyNoticesSent === 1 && summary.dormancyErrors === 0, JSON.stringify(summary));
+
+  // NEGATIVE CONTROL (a): no VAPID configured — zero sends attempted, the
+  // exact shipped behaviour this repo has always had.
+  const state2 = freshState();
+  const db2 = fakeDb(state2); // unmodified: the subscription branch always answers []
+  const pushCalls2 = [];
+  const webPushSend2 = async (...a) => { pushCalls2.push(a); return { ok: true }; };
+  await dormancySweep({ db: db2, env: { ROOM_DORMANCY: "1" }, ...DEPS, webPushSend: webPushSend2 }, NOW);
+  ok("NEGATIVE CONTROL (a): without VAPID configured, zero web push sends are attempted",
+    pushCalls2.length === 0);
+
+  // NEGATIVE CONTROL (b): VAPID configured but no active subscription for
+  // the due follower — zero sends, never a guessed/blank one.
+  const state3 = freshState();
+  const db3 = fakeDb(state3);
+  const pushCalls3 = [];
+  const webPushSend3 = async (...a) => { pushCalls3.push(a); return { ok: true }; };
+  await dormancySweep({ db: db3, env, ...DEPS, webPushSend: webPushSend3 }, NOW);
+  ok("NEGATIVE CONTROL (b): configured VAPID but no active subscription sends nothing",
+    pushCalls3.length === 0);
+
+  // A send failure never blocks the notice or the Telegram attempt for the
+  // SAME follower — the notice was already recorded by the UPDATE, and this
+  // workstream's own law is "best effort, never bubbles."
+  const state4 = freshState();
+  const db4 = async (sql, params = []) => {
+    if (sql.includes("from vy_room_push_subscription") && sql.includes("revoked_at is null")) {
+      const [followerId] = (params || []).map(String);
+      if (followerId === "f0000000-0000-4000-8000-000000000001") {
+        return [{ subscription_id: "sub-1", endpoint: "https://push.example.test/x", p256dh: "a", auth: "b" }];
+      }
+      return [];
+    }
+    return fakeDb(state4)(sql, params);
+  };
+  const throwingSend = async () => { throw new Error("push service unreachable"); };
+  const summary4 = await dormancySweep({ db: db4, env, ...DEPS, webPushSend: throwingSend }, NOW);
+  ok("a throwing push send never trips dormancyErrors — the notice itself still counts as sent",
+    summary4.dormancyNoticesSent === 1 && summary4.dormancyErrors === 0, JSON.stringify(summary4));
+}
+
 console.log(`\nroom-dormancy: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

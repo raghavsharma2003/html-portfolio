@@ -170,8 +170,8 @@ function subDb(state) {
 console.log("\n── §3: creatorWeeklyPushPayload ──");
 {
   const p = creatorWeeklyPushPayload("anjali", "Anjali", 3, 42, null);
-  ok("creatorWeeklyPushPayload: shape matches push-sw.js's own {title, body, kind, route} contract",
-    typeof p.title === "string" && typeof p.body === "string" && p.kind === "creatorWeeklyPush" && p.route === "/r/anjali");
+  ok("creatorWeeklyPushPayload: shape matches room-sw.js's own {t, title, body, url} contract (WS-R81)",
+    typeof p.title === "string" && typeof p.body === "string" && p.t === "creator_week" && p.url === "/r/anjali");
   ok("creatorWeeklyPushPayload: body names the follower/message counts", p.body.includes("3") && p.body.includes("42"));
   ok("creatorWeeklyPushPayload: no headline given, none appears", !p.body.includes("null") && !p.body.includes("undefined"));
 

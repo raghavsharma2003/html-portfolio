@@ -68,7 +68,10 @@ const ok = (name, cond, extra = "") => {
 };
 
 const WP = await import(pathToFileURL(join(REPO, "api/_push/webpush.js")).href);
-const { encryptPayload, decryptPayload, vapidHeaders, checkinPushPayload, b64uEncode, b64uDecode } = WP;
+const {
+  encryptPayload, decryptPayload, vapidHeaders, checkinPushPayload, renewalPushPayload, dormancyPushPayload,
+  b64uEncode, b64uDecode,
+} = WP;
 const ROOM = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
 const { joinRoom } = ROOM;
 const PUSH = await import(pathToFileURL(join(REPO, "api/_room-push.js")).href);
@@ -105,8 +108,10 @@ console.log("── §1: THE CRYPTO — aes128gcm round-trip, independently deco
   const decoded = decryptPayload(body, { uaPrivate: receiver.privateRaw, authSecret });
   const parsed = JSON.parse(decoded.toString("utf8"));
   ok("round trip recovers the exact payload", JSON.stringify(parsed) === payload, JSON.stringify(parsed));
-  ok("the payload names the room and the creator's public name",
-    parsed.t === "checkin" && parsed.r === SLUG && parsed.n === "Anjali" && parsed.th === null);
+  ok("the payload carries the WS-R81 {t,title,body,url} contract, naming the room and the creator's public name",
+    parsed.t === "checkin" && parsed.title === "Anjali AI has a check-in for you" &&
+      parsed.body === "Tap to open the conversation." && parsed.url === `/r/${SLUG}?via=push`,
+    JSON.stringify(parsed));
 
   // Determinism: a fixed salt and sender keypair yield byte-identical output.
   const salt = Buffer.from("0".repeat(32), "hex");
@@ -366,7 +371,15 @@ console.log("\n── §6: NEGATIVE CONTROL (a), STATIC — the payload builder 
   ok("checkinPushPayload is present in the source", start >= 0);
   const closingBrace = src.indexOf("\n}\n", start); // the function's own end, not the next export's
   const body = src.slice(start, closingBrace < 0 ? src.length : closingBrace + 2);
-  const banned = ["prompt_shape", "promptShape", "row.title", "\\btitle\\b", "message", "\\bsaid\\b", "checkinDirective"];
+  // WS-R81: the wire contract now legitimately carries a `title:` FIELD KEY
+  // (the bare word "title"), so the bare-word ban this scan used to run is
+  // no longer a usable signal on its own — a leak of an actual THREAD title
+  // would read as property access off some row/object (`row.title`,
+  // `thread.title`, `checkin.title`), never a top-level object-literal key
+  // with nothing before the dot. `\.title\b` catches exactly that shape and
+  // NOTHING about the contract's own `title:` key, which the NEGATIVE
+  // CONTROL below proves both halves of.
+  const banned = ["prompt_shape", "promptShape", "\\.title\\b", "\\bmessage\\b", "\\bsaid\\b", "checkinDirective"];
   const bannedRegex = new RegExp(banned.join("|"));
   const clean = !bannedRegex.test(body);
   ok("the REAL checkinPushPayload's own source names none of the check-in-text identifiers",
@@ -377,6 +390,14 @@ console.log("\n── §6: NEGATIVE CONTROL (a), STATIC — the payload builder 
   const poisoned = `export function checkinPushPayload(slug, promptShape, threadId) {\n  return JSON.stringify({ r: slug, shape: promptShape });\n}`;
   ok("NEGATIVE CONTROL: the same scan DOES flag a poisoned version that carries promptShape",
     bannedRegex.test(poisoned));
+
+  // NEGATIVE CONTROL (WS-R81): a version that reads an actual row's own
+  // title (property access, not the contract's own literal key) must also
+  // be flagged — and the REAL function, which only ever WRITES a `title:`
+  // key and never reads one off a row, must not trip it.
+  const poisonedRowTitle = `export function checkinPushPayload(slug, displayName, threadId, row) {\n  return JSON.stringify({ title: row.title });\n}`;
+  ok("NEGATIVE CONTROL: the same scan DOES flag a version that reads row.title off an external object",
+    bannedRegex.test(poisonedRowTitle));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -471,6 +492,248 @@ console.log("\n── §7: RFC 8291 APPENDIX A, REPRODUCED (WS-R41) ──");
   }
   ok("a declared rs smaller than the actual record's bytes is still refused, not silently accepted", tooSmallRefused);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §8: REAL CHROMIUM — public/room-sw.js's own push handler, every kind ──");
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R81's own law #4: dispatch a synthetic `push` event for EACH kind
+// against the REAL, currently-built `dist/room-sw.js` and assert a
+// notification is shown with the right title and URL; NEGATIVE CONTROL: an
+// unlisted kind shows nothing. THE REGRESSION TEST: a synthetic worker
+// carrying the EXACT pre-fix guard this workstream found
+// (`context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-checkin-
+// payload` - `if (data.t !== "checkin") return;`) must FAIL to show a
+// renewal notification, and the REAL, current worker must PASS the
+// identical dispatch - proving the fix with the exact defect shape rather
+// than asserting it in prose.
+//
+// Uses Chrome DevTools Protocol's `ServiceWorker.deliverPushMessage` (via
+// Playwright's own `context.newCDPSession`) to simulate a real push
+// service delivery without a network route to one - `scripts/check-
+// install.mjs`'s own chromium-launch/executablePath precedent (WS-R59),
+// restated for a push dispatch instead of a precache walk. SKIPS cleanly,
+// same as that file, if `dist/` is unbuilt or no chromium binary is
+// available - this suite still runs standalone with no browser; only this
+// section needs one, and `evals/run.mjs`'s own gate order runs `npx vite
+// build` before the eval suite, so `dist/` is real by the time this runs
+// as part of the release gate.
+await (async () => {
+  const { existsSync } = fs;
+  const { readFile } = await import("node:fs/promises");
+  const { createServer } = await import("node:http");
+  const { extname, join: pjoin, normalize } = await import("node:path");
+
+  const DIST = join(REPO, "dist");
+  const PORT = 8941; // never 8931-8935/8940 - every other Chromium gate's own port (ws-common.md)
+  const SLUG8 = "anjali";
+
+  if (!existsSync(join(DIST, "room-sw.js")) || !existsSync(join(DIST, "room.html"))) {
+    console.log("  skip  §8: dist/room-sw.js or dist/room.html absent, run `npx vite build` first");
+    return;
+  }
+  let chromium;
+  try {
+    ({ chromium } = await import("playwright"));
+  } catch {
+    console.log("  skip  §8: playwright not installed");
+    return;
+  }
+  const executablePath = [
+    process.env.CHROMIUM_PATH,
+    "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    "/opt/pw-browsers/chromium/chrome-linux/chrome",
+  ].find((p) => p && existsSync(p));
+
+  const MIME = {
+    ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript",
+    ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml",
+    ".png": "image/png", ".webmanifest": "application/manifest+json",
+  };
+  const contentTypeFor = (p) => MIME[extname(p).toLowerCase()] || "application/octet-stream";
+
+  // The OLD, pre-fix worker — the exact bug this workstream found
+  // (`context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-
+  // checkin-payload`), served at a DISTINCT scope (`/broken-test/`) so it
+  // never collides with the real worker's own registration at scope "/".
+  const BROKEN_SW = `
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  if (data.t !== "checkin") return;
+  event.waitUntil(self.registration.showNotification(data.title || "x", { body: data.body || "", tag: "broken" }));
+});
+`;
+
+  const server = createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+      if (url.pathname === "/broken-test/sw.js") {
+        res.writeHead(200, { "content-type": "text/javascript" });
+        res.end(BROKEN_SW);
+        return;
+      }
+      if (url.pathname === "/broken-test/" || url.pathname === "/broken-test/index.html") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end("<!doctype html><title>broken-test</title>");
+        return;
+      }
+      if (url.pathname === "/harness.html") {
+        res.writeHead(200, { "content-type": "text/html" });
+        res.end("<!doctype html><title>room-push harness</title>");
+        return;
+      }
+      const rel = normalize(url.pathname.slice(1)).replace(/^(\.\.(\/|\\|$))+/, "");
+      const file = pjoin(DIST, rel);
+      if (!existsSync(file)) {
+        res.writeHead(404).end("not found");
+        return;
+      }
+      res.writeHead(200, { "content-type": contentTypeFor(file) });
+      res.end(await readFile(file));
+    } catch (err) {
+      res.writeHead(500).end(String(err?.message || err));
+    }
+  });
+  await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
+
+  const browser = await chromium
+    .launch(executablePath ? { executablePath, args: ["--no-sandbox"] } : { args: ["--no-sandbox"] })
+    .catch(() => null);
+  if (!browser) {
+    server.close();
+    console.log("  skip  §8: no chromium binary available");
+    return;
+  }
+
+  try {
+    const context = await browser.newContext({ serviceWorkers: "allow", permissions: ["notifications"] });
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${PORT}/harness.html`, { waitUntil: "load" });
+
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("ServiceWorker.enable");
+    const registrations = new Map(); // scopeURL -> registrationId
+    cdp.on("ServiceWorker.workerRegistrationUpdated", (e) => {
+      for (const r of e.registrations || []) registrations.set(r.scopeURL, r.registrationId);
+    });
+
+    // ── register the REAL worker at scope "/" ──
+    await page.evaluate(() => navigator.serviceWorker.register("/room-sw.js"));
+    await page
+      .waitForFunction(
+        () => navigator.serviceWorker.getRegistration("/room-sw.js").then((r) => !!r && !!r.active),
+        null,
+        { timeout: 15_000 },
+      )
+      .catch(() => {});
+    await page.waitForTimeout(400);
+
+    // ── register the BROKEN, pre-fix worker at a distinct scope ──
+    await page.evaluate(() =>
+      navigator.serviceWorker.register("/broken-test/sw.js", { scope: "/broken-test/" }),
+    );
+    await page
+      .waitForFunction(
+        () => navigator.serviceWorker.getRegistration("/broken-test/").then((r) => !!r && !!r.active),
+        null,
+        { timeout: 15_000 },
+      )
+      .catch(() => {});
+    await page.waitForTimeout(400);
+
+    const origin = `http://127.0.0.1:${PORT}`;
+    const realRegId = registrations.get(`${origin}/`);
+    const brokenRegId = registrations.get(`${origin}/broken-test/`);
+    ok("§8 setup: the REAL room-sw.js registration was captured over CDP", Boolean(realRegId));
+    ok("§8 setup: the BROKEN test worker's own registration was captured over CDP", Boolean(brokenRegId));
+
+    async function notificationsFor(swPath) {
+      return page.evaluate(async (p) => {
+        const reg = await navigator.serviceWorker.getRegistration(p);
+        if (!reg) return [];
+        const list = await reg.getNotifications();
+        return list.map((n) => ({ title: n.title, body: n.body, tag: n.tag, data: n.data }));
+      }, swPath);
+    }
+    async function closeAll(swPath) {
+      await page.evaluate(async (p) => {
+        const reg = await navigator.serviceWorker.getRegistration(p);
+        if (!reg) return;
+        const list = await reg.getNotifications();
+        for (const n of list) n.close();
+      }, swPath);
+    }
+    async function deliver(registrationId, dataString) {
+      if (!registrationId) return;
+      await cdp.send("ServiceWorker.deliverPushMessage", { origin, registrationId, data: dataString });
+      await page.waitForTimeout(300);
+    }
+
+    if (realRegId) {
+      // ── 1. EVERY LISTED KIND shows, title/body/url intact ──
+      const cases = [
+        { kind: "checkin", payload: checkinPushPayload(SLUG8, "Anjali", null), expectTitle: "Anjali AI has a check-in for you", expectBody: "Tap to open the conversation.", expectUrl: `/r/${SLUG8}?via=push` },
+        { kind: "renewal", payload: renewalPushPayload(SLUG8, "Anjali"), expectTitle: "Renewal reminder", expectUrl: `/r/${SLUG8}?via=push` },
+        { kind: "dormancy", payload: dormancyPushPayload(SLUG8, "Anjali"), expectTitle: "Dormancy notice", expectUrl: `/r/${SLUG8}?via=push` },
+      ];
+      for (const c of cases) {
+        await closeAll("/room-sw.js");
+        await deliver(realRegId, c.payload);
+        const shown = await notificationsFor("/room-sw.js");
+        ok(`§8: t="${c.kind}" shows a real notification`, shown.length === 1, JSON.stringify(shown));
+        const n = shown[0] || {};
+        ok(`§8: t="${c.kind}" notification title matches the payload`, n.title === c.expectTitle, n.title);
+        if (c.expectBody) ok(`§8: t="${c.kind}" notification body matches the payload`, n.body === c.expectBody, n.body);
+        ok(`§8: t="${c.kind}" notification data.url matches the payload's own url`, n.data?.url === c.expectUrl, JSON.stringify(n.data));
+      }
+
+      // ── 2. NEGATIVE CONTROL: an unlisted kind shows NOTHING ──
+      await closeAll("/room-sw.js");
+      await deliver(realRegId, JSON.stringify({ t: "bogus_kind", title: "should never show", body: "x", url: "/r/anjali" }));
+      const afterShown = await notificationsFor("/room-sw.js");
+      ok("§8 NEGATIVE CONTROL: an unlisted kind shows NOTHING", afterShown.length === 0, JSON.stringify(afterShown));
+      // The drop is named in a `console.warn` — asserted STATICALLY against
+      // the real built worker's own source rather than captured live: a
+      // service worker's console output runs in its own DevTools target,
+      // which Playwright's page-level `console` event does not bridge, so a
+      // live capture here would be testing Playwright's own plumbing, not
+      // this file's behaviour.
+      const swSrc = fs.readFileSync(join(DIST, "room-sw.js"), "utf8");
+      ok("§8 NEGATIVE CONTROL: the built worker's own source names the drop in a console.warn",
+        /console\.warn\(`\[room-sw\] unrecognised push kind/.test(swSrc));
+    } else {
+      ok("§8: every listed kind shows a real notification (SKIPPED — real registration id unavailable)", true);
+    }
+
+    // ── 3. THE REGRESSION TEST: the renewal kind's dead path ──
+    // BEFORE this workstream's fix (reproduced exactly by the BROKEN worker
+    // above): a renewal push must FAIL to show. AFTER (the REAL worker,
+    // already proven passing above): it must show. Both are asserted here
+    // so this section fails loudly if either side of the regression is
+    // ever untrue again.
+    if (brokenRegId) {
+      await closeAll("/broken-test/");
+      await deliver(brokenRegId, renewalPushPayload(SLUG8, "Anjali"));
+      const brokenShown = await notificationsFor("/broken-test/");
+      ok("§8 REGRESSION: BEFORE the fix (the exact old guard), a renewal push shows NOTHING",
+        brokenShown.length === 0, JSON.stringify(brokenShown));
+    } else {
+      ok("§8 REGRESSION: BEFORE the fix, a renewal push shows nothing (SKIPPED — broken registration id unavailable)", true);
+    }
+    if (realRegId) {
+      await closeAll("/room-sw.js");
+      await deliver(realRegId, renewalPushPayload(SLUG8, "Anjali"));
+      const fixedShown = await notificationsFor("/room-sw.js");
+      ok("§8 REGRESSION: AFTER the fix (the real, current worker), the SAME renewal push shows a notification",
+        fixedShown.length === 1 && fixedShown[0]?.title === "Renewal reminder", JSON.stringify(fixedShown));
+    }
+
+    await context.close();
+  } finally {
+    await browser.close();
+    server.close();
+  }
+})();
 
 console.log(`\nroom-push: ${pass} ok, ${fail} failed`);
 process.exit(fail ? 1 : 0);

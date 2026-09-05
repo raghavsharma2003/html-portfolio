@@ -328,13 +328,33 @@ export function vapidHeaders(endpoint, { publicKey, privateKey, subject }, now =
  * text a reply actually said, so no code path through this function can put
  * any of those on the wire. `evals/room-push/run.mjs`'s negative control (a)
  * greps this function's own source for those names and fails if any appear.
+ *
+ * WS-R81: the wire shape is now `{t, title, body, url}` —
+ * `public/room-sw.js`'s own documented contract (that file's own header) —
+ * rather than the `{t, r, n, th}` shape this function shipped with. The
+ * three facts it reads are UNCHANGED (slug, thread id, the room's own
+ * public display name); only WHERE the fixed notification sentence and the
+ * tap route get assembled moved, from the worker into this builder,
+ * because the worker's own CLOSED-KIND switch (law #1) needs a `t` to gate
+ * on before it can know what a title even is. The worker used to build
+ * this exact sentence itself from `n`/`th` — a follower sees the identical
+ * words, this function just writes them once instead of the worker writing
+ * them every time it fires. `context/rejected.md#ws-r75-web-push-type-
+ * switch-drops-every-non-checkin-payload` is why this shape existed at all:
+ * the OLD worker's own `data.t !== "checkin"` guard was the reason nothing
+ * but a check-in could ever reach a phone.
  */
 export function checkinPushPayload(slug, displayName, threadId = null) {
+  const name = String(displayName || "").slice(0, 80) || "Your creator";
+  const s = String(slug || "");
+  const url = threadId == null
+    ? `/r/${s}?via=push`
+    : `/r/${s}?via=push&thread=${encodeURIComponent(String(threadId))}`;
   return JSON.stringify({
     t: "checkin",
-    r: String(slug || ""),
-    n: String(displayName || "").slice(0, 80),
-    th: threadId == null ? null : String(threadId),
+    title: `${name} AI has a check-in for you`,
+    body: "Tap to open the conversation.",
+    url,
   });
 }
 
@@ -347,12 +367,43 @@ export function checkinPushPayload(slug, displayName, threadId = null) {
  * it the same way `checkinPushPayload`'s own negative control does), because
  * a push notification renders on a lock screen and the follower's own room
  * panel is where the real sentence lives.
+ *
+ * WS-R81: same `{t, title, body, url}` wire shape `checkinPushPayload`
+ * above now writes. This function's own OUTPUT was silently dropped by
+ * every browser from the moment WS-R37 shipped it until this workstream
+ * fixed the worker's own switch — `context/rejected.md#ws-r75-web-push-
+ * type-switch-drops-every-non-checkin-payload` — its INPUTS and its
+ * no-date/no-amount law are unchanged.
  */
 export function renewalPushPayload(slug, displayName) {
+  const name = String(displayName || "").slice(0, 80) || "Your creator";
   return JSON.stringify({
     t: "renewal",
-    r: String(slug || ""),
-    n: String(displayName || "").slice(0, 80),
+    title: "Renewal reminder",
+    body: `${name} AI's subscription renews soon. Open the Room to review it.`,
+    url: `/r/${String(slug || "")}?via=push`,
+  });
+}
+
+/**
+ * WS-R81 (new). `api/_dormancy.js`'s own dormancy notice (WS-R75) never had
+ * a web-push send at all — that workstream found the worker's own drop bug
+ * and deliberately shipped no send path a follower could never see anyway
+ * (`context/rejected.md#ws-r75-web-push-type-switch-drops-every-non-checkin-
+ * payload`). Now that `public/room-sw.js` recognises `t: "dormancy"`, this
+ * is the third and last builder that contract needs. Same law as the two
+ * above: room slug and the room's own public display name only — never
+ * `dormancy_days` (the Room's own overall policy length, `api/_dormancy.js`'s
+ * own header names this as content the message must never carry) and never
+ * a follower's own last-seen date.
+ */
+export function dormancyPushPayload(slug, displayName) {
+  const name = String(displayName || "").slice(0, 80) || "Your creator";
+  return JSON.stringify({
+    t: "dormancy",
+    title: "Dormancy notice",
+    body: `Your conversation with ${name} AI will be forgotten soon if you do not return. Open the Room to keep it.`,
+    url: `/r/${String(slug || "")}?via=push`,
   });
 }
 
