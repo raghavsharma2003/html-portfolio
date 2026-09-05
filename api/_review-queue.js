@@ -79,6 +79,7 @@ import {
 } from "./_provider-budget.js";
 import { questionMessages } from "./_review-queue/questions.js";
 import { createPendingSource } from "./_replica-source.js";
+import { tableApplied } from "./memory.js";
 
 /** The queue never shows more than this many open cards. A queue that can grow
  *  without bound is a queue nobody opens twice: the promise is "card 14 of 30",
@@ -401,6 +402,122 @@ export async function readReviewQueue(db, ownerUserId, replicaIdValue) {
     active_never_rules: Number(rules[0]?.active_rules || 0),
     cap: REVIEW_OPEN_CAP,
   };
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// FLAGS (WS-R67, migration 116) — the card source for a follower's "Flag
+// this", never a second reply assembler and never a second consent gate.
+// ═════════════════════════════════════════════════════════════════════════
+//
+// `vy_room_reply_flag` gets no `kind` of its own on `vy_review_card`
+// (REVIEW_CARD_KINDS is deliberately untouched by this workstream): a flag is
+// a fact about what was said and how many times it was flagged, not a
+// generated question with its own lifecycle, and folding it into that table
+// would need a `count` column that table does not have and this workstream's
+// migration does not add. Instead the creator's queue reads the flag table
+// directly, live, at display time - `count(*) ... group by reply_sha256` IS
+// "ten followers, one card, n=10", a property of the READ rather than
+// something any row has to remember.
+
+/**
+ * The creator's aggregate read: every flagged reply on this replica, newest
+ * first, with a count and a reason breakdown. The join reaches `vy_room`
+ * ONLY to scope by (replica_id, owner_user_id) - `vy_room_reply_flag` itself
+ * names no follower, no thread, no person at all (migration 116's own
+ * header), so nothing this statement selects can ever be a follower's word
+ * or identity. `evals/room-leak/run.mjs`'s own layer 7 proves this by a real
+ * multi-follower world, not merely by reading this comment.
+ */
+export async function readFlaggedReplies(db, ownerUserId, replicaIdValue, deps = {}) {
+  if (typeof db !== "function") fail("review_db_required", 503);
+  const rid = replicaId(replicaIdValue);
+  const owner = reviewUuid(ownerUserId, "review_owner_required");
+  // Gated exactly as `api/_room-surface.js`'s Room extras are: a database
+  // that has not yet applied migration 116 gets an EMPTY list rather than a
+  // 500 on an undefined-table error - a deploy-ordering guard, never a claim
+  // that nothing was flagged. Injectable so an offline eval never reaches a
+  // real database to ask.
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied("vy_room_reply_flag"))) return [];
+  const rows = await db(
+    `select f.reply_sha256, f.reply_text,
+            count(*)::int4 as flag_count,
+            count(*) filter (where f.reason = 'wrong')::int4 as wrong_count,
+            count(*) filter (where f.reason = 'harmful')::int4 as harmful_count,
+            count(*) filter (where f.reason = 'not_them')::int4 as not_them_count,
+            count(*) filter (where f.reason = 'other')::int4 as other_count,
+            max(f.created_at) as last_flagged_at
+       from vy_room_reply_flag f
+       join vy_room r on r.room_id = f.room_id
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid
+      group by f.reply_sha256, f.reply_text
+      order by flag_count desc, last_flagged_at desc
+      limit 50`,
+    [rid, owner],
+  );
+  return rows.map((row) => ({
+    reply_sha256: row.reply_sha256,
+    reply_text: row.reply_text,
+    count: Number(row.flag_count || 0),
+    reasons: {
+      wrong: Number(row.wrong_count || 0),
+      harmful: Number(row.harmful_count || 0),
+      not_them: Number(row.not_them_count || 0),
+      other: Number(row.other_count || 0),
+    },
+    // "Never say this" pre-selected for harmful - the workstream brief's own
+    // words. True the moment even ONE flag on this reply named harmful, so
+    // the queue points the creator at the sharper decision rather than
+    // leaving them to notice a minority reason on their own.
+    suggest_never: Number(row.harmful_count || 0) > 0,
+    last_flagged_at: row.last_flagged_at,
+  }));
+}
+
+/**
+ * "Never say this," off a flagged reply. The SAME table
+ * (`vy_review_never_rule`) and the SAME predicate
+ * (`compileNeverRules`/`replyViolatesNeverRule`, applied inside
+ * `api/_surface.js::gateReply`) every never-rule already uses -
+ * `card_id` is null because a flag is not a review card (this section's own
+ * header). `pattern` is read back from `vy_room_reply_flag` by
+ * (replica, reply hash), never trusted off the request body - the SAME
+ * boundary law `api/_room-surface.js::flagReply` enforces one file over.
+ */
+export async function neverRuleFromFlaggedReply(db, ownerUserId, input, deps = {}) {
+  if (typeof db !== "function") fail("review_db_required", 503);
+  const rid = replicaId(input?.replica_id);
+  const owner = reviewUuid(ownerUserId, "review_owner_required");
+  const hash = String(input?.reply_sha256 || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(hash)) fail("review_flag_hash_invalid", 400);
+  const applied = deps.tableApplied ?? tableApplied;
+  if (!(await applied("vy_room_reply_flag"))) fail("review_flag_not_found", 404);
+  const found = await db(
+    `select f.reply_text
+       from vy_room_reply_flag f join vy_room r on r.room_id = f.room_id
+      where r.replica_id = $1::uuid and r.owner_user_id = $2::uuid and f.reply_sha256 = $3::text
+      order by f.created_at asc limit 1`,
+    [rid, owner, hash],
+  );
+  if (!found[0]) fail("review_flag_not_found", 404);
+  const pattern = neverRulePattern(found[0].reply_text);
+  const reason = reviewText(input?.reason, 500);
+  const rows = await db(
+    `with existing as (
+       select rule_id from vy_review_never_rule
+        where replica_id = $1::uuid and owner_user_id = $2::uuid
+          and lower(pattern) = lower($3::text) and revoked_at is null
+     ), inserted as (
+       insert into vy_review_never_rule (replica_id, owner_user_id, pattern, reason)
+       select $1::uuid, $2::uuid, $3::text, $4::text
+        where not exists (select 1 from existing)
+       on conflict do nothing
+       returning rule_id
+     )
+     select coalesce((select rule_id from inserted), (select rule_id from existing)) as rule_id`,
+    [rid, owner, pattern, reason],
+  );
+  return { rule_id: rows[0]?.rule_id ?? null, pattern };
 }
 
 /** What generation reads: the claims still awaiting a decision, the Mirror Call

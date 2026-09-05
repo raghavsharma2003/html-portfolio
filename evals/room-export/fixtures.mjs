@@ -55,6 +55,12 @@ export function freshExportState() {
     pulseOptinsX: [],
     pushSubscriptions: [],
     roomHandoffs: [],
+    // WS-R67 (migration 116). The FOLLOWER lane only - the creator's mirror
+    // (`vy_room_reply_flag`) is deliberately absent from this whole file:
+    // it names no person at all (migration 116's own header), so
+    // roomExport/roomForget never touch it and this fixture has no reason
+    // to model it either.
+    followerReplyFlags: [],
   };
 }
 
@@ -232,6 +238,25 @@ export function exportDb(state) {
       if (has("delete from")) {
         const gone = state.roomHandoffs.filter((r) => r.room_id === roomId && r.person_id === personId);
         state.roomHandoffs = state.roomHandoffs.filter((r) => !gone.includes(r));
+        return gone.map(() => ({ gone: 1 }));
+      }
+    }
+
+    // ── vy_room_follower_reply_flag (ROWS shape, WS-R67 migration 116) ──────
+    //    Same room_id+person_id statement shape as vy_room_handoff above -
+    //    roomExport's `ROOM_EXPORT_EXTRA` read and roomForget's own explicit
+    //    delete, never api/_room-surface.js's `flagReply`/`unflagReply`
+    //    (those are keyed on follower_id and are not modelled here, the
+    //    same reason vy_room_handoff's own hash-gated queue reads are not
+    //    modelled in this file either). ──────────────────────────────────
+    if (has("vy_room_follower_reply_flag") && has("room_id = ($1)::uuid and person_id = ($2)::uuid")) {
+      const [roomId, personId] = p;
+      if (has("select *")) {
+        return state.followerReplyFlags.filter((r) => r.room_id === roomId && r.person_id === personId);
+      }
+      if (has("delete from")) {
+        const gone = state.followerReplyFlags.filter((r) => r.room_id === roomId && r.person_id === personId);
+        state.followerReplyFlags = state.followerReplyFlags.filter((r) => !gone.includes(r));
         return gone.map(() => ({ gone: 1 }));
       }
     }

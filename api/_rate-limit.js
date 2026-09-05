@@ -100,6 +100,17 @@ export const DEFAULT_LIMITS = {
   // connection can probe verification codes for in an hour - same order of
   // magnitude as the send-side IP ceiling, for the same reason.
   otp_verify_ip: { limit: 30, windowMs: 60 * 60_000 },
+  // WS-R67. "At most 20 a day" (the workstream brief's own number), keyed on
+  // the follower's own `follower_id` - the SAME scope `room_flag_follower`
+  // the brief names by name. A day rather than a minute: flagging is a
+  // deliberate, occasional act, not a chat burst, so the window this file's
+  // other follower-keyed scopes use (60s) would be the wrong shape entirely.
+  // The real per-reply ceiling is the unique index on
+  // (follower_id, reply_sha256) in migration 116 - this is the SEPARATE
+  // volume ceiling across DIFFERENT replies in one day, `room_say_follower`'s
+  // own "a burst limit above a real cap" restated for a count of flags
+  // instead of a count of messages.
+  room_flag_follower: { limit: 20, windowMs: 24 * 60 * 60_000 },
 };
 
 /**

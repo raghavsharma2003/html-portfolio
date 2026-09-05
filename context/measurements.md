@@ -10317,3 +10317,41 @@ n = 1 migration (2 statements in one transaction), 1 API statement; method = the
 | `recordRoomArrival` with `via = 'install'` | Insert with `vy_room_arrival_pkey` as the conflict arbiter, unchanged from 102's plan; the CHECK now admits the value |
 
 Not measured: no phone has installed a Room, so no install arrival exists; before this migration such an arrival would have been refused by the CHECK and swallowed by the upsert's catch, a count that would have stayed at zero without anyone noticing.
+
+## `ws-r67-flag-this-reply-offline-2026-09-05`
+
+n = 40 assertions (`evals/room-flags/run.mjs`) + 8 assertions added to `evals/room-leak/run.mjs`'s layer 7 (bringing that battery to 89 passed, up from 81) + 6 assertions added to `evals/room-export/run.mjs`'s existing layers (bringing that battery to 45 passed, up from roughly 39) + 24 assertions added to `evals/room-doors/run.mjs`'s §9b (bringing that battery to 516 passed, up from 495); method = offline, deterministic, $0, no NEON_URL, run directly with `node evals/<suite>/run.mjs` on 2026-09-05 against migration 116 (not yet applied to the live database by this workstream). Every number above is a real console tally from a real run, not an estimate.
+
+Covers: three followers flagging the same reply produce ONE creator-side
+aggregate card with n=3 (`readFlaggedReplies`'s own GROUP BY); the creator
+lane's underlying table itself holds THREE undeduplicated rows for that
+reply (the design `ws-r67-flag-hash-not-body-two-lanes-count-at-read-time`
+states); a fabricated reply hash matching nothing in a follower's own
+history is refused (`room_flag_reply_not_found`); a second flag of the same
+reply by the same follower is refused by the unique index
+(`room_flag_already_flagged`) with the creator's row count unchanged; a
+body-supplied `reply_text` field is proven ignored (the written row always
+equals the real history text); withdrawal deletes the follower's own row
+and decrements the creator's read-time count by exactly one, in one
+statement; `followerFlags` returns the right list, joined with the AI's own
+text from the creator lane; `lastReplySha256` (Telegram's `/flag`) finds
+the most recent assistant turn and returns null for a follower with none;
+`neverRuleFromFlaggedReply` creates a never-rule off a flagged reply's real
+text (never body-supplied) and is idempotent on a second call for the same
+reply; a static scan (with its own negative control) proves no file outside
+a closed, reviewed set ever names `vy_room_reply_flag`, and no real
+statement naming it also carries a `follower_id`/`person_id`/`thread_id`
+column.
+
+Not measured: no real `vy_room_follower_reply_flag` or `vy_room_reply_flag`
+row has ever been inserted against the live Neon database by this
+workstream — migration 116 is written and mirrored into `db/schema.sql` but
+application and `EXPLAIN` of every new statement are the main loop's job at
+merge, per this wave's own brief. No human has tapped "Flag this" in a real
+browser or a real Telegram chat; the React control, the sheet, and the
+account-page list are built and typecheck clean (`npx tsc --noEmit`, zero
+errors) but are unverified against a live signed-in Room — `scripts/check-layout.mjs`
+was not specifically re-run against a flagged-reply state by this entry
+(the full `verify-release.mjs` gate run separately covers the existing
+layout/accessibility/performance batteries, which do not know this control
+exists yet as a distinct scenario).

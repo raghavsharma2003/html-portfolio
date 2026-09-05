@@ -19,6 +19,9 @@
 //   POST /api/room {op:"settings", session}          -> the follower's own page (WS-R39)
 //   POST /api/room {op:"settings_reviewed", session} -> "I looked at this page"
 //   POST /api/room {op:"citations", session}
+//   POST /api/room {op:"flag",   session, reply_sha256, reason} -> "Flag this" (WS-R67)
+//   POST /api/room {op:"unflag", session, reply_sha256}         -> withdraw one
+//   POST /api/room {op:"flags",  session}                       -> the follower's own list
 //   POST /api/room {op:"stats",  room:"<slug>"}
 //   POST /api/room {op:"export", session}
 //   POST /api/room {op:"forget", session}
@@ -96,6 +99,9 @@ import {
   roomSettingsReviewed,
   personForAccount,
   readRoomSession,
+  flagReply,
+  unflagReply,
+  followerFlags,
 } from "./_room-surface.js";
 import { PulseError, setOptIn, revoke as revokePulseOptIn } from "./_pulse.js";
 import { setSubscription, removeSubscription, subscriptionStatus } from "./_room-push.js";
@@ -392,6 +398,36 @@ async function handler(req, res) {
 
     if (op === "settings_reviewed") {
       return res.status(200).json(await roomSettingsReviewed(q, { session: body.session }));
+    }
+
+    if (op === "flag") {
+      // WS-R67. The burst limit ABOVE the real ceiling (the unique index on
+      // (follower_id, reply_sha256) in migration 116): 20/day, keyed on the
+      // follower's own person id, `say`/`push_subscribe`'s exact shape above
+      // - a garbage or stolen session is refused by `room_session_invalid`
+      // before this counter is ever touched.
+      const flagPayload = readRoomSession(body.session);
+      if (await refused(res, "room_flag_follower", flagPayload.p)) return;
+      const flagged = await flagReply(q, {
+        session: body.session,
+        replySha256: body.reply_sha256,
+        reason: body.reason,
+      });
+      obsBestEffort("room.flag", { reason: flagged.reason });
+      return res.status(200).json(flagged);
+    }
+
+    if (op === "unflag") {
+      return res.status(200).json(
+        await unflagReply(q, { session: body.session, replySha256: body.reply_sha256 }),
+      );
+    }
+
+    if (op === "flags") {
+      // The follower's own account-page list - theirs, never logged
+      // (`settings`'s own law above: a follower's own page visits and their
+      // own data are theirs, not a count this platform keeps).
+      return res.status(200).json(await followerFlags(q, { session: body.session }));
     }
 
     if (op === "citations") {

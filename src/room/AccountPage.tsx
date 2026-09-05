@@ -21,13 +21,16 @@ import { withName, withPrice } from "./copy";
 import {
   RoomApiError,
   exportRoomData,
+  followerFlags,
   forgetRoomData,
   markSettingsReviewed,
   pushSubscribe,
   pushUnsubscribe,
+  unflagReply,
   whatsappOptIn,
   whatsappStop,
   roomSettings as fetchRoomSettings,
+  type RoomFlag,
   type RoomForgetReceipt,
   type RoomSettings,
 } from "./roomApi";
@@ -122,6 +125,12 @@ export default function AccountPage({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmingForget, setConfirmingForget] = useState(false);
+  // WS-R67 (migration 116). This follower's own flags, this Room only -
+  // `followerFlags`'s own read joins the AI's reply text back in from the
+  // creator's content-free lane, so this page never has to keep its own
+  // copy of it.
+  const [flags, setFlags] = useState<RoomFlag[]>([]);
+  const [withdrawingHash, setWithdrawingHash] = useState<string | null>(null);
 
   // WS-R50 (WCAG 2.1.2, no keyboard trap). `DataMenu`'s own pattern
   // (`RoomApp.tsx`), one component over: Escape closes this page.
@@ -165,6 +174,29 @@ export default function AccountPage({
       live = false;
     };
   }, [session, fixtureSettings]);
+
+  // WS-R67. Never on a fixture, the settings effect's own rule restated.
+  useEffect(() => {
+    if (fixtureSettings) return;
+    let live = true;
+    followerFlags(session)
+      .then((result) => { if (live) setFlags(result.flags); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [session, fixtureSettings]);
+
+  const withdrawFlag = useCallback(async (replySha256: string) => {
+    setWithdrawingHash(replySha256);
+    setError("");
+    try {
+      await unflagReply(session, replySha256);
+      setFlags((prev) => prev.filter((f) => f.reply_sha256 !== replySha256));
+    } catch {
+      setError(copy.errors.generic);
+    } finally {
+      setWithdrawingHash(null);
+    }
+  }, [session, copy]);
 
   const [pushOn, setPushOn] = useState(false);
   const [waOn, setWaOn] = useState(false);
@@ -453,6 +485,30 @@ export default function AccountPage({
         // WS-R37's cancel op may not be in this tree yet — an honest state,
         // never a dead button (`context/rejected.md#a-step-is-never-silently-blocked`).
         <p className="room-fine">{copy.account.subscriptionNoCancel}</p>
+      )}
+
+      <h3 className="room-checkins-subhead">{copy.flag.accountTitle}</h3>
+      {flags.length === 0 ? (
+        <p className="room-fine">{copy.flag.accountEmpty}</p>
+      ) : (
+        <ul className="room-checkins-list">
+          {flags.map((f) => (
+            <li key={f.reply_sha256} className="room-checkins-row room-checkins-row--pickable">
+              <p className="room-fine">{f.reply_text}</p>
+              <p className="room-fine">{copy.flag.reasons[f.reason]}</p>
+              <p className="room-fine">{formatDate(f.created_at, locale)}</p>
+              <button
+                type="button"
+                className="room-btn"
+                disabled={withdrawingHash === f.reply_sha256}
+                onPointerDown={() => void withdrawFlag(f.reply_sha256)}
+                onKeyDown={activateOnKey(() => void withdrawFlag(f.reply_sha256))}
+              >
+                {withdrawingHash === f.reply_sha256 ? copy.flag.withdrawing : copy.flag.withdraw}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
 
       <h3 className="room-checkins-subhead">{copy.account.dataTitle}</h3>

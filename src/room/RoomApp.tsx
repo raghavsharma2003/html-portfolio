@@ -58,10 +58,13 @@ import {
   RoomApiError,
   dismissOffer,
   exportRoomData,
+  flagReply,
+  followerFlags,
   forgetRoomData,
   joinRoom,
   newRoomThread,
   openRoom,
+  replySha256,
   roomCitations,
   roomHistory,
   roomSettings as fetchRoomSettings,
@@ -72,8 +75,10 @@ import {
   setRoomLocale,
   speakInRoom,
   slugFromPath,
+  unflagReply,
   viaFromLocation,
   type RoomCitations,
+  type RoomFlagReason,
   type RoomFollower,
   type RoomForgetReceipt,
   type RoomOffer,
@@ -207,6 +212,21 @@ export default function RoomApp({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [cite, setCite] = useState<RoomCitations | null>(null);
+  // WS-R67 (migration 116). Which bubble's sheet is open (an index into
+  // `turns`, never a second copy of the reply text), which replies are
+  // already flagged this session (by hash, so the control can read
+  // "flagged" rather than offer to flag the same reply twice - the server's
+  // own unique index is the real guarantee; this is only the UI reading it
+  // back before a click can hit it), and whether a flag is in flight.
+  const [flagSheetFor, setFlagSheetFor] = useState<number | null>(null);
+  const [flaggedHashes, setFlaggedHashes] = useState<Set<string>>(new Set());
+  // Turn index -> that turn's own reply_sha256, computed once per turn (the
+  // Web Crypto digest is async; the bubble list itself renders
+  // synchronously) so the "already flagged" state can be read at render
+  // time rather than only discovered on submit.
+  const [turnHashes, setTurnHashes] = useState<Record<number, string>>({});
+  const [flagBusy, setFlagBusy] = useState(false);
+  const [flagNotice, setFlagNotice] = useState("");
   const [menu, setMenu] = useState(false);
   const [checkinsOpen, setCheckinsOpen] = useState(fixtureCheckinsOpen ?? false);
   // WS-R37: the follower's own subscription panel - shown whenever there is
@@ -354,6 +374,69 @@ export default function RoomApp({
     [session, voicePlaying],
   );
 
+  /**
+   * WS-R67 (migration 116). "Flag this." `reply` is the exact text of the
+   * turn the sheet was opened on - never a body-supplied text, only what
+   * `flagReply` hashes CLIENT-SIDE for routing; the server reads the words
+   * back off its OWN copy of this follower's history and refuses a hash
+   * that matches nothing there. This function never invents a state: the
+   * hash is added to `flaggedHashes` only after the server confirms it
+   * landed.
+   */
+  const submitFlag = useCallback(
+    async (reply: string, reason: RoomFlagReason) => {
+      if (!session || flagBusy) return;
+      setFlagBusy(true);
+      setFlagNotice("");
+      try {
+        const result = await flagReply(session, reply, reason);
+        setFlaggedHashes((prev) => new Set(prev).add(result.reply_sha256));
+        setFlagNotice(copy.flag.done);
+        setFlagSheetFor(null);
+      } catch (e) {
+        setFlagNotice(
+          e instanceof RoomApiError && e.code === "room_flag_already_flagged"
+            ? copy.flag.alreadyFlagged
+            : copy.flag.error,
+        );
+        if (e instanceof RoomApiError && e.code === "room_flag_already_flagged") {
+          void replySha256(reply).then((hash) =>
+            setFlaggedHashes((prev) => new Set(prev).add(hash)),
+          );
+        }
+      } finally {
+        setFlagBusy(false);
+      }
+    },
+    [session, flagBusy, copy],
+  );
+
+  /** Withdraw one flag. `hash` comes from `turnHashes`, this file's own
+   *  cache of the same digest `submitFlag` computes on the write path -
+   *  never re-derived from a stale closure over the bubble text. */
+  const withdrawFlag = useCallback(
+    async (hash: string) => {
+      if (!session || flagBusy) return;
+      setFlagBusy(true);
+      setFlagNotice("");
+      try {
+        await unflagReply(session, hash);
+        setFlaggedHashes((prev) => {
+          const next = new Set(prev);
+          next.delete(hash);
+          return next;
+        });
+        setFlagNotice(copy.flag.withdrawn);
+        setFlagSheetFor(null);
+      } catch {
+        setFlagNotice(copy.flag.error);
+      } finally {
+        setFlagBusy(false);
+      }
+    },
+    [session, flagBusy, copy],
+  );
+
   /* The address resolves once, and it resolves BEFORE any sign-in: a follower
    * arriving from a bio link must see the room, not a login wall. */
   useEffect(() => {
@@ -471,6 +554,38 @@ export default function RoomApp({
       .then((s) => setTalkedToday(typeof s.talked_today === "number" ? s.talked_today : null))
       .catch(() => setTalkedToday(null));
   }, [slug, phase, fixtureOpen]);
+
+  /* WS-R67. One hash per assistant turn, kept in step with `turns` - used
+   * only to READ the "already flagged" state (`flaggedHashes`); the write
+   * path (`submitFlag`) hashes its own copy of the text again rather than
+   * trusting this cache, so a race between an edit and a stale index can
+   * never send the wrong hash. */
+  useEffect(() => {
+    if (fixtureOpen) return;
+    let live = true;
+    Promise.all(
+      turns.map((turn, i) => (turn.role === "assistant" ? replySha256(turn.content).then((h) => [i, h] as const) : null)),
+    ).then((pairs) => {
+      if (!live) return;
+      const next: Record<number, string> = {};
+      for (const pair of pairs) if (pair) next[pair[0]] = pair[1];
+      setTurnHashes(next);
+    });
+    return () => { live = false; };
+  }, [turns, fixtureOpen]);
+
+  /* WS-R67 (migration 116). The follower's own flags for THIS room, read
+   * once a session exists - so a reply they already flagged (in an earlier
+   * visit, or on another tab) shows "flagged" rather than offering to flag
+   * it again. Best-effort: a failed read leaves the set empty, which is
+   * merely "the control does not yet know" - the server's own unique index
+   * is still what actually refuses a duplicate. */
+  useEffect(() => {
+    if (fixtureOpen || !session) return;
+    followerFlags(session)
+      .then((result) => setFlaggedHashes(new Set(result.flags.map((f) => f.reply_sha256))))
+      .catch(() => {});
+  }, [session, fixtureOpen]);
 
   /* Remembered history, per thread. A follower who declined memory gets an
    * honestly empty answer from the server rather than an invented one here. */
@@ -1049,6 +1164,64 @@ export default function RoomApp({
                 {voicePlaying === i ? copy.voice.playing : copy.voice.play}
               </button>
             )}
+
+            {/* WS-R67 (migration 116). Every follower, free or paid, law 4's
+                own "a small control on each AI bubble" - never gated by
+                tier the way voice is, since this is a safety report, not a
+                paid feature. */}
+            {turn.role === "assistant" && session && (
+              <button
+                type="button"
+                className="room-bubble-flag"
+                aria-pressed={Boolean(turnHashes[i] && flaggedHashes.has(turnHashes[i]))}
+                onClick={() => setFlagSheetFor(flagSheetFor === i ? null : i)}
+              >
+                {turnHashes[i] && flaggedHashes.has(turnHashes[i]) ? copy.flag.withdraw : copy.flag.buttonLabel}
+              </button>
+            )}
+
+            {flagSheetFor === i && (
+              <div className="room-flag-sheet" role="dialog" aria-label={copy.flag.sheetTitle}>
+                {turnHashes[i] && flaggedHashes.has(turnHashes[i]) ? (
+                  <>
+                    <p>{copy.flag.alreadyFlagged}</p>
+                    <button
+                      type="button"
+                      className="room-flag-reason"
+                      disabled={flagBusy}
+                      onClick={() => void withdrawFlag(turnHashes[i])}
+                    >
+                      {flagBusy ? copy.flag.withdrawing : copy.flag.withdraw}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="room-flag-sheet-title">{copy.flag.sheetTitle}</p>
+                    <div className="room-flag-reasons">
+                      {(Object.keys(copy.flag.reasons) as RoomFlagReason[]).map((reason) => (
+                        <button
+                          key={reason}
+                          type="button"
+                          className="room-flag-reason"
+                          disabled={flagBusy}
+                          onClick={() => void submitFlag(turn.content, reason)}
+                        >
+                          {copy.flag.reasons[reason]}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={flagBusy}
+                  onClick={() => setFlagSheetFor(null)}
+                >
+                  {copy.flag.cancel}
+                </button>
+              </div>
+            )}
           </div>
         ))}
 
@@ -1090,6 +1263,7 @@ export default function RoomApp({
         )}
 
         {error && <p className="room-error">{error}</p>}
+        {flagNotice && <p className="room-fine" role="status">{flagNotice}</p>}
 
         {/* THE END OF A SESSION THAT WORKED. Under the last reply, never across
             one, and it states a fact rather than making one up. */}

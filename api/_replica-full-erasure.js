@@ -136,6 +136,15 @@ export function createReplicaErasureReceipt(replicaId, ownerUserId, env = proces
       // understate what was held. Additive; the eval asserts membership,
       // never the exact list.
       "owner_room_renewal_reminders",
+      // 116 (WS-R67). A flagged reply is its own class rather than folded
+      // into `owner_review_queue`: it is follower-initiated safety feedback
+      // about something the AI already said, not a question the platform
+      // asked or the owner reviewed themselves, and a receipt that did not
+      // name it would understate what was held. Covers BOTH lanes: the
+      // follower's own copy of what they flagged, and the creator's
+      // content-free count of it. Additive; the eval asserts membership,
+      // never the exact list.
+      "owner_room_reply_flags",
     ]),
   });
 }
@@ -710,6 +719,26 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- than the only mechanism - "relying on a cascade means relying on an
      -- FK nobody re-checks," 071's own words, restated a fourth time.
      handoffs as (delete from vy_room_handoff x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 116 (WS-R67), flag this reply. TWO lanes, BOTH reached from THIS
+     -- side, by room_id via the SAME vy_room subquery every block above
+     -- uses: neither table carries an agent binding of its own. The first
+     -- lane below is also reached by a follower's own "forget me"
+     -- (api/_room-surface.js's roomForget, child-before-parent ahead of the
+     -- follower roster row) and by api/memory.js's PERSON_TABLES manifest
+     -- on a whole-account wipe - this delete is a backstop to both for the
+     -- case an owner erases the REPLICA outright, "relying on a cascade
+     -- means relying on an FK nobody re-checks" restated again. The second
+     -- lane below has no other path to erasure at all: it names no person
+     -- (migration 116's own header - no follower id, no person id, no
+     -- thread reference), so this is the ONLY place in the codebase that
+     -- ever deletes it. First lane FIRST: it carries a real FK CASCADE to
+     -- the follower roster row, this block's own child-before-parent rule.
+     reply_flags_follower as (delete from vy_room_follower_reply_flag x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     reply_flags_creator as (delete from vy_room_reply_flag x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      -- 102 (WS-R40), arrival counts. Reached by room_id via the SAME

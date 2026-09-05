@@ -2040,6 +2040,16 @@ const ROOM_EXPORT_EXTRA = Object.freeze([
   { table: "vy_renewal_reminder", shape: "count",
     reason: "a content-free reminder ledger (when a renewal notice was due and sent) - " +
       "exported as a count, never a row" },
+  // WS-R67 (migration 116). The follower's own copy of every reply they
+  // flagged: which reply (by hash), which reason, and when - theirs to see
+  // in full. The row itself carries no reply text (migration 116's own
+  // schema); `followerFlags` (the account page's own read) joins it back in
+  // from the creator's content-free lane for display, but this export dump
+  // is a literal read of what this table actually stores, `shape: "rows"`'s
+  // own contract for every sibling above.
+  { table: "vy_room_follower_reply_flag", shape: "rows",
+    reason: "the follower's own flagged-reply history (which reply, which reason, when) - " +
+      "theirs to see in full" },
 ]);
 
 /** `api/_room-whatsapp.js`'s own function, re-derived here rather than
@@ -2381,6 +2391,25 @@ export async function roomForget(db, { session }, deps = {}) {
     deleted.vy_renewal_reminder = reminderRows.length;
   }
 
+  if (await isTableAppliedFor(deps)("vy_room_follower_reply_flag")) {
+    // WS-R67 (migration 116): the follower's own copy of every reply they
+    // flagged, this Room only. Carries `follower_id references
+    // vy_room_follower(follower_id) on delete cascade`, so it runs before
+    // the follower delete at the bottom of this function, this block's own
+    // child-before-parent rule. The CREATOR'S mirror (`vy_room_reply_flag`)
+    // is deliberately UNTOUCHED here - it names no follower at all
+    // (migration 116's own header), so a follower's own "forget me" cannot
+    // reach it and does not need to: the count the creator sees is a count
+    // of flags on a REPLY, not a record that survives naming who sent them.
+    const flagRows = await db(
+      `delete from vy_room_follower_reply_flag
+        where room_id = ($1)::uuid and person_id = ($2)::uuid
+       returning 1 as gone`,
+      [who.roomId, who.personId],
+    );
+    deleted.vy_room_follower_reply_flag = flagRows.length;
+  }
+
   // The agent-scoped rows (`vy_fact` et al., via `roomScopedTables()`) carry
   // no dependency on thread or follower - `agent_id` is their own scope, not
   // a foreign key to either - so their position relative to the two below is
@@ -2486,6 +2515,205 @@ export async function roomForget(db, { session }, deps = {}) {
         ? "इस क्रिएटर के AI के साथ आपकी बातचीत मिटा दी गई है। आपका अकाउंट और आपकी किसी और के साथ की बातचीत अछूती है।"
         : "Your conversations with this creator's AI are deleted. Your account and " +
           "your conversations with anyone else are untouched.",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: flag / unflag / flags — WS-R67 (migration 116)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// A follower marks a reply wrong or hurtful; the creator's queue picks it up
+// as the AI's own words and a count. THE BOUNDARY LAW (AGENTS.md's three
+// scopes, absolute): the creator never receives a follower's words or
+// identity through a flag.
+//
+// ── how the law is actually kept, mechanically ────────────────────────────
+//
+// `flagReply` takes a SESSION (who this is, never trusted from the body) and
+// a REPLY HASH (which reply, never the text itself). The text that ever
+// reaches `vy_room_reply_flag` — the creator's lane — is read back by
+// `replyTextFromOwnHistory` from a turn this follower's own history really
+// contains, matched by sha256, and NOTHING ELSE: there is no `reply_text`
+// parameter anywhere on this function's signature for a client to substitute
+// one. A body that included `reply_text` would simply be ignored — the
+// function never looks at it — which is what makes "a body-supplied reply
+// text is refused" true by absence rather than by a check that could be
+// forgotten (`evals/room-flags/run.mjs`'s own negative control (a)).
+//
+// The two lanes are written in ONE statement (`decideReviewCard`'s own
+// precedent, `api/_review-queue.js`): the follower's row lands first, and
+// the creator's mirror lands ONLY if that insert was genuinely new — a
+// retried tap, a double-submit, or a second flag of the same reply by the
+// same follower (migration 116's own unique index) can never inflate the
+// creator's count past the number of followers who actually flagged, and
+// never re-flag counts a mirror twice either.
+export const FLAG_REASONS = Object.freeze(["wrong", "harmful", "not_them", "other"]);
+
+const HEX64 = /^[0-9a-f]{64}$/i;
+
+function flagReason(value) {
+  const reason = String(value || "");
+  if (!FLAG_REASONS.includes(reason)) throw new RoomError("room_flag_reason_invalid", 400);
+  return reason;
+}
+
+function flagReplyHash(value) {
+  const hash = String(value || "").trim().toLowerCase();
+  if (!HEX64.test(hash)) throw new RoomError("room_flag_reply_hash_invalid", 400);
+  return hash;
+}
+
+/**
+ * THE READ-BACK. Scans every one of this follower's OWN threads (the SAME
+ * device set `roomExport`/`roomForget` derive, `threadDeviceSet`, never a
+ * device or thread a client could name) for an assistant-authored turn whose
+ * sha256 matches `hash`, and returns its exact text or `null`. This is the
+ * ONLY place a flag's `reply_text` is ever produced — never off a request
+ * body, `flagReply`'s own header states why.
+ */
+async function replyTextFromOwnHistory(db, { roomId, personId, agentId, hash }, deps) {
+  const memory = { ...DEFAULT_MEMORY, ...(deps.memory || {}) };
+  const devices = await threadDeviceSet(db, roomId, personId, agentId);
+  for (const device of devices) {
+    const turns = await memory.history(device, agentId, 200);
+    for (const turn of turns) {
+      if (turn.role !== "assistant") continue;
+      const content = String(turn.content ?? "");
+      if (content && createHash("sha256").update(content, "utf8").digest("hex") === hash) return content;
+    }
+  }
+  return null;
+}
+
+/**
+ * WS-R67's Telegram law 5 ("`/flag` on the last reply"): the follower's most
+ * recent assistant turn in their DEFAULT thread, hashed the same way every
+ * other reader of this history hashes it. Exported so `api/_room-telegram.js`
+ * never re-derives a device — `roomThreadDevice`'s own header discourages
+ * exactly that — and so Telegram's `/flag` is a caller of `flagReply`, never
+ * a second way to decide what "the reply" means.
+ */
+export async function lastReplySha256(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const memory = { ...DEFAULT_MEMORY, ...(deps.memory || {}) };
+  const device = roomThreadDevice(who.roomId, who.personId, null);
+  const turns = await memory.history(device, who.agentId, 200);
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const content = String(turns[i]?.content ?? "");
+    if (turns[i]?.role === "assistant" && content) {
+      return createHash("sha256").update(content, "utf8").digest("hex");
+    }
+  }
+  return null;
+}
+
+/**
+ * One tap: "Flag this." `reason` off the closed list (migration 116's own
+ * CHECK), `replySha256` naming which reply — never its text. Writes BOTH
+ * lanes in ONE statement, this section's own header explains why.
+ *
+ * Rate limiting (20/day, scope `room_flag_follower`) is the CALLER's job,
+ * `api/room.js`'s own `refused()` — `say`/`push_subscribe`'s exact shape —
+ * so a garbage session never reaches this function's own database round
+ * trip at all.
+ */
+export async function flagReply(db, { session, replySha256, reason: reasonInput }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  const hash = flagReplyHash(replySha256);
+  const reason = flagReason(reasonInput);
+  const text = await replyTextFromOwnHistory(
+    db, { roomId: who.roomId, personId: who.personId, agentId: who.agentId, hash }, deps,
+  );
+  // NOT FOUND, never a guess: a hash naming no turn in this follower's own
+  // history is refused by name — the same shape a fabricated `reply_text`
+  // would have hit, had this function accepted one at all.
+  if (!text) throw new RoomError("room_flag_reply_not_found", 404);
+  const flagId = deps.newId ? deps.newId() : randomUUID();
+  const mirrorId = deps.newMirrorId ? deps.newMirrorId() : randomUUID();
+  const rows = await db(
+    `with inserted as (
+       insert into vy_room_follower_reply_flag (flag_id, room_id, person_id, follower_id, reply_sha256, reason)
+       values (($1)::uuid, ($2)::uuid, ($3)::uuid, ($4)::uuid, $5, $6)
+       on conflict (follower_id, reply_sha256) do nothing
+       returning flag_id
+     ), mirrored as (
+       insert into vy_room_reply_flag (id, room_id, reply_sha256, reply_text, reason)
+       select ($7)::uuid, ($2)::uuid, $5, $8, $6
+        where exists (select 1 from inserted)
+       returning id
+     )
+     select (select count(*) from inserted)::int as landed`,
+    [flagId, who.roomId, who.personId, follower.follower_id, hash, reason, mirrorId, text],
+  );
+  // THE UNIQUE INDEX AS THE REFUSAL, not a read-then-decide: a second flag of
+  // the same reply by the same follower lands zero rows here and is refused
+  // by name, `vy_public_rate`'s own upsert shape (089) restated for a
+  // uniqueness gate instead of a count.
+  if (!Number(rows[0]?.landed)) throw new RoomError("room_flag_already_flagged", 409);
+  return { flagged: true, reply_sha256: hash, reason };
+}
+
+/**
+ * Withdraw one flag. Deletes the follower's own row and, in the SAME
+ * statement, exactly one matching row from the creator's lane — the count
+ * the creator sees goes back down by the same op that took the follower's
+ * own copy away. Neither table carries a `state` column (migration 116's own
+ * schema): withdrawing is a delete, never a flip.
+ */
+export async function unflagReply(db, { session, replySha256 }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  const hash = flagReplyHash(replySha256);
+  const rows = await db(
+    `with withdrawn as (
+       delete from vy_room_follower_reply_flag
+        where follower_id = ($1)::uuid and reply_sha256 = $2
+       returning room_id, reason
+     ), mirrored as (
+       delete from vy_room_reply_flag t
+        where t.id = (
+          select id from vy_room_reply_flag
+           where room_id = (select room_id from withdrawn) and reply_sha256 = $2
+             and reason = (select reason from withdrawn)
+           order by created_at asc limit 1
+        )
+       returning id
+     )
+     select (select count(*) from withdrawn)::int as withdrawn_count`,
+    [follower.follower_id, hash],
+  );
+  return { withdrawn: Boolean(Number(rows[0]?.withdrawn_count)) };
+}
+
+/**
+ * The follower's own account-page list — their flags, this Room, newest
+ * first — with the AI's own reply text joined back in from the creator's
+ * content-free lane. Safe to join: that table names no follower at all, and
+ * this reader is asking about their OWN flags, never anyone else's.
+ */
+export async function followerFlags(db, { session }, deps = {}) {
+  const who = await selfScope(db, session, deps);
+  const follower = await followerRow(db, who.roomId, who.personId, who.agentId);
+  if (!follower) throw new RoomError("room_join_required", 403);
+  const rows = await db(
+    `select f.reply_sha256, f.reason, f.created_at, c.reply_text
+       from vy_room_follower_reply_flag f
+       left join vy_room_reply_flag c
+         on c.room_id = f.room_id and c.reply_sha256 = f.reply_sha256
+      where f.room_id = ($1)::uuid and f.follower_id = ($2)::uuid
+      order by f.created_at desc limit 200`,
+    [who.roomId, follower.follower_id],
+  );
+  return {
+    flags: rows.map((r) => ({
+      reply_sha256: r.reply_sha256,
+      reason: r.reason,
+      reply_text: r.reply_text ?? "",
+      created_at: r.created_at,
+    })),
   };
 }
 

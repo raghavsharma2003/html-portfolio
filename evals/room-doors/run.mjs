@@ -172,6 +172,7 @@ const {
   openRoom, joinRoom, roomSay, roomSetLocale, followerHistory, createFollowerThread,
   roomCitations, roomExport, roomForget, roomDismissOffer, ROOM_SESSION_TTL_MS,
   roomDisclosureCard, roomSettings, roomSettingsReviewed,
+  flagReply, unflagReply, followerFlags,
 } = RS;
 const HANDOFF = await import(pathToFileURL(join(API, "_handoff.js")).href);
 const { draftHandoffPayload, sendHandoffRequest, withdrawHandoffRequest, myHandoffs, HandoffError } = HANDOFF;
@@ -975,6 +976,54 @@ console.log("\n── §9: room.js settings / settings_reviewed (WS-R44) ──"
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+// §9b. WS-R67 — room.js's "flag" / "unflag" / "flags" (migration 116). Same
+// classes, same shape as §9's settings/settings_reviewed: all three go
+// through `selfScope`, no body-supplied id for any of them (`flag`/`unflag`
+// take a reply hash, never a person/follower id; `flags` takes only the
+// session). None of these three test cases reaches migration 116's own
+// tables at all — every one is refused by `assertSessionFresh`/`resolveRoom`
+// BEFORE `flagReply`/`unflagReply`/`followerFlags` ever issue a statement
+// against them, so this door battery's own fake db needs no extension for
+// the boundary this section proves (the read-back and the unique-index
+// refusal are `evals/room-flags/run.mjs`'s own job).
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §9b: room.js flag / unflag / flags (WS-R67) ──");
+{
+  const { db, session } = await setupFollower();
+  const HASH = "a".repeat(64);
+  await assertForgeryRefused("room.js", "flag", () => session);
+  await assertForgeryRefused("room.js", "unflag", () => session);
+  await assertForgeryRefused("room.js", "flags", () => session);
+
+  const expired = mintRoomSession({ ...reencodeWithSameSig(session).payload, iat: NOW - (13 * 60 * 60 * 1000) }, ENV);
+  const flagErr = await threw(() => flagReply(db, { session: expired, replySha256: HASH, reason: "wrong" }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "flag: a stale session is refused", flagErr?.code === "room_session_expired");
+  const unflagErr = await threw(() => unflagReply(db, { session: expired, replySha256: HASH }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "unflag: a stale session is refused", unflagErr?.code === "room_session_expired");
+  const flagsErr = await threw(() => followerFlags(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "flags: a stale session is refused", flagsErr?.code === "room_session_expired");
+}
+{
+  const state = withSecondRoom(freshDoorsState());
+  const db = doorsDb(state);
+  const loadAgentTwoRooms = async (slug) => {
+    if (slug === SLUG) return loadAgent(slug);
+    if (slug === "kabir") return { module: {}, sheet: { name: "Kabir", slug: "kabir" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV });
+  const { payload } = reencodeWithSameSig(joined.session);
+  const crossToken = mintRoomSession({ ...payload, r: "kabir" }, ENV);
+  const HASH = "b".repeat(64);
+  const flagErr = await threw(() => flagReply(db, { session: crossToken, replySha256: HASH, reason: "wrong" }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "flag: cross-room session refused room_unavailable", flagErr?.code === "room_unavailable");
+  const unflagErr = await threw(() => unflagReply(db, { session: crossToken, replySha256: HASH }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "unflag: cross-room session refused room_unavailable", unflagErr?.code === "room_unavailable");
+  const flagsErr = await threw(() => followerFlags(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "flags: cross-room session refused room_unavailable", flagsErr?.code === "room_unavailable");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // §10. WS-R44 — room-pay.js's "cancel" (WS-R37), the third op this workstream
 // was built to case: `cancelFollowerRenewal` runs through `paidSessionScope`,
 // the SAME resolver `subscribe`/`status` already prove forgery-refused above
@@ -1774,6 +1823,12 @@ const OP_COVERAGE = {
     settings: { classes: ["a", "b"] },
     settings_reviewed: { classes: ["a", "b"] },
     citations: { classes: ["a", "b"] },
+    // WS-R67 (migration 116). No body-supplied person/follower id on any of
+    // the three — `flag`/`unflag` take a reply hash, `flags` takes only the
+    // session, `selfScope`'s own gate (§9b).
+    flag: { classes: ["a", "b"] },
+    unflag: { classes: ["a", "b"] },
+    flags: { classes: ["a", "b"] },
     stats: { excluded: "no session and no bearer — a public read by slug; resolveRoom's own WHERE already collapses paused/unpublished/unknown into the same answer" },
     export: { classes: ["a", "b", "c"] },
     forget: { classes: ["a", "c"] },

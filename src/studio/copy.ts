@@ -244,6 +244,8 @@ interface ReviewQueueCopy {
   addedPlain: string; // "Added {n}."
   blockedAnswerOne: string; // "{n} blocked answer in force on every surface."
   blockedAnswerMany: string; // "{n} blocked answers in force on every surface."
+  flaggedRepliesOne: string; // "{n} reply flagged by followers."
+  flaggedRepliesMany: string; // "{n} replies flagged by followers."
 }
 
 // ── payouts: PayoutsCard.tsx ────────────────────────────────────────────────
@@ -553,6 +555,8 @@ const EN: StudioCopy = {
     addedPlain: "Added {n}.",
     blockedAnswerOne: "{n} blocked answer in force on every surface.",
     blockedAnswerMany: "{n} blocked answers in force on every surface.",
+    flaggedRepliesOne: "{n} reply flagged by followers.",
+    flaggedRepliesMany: "{n} replies flagged by followers.",
   },
 
   payouts: {
@@ -853,6 +857,8 @@ const HI: StudioCopy = {
     addedPlain: "{n} जोड़े गए।",
     blockedAnswerOne: "{n} रोका गया जवाब हर जगह लागू है।",
     blockedAnswerMany: "{n} रोके गए जवाब हर जगह लागू हैं।",
+    flaggedRepliesOne: "फ़ॉलोअर्स ने {n} जवाब को फ़्लैग किया है।",
+    flaggedRepliesMany: "फ़ॉलोअर्स ने {n} जवाबों को फ़्लैग किया है।",
   },
 
   payouts: {
