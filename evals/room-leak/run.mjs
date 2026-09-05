@@ -117,7 +117,11 @@ let rowChecks = 0;
 let boundaryChecks = 0;
 
 const room = await import(pathToFileURL(join(REPO, "api/_room-surface.js")).href);
-const { joinRoom, roomSay, roomExport, roomForget, roomStats, roomThreadDevice, readRoomSession, flagReply } = room;
+const {
+  joinRoom, roomSay, roomExport, roomForget, roomStats, roomThreadDevice, readRoomSession, flagReply,
+  roomReferralLink, referralHashFor,
+} = room;
+const { friendsBroughtThisWeek } = await import(pathToFileURL(join(REPO, "api/_funnel.js")).href);
 const { readFlaggedReplies } = await import(pathToFileURL(join(REPO, "api/_review-queue.js")).href);
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1958,6 +1962,145 @@ console.log("\n── layer 12: dormancy (a forget in one Room touches no other)
   boundaryChecks++;
   ok("NEGATIVE CONTROL: with the forget-due predicate struck to ignore the grace window and last-visit check, Room B's own follower IS swept up too - proving the real predicate above is load-bearing, not vacuous",
     struckSummary.dormancyForgotten >= 1);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 13 (WS-R86, migration 123) — FOLLOWER REFERRALS. `vy_room_referral`
+// carries no person column at all, so `vy_room_arrival`'s own "aggregate-
+// only, room-scoped" discipline is what protects it, one table over: a
+// referral credited in ONE Room must never inflate another Room's own
+// count, and no read anywhere may ever select `referrer_hash` back out to
+// a response — the ONE column that ties a row to a follower at all.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 13: follower referrals (isolation and the hash never leaves) ──");
+{
+  const ROOM_A13 = ROOM_ID; // "anjali", the shared fixture's own default Room
+  const ROOM_B13 = "f3000000-0000-4000-8000-000000000001";
+  const AGENT_B13 = "f3000000-0000-4000-8000-0000000000a1";
+  const PERSON_A1 = "f1000000-0000-4000-8000-000000000001";
+  const PERSON_A2 = "f1000000-0000-4000-8000-000000000002";
+  const PERSON_B1 = "f2000000-0000-4000-8000-000000000001";
+  const PERSON_B2 = "f2000000-0000-4000-8000-000000000002";
+
+  const state13 = freshState();
+  state13.rooms.push({
+    ...state13.rooms[0],
+    room_id: ROOM_B13, slug: "room-b13", agent_id: AGENT_B13, display_name: "Room B",
+  });
+  const db13Base = fakeDb(state13);
+  // Wraps the shared fixture with the ONE query shape it does not model
+  // itself (`friendsBroughtThisWeek`'s own `created_at >=` read, a
+  // funnel-level concern the base fixture — built for `joinRoom`/
+  // `roomExport` — never needed before this layer): room-scoped, exactly
+  // the real statement's own WHERE.
+  const db13 = async (sql, params) => {
+    if (sql.includes("from vy_room_referral") && sql.includes("created_at >=")) {
+      const [roomId] = params;
+      const n = state13.referrals.filter((r) => r.room_id === String(roomId)).length;
+      return [{ n }];
+    }
+    return db13Base(sql, params);
+  };
+  const { loadAgent: loadAgentA13 } = await loadFixtureAgent(REPO);
+  // A second, independent room's own agent — `evals/room-doors/run.mjs`'s
+  // own `withSecondRoom`/`loadAgentTwoRooms` precedent, since nothing in
+  // the base fixture ever needed two before this workstream either.
+  const loadAgentTwoRooms13 = async (slug) => {
+    if (slug === SLUG) return loadAgentA13(slug);
+    if (slug === "room-b13") return { module: {}, sheet: { name: "Room B", slug: "room-b13" } };
+    throw new Error("teacher_sheet_unavailable");
+  };
+  const deps13 = { loadAgent: loadAgentTwoRooms13, tableApplied: async () => true };
+
+  // Room A: A1 refers A2.
+  const joinedA1 = await joinRoom(db13, { slug: SLUG, personId: PERSON_A1, ageAttested: true, memoryConsent: true }, deps13);
+  const linkA1 = await roomReferralLink(db13, { session: joinedA1.session }, deps13);
+  const hashA1 = new URL(`http://x${linkA1.url}`).searchParams.get("ref");
+  await joinRoom(db13, { slug: SLUG, personId: PERSON_A2, ageAttested: true, memoryConsent: true, ref: hashA1 }, deps13);
+
+  // Room B: B1 refers B2 — a COMPLETELY different room, different agent.
+  const joinedB1 = await joinRoom(db13, { slug: "room-b13", personId: PERSON_B1, ageAttested: true, memoryConsent: true }, deps13);
+  const linkB1 = await roomReferralLink(db13, { session: joinedB1.session }, deps13);
+  const hashB1 = new URL(`http://x${linkB1.url}`).searchParams.get("ref");
+  await joinRoom(db13, { slug: "room-b13", personId: PERSON_B2, ageAttested: true, memoryConsent: true, ref: hashB1 }, deps13);
+
+  boundaryChecks++;
+  ok("referrals: exactly two rows exist, one per Room", state13.referrals.length === 2, JSON.stringify(state13.referrals));
+  boundaryChecks++;
+  ok("referrals: Room A's row names Room A, and only Room A",
+    state13.referrals.filter((r) => r.room_id === ROOM_A13).length === 1
+    && state13.referrals.filter((r) => r.room_id === ROOM_A13)[0].referrer_hash === hashA1);
+  boundaryChecks++;
+  ok("referrals: Room B's row names Room B, and only Room B",
+    state13.referrals.filter((r) => r.room_id === ROOM_B13).length === 1
+    && state13.referrals.filter((r) => r.room_id === ROOM_B13)[0].referrer_hash === hashB1);
+  boundaryChecks++;
+  ok("referrals: the two referrers' hashes never collide across Rooms", hashA1 !== hashB1);
+
+  // A2's OWN join must never write a referral row under Room B's id, even
+  // though A1's hash and B1's hash are computed by the SAME function.
+  boundaryChecks++;
+  ok("referrals: A2's join wrote nothing under Room B's id",
+    !state13.referrals.some((r) => r.room_id === ROOM_B13 && r.referrer_hash === hashA1));
+
+  // The Room Studio's own per-room read, run for EACH room, sees only that
+  // room's own row — proven directly against the real `friendsBroughtThisWeek`.
+  const countA = await friendsBroughtThisWeek(db13, ROOM_A13, Date.now(), { tableApplied: async () => true });
+  const countB = await friendsBroughtThisWeek(db13, ROOM_B13, Date.now(), { tableApplied: async () => true });
+  boundaryChecks++;
+  ok("referrals: friendsBroughtThisWeek for Room A is below the floor (1 row), never Room B's",
+    countA.n === null && countA.below_floor === true);
+  boundaryChecks++;
+  ok("referrals: friendsBroughtThisWeek for Room B is ALSO below the floor on its OWN one row, not zero and not two",
+    countB.n === null && countB.below_floor === true);
+
+  // A1's own export shows exactly their own one referral — never Room B's.
+  const exportA1 = await roomExport(db13, { session: joinedA1.session }, deps13);
+  boundaryChecks++;
+  ok("referrals: A1's own export carries exactly {count: 1}, never inflated by Room B's row",
+    exportA1.tables.vy_room_referral && exportA1.tables.vy_room_referral.count === 1);
+
+  // NEGATIVE CONTROL (isolation) — MUST FAIL. A struck read that ignores
+  // room_id entirely (summing across every Room) proves the real
+  // `room_id = $1` predicate above is load-bearing, not vacuous. Queried
+  // directly at the SQL layer (not through `friendsBroughtThisWeek`'s own
+  // floor wrapper, which would mask a 2-versus-1 difference below n>=5
+  // either way): the raw row this struck statement returns is what proves
+  // the point, exactly as the real statement's own `where room_id = $1`
+  // is what the un-struck read above already relied on.
+  const realCountRows = await db13(
+    "select count(*)::int as n from vy_room_referral where room_id = ($1)::uuid and created_at >= ($2)::timestamptz",
+    [ROOM_A13, "2000-01-01T00:00:00.000Z"],
+  );
+  const struckCountRows = await (async (sql, params) => {
+    if (sql.includes("from vy_room_referral") && sql.includes("created_at >=")) {
+      return [{ n: state13.referrals.length }]; // every Room's rows, summed - room_id ignored
+    }
+    return db13(sql, params);
+  })("select count(*)::int as n from vy_room_referral where created_at >= ($1)::timestamptz", ["2000-01-01T00:00:00.000Z"]);
+  boundaryChecks++;
+  ok("referrals: the real, room-scoped statement counts only Room A's own one row",
+    Number(realCountRows[0]?.n) === 1, JSON.stringify(realCountRows));
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL (isolation): a struck statement with room_id removed sums BOTH Rooms' rows - proving the real WHERE is load-bearing, not vacuous",
+    Number(struckCountRows[0]?.n) === 2, JSON.stringify(struckCountRows));
+
+  // NEGATIVE CONTROL (the hash never leaves) — MUST FAIL. `_funnel.js` is
+  // this table's ONE registered aggregate-only reader; a version of it
+  // that selects `referrer_hash` itself, not merely a count, is caught by
+  // the SAME generalized static layer 8 above already runs — proven here
+  // directly, filed under the REAL reader's own name so this exercises the
+  // aggregate-only branch rather than the stricter "no reader at all" one.
+  const leakySrc = `export async function creatorReferrerDump(db, roomId) {\n  return db(\`select referrer_hash from vy_room_referral where room_id = ($1)::uuid\`, [roomId]);\n}\n`;
+  const leakyResult = classifyOneFile("_funnel.js", leakySrc, "vy_room_referral");
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: a version of _funnel.js selecting referrer_hash out of vy_room_referral is CAUGHT",
+    leakyResult.touches && leakyResult.problems.length > 0, leakyResult.problems.join(","));
+  const safeCountSrc = `export async function realCounter(db, roomId) {\n  return db(\`select count(*)::int as n from vy_room_referral where room_id = ($1)::uuid\`, [roomId]);\n}\n`;
+  const safeResult13 = classifyOneFile("_funnel.js", safeCountSrc, "vy_room_referral");
+  boundaryChecks++;
+  ok("...and a version that only counts (never selects the hash itself) raises no problem",
+    safeResult13.touches === true && safeResult13.problems.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

@@ -630,6 +630,21 @@ const TABLE_ROLES = {
   // alone; the creator-facing twin `vy_room_reply_flag` carries no person
   // column and is layer 9's own subject.
   vy_room_follower_reply_flag: { owners: ["_room-surface.js"] },
+  // WS-R86 (migration 123). Referrals: no person column at all, so this
+  // is not one of `roomPersonEntries`' own auto-discovered tables — added
+  // here BY NAME anyway, deliberately, so the SAME generic static reach
+  // layer that already guards every person+room table also guards this
+  // room-aggregate one, `vy_room_arrival`'s own precedent restated as a
+  // TABLE_ROLES entry rather than a second, bespoke scan (this
+  // workstream's own layer 13, evals/room-leak/run.mjs). `_room-surface.js`
+  // writes the referral (the self-referral WHERE), reads it back only to
+  // recompute ONE follower's OWN count (`roomExport`), and mints the link
+  // (`roomReferralLink`) — all three the SAME file, an owner.
+  // `_replica-full-erasure.js` deletes it, child before parent.
+  // `_funnel.js`'s `friendsBroughtThisWeek` is the one aggregate reader —
+  // `count(*)`, never `referrer_hash` itself (the negative control below
+  // this layer proves a reader that DOES select the hash is caught).
+  vy_room_referral: { owners: ["_room-surface.js", "_replica-full-erasure.js"], aggregateOnly: ["_funnel.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,
@@ -661,6 +676,14 @@ const CONTENT_COLUMNS = [
   "title", "content", "message_text", "payload_text", "reply_text",
   "phone_e164", "local_time", "timezone", "quiet_from", "quiet_to",
   "days_of_week", "endpoint", "p256dh", "auth\\b",
+  // WS-R86 (migration 123). `vy_room_referral.referrer_hash` is the ONLY
+  // thing in that table that ties a row to a follower — it carries no
+  // content in the ordinary sense, but selecting it out to any reader
+  // besides the two owners (`_room-surface.js`'s write and
+  // self-recomputation, `_replica-full-erasure.js`'s delete) IS the leak
+  // this table exists to make structurally impossible, so it is guarded
+  // exactly like a content column would be.
+  "referrer_hash",
 ];
 const CONTENT_COLUMN_RE = new RegExp("\\b(" + CONTENT_COLUMNS.join("|") + ")\\b", "i");
 

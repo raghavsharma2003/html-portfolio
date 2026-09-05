@@ -98,6 +98,9 @@ export function freshState() {
     threads: [],
     consent: [],
     devices: [],
+    // WS-R86 (migration 123). Empty by default - most suites sharing this
+    // fixture never touch referrals at all.
+    referrals: [],
     facts: [],
     contextItems: [
       { source_name: "Class 12 mechanics notes", status: "mined", created_at: "2026-08-01" },
@@ -252,7 +255,11 @@ export function fakeDb(state) {
         // statement's own ON CONFLICT SET list (`api/_room-surface.js`'s
         // `joinRoom` header explains why): a repeat join must never reset a
         // locale the follower may have changed since with `roomSetLocale`.
-        return [{ ...found }];
+        //
+        // WS-R86 (migration 123): `newly_joined` mirrors the real
+        // statement's `(xmax = 0)` RETURNING column - false here, this row
+        // already existed, the UPDATE arm fired.
+        return [{ ...found, newly_joined: false }];
       }
       const row = {
         follower_id: String(followerId),
@@ -282,7 +289,40 @@ export function fakeDb(state) {
         last_seen_at: new Date().toISOString(),
       };
       state.followers.push(row);
-      return [{ ...row }];
+      // WS-R86 (migration 123): `newly_joined` mirrors the real statement's
+      // `(xmax = 0)` RETURNING column - true here, this row was just
+      // inserted, the INSERT arm fired. Returned on the row object rather
+      // than a separate call so `joinRoom`'s own `follower.newly_joined`
+      // read works unchanged against this fixture.
+      return [{ ...row, newly_joined: true }];
+    }
+
+    // WS-R86 (migration 123): the referral write. Self-referral is refused
+    // in the WHERE on the real statement (`referrer_hash <> joiner_hash`) -
+    // modelled here the same way, never a JS `if` this fixture would have
+    // to keep in sync with the predicate.
+    if (has("insert into vy_room_referral")) {
+      const [referralId, roomId, referrerHash, joinerHash] = params;
+      if (String(referrerHash) === String(joinerHash)) return [];
+      state.referrals = state.referrals || [];
+      state.referrals.push({
+        referral_id: String(referralId),
+        room_id: String(roomId),
+        referrer_hash: String(referrerHash),
+        created_at: new Date().toISOString(),
+      });
+      return [{ referral_id: String(referralId) }];
+    }
+    // Matched on `referrer_hash =` specifically (roomExport's own read) so
+    // this never collides with `friendsBroughtThisWeek`'s DIFFERENT
+    // `created_at >=` read of the same table — two different questions
+    // over the same table, deliberately not matched by the same branch.
+    if (has("from vy_room_referral") && has("referrer_hash = ")) {
+      const roomId = params[0];
+      const hash = params[1];
+      const referrals = state.referrals || [];
+      const n = referrals.filter((r) => r.room_id === String(roomId) && r.referrer_hash === String(hash)).length;
+      return [{ n }];
     }
 
     // WS-R24 (migration 087): `roomSetLocale`'s own write. THE PREDICATE IS

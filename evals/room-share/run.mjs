@@ -302,25 +302,26 @@ console.log("\n── 3. the arrival upsert: one statement, count increments ─
 
   // WS-R59 added 'install' to this allowlist without a migration in the
   // SAME commit, leaving a deliberate asymmetry the main loop closed with
-  // migration 113 at that merge. WS-R78 (this workstream) did not repeat
-  // that asymmetry: its own brief's law 1 is "add `poster` to
-  // ROOM_ARRIVAL_VIA AND widen migration 113's CHECK ... never one
-  // without the other", so migration 121 ships in this same commit. Two
-  // assertions rather than a loosened one: the full six-value JS
-  // allowlist is asserted directly, AND it is cross-checked against
-  // migration 121's own SQL text (parsed, not retyped) so the two can
-  // never drift the way 102 and the JS-only 'install' briefly did.
-  ok("ROOM_ARRIVAL_VIA is exactly the six named values, nothing more, nothing fewer",
-    JSON.stringify([...ROOM_ARRIVAL_VIA].sort()) ===
-      JSON.stringify(["direct", "embed", "install", "poster", "search", "share"]));
-  const migration121Src = readFileSync(join(REPO, "db/migrations/121_room_arrival_via_poster.sql"), "utf8");
-  const checkMatch = migration121Src.match(/check \(via in \(([^)]+)\)\)/);
-  const migration121Values = checkMatch
-    ? checkMatch[1].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).sort()
+  // migration 113 at that merge. Every workstream since (WS-R78's
+  // `poster`, WS-R86's own `friend`) did not repeat that asymmetry: the
+  // standing law is "widen the CHECK in the SAME commit, never one
+  // without the other" — so rather than hardcoding one migration's own
+  // filename (stale the moment a LATER one widens the SAME named
+  // constraint again, `db/schema.sql`'s own comments name each widening
+  // as superseding the one before it), this reads `db/schema.sql`'s own
+  // LAST `vy_room_arrival_via_check` block — the checked-in mirror of
+  // whatever the live constraint actually is after every migration has
+  // applied, WS-R86's own fix for the exact staleness this comment used
+  // to name as a hypothetical.
+  const schemaSrc = readFileSync(join(REPO, "db/schema.sql"), "utf8");
+  const checkMatches = [...schemaSrc.matchAll(/vy_room_arrival_via_check\s*\n\s*check \(via in \(([^)]+)\)\)/g)];
+  const lastCheck = checkMatches[checkMatches.length - 1];
+  const schemaViaValues = lastCheck
+    ? lastCheck[1].split(",").map((s) => s.trim().replace(/^'|'$/g, "")).sort()
     : [];
-  ok("migration 121's own CHECK constraint names exactly the same six values as ROOM_ARRIVAL_VIA",
-    JSON.stringify(migration121Values) === JSON.stringify([...ROOM_ARRIVAL_VIA].sort()),
-    JSON.stringify(migration121Values));
+  ok("ROOM_ARRIVAL_VIA exactly matches db/schema.sql's own LAST vy_room_arrival_via_check block, nothing more, nothing fewer",
+    JSON.stringify([...ROOM_ARRIVAL_VIA].sort()) === JSON.stringify(schemaViaValues),
+    JSON.stringify({ js: [...ROOM_ARRIVAL_VIA].sort(), schema: schemaViaValues }));
   ok("every named value round-trips through resolveArrivalVia unchanged",
     ROOM_ARRIVAL_VIA.every((v) => resolveArrivalVia(v) === v));
   ok("an unrecognised value becomes 'direct'", resolveArrivalVia("newsletter") === "direct");
