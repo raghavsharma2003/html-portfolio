@@ -11581,3 +11581,67 @@ which is strong enough evidence to treat "run check-copy.mjs immediately
 after any text moves into a COPY_FILES match, before writing the
 translation" as a load-bearing step of the move itself, not an optional
 sanity check.
+
+## `ws-r93-shared-scratchpad-log-path-cross-contaminated-by-sibling-agents` (2026-09-05, WS-R93)
+
+**Tried.** Ran `node scripts/verify-release.mjs`, output redirected to a
+generically-named log file inside the session's shared scratchpad directory
+(`/tmp/claude-.../scratchpad/baseline-gate.log`, then a second attempt at
+`baseline-gate2.log`), to poll progress on a long-running gate under heavy
+shared-machine contention without holding the foreground.
+
+**What broke.** The scratchpad directory is shared across every sibling
+wave-fifteen workstream agent in this session (R91-R100 and others), not
+private to one worktree. Multiple sibling agents independently redirected
+their OWN `verify-release.mjs` output to files with the SAME generic name in
+that SAME directory. `lsof` on the log file mid-run showed three separate
+PIDs from three separate worktrees (`ws-r93`, and two siblings) all holding
+the identical inode open for writing at once — their output interleaved
+byte-for-byte, producing a file with duplicate/contradictory lines for the
+same check name (e.g. two different `board legibility` timings, a `FAIL
+eval suite` line immediately followed by `ok room leak battery`, a stray
+port 8941/8934 reference that belongs to neither of this workstream's two
+expected flaky ports), and content that kept CHANGING on repeated reads
+minutes after this workstream's own process had already exited (a sibling's
+later-finishing run was still appending). The one line that stayed
+trustworthy throughout was `EXIT:$?`, echoed by this workstream's own shell
+chain immediately after its own `node` command — that is sequential shell
+execution, not shared file state, so it could not be contaminated by another
+process's writes to the same fd.
+
+**What to do differently.** Redirect a long-running background command's
+output to a path INSIDE the workstream's own worktree, never the shared
+scratchpad, even for a throwaway log — the worktree directory is not shared
+across sibling agents the way the scratchpad is. Confirmed via `lsof`
+showing exactly one writer before trusting the second attempt's content.
+The gitignored `*.log` pattern already covers a stray file like this, so no
+extra cleanup was needed once redirected correctly. A generic filename
+(`baseline-gate.log`, `gate.log`) is exactly the kind of name multiple
+independent agents are likely to pick at the same time; a name is not
+"unique" for this purpose just because IT chose it deliberately.
+
+## `ws-r93-dynamic-env-injection-not-added-to-three-owner-secret-doors` (2026-09-05, considered)
+
+**Considered, not built.** `evals/room-doors/run.mjs`'s `e-cron-secret`
+class carries a DYNAMIC proof (a real secret, presented via query/body/
+header, run through the actual `authorized(req, env)` function with an
+injected fake env) for two of its seven cron doors — the two whose
+`authorized` function was deliberately written to accept `env` as a
+parameter rather than closing over `process.env` at module load. Considered
+doing the same for this workstream's `e-owner-secret` sibling class, by
+refactoring `api/life.js`/`api/taste-queue.js`/`api/culture.js`'s
+`authorized(req)` into `authorized(req, env)`.
+
+**Why not built.** All three doors read their secret from `process.env` at
+MODULE LOAD (`const SECRET = process.env.LIFE_SECRET || ""`, evaluated once
+when the file is imported), the same shape FIVE of the seven Room-scoped
+cron doors already use and which `e-cron-secret` covers with static
+extraction alone, no dynamic proof. Changing three doors' env-access shape
+so the static gap could close with a dynamic test besides — when five of
+seven precedent doors in the same file already accept static-only coverage
+as sufficient — is scope beyond what WS-R93's brief asked for (move the
+secret to a header, constant-time compare, static extraction in the
+battery) and beyond what closing the actual defect required. Left as a
+possible future strengthening, named in
+`decisions.md#ws-r93-owner-secret-doors-move-to-header`'s reversal
+condition rather than silently declined.

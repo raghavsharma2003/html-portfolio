@@ -16768,3 +16768,67 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r93-owner-secret-doors-move-to-header` (2026-09-05, WS-R93)
+
+**Decision.** Every door in `api/` that read an owner secret from
+`req.query`/`req.body` now reads it from the `x-owner-secret` header only,
+compared in constant time. A repo-wide grep of every `api/*.js` handler for
+`req.query`/`req.body` access to any of `secret`/`token`/`key`/`auth`/`pass`/
+`admin` found exactly THREE doors doing this, not merely the two named in
+this workstream's own title: `api/life.js` (`?secret=` on GET, `body.secret`
+on POST — the two WS-R89 left, `rejected.md#ws-r89-consolidate-sweep-finding-closed-at-the-merge`),
+`api/taste-queue.js` (same shape, three call sites), and a third the grep
+also caught, `api/culture.js` (`body.secret` gating its `force` refresh —
+its own file header already documented "`force` does need the secret" but
+never said where from). All three get the identical shape: a local
+`authorized(req)` function reading `req.headers?.["x-owner-secret"]` into a
+`Buffer`, guarded `expected.length >= 16 && expected.length === actual.length`
+before `timingSafeEqual` — `api/self-check.js`'s own `authorized` shape,
+restated the same way `api/consolidate-sweep.js`'s `secretMatches` already
+restates it (WS-R89). No caller in this repo ever sent the secret any other
+way (confirmed by grep of `docs/` and `scripts/` for `?secret=`, zero hits);
+the only real caller, `evals/self/life.mjs`, is updated in the same commit
+to send `headers: {"x-owner-secret": LIFE_SECRET}` instead of `body.secret`/
+`query.secret`.
+
+**Why culture.js, not just the two named in the brief.** The brief's own
+law 1 is a grep-based rule ("find every door… list them"), not a fixed list
+of two files, and its Build section says "any other door the grep names."
+`api/culture.js`'s `b.force === true && SECRET && b.secret === SECRET` is
+the exact same shape (secret in the body, `===` not constant-time) as the
+pre-fix `api/life.js`/`api/taste-queue.js` — leaving it would have shipped
+this workstream's own title claim ("every owner-secret door…") false by one
+file.
+
+**Why the header is `x-owner-secret` and not `Authorization: Bearer`.**
+`Authorization: Bearer` is this repo's established convention for
+`CRON_SECRET` specifically (Vercel's own cron-invocation header,
+`api/self-check.js`'s comment). These three doors are owner-triggered from a
+browser or a curl command, never from Vercel's cron dispatcher, and each
+already has its OWN independently-configured secret
+(`LIFE_SECRET`/`TASTE_QUEUE_SECRET`/`CULTURE_SECRET`) rather than sharing
+`CRON_SECRET` — a distinct header name keeps that distinction visible at the
+call site rather than overloading `Authorization` for two unrelated secret
+families.
+
+**Why no dynamic (injectable-env) proof, unlike two of `e-cron-secret`'s
+seven cron doors.** `replica-erasure-sweep.js`/`replica-processing-sweep.js`
+were deliberately built with an `authorized(req, env)` shape so a fake env
+could be injected without a real deploy; `api/life.js`/`api/taste-queue.js`/
+`api/culture.js` all read their `SECRET` at module load from
+`process.env`, matching FIVE of the seven cron doors (the ones `e-cron-secret`
+also covers by static extraction alone). Refactoring three doors' module-load
+shape into a differently-testable one, purely to gain a form of proof five of
+seven precedent cases already do without, was scoped out — static extraction
+(the function's own source reads only `req.headers`, never `req.query`/
+`req.body`, plus a whole-file `timingSafeEqual` check) is the rule the brief
+asked for and is what closes the actual defect.
+
+**Reversal condition.** If a future door needs its owner secret checked
+per-request against something other than a single build-time
+`process.env` value (a rotating secret, a per-room secret), the
+`authorized(req)` shape here stops being sufficient and should move to the
+injectable-env shape `replica-erasure-sweep.js` already uses, at which point
+the room-doors battery's static-only owner-secret class should also grow the
+same dynamic proof `e-cron-secret` already carries for those two doors.

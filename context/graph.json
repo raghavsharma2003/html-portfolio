@@ -8992,6 +8992,36 @@
       "kind": "measurement",
       "title": "The first real GitHub Actions run of the 21-check release gate took 8 minutes 34 seconds for Node 22 and 24 in parallel and passed; no job split needed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r93-owner-secret-doors-move-to-header",
+      "kind": "decision",
+      "title": "api/life.js, api/taste-queue.js and api/culture.js (found by grep, not just the two named) now read their owner secret from the x-owner-secret header only, constant-time compared, never req.query/req.body.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r93-owner-secret-door-sweep-2026-09-05",
+      "kind": "measurement",
+      "title": "A repo-wide grep of every api/*.js handler for a secret read from req.query or req.body (54 files scanned) found exactly 3 owner-secret doors, all fixed this session; the fixed tree greps clean.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r93-release-gate-before-and-after-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release.mjs: baseline (04395e2) 18/21, final changed tree 20/21, all failures the repo's own documented EADDRINUSE/TBT-under-load environmental pattern, none touching a file this workstream changed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r93-shared-scratchpad-log-path-cross-contaminated-by-sibling-agents",
+      "kind": "rejection",
+      "title": "Redirecting verify-release.mjs output to a generically-named file in the shared session scratchpad let sibling wave-fifteen agents' processes interleave their output into the same file; fixed by redirecting inside this workstream's own worktree instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r93-dynamic-env-injection-not-added-to-three-owner-secret-doors",
+      "kind": "rejection",
+      "title": "Considered refactoring the three owner-secret doors to accept an injectable env (matching two of e-cron-secret's seven cron doors) for a dynamic proof; not built, since five of seven precedent cron doors already accept static-only coverage as sufficient.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17614,6 +17644,31 @@
       "src": "rooms-migrations-122-123-125-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "ws-r93-owner-secret-doors-move-to-header",
+      "rel": "measured_by",
+      "dst": "ws-r93-owner-secret-door-sweep-2026-09-05"
+    },
+    {
+      "src": "ws-r93-owner-secret-doors-move-to-header",
+      "rel": "measured_by",
+      "dst": "ws-r93-release-gate-before-and-after-2026-09-05"
+    },
+    {
+      "src": "ws-r93-owner-secret-doors-move-to-header",
+      "rel": "caused_by",
+      "dst": "ws-r89-consolidate-sweep-finding-closed-at-the-merge"
+    },
+    {
+      "src": "ws-r93-owner-secret-doors-move-to-header",
+      "rel": "caused_by",
+      "dst": "ws-r93-dynamic-env-injection-not-added-to-three-owner-secret-doors"
+    },
+    {
+      "src": "ws-r93-release-gate-before-and-after-2026-09-05",
+      "rel": "caused_by",
+      "dst": "ws-r93-shared-scratchpad-log-path-cross-contaminated-by-sibling-agents"
     }
   ]
 }
