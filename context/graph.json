@@ -10354,6 +10354,48 @@
       "kind": "measurement",
       "title": "WS-R127 suite pass counts on this worktree: evals/org-weekly-note (new) 42/42; evals/room-leak 264/264 (was 262/262, +layer 16's 9 assertions and two AGGREGATE_ONLY additions); evals/room-doors 807/807 (was 799/799, +8 assertions for send_test_weekly_note and its cron-door discovery); evals/org 71/71 (was 68/68, +3 assertions on listMyOrgs's weekly_note field).",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-body-shape-fuzzing",
+      "kind": "component",
+      "title": "The door battery's fourth pass: evals/room-doors/shapes.mjs generates twelve named hostile-shape classes (arrays for scalars, objects for scalars, digit strings for numbers, raw numbers for strings, booleans, null, oversized numbers, embedded null bytes, NFKC-unstable strings, prototype-pollution keys, deeply nested values, zero-width whitespace); evals/room-doors/run.mjs SECTION 25 drives every op OP_COVERAGE derives (120 x 12 = 1440) through the real decision function with a write-poisoned fake db, scoring a finding only when a write reaches with a body-tainted non-primitive param still bound, or an uncaught non-domain error.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-write-guard-scores-only-body-tainted-non-primitive-params",
+      "kind": "decision",
+      "title": "The write-poisoned db counts a finding only when a non-primitive bound param is reference-traceable to the hostile body itself, never any array/object param a query legitimately binds for its own reasons (api/_ops.js's operator allowlist bind was the case that forced this).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-account-js-body-shape-proven-statically-not-live",
+      "kind": "decision",
+      "title": "api/account.js's 11 ops are proven against body-shape fuzzing by a static source-guard check, never a live hostile call, because the door has no injectable decision module and a live call would need real network or a real Postgres connection this offline environment does not have.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-replica-display-name-error-missing-code",
+      "kind": "decision",
+      "title": "api/_replica.js's replicaDisplayName threw {status} with no {code} for an invalid (e.g. null-coerced) display_name -- the one place in this door's error surface that broke the {code,status} contract every other domain error in this product keeps. Fixed by adding code:'display_name_invalid'; the exact pre-fix hostile body is a frozen negative control in evals/room-doors/run.mjs SECTION 25b.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-fuzz-battery-run-2026-09-05",
+      "kind": "measurement",
+      "title": "1440 op x class combinations derived (120 ops x 12 classes): 1296 driven live (0 findings after the one fix), 12 skipped and named (room.js speak, no network/GPU), 132 proven statically (api/account.js). evals/room-doors/run.mjs: 2129 ok, 0 failed. node scripts/verify-release.mjs: 20 of 21 checks pass; 'performance budgets' failed on both a first run and a standalone retry with a DIFFERENT unrelated target failing each time (studio-hi TBT 330ms first run; / and /studio TBT 344ms/449ms on retry, studio-hi itself passing at 214ms) on a machine measured at load average 19.6-24.5 with 6-7 concurrent verify-release.mjs processes from sibling worktrees -- scored environmental per ws-common.md's own rule, not this workstream's diff (which touches no front-end/bundle code at all), though no clean untouched-tree baseline was captured before this workstream's own edits.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-blanket-any-write-is-unsafe-produced-12-of-13-false-positive-doors",
+      "kind": "rejection",
+      "title": "Scoring ANY write reached under the write-poisoned db as a finding (no param inspection) produced 103 apparent failures across 8 doors on the first live run; tracing them showed 12 of 13 apparent 'doors with findings' were either already-sanitised String(x||'') coercions reaching a correct write, or api/_ops.js's own legitimate operator-allowlist array bind, present for every class including a benign body.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r124-taste-turnindex-zero-and-account-block-truncation-were-harness-bugs-not-findings",
+      "kind": "rejection",
+      "title": "Two more apparent findings traced to this workstream's own harness, not the product: room.js taste's invoke wrapper hardcoded a falsy turnIndex:0 (never a body field) tripping roomTaste's own !turnIndex guard for every class; SECTION 25c's account.js block-boundary search matched track's OWN internal res.status(400) refusal, truncating the extracted block before its later device/user_id guards.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20091,6 +20133,46 @@
       "src": "ws-r127-suite-admin-weekly-note-measurements-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r127-org-weekly-note"
+    },
+    {
+      "src": "ws-r124-write-guard-scores-only-body-tainted-non-primitive-params",
+      "rel": "part_of",
+      "dst": "ws-r124-body-shape-fuzzing"
+    },
+    {
+      "src": "ws-r124-account-js-body-shape-proven-statically-not-live",
+      "rel": "part_of",
+      "dst": "ws-r124-body-shape-fuzzing"
+    },
+    {
+      "src": "ws-r124-replica-display-name-error-missing-code",
+      "rel": "part_of",
+      "dst": "ws-r124-body-shape-fuzzing"
+    },
+    {
+      "src": "ws-r124-fuzz-battery-run-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r124-body-shape-fuzzing"
+    },
+    {
+      "src": "ws-r124-fuzz-battery-run-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r124-replica-display-name-error-missing-code"
+    },
+    {
+      "src": "ws-r124-blanket-any-write-is-unsafe-produced-12-of-13-false-positive-doors",
+      "rel": "caused_by",
+      "dst": "ws-r124-body-shape-fuzzing"
+    },
+    {
+      "src": "ws-r124-write-guard-scores-only-body-tainted-non-primitive-params",
+      "rel": "supersedes",
+      "dst": "ws-r124-blanket-any-write-is-unsafe-produced-12-of-13-false-positive-doors"
+    },
+    {
+      "src": "ws-r124-taste-turnindex-zero-and-account-block-truncation-were-harness-bugs-not-findings",
+      "rel": "caused_by",
+      "dst": "ws-r124-body-shape-fuzzing"
     }
   ]
 }
