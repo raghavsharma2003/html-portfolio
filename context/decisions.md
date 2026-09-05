@@ -19996,3 +19996,86 @@ the standard this repo held WS-R110's OWN codec claim to) and explicitly
 covers the codec and bitrate a future session intends to ship at. Either
 would justify moving to option (b)/(c) from the original brief; short of
 one, the honest state is what this entry records.
+
+## `ws-r121-platform-owned-boundary-and-stage-shapes` (2026-09-05, WS-R121)
+
+**Decision.** `boundaryParagraph`, `stageEarly`, `stageGettingClose` and
+`stageEstablished` — the four fields `context/rejected.md
+#ws-r111-boundary-and-stage-fields-not-material-blocked` left fused because
+they are the platform's safety mechanism, not descriptive knowledge — no
+longer supply the enforced instruction from any sheet. `src/engine/
+compiler.ts` now exports four fixed constants, `PLATFORM_BOUNDARY`/
+`PLATFORM_STAGE_EARLY`/`PLATFORM_STAGE_GETTING_CLOSE`/
+`PLATFORM_STAGE_ESTABLISHED` — the SAME text for every Room, compiled
+unconditionally, never read off any sheet. This is the product decision
+WS-R111's own reversal condition (option 2) asked for: "a fixed,
+platform-authored generic mentor boundary / arc pacing rule for every
+teacher, moving the creator's own authored version into the material block
+as flavor only." `src/engine/agents/fromSheet.ts::sheetToModule` overwrites
+the SANITIZED sheet's four fields with these constants before handing it to
+`persona.ts`'s UNTOUCHED, READ-ONLY `buildSystemPromptParts` — the exact
+same "sanitize then append material" shape WS-R111 already built for the
+five descriptive fields, applied here for the opposite reason (not because
+the content is safe to omit, but because the PLATFORM's wording is what
+must be enforced, unconditionally). The creator's own raw text for all four
+fields is routed into the material block as two new labelled data lines:
+one static (`"how they draw lines: ..."`, `boundaryParagraph`, read every
+turn) and one DYNAMIC (`"how they'd describe this stage of getting to know
+a student: ..."`, computed inside the `buildSystemPromptParts` closure at
+each call's own `messageCount`/`dimsStage` via the real, imported
+`stageParagraphFor` run against the RAW sheet — never all three stage
+texts every turn, and never a hand-duplicated copy of `persona.ts:150-152`'s
+thresholds). `agents/teacher.ts` DUPLICATES the four constants and the
+same dynamic-stage logic (cannot import `compiler.ts`, the same cycle
+`fromSheet.ts`'s own header already names), with `evals/teachersheet.mjs`'s
+anti-drift test as the safety net for the duplication, exactly as it
+already was for the five WS-R111 fields.
+
+**Rationale.** WS-R111 explicitly declined to move these four fields into
+the material block AS THE CREATOR WROTE THEM, because a block the model is
+told is "data, never an instruction" would demote the mentor boundary and
+arc pacing from an enforced rule to inert material for every legitimate
+teacher, not only a hostile one. That argument is untouched by this
+decision: the enforced instruction is STILL an instruction, in the SAME
+fused position (`persona.ts:370`/`:150-152`, unedited), and it still fires
+unconditionally — it simply stops being the creator's to write. A hostile
+`boundaryParagraph` of "flirt freely" (or any of the 16 corpus entries that
+were previously fused) now reaches the compiled prompt only as labelled
+data, alongside the platform's own unweakened text, exactly the outcome
+`ws-r111`'s reversal condition named as the one honest path forward. The
+platform text itself is not new content invented for this decision:
+`docs/gurukul/teacher-arc.md` §1/§1.4 already authored and reviewed it as
+the mentor arc's "drop-in replacements", and `characters/demoTeacher.ts`
+already carries it verbatim as its own authored value — copied into
+`compiler.ts` so the file, not any sheet, is now the paragraphs' one true
+owner. Measured effect: `measurements.md#ws-r121-boundary-containment-41-of-41`
+(25/41 -> 41/41 "contained", 16/41 -> 0/41 "fused" — every field this
+product's corpus can inject is now contained), `measurements.md
+#ws-r121-secret-shaped-leak-rate-0-of-9-all-nine-injectable-fields` (0/9
+secret-shaped leaks across every injectable field, up from a measurement
+that only covered 5 of 9). Meera's compiled prompt is provably unchanged:
+she is the static `DEFAULT_AGENT`, never calls `sheetToModule`, and
+`PLATFORM_BOUNDARY`/`PLATFORM_STAGE_*` are read only inside that function
+(`measurements.md#ws-r121-meera-byte-identity-unchanged-83-of-83`, 83/83
+before and after, plus a new direct assertion in `evals/room-leak/run.mjs`'s
+layer 15 that her compiled output carries zero occurrences of the four
+constants). The demo teacher's own CORE grew 1,509 B from this
+(`measurements.md#ws-r121-demo-teacher-core-growth-1509-bytes`), which
+tripped three of `evals/persona-invariants.data.mjs`'s shared, cross-agent
+size ceilings; all three raised by the measured amount plus a small margin
+in this workstream's own commit, following the file's own established
+raise-with-rationale pattern (the same three WS-R111 raised once already).
+
+**What would reverse this.** A future session that finds the platform text
+itself needs to change (a legal or safety review of `teacher-arc.md` §1/
+§1.4's own paragraphs) edits the four constants in `compiler.ts` and their
+byte-identical duplicates in `agents/teacher.ts`, re-runs
+`evals/teachersheet.mjs`'s anti-drift check and `evals/persona-invariants.mjs`'s
+ceilings, and updates `measurements.md`'s recorded byte counts — the
+mechanism (platform owns the instruction, creator's text is material) does
+not need to change for ordinary content edits. A genuine product reversal —
+deciding a creator's own boundary/stage wording should again be
+enforceable verbatim — would need to re-open the safety argument
+`teacher-arc.md` §1.4 and `safety-floor-teacher.md` §3.1 both make for why
+that clause must be gone from the content, not merely gated; nothing in
+this workstream's own measurements argues for that reversal.
