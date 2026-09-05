@@ -265,6 +265,15 @@ const PROCESSING_SWEEP_AUTH = PROCESSING_SWEEP_MODULE.authorizedProcessingSweep;
 
 const { loadAgent } = await loadFixtureAgent(ROOT);
 
+// WS-R108: the readable copy's own builder, and the real manifest it needs
+// to reach `roomExport`'s agent-scoped rows offline (`personTables`'s own
+// seam every FULL-coverage caller in this repo overrides the same way,
+// `evals/room-export/run.mjs`'s own `FULL_DEPS` restated here rather than
+// imported — a fixture constant, not a decision, `api/_room-surface.js`'s
+// own `personTablesFor` comment explains the seam itself).
+const { buildRoomExportReadableHtml } = await import(pathToFileURL(join(API, "_room-export-readable.js")).href);
+const { PERSON_TABLES } = await import(pathToFileURL(join(API, "memory.js")).href);
+
 const SECRET = "s".repeat(48);
 const OTHER_SECRET = "t".repeat(48);
 const ENV = { ROOM_SESSION_SECRET: SECRET };
@@ -643,6 +652,58 @@ console.log("\n── §3: body-supplied ids belonging to someone else ──");
   const block = src.slice(src.indexOf('if (op === "export" || op === "forget")'));
   ok('[c-body-ids/room.js] export/forget: the bearer identity is compared against the SESSION\'S OWN person id, never trusted from a body field', /String\(personId\) !== String\(payload\.p\)/.test(block));
   ok("[c-body-ids/room.js] export/forget: a mismatch is refused BEFORE roomExport/roomForget is ever called", block.indexOf("room_session_mismatch") < block.indexOf("roomExport(q"));
+}
+
+// room.js: WS-R108's own `format: "html"` branch on "export" — the readable
+// copy. No NEW attack surface (the workstream brief's own words): the branch
+// runs on `out`, the SAME already-authorized `roomExport` result the block
+// above just proved sits behind both layers, and `buildRoomExportReadableHtml`
+// (`api/_room-export-readable.js`) reads no table of its own. Proven three
+// ways: (1) statically, that the branch reads `out` rather than calling
+// anything fresh, is gated to `op === "export"` alone (a printable page for a
+// WIPE makes no sense and this door never builds one), and sits after both
+// the mismatch check and the `out` assignment; (2) dynamically, that the real
+// builder composes with a real `roomExport` result over one real follower's
+// own session without error; (3) dynamically, that two followers in the SAME
+// room each get a readable page carrying nothing about the other — restating
+// `roomExport`'s own already-proven classes a/b/c (§17e above, OP_COVERAGE's
+// `export: {classes:["a","b","c"]}`) for the readable format specifically,
+// since a regression here would be a NEW bug even with `roomExport` itself
+// unchanged.
+{
+  const src = readFileSync(join(API, "room.js"), "utf8");
+  const block = src.slice(src.indexOf('if (op === "export" || op === "forget")'));
+  const formatIdx = block.indexOf('body.format === "html"');
+  ok('[c-body-ids/room.js] export format:"html": the branch is gated to op==="export" alone (forget never renders a printable page)',
+    /op === "export" && body\.format === "html"/.test(block));
+  ok('[c-body-ids/room.js] export format:"html": the branch calls the builder on `out` — the SAME already-authorized result, never a fresh read',
+    /buildRoomExportReadableHtml\(out,/.test(block));
+  ok('[c-body-ids/room.js] export format:"html": the branch sits AFTER the session/bearer mismatch check',
+    formatIdx > -1 && block.indexOf("room_session_mismatch") < formatIdx);
+  ok('[c-body-ids/room.js] export format:"html": the branch sits AFTER `out` itself is built (the authorized roomExport/roomForget call)',
+    formatIdx > -1 && block.indexOf("roomExport(q") < formatIdx);
+}
+{
+  const { db, session } = await setupFollower();
+  const depsFull = { loadAgent, now: NOW, env: ENV, personTables: async () => PERSON_TABLES, tableApplied: async () => true };
+  const dump = await roomExport(db, { session }, depsFull);
+  const html = buildRoomExportReadableHtml(dump, dump.locale);
+  ok("[export-readable/room.js] the real builder composes with the real roomExport over one real follower's own session, with no throw",
+    typeof html === "string" && html.startsWith("<!doctype html"));
+  ok("[export-readable/room.js] the built page carries no <script> tag", !/<script/i.test(html));
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const joinedB = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
+  const depsFull = { loadAgent, now: NOW, env: ENV, personTables: async () => PERSON_TABLES, tableApplied: async () => true };
+  const dumpA = await roomExport(db, { session: joinedA.session }, depsFull);
+  const dumpB = await roomExport(db, { session: joinedB.session }, depsFull);
+  const htmlA = buildRoomExportReadableHtml(dumpA, "en");
+  const htmlB = buildRoomExportReadableHtml(dumpB, "en");
+  ok("[export-readable/room.js] follower A's own readable page carries none of follower B's own person id", !htmlA.includes(dumpB.person_id));
+  ok("[export-readable/room.js] follower B's own readable page carries none of follower A's own person id", !htmlB.includes(dumpA.person_id));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

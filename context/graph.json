@@ -9448,6 +9448,72 @@
       "kind": "decision",
       "title": "The first-Hindi-paint budget is 1000 ms, set from measurement rather than copied from the chunk-wait budget; returns to 800 once the Hindi chunk is preloaded from the built page and three gate runs measure under 700 ms.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-the-readable-export",
+      "kind": "component",
+      "title": "The follower's readable export (WS-R108, no migration): api/_room-export-readable.js's pure builder (TABLE_COPY, 46 tables both locales), api/room.js's export op format:\"html\" branch (the receipt's own precedent), src/room/roomApi.ts's fetchRoomExportReadableHtml, AccountPage.tsx's second export button, evals/room-export-readable/run.mjs.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-readable-export-locale-from-selfscopes-locale-not-the-session-token",
+      "kind": "decision",
+      "title": "roomExport()'s return object gained a locale field from selfScope's fresh re-read of vy_room_follower.locale, never from the session token's own frozen payload.loc.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding",
+      "kind": "decision",
+      "title": "Readable-export completeness is proved by diffing TABLE_COPY's keys against roomExportManifest()'s own name list (no database needed), not by seeding a fixture world with content in all 46 tables.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-readable-export-completeness-2026-09-05",
+      "kind": "measurement",
+      "title": "TABLE_COPY vs roomExportManifest(): 46/46 tables covered, 0 missing, 0 orphan, both locales genuinely differ per table.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-readable-export-eval-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-export-readable/run.mjs: 174 assertions, 0 failures, offline, deterministic (static completeness, runtime negative control, both locales, the language walk, the two-follower leak check, two negative controls).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-readable-export-room-doors-case-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-doors/run.mjs's new §17f case: 8 new assertions, 729/729 total, 0 failures.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-accessibility-target-2026-09-05",
+      "kind": "measurement",
+      "title": "scripts/check-accessibility.mjs --target room-export-readable: 0 axe findings, 0 language-tag findings, 13 Devanagari text nodes checked.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-layout-gate-room-target-2026-09-05",
+      "kind": "measurement",
+      "title": "scripts/check-layout.mjs --only room: clean after the new account-page button, no TAP-TARGET regression, both locales.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-full-release-gate-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release.mjs: baseline 18/21 (3 EADDRINUSE), first changed-tree run 18/21 (2 real failures from TABLE_COPY's shape, fixed same session), second changed-tree run 21/21 clean.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-full-fixture-seeding-for-readable-export-completeness",
+      "kind": "rejection",
+      "title": "Seeding every one of the 46 manifest tables in a fixture to prove readable-export completeness dynamically was considered and abandoned before being written, once evals/room-export/fixtures.mjs and evals/room/fixtures.mjs were read and found to model only 11 of the 46.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r108-table-copy-as-a-keyed-object-failed-the-leak-batterys-static-reach-layer",
+      "kind": "rejection",
+      "title": "TABLE_COPY as a plain object keyed by table name failed evals/room-leak's static reach layer (unsafe-line on 15 tables, plus two hand-typed ALLOWED-set checks) on the first full gate run; fixed by an array of {table, en, hi} entries (ROOM_EXPORT_EXTRA's own shape) plus two named admissions.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18440,6 +18506,61 @@
       "src": "first-hindi-paint-budget-set-from-measurement",
       "rel": "constrains",
       "dst": "ws-r91-authgate-reads-locale-before-sign-in"
+    },
+    {
+      "src": "ws-r108-readable-export-locale-from-selfscopes-locale-not-the-session-token",
+      "rel": "part_of",
+      "dst": "ws-r108-the-readable-export"
+    },
+    {
+      "src": "ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding",
+      "rel": "part_of",
+      "dst": "ws-r108-the-readable-export"
+    },
+    {
+      "src": "ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding",
+      "rel": "caused_by",
+      "dst": "ws-r108-full-fixture-seeding-for-readable-export-completeness"
+    },
+    {
+      "src": "ws-r108-readable-export-completeness-proved-by-static-list-diff-not-full-fixture-seeding",
+      "rel": "measured_by",
+      "dst": "ws-r108-readable-export-completeness-2026-09-05"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "measured_by",
+      "dst": "ws-r108-readable-export-eval-2026-09-05"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "measured_by",
+      "dst": "ws-r108-readable-export-room-doors-case-2026-09-05"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "measured_by",
+      "dst": "ws-r108-accessibility-target-2026-09-05"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "measured_by",
+      "dst": "ws-r108-layout-gate-room-target-2026-09-05"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "caused_by",
+      "dst": "ws-r108-table-copy-as-a-keyed-object-failed-the-leak-batterys-static-reach-layer"
+    },
+    {
+      "src": "ws-r108-the-readable-export",
+      "rel": "measured_by",
+      "dst": "ws-r108-full-release-gate-2026-09-05"
     }
   ]
 }

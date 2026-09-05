@@ -513,3 +513,26 @@ export async function fetchReceiptHtml(session: string, paymentEventId: string):
   }
   return text;
 }
+
+// ── WS-R108: the follower's readable export ─────────────────────────────
+// The SAME session-scoped `export` op `exportRoomData` above already calls,
+// requested with `format: "html"` instead - `fetchReceiptHtml`'s own shape
+// one op over: the server's response is the printable page itself,
+// `text/html`, never a JSON envelope `response.json()` could parse, and it
+// still needs the bearer (unlike the receipt) because `export` always has -
+// `api/room.js`'s own second-layer check runs before either format branch.
+export async function fetchRoomExportReadableHtml(session: string, accessToken: string): Promise<string> {
+  const response = await fetch("/api/room", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ op: "export", session, format: "html" }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    let code = `room_request_failed_${response.status}`;
+    try { code = String(JSON.parse(text)?.error || code); } catch { /* the error response is JSON; a non-JSON body here is unexpected but must not throw a parse error over a network error */ }
+    throw new RoomApiError(code, response.status);
+  }
+  return text;
+}

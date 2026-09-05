@@ -2488,6 +2488,27 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-about": "room-about/run.mjs",
+  // WS-R108. The follower's READABLE export: one printable HTML document
+  // (both locales, no script, no external resource, A4 print stylesheet),
+  // built from `roomExport`'s (`api/_room-surface.js`) own return value by
+  // the pure builder in `api/_room-export-readable.js`. Proves: (1) static
+  // completeness — every table `roomExportManifest()` can name has a
+  // sentence in both locales in the builder's own copy table, and the
+  // reverse (no orphan entry); (2) the runtime negative control the
+  // workstream brief's law 4 asks for — a table present in an export result
+  // but absent from the copy table throws, named; (3) both locales render
+  // from the same real export, with the right `<html lang>` and no script/
+  // external resource; (4) the language walk — every rendered `<th>`/`<td>`/
+  // `<span>` carries a `lang` attribute matching its own text's actual
+  // script (WS-R79's law, `evals/lang-tag/run.mjs`'s own regex method
+  // applied to this page); (5) two followers in the same room, byte-checked:
+  // neither's readable page carries the other's secret token or person id.
+  // Two negative controls beyond the workstream brief's own one: a struck
+  // copy entry is caught by the static diff, and a deliberately mistagged
+  // node is caught by the language walk.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "room-export-readable": "room-export-readable/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

@@ -27,7 +27,11 @@
 //   POST /api/room {op:"unflag", session, reply_sha256}         -> withdraw one
 //   POST /api/room {op:"flags",  session}                       -> the follower's own list
 //   POST /api/room {op:"stats",  room:"<slug>"}
-//   POST /api/room {op:"export", session}
+//   POST /api/room {op:"export", session, format?}
+//                                          -> JSON (default) or a printable,
+//                                          readable page (format:"html",
+//                                          WS-R108) — the same op, the
+//                                          receipt's own precedent below
 //   POST /api/room {op:"forget", session}
 //   POST /api/room {op:"receipt",  session, payment_event_id, format?}
 //                                          -> HTML (format:"html") or JSON
@@ -133,6 +137,7 @@ import { createNeonVoicePreviewLedger } from "./_replica-voice-preview.js";
 import { readPrivateReplicaObject } from "./_replica-storage.js";
 import { withDoor } from "./_incidents.js";
 import { buildReceiptHtml } from "./_receipt.js";
+import { buildRoomExportReadableHtml } from "./_room-export-readable.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -570,6 +575,18 @@ async function handler(req, res) {
           ? await roomExport(q, { session: body.session })
           : await roomForget(q, { session: body.session });
       obsBestEffort(`room.${op}`, { ok: true });
+      // WS-R108. The readable copy, "receipt"'s own `format: "html"`
+      // precedent above (WS-R100): the SAME already-authorized `out` this
+      // op already built (both layers above already ran - a mismatched
+      // bearer never reaches this line, `evals/room-doors/run.mjs`'s own
+      // static proof of that ordering), handed to a PURE builder that reads
+      // no table of its own. `forget` never carries this branch - there is
+      // no printable page for a wipe, only a receipt (`receiptTitle`'s own
+      // copy on the account page covers that already).
+      if (op === "export" && body.format === "html") {
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        return res.status(200).send(buildRoomExportReadableHtml(out, out.locale));
+      }
       return res.status(200).json(out);
     }
 

@@ -318,9 +318,17 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // (marking their own notice, or handing their own scope to the REAL
   // `roomForgetForFollower`) and deliver nothing back to the creator or to
   // any other follower.
+  // WS-R108: the follower's readable export names both tables — as a
+  // `TABLE_COPY` entry's own `table: "vy_room_thread"`/`table: "vy_room_
+  // follower"` key, `ROOM_EXPORT_EXTRA`'s own shape restated (this file's
+  // own SAFE_LINE below already admits that shape for the OTHER 44 tables'
+  // check further down; this hand-typed set is the one exception with no
+  // pattern-matching fallback) — never a SELECT, never a db of any kind: it
+  // is a pure function of `roomExport`'s ALREADY-scoped return value, with
+  // no way to reach a row this file did not already hand it.
   const ALLOWED = new Set([
     "_room-surface.js", "_room.js", "_replica-full-erasure.js", "memory.js", "_checkins.js", "_room-whatsapp.js",
-    "_renewals.js", "_dormancy.js",
+    "_renewals.js", "_dormancy.js", "_room-export-readable.js",
   ]);
   // WS-R7's creator lane reads `vy_room_follower` for the owner's stats, and
   // WS-R12's reads it and `vy_room_follower_day` for the week-six retention
@@ -902,7 +910,16 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
   // - a new creator-facing reader added later must fail this line the day it
   // is written without also updating it, (1c)'s own ALLOWED-set shape.
   const ALLOWED = new Set(["_handoff.js", "handoff.js"]);
-  const DELETE_ONLY = new Set(["_replica-full-erasure.js", "_room-surface.js", "memory.js"]);
+  // WS-R108: `_room-export-readable.js` joins this set despite never
+  // deleting anything - the set's own name is about the two ORIGINAL
+  // members, but what this loop actually enforces for everyone in it is
+  // "every line matches SAFE_LINE below", and the readable export's own
+  // `table: "vy_room_handoff",` line (a `TABLE_COPY` entry, `ROOM_EXPORT_
+  // EXTRA`'s own shape) is exactly the pattern that regex already admits for
+  // `_room-surface.js`'s and `memory.js`'s manifest entries. No SELECT, no
+  // db of any kind - a pure function of `roomExport`'s already-scoped return
+  // value, never a fresh read of this table.
+  const DELETE_ONLY = new Set(["_replica-full-erasure.js", "_room-surface.js", "memory.js", "_room-export-readable.js"]);
   const offenders = [];
   for (const f of fs.readdirSync(join(REPO, "api"))) {
     if (!f.endsWith(".js") || ALLOWED.has(f)) continue;
