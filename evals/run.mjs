@@ -2392,6 +2392,40 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-receipt": "room-receipt/run.mjs",
+  // WS-R95 (wave fifteen). The creator's journey rehearsed end to end: a
+  // real Chromium drives the REAL built studio (`dist/studio.html`) against
+  // `evals/rehearsal/harness-creator.mjs`'s real local HTTP server, which
+  // routes to the REAL `api/replica.js`, `api/context-items.js`,
+  // `api/review-queue.js`, `api/readiness.js` and `api/room-publish.js`
+  // handlers over `evals/room-doors/fixtures.mjs`'s `rehearsalCreatorDb`
+  // fixture — sign in (a seeded session, never a real OTP), create a
+  // replica, add one text source, read Readiness locked below the floor,
+  // decide three review cards (Sounds right, Close fix it, Never say
+  // this), verify the resulting never-rule bites a matching reply through
+  // the REAL predicate function, publish the Room once Readiness is seeded
+  // to cross the floor, pick a showcase card, read the share kit, and
+  // download the export and read its manifest. FOUR NEGATIVE CONTROLS:
+  // publishing below the floor is refused (409, named by code); the
+  // eligible-showcase read never offers a follower-sourced card AND
+  // forcing one through the door is refused; an unrelated reply is not
+  // caught by the minted never-rule; the export carries zero rows for
+  // every follower-lane table it names. This suite made a real product
+  // finding: `readinessScreen`'s "knows_your_material" part can never be
+  // measured today (no recall-run writer exists anywhere in this tree), so
+  // NO replica can cross the publish floor through a real computation —
+  // crossing it here is a fixture SEED, the same shortcut
+  // `evals/room-publish/run.mjs`'s own fixture takes, confirmed by this
+  // suite to be the only reachable path rather than merely a convenient
+  // one. See `evals/rehearsal/creator.mjs`'s own header for the full list
+  // of what is driven through the browser's DOM versus through the
+  // harness's own HTTP door directly (both reach the identical real
+  // handler), and for the UI gate this suite found (the Share tab's
+  // showcase picker does not mount for a replica whose runtime is not
+  // active). Runs the English walk only; set `REHEARSAL_FULL=1` to also
+  // run the Hindi walk (both locales pass; Hindi is not in this gate's own
+  // time budget). $0, no model call, no GPU; Chromium only (never
+  // `playwright install` — /opt/pw-browsers is pre-installed).
+  "rehearsal-creator": "rehearsal/creator.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

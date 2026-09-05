@@ -9250,6 +9250,36 @@
       "kind": "measurement",
       "title": "Migration 126 applied live at the WS-R100 merge, four statements one per request; six statements planned on their indexes, the account-wide nullify's second-column bitmap scan accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r95-creator-rehearsal-harness-over-fixture-db-not-a-mocked-fetch-layer",
+      "kind": "decision",
+      "title": "The creator-journey rehearsal routes real HTTP requests to the REAL api/*.js door handlers over a fetch-intercepted fixture db, rather than a canned-response fake server.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r95-readiness-floor-crossing-is-seeded-never-computed",
+      "kind": "decision",
+      "title": "Crossing the Readiness publish floor in the creator rehearsal is a direct fixture seed, never a computed screen \u2014 confirmed to be the ONLY reachable path today, not a convenience.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r95-creator-rehearsal-walk-2026-09-05",
+      "kind": "measurement",
+      "title": "26 assertions per locale (52 total), 0 failures, 15.4-17.0s English-only wall clock, 36.5s both locales, real Chromium against the real studio and real doors.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r95-rehearsal-fixture-generic-matcher-shadowed-by-a-more-specific-later-statement",
+      "kind": "rejection",
+      "title": "Four cases of a standalone-read fixture matcher shadowing a later, larger CTE statement that embeds the same SQL substring \u2014 the WS-R72 ordering lesson relearned a third time.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply",
+      "kind": "open",
+      "title": "api/_room-surface.js roomSay never passes neverRules into gatedReply, unlike the widget (_clonechat.js) and Mirror Call lanes \u2014 a creator's Never-say-this rules do not protect the Room a follower actually talks to.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18097,6 +18127,36 @@
       "src": "rooms-migration-126-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "room-never-rules-one-reader-three-lanes"
+    },
+    {
+      "src": "ws-r95-creator-rehearsal-walk-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r95-creator-rehearsal-harness-over-fixture-db-not-a-mocked-fetch-layer"
+    },
+    {
+      "src": "ws-r95-creator-rehearsal-walk-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r95-readiness-floor-crossing-is-seeded-never-computed"
+    },
+    {
+      "src": "ws-r95-readiness-floor-crossing-is-seeded-never-computed",
+      "rel": "caused_by",
+      "dst": "ws-r95-creator-rehearsal-walk-2026-09-05"
+    },
+    {
+      "src": "ws-r95-creator-rehearsal-harness-over-fixture-db-not-a-mocked-fetch-layer",
+      "rel": "caused_by",
+      "dst": "ws-r95-rehearsal-fixture-generic-matcher-shadowed-by-a-more-specific-later-statement"
+    },
+    {
+      "src": "ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply",
+      "rel": "caused_by",
+      "dst": "ws-r95-creator-rehearsal-walk-2026-09-05"
+    },
+    {
+      "src": "room-never-rules-one-reader-three-lanes",
+      "rel": "supersedes",
+      "dst": "ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply"
     }
   ]
 }

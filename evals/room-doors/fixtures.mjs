@@ -1304,3 +1304,406 @@ export function doorsDb(state) {
   db.calls = calls;
   return db;
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R95 (the creator journey rehearsal, evals/rehearsal/harness-creator.mjs
+// and evals/rehearsal/creator.mjs). APPEND-ONLY, per the wave-fifteen brief.
+//
+// The rehearsal drives the REAL HTTP doors over a REAL local server, which
+// means it reaches decision modules `doorsDb` above was never asked to know
+// about: `api/_context-locker.js` (the Context Locker's "add one text
+// source"), `api/_readiness.js` (the six raw inputs Readiness reads AND the
+// snapshot it writes), `api/_review-queue.js` (fill the queue, decide a
+// card), and `api/_room-publish.js`'s own READINESS-AWARE half of its
+// publish/resume CASE — which the comment on the "insert into vy_room\n"
+// block above (WS-R51) says on purpose is "deliberately NOT reproduced" by
+// the generic matchers above, because publish/resume's own lock is that
+// suite's subject (`evals/room-publish/run.mjs`), not the door battery's.
+// This rehearsal is the one caller that DOES need the lock to bite for
+// real, so `rehearsalPatterns` below reimplements the same three-fragment
+// check `evals/room-publish/run.mjs`'s own `makeDb` proved correct
+// (`runtimeOk`/`readinessOk`/`disclosureOk`), simplified to hold ONLY
+// Readiness open to the walk's own control — runtime activation and
+// disclosure approval are pre-seeded already-passing, named in the
+// workstream's report as out of THIS rehearsal's scope (they are each
+// their own multi-stage pipeline with dedicated suites of their own).
+//
+// `rehearsalCreatorDb` tries these NEW patterns FIRST, then falls through to
+// `doorsDb` — the inverse order from `doorsDb`'s own "doors, then base"
+// composition, and deliberately so: the whole point of adding a matcher
+// here is that it must be able to OVERRIDE `doorsDb`'s existing permissive
+// "always takes the CASE's `then` branch" publish/resume matcher, which
+// would otherwise answer FIRST and hide the lock this rehearsal exists to
+// exercise. A "try, catch, fall through" composition (mirroring `doorsDb`'s
+// own order) cannot do this, because `doorsDb`'s publish matcher never
+// throws — it always returns an answer, just not a readiness-aware one.
+function rehearsalPatterns(state, sql, params, has) {
+  // ── Readiness's OWNED check (api/_readiness.js's own `readReadinessInputs`,
+  //    distinct from every other "owns this replica" shape in this file by
+  //    its trailing "and r.lifecycle <> 'purging'"). ───────────────────────
+  if (has("from vy_replica r") && has("r.lifecycle <> 'purging'") && has("limit 1")) {
+    const [rid, owner] = params.map(String);
+    const row = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === owner);
+    return row ? [{ replica_id: row.replica_id }] : [];
+  }
+  // ── CLAIM_LEDGER_SQL — the only statement in this file whose select list
+  //    carries "as mined". ──────────────────────────────────────────────────
+  if (has("as mined") && has("as reviewed") && has("as never_say_rules")) {
+    const [rid, owner] = params.map(String);
+    const claims = state.rehearsalClaims.filter((c) => c.replica_id === rid && c.owner_user_id === owner);
+    const mined = claims.filter((c) => c.status === "proposed" || c.status === "approved").length;
+    const reviewed = claims.filter((c) => ["approved", "rejected", "superseded"].includes(c.status)).length;
+    const approved = claims.filter((c) => c.status === "approved").length;
+    const never_say_rules = claims.filter((c) => c.status === "approved" && c.domain === "boundary").length;
+    const claims_valid = approved;
+    return [{ mined, reviewed, approved, never_say_rules, claims_valid }];
+  }
+  // ── FIDELITY_SQL ─────────────────────────────────────────────────────────
+  if (has("from vy_voice_fidelity")) {
+    // `readReadinessInputs` reads a JSON `score` column, not a flat row —
+    // `state.rehearsalFidelity` is `{mean, windows, status, computed_at}`,
+    // nested here into the shape the real column carries.
+    const f = state.rehearsalFidelity;
+    return f ? [{ score: { mean: f.mean, windows: f.windows }, status: f.status, computed_at: f.computed_at }] : [];
+  }
+  // ── CEILING_SQL ──────────────────────────────────────────────────────────
+  if (has("from vy_replica_voice_genome")) {
+    return state.rehearsalGenome ? [{ ...state.rehearsalGenome }] : [];
+  }
+  // ── MIRROR_SQL — an aggregate, always one row. ──────────────────────────
+  if (has("as sounds_right") && has("from vy_mirror_feedback")) {
+    const m = state.rehearsalMirror || { sounds_right: 0, fix_it: 0, latest_at: null };
+    return [{ ...m }];
+  }
+  // ── SAFETY_SQL — the only statement whose select list carries
+  //    "as person_model_approved_at". ─────────────────────────────────────
+  if (has("as person_model_approved_at")) {
+    const sheet = state.rehearsalTeacherSheet;
+    return [{
+      person_model_approved_at: sheet?.person_model_approved_at ?? null,
+      person_model_approved: Boolean(sheet?.person_model_approved),
+      escalation_route: Boolean(sheet?.escalation_route),
+    }];
+  }
+  // ── FRESHNESS_SQL — the only statement whose select list carries
+  //    "as newest_source_at"; reads the SAME context-item rows the walk's
+  //    own "add one text source" step wrote, so a freshly-added source makes
+  //    this part genuinely current rather than a second, disconnected mock. ─
+  if (has("as newest_source_at")) {
+    const [rid, owner] = params.map(String);
+    const items = state.contextItems.filter((i) => i.replica_id === rid && i.owner_user_id === owner);
+    const newest = items.length ? items.map((i) => i.created_at).sort().at(-1) : null;
+    return [{ newest_source_at: newest }];
+  }
+  // ── snapshotReadiness's own INSERT. Always accepted; nothing this
+  //    rehearsal reads depends on the `inputs_hash` idempotency guard the
+  //    real WHERE NOT EXISTS clause enforces, so this fixture does not
+  //    reproduce that guard — named here rather than silently assumed. The
+  //    write STORES `overall`/`min_part`/`unmeasured_count` into
+  //    `state.rehearsalReadinessLast`, the SAME row the room-publish
+  //    matchers above read: a GET /api/readiness that genuinely computes a
+  //    passing screen from the six raw inputs is what crosses the publish
+  //    floor, never a second, disconnected flag. ─────────────────────────
+  if (has("insert into vy_replica_readiness")) {
+    const [, , , overall, minPart, unmeasuredCount] = params;
+    state.rehearsalReadinessLast = {
+      overall: Number(overall), min_part: Number(minPart), unmeasured_count: Number(unmeasuredCount),
+    };
+    return [{ readiness_id: randomUUID(), computed_at: new Date().toISOString() }];
+  }
+
+  // ── api/_room-publish.js's publish/resume CASE, and the three standalone
+  //    "as ok" blocker probes — see this block's own header for why these
+  //    are matched HERE rather than left to doorsDb's permissive default.
+  //    Runtime and disclosure are pre-seeded passing (out of this
+  //    rehearsal's scope); Readiness is the one live gate. ─────────────────
+  const runtimeOk = () => state.rehearsalRuntimeActive !== false;
+  const readinessOk = (overallFloor, partFloor) => {
+    const snap = state.rehearsalReadinessLast;
+    if (!snap) return false;
+    return snap.unmeasured_count === 0 && snap.overall >= overallFloor && snap.min_part >= partFloor;
+  };
+  const disclosureOk = () => state.rehearsalDisclosureApproved !== false;
+
+  if (has("set published_at = case") || has("set paused_at = case")) {
+    const [ownerId, replicaId, overallFloor, partFloor] = params;
+    const row = state.rooms.find((r) => r.owner_user_id === String(ownerId) && r.replica_id === String(replicaId));
+    if (!row) return [];
+    const pass = runtimeOk() && readinessOk(Number(overallFloor), Number(partFloor)) && disclosureOk();
+    if (has("set published_at = case")) {
+      if (pass && !row.published_at) row.published_at = new Date().toISOString();
+    } else if (pass) {
+      row.paused_at = null;
+    }
+    return [{ ...row }];
+  }
+  if (has("as ok") && has("vy_replica_runtime_capability")) return [{ ok: runtimeOk() }];
+  if (has("as ok") && has("vy_replica_readiness")) {
+    const [, , overallFloor, partFloor] = params;
+    return [{ ok: readinessOk(Number(overallFloor), Number(partFloor)) }];
+  }
+  if (has("as ok") && has("vy_teacher_sheet")) return [{ ok: disclosureOk() }];
+
+  // ── api/_context-locker.js ───────────────────────────────────────────────
+  if (has("from vy_replica r") && has("r.replica_id = $1::uuid and r.owner_user_id = $2::uuid") && has("limit 1")) {
+    const [rid, owner] = params.map(String);
+    const row = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === owner);
+    return row ? [{ replica_id: row.replica_id }] : [];
+  }
+  // The INSERT's own `quota` CTE text also contains "count(*)::int as items"
+  // etc — matched here FIRST, before the standalone quotaOf() read below,
+  // per the WS-R72 lesson this file's header cites (a later, more specific
+  // statement sharing a substring with an earlier, more generic one must be
+  // checked before it, never after). ─────────────────────────────────────
+  if (has("insert into vy_context_item")) {
+    const [
+      itemId, replicaId, ownerUserId, kind, format, sourceName, sourceUrl, contentSha256, byteSize,
+      extractedChars, extractor, status, refusalReason, routedTo, mineSkipReason, authorship,
+      ownerSpeaker, consentScope, maxItems, maxBytes,
+    ] = params;
+    const owns = state.replicas.some((r) => r.replica_id === String(replicaId) && r.owner_user_id === String(ownerUserId));
+    if (!owns) return [];
+    const dup = state.contextItems.some(
+      (i) => i.replica_id === String(replicaId) && i.content_sha256 === contentSha256,
+    );
+    if (dup) return [];
+    const items = state.contextItems.filter((i) => i.owner_user_id === String(ownerUserId));
+    const bytes = items.reduce((n, i) => n + (i.byte_size || 0), 0);
+    if (items.length >= Number(maxItems) || bytes + Number(byteSize) > Number(maxBytes)) return [];
+    const row = {
+      item_id: String(itemId), replica_id: String(replicaId), owner_user_id: String(ownerUserId), kind, format,
+      source_name: sourceName, source_url: sourceUrl, content_sha256: contentSha256, byte_size: Number(byteSize),
+      extracted_chars: Number(extractedChars) || 0, extractor, status, refusal_reason: refusalReason, routed_to: routedTo,
+      mine_skip_reason: mineSkipReason, authorship, owner_speaker: ownerSpeaker, consent_scope: consentScope,
+      run_id: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    state.contextItems.push(row);
+    return [{ ...row }];
+  }
+  if (has("update vy_context_item") && has("set status = $3")) {
+    const [itemId, ownerUserId, status, mineSkipReason, runId] = params;
+    const row = state.contextItems.find((i) => i.item_id === String(itemId) && i.owner_user_id === String(ownerUserId));
+    if (!row) return [];
+    row.status = status;
+    row.mine_skip_reason = mineSkipReason || "";
+    row.run_id = runId ?? row.run_id;
+    row.updated_at = new Date().toISOString();
+    return [{ ...row }];
+  }
+  if (has("from vy_context_item") && has("content_sha256 = $3")) {
+    const [rid, owner, hash] = params.map(String);
+    const row = state.contextItems.find((i) => i.replica_id === rid && i.owner_user_id === owner && i.content_sha256 === hash);
+    return row ? [{ ...row }] : [];
+  }
+  // The STANDALONE quotaOf() read (`addContextFile`'s own quota check,
+  // before it ever attempts the insert above). Checked AFTER the insert
+  // branch on purpose — see that branch's own comment. ────────────────────
+  if (has("count(*)::int as items") && has("coalesce(sum(byte_size), 0)::bigint as bytes") && has("vy_context_item")) {
+    const [owner] = params.map(String);
+    const items = state.contextItems.filter((i) => i.owner_user_id === owner);
+    return [{ items: items.length, bytes: items.reduce((n, i) => n + (i.byte_size || 0), 0) }];
+  }
+  if (has("from vy_context_item") && has("order by created_at desc") && has("limit $3")) {
+    const [rid, owner] = params.map(String);
+    return state.contextItems
+      .filter((i) => i.replica_id === rid && i.owner_user_id === owner)
+      .slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+
+  // ── api/_review-queue.js ─────────────────────────────────────────────────
+  //
+  // `persistReviewCards` and `decideReviewCard` both embed the file's own
+  // `OWNED` constant VERBATIM inside a `with authorized as (${OWNED})` CTE
+  // (`_review-queue.js`'s own source), so both statements' text contains
+  // the exact substring the standalone OWNED read below matches on. Per
+  // this file's WS-R72 lesson (a later, more specific statement sharing a
+  // substring with an earlier, more generic one must be checked BEFORE it),
+  // the insert and the decide are matched here, ahead of the generic OWNED
+  // check that follows them. ─────────────────────────────────────────────
+  if (has("insert into vy_review_card")) {
+    const [rid, owner, payloadJson, cap] = params;
+    const owns = state.replicas.some((r) => r.replica_id === String(rid) && r.owner_user_id === String(owner));
+    if (!owns) return [];
+    const drafts = JSON.parse(payloadJson);
+    const openCount = state.reviewCards.filter((c) => c.replica_id === String(rid) && c.owner_user_id === String(owner) && c.state === "open").length;
+    const slots = Math.max(0, Number(cap) - openCount);
+    const existingHashes = new Set(state.reviewCards.filter((c) => c.replica_id === String(rid)).map((c) => c.dedupe_hash));
+    const inserted = [];
+    drafts.slice(0, slots).forEach((d) => {
+      if (existingHashes.has(d.dedupe_hash)) return;
+      const row = {
+        card_id: randomUUID(), replica_id: String(rid), owner_user_id: String(owner),
+        kind: d.kind, prompt_text: d.prompt_text, answer_text: d.answer_text,
+        source_refs: d.source_refs || [], origin_ref: d.origin_ref || "", dedupe_hash: d.dedupe_hash,
+        state: "open", decided_at: null, correction_source_id: null, created_at: new Date().toISOString(),
+      };
+      state.reviewCards.push(row);
+      existingHashes.add(d.dedupe_hash);
+      inserted.push(row);
+    });
+    return inserted;
+  }
+  // decideReviewCard's own CTE — matched on "landed_rule", a name unique to
+  // this one statement in the whole file, and (per this block's own header)
+  // checked ahead of the generic OWNED read below since it too embeds OWNED
+  // verbatim. ────────────────────────────────────────────────────────────
+  if (has("landed_rule")) {
+    const [rid, owner, cardId, decision, correctionSourceId, pattern, reason] = params;
+    const card = state.reviewCards.find(
+      (c) => c.card_id === String(cardId) && c.owner_user_id === String(owner) && c.state === "open",
+    );
+    if (!card) return [];
+    if (decision === "fixed" && !correctionSourceId) return [];
+    card.state = decision;
+    card.decided_at = new Date().toISOString();
+    card.correction_source_id = decision === "fixed" ? correctionSourceId : null;
+    if (decision === "never") {
+      state.rehearsalNeverRules ??= [];
+      state.rehearsalNeverRules.push({
+        rule_id: randomUUID(), replica_id: String(rid), owner_user_id: String(owner),
+        pattern: String(pattern), reason: String(reason || ""), card_id: card.card_id,
+        revoked_at: null, created_at: new Date().toISOString(),
+      });
+    }
+    return [{ ...card }];
+  }
+  // The generic OWNED read (`collectReviewInputs`'s own standalone call),
+  // checked AFTER the insert and the decide above for the reason this
+  // block's header gives. ───────────────────────────────────────────────
+  if (has("from vy_replica r") && has("r.lifecycle not in ('revoked','purging')")) {
+    const [rid, owner] = params.map(String);
+    const row = state.replicas.find((r) => r.replica_id === rid && r.owner_user_id === owner);
+    return row ? [{ replica_id: row.replica_id }] : [];
+  }
+  if (has("c.claim_id, c.body, c.source_ids")) return []; // no proposed claims fixtured
+  if (has("from vy_mirror_delta")) return []; // no deltas fixtured
+  if (has("select c.dedupe_hash from vy_review_card")) {
+    const [rid, owner] = params.map(String);
+    return state.reviewCards
+      .filter((c) => c.replica_id === rid && c.owner_user_id === owner)
+      .map((c) => ({ dedupe_hash: c.dedupe_hash }));
+  }
+  if (has("count(*) filter (where c.state = 'open')::int4 as open_count from vy_review_card")) {
+    const [rid, owner] = params.map(String);
+    const open = state.reviewCards.filter((c) => c.replica_id === rid && c.owner_user_id === owner && c.state === "open").length;
+    return [{ open_count: open }];
+  }
+  if (has("c.card_id, c.kind, c.prompt_text, c.answer_text, c.source_refs, c.state,")) {
+    const [rid, owner] = params.map(String);
+    return state.reviewCards
+      .filter((c) => c.replica_id === rid && c.owner_user_id === owner && c.state === "open")
+      .slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+  if (has("count(*) filter (where c.state = 'open')::int4 as open_count,") && has("decided_count")) {
+    const [rid, owner] = params.map(String);
+    const cards = state.reviewCards.filter((c) => c.replica_id === rid && c.owner_user_id === owner);
+    return [{
+      open_count: cards.filter((c) => c.state === "open").length,
+      decided_count: cards.filter((c) => c.state !== "open").length,
+      fixed_count: cards.filter((c) => c.state === "fixed").length,
+      never_count: cards.filter((c) => c.state === "never").length,
+    }];
+  }
+  if (has("from vy_review_never_rule n") && has("active_rules")) {
+    const [rid, owner] = params.map(String);
+    return [{ active_rules: (state.rehearsalNeverRules || []).filter((n) => n.replica_id === rid && n.owner_user_id === owner && !n.revoked_at).length }];
+  }
+  if (has("select c.state from vy_review_card c") && has("card_id = $3::uuid")) {
+    const [rid, owner, cardId] = params.map(String);
+    const card = state.reviewCards.find((c) => c.replica_id === rid && c.owner_user_id === owner && c.card_id === cardId);
+    return card ? [{ state: card.state }] : [];
+  }
+
+  // ── api/memory.js's `tableApplied` — creatorExport's per-table gate calls
+  //    this for EVERY OWNER_LANE_TABLES entry before its own scopedQuery.
+  //    Answering `present: true` for all of them is safe: every scopedQuery
+  //    below is already `.catch(() => [])`-wrapped by `creatorExport` itself,
+  //    so a table this rehearsal has no matcher for still resolves to a
+  //    real, honest zero rather than being skipped from the manifest
+  //    entirely (which is what a `present: false` answer would do). ──────
+  if (has("select to_regclass($1) is not null as present")) return [{ present: true }];
+
+  // ── api/_creator-export.js — the two ownership-scoping prefix reads
+  //    (`creatorExport`'s own opening two statements, NOT inside the
+  //    per-table loop that already `.catch(() => [])`s on its own). ───────
+  if (has("select replica_id, agent_id from vy_replica where owner_user_id = $1::uuid")) {
+    const [owner] = params.map(String);
+    return state.replicas.filter((r) => r.owner_user_id === owner).map((r) => ({ replica_id: r.replica_id, agent_id: r.agent_id }));
+  }
+  if (has("select room_id from vy_room where owner_user_id = $1::uuid")) {
+    const [owner] = params.map(String);
+    return state.rooms.filter((r) => r.owner_user_id === owner).map((r) => ({ room_id: r.room_id }));
+  }
+  // Two OWNER_LANE_TABLES entries this rehearsal actually populates, so the
+  // export's own manifest carries a real, non-zero count for at least one
+  // row this walk itself wrote, rather than every entry reading as zero
+  // because `creatorExport`'s per-table loop caught an unmodelled statement.
+  // Every OTHER OWNER_LANE_TABLES entry is intentionally left unmodelled —
+  // named in the workstream's report, not silently skipped — because
+  // reproducing all of them is `evals/creator-export/run.mjs`'s own subject.
+  if (has("select * from vy_context_item") && has("replica_id = any($1::uuid[])")) {
+    const [replicaIds, owner] = params;
+    return state.contextItems.filter((i) => replicaIds.includes(i.replica_id) && i.owner_user_id === String(owner));
+  }
+  if (has("select * from vy_review_card") && has("replica_id = any($1::uuid[])")) {
+    const [replicaIds, owner] = params;
+    return state.reviewCards.filter((c) => replicaIds.includes(c.replica_id) && c.owner_user_id === String(owner));
+  }
+
+  return undefined; // not a rehearsal pattern — fall through to doorsDb
+}
+
+/**
+ * The creator-journey rehearsal's own fixture world: a brand-new owner with
+ * NOTHING yet — no replica, no room, no review cards — since this rehearsal
+ * drives the creation of every one of those for real, unlike `freshDoorsState`
+ * (WS-R38's world), which pre-seeds one owned replica and room because ITS
+ * cases are about attacking an EXISTING Room's doors, not building one.
+ */
+export function freshRehearsalCreatorState() {
+  const state = freshDoorsState();
+  state.replicas = [];
+  state.rooms = [];
+  state.reviewCards = [];
+  state.roomShowcase = [];
+  state.invites = [];
+  state.contextItems = [];
+  state.rehearsalClaims = [];
+  state.rehearsalFidelity = null;
+  state.rehearsalGenome = null;
+  state.rehearsalMirror = null;
+  state.rehearsalTeacherSheet = null;
+  state.rehearsalNeverRules = [];
+  // Readiness's OWN publish-lock snapshot, read by the room-publish
+  // matchers above. Starts unmeasured (every part absent), which is the
+  // real shape a brand-new replica's Readiness reads as — no seeding
+  // required to reach "locked below the floor", it is the default.
+  state.rehearsalReadinessLast = { unmeasured_count: 5, overall: 0, min_part: 0 };
+  // Out of this rehearsal's scope (its own multi-stage pipelines): runtime
+  // activation and disclosure approval are pre-seeded already-passing so
+  // Readiness is the one gate this walk's own steps move.
+  state.rehearsalRuntimeActive = true;
+  state.rehearsalDisclosureApproved = true;
+  return state;
+}
+
+/**
+ * ONE db function for the rehearsal: the NEW patterns above first (so they
+ * can override `doorsDb`'s existing permissive publish/resume matcher — see
+ * this block's own header), `doorsDb` for everything else (replica creation,
+ * room create/showcase/share-kit, and every follower-lane statement the base
+ * Room fixture already answers).
+ */
+export function rehearsalCreatorDb(state) {
+  const calls = [];
+  const doors = doorsDb(state);
+  const db = async (sql, params = []) => {
+    calls.push(sql);
+    const has = (s) => sql.includes(s);
+    const hit = rehearsalPatterns(state, sql, params, has);
+    if (hit !== undefined) return hit;
+    return doors(sql, params);
+  };
+  db.calls = calls;
+  return db;
+}

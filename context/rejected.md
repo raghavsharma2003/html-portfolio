@@ -12125,3 +12125,110 @@ pattern is proven pairwise disjoint - neither of which a fixture author
 gets for free just because the real Postgres planner never has this
 ambiguity at all (it parses the whole statement, a fixture's `.includes()`
 does not).
+
+## `ws-r95-rehearsal-fixture-generic-matcher-shadowed-by-a-more-specific-later-statement` — four separate instances of the same substring-collision bug (2026-09-05, WS-R95)
+
+**What was tried.** Building `evals/room-doors/fixtures.mjs`'s new
+`rehearsalPatterns` (WS-R95's creator-journey rehearsal), a standalone read's
+own `has(...)` matcher was written and checked BEFORE a later, larger CTE
+statement that happened to embed the standalone read's exact SQL text
+verbatim inside itself (Postgres CTEs commonly build a bigger statement out
+of a named, reused fragment — `with authorized as (${OWNED})` is literally
+how three of `api/_review-queue.js`'s own statements are written). Four
+separate cases, found only by running the walk against the real handlers and
+watching a write silently return the READ's own shape instead of inserting:
+(1) `api/_context-locker.js`'s standalone `quotaOf()` read
+(`count(*)::int as items, coalesce(sum(byte_size)...`) shadowed `insertItem`'s
+own INSERT, whose `quota` CTE contains that exact text; (2) `api/_review-
+queue.js`'s standalone `OWNED` read shadowed BOTH `persistReviewCards`'s
+INSERT and `decideReviewCard`'s UPDATE, each of which embeds `${OWNED}`
+verbatim inside a `with authorized as (...)` CTE; (3) the readiness
+aggregate's `MIRROR_SQL` (`from vy_mirror_feedback`) shadowed
+`creatorExport`'s plain `select * from vy_mirror_feedback ...` read, because
+both statements share that one substring even though nothing else about them
+matches.
+
+**What broke, concretely.** Case (1): `addContextFile`'s own `insertItem`
+call returned `{items: 0, bytes: 0}` (the quota shape) instead of the
+inserted row, so the caller's very next line (`markItem`, reading
+`stored.item_id`) threw `context_item_write_failed` with `item_id:
+undefined` — a genuinely confusing failure two calls downstream of the real
+defect. Case (2): `persistReviewCards` silently inserted ZERO cards no
+matter how many drafts were passed (the matched branch just echoed back
+`{replica_id: rid}`), and `written: 0`/`dropped: {0,0,0}` together looked
+like a passing, empty generation rather than a broken insert — the specific
+"plausible return hides a dead pipeline" shape this repo's own rejected.md
+header warns about, one layer down in a TEST fixture rather than in shipped
+code. Case (3) was silent and cosmetic only (the export's manifest reported
+`vy_mirror_feedback: rows: 1` using the wrong statement's own aggregate
+result, coincidentally still a nonzero-looking number) — found only by
+re-reading the matcher list for exactly this pattern after cases (1) and (2)
+had already taught the lesson once, not by a failing assertion.
+
+**The fix, all three cases.** The more specific, LATER-in-the-request-flow
+statement (the write, or the query with the longer/more literal-columns
+select list) is matched BEFORE the generic standalone read it happens to
+contain as a substring — the exact ordering rule
+`ws-r72-review-card-fixture-branch-shadowed-by-an-earlier-generic-match`
+(this file, WS-R72) already states, restated here because a THIRD file
+(this one) needed to relearn it, meaning the rule itself is not yet
+sufficiently visible where a new branch gets written.
+
+**The rule, sharpened for the next fixture-matcher file.** When two real SQL
+statements in the SAME source file share an exact substring — which is
+common and often DELIBERATE (a query built by embedding a named,
+already-correct fragment is good SQL hygiene, not an accident) — a fixture's
+own dispatcher must check every EARLIER branch's `has(...)` condition against
+every LATER statement's own SQL text before trusting either is unique, not
+only in isolation as `ws-r72`'s own "what this changes going forward" already
+said. This workstream's specific addition: the check must be run PER FILE a
+new matcher's statements originate from, not only against other matchers in
+the SAME batch — case (2) above involved two statements from the SAME
+function group (`persistReviewCards`, `decideReviewCard`) that were both
+written and both shadowed by the SAME earlier `OWNED` branch, so "did I check
+this against every other branch I just wrote" was not enough; "did I check it
+against every OTHER statement the source module issues, including ones
+several functions away" was what actually caught case (2) here.
+
+## `ws-r95-roomsay-does-not-wire-never-rules-into-gatedreply` — a real gap in the follower "say" lane, found while trying to rehearse the never-rule bite there (2026-09-05, WS-R95)
+
+**What was tried.** The creator-journey rehearsal's brief asked for "sees the
+never-rule bite on a follower-lane reply through the harness." The natural
+reading is the Room's own follower `say` op (`api/room.js`'s `{op:"say"}` ->
+`api/_room-surface.js`'s `roomSay` -> `gatedReply`), since that is the
+surface a follower actually talks through.
+
+**What was found.** `roomSay`'s own `gatedReply(ctx, compiled, turns,
+{record: ..., label: "web/room"})` call passes NO `neverRules` option at all
+— `grep -n "neverRules" api/_room-surface.js` returns zero matches in the
+whole file. `api/_surface.js`'s `gatedReply` treats an absent `opts.neverRules`
+as `[]` (fail-open in the sense that nothing is ever suppressed by a
+never-rule on this lane, though every OTHER honesty gate still runs). By
+contrast, `api/_clonechat.js`'s widget lane (`grep -n neverRules
+api/_clonechat.js`) DOES load and compile never-rules before calling
+`gatedReply`, and so does `api/_mirrorcall-reply.js`. This means a creator's
+"Never say this" decision protects the taste widget on their public page and
+Mirror Call, but — as this tree stands — NOT the Room a follower actually has
+a continuing relationship with, which is the one surface the product's own
+promise ("Knows what not to say," Readiness's own fifth part) is most about.
+
+**What this rehearsal did instead, and why.** Driving the Room's `say` op and
+asserting the reply is suppressed would have been a FALSE positive — the
+assertion would fail today for the correct reason (the gap above) and would
+have to be either skipped or, worse, "fixed" by adding `neverRules` wiring to
+`roomSay` as an incidental side effect of writing a rehearsal script, which
+is exactly the kind of undiscussed product change this workstream's brief
+does not authorize. Instead, `evals/rehearsal/creator.mjs` verifies the
+never-rule BITE directly against the real predicate function
+(`api/_never-rules.js`'s `replyViolatesNeverRule`, fed the real
+`compileNeverRules` output over the real row the door just wrote), which
+proves the RULE mechanism works without overclaiming that the Room's own
+follower lane currently enforces it.
+
+**What would reverse this finding.** Nothing about the finding itself — it
+is read directly off the source. If a future workstream wires `neverRules`
+into `roomSay` (the fix is almost certainly the same two-line shape
+`api/_clonechat.js` already uses at its own call site), this entry should
+get a `supersedes` edge from that workstream's own decision, and THAT
+workstream's own rehearsal should assert the bite on the real Room `say`
+lane directly, closing the gap this entry only named.
