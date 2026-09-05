@@ -110,6 +110,20 @@ const TARGETS = [
     screens: ["feed", "meet", "deploy"],
     mounted: ".studio-tabshell",
   },
+  // WS-R91. The sign-in screen, signed OUT, in Hindi -- `check-layout.mjs`'s
+  // own `studio-hi:signed-out` target, the same fixture query
+  // (`layoutFixture.tsx`'s `SIGNED_OUT` branch clears any session an
+  // earlier target already seeded in this run's shared browser context).
+  // Its own language switch (`AuthLanguageSwitch`, `AuthGate.tsx`) is
+  // exactly the control class this gate exists to catch a missing
+  // accessible name or lost focus ring on.
+  {
+    name: "studio-hi:signed-out",
+    fixture: "studio-layout-fixture.html",
+    query: () => "lang=hi&signedOut=1",
+    screens: ["signin"],
+    mounted: ".auth-page",
+  },
   {
     name: "site",
     // Served straight off the dist root by `serveDist` below — no query,

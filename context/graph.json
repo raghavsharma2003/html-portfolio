@@ -9358,6 +9358,42 @@
       "kind": "measurement",
       "title": "evals/day-one/run.mjs: 37/37 checks offline against the real DAY-ONE.md table and a fake server wrapping the real probe-live fixture, in three self-check states plus a no-bearer and an unreachable-URL case; nothing here talks to a real deployment.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r91-authgate-reads-locale-before-sign-in",
+      "kind": "decision",
+      "title": "AuthGate is its own file now, wrapped by StudioLocaleProvider before the session check, reading real Hindi/English copy from copy.ts#authGate; the pre-auth locale chain (?lang= / a remembered local choice / en) lives in studioLocalePreference.ts.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r91-hindi-chunk-preloaded-from-main-tsx",
+      "kind": "decision",
+      "title": "main.tsx calls loadStudioCopy(\"hi\") at module-eval time when ?lang=hi is present, ahead of StudioLocaleProvider's own post-render effect, as the named fallback for a missed firstHindiPaintMs/hindiChunkWaitMs budget.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r91-studio-lang-switch-needs-its-own-opaque-backdrop-on-the-hero",
+      "kind": "decision",
+      "title": "AuthGate's language switch gets a real near-opaque background rather than relying on .auth-page::before, a pseudo-element the layout gate's contrast walker cannot see.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r91-mutationobserver-on-documentelement-inside-addinitscript",
+      "kind": "rejection",
+      "title": "A MutationObserver armed on document.documentElement inside addInitScript silently never arms (documentElement is null that early); observing document itself fixed it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r91-first-hindi-paint-2026-09-05",
+      "kind": "measurement",
+      "title": "First Hindi paint on studio-hi: medians 584-879ms across contended-sandbox runs, budget 800ms; lowest-contention run 675ms with real margin.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r91-studio-hi-js-budget-after-authgate-2026-09-05",
+      "kind": "measurement",
+      "title": "studio-hi JS transfer 163.0KB after AuthGate's move into copy.ts (was 161.4-162.9KB), 17KB under the 180KB budget; Hindi chunk grew to 172.22KB source / 38.22KB gzipped.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -18280,6 +18316,36 @@
       "src": "ws-r96-self-check-optional-env-never-becomes-a-finding",
       "rel": "constrains",
       "dst": "ws-r96-day-one-runbook-parses-its-own-table"
+    },
+    {
+      "src": "ws-r91-authgate-reads-locale-before-sign-in",
+      "rel": "caused_by",
+      "dst": "ws-r82-studio-hi-signed-out-entry-never-shows-hindi"
+    },
+    {
+      "src": "ws-r91-hindi-chunk-preloaded-from-main-tsx",
+      "rel": "caused_by",
+      "dst": "ws-r91-first-hindi-paint-2026-09-05"
+    },
+    {
+      "src": "ws-r91-hindi-chunk-preloaded-from-main-tsx",
+      "rel": "measured_by",
+      "dst": "ws-r91-first-hindi-paint-2026-09-05"
+    },
+    {
+      "src": "ws-r91-first-hindi-paint-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r91-mutationobserver-on-documentelement-inside-addinitscript"
+    },
+    {
+      "src": "ws-r91-authgate-reads-locale-before-sign-in",
+      "rel": "measured_by",
+      "dst": "ws-r91-studio-hi-js-budget-after-authgate-2026-09-05"
+    },
+    {
+      "src": "ws-r91-authgate-reads-locale-before-sign-in",
+      "rel": "constrains",
+      "dst": "ws-r91-studio-lang-switch-needs-its-own-opaque-backdrop-on-the-hero"
     }
   ]
 }

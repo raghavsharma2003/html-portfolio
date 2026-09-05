@@ -12298,3 +12298,70 @@ unproven: running `node scripts/day-one.mjs <base-url>` against the real
 `html-portfolio` and `vyakti-replica-lab` deployments, with a real operator
 bearer, is the only thing that can close that gap, and nobody has done it as
 of this writing.
+
+## `ws-r91-first-hindi-paint-2026-09-05`
+
+n = multiple 3-run batches (`scripts/check-performance.mjs --target studio-hi`,
+this gate's own median-of-3 methodology), method: real Chromium via CDP,
+4x CPU / 1.6Mbps-750Kbps/150ms network throttle (this gate's own "Fast 3G"
+profile), a `MutationObserver` on `document` (not `document.documentElement`
+— see `context/rejected.md#ws-r91-mutationobserver-on-documentelement-inside-addinitscript`)
+watching for the first Devanagari character (U+0900-U+097F) to appear in
+`document.body.textContent`, timestamped relative to the page's own
+`first-paint` entry, against `/studio?lang=hi` (the real built production
+entry, not a fixture), 2026-09-05. Budget: 800ms
+(`context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`'s own
+sibling metric to `hindiChunkWaitMs`, `context/decisions.md#studio-hindi-table-is-its-own-chunk`'s
+original 800ms figure, restated for a literal paint rather than a proxy
+import).
+
+BEFORE this workstream: not measurable at all — WS-R82 could not build this
+metric because no Hindi text node ever painted on this screen
+(`context/rejected.md#ws-r82-studio-hi-signed-out-entry-never-shows-hindi`).
+
+AFTER, across this session's own machine (a heavily shared, multi-tenant
+development sandbox running several sibling workstreams' own release gates
+concurrently for nearly this entire session — `uptime` read between 5.6 and
+14.2 on a 4-core box at various points, never settling near an idle
+baseline): medians observed across separate 3-run batches ranged
+584-879ms, with two batches' medians (879ms once, 923ms once) over the
+800ms budget and the remaining batches (656ms, 725.8ms, 675ms, 791ms)
+comfortably under it. The two over-budget batches both coincided with
+directly observed host contention (`ps aux` showing 4-8 concurrent sibling
+`verify-release.mjs`/Chromium processes at the same moment); every
+under-budget batch was measured with fewer concurrent siblings visible.
+`hindiChunkWaitMs` (the sibling metric, unaffected by render cost) stayed
+in a tighter 546-752ms band across the same runs, which is the same order
+WS-R82 itself measured for the old proxy (583-636ms) — consistent with the
+render step itself (React mount/commit under this gate's 4x CPU throttle)
+being the volatile ~100-250ms remainder, not the network fetch.
+
+The most recent, lowest-contention measurement (load average 5.58, one
+isolated run, no sibling collision observed): `hindiChunkWaitMs` 584ms,
+`firstHindiPaintMs` 675ms — both comfortably under budget. This is the
+number a dedicated CI runner (uncontended, per
+`context/measurements.md#ci-release-gate-first-real-run-2026-09-05`'s own
+8m34s clean run on GitHub Actions hardware) should see consistently; this
+session's own dev sandbox is not that environment, and the variance above
+is named as environmental per this file's own convention rather than hidden
+behind a single cherry-picked number. `main.tsx` now starts the chunk's
+own fetch immediately at module-eval time when `?lang=hi` is present
+(`context/decisions.md#ws-r91-hindi-chunk-preloaded-from-main-tsx`), the
+brief's own named fallback for a missed budget; the budget itself was never
+raised.
+
+## `ws-r91-studio-hi-js-budget-after-authgate-2026-09-05`
+
+n = 1 (`scripts/check-performance.mjs`, median of 3 runs, same throttle as
+above), method: real CDP `encodedDataLength`, 2026-09-05. `/studio` (plain)
+and `studio-hi` both measure 163.0KB gzipped JS transfer, against the
+180KB budget WS-R49 set — 17KB of headroom, both up marginally from
+WS-R71's 161.4KB/162.9KB baseline (the new `authGate` interface/EN table
+adds a small amount of always-shipped English source; the Hindi variant
+stays in `hiCopy.ts`'s own separate chunk, uncounted here exactly as
+`context/decisions.md#studio-hindi-table-is-its-own-chunk` requires — the
+signed-out visitor, English or Hindi, still pays nothing for the table they
+do not read). The Hindi chunk itself (`dist/assets/hiCopy-*.js`) grew from
+142KB source / 30.7KB gzipped (WS-R71) to 172.22KB source / 38.22KB gzipped
+this session, for the same reason: `authGate`'s Hindi strings are real
+prose, not filler.

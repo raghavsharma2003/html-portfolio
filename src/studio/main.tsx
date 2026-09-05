@@ -29,6 +29,31 @@ import "./design/mobile.css";
 import "./design/review-queue.css";
 import { restoreStudioMode } from "./studioAuth";
 import { restoreStartSuiteDraft } from "./startSuiteDraft";
+import { loadStudioCopy } from "./copy";
+
+// WS-R91. Starts the Hindi copy chunk's own fetch as early as this module
+// can, well before `StudioLocaleProvider`'s own effect would otherwise
+// start it (which only runs after `StudioApp` has mounted, resolved
+// `authChecked`, and rendered a first time). `loadStudioCopy` dedupes
+// (`copy.ts`'s own `hiLoading` cache, installed once and shared), so this
+// is a pure head start, never a duplicate fetch: every later caller this
+// same page session makes (the provider, `AuthGate`, a signed-in panel)
+// resolves against this SAME in-flight promise. Read directly from
+// `location.search` rather than through any React state, which does not
+// exist yet at this point in the module's lifecycle — the identical
+// "before render, never after" law `restoreStudioMode()`'s own comment
+// states two lines down, applied to a chunk fetch instead of a URL param.
+// `context/decisions.md#ws-r91-hindi-chunk-preloaded-from-main-tsx` is the
+// reversal condition this exists to satisfy
+// (`context/decisions.md#studio-hindi-table-is-its-own-chunk`'s own one).
+try {
+  if (new URLSearchParams(window.location.search).get("lang") === "hi") {
+    void loadStudioCopy("hi");
+  }
+} catch {
+  // A malformed URL leaves this as a no-op; the provider's own later call
+  // still starts the fetch, just without this head start.
+}
 
 // WS-R21. `?mode=ops` is the platform-operator ops board, a SEPARATE
 // product from the teacher/generic studio `StudioApp` renders - checked

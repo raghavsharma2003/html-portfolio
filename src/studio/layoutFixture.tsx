@@ -453,6 +453,25 @@ function installStubFetch() {
   };
 }
 
+/** WS-R91. The layout gate reuses ONE browser context (and so ONE origin's
+ *  localStorage) across every `studio`/`studio-hi`/`studio:shell` step at a
+ *  given viewport (`scripts/check-layout.mjs`'s own per-viewport loop) --
+ *  an EARLIER target's `seedAuth()` call leaves a real session sitting in
+ *  storage that a later `?signedOut=1` navigation would otherwise inherit
+ *  regardless of navigation order. Clearing the key explicitly, rather than
+ *  merely skipping `seedAuth()` below, is what makes this fixture state
+ *  correct no matter where `studio-hi:signed-out` sits in the target list. */
+function clearAuth() {
+  const KEY = "meera.state.v1";
+  try {
+    const state = JSON.parse(localStorage.getItem(KEY) || "{}");
+    delete state.auth;
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    // Nothing stored, or storage denied -- either way, no session to clear.
+  }
+}
+
 function seedAuth() {
   const KEY = "meera.state.v1";
   let state: Record<string, unknown> = {};
@@ -472,12 +491,22 @@ function seedAuth() {
   localStorage.setItem(KEY, JSON.stringify(state));
 }
 
+// WS-R91. `?signedOut=1` skips `seedAuth()` below so the fixture renders
+// `AuthGate` instead of the signed-in tree -- every OTHER target in this
+// gate has always been signed in by construction (`layoutFixture.tsx`'s own
+// header: a gate that cannot see the signed-in studio is a gate that cannot
+// see the defect class it exists to catch), and the sign-in screen itself
+// was simply never a state any target asked this fixture to reach before
+// now (`context/decisions.md#ws-r91-authgate-reads-locale-before-sign-in`).
+const SIGNED_OUT = new URLSearchParams(window.location.search).get("signedOut") === "1";
+
 const root = document.getElementById("studio-root")!;
 if (!LOOPBACK.has(window.location.hostname)) {
   root.textContent = "This page runs only on a local test server.";
 } else {
   installStubFetch();
-  seedAuth();
+  if (SIGNED_OUT) clearAuth();
+  else seedAuth();
   // The Hindi table is its own chunk (`src/studio/hiCopy.ts`, the WS-R71
   // merge): install it through the app's own loader BEFORE the glyph list is
   // built or the app mounts, so the gate's `__STUDIO_HI_STRINGS__` is the
