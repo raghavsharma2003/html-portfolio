@@ -9982,6 +9982,48 @@
       "kind": "rejection",
       "title": "envManifest.mjs's first draft matched only one of the manifest's two literal env-var-table header shapes, checked against 30 of 36 tables and documented as universal; ROOM_WHATSAPP_CHAT (a later, second-shape table) silently failed to parse until an eval assertion caught it.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-instruction-shaped-material-card",
+      "kind": "component",
+      "title": "A fifth vy_review_card kind (migration 129): api/_material-detector.js (moved from evals/room-adversarial-creator/detector.mjs, unchanged) runs over every newly mined context item in api/_context-mining.js; api/_context-locker.js::mineStored writes one card via api/_review-queue.js::persistInstructionShapedCard, deduped on the item id.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter",
+      "kind": "decision",
+      "title": "Instruction-shaped material ships as a review-card kind the creator decides on, never a runtime filter that drops or silently fuses text; migration 129 widens only the kind CHECK.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-remove-source-reuses-the-never-state",
+      "kind": "decision",
+      "title": "Remove this source writes DB state=never (STATE_FOR_DECISION mapping) since migration 129 does not widen the state CHECK; the raw decision code and the mapped state travel as two separate SQL params so the never-rule insertion CTE is never accidentally triggered.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-apply-ingest-run-delta-excludes-refused-source",
+      "kind": "decision",
+      "title": "api/_channel-ingest.js::applyIngestRunDelta gained a not-exists guard: a proposed run whose vy_context_item source was later marked refused (instruction_shaped remove_source) can never reach status=applied - the gap law 3 asked to be read and, if missing, fixed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-hg-en-2-is-not-a-clean-nfkc-negative-control",
+      "kind": "rejection",
+      "title": "The corpus fullwidth fixture hg-en-2 cannot prove the NFKC negative control: role_reassignment's own pattern hardcodes a literal fullwidth operator alternative, so it matches with or without normalisation; a synthetic fullwidth encoding of instruction_override's trigger phrase was built instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-markdown-backtick-in-a-sql-comment-terminates-the-js-template-literal",
+      "kind": "rejection",
+      "title": "A markdown-style inline-code backtick inside a SQL comment written inside a JS template literal terminates the JS string at that point, producing a syntax error reported far from the real defect; every such comment must avoid backticks.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r112-instruction-shaped-card-suite-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/review-queue/run.mjs 176/176; evals/room-adversarial-creator/run.mjs 247/247 (detector recall 41/41=100.0%, false positives 0/15=0.0%, unchanged after the move to api/_material-detector.js); evals/room-doors/run.mjs 748 ok/0 failed including the new remove_source owner-bearer case.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19444,6 +19486,31 @@
       "src": "ws-r116-env-manifest-names-before-and-after",
       "rel": "caused_by",
       "dst": "ws-r116-env-manifest-md-carries-two-header-shapes"
+    },
+    {
+      "src": "ws-r112-instruction-shaped-material-card",
+      "rel": "part_of",
+      "dst": "ws-r4-review-queue"
+    },
+    {
+      "src": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter",
+      "rel": "measured_by",
+      "dst": "ws-r112-instruction-shaped-card-suite-counts-2026-09-05"
+    },
+    {
+      "src": "ws-r112-remove-source-reuses-the-never-state",
+      "rel": "constrains",
+      "dst": "ws-r112-instruction-shaped-material-card"
+    },
+    {
+      "src": "ws-r112-apply-ingest-run-delta-excludes-refused-source",
+      "rel": "caused_by",
+      "dst": "ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter"
+    },
+    {
+      "src": "ws-r112-instruction-shaped-card-suite-counts-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r112-hg-en-2-is-not-a-clean-nfkc-negative-control"
     }
   ]
 }

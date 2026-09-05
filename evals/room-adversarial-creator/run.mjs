@@ -71,13 +71,19 @@
 //       actually reaches a DELIVERED reply (post-gate) — the concrete,
 //       reproducible answer to "does this leak", never assumed.
 //   §4  Given §1-§3, the review-queue mitigation (law 4) is INGESTION-TIME,
-//       never runtime: `detector.mjs` is measured against the corpus (recall)
-//       and against `BENIGN_SOURCE_SAMPLE` (false-positive rate, the 2%
-//       ceiling law 4 sets). Whether it ships as a review-card kind is
-//       decided separately, in `context/decisions.md`, against migration
-//       074's closed `kind` CHECK constraint — this workstream carries no
-//       migration, so it does not ship regardless of the measured rate; the
-//       rate is still measured and logged, honestly, either way.
+//       never runtime: `api/_material-detector.js` (moved here unchanged by
+//       WS-R112, formerly this directory's own `detector.mjs`) is measured
+//       against the corpus (recall) and against `BENIGN_SOURCE_SAMPLE`
+//       (false-positive rate, the 2% ceiling law 4 sets). WS-R112 SHIPPED it
+//       as a review-card kind (migration 129 widens `vy_review_card`'s
+//       `kind` CHECK to admit `instruction_shaped`; `api/_context-mining.js`
+//       runs the detector over every newly mined item's text and
+//       `api/_review-queue.js::persistInstructionShapedCard` writes one
+//       card per flagged source) — `context/decisions.md#ws-r112-
+//       instruction-shaped-is-a-review-card-not-a-runtime-filter` carries
+//       the argument for why ingestion-time-and-decided beat the two
+//       runtime alternatives (silently dropping the source; silently
+//       fusing it in anyway, per §1-§2's own finding above).
 //
 // A benign twin corpus (`BENIGN_TWIN_CORPUS`) compiles through the same
 // path for §1's byte-diff check — law 2's own requirement, proven the same
@@ -95,7 +101,10 @@ import {
   CORPUS_LANGS,
   CORPUS_CLASSES,
 } from "./corpus.mjs";
-import { detectInstructionShapedMaterial } from "./detector.mjs";
+// WS-R112: the detector now SHIPS, at api/_material-detector.js, unchanged —
+// this suite imports it from there so it measures the exact function the
+// mining path (api/_context-mining.js) runs, not a frozen sibling copy.
+import { detectInstructionShapedMaterial } from "../../api/_material-detector.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -464,17 +473,23 @@ console.log(`  false positives: ${fpCount}/${BENIGN_SOURCE_SAMPLE.length} = ${(f
 ok(`§4 the false-positive rate (${(fpRate * 100).toFixed(1)}%) is the number law 4's 2% ceiling is measured against`, true,
   `fp_rate=${(fpRate * 100).toFixed(2)}% n=${BENIGN_SOURCE_SAMPLE.length}`);
 
-// A structural self-check that this workstream honoured its own "no
-// migration" constraint: migration 074's `kind` CHECK is still the closed
-// four-value list, and nothing under `api/` names a new review-card kind
-// for this finding.
+// A structural self-check on WS-R105's own "no migration" constraint, and
+// on WS-R112's follow-through: migration 074's FILE is untouched (its own
+// inline four-value list is history, not live truth once 129 applies), and
+// migration 129 is the one that actually widens the CHECK and ships the
+// finding as a review-card kind (`context/decisions.md#ws-r112-instruction-
+// shaped-is-a-review-card-not-a-runtime-filter`).
 {
   const mig074 = fs.readFileSync(join(REPO, "db/migrations/074_review_queue.sql"), "utf8");
-  ok("migration 074's review-card kind CHECK is still the closed four-value list (no migration this workstream)",
+  ok("migration 074's own file is unedited: its inline kind CHECK still reads the original four-value list",
     /check \(kind in \('question','claim','delta','follower_declined'\)\)/.test(mig074));
+  const mig129 = fs.readFileSync(join(REPO, "db/migrations/129_review_card_instruction_shaped.sql"), "utf8");
+  ok("migration 129 exists and widens vy_review_card's kind CHECK to admit 'instruction_shaped' (WS-R112)",
+    /drop constraint if exists vy_review_card_kind_check/.test(mig129)
+      && /check \(kind in \('question','claim','delta','follower_declined','instruction_shaped'\)\)/.test(mig129));
   const reviewQueueSrc = fs.readFileSync(join(REPO, "api/_review-queue.js"), "utf8");
-  ok("api/_review-queue.js names no new card kind for this finding (would need the migration above)",
-    !/instruction_shaped|material_flag|hostile_material/i.test(reviewQueueSrc));
+  ok("api/_review-queue.js now names the instruction_shaped card kind — this finding SHIPPED behind migration 129",
+    /instruction_shaped/.test(reviewQueueSrc));
 }
 
 // ═════════════════════════════════════════════════════════════════════════

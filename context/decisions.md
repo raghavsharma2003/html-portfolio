@@ -19140,3 +19140,127 @@ underlying checks are ever narrowed to presence-only (unlikely and
 undesirable, since that would weaken what those two checks actually
 prove) — more likely they simply stay manual permanently, which is the
 honest state for "a value can be set and still be wrong."
+
+## `ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter` (2026-09-05, WS-R112)
+
+**Decision.** WS-R105's `detectInstructionShapedMaterial` (moved unchanged
+to `api/_material-detector.js`) ships as a FIFTH `vy_review_card` kind
+(`instruction_shaped`, migration 129) rather than as a runtime filter that
+edits, blocks or rewrites text on its way into a sheet field. The mining
+path (`api/_context-mining.js::materialFlagFor`, called from `api/_context-
+locker.js::mineStored`) runs the detector over every newly mined item's
+whole body and, when it fires, writes ONE card the creator decides on in
+the same queue where they already decide what sounds right — never a
+silent mine, never a silent drop, never a silent edit.
+
+**Rationale.** Two runtime alternatives were on the table and both were
+rejected by the evidence `evals/room-adversarial-creator/run.mjs` itself
+produced (WS-R105, unchanged by this workstream): (a) silently DROPPING a
+flagged source loses real, wanted teaching material on a false positive —
+and the detector's own measured false-positive rate (0.0% on this
+workstream's fixed sample, n=15, `context/measurements.md#ws-r105-…`
+predates this entry) is a SAMPLE statistic, not a guarantee, on text this
+platform has never seen; (b) silently FUSING it in anyway (today's actual
+behaviour, `materialBoundaryStatus` measuring "fused" on 41/41 corpus
+entries through the real compiler) is the status quo this whole workstream
+exists to change. A card is the one action that is reversible on BOTH
+sides: "Sounds right" costs the creator one tap and nothing is lost;
+"Remove this source" or "Never say this" costs one tap and nothing hostile
+survives. This is the same shape `vy_review_card`'s other four kinds
+already use for exactly this reason (`db/schema.sql`'s own migration 074
+header, "this is where fidelity is actually made").
+
+Migration 129 widens ONLY the `kind` CHECK (drop-then-add on
+`vy_review_card_kind_check`, Postgres's own default name for this unnamed
+single-column CHECK — the SAME convention migration 096 used one migration
+family over for `vy_room_checkin_delivery`'s channel CHECK, and the SAME
+caveat: this workstream has no `NEON_URL` and never read the name back
+itself; the main loop must, before applying). The `state` CHECK is
+untouched — see `ws-r112-remove-source-reuses-the-never-state` below for
+why "Remove this source" needed no new state value.
+
+**Reversal condition.** If a future measurement on REAL creator uploads
+(never this workstream's own fixed corpus) finds the false-positive rate
+materially above the 2% ceiling law 4 set, the card becomes noise a
+creator learns to tap through without reading — at that point the right
+fix is tightening the detector's own patterns (never widening the runtime
+filter this decision explicitly rejected), and this entry's own argument
+for "card, not filter" would need to be revisited only if a card-based
+mitigation is shown, by a real measurement, to arrive too late for
+material that already reached a follower before the creator's next queue
+visit — a race this workstream did not measure and does not claim to have
+closed.
+
+## `ws-r112-remove-source-reuses-the-never-state` (2026-09-05, WS-R112)
+
+**Decision.** The instruction-shaped card's third decision, "Remove this
+source" (`decision: 'remove_source'`, a new value in the JS-side
+`REVIEW_DECISIONS` array and in `types.ts`'s `ReviewDecision`), writes the
+DATABASE `state` column as `'never'` — the SAME value "Never say this"
+writes — via `STATE_FOR_DECISION`'s mapping in `api/_review-queue.js`,
+rather than a new state value of its own.
+
+**Rationale.** Migration 129's own law-1 scope is narrow on purpose: it
+widens `vy_review_card`'s `kind` CHECK alone (see the entry above), never
+`state`'s. `state` stays the four values migration 074 opened
+(`open`,`sounds_right`,`fixed`,`never`) because `fixed` is structurally
+unavailable for this decision (`vy_review_card_fixed_gate` requires a
+`correction_source_id`, and there is no "better answer" to a source that
+should not exist at all — nothing to cite as a correction), leaving
+`sounds_right` (wrong: it means "the source is fine, keep it", the
+opposite of what just happened) and `never` (the closer of the two: "we
+acted against this," which is also literally true — the card is the SAME
+decided-and-closed shape "Never say this" already leaves behind). The
+decision code and the database state are kept as two SEPARATE values on
+purpose (`decision`, the raw `$4` parameter, gates every SQL clause;
+`dbState`, a new `$9`, is the only thing the `UPDATE` actually writes) so
+that `'remove_source'` never accidentally satisfies the never-rule
+insertion CTE's own `$4::text = 'never'` gate — the two decisions share a
+`state` value but never share a WRITE PATH: "remove_source" marks
+`vy_context_item.status = 'refused'` and writes no never-rule row; "never"
+writes a never-rule row and touches no context item. The audit trail
+records the true decision code (`'decision_code', $4::text`) alongside the
+coarser `state`, so the two remain distinguishable after the fact even
+though the `state` column alone cannot tell them apart.
+
+**Reversal condition.** If a later migration widens `vy_review_card`'s
+`state` CHECK for an unrelated reason (a future review-card feature that
+genuinely needs a fifth state), `remove_source` should move to its own
+state value in the SAME migration rather than staying doubled up with
+`never` — the doubling is a deliberate, logged trade against a closed
+CHECK this workstream had no standing to widen twice, not a permanent
+design preference.
+
+## `ws-r112-apply-ingest-run-delta-excludes-refused-source` (2026-09-05, WS-R112)
+
+**Decision.** `api/_channel-ingest.js::applyIngestRunDelta` gained a
+`not exists (...)` guard on its own `UPDATE ... where status = 'proposed'`:
+a run whose `transcript_source = 'context_item'` and whose source
+`vy_context_item` was marked `status = 'refused'` (by "Remove this
+source," see the entries above) can never reach `status = 'applied'`. A
+run from any OTHER `transcript_source` (a channel video, for instance) is
+untouched — the clause's first condition is false for those, so `not
+exists` is trivially true.
+
+**Rationale.** This workstream's own brief (law 3) asked for the "sheet
+rebuild excludes it" half of removing a source to be READ, not assumed:
+"read how a refused item is excluded today; if it is not, that is the
+finding, fix it in the SELECT the rebuild reads." Reading
+`applyIngestRunDelta` before this fix found it checked ONLY
+`vy_ingest_run.status`, never the mined item's own state — so a proposal
+mined before a creator later removed its source could still be approved
+after the removal, which would have made "Remove this source" a card that
+LOOKED like it worked while the exact material it named kept a live path
+into a sheet draft. This is the concrete instance
+`ws-r112-instruction-shaped-is-a-review-card-not-a-runtime-filter`'s own
+argument depends on: a card is only as reversible as every downstream
+consumer of the thing it names, and this was the one downstream consumer
+that had not been taught about refusal yet.
+
+**Reversal condition.** If `vy_ingest_run` ever gains its own
+`source_item_id` foreign-key-shaped column (rather than encoding it inside
+`video_ref` as `context:<item_id>`), this guard should read that column
+directly instead of `split_part(r.video_ref, ':', 2)` — the string parse
+is a restatement of `api/_context-locker.js::mineStored`'s own existing
+convention, not a new one, and should be retired the same day that
+convention is.

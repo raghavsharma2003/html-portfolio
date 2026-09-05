@@ -13283,3 +13283,77 @@ either verify it exhaustively (every table's header line, not a sample)
 or write the comment as "every table checked so far" rather than
 "every table" — the gap between the two is exactly what this entry
 found the hard way, inside the same workstream that wrote the claim.
+
+## `ws-r112-hg-en-2-is-not-a-clean-nfkc-negative-control` (2026-09-05, WS-R112)
+
+**Tried.** Building law 4's own required negative control ("a detector
+that ignores NFKC misses the homoglyph class") by reusing the corpus's own
+fullwidth fixture, `hg-en-2` (`Ｙｏｕ ａｒｅ ｎｏｗ ａｎ ｏｐｅｒａｔｏｒ...`,
+`evals/room-adversarial-creator/corpus.mjs`): run it through a detector
+variant with `.normalize("NFKC")` removed and assert the semantic class
+(`role_reassignment`) is missing while `homoglyph` survives.
+
+**What broke.** The assertion FAILED the other way: `role_reassignment`
+matched even WITHOUT NFKC. Reading `api/_material-detector.js`'s own
+pattern (copied verbatim from the pre-existing `detector.mjs`, not
+authored by this workstream) found why — `role_reassignment`'s regex
+carries a HARDCODED literal fullwidth alternative,
+`|ｏｐｅｒａｔｏｒ)`, added by WS-R105 specifically because `hg-en-2`'s own
+text contains that literal fullwidth word. So `hg-en-2` matches
+`role_reassignment` for a reason that has NOTHING to do with NFKC — the
+control would have passed even with normalisation entirely absent, which
+is `subset-check-is-green-by-construction`'s own failure mode wearing a
+different corpus: a control that passes regardless of the thing it claims
+to test proves nothing.
+
+**Fix, not a workaround.** A SYNTHETIC fixture, built inside the eval
+itself: every ASCII letter of `instruction_override`'s own trigger phrase
+("Ignore all previous instructions.") mapped to its fullwidth compatibility
+form (U+FF21-U+FF5A), spaces and punctuation left alone. No class pattern
+in `api/_material-detector.js` carries a hardcoded fullwidth alternative
+for THIS phrase, so the control now isolates exactly what it claims to:
+with NFKC, both `homoglyph` and `instruction_override` fire; without it,
+only `homoglyph` does (the mixed-script check runs on raw text
+unconditionally) and `instruction_override` is missed entirely. See
+`context/measurements.md#ws-r112-instruction-shaped-card-suite-counts-
+2026-09-05` for the measured result.
+
+**Reversal condition.** If a future class pattern grows its own hardcoded
+fullwidth (or other script-specific) literal alternative the way
+`role_reassignment` already has, any negative control built against THAT
+class's corpus fixture needs the same check this entry describes before
+being trusted: read the pattern's own source for a literal alternative in
+the target script before assuming a corpus fixture isolates normalisation
+alone.
+
+## `ws-r112-markdown-backtick-in-a-sql-comment-terminates-the-js-template-literal` (2026-09-05, WS-R112)
+
+**Tried.** Writing this workstream's new SQL comments (inside
+`api/_review-queue.js::decideReviewCard`'s multi-CTE statement, itself a
+JS template literal) in this repo's own prose style — inline code spans
+wrapped in single backticks, e.g. `` `origin_ref` is `context_item:<id>` ``
+— exactly as every surrounding JS-level comment in this file already does.
+
+**What broke.** `node -c api/_review-queue.js` failed with "SyntaxError:
+missing ) after argument list", pointing at the START of the template
+literal rather than at the actual backtick that closed it early. A
+backtick character ANYWHERE inside a JS template literal — including one
+meant only as markdown-style code-span punctuation inside a SQL `--`
+comment — terminates that JS string at that exact point; everything after
+it is parsed as ordinary JS source until the NEXT backtick re-opens a
+(now different, misaligned) template, which is why the reported error
+location is nowhere near the real defect.
+
+**Fix.** Every backtick inside a SQL comment that lives inside a JS
+template literal was replaced with an unquoted bare word (never
+re-wrapped in single quotes either, since `'...'` inside a `--` SQL
+comment reads as though it opens a SQL string literal to a human skimming
+it, even though the SQL parser itself ignores comment content entirely).
+
+**Reversal condition.** None — this is a permanent constraint of the
+language, not a policy that could change. Anyone adding a commented SQL
+CTE to an existing multi-line template-literal statement in this codebase
+(`api/_review-queue.js`, `api/_channel-ingest.js`, `api/_context-locker.js`
+and every other file built the same way) must run `node -c <file>` (or
+this project's `tsc`) after writing the comment, not only after writing
+the SQL, and must never use a markdown code-span backtick inside it.

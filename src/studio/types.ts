@@ -396,9 +396,17 @@ export interface CandidateEvaluation {
 // WS-R4, the review queue. `has_correction` rather than the source id: an
 // internal handle has no use on a screen, and the studio only has to know
 // whether the owner's better answer landed.
-export type ReviewCardKind = "question" | "claim" | "delta" | "follower_declined";
+// WS-R112: 'instruction_shaped' appended (migration 129) - a source whose
+// text reads like an instruction aimed at the AI, flagged at ingestion by
+// api/_material-detector.js and surfaced as a card here rather than mined
+// or blocked silently. `ReviewCardState` is UNCHANGED (migration 129 widens
+// only the `kind` CHECK): 'remove_source' below writes state='never', the
+// closer of the two closeable non-'fixed' states to "we acted against
+// this" (`context/decisions.md#ws-r112-remove-source-reuses-the-never-
+// state`).
+export type ReviewCardKind = "question" | "claim" | "delta" | "follower_declined" | "instruction_shaped";
 export type ReviewCardState = "open" | "sounds_right" | "fixed" | "never";
-export type ReviewDecision = "sounds_right" | "fixed" | "never";
+export type ReviewDecision = "sounds_right" | "fixed" | "never" | "remove_source";
 
 export interface ReviewCard {
   card_id: string;

@@ -1,17 +1,25 @@
-// WS-R105. A PURE detector: "does this text look shaped like an instruction
-// aimed at the AI, rather than teaching material aimed at a student?"
+// WS-R105 built this as a pure detector, measured (never shipped) against
+// `evals/room-adversarial-creator`'s corpus: "does this text look shaped like
+// an instruction aimed at the AI, rather than teaching material aimed at a
+// student?" WS-R112 moves it here, unchanged, so the mining path
+// (`api/_context-mining.js`) and the eval that measures it import the SAME
+// function rather than two copies that can drift — `subset-check-is-green-
+// by-construction`'s own lesson, restated for a detector instead of a
+// citation check. `evals/room-adversarial-creator/run.mjs` imports
+// `detectInstructionShapedMaterial` from here now; nothing in its own
+// corpus, measurements or negative controls changed.
 //
 // NO MODEL CALL. Every class below is the corpus's own class
-// (`corpus.mjs`), turned into a regex over NORMALISED text — the same
-// method `ws-r89-slugof-nfkc-before-ascii-check` (context/decisions.md)
-// used for a slug, applied here to a longer passage: `.normalize("NFKC")`
-// collapses a COMPATIBILITY duplicate (fullwidth Latin) into its canonical
-// ASCII form before any pattern runs, and does NOT collapse a
-// CROSS-SCRIPT HOMOGLYPH (Cyrillic styled to look like Latin) — the two are
-// canonically unrelated, only visually similar, which is exactly the
-// asymmetry `detectInstructionShapedMaterial` measures rather than hides:
-// a fullwidth-only injection is caught by BOTH the mixed-script check and,
-// after normalisation, the semantic class it was disguising; a
+// (`evals/room-adversarial-creator/corpus.mjs`), turned into a regex over
+// NORMALISED text — the same method `ws-r89-slugof-nfkc-before-ascii-check`
+// (context/decisions.md) used for a slug, applied here to a longer passage:
+// `.normalize("NFKC")` collapses a COMPATIBILITY duplicate (fullwidth Latin)
+// into its canonical ASCII form before any pattern runs, and does NOT
+// collapse a CROSS-SCRIPT HOMOGLYPH (Cyrillic styled to look like Latin) —
+// the two are canonically unrelated, only visually similar, which is exactly
+// the asymmetry `detectInstructionShapedMaterial` measures rather than
+// hides: a fullwidth-only injection is caught by BOTH the mixed-script check
+// and, after normalisation, the semantic class it was disguising; a
 // Cyrillic-confusable injection is caught by the mixed-script check alone,
 // because NFKC leaves the confusable letters exactly as they were.
 //
@@ -30,6 +38,10 @@
 // string (long, no spaces, mixed alphanumeric) in the SAME text — either
 // alone is common in ordinary material (a worksheet code, an instruction
 // to keep something in mind), the pair together is not.
+//
+// PURE — imports nothing, so it is safe on both sides of this product's own
+// split: the mining path (a request handler with database access) and the
+// eval (no database at all).
 
 const CLASS_PATTERNS = {
   instruction_override: new RegExp(

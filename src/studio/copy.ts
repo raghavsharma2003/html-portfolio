@@ -254,11 +254,16 @@ interface ReviewQueueCopy {
   lede: string;
   cardOf: string; // "Card {n1} of {n2}"
   dismiss: string;
-  kindLabel: Record<"question" | "claim" | "delta" | "follower_declined", string>;
+  kindLabel: Record<"question" | "claim" | "delta" | "follower_declined" | "instruction_shaped", string>;
   noAnswerYet: string;
   buttonSoundsRight: string;
   buttonFixed: string;
   buttonNever: string;
+  // WS-R112. The third button on an 'instruction_shaped' card, replacing
+  // "Close, fix it" (there is no answer to fix, only a source to keep or
+  // remove).
+  buttonRemoveSource: string;
+  noticeRemoved: string;
   emptyTitle: string;
   emptyBody: string;
   looking: string;
@@ -2158,11 +2163,14 @@ const EN: StudioCopy = {
       claim: "Something we think we learned",
       delta: "A habit we heard on a call",
       follower_declined: "A question your AI would not answer",
+      instruction_shaped: "A source that reads like an instruction to your AI",
     },
     noAnswerYet: "Your AI has not answered this one yet. Write what you would say and it becomes the answer.",
     buttonSoundsRight: "Sounds right",
     buttonFixed: "Close, fix it",
     buttonNever: "Never say this",
+    buttonRemoveSource: "Remove this source",
+    noticeRemoved: "Saved. That source is removed and will not be read again.",
     emptyTitle: "Nothing to review yet.",
     emptyBody: "It fills itself from real conversations once your Room is open.",
     looking: "Looking...",

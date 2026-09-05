@@ -86,8 +86,33 @@ import { tableApplied } from "./memory.js";
  *  and 30 is the whole promise. */
 export const REVIEW_OPEN_CAP = 30;
 
-export const REVIEW_CARD_KINDS = Object.freeze(["question", "claim", "delta", "follower_declined"]);
-export const REVIEW_DECISIONS = Object.freeze(["sounds_right", "fixed", "never"]);
+// WS-R112: 'instruction_shaped' appended. Migration 129 widens the DATABASE
+// CHECK the same way; this array is the JS-side mirror `generateReviewCards`/
+// `decideReviewCard` validate against.
+export const REVIEW_CARD_KINDS = Object.freeze(["question", "claim", "delta", "follower_declined", "instruction_shaped"]);
+// WS-R112: 'remove_source' appended — the third decision on an
+// 'instruction_shaped' card ("Remove this source"), valid for NO other kind
+// (`decideReviewCard`'s own WHERE-clause gate enforces that, never a JS
+// check alone). It maps to the EXISTING `state='never'` column value
+// (`STATE_FOR_DECISION` below): migration 129 widens `kind`'s CHECK, not
+// `state`'s, so no new state value exists to hold it, and 'never' is the
+// closer of the two closeable non-`fixed` states to "we acted against this"
+// (`context/decisions.md#ws-r112-remove-source-reuses-the-never-state`).
+export const REVIEW_DECISIONS = Object.freeze(["sounds_right", "fixed", "never", "remove_source"]);
+
+/** The DATABASE `state` column value each decision writes. Kept separate
+ *  from the decision code itself (never collapsed into one) because
+ *  'remove_source' and 'never' are two DIFFERENT creator actions that must
+ *  gate DIFFERENT SQL (a never-rule row for one, a source refusal for the
+ *  other) while sharing one closed `state` CHECK — see the constant's own
+ *  callers in `decideReviewCard` for how the two stay distinguishable in the
+ *  audit trail even though the `state` column alone cannot. */
+export const STATE_FOR_DECISION = Object.freeze({
+  sounds_right: "sounds_right",
+  fixed: "fixed",
+  never: "never",
+  remove_source: "never",
+});
 
 /** What a correction may be handed to us as. Audio goes through the ordinary
  *  signed upload and is transcribed by the EXISTING DAG; nothing is transcribed
@@ -158,13 +183,25 @@ export function reviewText(value, max = 500) {
  *
  * Migration 074's unique index on (replica_id, dedupe_hash) is what makes this
  * structural rather than a property of whichever generator ran last.
+ *
+ * WS-R112: 'instruction_shaped' is a THIRD shape, keyed on `originRef` (the
+ * `context_item:<item_id>` pointer) rather than on the prompt or the answer.
+ * The card's prompt is the flagged passage's first SENTENCE and its answer
+ * is a class-name reason — both are DERIVED text that a re-mine of the exact
+ * same stored source could, in principle, re-render with a different word
+ * wrap or a differently-punctuated first sentence, so hashing either would
+ * risk a re-mine minting a second card for the same source. The item id
+ * never changes between mines, so it is the one stable subject
+ * (`context/decisions.md#ws-r112-instruction-shaped-dedupe-keys-on-the-item-
+ * not-the-sentence`).
  */
-export function reviewDedupeSubject(kind, promptText, answerText) {
+export function reviewDedupeSubject(kind, promptText, answerText, originRef) {
+  if (kind === "instruction_shaped") return String(originRef ?? "");
   return kind === "claim" || kind === "delta" ? String(answerText ?? "") : String(promptText ?? "");
 }
 
-export function reviewDedupeHash(kind, promptText, answerText) {
-  const subject = reviewDedupeSubject(kind, promptText, answerText);
+export function reviewDedupeHash(kind, promptText, answerText, originRef) {
+  const subject = reviewDedupeSubject(kind, promptText, answerText, originRef);
   return createHash("sha256")
     .update(`vyakti:review-card:v1:${String(kind)}:${normaliseForMatch(subject)}`)
     .digest("hex");
@@ -243,13 +280,14 @@ function card(kind, promptText, answerText, sourceRefs, originRef) {
   if (!prompt) return null;
   const answer = reviewText(answerText, 4_000);
   const refs = Array.isArray(sourceRefs) ? sourceRefs.slice(0, 8) : [];
+  const origin = reviewText(originRef, 128);
   return {
     kind,
     prompt_text: prompt,
     answer_text: answer,
     source_refs: refs,
-    origin_ref: reviewText(originRef, 128),
-    dedupe_hash: reviewDedupeHash(kind, prompt, answer),
+    origin_ref: origin,
+    dedupe_hash: reviewDedupeHash(kind, prompt, answer, origin),
   };
 }
 
@@ -775,6 +813,93 @@ export async function persistReviewCards(db, ownerUserId, replicaIdValue, cards)
   return rows.map(clientCard);
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R112. THE INSTRUCTION-SHAPED-MATERIAL CARD.
+// ═════════════════════════════════════════════════════════════════════════
+//
+// A short, readable phrase for each class `api/_material-detector.js` can
+// name, joined below into the card's `answer_text` — never the raw class
+// TOKEN alone, because a card is read by a creator, not grepped by a
+// developer. Kept here, server-side, rather than left to the studio to
+// map, so the string a creator reads is the same string `evals/review-
+// queue/run.mjs` can assert against.
+const MATERIAL_FLAG_CLASS_LABEL = Object.freeze({
+  instruction_override: "tries to override your AI's instructions",
+  fake_system_prompt: "is written to look like a system prompt",
+  role_reassignment: "tries to reassign your AI to a different role",
+  exfil_bait: "asks your AI to repeat back what someone else said",
+  other_creator_identity: "names a different creator as who built this AI",
+  secret_shaped: "asks your AI to remember and repeat a secret-looking string",
+  homoglyph: "hides one of the above behind lookalike characters",
+});
+
+function materialFlagReason(matchedClasses) {
+  const labels = (Array.isArray(matchedClasses) ? matchedClasses : [])
+    .map((cls) => MATERIAL_FLAG_CLASS_LABEL[cls] || cls);
+  return labels.length ? `This source ${labels.join("; and it ")}.` : "";
+}
+
+/**
+ * ONE card per flagged source, written from the mining path
+ * (`api/_context-locker.js::mineStored`, itself calling
+ * `api/_context-mining.js::materialFlagFor`) — never a runtime filter and
+ * never a silent drop. `on conflict (replica_id, dedupe_hash) do nothing`,
+ * keyed on the SOURCE (`reviewDedupeSubject`'s own 'instruction_shaped'
+ * branch), so a re-mine of the same item never doubles the card — the exact
+ * idempotence `persistReviewCards`'s own dedupe index already gives every
+ * other kind, extended here rather than re-invented.
+ *
+ * Capped by the SAME open-queue room every other card generator respects
+ * (`persistReviewCards`'s own `room` CTE, restated here for one card rather
+ * than a batch): a hostile bulk upload cannot grow the queue past
+ * `REVIEW_OPEN_CAP` any more than an ordinary one can.
+ *
+ * @returns the newly written card, or `null` when nothing NEW landed — the
+ *          queue was full, or (the dedupe index's own job) this exact source
+ *          already has one. `mineStored` marks the underlying item mined
+ *          either way; the card is a NOTIFICATION of a finding, never a
+ *          precondition for storing the source.
+ */
+export async function persistInstructionShapedCard(db, ownerUserId, replicaIdValue, itemId, flag) {
+  if (typeof db !== "function") fail("review_db_required", 503);
+  const rid = replicaId(replicaIdValue);
+  const owner = reviewUuid(ownerUserId, "review_owner_required");
+  const matchedClasses = Array.isArray(flag?.matchedClasses) ? flag.matchedClasses : [];
+  if (!matchedClasses.length) return null;
+  const originRef = `context_item:${String(itemId).trim().toLowerCase()}`;
+  const promptText = reviewText(flag.firstSentence || "", 500)
+    || "This source reads like an instruction aimed at your AI, not material to teach it from.";
+  const answerText = reviewText(materialFlagReason(matchedClasses), 4_000);
+  const dedupeHash = reviewDedupeHash("instruction_shaped", promptText, answerText, originRef);
+  const rows = await db(
+    `with authorized as (${OWNED}), room as (
+       select greatest(0, $8::int4 - count(*) filter (where c.state = 'open'))::int4 as slots
+         from vy_review_card c
+        where c.replica_id = $1::uuid and c.owner_user_id = $2::uuid
+     ), inserted as (
+       insert into vy_review_card
+         (replica_id, owner_user_id, kind, prompt_text, answer_text, source_refs, origin_ref, dedupe_hash)
+       select a.replica_id, $2::uuid, 'instruction_shaped', $3::text, $4::text, $5::jsonb, $6::text, $7::text
+         from authorized a cross join room
+        where room.slots > 0
+       on conflict (replica_id, dedupe_hash) do nothing
+       returning card_id, kind, prompt_text, answer_text, source_refs, state, decided_at,
+                 correction_source_id, created_at
+     ), audit as (
+       insert into vy_replica_audit
+         (replica_id, owner_user_id, action, object_kind, object_id, policy, outcome, facts)
+       select $1::uuid, $2::uuid, 'review.card.material_flag', 'review_card',
+              (select card_id from inserted)::text, $9, 'allowed',
+              jsonb_build_object('item_id', $10::text, 'matched_classes', $11::jsonb)
+        where exists (select 1 from inserted)
+     )
+     select * from inserted`,
+    [rid, owner, promptText, answerText, JSON.stringify([{ item_id: String(itemId) }]), originRef, dedupeHash,
+      REVIEW_OPEN_CAP, REPLICA_POLICY_VERSION, String(itemId), JSON.stringify(matchedClasses)],
+  );
+  return rows[0] ? clientCard(rows[0]) : null;
+}
+
 /**
  * Mint the pending correction source for one card.
  *
@@ -843,6 +968,11 @@ export async function decideReviewCard(db, ownerUserId, input) {
   const cardId = reviewUuid(input?.card_id, "review_card_id_required");
   const decision = String(input?.decision || "");
   if (!REVIEW_DECISIONS.includes(decision)) fail("review_decision_invalid", 400);
+  // WS-R112. The DB `state` column stays the four values migration 074
+  // opened; `decision` (the raw code, `$4` below) is what every GATE keys
+  // on, so 'remove_source' never trips the never-rule branch it maps onto
+  // for storage. See `STATE_FOR_DECISION`'s own header.
+  const dbState = STATE_FOR_DECISION[decision];
 
   const correctionSourceId = decision === "fixed"
     ? reviewUuid(input?.correction_source_id, "review_correction_source_required")
@@ -884,14 +1014,40 @@ export async function decideReviewCard(db, ownerUserId, input) {
        select rule_id from inserted_rule union all select rule_id from existing_rule
      ), decided as (
        update vy_review_card c
-          set state = $4::text, decided_at = now(),
+          set state = $9::text, decided_at = now(),
               correction_source_id = (select source_id from correction)
          from candidate k
         where c.card_id = k.card_id and c.state = 'open'
           and ($4::text <> 'fixed' or exists (select 1 from correction))
           and ($4::text <> 'never' or exists (select 1 from landed_rule))
+          -- WS-R112. "Remove this source" exists for NO card kind but
+          -- 'instruction_shaped' - a WHERE-clause boundary, never a JS
+          -- check alone, per gate0-structural.
+          and ($4::text <> 'remove_source' or k.kind = 'instruction_shaped')
        returning c.card_id, c.kind, c.origin_ref, c.prompt_text, c.answer_text, c.source_refs,
                  c.state, c.decided_at, c.correction_source_id, c.created_at
+     ), removed_item as (
+       -- WS-R112. origin_ref is context_item:<item_id> for every
+       -- 'instruction_shaped' card (persistInstructionShapedCard's own
+       -- write) - 13 characters before the id, substring(... from 14)
+       -- restated from claim_target's own from-7 one CTE below (that
+       -- one strips 'claim:', 6 characters plus the colon).
+       select (substring(d.origin_ref from 14))::uuid as item_id
+         from decided d
+        where $4::text = 'remove_source' and d.origin_ref ~ '^context_item:[0-9a-f-]{36}$'
+     ), item_refused as (
+       -- "Remove this source": the item is marked refused, by name, the
+       -- SAME state a source the platform never read at all carries
+       -- (vy_context_item_refusal_named's own gate: refused always names
+       -- why). applyIngestRunDelta (api/_channel-ingest.js) refuses to
+       -- approve a run whose source item is refused - the "sheet rebuild"
+       -- half of this law, read and fixed by this workstream rather than
+       -- assumed already true.
+       update vy_context_item i
+          set status = 'refused', refusal_reason = 'instruction_shaped', updated_at = now()
+         from removed_item ri
+        where i.item_id = ri.item_id and i.replica_id = $1::uuid and i.owner_user_id = $2::uuid
+       returning i.item_id
      ), claim_target as (
        select (substring(d.origin_ref from 7))::int8 as claim_id, d.state
          from decided d where d.origin_ref ~ '^claim:[0-9]+$'
@@ -932,11 +1088,13 @@ export async function decideReviewCard(db, ownerUserId, input) {
               case when d.state = 'never' then 'denied' else 'allowed' end,
               jsonb_build_object('decision', d.state, 'kind', d.kind,
                                  'derived_models_invalidated', d.state = 'fixed',
-                                 'never_rule', (select count(*) from landed_rule))
+                                 'never_rule', (select count(*) from landed_rule),
+                                 'decision_code', $4::text,
+                                 'source_removed', exists (select 1 from item_refused))
          from decided d
      )
      select * from decided`,
-    [rid, owner, cardId, decision, correctionSourceId, pattern, reason, REPLICA_POLICY_VERSION],
+    [rid, owner, cardId, decision, correctionSourceId, pattern, reason, REPLICA_POLICY_VERSION, dbState],
   );
   if (rows[0]) return clientCard(rows[0]);
   // A refusal is NAMED. "Not yours" and "does not exist" are the same answer
