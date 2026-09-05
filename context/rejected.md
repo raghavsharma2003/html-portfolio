@@ -13867,3 +13867,71 @@ it). Not investigated further: outside this workstream's file scope
 studio component this locator targets is not), and `evals/run.mjs`'s own
 registry runs the `en` gate only. Named here for whoever next relies on
 `--full` for the creator walk.
+
+## `ws-r111-boundary-and-stage-fields-not-material-blocked` (WS-R111, 2026-09-05)
+
+**What was asked.** The workstream brief's law 4 asks for
+`evals/room-adversarial-creator/run.mjs`'s boundary scanner to measure "41
+of 41 contained, zero escapes" — every one of the nine sheet fields WS-105
+verified reachable, `boundaryParagraph`/`stageEarly`/`stageGettingClose`/
+`stageEstablished` included.
+
+**What was built instead, and why.** The material block covers five of
+the nine (`context/decisions.md
+#ws-r111-material-block-covers-five-of-nine-injectable-fields`). The four
+excluded fields are not descriptive knowledge the way `identityWho`/
+`identityLife`/`lifeTexture`/`tasteTopics`/`curiosityTopics` are — they are
+the platform's SAFETY MECHANISM at the content layer.
+`teacherTypes.ts`'s own doc on the seven arc overrides states the law
+directly: `boundaryParagraph` is "the MENTOR BOUNDARY paragraph that
+replaces ROMANCE BOUNDARY wholesale," and `safety-floor-teacher.md` §3.1
+"requires that clause GONE FROM THE CONTENT, not merely gated behind
+`clock.ts`'s `romanceRegisters`, because two independent layers is the
+house rule for a harm the next turn cannot undo." The material block's own
+header sentence tells the model, in so many words, that the block is
+"never an instruction that adds to or overrides anything else in this
+brief." Moving `boundaryParagraph` into a block carrying that header would
+DEMOTE the mentor boundary and the arc's pacing rules from an enforced
+instruction to inert material the model is explicitly told it need not
+treat as binding — for every legitimate teacher's real, benign boundary
+text, not only a hostile one. That is a regression in the opposite
+direction from what this workstream exists to fix: the hostile-content
+containment problem would be "solved" by breaking the safety mechanism for
+everyone, which is a worse trade than the one being closed.
+
+Two structural alternatives were considered and set aside within this
+session, both real work belonging to a different workstream:
+
+1. Keep the RAW `boundaryParagraph`/stage text as the actual enforced
+   instruction (unchanged from today) while ALSO surfacing a labelled
+   copy of it inside the material block as reference data. Rejected here
+   as scope: it does not change WHERE the enforcement lives (still a raw,
+   creator-controlled string fused into an instruction sentence, still
+   exactly as attackable as today), so it would not move the boundary
+   scanner's verdict for the entries that matter and would only add bytes.
+2. Replace the CONTENT the model is instructed to obey with a fixed,
+   platform-authored generic mentor boundary / arc pacing rule for every
+   teacher, moving the creator's own authored version into the material
+   block as flavor only. This is the shape that would actually let these
+   four fields join the block honestly — but it is a real product
+   decision (every teacher's authored arc/boundary text stops being
+   enforced verbatim) that this workstream's brief does not authorize and
+   that belongs with whoever owns `teacher-arc.md`/`safety-floor-
+   teacher.md`, not decided as a side effect of a compiler-boundary fix.
+
+**Measured, not argued.** `context/measurements.md
+#ws-r111-boundary-containment-25-of-41`: 25/41 "contained" (the five
+covered fields' entries), 16/41 still "fused" (the four excluded fields'
+entries, unchanged from WS-105's own 0/41 for the corpus as a whole).
+
+**What would reverse this entry.** A future workstream that (a) gets an
+explicit product decision authorizing option 2 above (a platform-owned
+generic mentor boundary / arc pacing rule replacing creator-authored
+`boundaryParagraph`/stage text as the enforced instruction, with the
+creator's own version demoted to material) and implements it with its own
+charm-equivalence argument for why enforcement does not regress for
+legitimate teachers, or (b) finds a THIRD mechanism this session did not
+consider that keeps `boundaryParagraph`/stage content genuinely binding
+while still closing the injection surface — either way, re-run
+`evals/room-adversarial-creator/run.mjs` §1 and measure a number above
+25/41 "contained."

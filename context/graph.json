@@ -10228,6 +10228,48 @@
       "kind": "measurement",
       "title": "40+ real GET /api/readiness calls in under two seconds when navigating directly to ?step=meet, roughly 55ms average gap, reproduced twice.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
+      "kind": "decision",
+      "title": "The material block (compiler.ts's MATERIAL_BLOCK_OPEN/CLOSE + renderCreatorMaterial, built and inserted by fromSheet.ts::sheetToModule) covers five of the nine sheet fields WS-105 verified reachable on the Room text lane (identityWho/identityLife/lifeTexture/tasteTopics/curiosityTopics), sanitizing them before persona.ts sees them and appending the real values to CORE inside a labelled block instead. persona.ts untouched; Meera never calls sheetToModule.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-boundary-and-stage-fields-not-material-blocked",
+      "kind": "rejection",
+      "title": "boundaryParagraph/stageEarly/stageGettingClose/stageEstablished deliberately excluded from the material block: they are the platform's safety mechanism at the content layer (the mentor boundary must be an enforced instruction, not inert data the model may take or leave), so moving them would demote enforcement for every legitimate teacher. 25/41 contained, not 41/41.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-honesty-trusted-set-excludes-the-material-block",
+      "kind": "decision",
+      "title": "api/_surface.js::honestyContextFor's trustedText now excludes the material block's own lines (stripMaterialBlock, a no-op when markers are absent) before allowedFrom/findActionable run, so a secret-shaped string a creator's sheet contains is no longer treated as grounded to say. Only honesty.ts's trusted input changed, never its families.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-boundary-containment-25-of-41",
+      "kind": "measurement",
+      "title": "evals/room-adversarial-creator/run.mjs \u00a71, real MATERIAL_BLOCK_OPEN/CLOSE markers (not a heuristic): boundary status contained 0/41 -> 25/41, fused 41/41 -> 16/41, n=41, 2026-09-05, offline deterministic. The 25 are exactly the five-covered-field entries; the 16 are the four excluded fields, unchanged from WS-105's own measurement.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-secret-shaped-leak-rate-0-of-5",
+      "kind": "measurement",
+      "title": "evals/room-adversarial-creator/run.mjs \u00a73, same method as ws-r105-secret-shaped-material-leak-rate, re-run 2026-09-05: delivered-reply leak rate for secret-shaped material dropped 2/5 -> 0/5 (identityWho and identityLife no longer leak). All five entries land on covered fields; unmeasured directly for the four excluded fields by this run.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-demo-teacher-core-growth-453-bytes",
+      "kind": "measurement",
+      "title": "sheetToModule(DEMO_TEACHER).buildSystemPromptParts core length, same fixture input, before (unmodified base commit 6fe96da) vs after this workstream: 49,709 -> 50,162 bytes (+453, +0.9%). Tripped three of persona-invariants.data.mjs's shared cross-agent size ceilings, raised deliberately by the measured amount plus margin.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r111-meera-byte-identity-unchanged-83-of-83",
+      "kind": "measurement",
+      "title": "src/engine/__fixtures__/byte-identity.mjs run on the untouched tree and again after every edit this session (3x): 83/83 every time, unchanged. Also asserted structurally in evals/room-leak/run.mjs's new layer 15: Meera's own compile() output (no agent set) contains zero occurrences of MATERIAL_BLOCK_OPEN/CLOSE.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19845,6 +19887,51 @@
       "src": "ws-r119-loader-redirect-matched-by-suffix-for-provenance-registry",
       "rel": "part_of",
       "dst": "ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced"
+    },
+    {
+      "src": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
+      "rel": "supersedes",
+      "dst": "ws-r105-no-material-instruction-boundary-mitigated-at-ingest-not-runtime"
+    },
+    {
+      "src": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
+      "rel": "measured_by",
+      "dst": "ws-r111-boundary-containment-25-of-41"
+    },
+    {
+      "src": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
+      "rel": "measured_by",
+      "dst": "ws-r111-demo-teacher-core-growth-453-bytes"
+    },
+    {
+      "src": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
+      "rel": "constrains",
+      "dst": "ws-r111-boundary-and-stage-fields-not-material-blocked"
+    },
+    {
+      "src": "ws-r111-boundary-and-stage-fields-not-material-blocked",
+      "rel": "caused_by",
+      "dst": "ws-r105-no-material-instruction-boundary-in-the-compiler"
+    },
+    {
+      "src": "ws-r111-boundary-and-stage-fields-not-material-blocked",
+      "rel": "measured_by",
+      "dst": "ws-r111-boundary-containment-25-of-41"
+    },
+    {
+      "src": "ws-r111-honesty-trusted-set-excludes-the-material-block",
+      "rel": "measured_by",
+      "dst": "ws-r111-secret-shaped-leak-rate-0-of-5"
+    },
+    {
+      "src": "ws-r111-secret-shaped-leak-rate-0-of-5",
+      "rel": "supersedes",
+      "dst": "ws-r105-secret-shaped-material-leak-rate"
+    },
+    {
+      "src": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
+      "rel": "measured_by",
+      "dst": "ws-r111-meera-byte-identity-unchanged-83-of-83"
     }
   ]
 }
