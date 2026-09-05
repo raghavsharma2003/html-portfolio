@@ -363,7 +363,10 @@ console.log("── layer 1: static (import graph + real predicate text) ──"
   // every sibling above already proves out. A future edit that selected a
   // follower's own column unwrapped, or grouped across rooms, fails this
   // line the same way it would in any other admitted file.
-  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js", "_org.js", "_phase-gate.js"]);
+  // WS-R74 (migration 118): api/_creator-push.js's own "followers this
+  // week" read - a bare `count(*)` over vy_room_follower, the identical
+  // aggregate-only shape `_ops.js`'s own read here already passes.
+  const AGGREGATE_ONLY = new Set(["_room-publish.js", "_room-cohorts.js", "_pulse.js", "_ops.js", "_funnel.js", "_org.js", "_phase-gate.js", "_creator-push.js"]);
   // WS-R11's webhook flips a follower's `tier` when a real payment lands - not
   // a creator-facing read at all, so it does not fit AGGREGATE_ONLY's shape
   // (which is about SELECTs), but it is still a new file naming this table and
@@ -1672,6 +1675,156 @@ console.log("\n── layer 10: showcase (the creator's own writer cannot surfac
   boundaryChecks++;
   ok("NEGATIVE CONTROL: with the eligibility predicate struck, the follower's token DOES leak into the showcase - proving the real check above is load-bearing, not vacuous",
     leakedTokens(JSON.stringify(leakedResult.showcase), [FOLLOWER_TOKEN]).length > 0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// LAYER 11 (WS-R74, migration 118) — THE CREATOR'S WEEKLY PUSH. This
+// feature's own follower-facing input is Pulse's "note" text — creator
+// material, floor-checked at n>=5 before it ever exists as a row
+// (migration 097's own CHECK on `vy_room_pulse_combo.follower_count`) — and
+// the concern layer 10 raised for the showcase applies again: a writer with
+// ONE legitimate, safe input must never be widened into a second, unsafe
+// one. This layer proves `api/_creator-push.js#creatorWeeklyPushPayload`
+// (the one function whose OUTPUT crosses onto a real device) can only ever
+// carry a slug, a display name and three already-aggregated facts — never
+// a follower id, a thread title, or a raw message.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 11: the creator's weekly push (Pulse headline can never widen into follower content) ──");
+
+// (a) STATIC. `creatorWeeklyPushPayload`'s own source, read off the file
+// rather than retyped — layer 10's own technique restated an eighth way.
+{
+  const pushSrc = fs.readFileSync(join(REPO, "api/_creator-push.js"), "utf8");
+  const { CREATOR_PUSH_FOLLOWER_CONTENT_NAMES } = await import(pathToFileURL(join(REPO, "api/_creator-push.js")).href);
+  ok("layer 11 static: CREATOR_PUSH_FOLLOWER_CONTENT_NAMES is not vacuously empty",
+    CREATOR_PUSH_FOLLOWER_CONTENT_NAMES.length >= 5);
+
+  const fnMatch = pushSrc.match(/export function creatorWeeklyPushPayload\([\s\S]*?\n}\n/);
+  ok("creatorWeeklyPushPayload is found in api/_creator-push.js (not moved/renamed)", Boolean(fnMatch));
+  const body = fnMatch ? fnMatch[0] : "";
+  const nameHits = CREATOR_PUSH_FOLLOWER_CONTENT_NAMES.filter((n) => body.includes(n));
+  ok("creatorWeeklyPushPayload's own source names none of this repo's follower-facing content columns",
+    nameHits.length === 0, nameHits.join(","));
+
+  // The headline's own sourcing route: `pulseHeadlineFor` may only ever
+  // read `readPulse`'s own `note` field — never a table this file queries
+  // itself, and never a raw thread/message column.
+  const headlineMatch = pushSrc.match(/async function pulseHeadlineFor\([\s\S]*?\n}\n/);
+  ok("pulseHeadlineFor is found in api/_creator-push.js (not moved/renamed)", Boolean(headlineMatch));
+  const headlineBody = headlineMatch ? headlineMatch[0] : "";
+  ok("pulseHeadlineFor sources the headline ONLY through readPulse(...).combo_buckets — no direct table read of its own",
+    headlineBody.includes("readPulse(") && headlineBody.includes("combo_buckets") && !/\bfrom\s+vy_/i.test(headlineBody));
+}
+
+// (b) WORLD CHECK. The REAL `sendCreatorWeeklyPushes`, driven through a
+// fixture with ONE published Room, a real Pulse world (one combo bucket AT
+// the n>=5 floor, built from a creator-typed label — never a follower's own
+// words, `weeklyNote`'s own header), and a follower roster carrying a
+// FOLLOWER_TOKEN seeded on a column (`vy_room_follower.person_id`) that
+// this feature's own SQL never selects. A leak here would be a byte-for-
+// byte token match `leakedTokens` (this file's own scanner) would actually
+// catch.
+{
+  const { sendCreatorWeeklyPushes, creatorWeeklyPushPayload } =
+    await import(pathToFileURL(join(REPO, "api/_creator-push.js")).href);
+  const FOLLOWER_TOKEN = "TOKFOLLOWERPERSON_creatorpush_leak_probe_zzzzzzzz";
+  const NOW = Date.parse("2026-09-08T04:00:00.000Z"); // isoWeekStartDate normalizes this to its own Monday regardless
+  const roomRow = {
+    room_id: ROOM_ID, slug: SLUG, display_name: "Anjali", replica_id: REPLICA_ID, owner_user_id: OWNER,
+    published_at: "2026-08-01T00:00:00.000Z", paused_at: null,
+  };
+  const followerRows = [
+    // A real follower row exists in this world (the token proves it), but
+    // every query this feature runs against vy_room_follower is a bare
+    // count(*) — the static control above already proves the payload
+    // builder's own parameter list has nowhere to carry it either.
+    { room_id: ROOM_ID, person_id: FOLLOWER_TOKEN, joined_at: "2026-09-05T00:00:00.000Z" },
+  ];
+  const comboRows = [
+    { labels: ["JEE prep"], follower_count: 5 }, // exactly the floor — 097's own CHECK boundary
+  ];
+  const pushLedger = [];
+  const sentPayloads = [];
+  const db = async (sql, params = []) => {
+    const has = (s) => sql.includes(s);
+    if (has("from vy_room") && has("published_at is not null") && has("paused_at is null")) {
+      return [roomRow];
+    }
+    if (has("count(*)::int as n") && has("from vy_room_follower") && has("joined_at >=")) {
+      const n = followerRows.filter((f) => f.room_id === String(params[0])).length;
+      return [{ n }];
+    }
+    if (has("sum(turns)") && has("from vy_room_follower_day")) {
+      return [{ n: 12 }];
+    }
+    if (has("select room_id, created_at, published_at") && has("from vy_room")) {
+      const [owner, replica] = params.map(String);
+      return owner === roomRow.owner_user_id && replica === roomRow.replica_id
+        ? [{ room_id: roomRow.room_id, created_at: "2026-08-01T00:00:00.000Z", published_at: roomRow.published_at }]
+        : [];
+    }
+    if (has("from vy_room_pulse_optin")) return [{ total_optin: 5 }];
+    if (has("from vy_room_pulse_topic")) return [{ topic_id: "t1", label: "JEE prep" }];
+    if (has("from vy_room_pulse_snapshot")) return [{ week_start: null }];
+    if (has("select max(week_start)::text as week_start from vy_room_pulse_week")) return [{ week_start: "2026-09-01" }];
+    if (has("select suppressed from vy_room_pulse_week")) return [{ suppressed: 0 }];
+    if (has("from vy_room_pulse_combo")) return comboRows;
+    if (has("insert into vy_creator_weekly_push")) {
+      const [pushId, roomId, weekStart, followers, messages, headlineIncluded] = params;
+      const dup = pushLedger.find((r) => r.room_id === roomId && r.week_start === weekStart);
+      if (dup) return [];
+      pushLedger.push({ push_id: pushId, room_id: roomId, week_start: weekStart, followers, messages, headline_included: headlineIncluded });
+      return [{ push_id: pushId }];
+    }
+    throw new Error(`layer 11 fake db: unmatched SQL: ${sql}`);
+  };
+  const oneSubscription = [{ id: "sub-1", endpoint: "https://push.example.test/creator-1", p256dh: "x", auth: "y" }];
+  const sendPush = async (sub, payload) => {
+    sentPayloads.push(payload);
+    return { ok: true, status: 201 };
+  };
+
+  const env = { ROOM_PUSH_VAPID_PUBLIC: "pub", ROOM_PUSH_VAPID_PRIVATE: "priv", ROOM_PUSH_VAPID_SUBJECT: "mailto:ops@example.test" };
+  const summary1 = await sendCreatorWeeklyPushes(db, {
+    now: NOW, env, sendPush,
+    creatorPushSubscriptionsFor: async () => oneSubscription,
+    revokeCreatorPushSubscription: async () => {},
+  });
+  boundaryChecks++;
+  ok("creator weekly push: the real sweep sent exactly one push (the fixture is sound, not vacuously refusing everything)",
+    summary1.sent_ledger === 1 && summary1.pushed === 1 && sentPayloads.length === 1);
+  boundaryChecks++;
+  ok("creator weekly push: the follower's real token never reaches the outgoing payload, in any form",
+    leakedTokens(sentPayloads[0], [FOLLOWER_TOKEN]).length === 0);
+  boundaryChecks++;
+  ok("creator weekly push: the scan above is not vacuous - the follower's token really does exist somewhere in this world",
+    leakedTokens(JSON.stringify(followerRows), [FOLLOWER_TOKEN]).length > 0);
+
+  // THE LEDGER'S OWN WHERE (workstream law 4). A second sweep tick for the
+  // SAME Room, SAME week sends nothing more — `ON CONFLICT (room_id,
+  // week_start) DO NOTHING` returns zero rows, and this file's own
+  // `sendCreatorWeeklyPushes` skips the push entirely on that empty return.
+  const summary2 = await sendCreatorWeeklyPushes(db, {
+    now: NOW + 60_000, env, sendPush,
+    creatorPushSubscriptionsFor: async () => oneSubscription,
+    revokeCreatorPushSubscription: async () => {},
+  });
+  boundaryChecks++;
+  ok("creator weekly push: NEGATIVE CONTROL — a second sweep tick the SAME week sends ZERO further pushes, refused by the ledger's own unique (room_id, week_start) WHERE",
+    summary2.sent_ledger === 0 && summary2.pushed === 0 && sentPayloads.length === 1);
+
+  // NEGATIVE CONTROL (2) — MUST FAIL. A hand-rolled "leaky" call that hands
+  // the payload builder a raw follower token as its `headline` argument —
+  // proving `leakedTokens` above is a real, load-bearing scanner rather
+  // than one that would pass on anything. The REAL pipeline can never do
+  // this (the static control (a) proves `pulseHeadlineFor` has no path to
+  // any variable but `readPulse(...).combo_buckets`); this call bypasses that
+  // pipeline on purpose to prove the SCANNER, not the pipeline, catches a
+  // leak when one is handed to it directly.
+  const leakyPayload = JSON.stringify(creatorWeeklyPushPayload(SLUG, "Anjali", 3, 12, FOLLOWER_TOKEN));
+  boundaryChecks++;
+  ok("NEGATIVE CONTROL: a headline argument carrying the follower's raw token DOES leak into the payload - proving the scanner above is not vacuous",
+    leakedTokens(leakyPayload, [FOLLOWER_TOKEN]).length > 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════

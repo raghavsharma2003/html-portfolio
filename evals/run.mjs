@@ -2108,6 +2108,27 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call.
   "creator-export": "creator-export/run.mjs",
+  // WS-R74 (migration 118). The creator's weekly push (api/_creator-push.js,
+  // over api/replica.js's `push_subscribe`/`push_revoke` ops and the
+  // Monday-morning cron, api/creator-push-sweep.js) — WS-R62's operator
+  // push mechanism restated for a creator's own Room. CONFIG (unset VAPID
+  // reports honestly unconfigured, never a fake key). SUBSCRIBE/REVOKE
+  // through the real functions with a fake db, including a class-e NEGATIVE
+  // CONTROL (another owner's endpoint is untouched by a stranger's revoke
+  // call). PAYLOAD BUILDER: pure, parameter-list-bounded, a static scan
+  // proves it names none of this repo's follower-facing content columns.
+  // SWEEP: one push per published Room, sourced from a real Pulse world
+  // (readPulse's own `combo_buckets`, never a second query this file
+  // writes itself), with the ledger's own unique (room_id, week_start)
+  // index proven as the ONLY idempotency mechanism — a second sweep tick
+  // the same week sends zero further pushes, and an UNPUBLISHED or PAUSED
+  // Room is never selected at all. THREE NEGATIVE CONTROLS: (a) the payload
+  // builder's own static scan, (b) the ledger's WHERE refusing a same-week
+  // resend, (c) a 404/410 from the push service revoking that one
+  // subscription and never touching another.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "creator-push": "creator-push/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

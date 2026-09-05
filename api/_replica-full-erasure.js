@@ -718,6 +718,16 @@ export async function completeReplicaErasure(db, lease, receipt) {
      pulse_v1_weeks as (delete from vy_room_pulse_week x using target t
        where x.room_id in (select r2.room_id from vy_room r2
                              where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
+     -- 118 (WS-R74), the creator's weekly push. Reached by room_id via the
+     -- SAME vy_room subquery as pulse_v1_weeks immediately above: this
+     -- table carries no agent binding and no owner_user_id column at all
+     -- (migration 118's own header - the ledger is a room_agg table,
+     -- api/_creator-export.js's own scope for it). Carries a real FK
+     -- CASCADE from vy_room, so this delete is a backstop rather than the
+     -- only mechanism, pulse_v1_weeks' own reasoning restated a fifth time.
+     creator_weekly_pushes as (delete from vy_creator_weekly_push x using target t
+       where x.room_id in (select r2.room_id from vy_room r2
+                             where r2.replica_id=t.replica_id and r2.owner_user_id=t.owner_user_id)),
      -- 083 (WS-R20), Handoff. Reached by room_id, the payment_events/
      -- checkins/pulse blocks' own reasoning restated a fourth time: this
      -- table carries no agent binding, and a room has exactly one agent
@@ -836,6 +846,18 @@ export async function completeReplicaErasure(db, lease, receipt) {
      -- memory, no follower words, no payment, not a different KIND of
      -- record from anything a receipt already names.
      operator_push_subscriptions as (delete from vy_operator_push_subscription x using target t
+       where x.owner_user_id=t.owner_user_id),
+     -- 118 (WS-R74). A creator's own push subscription, operator_push_
+     -- subscriptions' own reasoning one migration later restated for the
+     -- creator lane: not this ONE replica's, no replica_id column on this
+     -- table at all, reached by owner_user_id ALONE. scripts/relcheck.mjs's
+     -- owner-lane reach walk finds it by its own owner_user_id column and
+     -- requires it be named here or reached by cascade from vy_replica - it
+     -- is neither, so it is named here. No new entry in the deletedClasses
+     -- list above: a browser endpoint and its two encryption keys, no
+     -- memory, no follower words, operator_push_subscriptions' own
+     -- reasoning restated.
+     creator_push_subscriptions as (delete from vy_creator_push_subscription x using target t
        where x.owner_user_id=t.owner_user_id),
      receipt as (
        insert into vy_replica_deletion_receipt

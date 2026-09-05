@@ -608,7 +608,10 @@ const TABLE_ROLES = {
   vy_room_pulse_optin: { owners: ["_pulse.js", "_room-surface.js"] },
   vy_room_handoff: { owners: ["_handoff.js", "_room-surface.js"] },
   vy_room_follower_channel: { owners: ["_room-surface.js"] },
-  vy_room_follower_day: { owners: ["_room-surface.js"], aggregateOnly: ["_ops.js", "_phase-gate.js", "_room-cohorts.js"] },
+  // WS-R74 (migration 118): api/_creator-push.js's own "messages this week"
+  // read, `_ops.js`'s own 24h `sum(turns)` read widened to 7 days - the
+  // identical aggregate-only shape (no content column, no `select *`).
+  vy_room_follower_day: { owners: ["_room-surface.js"], aggregateOnly: ["_ops.js", "_phase-gate.js", "_room-cohorts.js", "_creator-push.js"] },
   vy_room_voice_usage: { owners: ["_room-surface.js"] },
   // `_renewals.js` reads a follower's OWN subscription row back to THAT
   // follower (a reminder, never creator-facing) — `context/rejected.md`'s
