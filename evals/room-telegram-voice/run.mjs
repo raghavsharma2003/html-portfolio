@@ -69,7 +69,7 @@ const {
 const surface = await import(pathToFileURL(join(API, "_room-surface.js")).href);
 const { roomSpeak, RoomError } = surface;
 const roomVoice = await import(pathToFileURL(join(API, "_room-voice.js")).href);
-const { pcmToWavBuffer } = roomVoice;
+const { pcmToWavBuffer, ROOM_TELEGRAM_VOICE_CONTAINER } = roomVoice;
 
 const { engine, loadAgent } = await loadFixtureAgent(REPO);
 const BASE_ENV = { ROOM_SESSION_SECRET: process.env.ROOM_SESSION_SECRET, ROOM_TELEGRAM_WEBHOOK_SECRET: "w".repeat(40) };
@@ -445,6 +445,48 @@ console.log("\n── §9: no new person-lane writer — the leak battery's own 
 {
   const src = fs.readFileSync(join(API, "_room-telegram.js"), "utf8");
   ok("this file's own SQL surface for voice is exactly consume()/recordIncident() plus the reused roomSpeak — no raw `insert`/`update` was added for voice", !/insert into vy_room_(follower|thread)/i.test(src.split("VOICE DELIVERY")[1] || "") );
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── §10: WS-R114 — the codec requirement, pinned from the document's own words ──");
+// ═════════════════════════════════════════════════════════════════════════
+//
+// WS-R110 shipped the WAV container marked UNVERIFIED whether it renders as
+// a playable Telegram voice bubble. WS-R114 fetched `core.telegram.org/bots
+// /api` in full (curl to a file, 860,075 bytes, HTTP 200 — the truncation
+// WS-R41/WS-R60 hit on this exact page was the summarizing fetch tool, not
+// the page itself) and read `sendVoice`'s own paragraph, fetched 2026-09-05:
+// "your audio must be in an .OGG file encoded with OPUS, or in .MP3 format,
+// or in .M4A format (other formats may be sent as Audio or Document)." This
+// section pins that finding as a STRUCTURAL fact
+// (`ROOM_TELEGRAM_VOICE_CONTAINER`, api/_room-voice.js) rather than leaving
+// it only in a comment, so it cannot silently go stale the way the ORIGINAL
+// unverified claim could have.
+{
+  ok("the container's own extension is 'wav'", ROOM_TELEGRAM_VOICE_CONTAINER.extension === "wav");
+  ok("the container's own mime type is 'audio/wav'", ROOM_TELEGRAM_VOICE_CONTAINER.mimeType === "audio/wav");
+  ok(
+    "Telegram's own document lists exactly three sendVoice formats: OGG/Opus, MP3, M4A",
+    JSON.stringify(ROOM_TELEGRAM_VOICE_CONTAINER.telegramSendVoiceDocumentedFormats) === JSON.stringify(["ogg-opus", "mp3", "m4a"]),
+  );
+  ok(
+    "WAV is honestly none of the three — this is now VERIFIED against the document, not carried from general knowledge",
+    ROOM_TELEGRAM_VOICE_CONTAINER.meetsSendVoiceFormatRequirement === false,
+  );
+  const clipMime = ROOM_TELEGRAM_VOICE_CONTAINER.mimeType;
+  ok(
+    "the actual outbound clip uses the SAME constant the compliance fact describes (single source of truth)",
+    !ROOM_TELEGRAM_VOICE_CONTAINER.telegramSendVoiceDocumentedFormats.some((f) => clipMime.includes(f.replace("-opus", ""))),
+  );
+  const src = fs.readFileSync(join(API, "_room-telegram.js"), "utf8");
+  ok(
+    "tgSendVoice's filename is built from the container constant, never a second hardcoded extension",
+    /`reply\.\$\{ROOM_TELEGRAM_VOICE_CONTAINER\.extension\}`/.test(src),
+  );
+  ok(
+    "the shipping sendVoice call sends the container constant's own mime type, never a second hardcoded literal",
+    /tg\.sendVoice\(ev\.chatId, wav, ROOM_TELEGRAM_VOICE_CONTAINER\.mimeType\)/.test(src),
+  );
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

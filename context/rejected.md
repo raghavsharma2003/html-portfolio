@@ -13935,3 +13935,52 @@ consider that keeps `boundaryParagraph`/stage content genuinely binding
 while still closing the injection surface — either way, re-run
 `evals/room-adversarial-creator/run.mjs` §1 and measure a number above
 25/41 "contained."
+
+## `ws-r114-lossy-telegram-voice-transcode-considered-and-not-built` (2026-09-05, WS-R114)
+
+**What was considered, not tried.** This workstream's own brief offered a
+concrete fallback if WAV proved non-compliant with Telegram's `sendVoice`
+format requirement (it did — `context/decisions.md#ws-r114-telegram-
+sendvoice-format-requirement-verified-wav-noncompliant`): add a pure-JS or
+wasm OGG/Opus or MP3 encoder dependency (no install script, no native
+build, per `scripts/installScriptAllowlist.mjs` and the security-headers
+gate's supply-chain scan) and transcode the watermarked PCM before wrapping
+it in a container. No such dependency was added, no encoder was written,
+and no line of transcoding code was written — the decision was made by
+reading, before any code, exactly as the brief's own "decide by reading"
+instruction asked.
+
+**What stopped it.** Not a supply-chain or licensing concern (the
+dependency-policy check this workstream's brief named was never reached) —
+a provenance one. `docs/gurukul/AZURE-DEPLOY-STATE.md` §14.10 already
+states, written by an earlier and unrelated workstream, before this one
+existed: "Watermark robustness is unmeasured. Detection was verified on
+the exact bytes returned. Survival through MP3, resampling, or a
+re-record was not tested. AudioSeal claims robustness; this deployment has
+not confirmed it." A lossy transcode changes the exact samples the
+watermark lives in (`context/decisions.md#audio-protection-cpu`: the
+self-verification bar is 0.80 confidence AND all sixteen decoded bits,
+checked on the untouched output, never a re-encoded copy), and this
+workstream's environment has no GPU and no paid-API budget to run the real
+detector against a transcoded clip and find out — the Azure protection
+service lives behind `AZURE_AUDIO_PROTECTION_ORIGIN`, unreachable from an
+offline worktree. Also checked and ruled out as an escape: the existing
+WEB Room voice path does not already send a lossy format either
+(`src/room/RoomApp.tsx` builds `data:audio/wav;base64,...`, the identical
+lossless container), so there was no precedent anywhere in this product of
+the watermark surviving a lossy re-encode to lean on.
+
+**The rule.** A documented format-compliance gain (satisfying `sendVoice`'s
+own paragraph) is not automatically worth taking when the fix touches the
+exact bytes a separate, unrelated safety/provenance guarantee depends on,
+and that guarantee's survival through the fix cannot be tested in the
+current environment. Read the in-repo state of the OTHER system a change
+would perturb (here: `docs/gurukul/AZURE-DEPLOY-STATE.md`'s own "what is
+NOT established" section) before reaching for a dependency that would make
+the perturbation, even a small, well-scoped, no-install-script one. This is
+the same posture `context/decisions.md#audio-protection-cpu`'s own entry
+already takes toward the watermark specifically (fail closed and measure,
+never assume the arithmetic backend or the byte path leaves it intact):
+prefer an honest, narrower shortfall (a WAV clip that may not render as a
+voice bubble) to a broader, unverifiable claim (a clip that renders
+correctly but might silently carry a dead or degraded watermark).

@@ -10270,6 +10270,42 @@
       "kind": "measurement",
       "title": "src/engine/__fixtures__/byte-identity.mjs run on the untouched tree and again after every edit this session (3x): 83/83 every time, unchanged. Also asserted structurally in evals/room-leak/run.mjs's new layer 15: Meera's own compile() output (no agent set) contains zero occurrences of MATERIAL_BLOCK_OPEN/CLOSE.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r114-telegram-full-page-fetch-recovered-by-curl-to-file",
+      "kind": "decision",
+      "title": "core.telegram.org/bots/api fetched in full via curl-to-file (860,075 bytes, HTTP 200), bypassing the summarizing fetch tool truncation WS-R41/WS-R60 hit on the same page.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r114-telegram-bot-api-full-page-fetch",
+      "kind": "measurement",
+      "title": "curl to a file retrieved core.telegram.org/bots/api in full (860,075 bytes, HTTP 200); sendVoice/sendAudio/InputFile/Sending-files all present and readable, unlike the summarizing fetch tool's truncated excerpt of the same URL.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant",
+      "kind": "measurement",
+      "title": "sendVoice requires OGG/Opus, MP3 or M4A (cited, fetched 2026-09-05); WAV is none of the three, closing the format half of the WS-R110 mark.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r114-telegram-wav-kept-over-unverifiable-lossy-transcode",
+      "kind": "decision",
+      "title": "Telegram voice note stays a WAV container over sendVoice; no OGG/Opus or MP3 transcode was built because AudioSeal watermark survival through a lossy re-encode is undocumented and unmeasurable offline (docs/gurukul/AZURE-DEPLOY-STATE.md section 14.10). ROOM_TELEGRAM_VOICE_CONTAINER records the format shortfall structurally.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r114-lossy-telegram-voice-transcode-considered-and-not-built",
+      "kind": "rejection",
+      "title": "A pure-JS/wasm OGG/Opus or MP3 encoder for the Telegram voice note was considered and not built: watermark survival through the transcode cannot be tested in this environment (no GPU, no paid Azure call), and no existing surface in this product has ever sent a lossy-encoded watermarked clip.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r114-release-gate-runs",
+      "kind": "measurement",
+      "title": "21/21 checks pass on the WS-R114 patched tree (one full run 20/21 plus one isolated layout-gate confirmation for the port-collision check); full eval registry (evals/run.mjs) exit 0; identical EADDRINUSE/TBT contention reproduced on the untouched tree across five attempts, confirmed environmental.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19932,6 +19968,36 @@
       "src": "ws-r111-material-block-covers-five-of-nine-injectable-fields",
       "rel": "measured_by",
       "dst": "ws-r111-meera-byte-identity-unchanged-83-of-83"
+    },
+    {
+      "src": "ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant",
+      "rel": "supersedes",
+      "dst": "ws-r110-telegram-sendvoice-codec-requirement-not-live-verified"
+    },
+    {
+      "src": "ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant",
+      "rel": "measured_by",
+      "dst": "ws-r114-telegram-bot-api-full-page-fetch"
+    },
+    {
+      "src": "ws-r114-telegram-full-page-fetch-recovered-by-curl-to-file",
+      "rel": "measured_by",
+      "dst": "ws-r114-telegram-bot-api-full-page-fetch"
+    },
+    {
+      "src": "ws-r114-telegram-wav-kept-over-unverifiable-lossy-transcode",
+      "rel": "measured_by",
+      "dst": "ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant"
+    },
+    {
+      "src": "ws-r114-telegram-wav-kept-over-unverifiable-lossy-transcode",
+      "rel": "caused_by",
+      "dst": "ws-r114-lossy-telegram-voice-transcode-considered-and-not-built"
+    },
+    {
+      "src": "ws-r114-lossy-telegram-voice-transcode-considered-and-not-built",
+      "rel": "constrains",
+      "dst": "ws-r110-room-telegram-voice-defaults-on-no-persisted-per-follower-toggle"
     }
   ]
 }

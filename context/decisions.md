@@ -19853,3 +19853,146 @@ wants sayable) — none was measured this session; if one is, the fix is
 narrower than reverting this exclusion wholesale (e.g. grounding
 non-identifier-shaped material lines specifically), not restoring the
 whole block to `trustedText`.
+
+## `ws-r114-telegram-full-page-fetch-recovered-by-curl-to-file` (2026-09-05, WS-R114)
+
+**Decision.** When a workstream's brief explicitly permits fetching a
+provider's public documentation page through the proxy, `curl -sS -L <url>
+-o file.html` followed by reading the saved file directly (a byte-range
+`python3` slice around the target string, then a small tag-stripping pass,
+since no `pandoc`/`lynx`/`w3m` is installed) is the working method for
+`core.telegram.org/bots/api` specifically, in place of this session's own
+fetch tool.
+
+**Rationale.** `context/rejected.md#ws-r41-provider-docs-sites-resist-a-
+single-page-fetch-tool-two-ways` and `#ws-r60-telegram-single-page-
+truncation-confirmed-tool-side-not-page-side` both established that this
+session's summarizing fetch tool truncates this exact page before reaching
+"Available methods", and that a second, differently-structured document
+covering the same reference truncates at an analogous point — confirming a
+tool-side ceiling, not a page-side one. This workstream needed `sendVoice`,
+`sendAudio` and `InputFile`/"Sending files", all of which sit PAST that
+truncation point. `curl` has no such ceiling: the saved file was 860,075
+bytes, HTTP 200, and every target section (`sendVoice`, `sendAudio`,
+`sendDocument`, `sendVideo`, `sendAnimation`, `sendVideoNote`, "Sending
+files") was present and readable by byte-offset slicing. This closes the
+METHOD problem WS-R41/WS-R60 left open for this page — it does not
+retroactively verify either of their still-open marks
+(`setMessageReaction`, Razorpay's operation pages), which this workstream
+did not re-attempt.
+
+**Reversal condition.** If a future page resists even a direct `curl` (a
+login wall, a client-rendered SPA serving no content without JavaScript,
+a robots/WAF block on this proxy's egress IP), this method does not apply
+and the next session should look for the same page on a static mirror or
+asset CDN the way `context/rejected.md#ws-r60-razorpay-operation-pages-
+found-by-search-not-guessed-slugs`'s own law already describes for a
+client-routed SPA, rather than assuming curl-to-file is universal.
+
+## `ws-r114-telegram-sendvoice-format-requirement-verified-wav-noncompliant` (2026-09-05, WS-R114)
+
+**Decision.** WS-R110's own open mark
+(`context/decisions.md#ws-r110-telegram-sendvoice-codec-requirement-not-
+live-verified`) is now CLOSED on the format-requirement half, against the
+document rather than general knowledge: `core.telegram.org/bots/api`,
+fetched 2026-09-05 (method above), `sendVoice`'s own paragraph reads
+verbatim: "Use this method to send audio files, if you want Telegram
+clients to display the file as a playable voice message. For this to
+work, your audio must be in an .OGG file encoded with OPUS, or in .MP3
+format, or in .M4A format (other formats may be sent as Audio or
+Document)." WAV, the container this Room sends
+(`pcmToWavBuffer`/`ROOM_TELEGRAM_VOICE_CONTAINER`, api/_room-voice.js), is
+none of the three. `sendAudio`'s own paragraph carries the identical
+conditional shape for its own "music player" treatment ("Your audio must
+be in the .MP3 or .M4A format"), so switching to `sendAudio` would not
+avoid a lossy-format requirement either. The `Voice` object's field table
+and the general "Sending files" section were also read in full this
+session and carry nothing that contradicts this.
+
+**Rationale.** AGENTS.md's "never claim what you did not run" cuts the
+other way here too: WS-R110 correctly declined to assert a codec
+requirement it had not fetched. Now that the fetch succeeded (method
+above), leaving the OLD "carried from general knowledge, unverified"
+language in `api/_room-telegram.js`'s comments would itself become the
+stale claim - a citation, once obtained, replaces a hedge, it does not
+sit next to it.
+
+**What remains unverified**, narrower than before: whether a live
+Telegram client actually REJECTS a non-conforming `sendVoice` upload
+outright, or silently accepts it as a plain attachment. The document does
+not say, and only a real bot token and a real chat can settle it - the
+same class of gap `ws-r41-provider-docs-sites-resist-a-single-page-fetch-
+tool-two-ways` already named for a different mark, now narrowed to this
+one point.
+
+**Reversal condition.** A live send (a real `TELEGRAM_BOT_TOKEN`, a real
+chat, a human step this offline workstream cannot take) settling whether
+the WAV clip renders as an attachment or is refused would close the
+remaining half of this mark.
+
+## `ws-r114-telegram-wav-kept-over-unverifiable-lossy-transcode` (2026-09-05, WS-R114)
+
+**Decision.** The Telegram voice note stays a WAV container sent through
+`sendVoice`, unchanged from WS-R110. No transcode to OGG/Opus or MP3 was
+built, and no new dependency was added to `package.json`. This workstream's
+own brief offered three options (`sendAudio` in an accepted format, a
+pure-JS/wasm OGG/Opus encoder, an MP3 encoder) conditioned on one
+requirement: "the watermark must survive the container." It does not -
+provably, in this environment - so per the brief's own escape clause ("if
+the watermark cannot survive, that is the finding, and the voice note
+ships only where it survives"), the voice note ships only through the
+lossless path.
+
+**Rationale.** Two facts, read rather than measured, both already true of
+this repository before this workstream started:
+
+1. The watermark is embedded at the SAMPLE level. `docs/gurukul/AZURE-
+   DEPLOY-STATE.md` §14.10, written by an earlier, unrelated workstream:
+   "Watermark robustness is unmeasured. Detection was verified on the
+   exact bytes returned. Survival through MP3, resampling, or a
+   re-record was not tested. AudioSeal claims robustness; this
+   deployment has not confirmed it." `context/decisions.md#audio-
+   protection-cpu` independently confirms the self-verification bar is
+   strict: 0.80 confidence AND all sixteen decoded bits, checked on the
+   EXACT bytes the service just produced - never on a re-encoded copy.
+2. The existing web Room path does NOT already send a lossy format
+   either: `src/room/RoomApp.tsx` builds `data:audio/wav;base64,...` -
+   the same lossless PCM container this workstream's Telegram path
+   sends. Nothing in this product has ever needed to answer "does the
+   watermark survive a lossy re-encode" before now, anywhere, for any
+   surface.
+
+Given both, transcoding to satisfy `sendVoice`'s documented format list
+would ship the FIRST lossy-encoded watermarked clip this product has ever
+produced, on a customer-facing surface, with no way to run the real
+detector against it: no GPU, no paid Azure call, and the protection
+service itself lives behind `AZURE_AUDIO_PROTECTION_ORIGIN`, which this
+offline workstream's environment does not reach. A transcode that type-
+checks and "works" in the sense that bytes leave the server is exactly
+the shape of failure `context/rejected.md`'s own recurring lesson
+describes: a plausible-looking success hiding an unverifiable claim. The
+honest choice is to say so, not to ship it and hope.
+
+**What changed, concretely.** Nothing in the wire format. `api/_room-
+voice.js` now exports `ROOM_TELEGRAM_VOICE_CONTAINER`, a structural
+(not prose-only) record of the format shortfall
+(`meetsSendVoiceFormatRequirement: false`) that both `api/_room-
+telegram.js`'s outbound call and `evals/room-telegram-voice/run.mjs`'s
+own §10 now read from the SAME source, so the fact cannot silently drift
+the way a comment-only claim already once did
+(`ws-r110-telegram-sendvoice-codec-requirement-not-live-verified`).
+
+**Reversal condition.** Either of two independent events reopens this:
+(a) a live run of the real AudioSeal detector (the CPU service already
+deployed, `docs/gurukul/AZURE-DEPLOY-STATE.md` §14) against a clip that
+has been synthesized, watermarked, THEN encoded through the exact OGG/
+Opus or MP3 path a future session would ship, clearing the SAME bar
+`audio-protection-cpu` already enforces (0.80 confidence, 16/16 bits) -
+this is a live-service call this workstream's environment could not make
+and does not count as done until it is; or (b) AudioSeal's own published
+robustness evaluation is read from Meta's paper or the Azure service's
+own README (not from a model's general training memory, which is exactly
+the standard this repo held WS-R110's OWN codec claim to) and explicitly
+covers the codec and bitrate a future session intends to ship at. Either
+would justify moving to option (b)/(c) from the original brief; short of
+one, the honest state is what this entry records.

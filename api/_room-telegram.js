@@ -77,7 +77,7 @@ import { consume } from "./_rate-limit.js";
 // migration 109, and this workstream carries no migration), so a real
 // voice-synthesis failure is recorded under the existing generic
 // `door_5xx` kind, named `door: "room-tg-voice"`.
-import { pcmToWavBuffer } from "./_room-voice.js";
+import { pcmToWavBuffer, ROOM_TELEGRAM_VOICE_CONTAINER } from "./_room-voice.js";
 import { recordIncident } from "./_incidents.js";
 
 /** Telegram's own hard limit on a text message body - `roomSay`'s own bubbles
@@ -435,27 +435,31 @@ async function tgCall(token, method, body) {
 /**
  * WS-R110: multipart upload of a voice clip's bytes.
  *
- * core.telegram.org/bots/api#sendvoice's own parameter table could not be
- * retrieved live this session — the fetch tool truncates this specific
- * page before reaching "Available methods", the SAME defect WS-R41 already
- * logged for `setMessageReaction` (`context/decisions.md#ws-r41-telegram-
- * bot-api-reply-shape-fixed-bind-mark-stays-open`); only the `Voice`
- * object's own field table (`core.telegram.org/bots/api#voice`, fetched
- * 2026-09-05: file_id, file_unique_id, duration, mime_type, file_size) was
- * retrievable. The `chat_id` + multipart-file-field shape below matches
- * `tgSendDocument` above (already live, already exercised by `/export`);
- * whether Telegram requires OGG/OPUS specifically for the bytes to render
- * as a PLAYABLE voice-message bubble (rather than an accepted-but-inert
- * file) is carried from general knowledge of the Bot API, not a fetched
- * citation, and stays UNVERIFIED —
- * `context/decisions.md#ws-r110-telegram-sendvoice-codec-requirement-not-
- * live-verified` states exactly what would close it.
+ * WS-R114 fetched `core.telegram.org/bots/api` in full this session (curl
+ * to a file, 860,075 bytes, HTTP 200 — no truncation, unlike the summarizing
+ * fetch tool WS-R41/WS-R60 hit on this exact page) and read `sendVoice`'s
+ * own paragraph, fetched 2026-09-05: "Use this method to send audio files,
+ * if you want Telegram clients to display the file as a playable voice
+ * message. For this to work, your audio must be in an .OGG file encoded
+ * with OPUS, or in .MP3 format, or in .M4A format (other formats may be
+ * sent as Audio or Document)." WAV is none of the three, so the codec
+ * requirement WS-R110 left UNVERIFIED is now VERIFIED — against the
+ * document, not a live send: whether Telegram's client renders a
+ * non-conforming `sendVoice` upload as a generic attachment or refuses it
+ * outright still needs a live bot token, same class of gap, now narrowed
+ * to just that one point
+ * (`context/decisions.md#ws-r114-telegram-wav-kept-over-unverifiable-lossy-
+ * transcode`). The `chat_id` + multipart-file-field shape below matches
+ * `tgSendDocument` above (already live, already exercised by `/export`) and
+ * is unchanged: WAV stays, deliberately, over a transcode nobody here can
+ * prove keeps the watermark (`ROOM_TELEGRAM_VOICE_CONTAINER`,
+ * api/_room-voice.js, states the format shortfall as a structural fact).
  */
 async function tgSendVoice(token, chatId, buffer, mimeType) {
   if (!token) return { ok: false, error: "no bot token" };
   const form = new FormData();
   form.append("chat_id", String(chatId));
-  form.append("voice", new Blob([buffer], { type: mimeType }), "reply.wav");
+  form.append("voice", new Blob([buffer], { type: mimeType }), `reply.${ROOM_TELEGRAM_VOICE_CONTAINER.extension}`);
   const r = await fetch(`https://api.telegram.org/bot${token}/sendVoice`, {
     method: "POST",
     body: form,
@@ -550,8 +554,9 @@ export function defaultRoomTelegramClient(token) {
       tgCall(token, "sendMessage", { chat_id: chatId, text, ...extra }),
     sendDocument: (chatId, buffer, filename, caption) =>
       tgSendDocument(token, chatId, buffer, filename, caption),
-    // WS-R110. `mimeType` is truthful, never asserted as Telegram's
-    // preferred codec — `tgSendVoice`'s own header on what stays unverified.
+    // WS-R110/WS-R114. `mimeType` is truthful; it is honestly NOT one of
+    // sendVoice's own documented formats (`ROOM_TELEGRAM_VOICE_CONTAINER`,
+    // api/_room-voice.js) — `tgSendVoice`'s own header states the citation.
     sendVoice: (chatId, buffer, mimeType) => tgSendVoice(token, chatId, buffer, mimeType),
     answerCallbackQuery: (callbackQueryId, text = "") =>
       tgCall(token, "answerCallbackQuery", { callback_query_id: callbackQueryId, text: String(text).slice(0, 200) }),
@@ -959,7 +964,7 @@ async function attemptRoomVoiceDelivery(tg, ev, scope, turn, ctx) {
   }
 
   const wav = pcmToWavBuffer(Buffer.from(String(spoken.audio || ""), "base64"), spoken.format);
-  const result = await tg.sendVoice(ev.chatId, wav, "audio/wav");
+  const result = await tg.sendVoice(ev.chatId, wav, ROOM_TELEGRAM_VOICE_CONTAINER.mimeType);
   return { attempted: true, ok: result?.ok !== false };
 }
 

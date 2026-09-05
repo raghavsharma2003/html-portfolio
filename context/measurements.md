@@ -13568,3 +13568,103 @@ and confirms her output contains zero occurrences of
 `MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE`, alongside re-running this
 same 83/83 battery as a subprocess so a future regression here fails the
 leak battery too, not only `check-prompt-budget.mjs`.
+
+## `ws-r114-telegram-bot-api-full-page-fetch` (2026-09-05, WS-R114)
+
+**Method.** `curl -sS -L "https://core.telegram.org/bots/api" -o api.html
+--max-time 60`, run from the worktree's scratchpad through the pre-configured
+proxy. n=1 fetch.
+
+**Result.** HTTP 200, 860,075 bytes saved to disk (`ls -l` / curl's own
+`-w "SIZE:%{size_download}"` both agree). Read locally with a small
+`python3` byte-offset slice + tag-stripping pass (no `pandoc`/`lynx`/`w3m`
+installed in this environment). All three target sections were present and
+readable: `sendVoice` (byte offset ~414,624 for the method name inside its
+own full parameter table), `sendAudio` (~343,337 / ~390,762), `InputFile`
+(22 occurrences across the document, including the "Sending files" section
+at byte offset ~341,645). This is the full page — this session's own
+summarizing fetch tool truncates this exact same URL before "Available
+methods" (`context/rejected.md#ws-r41-provider-docs-sites-resist-a-single-
+page-fetch-tool-two-ways`, `#ws-r60-telegram-single-page-truncation-
+confirmed-tool-side-not-page-side`), so the difference is the retrieval
+method, not the page.
+
+**Exact cited text**, `sendVoice`'s own paragraph (Bot API reference,
+fetched 2026-09-05): "Use this method to send audio files, if you want
+Telegram clients to display the file as a playable voice message. For this
+to work, your audio must be in an .OGG file encoded with OPUS, or in .MP3
+format, or in .M4A format (other formats may be sent as Audio or
+Document). On success, the sent Message is returned. Bots can currently
+send voice messages of up to 50 MB in size, this limit may be changed in
+the future."
+
+`sendAudio`'s own paragraph, same fetch: "Use this method to send audio
+files, if you want Telegram clients to display them in the music player.
+Your audio must be in the .MP3 or .M4A format. On success, the sent
+Message is returned. Bots can currently send audio files of up to 50 MB in
+size, this limit may be changed in the future. For sending voice messages,
+use the sendVoice method instead."
+
+"Sending files" section, "Sending by URL" subsection, same fetch: "When
+sending by URL the target file must have the correct MIME type (e.g.,
+audio/mpeg for sendAudio, etc.)... To use sendVoice, the file must have the
+type audio/ogg and be no more than 1MB in size. 1-20MB voice notes will be
+sent as files."
+
+**What this settles.** WAV (`audio/wav`, this Room's own container) is none
+of `sendVoice`'s three documented formats (OGG/Opus, MP3, M4A) — verified
+against the document, closing the format-requirement half of
+`context/decisions.md#ws-r110-telegram-sendvoice-codec-requirement-not-
+live-verified` (`context/decisions.md#ws-r114-telegram-sendvoice-format-
+requirement-verified-wav-noncompliant` records the decision this measurement
+feeds). **What this does NOT settle**, honestly: whether a live Telegram
+client rejects or silently accepts-as-attachment a non-conforming
+`sendVoice` upload — the document does not say, and only a live bot token
+and a real chat could measure that, which this offline workstream does not
+have.
+
+## `ws-r114-release-gate-runs` (2026-09-05, WS-R114)
+
+**Method.** `node scripts/verify-release.mjs` (no `NEON_URL` — 21-check
+contract), run to completion on a shared, heavily contested machine
+(multiple wave-seventeen sibling worktrees running their own gates
+concurrently). n=1 completed run per tree state below; three additional
+partial/collision runs on the untouched tree are named for the pattern they
+confirm, not counted as a second full n.
+
+**Untouched tree** (before this workstream's diff, verified via
+`git diff > patch; git checkout -- <3 files>`, never `git stash`): five
+attempts. The 19 checks unrelated to Chromium port 8931/8932 passed cleanly
+in ALL FIVE. `layout readability` hit `EADDRINUSE` on port 8931 in three of
+five (a concurrent sibling's own layout gate holding the port,
+`context/rejected.md` law "port collisions on 8931-8935/8940/8941 are
+sibling gates in flight"); one attempt hit the same port collision on
+`performance budgets` (port 8932) instead; one attempt completed `layout
+readability` (230,629ms) and then failed `performance budgets` on a single
+named target (`/r/<slug>` TBT 410ms > 300ms budget) under measurably
+escalating machine load (`typecheck` alone ran 15s/38s/41s/43s/55s across
+the five attempts) — a page this workstream's diff never touches, and not
+reproduced when the port was free and load lower.
+
+**Patched tree** (after this workstream's diff): one full run, 20 of 21
+checks passed — `typecheck` 18,402ms, `eval suite` 272,791ms, `room leak
+battery` 15,673ms, `room export completeness` 1,383ms, `room door battery`
+1,811ms, `accessibility` 42,384ms, `security headers` 8,445ms, all green.
+`layout readability` again hit the identical `EADDRINUSE` on port 8931 —
+the same signature reproduced on the untouched tree above, so treated as
+environmental per `ws-common.md`'s own rule, not this workstream's diff.
+Immediately after, with port 8931 confirmed free
+(`/dev/tcp/127.0.0.1/8931` probe), `node scripts/check-layout.mjs` was run
+standalone on the SAME patched tree and passed cleanly (exit 0, "2004 prose
+blocks judged... 20 screenshots"), closing the gap: **21 of 21 checks pass
+on the patched tree**, split across one full run plus one isolated
+confirmation of the one check the full run's port collision prevented from
+completing.
+
+`node evals/run.mjs` (the whole eval registry, no argument, run per
+ws-common.md's import-cycle law): exit 0, every suite green, including the
+75-check readiness capstone and the room-telegram-voice suite's own 62
+checks (`ok` throughout; the several lines containing the literal word
+"FAIL" in the transcript are deliberate negative-control assertions
+PASSING, not real failures — verified by grep excluding every line
+containing "NEGATIVE CONTROL"/"FAILS"/"FAIL CLOSED"/"-> FAIL").
