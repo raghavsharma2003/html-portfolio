@@ -931,7 +931,18 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
 // and a follower's ordinary chat message that was never submitted through
 // send() is proven absent from every creator-facing read, `leakedTokens`
 // (this file's own scanner, not a second one built to pass).
-{
+//
+// WS-R87: run TWICE, once with ROOM_HANDOFF_KERNEL unset and once with it
+// "1" - the workstream brief's own law 4, verbatim: "the leak battery's
+// layer 6 (consented-only) runs with the flag on and off and stays at zero
+// leaks." Everything below is unchanged from WS-R20's own shape except the
+// `deps.env` each op call now carries and the label each assertion's name
+// carries, so a flag-on regression fails a DIFFERENTLY-NAMED line than a
+// flag-off one rather than silently overwriting it in the count.
+for (const kernelPass of [
+  { label: "flag off", env: undefined },
+  { label: "flag on", env: { ...process.env, ROOM_HANDOFF_KERNEL: "1" } },
+]) {
   process.env.ROOM_SESSION_SECRET = process.env.ROOM_SESSION_SECRET || "r".repeat(48);
   const { freshHandoffState, handoffDb } = await import(pathToFileURL(join(REPO, "evals/handoff/fixtures.mjs")).href);
   const { setHandoffConfig, sendHandoffRequest, handoffQueue, answerHandoff } = await import(
@@ -939,6 +950,7 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
   );
   const { createHash } = await import("node:crypto");
   const sha256Hex = (s) => createHash("sha256").update(String(s), "utf8").digest("hex");
+  const deps = { loadAgent, env: kernelPass.env };
 
   const state = freshHandoffState(freshState());
   const db = handoffDb(state, fakeDb(state));
@@ -956,7 +968,7 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
   const sent = [];
   for (let i = 0; i < N; i++) {
     sent.push(await sendHandoffRequest(
-      db, { session: sessions[i], payloadText: askToken(i), payloadSha256: sha256Hex(askToken(i)) }, { loadAgent },
+      db, { session: sessions[i], payloadText: askToken(i), payloadSha256: sha256Hex(askToken(i)) }, deps,
     ));
   }
   // An UNREQUESTED chat token per follower - never touches vy_room_handoff at
@@ -979,31 +991,31 @@ console.log("\n── layer 6: handoff (consented-only creator read) ──");
     const q = await handoffQueue(db, OWNER, REPLICA_ID);
     if (!q.next) break;
     seenInQueue.push(q.next.payload_text);
-    await answerHandoff(db, OWNER, REPLICA_ID, q.next.handoff_id, { replyText: `answered: ${q.next.payload_text.slice(0, 20)}` });
+    await answerHandoff(db, OWNER, REPLICA_ID, q.next.handoff_id, { replyText: `answered: ${q.next.payload_text.slice(0, 20)}` }, deps);
   }
   boundaryChecks++;
-  ok("handoff: every LEGITIMATE follower's ask surfaced in the queue exactly once (3 of 4 - follower 1's is tampered)",
+  ok(`handoff (${kernelPass.label}): every LEGITIMATE follower's ask surfaced in the queue exactly once (3 of 4 - follower 1's is tampered)`,
     seenInQueue.length === N - 1 &&
       [0, 2, 3].every((i) => seenInQueue.includes(askToken(i))));
   boundaryChecks++;
-  ok("handoff: the tampered follower's ask NEVER surfaced in the queue, drained or not",
+  ok(`handoff (${kernelPass.label}): the tampered follower's ask NEVER surfaced in the queue, drained or not`,
     !seenInQueue.includes(askToken(1)));
 
   const finalQueue = await handoffQueue(db, OWNER, REPLICA_ID);
   boundaryChecks++;
-  ok("handoff: after draining, the tampered row is STILL the only one left unanswerable (queue empty, not stuck open)",
+  ok(`handoff (${kernelPass.label}): after draining, the tampered row is STILL the only one left unanswerable (queue empty, not stuck open)`,
     finalQueue.next === null);
 
   const allTokensRaw = [...Array.from({ length: N }, (_, i) => askToken(i)), ...state.unrequestedChat];
   const creatorSurface = JSON.stringify({ finalQueue, seenInQueue, roomHandoffs: state.roomHandoffs });
   boundaryChecks++;
-  ok("handoff: no UNREQUESTED chat token ever reaches any creator-facing surface, including the raw table",
+  ok(`handoff (${kernelPass.label}): no UNREQUESTED chat token ever reaches any creator-facing surface, including the raw table`,
     leakedTokens(creatorSurface, state.unrequestedChat).length === 0);
   boundaryChecks++;
-  ok("handoff: the scan above is not vacuous - the unrequested tokens really do exist somewhere in this world",
+  ok(`handoff (${kernelPass.label}): the scan above is not vacuous - the unrequested tokens really do exist somewhere in this world`,
     leakedTokens(JSON.stringify(state.unrequestedChat), state.unrequestedChat).length === N);
   boundaryChecks++;
-  ok("handoff: the tampered follower's SUBSTITUTED text never reached the queue's own output either",
+  ok(`handoff (${kernelPass.label}): the tampered follower's SUBSTITUTED text never reached the queue's own output either`,
     leakedTokens(JSON.stringify(seenInQueue), ["substituted words"]).length === 0);
 
   rowChecks += allTokensRaw.length * 2;

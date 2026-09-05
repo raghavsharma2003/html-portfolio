@@ -10950,3 +10950,43 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r87-explaining-vy-room-handoff-in-a-comment-tripped-the-leak-batterys-static-scan-a-fourth-time` (2026-09-05, WS-R87)
+
+**What was tried.** `api/_relational-core.js`'s own header, explaining WHY
+this module ports only an evaluator and not the sibling's full policy
+model, named the table Handoff's own policy version lives on directly:
+`` `vy_room_handoff.policy_version` `` — a plain English sentence in a code
+comment, nowhere near a query.
+
+**What specifically broke.** `node evals/room-leak/run.mjs`'s layer 6 own
+static scan (`evals/room-leak/run.mjs`, "no file outside Handoff's own
+lane reads or writes `vy_room_handoff`") failed on the new file — the scan
+works by `src.includes("vy_room_handoff")` over each `api/*.js` file's raw
+source TEXT, comments included, and `api/_relational-core.js` is not in its
+`ALLOWED`/`DELETE_ONLY` sets (correctly — it neither reads nor writes that
+table; it evaluates an in-memory grant with no SQL at all). This is the
+IDENTICAL gotcha `rejected.md#ws-r54-erasure-comment-naming-a-sibling-
+table-breaks-the-leak-scanner`, `rejected.md#ws-r70-mentioning-a-boundary-
+tables-name-in-a-comment-trips-a-repo-wide-static-scanner` and
+`rejected.md#ws-r76-migration-family-anchors-cannot-name-a-boundary-table-
+even-in-a-comment` already name, now proven a FOURTH time, and the second
+time it has bitten a file that does not even touch the table in question —
+`_self-check.js` (WS-R76) at least read `information_schema` about the
+table's name; this file never issues SQL at all.
+
+**The fix.** Rewrote the comment to describe the column generically
+("a column on migration 083's own request/reply table") rather than
+spelling the table's literal identifier, the same paraphrase-not-fight
+choice WS-R66/WS-R70/WS-R76 already made. `docs/gurukul/HANDOFF-KERNEL.md`
+(prose, not scanned — the scan is scoped to `api/*.js`) still names the
+table by its real identifier, since a design document explaining Handoff's
+own schema with the table's name replaced by a euphemism would be a worse
+document for the one reason this file's own trap does not apply there.
+
+**The rule, restated a fourth time because three prior statements of it
+did not stop a fourth agent from hitting it.** Before writing a NEW file
+under `api/`, grep `evals/room-leak/run.mjs` for the literal identifier of
+any table you are about to name in a comment — not only in a query — and
+if it appears in a static-scan string list, paraphrase the comment instead
+of fighting an established, unrelated discipline.

@@ -15,7 +15,7 @@ import {
 import { freshHandoffState, handoffDb } from "./fixtures.mjs";
 import { joinRoom, roomThreadDevice, createThread, RoomError } from "../../api/_room-surface.js";
 import {
-  HandoffError,
+  HandoffError, HANDOFF_POLICY_VERSION,
   getHandoffConfig, setHandoffConfig, handoffQueue, answerHandoff,
   draftHandoffPayload, sendHandoffRequest, withdrawHandoffRequest, myHandoffs,
 } from "../../api/_handoff.js";
@@ -229,6 +229,126 @@ console.log("\n── withdraw: the follower's own, before answered ──");
     db, { session: joinedA.session, payloadText: "one more, please", payloadSha256: sha256Hex("one more, please") }, { loadAgent },
   );
   ok("a withdrawn request does not count against the monthly cap", capAfterWithdraw.state === "sent");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R87. Handoff v1 on the relational kernel, behind ROOM_HANDOFF_KERNEL.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── kernel (WS-R87): off by default, byte-identical SQL when off ──");
+{
+  const logged = (db, log) => async (sql, params = []) => {
+    log.push({ sql, params });
+    return db(sql, params);
+  };
+
+  const { db } = world();
+  await setHandoffConfig(db, OWNER, REPLICA_ID, { enabled: true, monthlyCap: 10 });
+  const joined = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent });
+
+  // (a) flag UNSET (the production default) - a happy-path send.
+  const logOff = [];
+  const sentOff = await sendHandoffRequest(
+    logged(db, logOff),
+    { session: joined.session, payloadText: "kernel off", payloadSha256: sha256Hex("kernel off") },
+    { loadAgent },
+  );
+  ok("with the flag unset, send succeeds exactly as before", sentOff.state === "sent");
+
+  // (b) flag explicitly "1" - a second, otherwise-identical follower/send.
+  const joined2 = await joinRoom(db, { slug: SLUG, authUserId: USER_B, ageAttested: true, memoryConsent: true }, { loadAgent });
+  const logOn = [];
+  const sentOn = await sendHandoffRequest(
+    logged(db, logOn),
+    { session: joined2.session, payloadText: "kernel on", payloadSha256: sha256Hex("kernel on") },
+    { loadAgent, env: { ...process.env, ROOM_HANDOFF_KERNEL: "1" } },
+  );
+  ok("with the flag on, the SAME legitimate send still succeeds (a self-issued grant always matches)", sentOn.state === "sent");
+
+  // `followerScope` reads twice (resolveRoom, followerRow) before the ONE
+  // write - the same statement shape whether the flag is on or off. The
+  // proof this workstream's own law 2 asks for ("byte-identical SQL") is on
+  // that WRITE specifically: evaluating the kernel adds no SQL statement at
+  // all (every field it needs is already in hand from `who`), so the INSERT
+  // must be byte-identical either way, diffed rather than merely re-read
+  // from the source.
+  ok("send() issues the SAME total number of SQL statements whether the flag is on or off",
+    logOff.length === logOn.length && logOff.length > 0, `off=${logOff.length} on=${logOn.length}`);
+  const insertOf = (log) => log.find((e) => e.sql.includes("insert into vy_room_handoff"));
+  const insertOff = insertOf(logOff);
+  const insertOn = insertOf(logOn);
+  ok("exactly one of them is the vy_room_handoff INSERT, on both runs", Boolean(insertOff) && Boolean(insertOn));
+  ok("that INSERT's own SQL TEXT is byte-identical with the flag on vs off",
+    insertOff.sql === insertOn.sql);
+  ok("only its identity-bearing params differ (follower/person ids); the payload/hash/policy_version SHAPE matches",
+    insertOff.params.length === insertOn.params.length &&
+    insertOff.params[7] === insertOn.params[7] /* policy_version */);
+}
+
+console.log("\n── kernel (WS-R87): wired through both send and answer, a refusal names its rule ──");
+{
+  const { state, db } = world();
+  await setHandoffConfig(db, OWNER, REPLICA_ID, { enabled: true, monthlyCap: 10 });
+  const joinedA = await joinRoom(db, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent });
+
+  // `clientFollower` (api/_room-surface.js) deliberately never exposes
+  // `follower_id` to a follower's own client - the SAME reason this eval
+  // reads it back off the fixture's own `state.roomHandoffs`, the identical
+  // technique layer 6's own tampered-row negative control already uses one
+  // file over (evals/room-leak/run.mjs).
+  const seed = await sendHandoffRequest(
+    db, { session: joinedA.session, payloadText: "seed ask", payloadSha256: sha256Hex("seed ask") }, { loadAgent },
+  );
+  const followerId = state.roomHandoffs.find((h) => h.handoff_id === seed.handoff_id).follower_id;
+
+  // A crafted DENY that matches the exact request send() will build
+  // internally (`from: followerId, to: "room:"+roomId, act: "verbatim",
+  // scope: roomId, policy_version: HANDOFF_POLICY_VERSION`) - the seam
+  // `deps.handoffDenies` exists for exactly this: a future creator-side
+  // block list would populate it from a real read; today only this eval
+  // populates it, to prove the wiring is real rather than decorative.
+  const deny = {
+    from: followerId, to: `room:${ROOM_ID}`, act: "verbatim", scope: ROOM_ID,
+    policy_version: HANDOFF_POLICY_VERSION, expires_at: null,
+  };
+
+  const refusedCode = await codeOf(() =>
+    sendHandoffRequest(
+      db,
+      { session: joinedA.session, payloadText: "should be denied", payloadSha256: sha256Hex("should be denied") },
+      { loadAgent, env: { ...process.env, ROOM_HANDOFF_KERNEL: "1" }, handoffDenies: [deny] },
+    ));
+  ok("with the flag ON and a matching deny in scope, send() is refused, named by its rule",
+    refusedCode === "handoff_kernel_denied");
+
+  const allowedWithFlagOff = await sendHandoffRequest(
+    db,
+    { session: joinedA.session, payloadText: "flag is off, deny list never consulted", payloadSha256: sha256Hex("flag is off, deny list never consulted") },
+    { loadAgent, handoffDenies: [deny] }, // SAME deny, flag left unset
+  );
+  ok("the IDENTICAL deny, with the flag left OFF, never reaches the evaluator at all - send succeeds",
+    allowedWithFlagOff.state === "sent");
+
+  // The creator's own reply, evaluated "the other way" (law 2's own words).
+  await setHandoffConfig(db, OWNER, REPLICA_ID, { enabled: true, monthlyCap: 10 });
+  const secondAsk = await sendHandoffRequest(
+    db, { session: joinedA.session, payloadText: "a real ask to answer", payloadSha256: sha256Hex("a real ask to answer") }, { loadAgent },
+  );
+  const replyDeny = {
+    from: `room:${ROOM_ID}`, to: followerId, act: "verbatim", scope: ROOM_ID,
+    policy_version: HANDOFF_POLICY_VERSION, expires_at: null,
+  };
+  const answerRefusedCode = await codeOf(() =>
+    answerHandoff(db, OWNER, REPLICA_ID, secondAsk.handoff_id, { replyText: "my reply" }, {
+      env: { ROOM_HANDOFF_KERNEL: "1" }, handoffDenies: [replyDeny],
+    }));
+  ok("the creator's OWN reply is evaluated the other way (from the Room, to the follower) and can be refused the same way",
+    answerRefusedCode === "handoff_kernel_denied");
+
+  const answeredWithFlagOn = await answerHandoff(db, OWNER, REPLICA_ID, secondAsk.handoff_id, { replyText: "my real reply" }, {
+    env: { ROOM_HANDOFF_KERNEL: "1" }, // flag on, but no deny in scope this time
+  });
+  ok("with the flag on and no matching deny, answering the SAME row still succeeds (self-issued grant matches)",
+    answeredWithFlagOn.state === "answered");
 }
 
 console.log(`\nhandoff: ${pass} passed, ${fail} failed`);

@@ -2207,6 +2207,21 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-dormancy": "room-dormancy/run.mjs",
+  // WS-R87. Handoff v1 on the relational kernel: api/_relational-core.js,
+  // a dependency-free port of the sibling repo's disclosure-act evaluator
+  // (/home/user/Vyakti-GroupAI, packages/relational-core/src/privacy.ts).
+  // Test vectors ported by hand from that repo's privacy.test.ts and
+  // privacy-matrix.test.ts (commit 9cdc1dc), cited line by line: the closed
+  // act list, deny-always-wins, a grant bound to an exact policy_version,
+  // expiry as an exclusive boundary, and an independent-oracle cross-check
+  // (exhaustive here rather than fast-check's random sample, since this
+  // module has no such dependency). Two NEGATIVE CONTROLS the workstream's
+  // own brief names directly: a grant whose scope is another Room is
+  // refused; a deny beats a grant.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU,
+  // no import of the sibling repo (read on disk only, never required).
+  "relational-core": "relational-core/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

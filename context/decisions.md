@@ -15714,3 +15714,117 @@ budget with a measurement, never silently. If the placeholder ever throws in
 production (an incident row naming `studio_copy_hi_not_loaded`), the provider
 gate has a hole and the fix is in `localeContext.tsx`, not a softer
 placeholder.
+
+## `ws-r87-relational-core-is-evaluator-only-not-a-zod-port` (2026-09-05, WS-R87)
+
+**Decision.** `api/_relational-core.js` ports only the sibling repo's
+disclosure-act EVALUATOR (a closed act list, deny-always-wins, a grant
+bound to an exact policy version, expiry as an exclusive boundary, a named
+refusal) — not `DisclosurePolicy` (allowlist/denylist visibility, multiple
+owners, obligations, purpose gating, conversation-scoped audience
+snapshots), not `deriveDisclosurePolicy`, and not `zod` itself. The module
+imports nothing.
+
+**Rationale.** Handoff v0 has exactly one policy version per Room and
+exactly one grant shape a follower or creator can ever issue — their own
+explicit, verbatim submission IS the grant (already decided, `ws-r20-
+handoff-act-is-inline-not-in-meera-consent`). Porting the sibling's full
+multi-owner, multi-purpose policy model for a caller that cannot yet use
+most of it would be the mistake `context/rejected.md` warns against
+elsewhere in this repo: machinery ahead of a caller that needs it. Every
+`api/_*.js` module in this repo also carries a standing law (`api/
+_checkins.js` states it first) that it stay reachable with only a fake
+`db` — a real dependency (even a well-tested one like `zod`) is a real cost
+this module does not need to pay to do the one job Handoff has for it
+today. `docs/gurukul/HANDOFF-KERNEL.md` names exactly what stayed behind
+and why, line by line against the sibling's own `privacy.ts`.
+
+**Reversal condition.** The day a second real caller (Bridge, most likely)
+needs multi-owner consent, purpose gating, or policy derivation across
+memories, port more of the sibling's shape rather than growing this
+module's simple grant into an ad hoc superset of it — two callers needing
+the richer shape is the signal the abstraction is real, one is not, the
+same threshold `ws-r20-handoff-act-is-inline-not-in-meera-consent` already
+names for a different primitive one commit over.
+
+## `ws-r87-handoff-v0-grant-is-self-issued` (2026-09-05, WS-R87)
+
+**Decision.** Every kernel evaluation `api/_handoff.js` performs behind
+`ROOM_HANDOFF_KERNEL` uses a GRANT BUILT FROM THE SAME REQUEST IT IS
+EVALUATING — the follower's or creator's own explicit submission is
+treated as the grant that satisfies its own request. `deps.handoffDenies`
+is the one seam a refusal can come through, and no production code
+populates it; only `evals/handoff/run.mjs`'s own kernel section does, to
+prove the wiring is real.
+
+**Rationale.** This restates `ws-r20-handoff-act-is-inline-not-in-meera-
+consent` for the kernel layer: the row a follower is about to write (or
+the reply a creator is about to send) already IS the consent — there is no
+separate, prior "did someone grant this" question to ask, because nothing
+in v0 lets one party pre-authorize a DIFFERENT payload than the one being
+sent right now. A self-issued grant can therefore never be refused by the
+kernel on a legitimate call, which is the correct and expected behaviour
+for v0, not a bug in the wiring — the wiring's OWN correctness (that it
+runs at all, that a refusal is possible, that deny always wins even when a
+matching grant is present) is what `evals/handoff/run.mjs` and `evals/
+relational-core/run.mjs` prove, the seam being how the first proves it
+without inventing a second evaluator.
+
+**Reversal condition.** The day a creator gets an actual block list (a
+follower they never want to hear from directly, say), `deps.handoffDenies`
+gets a real reader — a SELECT scoped to the Room, wired in exactly where
+this parameter already sits — and this decision is superseded by whatever
+that reader decides about staleness/caching, not by removing the seam.
+
+## `ws-r87-oracle-cross-check-is-exhaustive-not-fast-check-sampled` (2026-09-05, WS-R87)
+
+**Decision.** `evals/relational-core/run.mjs`'s port of the sibling's
+`privacy-matrix.test.ts` (a 500-case `fast-check` random property sweep
+against an independent oracle) is an EXHAUSTIVE enumeration of a small
+combinatorial space (2 froms x 2 tos x 4 acts x 2 scopes x 2 policy
+versions x grant-present x deny-present = 256 cases) instead of a random
+sample.
+
+**Rationale.** `fast-check` is not a dependency of this repo (`package.json`
+carries no entry for it), and `api/_relational-core.js`'s own law is to
+introduce none. Rather than add the dependency to port one test file's own
+tooling, or silently write a smaller SAMPLED sweep and call it equivalent,
+the space this module's own grant shape covers is small enough to check
+EXHAUSTIVELY — a strictly stronger proof over what it covers (every case,
+not almost all of a much larger space) at the honest cost of covering a
+smaller space than the sibling's own five-dimensional policy model. Stated
+in both the eval file's own header and `docs/gurukul/HANDOFF-KERNEL.md`
+rather than left for a reader to notice the substitution unassisted.
+
+**Reversal condition.** If a future workstream adds `fast-check` as a real
+dev dependency for its own reasons, this suite could switch to a genuine
+random sweep at that point without losing anything — the exhaustive
+version would remain a valid, if now redundant, stronger check.
+
+## `ws-r87-answer-handoff-pre-read-only-when-kernel-on` (2026-09-05, WS-R87)
+
+**Decision.** `answerHandoff` issues one new SQL statement — a SELECT of
+`handoff_id, follower_id, policy_version` under the SAME hash-match and
+`state='sent'` predicate the answering UPDATE already uses — but ONLY when
+`ROOM_HANDOFF_KERNEL` is on. With the flag off, `answerHandoff` runs the
+identical single UPDATE it always has.
+
+**Rationale.** The creator's reply is evaluated "the other way" under the
+policy version ALREADY STORED on the row being answered (the workstream
+brief's own law 3), never the current `HANDOFF_POLICY_VERSION` constant,
+which may have moved on since the row was sent. That value, and the row's
+`follower_id` (needed as the kernel request's own `to`), are not otherwise
+in hand at the point `answerHandoff` is called — `handoffId` and
+`replyText` are the only follower-specific facts the owner's own request
+carries. A pre-read is therefore the only honest way to evaluate under the
+RIGHT policy version rather than guessing at the current constant, and
+gating it behind the same flag that gates the evaluation itself keeps the
+flag-off path exactly as cheap as it always was.
+
+**Reversal condition.** If a future migration widens `answerHandoff`'s own
+UPDATE to `RETURNING policy_version` unconditionally (some other caller
+starts needing it too), the pre-read could be dropped in favour of
+evaluating AFTER the write instead — but that would move the kernel's own
+refusal to a point where the write has already happened, which is a
+strictly worse position for a "before it moves" gate to sit at, so this is
+not expected to happen without a very good reason.

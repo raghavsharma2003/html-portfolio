@@ -11523,3 +11523,59 @@ n = 48 studio screen loads (the `studio`, `studio:shell`, `studio-hi` and `studi
 | `.field-label` at `var(--measure)` | 0 | 48 loads clean |
 
 The probe that found the driver: for every element, `white-space` of `pre`/`nowrap` with `scrollWidth` past the viewport, a pixel `min-width` past it, or a grid whose resolved tracks sum past it; the `studio-tabshell`'s single track had resolved to 762.7 px.
+
+## `ws-r87-relational-core-ported-vectors-2026-09-05`
+
+**What.** `evals/relational-core/run.mjs`, testing `api/_relational-core.js`
+(new, dependency-free). Every vector ported by hand from the sibling repo
+(`/home/user/Vyakti-GroupAI`, `packages/relational-core/src/privacy.test.ts`
+and `privacy-matrix.test.ts`, commit `9cdc1dccd273c3e5e1197a2bbf6a0dca8b8a74d4`),
+adapted from that repo's richer `DisclosurePolicy`/`ConsentGrant` shape to
+this workstream's simpler `{from, to, act, scope, policy_version,
+expires_at}` grant, cited by file and line range at the point each vector
+is used.
+
+**n and method.** 25 assertions, 0 failed. Offline, deterministic, node
+`evals/relational-core/run.mjs`, no DB, no network, no model call, no
+import of the sibling repo. Includes an exhaustive 256-case independent-
+oracle cross-check (`ws-r87-oracle-cross-check-is-exhaustive-not-fast-
+check-sampled` explains why exhaustive rather than the sibling's own
+500-case random `fast-check` sweep) — 256/256 agree.
+
+**Date.** 2026-09-05.
+
+## `ws-r87-handoff-kernel-wiring-eval-2026-09-05`
+
+**What.** `evals/handoff/run.mjs`, extended with two new sections proving
+the kernel is actually wired into `sendHandoffRequest`/`answerHandoff`
+behind `ROOM_HANDOFF_KERNEL`, not merely present as an unreferenced module:
+(a) with the flag unset, send's own INSERT statement (isolated from the two
+read statements `followerScope` also issues, by SQL-text match) is
+byte-identical, text and param shape, to the same call with the flag
+explicitly `"1"`; (b) a crafted deny populated through `deps.handoffDenies`
+refuses BOTH `sendHandoffRequest` and `answerHandoff` when the flag is on,
+named `handoff_kernel_denied`, and the identical deny is never consulted
+(the call still succeeds) when the flag is left off.
+
+**n and method.** 40 assertions total (30 pre-existing WS-R20 vectors,
+unchanged and still passing + 10 new WS-R87 ones), 0 failed. Offline,
+deterministic, node `evals/handoff/run.mjs`.
+
+**Date.** 2026-09-05.
+
+## `ws-r87-room-leak-layer6-flag-on-and-off-2026-09-05`
+
+**What.** `evals/room-leak/run.mjs` layer 6 (HANDOFF_CONSENTED_ONLY)'s own
+world check — four followers, one tampered row, one unrequested chat token
+per follower, a full queue drain — run TWICE inside the SAME suite
+execution: once with `ROOM_HANDOFF_KERNEL` unset, once with it `"1"`. This
+workstream's own brief, law 4, verbatim: "the leak battery's layer 6
+(consented-only) runs with the flag on and off and stays at zero leaks."
+
+**n and method.** 12 boundary-check assertions across the two passes (6
+each), all passing; the whole suite (all 12 layers) totals 223 assertions,
+223 passed, 0 failed, 336,323 retrieval row-scenario checks, 546 boundary
+checks. Offline, deterministic, node `evals/room-leak/run.mjs`, ~1 run
+(single process, both flag states inside one loop).
+
+**Date.** 2026-09-05.
