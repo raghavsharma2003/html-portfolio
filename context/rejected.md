@@ -10580,3 +10580,44 @@ it) collides with an established boundary scanner that cannot tell the
 two apart, the fix is the same three times running: drop the anchor from
 the SOURCE file, and describe what was dropped there in prose that never
 repeats the literal name.
+
+## `ws-r72-review-card-fixture-branch-shadowed-by-an-earlier-generic-match` (2026-09-05, WS-R72)
+
+**Tried:** a new `evals/room-doors/fixtures.mjs` branch for
+`readEligibleShowcaseCards`'s own SELECT, matched on
+`has("select card_id, kind, prompt_text, answer_text")`, placed after the
+existing WS-R66 `setRoomShowcase`/`removeRoomShowcase` block.
+
+**Found broken:** it always returned an empty list, even for the real
+owner's own eligible card, seeded correctly in `state.reviewCards`. The
+cause was an EARLIER branch in the same file — WS-R66's own
+`setRoomShowcase` card lookup, matched on `has("from vy_review_card") &&
+has("kind <> 'follower_declined'")` — which ALSO matches
+`readEligibleShowcaseCards`'s SQL text (both statements share those two
+substrings), and `doorsDb`'s own dispatcher returns on the FIRST matching
+branch, never the most specific one. The old branch then destructured
+`params[0]` as a card id (`setRoomShowcase`'s own first param) when it was
+actually `readEligibleShowcaseCards`'s `replica_id`, found nothing in
+`state.reviewCards` by that key, and returned `[]` — a plausible-looking
+empty answer for a query that should have matched, exactly the
+`plausible-return-hides-a-dead-pipeline` shape one layer down in a test
+fixture rather than in shipped code.
+
+**Fixed** by narrowing the OLD branch's own condition to also require
+`has("card_id = ($1)::uuid")` — a substring real in `setRoomShowcase`'s own
+SQL and absent from `readEligibleShowcaseCards`'s (which takes no card id
+at all), so the two statements no longer share a matchable prefix. The
+file's own header law ("each branch matches a phrase unique to ONE
+statement") already said this; the gap was that "from vy_review_card" +
+"kind <> 'follower_declined'" felt unique when only one statement in the
+file carried both, and stopped being unique the moment a second one did,
+with nothing forcing a re-check of every existing branch's own uniqueness
+claim when a new statement is added.
+
+**What this changes going forward:** a new fixture branch's `has(...)`
+condition must be checked against every EARLIER branch's own condition for
+shared substrings, not only proven correct in isolation — this is the same
+discipline `ws-r67-backtick-delimited-statement-extraction-is-not-a-
+statement-boundary` and `ws-r66-comment-naming-a-table-broke-a-line-scoped-
+erasure-scan` already learned for a static scan's own matching logic,
+restated here for a fixture dispatcher's matching logic instead.

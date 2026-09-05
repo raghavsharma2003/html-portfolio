@@ -11243,3 +11243,27 @@ After this workstream's own changes, standalone per-gate runs (never the aggrega
 `layout readability`, `performance budgets` and `accessibility` each needed repeated retries as sibling contention rose and fell (multiple `EADDRINUSE` collisions on 8931/8932, each confirmed by `lsof` naming a genuine sibling worktree's own live process before backing off and retrying — never killed). Once load eased (1-minute load average dropped from ~20 to ~9-13), all three ran clean in the same session: `performance budgets` ok (5 targets x 3 runs, `/studio` TBT 243ms against the 300ms budget — the SAME target had shown 468ms minutes earlier under heavier contention, confirming the WS-R70 precedent this file already names rather than a regression from this workstream's own small addition to that page's bundle); `accessibility` ok (0 critical/serious across 16 pages, 0 keyboard findings); `layout readability` ok (1669 prose blocks across every studio/Room/creators/suites screen in both locales, 979 Hindi strings glyph-checked). All eight suites this workstream touches directly (`self-check`, `incidents`, `ops`, `room-leak`, `room-export`, `room-doors`, `context.mjs --check`, `check-copy.mjs`) were re-run standalone as a final pass and are listed clean above.
 
 Not measured: `node scripts/verify-release.mjs --live <base-url>` (costs money, needs a deployed preview); a real Vercel cron firing `/api/self-check` at 02:30 UTC (needs a live deploy); any real `NEON_URL`-backed `information_schema` read (this worktree has no `NEON_URL`, `--stub` config only) — every migration-family/env/sweep-staleness assertion in `evals/self-check/run.mjs` is against a fake `db`, proving the LOGIC, never that the real live catalog actually has all twelve anchor tables and one anchor column applied. Most of the individual migrations behind those twelve anchors (`person_core` through `room_showcase`) are already logged as live-verified elsewhere in this file's own `rooms-migration-0NN-live-verification` entries; this would be the first time they are read back TOGETHER, in one process, on one morning — which is the whole point of a self-check, and exactly the part that needs the live database to prove.
+
+## `ws-r72-review-queue-eval-129-of-129-2026-09-05`
+
+n = 129 checks (was 117 before this workstream, +12: `readEligibleShowcaseCards`
+positive read, a static WHERE-clause predicate check, an owner-scope
+negative control; `dismissFlaggedReply` positive dismissal, not-found
+refusal, owner-scope negative control, malformed-hash refusal;
+`neverRuleFromFlaggedReply` positive plus a NEW cross-owner negative control
+`evals/room-flags/run.mjs` did not yet carry). Method: `node
+evals/review-queue/run.mjs`, offline, deterministic, $0, against the fake
+database this suite already drives `api/_review-queue.js` through. Date
+2026-09-05. Result: 129/129 passed.
+
+## `ws-r72-room-doors-battery-549-of-549-2026-09-05`
+
+n = 549 checks (was 544 before this workstream's two new owner-bearer
+cases: `showcase_eligible` positive read plus cross-owner negative control,
+2 checks; `flag_dismiss` cross-owner refusal, unchanged-state check, and
+the real owner's own dismissal succeeding, 3 checks). Method: `node
+evals/room-doors/run.mjs`, offline, deterministic, $0, against
+`evals/room-doors/fixtures.mjs`'s fake database. Date 2026-09-05. Result:
+549/549 passed, all eight attack classes still exercised, zero uncased
+ops (`api/review-queue.js` remains deliberately outside the discovered
+door list, `ws-r72-review-queue-js-kept-outside-the-door-battery`).

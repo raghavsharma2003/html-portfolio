@@ -449,3 +449,18 @@ export interface ReviewCorrectionUpload {
     expires_at: string;
   };
 }
+
+// WS-R72. The showcase picker's own list — a DECIDED review card the owner
+// can copy straight onto their public page, `api/_review-queue.js`'s
+// `readEligibleShowcaseCards`. Never a `ReviewCard`: this shape carries none
+// of the OPEN-queue fields (`state`, `decided_at`, `source_refs`,
+// `has_correction`) because every row this endpoint returns is already
+// `state: 'sounds_right'` by construction — the server's own WHERE clause,
+// never a client-side filter (`context/decisions.md#ws-r66-showcase-
+// eligibility-is-a-where-clause-on-kind`, restated for this read).
+export interface ShowcaseEligibleCard {
+  card_id: string;
+  kind: ReviewCardKind;
+  prompt_text: string;
+  answer_text: string;
+}

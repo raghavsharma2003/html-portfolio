@@ -8248,6 +8248,54 @@
       "kind": "measurement",
       "title": "node scripts/verify-release.mjs run gate-by-gate on a heavily loaded shared machine: every gate passed after this workstream's changes, including layout readability/performance budgets/accessibility once retried after sibling port contention eased (eval suite including the new self-check suite at 50/50, room leak battery 201/201, room door battery 544/544, room export completeness 45/45, security headers, performance budgets, accessibility, layout readability all clean).",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-showcase-picker-built",
+      "kind": "decision",
+      "title": "The Share tab's \"Pick from your reviews\" picker ships, closing WS-R66's own deferred read.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-flag-dismiss-is-a-creator-lane-delete-no-migration",
+      "kind": "decision",
+      "title": "\"Sounds right anyway\" deletes the creator lane's flag rows for one reply, no new column, no migration.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-review-queue-js-kept-outside-the-door-battery",
+      "kind": "decision",
+      "title": "api/review-queue.js's two new owner-bearer cases are attacked directly, without joining the door battery's discovered-door completeness machinery.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-picker-opened-by-a-real-click-in-the-layout-gate",
+      "kind": "decision",
+      "title": "The layout gate opens the showcase picker with a real Playwright click on [data-picker-open=\"1\"], never a fixture prop pre-opening it.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-accessibility-gate-scope-flags-yes-picker-not-yet",
+      "kind": "decision",
+      "title": "The accessibility gate exercises the new flag actions via the existing meet screen; the picker's own screen is a named, deliberate gap pending a published-Room studio target.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-review-card-fixture-branch-shadowed-by-an-earlier-generic-match",
+      "kind": "rejection",
+      "title": "A new room-doors fixture branch for readEligibleShowcaseCards was shadowed by an earlier, more generic WS-R66 branch sharing its matched substrings; fixed by narrowing the older branch.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-review-queue-eval-129-of-129-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/review-queue/run.mjs: 129/129 checks, up from 117, after the picker read and the flag-dismiss op.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r72-room-doors-battery-549-of-549-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-doors/run.mjs: 549/549 checks, up from 544, after two new owner-bearer cases on api/review-queue.js.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16285,6 +16333,51 @@
       "src": "ws-r76-self-check-cron-built",
       "rel": "measured_by",
       "dst": "ws-r76-self-check-cron-gate-summary-2026-09-05"
+    },
+    {
+      "src": "ws-r72-showcase-picker-built",
+      "rel": "supersedes",
+      "dst": "ws-r66-showcase-card-picker-ui-not-built-v0"
+    },
+    {
+      "src": "ws-r72-showcase-picker-built",
+      "rel": "measured_by",
+      "dst": "ws-r72-review-queue-eval-129-of-129-2026-09-05"
+    },
+    {
+      "src": "ws-r72-showcase-picker-built",
+      "rel": "measured_by",
+      "dst": "ws-r72-room-doors-battery-549-of-549-2026-09-05"
+    },
+    {
+      "src": "ws-r72-flag-dismiss-is-a-creator-lane-delete-no-migration",
+      "rel": "measured_by",
+      "dst": "ws-r72-review-queue-eval-129-of-129-2026-09-05"
+    },
+    {
+      "src": "ws-r72-flag-dismiss-is-a-creator-lane-delete-no-migration",
+      "rel": "measured_by",
+      "dst": "ws-r72-room-doors-battery-549-of-549-2026-09-05"
+    },
+    {
+      "src": "ws-r72-review-queue-js-kept-outside-the-door-battery",
+      "rel": "measured_by",
+      "dst": "ws-r72-room-doors-battery-549-of-549-2026-09-05"
+    },
+    {
+      "src": "ws-r72-review-card-fixture-branch-shadowed-by-an-earlier-generic-match",
+      "rel": "caused_by",
+      "dst": "ws-r72-showcase-picker-built"
+    },
+    {
+      "src": "ws-r72-picker-opened-by-a-real-click-in-the-layout-gate",
+      "rel": "part_of",
+      "dst": "ws-r72-showcase-picker-built"
+    },
+    {
+      "src": "ws-r72-accessibility-gate-scope-flags-yes-picker-not-yet",
+      "rel": "part_of",
+      "dst": "ws-r72-showcase-picker-built"
     }
   ]
 }

@@ -951,6 +951,42 @@ interface CreatorPushCopy {
   turnOff: string;
   error: string;
 }
+// ── showcasePicker: ShowcaseCard.tsx's "Pick from your reviews" (WS-R72,
+//    closes ws-r66-showcase-card-picker-ui-not-built-v0). A closed block of
+//    its own rather than new keys inside `ShowcaseCopy` above, so a sibling
+//    workstream editing that section's object literal never collides with
+//    this one on the same lines. ───────────────────────────────────────────
+interface ShowcasePickerCopy {
+  pickButton: string;
+  pickTitle: string;
+  pickEmpty: string;
+  pickLoading: string;
+  pickError: string;
+  pickUse: string;
+  pickCancel: string;
+}
+
+// ── reviewQueueFlags: ReviewQueue.tsx's flagged-reply card actions (WS-R72,
+//    wires the client-only neverRuleFromFlag from WS-R67 and adds "Sounds
+//    right anyway"). Its own closed block for the same reason as the one
+//    above; the button label and success notice for "Never say this" are
+//    NOT repeated here, that card reuses `reviewQueue.buttonNever` and
+//    `reviewQueue.noticeNever` verbatim, one sentence, one place to change
+//    it. ───────────────────────────────────────────────────────────────────
+interface ReviewQueueFlagsCopy {
+  flagsTitle: string;
+  timesOne: string; // "Flagged {n} time."
+  timesMany: string; // "Flagged {n} times."
+  reasonsLabel: string; // "Reasons: {label}"
+  reasonWrong: string;
+  reasonHarmful: string;
+  reasonNotThem: string;
+  reasonOther: string;
+  soundsRightAnyway: string;
+  dismissing: string;
+  dismissed: string;
+  errorAction: string;
+}
 
 interface StudioCopy {
   classLabels: ClassLabels;
@@ -979,6 +1015,8 @@ interface StudioCopy {
   showcase: ShowcaseCopy;
   suiteSeatLock: SuiteSeatLockCopy;
   creatorPush: CreatorPushCopy;
+  showcasePicker: ShowcasePickerCopy;
+  reviewQueueFlags: ReviewQueueFlagsCopy;
 }
 
 const EN: StudioCopy = {
@@ -1918,6 +1956,29 @@ const EN: StudioCopy = {
     turnOff: "Turn off the weekly push on this device",
     error: "Could not change alert settings on this device.",
   },
+  showcasePicker: {
+    pickButton: "Pick from your reviews",
+    pickTitle: "Cards you already marked sounds right",
+    pickEmpty: "Nothing to pick yet. Decide a few cards in Meet first.",
+    pickLoading: "Looking...",
+    pickError: "Your decided cards could not be loaded",
+    pickUse: "Use this",
+    pickCancel: "Cancel",
+  },
+  reviewQueueFlags: {
+    flagsTitle: "Flagged by followers",
+    timesOne: "Flagged {n} time.",
+    timesMany: "Flagged {n} times.",
+    reasonsLabel: "Reasons: {label}",
+    reasonWrong: "wrong",
+    reasonHarmful: "harmful",
+    reasonNotThem: "not them",
+    reasonOther: "other",
+    soundsRightAnyway: "Sounds right anyway",
+    dismissing: "Saving...",
+    dismissed: "Cleared from your flagged list.",
+    errorAction: "That action could not be saved",
+  },
 };
 
 const HI: StudioCopy = {
@@ -2853,6 +2914,29 @@ const HI: StudioCopy = {
     turnOn: "इस डिवाइस पर साप्ताहिक पुश चालू करें",
     turnOff: "इस डिवाइस पर साप्ताहिक पुश बंद करें",
     error: "इस डिवाइस पर अलर्ट सेटिंग नहीं बदली जा सकी।",
+  },
+  showcasePicker: {
+    pickButton: "अपनी समीक्षाओं में से चुनें",
+    pickTitle: "वे कार्ड जिन्हें आपने पहले ही सही कहा है",
+    pickEmpty: "अभी चुनने के लिए कुछ नहीं। पहले मिलें में कुछ कार्ड तय करें।",
+    pickLoading: "देखा जा रहा है...",
+    pickError: "आपके तय किए गए कार्ड पढ़े नहीं जा सके",
+    pickUse: "इसे इस्तेमाल करें",
+    pickCancel: "रद्द करें",
+  },
+  reviewQueueFlags: {
+    flagsTitle: "फ़ॉलोअर्स द्वारा फ़्लैग किए गए",
+    timesOne: "{n} बार फ़्लैग किया गया।",
+    timesMany: "{n} बार फ़्लैग किया गया।",
+    reasonsLabel: "कारण: {label}",
+    reasonWrong: "गलत",
+    reasonHarmful: "हानिकारक",
+    reasonNotThem: "यह वे नहीं हैं",
+    reasonOther: "अन्य",
+    soundsRightAnyway: "फिर भी सही लगा",
+    dismissing: "सेव हो रहा है...",
+    dismissed: "आपकी फ़्लैग सूची से हटा दिया गया।",
+    errorAction: "वह कार्रवाई सेव नहीं हो सकी",
   },
 };
 

@@ -9,7 +9,14 @@
 import { replicaRequest } from "./replicaApi";
 import { finalizeSource } from "./enrollmentApi";
 import { IncrementalSha256 } from "./sha256Core";
-import type { FlaggedReply, ReviewCard, ReviewCorrectionUpload, ReviewDecision, ReviewQueue } from "./types";
+import type {
+  FlaggedReply,
+  ReviewCard,
+  ReviewCorrectionUpload,
+  ReviewDecision,
+  ReviewQueue,
+  ShowcaseEligibleCard,
+} from "./types";
 
 // WS-R67 (migration 116): the GET now carries `flags` alongside `queue` -
 // read both here rather than adding a second round trip, `flags`'s own
@@ -127,4 +134,36 @@ export async function uploadCorrection(
 
 export function encodeCorrectionText(text: string): Uint8Array {
   return new TextEncoder().encode(text);
+}
+
+/**
+ * WS-R72. "Sounds right anyway," off a flagged reply - `neverRuleFromFlag`'s
+ * own shape one call up: deletes the creator lane's rows for this reply hash
+ * and hands back the same re-read `flags` list, so the caller never has to
+ * special-case which of the two actions it just took.
+ */
+export async function dismissFlaggedReply(
+  token: string,
+  replicaId: string,
+  replySha256: string,
+): Promise<{ dismissed: number; flags: FlaggedReply[] }> {
+  return replicaRequest(token, "/api/review-queue", {
+    method: "POST",
+    body: JSON.stringify({ op: "flag_dismiss", replica_id: replicaId, reply_sha256: replySha256 }),
+  });
+}
+
+/**
+ * WS-R72. The Share tab's "Pick from your reviews": every decided card
+ * `api/_room-publish.js::setRoomShowcase`'s own `sourceCardId` path already
+ * accepts, so a creator can browse before they pick rather than typing the
+ * same words a card already holds
+ * (`context/decisions.md#ws-r66-showcase-card-picker-ui-not-built-v0`).
+ */
+export async function eligibleShowcaseCards(token: string, replicaId: string): Promise<ShowcaseEligibleCard[]> {
+  const data = await replicaRequest<{ cards: ShowcaseEligibleCard[] }>(token, "/api/review-queue", {
+    method: "POST",
+    body: JSON.stringify({ op: "showcase_eligible", replica_id: replicaId }),
+  });
+  return data.cards;
 }

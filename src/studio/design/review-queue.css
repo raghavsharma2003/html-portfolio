@@ -191,6 +191,44 @@
   .review-hold.recording { border-color: var(--danger); color: var(--danger); }
 
   .review-queue-rules { margin: 0; color: var(--ink-faint); font-size: var(--text-small); }
+
+  /* WS-R72. Each flagged reply is its own card, `.review-card`'s own shape
+     one section down: the AI's own words, the count and reason breakdown,
+     then the two actions. `.review-choice-never` (already declared above)
+     is reused verbatim for "Never say this" here so the same phrase reads
+     the same danger colour wherever it appears. */
+  .review-queue-flags {
+    display: grid;
+    gap: var(--space-item);
+    margin-top: var(--space-block);
+  }
+  .review-queue-flags-summary {
+    margin: 0;
+    color: var(--ink-faint);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    font-variant-numeric: tabular-nums;
+  }
+  .review-queue-flag-list { display: grid; gap: var(--space-item); margin: 0; padding: 0; list-style: none; }
+  .review-queue-flag-card {
+    display: grid;
+    gap: var(--space-tight);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: var(--space-item);
+    background: rgba(255, 255, 255, 0.46);
+  }
+  .review-queue-flag-text {
+    max-width: var(--measure);
+    margin: 0;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    white-space: pre-wrap;
+  }
+  .review-queue-flag-meta { margin: 0; color: var(--ink-faint); font-size: var(--text-small); }
+  .review-queue-flag-actions { display: flex; flex-wrap: wrap; gap: var(--space-tight); }
+  .review-queue-flag-actions .button { min-height: 44px; }
+  .review-queue-flag-actions .text-button { min-height: 44px; padding: 0 var(--space-row); }
 }
 
 @layer responsive {

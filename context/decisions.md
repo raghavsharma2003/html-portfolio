@@ -15040,3 +15040,181 @@ parser still cannot read (a day-of-month or day-of-week list, for example),
 extend `expectedIntervalMs` the same way — widen what it can READ, never
 guess a number for a shape it cannot, per that function's own standing
 law ("return null for a shape this does not recognise, never guess").
+
+## `ws-r72-showcase-picker-built` (2026-09-05, WS-R72, supersedes `ws-r66-showcase-card-picker-ui-not-built-v0`)
+
+**Decision.** `ShowcaseCard.tsx` gains a "Pick from your reviews" control on
+every slot: a new op on `api/review-queue.js` (`showcase_eligible`, backed by
+a new pure function `api/_review-queue.js::readEligibleShowcaseCards`) lists
+the owner's decided review cards eligible to become a slot's source, and
+tapping one calls the EXISTING `setOwnedRoomShowcase(..., { sourceCardId })`
+path WS-R66 already built and tested end to end. No server write path
+changed; only the read that lets a creator browse before they pick, and the
+screen that calls it.
+
+**Rationale.** WS-R66 shipped the write half (`setRoomShowcase`'s
+`sourceCardId` branch) and explicitly deferred the read, because building a
+"browse your decided cards" screen was a real feature outside that
+workstream's own file list. That reversal condition is now met: this
+workstream's own brief names `src/studio/ShowcaseCard.tsx` and
+`api/review-queue.js` directly. `readEligibleShowcaseCards` reuses the EXACT
+predicate `setRoomShowcase` already enforces on its own write
+(`state = 'sounds_right' and kind <> 'follower_declined'`, both inside the
+ONE select) rather than composing a shared helper — `ws-r66-creator-page-
+predicate-restated-not-imported`'s own reasoning, restated for a second
+reader of the identical three-word law: a one-line predicate is not worth a
+shared abstraction, and a THIRD hand-copied WHERE clause (this file already
+has TWO: `setRoomShowcase`'s and `readEligibleShowcaseCards`'s) is still
+inside the "restate, don't share" budget that decision's own reversal
+condition sets at three.
+
+**Reversal condition.** If a third caller ever needs this exact predicate
+(a `sounds_right`, non-`follower_declined` review card list), extract it
+into one named SQL fragment rather than a fourth hand-copied WHERE clause —
+`ws-r66-creator-page-predicate-restated-not-imported`'s own threshold,
+unchanged. Proven offline in `evals/review-queue/run.mjs` (a positive read,
+a static check that the ONE select carries both predicate halves together
+and no JS-side filter exists, and a cross-owner negative control) and
+`evals/room-doors/run.mjs` (an owner-bearer attack case on the same
+function). NOT proven: no real creator has ever opened this picker against
+a live database; migration 115's `vy_review_card`/`vy_review_showcase`
+tables have real rows only in a fake `db`.
+
+## `ws-r72-flag-dismiss-is-a-creator-lane-delete-no-migration` (2026-09-05, WS-R72)
+
+**Decision.** "Sounds right anyway," the flagged-reply card's second action,
+is `api/_review-queue.js::dismissFlaggedReply`: a DELETE of every
+`vy_room_reply_flag` row for one `(room, reply_sha256)`, owner-scoped through
+`vy_room` in the WHERE clause, never a new column and never a new table.
+
+**Rationale.** The workstream brief permits a new owner op "only if no
+existing one fits" and explicitly forbids a migration. `vy_room_reply_flag`
+(migration 116) already carries no follower identity of any kind — nothing
+to flip a state on, nothing to attribute the dismissal to — so a DELETE is
+not a workaround for the missing column, it is the SAME shape
+`api/_room-surface.js::unflagReply` already uses one file over for a
+follower's own withdrawal, scaled from "one follower's own row" to "every
+row this reply has," which is the correct scaling: a follower withdrawing
+takes back their OWN flag; a creator dismissing is saying the reply stands
+for everyone who flagged it, clearing the card the same way `sounds_right`
+clears a review card for good rather than for one asker. The follower lane
+(`vy_room_follower_reply_flag`, each follower's own record of having
+flagged it) is never touched by this op — the creator's action must never
+reach into a follower's own scope, AGENTS.md's boundary law applied to a
+delete rather than a read.
+
+**Reversal condition.** If a future workstream needs a per-flag STATE
+(dismissed-but-visible, rather than gone), migration 116's own reversal
+condition already names the fix: a per-row id the creator can act on
+individually is what the row-per-flag design was chosen FOR
+(`ws-r67-flag-hash-not-body-two-lanes-count-at-read-time`'s own reversal
+condition) — add a `dismissed_at` column to `vy_room_reply_flag` and change
+`readFlaggedReplies`'s WHERE to exclude dismissed rows, never delete. Proven
+offline in `evals/review-queue/run.mjs` (a positive dismissal, a not-found
+refusal, a cross-owner negative control, and a malformed-hash refusal before
+any SQL runs) and `evals/room-doors/run.mjs` (an owner-bearer attack case
+with a real fixture row that survives a stranger's attempt and is gone after
+the real owner's).
+
+## `ws-r72-review-queue-js-kept-outside-the-door-battery` (2026-09-05, WS-R72)
+
+**Decision.** `api/review-queue.js` is NOT added to
+`evals/room-doors/run.mjs`'s `DOOR_MODULES`/`EXPECTED_DOORS`/`OP_COVERAGE`
+machinery. The two new owner-bearer cases this workstream adds
+(`showcase_eligible`, `flag_dismiss`) are cased directly against
+`api/_review-queue.js`'s exported functions, in the SAME file, using the
+SAME fixture world (`OWNER`/`OWNER_B`/`REPLICA_ID`) `room-publish.js`'s own
+`showcase_set`/`showcase_remove` cases already use — real attacks, on real
+decision-module functions, just not routed through §0's discovered-door
+completeness check.
+
+**Rationale.** `discoverDoors()` finds a door by two conjuncts: it reads a
+request body AND its source text names one of `DOOR_MODULES`'s closed set
+(`_room-surface.js`, `_room-publish.js`, ... `_ops.js`). `api/review-queue.js`
+imports `./_review-queue.js`, which is not in that set, so it is
+structurally excluded today and adding it is a real structural change, not a
+label. Doing so would make §18's completeness check enumerate EVERY op this
+door has ever had — `generate`, `decide`, `dictate`, `flag_never`, plus this
+workstream's two — and REQUIRE an `OP_COVERAGE` entry (a real attack, or a
+named, justified exclusion) for every one of them, not only the two this
+brief asks for. `generate`/`decide`/`dictate` have never been attacked this
+way before; giving them a real class-e case each is a legitimate future
+improvement but it is not this workstream's own scope (`src/studio/
+ShowcaseCard.tsx`, `src/studio/ReviewQueue.tsx`, `src/studio/reviewQueueApi.ts`,
+`api/review-queue.js`'s two new ops), and a shallow "excluded, no reason"
+entry for three real owner-scoped writes would be worse than the status quo:
+a completeness check that passes by asserting nothing is the exact failure
+mode `context/rejected.md`'s own standing law warns against for every other
+static scan in this repo.
+
+**Reversal condition.** The day a future workstream's brief explicitly asks
+for `api/review-queue.js`'s full door coverage (or needs it for a DIFFERENT
+new op that would otherwise ship with no attack case at all), add
+`"./_review-queue.js"` to `DOOR_MODULES`, add `"review-queue.js"` to
+`EXPECTED_DOORS` in its alphabetical slot (between `replica.js` and
+`room-pay.js`), and write a real class-e case for `generate`/`decide`/
+`dictate` at the same time — never only the new op, which would leave the
+three pre-existing ones as the exact "preexisting-uncased" gap WS-R44 named
+and closed once already for `room-publish.js`.
+
+## `ws-r72-picker-opened-by-a-real-click-in-the-layout-gate` (2026-09-05, WS-R72)
+
+**Decision.** `scripts/check-layout.mjs`'s new "deploy-picker" step (a
+`scenario=showcase-picker` overlay that publishes the fixture Room, so
+`ShowcaseCard` mounts at all) opens the picker with a REAL Playwright click
+on `[data-picker-open="1"]`, never a fixture prop or a global flag that
+pre-opens it. The scenario overlay itself supplies DATA only (a published
+Room, `readEligibleShowcaseCards`' fixture rows) — nothing in
+`layoutFixture.tsx` or `ShowcaseCard.tsx` reads a scenario name to decide
+whether the picker starts open.
+
+**Rationale.** `#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view`
+already settled this exact question one control over (the Room's
+checkins/handoff dialogs): a real click proves the OPEN MECHANISM itself
+works — the button is found, is clickable, and produces the expected DOM —
+where a fixture prop pre-opening it would only ever prove the ALREADY-OPEN
+state looks fine, silently assuming a working opener rather than measuring
+one. `[data-picker-open="1"]`, like `[data-dialog-open="..."]`, is
+locale-independent by construction, so `studio-hi`'s Hindi render needs no
+second selector.
+
+**Reversal condition.** None expected; this is a restatement of an already-
+adopted law, not a new one, so nothing short of that law itself reversing
+would reverse this. Proven in `scripts/check-layout.mjs`'s own per-step
+loop: a missing opener or a click that fails to reveal
+`.vy-room__showcase-picker` is a named finding (`picker-open`), the same
+shape `dialog-in-view` already is for the Room's own real-click checks.
+
+## `ws-r72-accessibility-gate-scope-flags-yes-picker-not-yet` (2026-09-05, WS-R72)
+
+**Decision.** `scripts/check-accessibility.mjs`'s studio targets are NOT
+extended with a "deploy-picker" screen. The flagged-reply cards ("Never say
+this" / "Sounds right anyway") ARE exercised by the existing `meet` screen
+in both locales, with no new wiring, because `layoutFixture.tsx`'s base
+(non-scenario) `/api/review-queue` route now carries real `flags` data; the
+showcase picker is NOT exercised by axe in this workstream, because reaching
+it needs a published Room, and `RoomStudio.tsx` mounts `ShowcaseCard`
+alongside `SuiteCard`/`PayoutsCard`/`CheckinsCard`/`HandoffCard` with no way
+to publish a Room for just one of them — the FIRST real render of that whole
+section, sibling cards included, for a gate that has never rendered any of
+it before.
+
+**Rationale.** The picker's own controls are plain semantic `<button>`
+elements with real visible text and (the picker panel itself)
+`role="group"`/`aria-labelledby` — accessible by construction, independent
+of whether any particular gate run happens to scan them. Extending
+`check-accessibility.mjs`'s fixed `screens` list to a NEW Room-published
+state would, for the FIRST time, put `SuiteCard`/`PayoutsCard`/
+`CheckinsCard`/`HandoffCard` in front of axe too — four components this
+workstream did not touch, never measured before, and has no budget to
+triage findings in. Shipping that exposure as a side effect of a two-button
+feature would risk reporting THIS workstream's gate run red over defects
+(or false positives) that belong to four other cards entirely.
+
+**Reversal condition.** The day any workstream deliberately gives
+`check-accessibility.mjs` a published-Room studio screen (for ANY reason —
+Suite, Payouts, Checkins, Handoff, or this picker), fold "deploy-picker"
+into it rather than adding a second one: `layoutFixture.tsx`'s
+`showcase-picker` scenario already has everything a Share-tab accessibility
+screen would need. Until then, this is a named, deliberate gap, not a
+silent one.

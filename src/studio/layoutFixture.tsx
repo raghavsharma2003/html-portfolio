@@ -108,6 +108,48 @@ const ROUTES: Record<string, unknown> = {
       active_never_rules: 1,
       cap: 30,
     },
+    // WS-R72. Two more populated-on-purpose shapes at the SAME path, the
+    // comment above's own reasoning restated: `flags` (the studio's flagged-
+    // reply cards, so their "Never say this" / "Sounds right anyway" render
+    // for real rather than behind an empty list) and `cards` (the Share
+    // tab's picker, `op: "showcase_eligible"`'s own response key). This
+    // fixture answers every request to this path with the SAME static body
+    // regardless of method or `op` - `installStubFetch`'s own limit, stated
+    // in its header - so both live alongside `queue` rather than replacing
+    // it.
+    flags: [
+      {
+        reply_sha256: "1".repeat(64),
+        reply_text: "The exam is on the 14th, not the 12th. I checked the notice again this morning.",
+        count: 3,
+        reasons: { wrong: 1, harmful: 2, not_them: 0, other: 0 },
+        suggest_never: true,
+        last_flagged_at: "2026-08-30T10:00:00.000Z",
+      },
+      {
+        reply_sha256: "2".repeat(64),
+        reply_text: "You can skip the mock test this week if you are still recovering from the fever.",
+        count: 1,
+        reasons: { wrong: 0, harmful: 0, not_them: 1, other: 0 },
+        suggest_never: false,
+        last_flagged_at: "2026-08-29T08:00:00.000Z",
+      },
+    ],
+    cards: [
+      {
+        card_id: "fixture-card-eligible-0001",
+        kind: "question",
+        prompt_text: "How long before a JEE mock test should I stop revising new topics?",
+        answer_text: "Stop new topics about a week out. The last week is for the mistakes you already know you make, "
+          + "not for anything new.",
+      },
+      {
+        card_id: "fixture-card-eligible-0002",
+        kind: "claim",
+        prompt_text: "Does your AI have this right about you?",
+        answer_text: "I only take students who can commit to daily practice, not weekend crash sessions.",
+      },
+    ],
   },
   // `ActivityView`. `jobs` and `lanes` are both read without a guard, and
   // `next_poll_ms: null` is what stops the panel polling forever under the gate.
@@ -307,6 +349,34 @@ const SCENARIOS: Record<string, Partial<typeof ROUTES>> = {
         versions: { profile: null, calibration: null, voice_genome: null },
         activated_at: null,
       },
+    },
+  },
+
+  // WS-R72. A published Room, so the Share tab's `ShowcaseCard` mounts at
+  // all - the base fixture's `/api/room-publish` answers `{ room: null,
+  // reason: "not_created" }` on purpose (`RoomStudio.tsx`'s own "shown
+  // whenever there is no room yet" comment), which is exactly why this Room
+  // has never rendered under the layout gate before this scenario existed.
+  // `check-layout.mjs`'s own "deploy-picker" step opens the picker with a
+  // REAL CLICK on `[data-picker-open="1"]` rather than a second flag pre-
+  // opening it (`context/rejected.md`'s WS-R43 law, restated for a new
+  // control rather than a Room dialog).
+  "showcase-picker": {
+    "/api/room-publish": {
+      room: {
+        room_id: "fixture-room-0001", slug: "anjali-physics", display_name: "Anjali Physics",
+        free_monthly_messages: 20, paid_monthly_messages: 400, paid_monthly_voice_seconds: 1_800,
+        default_locale: "en", one_line_bio: "JEE physics, one topic a day.",
+        listed: true, listed_at: "2026-08-20T09:00:00.000Z",
+        published: true, paused: false,
+        published_at: "2026-08-15T09:00:00.000Z", paused_at: null,
+        created_at: "2026-08-01T09:00:00.000Z", updated_at: "2026-08-20T09:00:00.000Z",
+        telegram_deep_link: null,
+      },
+      reason: null,
+      can_publish: true,
+      blockers: { waiting_on_you: [], waiting_on_us: [] },
+      showcase: [],
     },
   },
 };

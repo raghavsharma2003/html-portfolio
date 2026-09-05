@@ -206,6 +206,15 @@ const REPLICA = await import(pathToFileURL(join(API, "_replica.js")).href);
 const { getOwnedReplica, createSelfReplica } = REPLICA;
 const ROOM_PUBLISH = await import(pathToFileURL(join(API, "_room-publish.js")).href);
 const { getOwnedRoom, listRoom, unlistRoom, setRoomBio, RoomPublishError } = ROOM_PUBLISH;
+// WS-R72: `api/review-queue.js` is NOT one of this file's DOOR_MODULES (it
+// imports `./_review-queue.js`, not one of the closed set §0 names) and is
+// NOT added to one here - see `context/decisions.md#ws-r72-review-queue-js-
+// kept-outside-the-door-battery` for why that stays a deliberate, logged
+// scope boundary rather than a silent gap. This import is for TWO
+// owner-bearer cases below, cased the same way `room-publish.js`'s own ops
+// are, without joining §18's completeness machinery.
+const REVIEW_QUEUE = await import(pathToFileURL(join(API, "_review-queue.js")).href);
+const { readEligibleShowcaseCards, dismissFlaggedReply, ReviewQueueError } = REVIEW_QUEUE;
 const INVITES = await import(pathToFileURL(join(API, "_invites.js")).href);
 const { issueInvite, requireOperator, InvitesError, hashInviteCode, issueCreatorInvite, myInvites } = INVITES;
 const APPLY = await import(pathToFileURL(join(API, "_apply.js")).href);
@@ -1599,6 +1608,33 @@ console.log("\n── §16: the 27 preexisting-uncased owner-bearer ops (WS-R51)
   ok("[e-owner-bearer/room-publish.js] showcase_remove: OWNER's own item is UNCHANGED by OWNER_B's attempt", state.roomShowcase[0].removed_at == null);
   const mine = await ROOM_PUBLISH.removeRoomShowcase(db, OWNER, REPLICA_ID, itemId);
   okClass("e-owner-bearer", "room-publish.js", "showcase_remove: the real owner's own removal succeeds (the fixture is sound)", mine?.showcase?.length === 0);
+}
+
+// ── WS-R72: review-queue.js's showcase_eligible / flag_dismiss (owner
+// bearer). Cased here the SAME way room-publish.js's own ops are, on
+// `api/review-queue.js`'s two new decision-module functions directly —
+// this file's own door list stays unchanged (see the import comment above
+// for why), so this is an extra attack case on the SAME fixture world
+// rather than a new discovered door. ─────────────────────────────────────
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const stolen = await readEligibleShowcaseCards(db, OWNER_B, REPLICA_ID);
+  okClass("e-owner-bearer", "review-queue.js", "showcase_eligible: a DIFFERENT owner's bearer against OWNER's own replica_id gets an EMPTY list, never OWNER's decided cards", Array.isArray(stolen) && stolen.length === 0);
+  const mine = await readEligibleShowcaseCards(db, OWNER, REPLICA_ID);
+  okClass("e-owner-bearer", "review-queue.js", "showcase_eligible: the real owner's own read succeeds and excludes the follower_declined card (the fixture is sound)", mine.length === 1 && mine[0].kind !== "follower_declined");
+}
+{
+  const state = freshDoorsState();
+  const db = doorsDb(state);
+  const HASH = "9".repeat(64);
+  const deps = { tableApplied: async () => true };
+  const stolen = await dismissFlaggedReply(db, OWNER_B, { replica_id: REPLICA_ID, reply_sha256: HASH }, deps)
+    .catch((e) => e);
+  okClass("e-owner-bearer", "review-queue.js", "flag_dismiss: a DIFFERENT owner's bearer against OWNER's own replica_id is refused, never dismisses OWNER's flag", stolen instanceof ReviewQueueError && stolen.code === "review_flag_not_found");
+  ok("[e-owner-bearer/review-queue.js] flag_dismiss: OWNER's own flag row is UNCHANGED by OWNER_B's attempt", state.roomReplyFlags.length === 1);
+  const mine = await dismissFlaggedReply(db, OWNER, { replica_id: REPLICA_ID, reply_sha256: HASH }, deps);
+  okClass("e-owner-bearer", "review-queue.js", "flag_dismiss: the real owner's own dismissal succeeds (the fixture is sound)", mine.dismissed === 1 && state.roomReplyFlags.length === 0);
 }
 
 // ── invites.js: issue, list, revoke, erase (operator-only) ─────────────────
