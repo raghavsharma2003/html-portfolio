@@ -90,6 +90,13 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+// WS-R59: the installable Room's own Chromium check — worker registration,
+// precache completeness, and no `/api/` URL ever cached — folded into THIS
+// gate's pass/fail as one more target rather than a new named gate (see
+// `scripts/check-install.mjs`'s own header). It runs on its own server, on
+// its own port (8935, never 8931 or 8932), so it neither shares nor
+// conflicts with anything below.
+import { runInstallCheck } from "./check-install.mjs";
 
 function rootFromModuleUrl(moduleUrl) {
   return fileURLToPath(new URL("..", moduleUrl));
@@ -459,17 +466,32 @@ async function main() {
   }
 
   const allFindings = results.flatMap((r) => evaluateBudgets(r).map((f) => ({ target: r.target, ...f })));
-  if (allFindings.length) {
+
+  // WS-R59: one more target, folded into the SAME pass/fail — not printed
+  // as, and not counted as, a second named gate. `--target` above only ever
+  // filtered the LCP/CLS/TBT loop; this runs regardless, because it is a
+  // different KIND of check (booleans, not a budget table) rather than a
+  // fifth entry `targetArg` could ever name.
+  const install = await runInstallCheck();
+  const installFindings = install.skipped
+    ? []
+    : install.findings.map((f) => ({ target: "installable Room", metric: f.check, detail: f.detail }));
+  if (install.skipped && !asJson) {
+    console.log(`  skip  installable Room: ${install.skipped}`);
+  }
+
+  if (allFindings.length || installFindings.length) {
     if (!asJson) {
-      console.log(`FAIL  performance budgets: ${allFindings.length} budget miss(es)`);
-      for (const f of allFindings) {
-        console.log(`        ${f.target.padEnd(14)} ${f.metric}: ${f.detail}`);
+      const total = allFindings.length + installFindings.length;
+      console.log(`FAIL  performance budgets: ${total} finding(s)`);
+      for (const f of [...allFindings, ...installFindings]) {
+        console.log(`        ${f.target.padEnd(20)} ${f.metric}: ${f.detail}`);
       }
     }
     return 1;
   }
   if (!asJson) {
-    console.log(`  ok    performance budgets: ${results.length} target(s) x ${RUNS} runs, all within budget (${THROTTLE.cpuRate}x CPU, ${(THROTTLE.downloadBps * 8 / 1024 / 1024).toFixed(1)}Mbps/${(THROTTLE.uploadBps * 8 / 1024).toFixed(0)}Kbps/${THROTTLE.latencyMs}ms)`);
+    console.log(`  ok    performance budgets: ${results.length} target(s) x ${RUNS} runs, all within budget (${THROTTLE.cpuRate}x CPU, ${(THROTTLE.downloadBps * 8 / 1024 / 1024).toFixed(1)}Mbps/${(THROTTLE.uploadBps * 8 / 1024).toFixed(0)}Kbps/${THROTTLE.latencyMs}ms)${install.skipped ? "" : "; installable Room: worker registers, precache complete, no /api/ URL ever cached"}`);
   }
   return 0;
 }

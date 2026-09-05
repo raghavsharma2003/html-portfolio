@@ -256,7 +256,12 @@ const TARGETS = [
     name: "room:more",
     fixture: "room-layout-fixture.html",
     query: (screen) => `screen=${screen}`,
-    steps: ["checkins", "handoff", "capped", "receipt"],
+    // WS-R59 adds "install" (the card, `fixtureInstallPrompt`) and "offline"
+    // (the shell's own honest offline card, `fixturePhase: "offline"`) —
+    // same `room:more`/`onlyViewport: "phone"` target the brief's own law 4
+    // points at ("wire it inside the existing... gate as one more target"),
+    // never a new named gate.
+    steps: ["checkins", "handoff", "capped", "receipt", "install", "offline"],
     mounted: ".room-shell",
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
     minPanels: 1,
@@ -266,7 +271,7 @@ const TARGETS = [
     name: "room-hi:more",
     fixture: "room-layout-fixture.html",
     query: (screen) => `screen=${screen}&lang=hi`,
-    steps: ["checkins", "handoff", "capped", "receipt"],
+    steps: ["checkins", "handoff", "capped", "receipt", "install", "offline"],
     mounted: ".room-shell",
     panels: ".room-card, .room-join, .room-thread, .room-cap, .room-menu, .room-gone",
     minPanels: 1,

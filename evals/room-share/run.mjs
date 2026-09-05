@@ -285,8 +285,21 @@ console.log("\n── 3. the arrival upsert: one statement, count increments ─
   ok("a different day or a different via opens a SECOND row rather than merging into the first",
     rooms.__arrivals.length === 2);
 
-  ok("ROOM_ARRIVAL_VIA is exactly the four values the CHECK constraint names",
-    JSON.stringify([...ROOM_ARRIVAL_VIA].sort()) === JSON.stringify(["direct", "embed", "search", "share"]));
+  // WS-R59 added 'install' to this allowlist without a migration
+  // (`api/_room-surface.js`'s own comment on `ROOM_ARRIVAL_VIA` names the
+  // asymmetry and the reversal condition) — so this list is no longer
+  // exactly migration 102's CHECK constraint, it is that constraint PLUS
+  // one JS-side-only value. Both facts get their own assertion rather than
+  // silently loosening the original one: the four DB-backed values are
+  // still exactly what the CHECK constraint names, and 'install' is the
+  // one addition, named so a SECOND value slipped in unminuted would still
+  // fail this.
+  ok("ROOM_ARRIVAL_VIA's DB-backed subset is exactly the four values migration 102's CHECK constraint names",
+    JSON.stringify([...ROOM_ARRIVAL_VIA].filter((v) => v !== "install").sort()) ===
+      JSON.stringify(["direct", "embed", "search", "share"]));
+  ok("ROOM_ARRIVAL_VIA's one JS-only addition is exactly 'install' (WS-R59), nothing else",
+    JSON.stringify([...ROOM_ARRIVAL_VIA].sort()) ===
+      JSON.stringify(["direct", "embed", "install", "search", "share"]));
   ok("every named value round-trips through resolveArrivalVia unchanged",
     ROOM_ARRIVAL_VIA.every((v) => resolveArrivalVia(v) === v));
   ok("an unrecognised value becomes 'direct'", resolveArrivalVia("newsletter") === "direct");

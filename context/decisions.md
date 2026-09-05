@@ -13553,3 +13553,160 @@ and the honest answer is "no case yet, no time this session," name it with a
 SPECIFIC reason (what class does not apply and why, `room.js`'s "open"/"join"
 exclusion precedent) — never resurrect the bare string `preexisting-uncased`
 as a catch-all, which is exactly the shape this decision closes.
+
+## `ws-r59-platform-manifest-is-literal-bytes-not-reserialized` (2026-09-04, WS-R59)
+
+**Decision.** `api/_room-manifest.js`'s `PLATFORM_ROOM_MANIFEST_JSON` (served
+for an unpublished, paused, or unknown Room slug alike) is a hand-written
+template-literal string, copied once from `public/room.webmanifest`'s own
+bytes — never `JSON.stringify`'d from a shared object at request time.
+`evals/room-install/run.mjs` reads the real file off disk and asserts the
+two are SHA-256 identical (and literally string-equal) on every run.
+
+**Rationale.** The three cases this endpoint must never distinguish
+(unpublished / paused / unknown) collapse to ONE response
+(`api/_room-page.js`'s own law, restated for a manifest instead of an
+og:card), and that response has to be byte-identical every time or
+"identical bytes" is a claim nobody actually checked. `JSON.stringify(obj,
+null, 2)` would have been shorter to write, but its exact output (key
+order, indent width, whether a one-entry `icons` array gets its own line)
+is invisible to a browser and exactly the kind of formatting choice a
+future edit changes without anyone noticing — a literal copy makes the
+byte-identity claim mechanical rather than incidental.
+
+**Reversal condition.** If a future workstream adds a build step that can
+regenerate `public/room.webmanifest` FROM `api/_room-manifest.js`'s own
+constant (rather than the two being independently maintained), collapse to
+one source and delete the duplicate — do this only once such a step exists;
+until then, moving the duplication elsewhere just moves the sync burden,
+it does not remove it.
+
+## `ws-r59-real-manifest-endpoint-supersedes-blob-swap` (2026-09-04, WS-R59)
+
+**Decision.** `RoomApp.tsx`'s manifest-link effect now points
+`<link rel="manifest">` at the real `/r/<slug>/manifest.webmanifest` route
+(`api/_room-manifest.js`) instead of building a per-Room manifest object in
+the browser and swapping in a `Blob` URL (WS-R22's original technique).
+
+**Rationale.** The Blob-built manifest could not carry `?via=install` on
+`start_url` (WS-R59's own arrival channel did not exist yet), duplicated the
+manifest's field list on the client with no way to stay in sync with the
+server's own copy, and swapped in unconditionally regardless of whether the
+Room was actually published — a paused Room's tab still built and installed
+a manifest naming it by real name client-side, which the server route's
+`publicRoomBySlug` collapse (identical bytes for unpublished/paused/unknown)
+never allows. The server route is authoritative by construction; a second,
+independent client-side builder was a drift risk with no offsetting benefit
+once the route existed.
+
+**Reversal condition.** If a real browser is ever found that installs
+correctly from a `Blob` manifest link but fails on (or never even requests)
+a same-origin manifest URL fetched over the network — no such browser is
+known today — reintroduce a `Blob` fallback ALONGSIDE the network link,
+never instead of it, so the byte-identity guarantee above still holds for
+every browser that does fetch the real URL.
+
+## `ws-r59-install-via-not-yet-in-arrival-check-constraint` (2026-09-04, WS-R59)
+
+**Decision.** `'install'` was added to `api/_room-surface.js`'s
+`ROOM_ARRIVAL_VIA` allowlist (the workstream brief's one sanctioned line
+there) with NO accompanying migration, per this workstream's own "no
+migration" law. Migration 102's `vy_room_arrival` CHECK constraint still
+lists only `share`/`direct`/`embed`/`search` — `'install'` is JS-allowlist-only
+until a future migration adds it.
+
+**Rationale.** `recordRoomArrival`'s insert was already best-effort
+(`.catch(() => {})`, `openRoom`'s own call site) before this workstream —
+a write failure here must never turn a Room's first screen into an error
+over a growth count. So an install-launched arrival's insert is REJECTED by
+the live CHECK constraint every time (reasoned from migration 102's SQL
+text; NOT verified against a live Postgres — no `NEON_URL` in this
+environment) and silently swallowed by that same catch, exactly like a
+malformed `via` already is. Nothing breaks; install arrivals are simply not
+counted in `vy_room_arrival` yet. `evals/room-share/run.mjs`'s own
+invariant ("`ROOM_ARRIVAL_VIA` is exactly the four values the CHECK
+constraint names") was updated to two assertions — the DB-backed subset
+still matches the constraint exactly, and the one JS-only addition is named
+— rather than loosened silently.
+
+**Reversal condition.** The day a migration adds `'install'` to
+`vy_room_arrival`'s CHECK constraint (the next free number at the time,
+named by whichever workstream brief claims it — this one does not), install
+arrivals start being counted with no further code change needed here; until
+then this comment and this entry are the record that the gap is known and
+harmless rather than an oversight.
+
+## `ws-r59-sw-precache-list-self-discovered-not-build-injected` (2026-09-04, WS-R59)
+
+**Decision.** `public/room-sw.js`'s `derivePrecacheList` discovers what to
+precache by fetching the currently-deployed `room.html` at `install` time
+and reading its own `<script src>`/`<link href>` attributes, rather than a
+Vite plugin injecting a build manifest (a list of hashed filenames) into the
+worker source at build time.
+
+**Rationale.** Vite's content-hashed filenames (`room-yB2-ERyy.js`,
+`room-BKFbqJp1.css`, ...) already live inside `room.html` itself — the exact
+file the browser is about to request regardless. A build-time injection
+would prove the same fact with a second moving part (a plugin, a build
+step order dependency, a new failure mode if the plugin and the real HTML
+ever disagreed); reading the file the SW's own `install` handler needs to
+serve as the offline fallback ANYWAY proves it with none. The cache name
+(`room-shell-<sha256 of the sorted URL set>`) changes automatically the
+moment a new build changes which files `room.html` references, and
+`activate` deletes every `room-shell-*` cache that is not the current one —
+`vite.config.ts` needed no change for any of this.
+
+**Reversal condition.** If a future asset this precache must cover is never
+referenced from `room.html`'s own markup (an asset only reachable via a
+runtime `import()`, say), the self-discovery scan will miss it — that is the
+day to add either a build-injected manifest or an explicit extra-URLs list
+this file names by hand, whichever is smaller at the time.
+
+## `ws-r59-offline-phase-uses-navigator-online-not-error-shape` (2026-09-04, WS-R59)
+
+**Decision.** `RoomApp.tsx` distinguishes the new `"offline"` phase from the
+existing `"unavailable"` one by reading `navigator.onLine === false` at the
+moment the initial `openRoom` fetch throws — not by inspecting the thrown
+error's type or message for a network-failure shape.
+
+**Rationale.** `copy.unavailable` is deliberately vague ("the link may be
+old, or the creator may have paused it") so a stranger can never learn
+which creators took their Room down — but that same vagueness is actively
+misleading when the real cause is "your phone has no signal," so the two
+needed separate copy and therefore a real signal to choose between them.
+`navigator.onLine` read exactly at the failure moment is a real, contemporaneous
+fact about the browser, not a guess layered on top of whatever `fetch`
+happened to throw (`TypeError` shapes vary by browser and are not a stable
+contract to parse).
+
+**Reversal condition.** `navigator.onLine` is known to false-positive on
+some captive-portal Wi-Fi networks (reports `true` while genuinely unable
+to reach the origin) — if that is ever measured to matter here (a real
+follower report, or a browser stat pulled from `vy_room_arrival` showing
+`unavailable` spiking where `offline` should have fired), add a lightweight
+same-origin connectivity probe instead of trusting the browser's own flag
+alone.
+
+## `ws-r59-install-second-visit-rule-is-a-pure-injectable-storage-function` (2026-09-04, WS-R59)
+
+**Decision.** The install card's second-visit/30-day-dismiss rule lives in
+`src/room/installPrompt.ts` as pure functions (`noteInstallVisit`,
+`markInstallDismissed`, `shouldShowInstallCard`) taking an injectable
+`InstallStorage` interface (`{getItem, setItem}`), never inlined into
+`RoomApp.tsx` reading `window.localStorage` directly.
+
+**Rationale.** A rule with a NEGATIVE requirement ("never on visit 1"; "quiet
+for 30 days after a dismissal") is exactly the kind of logic that silently
+rots once nobody can drive it without a real browser and real wall-clock
+time. Bundled with `esbuild` (`evals/persona-invariants.mjs`'s own
+precedent for running real TS logic inside a Node eval) and driven with an
+in-memory fake storage plus an explicit `now` argument,
+`evals/room-install/run.mjs` proves the real rule — visit 1 never shows,
+visit 2 does, a dismissal 29 days ago is still quiet and one 31 days ago is
+not — deterministically, with no browser and no clock skew risk.
+
+**Reversal condition.** If this state ever needs to sync across a
+follower's devices (today it is per-browser, per-slug, `localStorage`
+only), the `InstallStorage` interface and the three pure functions stay
+exactly as they are — only the concrete storage `RoomApp.tsx` passes in
+changes, from `window.localStorage` to a thin wrapper over a server call.

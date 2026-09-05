@@ -19,6 +19,10 @@
     { "source": "/r/:slug/og.png", "destination": "/api/room-card?slug=:slug&kind=og" },
     { "source": "/r/:slug/story.png", "destination": "/api/room-card?slug=:slug&kind=story" },
     { "source": "/r/:slug", "destination": "/room.html" },
+    {
+      "source": "/r/:slug/manifest.webmanifest",
+      "destination": "/api/room-manifest?slug=:slug"
+    },
     { "source": "/suites", "destination": "/suites.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/delete-account", "destination": "/delete-account.html" },

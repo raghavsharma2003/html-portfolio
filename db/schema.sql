@@ -4177,3 +4177,11 @@ alter table vy_replica
   drop constraint if exists vy_replica_locale_check;
 alter table vy_replica
   add constraint vy_replica_locale_check check (locale in ('en', 'hi'));
+
+-- Migration 113 (main loop, WS-R59 merge): `vy_room_arrival.via` admits
+-- `install` (a home-screen launch) alongside share, direct, embed and search,
+-- matching api/_room-surface.js's ROOM_ARRIVAL_VIA. The inline CHECK in the
+-- 102 block above is superseded by this named constraint.
+alter table vy_room_arrival drop constraint if exists vy_room_arrival_via_check;
+alter table vy_room_arrival add constraint vy_room_arrival_via_check
+  check (via in ('share', 'direct', 'embed', 'search', 'install'));

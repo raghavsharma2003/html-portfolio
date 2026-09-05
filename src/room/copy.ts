@@ -117,6 +117,35 @@ const EN = {
     body: "The link may be old, or the creator may have paused it. Nothing else went wrong.",
   },
 
+  /** WS-R59. Distinct from `unavailable` above on purpose: that message is
+   *  deliberately vague so a stranger can never learn which creators took
+   *  their room down (`unavailable`'s own comment), but that same vagueness
+   *  would be actively misleading here — telling a follower "the link may be
+   *  old" when their own connection just dropped is a false diagnosis, not a
+   *  careful one. Shown only when the initial open fails AND the browser
+   *  itself reports no connection (`RoomApp.tsx`'s own check), never for any
+   *  other kind of failure. */
+  offline: {
+    title: "You are offline",
+    body: "This room needs the internet to talk. Reconnect and it will pick up right where you left it.",
+    retry: "Try again",
+  },
+
+  /** WS-R59. The install card, shown from the SECOND visit on
+   *  (`installPrompt.ts`'s own rule) — never a nag, and dismissed once means
+   *  quiet for 30 days. `ios*` renders as plain instructions rather than a
+   *  button, because Safari never fires the event this card's real button
+   *  needs (`installPrompt.ts`'s own comment on why). */
+  install: {
+    title: "Add {name} AI to your home screen",
+    body: "Open it like an app, straight from your phone. No browser tab to find again.",
+    cta: "Add to home screen",
+    dismiss: "Not now",
+    iosTitle: "Add {name} AI to your home screen",
+    iosBody: "Tap the share icon, then \"Add to Home Screen\".",
+    iosDismiss: "Got it",
+  },
+
   join: {
     title: "Join {name} AI",
     lede: "Two questions first. They take one tap each and you are never asked again.",
@@ -444,6 +473,22 @@ const HI: typeof EN = {
   unavailable: {
     title: "यह रूम अभी उपलब्ध नहीं है",
     body: "लिंक पुराना हो सकता है, या क्रिएटर ने इसे रोक दिया हो। और कुछ गलत नहीं हुआ।",
+  },
+
+  offline: {
+    title: "आप ऑफ़लाइन हैं",
+    body: "बात करने के लिए इस रूम को इंटरनेट चाहिए। दोबारा जुड़ते ही यह वहीं से शुरू होगा जहां आपने छोड़ा था।",
+    retry: "फिर कोशिश करें",
+  },
+
+  install: {
+    title: "{name} AI को अपनी होम स्क्रीन पर जोड़ें",
+    body: "इसे सीधे ऐप की तरह खोलें, अपने फ़ोन से। दोबारा टैब ढूंढने की ज़रूरत नहीं।",
+    cta: "होम स्क्रीन पर जोड़ें",
+    dismiss: "अभी नहीं",
+    iosTitle: "{name} AI को अपनी होम स्क्रीन पर जोड़ें",
+    iosBody: "शेयर आइकन दबाएं, फिर \"होम स्क्रीन पर जोड़ें\" चुनें।",
+    iosDismiss: "ठीक है",
   },
 
   join: {

@@ -7516,6 +7516,66 @@
       "kind": "rejection",
       "title": "With a real-clock fixture base, eleven consume() timestamps a second apart straddled a calendar-minute window 2 of 487 times; the rate cases now use a base one minute after the top of the hour.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r59-installable-room",
+      "kind": "component",
+      "title": "The Room as an installable app (WS-R59): a per-slug manifest (api/_room-manifest.js, /r/<slug>/manifest.webmanifest), a precaching offline-capable service worker (public/room-sw.js) that never caches /api/, and a second-visit install card in both locales",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-platform-manifest-is-literal-bytes-not-reserialized",
+      "kind": "decision",
+      "title": "The platform-fallback manifest is a literal copy of public/room.webmanifest's own bytes, not JSON.stringify'd from a shared object, asserted byte-identical by SHA-256 in evals/room-install/run.mjs",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-real-manifest-endpoint-supersedes-blob-swap",
+      "kind": "decision",
+      "title": "RoomApp.tsx's manifest <link> now points at the real /r/<slug>/manifest.webmanifest route instead of building a manifest object client-side and swapping in a Blob URL",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-install-via-not-yet-in-arrival-check-constraint",
+      "kind": "decision",
+      "title": "'install' was added to ROOM_ARRIVAL_VIA with no migration (this workstream's own law); recordRoomArrival's insert for it is rejected by migration 102's CHECK constraint and swallowed by the existing best-effort catch, so install arrivals are not yet counted",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-sw-precache-list-self-discovered-not-build-injected",
+      "kind": "decision",
+      "title": "public/room-sw.js discovers its own precache list by fetching and parsing the real room.html at install time, rather than a Vite plugin injecting a build manifest into the worker source",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-offline-phase-uses-navigator-online-not-error-shape",
+      "kind": "decision",
+      "title": "RoomApp.tsx's new 'offline' phase (distinct from 'unavailable') is decided by navigator.onLine === false at the moment the initial openRoom fetch throws, not by parsing the thrown error's shape",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-install-second-visit-rule-is-a-pure-injectable-storage-function",
+      "kind": "decision",
+      "title": "The install card's second-visit/30-day-dismiss rule lives in src/room/installPrompt.ts as pure functions over an injectable storage interface, bundled with esbuild and driven by evals/room-install/run.mjs with a fake storage",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-post-only-api-cannot-be-cache-put-anyway-so-my-first-negative-control-proved-nothing",
+      "kind": "rejection",
+      "title": "A hand-injected 'cache everything' bug in the built room-sw.js was not caught by scripts/check-install.mjs's own POST-based scripted-turn check, because Cache.put() throws for any non-GET request and every /api/room call in this repo is POST; the static scan (evals/room-install/run.mjs) and a direct GET-request cache-seed both confirm detection actually works, just not via that probe",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-precache-bytes-2026-09-04",
+      "kind": "measurement",
+      "title": "The Room's precache is 9 files, 432.2 KB total on-disk/decoded size (room.html, favicon.svg, room.webmanifest, 4 JS chunks, 2 CSS files); zero font files; room-sw.js itself is 10,439 bytes and is not precached",
+      "at": "2026-09-04"
+    },
+    {
+      "id": "ws-r59-performance-budgets-before-after-2026-09-04",
+      "kind": "measurement",
+      "title": "check-performance.mjs's four public targets stayed within every budget after this workstream's service-worker registration effect landed (LCP 496-1592ms, CLS <=0.001, TBT 95-197ms, all under budget); before/after full-table comparison incomplete (before run captured only pass/fail, not the per-target table)",
+      "at": "2026-09-04"
     }
   ],
   "edges": [
@@ -14978,6 +15038,61 @@
       "src": "ws-r51-merge-rate-cases-straddled-a-calendar-minute-window",
       "rel": "supersedes",
       "dst": "wave-eleven-fixed-clock-and-fixed-wait-both-flaked-under-load-and-time"
+    },
+    {
+      "src": "ws-r59-installable-room",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r59-installable-room",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r59-real-manifest-endpoint-supersedes-blob-swap",
+      "rel": "supersedes",
+      "dst": "ws-r22-dynamic-manifest-blob-url-per-room"
+    },
+    {
+      "src": "ws-r59-platform-manifest-is-literal-bytes-not-reserialized",
+      "rel": "part_of",
+      "dst": "ws-r59-installable-room"
+    },
+    {
+      "src": "ws-r59-sw-precache-list-self-discovered-not-build-injected",
+      "rel": "part_of",
+      "dst": "ws-r59-installable-room"
+    },
+    {
+      "src": "ws-r59-sw-precache-list-self-discovered-not-build-injected",
+      "rel": "measured_by",
+      "dst": "ws-r59-precache-bytes-2026-09-04"
+    },
+    {
+      "src": "ws-r59-offline-phase-uses-navigator-online-not-error-shape",
+      "rel": "part_of",
+      "dst": "ws-r59-installable-room"
+    },
+    {
+      "src": "ws-r59-install-second-visit-rule-is-a-pure-injectable-storage-function",
+      "rel": "part_of",
+      "dst": "ws-r59-installable-room"
+    },
+    {
+      "src": "ws-r59-install-via-not-yet-in-arrival-check-constraint",
+      "rel": "caused_by",
+      "dst": "ws-r40-arrival-counted-per-openroom-call-not-deduplicated-per-session"
+    },
+    {
+      "src": "ws-r59-post-only-api-cannot-be-cache-put-anyway-so-my-first-negative-control-proved-nothing",
+      "rel": "constrains",
+      "dst": "ws-r59-sw-precache-list-self-discovered-not-build-injected"
+    },
+    {
+      "src": "ws-r59-installable-room",
+      "rel": "measured_by",
+      "dst": "ws-r59-performance-budgets-before-after-2026-09-04"
     }
   ]
 }
