@@ -7732,6 +7732,12 @@
       "kind": "measurement",
       "title": "verify-release 20/21 before and after (the one failure, accessibility color-contrast on site:/, is pre-existing and unrelated); room-doors 492->503, incidents 34->39, ops 124 total, full eval suite (evals/run.mjs) exit 0",
       "at": "2026-09-05"
+    },
+    {
+      "id": "rooms-migration-114-live-verification-2026-09-05",
+      "kind": "measurement",
+      "title": "Migration 114 (vy_operator_push_subscription) applied live at the WS-R62 merge; the allowlisted upsert, both revokes, the active read, the incident count read and the erasure delete all plan on an index.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15369,6 +15375,11 @@
       "src": "ws-r62-ops-board-push-copy-stays-english-inline",
       "rel": "constrains",
       "dst": "ws-r52-tier-2-studio-files-not-localized"
+    },
+    {
+      "src": "rooms-migration-114-live-verification-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r62-operator-push-subscription-store-built"
     }
   ]
 }

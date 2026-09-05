@@ -10568,3 +10568,18 @@ a fake `db`; no real browser has ever received a push through this path, so
 this workstream's payload now sends is UNPROVEN in a real browser (proven
 only as "the SAME shape that file's own header already documents it
 expects," a static argument, not a run).
+
+## `rooms-migration-114-live-verification-2026-09-05`
+
+n = 1 migration (3 statements in one transaction), 6 API statements; method = applied to the live Neon project (`lucky-sun-80291432`) through the Neon MCP (the table did not exist), the catalog read back (seven columns, the unique `(owner_user_id, endpoint)` index, the partial active index, zero foreign keys as 009 requires of an owner column), then `EXPLAIN` (never `EXPLAIN ANALYZE`) with typed literals and the allowlist as an array literal; date 2026-09-05, at the WS-R62 merge (ed2ea0c).
+
+| statement | plan |
+|---|---|
+| `subscribeOperatorPush`'s INSERT ... SELECT ... WHERE allowlist ON CONFLICT | Insert with `vy_operator_push_subscription_owner_endpoint_ix` as the conflict arbiter; the allowlist predicate folds into the Result node |
+| `revokeOperatorPush` (owner, endpoint, allowlist) | Index Scan on `vy_operator_push_subscription_active_ix` by owner, endpoint and `revoked_at is null` as the filter |
+| `operatorPushSubscriptionsFor` | Index Scan on `vy_operator_push_subscription_active_ix` |
+| `revokeOperatorPushById` | Index Scan on the primary key |
+| `notifyNewIncidentKinds`'s today-count read | Index Scan on `vy_incident_day_kind_door_status_ix` (`day`, `kind`) under a plain aggregate |
+| the erasure delete by owner | Bitmap on `vy_operator_push_subscription_owner_endpoint_ix` by owner |
+
+Not measured: no operator has subscribed; no push has been sent; VAPID is unset on both projects.
