@@ -14710,3 +14710,80 @@ aggregate-only rule) rather than widening the generic `select *` path — and
 that future file's own identifier must still never appear as a literal
 string in `api/_creator-export.js`'s own source outside such a query, per
 the rejection entry this decision cites.
+
+## `ws-r77-ci-runs-the-whole-gate` (2026-09-05, WS-R77)
+
+**Decision.** Added `.github/workflows/release-gate.yml`: a dedicated workflow
+that runs `node scripts/verify-release.mjs` (the whole gate — 21 checks
+without `NEON_URL`, which this job never sets) on every push to `main` or a
+`claude/**` branch, in a Node 22 x Node 24 matrix, with a real headless
+Chromium installed on the runner. It is a separate workflow from
+`build-apk.yml` and `deploy-web.yml`, not a job added to either: both of
+those already run `tsc -b` + the eval suite for their own separate purposes
+(an APK artifact, a live deploy), and neither has ever run the room leak
+battery, the door battery, the export battery, accessibility, performance
+budgets, security headers, or the layout gate's Hindi glyph pass. Before this
+workstream, `node scripts/verify-release.mjs` — the command every one of this
+repo's own docs calls "the law" — had never once been invoked by any GitHub
+Actions workflow.
+
+**Rationale.** `context/rejected.md#gates-that-live-nowhere` and
+`#gates-that-live-nowhere-2` are the same failure shape occurring twice
+already: a check suite exists, passes cleanly by hand, and gates nothing in
+CI because no workflow calls it, so every push goes around it silently. This
+is that shape a third time, at the scale of the entire release gate rather
+than one suite inside it — a push could pass both existing workflows outright
+while every Rooms-specific check (leak, door, export, accessibility,
+performance, headers) had never run anywhere but a human's or an agent's own
+terminal. Making CI run the whole gate closes that gap structurally: it is no
+longer possible for a change to reach a branch this workflow watches without
+the 21-check gate having run against it in an environment nobody had to
+remember to use.
+
+**What this decision deliberately does NOT do.** It does not raise the gate
+count (still 21 without `NEON_URL`, 23 with it — this job never sets
+`NEON_URL`, so it is always the 21-check run) and it does not touch the live
+database, reconstruct a real `api/_config.js`, or make any paid call. Every
+check it runs is the same offline check that already ran locally.
+
+**Reversal condition.** If a real CI run (not this workstream's local
+rehearsal, which only proves the command list and the runner-shape
+assumptions — the font, the lack of a secret, the Node-version matrix) is
+ever measured at or above 25 minutes, split the job: a `build` job through
+`npx vite build`, `actions/upload-artifact`s `dist/`, and a second
+`browser-gates` job that downloads it and runs only the browser-driven checks
+— which needs a `--only <name>` flag added to `scripts/verify-release.mjs`
+that does not exist today (see `ws-r77-ci-gate-not-split-into-parallel-jobs-yet`
+below). If GitHub's `ubuntu-latest` image turns out to ship a Devanagari-
+capable font by default after all, the font-install step becomes redundant
+rather than wrong — it is still correct to keep it, because "redundant and
+explicit" is a strictly better position than "silently depends on the
+runner's current font list," which is exactly the blind spot this
+workstream's own local sandbox already demonstrated
+(`context/measurements.md#layout-gate-glyph-probe-uniformity-half-2026-09-05`).
+
+## `ws-r77-ci-gate-not-split-into-parallel-jobs-yet` (2026-09-05, WS-R77)
+
+**Decision.** The release gate is one job (matrixed over Node 22/24), not
+split into a `build` job plus a parallel `browser-gates` job sharing the
+build artifact, even though the brief names that split as the answer if
+runtime exceeds 25 minutes.
+
+**Rationale.** Local rehearsal (this workstream, `context/measurements.md#ws-r77-local-rehearsal-runtime-2026-09-05`)
+measured the 21 checks themselves at a little over 10 minutes on a 4-core
+sandbox, under both Node 22 and Node 24. A real `ubuntu-latest` runner is
+2 cores and will run slower, plus checkout/`npm ci`/a first Chromium
+download add real time on top — but nothing available to this workstream
+can measure GitHub's own runner, and building the split now would mean
+guessing at a threshold nobody has crossed, adding a `--only` flag to
+`scripts/verify-release.mjs` speculatively, and doubling the workflow's own
+surface area for a problem not yet observed. `never claim what you did not
+run` (AGENTS.md) cuts the other way here too: claiming a specific real-CI
+runtime this workstream never measured would be exactly the kind of
+plausible-but-ungrounded number the project's own laws warn against.
+
+**Reversal condition.** The first real CI run (the main loop's, after this
+branch merges and pushes) tells us the true number. If total job time is at
+or above 25 minutes on either Node version, split as described in
+`ws-r77-ci-runs-the-whole-gate` above, and log the real runtime that
+triggered it as a measurement before making the change.

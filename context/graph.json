@@ -8080,6 +8080,42 @@
       "kind": "measurement",
       "title": "979 Hindi strings through the patched glyph probe: the two WS-R61 false positives pass, nothing else changed, the noncharacter control measures uniform.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r77-ci-runs-the-whole-gate",
+      "kind": "decision",
+      "title": "CI now runs the whole release gate: .github/workflows/release-gate.yml runs verify-release.mjs on every push, Node 22 x 24 matrix, real Chromium, no secret.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r77-ci-gate-not-split-into-parallel-jobs-yet",
+      "kind": "decision",
+      "title": "The release gate stays one job (not split build+browser-gates) until a real CI run measures 25+ minutes.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r77-local-rehearsal-runtime-2026-09-05",
+      "kind": "measurement",
+      "title": "21 checks summed to about 10m20s on a 4-core sandbox; no real GitHub Actions runtime measured yet.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r77-glyph-detector-null-uniform-treated-as-flaggable-2026-09-06",
+      "kind": "measurement",
+      "title": "सभी (threads.all) measured 9.6% width-diff with uniform=null against the real Noto Sans Devanagari font, the first time this repo rendered its Hindi corpus through the CSS actual first-choice font.",
+      "at": "2026-09-06"
+    },
+    {
+      "id": "ws-r77-unescaped-dot-in-self-referential-secrets-grep-matches-everything",
+      "kind": "rejection",
+      "title": "A workflow no-secrets assertion used an unescaped . in a grep pattern and matched its own declaration line; fixed with grep -F.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed",
+      "kind": "rejection",
+      "title": "check-layout.mjs glyphAudit flagged a testable-but-uniform=null Hindi string on width-diff alone; fixed by requiring uniform === true.",
+      "at": "2026-09-06"
     }
   ],
   "edges": [
@@ -16007,6 +16043,31 @@
       "src": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
       "rel": "supersedes",
       "dst": "ws-r43-glyph-width-test-needs-3-devanagari-chars"
+    },
+    {
+      "src": "ws-r77-ci-runs-the-whole-gate",
+      "rel": "supersedes",
+      "dst": "gates-that-live-nowhere-2"
+    },
+    {
+      "src": "ws-r77-ci-gate-not-split-into-parallel-jobs-yet",
+      "rel": "constrains",
+      "dst": "ws-r77-local-rehearsal-runtime-2026-09-05"
+    },
+    {
+      "src": "ws-r77-ci-runs-the-whole-gate",
+      "rel": "constrains",
+      "dst": "ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed"
+    },
+    {
+      "src": "ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed",
+      "rel": "supersedes",
+      "dst": "ws-r43-glyph-width-test-needs-3-devanagari-chars"
+    },
+    {
+      "src": "ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed",
+      "rel": "caused_by",
+      "dst": "ws-r77-glyph-detector-null-uniform-treated-as-flaggable-2026-09-06"
     }
   ]
 }

@@ -10271,3 +10271,107 @@ header forbids.
 short run whose parts average to the reference; test the parts for
 uniformity too, and give every detector a control it must catch on every
 run, or its silence proves nothing.
+
+## `ws-r77-unescaped-dot-in-self-referential-secrets-grep-matches-everything` (2026-09-05, WS-R77)
+
+**Tried.** A workflow step asserting no `secrets.<NAME>` reference exists in
+`release-gate.yml`, written as `grep -n "${NEEDLE_A}${NEEDLE_B}"` with
+`NEEDLE_A="secrets"` and `NEEDLE_B="."`, split across two variables
+specifically so the step's own source text would never spell the literal
+substring it was searching for (or it would trip on its own declaration
+line).
+
+**What broke.** `grep` without `-F` treats its argument as a regex, and `.`
+in a regex matches ANY character, not a literal dot. `"${NEEDLE_A}${NEEDLE_B}"`
+expands to the STRING `secrets.` but `grep` reads it as the PATTERN
+`secrets` + "any one character" — which matched the step's own
+`NEEDLE_A="secrets"` line (the `s` at the end of `"secrets"` followed by the
+closing quote character satisfies "any character"), and would have matched
+almost any other appearance of the word "secrets" in the file too, quote,
+comma, space or otherwise. Caught immediately by running the check against
+the real file before trusting it: it failed on itself, on the very first
+run, which is what a bug in a self-referential check ought to do rather
+than pass silently — but the mechanism (regex metacharacter, not string
+mismatch) was worth naming so it is not repeated in a hurry next time.
+
+**Now.** `grep -Fn --` (fixed-string, not regex) with the same split-variable
+construction. Verified both ways: the real file greps clean (negative
+control), and an injected `${{ secrets.FAKE_TOKEN }}` line is caught
+(positive control) — see `context/measurements.md`'s session log entry for
+this workstream.
+
+**The rule.** A grep pattern built to avoid matching its own source is
+exactly the situation where an accidental regex metacharacter is most
+dangerous, because "the check fails immediately, always, including on a
+clean file" reads at a glance like "the check works" (it IS red) rather
+than "the check is broken" (it is red for the wrong reason). Test a
+self-referential assertion against a KNOWN-CLEAN input before trusting a
+red result, not only a known-bad one.
+
+## `ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed` (2026-09-06, WS-R77)
+
+**Tried.** Installing the Devanagari font the `.room-shell:lang(hi)` CSS
+actually names first (`Noto Sans Devanagari`) as a real system font on the
+CI runner, so the layout gate's Hindi glyph pass would be proven against the
+CSS's real first choice rather than whatever font a machine happens to
+substitute for `sans-serif` (this repo loads no web fonts; see this
+workstream's own decision entry for the full reasoning). Ran the full gate
+under the result, on both Node 22 and Node 24, to prove it actually passes
+before calling the workstream done.
+
+**What broke.** It did not pass. `room-hi:glyph` flagged real Hindi "सभी"
+(`threads.all`, an existing studio string, not one this workstream
+touched) at 9.6% width-diff from three tofu boxes — under the 10%
+`MIN_GLYPH_DIFF_PCT` bar. The corroborating uniformity test
+(`context/rejected.md#glyph-probe-width-diff-alone-flags-three-letter-
+matra-less-hindi-words`, WS-R61's own fix for exactly this failure shape)
+could not run: "सभी" is स + भ + ी, and ी is a matra, which `uniformWidths`
+deliberately excludes from its own count ("a matra measures as zero or as
+its base's width"). Two base letters is one short of the three
+`uniformWidths` itself requires, so it returned `null` — genuinely
+indeterminate, neither "confirmed uniform" nor "confirmed varied" — and the
+results filter's own `r.uniform !== false` treated `null` the same as
+`true`, flagging the string on width-diff alone. `testable` (the entry gate
+for the whole check) and `uniformWidths` (the corroborating sub-check)
+count DIFFERENT things from the same three-codepoint floor — one counts
+every Devanagari codepoint including matras, the other counts base letters
+only — and nothing before this workstream had ever exercised a string that
+falls in the gap between them, because nothing before this workstream had
+ever rendered the Hindi corpus through the CSS's actual named font on a
+machine that runs this gate.
+
+**Now.** The results filter requires `r.uniform === true`, not `!== false`
+— a finding needs BOTH signals to have POSITIVELY said tofu, not one signal
+confirmed and the other merely not-disconfirmed. This changes nothing for
+the case WS-R61 built the uniformity test for (3+ base letters, confirmed
+uniform or confirmed varied — `true === true` and `false === true` are
+exactly what `!== false` already gave those two outcomes) and changes
+exactly one thing: a `testable`-but-`uniform === null` string (a word this
+narrow shape: fewer than three base consonants once matras are excluded)
+now falls through to "not flagged" instead of "flagged if the width-diff
+alone is low enough," matching the SAME conservative posture the pre-
+existing `MIN_DEVANAGARI_CHARS` floor already uses for the ENTIRELY
+non-testable case (fewer than three Devanagari codepoints of any kind —
+also never flagged). `MIN_GLYPH_DIFF_PCT` itself was not touched — lowering
+it was already rejected once, for a different but related reason, in the
+entry this one supersedes in spirit without replacing it.
+
+**What this does NOT prove, and the coverage this narrows.** A word with
+exactly this shape (two base consonants, one or more matras, three-plus
+total Devanagari codepoints) that is GENUINELY rendered as tofu — a real
+missing-glyph failure, not a false positive — will now also NOT be flagged,
+because `uniform` stays `null` for it regardless of whether the letters are
+real or boxes. The width-diff test alone would still have caught total
+tofu for such a word (its whole premise: a genuinely missing font renders
+box-width, which the width-diff catches on its own), but this fix declines
+to rely on width-diff alone for exactly the band where WS-R61 already
+proved width-diff alone produces false positives — so a two-base-letter
+word sits in a genuine, named, accepted blind spot rather than a silent
+one. **Reversal condition**: if a future workstream needs full glyph-loss
+coverage for two-base-letter-plus-matra Hindi words specifically, the fix
+is a THIRD signal for exactly that shape (for example: also compare a
+per-glyph advance-width table computed once against a KNOWN-good render of
+the same font, rather than only against a same-length box run) — not
+lowering `MIN_GLYPH_DIFF_PCT` or reverting `=== true` back to `!== false`,
+both of which reintroduce a rejected false-positive class rather than
+closing this narrower gap.
