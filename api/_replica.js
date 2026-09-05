@@ -33,6 +33,24 @@ export function replicaDisplayName(value) {
   return name;
 }
 
+// WS-R52 (migration 112). The two chrome locales the STUDIO ships, matching
+// the Room's own follower- and room-level locale columns' CHECK-bounded
+// shape one surface over (`db/migrations/087_room_locale.sql`). Never
+// widened here alone -- src/studio/copy.ts's STUDIO_LOCALES and the
+// migration's CHECK constraint move together (evals/studio-locale/run.mjs
+// fails the build otherwise).
+//
+// This module reads and writes vy_replica only; it never queries a
+// follower or thread table, aggregate or otherwise -- see
+// evals/room-leak/run.mjs's own header on why even a comment naming those
+// tables by name would join this file to its scanned set
+// (context/rejected.md#ws-r48-explanatory-comment-named-the-guarded-tables-a-fourth-time).
+export const STUDIO_LOCALES = ["en", "hi"];
+
+export function normalizeStudioLocale(value) {
+  return STUDIO_LOCALES.includes(value) ? value : "en";
+}
+
 export function clientReplica(row) {
   if (!row) return null;
   const identityCurrent = row.identity_expires_at === undefined ||
@@ -48,13 +66,17 @@ export function clientReplica(row) {
     age_verified: Boolean(row.age_verified_at) && identityCurrent,
     identity_verified: Boolean(row.identity_verified_at) && identityCurrent,
     liveness_verified: Boolean(row.liveness_verified_at) && identityCurrent,
+    // WS-R52: absent on rows read before migration 112 ran only in a stale
+    // fake db an eval built by hand -- the real column is NOT NULL DEFAULT
+    // 'en', so a live read always carries a valid value already.
+    locale: normalizeStudioLocale(row.locale ?? "en"),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
 
 const RETURNING = `replica_id, display_name, subject_mode, lifecycle, policy_version,
-  age_verified_at, identity_verified_at, liveness_verified_at, identity_expires_at, created_at, updated_at`;
+  age_verified_at, identity_verified_at, liveness_verified_at, identity_expires_at, locale, created_at, updated_at`;
 
 /**
  * `options.invitesRequired` (`INVITES_REQUIRED=1`, read by the HTTP layer,
@@ -262,4 +284,38 @@ export async function requestOwnedReplicaErasure(db, ownerUserId, id) {
 export async function revokeOwnedReplica(db, ownerUserId, id) {
   const result = await requestOwnedReplicaErasure(db, ownerUserId, id);
   return result?.replica || null;
+}
+
+/**
+ * WS-R52 (migration 112). The studio's own chrome language -- Feed/Meet/
+ * Share, Readiness, the review queue, Payouts, the Suite card. Never the
+ * AI's own replies and never the Room a follower sees; those are
+ * src/room/copy.ts's business, untouched by this function.
+ *
+ * Scoped by BOTH replica_id and owner_user_id in the same WHERE clause as
+ * every other write in this file (`getOwnedReplica`'s own shape) so an
+ * owner can never be asked to name, let alone change, a replica that is not
+ * theirs -- there is no code path here that reads a second account's row.
+ * An invalid locale is refused BY NAME (a coded error), never silently
+ * folded into "en" -- `roomSetLocale`'s own rule in api/_room-surface.js,
+ * reused here rather than re-derived, because "a request that names one
+ * language ends up storing another with no error" is the exact defect class
+ * a silent fallback would be.
+ */
+export async function setOwnedReplicaLocale(db, ownerUserId, id, locale) {
+  const rid = replicaId(id);
+  const value = String(locale || "").trim();
+  if (!STUDIO_LOCALES.includes(value)) {
+    throw Object.assign(new Error("valid locale required"), {
+      status: 400, code: "studio_locale_invalid",
+    });
+  }
+  const rows = await db(
+    `update vy_replica
+        set locale = $3, updated_at = now()
+      where replica_id = $1::uuid and owner_user_id = $2::uuid
+      returning ${RETURNING}`,
+    [rid, ownerUserId, value],
+  );
+  return clientReplica(rows[0]);
 }

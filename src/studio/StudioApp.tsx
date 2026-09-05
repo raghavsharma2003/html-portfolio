@@ -13,7 +13,14 @@ import {
   readReplica,
   ReplicaApiError,
   revokeReplica,
+  setReplicaLocale,
 } from "./replicaApi";
+// WS-R52. `StudioLocale` (aliased: this file already has its own unrelated
+// `StudioCopy` interface -- src/studio/copy.ts's own `StudioCopy` never
+// enters this file, only the locale type and the provider do) plus the
+// provider StudioApp mounts once, at the top of the signed-in tree.
+import { normalizeStudioLocale, type StudioLocale as StudioChromeLocale } from "./copy";
+import { StudioLocaleProvider } from "./localeContext";
 import { restoreSession, writeStoredSession } from "./session";
 import { friendlyError } from "./errorCopy";
 import { markFunnelStep } from "./funnelApi";
@@ -1443,6 +1450,43 @@ export default function StudioApp() {
   // build; this decides which view a signed-in person is looking at RIGHT
   // NOW inside a build that has it.
   const [showAllPanels, setShowAllPanels] = useState(false);
+  // WS-R52. `?lang=` first, read ONCE at mount (a URL a creator bookmarked
+  // or shared should not silently stop meaning what it said); the stored
+  // preference (`selected.locale`, migration 112) once a replica has
+  // loaded and the URL gave nothing. `null` here means "no explicit URL
+  // hint" -- not "English" -- so the stored preference is never shadowed by
+  // a default this file invented. Exactly the fallback chain
+  // `api/_room-surface.js`'s `openRoom` already uses one surface over.
+  const [urlLocale] = useState<StudioChromeLocale | null>(() => {
+    const raw = new URLSearchParams(window.location.search).get("lang");
+    return raw === "en" || raw === "hi" ? raw : null;
+  });
+  const [localeBusy, setLocaleBusy] = useState(false);
+  const studioLocale: StudioChromeLocale = urlLocale ?? normalizeStudioLocale(selected?.locale);
+  // `src/room/RoomApp.tsx`'s own line, same reason: the studio's chrome
+  // locale is a client-side fact `studio.html`'s static `lang="en"` cannot
+  // know at build time.
+  useEffect(() => {
+    document.documentElement.lang = studioLocale;
+  }, [studioLocale]);
+  const switchLocale = useCallback(
+    async (next: StudioChromeLocale) => {
+      if (!session || !selected || localeBusy || next === studioLocale) return;
+      setLocaleBusy(true);
+      try {
+        const updated = await setReplicaLocale(session.accessToken, selected.replica_id, next);
+        setSelected(updated);
+        setReplicas((prev) => prev.map((r) => (r.replica_id === updated.replica_id ? updated : r)));
+      } catch {
+        // A locale switch that fails leaves the chrome exactly where it was
+        // -- never a silent partial flip, and never worth a full-page error
+        // banner for what is a convenience control, not a blocking action.
+      } finally {
+        setLocaleBusy(false);
+      }
+    },
+    [session, selected, localeBusy, studioLocale],
+  );
   // WS-R23 (086). `inviteConfirmed` gates CreateReplicaCard behind
   // InviteGate for a brand new account; `inviteCode` is what the eventual
   // create call sends. Neither is read at all unless INVITES_REQUIRED_UI is
@@ -2254,6 +2298,10 @@ export default function StudioApp() {
   if (!session) return <AuthGate copy={copy} testEnvironment={STUDIO_SELF_TEST_UI} onAuthed={(next) => { setSession(next); void loadReplicas(next); }} />;
 
   return (
+    // WS-R52. Wraps the whole signed-in tree so any panel -- Tier 1 fully
+    // localized, Tier 2 not yet (copy.ts's own header) -- can read the
+    // creator's chrome locale via `useStudioLocale()` with no prop threading.
+    <StudioLocaleProvider locale={studioLocale}>
     <div className={`studio-shell${STUDIO_SELF_TEST_UI ? " studio-shell-self-test" : ""}`}>
       <header className="studio-header">
         <a className="studio-logo" href="/" aria-label="Vyakti home">
@@ -2404,7 +2452,15 @@ export default function StudioApp() {
                   onActivityAct: handleActivityAct,
                 } as const;
                 return STUDIO_SHELL_UI && !showAllPanels
-                  ? <StudioShell {...workspaceProps} onShowAllPanels={() => setShowAllPanels(true)} />
+                  ? (
+                    <StudioShell
+                      {...workspaceProps}
+                      onShowAllPanels={() => setShowAllPanels(true)}
+                      locale={studioLocale}
+                      localeBusy={localeBusy}
+                      onSwitchLocale={(next) => void switchLocale(next)}
+                    />
+                  )
                   : <ReplicaWorkspace {...workspaceProps} />;
               })()}
             </>
@@ -2433,5 +2489,6 @@ export default function StudioApp() {
         </main>
       </div>
     </div>
+    </StudioLocaleProvider>
   );
 }

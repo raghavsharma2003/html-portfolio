@@ -1919,6 +1919,27 @@ const suites = {
   //
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
   "room-share": "room-share/run.mjs",
+  // WS-R52, migration 112. The studio in Hindi: src/studio/copy.ts is a
+  // locale table with the SAME shape as src/room/copy.ts, reusing
+  // evals/room-locale/run.mjs's own proof shape rather than a second
+  // mechanism -- KEY PARITY (STUDIO_COPY_TABLE.en and .hi carry the exact
+  // same keys, asserted against the real export), a STATIC SCAN over every
+  // src/studio/*.tsx file for a JSX text node of three or more words that is
+  // not read from `t.` (an allowlist, justified entry by entry, for
+  // server-authored prose and the honesty-gated blockerClass.ts/
+  // QuickStartPath.tsx vocabulary copy.ts's own header names), the owner
+  // preference op's ownership predicate (`setOwnedReplicaLocale`, migration
+  // 112 -- an account can set only its own replica's locale, never another
+  // owner's), and scripts/check-copy.mjs's Devanagari bans reconfirmed live
+  // on src/studio/. THREE NEGATIVE CONTROLS: (a) a Hindi string with an em
+  // dash fails the dash rule; (b) a Hindi string containing क्लोन/मॉडल
+  // fails the rooms-vocabulary rule; (c) an owner attempting to set a
+  // SECOND account's replica locale writes nothing and the second account's
+  // row is unchanged.
+  //
+  // Offline, deterministic, $0, no network, no model call, no GPU. Runs
+  // against a fake db (no NEON_URL needed).
+  "studio-locale": "studio-locale/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

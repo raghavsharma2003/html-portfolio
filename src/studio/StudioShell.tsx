@@ -44,7 +44,6 @@ import { ReplicaWorkspace } from "./StudioApp";
 import { BLOCKER_META } from "./QuickStartPath";
 import VideoLinkMount from "./VideoLinkMount";
 import { Band, jumpTo } from "./WizardRail";
-import { CLASS_COPY } from "./blockerClass";
 import { roomLink } from "./roomPublishApi";
 import type { Readiness } from "./readinessApi";
 import type { InterviewPreview } from "./mirrorCallApi";
@@ -53,14 +52,50 @@ import type { StepId } from "./wizardModel";
 import {
   TAB_ORDER,
   TAB_STEP,
-  TAB_TITLE,
-  TAB_PROMISE,
   headlineForTab,
   type TabId,
   type HeadlineInputs,
   type PrimaryControl,
 } from "./studioShellModel";
+import { STUDIO_LANGUAGE_LABELS, STUDIO_LOCALES, withCount, type StudioLocale } from "./copy";
+import { useStudioLocale } from "./localeContext";
 import "./studio-shell.css";
+
+/**
+ * WS-R52. "A language control in the same place the Room has one" -- the
+ * brief's own words, and `RoomApp.tsx`'s `LanguageSwitch` is exactly the
+ * shape reused here: both words shown, always, in both locales (see
+ * copy.ts's `STUDIO_LANGUAGE_LABELS` for why), the current locale reading
+ * as pressed (`aria-pressed`) rather than disabled so a screen reader still
+ * announces it as the state it is.
+ */
+function StudioLanguageSwitch({
+  locale,
+  busy,
+  onSwitch,
+}: {
+  locale: StudioLocale;
+  busy: boolean;
+  onSwitch: (next: StudioLocale) => void;
+}) {
+  const { t } = useStudioLocale();
+  return (
+    <div className="studio-lang-switch" role="group" aria-label={t.shell.languageGroupLabel}>
+      {STUDIO_LOCALES.map((l) => (
+        <button
+          key={l}
+          type="button"
+          className="studio-lang-btn"
+          aria-pressed={locale === l}
+          disabled={busy}
+          onClick={() => onSwitch(l)}
+        >
+          {STUDIO_LANGUAGE_LABELS[l]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 type WorkspaceProps = ComponentProps<typeof ReplicaWorkspace>;
 
@@ -73,6 +108,7 @@ function tabForStep(step: StepId): TabId {
  *  one difference being the source of the codes: the runtime's own
  *  `blockers` array, already fetched by `StudioApp.tsx`. */
 function StillLocked({ blockers }: { blockers: readonly string[] }) {
+  const { t } = useStudioLocale();
   const known = blockers.filter((code) => BLOCKER_META[code]);
   if (known.length === 0) return null;
   const yours = known.filter((code) => BLOCKER_META[code].owner === "you");
@@ -80,24 +116,26 @@ function StillLocked({ blockers }: { blockers: readonly string[] }) {
   return (
     <details className="studio-shell-locked" open={yours.length > 0}>
       <summary>
-        <strong>Still locked on Meet</strong>
+        <strong>{t.shell.stillLockedTitle}</strong>
         <span>
-          {yours.length > 0 && `${yours.length} for you`}
+          {yours.length > 0 && withCount(t.shell.forYou, yours.length)}
           {yours.length > 0 && platform.length > 0 && ", "}
-          {platform.length > 0 && `${platform.length} on us`}
+          {platform.length > 0 && withCount(t.shell.onUsCount, platform.length)}
         </span>
       </summary>
       <div className="studio-shell-locked-columns">
         {yours.length > 0 && (
           <div>
-            <p className="studio-shell-locked-owner">{CLASS_COPY.you.label}</p>
+            <p className="studio-shell-locked-owner">{t.classLabels.you}</p>
             <ul>
               {yours.map((code) => (
                 <li key={code}>
+                  {/* BLOCKER_META's label/note stay English -- honesty-gated
+                      prose, copy.ts's own header names the reason. */}
                   <span>{BLOCKER_META[code].label}</span>
                   <small>{BLOCKER_META[code].note}</small>
                   <button type="button" className="text-button" onPointerDown={() => jumpTo(BLOCKER_META[code].anchor, BLOCKER_META[code].label)}>
-                    Go there
+                    {t.wizardRail.goThere}
                   </button>
                 </li>
               ))}
@@ -106,7 +144,7 @@ function StillLocked({ blockers }: { blockers: readonly string[] }) {
         )}
         {platform.length > 0 && (
           <div>
-            <p className="studio-shell-locked-owner">{CLASS_COPY.us.label}</p>
+            <p className="studio-shell-locked-owner">{t.classLabels.us}</p>
             <ul>
               {platform.map((code) => (
                 <li key={code}>
@@ -127,9 +165,18 @@ export default function StudioShell(
     /** Switches `StudioApp.tsx` back to the old rail + full panel list, the
      *  "All panels" link Law 1 requires. Never a rebuild, never a flag. */
     onShowAllPanels: () => void;
+    /** WS-R52. The creator's own chrome locale and the control that changes
+     *  it, threaded here rather than into `WorkspaceProps` at large --
+     *  `StudioApp.tsx` owns the read/write (`replica.locale`,
+     *  `setReplicaLocale`), and only the shell renders the switch, in the
+     *  same place `RoomApp.tsx` renders the Room's own. */
+    locale: StudioLocale;
+    localeBusy: boolean;
+    onSwitchLocale: (next: StudioLocale) => void;
   },
 ) {
-  const { replica, mode, wizard, wizardInput, sources, step, onGoStep, compact, testEnvironment, runtimeStatus, onShowAllPanels } = props;
+  const { replica, mode, wizard, wizardInput, sources, step, onGoStep, compact, testEnvironment, runtimeStatus, onShowAllPanels, locale, localeBusy, onSwitchLocale } = props;
+  const { t } = useStudioLocale();
 
   // `undefined` = not opened this visit yet (see the file header and
   // `studioShellModel.ts`'s own doc comment on why that is a different fact
@@ -194,7 +241,9 @@ export default function StudioShell(
 
   return (
     <div className="studio-tabshell">
-      <nav className="studio-tabbar" aria-label="Your AI, in three tabs">
+      <StudioLanguageSwitch locale={locale} busy={localeBusy} onSwitch={onSwitchLocale} />
+
+      <nav className="studio-tabbar" aria-label={t.shell.tabsAriaLabel}>
         {TAB_ORDER.map((tab) => {
           const headline = headlineForTab(tab, inputs);
           const isCurrent = tab === activeTab;
@@ -206,7 +255,7 @@ export default function StudioShell(
               aria-current={isCurrent ? "step" : undefined}
               onClick={() => onGoStep(TAB_STEP[tab])}
             >
-              <span className="studio-tab-title">{TAB_TITLE[tab]}</span>
+              <span className="studio-tab-title">{t.shell.tabTitle[tab]}</span>
               <span className="studio-tab-dot" aria-hidden="true" />
               <span className="studio-tab-sentence">{headline.sentence}</span>
             </button>
@@ -215,8 +264,8 @@ export default function StudioShell(
       </nav>
 
       <section className="studio-shell-headline" aria-live="polite" aria-labelledby="studio-shell-headline-title">
-        <p className="eyebrow" id="studio-shell-headline-title">{TAB_TITLE[activeTab]}</p>
-        <p className="studio-shell-promise">{TAB_PROMISE[activeTab]}</p>
+        <p className="eyebrow" id="studio-shell-headline-title">{t.shell.tabTitle[activeTab]}</p>
+        <p className="studio-shell-promise">{t.shell.tabPromise[activeTab]}</p>
         <p className={`studio-shell-sentence studio-shell-sentence-${active.state}`}>{active.sentence}</p>
         {active.primary && (
           <button
@@ -237,8 +286,8 @@ export default function StudioShell(
         <Band
           collapsible={compact}
           defaultOpen={false}
-          title="One video, by link"
-          blurb="A fourth way in, being built right now."
+          title={t.shell.oneVideoTitle}
+          blurb={t.shell.oneVideoBlurb}
         >
           <VideoLinkMount />
         </Band>
@@ -257,7 +306,7 @@ export default function StudioShell(
       />
 
       <button type="button" className="text-button studio-all-panels-link" onClick={onShowAllPanels}>
-        All panels (the full bench)
+        {t.shell.allPanelsLink}
       </button>
     </div>
   );

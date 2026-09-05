@@ -17,16 +17,10 @@ import { ReplicaApiError } from "./replicaApi";
 import {
   myCreatorInvites,
   issueMyCreatorInvite,
-  type CreatorInviteState,
   type MyCreatorInvites,
   type IssuedCreatorInvite,
 } from "./inviteApi";
-
-const STATE_LABEL: Record<CreatorInviteState, string> = {
-  unused: "Not used yet",
-  redeemed: "Redeemed",
-  expired: "Expired",
-};
+import { useStudioLocale } from "./localeContext";
 
 export default function InviteCreatorCard({
   token,
@@ -37,6 +31,8 @@ export default function InviteCreatorCard({
   roomPublished: boolean;
   onAuthError?: (error: ReplicaApiError) => void;
 }) {
+  const { t } = useStudioLocale();
+  const c = t.inviteCreator;
   const [data, setData] = useState<MyCreatorInvites | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,7 +50,7 @@ export default function InviteCreatorCard({
         // way a real 401/403 is one line down.
         const code = typeof e.data?.error === "string" ? e.data.error : "";
         if (code === "creator_invite_unavailable") {
-          setError("You have used all three invites, or your Room is not published yet.");
+          setError(c.usedAll);
           return;
         }
         if (e.status === 401 || e.status === 403) {
@@ -64,7 +60,7 @@ export default function InviteCreatorCard({
       }
       setError(e instanceof Error ? e.message.replaceAll("_", " ") : fallback);
     },
-    [onAuthError],
+    [onAuthError, c.usedAll],
   );
 
   const load = useCallback(async () => {
@@ -108,14 +104,13 @@ export default function InviteCreatorCard({
 
   return (
     <article className="teacher-sheet-card vy-room__invite-card">
-      <h3>Invite a creator</h3>
+      <h3>{c.title}</h3>
       <p className="field-note">
-        You can invite up to three other creators to build their own AI. A code works once, for the person you give
-        it to, and this screen is the only place it is ever shown in full.
+        {c.intro}
       </p>
 
       {!roomPublished && (
-        <p className="field-note">Publish your Room to start inviting other creators.</p>
+        <p className="field-note">{c.publishFirst}</p>
       )}
 
       {justIssued && (
@@ -123,11 +118,11 @@ export default function InviteCreatorCard({
           <div className="vy-room__link-row">
             <code className="vy-room__link">{justIssued.code}</code>
             <button className="button secondary-button" type="button" onPointerDown={copyCode}>
-              {copied ? "Copied" : "Copy code"}
+              {copied ? c.copied : c.copyCode}
             </button>
           </div>
           <p className="field-note">
-            Send this to the person you are inviting now. It will not be shown again.
+            {c.sendNow}
           </p>
         </>
       )}
@@ -138,12 +133,12 @@ export default function InviteCreatorCard({
         disabled={busy || !canIssue}
         onPointerDown={() => void issue()}
       >
-        {busy ? "Creating..." : "Create an invite code"}
+        {busy ? c.creating : c.createCode}
       </button>
       {data && (
         <p className="field-note">
-          {data.quota.used} of {data.quota.max} used.
-          {data.quota.remaining <= 0 && roomPublished ? " You have used all three." : ""}
+          {c.quota.split("{n}").join(String(data.quota.used)).split("{n2}").join(String(data.quota.max))}
+          {data.quota.remaining <= 0 && roomPublished ? c.quotaExhausted : ""}
         </p>
       )}
 
@@ -152,7 +147,7 @@ export default function InviteCreatorCard({
           {data.invites.map((invite) => (
             <li key={invite.invite_id} className="vy-room__suite-row">
               <div className="vy-room__suite-row-head">
-                <span className="vy-room__suite-name">{STATE_LABEL[invite.state]}</span>
+                <span className="vy-room__suite-name">{c.stateLabel[invite.state]}</span>
                 <span className="vy-room__suite-seats">
                   {invite.state === "redeemed" && invite.redeemed_at
                     ? new Date(invite.redeemed_at).toLocaleDateString()

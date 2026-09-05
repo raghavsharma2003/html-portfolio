@@ -47,17 +47,8 @@ import { ReplicaApiError } from "./replicaApi";
 import { readReadiness, type Readiness, type ReadinessAction, type ReadinessPart } from "./readinessApi";
 import type { StepId } from "./wizardModel";
 import { jumpTo } from "./WizardRail";
-
-/** Short, plain, and each one says what a low score would MEAN. Kept here
- *  rather than on the wire because it is copy, and copy belongs where the copy
- *  gate can read it (scripts/check-copy.mjs scopes src/studio, not api/). */
-const PART_HELP: Record<string, string> = {
-  knows_your_material: "Whether it can answer from what you gave us.",
-  sounds_like_you: "Whether your voice comes back as yours.",
-  thinks_like_you: "Whether you keep its answers or correct them.",
-  knows_what_not_to_say: "The lines you have told it never to cross.",
-  up_to_date: "Whether what it knows is still true.",
-};
+import { withCount } from "./copy";
+import { useStudioLocale } from "./localeContext";
 
 const DATE = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
@@ -76,41 +67,48 @@ function partState(part: ReadinessPart, floor: number): "measured" | "low" | "un
 }
 
 function PartCard({ part, floor }: { part: ReadinessPart; floor: number }) {
+  const { t } = useStudioLocale();
   const state = partState(part, floor);
   const when = shortDate(part.measured_at);
   // The hover half of "n and date on hover or tap". The tap half is the
   // <details> below, so neither input device is the only way in.
-  const hover = [part.method, part.n === null ? "" : `Sample: ${part.n}.`, when ? `Measured ${when}.` : ""]
+  const hover = [
+    part.method,
+    part.n === null ? "" : `${t.readiness.sample}: ${part.n}.`,
+    when ? `${t.readiness.measured} ${when}.` : "",
+  ]
     .filter(Boolean)
     .join(" ");
 
   return (
     <details className={`vy-readiness__part vy-readiness__part--${state}`}>
       <summary title={hover}>
+        {/* part.label is server-authored (api/_readiness.js) and stays
+            English -- copy.ts's own header names this exception. */}
         <span className="vy-readiness__part-label">{part.label}</span>
         {state === "unmeasured" ? (
-          <strong className="vy-readiness__part-absent">Not measured yet</strong>
+          <strong className="vy-readiness__part-absent">{t.readiness.notMeasuredYet}</strong>
         ) : (
           <strong className="vy-readiness__part-value">{part.value}</strong>
         )}
-        <span className="vy-readiness__part-help">{PART_HELP[part.id] ?? ""}</span>
+        <span className="vy-readiness__part-help">{t.readiness.partHelp[part.id] ?? ""}</span>
       </summary>
       <div className="vy-readiness__part-body">
         <p className="vy-readiness__part-detail">{part.detail}</p>
         <dl className="vy-readiness__part-meta">
           <div>
-            <dt>How</dt>
+            <dt>{t.readiness.how}</dt>
             <dd>{part.method}</dd>
           </div>
           {part.n !== null && (
             <div>
-              <dt>Sample</dt>
+              <dt>{t.readiness.sample}</dt>
               <dd>{part.n}</dd>
             </div>
           )}
           {when && (
             <div>
-              <dt>Measured</dt>
+              <dt>{t.readiness.measured}</dt>
               <dd>{when}</dd>
             </div>
           )}
@@ -133,6 +131,7 @@ export default function ReadinessPanel({
   onGoStep: (step: StepId) => void;
   onReadiness?: (readiness: Readiness) => void;
 }) {
+  const { t } = useStudioLocale();
   const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -149,11 +148,11 @@ export default function ReadinessPanel({
       // "waiting on us", named. Never a blank card, and never a zero: a failed
       // read is a platform failure and it says so rather than looking like a
       // clone that scored nothing.
-      setError(cause instanceof Error ? cause.message : "We could not read your readiness just now");
+      setError(cause instanceof Error ? cause.message : t.readiness.couldNotRead);
     } finally {
       setLoading(false);
     }
-  }, [onAuthError, onReadiness, replicaId, token]);
+  }, [onAuthError, onReadiness, replicaId, token, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -168,8 +167,8 @@ export default function ReadinessPanel({
   if (loading) {
     return (
       <section className="vy-readiness" aria-labelledby="readiness-title">
-        <p className="vy-readiness__eyebrow">Readiness</p>
-        <h2 id="readiness-title" className="vy-readiness__headline">Working out where your AI stands.</h2>
+        <p className="vy-readiness__eyebrow">{t.readiness.eyebrow}</p>
+        <h2 id="readiness-title" className="vy-readiness__headline">{t.readiness.workingOut}</h2>
         <div className="vy-readiness__parts" aria-hidden="true">
           {[0, 1, 2, 3, 4].map((slot) => <div key={slot} className="vy-readiness__skeleton" />)}
         </div>
@@ -180,10 +179,10 @@ export default function ReadinessPanel({
   if (error || !readiness) {
     return (
       <section className="vy-readiness" aria-labelledby="readiness-title">
-        <p className="vy-readiness__eyebrow">Readiness</p>
-        <h2 id="readiness-title" className="vy-readiness__headline">This one is on us.</h2>
-        <p className="vy-readiness__lede" role="alert">{error || "We could not read your readiness just now"}</p>
-        <button className="button secondary-button" type="button" onClick={() => void load()}>Try again</button>
+        <p className="vy-readiness__eyebrow">{t.readiness.eyebrow}</p>
+        <h2 id="readiness-title" className="vy-readiness__headline">{t.readiness.onUsHeadline}</h2>
+        <p className="vy-readiness__lede" role="alert">{error || t.readiness.couldNotRead}</p>
+        <button className="button secondary-button" type="button" onClick={() => void load()}>{t.readiness.tryAgain}</button>
       </section>
     );
   }
@@ -193,18 +192,18 @@ export default function ReadinessPanel({
 
   return (
     <section className="vy-readiness" aria-labelledby="readiness-title">
-      <p className="vy-readiness__eyebrow">Readiness</p>
+      <p className="vy-readiness__eyebrow">{t.readiness.eyebrow}</p>
       {readiness.overall === null ? (
         <h2 id="readiness-title" className="vy-readiness__headline">
-          Still an apprentice. {readiness.unmeasured_count === 1
-            ? "One part has not been measured yet, so there is no score to give you."
-            : `${readiness.unmeasured_count} parts have not been measured yet, so there is no score to give you.`}
+          {readiness.unmeasured_count === 1
+            ? t.readiness.stillApprenticeOne
+            : withCount(t.readiness.stillApprenticeMany, readiness.unmeasured_count)}
         </h2>
       ) : (
         <h2 id="readiness-title" className="vy-readiness__headline">
           <span className="vy-readiness__score">{readiness.overall}</span>
           <span className="vy-readiness__score-note">
-            out of 100, across the five parts below
+            {t.readiness.outOf100}
           </span>
         </h2>
       )}
@@ -218,14 +217,21 @@ export default function ReadinessPanel({
       <div className={`vy-readiness__lock ${readiness.publish_locked ? "" : "vy-readiness__lock--open"}`}>
         <div>
           <p className="vy-readiness__lock-state">
-            {readiness.publish_locked ? "Publishing is locked." : "Publishing is open."}
+            {readiness.publish_locked ? t.readiness.publishingLocked : t.readiness.publishingOpen}
           </p>
           <p className="vy-readiness__lock-why">
             {readiness.publish_locked
               ? weakest
-                ? `Weakest: ${weakest.label.toLocaleLowerCase("en-IN")}. To publish, every part needs ${readiness.floors.part} and the whole needs ${readiness.floors.overall}.`
-                : `To publish, every part needs ${readiness.floors.part} and the whole needs ${readiness.floors.overall}.`
-              : "Your AI can be reached by the people you choose on the next step."}
+                // weakest.label is server-authored (api/_readiness.js) and
+                // stays English -- copy.ts's own header names this exception.
+                ? t.readiness.lockedWhyWeakest
+                  .split("{name}").join(weakest.label.toLocaleLowerCase("en-IN"))
+                  .split("{n}").join(String(readiness.floors.part))
+                  .split("{n2}").join(String(readiness.floors.overall))
+                : t.readiness.lockedWhyNoWeakest
+                  .split("{n}").join(String(readiness.floors.part))
+                  .split("{n2}").join(String(readiness.floors.overall))
+              : t.readiness.openWhy}
           </p>
         </div>
         {action && (
@@ -237,7 +243,7 @@ export default function ReadinessPanel({
 
       {/* The trust line the old strip carried, kept because it is the one
           promise on this screen that never changes with a measurement. */}
-      <p className="vy-readiness__trust">Your voice is never listed or shared.</p>
+      <p className="vy-readiness__trust">{t.readiness.trustLine}</p>
     </section>
   );
 }

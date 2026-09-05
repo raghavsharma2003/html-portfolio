@@ -182,6 +182,31 @@ const TARGETS = [
     panels: ".studio-tabbar, .studio-shell-headline, .studio-tab",
     minPanels: 2,
   },
+  // WS-R52: the SAME two studio targets above, with the chrome in Hindi
+  // (Devanagari, Noto Sans Devanagari) instead of English -- `room-hi`'s own
+  // reason two targets up, restated for the creator's own studio: a
+  // creator's chrome is now bilingual (src/studio/copy.ts, migration 112)
+  // and a collapsed Devanagari column is exactly the defect class this gate
+  // exists to catch, so it needs its own measured target rather than
+  // trusting the English one to stand in for it.
+  {
+    name: "studio-hi",
+    fixture: "studio-layout-fixture.html",
+    query: (step) => `mode=teacher&step=${step}&lang=hi`,
+    steps: ["feed", "meet", "deploy"],
+    mounted: ".studio-shell, .studio-layout",
+    panels: ".wizard-band, .consent-panel, .processing-review, .mirror-call, .hear-voice",
+    minPanels: 2,
+  },
+  {
+    name: "studio:shell-hi",
+    fixture: "studio-layout-fixture.html",
+    query: (step) => `mode=teacher&step=${step}&lang=hi`,
+    steps: ["feed", "meet", "deploy"],
+    mounted: ".studio-tabshell",
+    panels: ".studio-tabbar, .studio-shell-headline, .studio-tab",
+    minPanels: 2,
+  },
   {
     name: "room",
     fixture: "room-layout-fixture.html",
@@ -675,15 +700,19 @@ function motionAudit() {
   return bad;
 }
 
-/** WS-R43 law 1, run inside the page against the REAL, live `ROOM_COPY_TABLE`
- *  (`window.__ROOM_HI_STRINGS__`, set by `layoutFixture.tsx` from the actual
- *  import — never a list re-typed in this file, which is exactly the kind of
- *  copy that goes stale the day a string is added to one side and not the
- *  other). `fontStack` is read from the page's own computed style, not
- *  hardcoded, so this cannot silently stop meaning anything the day
- *  `room.css`'s `.room-shell:lang(hi)` rule changes. */
-function glyphAudit({ fontStack, px, minDiffPct }) {
-  const pairs = window.__ROOM_HI_STRINGS__ || [];
+/** WS-R43 law 1, run inside the page against the REAL, live copy table
+ *  (`window.__ROOM_HI_STRINGS__` or, WS-R52, `window.__STUDIO_HI_STRINGS__`
+ *  — `stringsGlobal` names which; both are set by their own `layoutFixture.tsx`
+ *  from the actual import, never a list re-typed in this file, which is
+ *  exactly the kind of copy that goes stale the day a string is added to one
+ *  side and not the other). `fontStack` is read from the page's own computed
+ *  style, not hardcoded, so this cannot silently stop meaning anything the
+ *  day a `:lang(hi)` rule changes. WS-R52 generalised the ONE hardcoded
+ *  global into a parameter rather than copying this function a second time
+ *  — the brief's own instruction — so both callers share every future fix
+ *  to the measurement itself. */
+function glyphAudit({ fontStack, px, minDiffPct, stringsGlobal }) {
+  const pairs = window[stringsGlobal || "__ROOM_HI_STRINGS__"] || [];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   // Devanagari block, U+0900-U+097F. The width-diff test's whole premise is
@@ -922,6 +951,42 @@ async function main() {
     for (const r of results) {
       findings.push({
         where: "room-hi:glyph",
+        kind: "glyph",
+        el: r.key,
+        n: r.fontsCheck ? `${r.diffPct}%` : "fonts.check=false",
+        unit: "",
+        text: r.s.slice(0, 44),
+      });
+    }
+    await ctx.close();
+  }
+
+  // WS-R52: the SAME probe, called (not copied — `glyphAudit`'s own header),
+  // against the studio's own Hindi chrome, only when a studio-hi family
+  // target is actually in scope for this run.
+  if (ACTIVE_TARGETS.some((t) => t.name.startsWith("studio-hi") || t.name.startsWith("studio:shell-hi"))) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await page.goto(`http://127.0.0.1:${PORT}/studio-layout-fixture.html?mode=teacher&step=feed&lang=hi`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.waitForTimeout(800);
+    const fontStack = await page
+      .locator(".studio-shell")
+      .first()
+      .evaluate((el) => getComputedStyle(el).fontFamily)
+      .catch(() => '"Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif');
+    const { n, testableN, results } = await page.evaluate(glyphAudit, {
+      fontStack,
+      px: GLYPH_PROBE_PX,
+      minDiffPct: MIN_GLYPH_DIFF_PCT,
+      stringsGlobal: "__STUDIO_HI_STRINGS__",
+    });
+    glyphN += n;
+    glyphTestableN += testableN;
+    for (const r of results) {
+      findings.push({
+        where: "studio-hi:glyph",
         kind: "glyph",
         el: r.key,
         n: r.fontsCheck ? `${r.diffPct}%` : "fonts.check=false",

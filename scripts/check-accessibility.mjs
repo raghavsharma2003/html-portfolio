@@ -97,6 +97,19 @@ const TARGETS = [
     screens: ["feed", "meet", "deploy"],
     mounted: ".studio-tabshell",
   },
+  // WS-R52. The studio's own chrome in Hindi -- `room-hi`'s own reason one
+  // surface over: an accessibility gate that only ever renders the English
+  // studio would never catch a Devanagari-specific defect (a language switch
+  // with no accessible name, a focus ring lost against a Hindi label's own
+  // wrapping), and the studio now has a real Hindi chrome to check
+  // (src/studio/copy.ts, migration 112).
+  {
+    name: "studio:shell-hi",
+    fixture: "studio-layout-fixture.html",
+    query: (step) => `mode=teacher&step=${step}&lang=hi`,
+    screens: ["feed", "meet", "deploy"],
+    mounted: ".studio-tabshell",
+  },
   {
     name: "site",
     // Served straight off the dist root by `serveDist` below — no query,

@@ -8830,3 +8830,108 @@ own existing `box-shadow`/`border-radius` already reads as a card that
 WANTS to float) or an explicit `scrollIntoView`/`.focus()` call on open,
 matching `AccountPage.tsx`'s WS-R50 Escape-to-close precedent one level
 further.
+
+## `ws-r52-consuming-the-trailing-tag-boundary-in-a-jsx-text-scan` (2026-09-04, WS-R52)
+
+**Tried.** `evals/studio-locale/run.mjs`'s static scan for a literal
+English JSX text node used `/<[A-Za-z][A-Za-z0-9.]*(?:\s[^<>]*)?>([^<>{}]+)</g`
+- anchored on a real opening tag (so a TS generic like `useState<Foo |
+null>(null)` cannot match, unlike a naive `/>([^<>{}]*)</g` which matches
+ANY `>...<` pair anywhere in the file, TS comparison/generic operators
+included, and was rejected first for exactly that noise).
+
+**What broke.** The anchored version still passed on a negative-control
+fixture it should have failed: a hand-built `<section><h3>This is a
+literal English sentence</h3></section>` scanned as ZERO findings.  The
+regex's own trailing `<` is CONSUMED as part of the match (it sits inside
+the pattern, not a lookahead), so matching `<section>` up to the next tag
+consumes the `<` that starts `<h3>` as its own terminator. The next
+`exec()` call then resumes scanning from immediately AFTER that `<`, i.e.
+from `h3>This is a literal...`, which no longer starts with `<` and so
+never matches the tag-anchor requirement at all. Every tag immediately
+followed by another tag (`<section><h3>...`, the ordinary shape of a real
+component) had its INNER text node silently skipped; only text after the
+LAST tag in a run of adjacent tags was ever found. This is why the eval's
+own "the scan itself finds a planted literal sentence" assertion is not
+decorative - it caught this on the first real run, before the eval ever
+shipped counting a false "zero findings" as success.
+
+**The fix, and the law.** Change the trailing `<` from a captured/consumed
+character to a lookahead: `...>([^<>{}]+)(?=<)`. The next `exec()` then
+resumes from the SAME `<` the lookahead peeked at, so back-to-back tags no
+longer eat each other's boundaries. **A regex-based structural scanner (no
+real parser is a dependency here) must be proven against a fixture shaped
+like the REAL code it will run on - specifically, adjacent tags with no
+whitespace text node between them - not only against an isolated snippet
+that happens to have room for the match to land.** A negative control that
+never triggers is not evidence of correctness; it is evidence the control
+fixture was too easy.
+
+## `ws-r52-room-doors-fixture-omitted-now-drifted-into-a-real-failure` (2026-09-05, WS-R52, found and fixed, unrelated to this workstream's own files)
+
+**Found while re-running `evals/room-doors/run.mjs` for an unrelated reason**
+(confirming this workstream's changes had not broken it) - not a defect this
+workstream introduced, and not in a file this workstream otherwise touched.
+
+**What broke.** Six call sites across §2 (cross-room sessions) and §3
+(body-supplied ids) - `draftHandoffPayload`, `optIn`/`stop`/`listMine`,
+`followerSubscriptionStatus`, `startFollowerSubscription`,
+`withdrawHandoffRequest`/`myHandoffs` - passed a deps object with
+`loadAgent`/`env` but no `now`, while joining the SAME fixture room through
+`joinRoom(..., { now: NOW, ... })` a few lines above. `assertSessionFresh`
+(`api/_room-surface.js`) falls back to real `Date.now()` when `now` is
+absent, so these calls were silently checking a session minted at the
+fixture's fixed clock (`NOW`, a constant) against the REAL wall clock
+instead of the fixture's own. This produced no failure for as long as the
+gap between `NOW` and real time stayed under the session freshness window -
+which is exactly why it went unnoticed through however many sessions and
+merges this file has seen - and then failed outright once that gap grew
+past the threshold DURING this session's own runtime (the environment's
+date rolled from 2026-09-04 to 2026-09-05 mid-session), with the error
+`room_session_expired` thrown from three call sites that have nothing to do
+with each other except sharing the same missing keyword.
+
+**The fix, and the law.** Added `now: NOW` to all six call sites, matching
+every sibling call in the same file. **A test fixture with a "current time"
+concept needs EVERY call that consumes a time-scoped session to pass that
+SAME clock, not just the call that minted the session - a deps object that
+silently falls back to the real clock is a latent flake with a delay timer
+attached to it, not a bug that fails at write time.** The five-line diff
+that fixed this is safe by inspection (it makes six calls match the pattern
+every other call in the file already uses) and was verified stable across
+three consecutive re-runs before being left in place.
+
+## `ws-r52-explanatory-comment-named-the-guarded-tables-a-fifth-time` (2026-09-05, WS-R52)
+
+**What was tried.** `api/_replica.js`'s new `STUDIO_LOCALES` constant got a
+header comment explaining that its two-value shape matches
+`vy_room_follower.locale`/`vy_room.default_locale`'s own CHECK-bounded
+columns one surface over - naming the Room's follower-table column by
+name, in prose, as a design precedent citation.
+
+**What broke.** `evals/room-leak/run.mjs`'s scanner decides whether a file
+under `api/` is in its scanned set with one blunt check over the RAW FILE
+TEXT (`src.includes("vy_room_follower")`, etc.) - it does not distinguish
+a real query from a comment. `api/_replica.js` (a file with ZERO statements
+naming either table) failed the "no-statement-found" check membership in
+the scanned set requires the moment the comment landed, exactly the same
+way `ws-r37`'s and `ws-r48`'s own entries describe it happening to two
+other files.
+
+**Fix.** Reworded to "the Room's own follower- and room-level locale
+columns" - the substantive claim (this is the same shape, one surface
+over) survives intact without naming either table.
+
+**Rule, restated a FIFTH time in this repo's own history** (after
+`ws-r28-leak-battery-scanner-matches-prose-not-only-sql`, `ws-r37`'s and
+`ws-r48`'s own entries of the identical title, and at least one earlier
+occurrence): a comment in ANY file under `api/` that discusses
+`vy_room_follower`/`vy_room_thread` BY NAME - even to say a function does
+not touch them, even as a design-precedent citation - joins that file to
+the leak battery's scanned set exactly as a real query would. Five
+sessions have now hit this independently; the fix each time was a
+one-word paraphrase, never a scanner change, because the scanner being
+blunt about raw text is the point (a smarter comment-aware parser is
+exactly the kind of scanner a REAL leak could hide behind). A future
+session naming either table in a NEW file under `api/` should grep this
+entry before writing the sentence, not after the gate fails.

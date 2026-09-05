@@ -454,8 +454,15 @@ console.log("\n── 11. the studio card ──");
 const card = readFileSync(join(ROOT, "src/studio/DriftWatchCard.tsx"), "utf8");
 const cardCss = readFileSync(join(ROOT, "src/studio/drift-watch.css"), "utf8");
 const app = readFileSync(join(ROOT, "src/studio/StudioApp.tsx"), "utf8");
+// WS-R52: this card's own literal strings moved into src/studio/copy.ts (a
+// locale table, English and Hindi) - `card` alone no longer carries the
+// rendered English text, only `t.driftWatch.<key>` references. `cardWithCopy`
+// is what the two rendered-text checks below actually read, matching
+// `evals/readiness/run.mjs`'s own fix for the identical shape one card over.
+const copyTs = readFileSync(join(ROOT, "src/studio/copy.ts"), "utf8");
+const cardWithCopy = `${card}\n${copyTs}`;
 
-ok('the card renders "Not measured yet" rather than a zero', /Not measured yet/.test(card));
+ok('the card renders "Not measured yet" rather than a zero', /Not measured yet/.test(cardWithCopy));
 ok("the card computes no score of its own", !/reduce\(/.test(card) && !/Math\.round/.test(card));
 ok("the sparkline draws from real points only, no synthetic padding to a fixed length",
   /points\.map/.test(card) && !/Array\.from\(\{ length: \d+/.test(card));
@@ -467,7 +474,7 @@ ok("only transform and opacity animate, and this card animates neither",
 // three-pattern scan readiness's own eval uses would otherwise pair a
 // backtick in a comment with the next one two paragraphs later and swallow
 // prose that was never going to render, dashes included.
-const cardNoComments = card.split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
+const cardNoComments = cardWithCopy.split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
 const renderedText = [
   ...(cardNoComments.match(/>[^<>{}]{3,}</g) || []),
   ...(cardNoComments.match(/: "[^"]{6,}"/g) || []),

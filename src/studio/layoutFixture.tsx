@@ -30,6 +30,30 @@ import "./design/mobile.css";
 // and report OK about a layout nobody ships.
 import "./design/review-queue.css";
 import type { Replica } from "./types";
+import { STUDIO_COPY_TABLE } from "./copy";
+
+/** WS-R52. `src/room/layoutFixture.tsx`'s own `flattenHiStrings` -- the
+ *  measurement algorithm it feeds (`scripts/check-layout.mjs`'s `glyphAudit`)
+ *  is shared by calling the SAME function with a different `stringsGlobal`;
+ *  this eight-line flatten helper is glue, not measurement, and is kept
+ *  local rather than imported from `src/room/layoutFixture.tsx` because that
+ *  module runs a side-effecting `render()` at import time against a DOM node
+ *  (`#room-root`) this page never mounts. */
+function flattenHiStrings(node: unknown, prefix: string, out: [string, string][]): void {
+  if (typeof node === "string") {
+    out.push([prefix, node]);
+  } else if (Array.isArray(node)) {
+    node.forEach((v, i) => flattenHiStrings(v, `${prefix}[${i}]`, out));
+  } else if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) flattenHiStrings(v, prefix ? `${prefix}.${k}` : k, out);
+  }
+}
+
+declare global {
+  interface Window {
+    __STUDIO_HI_STRINGS__?: [string, string][];
+  }
+}
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", ""]);
 
@@ -42,6 +66,7 @@ const FIXTURE_REPLICA: Replica = {
   age_verified: false,
   identity_verified: false,
   liveness_verified: false,
+  locale: "en",
   created_at: "2026-08-01T09:00:00.000Z",
   updated_at: "2026-08-01T09:00:00.000Z",
 };
@@ -358,6 +383,13 @@ if (!LOOPBACK.has(window.location.hostname)) {
 } else {
   installStubFetch();
   seedAuth();
+  // WS-R52: the live copy table, exposed exactly as `src/room/layoutFixture.tsx`
+  // exposes `ROOM_COPY_TABLE.hi` -- never a list re-typed in this file.
+  window.__STUDIO_HI_STRINGS__ = (() => {
+    const out: [string, string][] = [];
+    flattenHiStrings(STUDIO_COPY_TABLE.hi, "", out);
+    return out;
+  })();
   // No StrictMode. Its double render is right for finding effect bugs and wrong
   // for a layout gate, which wants one settled paint to measure.
   ReactDOM.createRoot(root).render(<StudioApp />);

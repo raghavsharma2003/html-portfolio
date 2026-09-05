@@ -16,19 +16,11 @@ import {
   PaymentsApiError,
   type PayoutListEntry,
   type PayoutStatement,
-  type PayoutState,
 } from "./paymentsApi";
+import { useStudioLocale } from "./localeContext";
+import { withCount, withLabel, type StudioCopy } from "./copy";
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-
-const STATE_LABEL: Record<PayoutState, string> = {
-  built: "Built, not yet sent",
-  pending_account: "Waiting on a fund account",
-  queued: "Queued with the provider",
-  sent: "Sent",
-  settled: "Settled",
-  failed: "Failed",
-};
 
 function readableError(e: unknown, fallback: string): string {
   return e instanceof PaymentsApiError ? e.code.replaceAll("_", " ") : fallback;
@@ -40,23 +32,32 @@ function periodLabel(entry: { period_start: string; period_end: string }): strin
   return `${start} to ${end}`;
 }
 
-function statementAsPlainText(s: PayoutStatement): string {
+/** WS-R52: the downloaded file's own text is user-visible chrome too, so it
+ *  moves into copy.ts exactly like the on-screen labels it mirrors. */
+function statementAsPlainText(t: StudioCopy, s: PayoutStatement): string {
+  const c = t.payouts;
   const lines = [
-    `Payout statement, ${periodLabel(s)}`,
+    withLabel(c.statementDocTitle, periodLabel(s)),
     "",
-    `Gross: ${inr(s.gross_inr)}`,
-    `Platform take: ${inr(s.take_inr)}`,
-    `TDS withheld: ${inr(s.tds_inr)}`,
-    `Net to you: ${inr(s.net_inr)}`,
+    `${c.gross}: ${inr(s.gross_inr)}`,
+    `${c.platformTake}: ${inr(s.take_inr)}`,
+    `${c.tdsWithheld}: ${inr(s.tds_inr)}`,
+    `${c.netToYou}: ${inr(s.net_inr)}`,
     "",
-    `Follower subscriptions this period: ${s.follower_subscriptions}`,
+    withCount(c.followerSubsThisPeriod, s.follower_subscriptions),
   ];
   if (s.suite_share_inr > 0) {
-    lines.push(`Suite seat share${s.suite_name ? ` (${s.suite_name})` : ""}: ${inr(s.suite_share_inr)}, included in gross above`);
+    lines.push(
+      s.suite_name
+        ? c.suiteShare.split("{name}").join(s.suite_name).split("{label}").join(inr(s.suite_share_inr))
+        : withLabel(c.suiteShareNoName, inr(s.suite_share_inr)),
+    );
   }
-  lines.push("", s.tds_note, "", `State: ${STATE_LABEL[s.state]}`);
-  if (s.provider_payout_ref) lines.push(`Provider reference: ${s.provider_payout_ref}`);
-  lines.push(`Built: ${new Date(s.created_at).toLocaleString()}`);
+  lines.push("", c.tdsNote, "", withLabel(c.stateLine, c.stateLabel[s.state]));
+  if (s.provider_payout_ref) {
+    lines.push(`${withLabel(c.providerRef, s.provider_payout_ref).replace(/^,\s*/, "")}`);
+  }
+  lines.push(`${c.statementDocBuilt}: ${new Date(s.created_at).toLocaleString()}`);
   return lines.join("\n");
 }
 
@@ -71,6 +72,8 @@ function downloadBlob(content: string, mime: string, filename: string) {
 }
 
 export default function PayoutsCard({ token }: { token: string }) {
+  const { t } = useStudioLocale();
+  const c = t.payouts;
   const [payouts, setPayouts] = useState<PayoutListEntry[] | null>(null);
   const [error, setError] = useState("");
   const [openPayout, setOpenPayout] = useState<string | null>(null);
@@ -118,24 +121,23 @@ export default function PayoutsCard({ token }: { token: string }) {
     try {
       await registerPayoutFundAccount(token, ref);
       setFundAccountRef("");
-      setNotice("Fund account reference saved.");
+      setNotice(c.saved);
       await load();
     } catch (e) {
       setError(readableError(e, "could not save this fund account reference"));
     } finally {
       setBusy(null);
     }
-  }, [token, fundAccountRef, load]);
+  }, [token, fundAccountRef, load, c.saved]);
 
   return (
     <article className="teacher-sheet-card vy-room__payouts-card">
-      <h3>Payouts</h3>
+      <h3>{c.title}</h3>
       <p className="field-note">
-        One statement a month, one number you can check against your bank line: what followers paid, what the
-        platform took, what was withheld for tax, and what reaches you.
+        {c.intro}
       </p>
 
-      <label className="field-label" htmlFor="payout-fund-account">Fund account reference (from your payment provider, never a bank detail typed here)</label>
+      <label className="field-label" htmlFor="payout-fund-account">{c.fundAccountLabel}</label>
       <div className="vy-room__suite-join">
         <input
           id="payout-fund-account"
@@ -150,12 +152,11 @@ export default function PayoutsCard({ token }: { token: string }) {
           disabled={busy === "fund-account" || !fundAccountRef.trim()}
           onPointerDown={() => void saveFundAccount()}
         >
-          {busy === "fund-account" ? "Saving..." : "Save"}
+          {busy === "fund-account" ? c.saving : c.save}
         </button>
       </div>
       <p className="field-note">
-        This platform never asks for your bank account number or UPI id. Your payment provider issues a reference
-        once you finish their own onboarding, and that reference is the only thing saved here.
+        {c.fundAccountNote}
       </p>
 
       {payouts && payouts.length > 0 && (
@@ -165,12 +166,12 @@ export default function PayoutsCard({ token }: { token: string }) {
               <div className="vy-room__suite-row-head">
                 <span className="vy-room__suite-name">{periodLabel(p)}</span>
                 <span className="vy-room__suite-seats">
-                  {inr(p.net_inr)} net - {STATE_LABEL[p.state]}
+                  {c.netLabel.split("{label}").join(inr(p.net_inr)).split("{label2}").join(c.stateLabel[p.state])}
                 </span>
               </div>
               <div className="vy-room__suite-actions">
                 <button className="button secondary-button" type="button" onPointerDown={() => void toggle(p.payout_id)}>
-                  {openPayout === p.payout_id ? "Hide statement" : "Show statement"}
+                  {openPayout === p.payout_id ? c.hideStatement : c.showStatement}
                 </button>
               </div>
               {openPayout === p.payout_id && (
@@ -180,36 +181,35 @@ export default function PayoutsCard({ token }: { token: string }) {
                       <div className="vy-room__stats-grid">
                         <div className="vy-room__stat">
                           <span className="vy-room__stat-value">{inr(statement.gross_inr)}</span>
-                          <span className="vy-room__stat-label">Gross</span>
+                          <span className="vy-room__stat-label">{c.gross}</span>
                         </div>
                         <div className="vy-room__stat">
                           <span className="vy-room__stat-value">{inr(statement.take_inr)}</span>
-                          <span className="vy-room__stat-label">Platform take</span>
+                          <span className="vy-room__stat-label">{c.platformTake}</span>
                         </div>
                         <div className="vy-room__stat">
                           <span className="vy-room__stat-value">{inr(statement.tds_inr)}</span>
-                          <span className="vy-room__stat-label">TDS withheld</span>
+                          <span className="vy-room__stat-label">{c.tdsWithheld}</span>
                         </div>
                         <div className="vy-room__stat">
                           <span className="vy-room__stat-value">{inr(statement.net_inr)}</span>
-                          <span className="vy-room__stat-label">Net to you</span>
+                          <span className="vy-room__stat-label">{c.netToYou}</span>
                         </div>
                       </div>
-                      <p className="field-note">Follower subscriptions this period: {statement.follower_subscriptions}.</p>
+                      <p className="field-note">{withCount(c.followerSubsThisPeriod, statement.follower_subscriptions)}</p>
                       {statement.suite_share_inr > 0 && (
                         <p className="field-note">
-                          Includes a Suite seat share{statement.suite_name ? ` from ${statement.suite_name}` : ""}: {inr(statement.suite_share_inr)}.
+                          {statement.suite_name
+                            ? c.suiteShare.split("{name}").join(statement.suite_name).split("{label}").join(inr(statement.suite_share_inr))
+                            : withLabel(c.suiteShareNoName, inr(statement.suite_share_inr))}
                         </p>
                       )}
                       <p className="field-note">
-                        TDS reflects the rate the platform operator has configured. Right now that rate is 0%, so nothing is
-                        withheld. The operator believes Section 194J of India's Income Tax Act applies to a creator's Room
-                        earnings, but an accountant has not confirmed this, and the rate may change before any real payout
-                        is sent.
+                        {c.tdsNote}
                       </p>
                       <p className="field-note">
-                        State: {STATE_LABEL[statement.state]}
-                        {statement.provider_payout_ref ? `, provider reference ${statement.provider_payout_ref}` : ""}.
+                        {withLabel(c.stateLine, c.stateLabel[statement.state])}
+                        {statement.provider_payout_ref ? withLabel(c.providerRef, statement.provider_payout_ref) : ""}.
                       </p>
                       <div className="vy-room__suite-actions">
                         <button
@@ -223,28 +223,28 @@ export default function PayoutsCard({ token }: { token: string }) {
                             )
                           }
                         >
-                          Download as JSON
+                          {c.downloadJson}
                         </button>
                         <button
                           className="button secondary-button"
                           type="button"
                           onPointerDown={() =>
                             downloadBlob(
-                              statementAsPlainText(statement),
+                              statementAsPlainText(t, statement),
                               "text/plain",
                               `payout-statement-${statement.period_start.slice(0, 10)}.txt`,
                             )
                           }
                         >
-                          Download as text
+                          {c.downloadText}
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <p className="field-note">Could not load this statement.</p>
+                    <p className="field-note">{c.couldNotLoadStatement}</p>
                   )
                 ) : (
-                  <p className="field-note" role="status">Loading statement.</p>
+                  <p className="field-note" role="status">{c.loadingStatement}</p>
                 )
               )}
             </li>
@@ -252,7 +252,7 @@ export default function PayoutsCard({ token }: { token: string }) {
         </ul>
       )}
       {payouts && payouts.length === 0 && (
-        <p className="field-note">No payout has been built for you yet. This fills in once a period closes with revenue on it.</p>
+        <p className="field-note">{c.noPayoutYet}</p>
       )}
 
       {notice && <p className="field-note" role="status">{notice}</p>}

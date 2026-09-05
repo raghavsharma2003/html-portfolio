@@ -16,11 +16,14 @@ import {
   CheckinsApiError,
   type CheckinDesign,
 } from "./checkinsApi";
+import { useStudioLocale } from "./localeContext";
 
 const PROMPT_SHAPE_MAX = 2000;
 const TITLE_MAX = 120;
 
 export default function CheckinsCard({ token, replicaId }: { token: string; replicaId: string }) {
+  const { t } = useStudioLocale();
+  const c = t.checkins;
   const [designs, setDesigns] = useState<CheckinDesign[] | null>(null);
   const [error, setError] = useState("");
   const [title, setTitle] = useState("");
@@ -77,11 +80,9 @@ export default function CheckinsCard({ token, replicaId }: { token: string; repl
 
   return (
     <article className="teacher-sheet-card vy-room__checkins-card">
-      <h3>Check-ins</h3>
+      <h3>{c.title}</h3>
       <p className="field-note">
-        A paid follower opts in and picks their own schedule; your AI follows up on that schedule and never
-        because they went quiet. Write what to check on as a note to your AI, not a line for it to read aloud;
-        it will say it in its own words, every time.
+        {c.intro}
       </p>
 
       {designs && designs.length > 0 && (
@@ -98,28 +99,28 @@ export default function CheckinsCard({ token, replicaId }: { token: string; repl
                 disabled={busy === d.design_id}
                 onPointerDown={() => void toggle(d)}
               >
-                {busy === d.design_id ? "Working..." : d.state === "active" ? "Pause" : "Resume"}
+                {busy === d.design_id ? c.working : d.state === "active" ? c.pause : c.resume}
               </button>
             </li>
           ))}
         </ul>
       )}
       {designs && designs.length === 0 && (
-        <p className="field-note">No check-ins yet. The first one you add here becomes something a follower can opt into.</p>
+        <p className="field-note">{c.emptyList}</p>
       )}
 
-      <label className="field-label" htmlFor="checkin-title">Title</label>
+      <label className="field-label" htmlFor="checkin-title">{c.titleLabel}</label>
       <input
         id="checkin-title"
         className="field"
         value={title}
         maxLength={TITLE_MAX}
-        placeholder="Evening walk"
+        placeholder={c.titlePlaceholder}
         onChange={(event) => setTitle(event.target.value)}
       />
 
       <label className="field-label" htmlFor="checkin-shape">
-        What to check on (a note to your AI: it will phrase this itself)
+        {c.shapeLabel}
       </label>
       <textarea
         id="checkin-shape"
@@ -127,17 +128,17 @@ export default function CheckinsCard({ token, replicaId }: { token: string; repl
         rows={3}
         value={shape}
         maxLength={PROMPT_SHAPE_MAX}
-        placeholder="ask if they went for their evening walk today; celebrate briefly if yes, no guilt if no"
+        placeholder={c.shapePlaceholder}
         onChange={(event) => setShape(event.target.value)}
       />
 
-      <label className="field-label" htmlFor="checkin-cadence">Cadence hint (shown to the follower, e.g. "daily")</label>
+      <label className="field-label" htmlFor="checkin-cadence">{c.cadenceLabel}</label>
       <input
         id="checkin-cadence"
         className="field"
         value={cadence}
         maxLength={200}
-        placeholder="daily"
+        placeholder={c.cadencePlaceholder}
         onChange={(event) => setCadence(event.target.value)}
       />
 
@@ -147,7 +148,7 @@ export default function CheckinsCard({ token, replicaId }: { token: string; repl
         disabled={busy === "create" || !title.trim() || !shape.trim()}
         onPointerDown={() => void create()}
       >
-        {busy === "create" ? "Saving..." : "Add check-in"}
+        {busy === "create" ? c.saving : c.addCheckin}
       </button>
 
       {error && <p className="inline-error" role="alert">{error}</p>}

@@ -29,9 +29,11 @@
 // button here, re-read `context/rejected.md#the-sticky-pager-was-deleted-not-shrunk`
 // first.
 import { useState, type ReactNode } from "react";
-import { CLASS_COPY, disabledReason } from "./blockerClass";
+import { disabledReason } from "./blockerClass";
 import { type Missing, type StepId, type StepView, type WizardInput } from "./wizardModel";
 import { BlockerNotice } from "./BlockerNotice";
+import { getActiveStudioLocale, useStudioLocale } from "./localeContext";
+import { STUDIO_COPY_TABLE, withCount, withLabel } from "./copy";
 
 /**
  * A visually-hidden region that announces a jump for a screen reader.
@@ -65,6 +67,14 @@ function announce(text: string) {
   window.setTimeout(() => { el.textContent = text; }, 30);
 }
 
+/** WS-R52: `getActiveStudioLocale()` rather than a hook -- `announce` is a
+ *  plain function, not a component (see localeContext.tsx's own comment on
+ *  why this one variable exists outside the context). */
+function announcedMoveText(label: string | undefined): string {
+  const t = STUDIO_COPY_TABLE[getActiveStudioLocale()].wizardRail;
+  return withLabel(t.movedTo, label ?? t.theSection);
+}
+
 /**
  * Scroll to an anchor, open the `<details>` it lives inside, AND move focus.
  *
@@ -84,7 +94,7 @@ export function jumpTo(anchor: string, label?: string) {
   target.scrollIntoView({ behavior: "smooth", block: "start" });
   if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
-  announce(`Moved to ${label ?? "the section"}.`);
+  announce(announcedMoveText(label));
 }
 
 function StepDot({ state }: { state: StepView["state"] }) {
@@ -106,16 +116,17 @@ export function WizardRail({
   steps,
   current,
   onGo,
-  label = "Your AI, in three steps",
+  label,
 }: {
   steps: StepView[];
   current: StepId;
   onGo: (step: StepId) => void;
   label?: string;
 }) {
+  const { t } = useStudioLocale();
   return (
-    <nav className="wizard-rail" aria-label="Studio steps">
-      <p className="rail-label">{label}</p>
+    <nav className="wizard-rail" aria-label={t.wizardRail.navAriaLabel}>
+      <p className="rail-label">{label ?? t.wizardRail.railLabel}</p>
       <ol className="wizard-steps">
         {steps.map((step) => {
           const active = step.id === current;
@@ -138,7 +149,7 @@ export function WizardRail({
                   </span>
                   {top && (
                     <span className={`wizard-step-next wizard-step-next-${top.cls}`}>
-                      <span className="wizard-step-next-class">{CLASS_COPY[top.cls].label}</span>
+                      <span className="wizard-step-next-class">{t.classLabels[top.cls]}</span>
                       {top.label}
                     </span>
                   )}
@@ -177,10 +188,11 @@ export function CompactRail({
   current: StepId;
   onGo: (step: StepId) => void;
 }) {
+  const { t } = useStudioLocale();
   const here = steps.find((step) => step.id === current) ?? steps[0];
   const top = here && here.state !== "done" && here.state !== "stopped" ? here.top : null;
   return (
-    <nav className="compact-rail" aria-label="Studio steps">
+    <nav className="compact-rail" aria-label={t.wizardRail.navAriaLabel}>
       <ol className="compact-rail-steps">
         {steps.map((step) => (
           <li key={step.id}>
@@ -204,13 +216,13 @@ export function CompactRail({
       </ol>
       {top ? (
         <p className={`compact-rail-next compact-rail-next-${top.cls}`}>
-          <span className="compact-rail-next-class">{CLASS_COPY[top.cls].label}</span>
+          <span className="compact-rail-next-class">{t.classLabels[top.cls]}</span>
           <span className="compact-rail-next-label">{top.label}</span>
         </p>
       ) : (
         <p className="compact-rail-next compact-rail-next-clear">
           <span className="compact-rail-next-label">
-            {here?.state === "done" ? "Nothing is open on this step." : "Nothing is open on this step yet."}
+            {here?.state === "done" ? t.wizardRail.nothingOpenDone : t.wizardRail.nothingOpenNotDone}
           </span>
         </p>
       )}
@@ -239,9 +251,14 @@ export function PlatformWorkBanner({
    *  that does rather than jumping at nothing. */
   onSeeActivity: () => void;
 }) {
+  const { t } = useStudioLocale();
   if (!work) return null;
   if (work.running === 0 && work.stuck === 0 && work.undeployedLanes.length === 0) return null;
   const lane = work.undeployedLanes[0];
+  // WS-R52: this reason stays English. `disabledReason`'s headline/next are
+  // honesty-gated prose (`evals/studiowizard.mjs`'s English-only
+  // `BLAME_PATTERNS`) -- copy.ts's own header names this as the one class of
+  // string this workstream does not move.
   const reason = disabledReason(
     "us",
     lane
@@ -255,7 +272,7 @@ export function PlatformWorkBanner({
     <div className="platform-work-banner">
       <BlockerNotice reason={reason} />
       <button className="text-button" type="button" onClick={onSeeActivity}>
-        See what is happening
+        {t.wizardRail.seeWhatIsHappening}
       </button>
     </div>
   );
@@ -272,6 +289,7 @@ export function PlatformWorkBanner({
  * (`wizardModel.unknownBlockers` now renders those instead of dropping them).
  */
 function BlockerRow({ row }: { row: Missing }) {
+  const { t } = useStudioLocale();
   return (
     <li className={`wizard-blocker wizard-blocker-${row.cls}`}>
       <span className="wizard-blocker-label">{row.label}</span>
@@ -291,7 +309,7 @@ function BlockerRow({ row }: { row: Missing }) {
             }
           }}
         >
-          {row.cls === "you" ? "Go there" : "See what is happening"}
+          {row.cls === "you" ? t.wizardRail.goThere : t.wizardRail.seeWhatIsHappening}
         </button>
       )}
     </li>
@@ -299,6 +317,7 @@ function BlockerRow({ row }: { row: Missing }) {
 }
 
 export function StepBlockers({ step, compact = false }: { step: StepView; compact?: boolean }) {
+  const { t } = useStudioLocale();
   if (step.state === "done" || step.missing.length === 0) return null;
   const yours = step.missing.filter((row) => row.cls === "you");
   const ours = step.missing.filter((row) => row.cls === "us");
@@ -312,11 +331,11 @@ export function StepBlockers({ step, compact = false }: { step: StepView; compac
 
   return (
     <section className="wizard-blockers" aria-labelledby={`blockers-${step.id}`}>
-      <h3 id={`blockers-${step.id}`}>What is still open on this step</h3>
+      <h3 id={`blockers-${step.id}`}>{t.wizardRail.whatIsStillOpen}</h3>
 
       {lead && (
         <div className={`wizard-blockers-lead wizard-blockers-lead-${lead.cls}`}>
-          <p className="wizard-blockers-lead-class">{CLASS_COPY[lead.cls].label}</p>
+          <p className="wizard-blockers-lead-class">{t.classLabels[lead.cls]}</p>
           <ul><BlockerRow row={lead} /></ul>
         </div>
       )}
@@ -328,17 +347,17 @@ export function StepBlockers({ step, compact = false }: { step: StepView; compac
         // this panel that is genuinely optional.
         <details className="wizard-blockers-rest" open={!compact}>
           <summary>
-            <strong>Everything else on this step</strong>
+            <strong>{t.wizardRail.everythingElse}</strong>
             <span>
-              {restYours.length > 0 && `${restYours.length} you can act on`}
+              {restYours.length > 0 && withCount(t.wizardRail.youCanActOn, restYours.length)}
               {restYours.length > 0 && restOurs.length > 0 && ", "}
-              {restOurs.length > 0 && `${restOurs.length} on us`}
+              {restOurs.length > 0 && withCount(t.wizardRail.onUsCount, restOurs.length)}
             </span>
           </summary>
           <div className="wizard-blockers-columns">
             {restYours.length > 0 && (
               <div>
-                <p className="wizard-blockers-owner">{CLASS_COPY.you.label}</p>
+                <p className="wizard-blockers-owner">{t.classLabels.you}</p>
                 <ul>{restYours.map((row) => <BlockerRow key={row.code} row={row} />)}</ul>
               </div>
             )}
@@ -348,7 +367,7 @@ export function StepBlockers({ step, compact = false }: { step: StepView; compac
                     count of things with no names beside it. The class label
                     comes from the one table so a second surface cannot invent
                     a softer word for the same state. */}
-                <p className="wizard-blockers-owner">{CLASS_COPY.us.label}</p>
+                <p className="wizard-blockers-owner">{t.classLabels.us}</p>
                 <ul>{restOurs.map((row) => <BlockerRow key={row.code} row={row} />)}</ul>
               </div>
             )}
@@ -466,6 +485,7 @@ export function StepHead({ title, promise, compact }: {
   promise: string;
   compact: boolean;
 }) {
+  const { t } = useStudioLocale();
   const [open, setOpen] = useState(false);
   if (!compact) {
     return (
@@ -491,7 +511,7 @@ export function StepHead({ title, promise, compact }: {
           }
         }}
       >
-        {open ? "Hide why" : "Why this step"}
+        {open ? t.wizardRail.hideWhy : t.wizardRail.whyThisStep}
       </button>
       {open && <p className="step-promise" id="step-why-body">{promise}</p>}
     </section>
