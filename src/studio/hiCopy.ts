@@ -1398,4 +1398,26 @@ export const HI: StudioCopy = {
     replacePack: "पैक बदलें",
     removePrivateExperiment: "निजी एक्सपेरिमेंट हटाएं",
   },
+
+  shareKit: {
+    title: "शेयर किट",
+    intro: "आप जहां पहले से पोस्ट करते हैं, वहां के लिए सही टेक्स्ट और तस्वीर। एक कॉपी करें, या WhatsApp खोलें, संदेश तैयार मिलेगा।",
+    loading: "आपकी शेयर किट लोड हो रही है...",
+    whatsappLabel: "WhatsApp",
+    instagramLabel: "Instagram बायो",
+    youtubeLabel: "YouTube विवरण",
+    telegramLabel: "Telegram चैनल पोस्ट",
+    copy: "कॉपी करें",
+    copied: "कॉपी हो गया",
+    openWhatsapp: "WhatsApp खोलें",
+    viewPicture: "तस्वीर",
+    notPublishedYet: "अपनी शेयर किट पाने के लिए अपना Room प्रकाशित करें।",
+    whatsappTemplate:
+      "मैंने {name} AI शुरू किया है, जिससे आप {name} से जुड़े कभी भी सवाल पूछ सकते हैं। यह साफ बताता है कि यह एक AI है, {name} नहीं, और आपकी बात किसी और को नहीं बताई जाती। यहां बात करें: {url}",
+    instagramTemplate: "{name} AI, कभी भी बात करें: {url}",
+    youtubeTemplate:
+      "{name} AI अब यहां है।\n\nमैंने अपनी एक AI बनाई है ताकि आप कभी भी सवाल पूछ सकें, भले ही मैं उपलब्ध न होऊं। यह साफ बताता है कि यह एक AI है, {name} नहीं, और आपकी बात किसी और को नहीं बताई जाती।\n\nयहां बात करें: {url}",
+    telegramTemplate:
+      "{name} AI अब लाइव है। यहां कभी भी कुछ भी पूछें: {url}\n\nयह {name} की अपनी सामग्री से बनी एक AI है, खुद {name} नहीं, और यह आपकी बात किसी और को नहीं बताती।",
+  },
 };

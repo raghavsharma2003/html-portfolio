@@ -16148,3 +16148,138 @@ strength alone would mean every OTHER fixture screen's keyboard walk could
 now fire a real (stubbed) network call if it happens to tab onto the
 language switch, which is a wider behaviour change than this workstream's
 brief authorized. Keep it scoped to the one screen that needs it.
+
+## `ws-r85-migration-122-ships-with-the-js-allowlist-in-one-commit` (2026-09-05, WS-R85)
+
+**Decision.** `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` widens to admit
+`'whatsapp'`, `'instagram'`, `'youtube'` and `'telegram'` in the SAME commit
+as migration 122 (which widens `vy_room_arrival`'s CHECK constraint to
+match), rather than following WS-R59's own precedent of shipping the JS-only
+value first and leaving the SQL CHECK for a later merge.
+
+**Rationale.** This is the third time this exact law has been restated in
+this file (`ws-r59-install-via-not-yet-in-the-arrival-check-constraint`,
+`ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit`), and this
+workstream's own brief states it in the same words WS-R78's did: "never one
+without the other." A rejected insert is harmless
+(`recordRoomArrival`'s own `.catch(() => {})`), but it also means every
+share-kit arrival is silently uncounted until the gap closes — a real
+product cost for a workstream whose entire point is knowing where followers
+actually came from. `evals/room-share/run.mjs` cross-checks
+`ROOM_ARRIVAL_VIA` against migration 122's own CHECK clause text (parsed,
+never retyped), so a future value added to one side and not the other fails
+the gate immediately.
+
+**Reversal condition.** Unchanged from WS-R78's own statement of this law:
+if a future `via` value's own SQL migration is substantially riskier or
+slower to review than its JS-side allowlist change, the WS-R59 asymmetry
+pattern remains available. Three workstreams in a row choosing the
+same-commit posture for a trivial `alter table ... check` statement is not
+yet evidence this should become a hard rule rather than a repeated good
+choice — it would take a migration this simple that TRULY needed to be
+reviewed separately to make that case.
+
+## `ws-r85-share-kit-templates-carry-no-bio` (2026-09-05, WS-R85)
+
+**Decision.** Every share-kit template (`api/_share-kit.js`'s
+`SHARE_KIT_COPY`, restated from `src/studio/copy.ts`/`hiCopy.ts`'s own
+`shareKit` section) interpolates exactly two holes, `{name}` and `{url}`,
+and never `one_line_bio`.
+
+**Rationale.** `one_line_bio` (migration 105) is creator-authored free text
+capped at 140 characters with no lower bound this file could safely compose
+into Instagram's own 150-character bio limit without risking an overflow
+the copy gate cannot catch (a LENGTH problem, not a banned-word one) — a
+140-character bio plus even a short fixed sentence around it can exceed 150
+on its own, before the URL is even added. `buildShareKit` still asserts
+every rendered text against `SHARE_KIT_LIMITS` and throws rather than
+truncating (`ShareKitError('share_kit_text_over_limit', ...)`,
+`evals/share-kit/run.mjs` proves this fires and is not vacuous), but a
+template authored to need the bio would make that throw a routine
+production event instead of the "should never actually fire" defensive
+guard it is meant to be.
+
+**Reversal condition.** If a future measurement shows creators want their
+bio IN the share text badly enough to justify per-channel truncation logic
+(a real request, not a guess), build a bounded, truncation-aware composer
+for the channels with headroom (WhatsApp/YouTube/Telegram; Instagram's own
+150-character ceiling likely never has room for it) rather than widening
+these four fixed templates in place.
+
+## `ws-r85-share-kit-null-before-publish` (2026-09-05, WS-R85)
+
+**Decision.** `buildShareKit` (`api/_share-kit.js`) returns `null` — not an
+error, not a kit built against an address that 404s — for any Room whose
+`published_at` is falsy. `ShareKitCard.tsx` renders that as the honest
+`shareKit.notPublishedYet` sentence rather than four rows of text pointing
+at a link that answers "the link may be old, or the creator may have paused
+it" to every visitor who tries it.
+
+**Rationale.** The workstream brief's own law 2 states it directly: "the
+text ... never promises what Readiness has not passed." A creator who
+copies a WhatsApp message before publishing and pastes it into a group has
+sent every reader a broken link with no way to know it broke, and no way
+for THIS creator to fix it retroactively — `api/_room-page.js`'s unfurl and
+`api/_room-card.js`'s pictures already refuse to build anything for the
+identical case, this is that same refusal restated for text.
+
+**Reversal condition.** If a future product need arises for a creator to
+PRE-STAGE share text before publishing (queueing posts to send the moment
+they go live, say), the honest shape is a kit that says so explicitly
+("this will work once you publish") rather than silently building working
+links early — never simply dropping the `publishedAt` gate.
+
+## `ws-r85-share-kit-copy-canonical-in-studio-not-room` (2026-09-05, WS-R85)
+
+**Decision.** The four share-kit template strings live canonically in
+`src/studio/copy.ts`/`hiCopy.ts` (the CREATOR's own chrome), not
+`src/room/copy.ts` (the FOLLOWER's own Room) — even though every word in
+them is addressed to a follower reading a WhatsApp message, an Instagram
+bio, a YouTube description or a Telegram post. `api/_share-kit.js`'s
+`SHARE_KIT_COPY` restates them byte for byte, `api/_creator-page.js`'s
+`TASTE_COPY` restating `src/room/copy.ts` one file over — the identical
+"restated, not imported, proven equal by a parity eval" shape, crossing the
+opposite copy-table boundary.
+
+**Rationale.** The creator SEES this exact text in the Share tab before
+they copy it — it is not rendered on any screen `src/room/copy.ts` owns, and
+a follower never sees the template, only the finished text a creator chose
+to paste somewhere. The workstream brief names the source directly: "both
+locales from `src/studio/copy.ts` and `hiCopy.ts`."
+
+**Reversal condition.** If a future surface renders these templates
+DIRECTLY to a follower (an in-Room "share this" prompt, say, rather than
+text a creator copies elsewhere first), that surface's own copy file
+becomes the better canonical source and `api/_share-kit.js` would restate
+from there instead — this decision is about where a creator-facing preview
+of follower-facing text belongs, not a claim that the Room's own file could
+never hold it.
+
+## `ws-r85-channel-arrival-breakdown-is-four-statements-not-one-grouped-query` (2026-09-05, WS-R85)
+
+**Decision.** `api/_funnel.js`'s `shareKitArrivalsThisWeek` runs one
+statement PER channel (`channelArrivalCount`, four calls), each with a
+literal `via = '<channel>'` in its WHERE clause and nothing but
+`coalesce(sum(count), 0)` in its select list — not a single
+`select via, sum(count) ... where via = any($1) group by via` statement.
+
+**Rationale.** A single grouped query was tried first and rejected:
+`evals/room-leak/run.mjs`'s own `ARRIVAL_AGGREGATE_ONLY` scan requires
+EVERY item in a `vy_room_arrival` select list to be an aggregate function
+call, and a bare `via` column in the select list (needed to know which
+group a summed row belongs to) fails that check even though this specific
+column carries no person-identifying information — the scan cannot tell
+the difference between this column and one that does, and it is right not
+to try (`context/rejected.md#ws-r85-grouped-via-breakdown-query-fails-the-aggregate-only-select-list-scan`
+has the full measurement). Four round trips over one is the honest cost of
+keeping that scan meaningful rather than carving it a channel-breakdown
+exception that a future, actually-dangerous grouped query could hide
+behind.
+
+**Reversal condition.** If this line's own read latency is ever measured to
+matter on the ops board (four sequential round trips versus one), the scan
+itself could instead be widened to accept a per-item allowlist of KNOWN-safe
+non-aggregate columns (`via` named explicitly) rather than "every item must
+be an aggregate" — but that is a change to a leak-battery invariant, which
+needs its own measurement and its own review, not a workaround inside one
+caller.

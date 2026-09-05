@@ -197,6 +197,10 @@ await installStudioCopy("hi");
     // already carve out, and deliberately left in the allowlist below.
     "ActivityPanel.tsx", "ChannelsStudio.tsx", "TeacherSheetStudio.tsx",
     "VoicePreviewLab.tsx", "VoicePreviewPanel.tsx", "VoiceExperimentPanel.tsx",
+    // WS-R85's own new file: the Share tab's share kit card - "ShowcaseCard.tsx"'s
+    // own precedent, one line up, converted from its first commit rather
+    // than left in Tier 2.
+    "ShareKitCard.tsx",
   ];
 
   // Every file this workstream did NOT convert, one line each. See

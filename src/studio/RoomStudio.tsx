@@ -63,6 +63,7 @@ import SuiteCard from "./SuiteCard";
 import PayoutsCard from "./PayoutsCard";
 import InviteCreatorCard from "./InviteCreatorCard";
 import ShowcaseCard from "./ShowcaseCard";
+import ShareKitCard from "./ShareKitCard";
 import { roomSuite, type SuiteRoomStatus } from "./orgApi";
 import {
   readRoomPayments,
@@ -820,6 +821,11 @@ export default function RoomStudio({
               : withLabel(c.willReadAs, roomLink(slugPreview))}
         </p>
       </article>
+
+      {/* WS-R85 (migration 122). The share kit: WhatsApp/Instagram/YouTube/
+          Telegram text and picture, one tap - self-contained, ShowcaseCard's
+          own "owns its own fetch" precedent. */}
+      <ShareKitCard token={token} replicaId={replicaId} slug={room.slug} roomPublished={room.published} onAuthError={fail} />
 
       <article className="teacher-sheet-card vy-room__link-card">
         <h3>{c.telegramCardTitle}</h3>

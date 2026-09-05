@@ -2241,6 +2241,27 @@ const suites = {
   // Offline, deterministic, $0, no DB, no network, no model call, no GPU,
   // no import of the sibling repo (read on disk only, never required).
   "relational-core": "relational-core/run.mjs",
+  // WS-R85 (migration 122). The share kit: one tap gives a creator the exact
+  // text and picture for WhatsApp, an Instagram bio, a YouTube description
+  // and a Telegram channel post, each carrying its own `?via=` (`api/_share-
+  // kit.js`'s pure `buildShareKit`, no db). Proves: all four channels, both
+  // locales, each under its own platform's real limit, url shaped
+  // `<origin>/r/<slug>?via=<channel>` with every channel a member of
+  // `api/_room-surface.js`'s `ROOM_ARRIVAL_VIA` (migration 122's own CHECK);
+  // the brief's own picture mapping (story for WhatsApp/Telegram, og for
+  // YouTube, none for Instagram); a Room that has never published gets no
+  // kit at all — nothing honest to share yet; a static scan proves no
+  // follower/session/person/thread identifier is reachable from this file's
+  // own code; and copy parity — `SHARE_KIT_COPY` is byte-identical, both
+  // locales, to the REAL `src/studio/copy.ts`/`hiCopy.ts` `shareKit` section
+  // (`evals/studio-locale/run.mjs`'s own esbuild-bundle technique). THREE
+  // NEGATIVE CONTROLS: (a) a text over its own channel's limit THROWS rather
+  // than truncating; (b) a follower-identifier fixture is caught by the same
+  // static scan the real file passes; (c) a drifted copy of one template is
+  // caught by the same parity comparator.
+  //
+  // Offline, deterministic, $0, no DB, no network, no model call, no GPU.
+  "share-kit": "share-kit/run.mjs",
 };
 const pick = process.argv[2];
 let failed = 0;

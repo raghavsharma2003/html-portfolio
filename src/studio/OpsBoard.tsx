@@ -38,6 +38,7 @@ import {
   type OpsSelfCheck,
   type OpsPosterArrivals,
   type OpsDigest,
+  type OpsShareKitArrivals,
 } from "./opsApi";
 import type { StudioSession } from "./types";
 import "./design/ops-board.css";
@@ -226,11 +227,13 @@ function FunnelCard({
   shareArrivals,
   tasteTurns,
   posterArrivals,
+  shareKitArrivals,
 }: {
   funnel: OpsFunnel;
   shareArrivals: OpsShareArrivals;
   tasteTurns: OpsTasteTurns;
   posterArrivals: OpsPosterArrivals;
+  shareKitArrivals: OpsShareKitArrivals;
 }) {
   const { median, p90, n } = funnel.minutes_to_first_room;
   return (
@@ -282,6 +285,14 @@ function FunnelCard({
           has no follower at all, so unlike the line above this one carries
           no anonymity floor and always renders the real number. */}
       <p className="ops-board__empty">{tasteTurns.note}</p>
+      {/* WS-R85 (migration 122). The share kit's own breakdown - one line
+          per channel, same floor, so a stalled `share_arrivals_this_week`
+          line does not hide that a creator's WhatsApp copy is actually
+          working. Fixed order matches api/_share-kit.js's SHARE_KIT_CHANNELS. */}
+      <p className="ops-board__empty">{shareKitArrivals.channels.whatsapp.note}</p>
+      <p className="ops-board__empty">{shareKitArrivals.channels.instagram.note}</p>
+      <p className="ops-board__empty">{shareKitArrivals.channels.youtube.note}</p>
+      <p className="ops-board__empty">{shareKitArrivals.channels.telegram.note}</p>
     </div>
   );
 }
@@ -699,6 +710,7 @@ export default function OpsBoard() {
               shareArrivals={overview.share_arrivals_this_week}
               tasteTurns={overview.taste_turns_this_week}
               posterArrivals={overview.poster_arrivals_this_week}
+              shareKitArrivals={overview.share_kit_arrivals_this_week}
             />
             <PhaseGateCard gate={overview.phase_gate} />
             <SweepsStrip sweeps={overview.sweeps} />

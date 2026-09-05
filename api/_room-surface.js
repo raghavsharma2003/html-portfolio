@@ -853,11 +853,18 @@ export async function setTelegramCheckinsEnabledForFollower(db, followerId, enab
  *  (`context/decisions.md#ws-r59-install-via-not-yet-in-the-arrival-check-constraint`,
  *  superseded once 113 landed). `poster` is WS-R78's own `?via=poster`
  *  (the printable poster's QR, `api/_room-card.js`'s `poster` kind) and
- *  this workstream did NOT repeat that asymmetry — law 1 of its own brief
- *  is to widen the CHECK in the SAME commit, never one without the other,
- *  so migration 121 (this workstream's own) ships beside this line rather
- *  than waiting for a future one. */
-export const ROOM_ARRIVAL_VIA = Object.freeze(["share", "direct", "embed", "search", "install", "poster"]);
+ *  that workstream did NOT repeat the WS-R59 asymmetry — its own law 1
+ *  widened the CHECK in the SAME commit, migration 121. `whatsapp`,
+ *  `instagram`, `youtube` and `telegram` are WS-R85's own four (the share
+ *  kit's own per-channel `?via=` — `api/_share-kit.js`'s `buildShareKit`),
+ *  and this workstream follows the identical "never one without the
+ *  other" posture: migration 122 widens the CHECK in this same commit
+ *  (`context/decisions.md#ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit`
+ *  is WS-R78's own statement of the law this restates a second time). */
+export const ROOM_ARRIVAL_VIA = Object.freeze([
+  "share", "direct", "embed", "search", "install", "poster",
+  "whatsapp", "instagram", "youtube", "telegram",
+]);
 
 /** Anything not exactly one of the four named values becomes 'direct' — a
  *  stray query param, an empty string, undefined, or a value with SQL-shaped

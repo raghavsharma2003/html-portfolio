@@ -8716,6 +8716,60 @@
       "kind": "measurement",
       "title": "evals/room-locale 54/0 (was would-be 58/3 failing for the new telegram section before the fix, now 61/0); full eval registry 0 FAIL lines before and after; accessibility gate 17 to 18 pages, 0 findings both times, and 1 finding (lang-stale-disclosure-after-switch) when the client fix is manually reverted, proving the new check is non-vacuous.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-share-kit",
+      "kind": "component",
+      "title": "api/_share-kit.js: buildShareKit, a pure builder (no db) that turns a published Room's public fields into WhatsApp/Instagram/YouTube/Telegram text, a ?via=<channel> url and which picture, restated from src/studio/copy.ts/hiCopy.ts the way TASTE_COPY restates src/room/copy.ts",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-migration-122-ships-with-the-js-allowlist-in-one-commit",
+      "kind": "decision",
+      "title": "Migration 122 (whatsapp/instagram/youtube/telegram) widens vy_room_arrival_via_check in the SAME commit as ROOM_ARRIVAL_VIA, the third restatement of WS-R59/WS-R78's never-one-without-the-other law",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-share-kit-templates-carry-no-bio",
+      "kind": "decision",
+      "title": "Share-kit templates interpolate only {name} and {url}, never one_line_bio, because a 140-char unbounded bio could overflow Instagram's 150-char limit in a way the copy gate cannot catch",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-share-kit-null-before-publish",
+      "kind": "decision",
+      "title": "buildShareKit returns null for a Room whose published_at is falsy, never text pointing at a link that answers unavailable",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-share-kit-copy-canonical-in-studio-not-room",
+      "kind": "decision",
+      "title": "The four share-kit templates live canonically in src/studio/copy.ts/hiCopy.ts (the creator's own chrome, since the creator sees the text before copying it), restated in api/_share-kit.js, not src/room/copy.ts",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-channel-arrival-breakdown-is-four-statements-not-one-grouped-query",
+      "kind": "decision",
+      "title": "shareKitArrivalsThisWeek runs four separate aggregate-only statements (one per channel) rather than one grouped query, because the leak battery's ARRIVAL_AGGREGATE_ONLY scan refuses a bare via column in a select list",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-grouped-via-breakdown-query-fails-the-aggregate-only-select-list-scan",
+      "kind": "rejection",
+      "title": "A single select via, sum(count) ... group by via statement for the channel breakdown was tried and rejected: evals/room-leak/run.mjs's ARRIVAL_AGGREGATE_ONLY scan requires every select-list item to be an aggregate function call, and via alone is not one",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-share-kit-template-lengths-2026-09-05",
+      "kind": "measurement",
+      "title": "Share-kit template lengths for a representative Room, both locales, all four channels: Instagram is tightest at 95-97 of its 150-char limit; every other channel has 700+ characters of headroom",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r85-gates-2026-09-05",
+      "kind": "measurement",
+      "title": "WS-R85 offline gate results: share-kit 79/79, room-share 57/57, room-doors 568/568, room-leak 217/217, ops 137/137, studio-locale 58/58, studio-shell 68/68, layout gate clean on the studio target both locales",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17138,6 +17192,51 @@
       "src": "ws-r84-taste-screen-live-locale-switch-in-the-layout-gate",
       "rel": "measured_by",
       "dst": "ws-r84-locale-switch-refetch-measurements"
+    },
+    {
+      "src": "ws-r85-share-kit",
+      "rel": "part_of",
+      "dst": "ws-r1-the-room"
+    },
+    {
+      "src": "ws-r85-share-kit",
+      "rel": "part_of",
+      "dst": "ws-r7-room-publish"
+    },
+    {
+      "src": "ws-r85-migration-122-ships-with-the-js-allowlist-in-one-commit",
+      "rel": "supersedes",
+      "dst": "ws-r78-migration-121-ships-with-the-js-allowlist-in-one-commit"
+    },
+    {
+      "src": "ws-r85-share-kit",
+      "rel": "constrains",
+      "dst": "ws-r85-share-kit-templates-carry-no-bio"
+    },
+    {
+      "src": "ws-r85-share-kit",
+      "rel": "constrains",
+      "dst": "ws-r85-share-kit-null-before-publish"
+    },
+    {
+      "src": "ws-r85-share-kit",
+      "rel": "constrains",
+      "dst": "ws-r85-share-kit-copy-canonical-in-studio-not-room"
+    },
+    {
+      "src": "ws-r85-channel-arrival-breakdown-is-four-statements-not-one-grouped-query",
+      "rel": "caused_by",
+      "dst": "ws-r85-grouped-via-breakdown-query-fails-the-aggregate-only-select-list-scan"
+    },
+    {
+      "src": "ws-r85-share-kit-templates-carry-no-bio",
+      "rel": "measured_by",
+      "dst": "ws-r85-share-kit-template-lengths-2026-09-05"
+    },
+    {
+      "src": "ws-r85-share-kit",
+      "rel": "measured_by",
+      "dst": "ws-r85-gates-2026-09-05"
     }
   ]
 }

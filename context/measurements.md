@@ -11726,3 +11726,59 @@ deterministic, $0:
   added — every card this workstream touches already existed in both
   locales; the changes are which existing card gets sent, never a new
   one).
+
+## `ws-r85-share-kit-template-lengths-2026-09-05`
+
+n = 8 (4 channels x 2 locales), method: `buildShareKit({ name: "Anjali Physics", slug: "anjali-physics", locale, origin: "https://vyakti-silk.vercel.app", publishedAt: <a real ISO timestamp> })` run directly in node (not through the eval, a throwaway script printing `row.text.length` per channel), date 2026-09-05. Every rendered length against its own `SHARE_KIT_LIMITS` ceiling:
+
+| channel | en length / limit | hi length / limit |
+|---|---|---|
+| whatsapp | 264 / 300 | 264 / 300 |
+| instagram | 95 / 150 | 97 / 150 |
+| youtube | 294 / 5000 | 279 / 5000 |
+| telegram | 256 / 4096 | 231 / 4096 |
+
+Instagram carries the least headroom (53-55 characters) because its own real
+platform limit (150) is the tightest of the four — this is why
+`context/decisions.md#ws-r85-share-kit-templates-carry-no-bio` keeps every
+template to exactly `{name}`/`{url}`, never the creator's own free-text bio.
+A representative name ("Anjali Physics", 14 characters) was used; a
+longer real display name would narrow this headroom further, which is
+exactly the case `evals/share-kit/run.mjs`'s own over-limit negative
+control (a 400-character name) proves throws rather than silently
+overflowing or truncating.
+
+## `ws-r85-gates-2026-09-05`
+
+What is proven offline (n and method for each, all 2026-09-05, all $0/no
+network beyond npm): `node evals/share-kit/run.mjs` — 79 assertions, 0
+failed, covering both locales x four channels, the unpublished-Room refusal,
+a static no-follower-identifier scan, copy parity against the real bundled
+`src/studio/copy.ts`/`hiCopy.ts`, and three negative controls.
+`node evals/room-share/run.mjs` — 57 assertions extended to the ten-value
+`ROOM_ARRIVAL_VIA` allowlist, cross-checked against migration 122's own CHECK
+text. `node evals/room-doors/run.mjs` — 568 assertions, the new `share_kit`
+op added to `room-publish.js`'s `e-owner-bearer` class (a different owner's
+bearer gets `null`, the real owner gets a four-row kit). `node evals/room-
+leak/run.mjs` — 217 assertions, `ARRIVAL_AGGREGATE_ONLY` scan clean over the
+four new per-channel statements in `api/_funnel.js`. `node evals/ops/
+run.mjs` — 137 assertions, `share_kit_arrivals_this_week` added to the
+opsOverview honest-empty-state proof. `node evals/studio-locale/run.mjs` —
+58 assertions, `ShareKitCard.tsx` added to `TIER_1_FILES` (zero literal
+English JSX text nodes) and its Hindi copy scanned clean by the real gate.
+`node evals/studio-shell/run.mjs` — 68 assertions, `ShareKitCard.tsx` added
+to the orphan check's `NOT_A_STANDALONE_PANEL` allowlist (mounted inside
+`RoomStudio.tsx`, the `ShowcaseCard.tsx` precedent). `node scripts/check-
+layout.mjs --only studio` — 1651 prose blocks judged across both locales and
+all three viewports including the `deploy-picker` step (the published-Room
+scenario the Share tab renders under), 1205 Hindi strings glyph-checked,
+clean. `node scripts/check-copy.mjs` — 6 scopes clean, 21 negative controls
+bit. `node scripts/check-mirrors.mjs` — 10 markers, 0 disagree (unaffected;
+this workstream added none).
+
+What needs the live DB (not proven here, no `NEON_URL` in this environment):
+migration 122's `EXPLAIN` against the real catalog, and confirming the live
+constraint's name really is still `vy_room_arrival_via_check` at the moment
+this migration is applied (migration 122's own comment reads it back from
+`db/schema.sql`'s own record of migration 121's merge rather than
+re-deriving it, per that migration's own precedent).

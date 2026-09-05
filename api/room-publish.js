@@ -29,6 +29,12 @@
 //                                                    source review card (WS-R66)
 //   POST /api/room-publish {op:"showcase_remove"} take one showcase item down,
 //                                                    unconditional (WS-R66)
+//   POST /api/room-publish {op:"share_kit"}      the WhatsApp/Instagram/
+//                                                    YouTube/Telegram share
+//                                                    text and picture, or
+//                                                    a null kit if the Room
+//                                                    has never published
+//                                                    (WS-R85)
 //
 // Thin by construction, `api/clone-channel.js`'s own shape: cors, rate limit,
 // auth, dispatch, error shape. Every decision lives in `api/_room-publish.js`,
@@ -56,6 +62,7 @@ import {
   ownerRoomStats,
   setRoomShowcase,
   removeRoomShowcase,
+  ownerRoomShareKit,
 } from "./_room-publish.js";
 import { withDoor } from "./_incidents.js";
 import { bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES } from "./_room-surface.js";
@@ -68,6 +75,15 @@ function cors(res) {
 }
 
 const notFound = (res) => res.status(404).json({ error: "replica_not_found" });
+
+// WS-R85. `api/room-page.js`'s own `originFromRequest` — each thin handler
+// in this codebase derives its own origin from the request rather than
+// sharing a helper across an HTTP module boundary for two lines.
+function originFromRequest(req) {
+  const proto = String(req.headers["x-forwarded-proto"] || "https").split(",")[0].trim() || "https";
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+  return host ? `${proto}://${host}` : "";
+}
 
 async function handler(req, res) {
   cors(res);
@@ -195,6 +211,13 @@ async function handler(req, res) {
       const stats = await ownerRoomStats(q, user.id, replicaId);
       if (!stats) return notFound(res);
       return res.status(200).json({ stats });
+    }
+
+    if (op === "share_kit") {
+      const result = await ownerRoomShareKit(q, user.id, replicaId, { origin: originFromRequest(req) });
+      if (!result) return notFound(res);
+      obsBestEffort("room_publish.share_kit", { has_kit: result.kit != null });
+      return res.status(200).json(result);
     }
 
     if (op === "showcase_set") {

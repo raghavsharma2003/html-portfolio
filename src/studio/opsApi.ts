@@ -196,6 +196,22 @@ export interface OpsOverview {
   poster_arrivals_this_week: OpsPosterArrivals;
   // WS-R88 (migration 125).
   digest: OpsDigest;
+  // WS-R85 (migration 122).
+  share_kit_arrivals_this_week: OpsShareKitArrivals;
+}
+
+// WS-R85 (migration 122). `api/_funnel.js`'s own `shareKitArrivalsThisWeek`
+// shape, typed here unchanged - this file computes nothing, `opsApi.ts`'s
+// own header rule restated. One `OpsShareArrivals`-shaped entry per share-
+// kit channel, keyed by the same four names `api/_share-kit.js`'s
+// `SHARE_KIT_CHANNELS` names.
+export interface OpsShareKitArrivals {
+  channels: {
+    whatsapp: OpsShareArrivals;
+    instagram: OpsShareArrivals;
+    youtube: OpsShareArrivals;
+    telegram: OpsShareArrivals;
+  };
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {

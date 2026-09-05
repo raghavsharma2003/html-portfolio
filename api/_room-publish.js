@@ -61,6 +61,10 @@ import { monthKeyOf } from "./_room-surface.js";
 // `assertBioClean` below for why a plain string is wrapped as a JS literal
 // before it is handed to `scanSource`.
 import { scanSource } from "../scripts/check-copy.mjs";
+// WS-R85, migration 122. `buildShareKit`/`ShareKitError` — a pure builder,
+// this file's own `ownerRoomShareKit` below is the one caller that hands it
+// a real owned Room row.
+import { buildShareKit, ShareKitError } from "./_share-kit.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -949,6 +953,55 @@ export async function ownerRoomStats(db, ownerUserId, replicaId, { now = Date.no
     followers_active_24h: Number(row.followers_active_24h || 0),
     messages_this_month: Number(row.messages_this_month || 0),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// OP: share_kit (WS-R85, migration 122) — the exact text and picture for
+// WhatsApp, Instagram, YouTube and Telegram, one tap
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The owner's own Room, run through `buildShareKit` (`api/_share-kit.js`, a
+ * pure function — every real decision already lives there). `origin` and
+ * `now` are the two inputs this op adds beyond the room row itself:
+ * `origin` because the kit's per-channel `?via=` links must point at
+ * WHICHEVER deployment is asking (`api/room-card.js`'s own
+ * `originFromRequest` reasoning, one file over), `now` only so
+ * `evals/share-kit/run.mjs` can drive this at a fixed instant rather than
+ * racing a real clock (this file's `ownerRoomStats` above takes the
+ * identical parameter for the identical reason).
+ *
+ * Returns `{ room_id, kit: [...] | null }` — `kit` is `null` for a Room
+ * that has never published, `buildShareKit`'s own "nothing honest to share
+ * yet" rule, never a 404 or an error: an owner opening the Share tab before
+ * they publish should see an honest empty state, not a broken card.
+ *
+ * A `ShareKitError` from the builder (the defensive over-limit throw,
+ * `api/_share-kit.js`'s own header on why it should never actually fire) is
+ * caught and re-thrown as a `RoomPublishError` carrying the SAME
+ * `.code`/`.status`/`.details` — `api/room-publish.js`'s own catch block
+ * only instanceof-checks `RoomPublishError`, so a builder-native error class
+ * would otherwise fall through to a generic 500 that named nothing.
+ */
+export async function ownerRoomShareKit(db, ownerUserId, replicaId, { origin = "", now = Date.now() } = {}) {
+  assertOwnerScope(ownerUserId, replicaId);
+  const room = await ownedRoomRow(db, ownerUserId, replicaId);
+  if (!room) return null;
+  try {
+    const kit = buildShareKit({
+      name: room.display_name,
+      slug: room.slug,
+      locale: room.default_locale,
+      origin,
+      publishedAt: room.published_at,
+    });
+    return { room_id: room.room_id, kit };
+  } catch (error) {
+    if (error instanceof ShareKitError) {
+      throw new RoomPublishError(error.code, error.status, error.details);
+    }
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
