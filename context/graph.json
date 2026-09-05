@@ -9904,6 +9904,84 @@
       "kind": "measurement",
       "title": "Migrations 127 (the recall run) and 128 (the WhatsApp pointer) applied live at their merges, five statements one per request; fifteen new statements planned, all on indexes except the backfill sweep's ledger scan and two one-row-estimate scans, each accepted by name.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-readiness-crossed-via-raw-input-seeding-not-screen-seeding",
+      "kind": "decision",
+      "title": "Creator rehearsal: knows_your_material driven for real via a real Measure now click; the other four Readiness parts crossed by seeding raw input rows, never the computed screen.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced",
+      "kind": "decision",
+      "title": "Telegram voice rehearsal fakes beginOwnedVoicePreview/createNeonVoicePreviewLedger/createProductionProtectionAdapters/createOpenChatterboxPreviewProvider at the loader-redirect seam, never by reproducing the real fifteen-precondition CTE in a fixture.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-loader-redirect-matched-by-suffix-for-provenance-registry",
+      "kind": "decision",
+      "title": "evals/rehearsal/loader.mjs gains a two-segment suffix match for _provenance/registry.js, since its bare basename collides with eight other registry.js files across api/.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-meet-tab-reached-by-client-click-not-url-navigation",
+      "kind": "decision",
+      "title": "Creator rehearsal reaches the Meet step by clicking the real WizardRail tab, never a fresh ?step=meet navigation, to avoid a real render-loop bug.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount",
+      "kind": "rejection",
+      "title": "A fresh ?step=meet navigation races ReadinessPanel mount against the studio's still-loading replica list: 40+ real GET /api/readiness calls in under two seconds, tripping the door's own rate limit. Not fixed (out of this workstream's file scope).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-fifteen-precondition-voice-preview-cte-not-reproduced-in-a-fixture",
+      "kind": "rejection",
+      "title": "Reproducing beginOwnedVoicePreview's real fifteen-precondition CTE as new fixture SQL patterns was rejected as disproportionate; faked at the loader seam instead.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-readable-export-h2-count-against-full-manifest-fails",
+      "kind": "rejection",
+      "title": "Asserting the readable export's h2 count against the full 47-table manifest fails honestly: roomExport omits zero-row tables. Fixed by comparing against the same real response's own bytes.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-whatsapp-chat-export-rate-bucket-shared-across-full-locale-gates",
+      "kind": "rejection",
+      "title": "The readable export and Download everything share one 3-per-minute rate bucket keyed on a fixture-constant user id; --full (en+hi) exceeds it. Not fixed; evals/run.mjs never passes --full.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-creator-walk-hindi-full-blocked-before-this-workstreams-own-code",
+      "kind": "rejection",
+      "title": "creator.mjs --full fails in the hi gate at a pre-existing Context Locker band click, before this workstream's own new code runs. Not investigated further (out of file scope, gate registry runs en only).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-recall-run-real-score-2026-09-05",
+      "kind": "measurement",
+      "title": "Recall run scores 100/100 on n=22 held-out passages via a real Measure now click and a fake reply seam that echoes them verbatim.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-readiness-overall-after-real-recall-2026-09-05",
+      "kind": "measurement",
+      "title": "Readiness overall=93, min_part=82, unmeasured_count=0, publish_locked=false after the real recall run plus four seeded parts.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-rehearsal-wall-clocks-2026-09-05",
+      "kind": "measurement",
+      "title": "Creator walk 15.6s; follower browser walk 12.5-14.8s; WhatsApp rehearsal 140-283ms; Telegram rehearsal 61-336ms; all under the 40s per-walk budget.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r119-readiness-panel-render-loop-2026-09-05",
+      "kind": "measurement",
+      "title": "40+ real GET /api/readiness calls in under two seconds when navigating directly to ?step=meet, roughly 55ms average gap, reproduced twice.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -19286,6 +19364,36 @@
       "src": "rooms-migrations-127-128-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r103-backfill-sweep-closes-the-named-gap"
+    },
+    {
+      "src": "ws-r119-readiness-crossed-via-raw-input-seeding-not-screen-seeding",
+      "rel": "measured_by",
+      "dst": "ws-r119-recall-run-real-score-2026-09-05"
+    },
+    {
+      "src": "ws-r119-readiness-crossed-via-raw-input-seeding-not-screen-seeding",
+      "rel": "measured_by",
+      "dst": "ws-r119-readiness-overall-after-real-recall-2026-09-05"
+    },
+    {
+      "src": "ws-r119-meet-tab-reached-by-client-click-not-url-navigation",
+      "rel": "caused_by",
+      "dst": "ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount"
+    },
+    {
+      "src": "ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount",
+      "rel": "measured_by",
+      "dst": "ws-r119-readiness-panel-render-loop-2026-09-05"
+    },
+    {
+      "src": "ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced",
+      "rel": "caused_by",
+      "dst": "ws-r119-fifteen-precondition-voice-preview-cte-not-reproduced-in-a-fixture"
+    },
+    {
+      "src": "ws-r119-loader-redirect-matched-by-suffix-for-provenance-registry",
+      "rel": "part_of",
+      "dst": "ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced"
     }
   ]
 }

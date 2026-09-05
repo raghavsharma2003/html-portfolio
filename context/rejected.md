@@ -13187,3 +13187,140 @@ family of budget -- raise it FROM A MEASUREMENT, name the reversal
 condition, never copy a number). Flagged for the main loop rather than
 silently worked around; see `context/decisions.md#ws-r106-hindi-chunk-
 wait-miss-flagged-not-fixed` for the reversal condition.
+
+## `ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount` (2026-09-05, WS-R119)
+
+**Tried.** Reaching the studio's Meet step (where `ReadinessPanel` mounts)
+for the "Measure now" rehearsal step by a fresh `page.goto(".../studio.html
+?mode=teacher&step=meet")` navigation — the same shape this file's own
+"Share" tab has always been reached by URL-adjacent client state, just done
+as a full reload instead.
+
+**What broke.** A genuine render loop: `GET /api/readiness` fired 40+ times
+against the SAME `replica_id`, all logged consecutively with 20-90ms gaps,
+inside about two seconds — enough to trip `api/readiness.js`'s own IP-scoped
+rate limiter (`allow(ipOf(req), "readiness", 40)`), after which the screen
+shows "This one is on us. slow down" instead of the part cards, and every
+following interaction fails to find them. Reproduced twice, not a flake.
+Individually, `ReadinessPanel.tsx`'s `load` `useCallback`'s own dependencies
+(`onAuthError`, `onReadiness`, `replicaId`, `token`, `t`) each look stable
+under inspection (traced each one's origin up through `StudioApp.tsx` and
+`useStudioLocale()`), so the exact mechanism was not fully diagnosed —
+what is certain, measured rather than guessed, is that the loop exists and
+is specific to reaching `step=meet` via a FRESH navigation while the
+studio's own replica list is still settling from a cold mount.
+
+**What worked instead.** Clicking the real "Meet" tab (`page.getByText(/^Meet$/)
+.first().click()`) once the app has already been through several other
+steps in the SAME session — the replica list has long since settled by
+then, and the loop does not trigger (confirmed clean across five separate
+runs). A milder, bounded re-render still happens on this path (a `<details>`
+can detach mid-Playwright-interaction a few seconds after the tab switch —
+this file's own "Measure now" click and value-read use a single atomic
+`page.waitForFunction` DOM pass rather than two Playwright round trips for
+exactly this reason), but it never re-triggers the rate limit.
+
+**Not fixed.** `src/studio/ReadinessPanel.tsx`/`StudioApp.tsx` are outside
+this workstream's file scope (`evals/rehearsal/*` and `evals/room-doors/
+fixtures.mjs` only). Named here for whoever owns those files next — a real
+bug a real creator could hit by refreshing the page on the Meet step,
+independent of anything this rehearsal added.
+
+## `ws-r119-fifteen-precondition-voice-preview-cte-not-reproduced-in-a-fixture` (2026-09-05, WS-R119)
+
+**Tried.** Reproducing `api/_replica-voice-preview.js::beginOwnedVoicePreview`'s
+real fifteen-precondition CTE (three consent scopes, four identity checks,
+source readiness, a draft genome, a selected `enhance`-stage artifact, ...)
+as new `evals/room-doors/fixtures.mjs` patterns, so the Telegram voice
+rehearsal could drive `authorizeRoomVoice` for real through the actual HTTP
+door (`api/room-tg.js`, which supplies no `deps.authorize` override at all —
+unlike every EXISTING suite that reaches `roomSpeak`, `evals/room-telegram-
+voice/run.mjs` and `evals/room-paid-tier/run.mjs`, both of which inject
+`deps.authorize` directly and so never exercise this CTE either).
+
+**What broke.** The precondition set spans six tables
+(`vy_replica_consent`, `vy_replica_source`, `vy_replica_processing_artifact`,
+`vy_replica_processing_artifact_decision`, `vy_replica_voice_genome`,
+`vy_replica_processing_evidence`) this fixture has never modelled, and the
+follower fixture (`doorsDb`/`freshDoorsState`) has no owner-side voice
+pipeline state at all — reproducing it faithfully would be building a
+second, parallel voice-authorization fixture layer, exactly the scope this
+whole project's own "sounds_like_you HALF AN INSTRUMENT" problem already
+names as unsolved (`api/_readiness.js` §4).
+
+**What worked instead.** Faking `beginOwnedVoicePreview` and
+`createNeonVoicePreviewLedger` (both from `api/_replica-voice-preview.js`)
+plus `createProductionProtectionAdapters` (`api/_provenance/registry.js`)
+plus `createOpenChatterboxPreviewProvider` (`api/_voice/providers/open-
+chatterbox-preview.js`) at the loader-redirect seam this whole harness
+already rests on (`evals/rehearsal/loader.mjs`, the SAME "re-export
+everything real, override one function" shape `stubs/surface-with-fake-
+model.mjs` established for `_surface.js`) — see `context/decisions.md
+#ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced`.
+One additional real fixture row WAS still needed: `api/_room-voice.js`'s
+OWN `latestDraftGenomeVersion` read (`vy_replica_voice_genome`, UNREDIRECTED
+— only `_replica-voice-preview.js`'s exports are faked, `_room-voice.js`
+itself is real) had no matcher at all and threw `room_voice_not_built_yet`
+before `authorizeRoomVoice` ever reached the faked function — added as one
+new `evals/room-doors/fixtures.mjs` pattern, matched on the unique substring
+`"max(g.version)::int4 as version"`.
+
+## `ws-r119-readable-export-h2-count-against-full-manifest-fails` (2026-09-05, WS-R119)
+
+**Tried.** Asserting the readable export popup's own `<h2>` count equals
+`roomExportManifest().length` (47 — every table `roomExport` can EVER
+reach).
+
+**What broke.** `api/_room-surface.js::roomExport`'s own code omits any
+table with zero rows entirely (`if (rows.length) tables[t.table] = rows`),
+so a real follower's real export legitimately carries far fewer sections —
+3, in this walk's own fixture, not 47. `h2Count=3` against an expectation
+of 47 failed honestly the first time this was actually run.
+
+**What worked instead.** Comparing the popup's rendered `<h2>` count
+against the SAME real HTTP response's own bytes (`readableResponse.text()`,
+counted by regex) rather than the full manifest length. A SECOND fix was
+needed on top of that: an initial version computed the expected count via
+a SEPARATE, independently-timed `roomExport(db, {session}, ...)` Node-side
+call instead of reading the popup's own request/response pair, and that
+disagreed with the browser's own real call by one table (a live, mutable
+fixture read a few hundred milliseconds apart is not guaranteed to see the
+same state) — replaced with reading the count off the SAME response the
+popup itself rendered, so there is only ever one read to disagree with
+itself.
+
+## `ws-r119-whatsapp-chat-export-rate-bucket-shared-across-full-locale-gates` (2026-09-05, WS-R119)
+
+**Found, not fixed.** The readable export's own `POST /api/room {op:
+"export", format:"html"}` and the existing "Download everything" JSON step
+share ONE rate bucket (`api/room.js`'s own `allow(authUserId,
+"room_export_user", 3)`, a 3-per-minute cap) keyed on the AUTH USER ID —
+`followerBearer.A`, a fixture constant reused across the `en` AND `hi`
+gates within one `node evals/rehearsal/follower.mjs --full` process. The
+untouched walk only ever called this op once per gate (2 total across
+`--full`); this workstream's own readable-export addition calls it a
+second time per gate (4 total), which exceeds the shared 3-per-minute cap
+and 429s the `hi` gate's own download step. `evals/run.mjs`'s own registry
+runs the `en` gate only for both rehearsals (neither ever receives
+`--full`), so this is real, found-by-running behaviour rather than a gate
+regression — named here for whoever next relies on `--full` in CI rather
+than silently worked around (e.g. by giving each gate a distinct synthetic
+user id, which this workstream did not do because the fixture constants
+`followerBearer`/`followerPerson` are shared plumbing this workstream's
+brief did not ask it to change).
+
+## `ws-r119-creator-walk-hindi-full-blocked-before-this-workstreams-own-code` (2026-09-05, WS-R119)
+
+**Found, not fixed.** `node evals/rehearsal/creator.mjs` with
+`REHEARSAL_FULL=1` fails in the `hi` gate at the PRE-EXISTING "Files,
+links, videos, channels" Context Locker band click
+(`page.getByText(/^(Files, links, videos, channels|Add files and links)$/)`)
+— a step that runs BEFORE this workstream's own new readiness section ever
+executes, and that this workstream's own commits never touch. Reproduced
+twice in a row, not a flake ("the created replica renders in the studio's
+own 'Your AIs' rail" also fails first, non-fatally, immediately before
+it). Not investigated further: outside this workstream's file scope
+(`evals/rehearsal/creator.mjs`'s OWN edits are in scope, but the underlying
+studio component this locator targets is not), and `evals/run.mjs`'s own
+registry runs the `en` gate only. Named here for whoever next relies on
+`--full` for the creator walk.

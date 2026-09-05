@@ -18928,3 +18928,128 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r119-readiness-crossed-via-raw-input-seeding-not-screen-seeding` (2026-09-05, WS-R119)
+
+**Decision.** The creator rehearsal (`evals/rehearsal/creator.mjs`) no
+longer seeds `state.rehearsalReadinessLast` (the computed screen) directly
+to cross the publish floor. Instead: `knows_your_material` is measured for
+real, end to end, through a real "Measure now" click on the real
+`ReadinessPanel` card, driving the real `api/_recall-run.js` pipeline
+(`generateRecallSet` -> `scoreRecallRun` -> `storeRecallRun`) against 22
+seeded held-out passages and a fake reply seam that echoes them verbatim
+(scoring 100 for real, never hand-typed). The other four parts
+(`sounds_like_you`, `thinks_like_you`, `knows_what_not_to_say`,
+`up_to_date`) are crossed by seeding their RAW INPUT ROWS
+(`state.rehearsalClaims`, `state.rehearsalMirror`, `state.rehearsalFidelity`
++ `state.rehearsalGenome`, `state.rehearsalTeacherSheet`) — never the
+computed screen — and `GET /api/readiness` computes the real `overall`/
+`min_part`/`publish_locked` from all five, for real, which is what
+`api/room-publish.js`'s own SQL then reads to unlock publish.
+
+**Rationale.** The old approach (seeding `overall: 82, min_part: 71,
+unmeasured_count: 0` directly) proved nothing about `readinessScreen()`'s
+own arithmetic or about the publish-lock SQL actually reading a REAL
+computed snapshot — it only proved the SQL predicate could read A snapshot,
+seeded or not. R101 (the recall run) had landed on this workstream's base
+by the time this file was read (unlike when the ORIGINAL version of this
+walk was written, WS-R95/wave fifteen — see the stale comment this
+workstream removed), so the ONE part this repo has a real, drivable,
+$0 instrument for should be driven for real. The other four parts each
+have their OWN owner-triggered instrument (a voice enrollment, a Mirror
+Call, a person-model claim review) that is its own multi-stage pipeline
+with dedicated suites elsewhere — driving all four for real inside a
+40-second rehearsal budget is out of proportion to what this workstream's
+brief asked for, so their RAW rows are seeded instead, honestly named as
+seeded in the walk's own `gapNotes` output and in this entry.
+
+**Reversal condition.** If a future workstream builds a rehearsal-drivable
+seam for any of the four still-seeded parts (a fixture-backed Mirror Call
+loop, a fixture-backed voice-fidelity measurement, a fixture-backed
+person-model claim review reachable through a real door), that part should
+move from "raw input seeded" to "driven end to end" here, the same way
+`knows_your_material` just did — and the `gapNotes` line in `evals/
+rehearsal/creator.mjs` should shrink to name only the parts still seeded.
+
+## `ws-r119-voice-authorization-faked-at-loader-seam-not-fixture-reproduced` (2026-09-05, WS-R119)
+
+**Decision.** The Telegram voice rehearsal fakes `beginOwnedVoicePreview`/
+`createNeonVoicePreviewLedger` (`api/_replica-voice-preview.js`),
+`createProductionProtectionAdapters` (`api/_provenance/registry.js`) and
+`createOpenChatterboxPreviewProvider` (`api/_voice/providers/open-
+chatterbox-preview.js`) at the `evals/rehearsal/loader.mjs` module-redirect
+seam — never by reproducing `beginOwnedVoicePreview`'s real fifteen-
+precondition CTE as new `evals/room-doors/fixtures.mjs` SQL patterns.
+
+**Rationale.** See `context/rejected.md
+#ws-r119-fifteen-precondition-voice-preview-cte-not-reproduced-in-a-fixture`
+for what was tried and rejected. The loader-redirect technique is the SAME
+one `stubs/surface-with-fake-model.mjs` already established for
+`_surface.js` — re-export every real function unchanged, override only the
+one(s) that would reach a real network or a fixture this repo does not
+model — so this is an extension of an existing, proven pattern rather than
+a new kind of deviation. `_room-voice.js` itself (the module that calls
+`beginOwnedVoicePreview`) is left completely unredirected and real; only
+its own callee is faked, so `authorizeRoomVoice`'s real validation logic
+(`assertVoicePreviewAuthorization`, imported unmodified into the fake and
+run against the fabricated authorization object) still runs for real and
+would fail loudly if the fake's shape ever drifted from what the real
+validator demands.
+
+**Reversal condition.** If a future workstream builds a shared, reusable
+fixture recipe for `beginOwnedVoicePreview`'s real fifteen preconditions
+(needed anyway for a real end-to-end rehearsal of the studio's own
+"Preview my voice" panel, which today has NO rehearsal coverage either —
+see `context/STATE.md`'s own "no human has listened" line), this seam
+should be replaced by driving the real function through that fixture, and
+the loader-redirect entries for `_replica-voice-preview.js` should be
+removed from `evals/rehearsal/loader.mjs`.
+
+## `ws-r119-loader-redirect-matched-by-suffix-for-provenance-registry` (2026-09-05, WS-R119)
+
+**Decision.** `evals/rehearsal/loader.mjs`'s redirect table gained a
+SECOND matching mode — a two-segment SUFFIX match (`_provenance/
+registry.js`) — alongside its original bare-basename match, used only for
+`api/_provenance/registry.js`.
+
+**Rationale.** `find api/ -name registry.js` returns eight files
+(`_claim-extraction/`, `_asr/`, `_face-session/`, `_liveness/`, `_voice/`,
+`_provenance/`, `_dialogue/`, `_channel/`, `_identity/`) — a bare-basename
+redirect (this file's ORIGINAL, three-entry mechanism) would silently
+hijack every one of them the moment anything in this rehearsal's own
+transitive import graph resolved its OWN `./registry.js`, the same
+`router-matched-a-table-instead-of-a-statement` shape `context/
+rejected.md` already warns about for SQL matchers, one mechanism over.
+The other three redirected basenames (`_replica-voice-preview.js`,
+`_replica-storage.js`, `open-chatterbox-preview.js`) were each confirmed
+unique across the whole `api/` tree by the same `find` check before being
+added as plain basename entries — only `_provenance/registry.js` needed
+the wider match.
+
+**Reversal condition.** If a future basename collision is found for one
+of the three plain-basename entries (a second file with that exact name
+lands in `api/`), it should move to suffix matching the same way. If
+`api/_provenance/registry.js` is ever renamed or moved, the suffix string
+in `SUFFIX_REDIRECT` must move with it — nothing else references it.
+
+## `ws-r119-meet-tab-reached-by-client-click-not-url-navigation` (2026-09-05, WS-R119)
+
+**Decision.** The creator rehearsal's own "Measure now" step reaches the
+studio's Meet step by clicking the real WizardRail "Meet" tab
+(`page.getByText(/^Meet$/)`), never by a fresh `?step=meet` URL
+navigation.
+
+**Rationale.** See `context/rejected.md
+#ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount`. A
+fresh navigation races `ReadinessPanel`'s own mount against the studio's
+still-loading replica list and trips a real render loop measured at 40+
+`GET /api/readiness` calls in under two seconds; the tab click (reached
+after the walk has already been through several other steps, with the
+replica list long since settled) does not trigger it in five runs. This
+also happens to be the more faithful rehearsal of what a real creator
+does — nobody types `?step=meet` into the address bar.
+
+**Reversal condition.** If `src/studio/ReadinessPanel.tsx`'s own render
+loop is fixed (out of this workstream's scope — see the rejected.md entry),
+either approach would work again; no reason to revert once that lands,
+since the tab click is also the more realistic rehearsal.

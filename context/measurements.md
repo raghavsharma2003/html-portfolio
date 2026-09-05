@@ -13032,3 +13032,92 @@ exceeds 50 ms.
 Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
 sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
 `vy_room_follower_whatsapp_chat` row exists yet.
+
+## WS-R119 (2026-09-05) — both rehearsals' third pass
+
+### `ws-r119-recall-run-real-score-2026-09-05`
+
+**Recall run score.** 100/100 on n=22 held-out questions (`RECALL_SET_MIN`
+is 20), method: `evals/rehearsal/creator.mjs`'s own real "Measure now"
+click driving `api/_recall-run.js`'s real `generateRecallSet` ->
+`scoreRecallRun` -> `storeRecallRun` against 22 seeded single-sentence
+passages, scored by the real `scoreAnswer` (vocabulary overlap + word-order
+LCS) against a fake reply seam that echoes each passage verbatim. n=1 run
+(the score is deterministic given the echo, re-run twice with the same
+result). Reproduced across five consecutive runs of the same suite.
+
+### `ws-r119-readiness-overall-after-real-recall-2026-09-05`
+
+**Readiness overall after the real recall run.** overall=93, min_part=82,
+unmeasured_count=0, publish_locked=false. Five parts:
+`knows_your_material`=100 (real, above), `sounds_like_you`=82 (seeded raw
+fidelity mean 0.7 over a seeded raw owner ceiling 0.85, 12 windows),
+`thinks_like_you`=82 (seeded raw 18 sounds-right / 4 fix-it Mirror Call
+taps, 22 total, above `MIN_MIRROR_FEEDBACK`=20), `knows_what_not_to_say`=100
+(seeded raw: 3 approved boundary claims, person-model approved, escalation
+route present — all 3 of 3 protections), `up_to_date`=100 (seeded raw: 5
+approved claims, all inside their validity window). n=1 real `GET /api/
+readiness` read (reproduced identically across five runs, since every
+input is deterministic). Method: `evals/rehearsal/creator.mjs`'s own
+en-gate run, 2026-09-05.
+
+### `ws-r119-rehearsal-wall-clocks-2026-09-05`
+
+**Rehearsal wall clocks**, `evals/rehearsal/*`'s own suites, en gate only,
+n=5+ runs each, 2026-09-05:
+- Creator walk (browser, full suite incl. the recall run): 15.6s (single
+  measured run; consistently well under the 40s budget across five runs,
+  range roughly 13-16s).
+- Follower browser walk: 12.5-14.8s across five runs.
+- WhatsApp rehearsal (plain HTTP against the fake Cloud API, no browser):
+  140-283ms across five runs.
+- Telegram rehearsal (plain HTTP against the fake Bot API, no browser):
+  61-336ms across five runs.
+- Follower suite total (browser walk + WhatsApp + Telegram): 17.3-27.5s,
+  under the 40s per-walk budget with room to spare.
+
+**Steps driven versus named**, method: a straight count of this
+workstream's own new assertions and named gaps, 2026-09-05:
+- Creator walk: "Measure now" driven by 1 real DOM click (a single atomic
+  `page.waitForFunction` opening the card and clicking the button) + 1 real
+  `POST /api/readiness {op:"measure_now"}` + 1 real `GET /api/readiness`
+  re-read + 1 real `POST /api/room-publish {op:"publish"}`. Zero steps left
+  named-not-driven in this workstream's own new section; four Readiness
+  parts are named-and-seeded (raw rows, not the screen — see `context/
+  decisions.md#ws-r119-readiness-crossed-via-raw-input-seeding-not-screen-
+  seeding`).
+- Follower walk, readable export: 1 real click + 1 real `POST /api/room
+  {op:"export", format:"html"}` + a real popup document read (both
+  locales) — the R108 placeholder this workstream replaced ("named step,
+  not driven") is now driven; zero remaining named-not-driven steps in
+  this section.
+- Follower walk, WhatsApp: 6 real `POST /api/room-wa` calls (join, age
+  button, memory button, one ordinary message, stop, one unsigned negative
+  control) against the real door, all captured by the fake Cloud API
+  server. Zero named-not-driven steps.
+- Follower walk, Telegram: 7 real `POST /api/room-tg` calls (`/start`, age
+  callback, memory callback, one ordinary message, `/stop`, one wrong-
+  secret negative control) plus the real voice attempt riding on the
+  ordinary message's own turn, all captured by the fake Bot API server.
+  Zero named-not-driven steps.
+
+**Total suite counts**, n=1 measured run each of the untouched-tree
+baseline (see this workstream's final report for the exact before/after
+gate summary lines), 2026-09-05:
+- `evals/rehearsal/creator.mjs` (en gate): 34 checks, 34 passed, 0 failed.
+- `evals/rehearsal/follower.mjs` (en gate): 64 checks, 64 passed, 0 failed.
+
+### `ws-r119-readiness-panel-render-loop-2026-09-05`
+
+**`ReadinessPanel` render-loop measurement** (the finding behind
+`context/rejected.md
+#ws-r119-full-page-reload-to-step-meet-races-readiness-panels-mount`): 40+
+real `GET /api/readiness` calls against the same `replica_id`, logged via
+Playwright's own `page.on("request"/"response")` listeners on the harness's
+real server, spanning roughly 268ms to 1857ms after navigation (request #1
+at 268ms, #8 at 638ms, #10 at 790ms, #20 at 1214ms, #30 at 1857ms — an
+average gap of roughly 55ms across the measured window), all against a
+fresh `?step=meet` navigation. n=2 reproductions. Method: `evals/rehearsal/
+creator.mjs`'s own temporary debug instrumentation (removed before commit
+— the finding is recorded here and in `rejected.md`, not left in the
+shipped suite).

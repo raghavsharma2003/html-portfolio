@@ -19,8 +19,11 @@
 // is refused) -> export -> forget.
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { startHarness } from "./harness.mjs";
+import { createHmac } from "node:crypto";
+import { startHarness, setNetworkRemap } from "./harness.mjs";
 import { launchRehearsalBrowser } from "./browser.mjs";
+import { startFakeWaCloudApiServer } from "./stubs/fake-wa-cloud-api-server.mjs";
+import { startFakeTgBotApiServer } from "./stubs/fake-tg-bot-api-server.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
@@ -38,6 +41,27 @@ const paymentsModule = await import(pathToFileURL(join(ROOT, "api/_payments.js")
 const { setRoomPrice, startFollowerSubscription, applyWebhook } = paymentsModule;
 const FAKE_PROVIDER = await import(pathToFileURL(join(ROOT, "api/_payments/providers/fake.js")).href);
 const { OWNER, REPLICA_ID } = await import(pathToFileURL(join(ROOT, "evals/room-doors/fixtures.mjs")).href);
+
+// WS-R119. The readable export's own manifest completeness — the SAME REAL
+// `roomExportManifest` `api/room.js`'s own `format: "html"` branch calls
+// before ever building the page, driven here OFFLINE (no `db`) with
+// `evals/room-export/run.mjs`'s own `FULL_DEPS` shape so this walk knows,
+// independent of the DOM, exactly how many `<h2>` sections the popup MUST
+// carry.
+const roomSurfaceModule = await import(pathToFileURL(join(ROOT, "api/_room-surface.js")).href);
+const { roomExportManifest } = roomSurfaceModule;
+const { PERSON_TABLES } = await import(pathToFileURL(join(ROOT, "api/memory.js")).href);
+const EXPORT_MANIFEST = await roomExportManifest({ personTables: async () => PERSON_TABLES, tableApplied: async () => true });
+
+// WS-R119. The WhatsApp join rehearsal's own Meta-shaped signer —
+// `api/whatsapp.js::signatureOk`'s own algorithm restated (never imported:
+// that file's own module-level `APP_SECRET` const is baked in at import
+// time, `harness.mjs`'s own header on why, so this walk signs against the
+// SAME fixture secret `harness.mjs` sets there, `WHATSAPP_APP_SECRET`).
+function signMetaWebhook(rawBody, secret) {
+  return `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+}
+const WHATSAPP_APP_SECRET = "w".repeat(40); // harness.mjs's own fixture default, restated
 
 const FULL = process.argv.includes("--full");
 const STATE_KEY = "meera.state.v1";
@@ -86,6 +110,8 @@ const COPY = {
     close: "Close",
     aboutHeading: "What this AI knows about you",
     pushEnable: "Allow check-ins on this phone",
+    openReadable: "Open a readable copy",
+    forgetHeadingReadable: "Asking to be forgotten",
   },
   hi: {
     tasteJoin: "बात जारी रखने के लिए जुड़ें",
@@ -104,6 +130,8 @@ const COPY = {
     close: "बंद करें",
     aboutHeading: "यह AI आपके बारे में क्या जानता है",
     pushEnable: "इस फ़ोन पर चेक-इन की अनुमति दें",
+    openReadable: "पढ़ने लायक कॉपी खोलें",
+    forgetHeadingReadable: "भुला देने के लिए कहना",
   },
 };
 
@@ -623,11 +651,72 @@ async function runJourney({ harness, browser, locale, gate }) {
   await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
   await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
 
-  // ── readable export (WS-R108) — a NAMED step, not landed on this
-  //    worktree's wave-sixteen base at the time this walk was written
-  //    (`git log --oneline -1` and a repo-wide grep for "readable" found no
-  //    such module — see this workstream's final report). ────────────────
-  console.log(`  ${gate}: (named step, not driven — R108's readable export had not landed on this worktree's base)`);
+  // ── readable export (WS-R108, now driven for real) — "Open a readable
+  //    copy" clicked on the real account page; the popup's own document
+  //    (`window.open("","_blank")` then `document.write`, `printReceipt`'s
+  //    own shape one control over) read for real: one `<h2>` per table this
+  //    follower's own export actually carries. `roomExportManifest()` names
+  //    every table `roomExport` can EVER reach (47) but `roomExport` itself
+  //    omits a table with zero rows entirely (`if (rows.length) tables[t
+  //    .table] = rows`, `api/_room-surface.js`'s own code) — so the real
+  //    expected count is read straight off the SAME real response's own
+  //    bytes (`readableResponse.text()`, below), never the full manifest
+  //    length or a second, separately-timed call (found the hard way: the
+  //    first version of this walk asserted against `EXPORT_MANIFEST.length`
+  //    and failed honestly against the real door, 3 real tables against 47
+  //    possible).
+  //
+  //    NAMED under `--full`: `api/room.js`'s own `op === "export"` shares
+  //    ONE rate bucket (`room_export_user`, `allow(authUserId, ...,3)`) with
+  //    the "Download everything" step further down, keyed on the AUTH USER
+  //    ID — `followerBearer.A` is the SAME fixture constant across the en
+  //    AND hi gates in one `--full` process, so 2 export calls per gate x 2
+  //    gates = 4 hits a 3-per-minute cap the untouched walk never used to
+  //    reach (it only ever called this op once per gate). `evals/run.mjs`'s
+  //    own registry runs the en gate ONLY (this file's own header states
+  //    this, and `--full` is never passed there), so this is real, found-
+  //    by-running behaviour rather than a gate regression — logged to
+  //    `context/rejected.md` rather than silently worked around. ─────────
+  await page.getByRole("button", { name: c.accountOpen }).click();
+  await page.waitForSelector(".room-account", { timeout: 10_000 });
+  const [readablePopup, readableResponse] = await Promise.all([
+    context.waitForEvent("page", { timeout: 10_000 }),
+    page.waitForResponse(
+      (r) => r.url().endsWith("/api/room") && r.request().postDataJSON()?.op === "export"
+        && r.request().postDataJSON()?.format === "html",
+      { timeout: 10_000 },
+    ),
+    page.getByRole("button", { name: c.openReadable }).click(),
+  ]);
+  ok(`${gate}: the readable export's own real request returns 200`, readableResponse.status() === 200);
+  const readableResponseText = await readableResponse.text();
+  const serverH2Count = (readableResponseText.match(/<h2>/g) || []).length;
+  await readablePopup.waitForLoadState("load");
+  await readablePopup.waitForFunction(
+    () => document.body && document.body.innerText.trim().length > 0, null, { timeout: 10_000 },
+  ).catch(() => {});
+  ok(`${gate}: the readable export's own document lang matches the follower's chosen locale`,
+    await readablePopup.evaluate(() => document.documentElement.lang) === locale);
+  const h1Text = await readablePopup.locator("h1").first().innerText().catch(() => "");
+  ok(`${gate}: the readable export's own heading names the AI`, h1Text.includes("AI"), h1Text);
+  const h2Count = await readablePopup.locator("h2").count();
+  // Compared against the SAME real response's own bytes (`readableResponse.text()`,
+  // captured off the wire before the popup ever parsed it), never a second,
+  // separately-timed `roomExport` call: two independent reads of live state
+  // a few hundred milliseconds apart could legitimately disagree (a push
+  // subscription or a session touch landing in between), which is exactly
+  // what the first version of this check tripped over — found by running it
+  // for real, not assumed. This instead proves the popup renders EXACTLY
+  // what the server sent, and that the server sent a non-trivial, bounded
+  // count of the possible ${EXPORT_MANIFEST.length} manifest tables.
+  ok(`${gate}: the readable export carries one heading per table the real response actually holds (server sent ${serverH2Count}, popup rendered ${h2Count})`,
+    h2Count === serverH2Count && h2Count > 0 && h2Count <= EXPORT_MANIFEST.length);
+  const readableBodyText = await readablePopup.locator("body").innerText().catch(() => "");
+  ok(`${gate}: the readable export's own "asking to be forgotten" section renders in ${locale}`,
+    readableBodyText.includes(c.forgetHeadingReadable));
+  await readablePopup.close();
+  await page.locator(".room-account .room-actions").last().getByRole("button", { name: c.close, exact: true }).click();
+  await page.waitForSelector(".room-account", { state: "detached", timeout: 10_000 });
 
   // ── export ───────────────────────────────────────────────────────────────
   await page.getByRole("button", { name: c.dataMenuOpen }).click();
@@ -666,6 +755,206 @@ async function runJourney({ harness, browser, locale, gate }) {
   await context.close();
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R119 (wave seventeen, third pass). THE WHATSAPP JOIN — Meta-shaped
+// webhook payloads, signed with `WHATSAPP_APP_SECRET` exactly as Meta signs
+// a real delivery, POSTed to the REAL `api/room-wa.js` door
+// (`ROOM_WHATSAPP_CHAT=1`, `harness.mjs`'s own env default). Outbound calls
+// (`sendSessionMessage`'s own `fetch` to `graph.facebook.com`) are captured
+// by a fake Cloud API server on 127.0.0.1, reached through `harness.mjs`'s
+// own `setNetworkRemap` — never a real Meta call. Run once, on the "en"
+// gate only: the real flow is locale-invariant server-side (`handleJoin`'s
+// own header: "every card here is 'en'", the same limitation
+// `joinInstructionCard` states), so a second run under `--full` would only
+// repeat the same assertions against the SAME hard-coded locale, not add
+// coverage — named here rather than silently doubled.
+// ═════════════════════════════════════════════════════════════════════════
+async function runWhatsappRehearsal(harness, gate) {
+  const { url: baseUrl, state } = harness;
+  const cloudApi = await startFakeWaCloudApiServer();
+  setNetworkRemap({ "https://graph.facebook.com": cloudApi.url });
+  const phone = "+919876500001";
+  const bareFrom = phone.replace(/^\+/, "");
+  let seq = 0;
+  const nextId = () => `wa-rehearsal-${gate}-${++seq}`;
+  const messagePayload = (message) => ({ entry: [{ changes: [{ value: { messages: [message] } }] }] });
+  const textPayload = (text) => messagePayload({ from: bareFrom, id: nextId(), type: "text", text: { body: text } });
+  const buttonPayload = (buttonId) => messagePayload({
+    from: bareFrom, id: nextId(), type: "interactive",
+    interactive: { type: "button_reply", button_reply: { id: buttonId } },
+  });
+  async function postWebhook(payload, { signed = true } = {}) {
+    const raw = JSON.stringify(payload);
+    const headers = { "content-type": "application/json" };
+    if (signed) headers["x-hub-signature-256"] = signMetaWebhook(raw, WHATSAPP_APP_SECRET);
+    const r = await fetch(`${baseUrl}/api/room-wa`, { method: "POST", headers, body: raw });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  }
+
+  try {
+    console.log(`\n── follower journey (${gate}): WhatsApp join, over a fake Cloud API ──`);
+    const joined = await postWebhook(textPayload("join anjali"));
+    ok(`${gate}: WhatsApp "join anjali", signed with WHATSAPP_APP_SECRET, is authenticated and handled by the real door`,
+      joined.status === 200 && joined.body?.ok === true, JSON.stringify(joined.body));
+    const ageCard = cloudApi.sent.find((s) => s.body?.type === "interactive"
+      && s.body?.interactive?.action?.buttons?.some((b) => b.reply?.id === "a1:anjali"));
+    ok(`${gate}: the real join sent a real age-gate button card through the fake Cloud API`, Boolean(ageCard));
+
+    const agedYes = await postWebhook(buttonPayload("a1:anjali"));
+    ok(`${gate}: the age button reply is handled`, agedYes.status === 200 && agedYes.body?.ok === true);
+    const memoryCard = cloudApi.sent.find((s) => s.body?.type === "interactive"
+      && s.body?.interactive?.action?.buttons?.some((b) => b.reply?.id === "m1:anjali"));
+    ok(`${gate}: the age answer sent a real memory-gate button card`, Boolean(memoryCard));
+
+    const joinCallStart = cloudApi.sent.length;
+    const memoryYes = await postWebhook(buttonPayload("m1:anjali"));
+    ok(`${gate}: the memory button reply completes the join through the real lane`,
+      memoryYes.status === 200 && memoryYes.body?.ok === true);
+    ok(`${gate}: the real join wrote a real vy_room_follower_whatsapp_chat pointer`,
+      (state.waChatPointers || []).some((p) => p.phone_hash && !p.stopped_at));
+    const joinedCard = cloudApi.sent.slice(joinCallStart).find((s) => s.body?.type === "text");
+    ok(`${gate}: joining sent a real "joined" text card`, Boolean(joinedCard?.body?.text?.body), JSON.stringify(joinedCard?.body));
+
+    // ── one turn through the real lane ─────────────────────────────────
+    const turnStart = cloudApi.sent.length;
+    const said = await postWebhook(textPayload("why does the block not slide when I push it?"));
+    ok(`${gate}: one ordinary WhatsApp message reaches the real roomSay lane`, said.status === 200 && said.body?.ok === true);
+    const reply = cloudApi.sent.slice(turnStart).find((s) => s.body?.type === "text");
+    ok(`${gate}: the real lane's reply was sent through the fake Cloud API, a real bubble of text`,
+      Boolean(reply?.body?.text?.body), JSON.stringify(reply?.body));
+
+    // ── stop ────────────────────────────────────────────────────────────
+    const stopStart = cloudApi.sent.length;
+    const stopped = await postWebhook(textPayload("stop"));
+    ok(`${gate}: "stop" is handled`, stopped.status === 200 && stopped.body?.ok === true);
+    const pointerAfterStop = (state.waChatPointers || [])[0];
+    ok(`${gate}: "stop" leaves the pointer stopped, never deleted`, Boolean(pointerAfterStop?.stopped_at));
+    const stopCard = cloudApi.sent.slice(stopStart).find((s) => s.body?.type === "text");
+    ok(`${gate}: "stop" sent a real stopped card`, Boolean(stopCard?.body?.text?.body));
+
+    // NEGATIVE CONTROL: an unsigned payload never reaches the real lane.
+    const unsigned = await postWebhook(textPayload("join anjali"), { signed: false });
+    ok(`${gate}: NEGATIVE CONTROL — an unsigned WhatsApp webhook is refused before the real door ever dispatches it`,
+      unsigned.status === 401 && unsigned.body?.error === "bad signature header", JSON.stringify(unsigned));
+  } finally {
+    setNetworkRemap({});
+    await cloudApi.stop();
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// WS-R119 (wave seventeen, third pass). THE TELEGRAM VOICE REPLY — a real
+// `/start`, age/memory callbacks and one ordinary message, POSTed to the
+// REAL `api/room-tg.js` door (`ROOM_TELEGRAM_WEBHOOK_SECRET`, `harness.mjs`'s
+// own env default), outbound calls captured by a fake Bot API server on
+// 127.0.0.1 through the SAME `setNetworkRemap` seam. `ROOM_VOICE=1`
+// (`harness.mjs`'s own default) and a paid tier (seeded directly on the
+// fixture follower row this join just wrote — no in-scope door drives a real
+// charge for a SECOND, Telegram-only follower when the web follower's own
+// receipts step already proves the real payments lane end to end once per
+// gate) are what make `attemptRoomVoiceDelivery` actually attempt a clip.
+//
+// The voice deps room-tg.js's own `buildRoomVoiceDeps` constructs
+// (`createOpenChatterboxPreviewProvider`, `createProductionProtectionAdapters`,
+// `readPrivateReplicaObject`) are faked at the module-redirect seam those
+// three relative specifiers ARE (`evals/rehearsal/loader.mjs`'s own three
+// new entries this wave adds) — never a change to `room-tg.js` itself, and
+// never a real Azure call. `authorizeRoomVoice`'s own fifteen-precondition
+// CTE (`api/_replica-voice-preview.js::beginOwnedVoicePreview`) is faked the
+// same way, for the reason that file's own header states at length: no
+// fixture in this repo reproduces those fifteen preconditions, and every
+// EXISTING suite that reaches `roomSpeak` injects `deps.authorize` directly
+// instead — which the real HTTP door never allows a caller to do.
+// ═════════════════════════════════════════════════════════════════════════
+async function runTelegramRehearsal(harness, gate) {
+  const { url: baseUrl, state } = harness;
+  const botApi = await startFakeTgBotApiServer();
+  setNetworkRemap({ "https://api.telegram.org": botApi.url });
+  const tgUserId = 778800111;
+  let seq = 0;
+  const nextUpdateId = () => 600000 + (++seq);
+  const messageUpdate = (text) => ({
+    message: {
+      chat: { id: tgUserId, type: "private" },
+      from: { id: tgUserId, username: "rehearsal_tg", language_code: "en" },
+      text, message_id: seq,
+    },
+  });
+  const callbackUpdate = (data) => ({
+    callback_query: {
+      id: `cbq-${seq}`,
+      from: { id: tgUserId, username: "rehearsal_tg", language_code: "en" },
+      message: { chat: { id: tgUserId } },
+      data,
+    },
+  });
+  async function postUpdate(update, { secret = "t".repeat(40) } = {}) {
+    const headers = { "content-type": "application/json" };
+    if (secret) headers["x-telegram-bot-api-secret-token"] = secret;
+    const r = await fetch(`${baseUrl}/api/room-tg`, {
+      method: "POST", headers, body: JSON.stringify({ update_id: nextUpdateId(), ...update }),
+    });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  }
+  const replyMarkupOf = (s) => JSON.stringify(s.json?.reply_markup ?? "");
+
+  try {
+    console.log(`\n── follower journey (${gate}): Telegram voice reply, over a fake Bot API ──`);
+    const started = await postUpdate(messageUpdate("/start anjali"));
+    ok(`${gate}: Telegram "/start anjali" is authenticated and handled by the real door`,
+      started.status === 200 && started.body?.ok === true, JSON.stringify(started.body));
+    const ageMsg = botApi.sent.find((s) => s.method === "sendMessage" && replyMarkupOf(s).includes("a1:anjali"));
+    ok(`${gate}: the real /start sent a real age-gate inline keyboard`, Boolean(ageMsg));
+
+    const aged = await postUpdate(callbackUpdate("a1:anjali"));
+    ok(`${gate}: the age callback is handled`, aged.status === 200 && aged.body?.ok === true);
+    const memMsg = botApi.sent.find((s) => s.method === "sendMessage" && replyMarkupOf(s).includes("m1:anjali"));
+    ok(`${gate}: the age answer sent a real memory-gate inline keyboard`, Boolean(memMsg));
+
+    const joinStart = botApi.sent.length;
+    const memoried = await postUpdate(callbackUpdate("m1:anjali"));
+    ok(`${gate}: the memory callback completes the join through the real lane`,
+      memoried.status === 200 && memoried.body?.ok === true);
+    ok(`${gate}: the real join wrote a real Telegram channel binding`,
+      (state.channelMap || []).some((c) => c.channel === "telegram" && c.channel_ref === String(tgUserId)));
+    const joinedMsg = botApi.sent.slice(joinStart).find((s) => s.method === "sendMessage");
+    ok(`${gate}: joining sent a real "joined" message`, Boolean(joinedMsg?.json?.text), JSON.stringify(joinedMsg?.json));
+
+    // Paid tier — seeded directly on the row the real join above just wrote,
+    // this file's own header states why (out of scope: a second, Telegram-
+    // only payments charge). `state.followers` is push-only across this
+    // whole suite (`state.referrals[state.referrals.length - 1]`'s own
+    // precedent, earlier in this file), so the just-joined row is the last.
+    const tgFollower = state.followers[state.followers.length - 1];
+    ok(`${gate}: the fixture's own new follower row is this Telegram identity's (sanity, before mutating its tier)`,
+      Boolean(tgFollower));
+    if (tgFollower) tgFollower.tier = "paid";
+
+    const turnStart = botApi.sent.length;
+    const said = await postUpdate(messageUpdate("why does the block not slide when I push it?"));
+    ok(`${gate}: one ordinary Telegram message reaches the real roomSay lane`, said.status === 200 && said.body?.ok === true);
+    const textReply = botApi.sent.slice(turnStart).find((s) => s.method === "sendMessage");
+    ok(`${gate}: the real lane's text reply was sent through the fake Bot API`, Boolean(textReply?.json?.text));
+    const voiceReply = botApi.sent.slice(turnStart).find((s) => s.method === "sendVoice");
+    ok(`${gate}: the real lane's voice reply (ROOM_VOICE=1, paid tier) called sendVoice with a real multipart body`,
+      Boolean(voiceReply) && voiceReply.contentType.startsWith("multipart/form-data")
+        && voiceReply.raw.includes('name="chat_id"') && voiceReply.raw.includes('name="voice"')
+        && voiceReply.raw.includes("reply.wav"),
+      voiceReply ? `content-type=${voiceReply.contentType} bytes=${voiceReply.raw.length}` : "no sendVoice call captured");
+
+    const stopped = await postUpdate(messageUpdate("/stop"));
+    ok(`${gate}: "/stop" is handled`, stopped.status === 200 && stopped.body?.ok === true);
+
+    // NEGATIVE CONTROL: a wrong secret never reaches the real lane.
+    const wrongSecret = await postUpdate(messageUpdate("hello"), { secret: "wrong-secret" });
+    ok(`${gate}: NEGATIVE CONTROL — a wrong Telegram webhook secret is refused before the real door ever dispatches it`,
+      wrongSecret.status === 401 && wrongSecret.body?.error === "room_telegram_bad_secret", JSON.stringify(wrongSecret));
+  } finally {
+    setNetworkRemap({});
+    await botApi.stop();
+  }
+}
+
 export async function main() {
   // The one launch both rehearsals share (`./browser.mjs`): a named binary,
   // else Playwright's full build by channel, else a SKIP by name — probed
@@ -682,11 +971,30 @@ export async function main() {
   const harness = await startHarness({ build: true });
   console.log(`harness up at ${harness.url}`);
 
+  // WS-R119. Wall clocks per step, logged separately: the browser walk (the
+  // gate's own 40s budget) is a different cost shape from the two transport
+  // rehearsals (plain HTTP, no Chromium page load per step), and folding all
+  // three into one number would hide which one grew if a future change made
+  // this suite slower.
+  const clocks = {};
   try {
+    const tBrowser = Date.now();
     await runJourney({ harness, browser, locale: "en", gate: "en" });
+    clocks.browserWalkEn = Date.now() - tBrowser;
+
+    const tWa = Date.now();
+    await runWhatsappRehearsal(harness, "en");
+    clocks.whatsappRehearsal = Date.now() - tWa;
+
+    const tTg = Date.now();
+    await runTelegramRehearsal(harness, "en");
+    clocks.telegramRehearsal = Date.now() - tTg;
+
     if (FULL) {
       const harnessHi = await startHarness({ build: false, port: 0 });
+      const tBrowserHi = Date.now();
       await runJourney({ harness: harnessHi, browser, locale: "hi", gate: "hi" });
+      clocks.browserWalkHi = Date.now() - tBrowserHi;
       await harnessHi.stop();
     }
   } finally {
@@ -695,6 +1003,7 @@ export async function main() {
   }
 
   const wallMs = Date.now() - t0;
+  console.log(`\nwall clocks (ms): ${JSON.stringify(clocks)}`);
   console.log(`\n${pass} passed, ${fail} failed, wall clock ${wallMs}ms${FULL ? " (--full: en+hi)" : " (en only; --full adds hi)"}`);
   if (fail) {
     console.log("failures:", failures.join(", "));
