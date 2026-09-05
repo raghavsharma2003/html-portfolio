@@ -10950,3 +10950,39 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r85-grouped-via-breakdown-query-fails-the-aggregate-only-select-list-scan` (2026-09-05, WS-R85)
+
+**What was tried.** `api/_funnel.js`'s share-kit channel breakdown
+(`shareKitArrivalsThisWeek`) was first written as ONE statement covering all
+four channels at once: `select via, coalesce(sum(count), 0)::int as n from
+vy_room_arrival where via = any($1) and day >= ($2)::date group by via` —
+one round trip instead of four, `via` in the select list so the caller
+could tell which group each summed row belonged to.
+
+**What broke.** `evals/room-leak/run.mjs`'s own `ARRIVAL_AGGREGATE_ONLY`
+scan (the discipline `api/_funnel.js`'s own file header already names:
+"every SELECT naming `vy_room_arrival` must be aggregate-only") parses each
+statement's select list and requires EVERY item to be an aggregate function
+call (`count`/`sum`/`min`/`coalesce`). The bare `via` column failed that
+check even though — read as a human, not as the scan — this specific column
+carries no person-identifying information at all (`vy_room_arrival` has no
+follower or thread column by construction, migration 102's own header). The
+scan has no way to know that; it can only see "one select-list item is not
+an aggregate function call" and refuse, which is the scan doing exactly its
+job rather than a false positive to route around.
+
+**What replaced it.** Four separate statements
+(`SHARE_KIT_CHANNEL_STATEMENT`, one literal `via = '<channel>'` per
+channel), each with a select list containing nothing but
+`coalesce(sum(count), 0)` — `shareArrivalsThisWeek`/`posterArrivalsThisWeek`'s
+own exact shape, repeated per channel instead of grouped. Four round trips
+per read of this line instead of one; `context/decisions.md#ws-r85-channel-arrival-breakdown-is-four-statements-not-one-grouped-query`
+has the reversal condition for revisiting this cost later.
+
+**The rule.** A leak-battery scan that enforces "select list is
+aggregate-only" is a real invariant even when a specific violation is
+provably harmless — the fix for a query that trips it is to reshape the
+query, not to special-case the scan for one caller's own judgment call about
+which column is safe this time. The scan's value is that it does not have
+to trust that judgment call at all.
