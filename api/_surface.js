@@ -374,12 +374,38 @@ export async function think(engine, compiled, turns) {
  *                 she may retell. NOT the brief, which mentions half the world
  *                 and would make the check vacuous.
  */
+/**
+ * WS-R111: the material block's own lines are excluded from `trustedText`.
+ * `context/rejected.md#ws-r105-no-material-instruction-boundary-in-the-compiler`
+ * measured a secret-shaped string placed in a sheet field reaching the
+ * delivered reply BECAUSE `trustedText` carried the whole compiled prompt —
+ * a string the creator's own material contains is not thereby something the
+ * gate should treat as grounded to say. This changes only the trusted SET
+ * (never `honesty.ts`'s families, per this workstream's own law) and is a
+ * no-op whenever the markers are absent — every Meera/Kabir compiled prompt,
+ * and any bundle predating this change, strips nothing.
+ */
+function stripMaterialBlock(text, engine) {
+  const open = engine?.MATERIAL_BLOCK_OPEN;
+  const close = engine?.MATERIAL_BLOCK_CLOSE;
+  if (!open || !close) return text;
+  let out = text;
+  let start = out.indexOf(open);
+  while (start >= 0) {
+    const end = out.indexOf(close, start);
+    if (end < 0) break; // an unclosed marker is a malformed prompt, not a block to strip
+    out = out.slice(0, start) + out.slice(end + close.length);
+    start = out.indexOf(open);
+  }
+  return out;
+}
+
 export function honestyContextFor(engine, compiled, turns, { record = [], nameable = [] } = {}) {
   const history = (turns || []).map((m) => ({
     from: m.role === "assistant" ? "her" : "me",
     text: String(m.content ?? ""),
   }));
-  const fullSystem = `${compiled?.core ?? ""}${compiled?.tail ?? ""}`;
+  const fullSystem = stripMaterialBlock(`${compiled?.core ?? ""}${compiled?.tail ?? ""}`, engine);
   return {
     trustedText: [
       fullSystem,

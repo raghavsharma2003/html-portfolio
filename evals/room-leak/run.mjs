@@ -86,6 +86,7 @@
 // clause removed, it leaks, on the nose the way the real predicate's negative
 // control does at gate0.
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { AGENT_ID, ROOM_ID, OWNER, REPLICA_ID, SLUG, loadFixtureAgent, freshState, fakeDb, fakeMemory } from "../room/fixtures.mjs";
@@ -2382,6 +2383,92 @@ console.log("\n── layer 14: the Room on WhatsApp (WS-R104) — two phones, o
   boundaryChecks++;
   ok("layer 14: B's own pointer row survives A's forget untouched",
     state14.waChatPointers.some((c) => c.person_id === followerB.person_id && c.stopped_at == null));
+}
+
+// LAYER 15 (WS-R111, no migration) — THE MATERIAL BLOCK, AND MEERA'S BYTE
+// IDENTITY. `src/engine/agents/fromSheet.ts::sheetToModule` now sanitizes
+// five sheet fields before handing them to `persona.ts`'s UNTOUCHED,
+// READ-ONLY `buildSystemPromptParts` and appends a labelled material block
+// (real markers, `src/engine/compiler.ts`) built from the real values
+// instead. `persona.ts` was not edited, and Meera is the static
+// `DEFAULT_AGENT` — she never calls `sheetToModule` — so this layer proves
+// the claim structurally (her compiled prompt can never carry the block's
+// markers) rather than merely trusting the "untouched file" argument, and
+// re-runs the compiler-extraction's own 83/83 proof (`src/engine/
+// __fixtures__/byte-identity.mjs`) as a subprocess so a regression here
+// fails THIS gate, not only `check-prompt-budget.mjs` downstream.
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n── layer 15: the material block (WS-R111) + Meera's byte identity ──");
+{
+  const { engine: engine15, loadAgent: loadAgent15 } = await loadFixtureAgent(REPO);
+  ok("engine bundle exports the real MATERIAL_BLOCK_OPEN/MATERIAL_BLOCK_CLOSE markers",
+    typeof engine15.MATERIAL_BLOCK_OPEN === "string" && engine15.MATERIAL_BLOCK_OPEN.length > 0 &&
+    typeof engine15.MATERIAL_BLOCK_CLOSE === "string" && engine15.MATERIAL_BLOCK_CLOSE.length > 0);
+
+  // Meera's own compiled prompt (DEFAULT_AGENT — no `agent` passed, exactly
+  // as every non-Room caller compiles her) must never carry the markers:
+  // she never calls `sheetToModule`, so the block cannot appear in her
+  // output by construction. Checked directly rather than only argued.
+  const meeraCompiled = engine15.compile({
+    user: { name: "", vibe: [], facts: {} },
+    messageCount: 1,
+    medium: "text",
+    mode: "chat",
+    voiceEngine: "gemini",
+    isDirective: false,
+    watching: false,
+    innerThread: "",
+    innerWants: "",
+    memories: "",
+    herLife: "",
+    cultureNoteText: "",
+  });
+  const meeraFull = `${meeraCompiled.core}${meeraCompiled.tail}`;
+  ok("Meera's own compiled prompt carries ZERO material-block markers (she never calls sheetToModule)",
+    !meeraFull.includes(engine15.MATERIAL_BLOCK_OPEN) && !meeraFull.includes(engine15.MATERIAL_BLOCK_CLOSE));
+
+  // A teacher module's compiled prompt, by contrast, DOES carry the block —
+  // the byte-diff this layer's own header describes: the two paths change
+  // ONLY in whether the block exists, never in whether Meera's own bytes do.
+  const { module: teacherModule } = await loadAgent15(SLUG);
+  const teacherCompiled = engine15.compile({
+    agent: teacherModule,
+    user: { name: "", vibe: [], facts: {} },
+    messageCount: 1,
+    medium: "text",
+    mode: "chat",
+    voiceEngine: "none",
+    isDirective: false,
+    watching: false,
+    innerThread: "",
+    innerWants: "",
+    memories: "",
+    herLife: "",
+    cultureNoteText: "",
+  });
+  const teacherFull = `${teacherCompiled.core}${teacherCompiled.tail}`;
+  ok("a real teacher module's compiled prompt DOES carry the material block markers",
+    teacherFull.includes(engine15.MATERIAL_BLOCK_OPEN) && teacherFull.includes(engine15.MATERIAL_BLOCK_CLOSE));
+
+  // The compiler-extraction's own byte-identity proof, re-run here so a
+  // regression fails THIS gate rather than only a downstream one — the
+  // literal "before and after" for Meera's compiled prompt this layer's
+  // header promises: "before" is the frozen `oldOracle.ts` oracle every one
+  // of the 83 fixtures already targets, "after" is `compile()` as this
+  // workstream leaves it.
+  try {
+    const out = execFileSync(
+      process.execPath,
+      [join(REPO, "src/engine/__fixtures__/byte-identity.mjs")],
+      { cwd: REPO, encoding: "utf8" },
+    );
+    const m = /(\d+)\/(\d+) fixtures pass/.exec(out);
+    ok("layer 15: 83/83 byte-identity fixtures still pass (Meera's compiled prompt did not move)",
+      Boolean(m) && m[1] === m[2] && Number(m[1]) >= 83, m ? `${m[1]}/${m[2]}` : out.trim());
+  } catch (e) {
+    ok("layer 15: 83/83 byte-identity fixtures still pass (Meera's compiled prompt did not move)",
+      false, String(e.stdout || e.message || e).slice(-400));
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════

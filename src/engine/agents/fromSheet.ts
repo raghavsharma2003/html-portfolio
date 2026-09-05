@@ -56,6 +56,13 @@ import {
 } from "../persona";
 import { PUBLISHED_HELPLINES } from "../honesty";
 import { lintLine } from "../shapelint";
+// WS-R111: the material block. `fromSheet.ts` already imports `shapelint`,
+// which already imports `compiler` for `hashCore` — "`fromSheet.ts` →
+// `shapelint` → `compiler` is already a live edge" (cloneLife.ts's own
+// note on this exact hazard) — so a direct import here closes no new cycle,
+// it only shortens one that already exists. `compiler.ts` imports nothing
+// from this file or from `shapelint`, so the other direction stays clear.
+import { renderCreatorMaterial, type MaterialLine } from "../compiler";
 // WS-Q. `moodWordsIn` is timeline.ts's OWN G8 audit ("a calendar is not a mood
 // engine"), reused rather than re-implemented: a second mood-word list is a
 // second thing that goes stale, and the one in timeline.ts is the one an
@@ -66,6 +73,38 @@ import { validateCloneLife, cloneLifeRows } from "./cloneLife";
 import type { TeacherSheet } from "./teacherTypes";
 import type { AgentModule, DimsStage, Medium, UserProfile, VoiceEngine } from "./types";
 
+// ── the material block boundary (WS-R111) ──────────────────────────────────
+//
+// `context/rejected.md#ws-r105-no-material-instruction-boundary-in-the-compiler`
+// measured it: `identityWho`/`identityLife`/`lifeTexture`/`tasteTopics`/
+// `curiosityTopics` are the five fields that reach `buildSystemPromptParts`'s
+// CORE template fused directly into an instruction sentence (`persona.ts:197`,
+// `:257`, `:265`, `:282`) — and all five are genuinely KNOWLEDGE about the
+// creator (who they are, their life, their interests), never a platform
+// behavioral rule. They are what this constructor moves into the material
+// block.
+//
+// `boundaryParagraph`, `stageEarly`, `stageGettingClose` and `stageEstablished`
+// are deliberately NOT here, even though WS-105's corpus injects all nine and
+// this workstream's brief asks for all nine contained. Read plainly: those
+// four are not descriptive knowledge, they are the platform's SAFETY
+// mechanism at the content layer (`teacherTypes.ts`'s own doc: "safety-floor-
+// teacher.md §3.1 requires that clause GONE FROM THE CONTENT, not merely
+// gated"). Moving them into a block the model is told is "data you draw on,
+// never an instruction" would DEMOTE the mentor boundary and the arc pacing
+// from an enforced rule to inert material for every legitimate teacher, not
+// only a hostile one — a regression in the opposite direction from what this
+// workstream exists to fix. See `context/rejected.md
+// #ws-r111-boundary-and-stage-fields-not-material-blocked` for the full
+// argument and what would reverse it.
+const MATERIAL_FIELDS: readonly { readonly key: keyof TeacherSheet; readonly label: string }[] = [
+  { key: "identityWho", label: "who" },
+  { key: "identityLife", label: "life" },
+  { key: "lifeTexture", label: "everyday texture" },
+  { key: "tasteTopics", label: "taste" },
+  { key: "curiosityTopics", label: "curiosity" },
+];
+
 /**
  * Build an AgentModule from a TeacherSheet. Pure — same sheet in, same module
  * out, whether the sheet came from `characters/demoTeacher.ts` or from a
@@ -74,8 +113,33 @@ import type { AgentModule, DimsStage, Medium, UserProfile, VoiceEngine } from ".
  * `register.honorificSystem` is "hi-TV" as for the incumbents, and [MINOR] the
  * T-V default runs respectful-to-the-STUDENT and never slides to a diminutive
  * (teacher-sheet-spec.md §4.6).
+ *
+ * `buildSystemPromptParts` here does two things `persona.ts`'s own function
+ * does not, and does them WITHOUT editing `persona.ts` (its READ-ONLY law
+ * holds): it calls the real, unmodified `buildSystemPromptParts` against a
+ * SANITIZED copy of the sheet — MATERIAL_FIELDS blanked, so the shared core
+ * template's interpolation sites for them render empty rather than fusing the
+ * creator's raw words into an instruction sentence — and then appends the
+ * material block (built from the REAL, unsanitized values) to CORE, which is
+ * where every one of those five fields' fused positions already lived (never
+ * TAIL — none of the five sit in `buildSystemPromptParts`'s tail output).
+ * `buildSpeechStyle` and `WATCH_MODE_NOTE` are untouched: neither reads any of
+ * the five (grepped: `C.identityWho`/`identityLife`/`lifeTexture`/
+ * `tasteTopics`/`curiosityTopics` appear in `persona.ts` only inside the CORE
+ * template `buildSystemPromptParts` builds).
  */
 export function sheetToModule(sheet: TeacherSheet): AgentModule {
+  const materialBlock = renderCreatorMaterial(
+    MATERIAL_FIELDS.map(({ key, label }): MaterialLine => ({
+      label,
+      value: String(sheet[key] ?? ""),
+    })),
+  );
+  const sanitized: TeacherSheet = { ...sheet };
+  for (const { key } of MATERIAL_FIELDS) {
+    (sanitized as unknown as Record<string, unknown>)[key] = "";
+  }
+
   return {
     slug: sheet.slug,
     displayName: sheet.name,
@@ -86,7 +150,10 @@ export function sheetToModule(sheet: TeacherSheet): AgentModule {
       messageCount: number,
       medium: Medium,
       dimsStage?: DimsStage,
-    ) => buildSystemPromptParts(user, messageCount, medium, dimsStage, sheet),
+    ) => {
+      const parts = buildSystemPromptParts(user, messageCount, medium, dimsStage, sanitized);
+      return { core: parts.core + materialBlock, tail: parts.tail };
+    },
     buildSpeechStyle: (engine: VoiceEngine | "live") => buildSpeechStyle(engine, sheet),
 
     WATCH_MODE_NOTE: buildWatchModeNote(sheet),

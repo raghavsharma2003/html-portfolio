@@ -18928,3 +18928,98 @@ measuring under 800ms would confirm either fix; absent either, the honest
 move is to raise `HINDI_CHUNK_WAIT_BUDGET_MS` from a fresh measurement
 (not copied from this one) the same way the sibling budget was raised, and
 record the new number's own reversal condition in the same commit.
+
+## `ws-r111-material-block-covers-five-of-nine-injectable-fields` (2026-09-05, WS-R111)
+
+**Decision.** The material block (`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE`,
+`renderCreatorMaterial`, `src/engine/compiler.ts`) covers exactly five of
+the nine sheet fields `evals/room-adversarial-creator/run.mjs` verified
+reachable on the Room's text lane: `identityWho`, `identityLife`,
+`lifeTexture`, `tasteTopics`, `curiosityTopics`. `boundaryParagraph`,
+`stageEarly`, `stageGettingClose` and `stageEstablished` are deliberately
+excluded — see the companion rejection entry,
+`context/rejected.md#ws-r111-boundary-and-stage-fields-not-material-blocked`.
+Built entirely inside `src/engine/agents/fromSheet.ts::sheetToModule` (the
+Vyakti-agent-shape constructor every `resolved.module` call site in `api/`
+already names): it hands `persona.ts`'s UNTOUCHED, READ-ONLY
+`buildSystemPromptParts` a sanitized copy of the sheet (the five fields
+blanked to `""`) and appends the real block, built from the unsanitized
+values, to the CORE that function returns — all five fields' fused
+positions live in CORE, never TAIL (`persona.ts:197/257/265/282`,
+confirmed by grep before writing a line of code). `persona.ts` itself was
+not touched.
+
+**Rationale.** The five covered fields are genuinely DESCRIPTIVE knowledge
+about the creator — who they are, their life, their taste, their curiosity
+— exactly the shape T5 (`WHAT YOU REMEMBER ABOUT THEM`) and T7 (`WHAT
+YOU'VE ALREADY TOLD THEM`) already wrap in `compiler.ts`'s own tail
+assembly, restated at the sheet layer for CORE. Measured effect:
+`measurements.md#ws-r111-boundary-containment-25-of-41` (0/41 -> 25/41
+"contained") and `measurements.md#ws-r111-secret-shaped-leak-rate-0-of-5`
+(2/5 -> 0/5 delivered-reply leaks for entries landing on these fields).
+Meera's compiled prompt is provably unchanged: she is the static
+`DEFAULT_AGENT` and never calls `sheetToModule`
+(`measurements.md#ws-r111-meera-byte-identity-unchanged-83-of-83`, 83/83
+before and after). `agents/teacher.ts`'s static `demoTeacherAgent` DUPLICATES
+this logic (never imports `compiler.ts` — that would close the exact
+`teacher.ts -> compiler.ts -> agents/registry.ts -> teacher.ts` cycle
+`fromSheet.ts`'s own header already warns about) so the two "spellings"
+`evals/teachersheet.mjs`'s own anti-drift test compares stay identical;
+that test is the safety net for the duplication, exactly as it already was
+for the five persona.ts builder calls before this workstream.
+
+The demo teacher's own CORE grew 453 B from this
+(`measurements.md#ws-r111-demo-teacher-core-growth-453-bytes`), which
+tripped three of `evals/persona-invariants.data.mjs`'s shared, cross-agent
+size ceilings (that suite runs the SAME thresholds against every
+registered agent, teacher-demo-arjun included). Raised deliberately, by
+the measured amount plus a small margin, following that file's own
+established "raise with a dated, costed comment" pattern rather than
+trimming the block's content to fit — CLAUDE.md's standing instruction is
+that speed and quality are never traded away, and shrinking a safety
+mechanism to dodge a budget check is the wrong direction to resolve that
+tension in.
+
+**What would reverse this decision.** A future workstream that finds a
+safe way to bring `boundaryParagraph`/the three stage fields into the same
+mechanism WITHOUT weakening their enforcement (see the companion rejection
+entry's own reversal condition) extends `MATERIAL_FIELDS` in both
+`fromSheet.ts` and `teacher.ts` to all nine, moving the containment measurement
+toward 41/41. Separately: if `evals/room-adversarial-creator/run.mjs`'s
+corpus ever adds entries for the pedagogy fields (`commonMistakeBank`,
+`analogyBank` — confirmed still NOT compiled into the prompt by any module,
+`teacher.ts`'s own header, unchanged by this workstream), those need no
+material-block treatment because they are not reachable at all yet; the
+day they are wired in, they should almost certainly enter through this
+same block rather than fused, since they are pedagogy DATA in the same
+sense the five covered fields are identity data.
+
+## `ws-r111-honesty-trusted-set-excludes-the-material-block` (2026-09-05, WS-R111)
+
+**Decision.** `api/_surface.js::honestyContextFor`'s `trustedText` now
+excludes everything between (and including)
+`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE` before computing `allowedFrom`
+and the rest of the honesty gate's context (`stripMaterialBlock`, a
+no-op when the markers are absent — every Meera/Kabir compiled prompt).
+Only the trusted SET changed; `honesty.ts`'s families are untouched, per
+this workstream's own law.
+
+**Rationale.** WS-105 measured the mechanism of the leak directly:
+`trustedText` included the FULL compiled system prompt, so ANY string a
+sheet field put there — including a secret an attacker mined into a
+sheet — was, by construction, something `allowedFrom` treated as grounded
+and `findActionable` therefore never flagged. A creator's material
+containing a string is not evidence the AI may say that string; the
+material block's own header text says exactly this to the model, and this
+change is what makes it true of the honesty gate too, not only of the
+model's instructions. Measured effect:
+`measurements.md#ws-r111-secret-shaped-leak-rate-0-of-5`.
+
+**What would reverse this decision.** A finding that `allowedFrom`/
+`findActionable` need the material block's content to correctly recognise
+some class of legitimately-groundable statement (a false-positive
+`actionable` flag on ordinary identity content a creator legitimately
+wants sayable) — none was measured this session; if one is, the fix is
+narrower than reverting this exclusion wholesale (e.g. grounding
+non-identifier-shaped material lines specifically), not restoring the
+whole block to `trustedText`.

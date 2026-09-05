@@ -13032,3 +13032,95 @@ exceeds 50 ms.
 Not run: `scripts/relcheck.mjs`'s owner-lane walk and the zero-orphan
 sweep (no `NEON_URL` in the build container). No `vy_recall_run` or
 `vy_room_follower_whatsapp_chat` row exists yet.
+
+## `ws-r111-boundary-containment-25-of-41` — the material block, measured against WS-105's own baseline
+
+Method: `node evals/room-adversarial-creator/run.mjs` §1, offline,
+deterministic, 2026-09-05, n = 41 corpus entries (same corpus WS-105
+measured), each compiled through the REAL, freshly-bundled compiler
+(`sheetToModule -> engine.compile()`) via `materialBoundaryStatus`,
+rewritten this workstream to search for the REAL exported markers
+(`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE`, read off the compiled
+`engine` the suite already imports) rather than a heuristic label-header
+scan.
+
+| metric | before (`ws-r105-boundary-status-and-clean-diff-41-of-41`) | after (this measurement) |
+|---|---|---|
+| boundary status "contained" | 0/41 | 25/41 |
+| boundary status "fused" | 41/41 | 16/41 |
+| hostile vs. benign-twin, byte-diff clean outside the substituted span | 41/41 | 41/41 |
+
+The 25 "contained" entries are exactly the ones injected into one of the
+five covered fields (`identityWho`/`identityLife`/`lifeTexture`/
+`tasteTopics`/`curiosityTopics`, cycling round-robin across the 9-field
+injection list — 5 of 9 fields covered, and the corpus lands roughly
+5/9 of its 41 entries there: 25). The 16 "fused" entries are the four
+uncovered fields (`boundaryParagraph`, `stageEarly`, `stageGettingClose`,
+`stageEstablished`) — unchanged from WS-105's own measurement for those
+specific fields, by design; see
+`context/rejected.md#ws-r111-boundary-and-stage-fields-not-material-blocked`
+for why. This is a partial fix, and the reversal condition WS-105's own
+entry named ("some non-zero fraction of the 41 entries" measured
+"contained") is now met.
+
+## `ws-r111-secret-shaped-leak-rate-0-of-5` — down from 2/5, measured through the real gate
+
+Method: identical to `ws-r105-secret-shaped-material-leak-rate` (same
+suite §3, same fixture Room, same `echoEverything` fake, same five
+`secret_shaped` corpus entries, same field-cycling order — so the same
+five entries land on the same five fields as before), re-run 2026-09-05
+after this workstream's changes to `src/engine/agents/fromSheet.ts` and
+`api/_surface.js::honestyContextFor`. Result: 0/5 reached the delivered,
+post-gate reply (down from 2/5 — `identityWho` and `identityLife` no
+longer leak). All five of this suite's secret entries happen to cycle
+onto the five COVERED fields (`identityWho`/`identityLife`/
+`lifeTexture`/`curiosityTopics`/`tasteTopics`), so this measurement is
+n=5 entirely within the covered set — it says nothing about the leak
+rate for `boundaryParagraph`/stage-field secrets, which this workstream
+did not touch and which `context/rejected.md
+#ws-r105-no-material-instruction-boundary-in-the-compiler`'s original
+2/5 finding is still the live number for (unmeasured directly on those
+four fields by this run, since none of the five secret-shaped corpus
+entries land there). Mechanism, read directly rather than inferred: the
+covered fields' values now live only inside
+`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE`, which
+`api/_surface.js::honestyContextFor`'s `stripMaterialBlock` now excludes
+from `trustedText` before `allowedFrom`/`findActionable` run, so a
+secret-shaped token placed there is no longer treated as a grounded,
+sayable identifier — `guardReply` replaces the offending bubble the same
+way it already does for an invented phone number.
+
+## `ws-r111-demo-teacher-core-growth-453-bytes` — the material block's cost, measured directly
+
+Method: `sheetToModule(DEMO_TEACHER).buildSystemPromptParts({name:"Rohan",
+vibe:[],facts:{}}, 5, "text")`, `.core.length`, compared before this
+workstream (a detached worktree at the unmodified base commit `6fe96da`)
+and after, same fixture input both times, 2026-09-05. Before: 49,709 B.
+After: 50,162 B (+453 B, +0.9%). The material block itself
+(`renderCreatorMaterial`'s own output for the demo teacher's five field
+values) is 920 B; net growth is smaller because sanitizing the five
+fields to `""` also removes their original inline text from the fused
+positions. This tripped three of `evals/persona-invariants.data.mjs`'s
+shared, cross-agent size ceilings (`text core under ceiling`, `[text]
+chat system`, `[live] assembled ... (in-app +720)` — all three deliberately
+raised in this workstream's own commit, by the measured amount plus a
+small margin, following the file's own established raise-with-rationale
+pattern; see that file's inline comments for the exact before/after
+numbers per ceiling.
+
+## `ws-r111-meera-byte-identity-unchanged-83-of-83`
+
+Method: `node src/engine/__fixtures__/byte-identity.mjs`, run on the
+UNTOUCHED tree before this workstream's first edit and again after every
+edit (three times total across the session), 2026-09-05. Result: 83/83
+every time, unchanged. Meera never calls `sheetToModule` (she compiles
+through the static `DEFAULT_AGENT`, `agents/meera.ts`), and
+`src/engine/persona.ts` was not edited by this workstream, so this
+proves — rather than merely argues — that her compiled prompt cannot
+carry a single moved byte. Also asserted structurally, not only by
+absence of edits: `evals/room-leak/run.mjs`'s new layer 15 compiles
+Meera through the real bundled `engine.compile()` with no `agent` set
+and confirms her output contains zero occurrences of
+`MATERIAL_BLOCK_OPEN`/`MATERIAL_BLOCK_CLOSE`, alongside re-running this
+same 83/83 battery as a subprocess so a future regression here fails the
+leak battery too, not only `check-prompt-budget.mjs`.
