@@ -22,7 +22,9 @@
 //   POST /api/room {op:"settings", session}          -> the follower's own page (WS-R39)
 //   POST /api/room {op:"settings_reviewed", session} -> "I looked at this page"
 //   POST /api/room {op:"citations", session}
-//   POST /api/room {op:"referral_link", session} -> "Bring a friend" link (WS-R86)
+//   POST /api/room {op:"referral_link", session} -> "Bring a friend" link
+//                                          plus progress toward a reward
+//                                          (WS-R86; progress, WS-R130)
 //   POST /api/room {op:"flag",   session, reply_sha256, reason} -> "Flag this" (WS-R67)
 //   POST /api/room {op:"unflag", session, reply_sha256}         -> withdraw one
 //   POST /api/room {op:"flags",  session}                       -> the follower's own list
@@ -124,6 +126,7 @@ import {
   ROOM_TRANSCRIPT_BODY_CAP_BYTES,
   assertTasteOriginAllowed,
   roomReferralLink,
+  roomReferralProgress,
   roomReceipt,
   roomReceipts,
 } from "./_room-surface.js";
@@ -547,8 +550,15 @@ async function handler(req, res) {
       const referralPayload = readRoomSession(body.session);
       if (await refused(res, "room_referral_follower", referralPayload.p)) return;
       const link = await roomReferralLink(q, { session: body.session });
+      // WS-R130 (migration 133). "2 of 3 friends" rides the SAME response -
+      // one op, one round trip for the whole "Bring a friend" card. Best
+      // effort: a progress read that fails (a database still on migration
+      // 123 alone, say) must never turn the link itself into an error -
+      // `roomReferralProgress`'s own honest "nothing to show yet" shape is
+      // what a caught failure here falls back to anyway.
+      const progress = await roomReferralProgress(q, { session: body.session }, {}).catch(() => null);
       obsBestEffort("room.referral_link", {});
-      return res.status(200).json(link);
+      return res.status(200).json(progress ? { ...link, progress } : link);
     }
 
     if (op === "stats") {

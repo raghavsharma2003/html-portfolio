@@ -351,5 +351,61 @@ console.log("\n§6 FORGET NULLS, NEVER DELETES — proven statically against the
     erasureSrc.indexOf("delete from vy_receipt x using target t") < erasureSrc.indexOf("delete from vy_payment_event x using target t"));
 }
 
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§7 WS-R130 (migration 133) — the referral reward's own zero-amount receipt");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  // THE BUILDER RENDERS THE REWARD LINE, NEVER THE ORDINARY ONE, for a
+  // `kind: 'referral_reward'` event — the SAME `buildReceiptContext`/
+  // `buildReceiptHtml` this suite's §3 already proves for a real charge,
+  // branching on `paymentEvent.kind` alone (`api/_receipt.js`'s own new
+  // header names why: `amount_inr: 0` already makes every OTHER number
+  // come out zero unchanged).
+  const rewardEvent = { event_id: "evt_reward_1", amount_inr: 0, kind: "referral_reward" };
+  const receiptRow = { receipt_no: 7, issued_at: "2026-09-10T00:00:00.000Z" };
+  const roomPublic = { name: "Anjali" };
+  const ctxEn = buildReceiptContext({ paymentEvent: rewardEvent, receipt: receiptRow, room: roomPublic, locale: "en" });
+  ok("§7 a reward receipt's plan line names the free month, not the ordinary membership line",
+    ctxEn.plan_line === "Anjali AI - one free month (referral reward)", ctxEn.plan_line);
+  ok("§7 a reward receipt's total is honestly zero", ctxEn.amount_inr === 0 && ctxEn.split.total_tax_inr === 0);
+  const ctxHi = buildReceiptContext({ paymentEvent: rewardEvent, receipt: receiptRow, room: roomPublic, locale: "hi" });
+  ok("§7 the reward line exists in Hindi too", ctxHi.plan_line.includes("मुफ़्त"));
+  const htmlReward = buildReceiptHtml(ctxEn);
+  ok("§7 the printable page actually contains the reward line", htmlReward.includes("one free month"));
+
+  // A REAL CHARGE's receipt is BYTE-UNCHANGED by this branch — the
+  // negative control this addition needs: `kind` absent (every receipt
+  // built before this workstream never set it) still renders the
+  // ORDINARY plan line, never the reward one by accident.
+  const ordinaryEvent = { event_id: "evt_ordinary_1", amount_inr: 39900 };
+  const ctxOrdinary = buildReceiptContext({ paymentEvent: ordinaryEvent, receipt: receiptRow, room: roomPublic, locale: "en" });
+  ok("NEGATIVE CONTROL: an ordinary event with no kind at all still renders the ORDINARY plan line",
+    ctxOrdinary.plan_line === "Anjali AI - monthly membership", ctxOrdinary.plan_line);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+console.log("\n§8 WS-R130 (migration 133) — the credit/reward tables' own forget doors, proven statically");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const memorySrc = readFileSync(join(REPO, "api/memory.js"), "utf8");
+  for (const table of ["vy_room_referral_credit", "vy_room_referral_reward"]) {
+    ok(`§8 api/memory.js contains the explicit door for ${table}, gated on the table existing`,
+      new RegExp(`tableApplied\\("${table}"\\)`).test(memorySrc));
+    ok(`§8 the ${table} door is an UPDATE that NULLS referrer_person_id, never a DELETE of the row`,
+      new RegExp(`update ${table} set referrer_person_id = null where referrer_person_id = \\$1`).test(memorySrc));
+    ok(`§8 ${table} is NOT listed in PERSON_TABLES (it would be blind-DELETEd by the generic loop if it were)`,
+      !new RegExp(`\\{ table: "${table}"`).test(memorySrc.slice(0, memorySrc.indexOf("export async function tableApplied"))));
+  }
+
+  const erasureSrc = readFileSync(join(REPO, "api/_replica-full-erasure.js"), "utf8");
+  ok("§8 a full REPLICA erasure DOES delete vy_room_referral_credit by name",
+    /delete from vy_room_referral_credit x using target t/.test(erasureSrc));
+  ok("§8 a full REPLICA erasure DOES delete vy_room_referral_reward by name",
+    /delete from vy_room_referral_reward x using target t/.test(erasureSrc));
+  ok("§8 both sit BEFORE the rooms delete (child before parent)",
+    erasureSrc.indexOf("delete from vy_room_referral_credit x using target t") < erasureSrc.indexOf("rooms as (delete from vy_room x using target t") &&
+    erasureSrc.indexOf("delete from vy_room_referral_reward x using target t") < erasureSrc.indexOf("rooms as (delete from vy_room x using target t"));
+}
+
 console.log(`\nroom-receipt: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

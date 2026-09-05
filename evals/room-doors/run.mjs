@@ -326,7 +326,7 @@ const {
   // embedded in a door.
   bodyTooLarge, ROOM_DOOR_BODY_CAP_BYTES, ROOM_TRANSCRIPT_BODY_CAP_BYTES,
   slugOf, roomBySlug, sameOriginOrAbsent, assertTasteOriginAllowed,
-  roomReferralLink,
+  roomReferralLink, roomReferralProgress,
 } = RS;
 const CREATOR_PAGE = await import(pathToFileURL(join(API, "_creator-page.js")).href);
 const { publicCreatorPageRoomBySlug } = CREATOR_PAGE;
@@ -582,6 +582,13 @@ async function assertForgeryRefused(doorName, opName, mintValid) {
   const referralErr = await threw(() => roomReferralLink(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
   okClass("a-forged-session", "room.js", "referral_link: a stale session is refused (WS-R86, migration 123 — the same selfScope resolver citations uses)", referralErr?.code === "room_session_expired");
 
+  // WS-R130 (migration 133). `roomReferralProgress` is not its own op — it
+  // rides the SAME `referral_link` response (`api/room.js`'s handler
+  // merges both reads) — but it is the SAME `selfScope` gate, so it is
+  // cased here directly, function-level, exactly like every sibling above.
+  const progressErr = await threw(() => roomReferralProgress(db, { session: expired }, { loadAgent, now: NOW, env: ENV }));
+  okClass("a-forged-session", "room.js", "referral_link (progress): a stale session is refused (WS-R130, migration 133 — the same selfScope resolver referral_link uses)", progressErr?.code === "room_session_expired");
+
   const threadState = freshDoorsState();
   const threadDb = doorsDb(threadState);
   const threadJoined = await joinRoom(threadDb, { slug: SLUG, authUserId: USER_A, ageAttested: true, memoryConsent: true }, { loadAgent, now: NOW, env: ENV });
@@ -706,6 +713,8 @@ function withSecondRoom(state) {
   okClass("b-cross-room", "room.js", "citations: cross-room session refused room_unavailable", citeErr?.code === "room_unavailable");
   const referralErr = await threw(() => roomReferralLink(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
   okClass("b-cross-room", "room.js", "referral_link: cross-room session refused room_unavailable (WS-R86, migration 123)", referralErr?.code === "room_unavailable");
+  const progressErr = await threw(() => roomReferralProgress(db, { session: crossToken }, { loadAgent: loadAgentTwoRooms, now: NOW, env: ENV }));
+  okClass("b-cross-room", "room.js", "referral_link (progress): cross-room session refused room_unavailable (WS-R130, migration 133)", progressErr?.code === "room_unavailable");
 
   const hoState = withSecondRoom(freshDoorsState());
   hoState.rooms[0].handoff_enabled = true;

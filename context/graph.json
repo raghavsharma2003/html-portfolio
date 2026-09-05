@@ -10570,6 +10570,78 @@
       "kind": "measurement",
       "title": "evals/incidents/run.mjs 87/0, evals/room-doors/run.mjs 799/0, evals/ops/run.mjs 152/0, the whole registry (node evals/run.mjs) exit 0, run after npm install + echosim build in a fresh worktree",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-reward",
+      "kind": "component",
+      "title": "The referral reward (migration 133): a follower whose personal link brought three friends who each completed a first paid month gets one free month, capped at one per follower per room per financial year.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit",
+      "kind": "decision",
+      "title": "The reward is computed from a NEW table, vy_room_referral_credit, resolved by recomputing referralHashFor at join time \u2014 never from vy_room_referral, whose whole design is that it names no one.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns",
+      "kind": "decision",
+      "title": "vy_room_referral_credit/vy_room_referral_reward carry no FK on their identity columns (only room_id cascades) \u2014 a granted reward is a financial-ledger fact that must survive either party's later forget, vy_receipt's own precedent restated.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte",
+      "kind": "decision",
+      "title": "maybeGrantReferralReward runs as its own statement after issueFollowerReceipt, never folded into applyWebhook's own ledger-write CTE chain \u2014 WS-R100's own receipt-placement argument restated.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-progress-rides-the-referral-link-response-not-a-new-op",
+      "kind": "decision",
+      "title": "roomReferralProgress is not its own op \u2014 api/room.js's referral_link handler merges roomReferralLink and roomReferralProgress into one response.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-sql-comment-backticks-terminated-the-template-literal-yet-again",
+      "kind": "rejection",
+      "title": "A new comment inside api/_replica-full-erasure.js's giant SQL template literal used backtick-quoted identifiers and terminated the literal early \u2014 the sixth-plus instance of this exact repo-wide trap, caught only by node --check.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-erasure-comment-naming-vy-room-follower-whatsapp-chat-tripped-the-static-scanner",
+      "kind": "rejection",
+      "title": "Naming vy_room_follower_whatsapp_chat by name in a new api/_replica-full-erasure.js comment tripped that file's own 'every vy_room_follower-substring line must be a delete' static check \u2014 a third instance of the table-name-in-a-comment defect class.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-shared-room-fixture-would-have-silently-misrouted-the-new-credit-insert",
+      "kind": "rejection",
+      "title": "evals/room/fixtures.mjs's plain substring match for 'insert into vy_room_referral' would have silently swallowed the new, superstring 'insert into vy_room_referral_credit' statement and mis-destructured its params \u2014 fixed by checking the more specific pattern first, caught before any test ran red.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-reward-suite-counts-2026-09-05",
+      "kind": "measurement",
+      "title": "room-referrals 41->59, payments 113->120, room-receipt ->66, payments-reconcile ->45, room-doors 801 ok, room-export 47 (unchanged), room-leak 254(1 failed)->255 after a real self-inflicted bug fix. tsc clean. No NEON_URL in this environment.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-referral-reward-new-sql-2026-09-05",
+      "kind": "measurement",
+      "title": "1 new migration (133), 5 DDL statements; new API statements in joinRoom, maybeGrantReferralReward, roomReferralProgress, roomExport, reconcilePeriod, api/memory.js and api/_replica-full-erasure.js \u2014 none run against a live Postgres, no NEON_URL in this environment.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-static-import-of-room-surface-in-the-shared-fixture-broke-whatsapps-frozen-module-secret",
+      "kind": "rejection",
+      "title": "A new static import of referralHashFor in evals/room/fixtures.mjs transitively pulled in api/whatsapp.js before evals/room-whatsapp/run.mjs set its own frozen module secrets, breaking that suite's webhook signature checks \u2014 fixed with a lazy dynamic import, caught only by running the whole eval registry.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r130-verify-release-gate-2026-09-05",
+      "kind": "measurement",
+      "title": "verify-release.mjs: 19/21 checks pass. layout readability and performance budgets both failed inside the combined run (EADDRINUSE 8931; studio-hi paint 961ms) and both confirmed environmental by an immediate standalone re-run: layout 0 findings, performance 8/8 targets within budget (studio-hi 568ms).",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -20462,6 +20534,71 @@
       "src": "ws-r123-eval-suite-counts",
       "rel": "measured_by",
       "dst": "ws-r123-door-observation-as-a-computed-property"
+    },
+    {
+      "src": "ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-referral-progress-rides-the-referral-link-response-not-a-new-op",
+      "rel": "part_of",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-referral-reward-grant-is-a-second-statement-not-a-fifth-cte",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-issued-alongside-not-inside-the-ledger-write"
+    },
+    {
+      "src": "ws-r130-referral-credit-and-reward-tables-carry-no-fk-on-identity-columns",
+      "rel": "caused_by",
+      "dst": "ws-r100-receipt-not-a-person-tables-entry-nullify-not-delete"
+    },
+    {
+      "src": "ws-r130-referral-reward-suite-counts-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-sql-comment-backticks-terminated-the-template-literal-yet-again",
+      "rel": "caused_by",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-erasure-comment-naming-vy-room-follower-whatsapp-chat-tripped-the-static-scanner",
+      "rel": "caused_by",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-shared-room-fixture-would-have-silently-misrouted-the-new-credit-insert",
+      "rel": "caused_by",
+      "dst": "ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit"
+    },
+    {
+      "src": "ws-r130-referral-reward-new-sql-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r130-referral-reward"
+    },
+    {
+      "src": "ws-r130-static-import-of-room-surface-in-the-shared-fixture-broke-whatsapps-frozen-module-secret",
+      "rel": "caused_by",
+      "dst": "ws-r130-referral-reward-needs-a-second-identity-table-vy-room-referral-credit"
+    },
+    {
+      "src": "ws-r130-verify-release-gate-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r130-referral-reward"
     }
   ]
 }

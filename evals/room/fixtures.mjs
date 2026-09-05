@@ -20,6 +20,39 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+// WS-R130 (migration 133). The REAL hash function, not a second copy of it
+// here - `joinRoom`'s own `vy_room_referral_credit` write resolves a
+// referrer by recomputing this exact function for every follower already
+// in the Room (via pgcrypto in the real statement); this fixture has to
+// recompute the SAME function in JS to model that resolution honestly,
+// never a parallel reimplementation that could silently drift from it.
+//
+// LAZY, DYNAMIC IMPORT ON PURPOSE - never a static `import { referralHashFor }
+// from "../../api/_room-surface.js"` at the top of this file. This module is
+// imported by EVERY Room suite, including `evals/room-whatsapp/run.mjs`,
+// whose own header states a real, load-bearing ordering law: `api/whatsapp.js`
+// reads `WHATSAPP_APP_SECRET`/`WHATSAPP_VERIFY_TOKEN` into frozen module-level
+// constants the INSTANT it is first imported, and that suite sets both env
+// vars itself, in its own top-level code, BEFORE its own dynamic `import()`
+// of the module that needs them. A static import here would pull in
+// `api/_room-surface.js` transitively through `_ops.js` -> `_room-whatsapp.js`
+// -> `api/whatsapp.js` (confirmed by walking the import graph) at MODULE
+// LOAD TIME - which Node resolves and executes BEFORE any importing file's
+// own top-level statements run, landing before that suite's env vars were
+// ever set and silently freezing `api/whatsapp.js`'s HMAC secret as
+// `undefined`. Found and fixed THIS session
+// (`context/rejected.md#ws-r130-static-import-of-room-surface-in-the-shared-
+// fixture-broke-whatsapps-frozen-module-secret`) - a dynamic import inside
+// the one function that actually needs it runs at CALL time instead, long
+// after every suite's own setup has already run.
+let _referralHashForPromise = null;
+function getReferralHashFor() {
+  if (!_referralHashForPromise) {
+    _referralHashForPromise = import("../../api/_room-surface.js").then((m) => m.referralHashFor);
+  }
+  return _referralHashForPromise;
+}
+
 export const SLUG = "anjali";
 export const ROOM_ID = "d0000000-0000-4000-8000-000000000001";
 export const AGENT_ID = "b1000000-0000-4000-8000-000000000001";
@@ -101,6 +134,9 @@ export function freshState() {
     // WS-R86 (migration 123). Empty by default - most suites sharing this
     // fixture never touch referrals at all.
     referrals: [],
+    // WS-R130 (migration 133). The per-follower identity link, `referrals`'
+    // own precedent one field up restated for the reward's own table.
+    referralCredits: [],
     facts: [],
     contextItems: [
       { source_name: "Class 12 mechanics notes", status: "mined", created_at: "2026-08-01" },
@@ -295,6 +331,43 @@ export function fakeDb(state) {
       // than a separate call so `joinRoom`'s own `follower.newly_joined`
       // read works unchanged against this fixture.
       return [{ ...row, newly_joined: true }];
+    }
+
+    // WS-R130 (migration 133): the referral CREDIT write - checked BEFORE
+    // the plain `vy_room_referral` branch below on purpose. `"insert into
+    // vy_room_referral_credit"` is a SUPERSTRING of `"insert into
+    // vy_room_referral"`, `vy_room_follower_whatsapp_chat`'s own already-
+    // fixed trap (`context/rejected.md`'s WS-R104 entry) restated for this
+    // pair of tables: an unordered check here would route this statement
+    // into the WRONG branch below, corrupting `state.referrals` with a
+    // mis-destructured row for every suite that forces `tableApplied` true
+    // for both tables. Resolves the referrer honestly, by recomputing the
+    // REAL `referralHashFor` for every follower already in this Room and
+    // matching the one whose hash equals the `ref` the joiner carried -
+    // never a parallel reimplementation of that function.
+    if (has("insert into vy_room_referral_credit")) {
+      const [creditId, roomId, referredFollowerId, salt, referrerHash] = params.map(String);
+      state.referralCredits = state.referralCredits || [];
+      const already = state.referralCredits.find((c) => c.referred_follower_id === referredFollowerId);
+      if (already) return [];
+      const referralHashFor = await getReferralHashFor();
+      const match = state.followers.find(
+        (f) =>
+          f.room_id === roomId &&
+          f.follower_id !== referredFollowerId &&
+          referralHashFor(f.room_id, f.person_id, { RATE_SALT: salt }) === referrerHash,
+      );
+      if (!match) return [];
+      const row = {
+        credit_id: creditId,
+        room_id: roomId,
+        referred_follower_id: referredFollowerId,
+        referrer_follower_id: match.follower_id,
+        referrer_person_id: match.person_id,
+        created_at: new Date().toISOString(),
+      };
+      state.referralCredits.push(row);
+      return [{ credit_id: row.credit_id }];
     }
 
     // WS-R86 (migration 123): the referral write. Self-referral is refused

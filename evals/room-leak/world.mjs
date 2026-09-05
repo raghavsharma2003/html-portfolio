@@ -691,6 +691,25 @@ const TABLE_ROLES = {
   // (`context/decisions.md#ws-r104-no-explicit-replica-erasure-backstop-for-
   // the-whatsapp-chat-pointer`).
   vy_room_follower_whatsapp_chat: { owners: ["_room-whatsapp-chat.js", "_room-surface.js"] },
+  // WS-R130 (migration 133). The referral reward's own identity link — NOT
+  // one of `roomPersonEntries`' own auto-discovered tables (its identity
+  // columns are `referrer_follower_id`/`referrer_person_id`/`referred_
+  // follower_id`, never the literal `person_id` that loop's generic
+  // discovery keys off), `vy_room_referral`'s own precedent restated for a
+  // table that DOES name a real referrer. `_room-surface.js` writes it
+  // (`joinRoom`'s own credit write) and reads a follower's own progress
+  // back to them (`roomReferralProgress`); `_payments.js` reads it to find
+  // a referrer and count their progress (`maybeGrantReferralReward`);
+  // `memory.js` nulls `referrer_person_id` on a whole-account wipe.
+  // `_replica-full-erasure.js` deletes it by name, child before parent.
+  // No aggregate-only reader anywhere — unlike `vy_room_referral`'s own
+  // n>=5-floored creator-facing count, nothing about this table is ever
+  // shown to a creator at all.
+  vy_room_referral_credit: { owners: ["_room-surface.js", "_payments.js", "memory.js", "_replica-full-erasure.js"] },
+  // WS-R130 (migration 133). The grant itself — `vy_room_referral_credit`'s
+  // own two-owner-plus-erasure shape restated one table over, with the
+  // SAME reasoning: a real `referrer_person_id`, no creator-facing reader.
+  vy_room_referral_reward: { owners: ["_room-surface.js", "_payments.js", "memory.js", "_replica-full-erasure.js"] },
 };
 // Every line naming a guarded table in a file that is neither an owner nor an
 // aggregate-only reader must be ONE of: a comment (block or line), a DELETE,
@@ -759,6 +778,15 @@ const CONTENT_COLUMNS = [
   // besides its two named owners would still be the correlation this table
   // exists to avoid, so it is guarded exactly like a content column would be.
   "phone_hash",
+  // WS-R130 (migration 133). `vy_room_referral_credit`/`vy_room_referral_
+  // reward`'s own identity columns — unlike `referrer_hash`/`phone_hash`
+  // above, these are the RAW identity (a `follower_id`/`person_id`), never
+  // a hash, so guarding them here is even more load-bearing: the whole
+  // reason a reward needs a real referrer at all (this migration's own
+  // header) makes a leak of these columns to any reader besides the two
+  // named owners the exact thing `vy_room_referral`'s hash-only design
+  // exists to prevent one table over.
+  "referrer_follower_id", "referrer_person_id", "referred_follower_id",
 ];
 const CONTENT_COLUMN_RE = new RegExp("\\b(" + CONTENT_COLUMNS.join("|") + ")\\b", "i");
 

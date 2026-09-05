@@ -631,6 +631,19 @@ const EN = {
     haltedLabel: "Your payment mandate needs attention.",
     haltedBody: "It could not be renewed after several attempts. Set up a new mandate from your UPI app to continue.",
   },
+
+  /** WS-R130 (migration 133). The referral reward's own progress line, on
+   *  the "Bring a friend" card `referral` above already renders - a NEW,
+   *  closed section rather than a key added inside `referral` itself
+   *  (this workstream's own append-only rule), fed by
+   *  `roomReferralLink`'s widened response (`RoomReferralProgress`,
+   *  `src/room/roomApi.ts`). Never a friend's identity, never a friend's
+   *  own row - `progress(n, threshold)` names a COUNT, `granted` a DATE
+   *  already on the reward row, nothing else. */
+  referralReward: {
+    progress: (n: number, threshold: number) => `${n} of ${threshold} friends have joined and paid so far.`,
+    granted: (dateLabel: string) => `You earned a free month on ${dateLabel} - thank you for bringing friends.`,
+  },
 };
 
 /** The same shape as `EN`, in plain, functional Hindi (Devanagari). Written
@@ -984,6 +997,10 @@ const HI: typeof EN = {
     pausedBody: "अपनी सदस्यता सक्रिय रखने के लिए इसे अपने UPI ऐप में फिर से शुरू करें।",
     haltedLabel: "आपके भुगतान मैनडेट पर ध्यान देना ज़रूरी है।",
     haltedBody: "कई कोशिशों के बाद भी इसे नवीनीकृत नहीं किया जा सका। जारी रखने के लिए अपने UPI ऐप से एक नया मैनडेट शुरू करें।",
+  },
+  referralReward: {
+    progress: (n: number, threshold: number) => `अब तक ${threshold} में से ${n} दोस्त जुड़े और उन्होंने भुगतान किया।`,
+    granted: (dateLabel: string) => `आपने ${dateLabel} को एक मुफ़्त महीना कमाया - दोस्तों को लाने के लिए धन्यवाद।`,
   },
 };
 

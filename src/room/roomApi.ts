@@ -245,10 +245,26 @@ export const joinRoom = (
   accessToken,
 );
 
+/** WS-R130 (migration 133). "2 of 3 friends" - never a friend's identity,
+ *  `api/_room-surface.js#roomReferralProgress`'s own return shape. `reward`
+ *  is `null` until the third friend's first paid month lands. */
+export interface RoomReferralProgress {
+  friends_credited: number;
+  threshold: number;
+  reward: { granted_at: string; period_extended_to: string; year_key: string } | null;
+}
+
 /** WS-R86 (migration 123). "Bring a friend" - session-scoped, no body
- *  field but the session itself, `roomCitations`'s own call shape. */
+ *  field but the session itself, `roomCitations`'s own call shape.
+ *  `progress` (WS-R130) rides the SAME response rather than a second op -
+ *  the account page's one "Bring a friend" card needs both the link and
+ *  how close this follower is to a reward, and `api/room.js`'s handler
+ *  merges `roomReferralLink`'s and `roomReferralProgress`'s own reads into
+ *  one JSON body for exactly this op. */
 export interface RoomReferralLink {
   url: string;
+  hash?: string;
+  progress?: RoomReferralProgress;
 }
 export const roomReferralLink = (session: string) =>
   post<RoomReferralLink>({ op: "referral_link", session });
@@ -493,6 +509,10 @@ export interface RoomReceiptRow {
   receipt_no: number;
   issued_at: string;
   amount_inr: number;
+  /** WS-R130 (migration 133). A zero-amount receipt for a granted referral
+   *  reward, never a real charge - `api/_room-surface.js#roomReceipts`'s
+   *  own header. */
+  is_referral_reward?: boolean;
 }
 
 export const listReceipts = (session: string) =>

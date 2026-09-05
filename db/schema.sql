@@ -3253,11 +3253,14 @@ create table if not exists vy_payment_event (
   signature_verified   boolean not null,
   payload_hash         text not null,
   constraint vy_payment_event_provider_check check (provider in ('razorpay','fake')),
+  -- Widened by migration 133 (WS-R130) to admit 'referral_reward' - a
+  -- zero-amount, platform-authored row for a granted referral reward,
+  -- never a provider webhook event. See that migration's own header.
   constraint vy_payment_event_kind_check check (kind in (
     'subscription.authenticated','subscription.activated','subscription.charged',
     'subscription.completed','subscription.cancelled','subscription.paused',
     'subscription.resumed','subscription.pending','subscription.halted',
-    'payment.failed'
+    'payment.failed','referral_reward'
   )),
   constraint vy_payment_event_amounts_nonneg
     check (amount_inr >= 0 and platform_take_inr >= 0 and creator_share_inr >= 0),
@@ -4546,3 +4549,41 @@ create unique index if not exists vy_org_weekly_note_org_week_channel_ix
   on vy_org_weekly_note (org_id, week_start, channel);
 create index if not exists vy_org_weekly_note_org_sent_ix
   on vy_org_weekly_note (org_id, sent_at desc);
+-- Migration 133 - the referral reward (WS-R130). See
+-- db/migrations/133_referral_reward.sql for the full argument: a follower
+-- whose personal link brought three friends who each completed a first
+-- paid month gets one free month. `vy_room_referral_credit` is the
+-- per-follower identity link `vy_room_referral` (123) deliberately does
+-- not carry; `vy_room_referral_reward` is the grant itself, capped one per
+-- follower per room per financial year by its own unique index. Neither
+-- table carries an FK on its identity columns (`vy_room_follower_whatsapp_
+-- chat`'s own precedent, 128) - both are financial-ledger rows that must
+-- survive a person's later forget with their number and room intact.
+create table if not exists vy_room_referral_credit (
+  credit_id             uuid primary key,
+  room_id               uuid not null references vy_room(room_id) on delete cascade,
+  referred_follower_id  uuid not null,
+  referrer_follower_id  uuid not null,
+  referrer_person_id    uuid not null,
+  created_at            timestamptz not null default now()
+);
+create unique index if not exists vy_room_referral_credit_referred_ix
+  on vy_room_referral_credit (referred_follower_id);
+create index if not exists vy_room_referral_credit_referrer_ix
+  on vy_room_referral_credit (referrer_follower_id);
+
+create table if not exists vy_room_referral_reward (
+  reward_id             uuid primary key,
+  room_id               uuid not null references vy_room(room_id) on delete cascade,
+  referrer_follower_id  uuid not null,
+  referrer_person_id    uuid not null,
+  granted_at            timestamptz not null default now(),
+  period_extended_to    timestamptz not null,
+  year_key              text not null,
+  reason                text not null default 'referral_reward',
+  constraint vy_room_referral_reward_year_key_check check (year_key ~ '^[0-9]{4}-[0-9]{2}$')
+);
+create unique index if not exists vy_room_referral_reward_cap_ix
+  on vy_room_referral_reward (referrer_follower_id, room_id, year_key);
+create index if not exists vy_room_referral_reward_room_granted_ix
+  on vy_room_referral_reward (room_id, granted_at);

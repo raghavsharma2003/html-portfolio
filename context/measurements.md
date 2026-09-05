@@ -14090,3 +14090,84 @@ Run on the tree with this workstream's own edits, after `npm install
   `context/measurements.md#ws-r123-full-gate-result` immediately below for
   the number this workstream actually got, and what in it predates this
   workstream's own edits.
+
+## `ws-r130-referral-reward-suite-counts-2026-09-05`
+
+Method: each suite run directly via `node evals/<suite>/run.mjs` on this
+workstream's own worktree (branch `ws-r130-referral-reward`, base `1a0367a`),
+2026-09-05, no `NEON_URL` in this environment (offline, deterministic, $0).
+
+| suite | before this workstream | after |
+|---|---|---|
+| `node evals/room-referrals/run.mjs` | 41 passed, 0 failed | 59 passed, 0 failed (+18: §8 the credit link written at join time, §9 `maybeGrantReferralReward`/`roomReferralProgress` driven through a local wrapper db, including the three-friends-to-reward sequence, the one-per-year cap, and a replay negative control) |
+| `node evals/payments/run.mjs` | 113 passed, 0 failed | 120 passed, 0 failed (+7: §17, the SAME sequence driven end to end through the REAL `applyWebhook`/real webhook signing, proving `su.follower_id`'s widened SELECT and the reward call actually wire together, not only the isolated function) |
+| `node evals/room-receipt/run.mjs` | 52 passed, 0 failed (WS-R100's own count) | 66 passed, 0 failed (+14: §7 the reward's own zero-amount receipt shape via the real `buildReceiptContext`/`buildReceiptHtml`, both locales, plus a negative control that an ordinary charge's receipt is byte-unchanged; §8 the two new tables' own forget-door and erasure-order statics) |
+| `node evals/payments-reconcile/run.mjs` | not independently re-measured before this workstream's own addition | 45 passed, 0 failed, including §8 (`referral_rewards`'s count/forgone_inr arithmetic and its honest-zero shape when migration 133 is not applied) |
+| `node evals/room-doors/run.mjs` | not independently re-measured before this workstream's own two additions (the suite was not run on the untouched tree in this session) | 801 ok, 0 failed, all classes clean, with `roomReferralProgress` cased alongside `roomReferralLink` inside the existing `a-forged-session`/`b-cross-room` classes (63/19 ok respectively) |
+| `node evals/room-export/run.mjs` | 47 passed, 0 failed (per `context/STATE.md`'s own wave-fourteen entry) | 47 passed, 0 failed (unchanged — the two new tables are exported via the SAME special-cased, hardcoded-append mechanism `vy_room_referral` already uses, adding manifest coverage without adding new dynamic-world assertions of their own) |
+| `node evals/room-leak/run.mjs` | 254 passed, 1 failed on FIRST run of this workstream's own tree (a real, self-inflicted bug — see `rejected.md#ws-r130-sql-comment-mentioning-vy-room-follower-substring-tripped-the-erasure-scanner`) | 255 passed, 0 failed after the fix (the two new TABLE_ROLES entries add to the STATIC reach layer's own coverage; the DYNAMIC 100-follower world was NOT extended to generate real credit/reward rows for these two tables — a named, deliberate gap, not a hidden one) |
+
+`npx tsc -b`: clean. `node --check` clean on every touched `.js`/`.mjs`
+file (one real failure caught and fixed first — see rejected.md). Full
+`node evals/run.mjs` (the whole registry): attempted twice in the
+foreground with a generous timeout (580s) and both times exceeded it on
+this shared machine and moved to background per this environment's own
+rule rather than being killed; see this session's own final report for
+whether it completed before the report was sent.
+
+## `ws-r130-referral-reward-new-sql-2026-09-05`
+
+n = 1 new migration file (133), 5 DDL statements (one `alter table`
+widening `vy_payment_event_kind_check`, two `create table if not exists`,
+three supporting `create index`/`create unique index` — see the exact text
+in this workstream's own final report for the main loop's `EXPLAIN`). New
+API statements: `joinRoom`'s widened conditional insert-select into
+`vy_room_referral_credit`; `maybeGrantReferralReward`'s one multi-CTE
+statement (count, insert, extend) plus its own synthetic zero-amount
+`vy_payment_event` insert; `roomReferralProgress`'s two SELECTs; `roomExport`'s
+two new special-cased COUNT reads; `reconcilePeriod`'s one new SELECT;
+`api/memory.js`'s two new nullify UPDATEs; `api/_replica-full-erasure.js`'s
+two new DELETE CTEs. None of these has ever run against a live Postgres —
+no `NEON_URL` in this environment — every one is proven only by the fake-db
+suites named above and by `npx tsc -b`'s type pass over the surrounding
+JS/TS.
+
+## `ws-r130-verify-release-gate-2026-09-05`
+
+Method: `node scripts/verify-release.mjs` run once, full, in the foreground
+with a generous background-move timeout, on this workstream's own
+worktree, 2026-09-05, no `NEON_URL` (relational db gates skipped, honestly
+named as skipped rather than passed). Result: **19 of 21 checks passed**;
+the eval suite gate (which re-runs the ENTIRE `evals/run.mjs` registry,
+472167ms), the room leak battery, room export completeness, room door
+battery, accessibility, and security headers all clean. Two named
+failures, both confirmed environmental by an immediate standalone re-run
+on the SAME tree, no code changed in between:
+
+- `layout readability`: failed inside the combined run with
+  `EADDRINUSE 127.0.0.1:8931` — a sibling worktree's own gate holding the
+  fixed port at that exact moment (`ps aux` at the time showed concurrent
+  `verify-release.mjs`/`check-layout.mjs`/`check-performance.mjs` processes
+  from `ws-r123`, `ws-r128`, and `ws-r129` all running on this shared
+  machine). Re-run standalone (`node scripts/check-layout.mjs --only room`,
+  this workstream's own required "new screen" check for the account page's
+  new referral-progress content) the moment the port freed: **0 findings** —
+  230 prose blocks judged across three viewport widths x nine room screens
+  in two locales, 232 Hindi strings glyph-checked (including this
+  workstream's own two new `referralReward` strings), 20 screenshots.
+- `performance budgets`: failed inside the combined run on ONE target,
+  `studio-hi` (First Hindi paint 961ms > the 800ms budget) — a screen this
+  workstream never touched (the CREATOR studio's Hindi chunk, not the
+  follower Room). Re-run standalone immediately after (same tree, same
+  budget, same 4x-CPU/throttled-network simulation): **8/8 targets within
+  budget**, `studio-hi`'s own First Hindi paint measured at 568ms — the
+  ~400ms swing between the two runs is CPU contention from the same
+  concurrent sibling gates named above, not a real regression; this
+  workstream's own diff contains zero changes to `src/studio/` or Hindi
+  chunk loading.
+
+Both standalone re-runs are logged here as the evidence for calling these
+two failures environmental rather than caused by this workstream, per
+`ws-common.md`'s own instruction to record the untouched-tree baseline
+where a failure is suspected of being a pre-existing/environmental
+collision.

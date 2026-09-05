@@ -413,6 +413,15 @@ function render() {
       // (`AccountPage.tsx`'s own header on why an unrendered card would
       // otherwise hide its real Hindi string from the layout gate).
       fixtureReferralUrl={`/r/anjali?via=friend&ref=${"a".repeat(64)}`}
+      // WS-R130 (migration 133): the SAME "no network under this fixture"
+      // reasoning one field up, for the progress line AND the granted line
+      // together (both new screen content no fixture reached before, so
+      // both a real string must render for the glyph pass to see them).
+      fixtureReferralProgress={{
+        friends_credited: 2,
+        threshold: 3,
+        reward: { granted_at: "2026-08-01T00:00:00.000Z", period_extended_to: "2026-10-01T00:00:00.000Z", year_key: "2026-27" },
+      }}
       // WS-R43: the three screens no fixture reached before.
       fixtureCapped={screen === "capped"}
       fixtureCapOffer={screen === "capped" ? FIXTURE_CAP_OFFER : null}

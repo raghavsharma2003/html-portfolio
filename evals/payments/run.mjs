@@ -81,6 +81,13 @@ function freshState() {
     // DB-less `tableApplied`) unless a case below explicitly overrides it.
     receipts: [],
     receiptCounters: [],
+    // WS-R130 (migration 133). Untouched by every test above this
+    // workstream's own section - `maybeGrantReferralReward` is gated on
+    // `tableApplied("vy_room_referral_credit")`/`"vy_room_referral_reward"`,
+    // which resolve false unless a case below explicitly overrides it,
+    // `receipts`' own precedent one field up restated.
+    referralCredits: [],
+    referralRewards: [],
   };
 }
 
@@ -250,9 +257,13 @@ function makeDb(state) {
           tier = follower.tier;
         }
       }
+      // WS-R125 (mandate_state) and WS-R130 (follower_id, for
+      // `maybeGrantReferralReward`'s own caller in `applyWebhook`) both
+      // joined the real SELECT list; the fixture returns both.
       return [{
         event_id: event.event_id, subscription_id: subId, state: sub ? sub.state : null,
-        mandate_state: sub ? sub.mandate_state : null, person_id: sub ? sub.person_id : null, tier,
+        mandate_state: sub ? sub.mandate_state : null, person_id: sub ? sub.person_id : null,
+        follower_id: sub ? sub.follower_id : null, tier,
       }];
     }
 
@@ -328,6 +339,65 @@ function makeDb(state) {
       };
       state.receipts.push(row);
       return [{ receipt_id: row.receipt_id, receipt_no: row.receipt_no, issued_at: row.issued_at }];
+    }
+
+    // ── WS-R130 (migration 133): `maybeGrantReferralReward`'s own single
+    //    statement. Only ever reached by a test in this workstream's own
+    //    section below - every test above never overrides `tableApplied`
+    //    to admit "vy_room_referral_credit"/"vy_room_referral_reward", so
+    //    this branch is unreachable for them, `applyWebhook`'s own gate
+    //    proving itself by construction exactly like the receipt one does
+    //    immediately above. Mirrors the REAL CTE's own predicate: is this
+    //    landed charge this follower's first ever, who referred them, do
+    //    that referrer's OWN referred followers now number the threshold,
+    //    has no reward already landed this year, extend the referrer's own
+    //    ACTIVE subscription by one month. ────────────────────────────────
+    if (has("with this_follower_first as")) {
+      const [followerId, eventId, roomId, threshold, yearKey, chargeKinds, rewardId, reason] = params;
+      const fid = String(followerId);
+      const landedKinds = new Set(chargeKinds);
+      const landed = (fId, excludeEventId) =>
+        state.events.some((e) => {
+          if (excludeEventId != null && e.event_id === excludeEventId) return false;
+          const sub = state.subscriptions.find((s) => s.subscription_id === e.subscription_id);
+          return sub && sub.follower_id === fId && landedKinds.has(e.kind) && e.amount_inr > 0;
+        });
+      const isFirst = !landed(fid, String(eventId));
+      if (!isFirst) return [];
+      const credit = state.referralCredits.find((c) => c.referred_follower_id === fid && c.room_id === String(roomId));
+      if (!credit) return [];
+      const siblings = state.referralCredits.filter((c) => c.referrer_follower_id === credit.referrer_follower_id);
+      const n = siblings.filter((c) => landed(c.referred_follower_id, null)).length;
+      if (n < Number(threshold)) return [];
+      const already = state.referralRewards.find(
+        (r) => r.referrer_follower_id === credit.referrer_follower_id &&
+          r.room_id === String(roomId) && r.year_key === String(yearKey),
+      );
+      if (already) return [];
+      const referrerSub = state.subscriptions.find(
+        (s) => s.follower_id === credit.referrer_follower_id && s.state === "active",
+      );
+      const base = referrerSub ? new Date(referrerSub.current_period_end) : new Date(NOW);
+      const extended = new Date(base.getTime());
+      extended.setUTCMonth(extended.getUTCMonth() + 1);
+      const reward = {
+        reward_id: String(rewardId), room_id: String(roomId),
+        referrer_follower_id: credit.referrer_follower_id, referrer_person_id: credit.referrer_person_id,
+        granted_at: new Date(NOW).toISOString(), period_extended_to: extended.toISOString(),
+        year_key: String(yearKey), reason: String(reason),
+      };
+      state.referralRewards.push(reward);
+      if (referrerSub) referrerSub.current_period_end = reward.period_extended_to;
+      return [{ ...reward }];
+    }
+    // The reward's own synthetic zero-amount vy_payment_event insert
+    // (`maybeGrantReferralReward`'s second statement, feeding `issueFollowerReceipt`) -
+    // best-effort, `.catch()`-wrapped in the real code, so an honest empty
+    // return here (no fixture support for finding the referrer's own
+    // active subscription id by follower_id) proves that path, never
+    // crashes the reward already granted above.
+    if (has("insert into vy_payment_event") && has("'referral_reward'")) {
+      return [];
     }
 
     throw new Error(`unmodelled statement: ${sql.slice(0, 90)}`);
@@ -1112,6 +1182,92 @@ console.log("\n§17 WS-R125 (migration 130): mandate_state, THE STORED FACT §14
     ok(`NEGATIVE CONTROL: '${kind}' is not a mandate-lifecycle kind — MANDATE_KIND_TO_STATE has no entry for it`,
       !Object.prototype.hasOwnProperty.call(MANDATE_KIND_TO_STATE, kind));
   }
+}
+
+console.log("\n§18 WS-R130 (migration 133) — the referral reward, granted from THIS webhook");
+// ═════════════════════════════════════════════════════════════════════════
+{
+  const state = freshState();
+  state.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db = makeDb(state);
+  const depsOn = {
+    env: ENV, loadAgent, now: NOW,
+    tableApplied: async (name) => name === "vy_room_referral_credit" || name === "vy_room_referral_reward",
+  };
+
+  // A, the referrer — the fixture's own default follower, plus a real
+  // ACTIVE subscription for the extension to have something to extend.
+  const followerA = state.followers[0];
+  state.subscriptions.push({
+    subscription_id: "sub_a_active", room_id: ROOM, person_id: PERSON, follower_id: followerA.follower_id,
+    provider: "fake", provider_subscription_ref: "sub_a_ref", state: "active",
+    current_period_start: "2026-08-01T00:00:00.000Z", current_period_end: "2026-09-01T00:00:00.000Z",
+    created_at: "2026-08-01T00:00:00.000Z",
+  });
+
+  // Three friends A referred, each with their own follower row and a
+  // vy_room_referral_credit naming A as their referrer — seeded directly
+  // (this suite's own domain is payments, not the join flow;
+  // `evals/room-referrals/run.mjs`'s own §8 proves `joinRoom` writes this
+  // row for real).
+  const friends = ["11110000-0000-4000-8000-000000000001", "11110000-0000-4000-8000-000000000002", "11110000-0000-4000-8000-000000000003"];
+  const friendSessions = [];
+  for (const [i, friendPerson] of friends.entries()) {
+    const followerId = `f2000000-0000-4000-8000-00000000000${i + 1}`;
+    state.followers.push({
+      follower_id: followerId, room_id: ROOM, person_id: friendPerson, agent_id: AGENT,
+      age_attested_at: "2026-09-01T00:00:00.000Z", memory_consent_at: null, tier: "free",
+    });
+    state.referralCredits.push({
+      credit_id: `cr${i + 1}`, room_id: ROOM,
+      referred_follower_id: followerId, referrer_follower_id: followerA.follower_id, referrer_person_id: PERSON,
+    });
+    friendSessions.push(session({ p: friendPerson }));
+  }
+
+  const rewardIds = [];
+  for (const [i, friendSession] of friendSessions.entries()) {
+    await startFollowerSubscription(db, { session: friendSession }, depsOn);
+    const ref = state.subscriptions.find((s) => s.person_id === friends[i]).provider_subscription_ref;
+    const body = RAZORPAY_CHARGED(ref, 39900, 1690000000 + i, 1692600000 + i);
+    const sig = fake.signWebhookForTest(body, WEBHOOK_SECRET);
+    const applied = await applyWebhook(db, { rawBody: body, signatureHeader: sig, eventRef: `evt_r130_${i}` }, depsOn);
+    rewardIds.push(applied.referral_reward_id);
+  }
+  ok("§17 the first two friends' first charges grant no reward yet",
+    rewardIds[0] === null && rewardIds[1] === null, JSON.stringify(rewardIds));
+  ok("§17 the THIRD friend's first charge grants the reward, through the REAL webhook",
+    typeof rewardIds[2] === "string" && rewardIds[2].length > 0, JSON.stringify(rewardIds));
+  ok("§17 exactly one reward row exists, naming A as referrer",
+    state.referralRewards.length === 1 && state.referralRewards[0].referrer_follower_id === followerA.follower_id);
+  ok("§17 A's own ACTIVE subscription period_end was extended by one month",
+    state.subscriptions.find((s) => s.subscription_id === "sub_a_active").current_period_end === "2026-10-01T00:00:00.000Z",
+    state.subscriptions.find((s) => s.subscription_id === "sub_a_active").current_period_end);
+
+  // NEGATIVE CONTROL: a REPLAYED webhook for the same third-friend event
+  // grants nothing a second time — `applyWebhook`'s own `!result` early
+  // return means `maybeGrantReferralReward` is never even called on a
+  // real replay.
+  const ref3 = state.subscriptions.find((s) => s.person_id === friends[2]).provider_subscription_ref;
+  const replayBody = RAZORPAY_CHARGED(ref3, 39900, 1690000002, 1692600002);
+  const replaySig = fake.signWebhookForTest(replayBody, WEBHOOK_SECRET);
+  const replay = await applyWebhook(db, { rawBody: replayBody, signatureHeader: replaySig, eventRef: "evt_r130_2" }, depsOn);
+  ok("NEGATIVE CONTROL: a replayed webhook grants no second reward",
+    replay.replay === true && state.referralRewards.length === 1);
+
+  // NEGATIVE CONTROL: migration 133 not applied yet — the SAME third
+  // charge, on an otherwise-identical fresh world, grants nothing at all.
+  const state2 = freshState();
+  state2.prices.push({ room_id: ROOM, owner_user_id: OWNER, follower_price_inr: 399, currency: "INR", platform_take_bp: 2500 });
+  const db2 = makeDb(state2);
+  await startFollowerSubscription(db2, { session: session() }, { env: ENV, loadAgent, now: NOW });
+  const ref2 = state2.subscriptions[0].provider_subscription_ref;
+  const body2 = RAZORPAY_CHARGED(ref2, 39900, 1690000000, 1692600000);
+  const sig2 = fake.signWebhookForTest(body2, WEBHOOK_SECRET);
+  const applied2 = await applyWebhook(db2, { rawBody: body2, signatureHeader: sig2, eventRef: "evt_r130_x" }, { env: ENV });
+  ok("NEGATIVE CONTROL: migration 133 not applied - no referral_reward_id at all, never a crash",
+    applied2.referral_reward_id === null);
+  ok("NEGATIVE CONTROL: migration 133 not applied - no reward row was ever attempted", state2.referralRewards.length === 0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════
