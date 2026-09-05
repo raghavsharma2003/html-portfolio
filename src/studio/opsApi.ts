@@ -73,6 +73,15 @@ export interface OpsShareArrivals {
   note: string;
 }
 
+// WS-R53 (migration 110). `api/_funnel.js`'s own `tasteTurnsThisWeek` shape,
+// typed here unchanged. No `below_floor` - unlike `OpsShareArrivals` above,
+// a taste turn has no follower at all, so this count carries no anonymity
+// floor (`_funnel.js`'s own header on why).
+export interface OpsTasteTurns {
+  n: number;
+  note: string;
+}
+
 // WS-R30 (migration 093). `api/_phase-gate.js`'s own `phaseGate` shape, typed
 // here unchanged - this file computes nothing, `opsApi.ts`'s own header rule.
 export type OpsGateState = "below" | "at_or_above" | "not_enough_data";
@@ -122,6 +131,8 @@ export interface OpsOverview {
   phase_gate: OpsPhaseGate;
   // WS-R40 (migration 102).
   share_arrivals_this_week: OpsShareArrivals;
+  // WS-R53 (migration 110).
+  taste_turns_this_week: OpsTasteTurns;
 }
 
 export async function readOpsOverview(token: string): Promise<OpsOverview> {
