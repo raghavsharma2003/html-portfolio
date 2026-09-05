@@ -8068,6 +8068,18 @@
       "kind": "measurement",
       "title": "Six representative creator-export statements EXPLAINed live at the WS-R70 merge: the owner, invite and renewal shapes on their indexes, the replica shape and the replica lookup seq-scanning at the tables' current handful of rows with indexes present.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
+      "kind": "rejection",
+      "title": "The layout gate's glyph probe flagged two correct three-consonant Hindi words (\u0917\u0932\u0924, \u0935\u091c\u0939) as tofu because their letters' advances summed to a box-width run; the probe now also requires the base letters to be uniform in width, as only a .notdef run is, and runs a noncharacter control every time.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "layout-gate-glyph-probe-uniformity-half-2026-09-05",
+      "kind": "measurement",
+      "title": "979 Hindi strings through the patched glyph probe: the two WS-R61 false positives pass, nothing else changed, the noncharacter control measures uniform.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -15985,6 +15997,16 @@
       "src": "ws-r70-creator-export-statements-live-explain-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r62-operator-push-subscription-store-built"
+    },
+    {
+      "src": "layout-gate-glyph-probe-uniformity-half-2026-09-05",
+      "rel": "measured_by",
+      "dst": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words"
+    },
+    {
+      "src": "glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words",
+      "rel": "supersedes",
+      "dst": "ws-r43-glyph-width-test-needs-3-devanagari-chars"
     }
   ]
 }

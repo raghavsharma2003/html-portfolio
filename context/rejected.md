@@ -10232,3 +10232,42 @@ running `scripts/check-layout.mjs` after rebuilding `dist/` - the gate
 serves a vite build, not the source tree, and a CSS edit with no rebuild
 is invisible to it, silently re-confirming the STALE bytes as if nothing
 had changed.
+
+
+## `glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words` — the layout gate's tofu test needed a second question
+
+**Tried.** The glyph probe in `scripts/check-layout.mjs` (`glyphAudit`,
+WS-R43) called a Hindi string tofu when its canvas width was within 10% of
+the same number of U+25A1 boxes. That was the whole test from WS-R43 through
+WS-R70, and it never fired wrongly on 445 Room and studio strings.
+
+**What broke.** The final wave-twelve gate on `5d7d6d6` (2026-09-05,
+deterministic on a second run with `--only studio-hi`) flagged two of
+WS-R61's strings: `turnFeedback.ratingLabel.off` "गलत" measured 3.9% from
+three boxes and `processingReview.reasonSelectLabel` "वजह" 7.2%. Both are
+three consonants with no matra; each consonant's advance in Noto Sans
+Devanagari happens to sit near a box's width, so the sum does too. The
+letters rendered perfectly (the accessibility gate read them, the screens
+had no clipped or blank text); the metric's premise, "a run of real glyphs
+is not a box-width run", is true of runs and false of some three-letter
+words. The 3-Devanagari-character floor that excludes "तक" and "+91" does
+not exclude these.
+
+**What replaced it.** The probe now asks two questions and flags only when
+both say tofu: the width diff as before, AND whether the string's base
+letters (U+0904-U+0939, U+0958-U+0961, U+0972-U+097F; matras and signs
+skipped because they measure as zero or as their base) are UNIFORM in width
+within 0.25 px, which a run of .notdef boxes always is and a run of real
+letters never is. The probe also runs its own control every time: three
+Unicode noncharacters (U+FDD0..U+FDD2), which no font has a glyph for, must
+measure uniform, or the run reports `glyph-control` instead of a pass, so
+a font stack where the detector is blind cannot pass silently. Both Hindi
+passes (759 studio strings, 220 Room strings) are green with the control
+uniform. Lowering the 10% or changing the two words was rejected: the words
+are right Hindi, and a threshold tuned to the data is what the probe's own
+header forbids.
+
+**The rule.** A "differs from uniform" test on a sum can be fooled by a
+short run whose parts average to the reference; test the parts for
+uniformity too, and give every detector a control it must catch on every
+run, or its silence proves nothing.

@@ -11048,3 +11048,16 @@ n = 6 statements, one per scope shape the export issues plus its two lookups, ou
 | the Room lookup | `vy_room` by owner | Index Scan on `vy_room_owner_ix` |
 
 Not measured: the `room_owner`, `room_agg` and `agent` shapes were not planned individually; no real export has run against a populated replica (the seeded figure is 3,679 bytes over four tables).
+
+
+## `layout-gate-glyph-probe-uniformity-half-2026-09-05` — the two false positives and the fix, measured
+
+n = 979 Hindi strings (759 studio, 220 Room), method: `node scripts/check-layout.mjs --only studio-hi` and `--only room-hi` on the wave-twelve tree at `d9ea3eb`, Chromium headless at 16 px in the pages' own font stacks, 2026-09-05.
+
+| string | key | width vs boxes | base-letter widths uniform | before | after |
+|---|---|---|---|---|---|
+| गलत | turnFeedback.ratingLabel.off | 3.9% | no | flagged | pass |
+| वजह | processingReview.reasonSelectLabel | 7.2% | no | flagged | pass |
+| U+FDD0 U+FDD1 U+FDD2 (control) | none | not applicable | yes | not run | uniform, as required |
+
+Every other string: unchanged (the uniformity half only narrows findings; a string the width diff passed is untouched). The finding reproduced identically on two runs 20 minutes apart, so it was not a load or font-loading flake (`rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words`). Not measured: real tofu on this machine (every installed face has Devanagari, so a missing webfont still renders letters here; the control is the only proof the detector would see it).

@@ -127,7 +127,17 @@ const MIN_TAP_PX = 44;
 // noise before it means anything. The measured catastrophes this gate's own
 // history describes were never marginal (a tofu run is EXACTLY uniform), so
 // 10 is a floor with real margin under it, not a threshold tuned to the data.
+// The width diff alone is NOT the whole test any more: a three-letter Hindi
+// word with no matras ("गलत", "वजह") has letters whose advances happen to
+// average out to a box's width (3.9% and 7.2% off, measured 2026-09-05 on
+// WS-R61's strings, deterministic across runs), so `glyphAudit` also asks
+// whether the letters are UNIFORM in width the way a tofu run is exactly
+// uniform. A real run of Devanagari letters is never uniform; a run of
+// .notdef boxes always is. See context/rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words.
 const MIN_GLYPH_DIFF_PCT = 10;
+// Letters closer than this (css px at GLYPH_PROBE_PX) count as "the same
+// width" for the uniformity half of the test. A .notdef run differs by 0.
+const GLYPH_UNIFORM_PX = 0.25;
 // The font size the glyph probe renders at. Not "the real size on screen" for
 // every one of 180 strings (this file's own strings render from 12 to 20px
 // across the product) - one representative body size, applied identically to
@@ -706,7 +716,8 @@ const EXPLAIN = {
   "not-tabular": "a `.room-num` figure does not render with tabular digits (room.css). A count\n        or a price whose digits are proportional reflows its own neighbours as it changes.",
   "motion-not-reduced": "with prefers-reduced-motion: reduce active, an element still has a\n        transition-duration or animation-duration above 0s. tokens.css's own\n        reduced-motion block should have zeroed every --motion-* token; something\n        here is not reading from it.",
   "pointerdown-feedback": "DESIGN-LAW's press feedback did not fire: a real mouse down/up over an\n        enabled control produced no visible transform change, or it did not clear on release.",
-  glyph: "a Hindi string measured no differently from the same number of tofu boxes\n        (U+25A1) in the page's own font stack - the glyph likely rendered as boxes,\n        not letters. Names the copy.ts key that failed.",
+  glyph: "a Hindi string measured no differently from the same number of tofu boxes\n        (U+25A1) in the page's own font stack AND its letters measured uniform in\n        width the way only a run of .notdef boxes is - the glyph rendered as boxes,\n        not letters. Names the copy.ts key that failed.",
+  "glyph-control": "the glyph probe's own control failed: three Unicode noncharacters, which\n        no font has a glyph for, did not measure uniform in width, so the probe could\n        not tell real tofu from letters on this machine. Fix the probe or the font\n        stack, never the threshold.",
   "dialog-in-view": "a Room dialog opened by a real click on its header button is not fully on\n        screen, or did not open at all - see the finding's own text. Every in-flow dialog\n        must scroll itself into view on open (`useDialogInView.ts`); it must never rely on\n        the opener already being scrolled to the right place.\n        See context/rejected.md#ws-r43-room-dialogs-render-in-flow-not-scrolled-into-view.",
   "dialog-focus": "a Room dialog opened by a real click never received focus (`document.activeElement`\n        stayed outside it after the click). A keyboard or screen reader user gets no signal\n        the dialog opened at all - `useDialogInView.ts`'s own job.",
   "room-card": "the Room's og.png/story.png (WS-R55, api/_room-card.js): either the\n        rasterised PNG's own dimensions or non-blank-pixel test failed, or the\n        bundled Devanagari face measured no differently from tofu boxes when the\n        card's own Hindi disclosure sentence was rendered through it - the\n        bundled font is missing, unreadable, or not the one actually shipping.",
@@ -762,7 +773,7 @@ function motionAudit() {
  *  global into a parameter rather than copying this function a second time
  *  — the brief's own instruction — so both callers share every future fix
  *  to the measurement itself. */
-function glyphAudit({ fontStack, px, minDiffPct, stringsGlobal }) {
+function glyphAudit({ fontStack, px, minDiffPct, uniformPx, stringsGlobal }) {
   const pairs = window[stringsGlobal || "__ROOM_HI_STRINGS__"] || [];
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -778,6 +789,18 @@ function glyphAudit({ fontStack, px, minDiffPct, stringsGlobal }) {
   // and-placeholder strings this repo's own copy actually contains.
   const MIN_DEVANAGARI_CHARS = 3;
   const devanagariCount = (s) => (s.match(/[ऀ-ॿ]/g) || []).length;
+  // The second half of the test (2026-09-05): a run of REAL letters is not
+  // uniform in width; a run of .notdef boxes is EXACTLY uniform. Only base
+  // letters are measured one at a time - a matra or a sign (U+093A-U+094F,
+  // U+0951-U+0957, U+0962-U+0963) measures as zero or as its base's width
+  // and would make a real word look uniform or a tofu run look varied.
+  const BASE_LETTER = /[\u0904-\u0939\u0958-\u0961\u0972-\u097F]/;
+  const uniformWidths = (s, fontSpec) => {
+    ctx.font = fontSpec;
+    const widths = [...s].filter((ch) => BASE_LETTER.test(ch)).map((ch) => ctx.measureText(ch).width);
+    if (widths.length < MIN_DEVANAGARI_CHARS) return null;
+    return Math.max(...widths) - Math.min(...widths) < (uniformPx ?? 0.25);
+  };
   const out = [];
   for (const [key, s] of pairs) {
     if (!s) continue;
@@ -790,15 +813,30 @@ function glyphAudit({ fontStack, px, minDiffPct, stringsGlobal }) {
     const tofu = ctx.measureText(boxes).width;
     const diffPct = tofu > 0 ? (Math.abs(real - tofu) / tofu) * 100 : 0;
     const testable = devanagariCount(s) >= MIN_DEVANAGARI_CHARS;
+    // null when the string has fewer than three base letters (matras and
+    // signs made up the count): the width diff alone decides, as before.
+    const uniform = testable ? uniformWidths(s, fontSpec) : null;
     out.push({
-      key, s, fontsCheck, testable,
+      key, s, fontsCheck, testable, uniform,
       real: Math.round(real), tofu: Math.round(tofu), diffPct: Math.round(diffPct * 10) / 10,
     });
   }
+  // The uniformity detector's own control, run every time: three Unicode
+  // noncharacters (U+FDD0..U+FDD2) have no glyph in any font and render as
+  // the same .notdef box, so they MUST measure uniform. If they do not, the
+  // detector is blind to real tofu and the whole probe reports that instead
+  // of a pass. Measured directly rather than through BASE_LETTER's filter,
+  // which would drop them.
+  const fontSpecCtl = `${px}px ${fontStack}`;
+  ctx.font = fontSpecCtl;
+  const ctlWidths = ["\uFDD0", "\uFDD1", "\uFDD2"].map((ch) => ctx.measureText(ch).width);
+  const controlUniform = Math.max(...ctlWidths) - Math.min(...ctlWidths) < (uniformPx ?? 0.25);
   return {
     n: pairs.length,
     testableN: out.filter((r) => r.testable).length,
-    results: out.filter((r) => !r.fontsCheck || (r.testable && r.diffPct <= minDiffPct)),
+    controlUniform,
+    results: out.filter((r) => !r.fontsCheck
+      || (r.testable && r.diffPct <= minDiffPct && r.uniform !== false)),
   };
 }
 
@@ -1064,13 +1102,18 @@ async function main() {
       .first()
       .evaluate((el) => getComputedStyle(el).fontFamily)
       .catch(() => '"Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif');
-    const { n, testableN, results } = await page.evaluate(glyphAudit, {
+    const { n, testableN, controlUniform, results } = await page.evaluate(glyphAudit, {
       fontStack,
       px: GLYPH_PROBE_PX,
       minDiffPct: MIN_GLYPH_DIFF_PCT,
+      uniformPx: GLYPH_UNIFORM_PX,
     });
     glyphN = n;
     glyphTestableN = testableN;
+    if (!controlUniform) {
+      findings.push({ where: "room-hi:glyph", kind: "glyph-control", el: "U+FDD0..U+FDD2", n: "", unit: "",
+        text: "three noncharacters did not measure uniform" });
+    }
     for (const r of results) {
       findings.push({
         where: "room-hi:glyph",
@@ -1164,6 +1207,7 @@ async function main() {
       fontStack: '"Noto Sans Devanagari"',
       px: GLYPH_PROBE_PX,
       minDiffPct: MIN_GLYPH_DIFF_PCT,
+      uniformPx: GLYPH_UNIFORM_PX,
     });
     for (const r of results) {
       findings.push({ where: "room-card:glyph", kind: "room-card", el: r.key,
@@ -1187,14 +1231,19 @@ async function main() {
       .first()
       .evaluate((el) => getComputedStyle(el).fontFamily)
       .catch(() => '"Noto Sans Devanagari", "Noto Sans", "Nirmala UI", "Mangal", sans-serif');
-    const { n, testableN, results } = await page.evaluate(glyphAudit, {
+    const { n, testableN, controlUniform, results } = await page.evaluate(glyphAudit, {
       fontStack,
       px: GLYPH_PROBE_PX,
       minDiffPct: MIN_GLYPH_DIFF_PCT,
+      uniformPx: GLYPH_UNIFORM_PX,
       stringsGlobal: "__STUDIO_HI_STRINGS__",
     });
     glyphN += n;
     glyphTestableN += testableN;
+    if (!controlUniform) {
+      findings.push({ where: "studio-hi:glyph", kind: "glyph-control", el: "U+FDD0..U+FDD2", n: "", unit: "",
+        text: "three noncharacters did not measure uniform" });
+    }
     for (const r of results) {
       findings.push({
         where: "studio-hi:glyph",
