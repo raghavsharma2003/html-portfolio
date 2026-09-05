@@ -240,6 +240,20 @@ const EN = {
     priceNotSet: "The creator has not set a price for this room yet.",
     noLink: "A start is already on file, but there is no payment link to open right now.",
     failed: "Could not start that just now. Try again in a moment.",
+    // WS-R69. What tapping the subscribe button actually starts, before it
+    // starts it: a UPI Autopay mandate, the amount, when the first payment
+    // happens, and how to stop it, in a person's own words. `{price}` is
+    // filled in with `withPrice` wherever a price is already on hand
+    // (`capOffer`/`offer`'s own cards); `mandateNoteNoPrice` is the honest
+    // fallback used everywhere a price was never wired to the render point.
+    mandateNote:
+      "This starts a UPI Autopay mandate for {price} a month. The first payment happens today, then the same amount " +
+      "is taken automatically each month after. You can pause it from your UPI app any time, and cancel it from your " +
+      "UPI app or from here.",
+    mandateNoteNoPrice:
+      "This starts a UPI Autopay mandate. The first payment happens today, then the same amount is taken " +
+      "automatically each month after. You can pause it from your UPI app any time, and cancel it from your UPI app " +
+      "or from here.",
   },
 
   /** WS-R37 (migration 099). The subscription panel: what the state is, one
@@ -377,11 +391,17 @@ const EN = {
     // no way to act on the subscription from here - never a claim that one is
     // coming.
     subscriptionNoCancel: "Cancelling from here is not available yet. Contact the creator to cancel.",
+    // WS-R69. `paused` and `halted` are the SAME stored database value
+    // (Razorpay's own mandate can be paused by the follower's own UPI app,
+    // or halted when an auto-charge's retries run out - `api/_payments.js`'s
+    // `pausedOrHalted` tells them apart from the ledger, never the column),
+    // so this is the one place the honest difference has to live in words.
     subscriptionStates: {
       created: "Your subscription has not been confirmed yet.",
       authenticated: "Your subscription is being set up.",
       active: "You are a paid follower.",
-      paused: "Your subscription is paused.",
+      paused: "Your subscription is paused. If you paused it from your UPI app, resume it there to keep talking as a paid follower.",
+      halted: "Your last payment did not go through. Check your UPI app, or contact the creator if it keeps failing.",
       cancelled: "Your subscription has ended.",
       expired: "Your subscription has ended.",
     },
@@ -568,6 +588,12 @@ const HI: typeof EN = {
     priceNotSet: "क्रिएटर ने इस रूम के लिए अभी कीमत तय नहीं की है।",
     noLink: "एक शुरुआत पहले से दर्ज है, पर अभी खोलने के लिए कोई पेमेंट लिंक नहीं है।",
     failed: "अभी शुरू नहीं हो सका। एक पल बाद फिर कोशिश करें।",
+    mandateNote:
+      "इससे {price} महीने का UPI Autopay मैनडेट शुरू होता है। पहला भुगतान आज होता है, उसके बाद हर महीने वही राशि " +
+      "अपने आप कट जाती है। आप इसे कभी भी अपने UPI ऐप से रोक सकते हैं, और अपने UPI ऐप से या यहां से रद्द कर सकते हैं।",
+    mandateNoteNoPrice:
+      "इससे एक UPI Autopay मैनडेट शुरू होता है। पहला भुगतान आज होता है, उसके बाद हर महीने वही राशि अपने आप कट जाती है। " +
+      "आप इसे कभी भी अपने UPI ऐप से रोक सकते हैं, और अपने UPI ऐप से या यहां से रद्द कर सकते हैं।",
   },
 
   subscription: {
@@ -669,7 +695,8 @@ const HI: typeof EN = {
       created: "आपका सब्सक्रिप्शन अभी पुष्ट नहीं हुआ है।",
       authenticated: "आपका सब्सक्रिप्शन सेट हो रहा है।",
       active: "आप एक पेड फॉलोअर हैं।",
-      paused: "आपका सब्सक्रिप्शन रोका गया है।",
+      paused: "आपका सब्सक्रिप्शन रोका गया है। अगर आपने इसे अपने UPI ऐप से रोका है, तो पेड फॉलोअर बने रहने के लिए वहीं से इसे फिर शुरू करें।",
+      halted: "आपका पिछला भुगतान नहीं हो पाया। अपना UPI ऐप जांचें, या अगर यह बार-बार हो रहा है तो क्रिएटर से संपर्क करें।",
       cancelled: "आपका सब्सक्रिप्शन खत्म हो गया है।",
       expired: "आपका सब्सक्रिप्शन खत्म हो गया है।",
     },
