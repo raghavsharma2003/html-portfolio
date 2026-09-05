@@ -10950,3 +10950,35 @@ fixture that lies.
 is a new screen, and the gate must be run on it alone before the merge; and
 a grid track that defaults to `auto` is a min-content pipe from the deepest
 unbreakable string to the page's width.
+
+## `ws-r81-bare-word-bans-in-two-static-scans-would-have-flagged-the-new-contracts-own-field-names` — a negative control that outlives its own contract
+
+**Tried.** Leaving `evals/room-push/run.mjs` §6's and `evals/renewals/run.mjs`'s
+existing static negative-control scans unchanged while moving
+`checkinPushPayload`/`renewalPushPayload` (`api/_push/webpush.js`) to the
+new `{t, title, body, url}` wire contract WS-R81 needed.
+
+**What broke.** Both scans banned BARE words rather than the SHAPE that
+signals an actual leak. `evals/room-push/run.mjs` banned `\btitle\b`
+outright — written when the old contract had no `title` field at all, so
+any occurrence of the word could only mean a THREAD title leaking in.
+`evals/renewals/run.mjs` banned the unbounded substrings `body`/`message` —
+written when the old contract had no `body` field either. The new contract
+legitimately writes a `title:` key and a `body:` key on every payload it
+builds, so both scans would have failed a clean, correct implementation of
+the very contract this workstream was asked to build — a real regression
+risk for whoever next touched either function, not a hypothetical one.
+
+**The rule.** A negative control that bans a literal field NAME rather than
+the SHAPE that name takes when it is actually a leak (property access off
+an external row/object — `row.title`, `thread.title` — versus an
+object-literal key the function itself writes and controls) will eventually
+collide with a legitimate schema change that reuses that name. Fixed both:
+`room-push`'s scan now bans `\.title\b` (a dot immediately before the word —
+property access, never a bare key) plus `\bmessage\b`/`\bsaid\b` bounded
+rather than unbounded; `renewals`' scan now bans the actual CONTENT a
+renewal must never carry (`periodEnd`, `amountInr`/`amount_inr`,
+`currency`, `₹`, `\bRs\b`) rather than the field names its own payload
+legitimately needs. Both got a NEW negative control proving the fixed scan
+still catches the real leak shape it was written to catch (a poisoned
+version reading `row.title`; a poisoned version reaching for `amountInr`).

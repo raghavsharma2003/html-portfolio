@@ -8500,6 +8500,48 @@
       "kind": "measurement",
       "title": "The published Share tab under the layout gate: 12 findings, then 22 (777 px document), then 5 (150 cpl), then 0 across 48 screen loads as each cause was removed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-push-worker-every-kind",
+      "kind": "component",
+      "title": "The push worker takes every kind (WS-R81, no migration). public/room-sw.js's push handler rewritten from a single-value if (data.t !== \"checkin\") return; guard to a closed Set over {t,title,body,url}; api/_push/webpush.js's checkinPushPayload/renewalPushPayload rewritten to the same contract and a new dormancyPushPayload added; api/_dormancy.js's dormancySweep now actually sends a web push (previously discarded its own subscription read); api/_creator-push.js's creatorWeeklyPushPayload and api/_incidents.js's incidentPushPayload renamed kind/route to t/url; public/push-sw.js reads both field-name generations as aliases without adopting the closed list, because it is also Meera's own worker.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-push-worker-one-contract-closed-kinds",
+      "kind": "decision",
+      "title": "public/room-sw.js's push handler uses one wire contract {t,title,body,url} with a closed Set of recognised t values (checkin, renewal, dormancy); an unlisted t is dropped and named once in a console.warn, never guessed at, never shown as a placeholder.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-push-sw-shared-with-meera-no-closed-list",
+      "kind": "decision",
+      "title": "public/push-sw.js reads WS-R81's t/url fields as aliases of its own older kind/route names and keeps its existing permissive display rule rather than adopting room-sw.js's closed-kind drop, because it is also Meera's own worker and out of this workstream's scope to close over.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-bare-word-bans-in-two-static-scans-would-have-flagged-the-new-contracts-own-field-names",
+      "kind": "rejection",
+      "title": "evals/room-push/run.mjs's and evals/renewals/run.mjs's static negative-control scans banned bare words (title; body/message unbounded) that the new {t,title,body,url} contract legitimately needs as field names; fixed to ban the LEAK SHAPE (property access, or actual banned content) instead of the literal name.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-room-sw-push-kind-coverage-before-after-2026-09-05",
+      "kind": "measurement",
+      "title": "evals/room-push/run.mjs §8, real Chromium via CDP ServiceWorker.deliverPushMessage against the real built dist/room-sw.js: after the fix all 3 listed kinds each show one correct notification and an unlisted kind shows none; the exact pre-fix guard reproduced in a second worker at a distinct scope shows NOTHING for the same renewal payload the real worker shows correctly. 69 assertions, 0 failed.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-dormancy-web-push-now-real-2026-09-05",
+      "kind": "measurement",
+      "title": "Before WS-R81, api/_dormancy.js's dormancySweep discarded its own active-subscription read (void pushSubs), 0 sends ever attempted. After: evals/room-dormancy/run.mjs §8 shows exactly 1 send for 1 due follower with 1 active subscription and VAPID configured, carrying t=dormancy and never the room's own dormancy_days value; 0 sends in two negative controls (VAPID unconfigured; no active subscription).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r81-touched-evals-clean-2026-09-05",
+      "kind": "measurement",
+      "title": "Every eval WS-R81 touched or extended, run standalone after npx vite build, 2026-09-05: room-push 69/0, renewals 55/0, creator-push 31/0, room-dormancy 46/0, incidents 39/0, checkins 37/0, room-leak 217/0, room-doors 564/0, scripts/check-copy.mjs clean.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -16737,6 +16779,66 @@
       "src": "wave-thirteen-merge-gate-first-published-share-tab-2026-09-05",
       "rel": "measured_by",
       "dst": "published-room-share-tab-never-rendered-under-the-layout-gate-until-wave-thirteen"
+    },
+    {
+      "src": "ws-r81-push-worker-one-contract-closed-kinds",
+      "rel": "part_of",
+      "dst": "ws-r81-push-worker-every-kind"
+    },
+    {
+      "src": "ws-r81-push-sw-shared-with-meera-no-closed-list",
+      "rel": "part_of",
+      "dst": "ws-r81-push-worker-every-kind"
+    },
+    {
+      "src": "ws-r81-push-worker-every-kind",
+      "rel": "part_of",
+      "dst": "ws-r22-web-push-component"
+    },
+    {
+      "src": "ws-r81-push-worker-every-kind",
+      "rel": "part_of",
+      "dst": "ws-r75-dormancy"
+    },
+    {
+      "src": "ws-r81-push-worker-every-kind",
+      "rel": "part_of",
+      "dst": "ws-r37-renewals"
+    },
+    {
+      "src": "ws-r81-push-worker-every-kind",
+      "rel": "part_of",
+      "dst": "ws-r74-creator-weekly-push"
+    },
+    {
+      "src": "ws-r81-push-worker-every-kind",
+      "rel": "part_of",
+      "dst": "ws-r58-incident-ledger"
+    },
+    {
+      "src": "ws-r81-push-worker-one-contract-closed-kinds",
+      "rel": "supersedes",
+      "dst": "ws-r75-web-push-type-switch-drops-every-non-checkin-payload"
+    },
+    {
+      "src": "ws-r81-push-worker-one-contract-closed-kinds",
+      "rel": "measured_by",
+      "dst": "ws-r81-room-sw-push-kind-coverage-before-after-2026-09-05"
+    },
+    {
+      "src": "ws-r81-push-worker-one-contract-closed-kinds",
+      "rel": "measured_by",
+      "dst": "ws-r81-dormancy-web-push-now-real-2026-09-05"
+    },
+    {
+      "src": "ws-r81-push-worker-one-contract-closed-kinds",
+      "rel": "measured_by",
+      "dst": "ws-r81-touched-evals-clean-2026-09-05"
+    },
+    {
+      "src": "ws-r81-bare-word-bans-in-two-static-scans-would-have-flagged-the-new-contracts-own-field-names",
+      "rel": "caused_by",
+      "dst": "ws-r81-push-worker-one-contract-closed-kinds"
     }
   ]
 }
