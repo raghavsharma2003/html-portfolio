@@ -10271,3 +10271,69 @@ header forbids.
 short run whose parts average to the reference; test the parts for
 uniformity too, and give every detector a control it must catch on every
 run, or its silence proves nothing.
+
+## `ws-r76-migration-family-anchors-cannot-name-a-boundary-table-even-in-a-comment` (2026-09-05, WS-R76)
+
+**What was tried.** `api/_self-check.js`'s "every migration family the
+tree ships" check (law 1c) needed one representative anchor TABLE per
+migration file, so its first draft named the most natural anchor for three
+of them literally: migration 102's own `vy_room_arrival`, migration 116's
+own `vy_room_follower_reply_flag` (with `vy_room_reply_flag` tried next as
+a fallback), and migration 101's own column on `vy_room_follower`. All
+three are ordinary JS object literals (`{ id: ..., migration: ..., table:
+"vy_room_arrival" }`), never a query naming a follower's own row — the
+information_schema reads this file issues only ever ask "does a table or
+column by this name exist", the same shape `scripts/relcheck.mjs` already
+uses elsewhere in this repo without incident.
+
+**What specifically broke.** `node evals/room-leak/run.mjs` failed three
+of its own static scans, none of them about anything this file actually
+QUERIES: "no file outside the allowed set reads the Room's follower/thread
+tables" (triggered by `vy_room_follower_reply_flag` containing
+`vy_room_follower` as a plain JavaScript substring), "no file outside the
+allowed set reads `vy_room_arrival` except an aggregate-only count", and
+layer 9's "every file naming `vy_room_reply_flag` is in the closed,
+reviewed set". Every one of these scanners works by `src.includes("table
+name")` over each `api/*.js` file's raw source TEXT — comments and object
+literals included, exactly like a live SQL statement — the identical
+gotcha `rejected.md#ws-r54-erasure-comment-naming-a-sibling-table-breaks-
+the-leak-scanner` and `rejected.md#ws-r70-mentioning-a-boundary-tables-
+name-in-a-comment-trips-a-repo-wide-static-scanner` already name, now
+proven a third time against a THIRD kind of source construct (a plain
+string constant, not a query and not a comment). The first fix attempted —
+rewriting `api/_self-check.js`'s own explanatory comment to say WHY these
+three were special, still spelling `vy_room_arrival`/
+`vy_room_follower_reply_flag`/`vy_room_follower` out so a future reader
+would know which tables were meant — failed the SAME three scans a second
+time, because none of them distinguishes an explanation from a use; only
+moving the identifiers out of `api/*.js` entirely (this file, not the
+`context/` entry recording the incident, which the scanner never reads)
+stopped tripping them.
+
+**What replaced it.** All three anchors were dropped from
+`MIGRATION_FAMILY_TABLES`/`MIGRATION_FAMILY_COLUMNS` entirely (WS-R70's own
+precedent, cited above: drop the table from the manifest rather than fight
+an established, unrelated discipline). Coverage for migration 110 was not
+lost — its OTHER change, `vy_room.taste_enabled`, anchors it safely as a
+column check instead, since `vy_room` alone (no trailing underscore-suffix)
+matches none of the three scanners. Migrations 101 and 116 have no such
+safe second anchor and are simply absent from `api/_self-check.js`'s
+family list; that file's own header names the gap as deliberate rather
+than an oversight, and paraphrases the reason ("a table this workstream
+would otherwise anchor on collides with an established, unrelated leak
+scanner, see `rejected.md`") without repeating the three identifiers,
+since THAT file — not this one — is what the scanner reads.
+
+**The rule.** A repo-wide `file.includes("table name")` scanner reads a JS
+string LITERAL identically to a live query or a comment — there is no
+third way to mention a scanner-protected identifier safely from an
+`api/*.js` file, including "explaining that you are deliberately not
+touching it." A `context/` entry recording the incident is a different
+file the scanner never reads, so it can and should still name the real
+tables plainly, the way this entry and both entries it cites already do —
+the discipline is "never in `api/*.js`", not "never anywhere." When a new
+file's own job (here: proving a table exists, never reading a row from
+it) collides with an established boundary scanner that cannot tell the
+two apart, the fix is the same three times running: drop the anchor from
+the SOURCE file, and describe what was dropped there in prose that never
+repeats the literal name.
