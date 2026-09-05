@@ -16768,3 +16768,110 @@ the budget is ever missed, the fix named in
 `#studio-hindi-table-is-its-own-chunk` (a `<link rel="modulepreload">` for
 the chunk, added when `?lang=hi` is in the URL) is unbuilt and unneeded this
 session — build it then, never by raising the budget instead.
+
+## `ws-r94-harness-over-fixture-db-not-a-second-fake-server` (2026-09-05, WS-R94)
+
+**Decision.** The follower-journey rehearsal (`evals/rehearsal/harness.mjs`)
+mounts the REAL, unmodified `api/room.js` and `api/creator-page.js` handlers
+over `http.createServer`, with the database redirected at the module
+boundary (`./_db.js`, a Node `module.register()` hook,
+`evals/agent-room/loader.mjs`'s own precedent) to `evals/room-doors/
+fixtures.mjs`'s `doorsDb(state)` — rather than building a second fixture
+server that answers `/api/room` with hand-written expected responses, the
+shape `evals/probe-live/fakeServer.mjs` already uses for a different
+purpose (proving `scripts/probe-live.mjs`'s own checking logic, not the real
+handlers).
+
+**Why.** A fake-response server can only ever prove that a CLIENT reacts
+correctly to a SHAPE someone typed by hand; it cannot catch a defect in the
+real handler's own logic, because the real handler never runs. This
+workstream's whole point — rehearsing the journey nothing has ever exercised
+end to end — required the real `roomSay`/`joinRoom`/`roomExport`/
+`roomForget`/`resolveRoom`/`loadTeacherAgent` to actually execute, against
+real SQL text, through the real rate limiter and the real honesty gate. The
+payoff was immediate and could not have come from a fake-response server: a
+real, previously invisible client bug (`onJoined` dropping `room` from
+state, see `rejected.md#ws-r94-joinroom-response-has-no-room-field-crashed-
+the-real-client`) and two fixture-fidelity defects that only exist because
+this is the first caller in the repo to drive these functions with NO
+`deps` overrides at all (`rejected.md#ws-r94-fixture-insert-substring-
+collision-corrupted-a-follower-row`, the `vy_teacher_sheet`/`meera_log`/
+`to_regclass` gaps named in this workstream's final report).
+
+**Reversal condition.** If a future workstream finds the loader-redirect
+mechanism too fragile to extend (a fourth or fifth module needing a fake),
+or if `api/room.js` ever grows a `deps` parameter of its own that a caller
+could inject directly, re-evaluate whether the module-boundary redirect is
+still the right layer — the `deps`-injection shape every OTHER Room suite
+in this repo already uses would then be strictly simpler for THAT caller,
+though it would stop proving the handler runs with production's own
+default wiring, which is this rehearsal's entire reason to exist.
+
+## `ws-r94-model-and-auth-seams-are-loader-redirects-not-deps-injection` (2026-09-05, WS-R94)
+
+**Decision.** The model call (`api/_surface.js#think`) and Supabase auth
+(`api/_auth.js#userFromToken`) are faked the SAME way as the database — a
+`module.register()` redirect to a stub that re-exports the real module's
+other names unchanged and overrides exactly one function each
+(`evals/rehearsal/stubs/surface-with-fake-model.mjs`,
+`evals/rehearsal/stubs/auth-with-fake-user.mjs`) — rather than passing
+`deps.reply`/`deps.loadAgent` through `api/room.js`, which would require
+editing that file to accept and forward a `deps` parameter it does not
+have today.
+
+**Why.** `api/room.js` calls `roomSay(q, {...})`/`roomTaste(q, {...})` with
+NO third argument, by design (`api/_room-surface.js`'s own header: "Thin by
+construction... every decision lives in api/_room-surface.js where a fake
+db can reach it" — the HTTP handler is not meant to carry test seams).
+Editing the shipped handler to add a deps parameter just for this harness
+would be scope creep against a file every other Room suite in the repo
+already treats as load-bearing and untouched, and would make the rehearsal
+test a MODIFIED handler rather than the real one — precisely the thing this
+workstream exists to avoid.
+
+**Reversal condition.** If a future product need legitimately requires
+`api/room.js` itself to accept injectable deps (not merely this harness),
+revisit this — the loader redirect would then be redundant with a real
+seam and should be retired in favour of it.
+
+## `ws-r94-onjoined-merges-into-existing-room-state` (2026-09-05, WS-R94)
+
+**Decision.** `src/room/RoomApp.tsx`'s `JoinSheet`'s `onJoined` callback now
+merges the `join` op's response into the existing `room` state
+(`setRoom((prev) => (prev ? { ...prev, ...joined } : prev))`) instead of
+replacing it outright (`setRoom(joined)`).
+
+**Why.** `joinRoom` (`api/_room-surface.js`) deliberately returns `{joined,
+locale, follower, threads, session}` — no `room` sub-object, `openRoom`'s
+own response is the one place that lives — and `setRoom(joined)` therefore
+set `room.room` to `undefined`, crashing the very next render
+(`rejected.md#ws-r94-joinroom-response-has-no-room-field-crashed-the-real-
+client`). The merge shape is not invented for this fix: `switchLocale`'s own
+handler two lines above in the same file already does exactly this for the
+SAME reason (a partial server response), so this restates an established
+idiom rather than introducing a new one.
+
+**Reversal condition.** If `joinRoom`'s server response is ever widened to
+carry a full `room` object (matching `openRoom`'s shape), the merge becomes
+unnecessary but remains harmless — `{...prev, ...joined}` with `joined.room`
+present would simply overwrite `prev.room` with the fresher copy. Do not
+revert to `setRoom(joined)` outright without first confirming the server
+side actually carries `room` again.
+
+## `ws-r94-hindi-walk-uses-the-real-language-switch-not-a-url-flag` (2026-09-05, WS-R94)
+
+**Decision.** `evals/rehearsal/follower.mjs --full`'s Hindi walk reaches
+Hindi by clicking the REAL `.room-lang-switch` control in the taste
+screen's own header, not by navigating to a `?lang=hi` URL.
+
+**Why.** `?lang=hi` is `src/room/layoutFixture.tsx`'s own fixture-only flag
+(and separately a real flag `api/creator-page.js` reads for `/c/<slug>`) —
+`/r/<slug>` itself has no such mechanism; a signed-out visitor's only real
+route to Hindi is the language switch a real person would tap. Assuming
+otherwise cost real debugging time before the actual control was found
+(a `getByRole` timeout, not a clean failure) — named so a future session
+does not re-derive this the same way.
+
+**Reversal condition.** If a future workstream adds a real `?lang=` entry
+point to `/r/<slug>` itself, the walk can use it directly; until then this
+is the only honest route.

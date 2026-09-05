@@ -11982,3 +11982,54 @@ Not measured: `joinRoom`'s widened RETURNING (`(xmax = 0) as newly_joined`) is t
 ## `ci-release-gate-first-real-run-2026-09-05` — the 21-check gate in GitHub Actions, measured once
 
 n = 1 run (`release-gate.yml`, run 1, on `6deaf1e`), method: GitHub's own run record, 2026-09-05. Started 10:12:53Z, finished 10:21:27Z: 8 minutes 34 seconds wall clock for the Node 22 and Node 24 jobs in parallel, conclusion success on both. Below WS-R77's 25-minute trigger for splitting the browser checks into a parallel job (`decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet` stands). Not measured: per-check timing inside the runner (the job log was not read), a cold-cache run (this run downloaded Chromium for the first time and still fit).
+
+## `ws-r94-rehearsal-wall-clock-2026-09-05`
+
+n = 5 full runs of `node evals/rehearsal/follower.mjs --full` (22 English
+checks + 22 Hindi checks = 44 assertions per run, including a fresh `npx
+vite build` every run) plus 2 runs of the gate-registered English-only form
+via `node evals/run.mjs rehearsal-follower`, method: wall-clock timestamps
+printed by the suite itself, this session, 2026-09-05, on this machine
+under concurrent sibling-worktree load. `--full` (en+hi): 24566ms, 26790ms,
+29017ms, 29461ms, 32837ms (median ~29s). Gate form (en only): 15879ms,
+18933ms, 20836ms, 20020ms (median ~19.5s). All 6 runs of the full 44-check
+walk and both registry runs passed 0 failures after the fixes named in
+`context/rejected.md`'s WS-R94 entries. Well under the brief's own 3-minute
+gate-budget concern (law 4) even including the Hindi walk, so the English
+walk alone (registered in `evals/run.mjs`) needed no further split from
+`--full`.
+
+## `ws-r94-fixture-gaps-named-2026-09-05`
+
+What `evals/rehearsal/harness.mjs`'s fixture (`evals/room-doors/
+fixtures.mjs`, extended) answers for real versus falls through to the base
+fixture's silent `return []` default (`evals/room/fixtures.mjs`'s own last
+line), named per this workstream's own law 5 ("steps the fixture cannot
+answer are listed by name... never silently skipped"), determined by
+reading `evals/room/fixtures.mjs`'s full pattern list against every SQL
+statement the follower journey's own call graph issues:
+
+- **Answered, newly added this workstream:** `vy_teacher_sheet`/`vy_agent`
+  join (`api/_teachersheet.js#publishedRow`), `select to_regclass(...)`
+  (`api/memory.js#tableApplied`), `meera_log` insert/select
+  (`api/_surface.js#logDmTurn`/`dmHistory`, the REAL `DEFAULT_MEMORY`),
+  `publicCreatorPageRoomBySlug`'s own SELECT (`api/_creator-page.js`), the
+  `vy_room_follower_day` day-counter (with the substring-collision fix,
+  `rejected.md#ws-r94-fixture-insert-substring-collision-corrupted-a-
+  follower-row`).
+- **NOT answered, falls to the base fixture's silent `[]` default, harmless
+  because the caller already `.catch()`-wraps it:** `vy_episode`'s own
+  SELECT (open-episode lookup) and INSERT (`api/episodes.js
+  #openOrExtendEpisode`) — `roomSay`'s `memory.openEpisode` call return
+  value is awaited but never inspected, so a silently-empty episode lookup
+  changes nothing the follower journey asserts on. Not exercised: the
+  episode ledger a real deployment would carry is therefore UNPROVEN by
+  this rehearsal, named rather than assumed complete.
+- **Deliberately out of this journey's scope, per the brief's own law 2**
+  (never attempted, not merely unanswered): `speak` (voice, `ROOM_VOICE`
+  off by default and this harness never sets it), `push_subscribe`/
+  `whatsapp_optin` (no push/WhatsApp step in the rehearsed journey),
+  `checkins`/`handoff` (owner-side doors, not part of a follower's own
+  path), the crawler/bot unfurl branch of `/r/<slug>` (this harness always
+  serves the plain SPA shell, matching a real Chromium's own
+  non-bot user agent).

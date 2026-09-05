@@ -11581,3 +11581,210 @@ which is strong enough evidence to treat "run check-copy.mjs immediately
 after any text moves into a COPY_FILES match, before writing the
 translation" as a load-bearing step of the move itself, not an optional
 sanity check.
+
+## `ws-r94-relative-reexport-of-the-redirect-target-self-redirects` (2026-09-05, WS-R94)
+
+**Tried.** `evals/rehearsal/stubs/surface-with-fake-model.mjs` (the
+`./_surface.js` redirect target) first re-exported the real file with a
+plain relative specifier: `export * from "../../../api/_surface.js";`.
+
+**What broke.** `evals/rehearsal/loader.mjs`'s `resolve()` hook matches on
+the BASENAME of any relative specifier — `_surface.js` — and this import
+IS a relative specifier ending in exactly that basename, so the hook
+redirected the stub's own attempt to load the real file right back to
+itself. Infinite resolution loop, surfaced as Node hanging rather than a
+clean error, which made it look like a harness deadlock rather than a
+redirect self-hit.
+
+**The fix.** Load the real file by an ABSOLUTE `file://` URL instead
+(`pathToFileURL(join(HERE, "..", "..", "..", "api", "_surface.js")).href`,
+via a dynamic `import()`), so the specifier does not start with `.` and the
+loader's own `specifier.startsWith(".")` guard correctly leaves it to
+`nextResolve`. `evals/rehearsal/stubs/auth-with-fake-user.mjs` uses the
+identical shape for the same reason.
+
+**What would reverse it.** Nothing to reverse — but the lesson generalises
+to any future stub in this repo built on the `evals/agent-room/loader.mjs`/
+`evals/recallbench/loader.mjs` pattern that needs to re-export from the
+FILE IT IS REDIRECTING: the re-export must reach the real file by an
+absolute URL, never a relative specifier sharing the redirected basename.
+
+## `ws-r94-partial-reexport-of-surfacejs-broke-unrelated-surfaces-at-link-time` (2026-09-05, WS-R94)
+
+**Tried.** `evals/rehearsal/stubs/surface-with-fake-model.mjs`'s first
+draft re-exported only the six names `api/_room-surface.js`/`api/_room-
+taste.js` are known to import from `./_surface.js`
+(`gatedReply, makeCtx, splitForLimit, loadEngine, deliver, logDmTurn,
+dmHistory`), on the theory that nothing else on `api/room.js`'s call graph
+needed more.
+
+**What broke.** `api/room.js` transitively pulls in `api/_room-whatsapp.js`
+(via `api/_room-surface.js`'s WhatsApp opt-in ops), which imports `dispatch`
+from `./_surface.js` — a name the six-item list did not carry, so the
+REDIRECTED module simply had no such export and Node's ESM linker threw
+`SyntaxError: The requested module './_surface.js' does not provide an
+export named 'dispatch'` at import time, before a single request was ever
+served. A partial re-export list is invisible to a reviewer reading only
+the two files that obviously use the redirect target; it breaks at the
+first sibling file the SAME redirected specifier also serves.
+
+**The fix.** Re-export every name `api/_surface.js` actually exports (the
+full list read off that file's own `export` statements: `ROOM_CARD,
+withdrawReceipt, NOTICED_EMOJI, loadEngine, honestyContextFor, hasGate,
+gateReply, gatedReply, deliver, splitForLimit, resolveIdentity,
+linkIdentity, legacyChatId, legacyUserId, roomForChat,
+ensureRoomForSurfaceChat, upsertRoomMember, dispatch, onBotMembership,
+onMemberChange, onJoin, onLeave, onDirectMessage, logDmTurn, dmHistory,
+onGroupMessage, sinceHerLast, roomHistory, commandOf, onCommand, makeCtx`),
+overriding only `think`.
+
+**What would reverse it.** If ESM ever grows a way to re-export "everything
+from a dynamically-imported namespace object except one name" without
+enumerating it by hand, use that instead — today's `export *` syntax only
+accepts a static specifier, which is exactly what forces the absolute-URL
+trick in the entry above and the manual list here. Until then, a stub built
+on this pattern that redirects a module with real fan-out must copy that
+module's FULL export list, verified by grep against the real file, not by
+reading only the files the stub's author already knew about.
+
+## `ws-r94-fixture-insert-substring-collision-corrupted-a-follower-row` (2026-09-05, WS-R94)
+
+**Tried.** Enabled `api/memory.js#tableApplied`'s real `select
+to_regclass($1) is not null as present` query (needed so `api/room.js`'s
+default, deps-free code path treats `vy_room_follower_day`/
+`vy_room_referral` as migrated, matching a real production database) by
+adding a fixture pattern that always answers `present: true`.
+
+**What broke.** The moment `isTableAppliedFor` started returning `true`,
+`roomSay`'s cohort day-counter INSERT (`insert into vy_room_follower_day
+(room_id, person_id, day, turns) values (...)`) ran for the first time
+against `evals/room/fixtures.mjs`'s own `fakeDb` — and that file's
+EXISTING `if (has("insert into vy_room_follower")) {...}` block (matching
+the FOLLOWER row upsert) also matched it, because the string
+`"insert into vy_room_follower_day"` literally CONTAINS
+`"insert into vy_room_follower"` as a substring. The day-counter's four
+positional params (`room_id, person_id, day, turns`) were silently written
+into the FOLLOWER row's own four-column shape
+(`follower_id, room_id, person_id, agent_id`), corrupting the very next
+follower row a `say` call touched — reproduced deterministically, visible
+as `state.followers[0]` holding a `room_id` of `aa111111-...` (a PERSON
+uuid) and a `person_id` of a literal date string. The same defect CLASS
+this repo already names for a different table pair
+(`router-matched-a-table-instead-of-a-statement`), a fifth instance.
+
+**The fix.** Matched the MORE SPECIFIC statement (`"insert into
+vy_room_follower_day"`) FIRST, in `evals/room-doors/fixtures.mjs`'s own
+`doorsPatterns` (checked before the base fixture it falls through to) —
+no edit to the shared `evals/room/fixtures.mjs` needed at all, because
+`doorsDb`'s composition already tries doors patterns before the base one.
+
+**What would reverse it.** Nothing to reverse — but the lesson generalises
+a fifth time: any fixture's `has(substring)` match against real SQL text
+must be checked, on every addition, against every OTHER table name in the
+same product that happens to share the new one as a prefix. A grep for the
+new table's name as a SUBSTRING of every other matched pattern, before
+trusting a new `has()` check, would have caught this before it ran once.
+
+## `ws-r94-shared-unknown-ip-bucket-exhausted-the-90-per-minute-room-ip-gate-across-both-locale-gates` (2026-09-05, WS-R94)
+
+**Tried.** Ran `evals/rehearsal/follower.mjs --full` (the English walk
+immediately followed by the Hindi walk, both browser contexts created with
+no `x-real-ip` header) and hit `429 {"error":"slow_down"}` on a plain
+`op:"open"` request partway through the Hindi walk — the exact top-level
+gate `api/room.js`'s `handler()` runs before dispatching to any op,
+`allow(ipOf(req), "room_ip", 90)`.
+
+**What broke.** `api/_ratelimit.js#ipOf(req)` reads `x-real-ip`/
+`x-vercel-forwarded-for`/`x-forwarded-for`; this harness's raw
+`http.createServer` sets none of them (there is no reverse proxy in front
+of it, by construction — the harness IS the origin), so `ipOf()` returns
+the literal string `"unknown"` for EVERY request from EVERY browser
+context. `allow()`'s bucket map is MODULE-LEVEL, in-process state, and both
+locale gates run in the SAME Node process (`follower.mjs`'s own `main()`),
+so the English walk's dozens of requests and the Hindi walk's own dozens
+all landed in the ONE bucket `"room_ip:unknown"` — comfortably over 90
+within the walk's own ~30-second wall clock.
+
+**The fix.** Gave each Playwright `browser.newContext()` a distinct
+synthetic `x-real-ip` header (`10.94.<gate offset + context index>.1`),
+restoring the property a real deployment always has for free (every real
+visitor has a real, distinct IP) rather than working around the limit
+itself — the 90/minute number is untouched and unrelated to this fix.
+
+**What would reverse it.** Nothing to reverse — this is a property of
+testing against a bare origin server rather than through a reverse proxy,
+not a defect in `ipOf()`'s own logic (which is exactly right in
+production, where Vercel always sets one of those headers). Any future
+harness in this shape that drives more than one "visitor" through the same
+process within a 60-second window needs the same synthetic-IP treatment,
+named here so it is not re-discovered as a mystery 429.
+
+## `ws-r94-css-selector-matched-before-the-real-effect-completed-twice` (2026-09-05, WS-R94)
+
+**Tried.** Two assertions in `evals/rehearsal/follower.mjs` originally
+waited on a CSS selector that was already present on screen BEFORE the
+action under test completed, then read fixture state immediately: creating
+a thread waited on `.room-rail button[aria-pressed]` (true of the
+pre-existing "Everything" button too), and forgetting waited on
+`.room-fine` (a class used all over the account menu's own fine print,
+already on screen before the delete).
+
+**What broke.** Both checks were racing the real network round trip rather
+than waiting for it — passed most runs (the round trip is fast enough to
+usually win the race) and failed intermittently (`evals/run.mjs
+rehearsal-follower`'s own first registry run caught the forget one; an
+earlier interactive run caught the thread one), which is the worst shape
+for a flaky check: it looks like the suite is solid until a slower run
+proves otherwise.
+
+**The fix.** Both now wait on the real op's own network response
+(`page.waitForResponse` matched on the exact `op` field in the POST body,
+run in parallel with the click via `Promise.all`) before reading fixture
+state, the same technique `joinFresh`'s own session capture already used.
+
+**What would reverse it.** Nothing to reverse — the general rule this
+confirms a third time in this repo's own history (alongside the wave-eleven
+fixed-clock/fixed-wait findings) is that a UI assertion following an async
+server call must wait on the SERVER'S OWN RESPONSE, never on a DOM
+selector that could already be satisfied by something already on screen
+before the call.
+
+## `ws-r94-joinroom-response-has-no-room-field-crashed-the-real-client` (2026-09-05, WS-R94, found and fixed)
+
+**Found.** The very first time `evals/rehearsal/follower.mjs` drove the
+REAL `JoinSheet` through a REAL `join` call against the REAL `api/room.js`,
+the app crashed on the next render: `TypeError: Cannot read properties of
+undefined (reading 'name')`. `joinRoom` (`api/_room-surface.js`)
+deliberately returns `{joined, locale, follower, threads, session}` — no
+`room` sub-object at all, by design (`openRoom`'s own response is the one
+place that lives) — but `RoomApp.tsx`'s `onJoined` callback did
+`setRoom(joined)`, replacing the ENTIRE room state with an object whose
+`.room` was `undefined`, and the very next paint (the header reading
+`room?.room.display_name`, or `ShareButton` reading `room.room.slug`)
+threw.
+
+**Why this had never been caught before.** `context/STATE.md`'s own LIVE
+table states it plainly: "no real Room has ever been joined outside a fake
+`db`". Every existing offline suite calls `joinRoom` directly with its own
+assertions on the RETURNED VALUE, never through `RoomApp.tsx`'s own state
+machine; `src/room/layoutFixture.tsx` (the layout/accessibility gates' own
+eyes for this screen) always supplies `fixtureOpen` as a pre-populated,
+already-joined `RoomOpen` object — it never drives the actual
+`TasteScreen -> JoinSheet -> onJoined -> talking` transition a real click
+produces. This transition had, quite literally, never run.
+
+**The fix.** `onJoined` now MERGES the response into the existing room
+state (`setRoom((prev) => (prev ? { ...prev, ...joined } : prev))`) instead
+of replacing it — `switchLocale`'s own handler two lines above in the same
+file already uses this exact shape for the identical reason (a partial
+server response), so the fix restates an established idiom rather than
+inventing a new one. See `context/decisions.md#ws-r94-onjoined-merges-into-
+existing-room-state`.
+
+**What would reverse it.** If `joinRoom`'s server response is ever widened
+to carry a full `room` object, the merge becomes redundant but stays
+harmless. Do not revert to `setRoom(joined)` outright without confirming
+the server side actually sends `room` again — and if this fix is ever
+reverted for any reason, re-run `evals/rehearsal/follower.mjs` first; it
+will fail loudly and immediately, which is the whole point of having built
+it.

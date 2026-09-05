@@ -8992,6 +8992,78 @@
       "kind": "measurement",
       "title": "The first real GitHub Actions run of the 21-check release gate took 8 minutes 34 seconds for Node 22 and 24 in parallel and passed; no job split needed.",
       "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-harness-over-fixture-db-not-a-second-fake-server",
+      "kind": "decision",
+      "title": "The follower-journey rehearsal mounts the real api/room.js and api/creator-page.js over a fixture db redirected at the module boundary, not a second fake-response server.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-model-and-auth-seams-are-loader-redirects-not-deps-injection",
+      "kind": "decision",
+      "title": "The model call and Supabase auth are faked via the same module.register() redirect as the db, not by adding a deps parameter to api/room.js.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-onjoined-merges-into-existing-room-state",
+      "kind": "decision",
+      "title": "RoomApp.tsx's onJoined now merges the join response into existing room state instead of replacing it, fixing a real crash the rehearsal found.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-hindi-walk-uses-the-real-language-switch-not-a-url-flag",
+      "kind": "decision",
+      "title": "The rehearsal's Hindi walk clicks the real language switch button; /r/<slug> has no ?lang= URL mechanism, unlike the layout fixture and the creator page.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-relative-reexport-of-the-redirect-target-self-redirects",
+      "kind": "rejection",
+      "title": "A stub re-exporting its own redirect target with a relative specifier self-redirects into an infinite loop; fixed with an absolute file:// URL import.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-partial-reexport-of-surfacejs-broke-unrelated-surfaces-at-link-time",
+      "kind": "rejection",
+      "title": "Re-exporting only the six names two known callers use from the redirected _surface.js broke api/_room-whatsapp.js's own import of dispatch at ESM link time.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-fixture-insert-substring-collision-corrupted-a-follower-row",
+      "kind": "rejection",
+      "title": "Enabling tableApplied for real reached vy_room_follower_day's INSERT, which the base fixture's vy_room_follower substring match silently mis-caught, corrupting a follower row.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-shared-unknown-ip-bucket-exhausted-the-90-per-minute-room-ip-gate-across-both-locale-gates",
+      "kind": "rejection",
+      "title": "Both locale gates share one process and one in-memory rate-limit bucket keyed \"unknown\" with no forwarded-for header, exhausting room_ip's 90/minute cap across both walks together.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-css-selector-matched-before-the-real-effect-completed-twice",
+      "kind": "rejection",
+      "title": "Two rehearsal assertions waited on a CSS selector already present before the real network call completed, passing most runs and failing intermittently; fixed to wait on the real response.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-joinroom-response-has-no-room-field-crashed-the-real-client",
+      "kind": "rejection",
+      "title": "The real join transition, driven for the first time ever by this rehearsal, crashed RoomApp.tsx because joinRoom's response carries no room object and onJoined replaced state with it wholesale.",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-rehearsal-wall-clock-2026-09-05",
+      "kind": "measurement",
+      "title": "The follower-journey rehearsal's 44-check en+hi walk runs in about 29s median (n=5); the gate-registered English-only form runs in about 19.5s median (n=2 registry runs).",
+      "at": "2026-09-05"
+    },
+    {
+      "id": "ws-r94-fixture-gaps-named-2026-09-05",
+      "kind": "measurement",
+      "title": "Named which SQL the follower journey's fixture answers for real versus falls through to a silent empty default (vy_episode only, harmless), and which ops are out of this journey's scope entirely.",
+      "at": "2026-09-05"
     }
   ],
   "edges": [
@@ -17614,6 +17686,61 @@
       "src": "rooms-migrations-122-123-125-live-verification-2026-09-05",
       "rel": "measured_by",
       "dst": "ws-r86-follower-referrals"
+    },
+    {
+      "src": "ws-r94-model-and-auth-seams-are-loader-redirects-not-deps-injection",
+      "rel": "part_of",
+      "dst": "ws-r94-harness-over-fixture-db-not-a-second-fake-server"
+    },
+    {
+      "src": "ws-r94-harness-over-fixture-db-not-a-second-fake-server",
+      "rel": "caused_by",
+      "dst": "ws-r94-joinroom-response-has-no-room-field-crashed-the-real-client"
+    },
+    {
+      "src": "ws-r94-harness-over-fixture-db-not-a-second-fake-server",
+      "rel": "caused_by",
+      "dst": "ws-r94-fixture-insert-substring-collision-corrupted-a-follower-row"
+    },
+    {
+      "src": "ws-r94-onjoined-merges-into-existing-room-state",
+      "rel": "caused_by",
+      "dst": "ws-r94-joinroom-response-has-no-room-field-crashed-the-real-client"
+    },
+    {
+      "src": "ws-r94-model-and-auth-seams-are-loader-redirects-not-deps-injection",
+      "rel": "caused_by",
+      "dst": "ws-r94-relative-reexport-of-the-redirect-target-self-redirects"
+    },
+    {
+      "src": "ws-r94-model-and-auth-seams-are-loader-redirects-not-deps-injection",
+      "rel": "caused_by",
+      "dst": "ws-r94-partial-reexport-of-surfacejs-broke-unrelated-surfaces-at-link-time"
+    },
+    {
+      "src": "ws-r94-rehearsal-wall-clock-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r94-harness-over-fixture-db-not-a-second-fake-server"
+    },
+    {
+      "src": "ws-r94-fixture-gaps-named-2026-09-05",
+      "rel": "measured_by",
+      "dst": "ws-r94-harness-over-fixture-db-not-a-second-fake-server"
+    },
+    {
+      "src": "ws-r94-hindi-walk-uses-the-real-language-switch-not-a-url-flag",
+      "rel": "part_of",
+      "dst": "ws-r94-harness-over-fixture-db-not-a-second-fake-server"
+    },
+    {
+      "src": "ws-r94-css-selector-matched-before-the-real-effect-completed-twice",
+      "rel": "part_of",
+      "dst": "ws-r94-harness-over-fixture-db-not-a-second-fake-server"
+    },
+    {
+      "src": "ws-r94-shared-unknown-ip-bucket-exhausted-the-90-per-minute-room-ip-gate-across-both-locale-gates",
+      "rel": "part_of",
+      "dst": "ws-r94-hindi-walk-uses-the-real-language-switch-not-a-url-flag"
     }
   ]
 }
