@@ -54,6 +54,8 @@ voice model silently).
 
 `npx vite build` alone is NOT a gate: it exits 0 with type errors.
 
+As of WS-R77 (2026-09-05), `.github/workflows/release-gate.yml` runs this exact `verify-release.mjs` command on every push, on Node 22 and Node 24, with real Chromium, so a push that never ran it by hand is gated in GitHub Actions instead of shipping ungated.
+
 Notes that will otherwise cost you an hour:
 - The two relational DB gates only run when `NEON_URL` is in the environment.
   Without it they print a skip, and `relcheck` is a hard gate wherever a URL is

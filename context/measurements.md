@@ -11096,3 +11096,41 @@ Checkout by any workstream, so the `payment_method` string this platform
 would actually read back from a live account has never been observed;
 `getSubscription`'s own caller is proven against `evals/org-billing`'s fake
 twin only, not against a sandbox account.
+
+## `ws-r77-local-rehearsal-runtime-2026-09-05` — the release gate's own runtime, before CI existed to measure it for real
+
+n = 21 checks (no `NEON_URL`), method: `node scripts/verify-release.mjs` run to completion on the untouched WS-R77 base (`8b154f8`) on this workstream's own 4-core/2.8GHz sandbox, 2026-09-05. Per-check wall time, in the order the gate runs them:
+
+| check | ms |
+|---|---|
+| typecheck | 17356 |
+| prompt budget | 2633 |
+| workflow lint | 66 |
+| motion lint | 447 |
+| board legibility | 27182 |
+| chrome copy | 353 |
+| mirrored constants | 97 |
+| enrollment sample rate | 58 |
+| enrollment bandwidth | 136 |
+| engine bundle fresh | 1231 |
+| stuck-turn endpoint | 3307 |
+| one voice | 24335 |
+| web build | 2043 |
+| layout readability | 202160 |
+| performance budgets | 53190 |
+| eval suite | 218484 |
+| room leak battery | 16215 |
+| room export completeness | 1933 |
+| room door battery | 1954 |
+| accessibility | 37289 |
+| security headers | 11841 |
+
+Sum of the 21 checks: 620,317 ms, about 10 minutes 20 seconds. All 21 passed. This does NOT include `npm ci`, `write-config.mjs --stub`, `evals/echosim/build.mjs`, or a Chromium download/install — the four steps the real CI job also has to run before `verify-release.mjs` starts — and it was measured on a 4-core sandbox, not GitHub's `ubuntu-latest` (2 cores). **Not measured: a real GitHub Actions runtime for either Node version.** This number is the floor a real run cannot beat, not a prediction of what one will show; `context/decisions.md#ws-r77-ci-gate-not-split-into-parallel-jobs-yet` names the reversal condition (a real run at or above 25 minutes) and what happens if it fires.
+
+Separately, both Node 22 (the system default here, `v22.22.2`) and Node 24 (`v24.20.0`, run via the real `node` npm package's bundled binary rather than a from-source build, since this sandbox has no `/opt/node24`) completed `CI=1 node scripts/write-config.mjs --stub`, `node evals/echosim/build.mjs`, and the font-install mechanism (see `context/decisions.md#ws-r77-ci-runs-the-whole-gate`) without error, under a fresh scratch `$HOME`. The full 21-check `verify-release.mjs` run was completed under Node 22 (twice: once on the untouched tree above, once on the finished tree, see the session log) and attempted under Node 24 under the same scratch `$HOME` and `PLAYWRIGHT_BROWSERS_PATH` — that Node 24 run is where this workstream's own glyph-detector finding below was actually caught.
+
+## `ws-r77-glyph-detector-null-uniform-treated-as-flaggable-2026-09-06`
+
+n = 1 string (real Hindi, "सभी", key `threads.all`), method: the SAME `.room-shell:lang(hi)` CSS resolution the real `room-hi` glyph pass uses, replayed by hand in a throwaway Playwright script against the exact `getComputedStyle(...).fontFamily` the page itself reports, under a scratch `$HOME` with `@expo-google-fonts/noto-sans-devanagari`'s ttf installed as a user-local system font (this workstream's own CI fix), 2026-09-06.
+
+Measured: `real` = 26.208px, `tofu` (3 boxes) = 28.992px, `diffPct` = 9.6% (below the 10% `MIN_GLYPH_DIFF_PCT` bar), `baseChars` = [स, भ] (2, since `ी` is a matra and `BASE_LETTER` excludes it), so `uniformWidths` returned `null` (its own `< MIN_DEVANAGARI_CHARS` floor, which needs 3 base letters). Before this workstream's fix, the results filter read `r.uniform !== false`, under which `null !== false` is `true` — so a `testable` string (3+ Devanagari codepoints, matras counted) whose uniformity could not actually be measured (fewer than 3 BASE letters) was treated the same as a CONFIRMED-uniform one, and got flagged on width-diff alone. This is the exact category `context/rejected.md#glyph-probe-width-diff-alone-flags-three-letter-matra-less-hindi-words` describes for "गलत"/"वजह" (both 3 base consonants, both confirmed uniform=true) but for a DIFFERENT shape: 2 base consonants plus 1 matra, confirmed uniform=null. Fixed by requiring `r.uniform === true` (see `context/rejected.md#ws-r77-glyph-uniform-null-treated-as-not-disproven-instead-of-not-confirmed`). Why this was never seen before: every prior run of this gate, on every machine that has run it, rendered Hindi copy through whatever the machine's OWN font substitution supplied for `sans-serif` (this repo loads no web fonts anywhere) — never through "Noto Sans Devanagari" itself, the CSS's actual first choice, until this workstream's own CI font-install step made that font available and preferred on a real run for the first time. Not measured: whether any OTHER string in the current 759+220-string Hindi corpus has the same 2-base-plus-matra shape AND a diffPct at or under 10% against the real font (a full `--only room-hi --only studio-hi` re-run after the fix, on this machine, is the check for that — see the session log for its result).

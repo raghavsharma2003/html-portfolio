@@ -117,7 +117,38 @@ studio for measurement, and releases it when the check finishes. Only one
 `verify-release.mjs` run — from any worktree, on this machine — can hold that
 port at a time; a second one gets `EADDRINUSE`. That is a collision with
 another gate run, not a defect: wait a minute for the first one to finish and
-rerun, rather than changing the port or skipping the gate.
+rerun, rather than changing the port or skipping the gate. This rule is local
+only — GitHub's runner is a fresh machine per job, so the workflow below never
+collides with a worktree running the gate by hand, or with another job in its
+own Node-22/Node-24 matrix.
+
+### CI runs the whole gate (WS-R77, 2026-09-05)
+
+`.github/workflows/release-gate.yml` runs `node scripts/verify-release.mjs` on
+every push to `main` or a `claude/**` branch (and on demand via
+`workflow_dispatch`), in a Node 22 x Node 24 matrix, with a real headless
+Chromium installed on the runner — the same 21 checks (23 only when
+`NEON_URL` is set, which this job never is) that this file has always called
+"the law," now run somewhere other than whichever machine a person or an
+agent happened to run them on by hand. It needs no secret: `CI=1 node
+scripts/write-config.mjs --stub` writes every key empty before the gate runs,
+the same stub every offline check in this repo already uses, and a step in
+the workflow statically asserts the file itself references no
+`secrets.<NAME>` before the gate is allowed to run. The one thing it installs
+beyond `npm ci` is the bundled `@expo-google-fonts/noto-sans-devanagari` face
+as a user-local system font (via `fc-cache`, no `apt-get`, no root) so the
+layout gate's Hindi glyph pass is proven against a real font on the runner
+rather than however the runner's own default font set happens to substitute —
+see that workflow file's own comments for why a "generous" local sandbox
+cannot be trusted to represent a stock `ubuntu-latest` image here. It is a
+separate workflow from `build-apk.yml` and `deploy-web.yml` on purpose: those
+two build a debug APK and push a live deploy respectively, and either one
+failing should not be confused with the release gate itself failing, or vice
+versa. A local `verify-release.mjs` run is still the fast feedback loop and
+still what a workstream commits against; this workflow is the backstop that
+catches the push nobody ran it against by hand — see
+`context/decisions.md#ws-r77-ci-runs-the-whole-gate` for the reversal
+condition.
 
 ---
 
